@@ -1288,6 +1288,48 @@ func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName s
 	return staff, account
 }
 
+// CreateTestCalendarStaff creates a staff member that is reachable for calendar
+// invitations. On top of CreateTestStaffWithAccount it adds an active
+// account_tenants mapping for tenant 1 and the base "user" role (which carries
+// calendar:own via migration 1.15.171), mirroring a real onboarded staff
+// account so FindReachableCalendarStaffIDs treats them as invitable. Use this in
+// calendar tests wherever staff must be selectable recipients. Cleanup: the
+// added rows are removed by CleanupAuthFixtures (account_tenants + account_roles
+// by account_id), which calendar tests already call for the account.
+func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName)
+
+	now := time.Now()
+	mapping := &auth.AccountTenant{
+		AccountID:   account.ID,
+		TenantID:    1,
+		Status:      auth.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	_, err := db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).Exec(ctx)
+	require.NoError(tb, err, "Failed to create staff account_tenants mapping")
+
+	var userRoleID int64
+	err = db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", auth.BaseRoleUser).
+		Scan(ctx, &userRoleID)
+	require.NoError(tb, err, "Failed to find seeded user role")
+
+	roleAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: userRoleID}
+	roleAssignment.SetTenantID(1)
+	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	require.NoError(tb, err, "Failed to assign user role to staff account")
+
+	return staff, account
+}
+
 // CreateTestTeacherWithAccount creates a teacher with full chain: Account → Person → Staff → Teacher.
 // Returns the teacher and account for auth context testing.
 func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Teacher, *auth.Account) {
@@ -2971,6 +3013,26 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	_, err = db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).Exec(ctx)
 	require.NoError(tb, err, "Failed to create account_tenants mapping")
 
+	// Assign the auth guardian role, mirroring production: both
+	// guardianInvitationService.linkProfileToAccount and
+	// guardianService.ensureGuardianRole grant this role, and parent login
+	// (plus reachability checks like FindActivePortalProfilesByIDs) rejects
+	// accounts without it. Without this a portal-capable guardian couldn't
+	// exist in the real system. The 'guardian' role is seeded by migration
+	// 1.7.4, so it always exists in the test DB.
+	var guardianRoleID int64
+	err = db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", auth.BaseRoleGuardian).
+		Scan(ctx, &guardianRoleID)
+	require.NoError(tb, err, "Failed to find seeded guardian role")
+
+	roleAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: guardianRoleID}
+	roleAssignment.SetTenantID(1)
+	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	require.NoError(tb, err, "Failed to assign guardian role")
+
 	return ParentChain{
 		AccountID:         account.ID,
 		TenantID:          1,
@@ -3007,6 +3069,7 @@ func CleanupParentGuardianChain(tb testing.TB, db *bun.DB, c ParentChain) {
 	exec(`DELETE FROM users.parent_message_threads WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM active.student_status_days WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM users.students_guardians WHERE student_id = ?`, c.StudentID)
+	exec(`DELETE FROM auth.account_roles WHERE account_id = ?`, c.AccountID)
 	exec(`DELETE FROM auth.account_tenants WHERE account_id = ?`, c.AccountID)
 	exec(`DELETE FROM users.guardian_profiles WHERE id = ?`, c.GuardianProfileID)
 	exec(`DELETE FROM users.students WHERE id = ?`, c.StudentID)

@@ -235,6 +235,10 @@ func (m *wsMockStaffRepository) List(ctx context.Context, filters map[string]int
 	return nil, nil
 }
 
+func (*wsMockStaffRepository) FindReachableCalendarStaffIDs(context.Context, []int64) (map[int64]bool, error) {
+	return map[int64]bool{}, nil
+}
+
 func (m *wsMockStaffRepository) ListAllWithPerson(ctx context.Context) ([]*userModels.Staff, error) {
 	return nil, nil
 }

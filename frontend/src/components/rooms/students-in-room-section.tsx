@@ -431,7 +431,9 @@ interface BulkMoveToolbarProps {
   readonly targetActiveGroupId: string;
   readonly targetOptions: readonly TargetRoomOption[];
   readonly state:
-    { type: "idle" } | { type: "loading" } | { type: "error"; message: string };
+    | { type: "idle" }
+    | { type: "loading" }
+    | { type: "error"; message: string };
   readonly onSelectAll: () => void;
   readonly onClearSelection: () => void;
   readonly onTargetChange: (value: string) => void;

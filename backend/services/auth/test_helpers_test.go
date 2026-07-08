@@ -1354,6 +1354,10 @@ func (r *stubStaffRepository) FindWithPerson(context.Context, int64) (*userModel
 	panic("FindWithPerson not implemented")
 }
 
+func (*stubStaffRepository) FindReachableCalendarStaffIDs(context.Context, []int64) (map[int64]bool, error) {
+	return map[int64]bool{}, nil
+}
+
 func (r *stubStaffRepository) ListAllWithPerson(context.Context) ([]*userModel.Staff, error) {
 	panic("ListAllWithPerson not implemented")
 }

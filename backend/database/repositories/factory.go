@@ -5,6 +5,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	"github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	"github.com/moto-nrw/project-phoenix/database/repositories/auth"
+	calendarRepo "github.com/moto-nrw/project-phoenix/database/repositories/calendar"
 	"github.com/moto-nrw/project-phoenix/database/repositories/config"
 	"github.com/moto-nrw/project-phoenix/database/repositories/education"
 	"github.com/moto-nrw/project-phoenix/database/repositories/enrollment"
@@ -22,6 +23,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
+	calendarModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -202,6 +204,14 @@ type Factory struct {
 	ParentMessage       userModels.ParentMessageRepository
 	ParentMessageRead   userModels.ParentMessageReadRepository
 
+	// Calendar domain
+	CalendarAppointment               calendarModels.AppointmentRepository
+	CalendarRecurrenceRule            calendarModels.RecurrenceRuleRepository
+	CalendarAppointmentRecipient      calendarModels.AppointmentRecipientRepository
+	CalendarAppointmentRecipientChild calendarModels.AppointmentRecipientStudentRepository
+	CalendarAppointmentTarget         calendarModels.AppointmentTargetRepository
+	CalendarOccurrenceOverride        calendarModels.AppointmentOccurrenceOverrideRepository
+
 	// Parent announcements (tenant-authored broadcast news to guardians)
 	ParentAnnouncement userModels.ParentAnnouncementRepository
 }
@@ -369,6 +379,14 @@ func NewFactory(db *bun.DB) *Factory {
 		ParentMessageThread: users.NewParentMessageThreadRepository(db),
 		ParentMessage:       users.NewParentMessageRepository(db),
 		ParentMessageRead:   users.NewParentMessageReadRepository(db),
-		ParentAnnouncement:  users.NewParentAnnouncementRepository(db),
+
+		// Calendar repositories
+		CalendarAppointment:               calendarRepo.NewAppointmentRepository(db),
+		CalendarRecurrenceRule:            calendarRepo.NewRecurrenceRuleRepository(db),
+		CalendarAppointmentRecipient:      calendarRepo.NewAppointmentRecipientRepository(db),
+		CalendarAppointmentRecipientChild: calendarRepo.NewAppointmentRecipientStudentRepository(db),
+		CalendarAppointmentTarget:         calendarRepo.NewAppointmentTargetRepository(db),
+		CalendarOccurrenceOverride:        calendarRepo.NewAppointmentOccurrenceOverrideRepository(db),
+		ParentAnnouncement:                users.NewParentAnnouncementRepository(db),
 	}
 }

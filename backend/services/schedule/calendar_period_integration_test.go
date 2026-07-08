@@ -389,17 +389,17 @@ func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 // never race with other tests (or parallel packages) that create calendar
 // periods in the shared tenant 1. Calendar periods of the tenant are removed
 // on cleanup; the school/org rows are idempotent fixtures and stay.
-func newBootstrapTenant(t *testing.T, db *bun.DB, base int64) (int64, context.Context) {
+func newBootstrapTenant(t *testing.T, db *bun.DB) (int64, context.Context) {
 	t.Helper()
-	tenantID := base + time.Now().UnixNano()%50000
-	testpkg.EnsureTestTenant(t, db, tenantID)
+	scope := testpkg.NewTenantScope(t, db)
+	tenantID := scope.TenantID
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().
 			Table("schedule.calendar_periods").
 			Where("tenant_id = ?", tenantID).
 			Exec(context.Background())
 	})
-	return tenantID, testpkg.TenantContext(tenantID)
+	return tenantID, scope.Context()
 }
 
 func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
@@ -409,7 +409,7 @@ func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
 	svc := setupCalendarPeriodService(t, db)
 
 	t.Run("creates default school year when tenant has none", func(t *testing.T) {
-		_, ctx := newBootstrapTenant(t, db, 710000)
+		_, ctx := newBootstrapTenant(t, db)
 
 		periods, created, err := svc.EnsureDefaultSchoolYear(ctx)
 
@@ -433,7 +433,7 @@ func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
 	})
 
 	t.Run("is idempotent on repeated calls", func(t *testing.T) {
-		_, ctx := newBootstrapTenant(t, db, 720000)
+		_, ctx := newBootstrapTenant(t, db)
 
 		first, created, err := svc.EnsureDefaultSchoolYear(ctx)
 		require.NoError(t, err)
@@ -448,7 +448,7 @@ func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
 	})
 
 	t.Run("no-op when any period already exists", func(t *testing.T) {
-		_, ctx := newBootstrapTenant(t, db, 730000)
+		_, ctx := newBootstrapTenant(t, db)
 
 		existing := &scheduleModels.CalendarPeriod{
 			Name:            fmt.Sprintf("Vorhandener-Zeitraum-%d", time.Now().UnixNano()),
@@ -469,8 +469,8 @@ func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
 	})
 
 	t.Run("tenant isolation", func(t *testing.T) {
-		tenantA, ctxA := newBootstrapTenant(t, db, 740000)
-		tenantB, ctxB := newBootstrapTenant(t, db, 750000)
+		tenantA, ctxA := newBootstrapTenant(t, db)
+		tenantB, ctxB := newBootstrapTenant(t, db)
 		require.NotEqual(t, tenantA, tenantB)
 
 		periodsA, createdA, err := svc.EnsureDefaultSchoolYear(ctxA)
@@ -494,7 +494,7 @@ func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
 	})
 
 	t.Run("concurrent calls yield one row and no error", func(t *testing.T) {
-		tenantID, ctx := newBootstrapTenant(t, db, 760000)
+		tenantID, ctx := newBootstrapTenant(t, db)
 
 		type outcome struct {
 			periods []*scheduleModels.CalendarPeriod
@@ -543,7 +543,7 @@ func TestCalendarPeriodService_FindActiveOverlaps(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	svc := setupCalendarPeriodService(t, db)
-	_, ctx := newBootstrapTenant(t, db, 770000)
+	_, ctx := newBootstrapTenant(t, db)
 
 	suffix := time.Now().UnixNano()
 	active := &scheduleModels.CalendarPeriod{
