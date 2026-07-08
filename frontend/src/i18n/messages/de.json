@@ -289,6 +289,7 @@
       "pendingLabel": "Freigabe ausstehend",
       "rejectedLabel": "Abgelehnt",
       "withdraw": "Zurückziehen",
+      "withdrawError": "Zurückziehen fehlgeschlagen. Bitte aktualisieren Sie die Seite.",
       "reasonPrefix": "Grund"
     },
     "pickup": {

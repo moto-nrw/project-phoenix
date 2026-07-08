@@ -708,6 +708,15 @@ export function SickStatusSummary({
   const t = useTranslations("parentChildCare");
   const locale = useLocale();
   const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
+  // Which request's withdraw last failed, plus the message to show. A failed
+  // DELETE (network error, or a 409 because the OGS already decided/withdrew it)
+  // must not stay silent — the pending row would otherwise linger with no hint
+  // that the action didn't take. Keyed by id so the error renders on the exact
+  // row the parent clicked.
+  const [withdrawError, setWithdrawError] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
 
   const rangeLabel = (dates: readonly string[]): string => {
     const sorted = [...dates].sort((a, b) => a.localeCompare(b));
@@ -722,12 +731,18 @@ export function SickStatusSummary({
   const handleWithdraw = async (requestId: string) => {
     if (!onWithdraw) return;
     setWithdrawingId(requestId);
+    setWithdrawError(null);
     try {
       await onWithdraw(requestId);
     } catch (err) {
       logger.warn("excused_request_withdraw_failed", {
         error: err instanceof Error ? err.message : String(err),
         request_id: requestId,
+      });
+      setWithdrawError({
+        id: requestId,
+        message:
+          err instanceof Error ? err.message : t("summary.withdrawError"),
       });
     } finally {
       setWithdrawingId(null);
@@ -765,22 +780,27 @@ export function SickStatusSummary({
         </p>
       )}
       {pending.map((r) => (
-        <div key={r.id} className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <p className="text-sm font-semibold text-gray-900">
-            {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
-          </p>
-          <span className="inline-flex items-center rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#92710b]">
-            {t("summary.pendingLabel")}
-          </span>
-          {onWithdraw && (
-            <button
-              type="button"
-              disabled={withdrawingId === r.id}
-              onClick={() => void handleWithdraw(r.id)}
-              className="text-xs font-medium text-gray-500 underline underline-offset-2 transition-colors hover:text-gray-700 disabled:opacity-50"
-            >
-              {t("summary.withdraw")}
-            </button>
+        <div key={r.id} className="space-y-0.5">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="text-sm font-semibold text-gray-900">
+              {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
+            </p>
+            <span className="inline-flex items-center rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#92710b]">
+              {t("summary.pendingLabel")}
+            </span>
+            {onWithdraw && (
+              <button
+                type="button"
+                disabled={withdrawingId === r.id}
+                onClick={() => void handleWithdraw(r.id)}
+                className="text-xs font-medium text-gray-500 underline underline-offset-2 transition-colors hover:text-gray-700 disabled:opacity-50"
+              >
+                {t("summary.withdraw")}
+              </button>
+            )}
+          </div>
+          {withdrawError?.id === r.id && (
+            <p className="text-xs text-[#CC2626]">{withdrawError.message}</p>
           )}
         </div>
       ))}

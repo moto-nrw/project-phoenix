@@ -289,6 +289,7 @@
       "pendingLabel": "Në pritje të miratimit",
       "rejectedLabel": "U refuzua",
       "withdraw": "Tërhiq",
+      "withdrawError": "Tërheqja dështoi. Ju lutemi rifreskoni faqen.",
       "reasonPrefix": "Arsyeja"
     },
     "pickup": {
