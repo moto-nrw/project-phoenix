@@ -110,6 +110,8 @@ export interface AdminRequestChild {
   last_name: string;
   date_of_birth: string;
   target_grade_level?: number;
+  /** Concrete future class (e.g. "2a") when collected (#1833). */
+  target_school_class?: string;
   status: ChildStatus;
   status_reason?: string | null;
   reviewed_at?: string | null;

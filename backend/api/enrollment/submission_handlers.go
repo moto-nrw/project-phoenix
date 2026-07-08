@@ -35,14 +35,15 @@ import (
 // selected_days is a non-empty subset of the offering's
 // available_days.
 type SubmitChildRequest struct {
-	ID               *int64                  `json:"id,omitempty,string"`
-	FirstName        string                  `json:"first_name"`
-	LastName         string                  `json:"last_name"`
-	DateOfBirth      string                  `json:"date_of_birth"`
-	TargetGradeLevel *int16                  `json:"target_grade_level,omitempty"`
-	CustomData       map[string]any          `json:"custom_data,omitempty"`
-	OfferingIDs      []int64                 `json:"offering_ids,omitempty"`
-	OfferingDays     []SubmitOfferingDaysRow `json:"offering_days,omitempty"`
+	ID                *int64                  `json:"id,omitempty,string"`
+	FirstName         string                  `json:"first_name"`
+	LastName          string                  `json:"last_name"`
+	DateOfBirth       string                  `json:"date_of_birth"`
+	TargetGradeLevel  *int16                  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string                 `json:"target_school_class,omitempty"`
+	CustomData        map[string]any          `json:"custom_data,omitempty"`
+	OfferingIDs       []int64                 `json:"offering_ids,omitempty"`
+	OfferingDays      []SubmitOfferingDaysRow `json:"offering_days,omitempty"`
 }
 
 // SubmitOfferingDaysRow is one row of SubmitChildRequest.OfferingDays.
@@ -229,14 +230,15 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 			})
 		}
 		out.Children = append(out.Children, enrollmentService.SubmitChild{
-			ID:               int64PtrValue(c.ID),
-			FirstName:        c.FirstName,
-			LastName:         c.LastName,
-			DateOfBirth:      dob,
-			TargetGradeLevel: c.TargetGradeLevel,
-			CustomData:       c.CustomData,
-			OfferingIDs:      c.OfferingIDs,
-			OfferingDays:     offeringDays,
+			ID:                int64PtrValue(c.ID),
+			FirstName:         c.FirstName,
+			LastName:          c.LastName,
+			DateOfBirth:       dob,
+			TargetGradeLevel:  c.TargetGradeLevel,
+			TargetSchoolClass: c.TargetSchoolClass,
+			CustomData:        c.CustomData,
+			OfferingIDs:       c.OfferingIDs,
+			OfferingDays:      offeringDays,
 		})
 	}
 	return out, nil
@@ -385,6 +387,7 @@ type EditBootstrapResponse struct {
 	Offerings                 []CareOfferingResponse    `json:"offerings"`
 	CareOfferingSelectionMode string                    `json:"care_offering_selection_mode"`
 	CareRequired              bool                      `json:"care_required"`
+	SchoolClass               PublicSchoolClassConfig   `json:"school_class"`
 	LegalTexts                PublicLegalTextsResponse  `json:"legal_texts"`
 	Draft                     EditDraftResponse         `json:"draft"`
 	EditMode                  string                    `json:"edit_mode"`
@@ -414,14 +417,15 @@ type EditDraftGuardianResponse struct {
 }
 
 type EditDraftChildResponse struct {
-	ID               string                         `json:"id"`
-	FirstName        string                         `json:"first_name"`
-	LastName         string                         `json:"last_name"`
-	DateOfBirth      string                         `json:"date_of_birth"`
-	TargetGradeLevel *int16                         `json:"target_grade_level,omitempty"`
-	CustomData       map[string]any                 `json:"custom_data"`
-	OfferingIDs      []string                       `json:"offering_ids"`
-	OfferingDays     []EditDraftOfferingDayResponse `json:"offering_days,omitempty"`
+	ID                string                         `json:"id"`
+	FirstName         string                         `json:"first_name"`
+	LastName          string                         `json:"last_name"`
+	DateOfBirth       string                         `json:"date_of_birth"`
+	TargetGradeLevel  *int16                         `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string                        `json:"target_school_class,omitempty"`
+	CustomData        map[string]any                 `json:"custom_data"`
+	OfferingIDs       []string                       `json:"offering_ids"`
+	OfferingDays      []EditDraftOfferingDayResponse `json:"offering_days,omitempty"`
 }
 
 type EditDraftOfferingDayResponse struct {
@@ -541,6 +545,7 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 		Offerings:                 offerings,
 		CareOfferingSelectionMode: draft.Phase.CareOfferingSelectionMode,
 		CareRequired:              draft.Phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
+		SchoolClass:               toPublicSchoolClassConfig(draft.Phase, draft.CollectSchoolClass),
 		LegalTexts: PublicLegalTextsResponse{
 			AGB:                 draft.LegalTexts.AGB,
 			DSGVO:               draft.LegalTexts.DSGVO,
@@ -584,13 +589,14 @@ func toEditDraftResponse(draft *enrollmentService.EditDraft) EditDraftResponse {
 	}
 	for _, c := range draft.Children {
 		child := EditDraftChildResponse{
-			ID:               strconv.FormatInt(c.ID, 10),
-			FirstName:        c.FirstName,
-			LastName:         c.LastName,
-			DateOfBirth:      c.DateOfBirth.String(),
-			TargetGradeLevel: c.TargetGradeLevel,
-			CustomData:       c.CustomData,
-			OfferingIDs:      []string{},
+			ID:                strconv.FormatInt(c.ID, 10),
+			FirstName:         c.FirstName,
+			LastName:          c.LastName,
+			DateOfBirth:       c.DateOfBirth.String(),
+			TargetGradeLevel:  c.TargetGradeLevel,
+			TargetSchoolClass: c.TargetSchoolClass,
+			CustomData:        c.CustomData,
+			OfferingIDs:       []string{},
 		}
 		for _, link := range draft.OfferingsByChild[c.ID] {
 			child.OfferingIDs = append(child.OfferingIDs, strconv.FormatInt(link.CareOfferingID, 10))

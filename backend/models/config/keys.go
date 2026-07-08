@@ -200,6 +200,7 @@ const (
 const (
 	KeyEnrollmentEnabled                                = "enrollment.enabled"
 	KeyEnrollmentCollectGradeLevel                      = "enrollment.collect_grade_level"
+	KeyEnrollmentCollectSchoolClass                     = "enrollment.collect_school_class"
 	KeyEnrollmentCareOfferingsEnabled                   = "enrollment.care_offerings_enabled"
 	KeyEnrollmentDefaultActivationMode                  = "enrollment.default_activation_mode"
 	KeyEnrollmentNotificationEmails                     = "enrollment.notification_emails"

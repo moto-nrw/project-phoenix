@@ -345,12 +345,21 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 		ShowStatusReasonToParent:  source.ShowStatusReasonToParent,
 		CareOverflowMode:          source.CareOverflowMode,
 		CareOfferingSelectionMode: source.CareOfferingSelectionMode,
-		IsActive:                  true,
-		RolloverSourcePhaseID:     &source.ID,
-		RolloverMode:              &mode,
-		RolloverAutoApprove:       req.RolloverAutoApprove,
-		RolloverDeadline:          &deadline,
-		RolloverBumpsGrade:        req.RolloverBumpsGrade,
+		// Carry the concrete-class config forward (issue #1833). A
+		// half-year rollover carries each child's class (e.g. "2a") into
+		// the new phase; without copying the offered-class list the submit
+		// validator would reject that carried value as "not offered by this
+		// phase", blocking the parent's opt-in/edit. Copying the source
+		// config keeps carried classes valid and preserves the source's
+		// require-class policy.
+		AvailableSchoolClasses: source.AvailableSchoolClasses,
+		RequireSchoolClass:     source.RequireSchoolClass,
+		IsActive:               true,
+		RolloverSourcePhaseID:  &source.ID,
+		RolloverMode:           &mode,
+		RolloverAutoApprove:    req.RolloverAutoApprove,
+		RolloverDeadline:       &deadline,
+		RolloverBumpsGrade:     req.RolloverBumpsGrade,
 	}
 	newPhase.SetTenantID(tenantID)
 	if err := newPhase.Validate(); err != nil {
@@ -455,6 +464,23 @@ func (s *rolloverService) rollOneRequest(
 			result.RolledCount++
 		}
 
+		// Concrete class (issue #1833): only carry it forward when the
+		// grade stays the same (half-year rollover) AND the row is not
+		// heading into admin review. When the grade bumps, last year's
+		// class letter (e.g. "2a") is stale for the new grade. Review
+		// rows are exactly the ones whose target grade is uncertain
+		// (no grade on file, or above the cap) — pinning a concrete
+		// class there would let a stale letter win on approval even
+		// after the admin overrides the grade in the review queue. In
+		// both cases drop it and let the parent/admin re-pick in the new
+		// phase. Either way no data is lost: on approval the decision
+		// service preserves the student's existing class instead of
+		// clobbering it.
+		var carriedClass *string
+		if !newPhase.RolloverBumpsGrade && reviewReason == "" {
+			carriedClass = source.TargetSchoolClass
+		}
+
 		sourceID := source.ID
 		child := &enrollmentModels.RequestChild{
 			RequestID:             newReq.ID,
@@ -462,6 +488,7 @@ func (s *rolloverService) rollOneRequest(
 			LastName:              source.LastName,
 			DateOfBirth:           source.DateOfBirth,
 			TargetGradeLevel:      newGradePtr,
+			TargetSchoolClass:     carriedClass,
 			CustomData:            source.CustomData,
 			Status:                status,
 			ActivationMode:        source.ActivationMode,

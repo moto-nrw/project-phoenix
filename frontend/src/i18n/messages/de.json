@@ -547,6 +547,9 @@
       "emailPlain": "E-Mail",
       "dateOfBirth": "Geburtsdatum *",
       "gradeLevel": "Klassenstufe *",
+      "schoolClass": "Klasse",
+      "schoolClassRequired": "Klasse *",
+      "schoolClassOpen": "Klasse offen",
       "choose": "Bitte wählen",
       "grade": "{grade}. Klasse"
     },
@@ -559,6 +562,7 @@
       "validPhone": "Bitte gültige Telefonnummer angeben.",
       "dob": "Bitte Geburtsdatum angeben.",
       "grade": "Bitte Klassenstufe angeben.",
+      "schoolClass": "Bitte Klasse angeben.",
       "agb": "Bitte den AGB zustimmen.",
       "data": "Bitte der Datenverarbeitung zustimmen.",
       "emailContact": "Bitte dem E-Mail-Kontakt zustimmen.",
@@ -855,7 +859,8 @@
         "last_name": "Nachname",
         "offering_days": "Betreuungstage",
         "offering_ids": "Betreuungsangebote",
-        "target_grade_level": "Zielklasse"
+        "target_grade_level": "Zielklasse",
+        "target_school_class": "Klasse"
       },
       "guardian": {
         "email": "E-Mail",

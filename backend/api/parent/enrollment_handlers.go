@@ -175,13 +175,14 @@ func parseLeadingGrade(schoolClass string) int {
 // duplicate (vs. importing the public type) so the parent route stays
 // independent of the public API package.
 type submitParentChildRequest struct {
-	FirstName        string                          `json:"first_name"`
-	LastName         string                          `json:"last_name"`
-	DateOfBirth      string                          `json:"date_of_birth"`
-	TargetGradeLevel *int16                          `json:"target_grade_level,omitempty"`
-	CustomData       map[string]any                  `json:"custom_data,omitempty"`
-	OfferingIDs      []int64                         `json:"offering_ids,omitempty"`
-	OfferingDays     []submitParentOfferingDaysEntry `json:"offering_days,omitempty"`
+	FirstName         string                          `json:"first_name"`
+	LastName          string                          `json:"last_name"`
+	DateOfBirth       string                          `json:"date_of_birth"`
+	TargetGradeLevel  *int16                          `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string                         `json:"target_school_class,omitempty"`
+	CustomData        map[string]any                  `json:"custom_data,omitempty"`
+	OfferingIDs       []int64                         `json:"offering_ids,omitempty"`
+	OfferingDays      []submitParentOfferingDaysEntry `json:"offering_days,omitempty"`
 }
 
 // submitParentOfferingDaysEntry mirrors api/enrollment.SubmitOfferingDaysRow.
@@ -372,13 +373,14 @@ func buildParentServiceRequest(wireReq *submitParentEnrollmentRequest, tenantID,
 			})
 		}
 		out.Children = append(out.Children, enrollmentService.SubmitChild{
-			FirstName:        c.FirstName,
-			LastName:         c.LastName,
-			DateOfBirth:      dob,
-			TargetGradeLevel: c.TargetGradeLevel,
-			CustomData:       c.CustomData,
-			OfferingIDs:      c.OfferingIDs,
-			OfferingDays:     offeringDays,
+			FirstName:         c.FirstName,
+			LastName:          c.LastName,
+			DateOfBirth:       dob,
+			TargetGradeLevel:  c.TargetGradeLevel,
+			TargetSchoolClass: c.TargetSchoolClass,
+			CustomData:        c.CustomData,
+			OfferingIDs:       c.OfferingIDs,
+			OfferingDays:      offeringDays,
 		})
 	}
 	return out, nil
