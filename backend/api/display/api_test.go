@@ -558,11 +558,26 @@ func TestDisplayMutationsTouchUpdatedAt(t *testing.T) {
 		return updatedAt
 	}
 
+	// Backdate the row so the assertion is immune to clock skew between the
+	// Postgres container (which stamps updated_at on insert) and the Go test
+	// process (which stamps it on mutation).
+	backdateUpdatedAt := func(t *testing.T, id string) {
+		t.Helper()
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := db.NewUpdate().
+			TableExpr("display.displays").
+			Set("updated_at = updated_at - INTERVAL '1 hour'").
+			Where("id = ?", id).
+			Exec(ctx)
+		require.NoError(t, err)
+	}
+
 	t.Run("rename moves updated_at", func(t *testing.T) {
 		id, _ := createDisplayViaAPI(t, router, adminJWT, "Touch Rename")
+		backdateUpdatedAt(t, id)
 		before := fetchUpdatedAt(t, id)
 
-		time.Sleep(50 * time.Millisecond)
 		rec := doDisplayRequest(t, router, http.MethodPatch, "/"+id, adminJWT, map[string]any{"name": "Touch Renamed"})
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
@@ -571,9 +586,9 @@ func TestDisplayMutationsTouchUpdatedAt(t *testing.T) {
 
 	t.Run("regenerate moves updated_at", func(t *testing.T) {
 		id, _ := createDisplayViaAPI(t, router, adminJWT, "Touch Regenerate")
+		backdateUpdatedAt(t, id)
 		before := fetchUpdatedAt(t, id)
 
-		time.Sleep(50 * time.Millisecond)
 		rec := doDisplayRequest(t, router, http.MethodPost, "/"+id+"/regenerate", adminJWT, nil)
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
