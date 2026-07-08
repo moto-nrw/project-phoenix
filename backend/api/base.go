@@ -26,6 +26,7 @@ import (
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	databaseAPI "github.com/moto-nrw/project-phoenix/api/database"
+	displayAPI "github.com/moto-nrw/project-phoenix/api/display"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/api/emergency"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/api/enrollment"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/feedback"
@@ -89,6 +90,7 @@ type API struct {
 	MealPlan         *mealplanAPI.Resource
 	Suggestions      *suggestionsAPI.Resource
 	Enrollment       *enrollmentAPI.Resource
+	Display          *displayAPI.Resource
 	Schedules        *schedulesAPI.Resource
 	Settings         *configAPI.SettingsResource
 	Active           *activeAPI.Resource
@@ -437,6 +439,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		repoFactory.FormSchema,
 	)
 	api.Enrollment.ListExportService = api.Services.ListExport
+	api.Display = displayAPI.NewResource(api.Services.Display, api.Services.Settings, db)
 	api.Suggestions = suggestionsAPI.NewResource(api.Services.Suggestions, db)
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub, repoFactory.FormSchema)
@@ -633,6 +636,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 		// Mount enrollment resources (parent-enrollment PR 5+)
 		r.Mount("/enrollment", a.Enrollment.Router())
+
+		// Mount info-point display resources (issue #1325)
+		r.Mount("/display", a.Display.Router())
 
 		// Mount suggestions resources
 		r.Mount("/suggestions", a.Suggestions.Router())

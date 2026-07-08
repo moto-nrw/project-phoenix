@@ -273,6 +273,13 @@ const (
 	KeyTimetableDayEndTime   = "timetable.day_end_time"
 )
 
+// Info-point display settings (issue #1325). The whole feature is opt-in:
+// a school must explicitly enable it before the admin UI and public
+// dashboard endpoint become reachable. Definitions live in defaults/display.go.
+const (
+	KeyDisplayEnabled = "display.enabled"
+)
+
 // Reminder settings (issue #1457). Visual-only (no sound) reminders surfaced
 // on the staff "Erinnerungen" page. Every type defaults OFF — a school opts in
 // per event type. Lead-time minutes control how early an upcoming-pickup /

@@ -8,6 +8,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
+  useDisplayEnabled,
   useNFCEnabled,
   usePresenceMode,
   useTenantSlugSafe,
@@ -46,7 +47,9 @@ interface NavItem {
   // Show when the caller holds this tenant permission (admins always pass). Use
   // instead of requiresAdmin for items open to more than admins, e.g. the
   // Änderungsanfragen queue (users:update, scoped per child in the backend).
-  requiresPermission?: string;
+  // An array shows the item when ANY listed permission is held (matching
+  // backend RequiresAnyPermission routes).
+  requiresPermission?: string | readonly string[];
   alwaysShow?: boolean;
   hideForAdmin?: boolean;
   comingSoon?: boolean;
@@ -107,6 +110,13 @@ const NAV_ITEMS: NavItem[] = [
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     activeColor: "text-pink-500",
     requiresAdmin: true,
+  },
+  {
+    href: "/info-displays",
+    label: "Info-Displays",
+    icon: "M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z",
+    activeColor: "text-[#5080D8]",
+    requiresPermission: ["display:read", "display:manage"],
   },
   {
     href: "/time-tracking",
@@ -493,6 +503,7 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const presenceMode = usePresenceMode();
   const isBinaryMode = presenceMode === "binary";
   const nfcEnabled = useNFCEnabled();
+  const displayEnabled = useDisplayEnabled();
   const { counts: groupAttendanceCounts } = useGroupAttendanceCounts();
   const canShowGroupAttendanceCounts = pathname.startsWith("/ogs-groups");
   // Fetch the settings schema for anyone the backend lets read config, not just
@@ -602,15 +613,20 @@ function SidebarContent({ className = "" }: SidebarProps) {
     if (item.hideForAdmin && userIsAdmin && !userIsCaregiver) return false;
     if (!nfcEnabled && NFC_ONLY_HREFS.has(item.href)) return false;
     if (isBinaryMode && BINARY_HIDDEN_HREFS.has(item.href)) return false;
+    // Info-Point Dashboard is opt-in (display.enabled, default off) — hide
+    // the admin entry until a school explicitly turns the feature on.
+    if (!displayEnabled && item.href === "/info-displays") return false;
     if (item.alwaysShow) return true;
     // Permission-gated items (e.g. Änderungsanfragen on users:update): show for
-    // admins or anyone holding the permission, matching the backend route gate.
-    if (
-      item.requiresPermission &&
-      !userIsAdmin &&
-      !hasPermission(session, item.requiresPermission)
-    )
-      return false;
+    // admins or anyone holding the permission (any of them, for arrays),
+    // matching the backend route gate.
+    if (item.requiresPermission && !userIsAdmin) {
+      const required =
+        typeof item.requiresPermission === "string"
+          ? [item.requiresPermission]
+          : item.requiresPermission;
+      if (!required.some((p) => hasPermission(session, p))) return false;
+    }
     if (item.requiresAdmin && !userIsAdmin) return false;
     return true;
   });

@@ -86,6 +86,38 @@ describe("useRequirePermission", () => {
     expect(mockReplace).toHaveBeenCalledWith("/dashboard");
   });
 
+  it("is ready when the user holds any permission of an array", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { id: "1" } },
+      status: "authenticated",
+    });
+    mockHasPermission.mockImplementation(
+      (_session: unknown, permission: unknown) =>
+        permission === "display:manage",
+    );
+
+    const { result } = renderHook(() =>
+      useRequirePermission(["display:read", "display:manage"]),
+    );
+
+    expect(result.current.isReady).toBe(true);
+    expect(mockReplace).not.toHaveBeenCalled();
+  });
+
+  it("redirects when the user holds none of the array permissions", () => {
+    mockUseSession.mockReturnValue({
+      data: { user: { id: "1" } },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() =>
+      useRequirePermission(["display:read", "display:manage"]),
+    );
+
+    expect(result.current.isReady).toBe(false);
+    expect(mockReplace).toHaveBeenCalledWith("/dashboard");
+  });
+
   it("does not redirect while unauthenticated (NextAuth's required:true owns that)", () => {
     mockUseSession.mockReturnValue({
       data: null,

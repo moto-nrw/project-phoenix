@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   Megaphone,
   MessageSquare,
+  MonitorPlay,
   Nfc,
   PlayCircle,
   PlugZap,
@@ -1068,6 +1069,52 @@ export const appChapters: readonly GuideChapter[] = [
         screenshot:
           "Feedback-Übersicht mit Suche, Neuer Beitrag und Statusfilter.",
         image: "/help/screens/feedback.webp",
+      },
+    ],
+  },
+  {
+    id: "info-displays",
+    title: "Info-Displays",
+    description:
+      "Ein Info-Display ist ein Dashboard für große Bildschirme im Eingangsbereich: Es zeigt live die Raumbelegung, laufende und kommende Aktivitäten sowie die nächsten Abholzeiten (nur als Anzahl, ohne Kindernamen). Es läuft in jedem Browser, ein Login am Fernseher ist nicht nötig.",
+    icon: MonitorPlay,
+    tone: "blue",
+    steps: [
+      {
+        id: "info-displays-erstellen",
+        title: "Display erstellen und am Fernseher einrichten",
+        icon: MonitorPlay,
+        summary:
+          "Admins erstellen pro Bildschirm ein Display und erhalten dafür einen geheimen Link. Der Link wird einmal am Fernseher oder Smartboard geöffnet, danach aktualisiert sich das Dashboard von selbst.",
+        steps: [
+          "In der Seitenleiste `Info-Displays` öffnen und `Neues Display` klicken.",
+          "Einen Namen vergeben, der den Standort beschreibt, z. B. `Eingangsbereich`.",
+          "Nach dem Erstellen erscheint der Link genau einmal: jetzt kopieren oder den QR-Code direkt mit dem Zielgerät scannen.",
+          "Den Link im Browser des Fernsehers oder Smartboards öffnen. Fertig — das Dashboard lädt seine Daten automatisch alle paar Sekunden neu.",
+        ],
+        callout: {
+          title: "Link geheim halten",
+          body: "Wer den Link kennt, sieht das Dashboard. Es zeigt bewusst keine Kindernamen, sondern nur Zahlen und Raum- bzw. Aktivitätsnamen. Trotzdem gilt: den Link nur auf Geräten der OGS öffnen und bei Verdacht auf Weitergabe einfach einen neuen Link erstellen.",
+          tone: "blue",
+        },
+        screenshot:
+          "Seite Info-Displays mit der Display-Liste und dem Button Neues Display.",
+        image: "/help/screens/info-displays.webp",
+      },
+      {
+        id: "info-displays-verwalten",
+        title: "Link erneuern, Display deaktivieren oder löschen",
+        icon: KeyRound,
+        summary:
+          "Jedes Display lässt sich jederzeit umbenennen, vorübergehend deaktivieren oder ganz entfernen. Der alte Link wird dabei sofort ungültig.",
+        steps: [
+          "In der Zeile des Displays das Menü (⋮) öffnen.",
+          "`Neuen Link erstellen` wählen, wenn der alte Link verloren ging oder in falsche Hände geraten sein könnte. Der neue Link wird wieder genau einmal angezeigt, der alte funktioniert sofort nicht mehr.",
+          "`Deaktivieren` blendet das Dashboard aus, ohne das Display zu löschen — der Bildschirm zeigt dann nur noch einen Hinweis. `Aktivieren` schaltet es wieder ein.",
+          "`Löschen` entfernt das Display dauerhaft; am Fernseher muss danach ein neuer Link eines anderen Displays geöffnet werden.",
+        ],
+        screenshot:
+          "Zeilenmenü eines Displays mit den Aktionen Umbenennen, Neuen Link erstellen, Deaktivieren und Löschen.",
       },
     ],
   },

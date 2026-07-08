@@ -31,6 +31,7 @@ import (
 	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	"github.com/moto-nrw/project-phoenix/services/config/sideeffects"
 	"github.com/moto-nrw/project-phoenix/services/database"
+	"github.com/moto-nrw/project-phoenix/services/display"
 	"github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/emergency"
 	"github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -131,6 +132,9 @@ type Factory struct {
 	EmailOutbox           *platform.OutboxService
 	EmailOutboxWorker     *platform.OutboxWorker
 	EmailTemplateRegistry *platform.TemplateRegistry
+
+	// Display domain (info-point dashboards, issue #1325)
+	Display display.Service
 
 	// Enrollment domain (parent-enrollment PR 5+).
 	EnrollmentFormSchema    enrollment.FormSchemaService
@@ -461,6 +465,23 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentPickupException,
 		repos.StudentPickupNote,
 	)
+
+	// Initialize display service (info-point dashboards, issue #1325).
+	// Aggregates existing data sources; owns no queries beyond its own repo.
+	displayService := display.NewService(display.Dependencies{
+		DisplayRepo:       repos.Display,
+		SchoolRepo:        repos.School,
+		Facilities:        facilitiesService,
+		ActiveGroupRepo:   repos.ActiveGroup,
+		VisitRepo:         repos.ActiveVisit,
+		ActivityGroupRepo: repos.ActivityGroup,
+		InstanceRepo:      repos.ActivityInstance,
+		AttendanceRepo:    repos.Attendance,
+		PickupSchedule:    pickupScheduleService,
+		SettingsService:   settingsService,
+		DB:                db,
+		Logger:            logger.With("service", "display"),
+	})
 
 	// Initialize calendar period service
 	calendarPeriodService := schedule.NewCalendarPeriodService(
@@ -1340,6 +1361,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StaffShifts:              staffShiftService,
 		ShiftTypes:               shiftTypeService,
 		PickupSchedule:           pickupScheduleService,
+		Display:                  displayService,
 		ArrivalSchedule:          arrivalScheduleService,
 		CalendarPeriod:           calendarPeriodService,
 		Materialization:          materializationService,
