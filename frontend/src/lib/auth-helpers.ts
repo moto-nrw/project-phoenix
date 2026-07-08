@@ -262,7 +262,7 @@ export interface RoleOption {
 }
 
 /** System roles that are legacy/relationship-derived and not assignable to staff accounts. */
-export const NON_ASSIGNABLE_STAFF_ROLE_NAMES = new Set(["guardian", "teacher"]);
+const NON_ASSIGNABLE_STAFF_ROLE_NAMES = new Set(["guardian", "teacher"]);
 
 /**
  * Filters a role list down to staff-assignable roles and maps them to
