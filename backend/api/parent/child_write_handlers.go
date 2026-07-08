@@ -60,9 +60,9 @@ func toStatusDayResponse(d *activeModels.StudentStatusDay) StatusDayResponse {
 	}
 }
 
-// ExcusedRequestResponse is the parent-facing projection of a pending or
+// ParentExcusedRequestResponse is the parent-facing projection of a pending or
 // recently-decided excused-absence approval request (#1845).
-type ExcusedRequestResponse struct {
+type ParentExcusedRequestResponse struct {
 	ID             string     `json:"id"`
 	StudentID      string     `json:"student_id"`
 	Status         string     `json:"status"`
@@ -73,12 +73,12 @@ type ExcusedRequestResponse struct {
 	ReviewedAt     *time.Time `json:"reviewed_at,omitempty"`
 }
 
-func toExcusedRequestResponse(req *activeModels.ExcusedAbsenceRequest) ExcusedRequestResponse {
+func toParentExcusedRequestResponse(req *activeModels.ExcusedAbsenceRequest) ParentExcusedRequestResponse {
 	dates := make([]string, 0, len(req.Dates))
 	for _, d := range req.Dates {
 		dates = append(dates, d.String())
 	}
-	return ExcusedRequestResponse{
+	return ParentExcusedRequestResponse{
 		ID:             strconv.FormatInt(req.ID, 10),
 		StudentID:      strconv.FormatInt(req.StudentID, 10),
 		Status:         req.Status,
@@ -94,8 +94,8 @@ func toExcusedRequestResponse(req *activeModels.ExcusedAbsenceRequest) ExcusedRe
 // Exactly one branch is populated: StatusDays for a direct write, or
 // PendingRequest when the excused report needs office approval (#1845).
 type SubmitSickNoteResponse struct {
-	StatusDays     []StatusDayResponse     `json:"status_days"`
-	PendingRequest *ExcusedRequestResponse `json:"pending_request,omitempty"`
+	StatusDays     []StatusDayResponse           `json:"status_days"`
+	PendingRequest *ParentExcusedRequestResponse `json:"pending_request,omitempty"`
 }
 
 // submitSickNote reports the parent's child sick for one or more dates.
@@ -143,7 +143,7 @@ func (rs *Resource) submitSickNote(w http.ResponseWriter, r *http.Request) {
 		resp.StatusDays = append(resp.StatusDays, toStatusDayResponse(d))
 	}
 	if result.PendingRequest != nil {
-		pr := toExcusedRequestResponse(result.PendingRequest)
+		pr := toParentExcusedRequestResponse(result.PendingRequest)
 		resp.PendingRequest = &pr
 	}
 	common.Respond(w, r, http.StatusCreated, resp, "Sick note submitted")
@@ -167,9 +167,9 @@ func (rs *Resource) listExcusedRequests(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	out := make([]ExcusedRequestResponse, 0, len(rows))
+	out := make([]ParentExcusedRequestResponse, 0, len(rows))
 	for _, req := range rows {
-		out = append(out, toExcusedRequestResponse(req))
+		out = append(out, toParentExcusedRequestResponse(req))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Excused requests retrieved")
 }
@@ -196,7 +196,7 @@ func (rs *Resource) withdrawExcusedRequest(w http.ResponseWriter, r *http.Reques
 		renderParentWriteError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toExcusedRequestResponse(req), "Excused request withdrawn")
+	common.Respond(w, r, http.StatusOK, toParentExcusedRequestResponse(req), "Excused request withdrawn")
 }
 
 // listSickDays returns the child's active sick days in the requested

@@ -12,7 +12,7 @@ const logger = createLogger({ component: "ExcusedRequestReviewAPI" });
 type ExcusedRequestStatus = "pending" | "approved" | "rejected" | "withdrawn";
 
 // One excused-absence request in the staff queue. Mirrors
-// api/students.ExcusedRequestResponse. `dates` are YYYY-MM-DD.
+// api/students.StaffExcusedRequestResponse. `dates` are YYYY-MM-DD.
 export interface StaffExcusedRequest {
   readonly id: string;
   readonly student_id: string;

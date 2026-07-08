@@ -98,7 +98,7 @@ export type ExcusedRequestStatus =
 // One "entschuldigt" absence request awaiting (or having received) an OGS
 // decision. Only created when the school gates excused absences behind an
 // approval; otherwise an excused submission becomes a StatusDay immediately.
-// Mirrors api/parent.ExcusedRequestResponse. `dates` are YYYY-MM-DD.
+// Mirrors api/parent.ParentExcusedRequestResponse. `dates` are YYYY-MM-DD.
 export interface ExcusedRequest {
   readonly id: string;
   readonly student_id: string;

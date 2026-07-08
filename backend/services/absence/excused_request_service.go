@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"sort"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -224,9 +225,12 @@ func (s *excusedAbsenceRequestService) ListForStudent(ctx context.Context, stude
 		if _, ok := seen[r.ID]; ok {
 			continue
 		}
-		// Approved requests already surface as excused status days; don't
-		// double-show them in the parent absence list.
-		if r.Status == activeModels.ExcusedRequestStatusApproved {
+		// Approved requests already surface as excused status days, and a
+		// withdrawn request was the parent's own cancellation — neither belongs
+		// in the parent absence list, which shows only still-pending requests and
+		// rejected outcomes (so the parent learns a decline).
+		switch r.Status {
+		case activeModels.ExcusedRequestStatusApproved, activeModels.ExcusedRequestStatusWithdrawn:
 			continue
 		}
 		seen[r.ID] = struct{}{}
@@ -294,13 +298,33 @@ func (s *excusedAbsenceRequestService) PendingByStudentForDate(ctx context.Conte
 	}
 	// rows are newest-first; keep the first (newest) pending request per student
 	// that covers the date.
-	out := make(map[int64]*activeModels.ExcusedAbsenceRequest, len(rows))
+	candidates := make(map[int64]*activeModels.ExcusedAbsenceRequest, len(rows))
+	studentIDs := make([]int64, 0, len(rows))
 	for _, r := range rows {
-		if _, ok := out[r.StudentID]; ok {
+		if _, ok := candidates[r.StudentID]; ok {
 			continue
 		}
 		if containsDate(r.Dates, date) {
-			out[r.StudentID] = r
+			candidates[r.StudentID] = r
+			studentIDs = append(studentIDs, r.StudentID)
+		}
+	}
+	if len(candidates) == 0 {
+		return candidates, nil
+	}
+
+	// Scope to children the caller may WRITE — the same gate as the review queue
+	// and Decide — so a read-only supervisor never sees a pending-approval badge
+	// for a child they cannot act on.
+	students, err := s.studentRepo.FindByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, fmt.Errorf("active: load students for pending excused badges: %w", err)
+	}
+	writable := authorize.WritableStudentFilter(ctx, jwt.PermissionsFromCtx(ctx), s.userContext)
+	out := make(map[int64]*activeModels.ExcusedAbsenceRequest, len(candidates))
+	for studentID, req := range candidates {
+		if writable(students[studentID]) {
+			out[studentID] = req
 		}
 	}
 	return out, nil
@@ -506,11 +530,9 @@ func dedupeSortedDates(dates []timezone.Date) []timezone.Date {
 		seen[d] = struct{}{}
 		out = append(out, d)
 	}
-	for i := 1; i < len(out); i++ {
-		for j := i; j > 0 && out[j].Before(out[j-1]); j-- {
-			out[j], out[j-1] = out[j-1], out[j]
-		}
-	}
+	sort.Slice(out, func(i, j int) bool {
+		return out[i].Before(out[j])
+	})
 	return out
 }
 

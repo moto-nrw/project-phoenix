@@ -15,9 +15,9 @@ import (
 	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 )
 
-// ExcusedRequestResponse is the staff-facing projection of one parent
+// StaffExcusedRequestResponse is the staff-facing projection of one parent
 // excused-absence approval request in the review queue (#1845).
-type ExcusedRequestResponse struct {
+type StaffExcusedRequestResponse struct {
 	ID         string     `json:"id"`
 	StudentID  string     `json:"student_id"`
 	FirstName  string     `json:"first_name"`
@@ -30,13 +30,13 @@ type ExcusedRequestResponse struct {
 	ReviewedAt *time.Time `json:"reviewed_at,omitempty"`
 }
 
-func toExcusedRequestResponse(item *absenceService.ExcusedRequestReviewItem) ExcusedRequestResponse {
+func toStaffExcusedRequestResponse(item *absenceService.ExcusedRequestReviewItem) StaffExcusedRequestResponse {
 	r := item.Request
 	dates := make([]string, 0, len(r.Dates))
 	for _, d := range r.Dates {
 		dates = append(dates, d.String())
 	}
-	return ExcusedRequestResponse{
+	return StaffExcusedRequestResponse{
 		ID:         strconv.FormatInt(r.ID, 10),
 		StudentID:  strconv.FormatInt(r.StudentID, 10),
 		FirstName:  item.FirstName,
@@ -62,9 +62,9 @@ func (rs *Resource) listExcusedAbsenceRequests(w http.ResponseWriter, r *http.Re
 		renderError(w, r, ErrorInternalServer(err))
 		return
 	}
-	out := make([]ExcusedRequestResponse, 0, len(items))
+	out := make([]StaffExcusedRequestResponse, 0, len(items))
 	for _, item := range items {
-		out = append(out, toExcusedRequestResponse(item))
+		out = append(out, toStaffExcusedRequestResponse(item))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Excused absence requests retrieved")
 }
@@ -122,5 +122,5 @@ func (rs *Resource) decideExcusedAbsenceRequest(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, toExcusedRequestResponse(item), "Decision applied")
+	common.Respond(w, r, http.StatusOK, toStaffExcusedRequestResponse(item), "Decision applied")
 }
