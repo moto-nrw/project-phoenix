@@ -1,18 +1,13 @@
 import { useState, useEffect, useRef } from "react";
 import type { Teacher } from "@/lib/teacher-api";
 import { authService } from "@/lib/auth-service";
-import { getRoleDisplayName } from "@/lib/auth-helpers";
+import { toAssignableRoleOptions, type RoleOption } from "@/lib/auth-helpers";
 import { createLogger } from "~/lib/logger";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 
 const logger = createLogger({ component: "TeacherForm" });
 const EMPTY_RFID_CARDS: ReadonlyArray<{ id: string; label: string }> = [];
 const EMPTY_POSITIONS: readonly string[] = [];
-
-interface RoleOption {
-  id: number;
-  name: string;
-}
 
 interface TeacherFormProps {
   readonly initialData: Partial<Teacher>;
@@ -79,23 +74,7 @@ export function TeacherForm({
         const roleList = await authService.getRoles();
         if (cancelled) return;
 
-        // Legacy teacher + guardian roles are no longer assignable via staff creation.
-        const options = roleList
-          .filter((role) => {
-            const normalizedName = role.name.toLowerCase();
-            return (
-              normalizedName !== "guardian" && normalizedName !== "teacher"
-            );
-          })
-          .map<RoleOption>((role) => ({
-            id: Number(role.id),
-            name: role.name
-              ? getRoleDisplayName(role.name)
-              : `Rolle ${role.id}`,
-          }))
-          .filter((role) => !Number.isNaN(role.id));
-
-        setRoles(options);
+        setRoles(toAssignableRoleOptions(roleList));
       } catch (err) {
         logger.error("failed to load roles", {
           error: err instanceof Error ? err.message : String(err),
