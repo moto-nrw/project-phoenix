@@ -1,13 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import useSWR, { unstable_serialize, useSWRConfig } from "swr";
 import { ArrowLeft, User } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { Alert } from "~/components/ui/alert";
-import { Loading } from "~/components/ui/loading";
 import { BackButton } from "~/components/ui/back-button";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
@@ -29,6 +28,7 @@ import { staffRequestStatusLabel } from "~/lib/messaging-status";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import { formatChatDateTime } from "~/lib/date-helpers";
+import { ThreadSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "MessageThreadPage" });
 
@@ -221,9 +221,9 @@ function MessageThreadContent() {
     Boolean(thread) && !isLoading,
   );
 
-  // Full-page loader only for a direct deep-link with no cached seed.
+  // Full-page skeleton only for a direct deep-link with no cached seed.
   if (!thread && isLoading) {
-    return <Loading fullPage={false} />;
+    return <ThreadSkeleton />;
   }
 
   if (!thread) {
@@ -404,9 +404,5 @@ function MessagesBackNav() {
 }
 
 export default function MessageThreadPage() {
-  return (
-    <Suspense fallback={<Loading fullPage={false} />}>
-      <MessageThreadContent />
-    </Suspense>
-  );
+  return <MessageThreadContent />;
 }

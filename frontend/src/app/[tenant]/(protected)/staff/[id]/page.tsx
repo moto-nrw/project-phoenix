@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, Suspense } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
@@ -213,7 +213,7 @@ function PlaceholderTab({ title }: { readonly title: string }) {
 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
-function StaffDetailContent() {
+export default function StaffDetailContent() {
   const { data: session, status: sessionStatus } = useSession({
     required: true,
     onUnauthenticated() {
@@ -389,13 +389,5 @@ function StaffDetailContent() {
         </TabsPrimitive.Content>
       </Tabs>
     </div>
-  );
-}
-
-export default function StaffDetailPage() {
-  return (
-    <Suspense fallback={<StaffDetailSkeleton />}>
-      <StaffDetailContent />
-    </Suspense>
   );
 }

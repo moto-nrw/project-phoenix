@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import useSWR from "swr";
 import { MessageCircle } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -226,9 +226,5 @@ function MessagesInboxContent() {
 }
 
 export default function MessagesPage() {
-  return (
-    <Suspense fallback={<MessagesSkeleton />}>
-      <MessagesInboxContent />
-    </Suspense>
-  );
+  return <MessagesInboxContent />;
 }
