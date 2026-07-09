@@ -17,7 +17,9 @@ import type {
   BackendEndTemplateResult,
   BackendExceptionConflictsResponse,
   BackendEnrichedInstance,
+  BackendGapInstance,
   BackendGapsResponse,
+  BackendAcknowledgeUnderstaffedResponse,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
@@ -32,7 +34,9 @@ import type {
   EndTemplateResult,
   EnrichedInstance,
   ExceptionConflictsResponse,
+  GapInstance,
   GapsResponse,
+  AcknowledgeUnderstaffedResponse,
   InstanceStaffSummary,
   InstanceStudentSummary,
   InstanceStatusResult,
@@ -356,6 +360,8 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     students,
     staffCount: raw.staff_count,
     absentStaffCount: raw.absent_staff_count,
+    understaffedAck: raw.understaffed_ack ?? false,
+    understaffedNote: raw.understaffed_note ?? undefined,
     expectedStudentsCount: raw.expected_students_count,
     presentStudentsCount: raw.present_students_count,
     conflictWarnings: (raw.conflict_warnings ?? []).map((warning) => ({
@@ -415,21 +421,38 @@ export function mapReplanWeekResult(
   };
 }
 
+function mapGapInstance(gap: BackendGapInstance): GapInstance {
+  return {
+    instanceId: String(gap.instance_id),
+    date: gap.date,
+    title: gap.title,
+    startTime: gap.start_time,
+    endTime: gap.end_time,
+    roomId: String(gap.room_id),
+    status: gap.status,
+    assignedStaffCount: gap.assigned_staff_count,
+    absentStaffCount: gap.absent_staff_count,
+    understaffedNote: gap.understaffed_note ?? undefined,
+  };
+}
+
 export function mapGaps(raw: BackendGapsResponse): GapsResponse {
   return {
     from: raw.from,
     to: raw.to,
-    gaps: (raw.gaps ?? []).map((gap) => ({
-      instanceId: String(gap.instance_id),
-      date: gap.date,
-      title: gap.title,
-      startTime: gap.start_time,
-      endTime: gap.end_time,
-      roomId: String(gap.room_id),
-      status: gap.status,
-      assignedStaffCount: gap.assigned_staff_count,
-      absentStaffCount: gap.absent_staff_count,
-    })),
+    gaps: (raw.gaps ?? []).map(mapGapInstance),
+    acknowledged: (raw.acknowledged ?? []).map(mapGapInstance),
+  };
+}
+
+export function mapAcknowledgeUnderstaffed(
+  raw: BackendAcknowledgeUnderstaffedResponse,
+): AcknowledgeUnderstaffedResponse {
+  return {
+    instanceId: String(raw.instance_id),
+    status: raw.status,
+    understaffedAck: raw.understaffed_ack,
+    understaffedNote: raw.understaffed_note ?? undefined,
   };
 }
 

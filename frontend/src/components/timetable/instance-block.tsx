@@ -52,6 +52,11 @@ export function InstanceBlock({
   const isCompact = height <= COMPACT_HEIGHT_PX;
   const isTiny = height <= TINY_HEIGHT_PX;
 
+  // #1840 Vertretungsplan deviation signals.
+  const isUnderstaffedAck = instance.understaffedAck === true && !isCancelled;
+  const hasSubstitute = instance.staff.some((s) => s.isSubstitute);
+  const absentCount = instance.absentStaffCount;
+
   const ringClass = isSelected
     ? "ring-2 ring-offset-1 ring-gray-900"
     : "ring-0 hover:ring-1 hover:ring-gray-300";
@@ -59,9 +64,13 @@ export function InstanceBlock({
   const borderClass = isCancelled
     ? "border border-dashed border-[#FF3130]"
     : "border border-gray-200";
+  // A deliberately-unstaffed block gets an amber left bar so it reads as a
+  // known shortfall, not a normal block.
   const activityColor = isCancelled
     ? timetableStatusColors.cancelled
-    : getActivityColor(instance.activityType);
+    : isUnderstaffedAck
+      ? "#EAB308"
+      : getActivityColor(instance.activityType);
 
   return (
     <button
@@ -93,11 +102,18 @@ export function InstanceBlock({
             )}
             {instance.title}
           </span>
-          {hasConflict && (
+          {isUnderstaffedAck ? (
             <TriangleAlert
               className="h-3 w-3 shrink-0 text-[#EAB308]"
-              aria-label={`${instance.conflictWarnings.length} Konflikte`}
+              aria-label="Bewusst unbesetzt"
             />
+          ) : (
+            hasConflict && (
+              <TriangleAlert
+                className="h-3 w-3 shrink-0 text-[#EAB308]"
+                aria-label={`${instance.conflictWarnings.length} Konflikte`}
+              />
+            )
           )}
         </div>
 
@@ -136,6 +152,19 @@ export function InstanceBlock({
             instance.expectedStudentsCount + instance.presentStudentsCount > 0
               ? ` · ${instance.presentStudentsCount} anwesend`
               : ""}
+          </div>
+        )}
+
+        {!isCompact && !isCancelled && (absentCount > 0 || hasSubstitute) && (
+          <div className="flex flex-wrap gap-1 text-[10px]">
+            {absentCount > 0 && (
+              <span className="font-semibold text-[#CC2626]">
+                {absentCount} abwesend
+              </span>
+            )}
+            {hasSubstitute && (
+              <span className="font-semibold text-[#5A8E1F]">Ersatz</span>
+            )}
           </div>
         )}
       </div>
