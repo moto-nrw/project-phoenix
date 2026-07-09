@@ -496,7 +496,7 @@ func TestClassRosterLoadsGuardianContactsFromEnrollmentAndStudentFallback(t *tes
 			CreatedStudentID: &registeredStudentID,
 		}}},
 	)
-	svc.requestGuardianRepo = &fakeClassRosterRequestGuardianRepo{guardians: []*enrollmentModels.RequestGuardian{{
+	svc.RequestGuardianRepo = &fakeClassRosterRequestGuardianRepo{guardians: []*enrollmentModels.RequestGuardian{{
 		Model:     baseModels.Model{ID: 500},
 		RequestID: requestID,
 		FirstName: "Zweiter",
@@ -504,7 +504,7 @@ func TestClassRosterLoadsGuardianContactsFromEnrollmentAndStudentFallback(t *tes
 		Email:     &additionalEmail,
 		Phone:     &additionalPhone,
 	}}}
-	svc.studentGuardianRepo = &fakeClassRosterStudentGuardianRepo{rows: []userModels.GuardianEmergencyContactRow{
+	svc.StudentGuardianRepo = &fakeClassRosterStudentGuardianRepo{rows: []userModels.GuardianEmergencyContactRow{
 		{
 			StudentID:         manualStudentID,
 			GuardianProfileID: 700,
@@ -556,7 +556,7 @@ func TestReportServiceClassRosterGroupNamesLoadsUniqueGroups(t *testing.T) {
 		groupID:      {Name: "Klasse 2a"},
 		otherGroupID: {Name: "Klasse 3b"},
 	}}
-	svc := &reportService{educationGroupRepo: repo}
+	svc := &reportService{ReportServiceConfig: ReportServiceConfig{EducationGroupRepo: repo}}
 
 	groups, err := svc.classRosterGroupNames(context.Background(), []*userModels.Student{
 		{GroupID: &groupID},
@@ -902,18 +902,7 @@ func (r *fakeEducationGroupRepo) FindByIDs(_ context.Context, ids []int64) (map[
 }
 
 func classRosterTestService(students []*userModels.Student, persons map[int64]*userModels.Person, requestRepo *fakeClassRosterRequestRepo, childRepo *fakeClassRosterChildRepo) *reportService {
-	return &reportService{
-		requestRepo:              requestRepo,
-		requestChildRepo:         childRepo,
-		requestGuardianRepo:      &fakeClassRosterRequestGuardianRepo{},
-		requestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{},
-		careOfferingRepo:         &fakeClassRosterCareOfferingRepo{},
-		phaseRepo:                &fakeClassRosterPhaseRepo{},
-		studentRepo:              &fakeClassRosterStudentRepo{students: students},
-		studentGuardianRepo:      &fakeClassRosterStudentGuardianRepo{},
-		personRepo:               &fakeClassRosterPersonRepo{persons: persons},
-		educationGroupRepo:       &fakeEducationGroupRepo{},
-	}
+	return &reportService{ReportServiceConfig: ReportServiceConfig{RequestRepo: requestRepo, RequestChildRepo: childRepo, RequestGuardianRepo: &fakeClassRosterRequestGuardianRepo{}, RequestChildOfferingRepo: &fakeClassRosterChildOfferingRepo{}, CareOfferingRepo: &fakeClassRosterCareOfferingRepo{}, PhaseRepo: &fakeClassRosterPhaseRepo{}, StudentRepo: &fakeClassRosterStudentRepo{students: students}, StudentGuardianRepo: &fakeClassRosterStudentGuardianRepo{}, PersonRepo: &fakeClassRosterPersonRepo{persons: persons}, EducationGroupRepo: &fakeEducationGroupRepo{}}}
 }
 
 type fakeClassRosterStudentRepo struct {

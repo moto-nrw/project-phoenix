@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/feedback"
@@ -44,15 +43,8 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
-
 	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Read operations require feedback:read permission
 		r.With(authorize.RequiresPermission(permissions.FeedbackRead), withTx).Get("/", rs.listFeedback)
@@ -509,34 +501,3 @@ func (rs *Resource) deleteFeedback(w http.ResponseWriter, r *http.Request) {
 
 	common.Respond(w, r, http.StatusOK, nil, "Feedback entry deleted successfully")
 }
-
-// =============================================================================
-// EXPORTED HANDLERS FOR TESTING
-// =============================================================================
-
-// ListFeedbackHandler returns the listFeedback handler for testing.
-func (rs *Resource) ListFeedbackHandler() http.HandlerFunc { return rs.listFeedback }
-
-// GetFeedbackHandler returns the getFeedback handler for testing.
-func (rs *Resource) GetFeedbackHandler() http.HandlerFunc { return rs.getFeedback }
-
-// GetStudentFeedbackHandler returns the getStudentFeedback handler for testing.
-func (rs *Resource) GetStudentFeedbackHandler() http.HandlerFunc { return rs.getStudentFeedback }
-
-// GetDateFeedbackHandler returns the getDateFeedback handler for testing.
-func (rs *Resource) GetDateFeedbackHandler() http.HandlerFunc { return rs.getDateFeedback }
-
-// GetMensaFeedbackHandler returns the getMensaFeedback handler for testing.
-func (rs *Resource) GetMensaFeedbackHandler() http.HandlerFunc { return rs.getMensaFeedback }
-
-// GetDateRangeFeedbackHandler returns the getDateRangeFeedback handler for testing.
-func (rs *Resource) GetDateRangeFeedbackHandler() http.HandlerFunc { return rs.getDateRangeFeedback }
-
-// CreateFeedbackHandler returns the createFeedback handler for testing.
-func (rs *Resource) CreateFeedbackHandler() http.HandlerFunc { return rs.createFeedback }
-
-// CreateBatchFeedbackHandler returns the createBatchFeedback handler for testing.
-func (rs *Resource) CreateBatchFeedbackHandler() http.HandlerFunc { return rs.createBatchFeedback }
-
-// DeleteFeedbackHandler returns the deleteFeedback handler for testing.
-func (rs *Resource) DeleteFeedbackHandler() http.HandlerFunc { return rs.deleteFeedback }

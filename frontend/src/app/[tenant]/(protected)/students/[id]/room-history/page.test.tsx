@@ -205,7 +205,7 @@ describe("StudentRoomHistoryPage", () => {
   it("renders loading state initially", () => {
     mockFetch.mockResolvedValue(mockStudentResponse());
     render(<StudentRoomHistoryPage />);
-    expect(screen.getByTestId("loading")).toBeInTheDocument();
+    expect(screen.getByTestId("room-history-skeleton")).toBeInTheDocument();
   });
 
   // ─── Student header ─────────────────────────────────────────────────────────

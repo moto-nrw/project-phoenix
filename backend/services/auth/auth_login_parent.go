@@ -100,13 +100,12 @@ func (s *Service) findGuardianTenantForAccount(ctx context.Context, accountID in
 	var firstGuardianTenantID int64
 
 	if err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
-		mappings, listErr := txService.repos.AccountTenant.FindActiveByAccountID(adminCtx, accountID)
+		mappings, listErr := s.repos.AccountTenant.FindActiveByAccountID(adminCtx, accountID)
 		if listErr != nil {
 			return listErr
 		}
 		for _, m := range mappings {
-			roles, roleErr := txService.repos.AccountRole.FindByAccountIDForTenant(adminCtx, accountID, m.TenantID)
+			roles, roleErr := s.repos.AccountRole.FindByAccountIDForTenant(adminCtx, accountID, m.TenantID)
 			if roleErr != nil {
 				// A genuine "no roles" result comes back as an empty
 				// slice, not an error. Any error here is a real
@@ -119,7 +118,7 @@ func (s *Service) findGuardianTenantForAccount(ctx context.Context, accountID in
 				return roleErr
 			}
 			for _, ar := range roles {
-				role, lookupErr := txService.repos.Role.FindByID(adminCtx, ar.RoleID)
+				role, lookupErr := s.repos.Role.FindByID(adminCtx, ar.RoleID)
 				if lookupErr != nil {
 					// A missing role row for an existing account_role is a
 					// data inconsistency — treat it as "not this role".
@@ -182,8 +181,7 @@ func (s *Service) isGuardianOnlyAccount(ctx context.Context, account *authModels
 		return false
 	}
 	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
-		txService.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
+		s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
 		return nil
 	})
 	if err != nil {

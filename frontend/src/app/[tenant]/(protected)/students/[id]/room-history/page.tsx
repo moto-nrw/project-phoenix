@@ -14,7 +14,6 @@ import {
 import { useTenantRouter } from "~/lib/tenant-router";
 import { BackButton } from "~/components/ui/back-button";
 import { Alert } from "~/components/ui/alert";
-import { Loading } from "~/components/ui/loading";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -29,6 +28,7 @@ import {
   mapAttendanceHistoryResponse,
 } from "~/lib/attendance-history-helpers";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
+import { RoomHistorySkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "StudentRoomHistoryPage" });
 
@@ -45,10 +45,7 @@ interface Student {
 }
 
 type ErrorCode =
-  | "feature_disabled"
-  | "not_group_supervisor"
-  | "not_found"
-  | "generic";
+  "feature_disabled" | "not_group_supervisor" | "not_found" | "generic";
 
 const ERROR_MESSAGES: Record<ErrorCode, string> = {
   feature_disabled:
@@ -751,7 +748,7 @@ function StudentRoomHistoryPageContent() {
   }, [fetchStudent, fetchHistory]);
 
   if (loading) {
-    return <Loading fullPage={false} />;
+    return <RoomHistorySkeleton />;
   }
 
   if (errorCode !== null && errorCode !== "feature_disabled") {

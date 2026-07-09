@@ -17,23 +17,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 // Resource bundles the dependencies needed by the work-time-model HTTP handlers.
 type Resource struct {
-	Service configSvc.WorkTimeModelService
+	Service *configSvc.WorkTimeModelService
 	db      *bun.DB
 	logger  *slog.Logger
 }
 
 // NewResource wires the dependencies.
-func NewResource(service configSvc.WorkTimeModelService, db *bun.DB, logger *slog.Logger) *Resource {
+func NewResource(service *configSvc.WorkTimeModelService, db *bun.DB, logger *slog.Logger) *Resource {
 	return &Resource{Service: service, db: db, logger: logger}
 }
 
@@ -42,13 +40,7 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	tokenAuth := jwt.MustNewTokenAuth()
-
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/", rs.list)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}", rs.get)

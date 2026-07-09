@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -13,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -124,13 +124,12 @@ type OperationRoster struct {
 }
 
 type OperationRosterInstance struct {
-	ID            int64   `json:"id"`
-	Title         string  `json:"title"`
-	Status        string  `json:"status"`
-	IsSpontaneous bool    `json:"is_spontaneous"`
-	ActiveGroupID *int64  `json:"active_group_id,omitempty"`
-	RoomID        int64   `json:"room_id"`
-	RoomName      *string `json:"room_name,omitempty"`
+	ID            int64  `json:"id"`
+	Title         string `json:"title"`
+	Status        string `json:"status"`
+	IsSpontaneous bool   `json:"is_spontaneous"`
+	ActiveGroupID *int64 `json:"active_group_id,omitempty"`
+	RoomID        int64  `json:"room_id"`
 }
 
 type OperationRosterRow struct {
@@ -276,7 +275,7 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 		return nil, fmt.Errorf("%w: instance is not active", ErrTimetableOperationConflict)
 	}
 	current, err := s.deps.VisitRepo.GetCurrentByStudentID(ctx, studentID)
-	if err != nil && !isNoRows(err) {
+	if err != nil && !modelBase.IsNoRows(err) {
 		return nil, err
 	}
 	if current != nil {
@@ -565,7 +564,7 @@ func (s *timetableOperationsService) loadRosterTemplateGroup(ctx context.Context
 	}
 	group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *activityGroupID)
 	if err != nil {
-		if isNoRows(err) {
+		if modelBase.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -670,7 +669,7 @@ func (s *timetableOperationsService) resolveStaffID(ctx context.Context, account
 	}
 	staff, err := s.deps.PersonService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil {
-		if isNoRows(err) {
+		if modelBase.IsNoRows(err) {
 			return 0, false, nil
 		}
 		return 0, false, err
@@ -731,7 +730,7 @@ func (s *timetableOperationsService) adminOverviewEnabled(ctx context.Context, i
 func (s *timetableOperationsService) loadInstance(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
 	inst, err := s.deps.InstanceRepo.FindByID(ctx, instanceID)
 	if err != nil {
-		if isNoRows(err) {
+		if modelBase.IsNoRows(err) {
 			return nil, ErrTimetableOperationNotFound
 		}
 		return nil, err
@@ -855,15 +854,4 @@ func findPlanned(rows []*scheduleModel.InstanceStudent, studentID int64) (*sched
 		}
 	}
 	return nil, false
-}
-
-func isNoRows(err error) bool {
-	if errors.Is(err, sql.ErrNoRows) {
-		return true
-	}
-	type unwrapper interface{ Unwrap() error }
-	if u, ok := err.(unwrapper); ok {
-		return isNoRows(u.Unwrap())
-	}
-	return false
 }

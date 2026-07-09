@@ -11,45 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestErrorInvalidRequest(t *testing.T) {
-	err := errors.New("invalid input")
-	renderer := ErrorInvalidRequest(err)
-
-	require.NotNil(t, renderer)
-
-	errResp, ok := renderer.(*common.ErrResponse)
-	require.True(t, ok, "Expected *common.ErrResponse")
-	assert.Equal(t, http.StatusBadRequest, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Contains(t, errResp.ErrorText, "invalid input")
-}
-
-func TestErrorInternalServer(t *testing.T) {
-	err := errors.New("internal failure")
-	renderer := ErrorInternalServer(err)
-
-	require.NotNil(t, renderer)
-
-	errResp, ok := renderer.(*common.ErrResponse)
-	require.True(t, ok, "Expected *common.ErrResponse")
-	assert.Equal(t, http.StatusInternalServerError, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Contains(t, errResp.ErrorText, "internal failure")
-}
-
-func TestErrorNotFound(t *testing.T) {
-	err := errors.New("resource missing")
-	renderer := ErrorNotFound(err)
-
-	require.NotNil(t, renderer)
-
-	errResp, ok := renderer.(*common.ErrResponse)
-	require.True(t, ok, "Expected *common.ErrResponse")
-	assert.Equal(t, http.StatusNotFound, errResp.HTTPStatusCode)
-	assert.Equal(t, "error", errResp.Status)
-	assert.Contains(t, errResp.ErrorText, "resource missing")
-}
-
 func TestErrorRenderer_DateframeNotFound(t *testing.T) {
 	err := &scheduleSvc.ScheduleError{
 		Op:  "GetDateframe",

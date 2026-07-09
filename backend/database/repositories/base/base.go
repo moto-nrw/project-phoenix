@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -241,42 +242,38 @@ func (r *Repository[T]) List(ctx context.Context, filters map[string]any) ([]T, 
 	return entities, nil
 }
 
-// Count returns the number of entities matching the filters
-func (r *Repository[T]) Count(ctx context.Context, filters map[string]any) (int, error) {
-	entityVal := r.newEntityValue()
+// ListWithOptions retrieves entities matching the query options, supporting
+// the full Filter operator set plus sorting and pagination. The single-table
+// twin of the hand-rolled per-repo List(QueryOptions) copies; returns a nil
+// slice when nothing matches (callers that must serialize JSON [] coerce).
+func (r *Repository[T]) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]T, error) {
+	var entities []T
 
-	// Use ModelTableExpr to specify the schema-qualified table name with proper alias
-	// Get the entity name in lowercase to use as alias
-	entityName := strings.ToLower(strings.TrimPrefix(r.EntityName, "*"))
+	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
 	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
 
 	query := GetDB(ctx, r.DB).NewSelect().
-		Model(entityVal).
+		Model(&entities).
 		ModelTableExpr(tableExpr).
-		Column("id")
+		ColumnExpr(fmt.Sprintf(`"%s".*`, entityName))
 
-	if r.TenantScoped {
-		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-			query = query.Where(fmt.Sprintf(`"%s".tenant_id = ?`, entityName), tenantID)
+	query = r.applyTenantFilter(ctx, query, entityName)
+
+	if options != nil {
+		if options.Filter != nil {
+			options.Filter.WithTableAlias(entityName)
 		}
+		query = options.ApplyToQuery(query)
 	}
 
-	// Apply filters
-	for field, value := range filters {
-		if value != nil {
-			query = query.Where("? = ?", bun.Ident(field), value)
-		}
-	}
-
-	count, err := query.Count(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{
-			Op:  "count",
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "list with options",
 			Err: err,
 		}
 	}
 
-	return count, nil
+	return entities, nil
 }
 
 // CountWithOptions returns the number of entities matching the query options.
@@ -384,6 +381,42 @@ func (r *Repository[T]) DeleteOlderThan(ctx context.Context, dateColumn string, 
 	return deleted, nil
 }
 
+// DeleteBefore deletes all matching rows whose column (a TIMESTAMPTZ instant)
+// is strictly before cutoff and returns the number of rows deleted. The
+// time.Time twin of DeleteOlderThan for expiry-style cleanup jobs. op becomes
+// the DatabaseError Op so per-repo cleanup wrappers keep their exact error
+// strings (they surface in scheduler failure logs, which are frozen).
+// column must be a compile-time constant column name, never user input.
+func (r *Repository[T]) DeleteBefore(ctx context.Context, column string, cutoff time.Time, op string) (int64, error) {
+	entityVal := r.newEntityValue()
+
+	entityName := toSnakeCase(strings.TrimPrefix(r.EntityName, "*"))
+	tableExpr := fmt.Sprintf(`%s AS "%s"`, r.TableName, entityName)
+
+	query := GetDB(ctx, r.DB).NewDelete().
+		Model(entityVal).
+		ModelTableExpr(tableExpr).
+		Where("? < ?", bun.Ident(column), cutoff)
+
+	if r.TenantScoped {
+		if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+			query = query.Where(fmt.Sprintf(`"%s".tenant_id = ?`, entityName), tenantID)
+		}
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: op, Err: err}
+	}
+
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: op, Err: err}
+	}
+
+	return deleted, nil
+}
+
 // UpdateColumns updates only the named columns of entity (matched by primary
 // key) and returns the number of rows affected, so callers own the 0-rows
 // decision. Unlike Update, it does not run entity validation: callers update
@@ -443,13 +476,6 @@ func (r *Repository[T]) newEntityValue() any {
 	return reflect.New(entityType).Interface()
 }
 
-// Transaction executes a function within a database transaction
-func (r *Repository[T]) Transaction(ctx context.Context, fn func(tx bun.Tx) error) error {
-	return r.DB.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
-		return fn(tx)
-	})
-}
-
 // AssertRowsAffected checks that a DML statement affected exactly the expected number of rows.
 func AssertRowsAffected(result sql.Result, expected int64, op string) error {
 	n, err := result.RowsAffected()
@@ -473,6 +499,15 @@ func TenantWhere(ctx context.Context, alias string) (string, int64, bool) {
 		return fmt.Sprintf(`"%s".tenant_id = ?`, alias), tenantID, true
 	}
 	return "", 0, false
+}
+
+// WithTenantFilter applies the TenantWhere defense-in-depth tenant_id filter
+// for alias to q, returning q unchanged when no tenant is in ctx.
+func WithTenantFilter[Q interface{ Where(string, ...any) Q }](ctx context.Context, q Q, alias string) Q {
+	if where, val, ok := TenantWhere(ctx, alias); ok {
+		return q.Where(where, val)
+	}
+	return q
 }
 
 // toSnakeCase converts a CamelCase string to snake_case

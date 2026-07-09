@@ -165,6 +165,10 @@ const tenantProviderMock = vi.hoisted(() => ({
   // (activities/devices). Default to true so those tests keep rendering the
   // page unless they explicitly cover the NFC-off branch.
   useNFCEnabled: vi.fn(() => true),
+  // Info-Point Dashboard is opt-in and defaults off in production; mirror
+  // that default here so unrelated tests don't accidentally exercise the
+  // hidden nav item. Tests covering the feature override this mock locally.
+  useDisplayEnabled: vi.fn(() => false),
   TenantProvider: ({
     children,
   }: {

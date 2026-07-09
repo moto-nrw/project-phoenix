@@ -13,7 +13,6 @@ import (
 func TestImportModeConstants(t *testing.T) {
 	assert.Equal(t, ImportMode("create"), ImportModeCreate)
 	assert.Equal(t, ImportMode("update"), ImportModeUpdate)
-	assert.Equal(t, ImportMode("upsert"), ImportModeUpsert)
 }
 
 // =============================================================================
@@ -46,7 +45,7 @@ func TestImportRequest_WithValues(t *testing.T) {
 		Rows: []StudentImportRow{
 			{FirstName: "Max", LastName: "Mustermann", SchoolClass: "1a"},
 		},
-		Mode:            ImportModeUpsert,
+		Mode:            ImportMode("upsert"),
 		DryRun:          true,
 		StopOnError:     true,
 		UserID:          42,
@@ -54,7 +53,7 @@ func TestImportRequest_WithValues(t *testing.T) {
 	}
 
 	assert.Len(t, req.Rows, 1)
-	assert.Equal(t, ImportModeUpsert, req.Mode)
+	assert.Equal(t, ImportMode("upsert"), req.Mode)
 	assert.True(t, req.DryRun)
 	assert.True(t, req.StopOnError)
 	assert.Equal(t, int64(42), req.UserID)

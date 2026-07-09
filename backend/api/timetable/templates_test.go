@@ -15,6 +15,7 @@ import (
 	"github.com/go-chi/render"
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -641,7 +642,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 			CalendarPeriodID: &periodP.ID,
 		}
 		enrollment.SetTenantID(1)
-		require.NoError(t, s.res.timetableData.CreateStudentEnrollment(s.ctx, enrollment))
+		require.NoError(t, s.res.TimetableData.CreateStudentEnrollment(s.ctx, enrollment))
 	}
 	supervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffA,
@@ -650,7 +651,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		CalendarPeriodID: &periodP.ID,
 	}
 	supervisor.SetTenantID(1)
-	require.NoError(t, s.res.timetableData.CreatePlannedSupervisor(s.ctx, supervisor))
+	require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, supervisor))
 
 	listFor := func(t *testing.T, periodID int64) map[int64]templateResponse {
 		t.Helper()
@@ -715,7 +716,7 @@ func TestTemplatePeopleHelpersDeduplicateAndNoopWithoutTenant(t *testing.T) {
 	s := buildTemplateSetup(t, nil)
 	defer s.cleanupFn()
 
-	require.Equal(t, []int64{50, 60}, uniquePositiveIDs([]int64{50, 0, 60, 50, -1}))
+	require.Equal(t, []int64{50, 60}, sliceutil.UniquePositive([]int64{50, 0, 60, 50, -1}))
 	validFrom := timezone.NewDate(2026, time.January, 1)
 	assert.NoError(t, s.res.replaceTemplateStudents(context.Background(), 12345, []int64{s.studentA}, nil, validFrom))
 	assert.NoError(t, s.res.replaceTemplateStaff(context.Background(), 12345, []int64{s.staffA}, &s.staffA, nil, validFrom))

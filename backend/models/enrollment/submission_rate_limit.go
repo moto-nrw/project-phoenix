@@ -3,8 +3,6 @@ package enrollment
 import (
 	"context"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // SubmissionRateLimitKeyType discriminates between IP-based and
@@ -13,18 +11,6 @@ const (
 	SubmissionRateLimitKeyTypeIP    = "ip"
 	SubmissionRateLimitKeyTypeEmail = "email"
 )
-
-// SubmissionRateLimit is a row in enrollment.submission_rate_limits -
-// one per (tenant, key_type, key_value) combination. The repository
-// upserts rows atomically so concurrent submissions can't oversubscribe.
-type SubmissionRateLimit struct {
-	base.Model `bun:"schema:enrollment,table:submission_rate_limits"`
-	base.TenantModel
-	KeyType     string    `bun:"key_type,notnull" json:"key_type"`
-	KeyValue    string    `bun:"key_value,notnull" json:"key_value"`
-	Attempts    int       `bun:"attempts,notnull" json:"attempts"`
-	WindowStart time.Time `bun:"window_start,notnull,default:current_timestamp" json:"window_start"`
-}
 
 // SubmissionRateLimitState is the post-increment view the service uses
 // to decide whether to admit a submission.

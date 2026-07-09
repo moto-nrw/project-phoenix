@@ -50,25 +50,6 @@ func (r *PermissionRepository) FindByName(ctx context.Context, name string) (*au
 	return permission, nil
 }
 
-// FindByResourceAction retrieves a permission by resource and action
-func (r *PermissionRepository) FindByResourceAction(ctx context.Context, resource, action string) (*auth.Permission, error) {
-	permission := new(auth.Permission)
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(permission).
-		ModelTableExpr(permissionTableAlias).
-		Where(`LOWER("permission".resource) = LOWER(?) AND LOWER("permission".action) = LOWER(?)`, resource, action).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by resource and action",
-			Err: err,
-		}
-	}
-
-	return permission, nil
-}
-
 // FindByAccountID retrieves all permissions assigned to an account (direct + role-based).
 // When tenant context is available, filters assignments by tenant_id for tenant isolation.
 func (r *PermissionRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.Permission, error) {
@@ -167,79 +148,6 @@ func (r *PermissionRepository) FindByRoleID(ctx context.Context, roleID int64) (
 	return permissions, nil
 }
 
-// AssignPermissionToAccount assigns a permission directly to an account
-func (r *PermissionRepository) AssignPermissionToAccount(ctx context.Context, accountID int64, permissionID int64) error {
-	// Check if the permission assignment already exists
-	exists, err := base.GetDB(ctx, r.db).NewSelect().
-		Model((*auth.AccountPermission)(nil)).
-		ModelTableExpr(`auth.account_permissions AS "account_permission"`).
-		Where(whereAccountAndPermission, accountID, permissionID).
-		Exists(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "check permission assignment",
-			Err: err,
-		}
-	}
-
-	if exists {
-		// Update the existing assignment to ensure it's granted
-		_, err = base.GetDB(ctx, r.db).NewUpdate().
-			Model((*auth.AccountPermission)(nil)).
-			ModelTableExpr(`auth.account_permissions AS "account_permission"`).
-			Set("granted = true").
-			Where(whereAccountAndPermission, accountID, permissionID).
-			Exec(ctx)
-
-		if err != nil {
-			return &modelBase.DatabaseError{
-				Op:  "update permission assignment",
-				Err: err,
-			}
-		}
-
-		return nil
-	}
-
-	// Create the permission assignment
-	_, err = base.GetDB(ctx, r.db).NewInsert().
-		Model(&auth.AccountPermission{
-			AccountID:    accountID,
-			PermissionID: permissionID,
-			Granted:      true,
-		}).
-		ModelTableExpr(`auth.account_permissions AS "account_permission"`).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "assign permission to account",
-			Err: err,
-		}
-	}
-
-	return nil
-}
-
-// RemovePermissionFromAccount removes a permission assignment from an account
-func (r *PermissionRepository) RemovePermissionFromAccount(ctx context.Context, accountID int64, permissionID int64) error {
-	_, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*auth.AccountPermission)(nil)).
-		ModelTableExpr(`auth.account_permissions AS "account_permission"`).
-		Where(whereAccountAndPermission, accountID, permissionID).
-		Exec(ctx)
-
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "remove permission from account",
-			Err: err,
-		}
-	}
-
-	return nil
-}
-
 // AssignPermissionToRole assigns a permission to a role
 func (r *PermissionRepository) AssignPermissionToRole(ctx context.Context, roleID int64, permissionID int64) error {
 	db := base.GetDB(ctx, r.db)
@@ -296,21 +204,6 @@ func (r *PermissionRepository) RemovePermissionFromRole(ctx context.Context, rol
 	}
 
 	return nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *PermissionRepository) Create(ctx context.Context, permission *auth.Permission) error {
-	if permission == nil {
-		return fmt.Errorf("permission cannot be nil")
-	}
-
-	// Validate permission - this will also normalize the name
-	if err := permission.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, permission)
 }
 
 // Update overrides the base Update method for schema consistency
@@ -397,23 +290,4 @@ func (r *PermissionRepository) applyPermissionStringLikeFilter(query *bun.Select
 		return query.Where("LOWER("+field+") LIKE LOWER(?)", "%"+strValue+"%")
 	}
 	return query
-}
-
-// FindByRoleByName retrieves a role by its name
-func (r *PermissionRepository) FindByRoleByName(ctx context.Context, roleName string) (*auth.Role, error) {
-	role := new(auth.Role)
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(role).
-		ModelTableExpr("auth.roles AS role").
-		Where("LOWER(role.name) = LOWER(?)", roleName).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find role by name",
-			Err: err,
-		}
-	}
-
-	return role, nil
 }

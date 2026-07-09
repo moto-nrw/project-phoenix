@@ -97,7 +97,7 @@ type weeklyInstancesResponse struct {
 
 // listInstances handles GET /api/timetable/instances?from=&to=.
 func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(
 			errors.New("timetable resource not fully wired")))
 		return
@@ -138,7 +138,7 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	instances, err := rs.timetableData.GetActivityInstancesByDateRange(ctx, from, to)
+	instances, err := rs.TimetableData.GetActivityInstancesByDateRange(ctx, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"load instances failed", err))
@@ -192,7 +192,7 @@ func (rs *Resource) enrichInstance(
 	roomName := rs.lookupRoomName(ctx, inst.RoomID, roomCache)
 	activityType := rs.lookupActivityType(ctx, inst.ActivityGroupID, typeCache)
 
-	staffRows, err := rs.timetableData.GetInstanceStaff(ctx, inst.ID)
+	staffRows, err := rs.TimetableData.GetInstanceStaff(ctx, inst.ID)
 	if err != nil {
 		return enrichedInstance{}, fmt.Errorf("load staff for instance %d: %w", inst.ID, err)
 	}
@@ -210,7 +210,7 @@ func (rs *Resource) enrichInstance(
 		})
 	}
 
-	studentRows, err := rs.timetableData.GetInstanceStudents(ctx, inst.ID)
+	studentRows, err := rs.TimetableData.GetInstanceStudents(ctx, inst.ID)
 	if err != nil {
 		return enrichedInstance{}, fmt.Errorf("load students for instance %d: %w", inst.ID, err)
 	}
@@ -276,10 +276,10 @@ func (rs *Resource) instanceConflictWarnings(
 	if inst.Date != timezone.TodayDate() {
 		return []scheduleSvc.InstanceConflictWarning{}
 	}
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		return []scheduleSvc.InstanceConflictWarning{}
 	}
-	return rs.timetableData.DetectInstanceStartConflicts(ctx, inst, rs.getLogger())
+	return rs.TimetableData.DetectInstanceStartConflicts(ctx, inst, rs.getLogger())
 }
 
 // lookupRoomName resolves a room id to its display name, with per-request
@@ -289,11 +289,11 @@ func (rs *Resource) lookupRoomName(ctx context.Context, roomID int64, cache map[
 	if name, ok := cache[roomID]; ok {
 		return name
 	}
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		cache[roomID] = ""
 		return ""
 	}
-	room, err := rs.timetableData.GetRoom(ctx, roomID)
+	room, err := rs.TimetableData.GetRoom(ctx, roomID)
 	if err != nil || room == nil {
 		// Logged at debug only — a missing room reference here is recoverable.
 		rs.getLogger().Debug("instance list: room lookup failed",
@@ -317,11 +317,11 @@ func (rs *Resource) lookupActivityType(ctx context.Context, activityGroupID *int
 	if t, ok := cache[*activityGroupID]; ok {
 		return t
 	}
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		cache[*activityGroupID] = activitiesModel.GroupTypeActivity
 		return activitiesModel.GroupTypeActivity
 	}
-	group, err := rs.timetableData.GetActivityGroup(ctx, *activityGroupID)
+	group, err := rs.TimetableData.GetActivityGroup(ctx, *activityGroupID)
 	if err != nil || group == nil {
 		rs.getLogger().Debug("instance list: activity group lookup failed",
 			slog.Int64("activity_group_id", *activityGroupID),

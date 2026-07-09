@@ -3,20 +3,19 @@ package guardians
 import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	userContextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	guardianSvc "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 // Resource defines the guardians API resource
 type Resource struct {
-	GuardianService    guardianSvc.GuardianService
+	GuardianService    *guardianSvc.GuardianService
 	InvitationService  authSvc.GuardianInvitationService
 	PersonService      guardianSvc.PersonService
 	EducationService   educationSvc.Service
@@ -26,7 +25,7 @@ type Resource struct {
 
 // NewResource creates a new guardians resource
 func NewResource(
-	guardianService guardianSvc.GuardianService,
+	guardianService *guardianSvc.GuardianService,
 	invitationService authSvc.GuardianInvitationService,
 	personService guardianSvc.PersonService,
 	educationService educationSvc.Service,
@@ -48,19 +47,8 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
-
-	// Public routes for guardian invitations (no authentication required)
-	r.Get("/invitations/{token}", rs.validateGuardianInvitation)
-	r.Post("/invitations/{token}/accept", rs.acceptGuardianInvitation)
-
 	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Guardian profile CRUD operations
 		// Read operations require users:read permission

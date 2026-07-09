@@ -5,8 +5,9 @@ import (
 	"crypto/rand"
 	"errors"
 	"fmt"
+	"maps"
 	"net/http"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -469,7 +470,6 @@ func (s *Seeder) printSuccessSummary(email, adminPassword string, result *SeedRe
 
 	fmt.Println("OUTPUT FILES:")
 	fmt.Printf("  %s   (seed state with credentials & IDs)\n", DefaultSeedStatePath)
-	fmt.Println("  simulator.yaml  (simulator configuration)")
 	fmt.Println()
 }
 
@@ -508,11 +508,7 @@ func formatSortedCountMap[V int | int64](values map[string]V) string {
 	if len(values) == 0 {
 		return "-"
 	}
-	keys := make([]string, 0, len(values))
-	for key := range values {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
+	keys := slices.Sorted(maps.Keys(values))
 	parts := make([]string, 0, len(keys))
 	for _, key := range keys {
 		parts = append(parts, fmt.Sprintf("%s=%d", key, values[key]))

@@ -30,27 +30,6 @@ func (s reviewNotesSettings) ResolveBoolForTenant(context.Context, int64, string
 	return s.enabled, nil
 }
 
-type reviewRecordingBroadcaster struct {
-	events []realtime.Event
-}
-
-func (b *reviewRecordingBroadcaster) BroadcastToGroup(_ int64, _ string, _ realtime.Event) error {
-	return nil
-}
-
-func (b *reviewRecordingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
-	b.events = append(b.events, event)
-	return nil
-}
-
-func (b *reviewRecordingBroadcaster) BroadcastToAll(_ realtime.Event) error {
-	return nil
-}
-
-func (b *reviewRecordingBroadcaster) BroadcastParentMessage(_ int64, _ int64, _ realtime.Event) error {
-	return nil
-}
-
 // authorizedCtx stamps admin permissions so the per-child write gate in
 // ListPending/Decide short-circuits. These tests exercise decide LOGIC (apply,
 // staleness, concurrency), not authorization; the scope gate itself is covered
@@ -413,7 +392,7 @@ func TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit(t *testing
 		require.NoError(t, db.Close())
 	}()
 	repos := repositories.NewFactory(db)
-	broadcaster := &reviewRecordingBroadcaster{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, nil, slog.Default(), broadcaster)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -422,12 +401,13 @@ func TestMasterDataReview_ApprovalBroadcastsStudentUpdatedAfterCommit(t *testing
 
 	err := tenant.WithTenantTx(authorizedCtx(context.Background()), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		_, e := svc.Decide(txCtx, userService.MasterDataReviewDecideInput{RequestID: row.ID, Approve: true, ReviewedBy: chain.AccountID})
-		assert.Empty(t, broadcaster.events, "broadcast must wait until the transaction commits")
+		assert.Empty(t, broadcaster.CallsByMethod("tenant"), "broadcast must wait until the transaction commits")
 		return e
 	})
 	require.NoError(t, err)
-	require.Len(t, broadcaster.events, 1)
-	assert.Equal(t, realtime.EventStudentUpdated, broadcaster.events[0].Type)
+	tenantCalls := broadcaster.CallsByMethod("tenant")
+	require.Len(t, tenantCalls, 1)
+	assert.Equal(t, realtime.EventStudentUpdated, tenantCalls[0].Event.Type)
 }
 
 func TestMasterDataReview_RejectLeavesRecordUnchanged(t *testing.T) {
@@ -555,7 +535,7 @@ func TestMasterDataReview_ApproveEmitsDecisionPill(t *testing.T) {
 	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 
-	broadcaster := &reviewRecordingBroadcaster{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
 		reviewNotesSettings{enabled: true}, broadcaster, slog.Default())
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, slog.Default(), broadcaster)
@@ -586,7 +566,7 @@ func TestMasterDataReview_RejectEmitsPillWithReason(t *testing.T) {
 	defer func() { require.NoError(t, db.Close()) }()
 	repos := repositories.NewFactory(db)
 
-	broadcaster := &reviewRecordingBroadcaster{}
+	broadcaster := testpkg.NewRecordingBroadcaster()
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
 		reviewNotesSettings{enabled: true}, broadcaster, slog.Default())
 	svc := userService.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, nil, emitter, slog.Default(), broadcaster)

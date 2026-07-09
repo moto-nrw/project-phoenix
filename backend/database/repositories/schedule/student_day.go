@@ -98,9 +98,7 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		Where(`"activity_instance".date <= ?`, to).
 		OrderExpr(`"activity_instance".date ASC, "activity_instance".start_time ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
 
 	if err := query.Scan(ctx, &scans); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -169,9 +167,7 @@ func (r *InstanceStudentRepository) FindPlannedStudentIDsByDate(ctx context.Cont
 		Where(`"activity_instance".status <> ?`, schedule.InstanceStatusCancelled).
 		OrderExpr(`"instance_student".student_id ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
 
 	if err := query.Scan(ctx, &ids); err != nil {
 		return nil, &modelBase.DatabaseError{

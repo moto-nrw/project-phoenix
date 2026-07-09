@@ -45,7 +45,7 @@ func TestSessionStartWithRoomConflict(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, room.ID, device1.ID, device2.ID, staff.ID)
 
 		// Start first session in the room
-		session1, err := service.StartActivitySession(ctx, activity1.ID, device1.ID, staff.ID, &room.ID)
+		session1, err := service.StartActivitySessionWithSupervisors(ctx, activity1.ID, device1.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 		require.NotNil(t, session1)
 		defer func() {
@@ -53,7 +53,7 @@ func TestSessionStartWithRoomConflict(t *testing.T) {
 		}()
 
 		// ACT: Try to start second session in same room
-		_, err = service.StartActivitySession(ctx, activity2.ID, device2.ID, staff.ID, &room.ID)
+		_, err = service.StartActivitySessionWithSupervisors(ctx, activity2.ID, device2.ID, []int64{staff.ID}, &room.ID)
 
 		// ASSERT: Should fail due to room conflict
 		require.Error(t, err)
@@ -80,12 +80,12 @@ func TestForceStartOverridesExistingSession(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff.ID)
 
 		// Start first session
-		session1, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		session1, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 		require.NotNil(t, session1)
 
 		// ACT: Force start new session on same device
-		session2, err := service.ForceStartActivitySession(ctx, activity.ID, device.ID, staff.ID, nil)
+		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, nil)
 
 		// ASSERT: New session started, old session ended
 		require.NoError(t, err)
@@ -163,7 +163,7 @@ func TestUpdateActiveGroupSupervisors(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff1.ID, staff2.ID)
 
 		// Start session with first supervisor
-		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff1.ID, &room.ID)
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff1.ID}, &room.ID)
 		require.NoError(t, err)
 		defer func() {
 			_ = service.EndActivitySession(ctx, session.ID)
@@ -198,7 +198,7 @@ func TestUpdateActiveGroupSupervisors(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff.ID)
 
 		// Start and end session
-		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 		err = service.EndActivitySession(ctx, session.ID)
 		require.NoError(t, err)
@@ -220,7 +220,7 @@ func TestUpdateActiveGroupSupervisors(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff.ID)
 
 		// Start session
-		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 		defer func() {
 			_ = service.EndActivitySession(ctx, session.ID)
@@ -333,7 +333,7 @@ func TestCheckActivityConflict(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, device.ID, staff.ID)
 
 		// Start a session
-		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 		defer func() {
 			_ = service.EndActivitySession(ctx, session.ID)

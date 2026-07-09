@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	modelAuth "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -41,9 +42,7 @@ func (r *InvitationTokenRepository) FindByToken(ctx context.Context, token strin
 		ModelTableExpr(invitationTableAlias).
 		Where(`"invitation_token".token = ?`, token)
 
-	if where, val, ok := base.TenantWhere(ctx, "invitation_token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "invitation_token")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -64,9 +63,7 @@ func (r *InvitationTokenRepository) FindByID(ctx context.Context, id interface{}
 		ModelTableExpr(invitationTableAlias).
 		Where(`"invitation_token".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "invitation_token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "invitation_token")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -88,9 +85,7 @@ func (r *InvitationTokenRepository) Update(ctx context.Context, token *modelAuth
 		ModelTableExpr(invitationTableAlias).
 		WherePK()
 
-	if where, val, ok := base.TenantWhere(ctx, "invitation_token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "invitation_token")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -113,9 +108,7 @@ func (r *InvitationTokenRepository) FindValidByToken(ctx context.Context, token 
 		Where(`"invitation_token".expires_at > ?`, now).
 		Where(`"invitation_token".used_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "invitation_token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "invitation_token")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -136,9 +129,7 @@ func (r *InvitationTokenRepository) FindByEmail(ctx context.Context, email strin
 		ModelTableExpr(invitationTableAlias).
 		Where(`LOWER("invitation_token".email) = LOWER(?)`, email)
 
-	if where, val, ok := base.TenantWhere(ctx, "invitation_token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "invitation_token")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -277,9 +268,7 @@ func (r *InvitationTokenRepository) List(ctx context.Context, filters map[string
 		Join(`LEFT JOIN auth.roles AS "role" ON "role"."id" = "invitation_token"."role_id"`).
 		Join(`LEFT JOIN auth.accounts AS "creator" ON "creator"."id" = "invitation_token"."created_by"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "invitation_token"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "invitation_token")
 
 	now := time.Now()
 
@@ -347,35 +336,21 @@ func (r *InvitationTokenRepository) applyUsedFilter(query *bun.SelectQuery, valu
 
 // UpdateDeliveryResult updates the email delivery metadata for an invitation token.
 func (r *InvitationTokenRepository) UpdateDeliveryResult(ctx context.Context, id int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	update := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*modelAuth.InvitationToken)(nil)).
-		ModelTableExpr(invitationTable).
-		Where(`id = ?`, id).
-		Set(`email_retry_count = ?`, retryCount)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		update = update.Where("tenant_id = ?", tenantID)
-	}
-
-	if sentAt != nil {
-		update = update.Set(`email_sent_at = ?`, *sentAt)
-	} else {
-		update = update.Set(`email_sent_at = NULL`)
-	}
-
+	token := &modelAuth.InvitationToken{Model: modelBase.Model{ID: id}, EmailSentAt: sentAt, EmailRetryCount: retryCount}
 	if emailError != nil {
-		update = update.Set(`email_error = ?`, truncateError(*emailError))
-	} else {
-		update = update.Set(`email_error = NULL`)
+		truncated := strutil.TruncateBytes(*emailError, maxEmailErrorLength, "")
+		token.EmailError = &truncated
 	}
 
-	result, err := update.Exec(ctx)
+	n, err := r.UpdateColumns(ctx, token, "email_sent_at", "email_error", "email_retry_count")
 	if err != nil {
+		return err
+	}
+	if n != 1 {
 		return &modelBase.DatabaseError{
 			Op:  "update invitation delivery result",
-			Err: err,
+			Err: fmt.Errorf("expected 1 rows affected, got %d", n),
 		}
 	}
-
-	return base.AssertRowsAffected(result, 1, "update invitation delivery result")
+	return nil
 }

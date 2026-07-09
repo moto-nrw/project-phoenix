@@ -56,9 +56,7 @@ func (r *StudentPickupScheduleRepository) FindByStudentID(ctx context.Context, s
 		Where(`"student_pickup_schedule".student_id = ?`, studentID).
 		Order("weekday ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_schedule")
 
 	err := query.Scan(ctx)
 
@@ -81,9 +79,7 @@ func (r *StudentPickupScheduleRepository) FindByStudentIDAndWeekday(ctx context.
 		Where(`"student_pickup_schedule".student_id = ?`, studentID).
 		Where(`"student_pickup_schedule".weekday = ?`, weekday)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_schedule")
 
 	err := query.Scan(ctx)
 
@@ -113,9 +109,7 @@ func (r *StudentPickupScheduleRepository) FindByStudentIDsAndWeekday(ctx context
 		Where(`"student_pickup_schedule".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"student_pickup_schedule".weekday = ?`, weekday)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_schedule")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -167,9 +161,7 @@ func (r *StudentPickupScheduleRepository) DeleteByStudentID(ctx context.Context,
 		ModelTableExpr(`schedule.student_pickup_schedules AS "student_pickup_schedule"`).
 		Where(`"student_pickup_schedule".student_id = ?`, studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_schedule")
 
 	_, err := query.Exec(ctx)
 	if err != nil {
@@ -182,56 +174,16 @@ func (r *StudentPickupScheduleRepository) DeleteByStudentID(ctx context.Context,
 	return nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *StudentPickupScheduleRepository) Create(ctx context.Context, s *schedule.StudentPickupSchedule) error {
-	if s == nil {
-		return errScheduleNil
-	}
-
-	if err := s.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, s)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *StudentPickupScheduleRepository) Update(ctx context.Context, s *schedule.StudentPickupSchedule) error {
-	if s == nil {
-		return errScheduleNil
-	}
-
-	if err := s.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Update(ctx, s)
-}
-
 // List retrieves pickup schedules matching the provided query options
 func (r *StudentPickupScheduleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupSchedule, error) {
-	schedules := make([]*schedule.StudentPickupSchedule, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&schedules).
-		ModelTableExpr(`schedule.student_pickup_schedules AS "student_pickup_schedule"`)
-
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_schedule"); ok {
-		query = query.Where(where, val)
-	}
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	rows, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, err
 	}
-
-	return schedules, nil
+	if rows == nil {
+		rows = make([]*schedule.StudentPickupSchedule, 0)
+	}
+	return rows, nil
 }
 
 // FindByID overrides base method to ensure schema qualification
@@ -243,9 +195,7 @@ func (r *StudentPickupScheduleRepository) FindByID(ctx context.Context, id any) 
 		ModelTableExpr(`schedule.student_pickup_schedules AS "student_pickup_schedule"`).
 		Where(`"student_pickup_schedule".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_schedule")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -283,9 +233,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentID(ctx context.Context, 
 		Where(`"student_pickup_exception".student_id = ?`, studentID).
 		Order("exception_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_exception")
 
 	err := query.Scan(ctx)
 
@@ -311,9 +259,7 @@ func (r *StudentPickupExceptionRepository) FindUpcomingByStudentID(ctx context.C
 		Where(`"student_pickup_exception".exception_date >= ?`, today).
 		Order("exception_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_exception")
 
 	err := query.Scan(ctx)
 
@@ -337,9 +283,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentIDAndDate(ctx context.Co
 		Where(`"student_pickup_exception".student_id = ?`, studentID).
 		Where(`"student_pickup_exception".exception_date = ?`, date)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_exception")
 
 	err := query.Scan(ctx)
 
@@ -370,9 +314,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentIDsAndDate(ctx context.C
 		Where(`"student_pickup_exception".student_id IN (?)`, bun.List(studentIDs)).
 		Where(`"student_pickup_exception".exception_date = ?`, date)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_exception")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -399,9 +341,7 @@ func (r *StudentPickupExceptionRepository) FindByStudentIDAndDateRange(
 		Where(`"student_pickup_exception".exception_date <= ?`, to).
 		Order("exception_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_exception")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -419,9 +359,7 @@ func (r *StudentPickupExceptionRepository) DeleteByStudentID(ctx context.Context
 		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).
 		Where(`"student_pickup_exception".student_id = ?`, studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_exception")
 
 	_, err := query.Exec(ctx)
 	if err != nil {
@@ -441,9 +379,7 @@ func (r *StudentPickupExceptionRepository) DeletePastExceptions(ctx context.Cont
 		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).
 		Where(`"student_pickup_exception".exception_date < ?`, beforeDate)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_exception"); ok {
-		delQuery = delQuery.Where(where, val)
-	}
+	delQuery = base.WithTenantFilter(ctx, delQuery, "student_pickup_exception")
 
 	result, err := delQuery.Exec(ctx)
 
@@ -462,56 +398,16 @@ func (r *StudentPickupExceptionRepository) DeletePastExceptions(ctx context.Cont
 	return rowsAffected, nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *StudentPickupExceptionRepository) Create(ctx context.Context, e *schedule.StudentPickupException) error {
-	if e == nil {
-		return fmt.Errorf("exception cannot be nil")
-	}
-
-	if err := e.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, e)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *StudentPickupExceptionRepository) Update(ctx context.Context, e *schedule.StudentPickupException) error {
-	if e == nil {
-		return fmt.Errorf("exception cannot be nil")
-	}
-
-	if err := e.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Update(ctx, e)
-}
-
 // List retrieves pickup exceptions matching the provided query options
 func (r *StudentPickupExceptionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupException, error) {
-	exceptions := make([]*schedule.StudentPickupException, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&exceptions).
-		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`)
-
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_exception"); ok {
-		query = query.Where(where, val)
-	}
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	rows, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, err
 	}
-
-	return exceptions, nil
+	if rows == nil {
+		rows = make([]*schedule.StudentPickupException, 0)
+	}
+	return rows, nil
 }
 
 // FindByID overrides base method to ensure schema qualification
@@ -523,9 +419,7 @@ func (r *StudentPickupExceptionRepository) FindByID(ctx context.Context, id any)
 		ModelTableExpr(`schedule.student_pickup_exceptions AS "student_pickup_exception"`).
 		Where(`"student_pickup_exception".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_exception"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_exception")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -563,9 +457,7 @@ func (r *StudentPickupNoteRepository) FindByStudentID(ctx context.Context, stude
 		Where(`"student_pickup_note".student_id = ?`, studentID).
 		Order("note_date ASC", orderCreatedAtASC)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_note"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_note")
 
 	err := query.Scan(ctx)
 
@@ -590,9 +482,7 @@ func (r *StudentPickupNoteRepository) FindByStudentIDAndDate(ctx context.Context
 		Where(`"student_pickup_note".note_date = ?`, date).
 		Order(orderCreatedAtASC)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_note"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_note")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -620,9 +510,7 @@ func (r *StudentPickupNoteRepository) FindByStudentIDsAndDate(ctx context.Contex
 		Where(`"student_pickup_note".note_date = ?`, date).
 		Order(orderCreatedAtASC)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_note"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_note")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -642,9 +530,7 @@ func (r *StudentPickupNoteRepository) DeleteByStudentID(ctx context.Context, stu
 		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
 		Where(`"student_pickup_note".student_id = ?`, studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_note"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_note")
 
 	_, err := query.Exec(ctx)
 	if err != nil {
@@ -664,9 +550,7 @@ func (r *StudentPickupNoteRepository) DeletePastNotes(ctx context.Context, befor
 		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
 		Where(`"student_pickup_note".note_date < ?`, beforeDate)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_note"); ok {
-		delQuery = delQuery.Where(where, val)
-	}
+	delQuery = base.WithTenantFilter(ctx, delQuery, "student_pickup_note")
 
 	result, err := delQuery.Exec(ctx)
 
@@ -685,56 +569,16 @@ func (r *StudentPickupNoteRepository) DeletePastNotes(ctx context.Context, befor
 	return rowsAffected, nil
 }
 
-// Create overrides the base Create method to handle validation
-func (r *StudentPickupNoteRepository) Create(ctx context.Context, n *schedule.StudentPickupNote) error {
-	if n == nil {
-		return fmt.Errorf("note cannot be nil")
-	}
-
-	if err := n.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, n)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *StudentPickupNoteRepository) Update(ctx context.Context, n *schedule.StudentPickupNote) error {
-	if n == nil {
-		return fmt.Errorf("note cannot be nil")
-	}
-
-	if err := n.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Update(ctx, n)
-}
-
 // List retrieves pickup notes matching the provided query options
 func (r *StudentPickupNoteRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.StudentPickupNote, error) {
-	notes := make([]*schedule.StudentPickupNote, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&notes).
-		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`)
-
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_note"); ok {
-		query = query.Where(where, val)
-	}
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
+	rows, err := r.ListWithOptions(ctx, options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
+		return nil, err
 	}
-
-	return notes, nil
+	if rows == nil {
+		rows = make([]*schedule.StudentPickupNote, 0)
+	}
+	return rows, nil
 }
 
 // FindByID overrides base method to ensure schema qualification
@@ -746,9 +590,7 @@ func (r *StudentPickupNoteRepository) FindByID(ctx context.Context, id any) (*sc
 		ModelTableExpr(`schedule.student_pickup_notes AS "student_pickup_note"`).
 		Where(`"student_pickup_note".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_pickup_note"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_pickup_note")
 
 	err := query.Scan(ctx)
 	if err != nil {

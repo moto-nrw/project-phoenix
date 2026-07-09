@@ -13,11 +13,9 @@ func TestErrorVariablesExist(t *testing.T) {
 		err  error
 	}{
 		{"ErrSubstitutionNotFound", substitutions.ErrSubstitutionNotFound},
-		{"ErrSubstitutionConflict", substitutions.ErrSubstitutionConflict},
 		{"ErrInvalidSubstitutionData", substitutions.ErrInvalidSubstitutionData},
 		{"ErrSubstitutionDateRange", substitutions.ErrSubstitutionDateRange},
 		{"ErrStaffAlreadySubstituting", substitutions.ErrStaffAlreadySubstituting},
-		{"ErrGroupAlreadyHasSubstitute", substitutions.ErrGroupAlreadyHasSubstitute},
 		{"ErrSubstitutionBackdated", substitutions.ErrSubstitutionBackdated},
 	}
 
@@ -32,11 +30,9 @@ func TestErrorVariablesExist(t *testing.T) {
 func TestErrorVariablesDistinct(t *testing.T) {
 	errors := []error{
 		substitutions.ErrSubstitutionNotFound,
-		substitutions.ErrSubstitutionConflict,
 		substitutions.ErrInvalidSubstitutionData,
 		substitutions.ErrSubstitutionDateRange,
 		substitutions.ErrStaffAlreadySubstituting,
-		substitutions.ErrGroupAlreadyHasSubstitute,
 		substitutions.ErrSubstitutionBackdated,
 	}
 
@@ -55,11 +51,9 @@ func TestErrorMessages(t *testing.T) {
 		expectedContain string
 	}{
 		{"ErrSubstitutionNotFound", substitutions.ErrSubstitutionNotFound, "not found"},
-		{"ErrSubstitutionConflict", substitutions.ErrSubstitutionConflict, "conflict"},
 		{"ErrInvalidSubstitutionData", substitutions.ErrInvalidSubstitutionData, "invalid"},
 		{"ErrSubstitutionDateRange", substitutions.ErrSubstitutionDateRange, "date range"},
 		{"ErrStaffAlreadySubstituting", substitutions.ErrStaffAlreadySubstituting, "already substituting"},
-		{"ErrGroupAlreadyHasSubstitute", substitutions.ErrGroupAlreadyHasSubstitute, "already has"},
 		{"ErrSubstitutionBackdated", substitutions.ErrSubstitutionBackdated, "past dates"},
 	}
 

@@ -264,11 +264,11 @@ func mapArrivalNoteToResponse(n *schedule.StudentArrivalNote) ArrivalNoteRespons
 func (rs *Resource) verifyArrivalExceptionOwnership(w http.ResponseWriter, r *http.Request, exceptionID, studentID int64) *schedule.StudentArrivalException {
 	exception, err := rs.ArrivalScheduleService.GetStudentArrivalExceptionByID(r.Context(), exceptionID)
 	if err != nil || exception == nil {
-		renderError(w, r, ErrorNotFound(errors.New("arrival exception not found")))
+		renderError(w, r, common.ErrorNotFound(errors.New("arrival exception not found")))
 		return nil
 	}
 	if exception.StudentID != studentID {
-		renderError(w, r, ErrorForbidden(errors.New("exception does not belong to this student")))
+		renderError(w, r, common.ErrorForbidden(errors.New("exception does not belong to this student")))
 		return nil
 	}
 	return exception
@@ -278,11 +278,11 @@ func (rs *Resource) verifyArrivalExceptionOwnership(w http.ResponseWriter, r *ht
 func (rs *Resource) verifyArrivalNoteOwnership(w http.ResponseWriter, r *http.Request, noteID, studentID int64) *schedule.StudentArrivalNote {
 	note, err := rs.ArrivalScheduleService.GetStudentArrivalNoteByID(r.Context(), noteID)
 	if err != nil || note == nil {
-		renderError(w, r, ErrorNotFound(errors.New("arrival note not found")))
+		renderError(w, r, common.ErrorNotFound(errors.New("arrival note not found")))
 		return nil
 	}
 	if note.StudentID != studentID {
-		renderError(w, r, ErrorForbidden(errors.New("note does not belong to this student")))
+		renderError(w, r, common.ErrorForbidden(errors.New("note does not belong to this student")))
 		return nil
 	}
 	return note
@@ -295,7 +295,7 @@ func (rs *Resource) requireArrivalReadAccess(w http.ResponseWriter, r *http.Requ
 		return nil
 	}
 	if !rs.checkStudentReadAccess(r, student) {
-		renderError(w, r, ErrorForbidden(fmt.Errorf("read access required to view arrival schedules")))
+		renderError(w, r, common.ErrorForbidden(fmt.Errorf("read access required to view arrival schedules")))
 		return nil
 	}
 	return student
@@ -308,7 +308,7 @@ func (rs *Resource) requireArrivalWriteAccess(w http.ResponseWriter, r *http.Req
 		return nil
 	}
 	if !rs.checkStudentFullAccess(r, student) {
-		renderError(w, r, ErrorForbidden(fmt.Errorf("full access required to %s", action)))
+		renderError(w, r, common.ErrorForbidden(fmt.Errorf("full access required to %s", action)))
 		return nil
 	}
 	return student
@@ -323,7 +323,7 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 
 	data, err := rs.ArrivalScheduleService.GetStudentArrivalData(r.Context(), student.ID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -382,29 +382,29 @@ func (rs *Resource) updateStudentArrivalSchedules(w http.ResponseWriter, r *http
 
 	req := &BulkArrivalScheduleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
 	schedules := toArrivalScheduleModels(req.Schedules, student.ID, staffID)
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ArrivalScheduleService.UpsertBulkStudentArrivalSchedules(ctx, student.ID, schedules)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	data, err := rs.ArrivalScheduleService.GetStudentArrivalData(r.Context(), student.ID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -422,13 +422,13 @@ func (rs *Resource) createStudentArrivalException(w http.ResponseWriter, r *http
 
 	req := &ArrivalExceptionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
@@ -441,8 +441,8 @@ func (rs *Resource) createStudentArrivalException(w http.ResponseWriter, r *http
 
 	var exception *schedule.StudentArrivalException
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.db, student.ID, exceptionDate); err != nil {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, exceptionDate); err != nil {
 			return err
 		}
 
@@ -530,7 +530,7 @@ func (rs *Resource) updateStudentArrivalException(w http.ResponseWriter, r *http
 
 	req := &ArrivalExceptionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -540,8 +540,8 @@ func (rs *Resource) updateStudentArrivalException(w http.ResponseWriter, r *http
 	var exception *schedule.StudentArrivalException
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.db, student.ID, exceptionDate); err != nil {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, exceptionDate); err != nil {
 			return err
 		}
 		freshException, err := rs.ArrivalScheduleService.GetStudentArrivalExceptionByID(ctx, exceptionID)
@@ -627,8 +627,8 @@ func (rs *Resource) deleteStudentArrivalException(w http.ResponseWriter, r *http
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.db, student.ID, existingException.ExceptionDate); err != nil {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, existingException.ExceptionDate); err != nil {
 			return err
 		}
 		freshException, err := rs.ArrivalScheduleService.GetStudentArrivalExceptionByID(ctx, exceptionID)
@@ -660,13 +660,13 @@ func (rs *Resource) createStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 
 	req := &ArrivalNoteRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
@@ -679,10 +679,10 @@ func (rs *Resource) createStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ArrivalScheduleService.CreateStudentArrivalNote(ctx, note)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -709,7 +709,7 @@ func (rs *Resource) updateStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 
 	req := &ArrivalNoteRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -725,10 +725,10 @@ func (rs *Resource) updateStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 	note.SetTenantID(existingNote.TenantID)
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ArrivalScheduleService.UpdateStudentArrivalNote(ctx, note)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -754,10 +754,10 @@ func (rs *Resource) deleteStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.ArrivalScheduleService.DeleteStudentArrivalNote(ctx, noteID)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -769,19 +769,19 @@ func (rs *Resource) deleteStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 func (rs *Resource) bulkUpsertArrivalSchedules(w http.ResponseWriter, r *http.Request) {
 	req := &BulkUpsertArrivalScheduleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
 	result, err := rs.ArrivalScheduleService.BulkUpsertBySchoolClass(r.Context(), req.SchoolClass, req.Schedules, staffID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -832,14 +832,14 @@ type BulkArrivalTimeResponse struct {
 func (rs *Resource) getBulkArrivalTimes(w http.ResponseWriter, r *http.Request) {
 	req := &BulkArrivalTimeRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Filter student IDs to only those the user has access to
 	authorizedIDs, err := rs.filterAuthorizedStudentIDs(r, req.StudentIDs)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -856,7 +856,7 @@ func (rs *Resource) getBulkArrivalTimes(w http.ResponseWriter, r *http.Request) 
 
 	arrivalTimes, err := rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(r.Context(), authorizedIDs, date)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -886,56 +886,4 @@ func (rs *Resource) getBulkArrivalTimes(w http.ResponseWriter, r *http.Request) 
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Bulk arrival times retrieved successfully")
-}
-
-// Handler accessor methods for testing
-
-// GetStudentArrivalSchedulesHandler returns the handler for getting arrival schedules
-func (rs *Resource) GetStudentArrivalSchedulesHandler() http.HandlerFunc {
-	return rs.getStudentArrivalSchedules
-}
-
-// UpdateStudentArrivalSchedulesHandler returns the handler for updating arrival schedules
-func (rs *Resource) UpdateStudentArrivalSchedulesHandler() http.HandlerFunc {
-	return rs.updateStudentArrivalSchedules
-}
-
-// CreateStudentArrivalExceptionHandler returns the handler for creating arrival exceptions
-func (rs *Resource) CreateStudentArrivalExceptionHandler() http.HandlerFunc {
-	return rs.createStudentArrivalException
-}
-
-// UpdateStudentArrivalExceptionHandler returns the handler for updating arrival exceptions
-func (rs *Resource) UpdateStudentArrivalExceptionHandler() http.HandlerFunc {
-	return rs.updateStudentArrivalException
-}
-
-// DeleteStudentArrivalExceptionHandler returns the handler for deleting arrival exceptions
-func (rs *Resource) DeleteStudentArrivalExceptionHandler() http.HandlerFunc {
-	return rs.deleteStudentArrivalException
-}
-
-// CreateStudentArrivalNoteHandler returns the handler for creating arrival notes
-func (rs *Resource) CreateStudentArrivalNoteHandler() http.HandlerFunc {
-	return rs.createStudentArrivalNote
-}
-
-// UpdateStudentArrivalNoteHandler returns the handler for updating arrival notes
-func (rs *Resource) UpdateStudentArrivalNoteHandler() http.HandlerFunc {
-	return rs.updateStudentArrivalNote
-}
-
-// DeleteStudentArrivalNoteHandler returns the handler for deleting arrival notes
-func (rs *Resource) DeleteStudentArrivalNoteHandler() http.HandlerFunc {
-	return rs.deleteStudentArrivalNote
-}
-
-// BulkUpsertArrivalSchedulesHandler returns the handler for bulk upserting arrival schedules
-func (rs *Resource) BulkUpsertArrivalSchedulesHandler() http.HandlerFunc {
-	return rs.bulkUpsertArrivalSchedules
-}
-
-// GetBulkArrivalTimesHandler returns the handler for getting bulk arrival times
-func (rs *Resource) GetBulkArrivalTimesHandler() http.HandlerFunc {
-	return rs.getBulkArrivalTimes
 }

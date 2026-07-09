@@ -405,7 +405,11 @@ function ChildInformationCard({
             <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
               Geburtsdatum: {formatPlainDate(child.date_of_birth)}
             </span>
-            {child.target_grade_level ? (
+            {child.target_school_class ? (
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
+                Klasse {child.target_school_class}
+              </span>
+            ) : child.target_grade_level ? (
               <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
                 {child.target_grade_level}. Klasse
               </span>
@@ -527,9 +531,11 @@ function ReviewSidebar({
                   {child.first_name} {child.last_name}
                 </h3>
                 <p className="mt-1 text-xs text-gray-500">
-                  {child.target_grade_level
-                    ? `${child.target_grade_level}. Klasse`
-                    : "Keine Klassenstufe"}
+                  {child.target_school_class
+                    ? `Klasse ${child.target_school_class}`
+                    : child.target_grade_level
+                      ? `${child.target_grade_level}. Klasse`
+                      : "Keine Klassenstufe"}
                 </p>
               </div>
               <StatusBadge status={child.status} />

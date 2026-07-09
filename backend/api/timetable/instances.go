@@ -11,6 +11,7 @@
 package timetable
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"log/slog"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -47,7 +49,7 @@ func (rs *Resource) startInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 		return
 	}
-	if rs.instanceService == nil {
+	if rs.InstanceService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
 		return
 	}
@@ -58,7 +60,7 @@ func (rs *Resource) startInstance(w http.ResponseWriter, r *http.Request) {
 	// the admin should not see as a 500.
 	startedByStaffID := rs.resolveStartedByStaffID(r.Context())
 
-	result, err := rs.instanceService.Start(r.Context(), id, startedByStaffID)
+	result, err := rs.InstanceService.Start(r.Context(), id, startedByStaffID)
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return
@@ -86,12 +88,12 @@ func (rs *Resource) completeInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 		return
 	}
-	if rs.instanceService == nil {
+	if rs.InstanceService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
 		return
 	}
 
-	instance, err := rs.instanceService.Complete(r.Context(), id)
+	instance, err := rs.InstanceService.Complete(r.Context(), id)
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return
@@ -111,12 +113,12 @@ func (rs *Resource) cancelInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 		return
 	}
-	if rs.instanceService == nil {
+	if rs.InstanceService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
 		return
 	}
 
-	instance, err := rs.instanceService.Cancel(r.Context(), id)
+	instance, err := rs.InstanceService.Cancel(r.Context(), id)
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return
@@ -138,12 +140,12 @@ func (rs *Resource) deleteInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 		return
 	}
-	if rs.instanceService == nil {
+	if rs.InstanceService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
 		return
 	}
 
-	if err := rs.instanceService.DeleteCancelled(r.Context(), id); err != nil {
+	if err := rs.InstanceService.DeleteCancelled(r.Context(), id); err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return
 	}
@@ -167,7 +169,7 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 			errors.New("dieser Termin kann nicht einzeln gelöscht werden, weil die Vorlage an diesem Tag mehrere Termine hat"),
 			"ambiguous_template_instance_delete",
 		))
-	case isUniqueViolationOnConstraint(err, "idx_activity_instances_template_unique"):
+	case base.IsUniqueViolationOn(err, "idx_activity_instances_template_unique"):
 		common.RenderError(w, r, common.ErrorConflictWithCode(
 			errors.New("instance already exists for this template/date/start_time"),
 			"duplicate_instance",
@@ -182,7 +184,7 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 // missing staff row all return 0 — StartedBy is nullable in the schema and
 // the transition is already authorised via SchedulesManage.
 func (rs *Resource) resolveStartedByStaffID(ctx context.Context) int64 {
-	if rs.personService == nil {
+	if rs.PersonService == nil {
 		return 0
 	}
 	claims, ok := ctx.Value(jwt.CtxClaims).(jwt.AppClaims)
@@ -190,14 +192,14 @@ func (rs *Resource) resolveStartedByStaffID(ctx context.Context) int64 {
 		return 0
 	}
 	accountID := int64(claims.ID)
-	person, err := rs.personService.FindByAccountID(ctx, accountID)
+	person, err := rs.PersonService.FindByAccountID(ctx, accountID)
 	if err != nil || person == nil {
 		rs.getLogger().Debug("started_by lookup: person not found",
 			slog.Int64("account_id", accountID),
 		)
 		return 0
 	}
-	staff, err := rs.personService.GetStaffByPersonID(ctx, person.ID)
+	staff, err := rs.PersonService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil || staff == nil {
 		rs.getLogger().Debug("started_by lookup: staff not found",
 			slog.Int64("person_id", person.ID),
@@ -210,8 +212,5 @@ func (rs *Resource) resolveStartedByStaffID(ctx context.Context) int64 {
 // getLogger is a nil-safe accessor used by helpers that run outside the
 // chi handler's standard error-rendering path.
 func (rs *Resource) getLogger() *slog.Logger {
-	if rs.logger != nil {
-		return rs.logger
-	}
-	return slog.Default()
+	return cmp.Or(rs.Logger, slog.Default())
 }

@@ -23,17 +23,12 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 
 // Common error variables
 var (
-	ErrInvalidRequest           = errors.New("invalid request")
-	ErrInternalServer           = errors.New("internal server error")
-	ErrResourceNotFound         = errors.New("resource not found")
 	ErrRoomCapacityExceeded     = errors.New("room capacity exceeded")
 	ErrActivityCapacityExceeded = errors.New("activity capacity exceeded")
 )
 
 // Error message constants for reuse across handlers
 const (
-	ErrMsgInvalidDeviceID  = "invalid device ID"
-	ErrMsgDeviceIDRequired = "device ID is required"
 	ErrMsgPersonNotStudent = "person is not a student"
 	ErrMsgRFIDTagNotFound  = "RFID tag not found"
 )

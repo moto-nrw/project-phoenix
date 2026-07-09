@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -28,16 +27,6 @@ func NewOperatorRefreshTokenRepository(db *bun.DB) platform.OperatorRefreshToken
 		Repository: base.NewRepository[*platform.OperatorRefreshToken](db, operatorRefreshTokenTable, "OperatorRefreshToken"),
 		db:         db,
 	}
-}
-
-func (r *OperatorRefreshTokenRepository) Create(ctx context.Context, token *platform.OperatorRefreshToken) error {
-	if token == nil {
-		return fmt.Errorf("operator refresh token cannot be nil")
-	}
-	if err := token.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, token)
 }
 
 func (r *OperatorRefreshTokenRepository) FindByTokenForUpdate(ctx context.Context, tokenValue string) (*platform.OperatorRefreshToken, error) {
@@ -116,17 +105,6 @@ func (r *OperatorRefreshTokenRepository) GetLatestTokenInFamily(ctx context.Cont
 }
 
 func (r *OperatorRefreshTokenRepository) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*platform.OperatorRefreshToken)(nil)).
-		ModelTableExpr(operatorRefreshTokenTableAlias).
-		Where(`"operator_refresh_token".expiry < ?`, now).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete expired operator refresh tokens", Err: err}
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count expired operator refresh tokens", Err: err}
-	}
-	return int(affected), nil
+	deleted, err := r.DeleteBefore(ctx, "expiry", now, "delete expired operator refresh tokens")
+	return int(deleted), err
 }

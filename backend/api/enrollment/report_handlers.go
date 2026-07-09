@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -15,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
@@ -98,6 +101,7 @@ type careUsageRowResponse struct {
 	ChildLastName     string                         `json:"child_last_name"`
 	DateOfBirth       string                         `json:"date_of_birth"`
 	TargetGradeLevel  *int16                         `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string                        `json:"target_school_class,omitempty"`
 	Status            string                         `json:"status"`
 	Offerings         []careUsageRowOfferingResponse `json:"offerings"`
 	EffectiveDays     []string                       `json:"effective_days"`
@@ -158,7 +162,14 @@ func (rs *Resource) getCareUsageReport(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, toCareUsageReportResponse(report), "Care usage report retrieved")
 }
 
-func (rs *Resource) exportCareUsageReport(w http.ResponseWriter, r *http.Request) {
+// exportReport is the shared body of the report-export handlers: parse the
+// export request, fetch the report inside a tenant transaction, build the
+// export file, and stream it as an attachment.
+func exportReport[F, R any](rs *Resource, w http.ResponseWriter, r *http.Request,
+	parse func(*http.Request) (listexport.Format, F, error),
+	fetch func(ctx context.Context, filters F, actorAccountID int64, actorRole, format string) (R, error),
+	build func(svc *listexport.RendererService, report R, format listexport.Format) (listexport.File, error),
+) {
 	if rs.ReportService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("report service not configured")))
 		return
@@ -167,7 +178,7 @@ func (rs *Resource) exportCareUsageReport(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("list export service not configured")))
 		return
 	}
-	format, filters, err := parseCareUsageExportRequest(r)
+	format, filters, err := parse(r)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
@@ -177,9 +188,9 @@ func (rs *Resource) exportCareUsageReport(w http.ResponseWriter, r *http.Request
 	actorAccountID := int64(claims.ID)
 	actorRole := strings.Join(claims.Roles, ",")
 
-	var report *enrollmentService.CareUsageReport
+	var report R
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
-		out, e := rs.ReportService.ExportCareUsage(ctx, filters, actorAccountID, actorRole, string(format))
+		out, e := fetch(ctx, filters, actorAccountID, actorRole, string(format))
 		if e != nil {
 			return e
 		}
@@ -203,7 +214,7 @@ func (rs *Resource) exportCareUsageReport(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	file, err := buildCareUsageExportFile(rs.ListExportService, report, format)
+	file, err := build(rs.ListExportService, report, format)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -215,61 +226,18 @@ func (rs *Resource) exportCareUsageReport(w http.ResponseWriter, r *http.Request
 	_, _ = w.Write(file.Data)
 }
 
+func (rs *Resource) exportCareUsageReport(w http.ResponseWriter, r *http.Request) {
+	exportReport(rs, w, r, parseCareUsageExportRequest,
+		func(ctx context.Context, filters enrollmentService.CareUsageFilters, actorAccountID int64, actorRole, format string) (*enrollmentService.CareUsageReport, error) {
+			return rs.ReportService.ExportCareUsage(ctx, filters, actorAccountID, actorRole, format)
+		}, buildCareUsageExportFile)
+}
+
 func (rs *Resource) exportClassRosterReport(w http.ResponseWriter, r *http.Request) {
-	if rs.ReportService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("report service not configured")))
-		return
-	}
-	if rs.ListExportService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("list export service not configured")))
-		return
-	}
-	format, filters, err := parseClassRosterExportRequest(r)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-
-	claims := jwt.ClaimsFromCtx(r.Context())
-	actorAccountID := int64(claims.ID)
-	actorRole := strings.Join(claims.Roles, ",")
-
-	var report *enrollmentService.ClassRosterReport
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
-		out, e := rs.ReportService.ExportClassRoster(ctx, filters, actorAccountID, actorRole, string(format))
-		if e != nil {
-			return e
-		}
-		report = out
-		return nil
-	})
-	if err != nil {
-		if errors.Is(err, enrollmentService.ErrReportPhaseNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(err))
-			return
-		}
-		if errors.Is(err, enrollmentService.ErrReportExportTooLarge) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-			return
-		}
-		if errors.Is(err, enrollmentService.ErrReportInvalidFilter) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	file, err := buildClassRosterExportFile(rs.ListExportService, report, format)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	w.Header().Set("Content-Type", file.ContentType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, file.Filename))
-	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(file.Data)
+	exportReport(rs, w, r, parseClassRosterExportRequest,
+		func(ctx context.Context, filters enrollmentService.ClassRosterFilters, actorAccountID int64, actorRole, format string) (*enrollmentService.ClassRosterReport, error) {
+			return rs.ReportService.ExportClassRoster(ctx, filters, actorAccountID, actorRole, format)
+		}, buildClassRosterExportFile)
 }
 
 func parseCareUsageFiltersFromQuery(r *http.Request) (enrollmentService.CareUsageFilters, error) {
@@ -525,6 +493,7 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 			ChildLastName:     row.ChildLastName,
 			DateOfBirth:       row.DateOfBirth,
 			TargetGradeLevel:  row.TargetGradeLevel,
+			TargetSchoolClass: row.TargetSchoolClass,
 			Status:            row.Status,
 			EffectiveDays:     nonNilStringSlice(row.EffectiveDays),
 			DayCount:          row.DayCount,
@@ -552,7 +521,7 @@ func toCareUsageReportResponse(report *enrollmentService.CareUsageReport) *careU
 	return out
 }
 
-func buildCareUsageExportFile(svc listexport.Service, report *enrollmentService.CareUsageReport, format listexport.Format) (listexport.File, error) {
+func buildCareUsageExportFile(svc *listexport.RendererService, report *enrollmentService.CareUsageReport, format listexport.Format) (listexport.File, error) {
 	filename := "Anmelde-Auswertung " + strings.TrimSpace(report.Phase.Name)
 	if strings.TrimSpace(report.Phase.Name) == "" {
 		filename = "Anmelde-Auswertung"
@@ -569,7 +538,7 @@ func buildCareUsageExportFile(svc listexport.Service, report *enrollmentService.
 	}
 }
 
-func buildClassRosterExportFile(svc listexport.Service, report *enrollmentService.ClassRosterReport, format listexport.Format) (listexport.File, error) {
+func buildClassRosterExportFile(svc *listexport.RendererService, report *enrollmentService.ClassRosterReport, format listexport.Format) (listexport.File, error) {
 	filename := "Klassenliste " + strings.TrimSpace(report.Filters.SchoolClass)
 	if report.Filters.AllClasses {
 		filename = "Klassenlisten"
@@ -784,7 +753,7 @@ func buildCareUsageTableDocument(report *enrollmentService.CareUsageReport) list
 		rows = append(rows, listexport.Row{Values: map[listexport.ColumnID]string{
 			"child_last_name":  row.ChildLastName,
 			"child_first_name": row.ChildFirstName,
-			"child_grade":      gradeLabel(row.TargetGradeLevel),
+			"child_grade":      schoolClassLabel(row.TargetSchoolClass, row.TargetGradeLevel),
 			"child_status":     statusLabelDE(row.Status),
 			"offerings":        careUsageOfferingNames(row.Offerings),
 			"offering_days":    careUsageOfferingDayDetails(row.Offerings),
@@ -797,7 +766,7 @@ func buildCareUsageTableDocument(report *enrollmentService.CareUsageReport) list
 			"pickup_fri":       row.PickupByDay["fri"],
 			"guardian_name":    strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName),
 			"guardian_email":   row.GuardianEmail,
-			"guardian_phone":   strOrEmpty(row.GuardianPhone),
+			"guardian_phone":   base.Deref(row.GuardianPhone),
 		}})
 	}
 	return listexport.Document{
@@ -821,7 +790,7 @@ func buildCareUsageRecordDocument(report *enrollmentService.CareUsageReport) lis
 		records = append(records, listexport.Record{
 			Title: strings.TrimSpace(row.ChildFirstName + " " + row.ChildLastName),
 			Fields: []listexport.Field{
-				{Label: "Zielklasse", Value: gradeLabel(row.TargetGradeLevel)},
+				{Label: "Zielklasse", Value: schoolClassLabel(row.TargetSchoolClass, row.TargetGradeLevel)},
 				{Label: "Status", Value: statusLabelDE(row.Status)},
 				{Label: "Betreuungsangebote", Value: careUsageOfferingDayDetails(row.Offerings)},
 				{Label: "Effektive Betreuungstage", Value: formatDayCodes(row.EffectiveDays)},
@@ -829,7 +798,7 @@ func buildCareUsageRecordDocument(report *enrollmentService.CareUsageReport) lis
 				{Label: "Gehzeiten", Value: careUsagePickupDayDetails(row.PickupByDay)},
 				{Label: "Eltern", Value: strings.TrimSpace(row.GuardianFirstName + " " + row.GuardianLastName)},
 				{Label: "E-Mail", Value: row.GuardianEmail},
-				{Label: "Telefon", Value: strOrEmpty(row.GuardianPhone)},
+				{Label: "Telefon", Value: base.Deref(row.GuardianPhone)},
 			},
 		})
 	}
@@ -980,12 +949,7 @@ func careUsagePickupPlanningTimes(report *enrollmentService.CareUsageReport) []s
 			}
 		}
 	}
-	out := make([]string, 0, len(seen))
-	for pickupTime := range seen {
-		out = append(out, pickupTime)
-	}
-	sort.Strings(out)
-	return out
+	return slices.Sorted(maps.Keys(seen))
 }
 
 func careUsagePickupDayDetails(pickupByDay map[string]string) string {

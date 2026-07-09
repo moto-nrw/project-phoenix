@@ -6,11 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
-
-const tableActiveWorkSessions = "active.work_sessions"
 
 // WorkSessionStatus constants
 const (
@@ -45,29 +41,7 @@ type WorkSession struct {
 	AutoCheckedOut bool          `bun:"auto_checked_out,notnull,default:false" json:"auto_checked_out"`
 	CreatedBy      int64         `bun:"created_by,notnull" json:"created_by"`
 	UpdatedBy      *int64        `bun:"updated_by" json:"updated_by,omitempty"`
-
-	Staff *users.Staff `bun:"rel:belongs-to,join:staff_id=id" json:"staff,omitempty"`
 }
-
-// BeforeAppendModel implements the model hook for schema-qualified queries
-// Must handle ALL query types: UpdateQuery, DeleteQuery, InsertQuery
-func (ws *WorkSession) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableActiveWorkSessions)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableActiveWorkSessions)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableActiveWorkSessions)
-	}
-	return nil
-}
-
-func (ws *WorkSession) GetID() interface{}      { return ws.ID }
-func (ws *WorkSession) GetCreatedAt() time.Time { return ws.CreatedAt }
-func (ws *WorkSession) GetUpdatedAt() time.Time { return ws.UpdatedAt }
-func (ws *WorkSession) TableName() string       { return tableActiveWorkSessions }
 
 func (ws *WorkSession) Validate() error {
 	if ws.StaffID <= 0 {

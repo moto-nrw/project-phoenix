@@ -54,12 +54,12 @@ func toStaffExcusedRequestResponse(item *absenceService.ExcusedRequestReviewItem
 // approval requests for the staff review queue.
 func (rs *Resource) listExcusedAbsenceRequests(w http.ResponseWriter, r *http.Request) {
 	if rs.ExcusedRequestService == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("excused request service not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("excused request service not configured")))
 		return
 	}
 	items, err := rs.ExcusedRequestService.ListPending(r.Context())
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	out := make([]StaffExcusedRequestResponse, 0, len(items))
@@ -80,21 +80,21 @@ type DecideExcusedRequestBody struct {
 // rejects (reason required) one pending request.
 func (rs *Resource) decideExcusedAbsenceRequest(w http.ResponseWriter, r *http.Request) {
 	if rs.ExcusedRequestService == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("excused request service not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("excused request service not configured")))
 		return
 	}
 	requestID, err := strconv.ParseInt(chi.URLParam(r, "requestId"), 10, 64)
 	if err != nil || requestID <= 0 {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid request id")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request id")))
 		return
 	}
 	var body DecideExcusedRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid request body")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
 	if body.Approve == nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("approve is required")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("approve is required")))
 		return
 	}
 
@@ -108,16 +108,16 @@ func (rs *Resource) decideExcusedAbsenceRequest(w http.ResponseWriter, r *http.R
 	if err != nil {
 		switch {
 		case errors.Is(err, activeModels.ErrExcusedRequestNotFound):
-			renderError(w, r, ErrorNotFound(err))
+			renderError(w, r, common.ErrorNotFound(err))
 		case errors.Is(err, activeModels.ErrExcusedRequestNotPending):
-			renderError(w, r, ErrorConflictWithCode(err, "change_request_not_pending"))
+			renderError(w, r, common.ErrorConflictWithCode(err, "change_request_not_pending"))
 		case errors.Is(err, absenceService.ErrExcusedRequestForbidden):
-			renderError(w, r, ErrorForbidden(err))
+			renderError(w, r, common.ErrorForbidden(err))
 		case errors.Is(err, absenceService.ErrExcusedRequestRejectReasonRequired),
 			errors.Is(err, absenceService.ErrExcusedRequestRejectReasonTooLong):
-			renderError(w, r, ErrorInvalidRequest(err))
+			renderError(w, r, common.ErrorInvalidRequest(err))
 		default:
-			renderError(w, r, ErrorInternalServer(err))
+			renderError(w, r, common.ErrorInternalServer(err))
 		}
 		return
 	}

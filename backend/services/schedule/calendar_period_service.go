@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
@@ -60,10 +61,7 @@ func NewCalendarPeriodService(
 }
 
 func (s *calendarPeriodService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // GetAllPeriods returns all calendar periods for the current tenant

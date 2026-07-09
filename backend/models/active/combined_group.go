@@ -5,11 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tableActiveCombinedGroups is the schema-qualified table name for combined groups
-const tableActiveCombinedGroups = "active.combined_groups"
 
 // CombinedGroup represents a combination of multiple active groups
 type CombinedGroup struct {
@@ -21,36 +17,6 @@ type CombinedGroup struct {
 	// Relations - these would be populated when using the ORM's relations
 	GroupMappings []*GroupMapping `bun:"rel:has-many,join:id=active_combined_group_id" json:"group_mappings,omitempty"`
 	ActiveGroups  []*Group        `bun:"-" json:"active_groups,omitempty"` // This would be loaded through GroupMappings
-}
-
-func (cg *CombinedGroup) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableActiveCombinedGroups)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableActiveCombinedGroups)
-	}
-	return nil
-}
-
-// GetID returns the entity's ID
-func (cg *CombinedGroup) GetID() interface{} {
-	return cg.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (cg *CombinedGroup) GetCreatedAt() time.Time {
-	return cg.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (cg *CombinedGroup) GetUpdatedAt() time.Time {
-	return cg.UpdatedAt
-}
-
-// TableName returns the database table name
-func (cg *CombinedGroup) TableName() string {
-	return tableActiveCombinedGroups
 }
 
 // Validate ensures combined group data is valid

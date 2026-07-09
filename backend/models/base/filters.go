@@ -2,7 +2,6 @@ package base
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/uptrace/bun"
@@ -13,8 +12,7 @@ type Operator string
 
 const (
 	// Equality operators
-	OpEqual    Operator = "="
-	OpNotEqual Operator = "!="
+	OpEqual Operator = "="
 
 	// Comparison operators
 	OpGreaterThan        Operator = ">"
@@ -32,13 +30,7 @@ const (
 	OpIsNotNull Operator = "IS NOT NULL"
 
 	// Array operators
-	OpIn    Operator = "IN"
-	OpNotIn Operator = "NOT IN"
-
-	// JSON operators
-	OpContains    Operator = "@>"
-	OpContainedBy Operator = "<@"
-	OpHasKey      Operator = "?"
+	OpIn Operator = "IN"
 )
 
 // FilterCondition represents a single filter condition
@@ -52,7 +44,6 @@ type FilterCondition struct {
 type Filter struct {
 	conditions []FilterCondition
 	or         []Filter
-	and        []Filter
 	tableAlias string
 }
 
@@ -61,7 +52,6 @@ func NewFilter() *Filter {
 	return &Filter{
 		conditions: make([]FilterCondition, 0),
 		or:         make([]Filter, 0),
-		and:        make([]Filter, 0),
 		tableAlias: "",
 	}
 }
@@ -85,11 +75,6 @@ func (f *Filter) Where(field string, operator Operator, value interface{}) *Filt
 // Equal adds an equality condition
 func (f *Filter) Equal(field string, value interface{}) *Filter {
 	return f.Where(field, OpEqual, value)
-}
-
-// NotEqual adds an inequality condition
-func (f *Filter) NotEqual(field string, value interface{}) *Filter {
-	return f.Where(field, OpNotEqual, value)
 }
 
 // GreaterThan adds a greater than condition
@@ -142,26 +127,10 @@ func (f *Filter) In(field string, values ...interface{}) *Filter {
 	return f.Where(field, OpIn, values)
 }
 
-// NotIn adds a NOT IN condition
-func (f *Filter) NotIn(field string, values ...interface{}) *Filter {
-	return f.Where(field, OpNotIn, values)
-}
-
 // Or adds a logical OR condition with another filter
 func (f *Filter) Or(filter Filter) *Filter {
 	f.or = append(f.or, filter)
 	return f
-}
-
-// And adds a logical AND condition with another filter
-func (f *Filter) And(filter Filter) *Filter {
-	f.and = append(f.and, filter)
-	return f
-}
-
-// DateRange adds a date range filter between start and end dates
-func (f *Filter) DateRange(field string, start, end time.Time) *Filter {
-	return f.GreaterThanOrEqual(field, start).LessThanOrEqual(field, end)
 }
 
 // DateBetween adds a date between filter for a calendar date contained within
@@ -196,27 +165,6 @@ func (f *Filter) Remove(field string) *Filter {
 	return f
 }
 
-// ToMap converts a filter to a simple map for repository use
-func (f *Filter) ToMap() map[string]interface{} {
-	result := make(map[string]interface{})
-
-	// Apply basic conditions
-	for _, condition := range f.conditions {
-		// Currently, we only add Equality conditions to the map
-		// as this is mostly what the repositories expect
-		if condition.Operator == OpEqual {
-			result[condition.Field] = condition.Value
-		}
-		// For LIKE/ILIKE, we could add them too but repository would need
-		// to know how to handle them
-	}
-
-	// Note: OR and AND conditions are not supported in the simple map format
-	// Complex filtering should use the ApplyToQuery method directly
-
-	return result
-}
-
 // ApplyToQuery applies the filter to a Bun query
 func (f *Filter) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
 	// Apply basic conditions
@@ -224,9 +172,8 @@ func (f *Filter) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
 		query = f.applyConditionToQuery(query, condition)
 	}
 
-	// Apply OR and AND conditions
+	// Apply OR conditions
 	query = applyLogicalConditions(query, f.or, " OR ")
-	query = applyLogicalConditions(query, f.and, " AND ")
 
 	return query
 }
@@ -245,8 +192,6 @@ func applyOperatorWithColumnRef(query *bun.SelectQuery, columnRef string, condit
 	switch condition.Operator {
 	case OpEqual:
 		return query.Where(columnRef+" = ?", condition.Value)
-	case OpNotEqual:
-		return query.Where(columnRef+" != ?", condition.Value)
 	case OpGreaterThan:
 		return query.Where(columnRef+" > ?", condition.Value)
 	case OpGreaterThanOrEqual:
@@ -269,16 +214,6 @@ func applyOperatorWithColumnRef(query *bun.SelectQuery, columnRef string, condit
 		if values, ok := condition.Value.([]interface{}); ok {
 			return query.Where(columnRef+" IN (?)", bun.List(values))
 		}
-	case OpNotIn:
-		if values, ok := condition.Value.([]interface{}); ok {
-			return query.Where(columnRef+" NOT IN (?)", bun.List(values))
-		}
-	case OpContains:
-		return query.Where(columnRef+" @> ?", condition.Value)
-	case OpContainedBy:
-		return query.Where(columnRef+" <@ ?", condition.Value)
-	case OpHasKey:
-		return query.Where(columnRef+" ? ?", condition.Value)
 	}
 	return query
 }
@@ -289,8 +224,6 @@ func applyOperatorWithIdent(query *bun.SelectQuery, field string, condition Filt
 	switch condition.Operator {
 	case OpEqual:
 		return query.Where("? = ?", fieldIdent, condition.Value)
-	case OpNotEqual:
-		return query.Where("? != ?", fieldIdent, condition.Value)
 	case OpGreaterThan:
 		return query.Where("? > ?", fieldIdent, condition.Value)
 	case OpGreaterThanOrEqual:
@@ -313,16 +246,6 @@ func applyOperatorWithIdent(query *bun.SelectQuery, field string, condition Filt
 		if values, ok := condition.Value.([]interface{}); ok {
 			return query.Where("? IN (?)", fieldIdent, bun.List(values))
 		}
-	case OpNotIn:
-		if values, ok := condition.Value.([]interface{}); ok {
-			return query.Where("? NOT IN (?)", fieldIdent, bun.List(values))
-		}
-	case OpContains:
-		return query.Where("? @> ?", fieldIdent, condition.Value)
-	case OpContainedBy:
-		return query.Where("? <@ ?", fieldIdent, condition.Value)
-	case OpHasKey:
-		return query.Where("? ? ?", fieldIdent, condition.Value)
 	}
 	return query
 }
@@ -432,12 +355,6 @@ func NewQueryOptions() *QueryOptions {
 func (qo *QueryOptions) WithPagination(page, pageSize int) *QueryOptions {
 	pagination := NewPagination(page, pageSize)
 	qo.Pagination = &pagination
-	return qo
-}
-
-// WithSorting adds sorting to query options
-func (qo *QueryOptions) WithSorting(sorting Sorting) *QueryOptions {
-	qo.Sorting = &sorting
 	return qo
 }
 

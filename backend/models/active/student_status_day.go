@@ -6,10 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-const tableActiveStudentStatusDays = "active.student_status_days"
 
 const (
 	StudentStatusDaySick      = "sick"
@@ -59,24 +56,6 @@ type StudentStatusDay struct {
 	// status (currently only parent sick notes set it). Nullable.
 	Note *string `bun:"note" json:"note,omitempty"`
 }
-
-func (s *StudentStatusDay) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableActiveStudentStatusDays)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableActiveStudentStatusDays)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableActiveStudentStatusDays)
-	}
-	return nil
-}
-
-func (s *StudentStatusDay) GetID() any              { return s.ID }
-func (s *StudentStatusDay) GetCreatedAt() time.Time { return s.CreatedAt }
-func (s *StudentStatusDay) GetUpdatedAt() time.Time { return s.UpdatedAt }
-func (s *StudentStatusDay) TableName() string       { return tableActiveStudentStatusDays }
 
 type StudentStatusCounts struct {
 	Sick    int `bun:"sick_count"`

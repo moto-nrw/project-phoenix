@@ -7,10 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-const tableActiveExcusedAbsenceRequests = "active.excused_absence_requests"
 
 // ErrExcusedRequestNotPending means a pending-row transition lost a race or the
 // row was already terminal under the caller's tenant.
@@ -50,24 +47,6 @@ type ExcusedAbsenceRequest struct {
 	ReviewedBy     *int64          `bun:"reviewed_by" json:"reviewed_by,omitempty"`
 	ReviewedAt     *time.Time      `bun:"reviewed_at" json:"reviewed_at,omitempty"`
 	AppliedAt      *time.Time      `bun:"applied_at" json:"applied_at,omitempty"`
-}
-
-func (e *ExcusedAbsenceRequest) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableActiveExcusedAbsenceRequests)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableActiveExcusedAbsenceRequests)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableActiveExcusedAbsenceRequests)
-	}
-	return nil
-}
-
-// TableName returns the database table name.
-func (e *ExcusedAbsenceRequest) TableName() string {
-	return tableActiveExcusedAbsenceRequests
 }
 
 // IsTerminal reports whether the row is in a final state. Only pending rows

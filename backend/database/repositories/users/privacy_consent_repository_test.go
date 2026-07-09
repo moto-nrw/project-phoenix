@@ -175,29 +175,6 @@ func TestPrivacyConsentRepository_FindByStudentID(t *testing.T) {
 	})
 }
 
-func TestPrivacyConsentRepository_FindByStudentIDAndPolicyVersion(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds consent by student ID and policy version", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "ByVersion")
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
-
-		found, err := repo.FindByStudentIDAndPolicyVersion(ctx, consent.StudentID, "v1.0")
-		require.NoError(t, err)
-		assert.Equal(t, consent.ID, found.ID)
-	})
-
-	t.Run("returns error for non-existent combination", func(t *testing.T) {
-		_, err := repo.FindByStudentIDAndPolicyVersion(ctx, int64(999999), "v99.0")
-		require.Error(t, err)
-	})
-}
-
 func TestPrivacyConsentRepository_Update(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -286,99 +263,6 @@ func TestPrivacyConsentRepository_Revoke(t *testing.T) {
 	})
 }
 
-func TestPrivacyConsentRepository_SetExpiryDate(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("sets expiry date", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "Expiry")
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
-
-		newExpiry := time.Now().AddDate(0, 6, 0)
-		err := repo.SetExpiryDate(ctx, consent.ID, newExpiry)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, consent.ID)
-		require.NoError(t, err)
-		assert.NotNil(t, found.ExpiresAt)
-	})
-}
-
-func TestPrivacyConsentRepository_SetRenewalRequired(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("sets renewal required to true", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "Renewal")
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
-
-		err := repo.SetRenewalRequired(ctx, consent.ID, true)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, consent.ID)
-		require.NoError(t, err)
-		assert.True(t, found.RenewalRequired)
-	})
-
-	t.Run("sets renewal required to false", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "NoRenewal")
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
-
-		// First set to true
-		err := repo.SetRenewalRequired(ctx, consent.ID, true)
-		require.NoError(t, err)
-
-		// Then set to false
-		err = repo.SetRenewalRequired(ctx, consent.ID, false)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, consent.ID)
-		require.NoError(t, err)
-		assert.False(t, found.RenewalRequired)
-	})
-}
-
-func TestPrivacyConsentRepository_UpdateDetails(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("updates details with valid JSON", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "Details")
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
-
-		details := `{"agreed_to_photos": true, "agreed_to_videos": false}`
-		err := repo.UpdateDetails(ctx, consent.ID, details)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, consent.ID)
-		require.NoError(t, err)
-		assert.NotNil(t, found.Details)
-	})
-
-	t.Run("fails with invalid JSON", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "BadDetails")
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
-
-		err := repo.UpdateDetails(ctx, consent.ID, "not-valid-json")
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "invalid details JSON")
-	})
-}
-
 // ============================================================================
 // Query Tests
 // ============================================================================
@@ -410,53 +294,6 @@ func TestPrivacyConsentRepository_FindActiveByStudentID(t *testing.T) {
 
 	// NOTE: Database has check constraint preventing expired dates at insert time,
 	// so we can only test by setting expiry date after creation via SetExpiryDate
-}
-
-func TestPrivacyConsentRepository_FindExpired(t *testing.T) {
-	// NOTE: Database has check constraint preventing expired dates at insert time.
-	// FindExpired would work for consents that expired after creation.
-	// We test that the query runs without error.
-
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("runs query successfully", func(t *testing.T) {
-		_, err := repo.FindExpired(ctx)
-		require.NoError(t, err)
-	})
-}
-
-func TestPrivacyConsentRepository_FindNeedingRenewal(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).PrivacyConsent
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds consents needing renewal", func(t *testing.T) {
-		consent := testpkg.CreateTestPrivacyConsent(t, db, "NeedRenewal")
-		defer testpkg.CleanupTableRecords(t, db, "users.privacy_consents", consent.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, consent.StudentID, consent.Student.PersonID)
-
-		// Set renewal required
-		err := repo.SetRenewalRequired(ctx, consent.ID, true)
-		require.NoError(t, err)
-
-		found, err := repo.FindNeedingRenewal(ctx)
-		require.NoError(t, err)
-
-		var foundConsent bool
-		for _, c := range found {
-			if c.ID == consent.ID {
-				foundConsent = true
-				break
-			}
-		}
-		assert.True(t, foundConsent)
-	})
 }
 
 // ============================================================================

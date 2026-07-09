@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Activity instance status constants. Stored as TEXT with a CHECK constraint
@@ -18,18 +17,6 @@ const (
 	InstanceStatusCompleted = "completed"
 	InstanceStatusCancelled = "cancelled"
 )
-
-// Sentinel errors for the activity instance domain. Callers should compare via
-// errors.Is rather than matching on error strings.
-var (
-	// ErrActivityInstanceTimeConflict is returned when an attempted create or
-	// update collides with an existing template-backed instance on the same
-	// (tenant, date, activity_group, start_time).
-	ErrActivityInstanceTimeConflict = errors.New("activity instance time conflict")
-)
-
-// tableActivityInstances is the schema-qualified table name.
-const tableActivityInstances = "schedule.activity_instances"
 
 // ActivityInstanceTitleMaxLength is the maximum length of the title field.
 const ActivityInstanceTitleMaxLength = 255
@@ -59,30 +46,6 @@ type ActivityInstance struct {
 	StartedAt        *time.Time    `bun:"started_at" json:"started_at,omitempty"`
 	CompletedAt      *time.Time    `bun:"completed_at" json:"completed_at,omitempty"`
 }
-
-func (i *ActivityInstance) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.activity_instances AS "activity_instance"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.activity_instances AS "activity_instance"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name.
-func (i *ActivityInstance) TableName() string {
-	return tableActivityInstances
-}
-
-// GetID implements the Entity interface.
-func (i *ActivityInstance) GetID() any { return i.ID }
-
-// GetCreatedAt implements the Entity interface.
-func (i *ActivityInstance) GetCreatedAt() time.Time { return i.CreatedAt }
-
-// GetUpdatedAt implements the Entity interface.
-func (i *ActivityInstance) GetUpdatedAt() time.Time { return i.UpdatedAt }
 
 // Validate ensures activity instance data is valid for persistence.
 func (i *ActivityInstance) Validate() error {

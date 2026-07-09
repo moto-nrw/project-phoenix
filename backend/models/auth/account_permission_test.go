@@ -74,34 +74,6 @@ func TestAccountPermission_Validate(t *testing.T) {
 	}
 }
 
-func TestAccountPermission_TableName(t *testing.T) {
-	ap := &AccountPermission{}
-	if got := ap.TableName(); got != "auth.account_permissions" {
-		t.Errorf("TableName() = %v, want auth.account_permissions", got)
-	}
-}
-
-func TestAccountPermission_BeforeAppendModel(t *testing.T) {
-	// BeforeAppendModel modifies query table expressions for different query types
-	// It doesn't set timestamps - those are handled by the base model or repository
-
-	t.Run("handles nil query", func(t *testing.T) {
-		ap := &AccountPermission{AccountID: 1, PermissionID: 1}
-		err := ap.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		ap := &AccountPermission{AccountID: 1, PermissionID: 1}
-		err := ap.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestAccountPermission_IsGranted(t *testing.T) {
 	t.Run("granted permission", func(t *testing.T) {
 		ap := &AccountPermission{Granted: true}

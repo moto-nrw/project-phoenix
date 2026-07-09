@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Period type constants
@@ -26,9 +25,6 @@ var (
 	ErrCalendarPeriodNameConflict = errors.New("calendar period name already exists")
 )
 
-// tableCalendarPeriods is the schema-qualified table name.
-const tableCalendarPeriods = "schedule.calendar_periods"
-
 // CalendarPeriodNameMaxLength is the maximum length of the name field.
 const CalendarPeriodNameMaxLength = 255
 
@@ -44,36 +40,6 @@ type CalendarPeriod struct {
 	WeekCycleLength int            `bun:"week_cycle_length,notnull,default:1" json:"week_cycle_length"`
 	WeekCycleAnchor *timezone.Date `bun:"week_cycle_anchor" json:"week_cycle_anchor,omitempty"`
 	IsActive        bool           `bun:"is_active,notnull,default:false" json:"is_active"`
-}
-
-func (p *CalendarPeriod) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (p *CalendarPeriod) TableName() string {
-	return tableCalendarPeriods
-}
-
-// GetID implements the Entity interface
-func (p *CalendarPeriod) GetID() any {
-	return p.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (p *CalendarPeriod) GetCreatedAt() time.Time {
-	return p.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (p *CalendarPeriod) GetUpdatedAt() time.Time {
-	return p.UpdatedAt
 }
 
 // Validate ensures calendar period data is valid

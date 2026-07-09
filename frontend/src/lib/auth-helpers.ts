@@ -256,6 +256,31 @@ export function getRoleDisplayDescription(
   );
 }
 
+export interface RoleOption {
+  id: number;
+  name: string;
+}
+
+/** System roles that are legacy/relationship-derived and not assignable to staff accounts. */
+const NON_ASSIGNABLE_STAFF_ROLE_NAMES = new Set(["guardian", "teacher"]);
+
+/**
+ * Filters a role list down to staff-assignable roles and maps them to
+ * display options. Shared by the invitation form, teacher-creation form,
+ * and the staff role-management modal to avoid re-deriving this list.
+ */
+export function toAssignableRoleOptions(roles: Role[]): RoleOption[] {
+  return roles
+    .filter(
+      (role) => !NON_ASSIGNABLE_STAFF_ROLE_NAMES.has(role.name.toLowerCase()),
+    )
+    .map((role) => ({
+      id: Number(role.id),
+      name: role.name ? getRoleDisplayName(role.name) : `Rolle ${role.id}`,
+    }))
+    .filter((role) => !Number.isNaN(role.id));
+}
+
 // Request/Response types
 export interface LoginRequest {
   email: string;

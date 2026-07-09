@@ -120,7 +120,7 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) findStudentByRFID(w http.ResponseWriter, r *http.Request, normalizedRFID string) (*users.Student, *users.Person, bool) {
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil {
-		rs.recordUnregisteredTagScan(r.Context(), normalizedRFID)
+		iotCommon.RecordUnregisteredTagScan(r.Context(), rs.UnregisteredTagScans, slog.Default(), normalizedRFID)
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
 		return nil, nil, false
 	}
@@ -175,7 +175,7 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil || person == nil {
-		rs.recordUnregisteredTagScan(r.Context(), normalizedRFID)
+		iotCommon.RecordUnregisteredTagScan(r.Context(), rs.UnregisteredTagScans, slog.Default(), normalizedRFID)
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
 		return
 	}
@@ -282,7 +282,7 @@ func (rs *Resource) handleNormalToggle(w http.ResponseWriter, r *http.Request, n
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil {
-		rs.recordUnregisteredTagScan(r.Context(), normalizedRFID)
+		iotCommon.RecordUnregisteredTagScan(r.Context(), rs.UnregisteredTagScans, slog.Default(), normalizedRFID)
 		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
 		return
 	}
@@ -388,13 +388,3 @@ func (rs *Resource) buildAttendanceMessage(action, firstName string) string {
 		return fmt.Sprintf("Attendance %s for %s", action, firstName)
 	}
 }
-
-// =============================================================================
-// HANDLER ACCESSOR METHODS (for testing)
-// =============================================================================
-
-// GetAttendanceStatusHandler returns the getAttendanceStatus handler
-func (rs *Resource) GetAttendanceStatusHandler() http.HandlerFunc { return rs.getAttendanceStatus }
-
-// ToggleAttendanceHandler returns the toggleAttendance handler
-func (rs *Resource) ToggleAttendanceHandler() http.HandlerFunc { return rs.toggleAttendance }

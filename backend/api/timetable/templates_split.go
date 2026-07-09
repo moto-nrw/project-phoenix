@@ -55,7 +55,7 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if rs.templateSplitService == nil {
+	if rs.TemplateSplitService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("template split service not wired")))
 		return
 	}
@@ -81,7 +81,7 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := rs.templateSplitService.Split(r.Context(), in)
+	result, err := rs.TemplateSplitService.Split(r.Context(), in)
 	if err != nil {
 		renderTemplateSplitError(w, r, err)
 		return

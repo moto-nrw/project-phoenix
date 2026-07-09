@@ -324,6 +324,7 @@ function toManualPrefetchedData(
       })),
     },
     profile: null,
+    schoolClass: bootstrap.school_class,
   };
 }
 

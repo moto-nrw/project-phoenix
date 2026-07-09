@@ -43,7 +43,7 @@ func TestUpdateSessionActivity(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
 		// Start a session to test activity update
-		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 		require.NotNil(t, session)
 
@@ -83,7 +83,7 @@ func TestUpdateSessionActivity(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
 		// Start and immediately end a session
-		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 
 		err = service.EndActivitySession(ctx, session.ID)
@@ -129,7 +129,7 @@ func TestValidateSessionTimeout(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
 		// Start a session
-		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 
 		// Manually set LastActivity to 35 minutes ago (older than the 30-minute timeout)
@@ -157,7 +157,7 @@ func TestValidateSessionTimeout(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
 		// Start a fresh session (LastActivity = now)
-		_, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		_, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 
 		// ACT: Validate immediately - should fail because session is fresh
@@ -178,7 +178,7 @@ func TestValidateSessionTimeout(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
 		// Start a session
-		_, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		_, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 
 		// ACT: Validate with 500 minutes (>480 max)
@@ -199,7 +199,7 @@ func TestValidateSessionTimeout(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
 		// Start a session
-		_, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		_, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 
 		// ACT: Validate with 0 minutes
@@ -247,7 +247,7 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
 		// Start a session
-		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 
 		// ACT: Get timeout info
@@ -277,7 +277,7 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 			activity.ID, device.ID, room.ID, staff.ID, student1.ID, student2.ID)
 
 		// Start a session
-		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 
 		// Insert visits directly into database (bypasses attendance creation logic)
@@ -331,7 +331,7 @@ func TestGetSessionTimeoutInfo(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID, staff.ID)
 
 		// Start a session
-		session, err := service.StartActivitySession(ctx, activity.ID, device.ID, staff.ID, &room.ID)
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 
 		// Manually set LastActivity to 35 minutes ago and TimeoutMinutes to 30

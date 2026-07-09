@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -19,8 +18,6 @@ const (
 	aliasInstanceStudent    = "instance_student"
 	modelTblInstanceStudent = `schedule.instance_students AS "instance_student"`
 )
-
-var errInstanceStudentNil = fmt.Errorf("instance student row cannot be nil")
 
 // InstanceStudentRepository implements schedule.InstanceStudentRepository.
 type InstanceStudentRepository struct {
@@ -38,28 +35,6 @@ func NewInstanceStudentRepository(db *bun.DB) schedule.InstanceStudentRepository
 	}
 }
 
-// Create inserts a new instance student row after running model-level validation.
-func (r *InstanceStudentRepository) Create(ctx context.Context, s *schedule.InstanceStudent) error {
-	if s == nil {
-		return errInstanceStudentNil
-	}
-	if err := s.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, s)
-}
-
-// Update writes the given instance student row back to the database.
-func (r *InstanceStudentRepository) Update(ctx context.Context, s *schedule.InstanceStudent) error {
-	if s == nil {
-		return errInstanceStudentNil
-	}
-	if err := s.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Update(ctx, s)
-}
-
 // FindByID overrides the base method to ensure schema-qualified queries.
 func (r *InstanceStudentRepository) FindByID(ctx context.Context, id any) (*schedule.InstanceStudent, error) {
 	var row schedule.InstanceStudent
@@ -68,9 +43,7 @@ func (r *InstanceStudentRepository) FindByID(ctx context.Context, id any) (*sche
 		ModelTableExpr(modelTblInstanceStudent).
 		Where(`"instance_student".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -84,27 +57,7 @@ func (r *InstanceStudentRepository) FindByID(ctx context.Context, id any) (*sche
 
 // List retrieves instance student rows matching the provided query options.
 func (r *InstanceStudentRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.InstanceStudent, error) {
-	var rows []*schedule.InstanceStudent
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rows).
-		ModelTableExpr(modelTblInstanceStudent)
-
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		query = query.Where(where, val)
-	}
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-	return rows, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // FindByInstanceID returns all attendance rows for an instance.
@@ -116,9 +69,7 @@ func (r *InstanceStudentRepository) FindByInstanceID(ctx context.Context, instan
 		Where(`"instance_student".instance_id = ?`, instanceID).
 		Order(orderCreatedAtASC)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -146,9 +97,7 @@ func (r *InstanceStudentRepository) FindExpectedByInstanceIDs(ctx context.Contex
 		Where(`"instance_student".status = ?`, schedule.AttendanceStatusExpected).
 		OrderExpr(`"instance_student".instance_id ASC, "instance_student".student_id ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -173,9 +122,7 @@ func (r *InstanceStudentRepository) FindByStudentAndDateRange(ctx context.Contex
 		Where(`"activity_instance".date <= ?`, to).
 		OrderExpr(`"activity_instance".date ASC, "activity_instance".start_time ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -197,9 +144,7 @@ func (r *InstanceStudentRepository) FindByInstanceAndStudent(ctx context.Context
 		Where(`"instance_student".instance_id = ?`, instanceID).
 		Where(`"instance_student".student_id = ?`, studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -238,9 +183,7 @@ func (r *InstanceStudentRepository) UpdateAttendanceFromCheckin(
 		Where(`"instance_student".student_id = ?`, studentID).
 		Where(`"instance_student".status = ?`, schedule.AttendanceStatusExpected)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 
 	res, err := q.Exec(ctx)
 	if err != nil {
@@ -275,9 +218,7 @@ func (r *InstanceStudentRepository) UpdateAttendanceFields(
 		ModelTableExpr(modelTblInstanceStudent).
 		Where(`"instance_student".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 
 	if patch.Status != nil {
 		q = q.Set(`status = ?`, *patch.Status)
@@ -323,9 +264,7 @@ func (r *InstanceStudentRepository) BulkUpdateStatus(
 		Where(`"instance_student".instance_id = ?`, instanceID).
 		Where(`"instance_student".status = ?`, fromStatus)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 
 	res, err := q.Exec(ctx)
 	if err != nil {
@@ -345,9 +284,7 @@ func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, inst
 		ModelTableExpr(modelTblInstanceStudent).
 		Where(`"instance_student".instance_id = ?`, instanceID)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
 
 	_, err := query.Exec(ctx)
 	if err != nil {
@@ -382,9 +319,7 @@ func (r *InstanceStudentRepository) MarkExpectedAbsentByActiveGroupIDs(ctx conte
 				AND "instance".active_group_id IN (?)
 		)`, schedule.InstanceStatusActive, bun.List(activeGroupIDs))
 
-	if where, val, ok := base.TenantWhere(ctx, aliasInstanceStudent); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 
 	if _, err := q.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{
@@ -412,9 +347,7 @@ func (r *InstanceStudentRepository) ListStudentInstanceRefsBefore(ctx context.Co
 		Where(`i.date < ?`, cutoff).
 		Order("i_s.student_id", "i_s.instance_id")
 
-	if where, val, ok := base.TenantWhere(ctx, "i"); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, "i")
 
 	if err := q.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{

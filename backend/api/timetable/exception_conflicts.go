@@ -20,7 +20,9 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
+	"slices"
 	"sort"
 	"time"
 
@@ -73,12 +75,12 @@ func (rs *Resource) getExceptionConflicts(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
 
-	exceptions, err := rs.timetableData.GetActivityExceptionsByDateRange(ctx, from, to)
+	exceptions, err := rs.TimetableData.GetActivityExceptionsByDateRange(ctx, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load activity exceptions failed", err))
 		return
@@ -88,7 +90,7 @@ func (rs *Resource) getExceptionConflicts(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	instances, err := rs.timetableData.GetActivityInstancesByDateRange(ctx, from, to)
+	instances, err := rs.TimetableData.GetActivityInstancesByDateRange(ctx, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load activity instances failed", err))
 		return
@@ -125,7 +127,7 @@ func (rs *Resource) getExceptionConflicts(w http.ResponseWriter, r *http.Request
 	}
 
 	affectedInstanceIDs := uniqueInstanceIDs(affected)
-	expectedStudents, err := rs.timetableData.GetExpectedInstanceStudentsByInstanceIDs(ctx, affectedInstanceIDs)
+	expectedStudents, err := rs.TimetableData.GetExpectedInstanceStudentsByInstanceIDs(ctx, affectedInstanceIDs)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load expected students failed", err))
 		return
@@ -316,11 +318,8 @@ func (rs *Resource) loadArrivalPreload(
 		dateObjByKey[dateKey(a.exception.ExceptionDate)] = a.exception.ExceptionDate
 	}
 	for dk, stuMap := range datesToStudents {
-		ids := make([]int64, 0, len(stuMap))
-		for id := range stuMap {
-			ids = append(ids, id)
-		}
-		excs, err := rs.timetableData.GetArrivalExceptionsByStudentIDsAndDate(ctx, ids, dateObjByKey[dk])
+		ids := slices.Collect(maps.Keys(stuMap))
+		excs, err := rs.TimetableData.GetArrivalExceptionsByStudentIDsAndDate(ctx, ids, dateObjByKey[dk])
 		if err != nil {
 			return nil, fmt.Errorf("load arrival exceptions for %s: %w", dk, err)
 		}
@@ -352,11 +351,8 @@ func (rs *Resource) loadArrivalPreload(
 		}
 	}
 	for wd, stuMap := range schedulesNeededByWd {
-		ids := make([]int64, 0, len(stuMap))
-		for id := range stuMap {
-			ids = append(ids, id)
-		}
-		schedules, err := rs.timetableData.GetArrivalSchedulesByStudentIDsAndWeekday(ctx, ids, wd)
+		ids := slices.Collect(maps.Keys(stuMap))
+		schedules, err := rs.TimetableData.GetArrivalSchedulesByStudentIDsAndWeekday(ctx, ids, wd)
 		if err != nil {
 			return nil, fmt.Errorf("load arrival schedules for weekday %d: %w", wd, err)
 		}
@@ -436,11 +432,8 @@ func (rs *Resource) loadTemplatePreload(
 		return pre, nil
 	}
 
-	ids := make([]int64, 0, len(needed))
-	for id := range needed {
-		ids = append(ids, id)
-	}
-	rows, err := rs.timetableData.GetTemplateStartTimesByGroupIDs(ctx, ids)
+	ids := slices.Collect(maps.Keys(needed))
+	rows, err := rs.TimetableData.GetTemplateStartTimesByGroupIDs(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("load template start times: %w", err)
 	}

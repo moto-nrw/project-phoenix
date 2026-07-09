@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -18,8 +17,6 @@ const (
 	aliasActivityException    = "activity_exception"
 	modelTblActivityException = `schedule.activity_exceptions AS "activity_exception"`
 )
-
-var errActivityExceptionNil = fmt.Errorf("activity exception cannot be nil")
 
 // ActivityExceptionRepository implements schedule.ActivityExceptionRepository.
 type ActivityExceptionRepository struct {
@@ -37,28 +34,6 @@ func NewActivityExceptionRepository(db *bun.DB) schedule.ActivityExceptionReposi
 	}
 }
 
-// Create inserts a new activity exception after running model-level validation.
-func (r *ActivityExceptionRepository) Create(ctx context.Context, e *schedule.ActivityException) error {
-	if e == nil {
-		return errActivityExceptionNil
-	}
-	if err := e.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, e)
-}
-
-// Update writes the given activity exception back to the database.
-func (r *ActivityExceptionRepository) Update(ctx context.Context, e *schedule.ActivityException) error {
-	if e == nil {
-		return errActivityExceptionNil
-	}
-	if err := e.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Update(ctx, e)
-}
-
 // FindByID overrides the base method to ensure schema-qualified queries.
 func (r *ActivityExceptionRepository) FindByID(ctx context.Context, id any) (*schedule.ActivityException, error) {
 	var row schedule.ActivityException
@@ -67,9 +42,7 @@ func (r *ActivityExceptionRepository) FindByID(ctx context.Context, id any) (*sc
 		ModelTableExpr(modelTblActivityException).
 		Where(`"activity_exception".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityException); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityException)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -83,27 +56,7 @@ func (r *ActivityExceptionRepository) FindByID(ctx context.Context, id any) (*sc
 
 // List retrieves activity exceptions matching the provided query options.
 func (r *ActivityExceptionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.ActivityException, error) {
-	var rows []*schedule.ActivityException
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&rows).
-		ModelTableExpr(modelTblActivityException)
-
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityException); ok {
-		query = query.Where(where, val)
-	}
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-	return rows, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // FindByActivityGroupID returns all exceptions for the given template.
@@ -115,9 +68,7 @@ func (r *ActivityExceptionRepository) FindByActivityGroupID(ctx context.Context,
 		Where(`"activity_exception".activity_group_id = ?`, activityGroupID).
 		Order("exception_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityException); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityException)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -139,9 +90,7 @@ func (r *ActivityExceptionRepository) FindByActivityGroupAndDate(ctx context.Con
 		Where(`"activity_exception".activity_group_id = ?`, activityGroupID).
 		Where(`"activity_exception".exception_date = ?`, date)
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityException); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityException)
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -166,9 +115,7 @@ func (r *ActivityExceptionRepository) FindByDateRange(ctx context.Context, from,
 		Where(`"activity_exception".exception_date <= ?`, to).
 		Order("exception_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, aliasActivityException); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, aliasActivityException)
 
 	err := query.Scan(ctx)
 	if err != nil {

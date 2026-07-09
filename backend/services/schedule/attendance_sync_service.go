@@ -24,6 +24,7 @@
 package schedule
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"runtime/debug"
@@ -60,10 +61,7 @@ func NewAttendanceSyncService(
 var _ activeSvc.AttendanceSyncer = (*AttendanceSyncService)(nil)
 
 func (s *AttendanceSyncService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // MirrorCheckInForVisit implements activeSvc.AttendanceSyncer.

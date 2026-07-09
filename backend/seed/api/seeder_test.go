@@ -50,7 +50,7 @@ func TestParentEnrollmentSeedSettingsDisableCaptcha(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rt := &Runtime{Client: NewClient(srv.URL, false)}
+	rt := &Runtime{Client: newTestClient(srv.URL, false)}
 	step := parentEnrollmentSeedStep{}
 
 	settings, err := step.seedSettings(rt, phoenixapi.AuthRef{})
@@ -91,7 +91,7 @@ func TestClientPostPublicWithHeaders(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	_, err := client.PostPublicWithHeaders("/api/enrollment/demo-school/submit", map[string]any{}, map[string]string{
 		"X-Forwarded-For": "198.51.100.42",
 	})
@@ -337,9 +337,6 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 	require.NoError(t, os.Chdir(tmpDir))
 	defer func() { _ = os.Chdir(origDir) }()
 
-	// Create simulator/iot/ directory for the simulator config
-	require.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "simulator", "iot"), 0o755))
-
 	s := NewSeeder(srv.URL, false, SeedOptions{})
 	result, err := s.Seed(context.Background(), "admin@test.de", "pass", "1234")
 	require.NoError(t, err)
@@ -351,10 +348,6 @@ func TestSeeder_Seed_FullWorkflow(t *testing.T) {
 
 	// Verify state file was written
 	_, err = os.Stat(filepath.Join(tmpDir, DefaultSeedStatePath))
-	assert.NoError(t, err)
-
-	// Verify simulator config was written
-	_, err = os.Stat(filepath.Join(tmpDir, "simulator", "iot", "simulator.yaml"))
 	assert.NoError(t, err)
 }
 
@@ -387,7 +380,7 @@ func TestFixedSeeder_Seed_FullWorkflow(t *testing.T) {
 	srv := fullSeedAPIMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	require.NoError(t, client.Login("admin@test.de", "pass"))
 
 	fs := NewFixedSeeder(client, false, "")

@@ -56,10 +56,13 @@ var pyreportalCheckinErrorStrings = []string{
 	"invalid API key format",
 	"invalid staff PIN",
 	"staff PIN is required",
-	"staff account is locked due to failed PIN attempts",
-	"maximum PIN attempts exceeded",
 	"device is not active",
-	"device is offline",
+	// NOTE (audit A5): "staff account is locked due to failed PIN attempts",
+	// "maximum PIN attempts exceeded", and "device is offline" were removed
+	// from this list when their never-emitted sentinel vars were deleted —
+	// no production code has ever emitted them, so PyrePortal's mapping for
+	// these three strings has been orphaned all along (flagged to the team
+	// as a possibly regressed lockout-messaging feature).
 
 	// Capacity errors (POST /checkin)
 	"ROOM_CAPACITY_EXCEEDED",

@@ -12,7 +12,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -22,58 +21,26 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// fakeSettingsService implements configSvc.SettingsService for testing.
-type fakeSettingsService struct {
-	boolValues map[string]bool
-}
-
-func (f *fakeSettingsService) GetSchema(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (f *fakeSettingsService) GetSchemaForOperator(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (f *fakeSettingsService) Resolve(_ context.Context, _ string) (any, error) { return nil, nil }
-func (f *fakeSettingsService) ResolveString(_ context.Context, _ string) (string, error) {
-	return "", nil
-}
-func (f *fakeSettingsService) ResolveStringForTenant(_ context.Context, _ int64, _ string) (string, error) {
-	return "", nil
-}
-func (f *fakeSettingsService) ResolveBool(_ context.Context, key string) (bool, error) {
-	if val, ok := f.boolValues[key]; ok {
-		return val, nil
+// newFakeSettingsService builds a configtest.Mock reproducing the former
+// hand-rolled fakeSettingsService stub: ResolveBool (and its tenant
+// variant) default to true when the key is not present in boolValues.
+func newFakeSettingsService(boolValues map[string]bool) *configtest.Mock {
+	resolveBool := func(_ context.Context, key string) (bool, error) {
+		if val, ok := boolValues[key]; ok {
+			return val, nil
+		}
+		return true, nil
 	}
-	return true, nil
-}
-func (f *fakeSettingsService) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	return f.ResolveBool(context.Background(), key)
-}
-func (f *fakeSettingsService) ResolveInt(_ context.Context, _ string) (int, error) { return 0, nil }
-func (f *fakeSettingsService) ResolveIntForTenant(_ context.Context, _ int64, _ string) (int, error) {
-	return 0, nil
-}
-func (f *fakeSettingsService) HasTenantOverride(_ context.Context, _ string) (bool, error) {
-	return false, nil
-}
-func (f *fakeSettingsService) SetValue(_ context.Context, _ string, _ any, _ *int64, _ []string) error {
-	return nil
-}
-func (f *fakeSettingsService) ResetValue(_ context.Context, _ string, _ *int64, _ []string) error {
-	return nil
-}
-func (f *fakeSettingsService) GetLoginImageURL(_ context.Context, _ int64) (string, error) {
-	return "", nil
-}
-func (f *fakeSettingsService) SetLoginImageURL(_ context.Context, _ int64, _ string) (string, error) {
-	return "", nil
-}
-func (f *fakeSettingsService) ClearLoginImageURL(_ context.Context, _ int64) (string, error) {
-	return "", nil
+	return &configtest.Mock{
+		ResolveBoolFn: resolveBool,
+		ResolveBoolForTenantFn: func(ctx context.Context, _ int64, key string) (bool, error) {
+			return resolveBool(ctx, key)
+		},
+	}
 }
 
 // testContext holds shared test dependencies.
@@ -112,8 +79,7 @@ func TestSubmitFeedback_NoDevice(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": 1,
@@ -134,8 +100,7 @@ func TestSubmitFeedback_InvalidJSON(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-1")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	// Send invalid JSON body
 	req := httptest.NewRequest("POST", "/feedback", bytes.NewBufferString("invalid json"))
@@ -155,8 +120,7 @@ func TestSubmitFeedback_MissingStudentID(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-2")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"value": "positive",
@@ -177,8 +141,7 @@ func TestSubmitFeedback_MissingValue(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-3")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": 1,
@@ -199,8 +162,7 @@ func TestSubmitFeedback_InvalidStudentID(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-4")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": 0, // Invalid - must be positive
@@ -222,8 +184,7 @@ func TestSubmitFeedback_StudentNotFound(t *testing.T) {
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-5")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": 99999, // Non-existent student
@@ -246,8 +207,7 @@ func TestSubmitFeedback_Success(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-6")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student", "1a")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -270,8 +230,7 @@ func TestSubmitFeedback_NeutralValue(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-7")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student2", "1b")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -294,8 +253,7 @@ func TestSubmitFeedback_NegativeValue(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-8")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student3", "1c")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -318,8 +276,7 @@ func TestSubmitFeedback_InvalidValue(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-9")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "Student4", "1d")
 
-	router := chi.NewRouter()
-	router.Post("/feedback", ctx.resource.SubmitFeedbackHandler())
+	router := ctx.resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -348,11 +305,9 @@ func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "DisabledStudent", "2a")
 
 	// Create resource with fake SettingsService that returns feedback.enabled = false
-	disabledSettings := &fakeSettingsService{
-		boolValues: map[string]bool{
-			configModel.KeyFeedbackEnabled: false,
-		},
-	}
+	disabledSettings := newFakeSettingsService(map[string]bool{
+		configModel.KeyFeedbackEnabled: false,
+	})
 	resource := feedbackAPI.NewResource(
 		ctx.services.IoT,
 		ctx.services.Users,
@@ -360,8 +315,7 @@ func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
 		disabledSettings,
 	)
 
-	router := chi.NewRouter()
-	router.Post("/feedback", resource.SubmitFeedbackHandler())
+	router := resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": student.ID,
@@ -398,11 +352,9 @@ func TestSubmitFeedback_FeedbackEnabled(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, ctx.db, "Feedback", "EnabledStudent", "2b")
 
 	// Create resource with fake SettingsService that returns feedback.enabled = true
-	enabledSettings := &fakeSettingsService{
-		boolValues: map[string]bool{
-			configModel.KeyFeedbackEnabled: true,
-		},
-	}
+	enabledSettings := newFakeSettingsService(map[string]bool{
+		configModel.KeyFeedbackEnabled: true,
+	})
 	resource := feedbackAPI.NewResource(
 		ctx.services.IoT,
 		ctx.services.Users,
@@ -410,8 +362,7 @@ func TestSubmitFeedback_FeedbackEnabled(t *testing.T) {
 		enabledSettings,
 	)
 
-	router := chi.NewRouter()
-	router.Post("/feedback", resource.SubmitFeedbackHandler())
+	router := resource.Router()
 
 	body := map[string]interface{}{
 		"student_id": student.ID,

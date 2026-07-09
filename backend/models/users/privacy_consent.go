@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Data-retention bounds and default for privacy consents (GDPR visit-data
@@ -35,21 +34,6 @@ type PrivacyConsent struct {
 
 	// Relations not stored in the database
 	Student *Student `bun:"-" json:"student,omitempty"`
-}
-
-func (pc *PrivacyConsent) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`users.privacy_consents AS "privacy_consent"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`users.privacy_consents AS "privacy_consent"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (pc *PrivacyConsent) TableName() string {
-	return "users.privacy_consents"
 }
 
 // Validate ensures privacy consent data is valid. It performs pure field
@@ -106,19 +90,4 @@ func (pc *PrivacyConsent) GetDetails() map[string]interface{} {
 func (pc *PrivacyConsent) UpdateDetails(details map[string]interface{}) error {
 	pc.Details = details
 	return nil
-}
-
-// GetID implements the base.Entity interface
-func (pc *PrivacyConsent) GetID() interface{} {
-	return pc.ID
-}
-
-// GetCreatedAt implements the base.Entity interface
-func (pc *PrivacyConsent) GetCreatedAt() time.Time {
-	return pc.CreatedAt
-}
-
-// GetUpdatedAt implements the base.Entity interface
-func (pc *PrivacyConsent) GetUpdatedAt() time.Time {
-	return pc.UpdatedAt
 }

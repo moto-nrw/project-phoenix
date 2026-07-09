@@ -8,6 +8,7 @@
 package parentmessaging
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 
@@ -70,10 +71,7 @@ func MessagingEnabledForTenant(ctx context.Context, settings TenantSettingsResol
 }
 
 func loggerOr(logger *slog.Logger) *slog.Logger {
-	if logger == nil {
-		return slog.Default()
-	}
-	return logger
+	return cmp.Or(logger, slog.Default())
 }
 
 // AppendMessage persists an already-built ParentMessage, then updates the

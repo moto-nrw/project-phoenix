@@ -1,6 +1,7 @@
 package iot
 
 import (
+	"cmp"
 	"context"
 	"log/slog"
 	"net/http"
@@ -17,7 +18,6 @@ import (
 	rfidAPI "github.com/moto-nrw/project-phoenix/api/iot/rfid"
 	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -55,7 +55,7 @@ type ServiceDependencies struct {
 	FeedbackService       feedbackSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SchoolService         platformSvc.SchoolService
-	TimetableDataService  scheduleSvc.TimetableDataService
+	TimetableDataService  *scheduleSvc.TimetableDataService
 	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
 	Broadcaster           realtime.Broadcaster
 	Logger                *slog.Logger
@@ -64,42 +64,12 @@ type ServiceDependencies struct {
 
 // Resource defines the IoT API resource
 type Resource struct {
-	IoTService            iotSvc.Service
-	UsersService          usersSvc.PersonService
-	ActiveService         activeSvc.Service
-	ActivitiesService     activitiesSvc.ActivityService
-	SettingsService       configSvc.SettingsService
-	FacilityService       facilitiesSvc.Service
-	EducationService      educationSvc.Service
-	FeedbackService       feedbackSvc.Service
-	PickupScheduleService scheduleSvc.PickupScheduleService
-	SchoolService         platformSvc.SchoolService
-	TimetableDataService  scheduleSvc.TimetableDataService
-	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
-	Broadcaster           realtime.Broadcaster
-	logger                *slog.Logger
-	db                    *bun.DB
+	ServiceDependencies
 }
 
 // NewResource creates a new IoT resource
 func NewResource(deps ServiceDependencies) *Resource {
-	return &Resource{
-		IoTService:            deps.IoTService,
-		UsersService:          deps.UsersService,
-		ActiveService:         deps.ActiveService,
-		ActivitiesService:     deps.ActivitiesService,
-		SettingsService:       deps.SettingsService,
-		FacilityService:       deps.FacilityService,
-		EducationService:      deps.EducationService,
-		FeedbackService:       deps.FeedbackService,
-		PickupScheduleService: deps.PickupScheduleService,
-		SchoolService:         deps.SchoolService,
-		TimetableDataService:  deps.TimetableDataService,
-		UnregisteredTagScans:  deps.UnregisteredTagScans,
-		Broadcaster:           deps.Broadcaster,
-		logger:                deps.Logger,
-		db:                    deps.DB,
-	}
+	return &Resource{ServiceDependencies: deps}
 }
 
 // pinResolver returns a PINResolver that reads from the settings service.
@@ -123,10 +93,7 @@ func (rs *Resource) pinResolver() device.PINResolver {
 
 // getLogger returns the resource's logger, falling back to slog.Default() if nil.
 func (rs *Resource) getLogger() *slog.Logger {
-	if rs.logger != nil {
-		return rs.logger
-	}
-	return slog.Default()
+	return cmp.Or(rs.Logger, slog.Default())
 }
 
 // Router returns a configured router for IoT endpoints
@@ -134,21 +101,8 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
-
-	// Public routes (if any device endpoints should be public)
-	r.Group(func(r chi.Router) {
-		// Some basic device info might be public
-		// Currently no public routes for IoT devices
-	})
-
 	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.DB, func(r chi.Router, withTx common.Middleware) {
 
 		// Mount devices sub-router (handles device CRUD and admin operations)
 		// All device routes require JWT authentication with IOT permissions
@@ -163,7 +117,7 @@ func (rs *Resource) Router() chi.Router {
 	r.Group(func(r chi.Router) {
 		r.Use(device.DeviceOnlyAuthenticator(rs.IoTService, rs.SchoolService))
 		r.Use(iotMetricsMiddleware)
-		r.Use(tenant.TenantTxMiddleware(rs.db))
+		r.Use(tenant.TenantTxMiddleware(rs.DB))
 
 		// Mount data sub-router for teachers endpoint (device-only auth)
 		dataResource := dataAPI.NewResource(rs.IoTService, rs.UsersService, rs.ActivitiesService, rs.FacilityService, rs.UnregisteredTagScans)
@@ -181,9 +135,9 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.UsersService, rs.SchoolService, rs.pinResolver()))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, rs.pinResolver()))
 		r.Use(iotMetricsMiddleware)
-		r.Use(tenant.TenantTxMiddleware(rs.db))
+		r.Use(tenant.TenantTxMiddleware(rs.DB))
 
 		// Check-in endpoints (student RFID check-in/checkout workflow)
 		checkinResource := checkinAPI.NewResource(

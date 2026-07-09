@@ -47,9 +47,7 @@ func (r *GroupRepository) FindByName(ctx context.Context, name string) (*activit
 		Where(`LOWER(TRIM("group".name)) = LOWER(TRIM(?))`, name).
 		Where(`"group".archived_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -69,9 +67,7 @@ func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) 
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Where("category_id = ?", categoryID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.
 		Order(orderByNameAsc).
@@ -99,9 +95,7 @@ func (r *GroupRepository) FindOpenGroups(ctx context.Context) ([]*activities.Gro
 		// through the staff UI (issue #923).
 		Where("is_system = ?", false)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.
 		Order(orderByNameAsc).
@@ -127,9 +121,7 @@ func (r *GroupRepository) FindAllTemplates(ctx context.Context) ([]*activities.G
 		Where(`"group".is_template = ?`, true).
 		Where(`"group".archived_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.
 		Order(orderByNameAsc).
@@ -152,9 +144,7 @@ func (r *GroupRepository) FindWithEnrollmentCounts(ctx context.Context) ([]*acti
 		Model(&groups).
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		groupQuery = groupQuery.Where(where, val)
-	}
+	groupQuery = base.WithTenantFilter(ctx, groupQuery, "group")
 
 	err := groupQuery.
 		Order(orderByNameAsc).
@@ -256,9 +246,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
 		Where(whereIDEquals, groupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		groupQuery = groupQuery.Where(where, val)
-	}
+	groupQuery = base.WithTenantFilter(ctx, groupQuery, "group")
 
 	err := groupQuery.Scan(ctx)
 
@@ -276,9 +264,7 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 		ModelTableExpr(`activities.supervisors AS "supervisor_planned"`).
 		Where("group_id = ?", groupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "supervisor_planned"); ok {
-		supQuery = supQuery.Where(where, val)
-	}
+	supQuery = base.WithTenantFilter(ctx, supQuery, "supervisor_planned")
 
 	err = supQuery.
 		Order("is_primary DESC").
@@ -299,56 +285,6 @@ func (r *GroupRepository) FindWithSupervisors(ctx context.Context, groupID int64
 	return group, supervisors, nil
 }
 
-// FindWithSchedules returns a group with its scheduled times
-func (r *GroupRepository) FindWithSchedules(ctx context.Context, groupID int64) (*activities.Group, []*activities.Schedule, error) {
-	// First get the group
-	group := new(activities.Group)
-	groupQuery := base.GetDB(ctx, r.db).NewSelect().
-		Model(group).
-		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
-		Where(whereIDEquals, groupID)
-
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		groupQuery = groupQuery.Where(where, val)
-	}
-
-	err := groupQuery.Scan(ctx)
-
-	if err != nil {
-		return nil, nil, &modelBase.DatabaseError{
-			Op:  "find group",
-			Err: err,
-		}
-	}
-
-	// Then get the schedules
-	// Note: Timeframe relation is commented out in Schedule model, so we can't use Relation()
-	// The caller should load Timeframe separately if needed
-	schedules := make([]*activities.Schedule, 0)
-	schQuery := base.GetDB(ctx, r.db).NewSelect().
-		Model(&schedules).
-		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
-		Where("activity_group_id = ?", groupID)
-
-	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
-		schQuery = schQuery.Where(where, val)
-	}
-
-	err = schQuery.
-		Order("weekday ASC").
-		Order("timeframe_id ASC").
-		Scan(ctx)
-
-	if err != nil {
-		return nil, nil, &modelBase.DatabaseError{
-			Op:  "find schedules",
-			Err: err,
-		}
-	}
-
-	return group, schedules, nil
-}
-
 // FindByStaffSupervisor finds all activity groups where a staff member is a supervisor
 func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int64) ([]*activities.Group, error) {
 	var groups []*activities.Group
@@ -358,9 +294,7 @@ func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int
 		Join("JOIN activities.supervisors AS s ON s.group_id = \"group\".id").
 		Where("s.staff_id = ?", staffID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	err := query.Scan(ctx)
 
@@ -372,49 +306,6 @@ func (r *GroupRepository) FindByStaffSupervisor(ctx context.Context, staffID int
 	}
 
 	return groups, nil
-}
-
-// FindByStaffSupervisorToday finds all activity groups where a staff member is a supervisor
-func (r *GroupRepository) FindByStaffSupervisorToday(ctx context.Context, staffID int64) ([]*activities.Group, error) {
-	var groups []*activities.Group
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&groups).
-		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
-		Join(`JOIN activities.supervisors AS s ON s.group_id = "group".id`).
-		Where("s.staff_id = ?", staffID).
-		Where("is_open = ?", true)
-
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.
-		Order(orderByNameAsc).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by staff supervisor",
-			Err: err,
-		}
-	}
-
-	return groups, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *GroupRepository) Create(ctx context.Context, group *activities.Group) error {
-	if group == nil {
-		return fmt.Errorf("group cannot be nil")
-	}
-
-	// Validate group
-	if err := group.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, group)
 }
 
 // Update overrides the base Update method to handle validation
@@ -465,9 +356,7 @@ func (r *GroupRepository) List(ctx context.Context, options *modelBase.QueryOpti
 		ColumnExpr(`"category"."color" AS "category__color"`).
 		Join(`LEFT JOIN activities.categories AS "category" ON "category"."id" = "group"."category_id"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group")
 
 	// Apply query options with table alias to avoid ambiguous column references
 	// (both "group" and "category" have "id" columns)

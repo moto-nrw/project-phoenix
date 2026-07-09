@@ -39,7 +39,7 @@ type MessageThreadView struct {
 // parentmessaging.DecorateReadReceipts so the receipt rule stays identical to the
 // staff chat (one home for it, not two hand-mirrored copies).
 func (s *service) decorateReadReceipts(ctx context.Context, threadID, guardianAccountID int64, messages []*usersModels.ParentMessage) {
-	parentmessaging.DecorateReadReceipts(ctx, s.messageReadRepo, s.logger, threadID, guardianAccountID, messages)
+	parentmessaging.DecorateReadReceipts(ctx, s.MessageReadRepo, s.Logger, threadID, guardianAccountID, messages)
 }
 
 // ListMessageThreads returns the guardian's conversations across all their
@@ -58,8 +58,8 @@ func (s *service) ListMessageThreads(ctx context.Context, accountID int64) ([]*u
 	// one) halves the round-trips. The thread query returns rows already globally
 	// ordered (newest-activity first, nulls last).
 	out := make([]*usersModels.InboxThread, 0)
-	txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		children, err := s.childRepo.ListByAccount(adminCtx, accountID)
+	txErr := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		children, err := s.ChildRepo.ListByAccount(adminCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -67,7 +67,7 @@ func (s *service) ListMessageThreads(ctx context.Context, accountID int64) ([]*u
 		if len(tenantIDs) == 0 {
 			return nil
 		}
-		rows, err := s.messageReadRepo.ListThreadsForGuardianTenants(adminCtx, accountID, tenantIDs)
+		rows, err := s.MessageReadRepo.ListThreadsForGuardianTenants(adminCtx, accountID, tenantIDs)
 		if err != nil {
 			return err
 		}
@@ -103,7 +103,7 @@ func (s *service) suppressDisabledUnread(ctx context.Context, rows []*usersModel
 		}
 		on, cached := enabled[row.TenantID]
 		if !cached {
-			on = parentmessaging.MessagingEnabledForTenant(ctx, s.settings, row.TenantID, s.logger)
+			on = parentmessaging.MessagingEnabledForTenant(ctx, s.Settings, row.TenantID, s.Logger)
 			enabled[row.TenantID] = on
 		}
 		if !on {
@@ -124,8 +124,8 @@ func (s *service) ListChildThreads(ctx context.Context, accountID, studentID int
 		return nil, err
 	}
 	out := make([]*usersModels.InboxThread, 0)
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		rows, err := s.messageReadRepo.ListThreadsForGuardianStudent(txCtx, accountID, studentID)
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		rows, err := s.MessageReadRepo.ListThreadsForGuardianStudent(txCtx, accountID, studentID)
 		if err != nil {
 			return err
 		}
@@ -168,8 +168,8 @@ func (s *service) UnreadMessageCount(ctx context.Context, accountID int64) (int,
 	}
 	// Resolve the guardian's children (cross-tenant) in one admin transaction.
 	var tenantIDs []int64
-	if txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		children, err := s.childRepo.ListByAccount(adminCtx, accountID)
+	if txErr := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		children, err := s.ChildRepo.ListByAccount(adminCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -194,7 +194,7 @@ func (s *service) UnreadMessageCount(ctx context.Context, accountID int64) (int,
 	// unread pills.
 	enabledTenantIDs := make([]int64, 0, len(tenantIDs))
 	for _, tenantID := range tenantIDs {
-		if parentmessaging.MessagingEnabledForTenant(ctx, s.settings, tenantID, s.logger) {
+		if parentmessaging.MessagingEnabledForTenant(ctx, s.Settings, tenantID, s.Logger) {
 			enabledTenantIDs = append(enabledTenantIDs, tenantID)
 		}
 	}
@@ -203,8 +203,8 @@ func (s *service) UnreadMessageCount(ctx context.Context, accountID int64) (int,
 	}
 
 	total := 0
-	txErr := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		count, err := s.messageReadRepo.UnreadMessageCountForGuardianTenants(adminCtx, accountID, enabledTenantIDs)
+	txErr := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		count, err := s.MessageReadRepo.UnreadMessageCountForGuardianTenants(adminCtx, accountID, enabledTenantIDs)
 		if err != nil {
 			return err
 		}
@@ -231,8 +231,8 @@ func (s *service) GetChildConversation(ctx context.Context, accountID, studentID
 		StudentName: child.studentName,
 		SchoolName:  child.schoolName,
 	}
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		thread, err := s.messageThreadRepo.FindByStudentGuardian(txCtx, studentID, accountID)
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		thread, err := s.MessageThreadRepo.FindByStudentGuardian(txCtx, studentID, accountID)
 		if err != nil {
 			return err
 		}
@@ -240,7 +240,7 @@ func (s *service) GetChildConversation(ctx context.Context, accountID, studentID
 			return nil // no conversation yet — empty view
 		}
 		view.ThreadID = thread.ID
-		messages, err := s.messageRepo.ListByThread(txCtx, thread.ID, 0)
+		messages, err := s.MessageRepo.ListByThread(txCtx, thread.ID, 0)
 		if err != nil {
 			return err
 		}
@@ -252,7 +252,7 @@ func (s *service) GetChildConversation(ctx context.Context, accountID, studentID
 		// The mark-to-newest invariant (and the empty-conversation skip) lives in
 		// parentmessaging.MarkReadToNewest, shared with the staff side so the two
 		// portals' unread counts can't drift.
-		advanced, err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, false, messages)
+		advanced, err := parentmessaging.MarkReadToNewest(txCtx, s.MessageReadRepo, thread.TenantID, thread.ID, accountID, false, messages)
 		if err != nil {
 			return err
 		}
@@ -299,7 +299,7 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 	// blip does not 500 a guardian's reply while the badge and thread list keep
 	// rendering unread — the write side agrees with the read side. A genuine
 	// disabled flag still returns ErrNotesDisabled.
-	if !parentmessaging.MessagingEnabledForTenant(ctx, s.settings, child.tenantID, s.logger) {
+	if !parentmessaging.MessagingEnabledForTenant(ctx, s.Settings, child.tenantID, s.Logger) {
 		return nil, ErrNotesDisabled
 	}
 
@@ -312,8 +312,8 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 		StudentName: child.studentName,
 		SchoolName:  child.schoolName,
 	}
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		thread, err := s.messageThreadRepo.GetOrCreate(txCtx, child.tenantID, studentID, accountID)
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		thread, err := s.MessageThreadRepo.GetOrCreate(txCtx, child.tenantID, studentID, accountID)
 		if err != nil {
 			return err
 		}
@@ -321,7 +321,7 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 			return err
 		}
 		view.ThreadID = thread.ID
-		messages, err := s.messageRepo.ListByThread(txCtx, thread.ID, 0)
+		messages, err := s.MessageRepo.ListByThread(txCtx, thread.ID, 0)
 		if err != nil {
 			return err
 		}
@@ -339,7 +339,7 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 		// (never NOW(), never our own just-sent message), so it can't leap the cursor
 		// to ~now and swallow a staff message committing concurrently in a still-open
 		// tx. See parentmessaging.MarkReadToNewest.
-		if _, err := parentmessaging.MarkReadToNewest(txCtx, s.messageReadRepo, thread.TenantID, thread.ID, accountID, false, messages); err != nil {
+		if _, err := parentmessaging.MarkReadToNewest(txCtx, s.MessageReadRepo, thread.TenantID, thread.ID, accountID, false, messages); err != nil {
 			return err
 		}
 		captured := child.tenantID
@@ -352,7 +352,7 @@ func (s *service) PostChildMessage(ctx context.Context, accountID, studentID int
 	if txErr != nil {
 		return nil, fmt.Errorf("parent: post child message: %w", txErr)
 	}
-	s.logger.Info("parent sent message",
+	s.Logger.Info("parent sent message",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("tenant_id", child.tenantID),
@@ -376,7 +376,7 @@ func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels
 		Kind:            usersModels.ParentMessageKindMessage,
 	}
 	msg.SetTenantID(thread.TenantID)
-	return parentmessaging.AppendMessage(ctx, s.messageRepo, s.messageThreadRepo, msg)
+	return parentmessaging.AppendMessage(ctx, s.MessageRepo, s.MessageThreadRepo, msg)
 }
 
 // resolveGuardianName returns the guardian's display name for the child's
@@ -389,11 +389,11 @@ func (s *service) appendGuardianMessage(ctx context.Context, thread *usersModels
 // to this child's school.
 func (s *service) resolveGuardianName(ctx context.Context, tenantID, accountID int64) (string, error) {
 	name := "Elternteil"
-	if s.guardianProfileRepo == nil {
+	if s.GuardianProfileRepo == nil {
 		return name, nil
 	}
-	if txErr := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		profile, err := s.guardianProfileRepo.FindByAccountID(txCtx, accountID)
+	if txErr := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		profile, err := s.GuardianProfileRepo.FindByAccountID(txCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -409,7 +409,7 @@ func (s *service) resolveGuardianName(ctx context.Context, tenantID, accountID i
 		}
 		return nil
 	}); txErr != nil {
-		s.logger.Warn("parent: resolve guardian name failed",
+		s.Logger.Warn("parent: resolve guardian name failed",
 			slog.Int64("account_id", accountID),
 			slog.String("error", txErr.Error()),
 		)
@@ -422,7 +422,7 @@ func (s *service) resolveGuardianName(ctx context.Context, tenantID, accountID i
 // threadID/studentID let an open chat skip refetching unrelated threads. The
 // fan-out contract is shared with the staff side via parentmessaging.Broadcast.
 func (s *service) broadcastParentMessage(tenantID, guardianAccountID, threadID, studentID int64) {
-	parentmessaging.Broadcast(s.broadcaster, s.logger, tenantID, guardianAccountID, threadID, studentID)
+	parentmessaging.Broadcast(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
 }
 
 // broadcastReadReceipt wakes the OGS side (and the guardian's own tabs) to refresh
@@ -431,5 +431,5 @@ func (s *service) broadcastParentMessage(tenantID, guardianAccountID, threadID, 
 // callers fire it after commit and ONLY on a real cursor advance, so it can't loop
 // with the receipt refetch it triggers.
 func (s *service) broadcastReadReceipt(tenantID, guardianAccountID, threadID, studentID int64) {
-	parentmessaging.BroadcastRead(s.broadcaster, s.logger, tenantID, guardianAccountID, threadID, studentID)
+	parentmessaging.BroadcastRead(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
 }

@@ -23,11 +23,9 @@ func TestGetStudentPrivacyConsent(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Test", "PT1")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.GetStudentPrivacyConsentHandler(), "id")
-
 	t.Run("success_returns_default_consent", func(t *testing.T) {
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/privacy-consent", student.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		// Default consent should have renewal_required: true
@@ -37,16 +35,16 @@ func TestGetStudentPrivacyConsent(t *testing.T) {
 	t.Run("success_returns_configured_retention_default", func(t *testing.T) {
 		require.NoError(t, tc.services.Settings.SetValue(testpkg.TenantContext(1), configModel.KeyPrivacyConsentRetentionDays, 12, nil, nil))
 
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/privacy-consent", student.ID), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), `"data_retention_days":12`)
 	})
 
 	t.Run("not_found_for_nonexistent_student", func(t *testing.T) {
-		req := testutil.NewRequest("GET", "/999999", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("GET", "/999999/privacy-consent", nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertNotFound(t, rr)
 	})
@@ -58,16 +56,14 @@ func TestUpdateStudentPrivacyConsent(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "PrivacyUpdate", "Test", "PU1")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")
-
 	t.Run("success_creates_consent", func(t *testing.T) {
 		body := map[string]interface{}{
 			"policy_version":      "1.0",
 			"accepted":            true,
 			"data_retention_days": 30,
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/privacy-consent", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "1.0")
@@ -78,8 +74,8 @@ func TestUpdateStudentPrivacyConsent(t *testing.T) {
 			"accepted":            true,
 			"data_retention_days": 30,
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/privacy-consent", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -90,8 +86,8 @@ func TestUpdateStudentPrivacyConsent(t *testing.T) {
 			"accepted":            true,
 			"data_retention_days": 0, // Invalid: must be 1-31
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/privacy-consent", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		testutil.AssertBadRequest(t, rr)
 	})
@@ -104,16 +100,14 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "MultiVersion", "PM1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")
-
 		// First consent
 		body1 := map[string]interface{}{
 			"policy_version":      "1.0",
 			"accepted":            true,
 			"data_retention_days": 30,
 		}
-		req1 := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body1)
-		rr1 := executeWithAuth(router, req1, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req1 := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/privacy-consent", student.ID), body1)
+		rr1 := authExec(t, tc, req1, testutil.AdminTestClaims(1), []string{"admin:*"})
 		assert.Equal(t, http.StatusOK, rr1.Code, "First consent should succeed")
 
 		// Second consent with different version
@@ -122,8 +116,8 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 			"accepted":            true,
 			"data_retention_days": 31,
 		}
-		req2 := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body2)
-		rr2 := executeWithAuth(router, req2, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req2 := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/privacy-consent", student.ID), body2)
+		rr2 := authExec(t, tc, req2, testutil.AdminTestClaims(1), []string{"admin:*"})
 		assert.Equal(t, http.StatusOK, rr2.Code, "Second consent should succeed")
 	})
 
@@ -131,16 +125,14 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Duration", "PD1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")
-
 		body := map[string]interface{}{
 			"policy_version":      "1.0",
 			"accepted":            true,
 			"duration_days":       365,
 			"data_retention_days": 30,
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/privacy-consent", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Consent with duration should succeed")
 	})
@@ -148,8 +140,6 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 	t.Run("update_with_details", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "Details", "PDT1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
-
-		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")
 
 		// Details should be a map, not a JSON string
 		body := map[string]interface{}{
@@ -161,8 +151,8 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 				"method":           "form",
 			},
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/privacy-consent", student.ID), body)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Consent with details should succeed")
 	})
@@ -172,11 +162,10 @@ func TestPrivacyConsent_Extended(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Privacy", "NoAccess")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
 
-		router := setupRouter(tc.resource.GetStudentPrivacyConsentHandler(), "id")
-		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+		req := testutil.NewRequest("GET", fmt.Sprintf("/%d/privacy-consent", student.ID), nil)
 
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:read"})
+		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 		// Non-supervisor should be forbidden from viewing privacy consent
 		testutil.AssertForbidden(t, rr)
@@ -190,22 +179,20 @@ func TestPrivacyConsent_EdgeCases(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "Privacy", "SameVersion", "PSV1")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")
-
 		// Create first consent
 		body := map[string]interface{}{
 			"policy_version":      "1.0",
 			"accepted":            true,
 			"data_retention_days": 30,
 		}
-		req1 := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr1 := executeWithAuth(router, req1, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req1 := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/privacy-consent", student.ID), body)
+		rr1 := authExec(t, tc, req1, testutil.AdminTestClaims(1), []string{"admin:*"})
 		assert.Equal(t, http.StatusOK, rr1.Code)
 
 		// Update same version (should update existing)
 		body["data_retention_days"] = 15
-		req2 := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-		rr2 := executeWithAuth(router, req2, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req2 := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/privacy-consent", student.ID), body)
+		rr2 := authExec(t, tc, req2, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr2.Code, "Should update existing consent")
 	})
@@ -215,16 +202,15 @@ func TestPrivacyConsent_EdgeCases(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Privacy", "ForbiddenStaff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentPrivacyConsentHandler(), "id")
 		body := map[string]interface{}{
 			"policy_version":      "1.0",
 			"accepted":            true,
 			"data_retention_days": 30,
 		}
-		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d/privacy-consent", student.ID), body)
 
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:write"})
+		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		// Non-supervisor should be forbidden from updating privacy consent
 		testutil.AssertForbidden(t, rr)

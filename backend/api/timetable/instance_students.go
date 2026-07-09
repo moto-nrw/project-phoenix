@@ -16,7 +16,6 @@ package timetable
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -70,7 +69,7 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("attendance PATCH not wired")))
 		return
 	}
@@ -95,9 +94,9 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	current, err := rs.timetableData.GetInstanceStudent(ctx, instanceID, studentID)
+	current, err := rs.TimetableData.GetInstanceStudent(ctx, instanceID, studentID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || isNotFoundDBError(err) {
+		if modelBase.IsNoRows(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance student not found")))
 			return
 		}
@@ -114,14 +113,14 @@ func (rs *Resource) patchInstanceStudent(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	if err := rs.timetableData.UpdateInstanceStudentAttendance(ctx, current.ID, patch); err != nil {
+	if err := rs.TimetableData.UpdateInstanceStudentAttendance(ctx, current.ID, patch); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("update attendance failed", err))
 		return
 	}
 
 	// Re-read so the response body reflects the post-write state (including
 	// the bumped updated_at). One extra SELECT is worth the response fidelity.
-	updated, err := rs.timetableData.GetInstanceStudent(ctx, instanceID, studentID)
+	updated, err := rs.TimetableData.GetInstanceStudent(ctx, instanceID, studentID)
 	if err != nil || updated == nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("reload updated attendance failed", err))
 		return
@@ -305,18 +304,4 @@ func mapAttendanceToResponse(row *scheduleModel.InstanceStudent) AttendanceRespo
 		resp.CheckedInAt = &t
 	}
 	return resp
-}
-
-// isNotFoundDBError unwraps modelBase.DatabaseError and reports whether the
-// underlying error is sql.ErrNoRows. Matches the helper in instance_service.go
-// so 404 semantics stay consistent across the package.
-func isNotFoundDBError(err error) bool {
-	if err == nil {
-		return false
-	}
-	var dbErr *modelBase.DatabaseError
-	if errors.As(err, &dbErr) {
-		return errors.Is(dbErr.Err, sql.ErrNoRows)
-	}
-	return false
 }

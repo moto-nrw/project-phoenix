@@ -15,6 +15,7 @@ const binaryTenant: TenantInfo = {
   studentPhotosEnabled: true,
   nfcEnabled: true,
   messagingEnabled: true,
+  displayEnabled: false,
 };
 
 const meta: Meta<typeof BinaryModeGuard> = {

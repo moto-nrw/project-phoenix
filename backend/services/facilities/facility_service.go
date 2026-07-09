@@ -6,7 +6,8 @@ import (
 	"database/sql"
 	"errors"
 	"log/slog"
-	"sort"
+	"maps"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
@@ -14,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Operation name constants to avoid string duplication
@@ -150,7 +150,7 @@ func translateValidationError(err error) error {
 // constraint name is checked so other future unique indexes on the table do
 // not accidentally surface as "color already in use" toasts.
 func isUniqueColorViolation(err error) bool {
-	return isUniqueViolationOnIndex(err, facilities.RoomColorUniqueConstraintName)
+	return base.IsUniqueViolationOn(err, facilities.RoomColorUniqueConstraintName)
 }
 
 // isUniqueWCAliasViolation reports whether err is a PostgreSQL 23505 raised
@@ -158,29 +158,7 @@ func isUniqueColorViolation(err error) bool {
 // per tenant". Hit only on the TOCTOU race the application-level guard in
 // CreateRoom/UpdateRoom can't close — see migration 1.15.48.
 func isUniqueWCAliasViolation(err error) bool {
-	return isUniqueViolationOnIndex(err, facilities.RoomWCAliasUniqueConstraintName)
-}
-
-// isUniqueViolationOnIndex reports whether err is a PostgreSQL 23505 raised
-// by the named partial unique index. Pulled out of isUniqueColorViolation
-// because we now have two such indexes on facilities.rooms and the matching
-// logic is identical — only the index name differs.
-func isUniqueViolationOnIndex(err error, indexName string) bool {
-	if err == nil {
-		return false
-	}
-	var dbErr *base.DatabaseError
-	if errors.As(err, &dbErr) {
-		err = dbErr.Err
-	}
-	var pgErr pgdriver.Error
-	if !errors.As(err, &pgErr) {
-		return false
-	}
-	if pgErr.Field('C') != "23505" {
-		return false
-	}
-	return pgErr.Field('n') == indexName
+	return base.IsUniqueViolationOn(err, facilities.RoomWCAliasUniqueConstraintName)
 }
 
 // equalStringPtr compares two *string for equality treating nil as "no value"
@@ -414,16 +392,6 @@ func (s *service) FindRoomByName(ctx context.Context, name string) (*facilities.
 	return room, nil
 }
 
-// FindRoomsByBuilding finds rooms by building
-func (s *service) FindRoomsByBuilding(ctx context.Context, building string) ([]*facilities.Room, error) {
-	rooms, err := s.roomRepo.FindByBuilding(ctx, building)
-	if err != nil {
-		return nil, &FacilitiesError{Op: "find rooms by building", Err: err}
-	}
-
-	return rooms, nil
-}
-
 // FindRoomsByCategory finds rooms by category
 func (s *service) FindRoomsByCategory(ctx context.Context, category string) ([]*facilities.Room, error) {
 	rooms, err := s.roomRepo.FindByCategory(ctx, category)
@@ -432,26 +400,6 @@ func (s *service) FindRoomsByCategory(ctx context.Context, category string) ([]*
 	}
 
 	return rooms, nil
-}
-
-// FindRoomsByFloor finds rooms by building and floor
-func (s *service) FindRoomsByFloor(ctx context.Context, building string, floor int) ([]*facilities.Room, error) {
-	rooms, err := s.roomRepo.FindByFloor(ctx, building, floor)
-	if err != nil {
-		return nil, &FacilitiesError{Op: "find rooms by floor", Err: err}
-	}
-
-	return rooms, nil
-}
-
-// CheckRoomAvailability checks if a room is available for a given capacity
-func (s *service) CheckRoomAvailability(ctx context.Context, roomID int64, requiredCapacity int) (bool, error) {
-	room, err := s.roomRepo.FindByID(ctx, roomID)
-	if err != nil {
-		return false, &FacilitiesError{Op: "check room availability", Err: ErrRoomNotFound}
-	}
-
-	return room.IsAvailable(requiredCapacity), nil
 }
 
 // GetAvailableRooms finds all rooms that can accommodate the given capacity
@@ -510,23 +458,6 @@ func (s *service) GetAvailableRoomsWithOccupancy(ctx context.Context, capacity i
 	return roomsWithOccupancy, nil
 }
 
-// GetRoomUtilization calculates the current utilization of a room
-func (s *service) GetRoomUtilization(ctx context.Context, roomID int64) (float64, error) {
-	room, err := s.roomRepo.FindByID(ctx, roomID)
-	if err != nil {
-		return 0, &FacilitiesError{Op: "get room utilization", Err: ErrRoomNotFound}
-	}
-
-	// This would typically be implemented by querying other systems
-	// For now just return a placeholder value
-	if room.Capacity == nil || *room.Capacity <= 0 {
-		return 0, nil
-	}
-
-	// Placeholder logic
-	return 0.0, nil
-}
-
 // GetBuildingList returns a list of all buildings in the system
 func (s *service) GetBuildingList(ctx context.Context) ([]string, error) {
 	// Get all rooms - using empty filter map for now
@@ -544,11 +475,7 @@ func (s *service) GetBuildingList(ctx context.Context) ([]string, error) {
 	}
 
 	// Convert map to sorted slice
-	buildings := make([]string, 0, len(buildingMap))
-	for building := range buildingMap {
-		buildings = append(buildings, building)
-	}
-	sort.Strings(buildings)
+	buildings := slices.Sorted(maps.Keys(buildingMap))
 
 	return buildings, nil
 }
@@ -570,11 +497,7 @@ func (s *service) GetCategoryList(ctx context.Context) ([]string, error) {
 	}
 
 	// Convert map to sorted slice
-	categories := make([]string, 0, len(categoryMap))
-	for category := range categoryMap {
-		categories = append(categories, category)
-	}
-	sort.Strings(categories)
+	categories := slices.Sorted(maps.Keys(categoryMap))
 
 	return categories, nil
 }

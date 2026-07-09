@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/stretchr/testify/assert"
@@ -23,7 +25,7 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 			name:    "expected + new substatus without status change rejects",
 			current: &scheduleModel.InstanceStudent{Status: scheduleModel.AttendanceStatusExpected},
 			patch: scheduleModel.AttendanceFieldPatch{
-				Substatus: strPtr(scheduleModel.AttendanceSubstatusLate),
+				Substatus: testpkg.StrPtr(scheduleModel.AttendanceSubstatusLate),
 			},
 			wantErrField: "substatus",
 		},
@@ -31,8 +33,8 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 			name:    "expected to present with substatus is valid",
 			current: &scheduleModel.InstanceStudent{Status: scheduleModel.AttendanceStatusExpected},
 			patch: scheduleModel.AttendanceFieldPatch{
-				Status:    strPtr(scheduleModel.AttendanceStatusPresent),
-				Substatus: strPtr(scheduleModel.AttendanceSubstatusLate),
+				Status:    testpkg.StrPtr(scheduleModel.AttendanceStatusPresent),
+				Substatus: testpkg.StrPtr(scheduleModel.AttendanceSubstatusLate),
 			},
 			wantOK: true,
 		},
@@ -40,8 +42,8 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 			name:    "expected to absent with substatus is valid",
 			current: &scheduleModel.InstanceStudent{Status: scheduleModel.AttendanceStatusExpected},
 			patch: scheduleModel.AttendanceFieldPatch{
-				Status:    strPtr(scheduleModel.AttendanceStatusAbsent),
-				Substatus: strPtr(scheduleModel.AttendanceSubstatusSick),
+				Status:    testpkg.StrPtr(scheduleModel.AttendanceStatusAbsent),
+				Substatus: testpkg.StrPtr(scheduleModel.AttendanceSubstatusSick),
 			},
 			wantOK: true,
 		},
@@ -49,7 +51,7 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 			name:    "present with substatus is valid",
 			current: &scheduleModel.InstanceStudent{Status: scheduleModel.AttendanceStatusPresent},
 			patch: scheduleModel.AttendanceFieldPatch{
-				Substatus: strPtr(scheduleModel.AttendanceSubstatusLate),
+				Substatus: testpkg.StrPtr(scheduleModel.AttendanceSubstatusLate),
 			},
 			wantOK: true,
 		},
@@ -57,7 +59,7 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 			name:    "present to expected with existing substatus rejects",
 			current: &scheduleModel.InstanceStudent{Status: scheduleModel.AttendanceStatusPresent, Substatus: &excused},
 			patch: scheduleModel.AttendanceFieldPatch{
-				Status: strPtr(scheduleModel.AttendanceStatusExpected),
+				Status: testpkg.StrPtr(scheduleModel.AttendanceStatusExpected),
 			},
 			wantErrField: "substatus",
 		},
@@ -65,7 +67,7 @@ func TestValidateAttendancePatch_CrossFieldRule(t *testing.T) {
 			name:    "present to expected clearing substatus is valid",
 			current: &scheduleModel.InstanceStudent{Status: scheduleModel.AttendanceStatusPresent, Substatus: &excused},
 			patch: scheduleModel.AttendanceFieldPatch{
-				Status:         strPtr(scheduleModel.AttendanceStatusExpected),
+				Status:         testpkg.StrPtr(scheduleModel.AttendanceStatusExpected),
 				SubstatusClear: true,
 			},
 			wantOK: true,
@@ -89,13 +91,13 @@ func TestValidateAttendancePatch_PerFieldErrors(t *testing.T) {
 	cur := &scheduleModel.InstanceStudent{Status: scheduleModel.AttendanceStatusPresent}
 
 	t.Run("invalid status", func(t *testing.T) {
-		errs := schedule.ValidateAttendancePatch(scheduleModel.AttendanceFieldPatch{Status: strPtr("ghost")}, cur)
+		errs := schedule.ValidateAttendancePatch(scheduleModel.AttendanceFieldPatch{Status: testpkg.StrPtr("ghost")}, cur)
 		require.Len(t, errs, 1)
 		assert.Equal(t, "status", errs[0].Field)
 	})
 
 	t.Run("invalid substatus", func(t *testing.T) {
-		errs := schedule.ValidateAttendancePatch(scheduleModel.AttendanceFieldPatch{Substatus: strPtr("banana")}, cur)
+		errs := schedule.ValidateAttendancePatch(scheduleModel.AttendanceFieldPatch{Substatus: testpkg.StrPtr("banana")}, cur)
 		require.Len(t, errs, 1)
 		assert.Equal(t, "substatus", errs[0].Field)
 	})
@@ -110,7 +112,7 @@ func TestValidateAttendancePatch_PerFieldErrors(t *testing.T) {
 	t.Run("two per-field errors returned together", func(t *testing.T) {
 		tooLong := strings.Repeat("y", scheduleModel.InstanceStudentNoteMaxLength+1)
 		errs := schedule.ValidateAttendancePatch(scheduleModel.AttendanceFieldPatch{
-			Status: strPtr("ghost"),
+			Status: testpkg.StrPtr("ghost"),
 			Note:   &tooLong,
 		}, cur)
 		require.Len(t, errs, 2)

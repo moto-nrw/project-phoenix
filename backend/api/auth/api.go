@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -238,8 +239,8 @@ func (rs *Resource) Router() chi.Router {
 				r.Route("/{accountId}", func(r chi.Router) {
 					// Account update operations
 					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/", rs.updateAccount)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", rs.activateAccount)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", rs.deactivateAccount)
+					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", idAction("accountId", common.MsgInvalidAccountID, rs.AuthService.ActivateAccount, common.ErrorInternalServer))
+					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", idAction("accountId", common.MsgInvalidAccountID, rs.AuthService.DeactivateAccount, common.ErrorInternalServer))
 					r.With(authorize.RequiresPermission(permUsersManage)).Get("/caregiver-capability", rs.getCaregiverCapability)
 					r.With(authorize.RequiresPermission(permUsersManage)).Post("/caregiver-capability", rs.enableCaregiverCapability)
 					r.With(authorize.RequiresPermission(permUsersManage)).Delete("/caregiver-capability", rs.disableCaregiverCapability)
@@ -247,23 +248,23 @@ func (rs *Resource) Router() chi.Router {
 					// Role assignments
 					r.Route("/roles", func(r chi.Router) {
 						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getAccountRoles)
-						r.With(authorize.RequiresPermission(permUsersManage)).Post("/{roleId}", rs.assignRoleToAccount)
-						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/{roleId}", rs.removeRoleFromAccount)
+						r.With(authorize.RequiresPermission(permUsersManage)).Post("/{roleId}", twoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.AuthService.AssignRoleToAccount, common.ErrorInternalServer))
+						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/{roleId}", twoIDAction("accountId", common.MsgInvalidAccountID, "roleId", common.MsgInvalidRoleID, rs.AuthService.RemoveRoleFromAccount, common.ErrorInternalServer))
 					})
 
 					// Permission assignments
 					r.Route(pathPermissions, func(r chi.Router) {
 						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getAccountPermissions)
 						r.With(authorize.RequiresPermission(permUsersManage)).Get("/direct", rs.getAccountDirectPermissions)
-						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", rs.grantPermissionToAccount)
-						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", rs.denyPermissionToAccount)
-						r.With(authorize.RequiresPermission(permUsersManage)).Delete(pathPermissionID, rs.removePermissionFromAccount)
+						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/grant", twoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.GrantPermissionToAccount, common.ErrorInternalServer))
+						r.With(authorize.RequiresPermission(permUsersManage)).Post(pathPermissionID+"/deny", twoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.DenyPermissionToAccount, common.ErrorInternalServer))
+						r.With(authorize.RequiresPermission(permUsersManage)).Delete(pathPermissionID, twoIDAction("accountId", common.MsgInvalidAccountID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.RemovePermissionFromAccount, common.ErrorInternalServer))
 					})
 
 					// Token management
 					r.Route("/tokens", func(r chi.Router) {
 						r.With(authorize.RequiresPermission(permUsersManage)).Get("/", rs.getActiveTokens)
-						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", rs.revokeAllTokens)
+						r.With(authorize.RequiresPermission(permUsersManage)).Delete("/", idAction("accountId", common.MsgInvalidAccountID, rs.AuthService.RevokeAllTokens, common.ErrorInternalServer))
 					})
 
 					// MFA admin override ("Godmode") — issue #1308 Phase 6.
@@ -280,8 +281,8 @@ func (rs *Resource) Router() chi.Router {
 			// Role permission assignments
 			r.Route("/roles/{roleId}/permissions", func(r chi.Router) {
 				r.With(authorize.RequiresPermission(permRolesManage)).Get("/", rs.getRolePermissions)
-				r.With(authorize.RequiresPermission(permRolesManage)).Post(pathPermissionID, rs.assignPermissionToRole)
-				r.With(authorize.RequiresPermission(permRolesManage)).Delete(pathPermissionID, rs.removePermissionFromRole)
+				r.With(authorize.RequiresPermission(permRolesManage)).Post(pathPermissionID, twoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.AssignPermissionToRole, renderRoleMutationError))
+				r.With(authorize.RequiresPermission(permRolesManage)).Delete(pathPermissionID, twoIDAction("roleId", common.MsgInvalidRoleID, "permissionId", common.MsgInvalidPermissionID, rs.AuthService.RemovePermissionFromRole, renderRoleMutationError))
 			})
 
 			// Token cleanup
@@ -316,8 +317,8 @@ func (rs *Resource) Router() chi.Router {
 				r.Route("/{id}", func(r chi.Router) {
 					r.With(authorize.RequiresPermission("users:read")).Get("/", rs.getParentAccountByID)
 					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/", rs.updateParentAccount)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", rs.activateParentAccount)
-					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", rs.deactivateParentAccount)
+					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/activate", idAction("id", common.MsgInvalidParentAccountID, rs.AuthService.ActivateParentAccount, common.ErrorInternalServer))
+					r.With(authorize.RequiresPermission(permUsersUpdate)).Put("/deactivate", idAction("id", common.MsgInvalidParentAccountID, rs.AuthService.DeactivateParentAccount, common.ErrorInternalServer))
 				})
 			})
 		})
@@ -358,29 +359,34 @@ type TenantResolveResponse struct {
 	// the school has parent-OGS messaging turned off, instead of composing into a
 	// 403 dead-end. Defaults to false when the setting is missing/unresolvable.
 	ParentMessagingEnabled bool `json:"parent_messaging_enabled"`
+	// DisplayEnabled is the tenant's resolved display.enabled setting. The
+	// Info-Point Dashboard is opt-in and defaults off, so the frontend needs
+	// this to hide the sidebar entry / admin page for schools that haven't
+	// turned it on. Defaults to false when the setting is missing/unresolvable.
+	DisplayEnabled bool `json:"display_enabled"`
 }
 
 // resolveTenant handles GET /auth/tenant/resolve?slug={slug}
 func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	slug := strings.TrimSpace(r.URL.Query().Get("slug"))
 	if slug == "" {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("slug query parameter is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("slug query parameter is required")))
 		return
 	}
 
 	school, err := rs.SchoolService.GetSchoolBySubdomain(r.Context(), slug)
 	if err != nil || school == nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
 		return
 	}
 
 	if school.IsDeleted() {
-		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
 		return
 	}
 
 	if !school.Active {
-		common.RenderError(w, r, ErrorNotFound(errors.New("tenant not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
 		return
 	}
 
@@ -407,6 +413,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	studentPhotosEnabled := false
 	nfcEnabled := false
 	parentMessagingEnabled := false
+	displayEnabled := false
 	if rs.SettingsService != nil {
 		val, err := rs.SettingsService.ResolveStringForTenant(r.Context(), school.ID, configModel.KeyStudentPhotosEnabled)
 		if err == nil {
@@ -414,6 +421,9 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		}
 		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyAttendanceNFCEnabled); err == nil {
 			nfcEnabled = val
+		}
+		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyDisplayEnabled); err == nil {
+			displayEnabled = val
 		}
 		// Messaging compose visibility fails OPEN (counts a resolve error as
 		// enabled), UNLIKE the photos/NFC flags above. It must agree with the unread
@@ -438,6 +448,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		StudentPhotosEnabled:   studentPhotosEnabled,
 		NFCEnabled:             nfcEnabled,
 		ParentMessagingEnabled: parentMessagingEnabled,
+		DisplayEnabled:         displayEnabled,
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")
@@ -461,7 +472,7 @@ func (req *SwitchTenantRequest) Bind(_ *http.Request) error {
 func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 	req := &SwitchTenantRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -474,19 +485,19 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountNotFound))
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
 			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-				common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
+				common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 			case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantAccessDenied))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
 			default:
-				common.RenderError(w, r, ErrorInternalServer(err))
+				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -513,7 +524,7 @@ func (rs *Resource) listAccountTenants(w http.ResponseWriter, r *http.Request) {
 
 	schools, err := rs.SchoolService.ListActiveSchoolsByAccountID(r.Context(), int64(claims.ID))
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -552,7 +563,7 @@ type PublicTenantResponse struct {
 func (rs *Resource) listTenants(w http.ResponseWriter, r *http.Request) {
 	schools, err := rs.SchoolService.ListPublicSchools(r.Context())
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -641,7 +652,7 @@ type LoginResponse struct {
 func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	req := &LoginRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -700,16 +711,16 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 	if errors.As(err, &authErr) {
 		switch {
 		case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
-			common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
+			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
 		case errors.Is(authErr.Err, authService.ErrAccountNotFound):
 			// Mask the specific error so attackers can't enumerate accounts.
-			common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
+			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
 		case errors.Is(authErr.Err, authService.ErrAccountInactive):
-			common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
+			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
 		case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-			common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
+			common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 		case errors.Is(authErr.Err, authService.ErrTenantAccessDenied):
-			common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantAccessDenied))
+			common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantAccessDenied))
 		case errors.Is(authErr.Err, authService.ErrParentMustUseParentPortal):
 			common.RenderError(w, r, common.ErrorForbidden(authService.ErrParentMustUseParentPortal))
 		case errors.Is(authErr.Err, authService.ErrMFARateLimited):
@@ -729,11 +740,11 @@ func (rs *Resource) handleLoginError(w http.ResponseWriter, r *http.Request, err
 			// retry — the frontend renders it as "Bitte versuche es erneut".
 			common.RenderError(w, r, common.ErrorServiceUnavailable(authErr.Err))
 		default:
-			common.RenderError(w, r, ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
 		return
 	}
-	common.RenderError(w, r, ErrorInternalServer(err))
+	common.RenderError(w, r, common.ErrorInternalServer(err))
 }
 
 // RegisterRequest represents the register request payload
@@ -747,15 +758,22 @@ type RegisterRequest struct {
 
 // Bind validates the register request
 func (req *RegisterRequest) Bind(_ *http.Request) error {
-	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-	req.Username = strings.TrimSpace(req.Username)
+	return validateAccountCredentialFields(req, &req.Email, &req.Username, &req.Password, &req.ConfirmPassword)
+}
 
-	return validation.ValidateStruct(req,
-		validation.Field(&req.Email, validation.Required, is.Email),
-		validation.Field(&req.Username, validation.Required, validation.Length(3, 30)),
-		validation.Field(&req.Password, validation.Required, validation.Length(8, 0)),
-		validation.Field(&req.ConfirmPassword, validation.Required, validation.By(func(value interface{}) error {
-			if req.Password != req.ConfirmPassword {
+// validateAccountCredentialFields normalizes and validates the shared
+// email/username/password(+confirmation) fields of the account-creation
+// payloads (staff registration and parent accounts).
+func validateAccountCredentialFields(structPtr any, email, username, password, confirmPassword *string) error {
+	*email = strings.TrimSpace(strings.ToLower(*email))
+	*username = strings.TrimSpace(*username)
+
+	return validation.ValidateStruct(structPtr,
+		validation.Field(email, validation.Required, is.Email),
+		validation.Field(username, validation.Required, validation.Length(3, 30)),
+		validation.Field(password, validation.Required, validation.Length(8, 0)),
+		validation.Field(confirmPassword, validation.Required, validation.By(func(value interface{}) error {
+			if *password != *confirmPassword {
 				return errors.New(errPasswordsNotMatch)
 			}
 			return nil
@@ -777,7 +795,7 @@ type AccountResponse struct {
 func (rs *Resource) register(w http.ResponseWriter, r *http.Request) {
 	req := &RegisterRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -815,7 +833,7 @@ func (req *LinkToTenantRequest) Bind(_ *http.Request) error {
 func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 	req := &LinkToTenantRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -831,15 +849,15 @@ func (rs *Resource) linkToTenant(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, ErrorNotFound(authErr.Err))
+				common.RenderError(w, r, common.ErrorNotFound(authErr.Err))
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
 				common.RenderError(w, r, common.ErrorConflict(authErr.Err))
 			default:
-				common.RenderError(w, r, ErrorInternalServer(err))
+				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -858,13 +876,13 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 	claims := jwt.ClaimsFromCtx(r.Context())
 
 	if requestedRoleID == nil || *requestedRoleID <= 0 {
-		common.RenderError(w, r, ErrorInvalidRequest(
+		common.RenderError(w, r, common.ErrorInvalidRequest(
 			errors.New("role_id is required when creating accounts")))
 		return nil, 0, true
 	}
 
 	if claims.TenantID <= 0 {
-		common.RenderError(w, r, ErrorInvalidRequest(
+		common.RenderError(w, r, common.ErrorInvalidRequest(
 			authService.ErrTenantRequiredForRoleAssignment))
 		return nil, 0, true
 	}
@@ -872,7 +890,7 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 	// Verify the role exists — TenantTxMiddleware ensures RLS sees tenant-scoped roles
 	if _, err := rs.AuthService.GetRoleByID(r.Context(), int(*requestedRoleID)); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			common.RenderError(w, r, ErrorInvalidRequest(
+			common.RenderError(w, r, common.ErrorInvalidRequest(
 				errors.New("specified role does not exist")))
 		} else {
 			slog.Default().Error("role lookup failed",
@@ -891,21 +909,21 @@ func (rs *Resource) authorizeRoleAssignment(w http.ResponseWriter, r *http.Reque
 func (rs *Resource) handleRegistrationError(w http.ResponseWriter, r *http.Request, err error) {
 	var authErr *authService.AuthError
 	if !errors.As(err, &authErr) {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	switch {
 	case errors.Is(authErr.Err, authService.ErrEmailAlreadyExists):
-		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrEmailAlreadyExists))
+		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrEmailAlreadyExists))
 	case errors.Is(authErr.Err, authService.ErrUsernameAlreadyExists):
-		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
+		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
 	case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
+		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasswordTooWeak))
 	case errors.Is(authErr.Err, authService.ErrTenantRequiredForRoleAssignment):
-		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrTenantRequiredForRoleAssignment))
+		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrTenantRequiredForRoleAssignment))
 	default:
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}
 }
 
@@ -945,23 +963,23 @@ func (rs *Resource) refreshToken(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrInvalidToken):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidToken))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidToken))
 			case errors.Is(authErr.Err, authService.ErrTokenExpired):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTokenExpired))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTokenExpired))
 			case errors.Is(authErr.Err, authService.ErrTokenNotFound):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTokenNotFound))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTokenNotFound))
 			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountNotFound))
 			case errors.Is(authErr.Err, authService.ErrAccountInactive):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountInactive))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountInactive))
 			case errors.Is(authErr.Err, authService.ErrTenantNotFound):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrTenantNotFound))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrTenantNotFound))
 			default:
-				common.RenderError(w, r, ErrorInternalServer(err))
+				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1019,7 +1037,7 @@ func (req *ChangePasswordRequest) Bind(_ *http.Request) error {
 func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 	req := &ChangePasswordRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1032,17 +1050,17 @@ func (rs *Resource) changePassword(w http.ResponseWriter, r *http.Request) {
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrInvalidCredentials):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrInvalidCredentials))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrInvalidCredentials))
 			case errors.Is(authErr.Err, authService.ErrAccountNotFound):
-				common.RenderError(w, r, ErrorUnauthorized(authService.ErrAccountNotFound))
+				common.RenderError(w, r, common.ErrorUnauthorized(authService.ErrAccountNotFound))
 			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
+				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasswordTooWeak))
 			default:
-				common.RenderError(w, r, ErrorInternalServer(err))
+				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1059,11 +1077,11 @@ func (rs *Resource) getAccount(w http.ResponseWriter, r *http.Request) {
 		var authErr *authService.AuthError
 		if errors.As(err, &authErr) {
 			if errors.Is(authErr.Err, authService.ErrAccountNotFound) {
-				common.RenderError(w, r, ErrorNotFound(authService.ErrAccountNotFound))
+				common.RenderError(w, r, common.ErrorNotFound(authService.ErrAccountNotFound))
 				return
 			}
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1103,7 +1121,9 @@ type CreateRoleRequest struct {
 func (req *CreateRoleRequest) Bind(_ *http.Request) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Description = strings.TrimSpace(req.Description)
-	req.BaseRole = normalizeBaseRole(req.BaseRole)
+	// Empty/blank base_role trims to nil, treated as "field not sent" (preserve
+	// existing value): once set, a base_role cannot be cleared back to NULL via the API.
+	req.BaseRole = strutil.TrimPtrToNil(req.BaseRole)
 
 	if err := validateBaseRole(req.BaseRole); err != nil {
 		return err
@@ -1127,7 +1147,7 @@ type UpdateRoleRequest struct {
 func (req *UpdateRoleRequest) Bind(_ *http.Request) error {
 	req.Name = strings.TrimSpace(req.Name)
 	req.Description = strings.TrimSpace(req.Description)
-	req.BaseRole = normalizeBaseRole(req.BaseRole)
+	req.BaseRole = strutil.TrimPtrToNil(req.BaseRole)
 
 	// Only validate base_role if the caller explicitly sent one.
 	if req.BaseRole != nil {
@@ -1140,21 +1160,6 @@ func (req *UpdateRoleRequest) Bind(_ *http.Request) error {
 		validation.Field(&req.Name, validation.Required, validation.Length(1, 100)),
 		validation.Field(&req.Description, validation.Length(0, 500)),
 	)
-}
-
-// normalizeBaseRole trims whitespace and converts empty strings to nil.
-// Intentionally: once a base_role is set, it cannot be cleared back to NULL via the API.
-// Empty string is treated as "field not sent" (preserve existing value), because every
-// custom role should have a base_role for announcement targeting to work correctly.
-func normalizeBaseRole(br *string) *string {
-	if br == nil {
-		return nil
-	}
-	trimmed := strings.TrimSpace(*br)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
 }
 
 // validateBaseRoleValue checks that a non-nil base_role value is one of the allowed system roles.
@@ -1224,28 +1229,10 @@ func (req *CreatePermissionRequest) Bind(_ *http.Request) error {
 	)
 }
 
-// UpdatePermissionRequest represents the update permission request payload
-type UpdatePermissionRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Resource    string `json:"resource"`
-	Action      string `json:"action"`
-}
-
-// Bind validates the update permission request
-func (req *UpdatePermissionRequest) Bind(_ *http.Request) error {
-	req.Name = strings.TrimSpace(req.Name)
-	req.Description = strings.TrimSpace(req.Description)
-	req.Resource = strings.TrimSpace(strings.ToLower(req.Resource))
-	req.Action = strings.TrimSpace(strings.ToLower(req.Action))
-
-	return validation.ValidateStruct(req,
-		validation.Field(&req.Name, validation.Required, validation.Length(1, 100)),
-		validation.Field(&req.Description, validation.Length(0, 500)),
-		validation.Field(&req.Resource, validation.Required, validation.Length(1, 50)),
-		validation.Field(&req.Action, validation.Required, validation.Length(1, 50)),
-	)
-}
+// UpdatePermissionRequest represents the update permission request payload.
+// Field set, JSON tags, and Bind validation are identical to the create
+// payload, so it is a type alias.
+type UpdatePermissionRequest = CreatePermissionRequest
 
 // PermissionResponse represents a permission response
 type PermissionResponse struct {
@@ -1333,20 +1320,7 @@ type CreateParentAccountRequest struct {
 
 // Bind validates the create parent account request
 func (req *CreateParentAccountRequest) Bind(_ *http.Request) error {
-	req.Email = strings.TrimSpace(strings.ToLower(req.Email))
-	req.Username = strings.TrimSpace(req.Username)
-
-	return validation.ValidateStruct(req,
-		validation.Field(&req.Email, validation.Required, is.Email),
-		validation.Field(&req.Username, validation.Required, validation.Length(3, 30)),
-		validation.Field(&req.Password, validation.Required, validation.Length(8, 0)),
-		validation.Field(&req.ConfirmPassword, validation.Required, validation.By(func(value interface{}) error {
-			if req.Password != req.ConfirmPassword {
-				return errors.New(errPasswordsNotMatch)
-			}
-			return nil
-		})),
-	)
+	return validateAccountCredentialFields(req, &req.Email, &req.Username, &req.Password, &req.ConfirmPassword)
 }
 
 // ParentAccountResponse represents a parent account response
@@ -1365,13 +1339,13 @@ type ParentAccountResponse struct {
 func (rs *Resource) createRole(w http.ResponseWriter, r *http.Request) {
 	req := &CreateRoleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	role, err := rs.AuthService.CreateRole(r.Context(), req.Name, req.Description, req.BaseRole)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1387,7 +1361,7 @@ func (rs *Resource) getRoleByID(w http.ResponseWriter, r *http.Request) {
 
 	role, err := rs.AuthService.GetRoleByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("role not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("role not found")))
 		return
 	}
 
@@ -1413,13 +1387,13 @@ func (rs *Resource) updateRole(w http.ResponseWriter, r *http.Request) {
 
 	req := &UpdateRoleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	role, err := rs.AuthService.GetRoleByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("role not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("role not found")))
 		return
 	}
 
@@ -1463,17 +1437,17 @@ func renderRoleMutationError(err error) render.Renderer {
 	var authErr *authService.AuthError
 	if errors.As(err, &authErr) {
 		if errors.Is(authErr.Err, authService.ErrSystemRoleImmutable) {
-			return ErrorForbidden(authErr.Err)
+			return common.ErrorForbidden(authErr.Err)
 		}
 		if errors.Is(authErr.Err, authService.ErrRoleNotFound) {
-			return ErrorNotFound(authErr.Err)
+			return common.ErrorNotFound(authErr.Err)
 		}
 	}
 	// FindByID failures (sql.ErrNoRows wrapped in DatabaseError) → 404
 	if errors.Is(err, sql.ErrNoRows) {
-		return ErrorNotFound(errors.New("role not found"))
+		return common.ErrorNotFound(errors.New("role not found"))
 	}
-	return ErrorInternalServer(err)
+	return common.ErrorInternalServer(err)
 }
 
 // listRoles handles listing roles
@@ -1487,7 +1461,7 @@ func (rs *Resource) listRoles(w http.ResponseWriter, r *http.Request) {
 
 	roles, err := rs.AuthService.ListRoles(r.Context(), filters)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1499,46 +1473,6 @@ func (rs *Resource) listRoles(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, responses, "Roles retrieved successfully")
 }
 
-// assignRoleToAccount handles assigning a role to an account
-func (rs *Resource) assignRoleToAccount(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.AssignRoleToAccount(r.Context(), accountID, roleID); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
-// removeRoleFromAccount handles removing a role from an account
-func (rs *Resource) removeRoleFromAccount(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.RemoveRoleFromAccount(r.Context(), accountID, roleID); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
 // getAccountRoles handles getting roles for an account
 func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
@@ -1548,7 +1482,7 @@ func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 
 	roles, err := rs.AuthService.GetAccountRoles(r.Context(), accountID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1562,7 +1496,7 @@ func (rs *Resource) getAccountRoles(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) getCaregiverCapability(w http.ResponseWriter, r *http.Request) {
 	if rs.CaregiverCapabilityService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New("caregiver capability service is not configured")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("caregiver capability service is not configured")))
 		return
 	}
 
@@ -1582,7 +1516,7 @@ func (rs *Resource) getCaregiverCapability(w http.ResponseWriter, r *http.Reques
 
 func (rs *Resource) enableCaregiverCapability(w http.ResponseWriter, r *http.Request) {
 	if rs.CaregiverCapabilityService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New("caregiver capability service is not configured")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("caregiver capability service is not configured")))
 		return
 	}
 
@@ -1593,7 +1527,7 @@ func (rs *Resource) enableCaregiverCapability(w http.ResponseWriter, r *http.Req
 
 	req := &EnableCaregiverCapabilityRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1612,7 +1546,7 @@ func (rs *Resource) enableCaregiverCapability(w http.ResponseWriter, r *http.Req
 
 func (rs *Resource) disableCaregiverCapability(w http.ResponseWriter, r *http.Request) {
 	if rs.CaregiverCapabilityService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New("caregiver capability service is not configured")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("caregiver capability service is not configured")))
 		return
 	}
 
@@ -1644,13 +1578,13 @@ func caregiverCapabilityErrorRenderer(err error) render.Renderer {
 			blockedErr.Reasons,
 		)
 	case errors.Is(err, authService.ErrAccountNotFound), errors.As(err, &accountTenantErr):
-		return ErrorNotFound(errors.New("account not found"))
+		return common.ErrorNotFound(errors.New("account not found"))
 	case errors.As(err, &usersErr) && errors.As(err, &validationErr):
-		return ErrorInvalidRequest(validationErr)
+		return common.ErrorInvalidRequest(validationErr)
 	case errors.As(err, &usersErr):
-		return ErrorInternalServer(usersErr.Err)
+		return common.ErrorInternalServer(usersErr.Err)
 	default:
-		return ErrorInternalServer(err)
+		return common.ErrorInternalServer(err)
 	}
 }
 
@@ -1660,13 +1594,13 @@ func caregiverCapabilityErrorRenderer(err error) render.Renderer {
 func (rs *Resource) createPermission(w http.ResponseWriter, r *http.Request) {
 	req := &CreatePermissionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	permission, err := rs.AuthService.CreatePermission(r.Context(), req.Name, req.Description, req.Resource, req.Action)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1692,7 +1626,7 @@ func (rs *Resource) getPermissionByID(w http.ResponseWriter, r *http.Request) {
 
 	permission, err := rs.AuthService.GetPermissionByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("permission not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("permission not found")))
 		return
 	}
 
@@ -1718,13 +1652,13 @@ func (rs *Resource) updatePermission(w http.ResponseWriter, r *http.Request) {
 
 	req := &UpdatePermissionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	permission, err := rs.AuthService.GetPermissionByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("permission not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("permission not found")))
 		return
 	}
 
@@ -1734,7 +1668,7 @@ func (rs *Resource) updatePermission(w http.ResponseWriter, r *http.Request) {
 	permission.Action = req.Action
 
 	if err := rs.AuthService.UpdatePermission(r.Context(), permission); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1753,7 +1687,7 @@ func (rs *Resource) deletePermission(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorConflictMessage("Berechtigung kann nicht gelöscht werden: Berechtigung ist aktuell Rollen oder Konten zugewiesen"))
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1775,7 +1709,7 @@ func (rs *Resource) listPermissions(w http.ResponseWriter, r *http.Request) {
 
 	permissions, err := rs.AuthService.ListPermissions(r.Context(), filters)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1796,66 +1730,6 @@ func (rs *Resource) listPermissions(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, responses, "Permissions retrieved successfully")
 }
 
-// grantPermissionToAccount handles granting a permission to an account
-func (rs *Resource) grantPermissionToAccount(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.GrantPermissionToAccount(r.Context(), accountID, permissionID); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
-// denyPermissionToAccount handles denying a permission to an account
-func (rs *Resource) denyPermissionToAccount(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.DenyPermissionToAccount(r.Context(), accountID, permissionID); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
-// removePermissionFromAccount handles removing a permission from an account
-func (rs *Resource) removePermissionFromAccount(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.RemovePermissionFromAccount(r.Context(), accountID, permissionID); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
 // getAccountPermissions handles getting permissions for an account
 func (rs *Resource) getAccountPermissions(w http.ResponseWriter, r *http.Request) {
 	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
@@ -1865,7 +1739,7 @@ func (rs *Resource) getAccountPermissions(w http.ResponseWriter, r *http.Request
 
 	permissions, err := rs.AuthService.GetAccountPermissions(r.Context(), accountID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1895,7 +1769,7 @@ func (rs *Resource) getAccountDirectPermissions(w http.ResponseWriter, r *http.R
 
 	permissions, err := rs.AuthService.GetAccountDirectPermissions(r.Context(), accountID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1916,46 +1790,6 @@ func (rs *Resource) getAccountDirectPermissions(w http.ResponseWriter, r *http.R
 	common.Respond(w, r, http.StatusOK, responses, "Account direct permissions retrieved successfully")
 }
 
-// assignPermissionToRole handles assigning a permission to a role
-func (rs *Resource) assignPermissionToRole(w http.ResponseWriter, r *http.Request) {
-	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
-	if !ok {
-		return
-	}
-
-	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.AssignPermissionToRole(r.Context(), roleID, permissionID); err != nil {
-		common.RenderError(w, r, renderRoleMutationError(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
-// removePermissionFromRole handles removing a permission from a role
-func (rs *Resource) removePermissionFromRole(w http.ResponseWriter, r *http.Request) {
-	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
-	if !ok {
-		return
-	}
-
-	permissionID, ok := common.ParseIntIDWithError(w, r, "permissionId", common.MsgInvalidPermissionID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.RemovePermissionFromRole(r.Context(), roleID, permissionID); err != nil {
-		common.RenderError(w, r, renderRoleMutationError(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
 // getRolePermissions handles getting permissions for a role
 func (rs *Resource) getRolePermissions(w http.ResponseWriter, r *http.Request) {
 	roleID, ok := common.ParseIntIDWithError(w, r, "roleId", common.MsgInvalidRoleID)
@@ -1965,7 +1799,7 @@ func (rs *Resource) getRolePermissions(w http.ResponseWriter, r *http.Request) {
 
 	permissions, err := rs.AuthService.GetRolePermissions(r.Context(), roleID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1988,36 +1822,6 @@ func (rs *Resource) getRolePermissions(w http.ResponseWriter, r *http.Request) {
 
 // Account Management Extension Endpoints
 
-// activateAccount handles activating an account
-func (rs *Resource) activateAccount(w http.ResponseWriter, r *http.Request) {
-	id, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.ActivateAccount(r.Context(), id); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
-// deactivateAccount handles deactivating an account
-func (rs *Resource) deactivateAccount(w http.ResponseWriter, r *http.Request) {
-	id, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.DeactivateAccount(r.Context(), id); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
 // updateAccount handles updating an account
 func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
 	id, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
@@ -2027,13 +1831,13 @@ func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
 
 	req := &UpdateAccountRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	account, err := rs.AuthService.GetAccountByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("account not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("account not found")))
 		return
 	}
 
@@ -2044,7 +1848,7 @@ func (rs *Resource) updateAccount(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := rs.AuthService.UpdateAccount(r.Context(), account); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2071,7 +1875,7 @@ func (rs *Resource) listAccounts(w http.ResponseWriter, r *http.Request) {
 
 	accounts, err := rs.AuthService.ListAccounts(r.Context(), filters)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2099,7 +1903,7 @@ func (rs *Resource) getAccountsByRole(w http.ResponseWriter, r *http.Request) {
 
 	accounts, err := rs.AuthService.GetAccountsByRole(r.Context(), roleName)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2127,7 +1931,7 @@ func (rs *Resource) getAccountsByRole(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request) {
 	req := &PasswordResetRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -2148,7 +1952,7 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2161,7 +1965,7 @@ func (rs *Resource) initiatePasswordReset(w http.ResponseWriter, r *http.Request
 func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 	req := &PasswordResetConfirmRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -2174,15 +1978,15 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 			case errors.Is(authErr.Err, authService.ErrInvalidToken),
 				errors.Is(authErr.Err, sql.ErrNoRows):
 				// Both cases indicate the token is invalid or not found
-				common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid or expired reset token")))
+				common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid or expired reset token")))
 				return
 			case errors.Is(authErr.Err, authService.ErrPasswordTooWeak):
-				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrPasswordTooWeak))
+				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrPasswordTooWeak))
 				return
 			}
 		}
 
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2197,27 +2001,12 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) cleanupExpiredTokens(w http.ResponseWriter, r *http.Request) {
 	count, err := rs.AuthService.CleanupExpiredTokens(r.Context())
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	response := map[string]int{"cleaned_tokens": count}
 	common.Respond(w, r, http.StatusOK, response, "Expired tokens cleaned up successfully")
-}
-
-// revokeAllTokens handles revoking all tokens for an account
-func (rs *Resource) revokeAllTokens(w http.ResponseWriter, r *http.Request) {
-	accountID, ok := common.ParseIntIDWithError(w, r, "accountId", common.MsgInvalidAccountID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.RevokeAllTokens(r.Context(), accountID); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
 }
 
 // getActiveTokens handles getting active tokens for an account
@@ -2229,7 +2018,7 @@ func (rs *Resource) getActiveTokens(w http.ResponseWriter, r *http.Request) {
 
 	tokens, err := rs.AuthService.GetActiveTokens(r.Context(), accountID)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2268,7 +2057,7 @@ func (rs *Resource) getActiveTokens(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) createParentAccount(w http.ResponseWriter, r *http.Request) {
 	req := &CreateParentAccountRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -2278,15 +2067,15 @@ func (rs *Resource) createParentAccount(w http.ResponseWriter, r *http.Request) 
 		if errors.As(err, &authErr) {
 			switch {
 			case errors.Is(authErr.Err, authService.ErrEmailAlreadyExists):
-				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrEmailAlreadyExists))
+				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrEmailAlreadyExists))
 			case errors.Is(authErr.Err, authService.ErrUsernameAlreadyExists):
-				common.RenderError(w, r, ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
+				common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrUsernameAlreadyExists))
 			default:
-				common.RenderError(w, r, ErrorInternalServer(err))
+				common.RenderError(w, r, common.ErrorInternalServer(err))
 			}
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2314,7 +2103,7 @@ func (rs *Resource) getParentAccountByID(w http.ResponseWriter, r *http.Request)
 
 	parentAccount, err := rs.AuthService.GetParentAccountByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("parent account not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("parent account not found")))
 		return
 	}
 
@@ -2342,13 +2131,13 @@ func (rs *Resource) updateParentAccount(w http.ResponseWriter, r *http.Request) 
 
 	req := &UpdateAccountRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	parentAccount, err := rs.AuthService.GetParentAccountByID(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, ErrorNotFound(errors.New("parent account not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("parent account not found")))
 		return
 	}
 
@@ -2359,37 +2148,7 @@ func (rs *Resource) updateParentAccount(w http.ResponseWriter, r *http.Request) 
 	}
 
 	if err := rs.AuthService.UpdateParentAccount(r.Context(), parentAccount); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
-// activateParentAccount handles activating a parent account
-func (rs *Resource) activateParentAccount(w http.ResponseWriter, r *http.Request) {
-	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidParentAccountID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.ActivateParentAccount(r.Context(), id); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
-		return
-	}
-
-	common.RespondNoContent(w, r)
-}
-
-// deactivateParentAccount handles deactivating a parent account
-func (rs *Resource) deactivateParentAccount(w http.ResponseWriter, r *http.Request) {
-	id, ok := common.ParseIntIDWithError(w, r, "id", common.MsgInvalidParentAccountID)
-	if !ok {
-		return
-	}
-
-	if err := rs.AuthService.DeactivateParentAccount(r.Context(), id); err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2416,7 +2175,7 @@ func (rs *Resource) listParentAccounts(w http.ResponseWriter, r *http.Request) {
 
 	parentAccounts, err := rs.AuthService.ListParentAccounts(r.Context(), filters)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -2467,228 +2226,4 @@ func getClientIP(r *http.Request) string {
 	}
 
 	return ip
-}
-
-// ============================================================================
-// EXPORTED HANDLER METHODS (for testing)
-// ============================================================================
-
-// GetAccountHandler returns the getAccount handler for testing
-func (rs *Resource) GetAccountHandler() http.HandlerFunc {
-	return rs.getAccount
-}
-
-// ChangePasswordHandler returns the changePassword handler for testing
-func (rs *Resource) ChangePasswordHandler() http.HandlerFunc {
-	return rs.changePassword
-}
-
-// ListRolesHandler returns the listRoles handler for testing
-func (rs *Resource) ListRolesHandler() http.HandlerFunc {
-	return rs.listRoles
-}
-
-// CreateRoleHandler returns the createRole handler for testing
-func (rs *Resource) CreateRoleHandler() http.HandlerFunc {
-	return rs.createRole
-}
-
-// GetRoleByIDHandler returns the getRoleByID handler for testing
-func (rs *Resource) GetRoleByIDHandler() http.HandlerFunc {
-	return rs.getRoleByID
-}
-
-// DeleteRoleHandler returns the deleteRole handler for testing
-func (rs *Resource) DeleteRoleHandler() http.HandlerFunc {
-	return rs.deleteRole
-}
-
-// ListPermissionsHandler returns the listPermissions handler for testing
-func (rs *Resource) ListPermissionsHandler() http.HandlerFunc {
-	return rs.listPermissions
-}
-
-// CreatePermissionHandler returns the createPermission handler for testing
-func (rs *Resource) CreatePermissionHandler() http.HandlerFunc {
-	return rs.createPermission
-}
-
-// GetPermissionByIDHandler returns the getPermissionByID handler for testing
-func (rs *Resource) GetPermissionByIDHandler() http.HandlerFunc {
-	return rs.getPermissionByID
-}
-
-// ListAccountsHandler returns the listAccounts handler for testing
-func (rs *Resource) ListAccountsHandler() http.HandlerFunc {
-	return rs.listAccounts
-}
-
-// UpdateRoleHandler returns the updateRole handler for testing
-func (rs *Resource) UpdateRoleHandler() http.HandlerFunc {
-	return rs.updateRole
-}
-
-// UpdatePermissionHandler returns the updatePermission handler for testing
-func (rs *Resource) UpdatePermissionHandler() http.HandlerFunc {
-	return rs.updatePermission
-}
-
-// DeletePermissionHandler returns the deletePermission handler for testing
-func (rs *Resource) DeletePermissionHandler() http.HandlerFunc {
-	return rs.deletePermission
-}
-
-// AssignRoleToAccountHandler returns the assignRoleToAccount handler for testing
-func (rs *Resource) AssignRoleToAccountHandler() http.HandlerFunc {
-	return rs.assignRoleToAccount
-}
-
-// RemoveRoleFromAccountHandler returns the removeRoleFromAccount handler for testing
-func (rs *Resource) RemoveRoleFromAccountHandler() http.HandlerFunc {
-	return rs.removeRoleFromAccount
-}
-
-// GetAccountRolesHandler returns the getAccountRoles handler for testing
-func (rs *Resource) GetAccountRolesHandler() http.HandlerFunc {
-	return rs.getAccountRoles
-}
-
-// AssignPermissionToRoleHandler returns the assignPermissionToRole handler for testing
-func (rs *Resource) AssignPermissionToRoleHandler() http.HandlerFunc {
-	return rs.assignPermissionToRole
-}
-
-// RemovePermissionFromRoleHandler returns the removePermissionFromRole handler for testing
-func (rs *Resource) RemovePermissionFromRoleHandler() http.HandlerFunc {
-	return rs.removePermissionFromRole
-}
-
-// GetRolePermissionsHandler returns the getRolePermissions handler for testing
-func (rs *Resource) GetRolePermissionsHandler() http.HandlerFunc {
-	return rs.getRolePermissions
-}
-
-// GrantPermissionToAccountHandler returns the grantPermissionToAccount handler for testing
-func (rs *Resource) GrantPermissionToAccountHandler() http.HandlerFunc {
-	return rs.grantPermissionToAccount
-}
-
-// DenyPermissionToAccountHandler returns the denyPermissionToAccount handler for testing
-func (rs *Resource) DenyPermissionToAccountHandler() http.HandlerFunc {
-	return rs.denyPermissionToAccount
-}
-
-// RemovePermissionFromAccountHandler returns the removePermissionFromAccount handler for testing
-func (rs *Resource) RemovePermissionFromAccountHandler() http.HandlerFunc {
-	return rs.removePermissionFromAccount
-}
-
-// GetAccountPermissionsHandler returns the getAccountPermissions handler for testing
-func (rs *Resource) GetAccountPermissionsHandler() http.HandlerFunc {
-	return rs.getAccountPermissions
-}
-
-// GetAccountDirectPermissionsHandler returns the getAccountDirectPermissions handler for testing
-func (rs *Resource) GetAccountDirectPermissionsHandler() http.HandlerFunc {
-	return rs.getAccountDirectPermissions
-}
-
-// ActivateAccountHandler returns the activateAccount handler for testing
-func (rs *Resource) ActivateAccountHandler() http.HandlerFunc {
-	return rs.activateAccount
-}
-
-// DeactivateAccountHandler returns the deactivateAccount handler for testing
-func (rs *Resource) DeactivateAccountHandler() http.HandlerFunc {
-	return rs.deactivateAccount
-}
-
-// UpdateAccountHandler returns the updateAccount handler for testing
-func (rs *Resource) UpdateAccountHandler() http.HandlerFunc {
-	return rs.updateAccount
-}
-
-// GetAccountsByRoleHandler returns the getAccountsByRole handler for testing
-func (rs *Resource) GetAccountsByRoleHandler() http.HandlerFunc {
-	return rs.getAccountsByRole
-}
-
-// GetActiveTokensHandler returns the getActiveTokens handler for testing
-func (rs *Resource) GetActiveTokensHandler() http.HandlerFunc {
-	return rs.getActiveTokens
-}
-
-// RevokeAllTokensHandler returns the revokeAllTokens handler for testing
-func (rs *Resource) RevokeAllTokensHandler() http.HandlerFunc {
-	return rs.revokeAllTokens
-}
-
-// CleanupExpiredTokensHandler returns the cleanupExpiredTokens handler for testing
-func (rs *Resource) CleanupExpiredTokensHandler() http.HandlerFunc {
-	return rs.cleanupExpiredTokens
-}
-
-// CreateInvitationHandler returns the createInvitation handler for testing
-func (rs *Resource) CreateInvitationHandler() http.HandlerFunc {
-	return rs.createInvitation
-}
-
-// ListPendingInvitationsHandler returns the listPendingInvitations handler for testing
-func (rs *Resource) ListPendingInvitationsHandler() http.HandlerFunc {
-	return rs.listPendingInvitations
-}
-
-// ResendInvitationHandler returns the resendInvitation handler for testing
-func (rs *Resource) ResendInvitationHandler() http.HandlerFunc {
-	return rs.resendInvitation
-}
-
-// RevokeInvitationHandler returns the revokeInvitation handler for testing
-func (rs *Resource) RevokeInvitationHandler() http.HandlerFunc {
-	return rs.revokeInvitation
-}
-
-// CreateParentAccountHandler returns the createParentAccount handler for testing
-func (rs *Resource) CreateParentAccountHandler() http.HandlerFunc {
-	return rs.createParentAccount
-}
-
-// GetParentAccountByIDHandler returns the getParentAccountByID handler for testing
-func (rs *Resource) GetParentAccountByIDHandler() http.HandlerFunc {
-	return rs.getParentAccountByID
-}
-
-// UpdateParentAccountHandler returns the updateParentAccount handler for testing
-func (rs *Resource) UpdateParentAccountHandler() http.HandlerFunc {
-	return rs.updateParentAccount
-}
-
-// ActivateParentAccountHandler returns the activateParentAccount handler for testing
-func (rs *Resource) ActivateParentAccountHandler() http.HandlerFunc {
-	return rs.activateParentAccount
-}
-
-// DeactivateParentAccountHandler returns the deactivateParentAccount handler for testing
-func (rs *Resource) DeactivateParentAccountHandler() http.HandlerFunc {
-	return rs.deactivateParentAccount
-}
-
-// ListParentAccountsHandler returns the listParentAccounts handler for testing
-func (rs *Resource) ListParentAccountsHandler() http.HandlerFunc {
-	return rs.listParentAccounts
-}
-
-// ResolveTenantHandler returns the resolveTenant handler for testing
-func (rs *Resource) ResolveTenantHandler() http.HandlerFunc {
-	return rs.resolveTenant
-}
-
-// SwitchTenantHandler returns the switchTenant handler for testing
-func (rs *Resource) SwitchTenantHandler() http.HandlerFunc {
-	return rs.switchTenant
-}
-
-// ListAccountTenantsHandler returns the listAccountTenants handler for testing
-func (rs *Resource) ListAccountTenantsHandler() http.HandlerFunc {
-	return rs.listAccountTenants
 }

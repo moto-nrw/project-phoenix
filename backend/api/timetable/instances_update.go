@@ -47,7 +47,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid instance id")))
 		return
 	}
-	if rs.instanceService == nil || rs.timetableData == nil {
+	if rs.InstanceService == nil || rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
@@ -76,7 +76,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	inst, err := rs.instanceService.UpdatePlanned(r.Context(), id, scheduleSvc.UpdateInstanceInput{
+	inst, err := rs.InstanceService.UpdatePlanned(r.Context(), id, scheduleSvc.UpdateInstanceInput{
 		Date:            date,
 		StartTime:       startTime,
 		EndTime:         endTime,

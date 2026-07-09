@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -375,12 +374,7 @@ func (rs *Resource) parentAccountID(w http.ResponseWriter, r *http.Request) (int
 }
 
 func parsePathStudentID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
-	if err != nil || studentID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid student id")))
-		return 0, false
-	}
-	return studentID, true
+	return common.ParsePositiveInt64IDWithError(w, r, "studentId", "invalid student id")
 }
 
 func parseSickNoteDates(raw []string) ([]timezone.Date, error) {

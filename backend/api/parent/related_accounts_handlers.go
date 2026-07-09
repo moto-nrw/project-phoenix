@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
 )
 
@@ -112,9 +110,8 @@ func (rs *Resource) removeRelatedAccount(w http.ResponseWriter, r *http.Request)
 	if !ok {
 		return
 	}
-	guardianProfileID, err := strconv.ParseInt(chi.URLParam(r, "guardianProfileId"), 10, 64)
-	if err != nil || guardianProfileID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian profile id")))
+	guardianProfileID, ok := common.ParsePositiveInt64IDWithError(w, r, "guardianProfileId", "invalid guardian profile id")
+	if !ok {
 		return
 	}
 

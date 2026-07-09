@@ -12,13 +12,11 @@ const (
 	ChangeRequestStatusNeedsParentResponse = "needs_parent_response"
 	ChangeRequestStatusApproved            = "approved"
 	ChangeRequestStatusRejected            = "rejected"
-	ChangeRequestStatusCancelled           = "cancelled"
 )
 
 const (
 	ChangeRequestMessageAuthorParent = "parent"
 	ChangeRequestMessageAuthorStaff  = "staff"
-	ChangeRequestMessageAuthorSystem = "system"
 )
 
 // ChangeRequest stores a parent-proposed full-form correction for an
@@ -40,10 +38,6 @@ type ChangeRequest struct {
 	ReviewedAt          *time.Time     `bun:"reviewed_at" json:"reviewed_at,omitempty"`
 }
 
-func (c *ChangeRequest) TableName() string {
-	return "enrollment.change_requests"
-}
-
 // ChangeRequestMessage is one parent/staff/system message in the public
 // conversation around a change request.
 type ChangeRequestMessage struct {
@@ -55,10 +49,6 @@ type ChangeRequestMessage struct {
 	AuthorAccountID *int64 `bun:"author_account_id" json:"author_account_id,omitempty"`
 	Body            string `bun:"body,notnull" json:"body"`
 	InternalOnly    bool   `bun:"internal_only,notnull,default:false" json:"internal_only"`
-}
-
-func (m *ChangeRequestMessage) TableName() string {
-	return "enrollment.change_request_messages"
 }
 
 type ChangeRequestListFilters struct {

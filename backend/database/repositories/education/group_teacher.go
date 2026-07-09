@@ -3,7 +3,6 @@ package education
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -37,9 +36,7 @@ func (r *GroupTeacherRepository) DeleteByTeacherID(ctx context.Context, teacherI
 		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
 		Where(`"group_teacher".teacher_id = ?`, teacherID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_teacher")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -60,9 +57,7 @@ func (r *GroupTeacherRepository) FindByGroup(ctx context.Context, groupID int64)
 		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
 		Where("group_id = ?", groupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_teacher")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -83,9 +78,7 @@ func (r *GroupTeacherRepository) FindByTeacher(ctx context.Context, teacherID in
 		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
 		Where("teacher_id = ?", teacherID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_teacher")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -110,9 +103,7 @@ func (r *GroupTeacherRepository) FindByGroupIDs(ctx context.Context, groupIDs []
 		ModelTableExpr(`education.group_teacher AS "group_teacher"`).
 		Where(`"group_teacher".group_id IN (?)`, bun.List(groupIDs))
 
-	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_teacher")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -123,36 +114,6 @@ func (r *GroupTeacherRepository) FindByGroupIDs(ctx context.Context, groupIDs []
 	}
 
 	return groupTeachers, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *GroupTeacherRepository) Create(ctx context.Context, groupTeacher *education.GroupTeacher) error {
-	if groupTeacher == nil {
-		return fmt.Errorf("group teacher cannot be nil")
-	}
-
-	// Validate group teacher
-	if err := groupTeacher.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, groupTeacher)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *GroupTeacherRepository) Update(ctx context.Context, groupTeacher *education.GroupTeacher) error {
-	if groupTeacher == nil {
-		return fmt.Errorf("group teacher cannot be nil")
-	}
-
-	// Validate group teacher
-	if err := groupTeacher.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, groupTeacher)
 }
 
 // List retrieves group-teacher relationships matching the provided filters
@@ -171,33 +132,6 @@ func (r *GroupTeacherRepository) List(ctx context.Context, filters map[string]in
 	options.Filter = filter
 
 	return r.ListWithOptions(ctx, options)
-}
-
-// ListWithOptions provides a type-safe way to list group-teacher relationships with query options
-func (r *GroupTeacherRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*education.GroupTeacher, error) {
-	var groupTeachers []*education.GroupTeacher
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&groupTeachers).
-		ModelTableExpr(`education.group_teacher AS "group_teacher"`)
-
-	if where, val, ok := base.TenantWhere(ctx, "group_teacher"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
-	}
-
-	return groupTeachers, nil
 }
 
 // ListGroupTeacherBlockers returns the teacher's group assignments as

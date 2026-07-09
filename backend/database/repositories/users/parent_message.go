@@ -45,9 +45,7 @@ func (r *ParentMessageRepository) FindByIDForUpdate(ctx context.Context, id int6
 		Limit(1).
 		For("UPDATE")
 
-	if where, val, ok := base.TenantWhere(ctx, "parent_message"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "parent_message")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -77,9 +75,7 @@ func (r *ParentMessageRepository) FindEventByRef(ctx context.Context, threadID i
 		OrderExpr(`"parent_message".id ASC`).
 		Limit(1)
 
-	if where, val, ok := base.TenantWhere(ctx, "parent_message"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "parent_message")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -118,9 +114,7 @@ func (r *ParentMessageRepository) ListByThread(ctx context.Context, threadID int
 		query = query.Limit(limit)
 	}
 
-	if where, val, ok := base.TenantWhere(ctx, "parent_message"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "parent_message")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list parent messages", Err: err}

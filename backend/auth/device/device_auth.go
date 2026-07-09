@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
@@ -220,7 +219,12 @@ type SchoolLookup interface {
 	GetSchoolByID(ctx context.Context, id int64) (*platform.School, error)
 }
 
-func deviceAuthenticator(iotService iotSvc.Service, schools SchoolLookup, pinResolver PINResolver) func(http.Handler) http.Handler {
+// DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
+// It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
+// The middleware sets device context for downstream handlers.
+// Rejects requests for devices belonging to soft-deleted schools.
+// pinResolver is optional — if nil, falls back to OGS_DEVICE_PIN env var.
+func DeviceAuthenticator(iotService iotSvc.Service, schools SchoolLookup, pinResolver PINResolver) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Validate API key and get device
@@ -299,15 +303,6 @@ func deviceAuthenticator(iotService iotSvc.Service, schools SchoolLookup, pinRes
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
-}
-
-// DeviceAuthenticator is a middleware that validates device API keys and the global OGS PIN.
-// It requires both Authorization: Bearer <api_key> and X-Staff-PIN: <pin> headers.
-// The middleware sets device context for downstream handlers.
-// Rejects requests for devices belonging to soft-deleted schools.
-// pinResolver is optional — if nil, falls back to OGS_DEVICE_PIN env var.
-func DeviceAuthenticator(iotService iotSvc.Service, _ usersSvc.PersonService, schools SchoolLookup, pinResolver PINResolver) func(http.Handler) http.Handler {
-	return deviceAuthenticator(iotService, schools, pinResolver)
 }
 
 // DeviceOnlyAuthenticator is a middleware that validates only device API keys.

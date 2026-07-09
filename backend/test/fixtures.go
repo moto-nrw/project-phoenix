@@ -179,7 +179,7 @@ func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
 	room := &facilities.Room{
 		Name:     uniqueName,
 		Building: "Test Building",
-		Capacity: intPtr(30),
+		Capacity: IntPtr(30),
 	}
 	room.SetTenantID(1)
 
@@ -205,9 +205,9 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 	device := &iot.Device{
 		DeviceID:   uniqueDeviceID,
 		DeviceType: "terminal",
-		Name:       stringPtr("Test Device"),
+		Name:       StrPtr("Test Device"),
 		Status:     iot.DeviceStatusActive,
-		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
+		APIKey:     StrPtr("test-api-key-" + uniqueDeviceID),
 	}
 	device.SetTenantID(1)
 
@@ -232,7 +232,7 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 	device := &iot.Device{
 		DeviceID:   iot.WebManualDeviceID,
 		DeviceType: iot.DeviceTypeVirtual,
-		Name:       stringPtr("Web-Portal (Manuell)"),
+		Name:       StrPtr("Web-Portal (Manuell)"),
 		Status:     iot.DeviceStatusActive,
 	}
 	device.SetTenantID(1)
@@ -930,15 +930,6 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 	return supervisor
 }
 
-// Helper functions for pointer creation
-func stringPtr(s string) *string {
-	return &s
-}
-
-func intPtr(i int) *int {
-	return &i
-}
-
 // CleanupPerson removes a person from the database by ID.
 func CleanupPerson(tb testing.TB, db *bun.DB, personID int64) {
 	tb.Helper()
@@ -954,6 +945,64 @@ func CleanupAccount(tb testing.TB, db *bun.DB, accountID int64) {
 	tb.Helper()
 
 	CleanupAuthFixtures(tb, db, accountID)
+}
+
+// CleanupRoleRecords removes roles and their role-permission/account-role associations.
+// Deliberately separate from CleanupAccount, which never deletes by role ID.
+func CleanupRoleRecords(tb testing.TB, db *bun.DB, roleIDs ...int64) {
+	tb.Helper()
+	if len(roleIDs) == 0 {
+		return
+	}
+
+	ctx := TenantContext(1)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.role_permissions").
+		Where("role_id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.account_roles").
+		Where("role_id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+
+	_, err := db.NewDelete().
+		TableExpr("auth.roles").
+		Where("id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+	if err != nil {
+		tb.Logf("Warning: failed to cleanup roles: %v", err)
+	}
+}
+
+// CleanupPermissionRecords removes permissions and their role/account associations.
+// Deliberately separate from CleanupAccount, which never deletes by permission ID.
+func CleanupPermissionRecords(tb testing.TB, db *bun.DB, permissionIDs ...int64) {
+	tb.Helper()
+	if len(permissionIDs) == 0 {
+		return
+	}
+
+	ctx := TenantContext(1)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.role_permissions").
+		Where("permission_id IN (?)", bun.List(permissionIDs)).
+		Exec(ctx)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.account_permissions").
+		Where("permission_id IN (?)", bun.List(permissionIDs)).
+		Exec(ctx)
+
+	_, err := db.NewDelete().
+		TableExpr("auth.permissions").
+		Where("id IN (?)", bun.List(permissionIDs)).
+		Exec(ctx)
+	if err != nil {
+		tb.Logf("Warning: failed to cleanup permissions: %v", err)
+	}
 }
 
 // CleanupStaffFixtures removes staff fixtures from the database.
@@ -1288,6 +1337,48 @@ func CreateTestStaffWithAccount(tb testing.TB, db *bun.DB, firstName, lastName s
 	return staff, account
 }
 
+// CreateTestCalendarStaff creates a staff member that is reachable for calendar
+// invitations. On top of CreateTestStaffWithAccount it adds an active
+// account_tenants mapping for tenant 1 and the base "user" role (which carries
+// calendar:own via migration 1.15.171), mirroring a real onboarded staff
+// account so FindReachableCalendarStaffIDs treats them as invitable. Use this in
+// calendar tests wherever staff must be selectable recipients. Cleanup: the
+// added rows are removed by CleanupAuthFixtures (account_tenants + account_roles
+// by account_id), which calendar tests already call for the account.
+func CreateTestCalendarStaff(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Staff, *auth.Account) {
+	tb.Helper()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName)
+
+	now := time.Now()
+	mapping := &auth.AccountTenant{
+		AccountID:   account.ID,
+		TenantID:    1,
+		Status:      auth.AccountTenantStatusActive,
+		ActivatedAt: &now,
+	}
+	_, err := db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).Exec(ctx)
+	require.NoError(tb, err, "Failed to create staff account_tenants mapping")
+
+	var userRoleID int64
+	err = db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", auth.BaseRoleUser).
+		Scan(ctx, &userRoleID)
+	require.NoError(tb, err, "Failed to find seeded user role")
+
+	roleAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: userRoleID}
+	roleAssignment.SetTenantID(1)
+	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	require.NoError(tb, err, "Failed to assign user role to staff account")
+
+	return staff, account
+}
+
 // CreateTestTeacherWithAccount creates a teacher with full chain: Account → Person → Staff → Teacher.
 // Returns the teacher and account for auth context testing.
 func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName string) (*users.Teacher, *auth.Account) {
@@ -1315,33 +1406,6 @@ func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 	teacher.Staff = staff
 
 	return teacher, account
-}
-
-// CreateTestStaffWithPIN creates a staff member with account and a hashed PIN.
-// This is required for testing PIN validation flows.
-func CreateTestStaffWithPIN(tb testing.TB, db *bun.DB, firstName, lastName, pin string) (*users.Staff, *auth.Account) {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create staff with account
-	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName)
-
-	// Hash and set the PIN
-	err := account.HashPIN(pin)
-	require.NoError(tb, err, "Failed to hash PIN")
-
-	// Update account with PIN hash
-	_, err = db.NewUpdate().
-		Model(account).
-		ModelTableExpr(`auth.accounts`).
-		Column("pin_hash").
-		Where(whereIDEquals, account.ID).
-		Exec(ctx)
-	require.NoError(tb, err, "Failed to update account with PIN")
-
-	return staff, account
 }
 
 // AssignStudentToGroup updates a student's group assignment.
@@ -1726,67 +1790,9 @@ func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *auth.Acco
 	return account
 }
 
-// CreateTestPersonGuardian creates a person-guardian relationship in the database.
-// The guardianAccountID should be a parent account ID (from CreateTestParentAccount).
-func CreateTestPersonGuardian(tb testing.TB, db *bun.DB, personID, guardianAccountID int64, relType string) *users.PersonGuardian {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	pg := &users.PersonGuardian{
-		PersonID:          personID,
-		GuardianAccountID: guardianAccountID,
-		RelationshipType:  users.RelationshipType(relType),
-		IsPrimary:         true,
-		Permissions:       "{}", // Valid empty JSON object
-	}
-	pg.SetTenantID(1)
-
-	err := db.NewInsert().
-		Model(pg).
-		ModelTableExpr(`users.persons_guardians`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test person guardian relationship")
-
-	return pg
-}
-
 // ============================================================================
 // Schedule Domain Fixtures
 // ============================================================================
-
-// CreateTestTimeframe creates a timeframe in the database.
-// This is used for schedule-related tests that need a timeframe reference.
-func CreateTestTimeframe(tb testing.TB, db *bun.DB, description string) *schedule.Timeframe {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Make description unique
-	uniqueDesc := fmt.Sprintf("%s-%d", description, time.Now().UnixNano())
-
-	now := time.Now()
-	startTime := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, now.Location())
-	endTime := time.Date(now.Year(), now.Month(), now.Day(), 16, 0, 0, 0, now.Location())
-
-	timeframe := &schedule.Timeframe{
-		StartTime:   startTime,
-		EndTime:     &endTime,
-		IsActive:    true,
-		Description: uniqueDesc,
-	}
-	timeframe.SetTenantID(1)
-
-	err := db.NewInsert().
-		Model(timeframe).
-		ModelTableExpr(`schedule.timeframes`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test timeframe")
-
-	return timeframe
-}
 
 // CleanupScheduleFixtures removes schedule-related fixtures from the database.
 func CleanupScheduleFixtures(tb testing.TB, db *bun.DB, timeframeIDs ...int64) {
@@ -2199,7 +2205,7 @@ func CreateTestRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name str
 	room := &facilities.Room{
 		Name:     uniqueName,
 		Building: "Test Building",
-		Capacity: intPtr(30),
+		Capacity: IntPtr(30),
 	}
 	room.SetTenantID(tenantID)
 
@@ -2277,9 +2283,9 @@ func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, device
 	device := &iot.Device{
 		DeviceID:   uniqueDeviceID,
 		DeviceType: "terminal",
-		Name:       stringPtr("Test Device " + uniqueDeviceID),
+		Name:       StrPtr("Test Device " + uniqueDeviceID),
 		Status:     iot.DeviceStatusActive,
-		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
+		APIKey:     StrPtr("test-api-key-" + uniqueDeviceID),
 	}
 	device.SetTenantID(tenantID)
 
@@ -2971,6 +2977,26 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 	_, err = db.NewInsert().Model(mapping).ModelTableExpr(`auth.account_tenants`).Exec(ctx)
 	require.NoError(tb, err, "Failed to create account_tenants mapping")
 
+	// Assign the auth guardian role, mirroring production: both
+	// guardianInvitationService.linkProfileToAccount and
+	// guardianService.ensureGuardianRole grant this role, and parent login
+	// (plus reachability checks like FindActivePortalProfilesByIDs) rejects
+	// accounts without it. Without this a portal-capable guardian couldn't
+	// exist in the real system. The 'guardian' role is seeded by migration
+	// 1.7.4, so it always exists in the test DB.
+	var guardianRoleID int64
+	err = db.NewSelect().
+		ColumnExpr("id").
+		TableExpr("auth.roles").
+		Where("name = ?", auth.BaseRoleGuardian).
+		Scan(ctx, &guardianRoleID)
+	require.NoError(tb, err, "Failed to find seeded guardian role")
+
+	roleAssignment := &auth.AccountRole{AccountID: account.ID, RoleID: guardianRoleID}
+	roleAssignment.SetTenantID(1)
+	_, err = db.NewInsert().Model(roleAssignment).ModelTableExpr(`auth.account_roles`).Exec(ctx)
+	require.NoError(tb, err, "Failed to assign guardian role")
+
 	return ParentChain{
 		AccountID:         account.ID,
 		TenantID:          1,
@@ -3007,6 +3033,7 @@ func CleanupParentGuardianChain(tb testing.TB, db *bun.DB, c ParentChain) {
 	exec(`DELETE FROM users.parent_message_threads WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM active.student_status_days WHERE student_id = ?`, c.StudentID)
 	exec(`DELETE FROM users.students_guardians WHERE student_id = ?`, c.StudentID)
+	exec(`DELETE FROM auth.account_roles WHERE account_id = ?`, c.AccountID)
 	exec(`DELETE FROM auth.account_tenants WHERE account_id = ?`, c.AccountID)
 	exec(`DELETE FROM users.guardian_profiles WHERE id = ?`, c.GuardianProfileID)
 	exec(`DELETE FROM users.students WHERE id = ?`, c.StudentID)

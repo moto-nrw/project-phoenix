@@ -32,8 +32,8 @@ func buildRequestService(t *testing.T) (parentService.Service, *bun.DB) {
 		PersonRepo:          repos.Person,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
-		Settings:            masterDataStubSettings{requestEnabled: true},
-		Broadcaster:         &captureBroadcaster{},
+		Settings:            masterDataSettings(false, true, false),
+		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		DB:                  db,
 		Logger:              slog.Default(),
 	})
@@ -228,15 +228,6 @@ func TestSubmitMasterDataChangeRequest_InvalidInputs(t *testing.T) {
 	assert.ErrorIs(t, err, parentService.ErrMasterDataInvalidValue)
 }
 
-// allSettingsOn reports every bool setting as ON so BOTH the master-data request
-// gate (KeyParentMasterDataRequestEnabled) and the emitter's messaging gate
-// (KeyParentNotesEnabled) pass and the created pills actually emit.
-type allSettingsOn struct{ masterDataStubSettings }
-
-func (allSettingsOn) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
-	return true, nil
-}
-
 // TestSubmitMasterDataChangeRequest_PerRowCreatedPills pins the P3 fix (#1803
 // review follow-up): a multi-field submit emits ONE "Anfrage erstellt" pill PER
 // created row, each referencing its own row — not a single pill tied to the
@@ -247,7 +238,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
-	settings := allSettingsOn{}
+	settings := parentSettingsStub{boolDefault: true}
 	emitter := parentmessaging.NewEmitter(
 		db, repos.ParentMessageThread, repos.ParentMessage,
 		settings, nil, slog.Default(),
@@ -260,7 +251,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
 		Settings:            settings,
-		Broadcaster:         &captureBroadcaster{},
+		Broadcaster:         testpkg.NewRecordingBroadcaster(),
 		Emitter:             emitter,
 		DB:                  db,
 		Logger:              slog.Default(),

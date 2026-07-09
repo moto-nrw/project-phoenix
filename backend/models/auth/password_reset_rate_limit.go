@@ -3,8 +3,6 @@ package auth
 import (
 	"errors"
 	"time"
-
-	"github.com/uptrace/bun"
 )
 
 // PasswordResetRateLimit tracks password reset attempts for an email address.
@@ -12,26 +10,6 @@ type PasswordResetRateLimit struct {
 	Email       string    `bun:"email,pk,notnull" json:"email"`
 	Attempts    int       `bun:"attempts,notnull,default:1" json:"attempts"`
 	WindowStart time.Time `bun:"window_start,notnull,default:current_timestamp" json:"window_start"`
-}
-
-// TableName returns the fully-qualified table name.
-func (PasswordResetRateLimit) TableName() string {
-	return `auth.password_reset_rate_limits`
-}
-
-// BeforeAppendModel ensures the schema-qualified table name is used with an alias.
-func (m *PasswordResetRateLimit) BeforeAppendModel(query any) error {
-	const tableExpr = `auth.password_reset_rate_limits AS "password_reset_rate_limit"`
-
-	switch q := query.(type) {
-	case *bun.InsertQuery:
-		q.ModelTableExpr(tableExpr)
-	case *bun.UpdateQuery:
-		q.ModelTableExpr(tableExpr)
-	case *bun.DeleteQuery:
-		q.ModelTableExpr(tableExpr)
-	}
-	return nil
 }
 
 // Validate ensures the rate limit record contains the required fields.

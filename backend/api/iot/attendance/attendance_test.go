@@ -63,7 +63,7 @@ func TestGetAttendanceStatus_NoDevice(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/status/{rfid}", ctx.resource.GetAttendanceStatusHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Request without device context should return 401
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/status/A1B2C3D4", nil)
@@ -81,7 +81,7 @@ func TestGetAttendanceStatus_MissingRFID(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, ctx.db, "attendance-test-device")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/status/{rfid}", ctx.resource.GetAttendanceStatusHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Request with empty RFID
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/status/", nil,
@@ -101,7 +101,7 @@ func TestGetAttendanceStatus_RFIDNotFound(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, ctx.db, "attendance-test-device-2")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/status/{rfid}", ctx.resource.GetAttendanceStatusHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Request with non-existent RFID
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/status/NONEXISTENT123", nil,
@@ -125,7 +125,7 @@ func TestGetAttendanceStatus_Success(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/status/{rfid}", ctx.resource.GetAttendanceStatusHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/status/"+rfidCard.ID, nil,
 		testutil.WithDeviceContext(testDevice),
@@ -145,7 +145,7 @@ func TestToggleAttendance_NoDevice(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"rfid":   "A1B2C3D4",
@@ -167,7 +167,7 @@ func TestToggleAttendance_InvalidJSON(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-1")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Send invalid JSON body - create request manually
 	req := httptest.NewRequest("POST", "/toggle", bytes.NewBufferString("invalid json"))
@@ -188,7 +188,7 @@ func TestToggleAttendance_MissingRFID(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-2")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"action": "confirm",
@@ -210,7 +210,7 @@ func TestToggleAttendance_Cancel(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-3")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Cancel action still requires RFID
 	body := map[string]interface{}{
@@ -234,7 +234,7 @@ func TestToggleAttendance_RFIDNotFound(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-4")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"rfid":   "NONEXISTENT999",
@@ -257,7 +257,7 @@ func TestToggleAttendance_ConfirmDailyCheckoutMissingDestination(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-5")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Daily checkout without destination should fail validation
 	body := map[string]interface{}{
@@ -282,7 +282,7 @@ func TestToggleAttendance_ConfirmDailyCheckoutInvalidDestination(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-6")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Daily checkout with invalid destination should fail validation
 	invalidDest := "invalid_location"
@@ -308,7 +308,7 @@ func TestToggleAttendance_ConfirmDailyCheckoutEmptyDestination(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-7")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Daily checkout with empty destination should fail validation
 	emptyDest := ""
@@ -334,7 +334,7 @@ func TestToggleAttendance_DailyCheckoutRFIDNotFound(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-8")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Daily checkout with non-existent RFID
 	dest := "zuhause"
@@ -360,7 +360,7 @@ func TestToggleAttendance_NormalToggleRFIDNotAssigned(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-9")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Normal toggle with RFID that isn't assigned to anyone
 	body := map[string]interface{}{
@@ -404,7 +404,7 @@ func TestGetAttendanceStatus_StudentWithGroup(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/status/{rfid}", ctx.resource.GetAttendanceStatusHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/status/"+rfidCard.ID, nil,
 		testutil.WithDeviceContext(testDevice),
@@ -438,7 +438,7 @@ func TestToggleAttendance_InvalidAction(t *testing.T) {
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "toggle-test-device-10")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Invalid action should fail validation
 	body := map[string]interface{}{
@@ -466,7 +466,7 @@ func TestToggleAttendance_DailyCheckoutNoActiveVisit(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Daily checkout when student has no attendance record
 	// The handler returns 404 when the student was never checked in today
@@ -499,7 +499,7 @@ func TestToggleAttendance_NormalToggleValidStudent(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Normal toggle with valid student - exercises lookupStudent, getStaffIDFromContext
 	// Will fail at ToggleStudentAttendance since no active session exists
@@ -531,7 +531,7 @@ func TestToggleAttendance_NormalToggleWithStaffContext(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "TestStaff", "ForToggle")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Normal toggle with staff context - tests getStaffIDFromContext branch
 	body := map[string]interface{}{
@@ -561,7 +561,7 @@ func TestToggleAttendance_DailyCheckoutUnterwegs(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	// Daily checkout with "unterwegs" destination — student has no attendance record
 	dest := "unterwegs"
@@ -625,7 +625,7 @@ func TestToggleAttendance_DailyCheckoutZuhauseCheckedIn(t *testing.T) {
 	testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	dest := "zuhause"
 	body := map[string]interface{}{
@@ -680,7 +680,7 @@ func TestToggleAttendance_DailyCheckoutZuhauseRequiresDeviceSupervisor(t *testin
 	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, testDevice.ID, checkInTime, nil)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	dest := "zuhause"
 	body := map[string]interface{}{
@@ -731,7 +731,7 @@ func TestToggleAttendance_DailyCheckoutZuhauseAlreadyCheckedOut(t *testing.T) {
 	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, testDevice.ID, checkInTime, &checkOutTime)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	dest := "zuhause"
 	body := map[string]interface{}{
@@ -778,7 +778,7 @@ func TestToggleAttendance_DailyCheckoutUnterwegsCheckedIn(t *testing.T) {
 	testpkg.CreateTestAttendance(t, ctx.db, student.ID, staff.ID, testDevice.ID, checkInTime, nil)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	dest := "unterwegs"
 	body := map[string]interface{}{
@@ -820,7 +820,7 @@ func TestToggleAttendance_DailyCheckoutNotCheckedIn(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, rfidCard.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	dest := "zuhause"
 	body := map[string]interface{}{
@@ -871,7 +871,7 @@ func TestToggleAttendance_NormalToggleSuccess(t *testing.T) {
 	testpkg.CreateTestGroupSupervisor(t, ctx.db, staff.ID, activeGroup.ID, "supervisor")
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"rfid":   rfidCard.ID,
@@ -922,7 +922,7 @@ func TestToggleAttendance_PersonNotStudent(t *testing.T) {
 	testpkg.LinkRFIDToStudent(t, ctx.db, staff.PersonID, rfidCard.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/status/{rfid}", ctx.resource.GetAttendanceStatusHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/status/"+rfidCard.ID, nil,
 		testutil.WithDeviceContext(testDevice),
@@ -975,7 +975,7 @@ func TestToggleAttendance_DailyCheckoutZuhause_EndsOpenVisit(t *testing.T) {
 	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup.ID, checkInTime, nil)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	dest := "zuhause"
 	body := map[string]interface{}{
@@ -1050,7 +1050,7 @@ func TestToggleAttendance_NormalToggle_CheckoutEndsOpenVisit(t *testing.T) {
 	visit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroup.ID, checkInTime, nil)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/toggle", ctx.resource.ToggleAttendanceHandler())
+	router.Mount("/", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"rfid":   rfidCard.ID,

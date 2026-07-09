@@ -4,12 +4,12 @@ import (
 	"errors"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-func strPtr(s string) *string { return &s }
 
 func TestIsReservedRoomColor(t *testing.T) {
 	t.Run("rejects every status badge color", func(t *testing.T) {
@@ -90,7 +90,7 @@ func TestRoomValidate_ReservedColor(t *testing.T) {
 	t.Run("rejects a reserved color", func(t *testing.T) {
 		room := &facilities.Room{
 			Name:  "Reserved Color Room",
-			Color: strPtr("#5080D8"),
+			Color: testpkg.StrPtr("#5080D8"),
 		}
 		err := room.Validate()
 		require.Error(t, err)
@@ -103,7 +103,7 @@ func TestRoomValidate_ReservedColor(t *testing.T) {
 	t.Run("allows a non-reserved hex", func(t *testing.T) {
 		room := &facilities.Room{
 			Name:  "Custom Color Room",
-			Color: strPtr("#A3D977"),
+			Color: testpkg.StrPtr("#A3D977"),
 		}
 		require.NoError(t, room.Validate())
 	})
@@ -116,7 +116,7 @@ func TestRoomValidate_ReservedColor(t *testing.T) {
 	t.Run("rejects malformed hex with sentinel", func(t *testing.T) {
 		room := &facilities.Room{
 			Name:  "Bad Color",
-			Color: strPtr("not-hex"),
+			Color: testpkg.StrPtr("not-hex"),
 		}
 		err := room.Validate()
 		require.Error(t, err)
@@ -126,7 +126,7 @@ func TestRoomValidate_ReservedColor(t *testing.T) {
 	t.Run("auto-prefixes # before validation", func(t *testing.T) {
 		room := &facilities.Room{
 			Name:  "Prefixed",
-			Color: strPtr("A3D977"),
+			Color: testpkg.StrPtr("A3D977"),
 		}
 		require.NoError(t, room.Validate())
 		require.NotNil(t, room.Color)
@@ -136,7 +136,7 @@ func TestRoomValidate_ReservedColor(t *testing.T) {
 	t.Run("auto-prefix into reserved color is still rejected", func(t *testing.T) {
 		room := &facilities.Room{
 			Name:  "Sneaky",
-			Color: strPtr("5080D8"), // missing # → adds # → matches reserved
+			Color: testpkg.StrPtr("5080D8"), // missing # → adds # → matches reserved
 		}
 		err := room.Validate()
 		require.Error(t, err)
@@ -150,7 +150,7 @@ func TestRoomValidate_ReservedColor(t *testing.T) {
 		// digits, but a direct API call could send either form.
 		room := &facilities.Room{
 			Name:  "Shorthand",
-			Color: strPtr("#abc"),
+			Color: testpkg.StrPtr("#abc"),
 		}
 		require.NoError(t, room.Validate())
 		require.NotNil(t, room.Color)
@@ -170,7 +170,7 @@ func TestRoomValidate_ReservedColor(t *testing.T) {
 		// that shape would trip the reserved check after expansion.
 		room := &facilities.Room{
 			Name:  "Shorthand prefix",
-			Color: strPtr("abc"), // missing # → adds # → expands → uppercases
+			Color: testpkg.StrPtr("abc"), // missing # → adds # → expands → uppercases
 		}
 		require.NoError(t, room.Validate())
 		require.NotNil(t, room.Color)
@@ -185,7 +185,7 @@ func TestRoomValidate_ReservedColor(t *testing.T) {
 		// rooms with different colour strings.
 		room := &facilities.Room{
 			Name:  "Mixed Case",
-			Color: strPtr("#a3D977"),
+			Color: testpkg.StrPtr("#a3D977"),
 		}
 		require.NoError(t, room.Validate())
 		require.NotNil(t, room.Color)

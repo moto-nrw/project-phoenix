@@ -558,16 +558,3 @@ func (rs *Resource) getStaffIDFromJWT(ctx context.Context) (int64, error) {
 func (rs *Resource) logImportAudit(filename string, result *importModels.ImportResult[importModels.StudentImportRow], userID int64, dryRun bool, tenantID int64) {
 	rs.studentImportService.RecordAudit("student", filename, result, userID, dryRun, tenantID)
 }
-
-// =============================================================================
-// HANDLER ACCESSOR METHODS (for testing)
-// =============================================================================
-
-// DownloadTemplateHandler returns the downloadStudentTemplate handler
-func (rs *Resource) DownloadTemplateHandler() http.HandlerFunc { return rs.downloadStudentTemplate }
-
-// PreviewImportHandler returns the previewStudentImport handler
-func (rs *Resource) PreviewImportHandler() http.HandlerFunc { return rs.previewStudentImport }
-
-// ImportStudentsHandler returns the importStudents handler
-func (rs *Resource) ImportStudentsHandler() http.HandlerFunc { return rs.importStudents }

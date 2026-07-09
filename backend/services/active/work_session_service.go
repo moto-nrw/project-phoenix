@@ -2,13 +2,16 @@ package active
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"database/sql"
 	"encoding/csv"
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"math"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -70,13 +73,12 @@ type AdminCreateSessionRequest struct {
 // SessionResponse wraps a work session with calculated fields
 type SessionResponse struct {
 	*activeModels.WorkSession
-	NetMinutes        int                              `json:"net_minutes"`
-	IsOvertime        bool                             `json:"is_overtime"`
-	IsBreakCompliant  bool                             `json:"is_break_compliant"`
-	RestPeriodWarning *string                          `json:"rest_period_warning,omitempty"`
-	Breaks            []*activeModels.WorkSessionBreak `json:"breaks"`
-	EditCount         int                              `json:"edit_count"`
-	AuditCount        int                              `json:"audit_count"`
+	NetMinutes       int                              `json:"net_minutes"`
+	IsOvertime       bool                             `json:"is_overtime"`
+	IsBreakCompliant bool                             `json:"is_break_compliant"`
+	Breaks           []*activeModels.WorkSessionBreak `json:"breaks"`
+	EditCount        int                              `json:"edit_count"`
+	AuditCount       int                              `json:"audit_count"`
 }
 
 // WeeklySummary aggregates work session data per ISO week
@@ -252,10 +254,7 @@ func (s *workSessionService) SetStaffShiftRepo(repo scheduleModels.StaffShiftRep
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *workSessionService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // NewWorkSessionService creates a new work session service
@@ -1308,10 +1307,7 @@ func (s *workSessionService) loadSessionEditsView(ctx context.Context, session *
 	for _, e := range edits {
 		editorIDSet[e.EditedBy] = struct{}{}
 	}
-	editorIDs := make([]int64, 0, len(editorIDSet))
-	for id := range editorIDSet {
-		editorIDs = append(editorIDs, id)
-	}
+	editorIDs := slices.Collect(maps.Keys(editorIDSet))
 
 	staffMap := map[int64]*userModels.Staff{}
 	if s.staffRepo != nil {

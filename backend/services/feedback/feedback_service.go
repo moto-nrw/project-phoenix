@@ -62,35 +62,6 @@ func (s *feedbackService) GetEntryByID(ctx context.Context, id int64) (*feedback
 	return entry, nil
 }
 
-// UpdateEntry updates an existing feedback entry
-func (s *feedbackService) UpdateEntry(ctx context.Context, entry *feedback.Entry) error {
-	if entry == nil || entry.ID <= 0 {
-		return &InvalidEntryDataError{Err: ErrInvalidParameters}
-	}
-
-	// Validate entry
-	if err := entry.Validate(); err != nil {
-		return &InvalidEntryDataError{Err: err}
-	}
-
-	// Check if entry exists
-	existing, err := s.entryRepo.FindByID(ctx, entry.ID)
-	if err != nil {
-		return err
-	}
-
-	if existing == nil {
-		return &EntryNotFoundError{EntryID: entry.ID}
-	}
-
-	// Update entry
-	if err := s.entryRepo.Update(ctx, entry); err != nil {
-		return err
-	}
-
-	return nil
-}
-
 // DeleteEntry deletes a feedback entry by ID
 func (s *feedbackService) DeleteEntry(ctx context.Context, id int64) error {
 	if id <= 0 {
@@ -177,29 +148,6 @@ func (s *feedbackService) GetEntriesByStudentAndDateRange(ctx context.Context, s
 	}
 
 	return s.entryRepo.FindByStudentAndDateRange(ctx, studentID, startDate, endDate)
-}
-
-// CountByDay counts feedback entries for a specific day
-func (s *feedbackService) CountByDay(ctx context.Context, day timezone.Date) (int, error) {
-	if day.IsZero() {
-		return 0, &InvalidEntryDataError{Err: ErrInvalidParameters}
-	}
-
-	return s.entryRepo.CountByDay(ctx, day)
-}
-
-// CountByStudent counts feedback entries for a specific student
-func (s *feedbackService) CountByStudent(ctx context.Context, studentID int64) (int, error) {
-	if studentID <= 0 {
-		return 0, &InvalidEntryDataError{Err: ErrInvalidParameters}
-	}
-
-	return s.entryRepo.CountByStudentID(ctx, studentID)
-}
-
-// CountMensaFeedback counts feedback entries related to the cafeteria
-func (s *feedbackService) CountMensaFeedback(ctx context.Context, isMensaFeedback bool) (int, error) {
-	return s.entryRepo.CountMensaFeedback(ctx, isMensaFeedback)
 }
 
 // CreateEntries creates multiple feedback entries in a batch operation

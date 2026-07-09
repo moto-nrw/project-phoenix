@@ -183,42 +183,6 @@ func TestRoomRepository_FindByName(t *testing.T) {
 	})
 }
 
-func TestRoomRepository_FindByBuilding(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Room
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds rooms by building", func(t *testing.T) {
-		uniqueBuilding := fmt.Sprintf("Building_%d", time.Now().UnixNano())
-		room1 := &facilities.Room{
-			Name:     fmt.Sprintf("Room1_%d", time.Now().UnixNano()),
-			Building: uniqueBuilding,
-			Floor:    testpkg.IntPtr(1),
-			Capacity: testpkg.IntPtr(20),
-			Category: testpkg.StrPtr("classroom"),
-		}
-		room2 := &facilities.Room{
-			Name:     fmt.Sprintf("Room2_%d", time.Now().UnixNano()),
-			Building: uniqueBuilding,
-			Floor:    testpkg.IntPtr(2),
-			Capacity: testpkg.IntPtr(25),
-			Category: testpkg.StrPtr("classroom"),
-		}
-
-		err := repo.Create(ctx, room1)
-		require.NoError(t, err)
-		err = repo.Create(ctx, room2)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room1.ID, room2.ID)
-
-		rooms, err := repo.FindByBuilding(ctx, uniqueBuilding)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(rooms), 2)
-	})
-}
-
 func TestRoomRepository_FindByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -241,51 +205,6 @@ func TestRoomRepository_FindByCategory(t *testing.T) {
 		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
 
 		rooms, err := repo.FindByCategory(ctx, uniqueCategory)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(rooms), 1)
-	})
-}
-
-func TestRoomRepository_FindByFloor(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Room
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds rooms by floor", func(t *testing.T) {
-		uniqueBuilding := fmt.Sprintf("FloorBuilding_%d", time.Now().UnixNano())
-		room := &facilities.Room{
-			Name:     fmt.Sprintf("FloorRoom_%d", time.Now().UnixNano()),
-			Building: uniqueBuilding,
-			Floor:    testpkg.IntPtr(5),
-			Capacity: testpkg.IntPtr(20),
-			Category: testpkg.StrPtr("classroom"),
-		}
-
-		err := repo.Create(ctx, room)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-
-		rooms, err := repo.FindByFloor(ctx, uniqueBuilding, 5)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(rooms), 1)
-	})
-
-	t.Run("finds rooms by floor without building filter", func(t *testing.T) {
-		room := &facilities.Room{
-			Name:     fmt.Sprintf("FloorOnlyRoom_%d", time.Now().UnixNano()),
-			Building: "SomeBuilding",
-			Floor:    testpkg.IntPtr(99),
-			Capacity: testpkg.IntPtr(20),
-			Category: testpkg.StrPtr("classroom"),
-		}
-
-		err := repo.Create(ctx, room)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "facilities.rooms", room.ID)
-
-		rooms, err := repo.FindByFloor(ctx, "", 99)
 		require.NoError(t, err)
 		assert.GreaterOrEqual(t, len(rooms), 1)
 	})

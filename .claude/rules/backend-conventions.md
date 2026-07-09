@@ -112,18 +112,19 @@ type Model struct {
     CreatedAt time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
     UpdatedAt time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
-func (m *Model) BeforeAppend() error  // note: NOT BeforeAppendModel
+func (m *Model) GetID() any / GetCreatedAt() / GetUpdatedAt()  // Rule-3 getters, live here ONCE
+// base.StringIDModel provides the same three getters for string-ID entities
 
 // models/base/tenant.go
 type TenantModel struct { TenantID int64 `bun:"tenant_id,notnull"` }
 func (t *TenantModel) GetTenantID() int64 / SetTenantID(id int64)
 ```
 
-`base.Model` does NOT provide `GetID()`/`GetCreatedAt()`/`GetUpdatedAt()`. If an interface needs them, add them ONCE on `base.Model` — never per entity. The legacy copy-paste is still widespread (~85 `GetID` copies, ~170 timestamp getters, ~82 `BeforeAppendModel` hooks as of 2026-06-12, and growing — nothing ratchets it yet); don't add to it.
+`base.Model` and `base.StringIDModel` provide `GetID()`/`GetCreatedAt()`/`GetUpdatedAt()` — never redeclare them per entity (shadowing is allowed only for genuinely different semantics, e.g. the audit models mapping `GetUpdatedAt` to `AccessedAt`/`ChangedAt`). The same goes for GORM-style `TableName()` methods: bun never calls them; table names come from struct tags and `ModelTableExpr` strings. Both patterns are CI-ratcheted by `TestModelCeremonyRatchet` (`backend/test/model_ceremony_ratchet_test.go`) with an allowlist of the load-bearing shadow getters.
 
 ### A note on `BeforeAppendModel`
 
-The per-entity `BeforeAppendModel` hooks implement BUN's `BeforeAppendModelHook` interface and may contain entity-specific logic — they are NOT automatically redundant. Audit each hook before deleting.
+The old per-entity `BeforeAppendModel(query any) error` hooks never ran: bun's hook interface is `BeforeAppendModel(ctx context.Context, query schema.Query) error`, dispatched via a reflection `Implements()` check the one-arg signature never matched. All 93 copies were deleted in the 2026-07 audit cleanup; repositories set `ModelTableExpr` explicitly, which is the actual mechanism. If a model genuinely needs a bun append hook, use the correct two-arg signature — the dead one-arg shape is CI-ratcheted to zero by `TestModelCeremonyRatchet` (M3).
 
 ---
 
@@ -152,7 +153,7 @@ router := resource.Router()
 router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/staff", nil))
 ```
 
-~294 such wrappers exist today (unratcheted). They're dead code from the production server's perspective (CI's `deadcode -test` run keeps them alive only because tests call them).
+All 308 such wrappers were deleted in the 2026-07 audit B3 batch; tests drive the resource's public `Router()` with minted JWTs (`api/testutil`: `SeedTestJWTConfig` + `MintTestJWT` + `WithJWTBearer`) or, for internal-package tests, call the private handler directly. `TestHandlerLayerRatchet` (R5) now fails any new niladic method returning `http.HandlerFunc` under `api/` — the shape is CI-ratcheted to zero regardless of method name.
 
 ---
 
@@ -271,6 +272,26 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 
 ---
 
+## 13. Shared Test Doubles — No Per-Package Mock Copies
+
+**RULE: Before hand-rolling a mock, fake, stub, or fixture in a `_test.go` file, check the shared homes.** Full-interface mocks copy-pasted across packages were ~2,000 lines of the 2026-07 audit's test-side findings (slice B14); the shared implementations now exist and new copies are review failures.
+
+| Double | Shared home |
+|---|---|
+| DB fixtures (`CreateTest*` / `Cleanup*`) | `test/fixtures*.go` (the mandated catalog) |
+| Pointer helpers (`StrPtr`, `IntPtr`, `Int64Ptr`, `TimePtr`) | `test/helpers.go` |
+| `email.Mailer` capture | `test.CapturingMailer` (`test/mailers.go`) |
+| `realtime.Broadcaster` recording fake | `test.RecordingBroadcaster` (`test/broadcaster.go`) |
+| Repo mocks for `models/*` interfaces (School, Staff, suggestions) | `test/repo_mocks.go`, `test/suggestions_mocks.go` |
+| `config.SettingsService` | `configtest.Mock` (`services/config/configtest`) |
+| `auth.MFAService` / `auth.InvitationService` | `services/auth/authtest` |
+| `users.PersonService` | `services/users/userstest` |
+| API request/bootstrap helpers | `api/testutil` (`SetupAPITest`, `ExecuteWithAuth`, `ExecuteWithAuthPermissions`, `MintTestJWT`) |
+
+Placement rules: mocks for `models/*` interfaces go in `test/` (imports models only — safe for internal test packages); mocks for a service interface go in a leaf `<domain>test` package next to the interface (usable everywhere EXCEPT that package's own internal tests — import cycle). New shared mocks follow the func-field convention (`XxxFn` fields, nil = zero-value default). Behaviorally divergent doubles (error-injection hooks, deliberate panics, channel-based capture) may stay package-local — divergence is the documented exception, copy-paste is not.
+
+---
+
 ## Code Review Checklist
 
 - [ ] No repository imports/fields/getter-calls in `api/` (CI: `TestHandlerLayerRatchet`)
@@ -285,6 +306,7 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 - [ ] No query construction in `services/` (CI: `TestServiceRepositoryRatchet`)
 - [ ] Models hold data, not decisions — no `Mark*/End*/Activate*` mutations, no RBAC, no magic thresholds
 - [ ] Searched for existing helpers before writing a new one (`rg` before `func`)
+- [ ] No new hand-rolled mock/fixture where a shared test double exists (Rule 13 table)
 
 ## Detection commands (one-shot health check)
 

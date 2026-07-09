@@ -41,7 +41,6 @@ func TestNewFactory(t *testing.T) {
 		assert.NotNil(t, factory.Teacher)
 		assert.NotNil(t, factory.Guest)
 		assert.NotNil(t, factory.Profile)
-		assert.NotNil(t, factory.PersonGuardian)
 		assert.NotNil(t, factory.StudentGuardian)
 		assert.NotNil(t, factory.GuardianProfile)
 		assert.NotNil(t, factory.PrivacyConsent)

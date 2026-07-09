@@ -169,9 +169,7 @@ func (r *ParentAnnouncementRepository) ListForTenant(ctx context.Context, includ
 	if !includeInactive {
 		query = query.Where(`"parent_announcement".active`)
 	}
-	if where, val, ok := base.TenantWhere(ctx, "parent_announcement"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "parent_announcement")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list parent announcements for tenant", Err: err}
 	}
@@ -192,9 +190,7 @@ func (r *ParentAnnouncementRepository) ListForTenant(ctx context.Context, includ
 		ModelTableExpr("users.parent_announcement_targets AS pat").
 		Where("pat.announcement_id IN (?)", bun.List(ids)).
 		OrderExpr("pat.id ASC")
-	if where, val, ok := base.TenantWhere(ctx, "pat"); ok {
-		tq = tq.Where(where, val)
-	}
+	tq = base.WithTenantFilter(ctx, tq, "pat")
 	if err := tq.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list parent announcement targets for tenant", Err: err}
 	}
@@ -371,9 +367,7 @@ func (r *ParentAnnouncementRepository) ListTargets(ctx context.Context, announce
 		ModelTableExpr("users.parent_announcement_targets AS pat").
 		Where("pat.announcement_id = ?", announcementID).
 		OrderExpr("pat.id ASC")
-	if where, val, ok := base.TenantWhere(ctx, "pat"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "pat")
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list parent announcement targets", Err: err}
 	}

@@ -386,13 +386,12 @@ func TestOnValueSetCallback_WCEnabled(t *testing.T) {
 	initializeAPIResources(a, repoFactory, db, slog.Default())
 
 	// Mount the SetValue handler on a tenant-aware router
-	router := testutil.NewTenantRouter(db)
-	router.Put("/values/{key}", a.Settings.SetValue())
+	router := a.Settings.SettingsRouter()
 
 	// Set checkout.wc_enabled = true → triggers callback → creates WC infrastructure
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled",
 		map[string]any{"value": true},
-		testutil.WithClaims(adminClaimsForCallback()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -415,12 +414,11 @@ func TestOnValueSetCallback_SchulhofEnabled(t *testing.T) {
 
 	initializeAPIResources(a, repoFactory, db, slog.Default())
 
-	router := testutil.NewTenantRouter(db)
-	router.Put("/values/{key}", a.Settings.SetValue())
+	router := a.Settings.SettingsRouter()
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.schulhof_enabled",
 		map[string]any{"value": true},
-		testutil.WithClaims(adminClaimsForCallback()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -443,12 +441,11 @@ func TestOnValueSetCallback_FalseValueSkipsInfrastructure(t *testing.T) {
 
 	initializeAPIResources(a, repoFactory, db, slog.Default())
 
-	router := testutil.NewTenantRouter(db)
-	router.Put("/values/{key}", a.Settings.SetValue())
+	router := a.Settings.SettingsRouter()
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/values/checkout.wc_enabled",
 		map[string]any{"value": false},
-		testutil.WithClaims(adminClaimsForCallback()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -503,8 +500,7 @@ func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 	a.Services.RealtimeHub.Register(client, 1, nil)
 	defer a.Services.RealtimeHub.Unregister(client)
 
-	router := testutil.NewTenantRouter(db)
-	router.Put("/values/{key}", a.Settings.SetValue())
+	router := a.Settings.SettingsRouter()
 
 	// First, enable so PUT-false is a real disable transition (default is
 	// already false; set true→false to exercise the purge branch). The
@@ -514,7 +510,7 @@ func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 	// channel for the disable assertion below.
 	enableReq := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_photos_enabled",
 		map[string]any{"value": true},
-		testutil.WithClaims(adminClaimsForCallback()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 	enableRR := testutil.ExecuteRequest(router, enableReq)
 	require.Equal(t, http.StatusOK, enableRR.Code, "enable PUT must succeed")
@@ -540,7 +536,7 @@ func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 
 	disableReq := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_photos_enabled",
 		map[string]any{"value": false},
-		testutil.WithClaims(adminClaimsForCallback()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 	disableRR := testutil.ExecuteRequest(router, disableReq)
 	require.Equal(t, http.StatusOK, disableRR.Code, "disable PUT must succeed")
@@ -610,8 +606,7 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 	a.Services.RealtimeHub.Register(client, 1, nil)
 	defer a.Services.RealtimeHub.Unregister(client)
 
-	router := testutil.NewTenantRouter(db)
-	router.Put("/values/{key}", a.Settings.SetValue())
+	router := a.Settings.SettingsRouter()
 
 	// awaitTenantSettings drains events on the buffered channel until it
 	// finds a tenant_settings_changed for the expected key, or fails the
@@ -642,7 +637,7 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 	// 1. Enable photo feature → tenant_settings_changed with the photo key.
 	enableReq := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_photos_enabled",
 		map[string]any{"value": true},
-		testutil.WithClaims(adminClaimsForCallback()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 	require.Equal(t, http.StatusOK, testutil.ExecuteRequest(router, enableReq).Code)
 	awaitTenantSettings(t, configModel.KeyStudentPhotosEnabled)
@@ -652,7 +647,7 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 	//    student_updated post-purge broadcast asserted in the sibling test).
 	disableReq := testutil.NewAuthenticatedRequest(t, "PUT", "/values/operations.student_photos_enabled",
 		map[string]any{"value": false},
-		testutil.WithClaims(adminClaimsForCallback()),
+		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 	require.Equal(t, http.StatusOK, testutil.ExecuteRequest(router, disableReq).Code)
 	awaitTenantSettings(t, configModel.KeyStudentPhotosEnabled)

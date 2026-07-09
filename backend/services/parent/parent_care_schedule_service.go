@@ -71,14 +71,14 @@ func (s *service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 		return nil, err
 	}
 	view := &ChildCareSchedule{}
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		return s.buildCareScheduleView(txCtx, view, accountID, studentID)
 	})
 	if txErr != nil {
 		return nil, fmt.Errorf("parent: get child care schedule: %w", txErr)
 	}
 	view.CanRequest = child.hasPermission(authorize.GuardianPermissionRequestSubmit) &&
-		parentmessaging.MessagingEnabledForTenant(ctx, s.settings, child.tenantID, s.logger)
+		parentmessaging.MessagingEnabledForTenant(ctx, s.Settings, child.tenantID, s.Logger)
 	return view, nil
 }
 
@@ -94,12 +94,12 @@ func (s *service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 	// Fail OPEN on a transient resolve error (via the shared helper) so a
 	// config-DB blip does not 500 a guardian's request; a genuine disabled
 	// flag still returns ErrNotesDisabled.
-	if !parentmessaging.MessagingEnabledForTenant(ctx, s.settings, child.tenantID, s.logger) {
+	if !parentmessaging.MessagingEnabledForTenant(ctx, s.Settings, child.tenantID, s.Logger) {
 		return nil, ErrNotesDisabled
 	}
 	view := &ChildCareSchedule{CanRequest: true}
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		if _, err := s.careRequests.CreateRequest(txCtx, studentID, accountID, payload); err != nil {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if _, err := s.CareRequests.CreateRequest(txCtx, studentID, accountID, payload); err != nil {
 			return err
 		}
 		return s.buildCareScheduleView(txCtx, view, accountID, studentID)
@@ -107,7 +107,7 @@ func (s *service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 	if txErr != nil {
 		return nil, mapCareRequestError(txErr, "create care schedule request")
 	}
-	s.logger.Info("parent created care schedule request",
+	s.Logger.Info("parent created care schedule request",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("tenant_id", child.tenantID),
@@ -131,10 +131,10 @@ func (s *service) WithdrawCareScheduleRequest(ctx context.Context, accountID, st
 	}
 	view := &ChildCareSchedule{
 		CanRequest: child.hasPermission(authorize.GuardianPermissionRequestSubmit) &&
-			parentmessaging.MessagingEnabledForTenant(ctx, s.settings, child.tenantID, s.logger),
+			parentmessaging.MessagingEnabledForTenant(ctx, s.Settings, child.tenantID, s.Logger),
 	}
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		if _, err := s.careRequests.WithdrawRequest(txCtx, requestID, studentID, accountID); err != nil {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if _, err := s.CareRequests.WithdrawRequest(txCtx, requestID, studentID, accountID); err != nil {
 			return err
 		}
 		return s.buildCareScheduleView(txCtx, view, accountID, studentID)
@@ -142,7 +142,7 @@ func (s *service) WithdrawCareScheduleRequest(ctx context.Context, accountID, st
 	if txErr != nil {
 		return nil, mapCareRequestError(txErr, "withdraw care schedule request")
 	}
-	s.logger.Info("parent withdrew care schedule request",
+	s.Logger.Info("parent withdrew care schedule request",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("request_id", requestID),
@@ -154,18 +154,18 @@ func (s *service) WithdrawCareScheduleRequest(ctx context.Context, accountID, st
 // buildCareScheduleView loads the weekly plan + pending request inside the
 // caller's tenant transaction.
 func (s *service) buildCareScheduleView(ctx context.Context, view *ChildCareSchedule, accountID, studentID int64) error {
-	if s.studentRepo == nil || s.arrivalSchedules == nil || s.pickupSchedules == nil || s.careRequests == nil {
+	if s.StudentRepo == nil || s.ArrivalSchedules == nil || s.PickupSchedules == nil || s.CareRequests == nil {
 		return errors.New("parent: care schedule dependencies not wired")
 	}
-	student, err := s.studentRepo.FindByID(ctx, studentID)
+	student, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil {
 		return err
 	}
-	arrivals, err := s.arrivalSchedules.GetStudentArrivalSchedules(ctx, studentID)
+	arrivals, err := s.ArrivalSchedules.GetStudentArrivalSchedules(ctx, studentID)
 	if err != nil {
 		return err
 	}
-	pickups, err := s.pickupSchedules.GetStudentPickupSchedules(ctx, studentID)
+	pickups, err := s.PickupSchedules.GetStudentPickupSchedules(ctx, studentID)
 	if err != nil {
 		return err
 	}
@@ -202,7 +202,7 @@ func (s *service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 	}
 	view.Weekdays = weekdays
 
-	pending, diff, err := s.careRequests.GetPendingForStudent(ctx, studentID)
+	pending, diff, err := s.CareRequests.GetPendingForStudent(ctx, studentID)
 	if err != nil {
 		return err
 	}

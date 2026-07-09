@@ -70,9 +70,7 @@ func (r *GradeTransitionRepository) FindByID(ctx context.Context, id int64) (*ed
 		ModelTableExpr(tableGradeTransitions+` AS "grade_transition"`).
 		Where(`"grade_transition".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "grade_transition"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "grade_transition")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -93,9 +91,7 @@ func (r *GradeTransitionRepository) FindByIDWithMappings(ctx context.Context, id
 		ModelTableExpr(tableGradeTransitions+` AS "grade_transition"`).
 		Where(`"grade_transition".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "grade_transition"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "grade_transition")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -130,9 +126,7 @@ func (r *GradeTransitionRepository) Update(ctx context.Context, t *education.Gra
 		ModelTableExpr(tableGradeTransitions + ` AS "grade_transition"`).
 		WherePK()
 
-	if where, val, ok := base.TenantWhere(ctx, "grade_transition"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "grade_transition")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -152,9 +146,7 @@ func (r *GradeTransitionRepository) Delete(ctx context.Context, id int64) error 
 		ModelTableExpr(tableGradeTransitions+` AS "grade_transition"`).
 		Where(`"grade_transition".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "grade_transition"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "grade_transition")
 
 	_, err := query.Exec(ctx)
 	if err != nil {
@@ -223,9 +215,7 @@ func (r *GradeTransitionRepository) FindByAcademicYear(ctx context.Context, year
 		Where(`"grade_transition".academic_year = ?`, year).
 		Order(orderByCreatedAtDesc)
 
-	if where, val, ok := base.TenantWhere(ctx, "grade_transition"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "grade_transition")
 
 	err := query.Scan(ctx, &transitions)
 	if err != nil {
@@ -247,9 +237,7 @@ func (r *GradeTransitionRepository) FindByStatus(ctx context.Context, status str
 		Where(`"grade_transition".status = ?`, status).
 		Order(orderByCreatedAtDesc)
 
-	if where, val, ok := base.TenantWhere(ctx, "grade_transition"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "grade_transition")
 
 	err := query.Scan(ctx, &transitions)
 	if err != nil {
@@ -322,9 +310,7 @@ func (r *GradeTransitionRepository) DeleteMappings(ctx context.Context, transiti
 		TableExpr(tableGradeTransitionMappings+` AS "grade_transition_mapping"`).
 		Where(`"grade_transition_mapping".`+whereTransitionID, transitionID)
 
-	if where, val, ok := base.TenantWhere(ctx, "grade_transition_mapping"); ok {
-		delQuery = delQuery.Where(where, val)
-	}
+	delQuery = base.WithTenantFilter(ctx, delQuery, "grade_transition_mapping")
 
 	_, err := delQuery.Exec(ctx)
 	if err != nil {
@@ -346,9 +332,7 @@ func (r *GradeTransitionRepository) GetMappings(ctx context.Context, transitionI
 		Where(`"grade_transition_mapping".`+whereTransitionID, transitionID).
 		Order("from_class ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "grade_transition_mapping"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "grade_transition_mapping")
 
 	err := query.Scan(ctx, &mappings)
 
@@ -425,9 +409,7 @@ func (r *GradeTransitionRepository) GetHistory(ctx context.Context, transitionID
 		Where(`"grade_transition_history".`+whereTransitionID, transitionID).
 		Order("created_at ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "grade_transition_history"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "grade_transition_history")
 
 	err := query.Scan(ctx, &history)
 
@@ -450,9 +432,7 @@ func (r *GradeTransitionRepository) GetDistinctClasses(ctx context.Context) ([]s
 		Where(`student.school_class IS NOT NULL AND student.school_class != ''`).
 		Order(`student.school_class ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx, &classes)
 
@@ -472,9 +452,7 @@ func (r *GradeTransitionRepository) GetStudentCountByClass(ctx context.Context, 
 		TableExpr(`users.students AS student`).
 		Where(`student.school_class = ?`, className)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	count, err := query.Count(ctx)
 
@@ -509,9 +487,7 @@ func (r *GradeTransitionRepository) GetStudentsByClasses(ctx context.Context, cl
 		Where(`s.school_class IN (?)`, bun.List(classes)).
 		Order(`s.school_class ASC, p.last_name ASC, p.first_name ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "s"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "s")
 
 	err := query.Scan(ctx, &students)
 
@@ -577,9 +553,7 @@ func (r *GradeTransitionRepository) DeleteStudentsByClasses(ctx context.Context,
 		ModelTableExpr(`users.students AS "student"`).
 		Where(`"student".school_class IN (?)`, bun.List(classes))
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		delQuery = delQuery.Where(where, val)
-	}
+	delQuery = base.WithTenantFilter(ctx, delQuery, "student")
 
 	result, err := delQuery.Exec(ctx)
 

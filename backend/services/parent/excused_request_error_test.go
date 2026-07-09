@@ -49,7 +49,7 @@ func buildParentServiceWithExcused(t *testing.T, excused absenceSvc.ExcusedAbsen
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
-	bc := &captureBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	return parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:       repos.ParentChild,
 		StatusDayRepo:   repos.StudentStatusDay,

@@ -67,6 +67,8 @@ export interface CareUsageRow {
   child_last_name: string;
   date_of_birth: string;
   target_grade_level?: number;
+  /** Concrete future class (e.g. "2a") when collected (#1833). */
+  target_school_class?: string;
   status: ChildStatus;
   offerings: CareUsageRowOffering[];
   effective_days: string[];

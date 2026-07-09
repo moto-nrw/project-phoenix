@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -123,12 +121,8 @@ func TestGetStudentEnrollmentExtraFields_ReturnsOnlyLinkedChildFields(t *testing
 		},
 	}
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.Get("/{id}/enrollment-extra-fields", tc.resource.GetStudentEnrollmentExtraFieldsHandler())
-
 	req := testutil.NewRequest("GET", "/"+strconv.FormatInt(student.ID, 10)+"/enrollment-extra-fields", nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 	assert.Equal(t, student.ID, decision.studentID)
@@ -163,12 +157,8 @@ func TestGetStudentEnrollmentExtraFields_EmptyWhenNoLinkedAnswers(t *testing.T) 
 	tc.resource.EnrollmentDecision = &fakeEnrollmentDecisionService{}
 	tc.resource.EnrollmentFormSchema = &fakeEnrollmentFormSchemaService{}
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.Get("/{id}/enrollment-extra-fields", tc.resource.GetStudentEnrollmentExtraFieldsHandler())
-
 	req := testutil.NewRequest("GET", "/"+strconv.FormatInt(student.ID, 10)+"/enrollment-extra-fields", nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 	var body struct {
@@ -207,12 +197,8 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaLookupFails(t *testing.T
 		err: errors.New("schema repository unavailable"),
 	}
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.Get("/{id}/enrollment-extra-fields", tc.resource.GetStudentEnrollmentExtraFieldsHandler())
-
 	req := testutil.NewRequest("GET", "/"+strconv.FormatInt(student.ID, 10)+"/enrollment-extra-fields", nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusInternalServerError, rr.Code, "body: %s", rr.Body.String())
 	var body struct {
@@ -252,12 +238,8 @@ func TestGetStudentEnrollmentExtraFields_FailsWhenSchemaIsMissing(t *testing.T) 
 		schemas: map[int64]*enrollmentModels.FormSchema{},
 	}
 
-	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-	router.Get("/{id}/enrollment-extra-fields", tc.resource.GetStudentEnrollmentExtraFieldsHandler())
-
 	req := testutil.NewRequest("GET", "/"+strconv.FormatInt(student.ID, 10)+"/enrollment-extra-fields", nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusInternalServerError, rr.Code, "body: %s", rr.Body.String())
 	var body struct {

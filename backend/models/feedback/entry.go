@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 // Feedback value constants for standardized feedback types
@@ -17,9 +16,6 @@ const (
 	ValueNeutral  = "neutral"
 	ValueNegative = "negative"
 )
-
-// tableFeedbackEntries is the schema-qualified table name for feedback entries
-const tableFeedbackEntries = "feedback.entries"
 
 // Entry represents a feedback entry from a student
 type Entry struct {
@@ -33,21 +29,6 @@ type Entry struct {
 
 	// Relations not stored in the database
 	Student *users.Student `bun:"-" json:"student,omitempty"`
-}
-
-func (e *Entry) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableFeedbackEntries)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableFeedbackEntries)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (e *Entry) TableName() string {
-	return tableFeedbackEntries
 }
 
 // Validate ensures feedback entry data is valid
@@ -116,19 +97,4 @@ func (e *Entry) GetFormattedDate() string {
 // GetFormattedTime returns the time in a formatted string
 func (e *Entry) GetFormattedTime() string {
 	return e.Time.Format("15:04:05")
-}
-
-// GetID returns the entity's ID
-func (m *Entry) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Entry) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Entry) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

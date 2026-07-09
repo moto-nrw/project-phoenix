@@ -56,53 +56,40 @@ type CareOfferingServiceConfig struct {
 }
 
 type careOfferingService struct {
-	repo                 enrollmentModels.CareOfferingRepository
-	activityGroupRepo    activitiesModels.GroupRepository
-	activityScheduleRepo activitiesModels.ScheduleRepository
-	calendarPeriodRepo   scheduleModels.CalendarPeriodRepository
-	phaseRepo            enrollmentModels.PhaseRepository
-	logger               *slog.Logger
+	CareOfferingServiceConfig
 }
 
 // NewCareOfferingService builds the service.
 func NewCareOfferingService(cfg CareOfferingServiceConfig) CareOfferingService {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
-	return &careOfferingService{
-		repo:                 cfg.Repo,
-		activityGroupRepo:    cfg.ActivityGroupRepo,
-		activityScheduleRepo: cfg.ActivityScheduleRepo,
-		calendarPeriodRepo:   cfg.CalendarPeriodRepo,
-		phaseRepo:            cfg.PhaseRepo,
-		logger:               logger,
-	}
+	return &careOfferingService{CareOfferingServiceConfig: cfg}
 }
 
 func (s *careOfferingService) List(ctx context.Context) ([]*enrollmentModels.CareOffering, error) {
-	return s.repo.ListByTenant(ctx)
+	return s.Repo.ListByTenant(ctx)
 }
 
 func (s *careOfferingService) ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
 	if phaseID <= 0 {
 		return nil, fmt.Errorf("phase_id must be positive")
 	}
-	return s.repo.ListByPhase(ctx, phaseID)
+	return s.Repo.ListByPhase(ctx, phaseID)
 }
 
 func (s *careOfferingService) ListActiveByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
 	if phaseID <= 0 {
 		return nil, fmt.Errorf("phase_id must be positive")
 	}
-	return s.repo.ListActiveByPhase(ctx, phaseID)
+	return s.Repo.ListActiveByPhase(ctx, phaseID)
 }
 
 func (s *careOfferingService) GetByID(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {
 	if id <= 0 {
 		return nil, ErrCareOfferingNotFound
 	}
-	offering, err := s.repo.FindByID(ctx, id)
+	offering, err := s.Repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, ErrCareOfferingNotFound
 	}
@@ -131,7 +118,7 @@ func (s *careOfferingService) checkGroupRuleConsistency(ctx context.Context, off
 		return nil
 	}
 	thisRule := normalizeSelectionRule(offering.SelectionRule)
-	siblings, err := s.repo.ListByPhase(ctx, offering.PhaseID)
+	siblings, err := s.Repo.ListByPhase(ctx, offering.PhaseID)
 	if err != nil {
 		return fmt.Errorf("check selection group consistency: %w", err)
 	}
@@ -177,7 +164,7 @@ func (s *careOfferingService) validateAutoAddConfig(ctx context.Context, offerin
 	if offering.DaysOfWeekMode != enrollmentModels.DaysOfWeekModeParentChoice {
 		return fmt.Errorf("an automatically added care offering must allow parent day selection")
 	}
-	siblings, err := s.repo.ListByPhase(ctx, offering.PhaseID)
+	siblings, err := s.Repo.ListByPhase(ctx, offering.PhaseID)
 	if err != nil {
 		return fmt.Errorf("check automatic offering triggers: %w", err)
 	}
@@ -331,17 +318,17 @@ func (s *careOfferingService) validateLinkedTemplate(ctx context.Context, offeri
 		return nil
 	}
 	period, err := resolveCareOfferingTemplatePeriod(ctx, careOfferingTemplateDeps{
-		activityGroupRepo:    s.activityGroupRepo,
-		activityScheduleRepo: s.activityScheduleRepo,
-		calendarPeriodRepo:   s.calendarPeriodRepo,
+		activityGroupRepo:    s.ActivityGroupRepo,
+		activityScheduleRepo: s.ActivityScheduleRepo,
+		calendarPeriodRepo:   s.CalendarPeriodRepo,
 	}, *offering.ActivityGroupID)
 	if err != nil {
 		return err
 	}
-	if s.phaseRepo == nil {
+	if s.PhaseRepo == nil {
 		return errors.New("phase validation dependency is not configured")
 	}
-	phase, err := s.phaseRepo.FindByID(ctx, offering.PhaseID)
+	phase, err := s.PhaseRepo.FindByID(ctx, offering.PhaseID)
 	if err != nil || phase == nil {
 		return fmt.Errorf("phase_id does not reference a phase in this tenant")
 	}
@@ -361,13 +348,13 @@ func (s *careOfferingService) Create(ctx context.Context, offering *enrollmentMo
 	if err := s.validateAutoAddConfig(ctx, offering); err != nil {
 		return nil, err
 	}
-	if err := s.repo.Create(ctx, offering); err != nil {
+	if err := s.Repo.Create(ctx, offering); err != nil {
 		return nil, err
 	}
-	if err := s.repo.ReplaceAutoAddTriggers(ctx, offering.ID, offering.AutoAddTriggerOfferingIDs); err != nil {
+	if err := s.Repo.ReplaceAutoAddTriggers(ctx, offering.ID, offering.AutoAddTriggerOfferingIDs); err != nil {
 		return nil, err
 	}
-	s.logger.Info("care offering created",
+	s.Logger.Info("care offering created",
 		slog.Int64("offering_id", offering.ID),
 		slog.String("name", offering.Name))
 	return offering, nil
@@ -386,13 +373,13 @@ func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentMo
 	if err := s.validateAutoAddConfig(ctx, offering); err != nil {
 		return err
 	}
-	if err := s.repo.Update(ctx, offering); err != nil {
+	if err := s.Repo.Update(ctx, offering); err != nil {
 		return err
 	}
-	if err := s.repo.ReplaceAutoAddTriggers(ctx, offering.ID, offering.AutoAddTriggerOfferingIDs); err != nil {
+	if err := s.Repo.ReplaceAutoAddTriggers(ctx, offering.ID, offering.AutoAddTriggerOfferingIDs); err != nil {
 		return err
 	}
-	s.logger.Info("care offering updated", slog.Int64("offering_id", offering.ID))
+	s.Logger.Info("care offering updated", slog.Int64("offering_id", offering.ID))
 	return nil
 }
 
@@ -400,10 +387,10 @@ func (s *careOfferingService) Delete(ctx context.Context, id int64) error {
 	if id <= 0 {
 		return fmt.Errorf("id must be positive")
 	}
-	if err := s.repo.Delete(ctx, id); err != nil {
+	if err := s.Repo.Delete(ctx, id); err != nil {
 		return err
 	}
-	s.logger.Info("care offering deleted", slog.Int64("offering_id", id))
+	s.Logger.Info("care offering deleted", slog.Int64("offering_id", id))
 	return nil
 }
 
@@ -419,7 +406,7 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 		return nil, fmt.Errorf("target phase id must be positive")
 	}
 
-	source, err := s.repo.FindByID(ctx, sourceID)
+	source, err := s.Repo.FindByID(ctx, sourceID)
 	if err != nil {
 		return nil, fmt.Errorf("clone: source lookup: %w", err)
 	}
@@ -434,10 +421,10 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 	if err := s.checkGroupRuleConsistency(ctx, &clone); err != nil {
 		return nil, fmt.Errorf("clone: check selection group consistency: %w", err)
 	}
-	if err := s.repo.Create(ctx, &clone); err != nil {
+	if err := s.Repo.Create(ctx, &clone); err != nil {
 		return nil, fmt.Errorf("clone: create: %w", err)
 	}
-	s.logger.Info("care offering cloned",
+	s.Logger.Info("care offering cloned",
 		slog.Int64("source_id", sourceID),
 		slog.Int64("clone_id", clone.ID),
 		slog.Int64("target_phase_id", targetPhaseID))

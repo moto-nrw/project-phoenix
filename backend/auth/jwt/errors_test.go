@@ -18,7 +18,6 @@ func TestErrorVariables(t *testing.T) {
 	assert.EqualError(t, ErrTokenUnauthorized, "token unauthorized")
 	assert.EqualError(t, ErrTokenExpired, "token expired")
 	assert.EqualError(t, ErrInvalidAccessToken, "invalid access token")
-	assert.EqualError(t, ErrInvalidRefreshToken, "invalid refresh token")
 }
 
 func TestErrorVariables_AreDistinct(t *testing.T) {
@@ -26,7 +25,6 @@ func TestErrorVariables_AreDistinct(t *testing.T) {
 		ErrTokenUnauthorized,
 		ErrTokenExpired,
 		ErrInvalidAccessToken,
-		ErrInvalidRefreshToken,
 	}
 
 	for i := 0; i < len(errs); i++ {
@@ -76,7 +74,6 @@ func TestErrUnauthorized_WithTokenErrors(t *testing.T) {
 		{"token unauthorized", ErrTokenUnauthorized, "token unauthorized"},
 		{"token expired", ErrTokenExpired, "token expired"},
 		{"invalid access token", ErrInvalidAccessToken, "invalid access token"},
-		{"invalid refresh token", ErrInvalidRefreshToken, "invalid refresh token"},
 	}
 
 	for _, tt := range tests {

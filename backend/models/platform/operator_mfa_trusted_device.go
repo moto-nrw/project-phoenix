@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // OperatorMFATrustedDevice persists the server-side record of a trusted-
@@ -22,27 +21,7 @@ type OperatorMFATrustedDevice struct {
 	RevokedAt  *time.Time `bun:"revoked_at" json:"revoked_at,omitempty"`
 }
 
-func (d *OperatorMFATrustedDevice) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`platform.operator_mfa_trusted_devices AS "operator_mfa_trusted_device"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`platform.operator_mfa_trusted_devices AS "operator_mfa_trusted_device"`)
-	}
-	return nil
-}
-
-func (d *OperatorMFATrustedDevice) TableName() string {
-	return "platform.operator_mfa_trusted_devices"
-}
-
 // IsRevoked returns true once the device was explicitly revoked. This is a pure
-// field accessor (RevokedAt != nil); the wall-clock expiry/active decision lives
-// in the service layer (services/platform.OperatorMFATrustedDeviceExpired /
-// OperatorMFATrustedDeviceActive) and the repository's active-device finders,
-// per issue #586 (Rule 12).
+// field accessor (RevokedAt != nil); the wall-clock expiry/active decision is
+// enforced by the repository's active-device finders, per issue #586 (Rule 12).
 func (d *OperatorMFATrustedDevice) IsRevoked() bool { return d.RevokedAt != nil }
-
-func (d *OperatorMFATrustedDevice) GetID() interface{}      { return d.ID }
-func (d *OperatorMFATrustedDevice) GetCreatedAt() time.Time { return d.CreatedAt }
-func (d *OperatorMFATrustedDevice) GetUpdatedAt() time.Time { return d.UpdatedAt }

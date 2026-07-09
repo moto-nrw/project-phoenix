@@ -34,7 +34,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // careRequestMaxReasonLen bounds the staff reject reason (in runes) so a
@@ -1060,16 +1059,5 @@ func careDashIfEmpty(s string) string {
 // violation (one open request per student) behind the repository's
 // DatabaseError wrapper.
 func isCareRequestPendingUniqueViolation(err error) bool {
-	if err == nil {
-		return false
-	}
-	var dbErr *modelBase.DatabaseError
-	if errors.As(err, &dbErr) {
-		err = dbErr.Err
-	}
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		return pgErr.Field('C') == "23505" && pgErr.Field('n') == careRequestPendingUniqueIndex
-	}
-	return false
+	return modelBase.IsUniqueViolationOn(err, careRequestPendingUniqueIndex)
 }

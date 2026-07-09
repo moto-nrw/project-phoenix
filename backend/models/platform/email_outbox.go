@@ -26,7 +26,6 @@ const (
 	EmailKindParentAnnouncement                 = "parent_announcement"
 	EmailKindEnrollmentSubmitted                = "enrollment_submitted"
 	EmailKindEnrollmentAdminNotify              = "enrollment_admin_notification"
-	EmailKindEnrollmentDecisionDigest           = "enrollment_decision_digest"
 	EmailKindEnrollmentApproved                 = "enrollment_approved"
 	EmailKindEnrollmentWaitlisted               = "enrollment_waitlisted"
 	EmailKindEnrollmentRejected                 = "enrollment_rejected"
@@ -64,11 +63,6 @@ type EmailOutbox struct {
 	LastError         *string        `bun:"last_error" json:"last_error,omitempty"`
 	NextRetryAt       time.Time      `bun:"next_retry_at,notnull" json:"next_retry_at"`
 	SentAt            *time.Time     `bun:"sent_at" json:"sent_at,omitempty"`
-}
-
-// TableName returns the schema-qualified table name.
-func (e *EmailOutbox) TableName() string {
-	return "platform.email_outbox"
 }
 
 // Validate enforces the column-level CHECK constraints in app code so we

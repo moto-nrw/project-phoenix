@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func TestAnnouncementService_CreateAnnouncement_NilAnnouncement(t *testing.T) {
@@ -66,7 +68,7 @@ type testAnnouncementMocks struct {
 	viewRepo         *mockAnnouncementViewRepoShared
 	auditLogRepo     *mockAuditLogRepoShared
 	orgRepo          *mockOrgRepoShared
-	schoolRepo       *mockSchoolRepoShared
+	schoolRepo       *testpkg.SchoolRepoMock
 }
 
 func newTestAnnouncementService(overrides func(m *testAnnouncementMocks)) platformSvc.AnnouncementService {
@@ -75,7 +77,14 @@ func newTestAnnouncementService(overrides func(m *testAnnouncementMocks)) platfo
 		viewRepo:         &mockAnnouncementViewRepoShared{},
 		auditLogRepo:     &mockAuditLogRepoShared{},
 		orgRepo:          &mockOrgRepoShared{},
-		schoolRepo:       &mockSchoolRepoShared{},
+		schoolRepo: &testpkg.SchoolRepoMock{
+			// Matches mockSchoolRepoShared's old default: an unconfigured
+			// CountByIDs reports every requested ID as existing, so tests
+			// that only care about org targeting don't need to stub it.
+			CountByIDsFn: func(_ context.Context, ids []int64) (int, error) {
+				return len(ids), nil
+			},
+		},
 	}
 	if overrides != nil {
 		overrides(m)
@@ -278,7 +287,7 @@ func TestAnnouncementService_ValidateTargetingIDs_Errors(t *testing.T) {
 					m.orgRepo.countByIDsFn = tt.orgCountFn
 				}
 				if tt.schoolCountFn != nil {
-					m.schoolRepo.countByIDsFn = tt.schoolCountFn
+					m.schoolRepo.CountByIDsFn = tt.schoolCountFn
 				}
 			})
 			a := validAnnouncement()
@@ -302,7 +311,7 @@ func TestAnnouncementService_ValidateTargetingIDs_Errors(t *testing.T) {
 					m.orgRepo.countByIDsFn = tt.orgCountFn
 				}
 				if tt.schoolCountFn != nil {
-					m.schoolRepo.countByIDsFn = tt.schoolCountFn
+					m.schoolRepo.CountByIDsFn = tt.schoolCountFn
 				}
 			})
 			a := validAnnouncement()
@@ -354,7 +363,7 @@ func TestAnnouncementService_CreateAnnouncement_RejectsSoftDeletedOrgTarget(t *t
 // the school-tenant analogue of the org test above.
 func TestAnnouncementService_CreateAnnouncement_RejectsSoftDeletedSchoolTarget(t *testing.T) {
 	svc := newTestAnnouncementService(func(m *testAnnouncementMocks) {
-		m.schoolRepo.countByIDsFn = func(_ context.Context, ids []int64) (int, error) {
+		m.schoolRepo.CountByIDsFn = func(_ context.Context, ids []int64) (int, error) {
 			assert.Equal(t, []int64{99}, ids)
 			return 0, nil
 		}
@@ -429,7 +438,7 @@ func TestAnnouncementService_UpdateAnnouncement_PreservesHistoricalDeletedSchool
 			existing.CreatedBy = 1
 			return existing, nil
 		}
-		m.schoolRepo.countByIDsFn = func(_ context.Context, ids []int64) (int, error) {
+		m.schoolRepo.CountByIDsFn = func(_ context.Context, ids []int64) (int, error) {
 			countByIDsCalls++
 			t.Errorf("school CountByIDs must not be called for unchanged historical IDs, got ids=%v", ids)
 			return 0, nil
@@ -857,26 +866,6 @@ func TestAnnouncementService_GetViewDetails_AnnouncementNotFound(t *testing.T) {
 	_, err := service.GetViewDetails(ctx, 999)
 	require.Error(t, err)
 	assert.IsType(t, &platformSvc.AnnouncementNotFoundError{}, err)
-}
-
-func TestIsAnnouncementPublished_Nil(t *testing.T) {
-	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	a := &platform.Announcement{}
-	assert.False(t, platformSvc.IsAnnouncementPublished(a, now))
-}
-
-func TestIsAnnouncementPublished_Future(t *testing.T) {
-	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	future := now.Add(24 * time.Hour)
-	a := &platform.Announcement{PublishedAt: &future}
-	assert.False(t, platformSvc.IsAnnouncementPublished(a, now))
-}
-
-func TestIsAnnouncementPublished_Past(t *testing.T) {
-	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
-	past := now.Add(-24 * time.Hour)
-	a := &platform.Announcement{PublishedAt: &past}
-	assert.True(t, platformSvc.IsAnnouncementPublished(a, now))
 }
 
 func TestIsAnnouncementExpired_Nil(t *testing.T) {

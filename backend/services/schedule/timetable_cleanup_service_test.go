@@ -317,7 +317,7 @@ func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
 		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
 		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
 		auditRepoPkg.NewDataDeletionRepository(f.db),
-		&stubSettingsService{hasOverride: true, intVal: 30},
+		newStubSettingsService(true, nil, 30, nil),
 		slog.Default(),
 	)
 

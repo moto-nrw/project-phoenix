@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
 	usersService "github.com/moto-nrw/project-phoenix/services/users"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 var errBoom = errors.New("transient DB failure")
@@ -109,14 +110,14 @@ func (fakePersons) FindByAccountID(context.Context, int64) (*usersModels.Person,
 	return nil, nil
 }
 
-func errSvc(tr usersModels.ParentMessageThreadRepository, mr usersModels.ParentMessageRepository, rr usersModels.ParentMessageReadRepository) messaging.Service {
+func errSvc(tr usersModels.ParentMessageThreadRepository, mr usersModels.ParentMessageRepository, rr usersModels.ParentMessageReadRepository) *messaging.Service {
 	return messaging.NewService(messaging.Config{
 		ThreadRepo:  tr,
 		MessageRepo: mr,
 		ReadRepo:    rr,
 		Persons:     fakePersons{},
 		Settings:    stubSettings{messagingEnabled: true},
-		Broadcaster: &captureBroadcaster{},
+		Broadcaster: testpkg.NewRecordingBroadcaster(),
 		Logger:      slog.Default(),
 	})
 }
@@ -199,12 +200,12 @@ func TestPostMessage_NoBroadcastOnAppendFailure(t *testing.T) {
 	}
 	tr.thread.ID = 5
 	tr.thread.GuardianAccountID = 2
-	bc := &captureBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
 		ThreadRepo: tr, MessageRepo: &fakeMessageRepo{createErr: errBoom}, ReadRepo: &fakeReadRepo{},
 		Persons: fakePersons{}, Settings: stubSettings{messagingEnabled: true}, Broadcaster: bc, Logger: slog.Default(),
 	})
 	_, err := svc.PostMessage(errCtx(), 5, "Hallo")
 	require.Error(t, err)
-	assert.Equal(t, 0, bc.countOf(realtime.EventParentMessage), "a failed append must not broadcast")
+	assert.Equal(t, 0, parentEventCount(bc, realtime.EventParentMessage), "a failed append must not broadcast")
 }

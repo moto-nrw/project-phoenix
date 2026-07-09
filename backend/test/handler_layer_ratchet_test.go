@@ -19,7 +19,7 @@ import (
 // grown past 200 because detection was docs-only. Like the service ratchet
 // above, this test makes every count shrink-only.
 //
-// Four patterns, each with its own per-file allowlist:
+// Five patterns, each with its own per-file allowlist:
 //
 //	R1 — repository-typed declarations (struct fields, constructor params)
 //	     anywhere under api/.
@@ -30,6 +30,11 @@ import (
 //	R3 — query construction (`.NewSelect(` etc., `ExecContext` etc.) under api/.
 //	R4 — imports of database/repositories under api/ (api/base.go and
 //	     api/testutil/ are the sanctioned wiring/testing exceptions).
+//	R5 — test-export handler accessors (Rule 5): niladic methods returning
+//	     http.HandlerFunc under api/. 308 of these wrappers (~611 LOC) were
+//	     deleted in the 2026-07 audit B3 batch; tests drive the resource's
+//	     public Router() instead. Routers register private handlers directly,
+//	     so a method that merely returns one exists only to leak it to tests.
 //
 // Allowlist rules (identical to serviceQueryRatchetAllowlist):
 //
@@ -55,6 +60,13 @@ var (
 
 	// R4: import of the repositories tree (prefix also catches /base).
 	repoImportPattern = regexp.MustCompile(`"github\.com/moto-nrw/project-phoenix/database/repositories`)
+
+	// R5: niladic method returning http.HandlerFunc — the test-export wrapper
+	// shape (`func (rs *X) Name() http.HandlerFunc { return rs.x }`), matched
+	// on its declaration line so one-line and gofmt-split bodies both count.
+	// Deliberately name-agnostic: the audit found 11 wrappers dodging the
+	// `*Handler` suffix.
+	handlerAccessorPattern = regexp.MustCompile(`^func \([^)]+\) \w+\(\) http\.HandlerFunc \{`)
 )
 
 // R1 — repository-typed declarations in api/ (fields + params).
@@ -72,6 +84,10 @@ var apiQueryConstructionAllowlist = map[string]int{}
 // R4 — database/repositories imports in api/ (beyond base.go + testutil).
 // Empty: only the sanctioned wiring exceptions import repositories.
 var apiRepoImportAllowlist = map[string]int{}
+
+// R5 — test-export handler accessors in api/. Emptied by audit B3 (2026-07);
+// tests use the resource's public Router() per backend-conventions.md Rule 5.
+var apiHandlerAccessorAllowlist = map[string]int{}
 
 func TestHandlerLayerRatchet(t *testing.T) {
 	backendRoot, err := findBackendRoot()
@@ -109,6 +125,12 @@ func TestHandlerLayerRatchet(t *testing.T) {
 			scan:      scanAPIRepoImports,
 			allowlist: apiRepoImportAllowlist,
 			fix:       "only api/base.go (wiring) and api/testutil/ may import repositories",
+		},
+		{
+			name:      "R5 test-export handler accessors in api/",
+			scan:      scanAPIHandlerAccessors,
+			allowlist: apiHandlerAccessorAllowlist,
+			fix:       "delete the wrapper and test through the resource's public Router() (Rule 5) — internal-package tests may call the private handler directly",
 		},
 	}
 
@@ -171,6 +193,12 @@ func scanAPIQueryConstruction(backendRoot string) (map[string]int, error) {
 	return scanTree(backendRoot, filepath.Join(backendRoot, "api"), nil, func(line string) int {
 		return len(queryBuilderPattern.FindAllString(line, -1)) +
 			len(driverExecPattern.FindAllString(line, -1))
+	})
+}
+
+func scanAPIHandlerAccessors(backendRoot string) (map[string]int, error) {
+	return scanTree(backendRoot, filepath.Join(backendRoot, "api"), nil, func(line string) int {
+		return len(handlerAccessorPattern.FindAllString(line, -1))
 	})
 }
 

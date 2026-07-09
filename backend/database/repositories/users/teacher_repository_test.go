@@ -562,9 +562,6 @@ func TestTeacherRepository_ListAllWithStaffAndPerson(t *testing.T) {
 	})
 }
 
-// NOTE: FindWithStaff exists in the implementation but is not exposed in the
-// TeacherRepository interface, so it cannot be tested through the interface.
-
 // ============================================================================
 // Filter Tests
 // ============================================================================
@@ -634,47 +631,3 @@ func TestTeacherRepository_ListWithStringFilters(t *testing.T) {
 // ============================================================================
 // UpdateQualifications Tests
 // ============================================================================
-
-func TestTeacherRepository_UpdateQualifications(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).Teacher
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("updates teacher qualifications", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "Update", "Qualifications")
-		defer cleanupTeacherRecords(t, db, teacher.ID)
-
-		newQualifications := "Master of Education, Certified Mathematics Teacher"
-		err := repo.UpdateQualifications(ctx, teacher.ID, newQualifications)
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, teacher.ID)
-		require.NoError(t, err)
-		assert.Equal(t, newQualifications, found.Qualifications)
-	})
-
-	t.Run("clears qualifications with empty string", func(t *testing.T) {
-		teacher := testpkg.CreateTestTeacher(t, db, "Clear", "Qualifications")
-		defer cleanupTeacherRecords(t, db, teacher.ID)
-
-		// Set initial qualifications
-		err := repo.UpdateQualifications(ctx, teacher.ID, "Initial qualifications")
-		require.NoError(t, err)
-
-		// Clear them
-		err = repo.UpdateQualifications(ctx, teacher.ID, "")
-		require.NoError(t, err)
-
-		found, err := repo.FindByID(ctx, teacher.ID)
-		require.NoError(t, err)
-		assert.Empty(t, found.Qualifications)
-	})
-
-	t.Run("handles non-existent teacher gracefully", func(t *testing.T) {
-		err := repo.UpdateQualifications(ctx, int64(999999), "Qualifications")
-		// Should not error (UPDATE affects 0 rows but doesn't fail)
-		require.NoError(t, err)
-	})
-}

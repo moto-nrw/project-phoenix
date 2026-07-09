@@ -31,6 +31,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -117,15 +118,15 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if rs.timetableData == nil || rs.personService == nil {
+	if rs.TimetableData == nil || rs.PersonService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
 
 	// --- 404 checks: both staff must exist in this tenant -----------------
-	absentStaff, err := rs.personService.GetStaffByID(ctx, req.AbsentStaffID)
+	absentStaff, err := rs.PersonService.GetStaffByID(ctx, req.AbsentStaffID)
 	if err != nil {
-		if isNotFoundDBError(err) {
+		if base.IsNoRows(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("absent staff not found")))
 			return
 		}
@@ -136,9 +137,9 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("absent staff not found")))
 		return
 	}
-	subStaff, err := rs.personService.GetStaffByID(ctx, req.SubstituteStaffID)
+	subStaff, err := rs.PersonService.GetStaffByID(ctx, req.SubstituteStaffID)
 	if err != nil {
-		if isNotFoundDBError(err) {
+		if base.IsNoRows(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("substitute staff not found")))
 			return
 		}
@@ -151,7 +152,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// --- Load absent staff's same-day assignments -------------------------
-	origRows, err := rs.timetableData.GetInstanceStaffByStaffAndDate(ctx, req.AbsentStaffID, date)
+	origRows, err := rs.TimetableData.GetInstanceStaffByStaffAndDate(ctx, req.AbsentStaffID, date)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load absent assignments failed", err))
 		return
@@ -182,7 +183,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	plan := make([]plannedOp, 0, len(origRows))
 
 	for _, orig := range origRows {
-		instance, err := rs.timetableData.GetActivityInstance(ctx, orig.InstanceID)
+		instance, err := rs.TimetableData.GetActivityInstance(ctx, orig.InstanceID)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("load target instance failed", err))
 			return
@@ -197,7 +198,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 
 		// All rows of this instance — needed to detect existing substitutes
 		// and co-supervisor cases.
-		allRows, err := rs.timetableData.GetInstanceStaff(ctx, instance.ID)
+		allRows, err := rs.TimetableData.GetInstanceStaff(ctx, instance.ID)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("load instance staff failed", err))
 			return
@@ -244,7 +245,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 			// preserved — the person was independently planned, not a
 			// Vertretung, and reports should preserve that distinction.
 			op.origRow.IsAbsent = true
-			if err := rs.timetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
+			if err := rs.TimetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
 				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
 				return
 			}
@@ -252,7 +253,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 			// create a new supervisor — the substitute (co-supervisor) is
 			// already an active supervisor.
 			if op.instance.Status == scheduleModel.InstanceStatusActive && op.instance.ActiveGroupID != nil {
-				if _, err := rs.timetableData.EndGroupSupervisor(ctx, *op.instance.ActiveGroupID, req.AbsentStaffID); err != nil {
+				if _, err := rs.TimetableData.EndGroupSupervisor(ctx, *op.instance.ActiveGroupID, req.AbsentStaffID); err != nil {
 					common.RenderError(w, r, common.ErrorInternalServerWrap("end absent supervisor failed", err))
 					return
 				}
@@ -261,7 +262,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 
 		case substituteActionSubstituted:
 			op.origRow.IsAbsent = true
-			if err := rs.timetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
+			if err := rs.TimetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
 				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
 				return
 			}
@@ -273,12 +274,12 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 				IsSubstitute: true,
 				IsAbsent:     false,
 			}
-			if err := rs.timetableData.CreateInstanceStaff(ctx, newRow); err != nil {
+			if err := rs.TimetableData.CreateInstanceStaff(ctx, newRow); err != nil {
 				common.RenderError(w, r, common.ErrorInternalServerWrap("create substitute staff row failed", err))
 				return
 			}
 			if op.instance.Status == scheduleModel.InstanceStatusActive && op.instance.ActiveGroupID != nil {
-				if _, err := rs.timetableData.EndGroupSupervisor(ctx, *op.instance.ActiveGroupID, req.AbsentStaffID); err != nil {
+				if _, err := rs.TimetableData.EndGroupSupervisor(ctx, *op.instance.ActiveGroupID, req.AbsentStaffID); err != nil {
 					common.RenderError(w, r, common.ErrorInternalServerWrap("end absent supervisor failed", err))
 					return
 				}
@@ -289,7 +290,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 					StartDate: timezone.DateFromTime(now),
 				}
 				newSup.SetTenantID(tenant.FromContext(ctx))
-				if err := rs.timetableData.CreateGroupSupervisor(ctx, newSup); err != nil {
+				if err := rs.TimetableData.CreateGroupSupervisor(ctx, newSup); err != nil {
 					common.RenderError(w, r, common.ErrorInternalServerWrap("create substitute supervisor failed", err))
 					return
 				}
@@ -403,7 +404,7 @@ func (rs *Resource) buildSubstituteTimeConflicts(
 	if len(plan) == 0 {
 		return nil, nil
 	}
-	subRows, err := rs.timetableData.GetInstanceStaffByStaffAndDate(ctx, subID, date)
+	subRows, err := rs.TimetableData.GetInstanceStaffByStaffAndDate(ctx, subID, date)
 	if err != nil {
 		return nil, err
 	}
@@ -428,7 +429,7 @@ func (rs *Resource) buildSubstituteTimeConflicts(
 	}
 	foreigns := make([]scheduleSvc.SubstituteConflictInstance, 0, len(foreignIDs))
 	for _, fid := range foreignIDs {
-		inst, err := rs.timetableData.GetActivityInstance(ctx, fid)
+		inst, err := rs.TimetableData.GetActivityInstance(ctx, fid)
 		if err != nil {
 			return nil, err
 		}
@@ -471,7 +472,7 @@ func (rs *Resource) broadcastSubstituteEvents(
 	ctx context.Context,
 	touched map[int64]*scheduleModel.ActivityInstance,
 ) {
-	if rs.broadcaster == nil || len(touched) == 0 {
+	if rs.Broadcaster == nil || len(touched) == 0 {
 		return
 	}
 	tenantID := tenant.FromContext(ctx)
@@ -487,7 +488,7 @@ func (rs *Resource) broadcastSubstituteEvents(
 		}
 		event := realtime.NewEvent(realtime.EventActivityUpdate, activeGroupIDStr, data)
 		tenant.RegisterAfterCommit(ctx, func() {
-			if err := rs.broadcaster.BroadcastToGroup(tenantID, activeGroupIDStr, event); err != nil {
+			if err := rs.Broadcaster.BroadcastToGroup(tenantID, activeGroupIDStr, event); err != nil {
 				rs.getLogger().Warn("SSE substitute broadcast failed",
 					slog.String("active_group_id", activeGroupIDStr),
 					slog.String("error", err.Error()),

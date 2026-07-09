@@ -42,9 +42,7 @@ func (r *AttendanceRepository) FindByStudentAndDate(ctx context.Context, student
 		Where(`"attendance".student_id = ? AND "attendance".date = ?`, studentID, date).
 		Order(`check_in_time ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "attendance")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -71,9 +69,7 @@ func (r *AttendanceRepository) FindByStudentAndDateRange(ctx context.Context, st
 		OrderExpr(`"attendance".date DESC`).
 		OrderExpr(`"attendance".check_in_time DESC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "attendance")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -96,9 +92,7 @@ func (r *AttendanceRepository) FindLatestByStudent(ctx context.Context, studentI
 		OrderExpr(`"attendance".check_in_time DESC`).
 		Limit(1)
 
-	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "attendance")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -123,9 +117,7 @@ func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, stud
 		Order(`check_in_time DESC`).
 		Limit(1)
 
-	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "attendance")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -136,16 +128,6 @@ func (r *AttendanceRepository) GetStudentCurrentStatus(ctx context.Context, stud
 	}
 
 	return attendance, nil
-}
-
-// Create overrides base Create to handle validation
-func (r *AttendanceRepository) Create(ctx context.Context, attendance *active.Attendance) error {
-	if attendance == nil {
-		return fmt.Errorf("attendance cannot be nil")
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, attendance)
 }
 
 // CreateIfNoOpenForToday inserts the attendance row, deferring to the partial
@@ -229,16 +211,6 @@ func (r *AttendanceRepository) CloseOpenForToday(ctx context.Context, studentID 
 	return row, nil
 }
 
-// Update overrides base Update to handle validation
-func (r *AttendanceRepository) Update(ctx context.Context, attendance *active.Attendance) error {
-	if attendance == nil {
-		return fmt.Errorf("attendance cannot be nil")
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, attendance)
-}
-
 // FindByID overrides base FindByID to match the interface signature
 func (r *AttendanceRepository) FindByID(ctx context.Context, id int64) (*active.Attendance, error) {
 	// Use the base FindByID method with interface{} conversion
@@ -302,9 +274,7 @@ func (r *AttendanceRepository) getTodayByStudentIDs(ctx context.Context, student
 		query = query.For("UPDATE")
 	}
 
-	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "attendance")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -335,9 +305,7 @@ func (r *AttendanceRepository) FindForDate(ctx context.Context, date timezone.Da
 		OrderExpr(`"attendance".student_id ASC`).
 		OrderExpr(`"attendance".check_in_time ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "attendance")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -362,9 +330,7 @@ func (r *AttendanceRepository) ListOpenStudentIDsForDate(ctx context.Context, da
 		Where(`"attendance".check_out_time IS NULL`).
 		OrderExpr(`"attendance".student_id ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "attendance")
 
 	if err := query.Scan(ctx, &ids); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -382,9 +348,7 @@ func (r *AttendanceRepository) CountByStaffID(ctx context.Context, staffID int64
 		TableExpr(`active.attendance AS "attendance"`).
 		Where(`"attendance".checked_in_by = ? OR "attendance".checked_out_by = ?`, staffID, staffID)
 
-	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "attendance")
 
 	count, err := query.Count(ctx)
 	if err != nil {
@@ -409,9 +373,7 @@ func (r *AttendanceRepository) FindStaleOpen(ctx context.Context, before timezon
 		Where(`"attendance".date < ?`, before).
 		Where(`"attendance".check_out_time IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "attendance"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "attendance")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{

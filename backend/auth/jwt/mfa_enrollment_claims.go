@@ -2,7 +2,6 @@ package jwt
 
 import (
 	"errors"
-	"fmt"
 	"time"
 )
 
@@ -62,36 +61,21 @@ type MFAEnrollmentClaims struct {
 // front means a future bug in CreateMFA*JWT can't accidentally produce
 // a JWT both parsers accept. (#1430 review item #8)
 func (c *MFAEnrollmentClaims) ParseClaims(claims map[string]any) error {
-	if getOptionalBool(claims, "mfa_pending") {
-		return errors.New("token is a pending-MFA challenge, not an enrollment token")
+	accountID, tenantID, scope, err := parseMFAPendingClaims(claims, mfaPendingClaimsSpec{
+		foreignFlagKey: "mfa_pending",
+		foreignFlagErr: "token is a pending-MFA challenge, not an enrollment token",
+		scopeTenant:    MFAEnrollmentScopeTenant,
+		scopePlatform:  MFAEnrollmentScopePlatform,
+		pendingFlagKey: "mfa_enrollment_pending",
+		notPendingErr:  "token is not a pending-MFA-enrollment token",
+	}, &c.CommonClaims)
+	if err != nil {
+		return err
 	}
-
-	c.AccountID = getOptionalInt64(claims, "account_id")
-	if c.AccountID == 0 {
-		return errors.New("missing required claim: account_id")
-	}
-
-	c.Scope = getOptionalString(claims, "scope")
-	if c.Scope != MFAEnrollmentScopeTenant && c.Scope != MFAEnrollmentScopePlatform {
-		return fmt.Errorf("invalid scope claim: %q", c.Scope)
-	}
-
-	c.TenantID = getOptionalInt64(claims, "tenant_id")
-	c.MFAEnrollmentPending = getOptionalBool(claims, "mfa_enrollment_pending")
-	if !c.MFAEnrollmentPending {
-		return errors.New("token is not a pending-MFA-enrollment token")
-	}
-
-	if exp, ok := claims["exp"]; ok {
-		switch v := exp.(type) {
-		case float64:
-			c.ExpiresAt = int64(v)
-		case int64:
-			c.ExpiresAt = v
-		case time.Time:
-			c.ExpiresAt = v.Unix()
-		}
-	}
+	c.AccountID = accountID
+	c.TenantID = tenantID
+	c.Scope = scope
+	c.MFAEnrollmentPending = true
 	return nil
 }
 

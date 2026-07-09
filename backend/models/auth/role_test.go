@@ -166,12 +166,6 @@ func TestRole_Validate_BaseRole(t *testing.T) {
 	})
 }
 
-// Note: the role permission membership check and the add/remove permission
-// mutations (formerly Role.HasPermission / Role.AddPermission /
-// Role.RemovePermission) moved out of the model in issue #586 (Rule 12). Their
-// tests follow the logic to:
-//   - auth/authorize/role_permission_test.go
-
 func TestRole_IsSystemFlag(t *testing.T) {
 	t.Run("default is false", func(t *testing.T) {
 		role := &Role{
@@ -191,34 +185,6 @@ func TestRole_IsSystemFlag(t *testing.T) {
 
 		if role.IsSystem != true {
 			t.Error("Role.IsSystem should be true when set")
-		}
-	})
-}
-
-func TestRole_TableName(t *testing.T) {
-	role := &Role{}
-	if got := role.TableName(); got != "auth.roles" {
-		t.Errorf("TableName() = %v, want auth.roles", got)
-	}
-}
-
-func TestRole_BeforeAppendModel(t *testing.T) {
-	// BeforeAppendModel modifies query table expressions for different query types
-	// It doesn't set timestamps - those are handled by the base model or repository
-
-	t.Run("handles nil query", func(t *testing.T) {
-		role := &Role{Name: "test"}
-		err := role.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		role := &Role{Name: "test"}
-		err := role.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
 		}
 	})
 }

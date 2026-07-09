@@ -84,14 +84,13 @@ func setupSchulhofService(t *testing.T, db *bun.DB) facilitiesSvc.SchulhofServic
 	)
 
 	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
-		PersonRepo:         repoFactory.Person,
-		RFIDRepo:           repoFactory.RFIDCard,
-		AccountRepo:        repoFactory.Account,
-		PersonGuardianRepo: repoFactory.PersonGuardian,
-		StudentRepo:        repoFactory.Student,
-		StaffRepo:          repoFactory.Staff,
-		TeacherRepo:        repoFactory.Teacher,
-		DB:                 db,
+		PersonRepo:  repoFactory.Person,
+		RFIDRepo:    repoFactory.RFIDCard,
+		AccountRepo: repoFactory.Account,
+		StudentRepo: repoFactory.Student,
+		StaffRepo:   repoFactory.Staff,
+		TeacherRepo: repoFactory.Teacher,
+		DB:          db,
 	})
 
 	activeService := activeSvc.NewService(activeSvc.ServiceDependencies{
@@ -726,14 +725,13 @@ func TestSchulhofService_GetOrCreateActiveGroup_IgnoresEndedGroups(t *testing.T)
 	)
 
 	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
-		PersonRepo:         repoFactory.Person,
-		RFIDRepo:           repoFactory.RFIDCard,
-		AccountRepo:        repoFactory.Account,
-		PersonGuardianRepo: repoFactory.PersonGuardian,
-		StudentRepo:        repoFactory.Student,
-		StaffRepo:          repoFactory.Staff,
-		TeacherRepo:        repoFactory.Teacher,
-		DB:                 db,
+		PersonRepo:  repoFactory.Person,
+		RFIDRepo:    repoFactory.RFIDCard,
+		AccountRepo: repoFactory.Account,
+		StudentRepo: repoFactory.Student,
+		StaffRepo:   repoFactory.Staff,
+		TeacherRepo: repoFactory.Teacher,
+		DB:          db,
 	})
 
 	activeService := activeSvc.NewService(activeSvc.ServiceDependencies{
@@ -915,7 +913,7 @@ func TestSchulhofService_GetOrCreateActiveGroup_EndsStaleGroups(t *testing.T) {
 	)
 	usersService := usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{
 		PersonRepo: repoFactory.Person, RFIDRepo: repoFactory.RFIDCard,
-		AccountRepo: repoFactory.Account, PersonGuardianRepo: repoFactory.PersonGuardian,
+		AccountRepo: repoFactory.Account,
 		StudentRepo: repoFactory.Student, StaffRepo: repoFactory.Staff,
 		TeacherRepo: repoFactory.Teacher, DB: db,
 	})

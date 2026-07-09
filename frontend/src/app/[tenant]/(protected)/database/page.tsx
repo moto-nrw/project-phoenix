@@ -7,11 +7,10 @@ const logger = createLogger({ component: "DatabasePage" });
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { Suspense, useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 
-import { Loading } from "~/components/ui/loading";
 import { useNFCEnabled } from "~/lib/tenant-context";
 // Icon component
 const Icon: React.FC<{ path: string; className?: string }> = ({
@@ -100,7 +99,7 @@ const baseDataSections = [
 const NFC_ONLY_SECTION_IDS = new Set(["activities", "devices"]);
 
 function DatabaseContent() {
-  const { data: session, status } = useSession({ required: true });
+  const { data: session } = useSession();
   const isMobile = useIsMobile();
   const nfcEnabled = useNFCEnabled();
   const [counts, setCounts] = useState<{
@@ -243,10 +242,6 @@ function DatabaseContent() {
     }
   }, [session]);
 
-  if (status === "loading") {
-    return <Loading fullPage={false} />;
-  }
-
   if (!session?.user) {
     redirect("/");
   }
@@ -332,9 +327,5 @@ function DatabaseContent() {
 }
 
 export default function DatabasePage() {
-  return (
-    <Suspense fallback={<Loading fullPage={false} />}>
-      <DatabaseContent />
-    </Suspense>
-  );
+  return <DatabaseContent />;
 }

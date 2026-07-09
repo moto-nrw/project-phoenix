@@ -94,6 +94,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		// enrollment.phases - they're no longer tenant-wide settings.
 		"enrollment.enabled",
 		"enrollment.collect_grade_level",
+		"enrollment.collect_school_class",
 		"enrollment.care_offerings_enabled",
 		"enrollment.default_activation_mode",
 		"enrollment.notification_emails",
@@ -132,6 +133,8 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"reminders.activity_start_enabled",
 		"reminders.activity_start_lead_minutes",
 		"reminders.activity_overdue_enabled",
+		// Info-point display feature (issue #1325): opt-in toggle, default off.
+		"display.enabled",
 	}
 
 	for _, key := range expectedKeys {
@@ -159,6 +162,16 @@ func TestPresenceModeSetting(t *testing.T) {
 	values := []any{def.Options.Static[0].Value, def.Options.Static[1].Value}
 	assert.Contains(t, values, config.PresenceModeDetailed)
 	assert.Contains(t, values, config.PresenceModeBinary)
+}
+
+func TestDisplayEnabledSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyDisplayEnabled)
+	require.NotNil(t, def, "display.enabled should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "info-point dashboard must be opt-in")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy, "tenant admins and operators can both enable it")
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Equal(t, "operations", def.Tab)
 }
 
 func TestGuardianRelatedAccountsSettings(t *testing.T) {
@@ -559,6 +572,7 @@ func TestEnrollmentSettings_AllRegistered_OnEnrollmentTab(t *testing.T) {
 	enrollmentTabKeys := []string{
 		config.KeyEnrollmentEnabled,
 		config.KeyEnrollmentCollectGradeLevel,
+		config.KeyEnrollmentCollectSchoolClass,
 		config.KeyEnrollmentCareOfferingsEnabled,
 		config.KeyEnrollmentDefaultActivationMode,
 		config.KeyEnrollmentNotificationEmails,

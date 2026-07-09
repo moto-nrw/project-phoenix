@@ -55,10 +55,7 @@ import {
   StudentAbsenceRow,
   StudentPendingExcusedRow,
 } from "~/components/students/student-card";
-import {
-  StudentCardGridSkeleton,
-  StudentCardPageSkeleton,
-} from "~/components/students/student-card-skeleton";
+import { StudentCardGridSkeleton } from "~/components/students/student-card-skeleton";
 import { SchoolCheckinFab } from "~/components/students/school-checkin-fab";
 import { SchoolCheckinModeMobile } from "~/components/students/school-checkin-mode-mobile";
 import {
@@ -85,18 +82,9 @@ import {
 } from "~/lib/day-planning-helper";
 
 import { createLogger } from "~/lib/logger";
+import { OgsGroupsPageSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "OgsGroupsPage" });
-
-// Page-shell skeleton for the OGS-groups gate/Suspense states.
-function OgsGroupsPageSkeleton() {
-  return (
-    <StudentCardPageSkeleton
-      label="Gruppe wird geladen"
-      testId="ogs-groups-skeleton"
-    />
-  );
-}
 
 // Backend pickup time response (from BFF)
 interface BackendPickupTime {
@@ -249,7 +237,7 @@ function GroupAbsenceOverview({
 function OGSGroupPageContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
-  const { data: session, status } = useSession({
+  const { data: session } = useSession({
     required: true,
     onUnauthenticated() {
       router.push("/");
@@ -1185,7 +1173,7 @@ function OGSGroupPageContent() {
     return filters;
   }, [sortMode, searchTerm, attendanceFilter]);
 
-  if (status === "loading" || isLoading || hasAccess === null) {
+  if (isLoading || hasAccess === null) {
     return <OgsGroupsPageSkeleton />;
   }
 

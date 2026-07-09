@@ -137,6 +137,7 @@ describe("tenant-api", () => {
         studentPhotosEnabled: false,
         nfcEnabled: false,
         messagingEnabled: false,
+        displayEnabled: false,
       });
     });
 
@@ -204,6 +205,30 @@ describe("tenant-api", () => {
       );
       const result = await resolveTenant("nfc-school");
       expect(result?.nfcEnabled).toBe(true);
+    });
+
+    it("passes through displayEnabled=true when the backend advertises it", async () => {
+      const backendData = {
+        status: "success",
+        data: {
+          tenant_id: 3,
+          slug: "display-school",
+          name: "Display School",
+          subdomain: "display",
+          organization_id: 12,
+          organization_name: "Org C",
+          settings: {},
+          display_enabled: true,
+        },
+      };
+      vi.mocked(global.fetch).mockResolvedValueOnce(
+        new Response(JSON.stringify(backendData), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+      const result = await resolveTenant("display-school");
+      expect(result?.displayEnabled).toBe(true);
     });
 
     it("maps hidden tenants from resolve response", async () => {
@@ -334,6 +359,7 @@ describe("tenant-api", () => {
         studentPhotosEnabled: false,
         nfcEnabled: false,
         messagingEnabled: false,
+        displayEnabled: false,
       });
     });
 
@@ -455,6 +481,7 @@ describe("tenant-api", () => {
         studentPhotosEnabled: false,
         nfcEnabled: false,
         messagingEnabled: false,
+        displayEnabled: false,
       });
     });
 

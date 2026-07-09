@@ -236,48 +236,6 @@ func TestGuardianInvitationRepository_FindPending(t *testing.T) {
 	})
 }
 
-func TestGuardianInvitationRepository_FindExpired(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds expired invitations", func(t *testing.T) {
-		guardian := testpkg.CreateTestGuardianProfile(t, db, "FindExpired")
-		defer testpkg.CleanupActivityFixtures(t, db, guardian.ID)
-
-		// Create an expired invitation - bypass validation by inserting directly
-		token := uuid.Must(uuid.NewV4()).String()
-		expiredInvitation := &auth.GuardianInvitation{
-			GuardianProfileID: guardian.ID,
-			Token:             token,
-			ExpiresAt:         time.Now().Add(-1 * time.Hour), // Expired 1 hour ago
-			CreatedBy:         1,
-		}
-		expiredInvitation.SetTenantID(1)
-		_, err := db.NewInsert().
-			Model(expiredInvitation).
-			ModelTableExpr(`auth.guardian_invitations`).
-			Exec(ctx)
-		require.NoError(t, err)
-
-		// Find the created invitation
-		var created auth.GuardianInvitation
-		err = db.NewSelect().
-			Model(&created).
-			ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
-			Where(`"guardian_invitation".token = ?`, token).
-			Scan(ctx)
-		require.NoError(t, err)
-		defer testpkg.CleanupTableRecords(t, db, "auth.guardian_invitations", created.ID)
-
-		expired, err := repo.FindExpired(ctx)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(expired), 1)
-	})
-}
-
 func TestGuardianInvitationRepository_MarkAsAccepted(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -422,19 +380,5 @@ func TestGuardianInvitationRepository_DeleteExpired(t *testing.T) {
 		// Verify deleted
 		_, err = repo.FindByID(ctx, created.ID)
 		require.Error(t, err)
-	})
-}
-
-func TestGuardianInvitationRepository_Count(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).GuardianInvitation
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("counts invitations", func(t *testing.T) {
-		count, err := repo.Count(ctx)
-		require.NoError(t, err)
-		assert.GreaterOrEqual(t, count, 0)
 	})
 }

@@ -1,6 +1,7 @@
 package realtime
 
 import (
+	"cmp"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -58,10 +59,7 @@ type Hub struct {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (h *Hub) getLogger() *slog.Logger {
-	if h.logger != nil {
-		return h.logger
-	}
-	return slog.Default()
+	return cmp.Or(h.logger, slog.Default())
 }
 
 // NewHub creates a new SSE hub

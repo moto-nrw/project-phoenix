@@ -19,19 +19,20 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// --- normalizeSickReason (pure) ---
+// --- sick reason normalization (pure) ---
 
 func TestNormalizeSickReason(t *testing.T) {
-	assert.Nil(t, normalizeSickReason(nil), "nil stays nil")
+	assert.Nil(t, strutil.TrimPtrToNil(nil), "nil stays nil")
 
 	blank := "   "
-	assert.Nil(t, normalizeSickReason(&blank), "blank trims to nil")
+	assert.Nil(t, strutil.TrimPtrToNil(&blank), "blank trims to nil")
 
 	raw := "  Fieber, beim Arzt  "
-	got := normalizeSickReason(&raw)
+	got := strutil.TrimPtrToNil(&raw)
 	require.NotNil(t, got)
 	assert.Equal(t, "Fieber, beim Arzt", *got, "non-blank is trimmed")
 }

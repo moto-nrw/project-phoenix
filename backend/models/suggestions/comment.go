@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Author type constants
@@ -14,9 +13,6 @@ const (
 	AuthorTypeOperator = "operator"
 	AuthorTypeUser     = "user"
 )
-
-// tableSuggestionsComments is the schema-qualified table name
-const tableSuggestionsComments = "suggestions.comments"
 
 // Comment represents a comment on a suggestion post
 type Comment struct {
@@ -30,21 +26,6 @@ type Comment struct {
 
 	// Resolved at query time, not stored
 	AuthorName string `bun:"author_name,scanonly" json:"author_name,omitempty"`
-}
-
-func (c *Comment) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableSuggestionsComments)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableSuggestionsComments)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (c *Comment) TableName() string {
-	return tableSuggestionsComments
 }
 
 // Validate ensures comment data is valid
@@ -72,19 +53,4 @@ func (c *Comment) Validate() error {
 // isValidAuthorType checks if an author type string is valid
 func isValidAuthorType(authorType string) bool {
 	return authorType == AuthorTypeOperator || authorType == AuthorTypeUser
-}
-
-// GetID returns the entity's ID
-func (c *Comment) GetID() any {
-	return c.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (c *Comment) GetCreatedAt() time.Time {
-	return c.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (c *Comment) GetUpdatedAt() time.Time {
-	return c.UpdatedAt
 }

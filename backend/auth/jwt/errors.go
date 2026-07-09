@@ -9,10 +9,9 @@ import (
 
 // The list of jwt token errors presented to the end user.
 var (
-	ErrTokenUnauthorized   = errors.New("token unauthorized")
-	ErrTokenExpired        = errors.New("token expired")
-	ErrInvalidAccessToken  = errors.New("invalid access token")
-	ErrInvalidRefreshToken = errors.New("invalid refresh token")
+	ErrTokenUnauthorized  = errors.New("token unauthorized")
+	ErrTokenExpired       = errors.New("token expired")
+	ErrInvalidAccessToken = errors.New("invalid access token")
 )
 
 // ErrResponse renderer type for handling all sorts of errors.

@@ -73,14 +73,9 @@ func TestListActivities_ExcludesSystemActivitiesByDefault(t *testing.T) {
 
 	markGroupAsSystem(t, ctx.db, system.ID)
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/activities", ctx.resource.ListActivitiesHandler())
-
 	t.Run("default_excludes_system", func(t *testing.T) {
-		req := testutil.NewAuthenticatedRequest(t, "GET", "/activities", nil,
-			testutil.WithClaims(testutil.DefaultTestClaims()),
-		)
-		rr := testutil.ExecuteRequest(router, req)
+		req := testutil.NewRequest("GET", "/activities", nil)
+		rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 		ids := responseIDs(t, rr.Body.Bytes())
@@ -89,10 +84,8 @@ func TestListActivities_ExcludesSystemActivitiesByDefault(t *testing.T) {
 	})
 
 	t.Run("include_system_returns_system", func(t *testing.T) {
-		req := testutil.NewAuthenticatedRequest(t, "GET", "/activities?include_system=true", nil,
-			testutil.WithClaims(testutil.DefaultTestClaims()),
-		)
-		rr := testutil.ExecuteRequest(router, req)
+		req := testutil.NewRequest("GET", "/activities?include_system=true", nil)
+		rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 		ids := responseIDs(t, rr.Body.Bytes())
@@ -112,14 +105,9 @@ func TestListCategories_ExcludesSystemCategoriesByDefault(t *testing.T) {
 
 	markCategoryAsSystem(t, ctx.db, system.ID)
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/activities/categories", ctx.resource.ListCategoriesHandler())
-
 	t.Run("default_excludes_system", func(t *testing.T) {
-		req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/categories", nil,
-			testutil.WithClaims(testutil.DefaultTestClaims()),
-		)
-		rr := testutil.ExecuteRequest(router, req)
+		req := testutil.NewRequest("GET", "/activities/categories", nil)
+		rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 		ids := responseIDs(t, rr.Body.Bytes())
@@ -128,10 +116,8 @@ func TestListCategories_ExcludesSystemCategoriesByDefault(t *testing.T) {
 	})
 
 	t.Run("include_system_returns_system", func(t *testing.T) {
-		req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/categories?include_system=true", nil,
-			testutil.WithClaims(testutil.DefaultTestClaims()),
-		)
-		rr := testutil.ExecuteRequest(router, req)
+		req := testutil.NewRequest("GET", "/activities/categories?include_system=true", nil)
+		rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 		testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 		ids := responseIDs(t, rr.Body.Bytes())
@@ -166,13 +152,8 @@ func TestGetAvailableActivities_ExcludesSystemActivities(t *testing.T) {
 	}
 	markGroupAsSystem(t, ctx.db, system.ID)
 
-	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/activities/students/{studentId}/available", ctx.resource.GetAvailableActivitiesHandler())
-
-	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/activities/students/%d/available", student.ID), nil,
-		testutil.WithClaims(testutil.DefaultTestClaims()),
-	)
-	rr := testutil.ExecuteRequest(router, req)
+	req := testutil.NewRequest("GET", fmt.Sprintf("/activities/students/%d/available", student.ID), nil)
+	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 
 	ids := responseIDs(t, rr.Body.Bytes())

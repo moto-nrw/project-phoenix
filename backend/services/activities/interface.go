@@ -20,8 +20,6 @@ type ActivityService interface {
 	// Category operations
 	CreateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error)
 	GetCategory(ctx context.Context, id int64) (*activities.Category, error)
-	UpdateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error)
-	DeleteCategory(ctx context.Context, id int64) error
 	ListCategories(ctx context.Context) ([]*activities.Category, error)
 
 	// Activity Group operations
@@ -53,7 +51,6 @@ type ActivityService interface {
 	DeleteSupervisor(ctx context.Context, id int64) error
 	SetPrimarySupervisor(ctx context.Context, id int64) error
 	UpdateSupervisor(ctx context.Context, supervisor *activities.SupervisorPlanned) (*activities.SupervisorPlanned, error)
-	GetStaffAssignments(ctx context.Context, staffID int64) ([]*activities.SupervisorPlanned, error)
 	UpdateGroupSupervisors(ctx context.Context, groupID int64, staffIDs []int64) error
 
 	// Enrollment operations
@@ -64,18 +61,10 @@ type ActivityService interface {
 	GetStudentEnrollments(ctx context.Context, studentID int64) ([]*activities.Group, error)
 	GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, studentIDs []int64, onDate timezone.Date) (map[int64][]*activities.Group, error)
 	GetAvailableGroups(ctx context.Context, studentID int64) ([]*activities.Group, error)
-	UpdateAttendanceStatus(ctx context.Context, enrollmentID int64, status *string) error
-	CanStudentJoinGroup(group *activities.Group, currentEnrollmentCount int) bool
-	GetEnrollmentsByDate(ctx context.Context, date timezone.Date) ([]*activities.StudentEnrollment, error)
-	GetEnrollmentHistory(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*activities.StudentEnrollment, error)
 
 	// Public operations
-	GetPublicGroups(ctx context.Context, categoryID *int64) ([]*activities.Group, map[int64]int, error)
-	GetPublicCategories(ctx context.Context) ([]*activities.Category, error)
-	GetOpenGroups(ctx context.Context) ([]*activities.Group, error)
 
 	// Device operations for RFID teacher selection
-	GetTeacherTodaysActivities(ctx context.Context, staffID int64) ([]*activities.Group, error)
 
 	// ListGroupsWithOccupancy returns all activity groups with their active session status
 	ListGroupsWithOccupancy(ctx context.Context) ([]ActivityGroupWithOccupancy, error)

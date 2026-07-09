@@ -85,11 +85,6 @@ type CareOffering struct {
 	CountsAsCareSet           bool    `bun:"-" json:"-"`
 }
 
-// TableName returns the schema-qualified table name.
-func (c *CareOffering) TableName() string {
-	return "enrollment.care_offerings"
-}
-
 // Validate enforces the column-level CHECK constraints in app code so
 // we fail fast before the round-trip. Service / application windows
 // moved to the owning Phase; this struct only owns offering-level
@@ -220,10 +215,6 @@ type RequestChildOffering struct {
 	Notes                 *string  `bun:"notes" json:"notes,omitempty"`
 }
 
-func (r *RequestChildOffering) TableName() string {
-	return "enrollment.request_child_offerings"
-}
-
 // CareOfferingAutoTrigger links a target offering to one source offering
 // that should cause it to be selected automatically.
 type CareOfferingAutoTrigger struct {
@@ -231,10 +222,6 @@ type CareOfferingAutoTrigger struct {
 	base.TenantModel
 	TargetCareOfferingID  int64 `bun:"target_care_offering_id,notnull" json:"target_care_offering_id"`
 	TriggerCareOfferingID int64 `bun:"trigger_care_offering_id,notnull" json:"trigger_care_offering_id"`
-}
-
-func (c *CareOfferingAutoTrigger) TableName() string {
-	return "enrollment.care_offering_auto_triggers"
 }
 
 // RequestChildOfferingRepository is the contract PR 7's submission

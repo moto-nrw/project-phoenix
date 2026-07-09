@@ -72,8 +72,8 @@ func legalBlocksValue(value []enrollmentModels.FormLegalBlock) []enrollmentModel
 
 // PublishSchemaRequest is the wire shape POST /schema accepts. When
 // Name is set, the handler routes to CreateSchema (new named schema);
-// when empty it falls back to PublishVersion (legacy single-schema
-// flow that writes the row under the default name).
+// when empty it falls back to updating/creating the default
+// "Standardformular" schema (legacy single-schema flow).
 type PublishSchemaRequest struct {
 	Name             string                             `json:"name"`
 	Fields           []enrollmentModels.FormField       `json:"fields"`
@@ -247,9 +247,8 @@ func (rs *Resource) listPublicActiveSchema(w http.ResponseWriter, r *http.Reques
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
 		return
 	}
-	phaseID, err := strconv.ParseInt(chi.URLParam(r, "phaseId"), 10, 64)
-	if err != nil || phaseID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phaseId is required")))
+	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "phaseId", "phaseId is required")
+	if !ok {
 		return
 	}
 
@@ -425,8 +424,9 @@ func (rs *Resource) getSchemaByID(w http.ResponseWriter, r *http.Request) {
 
 // publishSchema creates a schema. When the request body carries a
 // name, this routes to CreateSchema (new named schema, version 1).
-// When the name is omitted, it falls back to PublishVersion for
-// backward compatibility with the original single-schema flow.
+// When the name is omitted, it updates the active schema (or creates
+// the default "Standardformular" one) for backward compatibility with
+// the original single-schema flow.
 func (rs *Resource) publishSchema(w http.ResponseWriter, r *http.Request) {
 	if rs.FormSchemaService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("form schema service not configured")))
@@ -530,9 +530,8 @@ func (rs *Resource) updateSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid schema id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid schema id")
+	if !ok {
 		return
 	}
 
@@ -620,9 +619,8 @@ func (rs *Resource) renameSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid schema id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid schema id")
+	if !ok {
 		return
 	}
 
@@ -662,13 +660,12 @@ func (rs *Resource) deleteSchema(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid schema id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid schema id")
+	if !ok {
 		return
 	}
 
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		return rs.FormSchemaService.DeleteSchema(ctx, id)
 	})
 	if err != nil {

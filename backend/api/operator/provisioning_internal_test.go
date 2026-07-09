@@ -16,6 +16,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/seedtoken"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
@@ -440,7 +441,7 @@ func TestProvisioningResource_InviteSchoolAdmin(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "http://localhost/operator/schools/12/invite-admin", bytes.NewBufferString(`{"email":" PRINCIPAL@example.com ","first_name":" Ada ","last_name":" Lovelace ","position":" Principal ","caregiver_enabled":true}`))
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set(seedTokenHeader, "true")
+	req.Header.Set(seedtoken.Header, "true")
 	req.RemoteAddr = "203.0.113.5:9999"
 	req = withOperatorClaims(req, 42)
 	routeCtx := chi.NewRouteContext()
@@ -506,7 +507,7 @@ func TestProvisioningHelpers(t *testing.T) {
 	viper.Set("app_env", "development")
 	req := httptest.NewRequest(http.MethodPost, "http://localhost/", nil)
 	assert.False(t, shouldExposeSeedInvitationToken(req))
-	req.Header.Set(seedTokenHeader, "true")
+	req.Header.Set(seedtoken.Header, "true")
 	assert.True(t, shouldExposeSeedInvitationToken(req))
 	viper.Set("app_env", "production")
 	assert.False(t, shouldExposeSeedInvitationToken(req))
@@ -517,7 +518,7 @@ func TestProvisioningHelpers(t *testing.T) {
 
 	viper.Set("app_env", "development")
 	publicReq := httptest.NewRequest(http.MethodPost, "https://api-staging.moto-app.de/", nil)
-	publicReq.Header.Set(seedTokenHeader, "true")
+	publicReq.Header.Set(seedtoken.Header, "true")
 	assert.False(t, shouldExposeSeedInvitationToken(publicReq))
 }
 
@@ -1740,9 +1741,6 @@ func ptrInt64(v int64) *int64    { return &v }
 func ptrString(v string) *string { return &v }
 
 var _ platformSvc.OperatorProvisioningService = (*mockProvisioningService)(nil)
-var _ interface{ WithTx(bun.Tx) interface{} } = (*mockProvisioningService)(nil)
-
-func (m *mockProvisioningService) WithTx(_ bun.Tx) interface{} { return m }
 
 // --- SoftDeleteSchool handler tests ---
 

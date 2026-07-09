@@ -51,12 +51,12 @@ func (s excusedApprovalSettings) ResolveStringForTenant(_ context.Context, _ int
 // buildExcusedServices wires a parent service with the excused-request service
 // attached and the approval gate set as requested. Returns both so tests can
 // drive the parent submit path and the staff decide path.
-func buildExcusedServices(t *testing.T, requiresApproval bool) (parentService.Service, absenceSvc.ExcusedAbsenceRequestService, *captureBroadcaster, *bun.DB) {
+func buildExcusedServices(t *testing.T, requiresApproval bool) (parentService.Service, absenceSvc.ExcusedAbsenceRequestService, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
-	bc := &captureBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	excused := absenceSvc.NewExcusedAbsenceRequestService(
 		repos.ExcusedAbsenceRequest,
 		repos.StudentStatusDay,

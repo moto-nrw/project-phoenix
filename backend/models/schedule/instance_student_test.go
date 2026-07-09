@@ -7,7 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func TestInstanceStudent_Validate(t *testing.T) {
@@ -109,17 +108,6 @@ func TestIsValidAttendanceSubstatus(t *testing.T) {
 	}
 	assert.False(t, IsValidAttendanceSubstatus(""))
 	assert.False(t, IsValidAttendanceSubstatus("unknown"))
-}
-
-func TestInstanceStudent_TableName(t *testing.T) {
-	assert.Equal(t, "schedule.instance_students", (&InstanceStudent{}).TableName())
-}
-
-func TestInstanceStudent_BeforeAppendModel(t *testing.T) {
-	s := &InstanceStudent{}
-	for _, q := range []any{&bun.SelectQuery{}, &bun.UpdateQuery{}, &bun.DeleteQuery{}, "unknown"} {
-		require.NoError(t, s.BeforeAppendModel(q))
-	}
 }
 
 func TestInstanceStudent_EntityInterface(t *testing.T) {

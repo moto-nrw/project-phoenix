@@ -3,15 +3,10 @@ package schedule
 import (
 	"context"
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tableInstanceStaff is the schema-qualified table name.
-const tableInstanceStaff = "schedule.instance_staff"
 
 // InstanceStaff assigns a staff member to a materialized activity instance.
 // A row's optional RoomID (E3 multi-room override) is nil when the staff
@@ -28,28 +23,6 @@ type InstanceStaff struct {
 	IsSubstitute bool   `bun:"is_substitute,notnull,default:false" json:"is_substitute"`
 	IsAbsent     bool   `bun:"is_absent,notnull,default:false" json:"is_absent"`
 }
-
-func (s *InstanceStaff) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.instance_staff AS "instance_staff"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.instance_staff AS "instance_staff"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name.
-func (s *InstanceStaff) TableName() string { return tableInstanceStaff }
-
-// GetID implements the Entity interface.
-func (s *InstanceStaff) GetID() any { return s.ID }
-
-// GetCreatedAt implements the Entity interface.
-func (s *InstanceStaff) GetCreatedAt() time.Time { return s.CreatedAt }
-
-// GetUpdatedAt implements the Entity interface.
-func (s *InstanceStaff) GetUpdatedAt() time.Time { return s.UpdatedAt }
 
 // Validate ensures the staff assignment is well-formed.
 func (s *InstanceStaff) Validate() error {

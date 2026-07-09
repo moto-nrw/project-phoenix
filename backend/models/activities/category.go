@@ -4,14 +4,9 @@ import (
 	"errors"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tableActivitiesCategories is the schema-qualified table name for categories
-const tableActivitiesCategories = "activities.categories"
 
 // DefaultCategoryColor is the fallback display color used when a category has
 // no color set.
@@ -25,36 +20,6 @@ type Category struct {
 	Description string `bun:"description" json:"description,omitempty"`
 	Color       string `bun:"color" json:"color,omitempty"`
 	IsSystem    bool   `bun:"is_system,notnull,default:false" json:"is_system"`
-}
-
-func (c *Category) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableActivitiesCategories)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableActivitiesCategories)
-	}
-	return nil
-}
-
-// GetID returns the entity's ID
-func (c *Category) GetID() interface{} {
-	return c.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (c *Category) GetCreatedAt() time.Time {
-	return c.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (c *Category) GetUpdatedAt() time.Time {
-	return c.UpdatedAt
-}
-
-// TableName returns the database table name
-func (c *Category) TableName() string {
-	return tableActivitiesCategories
 }
 
 // Validate ensures category data is valid

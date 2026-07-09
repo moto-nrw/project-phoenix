@@ -57,10 +57,23 @@ vi.mock("~/lib/invitation-api", () => ({
   createInvitation: (data: unknown): unknown => mockCreateInvitation(data),
 }));
 
-vi.mock("~/lib/auth-helpers", () => ({
-  getRoleDisplayName: (role: string) =>
-    role === "teacher" ? "Lehrkraft" : role === "user" ? "Betreuer" : role,
-}));
+vi.mock("~/lib/auth-helpers", () => {
+  const getRoleDisplayName = (role: string) =>
+    role === "teacher" ? "Lehrkraft" : role === "user" ? "Betreuer" : role;
+  return {
+    getRoleDisplayName,
+    toAssignableRoleOptions: (roles: { id: string; name: string }[]) =>
+      roles
+        .filter(
+          (role) => !["guardian", "teacher"].includes(role.name.toLowerCase()),
+        )
+        .map((role) => ({
+          id: Number(role.id),
+          name: role.name ? getRoleDisplayName(role.name) : `Rolle ${role.id}`,
+        }))
+        .filter((role) => !Number.isNaN(role.id)),
+  };
+});
 
 const mockRoles = [
   { id: "1", name: "user" },

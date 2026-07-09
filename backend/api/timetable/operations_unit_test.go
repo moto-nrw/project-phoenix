@@ -25,6 +25,7 @@ import (
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -124,20 +125,18 @@ func TestOperationsCreateAndStartSpontaneous(t *testing.T) {
 		InstanceService:   instanceSvc,
 		OperationsService: service,
 		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}}),
-		PersonService: &instMockPersonService{
-			findByAccountIDFn: func(_ context.Context, accountID int64) (*userModels.Person, error) {
+		PersonService: &userstest.PersonServiceMock{
+			FindByAccountIDFn: func(_ context.Context, accountID int64) (*userModels.Person, error) {
 				assert.Equal(t, int64(120), accountID)
 				person := &userModels.Person{}
 				person.ID = 220
 				return person, nil
 			},
-			staffRepo: &instMockStaffRepo{
-				findByPersonIDFn: func(_ context.Context, personID int64) (*userModels.Staff, error) {
-					assert.Equal(t, int64(220), personID)
-					staff := &userModels.Staff{}
-					staff.ID = 320
-					return staff, nil
-				},
+			GetStaffByPersonIDFn: func(_ context.Context, personID int64) (*userModels.Staff, error) {
+				assert.Equal(t, int64(220), personID)
+				staff := &userModels.Staff{}
+				staff.ID = 320
+				return staff, nil
 			},
 		},
 		SettingsService: &fakeOperationSettingsService{
@@ -188,18 +187,16 @@ func TestOperationsCreateAndStartSpontaneousReusesActivityByName(t *testing.T) {
 		InstanceService:   instanceSvc,
 		OperationsService: service,
 		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}, ActivityGroupRepo: groupRepo, ActivityCategoryRepo: &fakeOperationActivityCategoryRepo{}}),
-		PersonService: &instMockPersonService{
-			findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+		PersonService: &userstest.PersonServiceMock{
+			FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 				person := &userModels.Person{}
 				person.ID = 221
 				return person, nil
 			},
-			staffRepo: &instMockStaffRepo{
-				findByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
-					staff := &userModels.Staff{}
-					staff.ID = 321
-					return staff, nil
-				},
+			GetStaffByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
+				staff := &userModels.Staff{}
+				staff.ID = 321
+				return staff, nil
 			},
 		},
 		SettingsService: &fakeOperationSettingsService{hasOverride: true, boolValue: true},
@@ -237,18 +234,16 @@ func TestOperationsCreateAndStartSpontaneousCreatesActivityForNewName(t *testing
 		InstanceService:   instanceSvc,
 		OperationsService: service,
 		TimetableData:     operationTimetableData(scheduleSvc.TimetableDataDependencies{ActiveGroupRepo: &fakeOperationActiveGroupRepo{}, ActivityGroupRepo: groupRepo, ActivityCategoryRepo: categoryRepo}),
-		PersonService: &instMockPersonService{
-			findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+		PersonService: &userstest.PersonServiceMock{
+			FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 				person := &userModels.Person{}
 				person.ID = 222
 				return person, nil
 			},
-			staffRepo: &instMockStaffRepo{
-				findByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
-					staff := &userModels.Staff{}
-					staff.ID = 322
-					return staff, nil
-				},
+			GetStaffByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
+				staff := &userModels.Staff{}
+				staff.ID = 322
+				return staff, nil
 			},
 		},
 		SettingsService: &fakeOperationSettingsService{hasOverride: true, boolValue: true},
@@ -644,7 +639,7 @@ type fakeOperationRoomRepo struct {
 	err  error
 }
 
-func operationTimetableData(deps scheduleSvc.TimetableDataDependencies) scheduleSvc.TimetableDataService {
+func operationTimetableData(deps scheduleSvc.TimetableDataDependencies) *scheduleSvc.TimetableDataService {
 	if deps.ActiveGroupRepo == nil {
 		deps.ActiveGroupRepo = &fakeOperationActiveGroupRepo{}
 	}

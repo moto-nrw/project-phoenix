@@ -95,10 +95,12 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (parentService.Serv
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  pickup,
 		ArrivalExceptionRepo: arrival,
-		Settings:             careStubSettings{pickupChangeEnabled: true},
-		Broadcaster:          &captureBroadcaster{},
-		DB:                   db,
-		Logger:               slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},
+		},
+		Broadcaster: testpkg.NewRecordingBroadcaster(),
+		DB:          db,
+		Logger:      slog.Default(),
 	})
 	return svc, db
 }
@@ -109,36 +111,24 @@ func buildCareServiceWithPickupRepo(t *testing.T, wrap func(scheduleModels.Stude
 	return buildCareServiceWithRepos(t, careRepoWrap{pickup: wrap})
 }
 
-// careStubSettings resolves only the pickup-change toggle the care-exception
-// path reads; all other keys default to false.
-type careStubSettings struct {
-	stubSettings
-	pickupChangeEnabled bool
-}
-
-func (s careStubSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	if key == configModels.KeyParentPickupChangeEnabled {
-		return s.pickupChangeEnabled, nil
-	}
-	return false, nil
-}
-
-func buildCareService(t *testing.T, pickupChangeEnabled bool) (parentService.Service, *captureBroadcaster, *bun.DB) {
+func buildCareService(t *testing.T, pickupChangeEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
-	bc := &captureBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
 		StatusDayRepo:        repos.StudentStatusDay,
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  repos.StudentPickupException,
 		ArrivalExceptionRepo: repos.StudentArrivalException,
-		Settings:             careStubSettings{pickupChangeEnabled: pickupChangeEnabled},
-		Broadcaster:          bc,
-		DB:                   db,
-		Logger:               slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: pickupChangeEnabled},
+		},
+		Broadcaster: bc,
+		DB:          db,
+		Logger:      slog.Default(),
 	})
 	return svc, bc, db
 }
@@ -164,7 +154,7 @@ func TestSubmitCareException_PersistsGuardianRowWithNullCreatedBy(t *testing.T) 
 	assert.Equal(t, "14:30", result.PickupTime.Format("15:04"))
 	assert.Equal(t, "08:15", result.ArrivalTime.Format("15:04"))
 	assert.Equal(t, scheduleModels.ExceptionSourceGuardian, result.Source)
-	assert.Contains(t, bc.tenantEvents, chain.TenantID, "SSE broadcast must fire")
+	assert.Contains(t, tenantBroadcastIDs(bc), chain.TenantID, "SSE broadcast must fire")
 
 	// The load-bearing assertion: a guardian row stores created_by as NULL
 	// (nullzero) and references the account via created_by_guardian. NULL is
@@ -627,7 +617,7 @@ func TestDeleteCareException_RemovesBothLegs(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date))
-	assert.Contains(t, bc.tenantEvents, chain.TenantID, "deleting guardian rows must broadcast a student update")
+	assert.Contains(t, tenantBroadcastIDs(bc), chain.TenantID, "deleting guardian rows must broadcast a student update")
 
 	for _, table := range []string{"schedule.student_pickup_exceptions", "schedule.student_arrival_exceptions"} {
 		var count int
@@ -766,10 +756,12 @@ func TestDeleteCareException_ArrivalFindErrorSurfaces(t *testing.T) {
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  repos.StudentPickupException,
 		ArrivalExceptionRepo: stubArrivalRepo{StudentArrivalExceptionRepository: repos.StudentArrivalException, findErr: errBoom},
-		Settings:             careStubSettings{pickupChangeEnabled: true},
-		Broadcaster:          &captureBroadcaster{},
-		DB:                   db,
-		Logger:               slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},
+		},
+		Broadcaster: testpkg.NewRecordingBroadcaster(),
+		DB:          db,
+		Logger:      slog.Default(),
 	})
 
 	err = svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date)

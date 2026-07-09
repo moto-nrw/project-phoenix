@@ -19,6 +19,7 @@ package analytics
 
 import (
 	"bytes"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -158,8 +159,5 @@ func (t *httpTracker) warnCaptureFailed(event string, err error) {
 }
 
 func (t *httpTracker) getLogger() *slog.Logger {
-	if t.logger != nil {
-		return t.logger
-	}
-	return slog.Default()
+	return cmp.Or(t.logger, slog.Default())
 }

@@ -15,7 +15,7 @@ import (
 // Combined Group operations
 
 func (s *service) GetCombinedGroup(ctx context.Context, id int64) (*active.CombinedGroup, error) {
-	group, err := s.combinedGroupRepo.FindByID(ctx, id)
+	group, err := s.CombinedGroupRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetCombinedGroup", Err: ErrCombinedGroupNotFound}
 	}
@@ -28,7 +28,7 @@ func (s *service) CreateCombinedGroup(ctx context.Context, group *active.Combine
 	}
 
 	group.SetTenantID(tenant.FromContext(ctx))
-	if s.combinedGroupRepo.Create(ctx, group) != nil {
+	if s.CombinedGroupRepo.Create(ctx, group) != nil {
 		return &ActiveError{Op: "CreateCombinedGroup", Err: ErrDatabaseOperation}
 	}
 
@@ -40,7 +40,7 @@ func (s *service) UpdateCombinedGroup(ctx context.Context, group *active.Combine
 		return &ActiveError{Op: "UpdateCombinedGroup", Err: ErrInvalidData}
 	}
 
-	if s.combinedGroupRepo.Update(ctx, group) != nil {
+	if s.CombinedGroupRepo.Update(ctx, group) != nil {
 		return &ActiveError{Op: "UpdateCombinedGroup", Err: ErrDatabaseOperation}
 	}
 
@@ -48,25 +48,25 @@ func (s *service) UpdateCombinedGroup(ctx context.Context, group *active.Combine
 }
 
 func (s *service) DeleteCombinedGroup(ctx context.Context, id int64) error {
-	_, err := s.combinedGroupRepo.FindByID(ctx, id)
+	_, err := s.CombinedGroupRepo.FindByID(ctx, id)
 	if err != nil {
 		return &ActiveError{Op: "DeleteCombinedGroup", Err: ErrCombinedGroupNotFound}
 	}
 
 	// Delete all group mappings
-	mappings, err := s.groupMappingRepo.FindByActiveCombinedGroupID(ctx, id)
+	mappings, err := s.GroupMappingRepo.FindByActiveCombinedGroupID(ctx, id)
 	if err != nil {
 		return &ActiveError{Op: "DeleteCombinedGroup", Err: ErrDatabaseOperation}
 	}
 
 	for _, mapping := range mappings {
-		if err := s.groupMappingRepo.Delete(ctx, mapping.ID); err != nil {
+		if err := s.GroupMappingRepo.Delete(ctx, mapping.ID); err != nil {
 			return &ActiveError{Op: "DeleteCombinedGroup", Err: ErrDatabaseOperation}
 		}
 	}
 
 	// Delete the combined group
-	if err := s.combinedGroupRepo.Delete(ctx, id); err != nil {
+	if err := s.CombinedGroupRepo.Delete(ctx, id); err != nil {
 		return &ActiveError{Op: "DeleteCombinedGroup", Err: ErrDatabaseOperation}
 	}
 
@@ -74,7 +74,7 @@ func (s *service) DeleteCombinedGroup(ctx context.Context, id int64) error {
 }
 
 func (s *service) ListCombinedGroups(ctx context.Context, options *base.QueryOptions) ([]*active.CombinedGroup, error) {
-	groups, err := s.combinedGroupRepo.List(ctx, options)
+	groups, err := s.CombinedGroupRepo.List(ctx, options)
 	if err != nil {
 		return nil, &ActiveError{Op: "ListCombinedGroups", Err: ErrDatabaseOperation}
 	}
@@ -82,7 +82,7 @@ func (s *service) ListCombinedGroups(ctx context.Context, options *base.QueryOpt
 }
 
 func (s *service) FindActiveCombinedGroups(ctx context.Context) ([]*active.CombinedGroup, error) {
-	groups, err := s.combinedGroupRepo.FindActive(ctx)
+	groups, err := s.CombinedGroupRepo.FindActive(ctx)
 	if err != nil {
 		return nil, &ActiveError{Op: "FindActiveCombinedGroups", Err: ErrDatabaseOperation}
 	}
@@ -94,7 +94,7 @@ func (s *service) FindCombinedGroupsByTimeRange(ctx context.Context, start, end 
 		return nil, &ActiveError{Op: "FindCombinedGroupsByTimeRange", Err: ErrInvalidTimeRange}
 	}
 
-	groups, err := s.combinedGroupRepo.FindByTimeRange(ctx, start, end)
+	groups, err := s.CombinedGroupRepo.FindByTimeRange(ctx, start, end)
 	if err != nil {
 		return nil, &ActiveError{Op: "FindCombinedGroupsByTimeRange", Err: ErrDatabaseOperation}
 	}
@@ -103,7 +103,7 @@ func (s *service) FindCombinedGroupsByTimeRange(ctx context.Context, start, end 
 
 func (s *service) EndCombinedGroup(ctx context.Context, id int64) error {
 	// Verify group exists first
-	_, err := s.combinedGroupRepo.FindByID(ctx, id)
+	_, err := s.CombinedGroupRepo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return &ActiveError{Op: "EndCombinedGroup", Err: ErrCombinedGroupNotFound}
@@ -111,14 +111,14 @@ func (s *service) EndCombinedGroup(ctx context.Context, id int64) error {
 		return &ActiveError{Op: "EndCombinedGroup", Err: fmt.Errorf("failed to verify combined group: %w", err)}
 	}
 
-	if err := s.combinedGroupRepo.EndCombination(ctx, id); err != nil {
+	if err := s.CombinedGroupRepo.EndCombination(ctx, id); err != nil {
 		return &ActiveError{Op: "EndCombinedGroup", Err: fmt.Errorf("end combination failed: %w", err)}
 	}
 	return nil
 }
 
 func (s *service) GetCombinedGroupWithGroups(ctx context.Context, id int64) (*active.CombinedGroup, error) {
-	combinedGroup, err := s.combinedGroupRepo.FindWithGroups(ctx, id)
+	combinedGroup, err := s.CombinedGroupRepo.FindWithGroups(ctx, id)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetCombinedGroupWithGroups", Err: ErrCombinedGroupNotFound}
 	}
@@ -152,14 +152,14 @@ func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *acti
 
 	// Step 1: Create the combined group
 	group.SetTenantID(tenant.FromContext(ctx))
-	if err := s.combinedGroupRepo.Create(ctx, group); err != nil {
+	if err := s.CombinedGroupRepo.Create(ctx, group); err != nil {
 		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
 	}
 
 	// Step 2: Verify all active group IDs exist
 	existOptions := base.NewQueryOptions()
 	existOptions.Filter = base.NewFilter().In("id", int64Args(groupIDs)...)
-	existCount, err := s.groupRepo.CountWithOptions(ctx, existOptions)
+	existCount, err := s.GroupRepo.CountWithOptions(ctx, existOptions)
 	if err != nil {
 		return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
 	}
@@ -174,7 +174,7 @@ func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *acti
 			ActiveGroupID:         gid,
 		}
 		mapping.SetTenantID(tenant.FromContext(ctx))
-		if err := s.groupMappingRepo.Create(ctx, mapping); err != nil {
+		if err := s.GroupMappingRepo.Create(ctx, mapping); err != nil {
 			return &ActiveError{Op: "CreateCombinedGroupWithGroups", Err: fmt.Errorf("%w: %v", ErrDatabaseOperation, err)}
 		}
 	}
@@ -191,7 +191,7 @@ func (s *service) CreateCombinedGroupWithGroups(ctx context.Context, group *acti
 
 func (s *service) AddGroupToCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error {
 	// Check if the mapping already exists
-	mappings, err := s.groupMappingRepo.FindByActiveCombinedGroupID(ctx, combinedGroupID)
+	mappings, err := s.GroupMappingRepo.FindByActiveCombinedGroupID(ctx, combinedGroupID)
 	if err != nil {
 		return &ActiveError{Op: "AddGroupToCombination", Err: ErrDatabaseOperation}
 	}
@@ -203,7 +203,7 @@ func (s *service) AddGroupToCombination(ctx context.Context, combinedGroupID, ac
 	}
 
 	// Create the mapping
-	if s.groupMappingRepo.AddGroupToCombination(ctx, combinedGroupID, activeGroupID) != nil {
+	if s.GroupMappingRepo.AddGroupToCombination(ctx, combinedGroupID, activeGroupID) != nil {
 		return &ActiveError{Op: "AddGroupToCombination", Err: ErrDatabaseOperation}
 	}
 
@@ -211,14 +211,14 @@ func (s *service) AddGroupToCombination(ctx context.Context, combinedGroupID, ac
 }
 
 func (s *service) RemoveGroupFromCombination(ctx context.Context, combinedGroupID, activeGroupID int64) error {
-	if s.groupMappingRepo.RemoveGroupFromCombination(ctx, combinedGroupID, activeGroupID) != nil {
+	if s.GroupMappingRepo.RemoveGroupFromCombination(ctx, combinedGroupID, activeGroupID) != nil {
 		return &ActiveError{Op: "RemoveGroupFromCombination", Err: ErrDatabaseOperation}
 	}
 	return nil
 }
 
 func (s *service) GetGroupMappingsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.GroupMapping, error) {
-	mappings, err := s.groupMappingRepo.FindByActiveGroupID(ctx, activeGroupID)
+	mappings, err := s.GroupMappingRepo.FindByActiveGroupID(ctx, activeGroupID)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetGroupMappingsByActiveGroupID", Err: ErrDatabaseOperation}
 	}
@@ -226,7 +226,7 @@ func (s *service) GetGroupMappingsByActiveGroupID(ctx context.Context, activeGro
 }
 
 func (s *service) GetGroupMappingsByCombinedGroupID(ctx context.Context, combinedGroupID int64) ([]*active.GroupMapping, error) {
-	mappings, err := s.groupMappingRepo.FindByActiveCombinedGroupID(ctx, combinedGroupID)
+	mappings, err := s.GroupMappingRepo.FindByActiveCombinedGroupID(ctx, combinedGroupID)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetGroupMappingsByCombinedGroupID", Err: ErrDatabaseOperation}
 	}

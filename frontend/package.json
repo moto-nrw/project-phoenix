@@ -48,6 +48,7 @@
     "next-intl": "^4.13.1",
     "posthog-js": "^1.396.6",
     "prom-client": "^15.1.3",
+    "qrcode.react": "^4.2.0",
     "react": "^19.2.7",
     "react-day-picker": "^10.0.1",
     "react-dom": "^19.2.7",

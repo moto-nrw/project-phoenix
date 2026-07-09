@@ -178,7 +178,7 @@ func TestImportService_Import(t *testing.T) {
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test", Value: "value"}},
 			DryRun: false,
-			Mode:   importModels.ImportModeUpsert,
+			Mode:   importModels.ImportMode("upsert"),
 		}
 
 		// ACT
@@ -200,7 +200,7 @@ func TestImportService_Import(t *testing.T) {
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test", Value: "value"}},
 			DryRun: false,
-			Mode:   importModels.ImportModeUpsert,
+			Mode:   importModels.ImportMode("upsert"),
 		}
 
 		// ACT
@@ -317,7 +317,7 @@ func TestImportService_Import(t *testing.T) {
 		request := importModels.ImportRequest[testRow]{
 			Rows:   []testRow{{Name: "test", Value: "value"}},
 			DryRun: false,
-			Mode:   importModels.ImportModeUpsert,
+			Mode:   importModels.ImportMode("upsert"),
 		}
 
 		// ACT

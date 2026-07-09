@@ -5,7 +5,7 @@ import { useToast } from "~/contexts/ToastContext";
 import { Input } from "~/components/ui/input";
 import { useScrollToError } from "~/lib/hooks/use-scroll-to-error";
 import { authService } from "~/lib/auth-service";
-import { getRoleDisplayName } from "~/lib/auth-helpers";
+import { toAssignableRoleOptions, type RoleOption } from "~/lib/auth-helpers";
 import { createInvitation } from "~/lib/invitation-api";
 import type {
   CreateInvitationRequest,
@@ -20,11 +20,6 @@ const logger = createLogger({ component: "InvitationForm" });
 interface InvitationFormProps {
   readonly onCreated?: (invitation: PendingInvitation) => void;
   readonly existingPositions?: readonly string[];
-}
-
-interface RoleOption {
-  id: number;
-  name: string;
 }
 
 const EMPTY_POSITIONS: readonly string[] = [];
@@ -62,22 +57,7 @@ export function InvitationForm({
         setIsLoadingRoles(true);
         const roleList = await authService.getRoles();
         if (cancelled) return;
-        // Legacy teacher + guardian roles are no longer assignable via invitations.
-        const options = roleList
-          .filter((role) => {
-            const normalizedName = role.name.toLowerCase();
-            return (
-              normalizedName !== "guardian" && normalizedName !== "teacher"
-            );
-          })
-          .map<RoleOption>((role) => ({
-            id: Number(role.id),
-            name: role.name
-              ? getRoleDisplayName(role.name)
-              : `Rolle ${role.id}`,
-          }))
-          .filter((role) => !Number.isNaN(role.id));
-        setRoles(options);
+        setRoles(toAssignableRoleOptions(roleList));
       } catch (err) {
         logger.error("failed to load roles", {
           error: err instanceof Error ? err.message : String(err),

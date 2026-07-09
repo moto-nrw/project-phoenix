@@ -26,8 +26,32 @@ describe("mapStaffShift", () => {
       startTime: "08:00",
       endTime: "16:00",
       breakMinutes: 30,
+      shiftTypeId: null,
       notes: "Frühdienst",
     });
+  });
+
+  it("maps shift_type_id to a string id and defaults it to null", () => {
+    const typed = mapStaffShift({
+      id: 42,
+      staff_id: 7,
+      date: "2026-07-06",
+      start_time: "08:00",
+      end_time: "16:00",
+      break_minutes: 0,
+      shift_type_id: 5,
+    });
+    expect(typed.shiftTypeId).toBe("5");
+
+    const untyped = mapStaffShift({
+      id: 43,
+      staff_id: 7,
+      date: "2026-07-06",
+      start_time: "08:00",
+      end_time: "16:00",
+      break_minutes: 0,
+    });
+    expect(untyped.shiftTypeId).toBeNull();
   });
 
   it("truncates HH:MM:SS times and defaults missing notes", () => {

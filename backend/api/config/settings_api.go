@@ -18,6 +18,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -96,23 +97,10 @@ func (rs *SettingsResource) OnValueSet(fn ValueSetCallback) {
 	rs.onValueSet = fn
 }
 
-// scheduleSettingsBroadcast queues a tenant_settings_changed SSE event to fire
-// after the OUTERMOST tenant tx commits. Cross-origin tabs (e.g. operator
-// changing a tenant setting from operator.<domain>) only receive change
-// notifications via SSE; same-origin tabs are covered by the
-// BroadcastChannel ping the frontend fires. Source carries the setting key
-// so the receiving tab can scope future selective invalidations and so log
-// review can attribute writes.
+// scheduleSettingsBroadcast delegates to the shared cross-portal helper; see
+// common.ScheduleTenantSettingsBroadcast for the SSE contract.
 func (rs *SettingsResource) scheduleSettingsBroadcast(ctx context.Context, tenantID int64, key string) {
-	if rs.broadcaster == nil || tenantID == 0 {
-		return
-	}
-	tenant.RegisterAfterCommit(ctx, func() {
-		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{
-			Source: &key,
-		})
-		_ = rs.broadcaster.BroadcastToTenant(tenantID, event)
-	})
+	common.ScheduleTenantSettingsBroadcast(ctx, rs.broadcaster, tenantID, key)
 }
 
 // NewSettingsResource creates a new settings resource. broadcaster is
@@ -138,13 +126,7 @@ func (rs *SettingsResource) SettingsRouter() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	tokenAuth := jwt.MustNewTokenAuth()
-
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		settingsWrite := authorize.RequiresAnyPermission(permissions.ConfigUpdate, permissions.ConfigManage)
 
@@ -607,53 +589,13 @@ func (rs *SettingsResource) enrollmentLegalAGBDocumentReferenced(ctx context.Con
 	if rs.legalDocumentRefs == nil {
 		return false, errors.New("legal document reference repository is not configured")
 	}
-	publicURL := publicEnrollmentLegalDocumentURL(storedURL)
+	publicURL := enrollmentSvc.PublicEnrollmentLegalDocumentURL(storedURL)
 
 	referenced, err := rs.legalDocumentRefs.HasLegalDocumentReference(ctx, storedURL, publicURL)
 	if err != nil {
 		return false, fmt.Errorf("check AGB document references: %w", err)
 	}
 	return referenced, nil
-}
-
-func publicEnrollmentLegalDocumentURL(storedURL string) string {
-	if strings.HasPrefix(storedURL, legalAGBDocumentPrefix) {
-		return "/api/public/enrollment-legal-documents/" + strings.TrimPrefix(storedURL, legalAGBDocumentPrefix)
-	}
-	return storedURL
-}
-
-// --- Handler accessors for testing ---
-
-// GetSchema returns the getSchema handler for external test access.
-func (rs *SettingsResource) GetSchema() http.HandlerFunc { return rs.getSchema }
-
-// RevealValue returns the revealValue handler for external test access.
-func (rs *SettingsResource) RevealValue() http.HandlerFunc { return rs.revealValue }
-
-// SetValue returns the setValue handler for external test access.
-func (rs *SettingsResource) SetValue() http.HandlerFunc { return rs.setValue }
-
-// ResetValue returns the resetValue handler for external test access.
-func (rs *SettingsResource) ResetValue() http.HandlerFunc { return rs.resetValue }
-
-// GetLoginImage returns the getLoginImage handler for external test access.
-func (rs *SettingsResource) GetLoginImage() http.HandlerFunc { return rs.getLoginImage }
-
-// UploadLoginImage returns the uploadLoginImage handler for external test access.
-func (rs *SettingsResource) UploadLoginImage() http.HandlerFunc { return rs.uploadLoginImage }
-
-// DeleteLoginImage returns the deleteLoginImage handler for external test access.
-func (rs *SettingsResource) DeleteLoginImage() http.HandlerFunc { return rs.deleteLoginImage }
-
-// UploadEnrollmentLegalAGBDocument returns the AGB document upload handler for external test access.
-func (rs *SettingsResource) UploadEnrollmentLegalAGBDocument() http.HandlerFunc {
-	return rs.uploadEnrollmentLegalAGBDocument
-}
-
-// DeleteEnrollmentLegalAGBDocument returns the AGB document delete handler for external test access.
-func (rs *SettingsResource) DeleteEnrollmentLegalAGBDocument() http.HandlerFunc {
-	return rs.deleteEnrollmentLegalAGBDocument
 }
 
 // --- Error rendering ---

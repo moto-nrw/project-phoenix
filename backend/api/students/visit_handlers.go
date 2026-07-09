@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -75,7 +76,7 @@ func (rs *Resource) getStudentCurrentLocation(w http.ResponseWriter, r *http.Req
 // Grants access to: admins, any staff when gdpr.student_data_scope = all_staff,
 // and the student's group supervisors. This endpoint is read-only.
 func (rs *Resource) checkGroupRoomAccessAuthorization(r *http.Request, studentGroupID int64) error {
-	if common.HasAdminPermissions(getPermissionsFromRequest(r)) {
+	if authorize.HasAdminWildcard(getPermissionsFromRequest(r)) {
 		return nil
 	}
 
@@ -154,7 +155,7 @@ func (rs *Resource) getStudentInGroupRoom(w http.ResponseWriter, r *http.Request
 
 	// Check authorization - only group supervisors can see this information
 	if authErr := rs.checkGroupRoomAccessAuthorization(r, *student.GroupID); authErr != nil {
-		renderError(w, r, ErrorForbidden(authErr))
+		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
 
@@ -198,14 +199,14 @@ func (rs *Resource) getStudentCurrentVisit(w http.ResponseWriter, r *http.Reques
 	// Parse ID from URL (we only need the ID, not the full student)
 	studentID, err := common.ParseID(r)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
 	// Get current visit
 	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(r.Context(), studentID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -226,7 +227,7 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	// Parse student ID from URL
 	studentID, err := common.ParseID(r)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
@@ -242,7 +243,7 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	// Get all visits for this student
 	visits, err := rs.ActiveService.FindVisitsByStudentID(r.Context(), studentID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

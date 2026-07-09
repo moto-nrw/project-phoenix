@@ -370,14 +370,9 @@ func TestWithdrawRequest(t *testing.T) {
 	require.NoError(t, err)
 }
 
-// TestExcusedAbsenceRequestModel covers the pure model helpers and the
-// bun-hook table-expr branches.
+// TestExcusedAbsenceRequestModel covers the pure model helpers.
 func TestExcusedAbsenceRequestModel(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	t.Cleanup(func() { _ = db.Close() })
-
 	req := &activeModels.ExcusedAbsenceRequest{}
-	assert.Equal(t, "active.excused_absence_requests", req.TableName())
 
 	req.Status = activeModels.ExcusedRequestStatusPending
 	assert.False(t, req.IsTerminal(), "pending is not terminal")
@@ -389,11 +384,4 @@ func TestExcusedAbsenceRequestModel(t *testing.T) {
 		req.Status = s
 		assert.True(t, req.IsTerminal(), "%s must be terminal", s)
 	}
-
-	// Each query kind sets the schema-qualified table expr; the non-matching
-	// kind (Select) falls through untouched.
-	require.NoError(t, req.BeforeAppendModel(db.NewInsert()))
-	require.NoError(t, req.BeforeAppendModel(db.NewUpdate()))
-	require.NoError(t, req.BeforeAppendModel(db.NewDelete()))
-	require.NoError(t, req.BeforeAppendModel(db.NewSelect()))
 }

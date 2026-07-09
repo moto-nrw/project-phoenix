@@ -224,7 +224,7 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "findbyrole")
 		role := testpkg.CreateTestRole(t, db, "FindByRoleTestRole")
 		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
@@ -251,7 +251,7 @@ func TestAccountRepository_FindByRole(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "rolecase")
 		role := testpkg.CreateTestRole(t, db, "CaseSensitiveRole")
 		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		_, err := db.ExecContext(ctx,
 			"INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, 1)",
@@ -367,7 +367,7 @@ func TestAccountRepository_FindAccountsWithRolesAndPermissions(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "withperms")
 		role := testpkg.CreateTestRole(t, db, "WithPermsRole")
 		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,
@@ -490,7 +490,7 @@ func TestAccountRepository_ListWithFilters(t *testing.T) {
 		account := testpkg.CreateTestAccount(t, db, "rolefilter")
 		role := testpkg.CreateTestRole(t, db, "ListFilterRole")
 		defer cleanupAccountRecords(t, db, account.ID)
-		defer cleanupRoleRecords(t, db, role.ID)
+		defer testpkg.CleanupRoleRecords(t, db, role.ID)
 
 		// Assign role to account
 		_, err := db.ExecContext(ctx,

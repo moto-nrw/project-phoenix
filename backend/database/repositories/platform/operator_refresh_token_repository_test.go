@@ -20,7 +20,7 @@ func TestOperatorRefreshTokenRepository_CreateAndFindByTokenForUpdate(t *testing
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)
 	ctx := context.Background()
-	operatorID := createTestOperatorForTokenRepo(t, db, fmt.Sprintf("refresh-create-%d@test.local", time.Now().UnixNano()))
+	operatorID := testpkg.CreateTestOperatorWithEmail(t, db, fmt.Sprintf("refresh-create-%d@test.local", time.Now().UnixNano()), "Test Operator").ID
 
 	tokenValue := uuid.Must(uuid.NewV4()).String()
 	token := &platform.OperatorRefreshToken{
@@ -46,7 +46,7 @@ func TestOperatorRefreshTokenRepository_DeleteByOperatorID(t *testing.T) {
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)
 	ctx := context.Background()
-	operatorID := createTestOperatorForTokenRepo(t, db, fmt.Sprintf("refresh-delete-op-%d@test.local", time.Now().UnixNano()))
+	operatorID := testpkg.CreateTestOperatorWithEmail(t, db, fmt.Sprintf("refresh-delete-op-%d@test.local", time.Now().UnixNano()), "Test Operator").ID
 
 	for i := 0; i < 2; i++ {
 		require.NoError(t, repo.Create(ctx, &platform.OperatorRefreshToken{
@@ -76,7 +76,7 @@ func TestOperatorRefreshTokenRepository_DeleteByFamilyIDAndLatest(t *testing.T) 
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)
 	ctx := context.Background()
-	operatorID := createTestOperatorForTokenRepo(t, db, fmt.Sprintf("refresh-family-%d@test.local", time.Now().UnixNano()))
+	operatorID := testpkg.CreateTestOperatorWithEmail(t, db, fmt.Sprintf("refresh-family-%d@test.local", time.Now().UnixNano()), "Test Operator").ID
 	familyID := uuid.Must(uuid.NewV4()).String()
 
 	for generation := 0; generation < 3; generation++ {
@@ -106,7 +106,7 @@ func TestOperatorRefreshTokenRepository_DeleteExpired(t *testing.T) {
 
 	repo := repoplatform.NewOperatorRefreshTokenRepository(db)
 	ctx := context.Background()
-	operatorID := createTestOperatorForTokenRepo(t, db, fmt.Sprintf("refresh-expired-%d@test.local", time.Now().UnixNano()))
+	operatorID := testpkg.CreateTestOperatorWithEmail(t, db, fmt.Sprintf("refresh-expired-%d@test.local", time.Now().UnixNano()), "Test Operator").ID
 	now := time.Now()
 
 	require.NoError(t, repo.Create(ctx, &platform.OperatorRefreshToken{

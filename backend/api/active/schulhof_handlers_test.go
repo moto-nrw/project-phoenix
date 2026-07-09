@@ -14,7 +14,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -133,10 +132,6 @@ func (m *mockUserContextService) UpdateCurrentProfile(ctx context.Context, updat
 
 func (m *mockUserContextService) UpdateAvatar(ctx context.Context, avatarURL string) (map[string]interface{}, error) {
 	return nil, errors.New("not implemented")
-}
-
-func (m *mockUserContextService) WithTx(tx bun.Tx) interface{} {
-	return m
 }
 
 // =============================================================================

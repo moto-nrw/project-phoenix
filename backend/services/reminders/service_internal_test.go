@@ -170,11 +170,7 @@ func TestPickupReminders(t *testing.T) {
 	}
 
 	newSvc := func(times map[int64]*scheduleService.EffectivePickupTime) *service {
-		return &service{
-			pickup:  fakePickup{times: times},
-			student: fakeStudent{students: students},
-			person:  fakePerson{persons: persons},
-		}
+		return &service{Dependencies: Dependencies{Pickup: fakePickup{times: times}, Student: fakeStudent{students: students}, Person: fakePerson{persons: persons}}}
 	}
 
 	t.Run("upcoming within lead is reported", func(t *testing.T) {
@@ -213,16 +209,13 @@ func TestPickupReminders(t *testing.T) {
 		// Both students need a record: the read path is fail-closed, so a due
 		// student without a resolvable record emits nothing (which would mask the
 		// toggle behavior this test exercises).
-		svc := &service{
-			pickup: fakePickup{times: times},
-			student: fakeStudent{students: map[int64]*userModel.Student{
-				1: {PersonID: 11, SchoolClass: "1a"},
-				2: {PersonID: 12, SchoolClass: "1b"},
-			}},
-			person: fakePerson{persons: map[int64]*userModel.Person{
-				11: {FirstName: "Anna", LastName: "Müller"},
-				12: {FirstName: "Ben", LastName: "Bauer"},
-			}},
+		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: times}, Student: fakeStudent{students: map[int64]*userModel.Student{
+			1: {PersonID: 11, SchoolClass: "1a"},
+			2: {PersonID: 12, SchoolClass: "1b"},
+		}}, Person: fakePerson{persons: map[int64]*userModel.Person{
+			11: {FirstName: "Anna", LastName: "Müller"},
+			12: {FirstName: "Ben", LastName: "Bauer"},
+		}}},
 		}
 
 		upcomingOnly, _, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, false)
@@ -251,26 +244,19 @@ func TestPickupReminders(t *testing.T) {
 	})
 
 	t.Run("propagates a pickup lookup error", func(t *testing.T) {
-		svc := &service{pickup: fakePickup{err: errors.New("boom")}}
+		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{err: errors.New("boom")}}}
 		_, _, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.Error(t, err)
 	})
 
 	t.Run("propagates a student name lookup error", func(t *testing.T) {
-		svc := &service{
-			pickup:  fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605)}},
-			student: fakeStudent{err: errors.New("boom")},
-		}
+		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605)}}, Student: fakeStudent{err: errors.New("boom")}}}
 		_, _, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.Error(t, err)
 	})
 
 	t.Run("propagates a person name lookup error", func(t *testing.T) {
-		svc := &service{
-			pickup:  fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605)}},
-			student: fakeStudent{students: students},
-			person:  fakePerson{err: errors.New("boom")},
-		}
+		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{1: pickupAt(605)}}, Student: fakeStudent{students: students}, Person: fakePerson{err: errors.New("boom")}}}
 		_, _, err := svc.pickupReminders(context.Background(), Scope{IsAdmin: true}, []int64{1}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.Error(t, err)
 	})
@@ -295,12 +281,8 @@ func TestPickupReminders(t *testing.T) {
 	caregiver := Scope{IsAdmin: false, StaffID: 7}
 
 	t.Run("caregiver sees only students in supervised education groups", func(t *testing.T) {
-		svc := &service{
-			pickup:   fakePickup{times: twoDueTimes},
-			student:  fakeStudent{students: twoDueStudents},
-			person:   fakePerson{persons: twoPersons},
-			settings: fakeSettings{}, // no override → group_supervisors_only
-			groups:   fakeGroups{groups: []*educationModel.Group{eduGroup(100)}},
+		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: twoDueTimes}, Student: fakeStudent{students: twoDueStudents}, Person: fakePerson{persons: twoPersons}, Settings: fakeSettings{}, Groups: // no override → group_supervisors_only
+		fakeGroups{groups: []*educationModel.Group{eduGroup(100)}}},
 		}
 		out, _, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
@@ -311,14 +293,9 @@ func TestPickupReminders(t *testing.T) {
 	})
 
 	t.Run("all_staff scope lets a caregiver see every present student", func(t *testing.T) {
-		svc := &service{
-			pickup:  fakePickup{times: twoDueTimes},
-			student: fakeStudent{students: twoDueStudents},
-			person:  fakePerson{persons: twoPersons},
-			settings: fakeSettings{strings: map[string]string{
-				configModel.KeyStudentDataScope: configModel.StudentDataScopeAllStaff,
-			}},
-			groups: fakeGroups{}, // supervised groups irrelevant under all_staff
+		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: twoDueTimes}, Student: fakeStudent{students: twoDueStudents}, Person: fakePerson{persons: twoPersons}, Settings: fakeSettings{strings: map[string]string{
+			configModel.KeyStudentDataScope: configModel.StudentDataScopeAllStaff,
+		}}, Groups: fakeGroups{}}, // supervised groups irrelevant under all_staff
 		}
 		out, _, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
@@ -326,13 +303,7 @@ func TestPickupReminders(t *testing.T) {
 	})
 
 	t.Run("caregiver supervising no groups sees nothing under group_supervisors_only", func(t *testing.T) {
-		svc := &service{
-			pickup:   fakePickup{times: twoDueTimes},
-			student:  fakeStudent{students: twoDueStudents},
-			person:   fakePerson{persons: twoPersons},
-			settings: fakeSettings{},
-			groups:   fakeGroups{groups: nil},
-		}
+		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: twoDueTimes}, Student: fakeStudent{students: twoDueStudents}, Person: fakePerson{persons: twoPersons}, Settings: fakeSettings{}, Groups: fakeGroups{groups: nil}}}
 		out, _, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.NoError(t, err)
 		assert.Empty(t, out)
@@ -340,13 +311,7 @@ func TestPickupReminders(t *testing.T) {
 
 	t.Run("a scope resolution error is surfaced, not treated as no-access", func(t *testing.T) {
 		resolveErr := errors.New("scope read failed")
-		svc := &service{
-			pickup:   fakePickup{times: twoDueTimes},
-			student:  fakeStudent{students: twoDueStudents},
-			person:   fakePerson{persons: twoPersons},
-			settings: fakeSettings{strErr: resolveErr},
-			groups:   fakeGroups{groups: []*educationModel.Group{eduGroup(100)}},
-		}
+		svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: twoDueTimes}, Student: fakeStudent{students: twoDueStudents}, Person: fakePerson{persons: twoPersons}, Settings: fakeSettings{strErr: resolveErr}, Groups: fakeGroups{groups: []*educationModel.Group{eduGroup(100)}}}}
 		_, _, err := svc.pickupReminders(context.Background(), caregiver, []int64{1, 2}, timezone.TodayDate(), nowMin, lead, true, true)
 		require.ErrorIs(t, err, resolveErr)
 	})
@@ -373,7 +338,7 @@ func TestActivityReminders(t *testing.T) {
 		active.Status = scheduleModel.InstanceStatusActive
 		instances = append(instances, active)
 
-		svc := &service{instance: fakeInstance{instances: instances}}
+		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: instances}}}
 		out, _, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 2)
@@ -396,7 +361,7 @@ func TestActivityReminders(t *testing.T) {
 			plannedInstance("Schach", 1, 605, 700),  // upcoming
 			plannedInstance("Fußball", 1, 590, 650), // overdue
 		}
-		svc := &service{instance: fakeInstance{instances: instances}}
+		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: instances}}}
 
 		upcomingOnly, _, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, false)
 		require.NoError(t, err)
@@ -414,7 +379,7 @@ func TestActivityReminders(t *testing.T) {
 			plannedInstance("Schach", 10, 605, 700),  // room 10 — supervised
 			plannedInstance("Fußball", 99, 605, 700), // room 99 — not supervised
 		}
-		svc := &service{instance: fakeInstance{instances: instances}}
+		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: instances}}}
 		out, _, err := svc.activityReminders(context.Background(), Scope{IsAdmin: false}, []int64{10}, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 1)
@@ -433,35 +398,35 @@ func TestActivityReminders(t *testing.T) {
 
 func TestPickupScopeStudentIDs(t *testing.T) {
 	t.Run("admin sees all present students", func(t *testing.T) {
-		svc := &service{attendance: fakeAttendance{ids: []int64{1, 2, 3}}}
+		svc := &service{Dependencies: Dependencies{Attendance: fakeAttendance{ids: []int64{1, 2, 3}}}}
 		ids, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: true}, timezone.TodayDate())
 		require.NoError(t, err)
 		assert.Equal(t, []int64{1, 2, 3}, ids)
 	})
 
 	t.Run("caregiver sees students present in supervised rooms", func(t *testing.T) {
-		svc := &service{supervision: fakeSupervision{
+		svc := &service{Dependencies: Dependencies{Supervision: fakeSupervision{
 			supervisions: []*activeModel.GroupSupervisor{{GroupID: 100}, {GroupID: 200}},
 			groups: map[int64]*activeModel.Group{
 				100: {RoomID: 10},
 				200: {RoomID: 20},
 			},
 			presentByRoom: map[int64][]int64{10: {1, 2}, 20: {2, 3}},
-		}}
+		}}}
 		ids, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []int64{1, 2, 3}, ids)
 	})
 
 	t.Run("caregiver with no supervision sees nothing", func(t *testing.T) {
-		svc := &service{supervision: fakeSupervision{supervisions: nil}}
+		svc := &service{Dependencies: Dependencies{Supervision: fakeSupervision{supervisions: nil}}}
 		ids, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
 		require.NoError(t, err)
 		assert.Empty(t, ids)
 	})
 
 	t.Run("propagates a supervision error", func(t *testing.T) {
-		svc := &service{supervision: fakeSupervision{supervisionErr: errors.New("boom")}}
+		svc := &service{Dependencies: Dependencies{Supervision: fakeSupervision{supervisionErr: errors.New("boom")}}}
 		_, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
 		require.Error(t, err)
 	})
@@ -471,13 +436,11 @@ func TestPickupScopeStudentIDs(t *testing.T) {
 		// rows: the room path would return empty. The scope must fall back to
 		// open attendance (the read predicate in pickupReminders then locks it
 		// down to the caregiver's own groups).
-		svc := &service{
-			settings: fakeSettings{strings: map[string]string{
-				configModel.KeyPresenceMode: configModel.PresenceModeBinary,
-			}},
-			attendance: fakeAttendance{ids: []int64{1, 2, 3}},
-			// Supervision would return nothing (no visits) — proving attendance won.
-			supervision: fakeSupervision{presentByRoom: map[int64][]int64{}},
+		svc := &service{Dependencies: Dependencies{Settings: fakeSettings{strings: map[string]string{
+			configModel.KeyPresenceMode: configModel.PresenceModeBinary,
+		}}, Attendance: fakeAttendance{ids: []int64{1, 2, 3}}, Supervision:
+		// Supervision would return nothing (no visits) — proving attendance won.
+		fakeSupervision{presentByRoom: map[int64][]int64{}}},
 		}
 		ids, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
 		require.NoError(t, err)
@@ -486,16 +449,14 @@ func TestPickupScopeStudentIDs(t *testing.T) {
 
 	t.Run("detailed mode caregiver still reads presence from supervised rooms", func(t *testing.T) {
 		// Explicit detailed mode must keep the room/visit path, not attendance.
-		svc := &service{
-			settings: fakeSettings{strings: map[string]string{
-				configModel.KeyPresenceMode: configModel.PresenceModeDetailed,
-			}},
-			attendance: fakeAttendance{ids: []int64{99}}, // must be ignored
-			supervision: fakeSupervision{
-				supervisions:  []*activeModel.GroupSupervisor{{GroupID: 100}},
-				groups:        map[int64]*activeModel.Group{100: {RoomID: 10}},
-				presentByRoom: map[int64][]int64{10: {1, 2}},
-			},
+		svc := &service{Dependencies: Dependencies{Settings: fakeSettings{strings: map[string]string{
+			configModel.KeyPresenceMode: configModel.PresenceModeDetailed,
+		}}, Attendance: fakeAttendance{ids: []int64{99}}, Supervision: // must be ignored
+		fakeSupervision{
+			supervisions:  []*activeModel.GroupSupervisor{{GroupID: 100}},
+			groups:        map[int64]*activeModel.Group{100: {RoomID: 10}},
+			presentByRoom: map[int64][]int64{10: {1, 2}},
+		}},
 		}
 		ids, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
 		require.NoError(t, err)
@@ -503,7 +464,7 @@ func TestPickupScopeStudentIDs(t *testing.T) {
 	})
 
 	t.Run("surfaces a presence-mode resolution error", func(t *testing.T) {
-		svc := &service{settings: fakeSettings{strErr: errors.New("boom")}}
+		svc := &service{Dependencies: Dependencies{Settings: fakeSettings{strErr: errors.New("boom")}}}
 		_, err := svc.pickupScopeStudentIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7}, timezone.TodayDate())
 		require.Error(t, err)
 	})
@@ -511,27 +472,27 @@ func TestPickupScopeStudentIDs(t *testing.T) {
 
 func TestSupervisedRoomIDs(t *testing.T) {
 	t.Run("returns the deduplicated supervised rooms", func(t *testing.T) {
-		svc := &service{supervision: fakeSupervision{
+		svc := &service{Dependencies: Dependencies{Supervision: fakeSupervision{
 			supervisions: []*activeModel.GroupSupervisor{{GroupID: 100}, {GroupID: 200}},
 			groups: map[int64]*activeModel.Group{
 				100: {RoomID: 10},
 				200: {RoomID: 20},
 			},
-		}}
+		}}}
 		rooms, err := svc.supervisedRoomIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7})
 		require.NoError(t, err)
 		assert.ElementsMatch(t, []int64{10, 20}, rooms)
 	})
 
 	t.Run("no supervision yields no rooms", func(t *testing.T) {
-		svc := &service{supervision: fakeSupervision{supervisions: nil}}
+		svc := &service{Dependencies: Dependencies{Supervision: fakeSupervision{supervisions: nil}}}
 		rooms, err := svc.supervisedRoomIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7})
 		require.NoError(t, err)
 		assert.Empty(t, rooms)
 	})
 
 	t.Run("propagates a supervision error", func(t *testing.T) {
-		svc := &service{supervision: fakeSupervision{supervisionErr: errors.New("boom")}}
+		svc := &service{Dependencies: Dependencies{Supervision: fakeSupervision{supervisionErr: errors.New("boom")}}}
 		_, err := svc.supervisedRoomIDs(context.Background(), Scope{IsAdmin: false, StaffID: 7})
 		require.Error(t, err)
 	})
@@ -543,10 +504,10 @@ func TestLeadAndThresholdFallbacks(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("configured value wins", func(t *testing.T) {
-		svc := &service{settings: fakeSettings{ints: map[string]int{
+		svc := &service{Dependencies: Dependencies{Settings: fakeSettings{ints: map[string]int{
 			configModel.KeyRemindersPickupUpcomingLeadMinutes: 25,
 			configModel.KeyTimetableOverdueThresholdMinutes:   7,
-		}}}
+		}}}}
 		lead, err := svc.leadMinutes(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes)
 		require.NoError(t, err)
 		assert.Equal(t, 25, lead)
@@ -556,10 +517,10 @@ func TestLeadAndThresholdFallbacks(t *testing.T) {
 	})
 
 	t.Run("non-positive value falls back", func(t *testing.T) {
-		svc := &service{settings: fakeSettings{ints: map[string]int{
+		svc := &service{Dependencies: Dependencies{Settings: fakeSettings{ints: map[string]int{
 			configModel.KeyRemindersPickupUpcomingLeadMinutes: 0,
 			configModel.KeyTimetableOverdueThresholdMinutes:   0,
-		}}}
+		}}}}
 		lead, err := svc.leadMinutes(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes)
 		require.NoError(t, err)
 		assert.Equal(t, 10, lead)
@@ -570,7 +531,7 @@ func TestLeadAndThresholdFallbacks(t *testing.T) {
 
 	t.Run("lookup error is propagated, not silently defaulted", func(t *testing.T) {
 		resolveErr := errors.New("boom")
-		svc := &service{settings: fakeSettings{intErr: resolveErr}}
+		svc := &service{Dependencies: Dependencies{Settings: fakeSettings{intErr: resolveErr}}}
 		_, err := svc.leadMinutes(ctx, configModel.KeyRemindersPickupUpcomingLeadMinutes)
 		require.ErrorIs(t, err, resolveErr)
 		_, err = svc.overdueThresholdMinutes(ctx)
@@ -593,7 +554,7 @@ func TestComputeGating(t *testing.T) {
 	})
 
 	t.Run("all types off returns an empty, disabled result", func(t *testing.T) {
-		svc := &service{settings: fakeSettings{}}
+		svc := &service{Dependencies: Dependencies{Settings: fakeSettings{}}}
 		res, err := svc.Compute(ctx, Scope{IsAdmin: true})
 		require.NoError(t, err)
 		assert.False(t, res.Enabled)
@@ -601,10 +562,7 @@ func TestComputeGating(t *testing.T) {
 	})
 
 	t.Run("enabled with no data is enabled but empty", func(t *testing.T) {
-		svc := &service{
-			settings:   fakeSettings{bools: map[string]bool{configModel.KeyRemindersPickupUpcomingEnabled: true}},
-			attendance: fakeAttendance{ids: nil},
-		}
+		svc := &service{Dependencies: Dependencies{Settings: fakeSettings{bools: map[string]bool{configModel.KeyRemindersPickupUpcomingEnabled: true}}, Attendance: fakeAttendance{ids: nil}}}
 		res, err := svc.Compute(ctx, Scope{IsAdmin: true})
 		require.NoError(t, err)
 		assert.True(t, res.Enabled, "the header bell shows whenever a type is enabled, even with nothing due")
@@ -614,7 +572,7 @@ func TestComputeGating(t *testing.T) {
 
 	t.Run("a setting resolution error is surfaced, not swallowed as disabled", func(t *testing.T) {
 		resolveErr := errors.New("config read failed")
-		svc := &service{settings: fakeSettings{boolErr: resolveErr}}
+		svc := &service{Dependencies: Dependencies{Settings: fakeSettings{boolErr: resolveErr}}}
 		res, err := svc.Compute(ctx, Scope{IsAdmin: true})
 		require.Error(t, err, "a broken config read must not look like a healthy empty result")
 		assert.ErrorIs(t, err, resolveErr)
@@ -630,24 +588,19 @@ func TestComputeSortsMostUrgentFirst(t *testing.T) {
 		t.Skip("skipping wall-clock-relative sort test near midnight")
 	}
 
-	svc := &service{
-		settings: fakeSettings{bools: map[string]bool{
-			configModel.KeyRemindersPickupUpcomingEnabled: true,
-			configModel.KeyRemindersPickupOverdueEnabled:  true,
-		}},
-		attendance: fakeAttendance{ids: []int64{1, 2}},
-		pickup: fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{
-			1: pickupAt(nowMin + 5),  // upcoming
-			2: pickupAt(nowMin - 15), // overdue, more urgent
-		}},
-		student: fakeStudent{students: map[int64]*userModel.Student{
-			1: {PersonID: 11, SchoolClass: "1a"},
-			2: {PersonID: 12, SchoolClass: "1b"},
-		}},
-		person: fakePerson{persons: map[int64]*userModel.Person{
-			11: {FirstName: "Anna", LastName: "A"},
-			12: {FirstName: "Ben", LastName: "B"},
-		}},
+	svc := &service{Dependencies: Dependencies{Settings: fakeSettings{bools: map[string]bool{
+		configModel.KeyRemindersPickupUpcomingEnabled: true,
+		configModel.KeyRemindersPickupOverdueEnabled:  true,
+	}}, Attendance: fakeAttendance{ids: []int64{1, 2}}, Pickup: fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{
+		1: pickupAt(nowMin + 5),  // upcoming
+		2: pickupAt(nowMin - 15), // overdue, more urgent
+	}}, Student: fakeStudent{students: map[int64]*userModel.Student{
+		1: {PersonID: 11, SchoolClass: "1a"},
+		2: {PersonID: 12, SchoolClass: "1b"},
+	}}, Person: fakePerson{persons: map[int64]*userModel.Person{
+		11: {FirstName: "Anna", LastName: "A"},
+		12: {FirstName: "Ben", LastName: "B"},
+	}}},
 	}
 
 	res, err := svc.Compute(context.Background(), Scope{IsAdmin: true})
@@ -685,11 +638,7 @@ func TestPickupNextChange(t *testing.T) {
 	students := map[int64]*userModel.Student{1: {PersonID: 11, SchoolClass: "1a"}}
 	persons := map[int64]*userModel.Person{11: {FirstName: "Anna", LastName: "A"}}
 	newSvc := func(times map[int64]*scheduleService.EffectivePickupTime) *service {
-		return &service{
-			pickup:  fakePickup{times: times},
-			student: fakeStudent{students: students},
-			person:  fakePerson{persons: persons},
-		}
+		return &service{Dependencies: Dependencies{Pickup: fakePickup{times: times}, Student: fakeStudent{students: students}, Person: fakePerson{persons: persons}}}
 	}
 
 	t.Run("a pickup outside the window schedules its window-entry moment", func(t *testing.T) {
@@ -741,18 +690,14 @@ func TestPickupNextChangeExcludesUnreadableStudents(t *testing.T) {
 	g100 := int64(100)
 	g200 := int64(200)
 
-	svc := &service{
-		pickup: fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{
-			1: pickupAt(660), // supervised: enters its window at 650
-			2: pickupAt(620), // NOT supervised: would enter at 610 (sooner) — must not leak
-		}},
-		student: fakeStudent{students: map[int64]*userModel.Student{
-			1: {PersonID: 11, SchoolClass: "1a", GroupID: &g100},
-			2: {PersonID: 12, SchoolClass: "1b", GroupID: &g200},
-		}},
-		person:   fakePerson{persons: map[int64]*userModel.Person{11: {FirstName: "Anna", LastName: "A"}}},
-		settings: fakeSettings{}, // no override → group_supervisors_only
-		groups:   fakeGroups{groups: []*educationModel.Group{eduGroup(100)}},
+	svc := &service{Dependencies: Dependencies{Pickup: fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{
+		1: pickupAt(660), // supervised: enters its window at 650
+		2: pickupAt(620), // NOT supervised: would enter at 610 (sooner) — must not leak
+	}}, Student: fakeStudent{students: map[int64]*userModel.Student{
+		1: {PersonID: 11, SchoolClass: "1a", GroupID: &g100},
+		2: {PersonID: 12, SchoolClass: "1b", GroupID: &g200},
+	}}, Person: fakePerson{persons: map[int64]*userModel.Person{11: {FirstName: "Anna", LastName: "A"}}}, Settings: fakeSettings{}, Groups: // no override → group_supervisors_only
+	fakeGroups{groups: []*educationModel.Group{eduGroup(100)}}},
 	}
 	caregiver := Scope{IsAdmin: false, StaffID: 7}
 
@@ -771,9 +716,9 @@ func TestActivityNextChange(t *testing.T) {
 	t.Run("an activity starting beyond the window schedules its earliest boundary", func(t *testing.T) {
 		// start 620, end 700. Boundaries: window entry 610, upcoming exit 621,
 		// overdue 625, slot end 700. The soonest is 610.
-		svc := &service{instance: fakeInstance{instances: []*scheduleModel.ActivityInstance{
+		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: []*scheduleModel.ActivityInstance{
 			plannedInstance("Schach", 1, 620, 700),
-		}}}
+		}}}}
 		out, next, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
 		require.NoError(t, err)
 		assert.Empty(t, out)
@@ -786,9 +731,9 @@ func TestActivityNextChange(t *testing.T) {
 		// first minute start is in the past, startMin+1 = 621 — NOT startMin.
 		// Upcoming-only isolates that boundary from the overdue ones.
 		const nowMin = 615
-		svc := &service{instance: fakeInstance{instances: []*scheduleModel.ActivityInstance{
+		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: []*scheduleModel.ActivityInstance{
 			plannedInstance("Schach", 1, 620, 700),
-		}}}
+		}}}}
 		out, next, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, false)
 		require.NoError(t, err)
 		require.Len(t, out, 1)
@@ -811,16 +756,11 @@ func TestComputeExposesNextChangeAt(t *testing.T) {
 		t.Skip("skipping wall-clock-relative next-change test near midnight")
 	}
 
-	svc := &service{
-		settings: fakeSettings{bools: map[string]bool{
-			configModel.KeyRemindersPickupUpcomingEnabled: true,
-		}},
-		attendance: fakeAttendance{ids: []int64{1}},
-		pickup: fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{
-			1: pickupAt(nowMin + 20), // outside the default 10-min lead window
-		}},
-		student: fakeStudent{students: map[int64]*userModel.Student{1: {PersonID: 11, SchoolClass: "1a"}}},
-		person:  fakePerson{persons: map[int64]*userModel.Person{11: {FirstName: "Anna", LastName: "A"}}},
+	svc := &service{Dependencies: Dependencies{Settings: fakeSettings{bools: map[string]bool{
+		configModel.KeyRemindersPickupUpcomingEnabled: true,
+	}}, Attendance: fakeAttendance{ids: []int64{1}}, Pickup: fakePickup{times: map[int64]*scheduleService.EffectivePickupTime{
+		1: pickupAt(nowMin + 20), // outside the default 10-min lead window
+	}}, Student: fakeStudent{students: map[int64]*userModel.Student{1: {PersonID: 11, SchoolClass: "1a"}}}, Person: fakePerson{persons: map[int64]*userModel.Person{11: {FirstName: "Anna", LastName: "A"}}}},
 	}
 
 	res, err := svc.Compute(context.Background(), Scope{IsAdmin: true})

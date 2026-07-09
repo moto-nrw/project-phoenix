@@ -54,10 +54,6 @@ type GuardianChange struct {
 	ChangedAt          time.Time `bun:"changed_at,notnull,default:now()" json:"changed_at"`
 }
 
-func (e *GuardianChange) TableName() string {
-	return "audit.guardian_changes"
-}
-
 func (e *GuardianChange) GetID() interface{} {
 	return e.ID
 }

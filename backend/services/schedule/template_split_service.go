@@ -23,15 +23,17 @@
 package schedule
 
 import (
+	"cmp"
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -102,21 +104,6 @@ type TemplateEndResult struct {
 	CappedSupervisors int64
 }
 
-// TemplateSplitService performs recurring-template scope operations.
-type TemplateSplitService interface {
-	// Split caps the old template at in.EffectiveDate (exclusive), creates a
-	// successor template from the updated fields, deletes the old template's
-	// planned future instances and optionally re-materializes the window.
-	// The caller is expected to have established tenant context and a
-	// transaction.
-	Split(ctx context.Context, in TemplateSplitInput) (*TemplateSplitResult, error)
-
-	// EndFromDate caps a template from the effective date onward without
-	// creating a successor. Planned non-spontaneous future instances are
-	// deleted; active/completed/cancelled/spontaneous rows remain as history.
-	EndFromDate(ctx context.Context, in TemplateEndInput) (*TemplateEndResult, error)
-}
-
 // TemplateSplitDependencies aggregates wiring. All fields are required;
 // Logger may be nil (falls back to slog.Default).
 type TemplateSplitDependencies struct {
@@ -130,31 +117,33 @@ type TemplateSplitDependencies struct {
 	Logger          *slog.Logger
 }
 
-type templateSplitService struct {
+// TemplateSplitService performs recurring-template scope operations.
+type TemplateSplitService struct {
 	deps TemplateSplitDependencies
 }
 
 // NewTemplateSplitService constructs a TemplateSplitService. Panics if a
 // required dependency is nil — the split has no sensible degraded mode, so
 // the factory must wire it completely at startup.
-func NewTemplateSplitService(deps TemplateSplitDependencies) TemplateSplitService {
+func NewTemplateSplitService(deps TemplateSplitDependencies) *TemplateSplitService {
 	if deps.GroupRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil ||
 		deps.SupervisorRepo == nil || deps.InstanceRepo == nil || deps.TimeframeRepo == nil ||
 		deps.Materialization == nil {
 		panic("schedule.NewTemplateSplitService: required dependency is nil")
 	}
-	return &templateSplitService{deps: deps}
+	return &TemplateSplitService{deps: deps}
 }
 
-func (s *templateSplitService) getLogger() *slog.Logger {
-	if s.deps.Logger != nil {
-		return s.deps.Logger
-	}
-	return slog.Default()
+func (s *TemplateSplitService) getLogger() *slog.Logger {
+	return cmp.Or(s.deps.Logger, slog.Default())
 }
 
-// Split implements TemplateSplitService.
-func (s *templateSplitService) Split(ctx context.Context, in TemplateSplitInput) (*TemplateSplitResult, error) {
+// Split caps the old template at in.EffectiveDate (exclusive), creates a
+// successor template from the updated fields, deletes the old template's
+// planned future instances and optionally re-materializes the window.
+// The caller is expected to have established tenant context and a
+// transaction.
+func (s *TemplateSplitService) Split(ctx context.Context, in TemplateSplitInput) (*TemplateSplitResult, error) {
 	if err := validateSplitInput(in); err != nil {
 		return nil, err
 	}
@@ -243,9 +232,11 @@ func (s *templateSplitService) Split(ctx context.Context, in TemplateSplitInput)
 	}, nil
 }
 
-// EndFromDate implements the "Dieser und alle folgenden löschen" flow. It is
-// intentionally the destructive half of Split without a successor template.
-func (s *templateSplitService) EndFromDate(ctx context.Context, in TemplateEndInput) (*TemplateEndResult, error) {
+// EndFromDate caps a template from the effective date onward without creating
+// a successor ("Dieser und alle folgenden löschen") — intentionally the
+// destructive half of Split. Planned non-spontaneous future instances are
+// deleted; active/completed/cancelled/spontaneous rows remain as history.
+func (s *TemplateSplitService) EndFromDate(ctx context.Context, in TemplateEndInput) (*TemplateEndResult, error) {
 	if err := validateTemplateEndInput(in); err != nil {
 		return nil, err
 	}
@@ -391,10 +382,10 @@ func validateSplitMaterializationWindow(in TemplateSplitInput) error {
 
 // loadTemplate resolves the old template and enforces the split preconditions:
 // it must exist in the current tenant, be a template, and not be archived.
-func (s *templateSplitService) loadTemplate(ctx context.Context, id int64) (*activitiesModel.Group, error) {
+func (s *TemplateSplitService) loadTemplate(ctx context.Context, id int64) (*activitiesModel.Group, error) {
 	group, err := s.deps.GroupRepo.FindByID(ctx, id)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || isNotFoundDBError(err) {
+		if modelBase.IsNoRows(err) {
 			return nil, ErrSplitTemplateNotFound
 		}
 		return nil, &ScheduleError{Op: "split template: load template", Err: err}
@@ -413,7 +404,7 @@ func (s *templateSplitService) loadTemplate(ctx context.Context, id int64) (*act
 // Carry-over must therefore dedupe per person before stamping the successor's
 // calendar_period_id, or the insert violates the index (see
 // createStudentRoster / createStaffRoster).
-func (s *templateSplitService) loadActiveRoster(ctx context.Context, groupID int64) ([]*activitiesModel.StudentEnrollment, []*activitiesModel.SupervisorPlanned, error) {
+func (s *TemplateSplitService) loadActiveRoster(ctx context.Context, groupID int64) ([]*activitiesModel.StudentEnrollment, []*activitiesModel.SupervisorPlanned, error) {
 	enrollments, err := s.deps.EnrollmentRepo.FindByGroupID(ctx, groupID)
 	if err != nil {
 		return nil, nil, &ScheduleError{Op: "split template: load enrollments", Err: err}
@@ -440,7 +431,7 @@ func (s *templateSplitService) loadActiveRoster(ctx context.Context, groupID int
 
 // createSuccessorGroup copies the old template and applies the updated fields.
 // MaxParticipants falls back to the old template's value when not provided.
-func (s *templateSplitService) createSuccessorGroup(ctx context.Context, old *activitiesModel.Group, in TemplateSplitInput, tenantID int64) (*activitiesModel.Group, error) {
+func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *activitiesModel.Group, in TemplateSplitInput, tenantID int64) (*activitiesModel.Group, error) {
 	maxParticipants := old.MaxParticipants
 	if in.MaxParticipants != nil && *in.MaxParticipants > 0 {
 		maxParticipants = *in.MaxParticipants
@@ -467,7 +458,7 @@ func (s *templateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 // createSuccessorSchedules creates one schedule row per weekday, starting at
 // the effective date (valid_from inclusive) with an open end (valid_until
 // NULL).
-func (s *templateSplitService) createSuccessorSchedules(ctx context.Context, groupID, timeframeID int64, in TemplateSplitInput, tenantID int64) ([]int64, error) {
+func (s *TemplateSplitService) createSuccessorSchedules(ctx context.Context, groupID, timeframeID int64, in TemplateSplitInput, tenantID int64) ([]int64, error) {
 	weekPattern := 0
 	if in.WeekPattern != nil {
 		weekPattern = *in.WeekPattern
@@ -504,10 +495,10 @@ func (s *templateSplitService) createSuccessorSchedules(ctx context.Context, gro
 // idx_student_enrollments_active. The row matching in.CalendarPeriodID is
 // preferred; selected_weekdays are unioned across the student's rows (an
 // empty list means "all weekdays" and wins the union).
-func (s *templateSplitService) createStudentRoster(ctx context.Context, groupID int64, in TemplateSplitInput, carried []*activitiesModel.StudentEnrollment, tenantID int64) error {
+func (s *TemplateSplitService) createStudentRoster(ctx context.Context, groupID int64, in TemplateSplitInput, carried []*activitiesModel.StudentEnrollment, tenantID int64) error {
 	rows := make([]*activitiesModel.StudentEnrollment, 0, len(carried))
 	if in.StudentIDs != nil {
-		for _, studentID := range uniquePositiveInt64(in.StudentIDs) {
+		for _, studentID := range sliceutil.UniquePositive(in.StudentIDs) {
 			rows = append(rows, &activitiesModel.StudentEnrollment{StudentID: studentID})
 		}
 	} else {
@@ -548,10 +539,10 @@ func (s *templateSplitService) createStudentRoster(ctx context.Context, groupID 
 // active rows per staff (one per calendar period, migration 1.15.52) collapse
 // to one successor row, preferring the row matching in.CalendarPeriodID. The
 // preferred row's is_primary flag is kept.
-func (s *templateSplitService) createStaffRoster(ctx context.Context, groupID int64, in TemplateSplitInput, carried []*activitiesModel.SupervisorPlanned, tenantID int64) error {
+func (s *TemplateSplitService) createStaffRoster(ctx context.Context, groupID int64, in TemplateSplitInput, carried []*activitiesModel.SupervisorPlanned, tenantID int64) error {
 	rows := make([]*activitiesModel.SupervisorPlanned, 0, len(carried))
 	if in.StaffIDs != nil {
-		for _, staffID := range uniquePositiveInt64(in.StaffIDs) {
+		for _, staffID := range sliceutil.UniquePositive(in.StaffIDs) {
 			rows = append(rows, &activitiesModel.SupervisorPlanned{
 				StaffID:   staffID,
 				IsPrimary: in.PrimaryStaffID != nil && *in.PrimaryStaffID == staffID,
@@ -630,7 +621,7 @@ func unionSelectedWeekdays(rows []*activitiesModel.StudentEnrollment, preferred 
 // materializeWindow re-materializes the requested window, clamped so it never
 // starts before the effective date. Requires both bounds; an inverted clamped
 // window is a silent no-op (nothing to materialize before the split point).
-func (s *templateSplitService) materializeWindow(ctx context.Context, in TemplateSplitInput) (*MaterializationResult, error) {
+func (s *TemplateSplitService) materializeWindow(ctx context.Context, in TemplateSplitInput) (*MaterializationResult, error) {
 	if in.MaterializeFrom == nil || in.MaterializeTo == nil {
 		return nil, nil
 	}
@@ -674,7 +665,7 @@ func FindOrCreateTimeframe(ctx context.Context, repo scheduleModel.TimeframeRepo
 			// time.Time.Equal here: schedule.timeframes stores SQL TIME, and
 			// drivers may decode TIME with a different date anchor than the
 			// caller's HH:MM parser uses.
-			if sameClockTime(tf.StartTime, start) && tf.EndTime != nil && sameClockTime(*tf.EndTime, end) {
+			if timezone.SameClockTime(tf.StartTime, start) && tf.EndTime != nil && timezone.SameClockTime(*tf.EndTime, end) {
 				return tf.ID, nil
 			}
 		}
@@ -692,13 +683,4 @@ func FindOrCreateTimeframe(ctx context.Context, repo scheduleModel.TimeframeRepo
 		return 0, fmt.Errorf("create timeframe: %w", err)
 	}
 	return tf.ID, nil
-}
-
-// sameClockTime compares only the time-of-day components, ignoring the date
-// anchor and location a driver may have attached on scan.
-func sameClockTime(a, b time.Time) bool {
-	return a.Hour() == b.Hour() &&
-		a.Minute() == b.Minute() &&
-		a.Second() == b.Second() &&
-		a.Nanosecond() == b.Nanosecond()
 }

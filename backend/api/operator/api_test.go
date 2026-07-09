@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -34,47 +34,7 @@ func chiWalk(router chi.Router, fn func(pattern string)) error {
 // non-nil check in NewResource so that the settings routes get wired.
 // Handler behavior is exercised in settings_integration_test.go with a real
 // service.
-type stubSettingsService struct{}
-
-func (stubSettingsService) GetSchema(context.Context, []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (stubSettingsService) GetSchemaForOperator(context.Context, []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (stubSettingsService) Resolve(context.Context, string) (any, error) { return nil, nil }
-func (stubSettingsService) ResolveString(context.Context, string) (string, error) {
-	return "", nil
-}
-func (stubSettingsService) ResolveStringForTenant(context.Context, int64, string) (string, error) {
-	return "", nil
-}
-func (stubSettingsService) ResolveBool(context.Context, string) (bool, error) { return false, nil }
-func (stubSettingsService) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
-	return false, nil
-}
-func (stubSettingsService) ResolveInt(context.Context, string) (int, error) { return 0, nil }
-func (stubSettingsService) ResolveIntForTenant(context.Context, int64, string) (int, error) {
-	return 0, nil
-}
-func (stubSettingsService) HasTenantOverride(context.Context, string) (bool, error) {
-	return false, nil
-}
-func (stubSettingsService) SetValue(context.Context, string, any, *int64, []string) error {
-	return nil
-}
-func (stubSettingsService) ResetValue(context.Context, string, *int64, []string) error {
-	return nil
-}
-func (stubSettingsService) GetLoginImageURL(context.Context, int64) (string, error) {
-	return "", nil
-}
-func (stubSettingsService) SetLoginImageURL(context.Context, int64, string) (string, error) {
-	return "", nil
-}
-func (stubSettingsService) ClearLoginImageURL(context.Context, int64) (string, error) {
-	return "", nil
-}
+func stubSettingsService() *configtest.Mock { return &configtest.Mock{} }
 
 type protectedRouteProvisioningService struct {
 	platformSvc.OperatorProvisioningService
@@ -147,7 +107,7 @@ func TestRouter(t *testing.T) {
 
 	t.Run("settings routes are mounted when SettingsService is provided", func(t *testing.T) {
 		cfg := operator.ResourceConfig{
-			SettingsService: stubSettingsService{},
+			SettingsService: stubSettingsService(),
 		}
 		resource := operator.NewResource(cfg)
 		require.NotNil(t, resource)

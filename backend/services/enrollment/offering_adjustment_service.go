@@ -25,17 +25,17 @@ type offeringAdjustmentSnapshot struct {
 }
 
 func (s *decisionService) ListOfferingAdjustments(ctx context.Context, requestID, requestChildID int64) ([]*auditModels.EnrollmentOfferingAdjustment, error) {
-	if s.offeringAdjustmentRepo == nil {
+	if s.OfferingAdjustmentRepo == nil {
 		return nil, fmt.Errorf("decision: offering adjustment repo not configured")
 	}
 	if requestID <= 0 || requestChildID <= 0 {
 		return nil, fmt.Errorf("%w: request_id and child_id are required", ErrOfferingAdjustmentInvalid)
 	}
-	child, err := s.requestChildRepo.FindByID(ctx, requestChildID)
+	child, err := s.RequestChildRepo.FindByID(ctx, requestChildID)
 	if err != nil || child == nil || child.RequestID != requestID {
 		return nil, ErrDecisionChildNotFound
 	}
-	return s.offeringAdjustmentRepo.ListByRequestChildID(ctx, requestChildID)
+	return s.OfferingAdjustmentRepo.ListByRequestChildID(ctx, requestChildID)
 }
 
 func (s *decisionService) UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
@@ -49,28 +49,28 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 	if reason == "" {
 		return nil, fmt.Errorf("%w: reason is required", ErrOfferingAdjustmentInvalid)
 	}
-	if s.requestRepo == nil || s.requestChildRepo == nil || s.requestChildOfferingRepo == nil ||
-		s.careOfferingRepo == nil || s.phaseRepo == nil || s.offeringAdjustmentRepo == nil {
+	if s.RequestRepo == nil || s.RequestChildRepo == nil || s.RequestChildOfferingRepo == nil ||
+		s.CareOfferingRepo == nil || s.PhaseRepo == nil || s.OfferingAdjustmentRepo == nil {
 		return nil, fmt.Errorf("decision: offering adjustment dependencies are not configured")
 	}
 
-	req, err := s.requestRepo.FindByID(ctx, input.RequestID)
+	req, err := s.RequestRepo.FindByID(ctx, input.RequestID)
 	if err != nil {
 		return nil, ErrDecisionRequestNotFound
 	}
-	child, err := s.requestChildRepo.FindByID(ctx, input.ChildID)
+	child, err := s.RequestChildRepo.FindByID(ctx, input.ChildID)
 	if err != nil || child == nil || child.RequestID != req.ID {
 		return nil, ErrDecisionChildNotFound
 	}
 	if child.Status != enrollmentModels.ChildStatusApproved || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 {
 		return nil, fmt.Errorf("%w: only approved children with a linked student can be adjusted", ErrOfferingAdjustmentInvalid)
 	}
-	phase, err := s.phaseRepo.FindByID(ctx, req.PhaseID)
+	phase, err := s.PhaseRepo.FindByID(ctx, req.PhaseID)
 	if err != nil || phase == nil {
 		return nil, fmt.Errorf("decision: load adjustment phase: %w", err)
 	}
 
-	offerings, err := s.careOfferingRepo.ListByPhase(ctx, req.PhaseID)
+	offerings, err := s.CareOfferingRepo.ListByPhase(ctx, req.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list phase offerings for adjustment: %w", err)
 	}
@@ -78,7 +78,7 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 	for _, offering := range offerings {
 		offeringByID[offering.ID] = offering
 	}
-	activeOfferings, err := s.careOfferingRepo.ListActiveByPhase(ctx, req.PhaseID)
+	activeOfferings, err := s.CareOfferingRepo.ListActiveByPhase(ctx, req.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list active phase offerings for adjustment: %w", err)
 	}
@@ -88,14 +88,14 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 		offeringByID[offering.ID] = offering
 	}
 
-	beforeLinks, err := s.requestChildOfferingRepo.ListByRequestChildID(ctx, child.ID)
+	beforeLinks, err := s.RequestChildOfferingRepo.ListByRequestChildID(ctx, child.ID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: list current child offerings: %w", err)
 	}
 	beforeOfferingIDs := offeringIDsFromLinks(beforeLinks)
 	beforeOfferingByID := map[int64]*enrollmentModels.CareOffering{}
 	if len(beforeOfferingIDs) > 0 {
-		beforeOfferings, listErr := s.careOfferingRepo.ListByIDs(ctx, beforeOfferingIDs)
+		beforeOfferings, listErr := s.CareOfferingRepo.ListByIDs(ctx, beforeOfferingIDs)
 		if listErr != nil {
 			return nil, fmt.Errorf("decision: list existing child offerings for adjustment: %w", listErr)
 		}
@@ -175,7 +175,7 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 		return nil, afterSnapshotErr
 	}
 
-	if err := s.requestChildOfferingRepo.ReplaceForRequestChild(ctx, child.ID, replacement); err != nil {
+	if err := s.RequestChildOfferingRepo.ReplaceForRequestChild(ctx, child.ID, replacement); err != nil {
 		return nil, fmt.Errorf("decision: replace child offerings: %w", err)
 	}
 	if err := s.rematerializeAdjustedEnrollments(ctx, child.ID, *child.CreatedStudentID, beforeLinks, phase); err != nil {
@@ -197,25 +197,25 @@ func (s *decisionService) UpdateChildOfferings(ctx context.Context, input Update
 	if entry.ActorRole == "" {
 		entry.ActorRole = "admin"
 	}
-	if err := s.offeringAdjustmentRepo.Create(ctx, entry); err != nil {
+	if err := s.OfferingAdjustmentRepo.Create(ctx, entry); err != nil {
 		return nil, fmt.Errorf("decision: create offering adjustment audit: %w", err)
 	}
-	return s.requestChildRepo.FindByID(ctx, child.ID)
+	return s.RequestChildRepo.FindByID(ctx, child.ID)
 }
 
 func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*enrollmentModels.RequestChild, error) {
 	if input.RequestID <= 0 || input.ChildID <= 0 {
 		return nil, fmt.Errorf("%w: request_id and child_id are required", ErrOfferingAdjustmentInvalid)
 	}
-	if s.requestRepo == nil || s.requestChildRepo == nil || s.studentRepo == nil || s.personRepo == nil {
+	if s.RequestRepo == nil || s.RequestChildRepo == nil || s.StudentRepo == nil || s.PersonRepo == nil {
 		return nil, fmt.Errorf("decision: approved child sync dependencies are not configured")
 	}
 
-	req, err := s.requestRepo.FindByID(ctx, input.RequestID)
+	req, err := s.RequestRepo.FindByID(ctx, input.RequestID)
 	if err != nil {
 		return nil, ErrDecisionRequestNotFound
 	}
-	child, err := s.requestChildRepo.FindByID(ctx, input.ChildID)
+	child, err := s.RequestChildRepo.FindByID(ctx, input.ChildID)
 	if err != nil || child == nil || child.RequestID != req.ID {
 		return nil, ErrDecisionChildNotFound
 	}
@@ -223,11 +223,11 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 		return nil, fmt.Errorf("%w: only approved children with a linked student can be synced", ErrOfferingAdjustmentInvalid)
 	}
 
-	student, err := s.studentRepo.FindByIDForUpdate(ctx, *child.CreatedStudentID)
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, *child.CreatedStudentID)
 	if err != nil || student == nil {
 		return nil, ErrDecisionStudentNotFound
 	}
-	person, err := s.personRepo.FindByID(ctx, student.PersonID)
+	person, err := s.PersonRepo.FindByID(ctx, student.PersonID)
 	if err != nil || person == nil {
 		return nil, fmt.Errorf("decision: load approved child person: %w", err)
 	}
@@ -236,22 +236,29 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 	person.LastName = child.LastName
 	dob := child.DateOfBirth
 	person.Birthday = &dob
-	if err := s.personRepo.Update(ctx, person); err != nil {
+	if err := s.PersonRepo.Update(ctx, person); err != nil {
 		return nil, fmt.Errorf("decision: sync approved child person: %w", err)
 	}
 
-	student.SchoolClass = s.gradeToClass(child.TargetGradeLevel)
+	// Re-derive the school_class exactly like the rollover approval path:
+	// the concrete class carried by the edit wins; otherwise a bare grade
+	// placeholder tracks a grade change ("1" -> "2"), a concrete class whose
+	// grade still matches is kept ("3b" at grade 3), and a concrete class
+	// stranded on a now-stale grade ("2a" while the edit bumps to grade 3)
+	// falls back to the new bare grade rather than leaving the student in a
+	// mismatched class. Issue #1833.
+	student.SchoolClass = s.resolveRolloverSchoolClass(child, student.SchoolClass)
 	guardianEmail := strings.TrimSpace(strings.ToLower(req.GuardianEmail))
 	if guardianEmail != "" {
 		student.GuardianEmail = &guardianEmail
 	}
 	student.GuardianPhone = req.GuardianPhone
-	if err := s.studentRepo.Update(ctx, student); err != nil {
+	if err := s.StudentRepo.Update(ctx, student); err != nil {
 		return nil, fmt.Errorf("decision: sync approved child student: %w", err)
 	}
 
 	var guardian *users.GuardianProfile
-	if input.ReplaceTargetedData && s.guardianProfileRepo != nil {
+	if input.ReplaceTargetedData && s.GuardianProfileRepo != nil {
 		guardian, err = s.reconcilePrimaryGuardianLink(ctx, req, student.ID)
 		if err != nil {
 			return nil, err
@@ -267,7 +274,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 		}
 	}
 
-	if s.guardianProfileRepo != nil {
+	if s.GuardianProfileRepo != nil {
 		if guardian == nil {
 			resolved, _, gerr := s.resolveGuardianProfile(ctx, req)
 			if gerr == nil {
@@ -280,7 +287,7 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 				PreviousSnapshot:       input.PreviousSnapshot,
 				KeepGuardianProfileIDs: keepGuardianProfileIDs,
 			}); terr != nil {
-				s.logger.Warn("decision: approved child targeted-field sync had errors",
+				s.Logger.Warn("decision: approved child targeted-field sync had errors",
 					slog.Int64("request_id", req.ID),
 					slog.Int64("child_id", child.ID),
 					slog.String("error", terr.Error()),
@@ -297,13 +304,13 @@ func (s *decisionService) SyncApprovedChildData(ctx context.Context, input SyncA
 		}
 	}
 
-	return s.requestChildRepo.FindByID(ctx, child.ID)
+	return s.RequestChildRepo.FindByID(ctx, child.ID)
 }
 
 func (s *decisionService) actorSnapshot(ctx context.Context, accountID int64) (*string, *string) {
 	var name *string
-	if s.personRepo != nil {
-		if person, err := s.personRepo.FindByAccountID(ctx, accountID); err == nil && person != nil {
+	if s.PersonRepo != nil {
+		if person, err := s.PersonRepo.FindByAccountID(ctx, accountID); err == nil && person != nil {
 			fullName := strings.TrimSpace(person.GetFullName())
 			if fullName != "" {
 				name = &fullName
@@ -311,8 +318,8 @@ func (s *decisionService) actorSnapshot(ctx context.Context, accountID int64) (*
 		}
 	}
 	var email *string
-	if s.accountRepo != nil {
-		if account, err := s.accountRepo.FindByID(ctx, accountID); err == nil && account != nil && strings.TrimSpace(account.Email) != "" {
+	if s.AccountRepo != nil {
+		if account, err := s.AccountRepo.FindByID(ctx, accountID); err == nil && account != nil && strings.TrimSpace(account.Email) != "" {
 			value := account.Email
 			email = &value
 		}
@@ -377,7 +384,7 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 	beforeLinks []*enrollmentModels.RequestChildOffering,
 	phase *enrollmentModels.Phase,
 ) error {
-	if s.studentEnrollmentRepo == nil {
+	if s.StudentEnrollmentRepo == nil {
 		return nil
 	}
 	if len(beforeLinks) > 0 {
@@ -385,7 +392,7 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 			return err
 		}
 	}
-	if _, err := s.studentEnrollmentRepo.DeleteByEnrollmentRequestChild(ctx, studentID, requestChildID); err != nil {
+	if _, err := s.StudentEnrollmentRepo.DeleteByEnrollmentRequestChild(ctx, studentID, requestChildID); err != nil {
 		return fmt.Errorf("decision: delete sourced adjusted enrollments: %w", err)
 	}
 	return s.materializeEnrollments(ctx, requestChildID, studentID, phase)
@@ -396,10 +403,10 @@ func (s *decisionService) backfillLegacyAdjustedEnrollments(
 	requestChildID, studentID int64,
 	beforeLinks []*enrollmentModels.RequestChildOffering,
 ) error {
-	if s.careOfferingRepo == nil {
+	if s.CareOfferingRepo == nil {
 		return nil
 	}
-	offerings, err := s.careOfferingRepo.ListByIDs(ctx, offeringIDsFromLinks(beforeLinks))
+	offerings, err := s.CareOfferingRepo.ListByIDs(ctx, offeringIDsFromLinks(beforeLinks))
 	if err != nil {
 		return fmt.Errorf("decision: list existing child offerings for legacy enrollment cleanup: %w", err)
 	}
@@ -415,7 +422,7 @@ func (s *decisionService) backfillLegacyAdjustedEnrollments(
 	if len(groupIDs) == 0 {
 		return nil
 	}
-	if _, err := s.studentEnrollmentRepo.BackfillEnrollmentRequestChildSource(ctx, studentID, requestChildID, groupIDs); err != nil {
+	if _, err := s.StudentEnrollmentRepo.BackfillEnrollmentRequestChildSource(ctx, studentID, requestChildID, groupIDs); err != nil {
 		return fmt.Errorf("decision: backfill legacy adjusted enrollments: %w", err)
 	}
 	return nil

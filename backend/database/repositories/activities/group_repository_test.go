@@ -410,32 +410,6 @@ func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
 	})
 }
 
-func TestActivityGroupRepository_FindWithSchedules(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns group with schedules", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "WithSchedules")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
-
-		foundGroup, schedules, err := repo.FindWithSchedules(ctx, group.ID)
-		require.NoError(t, err)
-		assert.NotNil(t, foundGroup)
-		assert.Equal(t, group.ID, foundGroup.ID)
-		assert.NotNil(t, schedules)
-		// Schedules may be empty if none are set
-	})
-
-	t.Run("returns error for non-existent group", func(t *testing.T) {
-		_, _, err := repo.FindWithSchedules(ctx, int64(999999))
-		require.Error(t, err)
-	})
-}
-
 func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -484,43 +458,6 @@ func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 		groups, err := repo.FindByStaffSupervisor(ctx, staff.ID)
 		require.NoError(t, err)
 		assert.Empty(t, groups)
-	})
-}
-
-func TestActivityGroupRepository_FindByStaffSupervisorToday(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds only open groups supervised by staff member", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "SupervisorToday")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
-
-		staff := testpkg.CreateTestStaff(t, db, "Today", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
-
-		// Add supervisor assignment
-		sup := &activities.SupervisorPlanned{
-			GroupID:   group.ID,
-			StaffID:   staff.ID,
-			IsPrimary: true,
-		}
-		sup.SetTenantID(1)
-		_, _ = db.NewInsert().
-			Model(sup).
-			ModelTableExpr(`activities.supervisors`).
-			Exec(ctx)
-
-		groups, err := repo.FindByStaffSupervisorToday(ctx, staff.ID)
-		require.NoError(t, err)
-
-		// All returned groups should be open
-		for _, g := range groups {
-			assert.True(t, g.IsOpen)
-		}
 	})
 }
 

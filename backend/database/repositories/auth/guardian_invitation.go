@@ -87,7 +87,9 @@ func (r *GuardianInvitationRepository) FindByID(ctx context.Context, id int64) (
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New(errMsgInvitationNotFound)
+			// Wrap sql.ErrNoRows so service-layer not-found checks
+			// (errors.Is / isNotFoundError) can map this to a 404.
+			return nil, fmt.Errorf("%s: %w", errMsgInvitationNotFound, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find guardian invitation: %w", err)
 	}
@@ -107,7 +109,9 @@ func (r *GuardianInvitationRepository) FindByToken(ctx context.Context, token st
 
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, errors.New(errMsgInvitationNotFound)
+			// Wrap sql.ErrNoRows so service-layer not-found checks
+			// (errors.Is / isNotFoundError) can map this to a 404.
+			return nil, fmt.Errorf("%s: %w", errMsgInvitationNotFound, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find guardian invitation by token: %w", err)
 	}
@@ -180,25 +184,6 @@ func (r *GuardianInvitationRepository) FindPendingApproval(ctx context.Context) 
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to find invitations pending approval: %w", err)
-	}
-
-	return invitations, nil
-}
-
-// FindExpired retrieves all expired invitations
-func (r *GuardianInvitationRepository) FindExpired(ctx context.Context) ([]*auth.GuardianInvitation, error) {
-	var invitations []*auth.GuardianInvitation
-
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(&invitations).
-		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
-		Where(`"guardian_invitation".accepted_at IS NULL`).
-		Where(`"guardian_invitation".expires_at <= ?`, time.Now()).
-		OrderExpr(`"guardian_invitation".expires_at DESC`).
-		Scan(ctx)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to find expired invitations: %w", err)
 	}
 
 	return invitations, nil
@@ -277,18 +262,4 @@ func (r *GuardianInvitationRepository) DeleteExpired(ctx context.Context) (int, 
 	}
 
 	return int(rowsAffected), nil
-}
-
-// Count returns the total number of guardian invitations
-func (r *GuardianInvitationRepository) Count(ctx context.Context) (int, error) {
-	count, err := base.GetDB(ctx, r.db).NewSelect().
-		Model((*auth.GuardianInvitation)(nil)).
-		ModelTableExpr(`auth.guardian_invitations AS "guardian_invitation"`).
-		Count(ctx)
-
-	if err != nil {
-		return 0, fmt.Errorf("failed to count guardian invitations: %w", err)
-	}
-
-	return count, nil
 }

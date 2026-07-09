@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 const (
@@ -25,20 +24,6 @@ type OperatorPasskeyCredential struct {
 	RevokedAt      *time.Time      `bun:"revoked_at" json:"revoked_at,omitempty"`
 }
 
-func (c *OperatorPasskeyCredential) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`platform.operator_passkey_credentials AS "operator_passkey_credential"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`platform.operator_passkey_credentials AS "operator_passkey_credential"`)
-	}
-	return nil
-}
-
-func (c *OperatorPasskeyCredential) TableName() string {
-	return "platform.operator_passkey_credentials"
-}
-
 func (c *OperatorPasskeyCredential) Validate() error {
 	if c.OperatorID == 0 {
 		return errors.New("operator_id is required")
@@ -55,10 +40,6 @@ func (c *OperatorPasskeyCredential) Validate() error {
 	return nil
 }
 
-func (c *OperatorPasskeyCredential) GetID() interface{}      { return c.ID }
-func (c *OperatorPasskeyCredential) GetCreatedAt() time.Time { return c.CreatedAt }
-func (c *OperatorPasskeyCredential) GetUpdatedAt() time.Time { return c.UpdatedAt }
-
 type OperatorPasskeySession struct {
 	ID             string          `bun:"id,pk" json:"id"`
 	OperatorID     *int64          `bun:"operator_id" json:"operator_id,omitempty"`
@@ -70,20 +51,6 @@ type OperatorPasskeySession struct {
 	ConsumedAt     *time.Time      `bun:"consumed_at" json:"consumed_at,omitempty"`
 	CreatedAt      time.Time       `bun:"created_at,notnull,default:current_timestamp" json:"created_at"`
 	UpdatedAt      time.Time       `bun:"updated_at,notnull,default:current_timestamp" json:"updated_at"`
-}
-
-func (s *OperatorPasskeySession) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`platform.operator_passkey_sessions AS "operator_passkey_session"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`platform.operator_passkey_sessions AS "operator_passkey_session"`)
-	}
-	return nil
-}
-
-func (s *OperatorPasskeySession) TableName() string {
-	return "platform.operator_passkey_sessions"
 }
 
 func (s *OperatorPasskeySession) GetID() interface{}      { return s.ID }

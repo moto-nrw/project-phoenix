@@ -1,22 +1,12 @@
+// Package common contains shared helper functions used across multiple IoT API domains.
 package common
 
 import (
-	"strings"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
-// Package common contains shared helper functions used across multiple IoT API domains.
-
-// NormalizeTagID normalizes RFID tag ID format (same logic as in person repository)
-// Removes common separators (: - space) and converts to uppercase
+// NormalizeTagID normalizes RFID tag ID format. Canonical implementation:
+// users.NormalizeTagID (kept next to the RFIDCard model).
 func NormalizeTagID(tagID string) string {
-	// Trim spaces
-	tagID = strings.TrimSpace(tagID)
-
-	// Remove common separators
-	tagID = strings.ReplaceAll(tagID, ":", "")
-	tagID = strings.ReplaceAll(tagID, "-", "")
-	tagID = strings.ReplaceAll(tagID, " ", "")
-
-	// Convert to uppercase
-	return strings.ToUpper(tagID)
+	return users.NormalizeTagID(tagID)
 }

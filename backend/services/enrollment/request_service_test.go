@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -98,20 +99,20 @@ func (s *stubRequestSettings) ResolveInt(_ context.Context, key string) (int, er
 // can assert both confirmation emails were enqueued with the right kind.
 type recordingOutbox struct {
 	mu      sync.Mutex
-	entries []enrollmentService.OutboxEnqueueRequest
+	entries []platformModels.OutboxEnqueueRequest
 }
 
-func (r *recordingOutbox) Enqueue(_ context.Context, req enrollmentService.OutboxEnqueueRequest) error {
+func (r *recordingOutbox) EnqueueOutbox(_ context.Context, req platformModels.OutboxEnqueueRequest) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.entries = append(r.entries, req)
 	return nil
 }
 
-func (r *recordingOutbox) ByKind(kind string) []enrollmentService.OutboxEnqueueRequest {
+func (r *recordingOutbox) ByKind(kind string) []platformModels.OutboxEnqueueRequest {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make([]enrollmentService.OutboxEnqueueRequest, 0, len(r.entries))
+	out := make([]platformModels.OutboxEnqueueRequest, 0, len(r.entries))
 	for _, e := range r.entries {
 		if e.Kind == kind {
 			out = append(out, e)
@@ -173,7 +174,7 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag", []enrollmentModels.FormField{
 		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
 	}, account.ID)
 	require.NoError(t, err)
@@ -1958,7 +1959,7 @@ func TestRequestService_ReplaceEditable_BasisRequestStaysSchemaLessAfterPhaseSch
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
 	})
-	laterSchema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+	laterSchema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 2", []enrollmentModels.FormField{
 		{
 			Key:       "later_required",
 			Label:     "Später erforderlich",
@@ -2009,7 +2010,7 @@ func TestRequestService_Submit_HiddenRequiredFieldDoesNotBlockAndIsNotPersisted(
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 3", []enrollmentModels.FormField{
 		{Key: "has_allergy", Label: "Allergie?", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true, SortOrder: 0},
 		{
 			Key: "which_allergy", Label: "Welche?", Type: enrollmentModels.FormFieldText,
@@ -2057,7 +2058,7 @@ func TestRequestService_Submit_VisibleRequiredFieldStillEnforced(t *testing.T) {
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 4", []enrollmentModels.FormField{
 		{Key: "has_allergy", Label: "Allergie?", Type: enrollmentModels.FormFieldBoolean, AppliesToCh: true, SortOrder: 0},
 		{
 			Key: "which_allergy", Label: "Welche?", Type: enrollmentModels.FormFieldText,
@@ -2095,7 +2096,7 @@ func TestRequestService_Submit_RequiredStructuredFieldValidatesEntries(t *testin
 		Logger: slog.Default(),
 	})
 	// Required per-child contact_list (canonical target student.contacts).
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 5", []enrollmentModels.FormField{
 		{
 			Key: "contacts", Label: "Notfallkontakte",
 			Type: enrollmentModels.FormFieldContactList, AppliesToCh: true,
@@ -2134,7 +2135,7 @@ func publishPickupSchema(t *testing.T, env *requestTestEnv, allowed []string) {
 		Repo:   repoFactory.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Antrag 6", []enrollmentModels.FormField{
 		{
 			Key: "schedule_pickup", Label: "Abholzeiten",
 			Type: enrollmentModels.FormFieldWeekdaySchedule, AppliesToCh: true,

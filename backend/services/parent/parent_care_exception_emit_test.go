@@ -14,33 +14,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
-
-// careExcSettings turns on the pickup-change feature (so a care exception is
-// accepted) and parent notes (so the emitter writes the self-service pill).
-type careExcSettings struct {
-	configService.SettingsService
-}
-
-func (careExcSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	switch key {
-	case configModels.KeyParentPickupChangeEnabled, configModels.KeyParentNotesEnabled:
-		return true, nil
-	default:
-		return false, nil
-	}
-}
-
-type notesResolver struct{}
-
-func (notesResolver) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
-	return true, nil
-}
 
 // TestSubmitCareException_EmitsSelfServiceMirrorPill wires a real emitter into
 // the parent write service so the self-service mirror pill path actually runs:
@@ -53,21 +31,26 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	repos := repositories.NewFactory(db)
 
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
-		notesResolver{}, &captureBroadcaster{}, slog.Default())
+		parentSettingsStub{boolDefault: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
 		StatusDayRepo:        repos.StudentStatusDay,
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  repos.StudentPickupException,
 		ArrivalExceptionRepo: repos.StudentArrivalException,
-		Settings:             careExcSettings{},
-		Broadcaster:          &captureBroadcaster{},
-		MessageThreadRepo:    repos.ParentMessageThread,
-		MessageRepo:          repos.ParentMessage,
-		MessageReadRepo:      repos.ParentMessageRead,
-		Emitter:              emitter,
-		DB:                   db,
-		Logger:               slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{
+				configModels.KeyParentPickupChangeEnabled: true,
+				configModels.KeyParentNotesEnabled:        true,
+			},
+		},
+		Broadcaster:       testpkg.NewRecordingBroadcaster(),
+		MessageThreadRepo: repos.ParentMessageThread,
+		MessageRepo:       repos.ParentMessage,
+		MessageReadRepo:   repos.ParentMessageRead,
+		Emitter:           emitter,
+		DB:                db,
+		Logger:            slog.Default(),
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

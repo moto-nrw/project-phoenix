@@ -11,11 +11,14 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 )
 
-// Pure-function tests for resolveSelectedDays — no DB required, so
+// Pure-function tests for resolveManualSelectedDays — no DB required, so
 // they run in every CI invocation regardless of test DB availability.
-// resolveSelectedDays is the contract enforced at submit time: parent-
-// supplied day picks are validated against the offering's day mode +
-// available_days. The decision service also relies on the dedup pass.
+// resolveManualSelectedDays is the contract enforced at submit time:
+// parent-supplied day picks are validated against the offering's day mode
+// + available_days. The decision service also relies on the dedup pass.
+// The "parent-choice offering needs at least one pick" rule lives at the
+// caller (materializeOfferingSelections) via
+// errParentChoiceOfferingMissingDays.
 
 func fixedOffering(days ...string) *enrollmentModels.CareOffering {
 	return &enrollmentModels.CareOffering{
@@ -32,37 +35,44 @@ func parentChoiceOffering(days ...string) *enrollmentModels.CareOffering {
 }
 
 func TestResolveSelectedDays_FixedWithoutPicksReturnsNil(t *testing.T) {
-	got, err := resolveSelectedDays(fixedOffering("mon", "tue"), nil)
+	got, err := resolveManualSelectedDays(fixedOffering("mon", "tue"), nil)
 	require.NoError(t, err)
 	assert.Nil(t, got, "fixed offering writes nil so RC row reflects the offering's live schedule")
 }
 
 func TestResolveSelectedDays_FixedRejectsParentPicks(t *testing.T) {
-	_, err := resolveSelectedDays(fixedOffering("mon", "tue"), []string{"mon"})
+	_, err := resolveManualSelectedDays(fixedOffering("mon", "tue"), []string{"mon"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "fixed")
 }
 
+// Empty picks on a parent-choice offering pass resolveManualSelectedDays
+// (it returns an empty set) — the rejection is the caller's job, using the
+// errParentChoiceOfferingMissingDays sentinel. Pin both halves of that
+// contract here.
 func TestResolveSelectedDays_ParentChoiceEmptyPicksRejected(t *testing.T) {
-	_, err := resolveSelectedDays(parentChoiceOffering("mon", "tue", "wed"), nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "at least one day")
+	got, err := resolveManualSelectedDays(parentChoiceOffering("mon", "tue", "wed"), nil)
+	require.NoError(t, err)
+	assert.Empty(t, got)
+
+	require.Error(t, errParentChoiceOfferingMissingDays)
+	assert.Contains(t, errParentChoiceOfferingMissingDays.Error(), "at least one day")
 }
 
 func TestResolveSelectedDays_ParentChoiceSubsetOK(t *testing.T) {
-	got, err := resolveSelectedDays(parentChoiceOffering("mon", "tue", "wed", "thu", "fri"), []string{"tue", "thu"})
+	got, err := resolveManualSelectedDays(parentChoiceOffering("mon", "tue", "wed", "thu", "fri"), []string{"tue", "thu"})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"tue", "thu"}, got)
 }
 
 func TestResolveSelectedDays_ParentChoiceRejectsOutOfRangeDay(t *testing.T) {
-	_, err := resolveSelectedDays(parentChoiceOffering("mon", "tue"), []string{"mon", "sat"})
+	_, err := resolveManualSelectedDays(parentChoiceOffering("mon", "tue"), []string{"mon", "sat"})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "sat")
 }
 
 func TestResolveSelectedDays_ParentChoiceDedupes(t *testing.T) {
-	got, err := resolveSelectedDays(parentChoiceOffering("mon", "tue", "wed"), []string{"mon", "mon", "tue"})
+	got, err := resolveManualSelectedDays(parentChoiceOffering("mon", "tue", "wed"), []string{"mon", "mon", "tue"})
 	require.NoError(t, err)
 	assert.Equal(t, []string{"mon", "tue"}, got, "duplicate parent picks must collapse")
 }
@@ -74,15 +84,16 @@ func TestResolveSelectedDays_ParentChoiceDedupes(t *testing.T) {
 func TestResolveSelectedDays_ParentInputErrorsWrapInvalidSubmission(t *testing.T) {
 	cases := map[string]func() error{
 		"subset violation": func() error {
-			_, err := resolveSelectedDays(parentChoiceOffering("mon", "tue"), []string{"sat"})
+			_, err := resolveManualSelectedDays(parentChoiceOffering("mon", "tue"), []string{"sat"})
 			return err
 		},
 		"missing picks": func() error {
-			_, err := resolveSelectedDays(parentChoiceOffering("mon", "tue"), nil)
-			return err
+			// Rejected by the caller via the sentinel, not by
+			// resolveManualSelectedDays itself.
+			return errParentChoiceOfferingMissingDays
 		},
 		"fixed rejects picks": func() error {
-			_, err := resolveSelectedDays(fixedOffering("mon"), []string{"mon"})
+			_, err := resolveManualSelectedDays(fixedOffering("mon"), []string{"mon"})
 			return err
 		},
 	}
@@ -101,7 +112,7 @@ func TestResolveSelectedDays_RejectsUnknownMode(t *testing.T) {
 		DaysOfWeekMode: "weird",
 		AvailableDays:  []string{"mon"},
 	}
-	_, err := resolveSelectedDays(bogus, []string{"mon"})
+	_, err := resolveManualSelectedDays(bogus, []string{"mon"})
 	require.Error(t, err)
 	assert.True(t, strings.Contains(err.Error(), "unknown days_of_week_mode"))
 }

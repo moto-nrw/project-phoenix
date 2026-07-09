@@ -2,8 +2,6 @@ package platform
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"strings"
 	"time"
 
@@ -295,29 +293,6 @@ func (r *AnnouncementViewRepository) GetStats(ctx context.Context, announcementI
 	}
 
 	return stats, nil
-}
-
-// HasSeen checks if a user has seen a specific announcement
-func (r *AnnouncementViewRepository) HasSeen(ctx context.Context, userID, announcementID int64) (bool, error) {
-	view := new(platform.AnnouncementView)
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(view).
-		ModelTableExpr(tablePlatformAnnouncementViewsAlias).
-		Where(`"view".user_id = ?`, userID).
-		Where(`"view".announcement_id = ?`, announcementID).
-		Scan(ctx)
-
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return false, nil
-		}
-		return false, &modelBase.DatabaseError{
-			Op:  "check if announcement seen",
-			Err: err,
-		}
-	}
-
-	return true, nil
 }
 
 // GetViewDetails returns detailed view information including user names

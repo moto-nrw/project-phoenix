@@ -326,7 +326,7 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
 			ExceptionDate: timezone.NewDate(2024, 3, 15),
-			Reason:        strPtr("Doctor appointment"),
+			Reason:        testpkg.StrPtr("Doctor appointment"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
 
@@ -344,7 +344,7 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 		exception1 := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
-			Reason:        strPtr("First exception"),
+			Reason:        testpkg.StrPtr("First exception"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentArrivalException(ctx, exception1)
@@ -353,7 +353,7 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 		exception2 := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
 			ExceptionDate: exceptionDate,
-			Reason:        strPtr("Second exception"),
+			Reason:        testpkg.StrPtr("Second exception"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentArrivalException(ctx, exception2)
@@ -366,7 +366,7 @@ func TestArrivalScheduleService_CreateStudentArrivalException(t *testing.T) {
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     0,
 			ExceptionDate: timezone.NewDate(2024, 3, 15),
-			Reason:        strPtr("Test"),
+			Reason:        testpkg.StrPtr("Test"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
 
@@ -392,7 +392,7 @@ func TestArrivalScheduleService_GetStudentArrivalExceptions(t *testing.T) {
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDays(i),
-				Reason:        strPtr("Exception"),
+				Reason:        testpkg.StrPtr("Exception"),
 				CreatedBy:     createArrivalServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentArrivalException(ctx, exception)
@@ -423,7 +423,7 @@ func TestArrivalScheduleService_GetUpcomingStudentArrivalExceptions(t *testing.T
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDays(i),
-				Reason:        strPtr("Past"),
+				Reason:        testpkg.StrPtr("Past"),
 				CreatedBy:     createArrivalServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentArrivalException(ctx, exception)
@@ -434,7 +434,7 @@ func TestArrivalScheduleService_GetUpcomingStudentArrivalExceptions(t *testing.T
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDays(i),
-				Reason:        strPtr("Future"),
+				Reason:        testpkg.StrPtr("Future"),
 				CreatedBy:     createArrivalServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentArrivalException(ctx, exception)
@@ -465,13 +465,13 @@ func TestArrivalScheduleService_UpdateStudentArrivalException(t *testing.T) {
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
 			ExceptionDate: timezone.NewDate(2024, 4, 1),
-			Reason:        strPtr("Original reason"),
+			Reason:        testpkg.StrPtr("Original reason"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentArrivalException(ctx, exception)
 		require.NoError(t, err)
 
-		exception.Reason = strPtr("Updated reason")
+		exception.Reason = testpkg.StrPtr("Updated reason")
 
 		err = service.UpdateStudentArrivalException(ctx, exception)
 
@@ -498,7 +498,7 @@ func TestArrivalScheduleService_DeleteStudentArrivalException(t *testing.T) {
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
 			ExceptionDate: timezone.NewDate(2024, 5, 1),
-			Reason:        strPtr("Test"),
+			Reason:        testpkg.StrPtr("Test"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentArrivalException(ctx, exception)
@@ -530,7 +530,7 @@ func TestArrivalScheduleService_DeleteAllStudentArrivalExceptions(t *testing.T) 
 			exception := &scheduleModels.StudentArrivalException{
 				StudentID:     student.ID,
 				ExceptionDate: baseDate.AddDays(i),
-				Reason:        strPtr("Exception"),
+				Reason:        testpkg.StrPtr("Exception"),
 				CreatedBy:     createArrivalServiceTestStaffID(t, db),
 			}
 			err := service.CreateStudentArrivalException(ctx, exception)
@@ -851,7 +851,7 @@ func TestArrivalScheduleService_GetStudentArrivalData(t *testing.T) {
 		exception := &scheduleModels.StudentArrivalException{
 			StudentID:     student.ID,
 			ExceptionDate: timezone.TodayDate().AddDays(5),
-			Reason:        strPtr("Future exception"),
+			Reason:        testpkg.StrPtr("Future exception"),
 			CreatedBy:     createArrivalServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentArrivalException(ctx, exception)
@@ -905,7 +905,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 			StudentID:       student.ID,
 			ExceptionDate:   testDate,
 			ExpectedArrival: &earlyTime,
-			Reason:          strPtr("Late arrival"),
+			Reason:          testpkg.StrPtr("Late arrival"),
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentArrivalException(ctx, exception)
@@ -1057,7 +1057,7 @@ func TestArrivalScheduleService_GetEffectiveArrivalTimeForDate(t *testing.T) {
 			StudentID:       student.ID,
 			ExceptionDate:   testDate,
 			ExpectedArrival: nil, // absent
-			Reason:          strPtr("Sick"),
+			Reason:          testpkg.StrPtr("Sick"),
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err := service.CreateStudentArrivalException(ctx, exception)
@@ -1102,7 +1102,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 			StudentID:       student2.ID,
 			ExceptionDate:   testDate,
 			ExpectedArrival: &earlyTime,
-			Reason:          strPtr("Doctor appointment"),
+			Reason:          testpkg.StrPtr("Doctor appointment"),
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentArrivalException(ctx, exception2)
@@ -1112,7 +1112,7 @@ func TestArrivalScheduleService_GetBulkEffectiveArrivalTimesForDate(t *testing.T
 			StudentID:       student3.ID,
 			ExceptionDate:   testDate,
 			ExpectedArrival: nil,
-			Reason:          strPtr("Sick"),
+			Reason:          testpkg.StrPtr("Sick"),
 			CreatedBy:       createArrivalServiceTestStaffID(t, db),
 		}
 		err = service.CreateStudentArrivalException(ctx, exception3)

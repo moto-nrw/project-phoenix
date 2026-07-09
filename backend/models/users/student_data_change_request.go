@@ -7,10 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-const tableUsersStudentDataChangeRequests = "users.student_data_change_requests"
 
 // ErrChangeRequestNotPending means a pending-row transition lost a race or the
 // row was already terminal under the caller's tenant.
@@ -62,24 +59,6 @@ type StudentDataChangeRequest struct {
 	ReviewedAt   *time.Time      `bun:"reviewed_at" json:"reviewed_at,omitempty"`
 	AppliedAt    *time.Time      `bun:"applied_at" json:"applied_at,omitempty"`
 }
-
-func (c *StudentDataChangeRequest) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableUsersStudentDataChangeRequests)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableUsersStudentDataChangeRequests)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableUsersStudentDataChangeRequests)
-	}
-	return nil
-}
-
-func (c *StudentDataChangeRequest) GetID() any              { return c.ID }
-func (c *StudentDataChangeRequest) GetCreatedAt() time.Time { return c.CreatedAt }
-func (c *StudentDataChangeRequest) GetUpdatedAt() time.Time { return c.UpdatedAt }
-func (c *StudentDataChangeRequest) TableName() string       { return tableUsersStudentDataChangeRequests }
 
 // IsTerminal reports whether the row is in a final state — a Track A audit row
 // (auto_applied) or a decided Track B row (approved/rejected). Only pending

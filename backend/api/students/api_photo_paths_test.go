@@ -13,10 +13,9 @@
 //   - deleteStudent: the photo URL is captured from the locked row and
 //     the file is unlinked after the OUTER tx commits.
 //
-// All tests here go through tc.resource.UpdateStudentHandler() /
-// DeleteStudentHandler() with executeWithAuth so they reuse the same
-// hermetic plumbing as students_test.go (real DB, real service factory,
-// recordingBroadcaster).
+// All tests here go through tc.resource.Router() via authExec so they
+// reuse the same hermetic plumbing as students_test.go (real DB, real
+// service factory, testpkg.RecordingBroadcaster).
 package students_test
 
 import (
@@ -144,12 +143,11 @@ func TestUpdateStudent_PhotoConsentWithdrawal_DeletesFile(t *testing.T) {
 
 	_, onDisk := seedPhotoFile(t, tc, student.ID)
 
-	router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
-	eventCount := len(tc.broadcaster.events)
+	eventCount := len(tc.broadcaster.Events())
 
 	body := map[string]interface{}{"photo_consent_given": false}
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -169,7 +167,7 @@ func TestUpdateStudent_PhotoConsentWithdrawal_DeletesFile(t *testing.T) {
 		"after-commit unlink must remove the file from disk; err=%v", err)
 
 	// Tenant-scoped broadcast must fire so other tabs refetch.
-	require.GreaterOrEqual(t, len(tc.broadcaster.events), eventCount+1,
+	require.GreaterOrEqual(t, len(tc.broadcaster.Events()), eventCount+1,
 		"consent withdrawal must emit at least one broadcast event")
 }
 
@@ -197,11 +195,9 @@ func TestUpdateStudent_PhotoConsentGrant_StampsAuditFields(t *testing.T) {
 	require.False(t, readConsentTimestamp(t, tc, student.ID),
 		"precondition: student should not have consent stamped yet")
 
-	router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
-
 	body := map[string]interface{}{"photo_consent_given": true}
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -247,12 +243,10 @@ func TestUpdateStudent_PhotoConsentNoChange_NoOp(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, readConsentTimestamp(t, tc, student.ID))
 
-	router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
-
 	// Update an unrelated field. photo_consent_given is not present.
 	body := map[string]interface{}{"first_name": "RenamedNoOp"}
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
 	assert.True(t, readConsentTimestamp(t, tc, student.ID),
@@ -278,9 +272,8 @@ func TestDeleteStudent_RemovesPhotoFile(t *testing.T) {
 	_, onDisk := seedPhotoFile(t, tc, student.ID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.DeleteStudentHandler(), "id")
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d", student.ID), nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -309,9 +302,8 @@ func TestDeleteStudent_NoPhotoSucceeds(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "DelNoPhoto", "ApiPath", "DN1")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.DeleteStudentHandler(), "id")
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/%d", student.ID), nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -342,10 +334,9 @@ func TestUpdateStudent_PhotoEnabled_ResponseIncludesPhotoURL(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	_, _ = seedPhotoFile(t, tc, student.ID)
 
-	router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 	body := map[string]interface{}{"first_name": "RenamedResp"}
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "photo_url",
@@ -370,10 +361,9 @@ func TestUpdateStudent_PhotoDisabled_ResponseOmitsPhotoURL(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 	_, _ = seedPhotoFile(t, tc, student.ID)
 
-	router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 	body := map[string]interface{}{"first_name": "RenamedDisabled"}
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	assert.NotContains(t, rr.Body.String(), `"photo_url"`,

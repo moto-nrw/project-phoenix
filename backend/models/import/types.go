@@ -38,7 +38,6 @@ type ImportMode string
 const (
 	ImportModeCreate ImportMode = "create" // Only create new (error on duplicate)
 	ImportModeUpdate ImportMode = "update" // Only update existing (error on new)
-	ImportModeUpsert ImportMode = "upsert" // Create or update (recommended)
 )
 
 // ErrorSeverity defines error importance

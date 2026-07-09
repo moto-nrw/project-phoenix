@@ -39,17 +39,11 @@ var (
 	// ErrGroupClosed returned when an activity group is not open for enrollment
 	ErrGroupClosed = errors.New("activity group is not open for enrollment")
 
-	// ErrCannotDeletePrimary returned when attempting to delete a primary supervisor
-	ErrCannotDeletePrimary = errors.New("cannot delete primary supervisor")
-
 	// ErrStaffNotFound returned when a staff member doesn't exist
 	ErrStaffNotFound = errors.New("staff not found")
 
 	// ErrNotOwner returned when user is not the owner of the activity
 	ErrNotOwner = errors.New("you can only modify activities that you created or supervise")
-
-	// ErrUnauthorized returned when user doesn't have permission to perform the action
-	ErrUnauthorized = errors.New("you are not authorized to perform this action")
 
 	// ErrOnlySupervisorRequiresReplacement is returned when removing the last
 	// remaining supervisor would leave an activity without any supervisor.

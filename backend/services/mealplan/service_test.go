@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/mealplan"
 )
@@ -282,13 +283,13 @@ func TestDelete_PropagatesRepoError(t *testing.T) {
 // TestNormalizeNote covers the note-cleanup helper directly for the edge cases
 // the SetDay tests exercise indirectly.
 func TestNormalizeNote(t *testing.T) {
-	if got := normalizeNote(nil); got != nil {
+	if got := strutil.TrimPtrToNil(nil); got != nil {
 		t.Errorf("nil note should stay nil, got %q", deref(got))
 	}
-	if got := normalizeNote(strptr("   ")); got != nil {
+	if got := strutil.TrimPtrToNil(strptr("   ")); got != nil {
 		t.Errorf("whitespace note should collapse to nil, got %q", deref(got))
 	}
-	if got := normalizeNote(strptr("  hot  ")); got == nil || *got != "hot" {
+	if got := strutil.TrimPtrToNil(strptr("  hot  ")); got == nil || *got != "hot" {
 		t.Errorf("note should be trimmed, got %v", deref(got))
 	}
 }

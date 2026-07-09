@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -23,7 +24,7 @@ func (s *service) GetStudentsAttendanceStatuses(ctx context.Context, studentIDs 
 
 	statuses := make(map[int64]*AttendanceStatus, len(studentIDs))
 
-	attendanceRecords, err := s.attendanceRepo.GetTodayByStudentIDs(ctx, studentIDs)
+	attendanceRecords, err := s.AttendanceRepo.GetTodayByStudentIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetStudentsAttendanceStatuses", Err: ErrDatabaseOperation}
 	}
@@ -70,7 +71,7 @@ func deriveAttendanceStatus(a *active.Attendance) string {
 
 // GetStudentAttendanceStatus gets today's latest attendance record and determines status
 func (s *service) GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*AttendanceStatus, error) {
-	attendance, err := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
+	attendance, err := s.AttendanceRepo.GetStudentCurrentStatus(ctx, studentID)
 	if err != nil {
 		if !errors.Is(err, sql.ErrNoRows) {
 			return nil, &ActiveError{Op: "GetStudentAttendanceStatus", Err: ErrDatabaseOperation}
@@ -108,12 +109,12 @@ func (s *service) populateAttendanceStaffNames(ctx context.Context, result *Atte
 
 // getStaffNameByID retrieves staff member's full name by ID
 func (s *service) getStaffNameByID(ctx context.Context, staffID int64) string {
-	staff, err := s.staffRepo.FindByID(ctx, staffID)
+	staff, err := s.StaffRepo.FindByID(ctx, staffID)
 	if err != nil || staff == nil {
 		return ""
 	}
 
-	person, err := s.usersService.Get(ctx, staff.PersonID)
+	person, err := s.UsersService.Get(ctx, staff.PersonID)
 	if err != nil || person == nil {
 		return ""
 	}
@@ -297,14 +298,14 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 	}
 	attendance.SetTenantID(tenant.FromContext(ctx))
 
-	inserted, err := s.attendanceRepo.CreateIfNoOpenForToday(ctx, attendance)
+	inserted, err := s.AttendanceRepo.CreateIfNoOpenForToday(ctx, attendance)
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: err}
 	}
 	if !inserted {
 		// Another concurrent "in" already created the open attendance row.
 		// Treat as success — the desired end state (open attendance) holds.
-		existing, fetchErr := s.attendanceRepo.GetStudentCurrentStatus(ctx, studentID)
+		existing, fetchErr := s.AttendanceRepo.GetStudentCurrentStatus(ctx, studentID)
 		if fetchErr != nil {
 			return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fetchErr}
 		}
@@ -348,8 +349,8 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64) e
 		}
 		return err
 	}
-	if err := s.visitRepo.EndVisit(ctx, visit.ID); err != nil {
-		latest, findErr := s.visitRepo.FindByID(ctx, visit.ID)
+	if err := s.VisitRepo.EndVisit(ctx, visit.ID); err != nil {
+		latest, findErr := s.VisitRepo.FindByID(ctx, visit.ID)
 		if findErr == nil && latest != nil && latest.ExitTime != nil {
 			return nil
 		}
@@ -371,7 +372,7 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64) e
 //     #895) — including on the idempotent no-open-row path, so a checkout of
 //     any kind heals an orphaned visit left behind by older code.
 func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64, now time.Time, checkoutType string) (*AttendanceResult, error) {
-	closed, err := s.attendanceRepo.CloseOpenForToday(ctx, studentID, now, staffID)
+	closed, err := s.AttendanceRepo.CloseOpenForToday(ctx, studentID, now, staffID)
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("database error during state-checked checkout: %w", err)}
 	}
@@ -407,7 +408,7 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 // getDeviceSupervisorID retrieves the supervisor staff ID for a device's active group
 func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (int64, error) {
 	// Find active group for device
-	activeGroup, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+	activeGroup, err := s.GroupRepo.FindActiveByDeviceID(ctx, deviceID)
 	if err != nil {
 		// Handle case where no active group exists for this device
 		if errors.Is(err, ErrNoActiveSession) {
@@ -444,7 +445,7 @@ func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (in
 // CheckTeacherStudentAccess checks if a teacher has access to mark attendance for a student
 func (s *service) CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error) {
 	// Get teacher from staff ID
-	teacher, err := s.teacherRepo.FindByStaffID(ctx, teacherID)
+	teacher, err := s.TeacherRepo.FindByStaffID(ctx, teacherID)
 	if err != nil {
 		return false, &ActiveError{Op: "CheckTeacherStudentAccess", Err: err}
 	}
@@ -453,15 +454,15 @@ func (s *service) CheckTeacherStudentAccess(ctx context.Context, teacherID, stud
 	}
 
 	// Get teacher's groups via educationService
-	teacherGroups, err := s.educationService.GetTeacherGroups(ctx, teacher.ID)
+	teacherGroups, err := s.EducationService.GetTeacherGroups(ctx, teacher.ID)
 	if err != nil {
 		return false, &ActiveError{Op: "CheckTeacherStudentAccess", Err: err}
 	}
 
 	// Get student info
-	student, err := s.studentRepo.FindByID(ctx, studentID)
+	student, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil {
-		if isNotFoundError(err) {
+		if base.IsNoRows(err) {
 			return false, nil
 		}
 		return false, &ActiveError{Op: "CheckTeacherStudentAccess", Err: err}
@@ -484,7 +485,7 @@ func (s *service) CheckTeacherStudentAccess(ctx context.Context, teacherID, stud
 // educational (OGS) group topic so the "Meine Gruppe" page updates in real time.
 // Called after the daily checkout attendance toggle succeeds.
 func (s *service) BroadcastDailyCheckout(ctx context.Context, studentID int64) {
-	if s.broadcaster == nil {
+	if s.Broadcaster == nil {
 		return
 	}
 
@@ -508,7 +509,7 @@ func (s *service) BroadcastDailyCheckout(ctx context.Context, studentID int64) {
 	// Notify all clients so dashboard counts and search page refresh —
 	// the educational group broadcast only reaches staff in that group,
 	// but the search page is used by all staff.
-	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
 }
 
 // ======== Unclaimed Groups Management (Deviceless Claiming) ========
@@ -516,7 +517,7 @@ func (s *service) BroadcastDailyCheckout(ctx context.Context, studentID int64) {
 // GetUnclaimedActiveGroups returns all active groups that have no supervisors
 // This is used for deviceless rooms like Schulhof where teachers claim supervision via frontend
 func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error) {
-	groups, err := s.groupRepo.FindUnclaimed(ctx)
+	groups, err := s.GroupRepo.FindUnclaimed(ctx)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetUnclaimedActiveGroups", Err: err}
 	}
@@ -528,7 +529,7 @@ func (s *service) GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group
 // This is primarily used for deviceless rooms like Schulhof
 func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, role string) (*active.GroupSupervisor, error) {
 	// Verify group exists and is still active
-	group, err := s.groupRepo.FindByID(ctx, groupID)
+	group, err := s.GroupRepo.FindByID(ctx, groupID)
 	if err != nil {
 		return nil, &ActiveError{Op: "ClaimActiveGroup", Err: errors.New("active group not found")}
 	}
@@ -538,7 +539,7 @@ func (s *service) ClaimActiveGroup(ctx context.Context, groupID, staffID int64, 
 	}
 
 	// Check if staff is already supervising this group (only check active supervisors)
-	existingSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, groupID, true)
+	existingSupervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, groupID, true)
 	if err == nil {
 		for _, sup := range existingSupervisors {
 			if sup.StaffID == staffID {

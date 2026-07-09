@@ -20,7 +20,7 @@
 //	  defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
 //
 //	ACT: Perform the operation under test
-//	  session, err := service.StartActivitySession(ctx, activity.ID, device.ID, 1, &room.ID)
+//	  session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{1}, &room.ID)
 //
 //	ASSERT: Verify the results
 //	  require.NoError(t, err)
@@ -61,7 +61,7 @@
 //	    defer testpkg.CleanupActivityFixtures(t, db, activity.ID, device.ID, room.ID)
 //
 //	    // ACT: Call the code under test
-//	    session, err := service.StartActivitySession(ctx, activity.ID, device.ID, 1, &room.ID)
+//	    session, err := service.StartActivitySessionWithSupervisors(ctx, activity.ID, device.ID, []int64{1}, &room.ID)
 //
 //	    // ASSERT: Verify expectations
 //	    require.NoError(t, err)
@@ -147,7 +147,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		assert.False(t, conflict.HasConflict, "Expected no conflict for inactive activity")
 
 		// Start session - should succeed with real IDs
-		session, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, staff.ID, &room.ID)
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, session)
 		require.NotNil(t, session.GroupID)
@@ -166,7 +166,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device1.ID, device2.ID, room.ID, staff.ID)
 
 		// ACT: Start session on device 1
-		session1, err := service.StartActivitySession(ctx, activityGroup.ID, device1.ID, staff.ID, &room.ID)
+		session1, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device1.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, session1)
 
@@ -179,7 +179,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		assert.Contains(t, conflict.ConflictMessage, "already active")
 
 		// Try to start session on device 2 - should fail
-		_, err = service.StartActivitySession(ctx, activityGroup.ID, device2.ID, staff.ID, &room.ID)
+		_, err = service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device2.ID, []int64{staff.ID}, &room.ID)
 		assert.Error(t, err, "Expected error when starting session on conflicting device")
 		assert.Contains(t, err.Error(), "conflict")
 	})
@@ -195,12 +195,12 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activity1.ID, activity2.ID, device.ID, room.ID, staff.ID)
 
 		// ACT: Start session for activity 1 on device
-		session1, err := service.StartActivitySession(ctx, activity1.ID, device.ID, staff.ID, &room.ID)
+		session1, err := service.StartActivitySessionWithSupervisors(ctx, activity1.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, session1)
 
 		// Try to start activity 2 on same device - should fail
-		_, err = service.StartActivitySession(ctx, activity2.ID, device.ID, staff.ID, &room.ID)
+		_, err = service.StartActivitySessionWithSupervisors(ctx, activity2.ID, device.ID, []int64{staff.ID}, &room.ID)
 
 		// ASSERT
 		assert.Error(t, err, "Expected error when device already running another activity")
@@ -216,12 +216,12 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
 
 		// ACT: Start initial session on device
-		session1, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, staff.ID, &room.ID)
+		session1, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, session1)
 
 		// Force start on same device - should succeed and end previous session
-		session2, err := service.ForceStartActivitySession(ctx, activityGroup.ID, device.ID, staff.ID, &room.ID)
+		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -246,7 +246,7 @@ func TestActivitySessionConflictDetection(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
 
 		// ACT: Start session
-		session, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, staff.ID, &room.ID)
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 
 		// Get current session
@@ -293,7 +293,7 @@ func TestSessionLifecycle(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
 
 		// ACT: Start session
-		session, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, staff.ID, &room.ID)
+		session, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -395,14 +395,14 @@ func TestConcurrentSessionAttempts(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			startSignal.Wait() // Wait for signal
-			_, err := service.StartActivitySession(ctx, activityGroup.ID, device1.ID, staff.ID, &room.ID)
+			_, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device1.ID, []int64{staff.ID}, &room.ID)
 			results <- err
 		}()
 
 		go func() {
 			defer wg.Done()
 			startSignal.Wait() // Wait for signal
-			_, err := service.StartActivitySession(ctx, activityGroup.ID, device2.ID, staff.ID, &room.ID)
+			_, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device2.ID, []int64{staff.ID}, &room.ID)
 			results <- err
 		}()
 
@@ -493,7 +493,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, activityGroup.ID, device.ID, room.ID, staff.ID)
 
 		// Start initial session
-		session1, err := service.StartActivitySession(ctx, activityGroup.ID, device.ID, staff.ID, &room.ID)
+		session1, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device.ID, []int64{staff.ID}, &room.ID)
 		require.NoError(t, err)
 		assert.NotNil(t, session1)
 
@@ -621,7 +621,17 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 			staff.ID,
 		)
 
-		session1, err := service.StartActivitySession(ctx, activityGroup.ID, device1.ID, staff.ID, &room1.ID)
+		session1, err := service.StartActivitySessionWithSupervisors(ctx, activityGroup.ID, device1.ID, []int64{staff.ID}, &room1.ID)
+		require.NoError(t, err)
+
+		// Recreate the legacy "Supervisor" role casing on the first session's
+		// row (the deleted single-supervisor start path used to write it) so
+		// the transfer dedup still sees a casing mismatch.
+		_, err = db.NewUpdate().
+			TableExpr("active.group_supervisors").
+			Set("role = ?", "Supervisor").
+			Where("group_id = ?", session1.ID).
+			Exec(ctx)
 		require.NoError(t, err)
 
 		// ACT: Force-start with the same staff member through the multi-supervisor path,

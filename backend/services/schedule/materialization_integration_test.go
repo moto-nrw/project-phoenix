@@ -258,7 +258,8 @@ func TestMaterializeForTenant_EndToEnd(t *testing.T) {
 
 	// --- Protects existing non-planned statuses ---
 	// Change status to 'active' and re-run. Must still be skipped-existing
-	// (decideMerge() returns SkipExisting regardless of status, v1 insert-only).
+	// (the merge strategy skips every existing row regardless of status,
+	// v1 insert-only).
 	_, err = s.db.NewUpdate().
 		Model((*scheduleModels.ActivityInstance)(nil)).
 		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
