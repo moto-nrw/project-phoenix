@@ -13,6 +13,54 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGetVisitLookupErrorClassification(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns visit not found when lookup misses", func(t *testing.T) {
+		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return nil, sql.ErrNoRows
+			},
+		}}}
+
+		visit, err := svc.GetVisit(ctx, 100)
+
+		require.Error(t, err)
+		assert.Nil(t, visit)
+		assert.True(t, errors.Is(err, ErrVisitNotFound), "expected ErrVisitNotFound")
+	})
+
+	t.Run("returns visit not found when lookup returns nil without error", func(t *testing.T) {
+		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return nil, nil
+			},
+		}}}
+
+		visit, err := svc.GetVisit(ctx, 100)
+
+		require.Error(t, err)
+		assert.Nil(t, visit)
+		assert.True(t, errors.Is(err, ErrVisitNotFound), "expected ErrVisitNotFound")
+	})
+
+	t.Run("preserves database lookup failures", func(t *testing.T) {
+		lookupErr := errors.New("visit query failed")
+		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return nil, lookupErr
+			},
+		}}}
+
+		visit, err := svc.GetVisit(ctx, 100)
+
+		require.Error(t, err)
+		assert.Nil(t, visit)
+		assert.True(t, errors.Is(err, ErrDatabaseOperation), "expected ErrDatabaseOperation")
+		assert.False(t, errors.Is(err, ErrVisitNotFound), "database failures must not masquerade as not found")
+	})
+}
+
 func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 	ctx := context.Background()
 	entryTime := time.Now()

@@ -291,9 +291,13 @@ func TestCanViewVisit_RegularUserWithoutPermissionsCannotAccess(t *testing.T) {
 // through the middleware without a database.
 type fakeVisitActive struct {
 	visit *activeModel.Visit
+	err   error
 }
 
 func (f *fakeVisitActive) GetVisit(_ context.Context, _ int64) (*activeModel.Visit, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
 	return f.visit, nil
 }
 
@@ -339,6 +343,24 @@ func (f *fakeVisitEducation) GetTeacherGroups(_ context.Context, _ int64) ([]*ed
 	return nil, f.err
 }
 
+func TestCanViewVisit_PropagatesVisitLookupError(t *testing.T) {
+	lookupErr := errors.New("visit lookup failed")
+
+	result, err := authorize.CanViewVisit(
+		context.Background(),
+		1000,
+		[]string{"teacher"},
+		[]string{},
+		7777,
+		&fakeVisitActive{err: lookupErr},
+		&fakeVisitPersons{},
+		&fakeVisitEducation{},
+	)
+
+	require.ErrorIs(t, err, lookupErr)
+	assert.False(t, result)
+}
+
 func TestRequireVisitView(t *testing.T) {
 	// Fixture graph shared by the deny and error cases: a non-admin caller
 	// who resolves to a teacher, so the education lookup decides the outcome.
@@ -356,6 +378,7 @@ func TestRequireVisitView(t *testing.T) {
 	tests := []struct {
 		name           string
 		claims         jwt.AppClaims
+		active         *fakeVisitActive
 		education      *fakeVisitEducation
 		expectedStatus int
 		expectedBody   string
@@ -380,6 +403,14 @@ func TestRequireVisitView(t *testing.T) {
 			expectedStatus: http.StatusInternalServerError,
 			expectedBody:   "policy student_visit_access evaluation failed: education lookup failed",
 		},
+		{
+			name:           "renders 500 Authorization error when the visit lookup fails",
+			claims:         jwt.AppClaims{ID: 1000, Roles: []string{"teacher"}},
+			active:         &fakeVisitActive{err: errors.New("visit lookup failed")},
+			education:      &fakeVisitEducation{},
+			expectedStatus: http.StatusInternalServerError,
+			expectedBody:   "policy student_visit_access evaluation failed: visit lookup failed",
+		},
 	}
 
 	for _, tt := range tests {
@@ -389,7 +420,11 @@ func TestRequireVisitView(t *testing.T) {
 				_, _ = w.Write([]byte("Success"))
 			})
 
-			middleware := authorize.RequireVisitView(visitActive(), teacherPersons(), tt.education)
+			activeSvc := tt.active
+			if activeSvc == nil {
+				activeSvc = visitActive()
+			}
+			middleware := authorize.RequireVisitView(activeSvc, teacherPersons(), tt.education)
 			protectedHandler := middleware(handler)
 
 			req := httptest.NewRequest("GET", "/visits/7777", nil)

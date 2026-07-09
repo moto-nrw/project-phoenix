@@ -61,10 +61,10 @@ type VisitAccessEducation interface {
 //     group → true.
 //  5. Otherwise → false.
 //
-// Lookup failures deny access (false, nil) — except a GetTeacherGroups
-// error, which propagates so the middleware can answer 500 instead of
-// masking an infrastructure failure as a 403. Both behaviors are inherited
-// unchanged from the retired StudentVisitPolicy.
+// Target-visit lookup failures propagate so the middleware preserves the
+// retired StudentVisitPolicy's authorization-error path. Relationship lookup
+// failures deny access (false, nil) except a GetTeacherGroups error, which also
+// propagates instead of masking an infrastructure failure as a 403.
 func CanViewVisit(
 	ctx context.Context,
 	accountID int64,
@@ -89,7 +89,7 @@ func CanViewVisit(
 	}
 	visit, err := activeSvc.GetVisit(ctx, visitID)
 	if err != nil {
-		return false, nil
+		return false, err
 	}
 	studentID := visit.StudentID
 	if studentID == 0 {

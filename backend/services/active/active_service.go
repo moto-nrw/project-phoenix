@@ -427,6 +427,12 @@ func (s *service) GetActiveGroupWithSupervisors(ctx context.Context, id int64) (
 func (s *service) GetVisit(ctx context.Context, id int64) (*active.Visit, error) {
 	visit, err := s.VisitRepo.FindByID(ctx, id)
 	if err != nil {
+		if base.IsNoRows(err) {
+			return nil, &ActiveError{Op: "GetVisit", Err: ErrVisitNotFound}
+		}
+		return nil, &ActiveError{Op: "GetVisit", Err: ErrDatabaseOperation}
+	}
+	if visit == nil {
 		return nil, &ActiveError{Op: "GetVisit", Err: ErrVisitNotFound}
 	}
 	return visit, nil
