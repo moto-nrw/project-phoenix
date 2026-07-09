@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
 
@@ -202,19 +203,5 @@ func (rs *AuthResource) RefreshToken(w http.ResponseWriter, r *http.Request) {
 
 // getClientIP extracts the client IP from the request
 func getClientIP(r *http.Request) net.IP {
-	// Check X-Forwarded-For header first
-	xff := r.Header.Get("X-Forwarded-For")
-	if xff != "" {
-		return net.ParseIP(xff)
-	}
-
-	// Check X-Real-IP header
-	xri := r.Header.Get("X-Real-IP")
-	if xri != "" {
-		return net.ParseIP(xri)
-	}
-
-	// Fall back to RemoteAddr
-	host, _, _ := net.SplitHostPort(r.RemoteAddr)
-	return net.ParseIP(host)
+	return clientip.ParseClientIP(r)
 }

@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -270,25 +272,24 @@ func TestMapSubmitError_UnknownError500(t *testing.T) {
 
 // --- remoteIPFromRequest -------------------------------------------------
 
-func TestRemoteIPFromRequest_XForwardedForFirstHop(t *testing.T) {
+func TestRemoteIPFromRequest_XForwardedForRightmostHop(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	r.Header.Set("X-Forwarded-For", "203.0.113.5, 198.51.100.4, 192.0.2.1")
 	r.RemoteAddr = "10.0.0.1:54321"
-	assert.Equal(t, "203.0.113.5", remoteIPFromRequest(r),
-		"first hop wins — the rest is the proxy chain")
+	assert.Equal(t, "192.0.2.1", remoteIPFromRequestThroughXFFMiddleware(r))
 }
 
 func TestRemoteIPFromRequest_XForwardedForSingleEntry(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	r.Header.Set("X-Forwarded-For", "203.0.113.5")
 	r.RemoteAddr = "10.0.0.1:54321"
-	assert.Equal(t, "203.0.113.5", remoteIPFromRequest(r))
+	assert.Equal(t, "203.0.113.5", remoteIPFromRequestThroughXFFMiddleware(r))
 }
 
 func TestRemoteIPFromRequest_XForwardedForTrimsWhitespace(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	r.Header.Set("X-Forwarded-For", "  203.0.113.5  ,198.51.100.4")
-	assert.Equal(t, "203.0.113.5", remoteIPFromRequest(r))
+	assert.Equal(t, "198.51.100.4", remoteIPFromRequestThroughXFFMiddleware(r))
 }
 
 func TestRemoteIPFromRequest_FallsBackToRemoteAddrSansPort(t *testing.T) {
@@ -310,4 +311,16 @@ func TestRemoteIPFromRequest_IPv6BracketsHandled(t *testing.T) {
 	r.RemoteAddr = "[2001:db8::1]:54321"
 	// net.SplitHostPort strips brackets.
 	assert.Equal(t, "2001:db8::1", remoteIPFromRequest(r))
+}
+
+func remoteIPFromRequestThroughXFFMiddleware(req *http.Request) string {
+	var ip string
+	router := chi.NewRouter()
+	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Post("/x", func(w http.ResponseWriter, r *http.Request) {
+		ip = remoteIPFromRequest(r)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	router.ServeHTTP(httptest.NewRecorder(), req)
+	return ip
 }

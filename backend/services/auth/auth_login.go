@@ -14,6 +14,7 @@ import (
 	jwx "github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
+	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -258,10 +259,7 @@ func MaskEmailForUX(email string) string {
 // don't get malformed inet values. Shared with the operator login flow in
 // services/platform.
 func ParseClientIP(ipAddress string) net.IP {
-	if ipAddress == "" {
-		return nil
-	}
-	return net.ParseIP(ipAddress)
+	return clientip.ParseIPString(ipAddress)
 }
 
 // IssueTokensForAuthenticatedAccount mints an access + refresh token pair for
