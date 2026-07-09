@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,6 +16,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -328,20 +328,10 @@ func lateInviteTokenFromRequest(r *http.Request) string {
 	return strings.TrimSpace(r.URL.Query().Get("late_invite"))
 }
 
-// remoteIPFromRequest extracts the client IP for captcha verification +
-// future rate limiting. Honors X-Forwarded-For (first hop) when set.
+// remoteIPFromRequest returns the router-selected client IP for captcha
+// verification and submission rate limiting.
 func remoteIPFromRequest(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if comma := strings.IndexByte(xff, ','); comma >= 0 {
-			return strings.TrimSpace(xff[:comma])
-		}
-		return strings.TrimSpace(xff)
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
+	return clientip.GetClientIPString(r)
 }
 
 // --- status / edit / withdraw handlers (token-gated, public) ---

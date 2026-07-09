@@ -116,8 +116,6 @@ describe("POST /api/auth/logout", () => {
         Authorization: "Bearer test-refresh-token",
         "Content-Type": "application/json",
         "User-Agent": "unknown",
-        "X-Forwarded-For": "unknown",
-        "X-Real-IP": "unknown",
       },
     });
 

@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"slices"
 	"strconv"
@@ -23,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -2201,29 +2201,5 @@ func (rs *Resource) listParentAccounts(w http.ResponseWriter, r *http.Request) {
 
 // getClientIP extracts the real client IP address from the request
 func getClientIP(r *http.Request) string {
-	// Check X-Real-IP header first (set by reverse proxy)
-	if ip := r.Header.Get("X-Real-IP"); ip != "" {
-		return ip
-	}
-
-	// Check X-Forwarded-For header
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		// Split the header value on commas and trim each entry
-		ips := strings.Split(xff, ",")
-		for i, ip := range ips {
-			ips[i] = strings.TrimSpace(ip)
-		}
-		// Return the first IP in the list
-		if len(ips) > 0 {
-			return ips[0]
-		}
-	}
-
-	// Fall back to RemoteAddr
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-
-	return ip
+	return clientip.GetClientIPString(r)
 }

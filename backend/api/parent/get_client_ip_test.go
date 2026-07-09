@@ -5,59 +5,47 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/stretchr/testify/assert"
 )
 
-// getClientIP extracts the parent's real IP for login-attempt rate
-// limiting + audit logging. Honors X-Forwarded-For (first hop) and
-// X-Real-IP, with RemoteAddr as the final fallback. Differs from
-// api/enrollment.remoteIPFromRequest only by also honoring X-Real-IP
-// (used by older proxies).
+// getClientIP returns the router-selected client IP for login-attempt rate
+// limiting + audit logging. XFF semantics come from chi's ClientIPFromXFF.
 
-func TestGetClientIP_XForwardedForFirstHop(t *testing.T) {
+func TestGetClientIP_XForwardedForRightmostHop(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	r.Header.Set("X-Forwarded-For", "203.0.113.5, 198.51.100.4, 192.0.2.1")
 	r.RemoteAddr = "10.0.0.1:54321"
-	assert.Equal(t, "203.0.113.5", getClientIP(r),
-		"first XFF hop wins — the rest is the proxy chain")
+	assert.Equal(t, "192.0.2.1", getClientIPThroughXFFMiddleware(r))
 }
 
 func TestGetClientIP_XForwardedForTrimsWhitespace(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	r.Header.Set("X-Forwarded-For", "  203.0.113.5  , 198.51.100.4")
-	assert.Equal(t, "203.0.113.5", getClientIP(r))
+	assert.Equal(t, "198.51.100.4", getClientIPThroughXFFMiddleware(r))
 }
 
-func TestGetClientIP_XForwardedForBlankFirstHopFallsThrough(t *testing.T) {
-	// A degenerate XFF where the first comma-separated value is empty
-	// shouldn't return an empty string — fall through to X-Real-IP.
+func TestGetClientIP_MalformedXForwardedForFallsBackToRemoteAddr(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	r.Header.Set("X-Forwarded-For", ", 198.51.100.4")
-	r.Header.Set("X-Real-IP", "203.0.113.5")
-	assert.Equal(t, "203.0.113.5", getClientIP(r),
-		"blank XFF first hop must fall through, not return empty")
+	r.Header.Set("X-Forwarded-For", "203.0.113.5, not-an-ip")
+	r.Header.Set("X-Real-IP", "198.51.100.4")
+	r.RemoteAddr = "10.0.0.1:54321"
+	assert.Equal(t, "10.0.0.1", getClientIPThroughXFFMiddleware(r))
 }
 
-func TestGetClientIP_XRealIPSecondPriority(t *testing.T) {
+func TestGetClientIP_IgnoresRawXRealIP(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	r.Header.Set("X-Real-IP", "203.0.113.5")
 	r.RemoteAddr = "10.0.0.1:54321"
-	assert.Equal(t, "203.0.113.5", getClientIP(r))
+	assert.Equal(t, "10.0.0.1", getClientIP(r))
 }
 
 func TestGetClientIP_XForwardedForBeatsXRealIP(t *testing.T) {
-	// When both headers are present, XFF wins — it's the modern
-	// standard and our reverse proxy sets it.
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	r.Header.Set("X-Forwarded-For", "203.0.113.5")
 	r.Header.Set("X-Real-IP", "198.51.100.4")
-	assert.Equal(t, "203.0.113.5", getClientIP(r))
-}
-
-func TestGetClientIP_XRealIPTrimsWhitespace(t *testing.T) {
-	r := httptest.NewRequest(http.MethodPost, "/x", nil)
-	r.Header.Set("X-Real-IP", "  203.0.113.5  ")
-	assert.Equal(t, "203.0.113.5", getClientIP(r))
+	assert.Equal(t, "203.0.113.5", getClientIPThroughXFFMiddleware(r))
 }
 
 func TestGetClientIP_FallsBackToRemoteAddrSansPort(t *testing.T) {
@@ -84,4 +72,16 @@ func TestGetClientIP_NoHeadersNoAddrReturnsEmpty(t *testing.T) {
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)
 	r.RemoteAddr = ""
 	assert.Equal(t, "", getClientIP(r))
+}
+
+func getClientIPThroughXFFMiddleware(req *http.Request) string {
+	var ip string
+	router := chi.NewRouter()
+	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Post("/x", func(w http.ResponseWriter, r *http.Request) {
+		ip = getClientIP(r)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	router.ServeHTTP(httptest.NewRecorder(), req)
+	return ip
 }

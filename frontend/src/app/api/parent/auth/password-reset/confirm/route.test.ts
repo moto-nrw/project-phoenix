@@ -87,8 +87,6 @@ describe("POST /api/parent/auth/password-reset/confirm", () => {
       headers: {
         "Content-Type": "application/json",
         "User-Agent": "unknown",
-        "X-Forwarded-For": "unknown",
-        "X-Real-IP": "unknown",
       },
       body: JSON.stringify(requestBody),
     });

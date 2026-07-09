@@ -2,7 +2,6 @@ package operator
 
 import (
 	"errors"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -84,7 +83,7 @@ func (rs *Resource) PasskeyEnrollmentChallenge(w http.ResponseWriter, r *http.Re
 		return
 	}
 	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.passkeyService.StartEnrollmentChallenge(r.Context(), int64(claims.ID), net.ParseIP(clientIPString(r)))
+	result, err := rs.passkeyService.StartEnrollmentChallenge(r.Context(), int64(claims.ID), getClientIP(r))
 	if err != nil {
 		mapOperatorPasskeyError(w, r, err)
 		return
@@ -179,14 +178,6 @@ func operatorPasskeyExpectedOrigin(r *http.Request) string {
 		return origin
 	}
 	return strings.TrimSpace(r.Header.Get("Origin"))
-}
-
-func clientIPString(r *http.Request) string {
-	ip := getClientIP(r)
-	if ip == nil {
-		return ""
-	}
-	return ip.String()
 }
 
 func mapOperatorPasskeyError(w http.ResponseWriter, r *http.Request, err error) {

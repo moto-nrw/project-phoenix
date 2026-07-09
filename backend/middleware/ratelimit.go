@@ -2,12 +2,11 @@ package middleware
 
 import (
 	"fmt"
-	"net"
 	"net/http"
 	"sync"
 	"time"
 
-	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	"golang.org/x/time/rate"
 )
 
@@ -132,15 +131,5 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 
 // GetClientIP extracts the real client IP address from the request
 func GetClientIP(r *http.Request) string {
-	if ip := chimiddleware.GetClientIP(r.Context()); ip != "" {
-		return ip
-	}
-
-	// Fall back to RemoteAddr
-	ip, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-
-	return ip
+	return clientip.GetClientIPString(r)
 }

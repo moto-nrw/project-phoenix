@@ -12,6 +12,7 @@
 
 import type { NextAuthConfig } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
+import { canonicalForwardedFor } from "~/lib/client-headers.server";
 import {
   logger,
   parseJwtPayload,
@@ -69,10 +70,10 @@ export const operatorAuthConfig = {
 
         // Forward client IP headers for audit logs and rate limiting
         const forwardHeaders: Record<string, string> = {};
-        const forwarded = request?.headers.get("x-forwarded-for");
-        const realIp = request?.headers.get("x-real-ip");
-        if (forwarded) forwardHeaders["X-Forwarded-For"] = forwarded;
-        if (realIp) forwardHeaders["X-Real-IP"] = realIp;
+        const forwardedFor = canonicalForwardedFor(request?.headers ?? null);
+        if (forwardedFor) {
+          forwardHeaders["X-Forwarded-For"] = forwardedFor;
+        }
 
         const loginResult = await performOperatorLogin(
           creds.email,

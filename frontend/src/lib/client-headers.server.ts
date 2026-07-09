@@ -1,7 +1,28 @@
+import { isIP } from "node:net";
 import type { NextRequest } from "next/server";
 
-function firstHeaderValue(value: string | null): string {
-  return value?.split(",")[0]?.trim() ?? "";
+type HeaderReader = Pick<Headers, "get">;
+
+function firstHeaderValue(value: string | null | undefined): string {
+  return (
+    value
+      ?.split(",")
+      .map((part) => part.trim())
+      .find(Boolean) ?? ""
+  );
+}
+
+function lastHeaderValue(value: string | null | undefined): string {
+  const parts = value?.split(",") ?? [];
+  for (let index = parts.length - 1; index >= 0; index -= 1) {
+    const part = parts[index]?.trim();
+    if (part) return part;
+  }
+  return "";
+}
+
+function isValidHeaderIP(value: string): boolean {
+  return isIP(value) !== 0;
 }
 
 function isSafeForwardedHost(value: string): boolean {
@@ -41,17 +62,21 @@ function frontendOrigin(request: NextRequest): string {
 export function getClientForwardHeaders(
   request: NextRequest,
 ): Record<string, string> {
-  const ip =
-    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
-    request.headers.get("x-real-ip") ??
-    "unknown";
-
+  const forwardedFor = canonicalForwardedFor(request.headers);
   const userAgent = request.headers.get("user-agent") ?? "unknown";
 
   return {
-    "X-Forwarded-For": ip,
-    "X-Real-IP": ip,
+    ...(forwardedFor && { "X-Forwarded-For": forwardedFor }),
     "X-Moto-Frontend-Origin": frontendOrigin(request),
     "User-Agent": userAgent,
   };
+}
+
+export function canonicalForwardedFor(headers: HeaderReader | null): string {
+  const forwardedFor = lastHeaderValue(headers?.get("x-forwarded-for"));
+  if (forwardedFor) {
+    return isValidHeaderIP(forwardedFor) ? forwardedFor : "";
+  }
+  const realIp = firstHeaderValue(headers?.get("x-real-ip"));
+  return isValidHeaderIP(realIp) ? realIp : "";
 }
