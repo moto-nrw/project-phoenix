@@ -377,6 +377,51 @@ func TestSubstitute_AbsentOnly_MarksAbsentNoSubstitute(t *testing.T) {
 	}
 }
 
+// #1840 regression: assigning a substitute without a reason must NOT wipe an
+// absence reason that was set earlier.
+func TestSubstitute_PreservesExistingAbsenceReason(t *testing.T) {
+	s := buildSubSetup(t)
+	defer s.cleanupFn()
+	router := subRouter(s.ctx, s.res)
+
+	dateStr, date := futureSubDate(1)
+	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Reason-Keep",
+	})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+	row := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.absent, testpkg.InstanceStaffOpts{})
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, row.ID) })
+
+	// Mark absent with a reason.
+	w1 := doSub(t, router, map[string]any{
+		"absent_staff_id": s.absent, "date": dateStr, "reason": "krank",
+	})
+	require.Equal(t, http.StatusOK, w1.Code, "body=%s", w1.Body.String())
+	require.NotNil(t, readInstanceStaff(t, s.db, s.ctx, row.ID).AbsenceReason)
+
+	// Assign a substitute WITHOUT a reason — the reason must survive.
+	w2 := doSub(t, router, map[string]any{
+		"absent_staff_id": s.absent, "substitute_staff_id": s.substitu, "date": dateStr,
+	})
+	require.Equal(t, http.StatusOK, w2.Code, "body=%s", w2.Body.String())
+
+	after := readInstanceStaff(t, s.db, s.ctx, row.ID)
+	assert.True(t, after.IsAbsent)
+	require.NotNil(t, after.AbsenceReason, "substitute without reason must keep the existing reason")
+	assert.Equal(t, "krank", *after.AbsenceReason)
+
+	repo := scheduleRepo.NewInstanceStaffRepository(s.db)
+	rows, err := repo.FindByInstanceID(s.ctx, inst.ID)
+	require.NoError(t, err)
+	var subIDs []int64
+	for _, r := range rows {
+		if r.IsSubstitute {
+			subIDs = append(subIDs, r.ID)
+		}
+	}
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, subIDs...) })
+}
+
 func TestSubstitute_Idempotent_AlreadySubstituted(t *testing.T) {
 	s := buildSubSetup(t)
 	defer s.cleanupFn()

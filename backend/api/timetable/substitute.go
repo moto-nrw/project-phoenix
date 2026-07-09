@@ -272,7 +272,9 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 			// preserved — the person was independently planned, not a
 			// Vertretung, and reports should preserve that distinction.
 			op.origRow.IsAbsent = true
-			op.origRow.AbsenceReason = trimReason(req.Reason)
+			if r := trimReason(req.Reason); r != nil {
+				op.origRow.AbsenceReason = r
+			}
 			if err := rs.TimetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
 				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
 				return
@@ -290,7 +292,9 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 
 		case substituteActionSubstituted:
 			op.origRow.IsAbsent = true
-			op.origRow.AbsenceReason = trimReason(req.Reason)
+			if r := trimReason(req.Reason); r != nil {
+				op.origRow.AbsenceReason = r
+			}
 			if err := rs.TimetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
 				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
 				return
