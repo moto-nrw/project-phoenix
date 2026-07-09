@@ -338,6 +338,50 @@ func TestDecide_ApproveClearsLiveSickToday(t *testing.T) {
 	assert.Positive(t, bc.tenantBroadcasts, "an approval must broadcast a student update")
 }
 
+// TestDecide_ApproveRefusedWhenGuardianAccessRevoked pins the guardian-link gate
+// (#1845 review follow-up): if the submitting guardian loses parent_portal.access
+// after filing the request but before staff review, APPROVING is refused (it
+// would write parent-sourced excused status days and notify an account the parent
+// APIs now hide) and the request stays pending; REJECTING stays available so
+// staff can wind it down. Mirrors the care-schedule request guard.
+func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
+	svc, _, db := buildAbsenceService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "Arzttermin")
+
+	// Revoke the guardian's portal access to the child (unlink / downgrade).
+	_, err := db.ExecContext(context.Background(), `
+		UPDATE users.students_guardians SET permissions = '{}'::jsonb
+		WHERE tenant_id = ? AND student_id = ? AND guardian_profile_id = ?
+	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
+	require.NoError(t, err)
+
+	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		// Approving a request whose submitter lost access is refused, and the row
+		// stays pending so staff can still reject it.
+		if _, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: chain.AccountID}); e != absenceSvc.ErrExcusedRequestGuardianAccessRevoked {
+			t.Fatalf("expected guardian-access-revoked, got %v", e)
+		}
+		still, e := svc.ListForStudent(txCtx, chain.StudentID, time.Now().Add(-24*time.Hour))
+		if e != nil {
+			return e
+		}
+		require.Len(t, still, 1)
+		assert.Equal(t, activeModels.ExcusedRequestStatusPending, still[0].Status, "a refused approval leaves the request pending")
+
+		// Rejecting the same stale request is NOT gated on the guardian link.
+		item, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: false, Reason: "Elternteil nicht mehr berechtigt", ReviewedBy: chain.AccountID})
+		if e != nil {
+			return e
+		}
+		assert.Equal(t, activeModels.ExcusedRequestStatusRejected, item.Request.Status, "a revoked guardian's request can still be rejected")
+		return nil
+	})
+	require.NoError(t, err)
+}
+
 // TestWithdrawRequest covers success plus the ownership and status guards.
 func TestWithdrawRequest(t *testing.T) {
 	svc, _, db := buildAbsenceService(t)

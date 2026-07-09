@@ -739,11 +739,16 @@ export function SickStatusSummary({
         error: err instanceof Error ? err.message : String(err),
         request_id: requestId,
       });
-      setWithdrawError({
-        id: requestId,
-        message:
-          err instanceof Error ? err.message : t("summary.withdrawError"),
-      });
+      // Never surface the raw backend English string to a German-only parent.
+      // Map the one known conflict (the OGS already decided the request before
+      // the parent clicked) to a specific message; everything else falls back to
+      // the generic translated hint.
+      const message =
+        err instanceof ParentApiError &&
+        err.code === "excused_request_not_pending"
+          ? t("summary.withdrawAlreadyDecided")
+          : t("summary.withdrawError");
+      setWithdrawError({ id: requestId, message });
     } finally {
       setWithdrawingId(null);
     }
@@ -788,7 +793,7 @@ export function SickStatusSummary({
             <span className="inline-flex items-center rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#92710b]">
               {t("summary.pendingLabel")}
             </span>
-            {onWithdraw && (
+            {onWithdraw && r.is_self && (
               <button
                 type="button"
                 disabled={withdrawingId === r.id}

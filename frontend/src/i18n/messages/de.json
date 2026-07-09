@@ -290,6 +290,7 @@
       "rejectedLabel": "Abgelehnt",
       "withdraw": "Zurückziehen",
       "withdrawError": "Zurückziehen fehlgeschlagen. Bitte aktualisieren Sie die Seite.",
+      "withdrawAlreadyDecided": "Diese Abmeldung wurde bereits von der OGS bearbeitet und kann nicht mehr zurückgezogen werden.",
       "reasonPrefix": "Grund"
     },
     "pickup": {

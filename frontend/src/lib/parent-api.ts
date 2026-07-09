@@ -107,6 +107,11 @@ export interface ExcusedRequest {
   readonly decision_reason?: string;
   readonly created_at: string; // ISO timestamp
   readonly reviewed_at?: string; // ISO timestamp
+  // is_self is true only for the calling guardian's own request. In a
+  // multi-guardian family only the submitter may withdraw it (the backend
+  // rejects a non-submitter's withdrawal), so the UI shows the withdraw action
+  // only when this is true.
+  readonly is_self: boolean;
 }
 
 // Response envelope of POST .../sick-note. For a "sick" absence, or an "excused"

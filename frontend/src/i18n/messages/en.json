@@ -290,6 +290,7 @@
       "rejectedLabel": "Rejected",
       "withdraw": "Withdraw",
       "withdrawError": "Withdrawal failed. Please refresh the page.",
+      "withdrawAlreadyDecided": "The OGS has already processed this request, so it can no longer be withdrawn.",
       "reasonPrefix": "Reason"
     },
     "pickup": {

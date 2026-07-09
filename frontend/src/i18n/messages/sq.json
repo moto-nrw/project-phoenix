@@ -290,6 +290,7 @@
       "rejectedLabel": "U refuzua",
       "withdraw": "Tërhiq",
       "withdrawError": "Tërheqja dështoi. Ju lutemi rifreskoni faqen.",
+      "withdrawAlreadyDecided": "OGS-ja tashmë e ka trajtuar këtë kërkesë, prandaj nuk mund të tërhiqet më.",
       "reasonPrefix": "Arsyeja"
     },
     "pickup": {

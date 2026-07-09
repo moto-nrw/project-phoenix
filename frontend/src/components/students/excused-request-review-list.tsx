@@ -18,11 +18,14 @@ import {
 
 const logger = createLogger({ component: "ExcusedRequestReviewList" });
 
-// The only expected 409 here: the parent withdrew the request, or another
-// staffer already decided it, between load and submit. Name the recovery
-// (reload) instead of a generic failure.
+// Expected 409s: the parent withdrew the request / another staffer already
+// decided it (reload), or the submitting guardian lost access to the child
+// before approval (reject instead). Name the concrete recovery action rather
+// than hiding it behind a generic failure.
 function decideErrorMessage(code: string | undefined): string {
   switch (code) {
+    case "guardian_access_revoked":
+      return "Die anfragende Bezugsperson hat keinen Zugriff mehr auf dieses Kind. Die Abmeldung kann nicht freigegeben werden. Bitte die Anfrage stattdessen ablehnen.";
     case "change_request_not_pending":
       return "Diese Anfrage wurde bereits entschieden oder von den Eltern zurückgezogen. Bitte die Seite neu laden.";
     default:

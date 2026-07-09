@@ -12,6 +12,7 @@ interface BackendExcusedRequest {
   decision_reason?: string;
   created_at: string;
   reviewed_at?: string;
+  is_self: boolean;
 }
 
 /**

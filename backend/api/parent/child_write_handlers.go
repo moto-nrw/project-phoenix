@@ -70,9 +70,14 @@ type ParentExcusedRequestResponse struct {
 	DecisionReason *string    `json:"decision_reason,omitempty"`
 	CreatedAt      time.Time  `json:"created_at"`
 	ReviewedAt     *time.Time `json:"reviewed_at,omitempty"`
+	// IsSelf is true only when the CALLING guardian submitted this request. In a
+	// multi-guardian family only the submitter may withdraw it (the backend
+	// rejects a non-submitter's withdrawal), so the UI shows the withdraw action
+	// only for own requests.
+	IsSelf bool `json:"is_self"`
 }
 
-func toParentExcusedRequestResponse(req *activeModels.ExcusedAbsenceRequest) ParentExcusedRequestResponse {
+func toParentExcusedRequestResponse(req *activeModels.ExcusedAbsenceRequest, accountID int64) ParentExcusedRequestResponse {
 	dates := make([]string, 0, len(req.Dates))
 	for _, d := range req.Dates {
 		dates = append(dates, d.String())
@@ -86,6 +91,7 @@ func toParentExcusedRequestResponse(req *activeModels.ExcusedAbsenceRequest) Par
 		DecisionReason: req.DecisionReason,
 		CreatedAt:      req.CreatedAt,
 		ReviewedAt:     req.ReviewedAt,
+		IsSelf:         req.SubmittedBy == accountID,
 	}
 }
 
@@ -142,7 +148,7 @@ func (rs *Resource) submitSickNote(w http.ResponseWriter, r *http.Request) {
 		resp.StatusDays = append(resp.StatusDays, toStatusDayResponse(d))
 	}
 	if result.PendingRequest != nil {
-		pr := toParentExcusedRequestResponse(result.PendingRequest)
+		pr := toParentExcusedRequestResponse(result.PendingRequest, accountID)
 		resp.PendingRequest = &pr
 	}
 	common.Respond(w, r, http.StatusCreated, resp, "Sick note submitted")
@@ -168,7 +174,7 @@ func (rs *Resource) listExcusedRequests(w http.ResponseWriter, r *http.Request) 
 
 	out := make([]ParentExcusedRequestResponse, 0, len(rows))
 	for _, req := range rows {
-		out = append(out, toParentExcusedRequestResponse(req))
+		out = append(out, toParentExcusedRequestResponse(req, accountID))
 	}
 	common.Respond(w, r, http.StatusOK, out, "Excused requests retrieved")
 }
@@ -195,7 +201,7 @@ func (rs *Resource) withdrawExcusedRequest(w http.ResponseWriter, r *http.Reques
 		renderParentWriteError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusOK, toParentExcusedRequestResponse(req), "Excused request withdrawn")
+	common.Respond(w, r, http.StatusOK, toParentExcusedRequestResponse(req, accountID), "Excused request withdrawn")
 }
 
 // listSickDays returns the child's active sick days in the requested

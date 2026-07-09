@@ -290,6 +290,7 @@
       "rejectedLabel": "Отклонено",
       "withdraw": "Отозвать",
       "withdrawError": "Не удалось отозвать. Обновите страницу.",
+      "withdrawAlreadyDecided": "ОГС уже обработала эту заявку, поэтому её больше нельзя отозвать.",
       "reasonPrefix": "Причина"
     },
     "pickup": {

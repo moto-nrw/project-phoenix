@@ -339,6 +339,7 @@ func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
 	assert.Empty(t, submitResp.StatusDays, "no status day while pending")
 	require.NotNil(t, submitResp.PendingRequest, "an excused submission must return a pending request when approval is on")
 	assert.Equal(t, "pending", submitResp.PendingRequest["status"])
+	assert.Equal(t, true, submitResp.PendingRequest["is_self"], "the submitter's own request is flagged is_self")
 
 	// The child's excused-requests endpoint lists the pending request.
 	rr = doRequest(t, router, http.MethodGet, "/me/children/"+sid+"/excused-requests", token, nil)
@@ -348,6 +349,7 @@ func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
 	require.NoError(t, json.Unmarshal(env.Data, &reqs))
 	require.Len(t, reqs, 1)
 	assert.Equal(t, "pending", reqs[0]["status"])
+	assert.Equal(t, true, reqs[0]["is_self"], "the calling guardian sees their own request as is_self")
 }
 
 // TestSickNoteEndpoint_ExcusedRequiresNote covers AC2 at the HTTP boundary: an

@@ -45,6 +45,14 @@ var (
 	// ErrExcusedRequestForbidden means the caller may not decide requests for
 	// this child (no staff identity, or no write access to the student).
 	ErrExcusedRequestForbidden = errors.New("active: excused request forbidden")
+	// ErrExcusedRequestGuardianAccessRevoked means the submitting guardian is no
+	// longer a linked guardian of the child with parent_portal.access, so
+	// approving (which writes parent-sourced excused status days and posts a
+	// parent-visible "bestätigt" pill for a recipient who can no longer read it)
+	// is refused. Staff wind such a request down by REJECTING it — the reject
+	// path is deliberately not gated on the guardian link, mirroring the
+	// care-schedule request flow.
+	ErrExcusedRequestGuardianAccessRevoked = errors.New("active: excused request guardian access revoked")
 	// ErrExcusedRequestNoDates means the request carried no dates.
 	ErrExcusedRequestNoDates = errors.New("active: excused request requires at least one date")
 	// ErrExcusedRequestEmptyNote means the mandatory note was blank.
@@ -160,6 +168,10 @@ func (s *excusedAbsenceRequestService) CreateRequest(ctx context.Context, studen
 	if err := s.requestRepo.Create(ctx, req); err != nil {
 		return nil, fmt.Errorf("active: create excused request: %w", err)
 	}
+	// A new pending request adds the "Freigabe ausstehend" badge on the child;
+	// wake staff tabs so planning/search views pick it up without a manual
+	// refetch.
+	s.broadcastStudentUpdated(ctx, req.TenantID, req.StudentID)
 	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestCreated,
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
@@ -189,6 +201,9 @@ func (s *excusedAbsenceRequestService) WithdrawRequest(ctx context.Context, requ
 		return nil, err
 	}
 	req.Status = activeModels.ExcusedRequestStatusWithdrawn
+	// Withdrawal clears the child's pending badge; wake staff tabs so the
+	// planning/search views drop it without a manual refetch.
+	s.broadcastStudentUpdated(ctx, req.TenantID, req.StudentID)
 	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestStatus,
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
@@ -362,6 +377,21 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	}
 
 	if input.Approve {
+		// Refuse to APPLY when the submitting guardian has lost access to the
+		// child (unlinked or parent_portal.access revoked) since the request was
+		// filed. Approving writes parent-sourced excused status days and posts a
+		// parent-visible "bestätigt" pill for a recipient the parent APIs now
+		// hide; staff wind such a stale request down by REJECTING it (reject is
+		// deliberately not gated). Mirrors the care-schedule request guard.
+		if s.emitter != nil {
+			hasAccess, err := s.emitter.GuardianHasChildAccess(ctx, req.StudentID, req.SubmittedBy)
+			if err != nil {
+				return nil, fmt.Errorf("active: excused request guardian link check: %w", err)
+			}
+			if !hasAccess {
+				return nil, ErrExcusedRequestGuardianAccessRevoked
+			}
+		}
 		// Apply, status update and after-commit hooks all run in the ambient
 		// tenant transaction. A mid-apply failure propagates as a plain error
 		// (→ 500) so the WHOLE transaction rolls back rather than committing a
@@ -396,7 +426,6 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 				slog.Int("days", len(req.Dates)),
 			)
 		})
-		s.broadcastStudentUpdated(ctx, req.TenantID, req.StudentID)
 	} else {
 		tenant.RegisterAfterCommit(ctx, func() {
 			s.logger.Info("excused request rejected",
@@ -407,6 +436,9 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 			)
 		})
 	}
+	// Either decision clears the child's pending badge (approval also surfaces
+	// the confirmed absence). Wake staff tabs for both outcomes.
+	s.broadcastStudentUpdated(ctx, req.TenantID, req.StudentID)
 	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestStatus,
 		ActorKind:      usersModels.ParentMessageSenderStaff,
@@ -498,12 +530,18 @@ func (s *excusedAbsenceRequestService) emitRequestPillAfterCommit(ctx context.Co
 	})
 }
 
-// broadcastStudentUpdated wakes staff tabs after an approved excused request
-// writes the child's status days, so the planning views drop the pending
-// badge and show the confirmed absence. Fire-and-forget.
+// broadcastStudentUpdated wakes staff tabs after any excused-request transition
+// that changes the child's "Freigabe ausstehend" badge: a new pending request
+// (badge appears), an approval (badge clears, confirmed absence shows), or a
+// rejection/withdrawal (badge clears with no absence). Without it an open
+// dashboard/planning/search view keeps showing stale pending state — or misses
+// a fresh one — until a manual refetch. Fire-and-forget.
 func (s *excusedAbsenceRequestService) broadcastStudentUpdated(ctx context.Context, tenantID, studentID int64) {
 	if s.broadcaster == nil {
 		return
+	}
+	if tenantID <= 0 {
+		tenantID = tenant.FromContext(ctx)
 	}
 	tenant.RegisterAfterCommit(ctx, func() {
 		source := "excused_request"
