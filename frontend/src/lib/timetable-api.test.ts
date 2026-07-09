@@ -62,6 +62,8 @@ const backendInstance: BackendEnrichedInstance = {
   absent_staff_count: 0,
   expected_students_count: 1,
   present_students_count: 0,
+  required_staff_count: 1,
+  assigned_staff_count: 1,
   conflict_warnings: [
     {
       kind: "room",
@@ -82,8 +84,11 @@ const backendTemplate: BackendTimetableTemplate = {
   room_name: "Turnhalle",
   is_open: true,
   max_participants: 12,
+  target_group_type: "none",
   enrollment_count: 8,
   supervisor_count: 1,
+  required_staff_count: 1,
+  assigned_staff_count: 1,
   student_ids: [21],
   staff_ids: [11],
   primary_staff_id: 11,

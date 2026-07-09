@@ -408,6 +408,25 @@ func TestPeriodSelection(t *testing.T) {
 	t.Run("nil schedule has no pinned period", func(t *testing.T) {
 		assert.Nil(t, schedulePinnedPeriodID(&activities.Group{}, nil))
 	})
+
+	t.Run("template pinned via Group.CalendarPeriodID, no schedule pin → uses template's period", func(t *testing.T) {
+		pinnedID := holiday.ID
+		tmpl := &activities.Group{CalendarPeriodID: &pinnedID}
+		sch := &activities.Schedule{} // no schedule-level pin
+		got := selectPeriod(tmpl, sch, target, []*schedule.CalendarPeriod{schoolYear, holiday}, logger)
+		require.NotNil(t, got)
+		assert.Equal(t, holiday.ID, got.ID)
+	})
+
+	t.Run("schedule pin wins over template pin when both set", func(t *testing.T) {
+		schedulePinnedID := fallSemester.ID
+		templatePinnedID := holiday.ID
+		tmpl := &activities.Group{CalendarPeriodID: &templatePinnedID}
+		sch := &activities.Schedule{CalendarPeriodID: &schedulePinnedID}
+		got := selectPeriod(tmpl, sch, target, []*schedule.CalendarPeriod{schoolYear, holiday, fallSemester}, logger)
+		require.NotNil(t, got)
+		assert.Equal(t, fallSemester.ID, got.ID, "schedule's own pin must win over the template's")
+	})
 }
 
 // -----------------------------------------------------------------------------

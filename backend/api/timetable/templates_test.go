@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -287,6 +288,100 @@ func TestTemplateCreateListGetUpdateArchive(t *testing.T) {
 	require.Equal(t, http.StatusOK, delW.Code, "body=%s", delW.Body.String())
 	secondDelW := doTemplateJSON(t, router, http.MethodDelete, fmt.Sprintf("/templates/%d", created.TemplateID), nil)
 	assert.Equal(t, http.StatusNotFound, secondDelW.Code)
+}
+
+func TestListTemplates_CapacityFields(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+
+	// Tenant-override ratio of 1 child per staff member, exercised via the
+	// same HasTenantOverride -> ResolveInt chain the real settings service
+	// uses (settings-system.md), not just the registry default.
+	s.res.SettingsService = &configtest.Mock{
+		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
+		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
+	}
+
+	router := templateRouter(s.ctx, s.res)
+	body := createTemplateBody(s, "Tpl-Capacity")
+	// Only one staff member assigned against two enrolled students, so at a
+	// ratio of 1 the required count (2) exceeds the assigned count (1).
+	body["staff_ids"] = []int64{s.staffA}
+	body["primary_staff_id"] = s.staffA
+
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, w)
+
+	listW := doTemplateJSON(t, router, http.MethodGet, "/templates", nil)
+	require.Equal(t, http.StatusOK, listW.Code, "body=%s", listW.Body.String())
+	list := decodeTemplateData[listTemplatesResponse](t, listW)
+	var tpl templateResponse
+	for _, candidate := range list.Templates {
+		if candidate.ID == created.TemplateID {
+			tpl = candidate
+			break
+		}
+	}
+	require.Equal(t, created.TemplateID, tpl.ID, "created template missing from list")
+	assert.Equal(t, 2, tpl.EnrollmentCount)
+	assert.Equal(t, 1, tpl.SupervisorCount)
+	assert.Equal(t, 2, tpl.RequiredStaffCount, "ceil(2 children / ratio 1) = 2")
+	assert.Equal(t, 1, tpl.AssignedStaffCount)
+	assert.Equal(t, activitiesModel.TargetGroupTypeNone, tpl.TargetGroupType, "default target group type for templates predating Zielgruppe")
+	assert.Nil(t, tpl.TargetGradeLevel)
+	assert.Nil(t, tpl.TargetSchoolClass)
+	assert.Nil(t, tpl.CalendarPeriodID, "no calendar period set on this template")
+}
+
+func TestTemplateCreateUpdate_ZielgruppeRoundTrip(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	body := createTemplateBody(s, "Tpl-Zielgruppe")
+	body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+	body["target_grade_level"] = 3
+
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, w)
+
+	getW := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates/%d", created.TemplateID), nil)
+	require.Equal(t, http.StatusOK, getW.Code, "body=%s", getW.Body.String())
+	got := decodeTemplateData[templateResponse](t, getW)
+	assert.Equal(t, activitiesModel.TargetGroupTypeJahrgang, got.TargetGroupType)
+	require.NotNil(t, got.TargetGradeLevel)
+	assert.EqualValues(t, 3, *got.TargetGradeLevel)
+	assert.Nil(t, got.TargetSchoolClass)
+
+	// Switch to Klasse on update; grade level must clear (mutually exclusive).
+	updateBody := createTemplateBody(s, "Tpl-Zielgruppe-Updated")
+	updateBody["target_group_type"] = activitiesModel.TargetGroupTypeKlasse
+	updateBody["target_school_class"] = "3a"
+	updateW := doTemplateJSON(t, router, http.MethodPut, fmt.Sprintf("/templates/%d", created.TemplateID), updateBody)
+	require.Equal(t, http.StatusOK, updateW.Code, "body=%s", updateW.Body.String())
+	updated := decodeTemplateData[templateResponse](t, updateW)
+	assert.Equal(t, activitiesModel.TargetGroupTypeKlasse, updated.TargetGroupType)
+	assert.Nil(t, updated.TargetGradeLevel)
+	require.NotNil(t, updated.TargetSchoolClass)
+	assert.Equal(t, "3a", *updated.TargetSchoolClass)
+}
+
+func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	body := createTemplateBody(s, "Tpl-BadZielgruppe")
+	body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+	// target_grade_level intentionally omitted — jahrgang requires it.
+
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 }
 
 func TestTemplateCreateValidationAndMaterializationFailure(t *testing.T) {

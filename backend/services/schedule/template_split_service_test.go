@@ -687,3 +687,63 @@ func TestTemplateSplit_DeletesPlannedBeyondMaterializeWindow(t *testing.T) {
 	assert.False(t, splitInstanceExists(t, s, second[0].ID),
 		"planned old-template instance beyond the materialization window must not survive")
 }
+
+// reloadSplitGroup fetches one activities.groups row by id.
+func reloadSplitGroup(t *testing.T, s *scenarioSetup, id int64) *activitiesModels.Group {
+	t.Helper()
+	var row activitiesModels.Group
+	err := s.db.NewSelect().Model(&row).
+		ModelTableExpr(`activities.groups AS "group"`).
+		Where(`"group".id = ?`, id).
+		Where(`"group".tenant_id = ?`, s.tenantID).
+		Scan(s.ctx)
+	require.NoError(t, err)
+	return &row
+}
+
+func TestTemplateSplit_CarriesTargetGroupAndCalendarPeriodToSuccessor(t *testing.T) {
+	effective := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	defer s.runCleanup(t)
+	suffix := time.Now().UnixNano()
+
+	gradeLevel := int16(3)
+	in := baseSplitInput(s, effective, fmt.Sprintf("Split-Zielgruppe-%d", suffix))
+	in.CalendarPeriodID = &s.period.ID
+	in.TargetGroupType = activitiesModels.TargetGroupTypeJahrgang
+	in.TargetGradeLevel = &gradeLevel
+
+	res, err := s.factory.TemplateSplit.Split(s.ctx, in)
+	require.NoError(t, err)
+	registerSuccessorCleanup(t, s, res.NewTemplateID)
+
+	successor := reloadSplitGroup(t, s, res.NewTemplateID)
+	require.NotNil(t, successor.CalendarPeriodID)
+	assert.Equal(t, s.period.ID, *successor.CalendarPeriodID, "successor Group carries the period pin, not just its schedule rows")
+	assert.Equal(t, activitiesModels.TargetGroupTypeJahrgang, successor.TargetGroupType)
+	require.NotNil(t, successor.TargetGradeLevel)
+	assert.Equal(t, gradeLevel, *successor.TargetGradeLevel)
+	assert.Nil(t, successor.TargetSchoolClass)
+
+	// The successor's own schedule rows are ALSO stamped with the period —
+	// both the template-level and schedule-level pins are set, per the
+	// two-tier fallback in materialization_service.go's schedulePinnedPeriodID.
+	newSchedules := loadSplitSchedules(t, s, res.NewTemplateID)
+	require.Len(t, newSchedules, 1)
+	require.NotNil(t, newSchedules[0].CalendarPeriodID)
+	assert.Equal(t, s.period.ID, *newSchedules[0].CalendarPeriodID)
+}
+
+func TestTemplateSplit_ValidationErrors_RejectsInvalidTargetGroup(t *testing.T) {
+	effective := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	defer s.runCleanup(t)
+
+	in := baseSplitInput(s, effective, fmt.Sprintf("Split-BadZielgruppe-%d", time.Now().UnixNano()))
+	in.TargetGroupType = activitiesModels.TargetGroupTypeJahrgang
+	// TargetGradeLevel intentionally left nil — jahrgang requires it.
+
+	_, err := s.factory.TemplateSplit.Split(s.ctx, in)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, scheduleSvc.ErrSplitInvalidInput)
+}

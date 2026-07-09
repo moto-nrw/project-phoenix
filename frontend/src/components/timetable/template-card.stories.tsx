@@ -14,8 +14,11 @@ const baseTemplate: TimetableTemplate = {
   roomName: "Raum 101",
   isOpen: true,
   maxParticipants: 20,
+  targetGroupType: "none",
   enrollmentCount: 12,
   supervisorCount: 2,
+  requiredStaffCount: 1,
+  assignedStaffCount: 2,
   studentIds: [],
   staffIds: [],
   schedules: [

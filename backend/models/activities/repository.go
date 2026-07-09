@@ -42,7 +42,7 @@ type GroupRepository interface {
 
 	// UpdateTemplateFields patches the editable template fields of a
 	// non-archived template row.
-	UpdateTemplateFields(ctx context.Context, id int64, name, groupType string, categoryID, roomID int64, educationGroupID *int64, maxParticipants int) (rowsAffected int64, err error)
+	UpdateTemplateFields(ctx context.Context, id int64, fields TemplateFieldsUpdate) (rowsAffected int64, err error)
 
 	// ArchiveTemplate soft-deletes a non-archived template (sets archived_at).
 	ArchiveTemplate(ctx context.Context, id int64) (rowsAffected int64, err error)
@@ -183,6 +183,23 @@ type StudentEnrollmentRepository interface {
 	CapActiveByGroup(ctx context.Context, groupID int64, validUntil timezone.Date) (int64, error)
 }
 
+// TemplateFieldsUpdate carries the editable fields of PUT /templates/{id}.
+// Grouped into a struct (rather than positional params) because the field
+// count grew past what's readable positionally once Zielgruppe/calendar
+// period joined the original create-time fields.
+type TemplateFieldsUpdate struct {
+	Name              string
+	Type              string
+	CategoryID        int64
+	RoomID            int64
+	EducationGroupID  *int64
+	MaxParticipants   int
+	CalendarPeriodID  *int64
+	TargetGroupType   string
+	TargetGradeLevel  *int16
+	TargetSchoolClass *string
+}
+
 // TemplateListRow is one row of the template list read model produced by
 // GroupRepository.ListTemplateRows: template fields joined with one schedule
 // row and the aggregated people counts. Issue #584: moved verbatim from
@@ -199,16 +216,24 @@ type TemplateListRow struct {
 	EducationGroupName sql.NullString `bun:"education_group_name"`
 	IsOpen             bool           `bun:"is_open"`
 	MaxParticipants    int            `bun:"max_participants"`
-	EnrollmentCount    int            `bun:"enrollment_count"`
-	SupervisorCount    int            `bun:"supervisor_count"`
-	StudentIDs         []int64        `bun:"student_ids,array"`
-	StaffIDs           []int64        `bun:"staff_ids,array"`
-	PrimaryStaffID     sql.NullInt64  `bun:"primary_staff_id"`
-	ScheduleID         int64          `bun:"schedule_id"`
-	Weekday            int            `bun:"weekday"`
-	StartTime          sql.NullString `bun:"start_time"`
-	EndTime            sql.NullString `bun:"end_time"`
-	WeekPattern        int            `bun:"week_pattern"`
-	CalendarPeriodID   sql.NullInt64  `bun:"calendar_period_id"`
-	ScheduleValidUntil sql.NullString `bun:"schedule_valid_until"`
+	// TemplateCalendarPeriodID is the template's OWN period pin (Group.
+	// CalendarPeriodID), distinct from CalendarPeriodID below which is the
+	// per-schedule-row pin. See materialization_service.go's
+	// schedulePinnedPeriodID for the precedence between the two.
+	TemplateCalendarPeriodID sql.NullInt64  `bun:"template_calendar_period_id"`
+	TargetGroupType          string         `bun:"target_group_type"`
+	TargetGradeLevel         sql.NullInt16  `bun:"target_grade_level"`
+	TargetSchoolClass        sql.NullString `bun:"target_school_class"`
+	EnrollmentCount          int            `bun:"enrollment_count"`
+	SupervisorCount          int            `bun:"supervisor_count"`
+	StudentIDs               []int64        `bun:"student_ids,array"`
+	StaffIDs                 []int64        `bun:"staff_ids,array"`
+	PrimaryStaffID           sql.NullInt64  `bun:"primary_staff_id"`
+	ScheduleID               int64          `bun:"schedule_id"`
+	Weekday                  int            `bun:"weekday"`
+	StartTime                sql.NullString `bun:"start_time"`
+	EndTime                  sql.NullString `bun:"end_time"`
+	WeekPattern              int            `bun:"week_pattern"`
+	CalendarPeriodID         sql.NullInt64  `bun:"calendar_period_id"`
+	ScheduleValidUntil       sql.NullString `bun:"schedule_valid_until"`
 }

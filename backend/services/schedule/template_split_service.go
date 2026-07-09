@@ -70,11 +70,16 @@ type TemplateSplitInput struct {
 	WeekPattern      *int // 0=every week, 1=A, 2=B; nil = 0
 	CalendarPeriodID *int64
 	EducationGroupID *int64
-	StudentIDs       []int64
-	StaffIDs         []int64
-	PrimaryStaffID   *int64
-	MaterializeFrom  *timezone.Date
-	MaterializeTo    *timezone.Date
+	// Zielgruppe (target-group) fields, carried onto the successor Group
+	// (see createSuccessorGroup). "gruppe" reuses EducationGroupID above.
+	TargetGroupType   string
+	TargetGradeLevel  *int16
+	TargetSchoolClass *string
+	StudentIDs        []int64
+	StaffIDs          []int64
+	PrimaryStaffID    *int64
+	MaterializeFrom   *timezone.Date
+	MaterializeTo     *timezone.Date
 }
 
 // TemplateSplitResult summarises one Split call.
@@ -329,6 +334,18 @@ func validateSplitInput(in TemplateSplitInput) error {
 	if in.EffectiveDate.Before(timezone.TodayDate()) {
 		return fmt.Errorf("%w: effective_date must not be in the past", ErrSplitInvalidInput)
 	}
+	// Reuses Group.ValidateTargetGroup() rather than re-implementing the
+	// type-conditional invariant here (Rule 10) — the handler's Bind() also
+	// runs this check, but the service defends itself independently since
+	// TemplateSplitInput is a public entry point other callers could reach.
+	if err := (&activitiesModel.Group{
+		TargetGroupType:   in.TargetGroupType,
+		TargetGradeLevel:  in.TargetGradeLevel,
+		TargetSchoolClass: in.TargetSchoolClass,
+		EducationGroupID:  in.EducationGroupID,
+	}).ValidateTargetGroup(); err != nil {
+		return fmt.Errorf("%w: %s", ErrSplitInvalidInput, err.Error())
+	}
 	return validateSplitMaterializationWindow(in)
 }
 
@@ -438,15 +455,19 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	}
 	roomID := in.RoomID
 	group := &activitiesModel.Group{
-		Name:             in.Name,
-		MaxParticipants:  maxParticipants,
-		IsOpen:           old.IsOpen,
-		CategoryID:       in.CategoryID,
-		PlannedRoomID:    &roomID,
-		CreatedBy:        old.CreatedBy,
-		Type:             in.Type,
-		EducationGroupID: in.EducationGroupID,
-		IsTemplate:       true,
+		Name:              in.Name,
+		MaxParticipants:   maxParticipants,
+		IsOpen:            old.IsOpen,
+		CategoryID:        in.CategoryID,
+		PlannedRoomID:     &roomID,
+		CreatedBy:         old.CreatedBy,
+		Type:              in.Type,
+		EducationGroupID:  in.EducationGroupID,
+		IsTemplate:        true,
+		CalendarPeriodID:  in.CalendarPeriodID,
+		TargetGroupType:   in.TargetGroupType,
+		TargetGradeLevel:  in.TargetGradeLevel,
+		TargetSchoolClass: in.TargetSchoolClass,
 	}
 	group.SetTenantID(tenantID)
 	if err := s.deps.GroupRepo.Create(ctx, group); err != nil {

@@ -18,6 +18,7 @@ import { TriangleAlert } from "lucide-react";
 
 import { getActivityColor } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
+import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { timetableStatusColors } from "./timetable-style";
 import { useShowTimetableCounts } from "~/lib/tenant-context";
 
@@ -131,15 +132,29 @@ export function InstanceBlock({
         )}
 
         {!isCompact && !isCancelled && (
-          <div className="truncate text-[10px] text-gray-500">
-            {instance.staffCount} P
-            {showTimetableCounts &&
-              ` · ${instance.expectedStudentsCount + instance.presentStudentsCount} K`}
-            {showTimetableCounts &&
-            isActive &&
-            instance.expectedStudentsCount + instance.presentStudentsCount > 0
-              ? ` · ${instance.presentStudentsCount} anwesend`
-              : ""}
+          <div className="flex items-center gap-1 truncate text-[10px] text-gray-500">
+            <span className="truncate">
+              {instance.staffCount} P
+              {showTimetableCounts &&
+                ` · ${instance.expectedStudentsCount + instance.presentStudentsCount} K`}
+              {showTimetableCounts &&
+              isActive &&
+              instance.expectedStudentsCount + instance.presentStudentsCount > 0
+                ? ` · ${instance.presentStudentsCount} anwesend`
+                : ""}
+            </span>
+            {instance.requiredStaffCount > 0 && (
+              <TimetableRatioPill
+                variant="compact"
+                icon={null}
+                label="Besetzung"
+                value={`${instance.assignedStaffCount}/${instance.requiredStaffCount}`}
+                tone={capacityTone(
+                  instance.assignedStaffCount,
+                  instance.requiredStaffCount,
+                )}
+              />
+            )}
           </div>
         )}
       </div>

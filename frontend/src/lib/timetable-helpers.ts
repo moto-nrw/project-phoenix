@@ -358,6 +358,8 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     absentStaffCount: raw.absent_staff_count,
     expectedStudentsCount: raw.expected_students_count,
     presentStudentsCount: raw.present_students_count,
+    requiredStaffCount: raw.required_staff_count,
+    assignedStaffCount: raw.assigned_staff_count,
     conflictWarnings: (raw.conflict_warnings ?? []).map((warning) => ({
       kind: warning.kind,
       resourceId: String(warning.resource_id),
@@ -592,8 +594,18 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       educationGroupName: template.education_group_name,
       isOpen: template.is_open,
       maxParticipants: template.max_participants,
+      calendarPeriodId:
+        template.calendar_period_id !== undefined &&
+        template.calendar_period_id !== null
+          ? String(template.calendar_period_id)
+          : undefined,
+      targetGroupType: template.target_group_type,
+      targetGradeLevel: template.target_grade_level,
+      targetSchoolClass: template.target_school_class,
       enrollmentCount: template.enrollment_count,
       supervisorCount: template.supervisor_count,
+      requiredStaffCount: template.required_staff_count,
+      assignedStaffCount: template.assigned_staff_count,
       studentIds: (template.student_ids ?? []).map(String),
       staffIds: (template.staff_ids ?? []).map(String),
       primaryStaffId:
@@ -812,13 +824,17 @@ export function countTemplateStaffGaps(templates: TimetableTemplate[]): number {
   return templates.filter((tpl) => tpl.staffIds.length === 0).length;
 }
 
-export type TimetableEnrollmentStatus = "active" | "none" | "unknown";
+/**
+ * Whether any active care offering points at a Betreuungsplan-Regeltermin.
+ * "unknown" means the linkage could not be read (no enrollment permission).
+ */
+export type TimetableCareOfferingLinkStatus = "linked" | "unlinked" | "unknown";
 
 export interface TimetableSetupState {
   periodDone: boolean;
   enrollmentDone: boolean;
   planDone: boolean;
-  /** false when the enrollment status is unknown (no read access) */
+  /** false when the care-offering linkage is unknown (no read access) */
   enrollmentApplicable: boolean;
   completedSteps: number;
   totalSteps: number;
@@ -830,18 +846,20 @@ export interface TimetableSetupState {
 /**
  * Status of the three onboarding steps shown in the planner setup guide
  * (Planungszeitraum / Anmeldung verknüpfen / Erste Woche planen). The
- * enrollment step is optional and is dropped from the progress count when
- * its status is unknown (the admin cannot read enrollment phases).
+ * enrollment step counts as done only when a care offering actually links to
+ * a Regeltermin — an active enrollment phase alone proves no linkage. It is
+ * optional and is dropped from the progress count when the linkage is unknown
+ * (the admin cannot read enrollment data).
  */
 export function computeTimetableSetup(input: {
   hasActivePeriod: boolean;
-  enrollment: TimetableEnrollmentStatus;
+  careOfferingLink: TimetableCareOfferingLinkStatus;
   hasPlan: boolean;
 }): TimetableSetupState {
   const periodDone = input.hasActivePeriod;
   const planDone = input.hasPlan;
-  const enrollmentApplicable = input.enrollment !== "unknown";
-  const enrollmentDone = input.enrollment === "active";
+  const enrollmentApplicable = input.careOfferingLink !== "unknown";
+  const enrollmentDone = input.careOfferingLink === "linked";
 
   const totalSteps = enrollmentApplicable ? 3 : 2;
   const completedSteps =

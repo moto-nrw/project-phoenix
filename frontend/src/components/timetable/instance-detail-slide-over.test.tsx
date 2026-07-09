@@ -52,6 +52,8 @@ function instance(overrides: Partial<EnrichedInstance> = {}): EnrichedInstance {
     absentStaffCount: 1,
     expectedStudentsCount: 3,
     presentStudentsCount: 1,
+    requiredStaffCount: 1,
+    assignedStaffCount: 1,
     conflictWarnings: [
       {
         kind: "staff",
@@ -390,7 +392,7 @@ describe("InstanceDetailSlideOver", () => {
       screen.getByRole("dialog", { name: "Wiederholenden Termin löschen" }),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Dieser und alle folgenden"));
+    fireEvent.click(screen.getByText("Ab jetzt dauerhaft"));
     await waitFor(() =>
       expect(onDeleteFollowing).toHaveBeenCalledWith(
         expect.objectContaining({ id: "42", activityGroupId: "7" }),

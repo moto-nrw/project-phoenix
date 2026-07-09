@@ -119,6 +119,8 @@ const savedInstance: EnrichedInstance = {
   absentStaffCount: 0,
   expectedStudentsCount: 0,
   presentStudentsCount: 0,
+  requiredStaffCount: 0,
+  assignedStaffCount: 0,
   conflictWarnings: [],
 };
 
@@ -132,8 +134,11 @@ const template: TimetableTemplate = {
   roomName: "Turnhalle",
   isOpen: true,
   maxParticipants: 12,
+  targetGroupType: "none",
   enrollmentCount: 8,
   supervisorCount: 1,
+  requiredStaffCount: 1,
+  assignedStaffCount: 1,
   studentIds: ["21"],
   staffIds: ["11"],
   primaryStaffId: "11",
@@ -474,6 +479,89 @@ describe("TimetableEventModal", () => {
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
   });
 
+  it("submits Zielgruppe Jahrgang with the selected grade level", async () => {
+    renderModal({ showPeriodField: true });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Hausaufgabenbetreuung" },
+    });
+    fireEvent.change(screen.getByLabelText("Raum*"), {
+      target: { value: "3" },
+    });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
+    fireEvent.change(screen.getByLabelText("Kategorie*"), {
+      target: { value: "2" },
+    });
+    fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
+      target: { value: "5" },
+    });
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jahrgang" }), {
+      button: 0,
+    });
+    fireEvent.change(screen.getByLabelText("Jahrgang"), {
+      target: { value: "3" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target_group_type: "jahrgang",
+          target_grade_level: 3,
+        }),
+      ),
+    );
+  });
+
+  it("clears the grade level when switching Zielgruppe away from Jahrgang", async () => {
+    renderModal({ showPeriodField: true });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Hausaufgabenbetreuung" },
+    });
+    fireEvent.change(screen.getByLabelText("Raum*"), {
+      target: { value: "3" },
+    });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
+    fireEvent.change(screen.getByLabelText("Kategorie*"), {
+      target: { value: "2" },
+    });
+    fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
+      target: { value: "5" },
+    });
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jahrgang" }), {
+      button: 0,
+    });
+    fireEvent.change(screen.getByLabelText("Jahrgang"), {
+      target: { value: "3" },
+    });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Keine" }), {
+      button: 0,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target_group_type: "none",
+          target_grade_level: undefined,
+        }),
+      ),
+    );
+  });
+
   it("updates an existing series and converts an instance to a series", async () => {
     // Freeze the calendar day so the "replan from today" window is stable.
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -722,7 +810,7 @@ describe("TimetableEventModal", () => {
     expect(mockCreateTemplate).not.toHaveBeenCalled();
   });
 
-  it("asks for the scope when editing a series instance and applies 'Nur dieser Termin'", async () => {
+  it("asks for the scope when editing a series instance and applies 'Nur diese Woche'", async () => {
     const { onSaved } = renderModal({
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
@@ -737,7 +825,7 @@ describe("TimetableEventModal", () => {
     // The scope copy explains the effect, not the split mechanism.
     expect(
       screen.getByText(
-        "Die Änderung gilt ab dem 04.05.2026 für diesen und alle weiteren Termine; frühere bleiben unverändert.",
+        "Ändert diesen und alle künftigen Termine ab dem 04.05.2026 dauerhaft; frühere Termine bleiben unverändert.",
       ),
     ).toBeInTheDocument();
     // Neither Datum nor Notiz changed — no single-scope hint.
@@ -745,7 +833,7 @@ describe("TimetableEventModal", () => {
       screen.queryByText(/Geändertes Datum und Notiz/),
     ).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: /Nur dieser Termin/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Nur diese Woche/ }));
 
     await waitFor(() =>
       expect(mockUpdate).toHaveBeenCalledWith(
@@ -761,7 +849,7 @@ describe("TimetableEventModal", () => {
     });
   });
 
-  it("splits the series for 'Dieser und alle folgenden'", async () => {
+  it("splits the series for 'Ab jetzt dauerhaft'", async () => {
     const { onSaved } = renderModal({
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
@@ -769,9 +857,7 @@ describe("TimetableEventModal", () => {
     await screen.findByText("Haus A - Mensa");
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await screen.findByText("Wiederholenden Termin ändern");
-    fireEvent.click(
-      screen.getByRole("button", { name: /Dieser und alle folgenden/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
 
     await waitFor(() =>
       expect(mockSplitTemplate).toHaveBeenCalledWith(
@@ -1055,9 +1141,7 @@ describe("TimetableEventModal", () => {
     await screen.findByText("Haus A - Mensa");
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await screen.findByText("Wiederholenden Termin ändern");
-    fireEvent.click(
-      screen.getByRole("button", { name: /Dieser und alle folgenden/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
 
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
     expect(mockSplitTemplate).toHaveBeenCalledTimes(1);
@@ -1103,9 +1187,7 @@ describe("TimetableEventModal", () => {
     await screen.findByText("Haus A - Mensa");
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await screen.findByText("Wiederholenden Termin ändern");
-    fireEvent.click(
-      screen.getByRole("button", { name: /Dieser und alle folgenden/ }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
 
     await waitFor(() =>
       expect(mockToastError).toHaveBeenCalledWith(
@@ -1129,7 +1211,7 @@ describe("TimetableEventModal", () => {
     await screen.findByText("Wiederholenden Termin ändern");
     expect(
       screen.getByText(
-        /Geändertes Datum und Notiz gelten nur bei „Nur dieser Termin“\./,
+        /Geändertes Datum und Notiz gelten nur bei „Nur diese Woche“\./,
       ),
     ).toBeInTheDocument();
   });

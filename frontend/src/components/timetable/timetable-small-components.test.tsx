@@ -33,6 +33,8 @@ const instance: EnrichedInstance = {
   absentStaffCount: 0,
   expectedStudentsCount: 2,
   presentStudentsCount: 1,
+  requiredStaffCount: 1,
+  assignedStaffCount: 1,
   conflictWarnings: [
     {
       kind: "room",
@@ -53,8 +55,11 @@ const template: TimetableTemplate = {
   roomName: "Turnhalle",
   isOpen: true,
   maxParticipants: 12,
+  targetGroupType: "none",
   enrollmentCount: 8,
   supervisorCount: 1,
+  requiredStaffCount: 1,
+  assignedStaffCount: 1,
   studentIds: ["21"],
   staffIds: ["11"],
   primaryStaffId: "11",

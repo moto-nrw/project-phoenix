@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -609,4 +610,26 @@ func isCalendarPeriodRosterDeleteConflict(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "duplicate key value violates unique constraint \"idx_student_enrollments_active\"") ||
 		strings.Contains(msg, "duplicate key value violates unique constraint \"idx_supervisors_active\"")
+}
+
+// defaultChildrenPerStaffRatio mirrors the registry default for
+// timetable.children_per_staff_ratio (services/config/defaults/timetable.go)
+// and is the fallback used when the settings service is unwired (tests) or a
+// tenant override lookup fails.
+const defaultChildrenPerStaffRatio = 12
+
+// childrenPerStaffRatio resolves the Betreuungsschlüssel setting once per
+// request so per-instance/per-template capacity math (RequiredStaffForChildren)
+// can apply a single resolved value instead of re-querying the settings
+// service for every row. Takes a context rather than *http.Request so it can
+// be called from handlers and from context-only helpers alike (e.g.
+// loadTemplates, which is shared by list/update/exists call sites).
+func (rs *Resource) childrenPerStaffRatio(ctx context.Context) int {
+	return configSvc.ResolveIntOrDefault(
+		ctx,
+		rs.SettingsService,
+		configModel.KeyTimetableChildrenPerStaffRatio,
+		defaultChildrenPerStaffRatio,
+		rs.getLogger(),
+	)
 }

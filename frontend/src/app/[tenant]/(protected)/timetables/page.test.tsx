@@ -672,13 +672,19 @@ function setupSWR({
   periods = [period],
   settingsSchema = null,
   settingsSchemaLoading = false,
+  careOfferingLink = null,
 }: {
   periods?: Array<typeof period>;
   settingsSchema?: unknown;
   settingsSchemaLoading?: boolean;
+  /** null = the planner admin cannot read enrollment (status "unknown"). */
+  careOfferingLink?: { total: number; linked: number } | null;
 } = {}) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
+    if (key === "timetable-care-offering-link") {
+      return { data: careOfferingLink, isLoading: false };
+    }
     if (key === "settings-schema") {
       return settingsSchemaLoading
         ? { isLoading: true }
@@ -973,6 +979,56 @@ describe("TimetablesPage", () => {
     render(<TimetablesPage />);
 
     expect(mockBootstrap).not.toHaveBeenCalled();
+  });
+
+  // Issue #1651: the setup step reflects real care-offering linkage, not the
+  // mere existence of an active enrollment phase.
+  it("keeps the enrollment setup step open while no care offering is linked", () => {
+    setupSWR({ careOfferingLink: { total: 3, linked: 0 } });
+
+    render(<TimetablesPage />);
+
+    const step = screen.getByRole("link", {
+      name: /Mit der Anmeldung verknüpfen/,
+    });
+    expect(step).toHaveAttribute("href", "/care-offerings");
+    expect(step).toHaveTextContent("0 von 3 Angeboten verknüpft");
+  });
+
+  it("marks the enrollment setup step done once a care offering is linked", () => {
+    setupSWR({ careOfferingLink: { total: 3, linked: 2 } });
+
+    render(<TimetablesPage />);
+
+    const step = screen.getByRole("link", {
+      name: /Mit der Anmeldung verknüpfen/,
+    });
+    expect(step).toHaveTextContent("2 von 3 Angeboten verknüpft");
+    expect(step).toHaveTextContent("Angebote öffnen");
+  });
+
+  it("hides the enrollment setup step when the linkage cannot be read", () => {
+    setupSWR({ careOfferingLink: null });
+
+    render(<TimetablesPage />);
+
+    expect(
+      screen.queryByText("Mit der Anmeldung verknüpfen"),
+    ).not.toBeInTheDocument();
+  });
+
+  // A fresh school has no enrollment phases at all — "0 von 0 Angeboten
+  // verknüpft" would be nonsense on the very screen the guide exists for.
+  it("shows a plain hint instead of a 0-of-0 ratio when no offerings exist", () => {
+    setupSWR({ careOfferingLink: { total: 0, linked: 0 } });
+
+    render(<TimetablesPage />);
+
+    const step = screen.getByRole("link", {
+      name: /Mit der Anmeldung verknüpfen/,
+    });
+    expect(step).toHaveTextContent("Noch keine Angebote");
+    expect(step).not.toHaveTextContent("0 von 0");
   });
 
   it("logs a warning when the bootstrap fails with 403", async () => {

@@ -13,20 +13,24 @@ import (
 )
 
 type updateTemplateRequest struct {
-	Name             string  `json:"name"`
-	Type             string  `json:"type"`
-	Weekdays         []int   `json:"weekdays"`
-	StartTime        string  `json:"start_time"`
-	EndTime          string  `json:"end_time"`
-	RoomID           int64   `json:"room_id"`
-	CategoryID       int64   `json:"category_id"`
-	MaxParticipants  *int    `json:"max_participants,omitempty"`
-	WeekPattern      *int    `json:"week_pattern,omitempty"`
-	CalendarPeriodID *int64  `json:"calendar_period_id,omitempty"`
-	EducationGroupID *int64  `json:"education_group_id,omitempty"`
-	StudentIDs       []int64 `json:"student_ids,omitempty"`
-	StaffIDs         []int64 `json:"staff_ids,omitempty"`
-	PrimaryStaffID   *int64  `json:"primary_staff_id,omitempty"`
+	Name             string `json:"name"`
+	Type             string `json:"type"`
+	Weekdays         []int  `json:"weekdays"`
+	StartTime        string `json:"start_time"`
+	EndTime          string `json:"end_time"`
+	RoomID           int64  `json:"room_id"`
+	CategoryID       int64  `json:"category_id"`
+	MaxParticipants  *int   `json:"max_participants,omitempty"`
+	WeekPattern      *int   `json:"week_pattern,omitempty"`
+	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
+	EducationGroupID *int64 `json:"education_group_id,omitempty"`
+	// Zielgruppe fields — see createTemplateRequest for the full contract.
+	TargetGroupType   string  `json:"target_group_type,omitempty"`
+	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	StudentIDs        []int64 `json:"student_ids,omitempty"`
+	StaffIDs          []int64 `json:"staff_ids,omitempty"`
+	PrimaryStaffID    *int64  `json:"primary_staff_id,omitempty"`
 }
 
 func (req *updateTemplateRequest) Bind(_ *http.Request) error {
@@ -52,6 +56,14 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 		if !activitiesModel.IsValidWeekday(w) {
 			return fmt.Errorf("invalid weekday %d (must be 1=Mon … 7=Sun)", w)
 		}
+	}
+	if err := (&activitiesModel.Group{
+		TargetGroupType:   req.TargetGroupType,
+		TargetGradeLevel:  req.TargetGradeLevel,
+		TargetSchoolClass: req.TargetSchoolClass,
+		EducationGroupID:  req.EducationGroupID,
+	}).ValidateTargetGroup(); err != nil {
+		return err
 	}
 	return nil
 }
@@ -171,7 +183,19 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve timeframe failed", err))
 		return
 	}
-	if _, err := rs.TimetableData.UpdateTemplateFields(ctx, id, req.Name, req.Type, req.CategoryID, req.RoomID, req.EducationGroupID, maxParticipants); err != nil {
+	fieldsUpdate := activitiesModel.TemplateFieldsUpdate{
+		Name:              req.Name,
+		Type:              req.Type,
+		CategoryID:        req.CategoryID,
+		RoomID:            req.RoomID,
+		EducationGroupID:  req.EducationGroupID,
+		MaxParticipants:   maxParticipants,
+		CalendarPeriodID:  req.CalendarPeriodID,
+		TargetGroupType:   req.TargetGroupType,
+		TargetGradeLevel:  req.TargetGradeLevel,
+		TargetSchoolClass: req.TargetSchoolClass,
+	}
+	if _, err := rs.TimetableData.UpdateTemplateFields(ctx, id, fieldsUpdate); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("update template failed", err))
 		return
 	}

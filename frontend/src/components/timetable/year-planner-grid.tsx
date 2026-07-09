@@ -9,7 +9,7 @@ import {
   toISODate,
 } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
-import { timetableSurface } from "./timetable-style";
+import { timetableSurface, timetableToneColors } from "./timetable-style";
 
 interface YearPlannerGridProps {
   months: Date[];
@@ -92,6 +92,19 @@ export function YearPlannerGrid({
                 const hasConflicts = dayInstances.some(
                   (instance) => instance.conflictWarnings.length > 0,
                 );
+                // Priority chain danger > warning > success: a day with an
+                // understaffed block outranks a mere conflict warning for
+                // the single dot this cell has room for (issue #1838).
+                const hasUnderstaffed = dayInstances.some(
+                  (instance) =>
+                    instance.requiredStaffCount > 0 &&
+                    instance.assignedStaffCount < instance.requiredStaffCount,
+                );
+                const dayDotColor = hasUnderstaffed
+                  ? timetableToneColors.danger
+                  : hasConflicts
+                    ? timetableToneColors.warning
+                    : timetableToneColors.success;
 
                 return (
                   <button
@@ -114,9 +127,8 @@ export function YearPlannerGrid({
                     </span>
                     {dayInstances.length > 0 && (
                       <span
-                        className={`absolute bottom-1 h-1.5 w-1.5 rounded-full ${
-                          hasConflicts ? "bg-[#EAB308]" : "bg-[#83CD2D]"
-                        }`}
+                        className="absolute bottom-1 h-1.5 w-1.5 rounded-full"
+                        style={{ backgroundColor: dayDotColor }}
                         aria-hidden
                       />
                     )}

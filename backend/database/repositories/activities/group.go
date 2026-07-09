@@ -393,6 +393,10 @@ const templateListSelect = `
 				COALESCE(eg.name, '') AS education_group_name,
 				g.is_open,
 			g.max_participants,
+			g.calendar_period_id AS template_calendar_period_id,
+			g.target_group_type,
+			g.target_grade_level,
+			g.target_school_class,
 			COALESCE(enrollments.count, 0) AS enrollment_count,
 			COALESCE(supervisors.count, 0) AS supervisor_count,
 			COALESCE(enrollments.student_ids, ARRAY[]::BIGINT[]) AS student_ids,
@@ -522,17 +526,35 @@ func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodI
 }
 
 // UpdateTemplateFields patches the editable fields of a non-archived template
-// (issue #584: moved verbatim from api/timetable).
-func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, name, groupType string, categoryID, roomID int64, educationGroupID *int64, maxParticipants int) (int64, error) {
+// (issue #584: moved verbatim from api/timetable; extended for
+// calendar_period_id/Zielgruppe in issue #1838).
+func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fields activities.TemplateFieldsUpdate) (int64, error) {
 	tenantID := tenant.FromContext(ctx)
+
+	// This is a raw column Set(), which bypasses bun's Model()-based
+	// zero-value-to-DEFAULT omission (the mechanism that lets
+	// activities.Group{} literals elsewhere in the codebase skip
+	// TargetGroupType entirely and still satisfy the DB CHECK constraint via
+	// its 'none' default). An empty string here must be normalized
+	// explicitly, or it is sent as literal '' and violates
+	// chk_activities_groups_target_group_type.
+	targetGroupType := fields.TargetGroupType
+	if targetGroupType == "" {
+		targetGroupType = activities.TargetGroupTypeNone
+	}
+
 	res, err := base.GetDB(ctx, r.db).NewUpdate().
 		Table("activities.groups").
-		Set("name = ?", name).
-		Set("type = ?", groupType).
-		Set("category_id = ?", categoryID).
-		Set("planned_room_id = ?", roomID).
-		Set("education_group_id = ?", educationGroupID).
-		Set("max_participants = ?", maxParticipants).
+		Set("name = ?", fields.Name).
+		Set("type = ?", fields.Type).
+		Set("category_id = ?", fields.CategoryID).
+		Set("planned_room_id = ?", fields.RoomID).
+		Set("education_group_id = ?", fields.EducationGroupID).
+		Set("max_participants = ?", fields.MaxParticipants).
+		Set("calendar_period_id = ?", fields.CalendarPeriodID).
+		Set("target_group_type = ?", targetGroupType).
+		Set("target_grade_level = ?", fields.TargetGradeLevel).
+		Set("target_school_class = ?", fields.TargetSchoolClass).
 		Set("updated_at = ?", time.Now()).
 		Where("tenant_id = ?", tenantID).
 		Where("id = ?", id).

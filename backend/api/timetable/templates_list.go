@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -33,7 +34,7 @@ func (rs *Resource) loadTemplates(ctx context.Context, templateID *int64) ([]tem
 	if err != nil {
 		return nil, err
 	}
-	return mapTemplateRows(rows), nil
+	return mapTemplateRows(rows, rs.childrenPerStaffRatio(ctx)), nil
 }
 
 func (rs *Resource) templateExists(ctx context.Context, templateID int64) (bool, error) {
@@ -44,7 +45,7 @@ func (rs *Resource) templateExists(ctx context.Context, templateID int64) (bool,
 	return len(templates) > 0, nil
 }
 
-func mapTemplateRows(rows []templateRow) []templateResponse {
+func mapTemplateRows(rows []templateRow, childrenPerStaffRatio int) []templateResponse {
 	templates := make([]templateResponse, 0)
 	byID := make(map[int64]int)
 	for _, row := range rows {
@@ -60,6 +61,21 @@ func mapTemplateRows(rows []templateRow) []templateResponse {
 				id := row.PrimaryStaffID.Int64
 				primaryStaffID = &id
 			}
+			var templateCalendarPeriodID *int64
+			if row.TemplateCalendarPeriodID.Valid {
+				id := row.TemplateCalendarPeriodID.Int64
+				templateCalendarPeriodID = &id
+			}
+			var targetGradeLevel *int16
+			if row.TargetGradeLevel.Valid {
+				lvl := row.TargetGradeLevel.Int16
+				targetGradeLevel = &lvl
+			}
+			var targetSchoolClass *string
+			if row.TargetSchoolClass.Valid {
+				class := row.TargetSchoolClass.String
+				targetSchoolClass = &class
+			}
 			templates = append(templates, templateResponse{
 				ID:                 row.TemplateID,
 				Name:               row.Name,
@@ -72,8 +88,14 @@ func mapTemplateRows(rows []templateRow) []templateResponse {
 				EducationGroupName: row.EducationGroupName.String,
 				IsOpen:             row.IsOpen,
 				MaxParticipants:    row.MaxParticipants,
+				CalendarPeriodID:   templateCalendarPeriodID,
+				TargetGroupType:    row.TargetGroupType,
+				TargetGradeLevel:   targetGradeLevel,
+				TargetSchoolClass:  targetSchoolClass,
 				EnrollmentCount:    row.EnrollmentCount,
 				SupervisorCount:    row.SupervisorCount,
+				RequiredStaffCount: scheduleSvc.RequiredStaffForChildren(row.EnrollmentCount, childrenPerStaffRatio),
+				AssignedStaffCount: row.SupervisorCount,
 				StudentIDs:         row.StudentIDs,
 				StaffIDs:           row.StaffIDs,
 				PrimaryStaffID:     primaryStaffID,
@@ -110,19 +132,32 @@ func educationGroupIDFromRow(row templateRow) *int64 {
 }
 
 type templateResponse struct {
-	ID                 int64                      `json:"id"`
-	Name               string                     `json:"name"`
-	Type               string                     `json:"type"`
-	CategoryID         int64                      `json:"category_id"`
-	CategoryName       string                     `json:"category_name"`
-	RoomID             *int64                     `json:"room_id,omitempty"`
-	RoomName           string                     `json:"room_name,omitempty"`
-	EducationGroupID   *int64                     `json:"education_group_id,omitempty"`
-	EducationGroupName string                     `json:"education_group_name,omitempty"`
-	IsOpen             bool                       `json:"is_open"`
-	MaxParticipants    int                        `json:"max_participants"`
-	EnrollmentCount    int                        `json:"enrollment_count"`
-	SupervisorCount    int                        `json:"supervisor_count"`
+	ID                 int64  `json:"id"`
+	Name               string `json:"name"`
+	Type               string `json:"type"`
+	CategoryID         int64  `json:"category_id"`
+	CategoryName       string `json:"category_name"`
+	RoomID             *int64 `json:"room_id,omitempty"`
+	RoomName           string `json:"room_name,omitempty"`
+	EducationGroupID   *int64 `json:"education_group_id,omitempty"`
+	EducationGroupName string `json:"education_group_name,omitempty"`
+	IsOpen             bool   `json:"is_open"`
+	MaxParticipants    int    `json:"max_participants"`
+	// CalendarPeriodID is the template's OWN period pin (distinct from each
+	// schedule's own calendar_period_id in templateScheduleResponse).
+	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
+	// Zielgruppe (target-group) fields — see activities.Group's
+	// TargetGroupType* constants ("jahrgang" | "klasse" | "gruppe" |
+	// "angebot" | "none").
+	TargetGroupType   string  `json:"target_group_type"`
+	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	EnrollmentCount   int     `json:"enrollment_count"`
+	SupervisorCount   int     `json:"supervisor_count"`
+	// RequiredStaffCount/AssignedStaffCount drive the Betreuungsplan capacity
+	// indicator (issue #1838) — see services/schedule/capacity_service.go.
+	RequiredStaffCount int                        `json:"required_staff_count"`
+	AssignedStaffCount int                        `json:"assigned_staff_count"`
 	StudentIDs         []int64                    `json:"student_ids"`
 	StaffIDs           []int64                    `json:"staff_ids"`
 	PrimaryStaffID     *int64                     `json:"primary_staff_id,omitempty"`
@@ -172,5 +207,5 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, listTemplatesResponse{Templates: mapTemplateRows(rows)}, "Templates retrieved")
+	common.Respond(w, r, http.StatusOK, listTemplatesResponse{Templates: mapTemplateRows(rows, rs.childrenPerStaffRatio(r.Context()))}, "Templates retrieved")
 }

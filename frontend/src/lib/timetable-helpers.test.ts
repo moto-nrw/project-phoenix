@@ -233,6 +233,8 @@ describe("backend mappers", () => {
           absent_staff_count: 0,
           expected_students_count: 1,
           present_students_count: 1,
+          required_staff_count: 1,
+          assigned_staff_count: 1,
           conflict_warnings: [
             {
               kind: "room",
@@ -277,6 +279,8 @@ describe("backend mappers", () => {
           absent_staff_count: 0,
           expected_students_count: 0,
           present_students_count: 0,
+          required_staff_count: 0,
+          assigned_staff_count: 0,
         },
       ],
     });
@@ -505,8 +509,11 @@ describe("backend mappers", () => {
             room_name: "Turnhalle",
             is_open: true,
             max_participants: 12,
+            target_group_type: "none",
             enrollment_count: 8,
             supervisor_count: 1,
+            required_staff_count: 1,
+            assigned_staff_count: 1,
             student_ids: [21],
             staff_ids: [11],
             primary_staff_id: 11,
@@ -556,8 +563,11 @@ describe("backend mappers", () => {
             category_name: "Betreuung",
             is_open: false,
             max_participants: undefined as never,
+            target_group_type: "none",
             enrollment_count: undefined as never,
             supervisor_count: 0,
+            required_staff_count: 0,
+            assigned_staff_count: 0,
             schedules: undefined as never,
           },
         ],
@@ -574,8 +584,14 @@ describe("backend mappers", () => {
       educationGroupName: undefined,
       isOpen: false,
       maxParticipants: undefined,
+      calendarPeriodId: undefined,
+      targetGroupType: "none",
+      targetGradeLevel: undefined,
+      targetSchoolClass: undefined,
       enrollmentCount: undefined,
       supervisorCount: 0,
+      requiredStaffCount: 0,
+      assignedStaffCount: 0,
       studentIds: [],
       staffIds: [],
       primaryStaffId: undefined,
@@ -844,7 +860,7 @@ describe("computeTimetableSetup", () => {
   it("completes when period + plan are done (enrollment optional)", () => {
     const result = computeTimetableSetup({
       hasActivePeriod: true,
-      enrollment: "none",
+      careOfferingLink: "unlinked",
       hasPlan: true,
     });
     expect(result.setupComplete).toBe(true);
@@ -858,7 +874,7 @@ describe("computeTimetableSetup", () => {
   it("is incomplete for a fresh school (no period, no plan)", () => {
     const result = computeTimetableSetup({
       hasActivePeriod: false,
-      enrollment: "none",
+      careOfferingLink: "unlinked",
       hasPlan: false,
     });
     expect(result.setupComplete).toBe(false);
@@ -866,10 +882,10 @@ describe("computeTimetableSetup", () => {
     expect(result.progressPercent).toBe(0);
   });
 
-  it("counts an active enrollment step toward progress", () => {
+  it("counts a linked care offering toward progress", () => {
     const result = computeTimetableSetup({
       hasActivePeriod: true,
-      enrollment: "active",
+      careOfferingLink: "linked",
       hasPlan: true,
     });
     expect(result.enrollmentDone).toBe(true);
@@ -877,10 +893,23 @@ describe("computeTimetableSetup", () => {
     expect(result.progressPercent).toBe(100);
   });
 
-  it("drops the enrollment step from progress when status is unknown", () => {
+  // Issue #1651: an active enrollment phase whose offerings link to nothing
+  // must not tick the "Mit der Anmeldung verknüpfen" step.
+  it("leaves the enrollment step open when no care offering is linked", () => {
     const result = computeTimetableSetup({
       hasActivePeriod: true,
-      enrollment: "unknown",
+      careOfferingLink: "unlinked",
+      hasPlan: true,
+    });
+    expect(result.enrollmentApplicable).toBe(true);
+    expect(result.enrollmentDone).toBe(false);
+    expect(result.completedSteps).toBe(2);
+  });
+
+  it("drops the enrollment step from progress when the linkage is unknown", () => {
+    const result = computeTimetableSetup({
+      hasActivePeriod: true,
+      careOfferingLink: "unknown",
       hasPlan: false,
     });
     expect(result.enrollmentApplicable).toBe(false);

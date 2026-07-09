@@ -253,8 +253,8 @@ func (s *TimetableDataService) DetectPlannedConflicts(ctx context.Context, query
 	}, query, logger)
 }
 
-func (s *TimetableDataService) UpdateTemplateFields(ctx context.Context, id int64, name, groupType string, categoryID, roomID int64, educationGroupID *int64, maxParticipants int) (int64, error) {
-	return s.deps.ActivityGroupRepo.UpdateTemplateFields(ctx, id, name, groupType, categoryID, roomID, educationGroupID, maxParticipants)
+func (s *TimetableDataService) UpdateTemplateFields(ctx context.Context, id int64, fields activitiesModel.TemplateFieldsUpdate) (int64, error) {
+	return s.deps.ActivityGroupRepo.UpdateTemplateFields(ctx, id, fields)
 }
 
 func (s *TimetableDataService) ArchiveTemplate(ctx context.Context, id int64) (int64, error) {

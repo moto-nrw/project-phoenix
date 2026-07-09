@@ -49,6 +49,7 @@ import type {
   CreateInstanceBody,
   CreateTemplateBody,
   EnrichedInstance,
+  TargetGroupType,
   TimetableTemplate,
   UpdateTemplateBody,
 } from "~/lib/timetable-types";
@@ -104,6 +105,14 @@ interface EventFormState {
   studentIds: string[];
   staffIds: string[];
   primaryStaffId: string;
+  /**
+   * Zielgruppe (target group, issue #1838). "gruppe" reuses educationGroupId
+   * above as its value rather than a separate field — switching away from
+   * "gruppe" clears educationGroupId so the two never disagree.
+   */
+  targetGroupType: TargetGroupType;
+  targetGradeLevel: string; // "" | "1".."4", only meaningful for "jahrgang"
+  targetSchoolClass: string; // "", only meaningful for "klasse"
 }
 
 type TimetableEventModalResult =
@@ -179,6 +188,17 @@ const REPEAT_OPTIONS: Array<{ value: RepeatMode; label: string }> = [
   { value: "biweekly", label: "Alle 2 Wochen" },
 ];
 
+/** Zielgruppe (target group) tab options, issue #1838. */
+const TARGET_GROUP_OPTIONS: Array<{ value: TargetGroupType; label: string }> = [
+  { value: "none", label: "Keine" },
+  { value: "jahrgang", label: "Jahrgang" },
+  { value: "klasse", label: "Klasse" },
+  { value: "gruppe", label: "Gruppe" },
+  { value: "angebot", label: "Angebotsauswahl" },
+];
+
+const TARGET_GRADE_LEVELS = ["1", "2", "3", "4"] as const;
+
 function isoWeekday(dateISO: string): number {
   const d = new Date(`${dateISO}T00:00:00`);
   const day = d.getDay();
@@ -216,6 +236,9 @@ function emptyForm(
     studentIds: [],
     staffIds: [],
     primaryStaffId: "",
+    targetGroupType: "none",
+    targetGradeLevel: "",
+    targetSchoolClass: "",
   };
 }
 
@@ -242,6 +265,9 @@ function formFromInstance(
     staffIds: instance.staff.map((item) => item.staffId),
     primaryStaffId:
       instance.staff.find((item) => item.isPrimary)?.staffId ?? "",
+    targetGroupType: "none",
+    targetGradeLevel: "",
+    targetSchoolClass: "",
   };
 }
 
@@ -270,6 +296,12 @@ function formFromSeries(
     studentIds: series.studentIds,
     staffIds: series.staffIds,
     primaryStaffId: series.primaryStaffId ?? "",
+    targetGroupType: series.targetGroupType,
+    targetGradeLevel:
+      series.targetGradeLevel !== undefined && series.targetGradeLevel !== null
+        ? String(series.targetGradeLevel)
+        : "",
+    targetSchoolClass: series.targetSchoolClass ?? "",
   };
 }
 
@@ -709,6 +741,15 @@ export function TimetableEventModal({
     education_group_id: form.educationGroupId
       ? Number(form.educationGroupId)
       : undefined,
+    target_group_type: form.targetGroupType,
+    target_grade_level:
+      form.targetGroupType === "jahrgang" && form.targetGradeLevel
+        ? Number(form.targetGradeLevel)
+        : undefined,
+    target_school_class:
+      form.targetGroupType === "klasse" && form.targetSchoolClass
+        ? form.targetSchoolClass
+        : undefined,
     calendar_period_id: Number(form.calendarPeriodId),
     week_pattern: seriesWeekPattern(form.repeat),
     student_ids: form.studentIds.map(Number),
@@ -745,6 +786,12 @@ export function TimetableEventModal({
       education_group_id: template.educationGroupId
         ? Number(template.educationGroupId)
         : undefined,
+      // Zielgruppe is preserved from the existing template, not edited —
+      // this body builder only carries the fields a single-instance edit
+      // actually changes (title, times, room, people).
+      target_group_type: template.targetGroupType,
+      target_grade_level: template.targetGradeLevel,
+      target_school_class: template.targetSchoolClass,
       max_participants:
         template.maxParticipants > 0 ? template.maxParticipants : undefined,
       week_pattern: firstSchedule?.weekPattern ?? 0,
@@ -1174,6 +1221,20 @@ export function TimetableEventModal({
     ];
   }, [students]);
 
+  // Distinct school-class names for the Zielgruppe "Klasse" value picker
+  // (issue #1838) — reuses the already-fetched students, no new fetch.
+  const targetClassOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          students
+            .map((student) => student.schoolClass?.trim())
+            .filter((item): item is string => Boolean(item)),
+        ),
+      ).sort((a, b) => a.localeCompare(b, "de")),
+    [students],
+  );
+
   // Datum and Notiz only apply to the single-instance scope — series-wide
   // scopes write the template, which carries neither field.
   const dateChanged =
@@ -1530,59 +1591,147 @@ export function TimetableEventModal({
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field
-                    label="Kategorie"
-                    htmlFor="event_category"
+                <Field
+                  label="Kategorie"
+                  htmlFor="event_category"
+                  required
+                  error={fieldErrors.categoryId}
+                >
+                  <select
+                    id="event_category"
+                    value={form.categoryId}
+                    onChange={(event) =>
+                      update("categoryId", event.target.value)
+                    }
                     required
-                    error={fieldErrors.categoryId}
+                    disabled={loadingRefs}
+                    aria-invalid={fieldErrors.categoryId ? true : undefined}
+                    aria-describedby={
+                      fieldErrors.categoryId
+                        ? "event_category_error"
+                        : undefined
+                    }
+                    className={FORM_SELECT_CLASS}
                   >
-                    <select
-                      id="event_category"
-                      value={form.categoryId}
-                      onChange={(event) =>
-                        update("categoryId", event.target.value)
-                      }
-                      required
-                      disabled={loadingRefs}
-                      aria-invalid={fieldErrors.categoryId ? true : undefined}
-                      aria-describedby={
-                        fieldErrors.categoryId
-                          ? "event_category_error"
-                          : undefined
-                      }
-                      className={FORM_SELECT_CLASS}
-                    >
-                      <option value="">
-                        {loadingRefs
-                          ? "Lade Kategorien …"
-                          : "Kategorie wählen …"}
+                    <option value="">
+                      {loadingRefs ? "Lade Kategorien …" : "Kategorie wählen …"}
+                    </option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
                       </option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-gray-700">
+                    Zielgruppe
+                  </span>
+                  <Tabs
+                    value={form.targetGroupType}
+                    onValueChange={(value) => {
+                      const nextType = value as TargetGroupType;
+                      setForm((prev) => ({
+                        ...prev,
+                        targetGroupType: nextType,
+                        targetGradeLevel:
+                          nextType === "jahrgang" ? prev.targetGradeLevel : "",
+                        targetSchoolClass:
+                          nextType === "klasse" ? prev.targetSchoolClass : "",
+                        educationGroupId:
+                          nextType === "gruppe" ? prev.educationGroupId : "",
+                      }));
+                    }}
+                  >
+                    <TabsList aria-label="Zielgruppe" className="w-fit">
+                      {TARGET_GROUP_OPTIONS.map((option) => (
+                        <TabsTrigger key={option.value} value={option.value}>
+                          {option.label}
+                        </TabsTrigger>
                       ))}
-                    </select>
-                  </Field>
-                  <Field label="Klassengruppe" htmlFor="event_education_group">
-                    <select
-                      id="event_education_group"
-                      value={form.educationGroupId}
-                      onChange={(event) =>
-                        update("educationGroupId", event.target.value)
-                      }
-                      disabled={loadingRefs}
-                      className={FORM_SELECT_CLASS}
-                    >
-                      <option value="">Keine Zuordnung</option>
-                      {groups.map((group) => (
-                        <option key={group.id} value={group.id}>
-                          {group.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
+                    </TabsList>
+                  </Tabs>
+
+                  {form.targetGroupType === "jahrgang" && (
+                    <div className="mt-1">
+                      <Field
+                        label="Jahrgang"
+                        htmlFor="event_target_grade_level"
+                      >
+                        <select
+                          id="event_target_grade_level"
+                          value={form.targetGradeLevel}
+                          onChange={(event) =>
+                            update("targetGradeLevel", event.target.value)
+                          }
+                          disabled={loadingRefs}
+                          className={FORM_SELECT_CLASS}
+                        >
+                          <option value="">Jahrgang wählen …</option>
+                          {TARGET_GRADE_LEVELS.map((level) => (
+                            <option key={level} value={level}>
+                              Jahrgang {level}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+                  )}
+
+                  {form.targetGroupType === "klasse" && (
+                    <div className="mt-1">
+                      <Field label="Klasse" htmlFor="event_target_school_class">
+                        <select
+                          id="event_target_school_class"
+                          value={form.targetSchoolClass}
+                          onChange={(event) =>
+                            update("targetSchoolClass", event.target.value)
+                          }
+                          disabled={loadingRefs}
+                          className={FORM_SELECT_CLASS}
+                        >
+                          <option value="">Klasse wählen …</option>
+                          {targetClassOptions.map((schoolClass) => (
+                            <option key={schoolClass} value={schoolClass}>
+                              {schoolClass}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+                  )}
+
+                  {form.targetGroupType === "gruppe" && (
+                    <div className="mt-1">
+                      <Field label="Gruppe" htmlFor="event_target_gruppe">
+                        <select
+                          id="event_target_gruppe"
+                          value={form.educationGroupId}
+                          onChange={(event) =>
+                            update("educationGroupId", event.target.value)
+                          }
+                          disabled={loadingRefs}
+                          className={FORM_SELECT_CLASS}
+                        >
+                          <option value="">Gruppe wählen …</option>
+                          {groups.map((group) => (
+                            <option key={group.id} value={group.id}>
+                              {group.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+                  )}
+
+                  {form.targetGroupType === "angebot" && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Kinder kommen automatisch über ein Betreuungsangebot
+                      hinzu. Die Verknüpfung wird unter „Angebote“ beim
+                      jeweiligen Angebot gepflegt (Feld „Regeltermin“).
+                    </p>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1788,19 +1937,19 @@ export function TimetableEventModal({
             description={
               `Der Termin am ${formatDate(initialInstance.date)} gehört zu einem Regeltermin.` +
               (dateChanged || notesChanged
-                ? " Geändertes Datum und Notiz gelten nur bei „Nur dieser Termin“."
+                ? " Geändertes Datum und Notiz gelten nur bei „Nur diese Woche“."
                 : "")
             }
             options={[
               {
                 value: "single",
-                label: "Nur dieser Termin",
-                description: `Die Änderung gilt nur am ${formatDate(form.date)}.`,
+                label: "Nur diese Woche",
+                description: `Ändert nur den Termin am ${formatDate(form.date)}; der Regeltermin bleibt unverändert.`,
               },
               {
                 value: "following",
-                label: "Dieser und alle folgenden",
-                description: `Die Änderung gilt ab dem ${formatDate(initialInstance.date)} für diesen und alle weiteren Termine; frühere bleiben unverändert.`,
+                label: "Ab jetzt dauerhaft",
+                description: `Ändert diesen und alle künftigen Termine ab dem ${formatDate(initialInstance.date)} dauerhaft; frühere Termine bleiben unverändert.`,
               },
               {
                 value: "all",

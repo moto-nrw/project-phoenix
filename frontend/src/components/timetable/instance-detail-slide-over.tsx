@@ -18,6 +18,7 @@ import {
   Pencil,
   Repeat,
   RotateCcw,
+  ShieldCheck,
   StickyNote,
   Timer,
   Trash2,
@@ -55,6 +56,12 @@ import {
   timetableMutedSurface,
   timetableNestedSurface,
 } from "./timetable-style";
+import {
+  attendanceStaffTone,
+  attendanceStudentTone,
+  capacityTone,
+  TimetableRatioPill,
+} from "./timetable-ratio-pill";
 import type {
   AttendancePatchBody,
   EnrichedInstance,
@@ -739,13 +746,13 @@ export function InstanceDetailSlideOver({
           options={[
             {
               value: "single",
-              label: "Nur dieser Termin",
+              label: "Nur diese Woche",
               description:
-                "Löscht nur diesen Termin und verhindert, dass er erneut eingetragen wird.",
+                "Löscht nur diesen einen Termin und verhindert, dass er erneut eingetragen wird; der Regeltermin bleibt bestehen.",
             },
             {
               value: "following",
-              label: "Dieser und alle folgenden",
+              label: "Ab jetzt dauerhaft",
               description:
                 "Beendet den Regeltermin ab diesem Datum; frühere Termine bleiben erhalten.",
             },
@@ -961,26 +968,17 @@ function StatsRow({ instance }: StatsRowProps) {
   const totalStudents = expected + present;
   const activeStaff = instance.staffCount - instance.absentStaffCount;
 
-  const studentTone: StatPillTone =
-    totalStudents === 0 ? "slate" : present > 0 ? "green" : "slate";
-  const staffTone: StatPillTone =
-    instance.staffCount === 0
-      ? "slate"
-      : instance.absentStaffCount > 0
-        ? "amber"
-        : "blue";
-
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {showTimetableCounts && (
-        <StatPill
+        <TimetableRatioPill
           icon={<Users className="h-3.5 w-3.5" />}
           label="Anwesend"
           value={totalStudents === 0 ? "—" : `${present} / ${totalStudents}`}
-          tone={studentTone}
+          tone={attendanceStudentTone(present, totalStudents)}
         />
       )}
-      <StatPill
+      <TimetableRatioPill
         icon={<UserCheck className="h-3.5 w-3.5" />}
         label="Personal"
         value={
@@ -988,69 +986,25 @@ function StatsRow({ instance }: StatsRowProps) {
             ? "—"
             : `${activeStaff} / ${instance.staffCount}`
         }
-        tone={staffTone}
+        tone={attendanceStaffTone(
+          instance.staffCount,
+          instance.absentStaffCount,
+        )}
+      />
+      <TimetableRatioPill
+        icon={<ShieldCheck className="h-3.5 w-3.5" />}
+        label="Besetzung"
+        value={
+          instance.requiredStaffCount === 0
+            ? "—"
+            : `${instance.assignedStaffCount} / ${instance.requiredStaffCount}`
+        }
+        tone={capacityTone(
+          instance.assignedStaffCount,
+          instance.requiredStaffCount,
+        )}
       />
     </div>
-  );
-}
-
-type StatPillTone = "green" | "blue" | "amber" | "slate";
-
-interface StatPillProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  tone: StatPillTone;
-}
-
-const STAT_PILL_PALETTE: Record<
-  StatPillTone,
-  { bg: string; border: string; accent: string; muted: string }
-> = {
-  // Brand-aligned pill tints: green=GROUP_ROOM #83CD2D, blue=OTHER_ROOM
-  // #5080D8, amber=SICK #EAB308, slate=neutral gray. Solid hex (not /10
-  // classes) because these feed inline styles.
-  green: {
-    bg: "#F1F9E6",
-    border: "#D7EDB8",
-    accent: "#5A8E1F",
-    muted: "#4A7A15CC",
-  },
-  blue: {
-    bg: "#EDF3FC",
-    border: "#C9DBF6",
-    accent: "#3F66C0",
-    muted: "#2F4F9ECC",
-  },
-  amber: {
-    bg: "#FBF3D6",
-    border: "#F2E2A0",
-    accent: "#8A6D00",
-    muted: "#6E5700CC",
-  },
-  slate: {
-    bg: "#F9FAFB",
-    border: "#E5E7EB",
-    accent: "#374151",
-    muted: "#4B5563CC",
-  },
-};
-
-function StatPill({ icon, label, value, tone }: StatPillProps) {
-  const { bg, border, accent, muted } = STAT_PILL_PALETTE[tone];
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
-      style={{ backgroundColor: bg, borderColor: border, color: accent }}
-    >
-      <span aria-hidden className="flex shrink-0 items-center">
-        {icon}
-      </span>
-      <span className="font-medium" style={{ color: muted }}>
-        {label}
-      </span>
-      <span className="font-bold tabular-nums">{value}</span>
-    </span>
   );
 }
 

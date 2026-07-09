@@ -559,21 +559,21 @@ describe("CareOfferingsEditor", () => {
       screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
     );
     await waitForInputByName("name");
-    await chooseOption("Betreuungsplan-Vorlage", /Lernzeit/);
+    await chooseOption("Regeltermin", /Lernzeit/);
 
     expect(
       screen.getByText(
-        "Das Angebot enthält Tage, an denen die ausgewählte Vorlage keinen Slot hat.",
+        "Das Angebot enthält Tage, an denen der ausgewählte Regeltermin keinen Slot hat.",
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Die Vorlage enthält Tage, die im Angebot nicht auswählbar sind.",
+        "Der Regeltermin enthält Tage, die im Angebot nicht auswählbar sind.",
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Die Vorlage muss genau eine Planungsperiode für alle Slots verwenden.",
+        "Der Regeltermin muss genau eine Planungsperiode für alle Slots verwenden.",
       ),
     ).toBeInTheDocument();
   });

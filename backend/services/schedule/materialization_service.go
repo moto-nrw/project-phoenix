@@ -780,11 +780,13 @@ func schedulePinnedPeriodID(tmpl *activities.Group, sch *activities.Schedule) *i
 	if sch != nil && sch.CalendarPeriodID != nil {
 		return sch.CalendarPeriodID
 	}
-	// activities.groups doesn't currently expose a calendar_period_id column
-	// at the model level — only schedules and enrollments/supervisors do.
-	// Keep the signature future-proof: if the model gains the field later,
-	// selectPeriod already honours it without further changes.
-	_ = tmpl
+	// The schedule row's own pin (checked above) is the more specific,
+	// materialization-time-authoritative value. The template's pin
+	// (activities.Group.CalendarPeriodID, issue #1838) is the fallback for
+	// templates whose schedule rows carry no explicit pin.
+	if tmpl != nil && tmpl.CalendarPeriodID != nil {
+		return tmpl.CalendarPeriodID
+	}
 	return nil
 }
 

@@ -162,10 +162,10 @@ function linkedTemplateWarnings(
     (item) => item.id === draft.activity_group_id?.toString(),
   );
   if (!template)
-    return ["Die ausgewählte Vorlage konnte nicht geladen werden."];
+    return ["Der ausgewählte Regeltermin konnte nicht geladen werden."];
   const warnings: string[] = [];
   if (template.schedules.length === 0) {
-    warnings.push("Die ausgewählte Vorlage hat noch keine Slots.");
+    warnings.push("Der ausgewählte Regeltermin hat noch keine Slots.");
     return warnings;
   }
   const templateDays = new Set(
@@ -183,12 +183,12 @@ function linkedTemplateWarnings(
     })
   ) {
     warnings.push(
-      "Das Angebot enthält Tage, an denen die ausgewählte Vorlage keinen Slot hat.",
+      "Das Angebot enthält Tage, an denen der ausgewählte Regeltermin keinen Slot hat.",
     );
   }
   if ([...templateDays].some((day) => !offeringDays.has(day))) {
     warnings.push(
-      "Die Vorlage enthält Tage, die im Angebot nicht auswählbar sind.",
+      "Der Regeltermin enthält Tage, die im Angebot nicht auswählbar sind.",
     );
   }
   const periodIds = new Set(
@@ -201,7 +201,7 @@ function linkedTemplateWarnings(
     template.schedules.some((schedule) => !schedule.calendarPeriodId)
   ) {
     warnings.push(
-      "Die Vorlage muss genau eine Planungsperiode für alle Slots verwenden.",
+      "Der Regeltermin muss genau eine Planungsperiode für alle Slots verwenden.",
     );
   }
   return warnings;
@@ -1031,9 +1031,7 @@ function CareOfferingForm({
 
       <section className="rounded-xl border border-gray-200 bg-white/70 p-4">
         <label className="block" htmlFor="care-offering-template">
-          <span className="text-xs font-medium text-gray-700">
-            Betreuungsplan-Vorlage
-          </span>
+          <span className="text-xs font-medium text-gray-700">Regeltermin</span>
           <CustomSelect
             id="care-offering-template"
             value={draft.activity_group_id?.toString() ?? ""}
@@ -1046,7 +1044,7 @@ function CareOfferingForm({
             options={[
               {
                 value: "",
-                label: "Keine automatische Betreuungsplan-Zuordnung",
+                label: "Keine automatische Regeltermin-Zuordnung",
               },
               ...templates.map((template) => ({
                 value: String(template.id),
@@ -1056,8 +1054,8 @@ function CareOfferingForm({
           />
         </label>
         <p className="mt-2 text-xs text-gray-600">
-          Genehmigte Anmeldungen werden in diese Vorlage übernommen und an den
-          ausgewählten Angebotstagen erwartet.
+          Genehmigte Anmeldungen werden in diesen Regeltermin übernommen und an
+          den ausgewählten Angebotstagen erwartet.
         </p>
         {templateWarnings.length > 0 ? (
           <ul className="mt-2 space-y-1 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">

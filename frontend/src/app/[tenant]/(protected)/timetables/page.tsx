@@ -57,6 +57,7 @@ import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { fetchStudents } from "~/lib/student-api";
 import { staffService } from "~/lib/staff-api";
 import { listPhases } from "~/lib/enrollment-phase-api";
+import { listCareOfferings } from "~/lib/care-offering-api";
 import { formatDate } from "~/lib/date-helpers";
 import {
   findPeriodForDate,
@@ -79,7 +80,7 @@ import {
   getYearMonths,
   getYearRange,
   toISODate,
-  type TimetableEnrollmentStatus,
+  type TimetableCareOfferingLinkStatus,
 } from "~/lib/timetable-helpers";
 import type {
   EnrichedInstance,
@@ -612,13 +613,40 @@ function TimetablesContent() {
     status === "authenticated" ? "timetable-student-list" : null,
     () => fetchStudents({ page_size: 500 }),
   );
-  // Enrollment phases drive the optional "Mit der Anmeldung verknüpfen"
-  // setup step. The fetcher swallows errors (e.g. 403 when the planner
-  // admin can't read enrollment) so a missing permission degrades to the
-  // neutral "unknown" status instead of failing the page.
-  const { data: enrollmentPhases } = useSWRAuth(
-    status === "authenticated" ? "timetable-enrollment-phases" : null,
-    () => listPhases().catch(() => null),
+  // The optional "Mit der Anmeldung verknüpfen" setup step is done only when a
+  // care offering actually points at a Regeltermin — an active enrollment phase
+  // alone proves no linkage (issue #1651). The fetcher swallows errors (e.g.
+  // 403 when the planner admin can't read enrollment) so a missing permission
+  // degrades to the neutral "unknown" status instead of failing the page.
+  const { data: careOfferingLink } = useSWRAuth(
+    status === "authenticated" ? "timetable-care-offering-link" : null,
+    async () => {
+      try {
+        const phases = await listPhases();
+        const activePhaseIds = new Set(
+          phases.filter((phase) => phase.is_active).map((phase) => phase.id),
+        );
+        const offeringLists = await Promise.all(
+          [...activePhaseIds].map((phaseId) =>
+            listCareOfferings(phaseId).catch(() => []),
+          ),
+        );
+        const offerings = offeringLists
+          .flat()
+          .filter(
+            (offering) =>
+              offering.is_active && activePhaseIds.has(offering.phase_id),
+          );
+        return {
+          total: offerings.length,
+          linked: offerings.filter((offering) =>
+            Boolean(offering.activity_group_id),
+          ).length,
+        };
+      } catch {
+        return null;
+      }
+    },
     { revalidateOnFocus: false },
   );
   const {
@@ -873,23 +901,18 @@ function TimetablesContent() {
     return `${period.name} · gültig bis ${formatDate(period.endDate)}`;
   }, [calendarPeriods, todayISO]);
   const hasPlan = instances.length > 0 || templates.length > 0;
-  const enrollmentPhaseList = Array.isArray(enrollmentPhases)
-    ? enrollmentPhases
-    : null;
-  const enrollmentStatus: TimetableEnrollmentStatus =
-    enrollmentPhaseList === null
+  const careOfferingLinkStatus: TimetableCareOfferingLinkStatus =
+    careOfferingLink == null
       ? "unknown"
-      : enrollmentPhaseList.some((phase) => phase.is_active)
-        ? "active"
-        : "none";
-  const enrollmentLabel = useMemo(() => {
-    const active = (enrollmentPhaseList ?? []).filter(
-      (phase) => phase.is_active,
-    );
-    if (active.length === 0) return null;
-    if (active.length === 1) return active[0]!.name;
-    return `${active.length} aktive Phasen`;
-  }, [enrollmentPhaseList]);
+      : careOfferingLink.linked > 0
+        ? "linked"
+        : "unlinked";
+  const careOfferingLinkLabel =
+    careOfferingLink == null
+      ? null
+      : careOfferingLink.total === 0
+        ? "Noch keine Angebote"
+        : `${careOfferingLink.linked} von ${careOfferingLink.total} Angeboten verknüpft`;
 
   const handleLifecycle = useCallback(
     async (action: LifecycleAction) => {
@@ -1385,13 +1408,13 @@ function TimetablesContent() {
       <TimetableSetupGuide
         hasActivePeriod={hasActivePeriod}
         activePeriodLabel={activePeriodLabel}
-        enrollmentStatus={enrollmentStatus}
-        enrollmentLabel={enrollmentLabel}
+        careOfferingLinkStatus={careOfferingLinkStatus}
+        careOfferingLinkLabel={careOfferingLinkLabel}
         hasPlan={hasPlan}
         plannedCount={plannedCount}
         onManagePeriods={handleManagePeriods}
         onCreateEvent={openEventCreate}
-        enrollmentHref="/admin/enrollments"
+        careOfferingsHref="/care-offerings"
       />
 
       {shouldLoadInstances && (
