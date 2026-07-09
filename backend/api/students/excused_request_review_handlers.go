@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
@@ -83,9 +81,8 @@ func (rs *Resource) decideExcusedAbsenceRequest(w http.ResponseWriter, r *http.R
 		renderError(w, r, common.ErrorInternalServer(errors.New("excused request service not configured")))
 		return
 	}
-	requestID, err := strconv.ParseInt(chi.URLParam(r, "requestId"), 10, 64)
-	if err != nil || requestID <= 0 {
-		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request id")))
+	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "requestId", "invalid request id")
+	if !ok {
 		return
 	}
 	var body DecideExcusedRequestBody

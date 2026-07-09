@@ -7,7 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -190,9 +189,8 @@ func (rs *Resource) withdrawExcusedRequest(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	requestID, err := strconv.ParseInt(chi.URLParam(r, "requestId"), 10, 64)
-	if err != nil || requestID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request id")))
+	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "requestId", "invalid request id")
+	if !ok {
 		return
 	}
 
