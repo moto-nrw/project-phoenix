@@ -78,7 +78,10 @@ type ActiveSessionEnder interface {
 type InstanceService interface {
 	Start(ctx context.Context, instanceID, startedByStaffID int64) (*StartInstanceResult, error)
 	Complete(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
-	Cancel(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
+	// Cancel transitions planned|active → cancelled. reason is an optional
+	// short "why" stored on the instance (Vertretungsplan, #1840); pass nil for
+	// a plain cancel.
+	Cancel(ctx context.Context, instanceID int64, reason *string) (*scheduleModel.ActivityInstance, error)
 	DeleteCancelled(ctx context.Context, instanceID int64) error
 	// SetUnderstaffedAck flips the "deliberately unstaffed" acknowledgement on a
 	// planned or active instance (Vertretungsplan, issue #1840). It only
@@ -337,7 +340,7 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 // Cancel implements planned|active → cancelled. From active, the bridge is
 // ended the same way Complete does (visits + supervisors close, checkout
 // events fire). From planned there is no bridge yet; just stamp the status.
-func (s *instanceService) Cancel(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
+func (s *instanceService) Cancel(ctx context.Context, instanceID int64, reason *string) (*scheduleModel.ActivityInstance, error) {
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err
@@ -366,7 +369,8 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64) (*schedu
 	now := time.Now()
 	instance.Status = scheduleModel.InstanceStatusCancelled
 	instance.CompletedAt = &now
-	if err := s.updateLifecycleColumns(ctx, instance, "status", "completed_at"); err != nil {
+	instance.CancelReason = reason
+	if err := s.updateLifecycleColumns(ctx, instance, "status", "completed_at", "cancel_reason"); err != nil {
 		return nil, &ScheduleError{Op: "cancel instance: update", Err: err}
 	}
 

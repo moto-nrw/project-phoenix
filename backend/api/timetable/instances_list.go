@@ -38,10 +38,11 @@ const maxInstanceListRangeDays = 56
 // instance. Names are intentionally omitted at the list level to keep the
 // payload compact; the slide-over detail view fetches them on demand.
 type instanceStaffSummary struct {
-	StaffID      int64 `json:"staff_id"`
-	IsPrimary    bool  `json:"is_primary"`
-	IsAbsent     bool  `json:"is_absent"`
-	IsSubstitute bool  `json:"is_substitute"`
+	StaffID       int64   `json:"staff_id"`
+	IsPrimary     bool    `json:"is_primary"`
+	IsAbsent      bool    `json:"is_absent"`
+	IsSubstitute  bool    `json:"is_substitute"`
+	AbsenceReason *string `json:"absence_reason,omitempty"`
 }
 
 // instanceStudentSummary carries the editable attendance state for one child.
@@ -85,6 +86,7 @@ type enrichedInstance struct {
 	AbsentStaffCount      int                                   `json:"absent_staff_count"`
 	UnderstaffedAck       bool                                  `json:"understaffed_ack"`
 	UnderstaffedNote      *string                               `json:"understaffed_note,omitempty"`
+	CancelReason          *string                               `json:"cancel_reason,omitempty"`
 	ExpectedStudentsCount int                                   `json:"expected_students_count"`
 	PresentStudentsCount  int                                   `json:"present_students_count"`
 	ConflictWarnings      []scheduleSvc.InstanceConflictWarning `json:"conflict_warnings"`
@@ -205,10 +207,11 @@ func (rs *Resource) enrichInstance(
 			absentCount++
 		}
 		staff = append(staff, instanceStaffSummary{
-			StaffID:      row.StaffID,
-			IsPrimary:    row.IsPrimary,
-			IsAbsent:     row.IsAbsent,
-			IsSubstitute: row.IsSubstitute,
+			StaffID:       row.StaffID,
+			IsPrimary:     row.IsPrimary,
+			IsAbsent:      row.IsAbsent,
+			IsSubstitute:  row.IsSubstitute,
+			AbsenceReason: row.AbsenceReason,
 		})
 	}
 
@@ -264,6 +267,7 @@ func (rs *Resource) enrichInstance(
 		AbsentStaffCount:      absentCount,
 		UnderstaffedAck:       inst.UnderstaffedAck,
 		UnderstaffedNote:      inst.UnderstaffedNote,
+		CancelReason:          inst.CancelReason,
 		ExpectedStudentsCount: expected,
 		PresentStudentsCount:  present,
 		ConflictWarnings:      rs.instanceConflictWarnings(ctx, inst),

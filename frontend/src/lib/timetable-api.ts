@@ -400,11 +400,15 @@ class TimetableService {
    * Cancels a planned or active instance. From active, ends the bridge
    * cleanly via active.EndActivitySession.
    */
-  async cancel(instanceId: string): Promise<InstanceStatusResult> {
+  async cancel(
+    instanceId: string,
+    reason?: string,
+  ): Promise<InstanceStatusResult> {
     return this.lifecycle<BackendInstanceStatusResult, InstanceStatusResult>(
       instanceId,
       "cancel",
       mapInstanceStatusResult,
+      reason ? { reason } : undefined,
     );
   }
 
@@ -412,6 +416,7 @@ class TimetableService {
     instanceId: string,
     action: "start" | "complete" | "cancel",
     mapper: (raw: TBackend) => TFront,
+    body: Record<string, unknown> = {},
   ): Promise<TFront> {
     const response = await fetch(
       `/api/timetable/instances/${instanceId}/${action}`,
@@ -422,7 +427,7 @@ class TimetableService {
           Accept: "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({}),
+        body: JSON.stringify(body),
       },
     );
 
@@ -533,6 +538,7 @@ class TimetableService {
     absentStaffId: string,
     substituteStaffId: string,
     date: string,
+    reason?: string,
   ): Promise<SubstituteResponse> {
     const response = await fetch("/api/timetable/substitute", {
       method: "POST",
@@ -545,6 +551,7 @@ class TimetableService {
         absent_staff_id: Number(absentStaffId),
         substitute_staff_id: Number(substituteStaffId),
         date,
+        reason: reason ?? undefined,
       }),
     });
 
@@ -561,6 +568,7 @@ class TimetableService {
   async markAbsent(
     absentStaffId: string,
     date: string,
+    reason?: string,
   ): Promise<SubstituteResponse> {
     const response = await fetch("/api/timetable/substitute", {
       method: "POST",
@@ -572,6 +580,7 @@ class TimetableService {
       body: JSON.stringify({
         absent_staff_id: Number(absentStaffId),
         date,
+        reason: reason ?? undefined,
       }),
     });
 

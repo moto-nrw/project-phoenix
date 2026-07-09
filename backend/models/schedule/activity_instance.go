@@ -44,13 +44,16 @@ type ActivityInstance struct {
 	// running with zero staff (Vertretungsplan, issue #1840). When true the gap
 	// detector reports the block as an acknowledged shortfall instead of an open
 	// gap — the staffing hole stays visible, it just stops nagging.
-	UnderstaffedAck  bool       `bun:"understaffed_ack,notnull,default:false" json:"understaffed_ack"`
-	UnderstaffedNote *string    `bun:"understaffed_note" json:"understaffed_note,omitempty"`
-	Notes            *string    `bun:"notes" json:"notes,omitempty"`
-	CreatedBy        *int64     `bun:"created_by" json:"created_by,omitempty"`
-	StartedBy        *int64     `bun:"started_by" json:"started_by,omitempty"`
-	StartedAt        *time.Time `bun:"started_at" json:"started_at,omitempty"`
-	CompletedAt      *time.Time `bun:"completed_at" json:"completed_at,omitempty"`
+	UnderstaffedAck  bool    `bun:"understaffed_ack,notnull,default:false" json:"understaffed_ack"`
+	UnderstaffedNote *string `bun:"understaffed_note" json:"understaffed_note,omitempty"`
+	// CancelReason is an optional short "why" captured when a block is cancelled
+	// (Vertretungsplan, issue #1840).
+	CancelReason *string    `bun:"cancel_reason" json:"cancel_reason,omitempty"`
+	Notes        *string    `bun:"notes" json:"notes,omitempty"`
+	CreatedBy    *int64     `bun:"created_by" json:"created_by,omitempty"`
+	StartedBy    *int64     `bun:"started_by" json:"started_by,omitempty"`
+	StartedAt    *time.Time `bun:"started_at" json:"started_at,omitempty"`
+	CompletedAt  *time.Time `bun:"completed_at" json:"completed_at,omitempty"`
 }
 
 // Validate ensures activity instance data is valid for persistence.

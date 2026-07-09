@@ -196,7 +196,7 @@ func (s *autoStartInstanceStarter) Start(_ context.Context, instanceID, startedB
 func (s *autoStartInstanceStarter) Complete(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (s *autoStartInstanceStarter) Cancel(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
+func (s *autoStartInstanceStarter) Cancel(context.Context, int64, *string) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
 func (s *autoStartInstanceStarter) DeleteCancelled(context.Context, int64) error {

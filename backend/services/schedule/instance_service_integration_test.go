@@ -223,6 +223,24 @@ func TestInstance_SetUnderstaffedAck_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, scheduleSvc.ErrInstanceNotFound)
 }
 
+// #1840: Cancel persists the optional reason.
+func TestInstance_Cancel_WithReason_Persists(t *testing.T) {
+	s := buildLifecycle(t)
+	svc := instanceServiceWithBroadcaster(s, nil)
+	ai := seedInstance(t, s, false, false)
+
+	reason := "Ausflug"
+	cancelled, err := svc.Cancel(s.ctx, ai.ID, &reason)
+	require.NoError(t, err)
+	require.NotNil(t, cancelled.CancelReason)
+	assert.Equal(t, "Ausflug", *cancelled.CancelReason)
+
+	reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, ai.ID)
+	require.NoError(t, err)
+	require.NotNil(t, reloaded.CancelReason)
+	assert.Equal(t, "Ausflug", *reloaded.CancelReason)
+}
+
 // --- State machine: happy paths ---------------------------------------------
 
 func TestInstance_Start_HappyPath(t *testing.T) {
@@ -362,7 +380,7 @@ func TestInstance_Cancel_FromPlanned_LeavesNoActiveGroup(t *testing.T) {
 
 	ai := seedInstance(t, s, true, false)
 
-	cancelled, err := s.svc.Cancel(s.ctx, ai.ID)
+	cancelled, err := s.svc.Cancel(s.ctx, ai.ID, nil)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.InstanceStatusCancelled, cancelled.Status)
 	require.NotNil(t, cancelled.CompletedAt)
@@ -384,7 +402,7 @@ func TestInstance_Cancel_FromActive_EndsBridge(t *testing.T) {
 		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
 	})
 
-	cancelled, err := s.svc.Cancel(s.ctx, ai.ID)
+	cancelled, err := s.svc.Cancel(s.ctx, ai.ID, nil)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.InstanceStatusCancelled, cancelled.Status)
 
@@ -437,7 +455,7 @@ func TestInstance_Cancel_Rejects_Completed(t *testing.T) {
 	ai := seedInstance(t, s, false, false)
 	forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCompleted)
 
-	_, err := s.svc.Cancel(s.ctx, ai.ID)
+	_, err := s.svc.Cancel(s.ctx, ai.ID, nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
 }
@@ -447,7 +465,7 @@ func TestInstance_Cancel_Rejects_AlreadyCancelled(t *testing.T) {
 	ai := seedInstance(t, s, false, false)
 	forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCancelled)
 
-	_, err := s.svc.Cancel(s.ctx, ai.ID)
+	_, err := s.svc.Cancel(s.ctx, ai.ID, nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
 }
@@ -1111,7 +1129,7 @@ func TestInstance_Cancel_FromPlanned_DoesNotTouchAttendance(t *testing.T) {
 
 	ai := seedInstance(t, s, false, true)
 
-	cancelled, err := s.svc.Cancel(s.ctx, ai.ID)
+	cancelled, err := s.svc.Cancel(s.ctx, ai.ID, nil)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.InstanceStatusCancelled, cancelled.Status)
 
@@ -1141,7 +1159,7 @@ func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = s.svc.Cancel(s.ctx, ai.ID)
+	_, err = s.svc.Cancel(s.ctx, ai.ID, nil)
 	require.NoError(t, err)
 
 	got1 := fetchAttendance(t, s, ai.ID, s.student1)

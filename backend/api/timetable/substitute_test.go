@@ -335,10 +335,11 @@ func TestSubstitute_AbsentOnly_MarksAbsentNoSubstitute(t *testing.T) {
 	row2 := testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.absent, testpkg.InstanceStaffOpts{})
 	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, row1.ID, row2.ID) })
 
-	// No substitute_staff_id in the body.
+	// No substitute_staff_id in the body; optional reason attached (#1840).
 	w := doSub(t, router, map[string]any{
 		"absent_staff_id": s.absent,
 		"date":            dateStr,
+		"reason":          "krank",
 	})
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
@@ -349,8 +350,12 @@ func TestSubstitute_AbsentOnly_MarksAbsentNoSubstitute(t *testing.T) {
 		assert.Equal(t, "marked_absent", a.Action)
 	}
 
-	// DB: both original rows now is_absent=true, and NO substitute rows exist.
-	assert.True(t, readInstanceStaff(t, s.db, s.ctx, row1.ID).IsAbsent)
+	// DB: both original rows now is_absent=true with the reason, and NO
+	// substitute rows exist.
+	after1 := readInstanceStaff(t, s.db, s.ctx, row1.ID)
+	assert.True(t, after1.IsAbsent)
+	require.NotNil(t, after1.AbsenceReason)
+	assert.Equal(t, "krank", *after1.AbsenceReason)
 	assert.True(t, readInstanceStaff(t, s.db, s.ctx, row2.ID).IsAbsent)
 
 	repo := scheduleRepo.NewInstanceStaffRepository(s.db)

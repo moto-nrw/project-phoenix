@@ -163,9 +163,13 @@ function VertretungsplanContent() {
   );
 
   const handleMarkAbsent = useCallback(
-    async (absentStaffId: string, date: string) => {
+    async (absentStaffId: string, date: string, reason?: string) => {
       try {
-        const result = await timetableService.markAbsent(absentStaffId, date);
+        const result = await timetableService.markAbsent(
+          absentStaffId,
+          date,
+          reason,
+        );
         toast.success(
           `Abwesenheit gemeldet: ${result.affectedInstances.length} Termin(e)`,
         );
@@ -218,9 +222,9 @@ function VertretungsplanContent() {
   );
 
   const handleCancelBlock = useCallback(
-    async (instance: EnrichedInstance) => {
+    async (instance: EnrichedInstance, reason?: string) => {
       try {
-        await timetableService.cancel(instance.id);
+        await timetableService.cancel(instance.id, reason);
         toast.success("Block abgesagt");
         updateUrlParams({ instance: null });
         await revalidate();

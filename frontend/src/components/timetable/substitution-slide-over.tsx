@@ -45,13 +45,17 @@ interface SubstitutionSlideOverProps {
   staffOptions: readonly StaffOption[];
   staffNames: Map<string, string>;
   onClose: () => void;
-  onMarkAbsent: (absentStaffId: string, date: string) => Promise<void>;
+  onMarkAbsent: (
+    absentStaffId: string,
+    date: string,
+    reason?: string,
+  ) => Promise<void>;
   onSubstitute: (
     absentStaffId: string,
     substituteStaffId: string,
     date: string,
   ) => Promise<void>;
-  onCancelBlock: (instance: EnrichedInstance) => Promise<void>;
+  onCancelBlock: (instance: EnrichedInstance, reason?: string) => Promise<void>;
   onAcknowledge: (
     instance: EnrichedInstance,
     ack: boolean,
@@ -75,6 +79,8 @@ export function SubstitutionSlideOver({
 }: SubstitutionSlideOverProps) {
   const [pending, setPending] = useState(false);
   const [note, setNote] = useState("");
+  const [absenceReason, setAbsenceReason] = useState("");
+  const [cancelReason, setCancelReason] = useState("");
 
   const open = instance !== null;
   const canEdit =
@@ -146,6 +152,16 @@ export function SubstitutionSlideOver({
               <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                 Geplantes Personal
               </h3>
+              {canEdit && plannedStaff.some((s) => !s.isAbsent) && (
+                <input
+                  type="text"
+                  value={absenceReason}
+                  onChange={(e) => setAbsenceReason(e.target.value)}
+                  maxLength={500}
+                  placeholder="Grund der Abwesenheit (optional)"
+                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+                />
+              )}
               {plannedStaff.length === 0 ? (
                 <p
                   className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
@@ -192,7 +208,11 @@ export function SubstitutionSlideOver({
                             disabled={pending}
                             onClick={() =>
                               run(() =>
-                                onMarkAbsent(row.staffId, instance.date),
+                                onMarkAbsent(
+                                  row.staffId,
+                                  instance.date,
+                                  absenceReason.trim() || undefined,
+                                ),
                               )
                             }
                           >
@@ -204,6 +224,11 @@ export function SubstitutionSlideOver({
 
                       {canEdit && row.isAbsent && (
                         <div className="mt-2">
+                          {row.absenceReason && (
+                            <p className="mb-2 text-xs text-gray-500">
+                              Grund: {row.absenceReason}
+                            </p>
+                          )}
                           <span className="mb-1 block text-[11px] font-medium text-gray-500">
                             Ersatz eintragen
                           </span>
@@ -336,12 +361,27 @@ export function SubstitutionSlideOver({
                     Sagt diesen Termin ab. Die Halbjahresvorlage bleibt
                     unverändert.
                   </p>
+                  <input
+                    type="text"
+                    value={cancelReason}
+                    onChange={(e) => setCancelReason(e.target.value)}
+                    maxLength={500}
+                    placeholder="Grund (optional)"
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+                  />
                   <Button
                     type="button"
                     variant="outline_danger"
                     size="md"
                     disabled={pending}
-                    onClick={() => run(() => onCancelBlock(instance))}
+                    onClick={() =>
+                      run(() =>
+                        onCancelBlock(
+                          instance,
+                          cancelReason.trim() || undefined,
+                        ),
+                      )
+                    }
                   >
                     <UserX className="mr-1.5 h-4 w-4" />
                     Block absagen

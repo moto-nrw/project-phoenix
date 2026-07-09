@@ -324,6 +324,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     isPrimary: s.is_primary,
     isAbsent: s.is_absent,
     isSubstitute: s.is_substitute,
+    absenceReason: s.absence_reason ?? undefined,
   }));
   const students: InstanceStudentSummary[] = (raw.students ?? []).map((s) => ({
     studentId: String(s.student_id),
@@ -362,6 +363,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     absentStaffCount: raw.absent_staff_count,
     understaffedAck: raw.understaffed_ack ?? false,
     understaffedNote: raw.understaffed_note ?? undefined,
+    cancelReason: raw.cancel_reason ?? undefined,
     expectedStudentsCount: raw.expected_students_count,
     presentStudentsCount: raw.present_students_count,
     conflictWarnings: (raw.conflict_warnings ?? []).map((warning) => ({

@@ -34,6 +34,7 @@ export interface InstanceStaffSummary {
   isPrimary: boolean;
   isAbsent: boolean;
   isSubstitute: boolean;
+  absenceReason?: string;
 }
 
 type InstanceAttendanceStatus = "expected" | "present" | "absent";
@@ -81,6 +82,7 @@ export interface EnrichedInstance {
    */
   understaffedAck?: boolean;
   understaffedNote?: string;
+  cancelReason?: string;
   expectedStudentsCount: number;
   presentStudentsCount: number;
   conflictWarnings: ConflictWarning[];
@@ -102,6 +104,7 @@ interface BackendInstanceStaffSummary {
   is_primary: boolean;
   is_absent: boolean;
   is_substitute: boolean;
+  absence_reason?: string | null;
 }
 
 interface BackendInstanceStudentSummary {
@@ -134,6 +137,7 @@ export interface BackendEnrichedInstance {
   absent_staff_count: number;
   understaffed_ack?: boolean;
   understaffed_note?: string | null;
+  cancel_reason?: string | null;
   expected_students_count: number;
   present_students_count: number;
   conflict_warnings?: Array<{

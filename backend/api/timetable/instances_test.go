@@ -33,31 +33,32 @@ import (
 // -----------------------------------------------------------------------------
 
 type mockInstanceService struct {
-	startResult   *scheduleSvc.StartInstanceResult
-	startErr      error
-	completeRes   *scheduleModel.ActivityInstance
-	completeErr   error
-	cancelRes     *scheduleModel.ActivityInstance
-	cancelErr     error
-	deleteErr     error
-	replanRes     *scheduleSvc.ReplanWeekResult
-	replanErr     error
-	createRes     *scheduleModel.ActivityInstance
-	createErr     error
-	updateRes     *scheduleModel.ActivityInstance
-	updateErr     error
-	ackRes        *scheduleModel.ActivityInstance
-	ackErr        error
-	lastAckID     int64
-	lastAckValue  bool
-	lastAckNote   *string
-	lastStartID   int64
-	lastStartedBy int64
-	lastFrom      timezone.Date
-	lastTo        timezone.Date
-	lastReplanGID *int64
-	lastCreate    *scheduleSvc.CreateInstanceInput
-	lastUpdate    *scheduleSvc.UpdateInstanceInput
+	startResult      *scheduleSvc.StartInstanceResult
+	startErr         error
+	completeRes      *scheduleModel.ActivityInstance
+	completeErr      error
+	cancelRes        *scheduleModel.ActivityInstance
+	cancelErr        error
+	deleteErr        error
+	replanRes        *scheduleSvc.ReplanWeekResult
+	replanErr        error
+	createRes        *scheduleModel.ActivityInstance
+	createErr        error
+	updateRes        *scheduleModel.ActivityInstance
+	updateErr        error
+	ackRes           *scheduleModel.ActivityInstance
+	ackErr           error
+	lastCancelReason *string
+	lastAckID        int64
+	lastAckValue     bool
+	lastAckNote      *string
+	lastStartID      int64
+	lastStartedBy    int64
+	lastFrom         timezone.Date
+	lastTo           timezone.Date
+	lastReplanGID    *int64
+	lastCreate       *scheduleSvc.CreateInstanceInput
+	lastUpdate       *scheduleSvc.UpdateInstanceInput
 }
 
 func (m *mockInstanceService) GetPlannedStudentIDsByDate(_ context.Context, _ []int64, _ timezone.Date) ([]int64, error) {
@@ -80,7 +81,8 @@ func (m *mockInstanceService) Complete(_ context.Context, _ int64) (*scheduleMod
 	return m.completeRes, nil
 }
 
-func (m *mockInstanceService) Cancel(_ context.Context, _ int64) (*scheduleModel.ActivityInstance, error) {
+func (m *mockInstanceService) Cancel(_ context.Context, _ int64, reason *string) (*scheduleModel.ActivityInstance, error) {
+	m.lastCancelReason = reason
 	if m.cancelErr != nil {
 		return nil, m.cancelErr
 	}
@@ -408,6 +410,20 @@ func TestCancelInstance_Success(t *testing.T) {
 	assert.Equal(t, float64(11), data["instance_id"])
 	assert.Equal(t, "cancelled", data["status"])
 	assert.Equal(t, "2026-04-20T15:00:00Z", data["completed_at"])
+}
+
+// #1840: cancel accepts an optional reason and forwards it trimmed.
+func TestCancelInstance_WithReason(t *testing.T) {
+	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusCancelled}
+	instance.ID = int64(21)
+	mock := &mockInstanceService{cancelRes: instance}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := setupLifecycleRouter(rs, "/instances/{id}/cancel", rs.cancelInstance)
+
+	w := doPost(t, router, "/instances/21/cancel", map[string]any{"reason": "  Ausflug  "})
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.lastCancelReason)
+	assert.Equal(t, "Ausflug", *mock.lastCancelReason)
 }
 
 func TestCancelInstance_NoCompletedAt(t *testing.T) {

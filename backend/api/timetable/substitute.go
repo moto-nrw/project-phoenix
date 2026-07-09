@@ -31,6 +31,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -45,9 +46,10 @@ import (
 
 // substituteRequest is the POST body shape.
 type substituteRequest struct {
-	AbsentStaffID     int64  `json:"absent_staff_id"`
-	SubstituteStaffID int64  `json:"substitute_staff_id"`
-	Date              string `json:"date"`
+	AbsentStaffID     int64   `json:"absent_staff_id"`
+	SubstituteStaffID int64   `json:"substitute_staff_id"`
+	Date              string  `json:"date"`
+	Reason            *string `json:"reason,omitempty"` // optional "why" for the absence (#1840)
 }
 
 // substituteActionType is the stable per-instance action string returned in
@@ -270,6 +272,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 			// preserved — the person was independently planned, not a
 			// Vertretung, and reports should preserve that distinction.
 			op.origRow.IsAbsent = true
+			op.origRow.AbsenceReason = trimReason(req.Reason)
 			if err := rs.TimetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
 				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
 				return
@@ -287,6 +290,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 
 		case substituteActionSubstituted:
 			op.origRow.IsAbsent = true
+			op.origRow.AbsenceReason = trimReason(req.Reason)
 			if err := rs.TimetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
 				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
 				return
@@ -424,6 +428,7 @@ func (rs *Resource) markAbsentOnly(w http.ResponseWriter, r *http.Request, req s
 			action = substituteActionAlreadyAbsent
 		} else {
 			orig.IsAbsent = true
+			orig.AbsenceReason = trimReason(req.Reason)
 			if err := rs.TimetableData.UpdateInstanceStaff(ctx, orig); err != nil {
 				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
 				return
@@ -460,6 +465,23 @@ func (rs *Resource) markAbsentOnly(w http.ResponseWriter, r *http.Request, req s
 		AffectedInstances: affected,
 		Warnings:          []scheduleSvc.SubstituteTimeConflict{},
 	}, "Staff marked absent")
+}
+
+// trimReason normalizes an optional deviation reason: nil/blank becomes nil,
+// and an over-long value is truncated to the shared note ceiling so a single
+// oversized field can never bloat a row.
+func trimReason(reason *string) *string {
+	if reason == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*reason)
+	if trimmed == "" {
+		return nil
+	}
+	if len(trimmed) > understaffedAckNoteMaxLength {
+		trimmed = trimmed[:understaffedAckNoteMaxLength]
+	}
+	return &trimmed
 }
 
 // classifySubstitute decides the action for a single target instance. Pure

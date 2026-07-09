@@ -13,7 +13,9 @@ package timetable
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 
@@ -118,7 +120,21 @@ func (rs *Resource) cancelInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	instance, err := rs.InstanceService.Cancel(r.Context(), id)
+	// Optional {reason} body (#1840). No body / empty body → nil reason, so the
+	// shared cancel keeps working for callers that send nothing.
+	var reason *string
+	if r.Body != nil {
+		var body struct {
+			Reason *string `json:"reason,omitempty"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid JSON body")))
+			return
+		}
+		reason = trimReason(body.Reason)
+	}
+
+	instance, err := rs.InstanceService.Cancel(r.Context(), id, reason)
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return
