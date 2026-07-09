@@ -1,14 +1,13 @@
 "use client";
 
 /**
- * SubstitutionSlideOver, the Vertretungsplan (#1840) block editor.
+ * SubstitutionSlideOver — the Vertretungsplan (#1840) block editor.
  *
- * Deliberately distinct from InstanceDetailSlideOver: that panel is the full
- * lifecycle + attendance editor for the base planner. This one is a focused
- * staffing-deviation surface, mark a person absent, assign a substitute,
- * cancel the block, or accept it running unstaffed, and it shows the base
- * plan vs the substitution side by side so the difference is traceable
- * (issue #1840 AC7). Built from the shared UI kit + timetable style tokens.
+ * Follows the Betreuungsplan InstanceDetailSlideOver pattern for a clear,
+ * linear flow: the body shows the block's staffing (base plan vs
+ * substitution), block-level actions live in the footer, and every
+ * state-changing action is confirmed in a dialog that also holds the optional
+ * reason — so nothing fires unexpectedly and there are no stray inline inputs.
  */
 
 import { TriangleAlert, UserMinus, UserX } from "lucide-react";
@@ -18,12 +17,14 @@ import { formatDate } from "~/lib/date-helpers";
 import { getActivityTypeBadge, getStatusLabel } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { Button } from "~/components/ui/button";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import {
   SlideOver,
   SlideOverCloseButton,
   SlideOverContent,
   SlideOverDescription,
+  SlideOverFooter,
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
@@ -31,7 +32,6 @@ import {
 import {
   timetableMutedSurface,
   timetableNestedSurface,
-  timetableWarningPanel,
 } from "./timetable-style";
 
 export interface StaffOption {
@@ -63,6 +63,13 @@ interface SubstitutionSlideOverProps {
   ) => Promise<void>;
 }
 
+// A pending confirmation. Each variant carries what the dialog needs to render
+// and what the confirm handler should run.
+type ConfirmAction =
+  | { kind: "absent"; staffId: string; staffName: string }
+  | { kind: "cancel" }
+  | { kind: "unbesetzt" };
+
 function staffLabel(staffNames: Map<string, string>, id: string): string {
   return staffNames.get(id) ?? `Personal #${id}`;
 }
@@ -77,22 +84,45 @@ export function SubstitutionSlideOver({
   onCancelBlock,
   onAcknowledge,
 }: SubstitutionSlideOverProps) {
-  const [pending, setPending] = useState(false);
-  const [note, setNote] = useState("");
-  const [absenceReason, setAbsenceReason] = useState("");
-  const [cancelReason, setCancelReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [confirm, setConfirm] = useState<ConfirmAction | null>(null);
+  const [reason, setReason] = useState("");
 
   const open = instance !== null;
   const canEdit =
     instance?.status === "planned" || instance?.status === "active";
 
+  function openConfirm(action: ConfirmAction) {
+    setReason("");
+    setConfirm(action);
+  }
+
   async function run(fn: () => Promise<void>) {
-    setPending(true);
+    setBusy(true);
     try {
       await fn();
     } finally {
-      setPending(false);
+      setBusy(false);
     }
+  }
+
+  async function handleConfirm() {
+    if (!instance || !confirm) return;
+    const trimmed = reason.trim() || undefined;
+    await run(async () => {
+      switch (confirm.kind) {
+        case "absent":
+          await onMarkAbsent(confirm.staffId, instance.date, trimmed);
+          break;
+        case "cancel":
+          await onCancelBlock(instance, trimmed);
+          break;
+        case "unbesetzt":
+          await onAcknowledge(instance, true, trimmed);
+          break;
+      }
+    });
+    setConfirm(null);
   }
 
   // Planned staff = the base plan (non-substitute rows). Substitutes are the
@@ -110,6 +140,34 @@ export function SubstitutionSlideOver({
     : null;
   const isUnstaffedAck = instance?.understaffedAck === true;
 
+  const confirmCopy: Record<
+    ConfirmAction["kind"],
+    { title: string; body: string; confirmText: string; danger?: boolean }
+  > = {
+    absent: {
+      title:
+        confirm?.kind === "absent"
+          ? `${confirm.staffName} abwesend melden?`
+          : "Abwesend melden?",
+      body: instance
+        ? `Gilt für alle Termine dieser Person am ${formatDate(instance.date)}.`
+        : "",
+      confirmText: "Abwesend melden",
+    },
+    cancel: {
+      title: "Block absagen?",
+      body: "Der Termin wird abgesagt. Die Halbjahresvorlage bleibt unverändert.",
+      confirmText: "Block absagen",
+      danger: true,
+    },
+    unbesetzt: {
+      title: "Bewusst unbesetzt markieren?",
+      body: "Der Block läuft absichtlich ohne Personal und zählt nicht mehr als offene Lücke.",
+      confirmText: "Markieren",
+    },
+  };
+  const activeCopy = confirm ? confirmCopy[confirm.kind] : null;
+
   return (
     <SlideOver
       open={open}
@@ -118,7 +176,17 @@ export function SubstitutionSlideOver({
       }}
     >
       {instance && (
-        <SlideOverContent>
+        <SlideOverContent
+          // The confirmation modal portals to document.body, outside the
+          // drawer's DOM. Without these guards Vaul treats a click inside the
+          // open modal as an outside-click and closes the drawer (issue #1358).
+          onInteractOutside={(event) => {
+            if (confirm !== null) event.preventDefault();
+          }}
+          onEscapeKeyDown={(event) => {
+            if (confirm !== null) event.preventDefault();
+          }}
+        >
           <SlideOverHeader>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
@@ -147,21 +215,21 @@ export function SubstitutionSlideOver({
           </SlideOverHeader>
 
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-            {/* Base plan vs substitution, the traceable diff. */}
+            {isUnstaffedAck && (
+              <div className="flex items-start gap-2 rounded-xl border border-[#EAB308]/30 bg-[#EAB308]/10 p-3 text-sm text-[#8A6D00]">
+                <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <span className="font-semibold">Bewusst unbesetzt.</span>{" "}
+                  {instance.understaffedNote}
+                </div>
+              </div>
+            )}
+
+            {/* Base plan vs substitution — the traceable diff (AC7). */}
             <section className="space-y-2">
               <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                 Geplantes Personal
               </h3>
-              {canEdit && plannedStaff.some((s) => !s.isAbsent) && (
-                <input
-                  type="text"
-                  value={absenceReason}
-                  onChange={(e) => setAbsenceReason(e.target.value)}
-                  maxLength={500}
-                  placeholder="Grund der Abwesenheit (optional)"
-                  className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
-                />
-              )}
               {plannedStaff.length === 0 ? (
                 <p
                   className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
@@ -199,21 +267,25 @@ export function SubstitutionSlideOver({
                         </div>
                       </div>
 
+                      {row.isAbsent && row.absenceReason && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Grund: {row.absenceReason}
+                        </p>
+                      )}
+
                       {canEdit && !row.isAbsent && (
                         <div className="mt-2">
                           <Button
                             type="button"
                             variant="outline"
                             size="md"
-                            disabled={pending}
+                            disabled={busy}
                             onClick={() =>
-                              run(() =>
-                                onMarkAbsent(
-                                  row.staffId,
-                                  instance.date,
-                                  absenceReason.trim() || undefined,
-                                ),
-                              )
+                              openConfirm({
+                                kind: "absent",
+                                staffId: row.staffId,
+                                staffName: staffLabel(staffNames, row.staffId),
+                              })
                             }
                           >
                             <UserMinus className="mr-1.5 h-4 w-4" />
@@ -224,11 +296,6 @@ export function SubstitutionSlideOver({
 
                       {canEdit && row.isAbsent && (
                         <div className="mt-2">
-                          {row.absenceReason && (
-                            <p className="mb-2 text-xs text-gray-500">
-                              Grund: {row.absenceReason}
-                            </p>
-                          )}
                           <span className="mb-1 block text-[11px] font-medium text-gray-500">
                             Ersatz eintragen
                           </span>
@@ -237,7 +304,7 @@ export function SubstitutionSlideOver({
                             placeholder="Ersatzperson wählen…"
                             options={substituteOptions}
                             ariaLabel={`Ersatz für ${staffLabel(staffNames, row.staffId)}`}
-                            disabled={pending || substituteOptions.length === 0}
+                            disabled={busy || substituteOptions.length === 0}
                             onChange={(sub) => {
                               if (!sub) return;
                               void run(() =>
@@ -283,113 +350,6 @@ export function SubstitutionSlideOver({
               )}
             </section>
 
-            {/* Deliberately unstaffed (AC5). */}
-            {canEdit && (
-              <section className="space-y-2">
-                <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  Bewusst unbesetzt
-                </h3>
-                {isUnstaffedAck ? (
-                  <div className={timetableWarningPanel}>
-                    <div className="flex items-center gap-2 text-xs font-bold text-[#8A6D00]">
-                      <TriangleAlert className="h-4 w-4" />
-                      Dieser Block läuft bewusst ohne Personal.
-                    </div>
-                    {instance.understaffedNote && (
-                      <p className="mt-1 text-xs text-[#8A6D00]">
-                        {instance.understaffedNote}
-                      </p>
-                    )}
-                    <div className="mt-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="md"
-                        disabled={pending}
-                        onClick={() =>
-                          run(() => onAcknowledge(instance, false))
-                        }
-                      >
-                        Markierung aufheben
-                      </Button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className={`${timetableNestedSurface} space-y-2 p-3`}>
-                    <p className="text-sm text-gray-600">
-                      Markiere den Block, wenn er absichtlich ohne Personal
-                      läuft. Er zählt dann nicht mehr als offene Lücke.
-                    </p>
-                    <textarea
-                      value={note}
-                      onChange={(e) => setNote(e.target.value)}
-                      rows={2}
-                      maxLength={500}
-                      placeholder="Grund (optional)"
-                      className="w-full resize-none rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
-                    />
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="md"
-                      disabled={pending}
-                      onClick={() =>
-                        run(() =>
-                          onAcknowledge(
-                            instance,
-                            true,
-                            note.trim() || undefined,
-                          ),
-                        )
-                      }
-                    >
-                      Als bewusst unbesetzt markieren
-                    </Button>
-                  </div>
-                )}
-              </section>
-            )}
-
-            {/* Cancel the block (AC4). */}
-            {canEdit && (
-              <section className="space-y-2">
-                <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  Block absagen
-                </h3>
-                <div className={`${timetableNestedSurface} space-y-2 p-3`}>
-                  <p className="text-sm text-gray-600">
-                    Sagt diesen Termin ab. Die Halbjahresvorlage bleibt
-                    unverändert.
-                  </p>
-                  <input
-                    type="text"
-                    value={cancelReason}
-                    onChange={(e) => setCancelReason(e.target.value)}
-                    maxLength={500}
-                    placeholder="Grund (optional)"
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline_danger"
-                    size="md"
-                    disabled={pending}
-                    onClick={() =>
-                      run(() =>
-                        onCancelBlock(
-                          instance,
-                          cancelReason.trim() || undefined,
-                        ),
-                      )
-                    }
-                  >
-                    <UserX className="mr-1.5 h-4 w-4" />
-                    Block absagen
-                  </Button>
-                </div>
-              </section>
-            )}
-
             {!canEdit && (
               <p
                 className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
@@ -399,7 +359,86 @@ export function SubstitutionSlideOver({
               </p>
             )}
           </div>
+
+          {canEdit && (
+            <SlideOverFooter>
+              <div className="flex flex-wrap items-center gap-2">
+                {isUnstaffedAck ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    disabled={busy}
+                    onClick={() => run(() => onAcknowledge(instance, false))}
+                  >
+                    Unbesetzt aufheben
+                  </Button>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="md"
+                    disabled={busy}
+                    onClick={() => openConfirm({ kind: "unbesetzt" })}
+                  >
+                    <TriangleAlert className="mr-1.5 h-4 w-4" />
+                    Bewusst unbesetzt
+                  </Button>
+                )}
+                <Button
+                  type="button"
+                  variant="outline_danger"
+                  size="md"
+                  disabled={busy}
+                  onClick={() => openConfirm({ kind: "cancel" })}
+                >
+                  <UserX className="mr-1.5 h-4 w-4" />
+                  Block absagen
+                </Button>
+              </div>
+            </SlideOverFooter>
+          )}
         </SlideOverContent>
+      )}
+
+      {confirm && activeCopy && (
+        <ConfirmationModal
+          isOpen
+          onClose={() => setConfirm(null)}
+          onConfirm={handleConfirm}
+          title={activeCopy.title}
+          confirmText={activeCopy.confirmText}
+          cancelText="Abbrechen"
+          isConfirmLoading={busy}
+          confirmButtonClass={
+            activeCopy.danger
+              ? "bg-[#FF3130] hover:bg-[#e02b2a] text-white"
+              : undefined
+          }
+        >
+          <div className="space-y-3">
+            <p className="text-sm leading-relaxed text-gray-600">
+              {activeCopy.body}
+            </p>
+            <div>
+              <label
+                htmlFor="deviation-reason"
+                className="mb-1 block text-xs font-medium text-gray-500"
+              >
+                Grund (optional)
+              </label>
+              <input
+                id="deviation-reason"
+                type="text"
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                maxLength={500}
+                placeholder="z. B. krank, Fortbildung, Ausflug"
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+              />
+            </div>
+          </div>
+        </ConfirmationModal>
       )}
     </SlideOver>
   );
