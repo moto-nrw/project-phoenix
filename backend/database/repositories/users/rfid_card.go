@@ -20,7 +20,7 @@ type RFIDCardRepository struct {
 
 // NewRFIDCardRepository creates a new RFIDCardRepository
 func NewRFIDCardRepository(db *bun.DB) users.RFIDCardRepository {
-	repo := base.NewRepository[*users.RFIDCard](db, "users.rfid_cards", "RFIDCard")
+	repo := base.NewRepository[*users.RFIDCard](db, "users.rfid_cards", "RfidCard")
 	repo.TenantScoped = true
 	return &RFIDCardRepository{
 		Repository: repo,

@@ -28,7 +28,7 @@ type MFAOverrideRepository struct {
 // NewMFAOverrideRepository wires the BUN repository.
 func NewMFAOverrideRepository(db *bun.DB) auth.MFAOverrideRepository {
 	return &MFAOverrideRepository{
-		Repository: base.NewRepository[*auth.MFAOverride](db, mfaOverrideTable, "MFAOverride"),
+		Repository: base.NewRepository[*auth.MFAOverride](db, mfaOverrideTable, "MfaOverride"),
 		db:         db,
 	}
 }

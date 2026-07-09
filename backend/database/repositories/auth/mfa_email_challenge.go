@@ -25,7 +25,7 @@ type MFAEmailChallengeRepository struct {
 // NewMFAEmailChallengeRepository creates a new repository for MFA email challenge codes.
 func NewMFAEmailChallengeRepository(db *bun.DB) auth.MFAEmailChallengeRepository {
 	return &MFAEmailChallengeRepository{
-		Repository: base.NewRepository[*auth.MFAEmailChallenge](db, mfaEmailChallengeTable, "MFAEmailChallenge"),
+		Repository: base.NewRepository[*auth.MFAEmailChallenge](db, mfaEmailChallengeTable, "MfaEmailChallenge"),
 		db:         db,
 	}
 }

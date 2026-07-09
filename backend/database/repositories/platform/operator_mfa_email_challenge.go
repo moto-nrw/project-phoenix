@@ -23,7 +23,7 @@ type OperatorMFAEmailChallengeRepository struct {
 
 func NewOperatorMFAEmailChallengeRepository(db *bun.DB) platform.OperatorMFAEmailChallengeRepository {
 	return &OperatorMFAEmailChallengeRepository{
-		Repository: base.NewRepository[*platform.OperatorMFAEmailChallenge](db, operatorMFAEmailChallengeTable, "OperatorMFAEmailChallenge"),
+		Repository: base.NewRepository[*platform.OperatorMFAEmailChallenge](db, operatorMFAEmailChallengeTable, "OperatorMfaEmailChallenge"),
 		db:         db,
 	}
 }

@@ -101,10 +101,6 @@ func TestRFIDCardRepository_FindByID(t *testing.T) {
 	})
 }
 
-// NOTE: Update method has a BUN ORM bug - missing FROM-clause for table "rfid_card"
-// The base Repository.Update uses ModelTableExpr alias in a way that breaks BUN's
-// WHERE clause generation. Use Activate/Deactivate methods instead for active status.
-
 func TestRFIDCardRepository_Update_ViaActivateDeactivate(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -241,8 +237,8 @@ func TestRFIDCardRepository_Update(t *testing.T) {
 		require.NotNil(t, found)
 		assert.True(t, found.Active)
 
-		// Update the card status using Deactivate (Update has base repository bug)
-		err = repo.Deactivate(ctx, card.ID)
+		found.Active = false
+		err = repo.Update(ctx, found)
 		require.NoError(t, err)
 
 		// Verify update
