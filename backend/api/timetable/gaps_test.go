@@ -208,6 +208,46 @@ func TestGaps_CompletedAndCancelled_Excluded(t *testing.T) {
 	assert.Empty(t, got.Gaps)
 }
 
+// #1840: an instance with zero staff but understaffed_ack=true is partitioned
+// into Acknowledged, not Gaps — the shortfall stays visible but stops nagging.
+func TestGaps_UnderstaffedAck_MovedToAcknowledged(t *testing.T) {
+	s := buildGapsSetup(t)
+	defer s.cleanupFn()
+
+	dateStr, date := futureDate(1)
+	open := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Open-Gap",
+	})
+	ack := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "15:00", EndHHMM: "16:00", Title: "Acknowledged-Gap",
+	})
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", open.ID, ack.ID)
+	})
+
+	// Mark the second instance as deliberately unstaffed.
+	_, err := s.db.NewUpdate().
+		Model((*schedule.ActivityInstance)(nil)).
+		Set("understaffed_ack = TRUE").
+		Set("understaffed_note = ?", "bewusst ohne Personal").
+		Where("id = ?", ack.ID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	router := gapsRouter(s.ctx, s.res)
+	w := doGaps(t, router, fmt.Sprintf("/gaps?date=%s", dateStr))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeGaps(t, w)
+	require.Len(t, got.Gaps, 1, "only the open gap stays in gaps")
+	assert.Equal(t, "Open-Gap", got.Gaps[0].Title)
+
+	require.Len(t, got.Acknowledged, 1, "the acknowledged block moves to its own bucket")
+	assert.Equal(t, ack.ID, got.Acknowledged[0].InstanceID)
+	require.NotNil(t, got.Acknowledged[0].UnderstaffedNote)
+	assert.Equal(t, "bewusst ohne Personal", *got.Acknowledged[0].UnderstaffedNote)
+}
+
 func TestGaps_DateValidation(t *testing.T) {
 	s := buildGapsSetup(t)
 	defer s.cleanupFn()

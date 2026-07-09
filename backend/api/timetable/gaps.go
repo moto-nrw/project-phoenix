@@ -25,22 +25,29 @@ const maxGapRangeDays = 14
 
 // GapInstance is one row in the gaps response.
 type GapInstance struct {
-	InstanceID         int64  `json:"instance_id"`
-	Date               string `json:"date"`
-	Title              string `json:"title"`
-	StartTime          string `json:"start_time"`
-	EndTime            string `json:"end_time"`
-	RoomID             int64  `json:"room_id"`
-	Status             string `json:"status"`
-	AssignedStaffCount int    `json:"assigned_staff_count"`
-	AbsentStaffCount   int    `json:"absent_staff_count"`
+	InstanceID         int64   `json:"instance_id"`
+	Date               string  `json:"date"`
+	Title              string  `json:"title"`
+	StartTime          string  `json:"start_time"`
+	EndTime            string  `json:"end_time"`
+	RoomID             int64   `json:"room_id"`
+	Status             string  `json:"status"`
+	AssignedStaffCount int     `json:"assigned_staff_count"`
+	AbsentStaffCount   int     `json:"absent_staff_count"`
+	UnderstaffedNote   *string `json:"understaffed_note,omitempty"`
 }
 
 // GapsResponse is the 200 body for GET /gaps.
+//
+// Gaps and Acknowledged partition the zero-staff instances: Gaps are the open
+// holes that still need filling, Acknowledged are the ones an admin
+// deliberately left unstaffed (understaffed_ack, #1840). The shortfall stays
+// visible in both — Acknowledged just moves out of the "needs action" list.
 type GapsResponse struct {
-	From string        `json:"from"`
-	To   string        `json:"to"`
-	Gaps []GapInstance `json:"gaps"`
+	From         string        `json:"from"`
+	To           string        `json:"to"`
+	Gaps         []GapInstance `json:"gaps"`
+	Acknowledged []GapInstance `json:"acknowledged"`
 }
 
 // getGaps handles GET /api/timetable/gaps.
@@ -128,7 +135,11 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 	// gap list is short by definition (most instances have staff). If this
 	// grows into a hot path, replace with a second GROUP-BY on
 	// is_absent=true, batched across candidateIDs.
+	// Gaps are open holes that still need action; acknowledged holes are ones
+	// an admin deliberately left unstaffed (#1840) and are partitioned out so
+	// they stop nagging while remaining visible.
 	gaps := make([]GapInstance, 0)
+	acknowledged := make([]GapInstance, 0)
 	for _, inst := range candidates {
 		if nonAbsentCounts[inst.ID] > 0 {
 			continue
@@ -147,7 +158,7 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 				absentCount++
 			}
 		}
-		gaps = append(gaps, GapInstance{
+		gi := GapInstance{
 			InstanceID: inst.ID,
 			Date:       inst.Date.String(),
 			Title:      inst.Title,
@@ -161,26 +172,40 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 			// so admins see "staff were planned, nobody's covering today".
 			AssignedStaffCount: len(rows),
 			AbsentStaffCount:   absentCount,
-		})
+		}
+		if inst.UnderstaffedAck {
+			gi.UnderstaffedNote = inst.UnderstaffedNote
+			acknowledged = append(acknowledged, gi)
+		} else {
+			gaps = append(gaps, gi)
+		}
 	}
 
-	sort.SliceStable(gaps, func(i, j int) bool {
-		if gaps[i].Date != gaps[j].Date {
-			return gaps[i].Date < gaps[j].Date
-		}
-		return gaps[i].StartTime < gaps[j].StartTime
-	})
+	sortGapInstances(gaps)
+	sortGapInstances(acknowledged)
 
 	resp := GapsResponse{
-		From: from.String(),
-		To:   to.String(),
-		Gaps: gaps,
+		From:         from.String(),
+		To:           to.String(),
+		Gaps:         gaps,
+		Acknowledged: acknowledged,
 	}
 
 	rs.getLogger().Info("timetable gaps",
 		slog.String("from", resp.From),
 		slog.String("to", resp.To),
 		slog.Int("gap_count", len(gaps)),
+		slog.Int("acknowledged_count", len(acknowledged)),
 	)
 	common.Respond(w, r, http.StatusOK, resp, "Gaps retrieved")
+}
+
+// sortGapInstances orders a gap bucket by date then start time, stably.
+func sortGapInstances(items []GapInstance) {
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].Date != items[j].Date {
+			return items[i].Date < items[j].Date
+		}
+		return items[i].StartTime < items[j].StartTime
+	})
 }

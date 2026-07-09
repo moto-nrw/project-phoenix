@@ -314,6 +314,64 @@ func TestSubstitute_HappyPath_Planned(t *testing.T) {
 // Idempotent replay
 // -----------------------------------------------------------------------------
 
+// #1840 absent-only mode: omitting substitute_staff_id marks the staff absent
+// across the day and leaves every position open (no substitute row created).
+func TestSubstitute_AbsentOnly_MarksAbsentNoSubstitute(t *testing.T) {
+	s := buildSubSetup(t)
+	defer s.cleanupFn()
+	router := subRouter(s.ctx, s.res)
+
+	dateStr, date := futureSubDate(1)
+
+	inst1 := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "14:00", EndHHMM: "15:00", Title: "AbsentOnly-1",
+	})
+	inst2 := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "15:00", EndHHMM: "16:00", Title: "AbsentOnly-2",
+	})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst1.ID, inst2.ID) })
+
+	row1 := testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.absent, testpkg.InstanceStaffOpts{})
+	row2 := testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.absent, testpkg.InstanceStaffOpts{})
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, row1.ID, row2.ID) })
+
+	// No substitute_staff_id in the body.
+	w := doSub(t, router, map[string]any{
+		"absent_staff_id": s.absent,
+		"date":            dateStr,
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeSub(t, w)
+	assert.Equal(t, int64(0), got.SubstituteStaffID, "response signals absent-only with substitute id 0")
+	require.Len(t, got.AffectedInstances, 2)
+	for _, a := range got.AffectedInstances {
+		assert.Equal(t, "marked_absent", a.Action)
+	}
+
+	// DB: both original rows now is_absent=true, and NO substitute rows exist.
+	assert.True(t, readInstanceStaff(t, s.db, s.ctx, row1.ID).IsAbsent)
+	assert.True(t, readInstanceStaff(t, s.db, s.ctx, row2.ID).IsAbsent)
+
+	repo := scheduleRepo.NewInstanceStaffRepository(s.db)
+	for _, instID := range []int64{inst1.ID, inst2.ID} {
+		rows, err := repo.FindByInstanceID(s.ctx, instID)
+		require.NoError(t, err)
+		for _, r := range rows {
+			assert.False(t, r.IsSubstitute, "no substitute row must be created on instance %d", instID)
+		}
+	}
+
+	// Idempotent replay: second call reports already_absent, still 200.
+	w2 := doSub(t, router, map[string]any{"absent_staff_id": s.absent, "date": dateStr})
+	require.Equal(t, http.StatusOK, w2.Code)
+	got2 := decodeSub(t, w2)
+	require.Len(t, got2.AffectedInstances, 2)
+	for _, a := range got2.AffectedInstances {
+		assert.Equal(t, "already_absent", a.Action)
+	}
+}
+
 func TestSubstitute_Idempotent_AlreadySubstituted(t *testing.T) {
 	s := buildSubSetup(t)
 	defer s.cleanupFn()

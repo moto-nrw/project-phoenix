@@ -46,6 +46,11 @@ type mockInstanceService struct {
 	createErr     error
 	updateRes     *scheduleModel.ActivityInstance
 	updateErr     error
+	ackRes        *scheduleModel.ActivityInstance
+	ackErr        error
+	lastAckID     int64
+	lastAckValue  bool
+	lastAckNote   *string
 	lastStartID   int64
 	lastStartedBy int64
 	lastFrom      timezone.Date
@@ -84,6 +89,16 @@ func (m *mockInstanceService) Cancel(_ context.Context, _ int64) (*scheduleModel
 
 func (m *mockInstanceService) DeleteCancelled(_ context.Context, _ int64) error {
 	return m.deleteErr
+}
+
+func (m *mockInstanceService) SetUnderstaffedAck(_ context.Context, instanceID int64, ack bool, note *string) (*scheduleModel.ActivityInstance, error) {
+	m.lastAckID = instanceID
+	m.lastAckValue = ack
+	m.lastAckNote = note
+	if m.ackErr != nil {
+		return nil, m.ackErr
+	}
+	return m.ackRes, nil
 }
 
 func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Date, activityGroupID *int64) (*scheduleSvc.ReplanWeekResult, error) {

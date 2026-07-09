@@ -6,6 +6,11 @@
 // row of the absent staff on the given date, mark the original is_absent=true
 // and insert a substitute row. Idempotent on replay; atomic on 409.
 //
+// substitute_staff_id is optional (#1840): when omitted the request is
+// "absent-only" — the staff is marked absent and each affected position is left
+// open (markAbsentOnly). No substitute row is created. Everything below applies
+// to the full substitute (both ids present) path.
+//
 // Atomicity note: the TenantTxMiddleware rolls the request transaction back
 // only on 5xx (see tenant/http_middleware.go:40). A 409 rendered mid-handler
 // would therefore commit any writes made before the 409. We avoid that with a
@@ -51,6 +56,10 @@ const (
 	substituteActionSubstituted       = "substituted"
 	substituteActionAlreadySubstitute = "already_substituted"
 	substituteActionAlreadyOnInstance = "already_on_instance"
+	// Absent-only mode (#1840): substitute_staff_id omitted. The absent staff
+	// is marked absent and the position is left open.
+	substituteActionMarkedAbsent  = "marked_absent"
+	substituteActionAlreadyAbsent = "already_absent"
 )
 
 // AffectedInstance is one row in the affected_instances list of the response.
@@ -90,11 +99,17 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid JSON body")))
 		return
 	}
-	if req.AbsentStaffID <= 0 || req.SubstituteStaffID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("absent_staff_id and substitute_staff_id are required")))
+	if req.AbsentStaffID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("absent_staff_id is required")))
 		return
 	}
-	if req.AbsentStaffID == req.SubstituteStaffID {
+	// substitute_staff_id is optional (#1840): omitting it (0) marks the staff
+	// absent and leaves the position open. A negative id is malformed.
+	if req.SubstituteStaffID < 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("substitute_staff_id must be a positive id")))
+		return
+	}
+	if req.SubstituteStaffID > 0 && req.AbsentStaffID == req.SubstituteStaffID {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("absent and substitute staff must differ")))
 		return
 	}
@@ -137,6 +152,16 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("absent staff not found")))
 		return
 	}
+
+	// Absent-only mode (#1840): no substitute given → mark the staff absent
+	// across the day and leave every affected position open. Handled by a
+	// dedicated helper so the classify/two-phase substitute path below stays
+	// exactly as-is.
+	if req.SubstituteStaffID == 0 {
+		rs.markAbsentOnly(w, r, req, date)
+		return
+	}
+
 	subStaff, err := rs.PersonService.GetStaffByID(ctx, req.SubstituteStaffID)
 	if err != nil {
 		if base.IsNoRows(err) {
@@ -346,6 +371,95 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 		AffectedInstances: affected,
 		Warnings:          warnings,
 	}, "Substitute applied")
+}
+
+// markAbsentOnly handles the absent-only branch of POST /substitute (#1840):
+// substitute_staff_id was omitted, so we mark the absent staff's same-day
+// assignments is_absent=true and leave the positions open. No substitute row is
+// created. For active instances the absent's live supervisor row is ended, same
+// as the substitute path. There is no 409 case here — marking absent is
+// idempotent and conflict-free — so a single write pass is safe (any error is a
+// 500 that the tenant middleware rolls back). Reuses the shared SSE broadcast.
+func (rs *Resource) markAbsentOnly(w http.ResponseWriter, r *http.Request, req substituteRequest, date timezone.Date) {
+	ctx := r.Context()
+
+	origRows, err := rs.TimetableData.GetInstanceStaffByStaffAndDate(ctx, req.AbsentStaffID, date)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load absent assignments failed", err))
+		return
+	}
+	if len(origRows) == 0 {
+		rs.getLogger().Info("mark-absent no-op (no assignments)",
+			slog.Int64("absent_staff_id", req.AbsentStaffID),
+			slog.String("date", req.Date),
+		)
+		common.Respond(w, r, http.StatusOK, SubstituteResponse{
+			AbsentStaffID:     req.AbsentStaffID,
+			SubstituteStaffID: 0,
+			Date:              req.Date,
+			AffectedInstances: []AffectedInstance{},
+			Warnings:          []scheduleSvc.SubstituteTimeConflict{},
+		}, "No assignments to mark absent")
+		return
+	}
+
+	affected := make([]AffectedInstance, 0, len(origRows))
+	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
+
+	for _, orig := range origRows {
+		instance, err := rs.TimetableData.GetActivityInstance(ctx, orig.InstanceID)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("load target instance failed", err))
+			return
+		}
+		if instance == nil {
+			common.RenderError(w, r, common.ErrorInternalServer(
+				fmt.Errorf("instance_staff %d references missing instance %d", orig.ID, orig.InstanceID)))
+			return
+		}
+
+		action := substituteActionMarkedAbsent
+		if orig.IsAbsent {
+			// Already absent — idempotent replay, no write.
+			action = substituteActionAlreadyAbsent
+		} else {
+			orig.IsAbsent = true
+			if err := rs.TimetableData.UpdateInstanceStaff(ctx, orig); err != nil {
+				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
+				return
+			}
+			if instance.Status == scheduleModel.InstanceStatusActive && instance.ActiveGroupID != nil {
+				if _, err := rs.TimetableData.EndGroupSupervisor(ctx, *instance.ActiveGroupID, req.AbsentStaffID); err != nil {
+					common.RenderError(w, r, common.ErrorInternalServerWrap("end absent supervisor failed", err))
+					return
+				}
+				activeTouched[*instance.ActiveGroupID] = instance
+			}
+		}
+
+		affected = append(affected, AffectedInstance{
+			InstanceID: instance.ID,
+			Title:      instance.Title,
+			StartTime:  instance.StartTime.Format("15:04"),
+			Action:     action,
+		})
+	}
+
+	rs.broadcastSubstituteEvents(ctx, activeTouched)
+
+	rs.getLogger().Info("mark-absent applied",
+		slog.Int64("absent_staff_id", req.AbsentStaffID),
+		slog.String("date", req.Date),
+		slog.Int("affected_count", len(affected)),
+	)
+
+	common.Respond(w, r, http.StatusOK, SubstituteResponse{
+		AbsentStaffID:     req.AbsentStaffID,
+		SubstituteStaffID: 0,
+		Date:              req.Date,
+		AffectedInstances: affected,
+		Warnings:          []scheduleSvc.SubstituteTimeConflict{},
+	}, "Staff marked absent")
 }
 
 // classifySubstitute decides the action for a single target instance. Pure

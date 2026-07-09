@@ -202,6 +202,9 @@ func (s *autoStartInstanceStarter) Cancel(context.Context, int64) (*scheduleMode
 func (s *autoStartInstanceStarter) DeleteCancelled(context.Context, int64) error {
 	return nil
 }
+func (s *autoStartInstanceStarter) SetUnderstaffedAck(context.Context, int64, bool, *string) (*scheduleModel.ActivityInstance, error) {
+	return nil, nil
+}
 func (s *autoStartInstanceStarter) ReplanWeek(context.Context, timezone.Date, timezone.Date, *int64) (*ReplanWeekResult, error) {
 	return nil, nil
 }

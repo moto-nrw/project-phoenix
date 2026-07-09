@@ -83,6 +83,8 @@ type enrichedInstance struct {
 	Students              []instanceStudentSummary              `json:"students"`
 	StaffCount            int                                   `json:"staff_count"`
 	AbsentStaffCount      int                                   `json:"absent_staff_count"`
+	UnderstaffedAck       bool                                  `json:"understaffed_ack"`
+	UnderstaffedNote      *string                               `json:"understaffed_note,omitempty"`
 	ExpectedStudentsCount int                                   `json:"expected_students_count"`
 	PresentStudentsCount  int                                   `json:"present_students_count"`
 	ConflictWarnings      []scheduleSvc.InstanceConflictWarning `json:"conflict_warnings"`
@@ -260,6 +262,8 @@ func (rs *Resource) enrichInstance(
 		Students:              students,
 		StaffCount:            len(staffRows),
 		AbsentStaffCount:      absentCount,
+		UnderstaffedAck:       inst.UnderstaffedAck,
+		UnderstaffedNote:      inst.UnderstaffedNote,
 		ExpectedStudentsCount: expected,
 		PresentStudentsCount:  present,
 		ConflictWarnings:      rs.instanceConflictWarnings(ctx, inst),

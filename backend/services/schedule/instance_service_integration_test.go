@@ -173,6 +173,56 @@ func forceSetInstanceStatus(t *testing.T, s *lifecycleSetup, id int64, status st
 	require.NoError(t, err)
 }
 
+// --- #1840 understaffed acknowledgement -------------------------------------
+
+func TestInstance_SetUnderstaffedAck_HappyPath(t *testing.T) {
+	s := buildLifecycle(t)
+	svc := instanceServiceWithBroadcaster(s, nil)
+	ai := seedInstance(t, s, false, false)
+
+	note := "keine Vertretung verfügbar"
+	got, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, &note)
+	require.NoError(t, err)
+	assert.True(t, got.UnderstaffedAck)
+	require.NotNil(t, got.UnderstaffedNote)
+	assert.Equal(t, note, *got.UnderstaffedNote)
+
+	reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, ai.ID)
+	require.NoError(t, err)
+	assert.True(t, reloaded.UnderstaffedAck)
+	require.NotNil(t, reloaded.UnderstaffedNote)
+	assert.Equal(t, note, *reloaded.UnderstaffedNote)
+
+	// Clearing the flag also clears the note so a stale reason cannot linger.
+	cleared, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, false, nil)
+	require.NoError(t, err)
+	assert.False(t, cleared.UnderstaffedAck)
+	assert.Nil(t, cleared.UnderstaffedNote)
+
+	reloaded2, err := s.repos.ActivityInstance.FindByID(s.ctx, ai.ID)
+	require.NoError(t, err)
+	assert.False(t, reloaded2.UnderstaffedAck)
+	assert.Nil(t, reloaded2.UnderstaffedNote)
+}
+
+func TestInstance_SetUnderstaffedAck_CompletedRejected(t *testing.T) {
+	s := buildLifecycle(t)
+	svc := instanceServiceWithBroadcaster(s, nil)
+	ai := seedInstance(t, s, false, false)
+	forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCompleted)
+
+	_, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, nil)
+	assert.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
+}
+
+func TestInstance_SetUnderstaffedAck_NotFound(t *testing.T) {
+	s := buildLifecycle(t)
+	svc := instanceServiceWithBroadcaster(s, nil)
+
+	_, err := svc.SetUnderstaffedAck(s.ctx, 99999999, true, nil)
+	assert.ErrorIs(t, err, scheduleSvc.ErrInstanceNotFound)
+}
+
 // --- State machine: happy paths ---------------------------------------------
 
 func TestInstance_Start_HappyPath(t *testing.T) {

@@ -80,6 +80,12 @@ type InstanceService interface {
 	Complete(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	Cancel(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	DeleteCancelled(ctx context.Context, instanceID int64) error
+	// SetUnderstaffedAck flips the "deliberately unstaffed" acknowledgement on a
+	// planned or active instance (Vertretungsplan, issue #1840). It only
+	// annotates the block — no lifecycle transition, no active-state change — so
+	// gap detection stops reporting an intentionally-open position. Rejected on
+	// completed/cancelled instances with ErrInvalidInstanceTransition.
+	SetUnderstaffedAck(ctx context.Context, instanceID int64, ack bool, note *string) (*scheduleModel.ActivityInstance, error)
 	// ReplanWeek deletes planned non-spontaneous instances in [from, to] and
 	// re-materializes. A non-nil activityGroupID restricts the delete to one
 	// template's instances; nil re-plans the whole grid.
@@ -365,6 +371,36 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64) (*schedu
 	}
 
 	s.broadcastInstanceEvent(ctx, realtime.EventInstanceCancelled, instance, nil, nil)
+	return instance, nil
+}
+
+// SetUnderstaffedAck flips the "deliberately unstaffed" flag (issue #1840). It
+// is a planning annotation, not a lifecycle transition: no active.group is
+// touched and no SSE lifecycle event fires. Only planned/active instances can
+// carry the flag — acknowledging a completed or cancelled block is meaningless
+// and returns ErrInvalidInstanceTransition (→ 409). Clearing the flag (ack=
+// false) also clears the note so a stale reason cannot linger.
+func (s *instanceService) SetUnderstaffedAck(ctx context.Context, instanceID int64, ack bool, note *string) (*scheduleModel.ActivityInstance, error) {
+	instance, err := s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	switch instance.Status {
+	case scheduleModel.InstanceStatusPlanned, scheduleModel.InstanceStatusActive:
+		// allowed
+	default:
+		return nil, fmt.Errorf("%w: cannot acknowledge understaffing on instance in status %q", ErrInvalidInstanceTransition, instance.Status)
+	}
+
+	instance.UnderstaffedAck = ack
+	if ack {
+		instance.UnderstaffedNote = note
+	} else {
+		instance.UnderstaffedNote = nil
+	}
+	if err := s.updateLifecycleColumns(ctx, instance, "understaffed_ack", "understaffed_note"); err != nil {
+		return nil, &ScheduleError{Op: "set understaffed ack: update", Err: err}
+	}
 	return instance, nil
 }
 

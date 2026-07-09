@@ -40,11 +40,17 @@ type ActivityInstance struct {
 	Status           string        `bun:"status,notnull,default:'planned'" json:"status"`
 	ActiveGroupID    *int64        `bun:"active_group_id" json:"active_group_id,omitempty"`
 	IsSpontaneous    bool          `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
-	Notes            *string       `bun:"notes" json:"notes,omitempty"`
-	CreatedBy        *int64        `bun:"created_by" json:"created_by,omitempty"`
-	StartedBy        *int64        `bun:"started_by" json:"started_by,omitempty"`
-	StartedAt        *time.Time    `bun:"started_at" json:"started_at,omitempty"`
-	CompletedAt      *time.Time    `bun:"completed_at" json:"completed_at,omitempty"`
+	// UnderstaffedAck records that an admin deliberately accepts this block
+	// running with zero staff (Vertretungsplan, issue #1840). When true the gap
+	// detector reports the block as an acknowledged shortfall instead of an open
+	// gap — the staffing hole stays visible, it just stops nagging.
+	UnderstaffedAck  bool       `bun:"understaffed_ack,notnull,default:false" json:"understaffed_ack"`
+	UnderstaffedNote *string    `bun:"understaffed_note" json:"understaffed_note,omitempty"`
+	Notes            *string    `bun:"notes" json:"notes,omitempty"`
+	CreatedBy        *int64     `bun:"created_by" json:"created_by,omitempty"`
+	StartedBy        *int64     `bun:"started_by" json:"started_by,omitempty"`
+	StartedAt        *time.Time `bun:"started_at" json:"started_at,omitempty"`
+	CompletedAt      *time.Time `bun:"completed_at" json:"completed_at,omitempty"`
 }
 
 // Validate ensures activity instance data is valid for persistence.
