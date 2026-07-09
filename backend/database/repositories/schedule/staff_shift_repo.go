@@ -48,9 +48,7 @@ func (r *StaffShiftRepository) FindByDateRange(ctx context.Context, start, end t
 		OrderExpr(`"staff_shift".staff_id ASC`).
 		OrderExpr(`"staff_shift".start_time ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff_shift"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff_shift")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find staff shifts by date range", Err: err}
@@ -71,9 +69,7 @@ func (r *StaffShiftRepository) FindByStaffAndDateRange(ctx context.Context, staf
 		OrderExpr(`"staff_shift".date ASC`).
 		OrderExpr(`"staff_shift".start_time ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff_shift"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff_shift")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find staff shifts by staff and date range", Err: err}
@@ -97,9 +93,7 @@ func (r *StaffShiftRepository) FindByStaffIDsAndDate(ctx context.Context, staffI
 		OrderExpr(`"staff_shift".staff_id ASC`).
 		OrderExpr(`"staff_shift".start_time ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff_shift"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff_shift")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find staff shifts by staff ids and date", Err: err}

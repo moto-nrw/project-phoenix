@@ -348,7 +348,7 @@ func (rs *Resource) buildStudentResponses(uniqueStudents map[int64]usersSvc.Stud
 func (rs *Resource) findPersonByTag(ctx context.Context, normalizedTagID, originalTagID string) *users.Person {
 	person, err := rs.UsersService.FindByTagID(ctx, normalizedTagID)
 	if err != nil {
-		rs.recordUnregisteredTagScan(ctx, normalizedTagID)
+		iotCommon.RecordUnregisteredTagScan(ctx, rs.UnregisteredTagScans, slog.Default(), normalizedTagID)
 		slog.Default().WarnContext(ctx, "no person found for RFID tag",
 			slog.String("tag_id", originalTagID),
 			slog.String("error", err.Error()),

@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
@@ -300,29 +301,29 @@ func TestNewResource_ReturnsResource(t *testing.T) {
 
 func TestNormalizeBaseRole(t *testing.T) {
 	t.Run("nil input returns nil", func(t *testing.T) {
-		assert.Nil(t, normalizeBaseRole(nil))
+		assert.Nil(t, strutil.TrimPtrToNil(nil))
 	})
 
 	t.Run("empty string returns nil", func(t *testing.T) {
 		empty := ""
-		assert.Nil(t, normalizeBaseRole(&empty))
+		assert.Nil(t, strutil.TrimPtrToNil(&empty))
 	})
 
 	t.Run("whitespace-only returns nil", func(t *testing.T) {
 		spaces := "   "
-		assert.Nil(t, normalizeBaseRole(&spaces))
+		assert.Nil(t, strutil.TrimPtrToNil(&spaces))
 	})
 
 	t.Run("trims whitespace", func(t *testing.T) {
 		padded := "  admin  "
-		result := normalizeBaseRole(&padded)
+		result := strutil.TrimPtrToNil(&padded)
 		require.NotNil(t, result)
 		assert.Equal(t, "admin", *result)
 	})
 
 	t.Run("passes through clean value", func(t *testing.T) {
 		clean := "guardian"
-		result := normalizeBaseRole(&clean)
+		result := strutil.TrimPtrToNil(&clean)
 		require.NotNil(t, result)
 		assert.Equal(t, "guardian", *result)
 	})

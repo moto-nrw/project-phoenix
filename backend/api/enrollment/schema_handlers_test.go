@@ -45,44 +45,37 @@ func TestCountAssignedPreviewPhases(t *testing.T) {
 // mockFormSchemaService records inputs + replays outputs. Same pattern
 // as mockRolloverService / mockDecisionService in this package.
 type mockFormSchemaService struct {
-	getActiveErr     error
-	getActiveResult  *enrollmentModels.FormSchema
-	getByIDID        int64
-	getByIDErr       error
-	getByIDResult    *enrollmentModels.FormSchema
-	listResult       []*enrollmentModels.FormSchema
-	listErr          error
-	createName       string
-	createFields     []enrollmentModels.FormField
-	createCreatedBy  int64
-	createCore       enrollmentModels.CoreRequirements
-	createCoreSet    bool
-	createLegal      []enrollmentModels.FormLegalBlock
-	createLegalSet   bool
-	createResult     *enrollmentModels.FormSchema
-	createErr        error
-	updateID         int64
-	updateFields     []enrollmentModels.FormField
-	updateUpdatedBy  int64
-	updateCore       enrollmentModels.CoreRequirements
-	updateCoreSet    bool
-	updateLegal      []enrollmentModels.FormLegalBlock
-	updateLegalSet   bool
-	updateResult     *enrollmentModels.FormSchema
-	updateErr        error
-	deleteID         int64
-	deleteErr        error
-	renameID         int64
-	renameName       string
-	renameResult     *enrollmentModels.FormSchema
-	renameErr        error
-	publishVResult   *enrollmentModels.FormSchema
-	publishVErr      error
-	publishVFields   []enrollmentModels.FormField
-	publishVCreated  int64
-	validateSchemaID int64
-	validateData     enrollmentModels.SubmissionData
-	validateErr      error
+	getActiveErr    error
+	getActiveResult *enrollmentModels.FormSchema
+	getByIDID       int64
+	getByIDErr      error
+	getByIDResult   *enrollmentModels.FormSchema
+	listResult      []*enrollmentModels.FormSchema
+	listErr         error
+	createName      string
+	createFields    []enrollmentModels.FormField
+	createCreatedBy int64
+	createCore      enrollmentModels.CoreRequirements
+	createCoreSet   bool
+	createLegal     []enrollmentModels.FormLegalBlock
+	createLegalSet  bool
+	createResult    *enrollmentModels.FormSchema
+	createErr       error
+	updateID        int64
+	updateFields    []enrollmentModels.FormField
+	updateUpdatedBy int64
+	updateCore      enrollmentModels.CoreRequirements
+	updateCoreSet   bool
+	updateLegal     []enrollmentModels.FormLegalBlock
+	updateLegalSet  bool
+	updateResult    *enrollmentModels.FormSchema
+	updateErr       error
+	deleteID        int64
+	deleteErr       error
+	renameID        int64
+	renameName      string
+	renameResult    *enrollmentModels.FormSchema
+	renameErr       error
 }
 
 func (m *mockFormSchemaService) GetActive(_ context.Context) (*enrollmentModels.FormSchema, error) {
@@ -147,16 +140,6 @@ func (m *mockFormSchemaService) RenameSchema(_ context.Context, id int64, newNam
 	m.renameID = id
 	m.renameName = newName
 	return m.renameResult, m.renameErr
-}
-func (m *mockFormSchemaService) PublishVersion(_ context.Context, fields []enrollmentModels.FormField, createdBy int64, _ ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
-	m.publishVFields = fields
-	m.publishVCreated = createdBy
-	return m.publishVResult, m.publishVErr
-}
-func (m *mockFormSchemaService) ValidateSubmission(_ context.Context, schemaID int64, data enrollmentModels.SubmissionData) error {
-	m.validateSchemaID = schemaID
-	m.validateData = data
-	return m.validateErr
 }
 
 // buildSchemaRouter wires the schema endpoints with a mock service.
@@ -342,7 +325,7 @@ func TestPublishSchemaHandler_WithNameCallsCreateSchema(t *testing.T) {
 		})
 	require.Equal(t, http.StatusCreated, w.Code)
 	assert.Equal(t, "Klassenanmeldung", mock.createName,
-		"non-empty name MUST route to CreateSchema, not PublishVersion")
+		"non-empty name MUST route to CreateSchema")
 	assert.Equal(t, int64(4321), mock.createCreatedBy)
 	assert.Len(t, mock.createFields, 1)
 }

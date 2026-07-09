@@ -108,7 +108,7 @@ func TestFacilitiesError_AllOperations(t *testing.T) {
 		{
 			name: "update operation",
 			op:   "UpdateRoom",
-			err:  ErrInvalidRoomData,
+			err:  errors.New("invalid room data"),
 			want: "facilities error during UpdateRoom: invalid room data",
 		},
 		{
@@ -120,7 +120,7 @@ func TestFacilitiesError_AllOperations(t *testing.T) {
 		{
 			name: "capacity check",
 			op:   "CheckCapacity",
-			err:  ErrRoomCapacityExceeded,
+			err:  errors.New("room capacity exceeded"),
 			want: "facilities error during CheckCapacity: room capacity exceeded",
 		},
 		{

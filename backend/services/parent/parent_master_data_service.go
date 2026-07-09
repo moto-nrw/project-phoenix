@@ -110,7 +110,7 @@ func (s *service) GetChildMasterData(ctx context.Context, accountID, studentID i
 	}
 
 	var out *ChildMasterData
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		data, loadErr := s.loadMasterData(txCtx, child.guardianProfileID, studentID)
 		if loadErr != nil {
 			return loadErr
@@ -137,7 +137,7 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 		return nil, err
 	}
 
-	enabled, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataEditEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyParentMasterDataEditEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("parent: resolve master-data edit setting: %w", err)
 	}
@@ -159,7 +159,7 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 	}
 
 	var out *ChildMasterData
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		oldRaw, newRaw, targetRef, changed, applyErr := s.applyTrackAEdit(txCtx, child.guardianProfileID, studentID, child.tenantID, target, fieldKey, newStr)
 		if applyErr != nil {
 			return applyErr
@@ -187,7 +187,7 @@ func (s *service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 		return nil, fmt.Errorf("parent: update master data: %w", txErr)
 	}
 
-	s.logger.Info("parent edited master data field",
+	s.Logger.Info("parent edited master data field",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("tenant_id", child.tenantID),
@@ -242,7 +242,7 @@ func validateTrackAFieldSize(target, fieldKey, value string) error {
 }
 
 func (s *service) applyStudentEdit(ctx context.Context, studentID int64, fieldKey, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
-	student, err := s.studentRepo.FindByIDForUpdate(ctx, studentID)
+	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
@@ -255,7 +255,7 @@ func (s *service) applyStudentEdit(ctx context.Context, studentID int64, fieldKe
 			return oldRaw, newRaw, nil, false, nil
 		}
 		student.HealthInfo = next
-		if err := s.studentRepo.Update(ctx, student); err != nil {
+		if err := s.StudentRepo.Update(ctx, student); err != nil {
 			return nil, nil, nil, false, err
 		}
 		return oldRaw, newRaw, nil, true, nil
@@ -265,10 +265,10 @@ func (s *service) applyStudentEdit(ctx context.Context, studentID int64, fieldKe
 }
 
 func (s *service) applyGuardianProfileEdit(ctx context.Context, guardianProfileID int64, fieldKey, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
-	if err := s.guardianProfileRepo.LockByIDForUpdate(ctx, guardianProfileID); err != nil {
+	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, guardianProfileID); err != nil {
 		return nil, nil, nil, false, err
 	}
-	profile, err := s.guardianProfileRepo.FindByID(ctx, guardianProfileID)
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, guardianProfileID)
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
@@ -321,7 +321,7 @@ func (s *service) applyGuardianProfileEdit(ctx context.Context, guardianProfileI
 		ref := profile.ID
 		return oldRaw, newRaw, &ref, false, nil
 	}
-	if err := s.guardianProfileRepo.Update(ctx, profile); err != nil {
+	if err := s.GuardianProfileRepo.Update(ctx, profile); err != nil {
 		if isGuardianEmailUniqueViolation(err) && profile.Email != nil {
 			return nil, nil, nil, false, ErrGuardianEmailConflict
 		}
@@ -356,10 +356,10 @@ func (s *service) guardianProfileFieldJSON(profile *usersModels.GuardianProfile,
 // empty value clears it. Multi-phone management is staff-side; the portal edits
 // only the primary number.
 func (s *service) applyGuardianPhoneEdit(ctx context.Context, guardianProfileID, tenantID int64, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
-	if err := s.guardianProfileRepo.LockByIDForUpdate(ctx, guardianProfileID); err != nil {
+	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, guardianProfileID); err != nil {
 		return nil, nil, nil, false, err
 	}
-	phones, err := s.guardianPhoneRepo.FindByGuardianID(ctx, guardianProfileID)
+	phones, err := s.GuardianPhoneRepo.FindByGuardianID(ctx, guardianProfileID)
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
@@ -374,7 +374,7 @@ func (s *service) applyGuardianPhoneEdit(ctx context.Context, guardianProfileID,
 	if newStr == "" {
 		if existing != nil {
 			ref := existing.ID
-			if err := s.guardianPhoneRepo.Delete(ctx, existing.ID); err != nil {
+			if err := s.GuardianPhoneRepo.Delete(ctx, existing.ID); err != nil {
 				return nil, nil, nil, false, err
 			}
 			return oldRaw, json.RawMessage("null"), &ref, true, nil
@@ -392,7 +392,7 @@ func (s *service) applyGuardianPhoneEdit(ctx context.Context, guardianProfileID,
 			ref := existing.ID
 			return oldRaw, newRaw, &ref, false, nil
 		}
-		if err := s.guardianPhoneRepo.Update(ctx, existing); err != nil {
+		if err := s.GuardianPhoneRepo.Update(ctx, existing); err != nil {
 			return nil, nil, nil, false, err
 		}
 		ref := existing.ID
@@ -410,7 +410,7 @@ func (s *service) applyGuardianPhoneEdit(ctx context.Context, guardianProfileID,
 	if err := phone.Validate(); err != nil {
 		return nil, nil, nil, false, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
 	}
-	if err := s.guardianPhoneRepo.Create(ctx, phone); err != nil {
+	if err := s.GuardianPhoneRepo.Create(ctx, phone); err != nil {
 		return nil, nil, nil, false, err
 	}
 	ref := phone.ID
@@ -432,20 +432,20 @@ func (s *service) recordAutoApplied(ctx context.Context, tenantID, studentID, ac
 		AppliedAt:   &now,
 	}
 	row.SetTenantID(tenantID)
-	return s.changeRequestRepo.Create(ctx, row)
+	return s.ChangeRequestRepo.Create(ctx, row)
 }
 
 // loadMasterData assembles the Stammdaten DTO inside an existing tenant tx.
 func (s *service) loadMasterData(ctx context.Context, guardianProfileID, studentID int64) (*ChildMasterData, error) {
-	student, err := s.studentRepo.FindByID(ctx, studentID)
+	student, err := s.StudentRepo.FindByID(ctx, studentID)
 	if err != nil {
 		return nil, err
 	}
-	person, err := s.personRepo.FindByID(ctx, student.PersonID)
+	person, err := s.PersonRepo.FindByID(ctx, student.PersonID)
 	if err != nil {
 		return nil, err
 	}
-	profile, err := s.guardianProfileRepo.FindByID(ctx, guardianProfileID)
+	profile, err := s.GuardianProfileRepo.FindByID(ctx, guardianProfileID)
 	if err != nil {
 		return nil, err
 	}
@@ -471,7 +471,7 @@ func (s *service) loadMasterData(ctx context.Context, guardianProfileID, student
 		AllowedDepartureModes:  student.AllowedDepartureModes,
 	}
 
-	phones, err := s.guardianPhoneRepo.FindByGuardianID(ctx, profile.ID)
+	phones, err := s.GuardianPhoneRepo.FindByGuardianID(ctx, profile.ID)
 	if err != nil {
 		return nil, err
 	}
@@ -480,7 +480,7 @@ func (s *service) loadMasterData(ctx context.Context, guardianProfileID, student
 		out.PrimaryPhoneID = &primary.ID
 	}
 
-	pending, err := s.changeRequestRepo.ListByStudent(ctx, studentID, []string{usersModels.DataChangeStatusPending}, 0)
+	pending, err := s.ChangeRequestRepo.ListByStudent(ctx, studentID, []string{usersModels.DataChangeStatusPending}, 0)
 	if err != nil {
 		return nil, err
 	}

@@ -11,6 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// activeSvcBypassAuth mirrors the old unauthenticated move path: the
+// *Authorized variants with BypassResourceChecks behave identically to the
+// deleted thin wrappers.
+var activeSvcBypassAuth = activeSvc.StudentMoveAuthorization{BypassResourceChecks: true}
+
 func TestActiveService_ListStudentsInTransit(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -141,7 +146,7 @@ func TestActiveService_MoveStudentsToActiveGroup_PreservesVisitHistory(t *testin
 	)
 	defer testpkg.CleanupTableRecords(t, db, "active.attendance", inSourceAttendance.ID, inTargetAttendance.ID, transitAttendance.ID)
 
-	result, err := service.MoveStudentsToActiveGroup(ctx, []int64{inSourceStudent.ID, inTargetStudent.ID, transitStudent.ID, absentStudent.ID, inSourceStudent.ID}, targetGroup.ID)
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{inSourceStudent.ID, inTargetStudent.ID, transitStudent.ID, absentStudent.ID, inSourceStudent.ID}, targetGroup.ID, activeSvcBypassAuth)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -192,7 +197,7 @@ func TestActiveService_MoveStudentsToActiveGroup_RejectsWhenNoStudentsPresent(t 
 
 	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID, absentStudent.ID)
 
-	result, err := service.MoveStudentsToActiveGroup(ctx, []int64{absentStudent.ID}, targetGroup.ID)
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{absentStudent.ID}, targetGroup.ID, activeSvcBypassAuth)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -206,7 +211,7 @@ func TestActiveService_MoveStudentsToActiveGroup_InvalidInput(t *testing.T) {
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
 
-	result, err := service.MoveStudentsToActiveGroup(ctx, nil, 0)
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, nil, 0, activeSvcBypassAuth)
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, activeSvc.ErrInvalidData)
@@ -216,7 +221,7 @@ func TestActiveService_MoveStudentsToActiveGroup_InvalidInput(t *testing.T) {
 	targetGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID)
 
-	result, err = service.MoveStudentsToActiveGroup(ctx, []int64{-42}, targetGroup.ID)
+	result, err = service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{-42}, targetGroup.ID, activeSvcBypassAuth)
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, activeSvc.ErrInvalidData)
@@ -239,7 +244,7 @@ func TestActiveService_MoveStudentsToActiveGroup_EndedTargetFails(t *testing.T) 
 
 	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, targetGroup.ID, student.ID)
 
-	result, err := service.MoveStudentsToActiveGroup(ctx, []int64{student.ID}, targetGroup.ID)
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{student.ID}, targetGroup.ID, activeSvcBypassAuth)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -425,7 +430,7 @@ func TestActiveService_MoveStudentsToActiveGroup_BinaryModeReturnsUnchanged(t *t
 		studentA int64 = 50001
 		studentB int64 = 50002
 	)
-	result, err := service.MoveStudentsToActiveGroup(ctx, []int64{studentA, studentB, studentA}, targetGroup.ID)
+	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{studentA, studentB, studentA}, targetGroup.ID, activeSvcBypassAuth)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -471,7 +476,7 @@ func TestActiveService_MoveStudentsToTransit_EndsVisitKeepsAttendanceOpen(t *tes
 	)
 	defer testpkg.CleanupTableRecords(t, db, "active.attendance", inRoomAttendance.ID, alreadyTransitAttendance.ID, checkedOutAttendance.ID)
 
-	result, err := service.MoveStudentsToTransit(ctx, []int64{inRoomStudent.ID, alreadyTransitStudent.ID, checkedOutStudent.ID, absentStudent.ID})
+	result, err := service.MoveStudentsToTransitAuthorized(ctx, []int64{inRoomStudent.ID, alreadyTransitStudent.ID, checkedOutStudent.ID, absentStudent.ID}, activeSvcBypassAuth)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -512,7 +517,7 @@ func TestActiveService_MoveStudentsToTransit_RejectsWhenNoStudentsPresent(t *tes
 	absentStudent := testpkg.CreateTestStudent(t, db, "TransitMove", "AllAbsent", "TMA3")
 	defer testpkg.CleanupActivityFixtures(t, db, absentStudent.ID)
 
-	result, err := service.MoveStudentsToTransit(ctx, []int64{absentStudent.ID})
+	result, err := service.MoveStudentsToTransitAuthorized(ctx, []int64{absentStudent.ID}, activeSvcBypassAuth)
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -526,12 +531,12 @@ func TestActiveService_MoveStudentsToTransit_InvalidInput(t *testing.T) {
 	service := setupActiveService(t, db)
 	ctx := testpkg.TenantContext(1)
 
-	result, err := service.MoveStudentsToTransit(ctx, nil)
+	result, err := service.MoveStudentsToTransitAuthorized(ctx, nil, activeSvcBypassAuth)
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, activeSvc.ErrInvalidData)
 
-	result, err = service.MoveStudentsToTransit(ctx, []int64{-42})
+	result, err = service.MoveStudentsToTransitAuthorized(ctx, []int64{-42}, activeSvcBypassAuth)
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.ErrorIs(t, err, activeSvc.ErrInvalidData)
@@ -559,7 +564,7 @@ func TestActiveService_MoveStudentsToTransit_BinaryModeReturnsUnchanged(t *testi
 		studentA int64 = 60001
 		studentB int64 = 60002
 	)
-	result, err := service.MoveStudentsToTransit(ctx, []int64{studentA, studentB, studentA})
+	result, err := service.MoveStudentsToTransitAuthorized(ctx, []int64{studentA, studentB, studentA}, activeSvcBypassAuth)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)

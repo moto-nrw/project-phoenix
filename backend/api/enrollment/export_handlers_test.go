@@ -1,17 +1,17 @@
 package enrollment
 
 import (
-	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -1151,7 +1151,7 @@ func TestExportPhaseRegistrations_StreamsDOCX(t *testing.T) {
 	if !bytes.HasPrefix(w.Body.Bytes(), []byte("PK\x03\x04")) {
 		t.Error("body is not a DOCX zip document")
 	}
-	xml := readDocxDocumentXML(t, w.Body.Bytes())
+	xml := testpkg.ReadDocxDocumentXML(t, w.Body.Bytes())
 	if strings.Contains(xml, "<w:tbl>") {
 		t.Fatal("DOCX export must use record blocks, not the wide table layout")
 	}
@@ -1164,35 +1164,6 @@ func TestExportPhaseRegistrations_StreamsDOCX(t *testing.T) {
 	if mock.exportFormat != "docx" {
 		t.Errorf("format = %q, want docx", mock.exportFormat)
 	}
-}
-
-func readDocxDocumentXML(t *testing.T, data []byte) string {
-	t.Helper()
-	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		t.Fatalf("zip reader error = %v", err)
-	}
-	for _, entry := range reader.File {
-		if entry.Name != "word/document.xml" {
-			continue
-		}
-		rc, err := entry.Open()
-		if err != nil {
-			t.Fatalf("open document.xml error = %v", err)
-		}
-		defer func() {
-			if err := rc.Close(); err != nil {
-				t.Errorf("close document.xml error = %v", err)
-			}
-		}()
-		content, err := io.ReadAll(rc)
-		if err != nil {
-			t.Fatalf("read document.xml error = %v", err)
-		}
-		return string(content)
-	}
-	t.Fatal("DOCX missing word/document.xml")
-	return ""
 }
 
 func TestExportPhaseRegistrations_ServiceErrorIs500(t *testing.T) {

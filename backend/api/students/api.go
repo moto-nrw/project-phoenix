@@ -13,10 +13,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/education"
@@ -46,38 +48,14 @@ func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Re
 
 // Resource defines the students API resource
 type Resource struct {
-	PersonService           userService.PersonService
-	GuardianService         userService.GuardianService
-	EducationService        educationService.Service
-	UserContextService      userContextService.UserContextService
-	ActiveService           activeService.Service
-	IoTService              iotSvc.Service
-	PickupScheduleService   scheduleService.PickupScheduleService
-	ArrivalScheduleService  scheduleService.ArrivalScheduleService
-	InstanceService         scheduleService.InstanceService
-	SchoolService           platformSvc.SchoolService
-	SettingsService         configService.SettingsService
-	StudentService          userService.StudentService
-	MasterDataReviewService userService.MasterDataReviewService
-	CareRequestService      scheduleService.CareScheduleRequestService
-	StudentStatusDayService activeService.StudentStatusDayService
-	StudentHistoryService   activeService.StudentHistoryService
-	ActivityService         activityService.ActivityService
-	EnrollmentDecision      enrollmentService.DecisionService
-	EnrollmentFormSchema    enrollmentService.FormSchemaService
-	Broadcaster             realtime.Broadcaster
-	StudentPhotos           userService.StudentPhotoService
-	ListExportService       listexport.Service
-	Logger                  *slog.Logger
-	Now                     func() time.Time
-	db                      *bun.DB
+	ResourceConfig
 }
 
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
 	PersonService           userService.PersonService
-	GuardianService         userService.GuardianService
+	GuardianService         *userService.GuardianService
 	EducationService        educationService.Service
 	UserContextService      userContextService.UserContextService
 	ActiveService           activeService.Service
@@ -90,14 +68,14 @@ type ResourceConfig struct {
 	StudentService          userService.StudentService
 	MasterDataReviewService userService.MasterDataReviewService
 	CareRequestService      scheduleService.CareScheduleRequestService
-	StudentStatusDayService activeService.StudentStatusDayService
+	StudentStatusDayService *activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
 	ActivityService         activityService.ActivityService
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
 	Broadcaster             realtime.Broadcaster
 	StudentPhotos           userService.StudentPhotoService
-	ListExportService       listexport.Service
+	ListExportService       *listexport.RendererService
 	Logger                  *slog.Logger
 	Now                     func() time.Time
 	DB                      *bun.DB
@@ -105,38 +83,10 @@ type ResourceConfig struct {
 
 // NewResource creates a new students resource from the provided configuration.
 func NewResource(cfg ResourceConfig) *Resource {
-	now := cfg.Now
-	if now == nil {
-		now = time.Now
+	if cfg.Now == nil {
+		cfg.Now = time.Now
 	}
-
-	return &Resource{
-		PersonService:           cfg.PersonService,
-		GuardianService:         cfg.GuardianService,
-		EducationService:        cfg.EducationService,
-		UserContextService:      cfg.UserContextService,
-		ActiveService:           cfg.ActiveService,
-		IoTService:              cfg.IoTService,
-		PickupScheduleService:   cfg.PickupScheduleService,
-		ArrivalScheduleService:  cfg.ArrivalScheduleService,
-		InstanceService:         cfg.InstanceService,
-		SchoolService:           cfg.SchoolService,
-		SettingsService:         cfg.SettingsService,
-		StudentService:          cfg.StudentService,
-		MasterDataReviewService: cfg.MasterDataReviewService,
-		CareRequestService:      cfg.CareRequestService,
-		StudentStatusDayService: cfg.StudentStatusDayService,
-		StudentHistoryService:   cfg.StudentHistoryService,
-		ActivityService:         cfg.ActivityService,
-		EnrollmentDecision:      cfg.EnrollmentDecision,
-		EnrollmentFormSchema:    cfg.EnrollmentFormSchema,
-		Broadcaster:             cfg.Broadcaster,
-		StudentPhotos:           cfg.StudentPhotos,
-		ListExportService:       cfg.ListExportService,
-		Logger:                  cfg.Logger,
-		Now:                     now,
-		db:                      cfg.DB,
-	}
+	return &Resource{ResourceConfig: cfg}
 }
 
 // Router returns a configured router for student endpoints
@@ -144,15 +94,8 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
-
 	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.DB, func(r chi.Router, withTx common.Middleware) {
 
 		// Routes requiring users:read permission
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStudents)
@@ -257,8 +200,8 @@ func (rs *Resource) Router() chi.Router {
 	// then TenantTxMiddleware wraps each handler in a tenant-scoped transaction
 	// (SET LOCAL ROLE phoenix_tenant + set_config) so RLS is enforced.
 	r.Group(func(r chi.Router) {
-		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.PersonService, rs.SchoolService, nil))
-		r.Use(tenant.TenantTxMiddleware(rs.db))
+		r.Use(device.DeviceAuthenticator(rs.IoTService, rs.SchoolService, nil))
+		r.Use(tenant.TenantTxMiddleware(rs.DB))
 
 		// RFID tag assignment endpoint
 		r.Post("/{id}/rfid", rs.assignRFIDTag)
@@ -268,24 +211,18 @@ func (rs *Resource) Router() chi.Router {
 	return r
 }
 
-// containsIgnoreCase checks if a string contains another string, ignoring case
-func containsIgnoreCase(s, substr string) bool {
-	s, substr = strings.ToLower(s), strings.ToLower(substr)
-	return strings.Contains(s, substr)
-}
-
 // parseAndGetStudent parses the student ID from the URL and fetches the student
 // Returns the student and true if successful, or renders an error and returns nil, false
 func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (*users.Student, bool) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return nil, false
 	}
 
 	student, err := rs.PersonService.GetStudentByID(r.Context(), id)
 	if err != nil {
-		renderError(w, r, ErrorNotFound(errors.New("student not found")))
+		renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 		return nil, false
 	}
 
@@ -354,7 +291,7 @@ func (rs *Resource) checkStudentReadAccess(r *http.Request, student *users.Stude
 // both read and write access paths (before scope overrides are applied).
 func (rs *Resource) isGroupSupervisorOrAdmin(r *http.Request, student *users.Student) bool {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	if common.HasAdminPermissions(userPermissions) {
+	if authorize.HasAdminWildcard(userPermissions) {
 		return true
 	}
 
@@ -402,10 +339,10 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	students, totalCount, err := rs.fetchStudentsForList(r, params)
 	if err != nil {
 		if errors.Is(err, ErrInvalidRequest) {
-			renderError(w, r, ErrorInvalidRequest(err))
+			renderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -422,7 +359,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	)
 	if err != nil {
 		slog.Default().Error("failed to load student data snapshot", slog.String("error", err.Error()))
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -436,7 +373,7 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	rs.applyStatusDaysForDate(r.Context(), responses, now)
 	if err := rs.enrichWithDayPlanning(r.Context(), responses, now, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
 		slog.Default().Error("failed to enrich student day planning", slog.String("error", err.Error()))
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	responses = applyDayPlanningFilter(responses, params.dayStatus)
@@ -590,7 +527,7 @@ func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListPar
 func (rs *Resource) listSchoolClasses(w http.ResponseWriter, r *http.Request) {
 	classes, err := rs.StudentService.ListSchoolClasses(r.Context())
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, classes, "School classes retrieved successfully")
@@ -715,7 +652,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		if err := rs.enrichWithDayPlanning(r.Context(), single, now, map[int64]*activeService.AttendanceStatus{
 			student.ID: attendanceStatus,
 		}); err != nil {
-			renderError(w, r, ErrorInternalServer(err))
+			renderError(w, r, common.ErrorInternalServer(err))
 			return
 		}
 		response.StudentResponse = single[0]
@@ -783,13 +720,13 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *users.Studen
 		student.GroupID = req.GroupID
 	}
 	if req.AddressStreet != "" {
-		student.AddressStreet = optionalString(req.AddressStreet)
+		student.AddressStreet = strutil.TrimToNil(req.AddressStreet)
 	}
 	if req.AddressCity != "" {
-		student.AddressCity = optionalString(req.AddressCity)
+		student.AddressCity = strutil.TrimToNil(req.AddressCity)
 	}
 	if req.AddressPostalCode != "" {
-		student.AddressPostalCode = optionalString(req.AddressPostalCode)
+		student.AddressPostalCode = strutil.TrimToNil(req.AddressPostalCode)
 	}
 	if req.ExtraInfo != nil {
 		student.ExtraInfo = req.ExtraInfo
@@ -907,93 +844,26 @@ func reconcilePickupFields(student *users.Student, status *string, days *users.P
 	}
 }
 
-// optionalString returns a pointer to the trimmed string, or nil when empty,
-// so optional JSON fields map cleanly onto nullable model columns.
-func optionalString(s string) *string {
-	trimmed := strings.TrimSpace(s)
-	if trimmed == "" {
-		return nil
-	}
-	return &trimmed
-}
-
-// toNewStudentGuardians maps the request guardian DTOs onto the service input
-// used by GuardianService.AddGuardiansToStudent.
-func toNewStudentGuardians(inputs []GuardianInput) []userService.NewStudentGuardian {
-	if len(inputs) == 0 {
-		return nil
-	}
-
-	out := make([]userService.NewStudentGuardian, 0, len(inputs))
-	for i := range inputs {
-		in := inputs[i]
-		out = append(out, userService.NewStudentGuardian{
-			Profile: userService.GuardianCreateRequest{
-				FirstName:              strings.TrimSpace(in.FirstName),
-				LastName:               strings.TrimSpace(in.LastName),
-				Email:                  optionalString(in.Email),
-				AddressStreet:          optionalString(in.AddressStreet),
-				AddressCity:            optionalString(in.AddressCity),
-				AddressPostalCode:      optionalString(in.AddressPostalCode),
-				PreferredContactMethod: in.PreferredContactMethod,
-				LanguagePreference:     in.LanguagePreference,
-				Notes:                  optionalString(in.Notes),
-			},
-			Relationship: userService.StudentGuardianRelationship{
-				RelationshipType:   in.RelationshipType,
-				GuardianRole:       in.GuardianRole,
-				IsPrimary:          in.IsPrimary,
-				IsEmergencyContact: in.IsEmergencyContact,
-				CanPickup:          in.CanPickup,
-				PickupNotes:        optionalString(in.PickupNotes),
-				EmergencyPriority:  in.EmergencyPriority,
-			},
-			PhoneNumbers:      toPhoneRequests(in.PhoneNumbers),
-			ExistingProfileID: in.GuardianProfileID,
-		})
-	}
-	return out
-}
-
-// toPhoneRequests maps phone DTOs onto the service phone-number requests.
-func toPhoneRequests(phones []GuardianPhoneInput) []userService.PhoneNumberCreateRequest {
-	if len(phones) == 0 {
-		return nil
-	}
-
-	out := make([]userService.PhoneNumberCreateRequest, 0, len(phones))
-	for i := range phones {
-		p := phones[i]
-		out = append(out, userService.PhoneNumberCreateRequest{
-			PhoneNumber: strings.TrimSpace(p.PhoneNumber),
-			PhoneType:   p.PhoneType,
-			Label:       optionalString(p.Label),
-			IsPrimary:   p.IsPrimary,
-		})
-	}
-	return out
-}
-
 // createStudent handles creating a new student with their person record
 func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &StudentRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Create person from request
 	person, err := createPersonFromStudentRequest(req)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Create person and student in tenant transaction
 	student := createStudentFromRequest(req, 0) // personID set after create
 
-	guardians := toNewStudentGuardians(req.Guardians)
+	guardians := guardiansAPI.ToNewStudentGuardians(req.Guardians)
 
 	// Resolve the acting staff once — weekly schedules are stamped with
 	// CreatedBy. Only required when schedules are supplied so plain student
@@ -1007,18 +877,18 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	var staffID int64
 	if len(req.ArrivalSchedules) > 0 || len(req.PickupSchedules) > 0 {
 		if !authorize.HasPermission(permissions.UsersUpdate, jwt.PermissionsFromCtx(r.Context())) {
-			renderError(w, r, ErrorForbidden(errors.New("users:update permission required to create student schedules")))
+			renderError(w, r, common.ErrorForbidden(errors.New("users:update permission required to create student schedules")))
 			return
 		}
 		staffID, err = rs.getStaffIDFromJWT(r)
 		if err != nil {
-			renderError(w, r, ErrorForbidden(err))
+			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		// Validate guardians BEFORE writing the student. This route runs inside
 		// TenantTxMiddleware, which only rolls back on 5xx; a guardian
 		// ValidationError renders 400, so the middleware would otherwise commit
@@ -1073,10 +943,10 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		// transaction has already rolled back, so no partial data survives.
 		var validationErr *userService.ValidationError
 		if errors.As(err, &validationErr) {
-			renderError(w, r, ErrorInvalidRequest(validationErr))
+			renderError(w, r, common.ErrorInvalidRequest(validationErr))
 			return
 		}
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1085,7 +955,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Admin users creating students can see full data including detailed location
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	hasFullAccess := common.HasAdminPermissions(userPermissions)
+	hasFullAccess := authorize.HasAdminWildcard(userPermissions)
 
 	// Return the created student with person data
 	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
@@ -1234,13 +1104,13 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *users.Studen
 		student.GroupID = req.GroupID
 	}
 	if req.AddressStreet != nil {
-		student.AddressStreet = optionalString(*req.AddressStreet)
+		student.AddressStreet = strutil.TrimToNil(*req.AddressStreet)
 	}
 	if req.AddressCity != nil {
-		student.AddressCity = optionalString(*req.AddressCity)
+		student.AddressCity = strutil.TrimToNil(*req.AddressCity)
 	}
 	if req.AddressPostalCode != nil {
-		student.AddressPostalCode = optionalString(*req.AddressPostalCode)
+		student.AddressPostalCode = strutil.TrimToNil(*req.AddressPostalCode)
 	}
 	if req.ExtraInfo != nil {
 		student.ExtraInfo = req.ExtraInfo
@@ -1371,7 +1241,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &UpdateStudentRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1385,18 +1255,18 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
-		renderError(w, r, ErrorForbidden(authErr))
+		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
 
 	// Track whether the user is admin or group supervisor
-	isAdmin := common.HasAdminPermissions(userPermissions)
+	isAdmin := authorize.HasAdminWildcard(userPermissions)
 	isGroupSupervisor := !isAdmin // If not admin but authorized, must be group supervisor
 
 	// Update person fields using helper function
 	personResult := applyPersonUpdates(req, person)
 	if personResult.err != nil {
-		renderError(w, r, ErrorInvalidRequest(personResult.err))
+		renderError(w, r, common.ErrorInvalidRequest(personResult.err))
 		return
 	}
 
@@ -1404,7 +1274,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// states simultaneously. The frontend uses the SICK_EXCUSED_CONFLICT code
 	// to prompt the user to switch states rather than hold both.
 	if err := checkSickExcusedConflict(req, student); err != nil {
-		renderError(w, r, ErrorConflictWithCode(err, ErrCodeSickExcusedConflict))
+		renderError(w, r, common.ErrorConflictWithCode(err, ErrCodeSickExcusedConflict))
 		return
 	}
 
@@ -1437,7 +1307,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// concurrent photo upload can't have its photo_path clobbered by a stale
 	// snapshot write.
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		// Acquire the photo-feature advisory lock only when consent is
 		// actually toggling. Name/notes edits must not queue behind
 		// feature disable/purge.
@@ -1486,7 +1356,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		effectiveConsent := reconcilePhotoConsentRequest(req.PhotoConsentGiven, student, fresh)
 		rs.StudentPhotos.ApplyConsentTransition(ctx, effectiveConsent, fresh)
 
-		if err := rs.persistStudentStatusHistory(ctx, fresh, wasSick, wasExcused, statusHistoryNow, normalizeSickReason(req.SickReason)); err != nil {
+		if err := rs.persistStudentStatusHistory(ctx, fresh, wasSick, wasExcused, statusHistoryNow, strutil.TrimPtrToNil(req.SickReason)); err != nil {
 			rs.logStatusHistoryError(student.ID, err)
 			return err
 		}
@@ -1504,18 +1374,18 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return nil
 	}); err != nil {
 		if errors.Is(err, errSickExcusedConflict) {
-			renderError(w, r, ErrorConflictWithCode(
+			renderError(w, r, common.ErrorConflictWithCode(
 				errors.New("a student cannot be both sick and excused at the same time"),
 				ErrCodeSickExcusedConflict,
 			))
 			return
 		}
 		if errors.Is(err, errStudentReassigned) {
-			renderError(w, r, ErrorForbidden(errors.New("you can only update students in groups you supervise")))
+			renderError(w, r, common.ErrorForbidden(errors.New("you can only update students in groups you supervise")))
 			return
 		}
 		if errors.Is(err, errStudentNotFoundUnderLock) {
-			renderError(w, r, ErrorNotFound(errors.New("student not found")))
+			renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 			return
 		}
 		// The merged plan (request modes applied onto the stored row) can violate
@@ -1525,17 +1395,17 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		// (#1694). The binder cannot catch this on update: only here is the
 		// stored note visible to fall back on.
 		if errors.Is(err, users.ErrDepartureCompanionNoteRequired) {
-			renderError(w, r, ErrorInvalidRequest(err))
+			renderError(w, r, common.ErrorInvalidRequest(err))
 			return
 		}
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	// Get updated student with person data
 	updatedStudent, err := rs.PersonService.GetStudentByID(r.Context(), student.ID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1572,7 +1442,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	authorized, authErr := canDeleteStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
-		renderError(w, r, ErrorForbidden(authErr))
+		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
 
@@ -1580,7 +1450,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	// so a concurrent upload can't orphan a new file on disk. The unlink
 	// itself runs after the OUTER tenant tx commits.
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		// FOR UPDATE row-locks against any in-flight upload tx. We either
 		// observe its committed photo_path or it sees our deleted row and
 		// aborts.
@@ -1612,77 +1482,9 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 			renderError(w, r, common.ErrorConflictMessage("Kind kann nicht gelöscht werden: Kind hat aktive Besuche, Einschreibungen oder andere verknüpfte Daten"))
 			return
 		}
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Student deleted successfully")
 }
-
-// =============================================================================
-// Exported Handler Methods for Testing
-// =============================================================================
-// These methods expose the underlying handlers for test access without going
-// through the router's middleware chain.
-
-// ListStudentsHandler returns the handler for listing students.
-func (rs *Resource) ListStudentsHandler() http.HandlerFunc { return rs.listStudents }
-
-// ListSchoolClassesHandler returns the handler for listing distinct school classes.
-func (rs *Resource) ListSchoolClassesHandler() http.HandlerFunc { return rs.listSchoolClasses }
-
-// SchoolCheckinHandler returns the handler for POST /api/students/{id}/school-checkin.
-// Exposed for integration tests that bypass the router's middleware chain.
-func (rs *Resource) SchoolCheckinHandler() http.HandlerFunc { return rs.schoolCheckinHandler }
-
-// GetStudentHandler returns the handler for getting a single student.
-func (rs *Resource) GetStudentHandler() http.HandlerFunc { return rs.getStudent }
-
-// CreateStudentHandler returns the handler for creating a student.
-func (rs *Resource) CreateStudentHandler() http.HandlerFunc { return rs.createStudent }
-
-// UpdateStudentHandler returns the handler for updating a student.
-func (rs *Resource) UpdateStudentHandler() http.HandlerFunc { return rs.updateStudent }
-
-// DeleteStudentHandler returns the handler for deleting a student.
-func (rs *Resource) DeleteStudentHandler() http.HandlerFunc { return rs.deleteStudent }
-
-// GetStudentCurrentLocationHandler returns the handler for getting a student's current location.
-func (rs *Resource) GetStudentCurrentLocationHandler() http.HandlerFunc {
-	return rs.getStudentCurrentLocation
-}
-
-// GetStudentInGroupRoomHandler returns the handler for checking if a student is in their group room.
-func (rs *Resource) GetStudentInGroupRoomHandler() http.HandlerFunc { return rs.getStudentInGroupRoom }
-
-// GetStudentCurrentVisitHandler returns the handler for getting a student's current visit.
-func (rs *Resource) GetStudentCurrentVisitHandler() http.HandlerFunc {
-	return rs.getStudentCurrentVisit
-}
-
-// GetStudentVisitHistoryHandler returns the handler for getting a student's visit history.
-func (rs *Resource) GetStudentVisitHistoryHandler() http.HandlerFunc {
-	return rs.getStudentVisitHistory
-}
-
-// GetStudentAttendanceHistoryHandler returns the handler for getting a student's
-// attendance history (daily presence + per-day room movement).
-func (rs *Resource) GetStudentAttendanceHistoryHandler() http.HandlerFunc {
-	return rs.getStudentAttendanceHistory
-}
-
-// GetStudentPrivacyConsentHandler returns the handler for getting a student's privacy consent.
-func (rs *Resource) GetStudentPrivacyConsentHandler() http.HandlerFunc {
-	return rs.getStudentPrivacyConsent
-}
-
-// UpdateStudentPrivacyConsentHandler returns the handler for updating a student's privacy consent.
-func (rs *Resource) UpdateStudentPrivacyConsentHandler() http.HandlerFunc {
-	return rs.updateStudentPrivacyConsent
-}
-
-// AssignRFIDTagHandler returns the handler for assigning an RFID tag to a student.
-func (rs *Resource) AssignRFIDTagHandler() http.HandlerFunc { return rs.assignRFIDTag }
-
-// UnassignRFIDTagHandler returns the handler for unassigning an RFID tag from a student.
-func (rs *Resource) UnassignRFIDTagHandler() http.HandlerFunc { return rs.unassignRFIDTag }

@@ -13,6 +13,7 @@ import (
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -59,79 +60,15 @@ func (s teacherRepositoryStub) FindWithStaffAndPersonByIDs(context.Context, []in
 	return nil, nil
 }
 
+// personServiceWithTeacherRepo embeds the shared PersonServiceMock and
+// overrides only the teacher-lookup methods, delegating them to a
+// userModels.TeacherRepository so tests can drive teacher-repository errors
+// through the PersonService seam.
 type personServiceWithTeacherRepo struct {
+	*userstest.PersonServiceMock
 	teacherRepo userModels.TeacherRepository
 }
 
-func (s personServiceWithTeacherRepo) Get(context.Context, interface{}) (*userModels.Person, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) GetByIDs(context.Context, []int64) (map[int64]*userModels.Person, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) Create(context.Context, *userModels.Person) error { return nil }
-func (s personServiceWithTeacherRepo) Update(context.Context, *userModels.Person) error { return nil }
-func (s personServiceWithTeacherRepo) Delete(context.Context, interface{}) error        { return nil }
-func (s personServiceWithTeacherRepo) List(context.Context, *modelBase.QueryOptions) ([]*userModels.Person, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) FindByTagID(context.Context, string) (*userModels.Person, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) FindByAccountID(context.Context, int64) (*userModels.Person, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) FindByName(context.Context, string, string) ([]*userModels.Person, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) LinkToAccount(context.Context, int64, int64) error { return nil }
-func (s personServiceWithTeacherRepo) UnlinkFromAccount(context.Context, int64) error    { return nil }
-func (s personServiceWithTeacherRepo) LinkToRFIDCard(context.Context, int64, string) error {
-	return nil
-}
-func (s personServiceWithTeacherRepo) UnlinkFromRFIDCard(context.Context, int64) error { return nil }
-func (s personServiceWithTeacherRepo) GetFullProfile(context.Context, int64) (*userModels.Person, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) FindByGuardianID(context.Context, int64) ([]*userModels.Person, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) ListAvailableRFIDCards(context.Context) ([]*userModels.RFIDCard, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) ValidateStaffPIN(context.Context, string) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) ValidateStaffPINForSpecificStaff(context.Context, int64, string) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) GetStudentsByTeacher(context.Context, int64) ([]*userModels.Student, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) GetStudentsWithGroupsByTeacher(context.Context, int64) ([]usersSvc.StudentWithGroup, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) GetAllStudentsWithGroups(context.Context) ([]usersSvc.StudentWithGroup, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) GetStaffByID(context.Context, int64) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) GetStaffByPersonID(context.Context, int64) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) GetStaffWithPerson(context.Context, int64) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) GetStaffWithPersonByIDs(context.Context, []int64) (map[int64]*userModels.Staff, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) ListStaffWithPerson(context.Context) ([]*userModels.Staff, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) ListStaffByRoles(context.Context, []string) ([]*userModels.StaffWithRoleInfo, error) {
-	return nil, nil
-}
 func (s personServiceWithTeacherRepo) GetTeacherByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error) {
 	if s.teacherRepo == nil {
 		return nil, nil
@@ -150,21 +87,6 @@ func (s personServiceWithTeacherRepo) ListTeachersWithStaffAndPerson(ctx context
 	}
 	return s.teacherRepo.ListAllWithStaffAndPerson(ctx)
 }
-func (s personServiceWithTeacherRepo) GetStudentByID(context.Context, int64) (*userModels.Student, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) GetStudentByPersonID(context.Context, int64) (*userModels.Student, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) GetStudentsByIDs(context.Context, []int64) (map[int64]*userModels.Student, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) GetStudentsByGroupID(context.Context, int64) ([]*userModels.Student, error) {
-	return nil, nil
-}
-func (s personServiceWithTeacherRepo) GetStudentsByGroupIDs(context.Context, []int64) ([]*userModels.Student, error) {
-	return nil, nil
-}
 func (s personServiceWithTeacherRepo) GetTeachersBySpecialization(ctx context.Context, spec string) ([]*userModels.Teacher, error) {
 	if s.teacherRepo == nil {
 		return nil, nil
@@ -177,15 +99,6 @@ func (s personServiceWithTeacherRepo) GetTeacherWithStaffAndPerson(ctx context.C
 	}
 	return s.teacherRepo.FindWithStaffAndPerson(ctx, id)
 }
-func (s personServiceWithTeacherRepo) CreateStaffWithTeacher(_ context.Context, _ usersSvc.CreateStaffInput) (*userModels.Staff, *userModels.Teacher, bool, error) {
-	return nil, nil, false, nil
-}
-func (s personServiceWithTeacherRepo) UpdateStaffWithTeacher(_ context.Context, _ *userModels.Staff, _ bool, _, _, _ string) (*userModels.Teacher, usersSvc.TeacherAction, error) {
-	return nil, usersSvc.TeacherActionNone, nil
-}
-func (s personServiceWithTeacherRepo) CountStudentsByGroupIDs(context.Context, []int64) (map[int64]int, error) {
-	return nil, nil
-}
 
 func requestWithDeviceContext() *http.Request {
 	req := httptest.NewRequest(http.MethodGet, "/teachers", nil)
@@ -197,6 +110,7 @@ func requestWithDeviceContext() *http.Request {
 func TestGetAvailableTeachers_RendersTeacherRepositoryErrors(t *testing.T) {
 	resource := &Resource{
 		UsersService: personServiceWithTeacherRepo{
+			PersonServiceMock: &userstest.PersonServiceMock{},
 			teacherRepo: teacherRepositoryStub{
 				listAllWithStaffAndPersonFn: func(context.Context) ([]*userModels.Teacher, error) {
 					return nil, errors.New("teacher repository unavailable")
@@ -205,7 +119,7 @@ func TestGetAvailableTeachers_RendersTeacherRepositoryErrors(t *testing.T) {
 		},
 	}
 	router := chi.NewRouter()
-	router.Get("/teachers", resource.GetAvailableTeachersHandler())
+	router.Get("/teachers", resource.getAvailableTeachers)
 
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, requestWithDeviceContext())
@@ -216,6 +130,7 @@ func TestGetAvailableTeachers_RendersTeacherRepositoryErrors(t *testing.T) {
 func TestGetAvailableTeachers_UsesTeacherRoster(t *testing.T) {
 	resource := &Resource{
 		UsersService: personServiceWithTeacherRepo{
+			PersonServiceMock: &userstest.PersonServiceMock{},
 			teacherRepo: teacherRepositoryStub{
 				listAllWithStaffAndPersonFn: func(context.Context) ([]*userModels.Teacher, error) {
 					return []*userModels.Teacher{
@@ -238,7 +153,7 @@ func TestGetAvailableTeachers_UsesTeacherRoster(t *testing.T) {
 		},
 	}
 	router := chi.NewRouter()
-	router.Get("/teachers", resource.GetAvailableTeachersHandler())
+	router.Get("/teachers", resource.getAvailableTeachers)
 
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, requestWithDeviceContext())

@@ -26,6 +26,7 @@ import (
 	repoSuggestions "github.com/moto-nrw/project-phoenix/database/repositories/suggestions"
 	repoUsers "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -643,10 +644,10 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	// 4. Custom TenantWhere + AssertRowsAffected path
 	// ------------------------------------------------------------------
 
-	t.Run("student AssignToGroup blocked", func(t *testing.T) {
+	t.Run("student UpdateStatus blocked", func(t *testing.T) {
 		repo := repoUsers.NewStudentRepository(db)
-		err := repo.AssignToGroup(ctxB, studentA.ID, groupA.ID)
-		require.Error(t, err, "cross-tenant AssignToGroup must fail")
+		err := repo.UpdateStatus(ctxB, studentA.ID, users.StudentStatusInactive)
+		require.Error(t, err, "cross-tenant UpdateStatus must fail")
 		assert.Contains(t, err.Error(), "rows affected",
 			"error should mention rows affected guard")
 	})

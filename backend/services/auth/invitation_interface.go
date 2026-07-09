@@ -5,7 +5,6 @@ import (
 	"time"
 
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // InvitationRequest describes the data required to create a new invitation.
@@ -42,8 +41,6 @@ type InvitationValidationResult struct {
 
 // InvitationService defines the operations for managing invitation workflows.
 type InvitationService interface {
-	base.TransactionalService
-
 	CreateInvitation(ctx context.Context, req InvitationRequest) (*authModels.InvitationToken, error)
 	ValidateInvitation(ctx context.Context, token string) (*InvitationValidationResult, error)
 	AcceptInvitation(ctx context.Context, token string, userData UserRegistrationData) (*authModels.Account, error)

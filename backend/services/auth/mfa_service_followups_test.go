@@ -8,7 +8,6 @@ package auth_test
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -531,7 +530,7 @@ func TestMFAService_OperatorSetGlobalMFAOverride_WritesOperatorAuditLog(t *testi
 
 	// operator_audit_log.operator_id has a NOT NULL FK to platform.operators,
 	// so the override actor must be a real operator row, not a synthetic ID.
-	op := createTestOperatorForAuthMFATest(t, db, "global-override-audit")
+	op := testpkg.CreateTestOperator(t, db)
 	t.Cleanup(func() {
 		_, _ = db.NewDelete().Model((*platformModels.Operator)(nil)).
 			ModelTableExpr("platform.operators").
@@ -559,24 +558,6 @@ func TestMFAService_OperatorSetGlobalMFAOverride_WritesOperatorAuditLog(t *testi
 	assert.Equal(t, "platform", changes["scope"])
 	assert.Equal(t, auth.MFAAdminOverrideForceOff, changes["override"])
 	assert.Equal(t, "mailbox lockout account-wide", changes["reason"])
-}
-
-// createTestOperatorForAuthMFATest inserts a fresh platform.operators row.
-// Mirrors createTestOperatorForMFAService in the services/platform package
-// (can't be shared across packages without an import cycle).
-func createTestOperatorForAuthMFATest(t *testing.T, db *bun.DB, slug string) *platformModels.Operator {
-	t.Helper()
-	op := &platformModels.Operator{
-		Email:        fmt.Sprintf("op-auth-mfa-%s-%d@test.local", slug, time.Now().UnixNano()),
-		DisplayName:  "Auth MFA Test Operator",
-		PasswordHash: "$argon2id$placeholder-auth-mfa",
-		Active:       true,
-	}
-	_, err := db.NewInsert().Model(op).
-		ModelTableExpr("platform.operators").
-		Exec(context.Background())
-	require.NoError(t, err)
-	return op
 }
 
 // waitForOperatorAuditLog polls platform.operator_audit_log for a row matching

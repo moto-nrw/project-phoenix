@@ -3,7 +3,6 @@ package users
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -43,9 +42,7 @@ func (r *GuestRepository) FindByStaffID(ctx context.Context, staffID int64) (*us
 		ModelTableExpr(tableExprGuestsAsGuest).
 		Where("staff_id = ?", staffID)
 
-	if where, val, ok := base.TenantWhere(ctx, "guest"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "guest")
 
 	err := query.Scan(ctx)
 
@@ -59,54 +56,6 @@ func (r *GuestRepository) FindByStaffID(ctx context.Context, staffID int64) (*us
 	return guest, nil
 }
 
-// FindByOrganization retrieves guests by their organization
-func (r *GuestRepository) FindByOrganization(ctx context.Context, organization string) ([]*users.Guest, error) {
-	var guests []*users.Guest
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&guests).
-		ModelTableExpr(tableExprGuestsAsGuest).
-		Where("LOWER(organization) = LOWER(?)", organization)
-
-	if where, val, ok := base.TenantWhere(ctx, "guest"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by organization",
-			Err: err,
-		}
-	}
-
-	return guests, nil
-}
-
-// FindByExpertise retrieves guests by their activity expertise
-func (r *GuestRepository) FindByExpertise(ctx context.Context, expertise string) ([]*users.Guest, error) {
-	var guests []*users.Guest
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&guests).
-		ModelTableExpr(tableExprGuestsAsGuest).
-		Where("LOWER(activity_expertise) LIKE LOWER(?)", "%"+expertise+"%")
-
-	if where, val, ok := base.TenantWhere(ctx, "guest"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by expertise",
-			Err: err,
-		}
-	}
-
-	return guests, nil
-}
-
 // FindActive retrieves currently active guests
 func (r *GuestRepository) FindActive(ctx context.Context) ([]*users.Guest, error) {
 	var guests []*users.Guest
@@ -117,9 +66,7 @@ func (r *GuestRepository) FindActive(ctx context.Context) ([]*users.Guest, error
 		ModelTableExpr(tableExprGuestsAsGuest).
 		Where("(start_date IS NULL OR start_date <= ?) AND (end_date IS NULL OR end_date >= ?)", today, today)
 
-	if where, val, ok := base.TenantWhere(ctx, "guest"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "guest")
 
 	err := query.Scan(ctx)
 
@@ -131,60 +78,6 @@ func (r *GuestRepository) FindActive(ctx context.Context) ([]*users.Guest, error
 	}
 
 	return guests, nil
-}
-
-// SetDateRange sets a guest's start and end dates
-func (r *GuestRepository) SetDateRange(ctx context.Context, id int64, startDate, endDate timezone.Date) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Guest)(nil)).
-		ModelTableExpr(tableExprGuestsAsGuest).
-		Set("start_date = ?", startDate).
-		Set("end_date = ?", endDate).
-		Where(`"guest".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "guest"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "set date range",
-			Err: err,
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "set date range")
-}
-
-// Create overrides the base Create method to handle validation
-func (r *GuestRepository) Create(ctx context.Context, guest *users.Guest) error {
-	if guest == nil {
-		return fmt.Errorf("guest cannot be nil")
-	}
-
-	// Validate guest
-	if err := guest.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, guest)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *GuestRepository) Update(ctx context.Context, guest *users.Guest) error {
-	if guest == nil {
-		return fmt.Errorf("guest cannot be nil")
-	}
-
-	// Validate guest
-	if err := guest.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, guest)
 }
 
 // Legacy method to maintain compatibility with old interface
@@ -255,56 +148,6 @@ func applyHasOrganizationFilter(filter *modelBase.Filter, value interface{}) {
 	}
 }
 
-// ListWithOptions provides a type-safe way to list guests with query options
-func (r *GuestRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Guest, error) {
-	var guests []*users.Guest
-	query := base.GetDB(ctx, r.db).NewSelect().Model(&guests).ModelTableExpr(tableExprGuestsAsGuest)
-
-	if where, val, ok := base.TenantWhere(ctx, "guest"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
-	}
-
-	return guests, nil
-}
-
-// FindWithStaff retrieves a guest with their associated staff data
-func (r *GuestRepository) FindWithStaff(ctx context.Context, id int64) (*users.Guest, error) {
-	guest := new(users.Guest)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(guest).
-		ModelTableExpr(tableExprGuestsAsGuest).
-		Relation("Staff").
-		Where(`"guest".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "guest"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with staff",
-			Err: err,
-		}
-	}
-
-	return guest, nil
-}
-
 // FindWithStaffAndPerson retrieves a guest with their associated staff and person data
 func (r *GuestRepository) FindWithStaffAndPerson(ctx context.Context, id int64) (*users.Guest, error) {
 	guest := new(users.Guest)
@@ -315,9 +158,7 @@ func (r *GuestRepository) FindWithStaffAndPerson(ctx context.Context, id int64) 
 		Relation("Staff.Person").
 		Where(`"guest".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "guest"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "guest")
 
 	err := query.Scan(ctx)
 

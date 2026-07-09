@@ -14,8 +14,7 @@ var (
 	ErrDeviceOffline     = errors.New("device is offline")
 	ErrNetworkScanFailed = errors.New("network scan failed")
 	ErrDatabaseOperation = errors.New("database operation failed")
-	ErrDeviceInUse       = errors.New("Gerät kann nicht gelöscht werden: Gerät wird aktuell von einer aktiven Gruppe verwendet") //nolint:staticcheck // ST1005: user-facing German message
-	ErrDeviceProtected   = errors.New("Systemgerät kann nicht geändert oder gelöscht werden")                                    //nolint:staticcheck // ST1005: user-facing German message
+	ErrDeviceProtected   = errors.New("Systemgerät kann nicht geändert oder gelöscht werden") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // IoTError wraps IoT service errors with operation context

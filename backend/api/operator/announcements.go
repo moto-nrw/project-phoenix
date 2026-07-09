@@ -255,58 +255,17 @@ func (rs *AnnouncementsResource) UpdateAnnouncement(w http.ResponseWriter, r *ht
 
 // DeleteAnnouncement handles deleting an announcement
 func (rs *AnnouncementsResource) DeleteAnnouncement(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
-	operatorID := int64(claims.ID)
-
-	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")
-	if !ok {
-		return
-	}
-
-	clientIP := getClientIP(r)
-
-	if err := rs.announcementService.DeleteAnnouncement(r.Context(), id, operatorID, clientIP); err != nil {
-		common.RenderError(w, r, AnnouncementErrorRenderer(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, nil, "Announcement deleted successfully")
+	idAuditedAction(w, r, "id", "invalid announcement ID", rs.announcementService.DeleteAnnouncement, AnnouncementErrorRenderer, "Announcement deleted successfully")
 }
 
 // PublishAnnouncement handles publishing an announcement
 func (rs *AnnouncementsResource) PublishAnnouncement(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
-	operatorID := int64(claims.ID)
-
-	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")
-	if !ok {
-		return
-	}
-
-	clientIP := getClientIP(r)
-
-	if err := rs.announcementService.PublishAnnouncement(r.Context(), id, operatorID, clientIP); err != nil {
-		common.RenderError(w, r, AnnouncementErrorRenderer(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, nil, "Announcement published successfully")
+	idAuditedAction(w, r, "id", "invalid announcement ID", rs.announcementService.PublishAnnouncement, AnnouncementErrorRenderer, "Announcement published successfully")
 }
 
 // GetStats handles getting view statistics for an announcement
 func (rs *AnnouncementsResource) GetStats(w http.ResponseWriter, r *http.Request) {
-	id, ok := common.ParseInt64IDWithError(w, r, "id", "invalid announcement ID")
-	if !ok {
-		return
-	}
-
-	stats, err := rs.announcementService.GetStats(r.Context(), id)
-	if err != nil {
-		common.RenderError(w, r, AnnouncementErrorRenderer(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, stats, "Stats retrieved successfully")
+	idList(w, r, "id", "invalid announcement ID", rs.announcementService.GetStats, AnnouncementErrorRenderer, "Stats retrieved successfully")
 }
 
 // AnnouncementViewDetailResponse represents a view detail in the response

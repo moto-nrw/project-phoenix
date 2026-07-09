@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -166,14 +167,14 @@ func parseStudentIDParam(w http.ResponseWriter, r *http.Request) (int64, bool) {
 func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request, studentID int64) (*usersModel.Student, bool) {
 	ctx := r.Context()
 
-	if rs.timetableData == nil || rs.personService == nil {
+	if rs.TimetableData == nil || rs.PersonService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("student repo not wired")))
 		return nil, false
 	}
 
-	student, err := rs.personService.GetStudentByID(ctx, studentID)
+	student, err := rs.PersonService.GetStudentByID(ctx, studentID)
 	if err != nil {
-		if isNotFoundDBError(err) {
+		if base.IsNoRows(err) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 			return nil, false
 		}
@@ -189,8 +190,8 @@ func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request
 		ctx,
 		jwt.PermissionsFromCtx(ctx),
 		student,
-		rs.userContextService,
-		rs.settingsService,
+		rs.UserContextService,
+		rs.SettingsService,
 		rs.getLogger(),
 	) {
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("forbidden")))
@@ -228,10 +229,10 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 		pickupExcByDate:      map[string]*scheduleModel.StudentPickupException{},
 	}
 
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		return nil, errors.New("timetable data service not wired")
 	}
-	enrolledRows, err := rs.timetableData.GetStudentInstancesWithAttendance(
+	enrolledRows, err := rs.TimetableData.GetStudentInstancesWithAttendance(
 		ctx, studentID, from, to,
 	)
 	if err != nil {
@@ -242,7 +243,7 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 		out.enrolledByDate[k] = append(out.enrolledByDate[k], row)
 	}
 
-	allInstances, err := rs.timetableData.GetActivityInstancesByDateRange(ctx, from, to)
+	allInstances, err := rs.TimetableData.GetActivityInstancesByDateRange(ctx, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("load all tenant instances: %w", err)
 	}
@@ -269,7 +270,7 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 	}
 
 	if len(activeGroupIDs) > 0 {
-		visits, err := rs.timetableData.GetVisitsByStudentAndActiveGroupIDs(ctx, studentID, activeGroupIDs)
+		visits, err := rs.TimetableData.GetVisitsByStudentAndActiveGroupIDs(ctx, studentID, activeGroupIDs)
 		if err != nil {
 			return nil, fmt.Errorf("load student visits: %w", err)
 		}
@@ -283,14 +284,14 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 
 	// Arrival/pickup weekly schedules: one query each returns up to 5 rows
 	// total per student (one per weekday). Cheaper than per-weekday queries.
-	arrivalSchedules, err := rs.timetableData.GetArrivalSchedulesByStudent(ctx, studentID)
+	arrivalSchedules, err := rs.TimetableData.GetArrivalSchedulesByStudent(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("load arrival schedules: %w", err)
 	}
 	for _, s := range arrivalSchedules {
 		out.arrivalSchedByWeekly[s.Weekday] = s
 	}
-	pickupSchedules, err := rs.timetableData.GetPickupSchedulesByStudent(ctx, studentID)
+	pickupSchedules, err := rs.TimetableData.GetPickupSchedulesByStudent(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("load pickup schedules: %w", err)
 	}
@@ -300,14 +301,14 @@ func (rs *Resource) preloadWeek(ctx context.Context, studentID int64, from, to t
 
 	// Arrival/pickup exceptions: range-scoped (avoid loading unbounded
 	// history).
-	arrivalExcs, err := rs.timetableData.GetArrivalExceptionsByStudentAndDateRange(ctx, studentID, from, to)
+	arrivalExcs, err := rs.TimetableData.GetArrivalExceptionsByStudentAndDateRange(ctx, studentID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("load arrival exceptions: %w", err)
 	}
 	for _, e := range arrivalExcs {
 		out.arrivalExcByDate[dateKey(e.ExceptionDate)] = e
 	}
-	pickupExcs, err := rs.timetableData.GetPickupExceptionsByStudentAndDateRange(ctx, studentID, from, to)
+	pickupExcs, err := rs.TimetableData.GetPickupExceptionsByStudentAndDateRange(ctx, studentID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("load pickup exceptions: %w", err)
 	}

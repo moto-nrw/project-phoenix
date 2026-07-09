@@ -10,7 +10,8 @@ package parent_test
 //   - creating needs messaging enabled, but withdraw stays available after the
 //     school disables it so outstanding requests can be wound down.
 //
-// Reuses stubSettings / captureBroadcaster from parent_write_service_test.go.
+// Reuses parentSettingsStub from parent_settings_stub_test.go and the shared
+// testpkg.RecordingBroadcaster.
 
 import (
 	"context"
@@ -22,6 +23,7 @@ import (
 	"github.com/uptrace/bun"
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -51,16 +53,24 @@ func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *repositories.Factory
 		StudentRepo:         repos.Student,
 		GuardianProfileRepo: repos.GuardianProfile,
 		PersonRepo:          repos.Person,
-		Settings:            stubSettings{sickEnabled: true, notesEnabled: notesEnabled},
-		Broadcaster:         &captureBroadcaster{},
-		ArrivalSchedules:    sf.ArrivalSchedule,
-		PickupSchedules:     sf.PickupSchedule,
-		CareRequests:        sf.CareRequests,
-		MessageThreadRepo:   repos.ParentMessageThread,
-		MessageRepo:         repos.ParentMessage,
-		MessageReadRepo:     repos.ParentMessageRead,
-		DB:                  db,
-		Logger:              slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{
+				configModels.KeyParentSickNoteEnabled: true,
+				configModels.KeyParentNotesEnabled:    notesEnabled,
+			},
+			stringValues: map[string]string{
+				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+			},
+		},
+		Broadcaster:       testpkg.NewRecordingBroadcaster(),
+		ArrivalSchedules:  sf.ArrivalSchedule,
+		PickupSchedules:   sf.PickupSchedule,
+		CareRequests:      sf.CareRequests,
+		MessageThreadRepo: repos.ParentMessageThread,
+		MessageRepo:       repos.ParentMessage,
+		MessageReadRepo:   repos.ParentMessageRead,
+		DB:                db,
+		Logger:            slog.Default(),
 	})
 }
 

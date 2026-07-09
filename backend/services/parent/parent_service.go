@@ -348,92 +348,27 @@ type ServiceConfig struct {
 }
 
 type service struct {
-	childRepo             parentModels.ChildRepository
-	enrollablePhaseRepo   parentModels.EnrollablePhaseRepository
-	enrollmentRequestRepo parentModels.EnrollmentRequestRepository
-	guardianProfileRepo   usersModels.GuardianProfileRepository
-
-	statusDayRepo        activeModels.StudentStatusDayRepository
-	studentRepo          usersModels.StudentRepository
-	pickupExceptionRepo  scheduleModels.StudentPickupExceptionRepository
-	arrivalExceptionRepo scheduleModels.StudentArrivalExceptionRepository
-	settings             configService.SettingsService
-	broadcaster          realtime.Broadcaster
-
-	arrivalSchedules scheduleSvc.ArrivalScheduleService
-	pickupSchedules  scheduleSvc.PickupScheduleService
-	careRequests     scheduleSvc.CareScheduleRequestService
-	emitter          *parentmessaging.Emitter
-
-	mealPlanRepo mealplanModels.MealPlanEntryRepository
-
-	messageThreadRepo usersModels.ParentMessageThreadRepository
-	messageRepo       usersModels.ParentMessageRepository
-	messageReadRepo   usersModels.ParentMessageReadRepository
-
-	announcementRepo usersModels.ParentAnnouncementRepository
-
-	guardianInvites     authService.GuardianInvitationService
-	guardianInviteRepo  authModels.GuardianInvitationRepository
-	studentGuardianRepo usersModels.StudentGuardianRepository
-
-	personRepo              usersModels.PersonRepository
-	changeRequestRepo       usersModels.StudentDataChangeRequestRepository
-	guardianPhoneRepo       usersModels.GuardianPhoneNumberRepository
-	guardianChangeAuditRepo auditModels.GuardianChangeRepository
-
-	db     *bun.DB
-	logger *slog.Logger
+	ServiceConfig
 }
 
 // NewService wires a parent-portal service.
 func NewService(cfg ServiceConfig) Service {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
-	return &service{
-		childRepo:               cfg.ChildRepo,
-		enrollablePhaseRepo:     cfg.EnrollablePhaseRepo,
-		enrollmentRequestRepo:   cfg.EnrollmentRequestRepo,
-		guardianProfileRepo:     cfg.GuardianProfileRepo,
-		statusDayRepo:           cfg.StatusDayRepo,
-		mealPlanRepo:            cfg.MealPlanRepo,
-		studentRepo:             cfg.StudentRepo,
-		pickupExceptionRepo:     cfg.PickupExceptionRepo,
-		arrivalExceptionRepo:    cfg.ArrivalExceptionRepo,
-		settings:                cfg.Settings,
-		broadcaster:             cfg.Broadcaster,
-		arrivalSchedules:        cfg.ArrivalSchedules,
-		pickupSchedules:         cfg.PickupSchedules,
-		careRequests:            cfg.CareRequests,
-		emitter:                 cfg.Emitter,
-		personRepo:              cfg.PersonRepo,
-		changeRequestRepo:       cfg.ChangeRequestRepo,
-		messageThreadRepo:       cfg.MessageThreadRepo,
-		messageRepo:             cfg.MessageRepo,
-		messageReadRepo:         cfg.MessageReadRepo,
-		announcementRepo:        cfg.AnnouncementRepo,
-		guardianInvites:         cfg.GuardianInvites,
-		guardianInviteRepo:      cfg.GuardianInviteRepo,
-		studentGuardianRepo:     cfg.StudentGuardianRepo,
-		guardianPhoneRepo:       cfg.GuardianPhoneRepo,
-		guardianChangeAuditRepo: cfg.GuardianChangeAuditRepo,
-		db:                      cfg.DB,
-		logger:                  logger,
-	}
+	return &service{ServiceConfig: cfg}
 }
 
 func (s *service) GetProfile(ctx context.Context, accountID int64) (*Profile, error) {
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
-	if s.guardianProfileRepo == nil {
+	if s.GuardianProfileRepo == nil {
 		return nil, fmt.Errorf("parent: guardian profile repo not wired")
 	}
 	profile := &Profile{Locale: localization.DefaultLocale(), Explicit: false}
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		row, err := s.guardianProfileRepo.FindByAccountID(adminCtx, accountID)
+	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		row, err := s.GuardianProfileRepo.FindByAccountID(adminCtx, accountID)
 		if err != nil {
 			return err
 		}
@@ -457,7 +392,7 @@ func (s *service) GetProfile(ctx context.Context, accountID int64) (*Profile, er
 		// to the anonymous locale rather than failing a read just to render a
 		// language. Any other error is a real fault and must surface unmasked.
 		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
-			s.logger.Warn("parent: guardian profile missing for authenticated account",
+			s.Logger.Warn("parent: guardian profile missing for authenticated account",
 				slog.Int64("account_id", accountID),
 			)
 			return &Profile{Locale: localization.DefaultLocale(), Explicit: false}, nil
@@ -471,7 +406,7 @@ func (s *service) UpdatePortalLocale(ctx context.Context, accountID int64, local
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
-	if s.guardianProfileRepo == nil {
+	if s.GuardianProfileRepo == nil {
 		return nil, fmt.Errorf("parent: guardian profile repo not wired")
 	}
 	// Reject unknown locales rather than letting NormalizeLocale silently coerce
@@ -482,8 +417,8 @@ func (s *service) UpdatePortalLocale(ctx context.Context, accountID int64, local
 		return nil, fmt.Errorf("parent: unsupported locale %q", locale)
 	}
 	normalized := localization.NormalizeLocale(locale)
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		return s.guardianProfileRepo.UpdatePortalLocaleByAccountID(adminCtx, accountID, normalized)
+	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		return s.GuardianProfileRepo.UpdatePortalLocaleByAccountID(adminCtx, accountID, normalized)
 	})
 	if err != nil {
 		// Same invariant as GetProfile: an authenticated parent always has a
@@ -493,7 +428,7 @@ func (s *service) UpdatePortalLocale(ctx context.Context, accountID int64, local
 		// a generic 500. Never swallow it into a fake success — a "saved"
 		// preference that never hit the DB must not masquerade as persisted.
 		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
-			s.logger.Warn("parent: cannot persist portal locale, no guardian profile for account",
+			s.Logger.Warn("parent: cannot persist portal locale, no guardian profile for account",
 				slog.Int64("account_id", accountID),
 			)
 		}
@@ -514,8 +449,8 @@ func (s *service) ListChildrenForAccount(ctx context.Context, accountID int64) (
 	// account_tenants WHERE clause in the query keeps the result set
 	// scoped to the caller's own membership.
 	var children []*parentModels.ChildSummary
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		list, listErr := s.childRepo.ListByAccount(adminCtx, accountID)
+	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		list, listErr := s.ChildRepo.ListByAccount(adminCtx, accountID)
 		if listErr != nil {
 			return listErr
 		}
@@ -526,7 +461,7 @@ func (s *service) ListChildrenForAccount(ctx context.Context, accountID int64) (
 		return nil, fmt.Errorf("parent: list children: %w", err)
 	}
 
-	s.logger.Debug("parent: listed children",
+	s.Logger.Debug("parent: listed children",
 		slog.Int64("account_id", accountID),
 		slog.Int("count", len(children)),
 	)
@@ -543,8 +478,8 @@ func (s *service) ListEnrollableForAccount(ctx context.Context, accountID int64)
 	}
 
 	var phases []*parentModels.EnrollablePhase
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		list, listErr := s.enrollablePhaseRepo.ListEnrollable(adminCtx, accountID)
+	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		list, listErr := s.EnrollablePhaseRepo.ListEnrollable(adminCtx, accountID)
 		if listErr != nil {
 			return listErr
 		}
@@ -555,7 +490,7 @@ func (s *service) ListEnrollableForAccount(ctx context.Context, accountID int64)
 		return nil, fmt.Errorf("parent: list enrollable: %w", err)
 	}
 
-	s.logger.Debug("parent: listed enrollable phases",
+	s.Logger.Debug("parent: listed enrollable phases",
 		slog.Int64("account_id", accountID),
 		slog.Int("count", len(phases)),
 	)
@@ -569,13 +504,13 @@ func (s *service) ListEnrollmentsForAccount(ctx context.Context, accountID int64
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
-	if s.enrollmentRequestRepo == nil {
+	if s.EnrollmentRequestRepo == nil {
 		return nil, fmt.Errorf("parent: enrollment request repo not wired")
 	}
 
 	var requests []*parentModels.EnrollmentRequestSummary
-	err := tenant.WithAdminTx(ctx, s.db, func(adminCtx context.Context, _ bun.Tx) error {
-		list, listErr := s.enrollmentRequestRepo.ListByAccount(adminCtx, accountID)
+	err := tenant.WithAdminTx(ctx, s.DB, func(adminCtx context.Context, _ bun.Tx) error {
+		list, listErr := s.EnrollmentRequestRepo.ListByAccount(adminCtx, accountID)
 		if listErr != nil {
 			return listErr
 		}
@@ -599,7 +534,7 @@ func (s *service) ListEnrollmentsForAccount(ctx context.Context, accountID int64
 		}
 	}
 
-	s.logger.Debug("parent: listed enrollment requests",
+	s.Logger.Debug("parent: listed enrollment requests",
 		slog.Int64("account_id", accountID),
 		slog.Int("count", len(requests)),
 	)

@@ -82,10 +82,10 @@ func TestOperatorPasskeySummaryAndUser(t *testing.T) {
 	assert.Equal(t, now, summary.CreatedAt)
 	assert.Equal(t, &lastUsedAt, summary.LastUsedAt)
 
-	user := &operatorPasskeyUser{
-		userHandle:  []byte("handle"),
-		name:        "operator@example.test",
-		displayName: "Operator",
+	user := &authService.WebAuthnUser{
+		UserHandle:  []byte("handle"),
+		Name:        "operator@example.test",
+		DisplayName: "Operator",
 	}
 	assert.Equal(t, []byte("handle"), user.WebAuthnID())
 	assert.Equal(t, "operator@example.test", user.WebAuthnName())
@@ -557,7 +557,7 @@ func TestOperatorPasskeyCredentialServiceMethods(t *testing.T) {
 	repo.rows = nil
 	user, err = svc.passkeyUserForOperator(context.Background(), operator)
 	require.NoError(t, err)
-	assert.Len(t, user.WebAuthnID(), authService.PasskeyUserHandleBytesForPlatform())
+	assert.Len(t, user.WebAuthnID(), authService.PasskeyUserHandleBytes)
 
 	user, err = svc.passkeyUserForOperator(context.Background(), operator, []byte("session-handle"))
 	require.NoError(t, err)
@@ -596,13 +596,6 @@ func (r *operatorPasskeyCredentialRepoStub) Create(context.Context, *platformMod
 
 func (r *operatorPasskeyCredentialRepoStub) FindActiveByOperatorID(context.Context, int64) ([]*platformModel.OperatorPasskeyCredential, error) {
 	return r.rows, r.err
-}
-
-func (r *operatorPasskeyCredentialRepoStub) FindActiveByCredentialID(context.Context, []byte) (*platformModel.OperatorPasskeyCredential, error) {
-	if len(r.rows) == 0 {
-		return nil, r.err
-	}
-	return r.rows[0], r.err
 }
 
 func (r *operatorPasskeyCredentialRepoStub) FindActiveByCredentialIDAndUserHandle(context.Context, []byte, []byte) (*platformModel.OperatorPasskeyCredential, error) {
@@ -801,17 +794,13 @@ func TestOperatorPasskeyRepositories(t *testing.T) {
 	require.Len(t, active, 1)
 	assert.Equal(t, "Admin laptop", active[0].Name)
 
-	byID, err := repos.OperatorPasskeyCredential.FindActiveByCredentialID(ctx, credentialID)
-	require.NoError(t, err)
-	assert.Equal(t, credential.ID, byID.ID)
-
 	byHandle, err := repos.OperatorPasskeyCredential.FindActiveByCredentialIDAndUserHandle(ctx, credentialID, userHandle)
 	require.NoError(t, err)
 	assert.Equal(t, credential.ID, byHandle.ID)
 
 	usedAt := time.Now().UTC().Truncate(time.Microsecond)
 	require.NoError(t, repos.OperatorPasskeyCredential.UpdateAfterUse(ctx, credential.ID, json.RawMessage(`{"id":"operator-updated"}`), usedAt))
-	updated, err := repos.OperatorPasskeyCredential.FindActiveByCredentialID(ctx, credentialID)
+	updated, err := repos.OperatorPasskeyCredential.FindActiveByCredentialIDAndUserHandle(ctx, credentialID, userHandle)
 	require.NoError(t, err)
 	require.NotNil(t, updated.LastUsedAt)
 	assert.JSONEq(t, `{"id":"operator-updated"}`, string(updated.CredentialJSON))

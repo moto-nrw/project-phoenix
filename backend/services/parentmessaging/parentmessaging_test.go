@@ -17,6 +17,7 @@ import (
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // --- fakes --------------------------------------------------------------
@@ -112,17 +113,6 @@ func (f *fakeReadRepo) LatestReadCursorByOther(context.Context, int64, int64) (*
 
 func (f *fakeReadRepo) GuardianReadCursor(context.Context, int64) (*usersModels.ReadCursor, error) {
 	return f.guardianCursor, f.guardianCursorErr
-}
-
-type fakeBroadcaster struct {
-	realtime.Broadcaster
-	err  error
-	sent []realtime.Event
-}
-
-func (f *fakeBroadcaster) BroadcastParentMessage(_, _ int64, e realtime.Event) error {
-	f.sent = append(f.sent, e)
-	return f.err
 }
 
 func msg(id, sender int64, kind string) *usersModels.ParentMessage {
@@ -426,17 +416,17 @@ func TestDecorateGuardianReadReceipts_LookupErrorLeavesUnstamped(t *testing.T) {
 // --- Broadcast / BroadcastRead ------------------------------------------
 
 func TestBroadcast_FiresParentMessageEvent(t *testing.T) {
-	bc := &fakeBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	Broadcast(bc, nil, 1, 200, 42, 7)
-	require.Len(t, bc.sent, 1)
-	assert.Equal(t, realtime.EventParentMessage, bc.sent[0].Type)
+	require.Len(t, bc.Events(), 1)
+	assert.Equal(t, realtime.EventParentMessage, bc.Events()[0].Type)
 }
 
 func TestBroadcastRead_FiresReadEvent(t *testing.T) {
-	bc := &fakeBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	BroadcastRead(bc, nil, 1, 200, 42, 7)
-	require.Len(t, bc.sent, 1)
-	assert.Equal(t, realtime.EventParentMessageRead, bc.sent[0].Type)
+	require.Len(t, bc.Events(), 1)
+	assert.Equal(t, realtime.EventParentMessageRead, bc.Events()[0].Type)
 }
 
 func TestBroadcast_NilBroadcasterAndBadTenantAreNoOps(t *testing.T) {
@@ -445,16 +435,17 @@ func TestBroadcast_NilBroadcasterAndBadTenantAreNoOps(t *testing.T) {
 	BroadcastRead(nil, nil, 1, 200, 42, 7)
 	// Non-positive tenant: a no-op even with a live broadcaster (never fan out an
 	// un-scoped event across the whole platform).
-	bc := &fakeBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	Broadcast(bc, nil, 0, 200, 42, 7)
 	BroadcastRead(bc, nil, -1, 200, 42, 7)
-	assert.Empty(t, bc.sent, "a non-positive tenant must not broadcast")
+	assert.Empty(t, bc.Events(), "a non-positive tenant must not broadcast")
 }
 
 func TestBroadcast_DeliveryErrorIsSwallowed(t *testing.T) {
 	// A delivery error is logged, never returned (the message already committed).
-	bc := &fakeBroadcaster{err: errors.New("client buffer full")}
+	bc := testpkg.NewRecordingBroadcaster()
+	bc.Err = errors.New("client buffer full")
 	Broadcast(bc, nil, 1, 200, 42, 7)
 	BroadcastRead(bc, nil, 1, 200, 42, 7)
-	assert.Len(t, bc.sent, 2, "the fan-out is attempted; the error does not propagate")
+	assert.Len(t, bc.Events(), 2, "the fan-out is attempted; the error does not propagate")
 }

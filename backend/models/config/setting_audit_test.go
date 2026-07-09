@@ -66,11 +66,6 @@ func TestSettingAuditEntry_GetID(t *testing.T) {
 	assert.Equal(t, int64(99), entry.GetID())
 }
 
-func TestSettingAuditEntry_TableName(t *testing.T) {
-	entry := &config.SettingAuditEntry{}
-	assert.Equal(t, "config.setting_audit", entry.TableName())
-}
-
 func TestSettingAuditEntry_GetCreatedAt_ReturnsChangedAt(t *testing.T) {
 	entry := &config.SettingAuditEntry{}
 	assert.Equal(t, entry.ChangedAt, entry.GetCreatedAt())

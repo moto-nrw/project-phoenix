@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 const (
@@ -75,22 +74,6 @@ type Appointment struct {
 	CancelledAt        *time.Time    `bun:"cancelled_at" json:"cancelled_at,omitempty"`
 }
 
-func (a *Appointment) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`calendar.appointments AS "appointment"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`calendar.appointments AS "appointment"`)
-	}
-	return nil
-}
-
-func (a *Appointment) TableName() string { return "calendar.appointments" }
-
-func (a *Appointment) GetID() any              { return a.ID }
-func (a *Appointment) GetCreatedAt() time.Time { return a.CreatedAt }
-func (a *Appointment) GetUpdatedAt() time.Time { return a.UpdatedAt }
-
 func (a *Appointment) Validate() error {
 	if a.OrganizerStaffID <= 0 {
 		return errors.New("organizer_staff_id is required")
@@ -140,11 +123,6 @@ type RecurrenceRule struct {
 	OccurrenceCount *int           `bun:"occurrence_count" json:"occurrence_count,omitempty"`
 }
 
-func (r *RecurrenceRule) TableName() string       { return "calendar.recurrence_rules" }
-func (r *RecurrenceRule) GetID() any              { return r.ID }
-func (r *RecurrenceRule) GetCreatedAt() time.Time { return r.CreatedAt }
-func (r *RecurrenceRule) GetUpdatedAt() time.Time { return r.UpdatedAt }
-
 func (r *RecurrenceRule) Validate() error {
 	if r.AppointmentID <= 0 {
 		return errors.New("appointment_id is required")
@@ -188,11 +166,6 @@ type AppointmentRecipient struct {
 	RespondedAt       *time.Time `bun:"responded_at" json:"responded_at,omitempty"`
 }
 
-func (r *AppointmentRecipient) TableName() string       { return "calendar.appointment_recipients" }
-func (r *AppointmentRecipient) GetID() any              { return r.ID }
-func (r *AppointmentRecipient) GetCreatedAt() time.Time { return r.CreatedAt }
-func (r *AppointmentRecipient) GetUpdatedAt() time.Time { return r.UpdatedAt }
-
 func (r *AppointmentRecipient) Validate() error {
 	if r.AppointmentID <= 0 {
 		return errors.New("appointment_id is required")
@@ -225,13 +198,6 @@ type AppointmentRecipientStudent struct {
 	StudentID   int64 `bun:"student_id,notnull" json:"student_id"`
 }
 
-func (r *AppointmentRecipientStudent) TableName() string {
-	return "calendar.appointment_recipient_students"
-}
-func (r *AppointmentRecipientStudent) GetID() any              { return r.ID }
-func (r *AppointmentRecipientStudent) GetCreatedAt() time.Time { return r.CreatedAt }
-func (r *AppointmentRecipientStudent) GetUpdatedAt() time.Time { return r.UpdatedAt }
-
 type AppointmentTarget struct {
 	base.Model `bun:"schema:calendar,table:appointment_targets"`
 	base.TenantModel
@@ -241,11 +207,6 @@ type AppointmentTarget struct {
 	TargetID      *int64  `bun:"target_id" json:"target_id,omitempty"`
 	TargetValue   *string `bun:"target_value" json:"target_value,omitempty"`
 }
-
-func (t *AppointmentTarget) TableName() string       { return "calendar.appointment_targets" }
-func (t *AppointmentTarget) GetID() any              { return t.ID }
-func (t *AppointmentTarget) GetCreatedAt() time.Time { return t.CreatedAt }
-func (t *AppointmentTarget) GetUpdatedAt() time.Time { return t.UpdatedAt }
 
 type AppointmentOccurrenceOverride struct {
 	base.Model `bun:"schema:calendar,table:appointment_occurrence_overrides"`
@@ -263,10 +224,3 @@ type AppointmentOccurrenceOverride struct {
 	EndTime        *time.Time     `bun:"end_time" json:"end_time,omitempty"`
 	AllDay         *bool          `bun:"all_day" json:"all_day,omitempty"`
 }
-
-func (o *AppointmentOccurrenceOverride) TableName() string {
-	return "calendar.appointment_occurrence_overrides"
-}
-func (o *AppointmentOccurrenceOverride) GetID() any              { return o.ID }
-func (o *AppointmentOccurrenceOverride) GetCreatedAt() time.Time { return o.CreatedAt }
-func (o *AppointmentOccurrenceOverride) GetUpdatedAt() time.Time { return o.UpdatedAt }

@@ -22,13 +22,14 @@
 package schedule
 
 import (
+	"cmp"
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -185,10 +186,7 @@ func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 }
 
 func (s *instanceService) getLogger() *slog.Logger {
-	if s.deps.Logger != nil {
-		return s.deps.Logger
-	}
-	return slog.Default()
+	return cmp.Or(s.deps.Logger, slog.Default())
 }
 
 // Start implements planned → active. Runs inside the caller's tenant tx
@@ -466,7 +464,7 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		return nil, &ScheduleError{Op: "create instance: insert", Err: err}
 	}
 
-	for _, staffID := range uniquePositiveInt64(req.StaffIDs) {
+	for _, staffID := range sliceutil.UniquePositive(req.StaffIDs) {
 		if staffID <= 0 {
 			continue
 		}
@@ -481,7 +479,7 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 			return nil, &ScheduleError{Op: "create instance: assign staff", Err: err}
 		}
 	}
-	for _, studentID := range uniquePositiveInt64(req.StudentIDs) {
+	for _, studentID := range sliceutil.UniquePositive(req.StudentIDs) {
 		if studentID <= 0 {
 			continue
 		}
@@ -576,14 +574,14 @@ func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instan
 		return &ScheduleError{Op: "update instance: clear students", Err: err}
 	}
 	tenantID := tenant.FromContext(ctx)
-	for _, staffID := range uniquePositiveInt64(staffIDs) {
+	for _, staffID := range sliceutil.UniquePositive(staffIDs) {
 		row := &scheduleModel.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
 			return &ScheduleError{Op: "update instance: assign staff", Err: err}
 		}
 	}
-	for _, studentID := range uniquePositiveInt64(studentIDs) {
+	for _, studentID := range sliceutil.UniquePositive(studentIDs) {
 		row := &scheduleModel.InstanceStudent{
 			InstanceID: instanceID,
 			StudentID:  studentID,
@@ -730,7 +728,7 @@ func (s *instanceService) validateInstanceReferences(
 		return fmt.Errorf("%w: invalid room_id", ErrInvalidInstanceReference)
 	}
 	if room, err := s.deps.RoomRepo.FindByID(ctx, roomID); err != nil || room == nil {
-		if err != nil && !isNotFoundDBError(err) {
+		if err != nil && !modelBase.IsNoRows(err) {
 			return fmt.Errorf("validate room_id: %w", err)
 		}
 		return fmt.Errorf("%w: invalid room_id", ErrInvalidInstanceReference)
@@ -742,14 +740,14 @@ func (s *instanceService) validateInstanceReferences(
 		}
 		group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *activityGroupID)
 		if err != nil || group == nil {
-			if err != nil && !isNotFoundDBError(err) {
+			if err != nil && !modelBase.IsNoRows(err) {
 				return fmt.Errorf("validate activity_group_id: %w", err)
 			}
 			return fmt.Errorf("%w: invalid activity_group_id", ErrInvalidInstanceReference)
 		}
 	}
 
-	uniqueStaffIDs := uniquePositiveInt64(staffIDs)
+	uniqueStaffIDs := sliceutil.UniquePositive(staffIDs)
 	if len(uniqueStaffIDs) > 0 {
 		found, err := s.deps.StaffRepo.FindByIDs(ctx, uniqueStaffIDs)
 		if err != nil {
@@ -766,14 +764,14 @@ func (s *instanceService) validateInstanceReferences(
 		}
 		staff, err := s.deps.StaffRepo.FindByID(ctx, *createdByStaffID)
 		if err != nil || staff == nil {
-			if err != nil && !isNotFoundDBError(err) {
+			if err != nil && !modelBase.IsNoRows(err) {
 				return fmt.Errorf("validate created_by_staff_id: %w", err)
 			}
 			return fmt.Errorf("%w: invalid created_by_staff_id", ErrInvalidInstanceReference)
 		}
 	}
 
-	uniqueStudentIDs := uniquePositiveInt64(studentIDs)
+	uniqueStudentIDs := sliceutil.UniquePositive(studentIDs)
 	if len(uniqueStudentIDs) > 0 {
 		found, err := s.deps.StudentRepo.FindByIDs(ctx, uniqueStudentIDs)
 		if err != nil {
@@ -785,25 +783,6 @@ func (s *instanceService) validateInstanceReferences(
 	}
 
 	return nil
-}
-
-func uniquePositiveInt64(ids []int64) []int64 {
-	if len(ids) == 0 {
-		return nil
-	}
-	seen := make(map[int64]struct{}, len(ids))
-	out := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if id <= 0 {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		out = append(out, id)
-	}
-	return out
 }
 
 // updateLifecycleColumns writes only the named columns on the given instance.
@@ -875,7 +854,7 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 func (s *instanceService) loadForTransition(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
 	instance, err := s.deps.InstanceRepo.FindByID(ctx, instanceID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) || isNotFoundDBError(err) {
+		if modelBase.IsNoRows(err) {
 			return nil, ErrInstanceNotFound
 		}
 		return nil, &ScheduleError{Op: "load instance", Err: err}
@@ -999,20 +978,6 @@ func instanceRefreshReason(eventType realtime.EventType) string {
 	default:
 		return "instance_changed"
 	}
-}
-
-// isNotFoundDBError unwraps models/base.DatabaseError and reports whether
-// the underlying error is sql.ErrNoRows. The repo layer wraps sql.ErrNoRows
-// in a DatabaseError; errors.Is(err, sql.ErrNoRows) alone misses that case.
-func isNotFoundDBError(err error) bool {
-	if err == nil {
-		return false
-	}
-	var dbErr *modelBase.DatabaseError
-	if errors.As(err, &dbErr) {
-		return errors.Is(dbErr.Err, sql.ErrNoRows)
-	}
-	return false
 }
 
 // GetPlannedStudentIDsByDate returns the unique student IDs (of the given

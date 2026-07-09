@@ -12,43 +12,16 @@ import (
 	"time"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // CaptchaSettingsResolver is the narrow contract the captcha service
-// needs from the platform settings service. Defined locally so this
-// package doesn't import services/config (which would create a cycle
-// once config wants to read enrollment-side state).
+// needs from the platform settings service, keeping the DI surface small
+// and test stubs cheap.
 type CaptchaSettingsResolver interface {
 	HasTenantOverride(ctx context.Context, key string) (bool, error)
 	ResolveBool(ctx context.Context, key string) (bool, error)
 	ResolveString(ctx context.Context, key string) (string, error)
-}
-
-// CaptchaService verifies a parent-submitted captcha token against the
-// configured provider. Today: Cloudflare Turnstile. The plan keeps the
-// abstraction so hCaptcha or another provider can drop in later
-// without changing the call sites in the submission service.
-//
-// Verify returns nil when the captcha is valid, or an error explaining
-// why it failed. Returns nil unconditionally when captcha is disabled
-// for the tenant (settings-driven via enrollment.require_captcha).
-type CaptchaService interface {
-	// Verify validates `token` against the configured provider for the
-	// tenant in context. `remoteIP` is the parent's source IP - passed
-	// through to the provider as a defense-in-depth signal.
-	Verify(ctx context.Context, token, remoteIP string) error
-
-	// IsEnabled reports whether the captcha gate is active for the
-	// tenant in context. Frontend calls this so it can hide the
-	// widget when the setting is off.
-	IsEnabled(ctx context.Context) bool
-
-	// SiteKey returns the public Cloudflare Turnstile site key for the
-	// tenant in context, or "" when unset. Safe to expose on a public
-	// endpoint — it's the same value that lives in the rendered widget
-	// markup. Falls back to env ENROLLMENT_CAPTCHA_SITE_KEY when no
-	// tenant override exists.
-	SiteKey(ctx context.Context) string
 }
 
 // CaptchaServiceConfig is the dependency-injection bundle.
@@ -61,7 +34,15 @@ type CaptchaServiceConfig struct {
 
 const turnstileVerifyURL = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
 
-type captchaService struct {
+// CaptchaService verifies a parent-submitted captcha token against the
+// configured provider. Today: Cloudflare Turnstile. The plan keeps the
+// abstraction so hCaptcha or another provider can drop in later
+// without changing the call sites in the submission service.
+//
+// Verify returns nil when the captcha is valid, or an error explaining
+// why it failed. Returns nil unconditionally when captcha is disabled
+// for the tenant (settings-driven via enrollment.require_captcha).
+type CaptchaService struct {
 	settings   CaptchaSettingsResolver
 	logger     *slog.Logger
 	httpClient *http.Client
@@ -71,7 +52,7 @@ type captchaService struct {
 // NewCaptchaService wires a Turnstile-backed verifier. A nil HTTPClient
 // falls back to a 10-second-timeout client. Empty VerifyURL falls back
 // to the canonical Turnstile endpoint.
-func NewCaptchaService(cfg CaptchaServiceConfig) CaptchaService {
+func NewCaptchaService(cfg CaptchaServiceConfig) *CaptchaService {
 	logger := cfg.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -84,7 +65,7 @@ func NewCaptchaService(cfg CaptchaServiceConfig) CaptchaService {
 	if verifyURL == "" {
 		verifyURL = turnstileVerifyURL
 	}
-	return &captchaService{
+	return &CaptchaService{
 		settings:   cfg.Settings,
 		logger:     logger,
 		httpClient: httpClient,
@@ -95,24 +76,19 @@ func NewCaptchaService(cfg CaptchaServiceConfig) CaptchaService {
 // IsEnabled checks the enrollment.require_captcha setting via the
 // standard tenant override, env var, registry default chain.
 // Default false: a fresh tenant has no Turnstile keys configured yet.
-func (s *captchaService) IsEnabled(ctx context.Context) bool {
+func (s *CaptchaService) IsEnabled(ctx context.Context) bool {
 	if s.settings == nil {
 		return false
 	}
-	if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentRequireCaptcha); err == nil && has {
-		if v, err := s.settings.ResolveBool(ctx, configModel.KeyEnrollmentRequireCaptcha); err == nil {
-			return v
-		}
-	}
-	if env := strings.TrimSpace(os.Getenv("ENROLLMENT_REQUIRE_CAPTCHA")); env != "" {
-		return env == "true"
-	}
-	return false
+	fallback := strings.TrimSpace(os.Getenv("ENROLLMENT_REQUIRE_CAPTCHA")) == "true"
+	return config.ResolveBoolOrDefault(ctx, s.settings, configModel.KeyEnrollmentRequireCaptcha, fallback, nil)
 }
 
-// Verify hits the provider's siteverify endpoint with secret + token +
-// remote IP. Returns nil on success.
-func (s *captchaService) Verify(ctx context.Context, token, remoteIP string) error {
+// Verify validates `token` against the configured provider for the tenant in
+// context by hitting the provider's siteverify endpoint with secret + token +
+// remote IP. `remoteIP` is the parent's source IP - passed through to the
+// provider as a defense-in-depth signal. Returns nil on success.
+func (s *CaptchaService) Verify(ctx context.Context, token, remoteIP string) error {
 	if !s.IsEnabled(ctx) {
 		return nil
 	}
@@ -161,26 +137,17 @@ func (s *captchaService) Verify(ctx context.Context, token, remoteIP string) err
 	return nil
 }
 
-func (s *captchaService) resolveSecret(ctx context.Context) string {
-	if s.settings != nil {
-		if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentCaptchaSecretKey); err == nil && has {
-			if v, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentCaptchaSecretKey); err == nil && v != "" {
-				return v
-			}
-		}
-	}
-	return strings.TrimSpace(os.Getenv("ENROLLMENT_CAPTCHA_SECRET_KEY"))
+func (s *CaptchaService) resolveSecret(ctx context.Context) string {
+	fallback := strings.TrimSpace(os.Getenv("ENROLLMENT_CAPTCHA_SECRET_KEY"))
+	return config.ResolveStringOrDefault(ctx, s.settings, configModel.KeyEnrollmentCaptchaSecretKey, fallback, nil)
 }
 
-// SiteKey resolves the public Turnstile site key via the same tenant
-// override → env var fallback chain used by the secret key.
-func (s *captchaService) SiteKey(ctx context.Context) string {
-	if s.settings != nil {
-		if has, err := s.settings.HasTenantOverride(ctx, configModel.KeyEnrollmentCaptchaSiteKey); err == nil && has {
-			if v, err := s.settings.ResolveString(ctx, configModel.KeyEnrollmentCaptchaSiteKey); err == nil && v != "" {
-				return v
-			}
-		}
-	}
-	return strings.TrimSpace(os.Getenv("ENROLLMENT_CAPTCHA_SITE_KEY"))
+// SiteKey returns the public Cloudflare Turnstile site key for the tenant in
+// context, or "" when unset, via the same tenant override → env var
+// (ENROLLMENT_CAPTCHA_SITE_KEY) fallback chain used by the secret key. Safe
+// to expose on a public endpoint — it's the same value that lives in the
+// rendered widget markup.
+func (s *CaptchaService) SiteKey(ctx context.Context) string {
+	fallback := strings.TrimSpace(os.Getenv("ENROLLMENT_CAPTCHA_SITE_KEY"))
+	return config.ResolveStringOrDefault(ctx, s.settings, configModel.KeyEnrollmentCaptchaSiteKey, fallback, nil)
 }

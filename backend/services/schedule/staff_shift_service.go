@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -85,10 +86,7 @@ func (s *staffShiftService) lockShiftWrites(ctx context.Context, staffID int64) 
 }
 
 func (s *staffShiftService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // ensureShiftTypeActive rejects assigning a shift type that does not exist in

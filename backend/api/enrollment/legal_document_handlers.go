@@ -110,13 +110,3 @@ func (rs *Resource) deleteLegalDocument(w http.ResponseWriter, r *http.Request) 
 	common.RemoveImage(path)
 	common.RespondNoContent(w, r)
 }
-
-// UploadLegalDocument returns the form-template legal document upload handler for tests.
-func (rs *Resource) UploadLegalDocument() http.HandlerFunc {
-	return rs.uploadLegalDocument
-}
-
-// DeleteLegalDocument returns the form-template legal document delete handler for tests.
-func (rs *Resource) DeleteLegalDocument() http.HandlerFunc {
-	return rs.deleteLegalDocument
-}

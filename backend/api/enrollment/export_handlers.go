@@ -6,16 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
@@ -48,9 +49,8 @@ func (rs *Resource) exportPhaseRegistrations(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
 		return
 	}
-	phaseID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || phaseID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid phase id")))
+	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid phase id")
+	if !ok {
 		return
 	}
 	format, childStatus, err := parsePhaseExportRequest(r)
@@ -165,7 +165,7 @@ func parsePhaseExportRequest(r *http.Request) (listexport.Format, string, error)
 	return format, childStatus, nil
 }
 
-func buildPhaseExportFile(svc listexport.Service, data *enrollmentService.PhaseExport, format listexport.Format, childStatus string) (listexport.File, error) {
+func buildPhaseExportFile(svc *listexport.RendererService, data *enrollmentService.PhaseExport, format listexport.Format, childStatus string) (listexport.File, error) {
 	// The document heading is the phase name on its own (no separator
 	// punctuation); "Anmeldungen" lives in the subtitle counts + the
 	// download filename. The filename base stays descriptive regardless.
@@ -192,9 +192,8 @@ func (rs *Resource) exportStudentEnrollmentRequests(w http.ResponseWriter, r *ht
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("decision service not configured")))
 		return
 	}
-	studentID, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
-	if err != nil || studentID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid student id")))
+	studentID, ok := common.ParsePositiveInt64IDWithError(w, r, "studentId", "invalid student id")
+	if !ok {
 		return
 	}
 	format, _, err := parsePhaseExportRequest(r)
@@ -242,7 +241,7 @@ func (rs *Resource) exportStudentEnrollmentRequests(w http.ResponseWriter, r *ht
 	_, _ = w.Write(file.Data)
 }
 
-func buildStudentEnrollmentExportFile(svc listexport.Service, data *enrollmentService.StudentEnrollmentExport, format listexport.Format) (listexport.File, error) {
+func buildStudentEnrollmentExportFile(svc *listexport.RendererService, data *enrollmentService.StudentEnrollmentExport, format listexport.Format) (listexport.File, error) {
 	heading := studentEnrollmentExportHeading(data)
 	filename := heading
 	switch format {
@@ -620,7 +619,7 @@ func buildPhaseExportRecords(data *enrollmentService.PhaseExport, title, childSt
 func guardianBlockFields(req *enrollmentModels.Request, guardianCustoms []enrollmentModels.FormField) []listexport.Field {
 	fields := []listexport.Field{
 		{Label: "E-Mail", Value: req.GuardianEmail},
-		{Label: "Telefon", Value: strOrEmpty(req.GuardianPhone)},
+		{Label: "Telefon", Value: base.Deref(req.GuardianPhone)},
 		{Label: "Eingereicht am", Value: req.SubmittedAt.Format("02.01.2006 15:04")},
 	}
 	if req.WithdrawnAt != nil {
@@ -840,7 +839,7 @@ func guardianRowValues(req *enrollmentModels.Request, guardians []*enrollmentMod
 		"guardian_last_name":      req.GuardianLastName,
 		"guardian_first_name":     req.GuardianFirstName,
 		"guardian_email":          req.GuardianEmail,
-		"guardian_phone":          strOrEmpty(req.GuardianPhone),
+		"guardian_phone":          base.Deref(req.GuardianPhone),
 		"submitted_at":            req.SubmittedAt.Format("02.01.2006 15:04"),
 		"withdrawn_at":            timeOrEmpty(req.WithdrawnAt),
 		"consent_agb":             consentLabel(req.ConsentFlags, enrollmentModels.ConsentKeyAGB),
@@ -865,7 +864,7 @@ func childRowValues(guardianValues map[listexport.ColumnID]string, ch enrollment
 	values["child_dob"] = c.DateOfBirth.Format("02.01.2006")
 	values["child_grade"] = schoolClassLabel(c.TargetSchoolClass, c.TargetGradeLevel)
 	values["child_status"] = statusLabelDE(c.Status)
-	values["child_status_reason"] = strOrEmpty(c.StatusReason)
+	values["child_status_reason"] = base.Deref(c.StatusReason)
 	values["child_activation"] = activationSummary(c)
 	values["child_offerings"] = formatOfferings(ch.Offerings)
 	for _, cf := range childCustoms {
@@ -894,10 +893,7 @@ func collectCustomFields(schemas map[int64]*enrollmentModels.FormSchema) (guardi
 	// as deterministic as ascending (a Go map range would pick a random
 	// winner and produce differently-labelled columns between two exports
 	// of the same phase); it just picks the more useful winner.
-	schemaIDs := make([]int64, 0, len(schemas))
-	for id := range schemas {
-		schemaIDs = append(schemaIDs, id)
-	}
+	schemaIDs := slices.Collect(maps.Keys(schemas))
 	sort.Slice(schemaIDs, func(i, j int) bool { return schemaIDs[i] > schemaIDs[j] })
 	for _, id := range schemaIDs {
 		fs := schemas[id]

@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Person represents a physical person in the system
@@ -25,21 +24,6 @@ type Person struct {
 	// Relations not stored in the database
 	Account  *auth.Account `bun:"rel:belongs-to,join:account_id=id" json:"account,omitempty"`
 	RFIDCard *RFIDCard     `bun:"rel:belongs-to,join:tag_id=id" json:"rfid_card,omitempty"`
-}
-
-func (p *Person) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`users.persons AS "person"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`users.persons AS "person"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (p *Person) TableName() string {
-	return "users.persons"
 }
 
 // Validate ensures person data is valid
@@ -96,19 +80,4 @@ func (p *Person) HasRFIDCard() bool {
 // HasAccount checks if the person has an account assigned
 func (p *Person) HasAccount() bool {
 	return p.AccountID != nil && *p.AccountID > 0
-}
-
-// GetID returns the entity's ID
-func (m *Person) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Person) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Person) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

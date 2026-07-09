@@ -31,10 +31,6 @@ type Display struct {
 	TokenHash string `bun:"token_hash,notnull" json:"-"`
 }
 
-func (d *Display) TableName() string {
-	return "display.displays"
-}
-
 // Repository defines data access for displays. All methods are tenant-scoped
 // via RLS except FindByTokenHash (see its contract comment).
 type Repository interface {

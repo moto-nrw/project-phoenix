@@ -41,9 +41,7 @@ func (r *CalendarPeriodRepository) FindByTenantID(ctx context.Context) ([]*sched
 		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`).
 		Order("start_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -65,9 +63,7 @@ func (r *CalendarPeriodRepository) FindActiveByTenantID(ctx context.Context) ([]
 		Where(`"calendar_period".is_active = ?`, true).
 		Order("start_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -88,9 +84,7 @@ func (r *CalendarPeriodRepository) FindByName(ctx context.Context, name string) 
 		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`).
 		Where(`"calendar_period".name = ?`, name)
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -115,9 +109,7 @@ func (r *CalendarPeriodRepository) FindByID(ctx context.Context, id any) (*sched
 		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`).
 		Where(`"calendar_period".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -128,15 +120,6 @@ func (r *CalendarPeriodRepository) FindByID(ctx context.Context, id any) (*sched
 	}
 
 	return &period, nil
-}
-
-// Create overrides the base Create method with nil guard
-func (r *CalendarPeriodRepository) Create(ctx context.Context, p *schedule.CalendarPeriod) error {
-	if p == nil {
-		return errCalendarPeriodNil
-	}
-
-	return r.Repository.Create(ctx, p)
 }
 
 // CreateIfAbsent inserts the period unless a row with the same
@@ -201,9 +184,7 @@ func (r *CalendarPeriodRepository) FindActiveOverlapping(ctx context.Context, st
 		Where(`"calendar_period".id != ?`, excludeID).
 		Order("start_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -261,9 +242,7 @@ func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]s
 			  AND ai.tenant_id = "calendar_period".tenant_id
 		)::int AS activity_instance_count`)
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -292,37 +271,7 @@ func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]s
 	return usage, nil
 }
 
-// Update overrides the base Update method with nil guard
-func (r *CalendarPeriodRepository) Update(ctx context.Context, p *schedule.CalendarPeriod) error {
-	if p == nil {
-		return errCalendarPeriodNil
-	}
-
-	return r.Repository.Update(ctx, p)
-}
-
 // List retrieves calendar periods matching the provided query options
 func (r *CalendarPeriodRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.CalendarPeriod, error) {
-	var periods []*schedule.CalendarPeriod
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&periods).
-		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`)
-
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return periods, nil
+	return r.ListWithOptions(ctx, options)
 }

@@ -16,7 +16,7 @@ type CaregiverDirectory interface {
 }
 
 func (s *personService) ListActiveCaregivers(ctx context.Context) ([]*userModels.ActiveCaregiver, error) {
-	caregivers, err := s.teacherRepo.ListActiveCaregivers(ctx)
+	caregivers, err := s.TeacherRepo.ListActiveCaregivers(ctx)
 	if err != nil {
 		return nil, &UsersError{Op: "list active caregivers", Err: err}
 	}
@@ -24,7 +24,7 @@ func (s *personService) ListActiveCaregivers(ctx context.Context) ([]*userModels
 }
 
 func (s *personService) FindActiveCaregiverByAccountID(ctx context.Context, accountID int64) (*userModels.ActiveCaregiver, error) {
-	caregiver, err := s.teacherRepo.FindActiveCaregiverByAccountID(ctx, accountID)
+	caregiver, err := s.TeacherRepo.FindActiveCaregiverByAccountID(ctx, accountID)
 	if err != nil {
 		return nil, &UsersError{Op: "find active caregiver by account ID", Err: err}
 	}

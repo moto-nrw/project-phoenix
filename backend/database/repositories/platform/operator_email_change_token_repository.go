@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
@@ -32,19 +32,6 @@ func NewOperatorEmailChangeTokenRepository(db *bun.DB) platform.OperatorEmailCha
 		Repository: base.NewRepository[*platform.OperatorEmailChangeToken](db, operatorEmailChangeTokenTable, "OperatorEmailChangeToken"),
 		db:         db,
 	}
-}
-
-// Create creates a new email change token
-func (r *OperatorEmailChangeTokenRepository) Create(ctx context.Context, token *platform.OperatorEmailChangeToken) error {
-	if token == nil {
-		return fmt.Errorf("email change token cannot be nil")
-	}
-
-	if err := token.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, token)
 }
 
 // ConsumeByToken atomically marks a valid token as used and returns it.
@@ -95,32 +82,14 @@ func (r *OperatorEmailChangeTokenRepository) InvalidateByOperatorID(ctx context.
 
 // UpdateDeliveryResult updates the email delivery metadata for a token
 func (r *OperatorEmailChangeTokenRepository) UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	update := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*platform.OperatorEmailChangeToken)(nil)).
-		ModelTableExpr(operatorEmailChangeTokenTable).
-		Where("id = ?", tokenID).
-		Set("email_retry_count = ?", retryCount)
-
-	if sentAt != nil {
-		update = update.Set("email_sent_at = ?", *sentAt)
-	} else {
-		update = update.Set("email_sent_at = NULL")
-	}
-
+	token := &platform.OperatorEmailChangeToken{Model: modelBase.Model{ID: tokenID}, EmailSentAt: sentAt, EmailRetryCount: retryCount}
 	if emailError != nil {
-		update = update.Set("email_error = ?", truncateEmailChangeError(*emailError))
-	} else {
-		update = update.Set("email_error = NULL")
+		truncated := strutil.TruncateRunes(*emailError, maxEmailChangeErrorLength, "")
+		token.EmailError = &truncated
 	}
 
-	if _, err := update.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update email change delivery result",
-			Err: err,
-		}
-	}
-
-	return nil
+	_, err := r.UpdateColumns(ctx, token, "email_sent_at", "email_error", "email_retry_count")
+	return err
 }
 
 // CountRecentByOperatorID counts tokens created after `since` for rate limiting.
@@ -200,15 +169,4 @@ func (r *OperatorEmailChangeTokenRepository) DeleteStaleTokens(ctx context.Conte
 	}
 
 	return int(affected), nil
-}
-
-func truncateEmailChangeError(msg string) string {
-	if msg == "" {
-		return ""
-	}
-	runes := []rune(msg)
-	if len(runes) <= maxEmailChangeErrorLength {
-		return msg
-	}
-	return string(runes[:maxEmailChangeErrorLength])
 }

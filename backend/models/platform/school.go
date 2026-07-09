@@ -6,11 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tablePlatformSchools is the schema-qualified table name
-const tablePlatformSchools = "platform.schools"
 
 // School represents a single school (tenant) within an organization.
 // The school ID is used as the tenant_id throughout the system.
@@ -33,24 +29,6 @@ type School struct {
 
 	// Relations
 	Organization *Organization `bun:"rel:belongs-to,join:organization_id=id" json:"organization,omitempty"`
-}
-
-func (s *School) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tablePlatformSchools)
-	}
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`platform.schools AS "school"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`platform.schools AS "school"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (s *School) TableName() string {
-	return tablePlatformSchools
 }
 
 // Validate ensures school data is valid
@@ -96,21 +74,6 @@ func (s *School) Validate() error {
 		return errors.New("email must not exceed 255 characters")
 	}
 	return nil
-}
-
-// GetID returns the entity's ID
-func (s *School) GetID() any {
-	return s.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (s *School) GetCreatedAt() time.Time {
-	return s.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (s *School) GetUpdatedAt() time.Time {
-	return s.UpdatedAt
 }
 
 // IsDeleted returns true if the school has been soft-deleted.

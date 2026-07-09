@@ -50,7 +50,7 @@ func TestParentEnrollmentSeedSettingsDisableCaptcha(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	rt := &Runtime{Client: NewClient(srv.URL, false)}
+	rt := &Runtime{Client: newTestClient(srv.URL, false)}
 	step := parentEnrollmentSeedStep{}
 
 	settings, err := step.seedSettings(rt, phoenixapi.AuthRef{})
@@ -91,7 +91,7 @@ func TestClientPostPublicWithHeaders(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	_, err := client.PostPublicWithHeaders("/api/enrollment/demo-school/submit", map[string]any{}, map[string]string{
 		"X-Forwarded-For": "198.51.100.42",
 	})
@@ -380,7 +380,7 @@ func TestFixedSeeder_Seed_FullWorkflow(t *testing.T) {
 	srv := fullSeedAPIMock(t)
 	defer srv.Close()
 
-	client := NewClient(srv.URL, false)
+	client := newTestClient(srv.URL, false)
 	require.NoError(t, client.Login("admin@test.de", "pass"))
 
 	fs := NewFixedSeeder(client, false, "")

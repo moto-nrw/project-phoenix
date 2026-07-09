@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -149,9 +147,8 @@ func (rs *Resource) withdrawCareScheduleRequest(w http.ResponseWriter, r *http.R
 	if !ok {
 		return
 	}
-	requestID, err := strconv.ParseInt(chi.URLParam(r, "requestId"), 10, 64)
-	if err != nil || requestID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request ID")))
+	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "requestId", "invalid request ID")
+	if !ok {
 		return
 	}
 	view, svcErr := rs.ParentService.WithdrawCareScheduleRequest(r.Context(), accountID, studentID, requestID)

@@ -21,7 +21,6 @@ type Service interface {
 	FindActiveGroupsByRoomID(ctx context.Context, roomID int64) ([]*active.Group, error)
 	FindDeviceActiveGroupInRoom(ctx context.Context, roomID int64, deviceID int64) (*active.Group, error)
 	FindActiveGroupsByGroupID(ctx context.Context, groupID int64) ([]*active.Group, error)
-	FindActiveGroupsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Group, error)
 	EndActiveGroupSession(ctx context.Context, id int64) error
 	GetActiveGroupWithVisits(ctx context.Context, id int64) (*active.Group, error)
 	GetActiveGroupWithSupervisors(ctx context.Context, id int64) (*active.Group, error)
@@ -34,7 +33,6 @@ type Service interface {
 	ListVisits(ctx context.Context, options *base.QueryOptions) ([]*active.Visit, error)
 	FindVisitsByStudentID(ctx context.Context, studentID int64) ([]*active.Visit, error)
 	FindVisitsByActiveGroupID(ctx context.Context, activeGroupID int64) ([]*active.Visit, error)
-	FindVisitsByTimeRange(ctx context.Context, start, end time.Time) ([]*active.Visit, error)
 	EndVisit(ctx context.Context, id int64) error
 	GetStudentCurrentVisit(ctx context.Context, studentID int64) (*active.Visit, error)
 	GetStudentCurrentVisitWithRoom(ctx context.Context, studentID int64) (*active.Visit, error)
@@ -45,9 +43,7 @@ type Service interface {
 	ListStudentsInTransit(ctx context.Context) ([]int64, error)
 	ListStudentsPresentToday(ctx context.Context) ([]int64, error)
 	AssignTransitStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*TransitAssignResult, error)
-	MoveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*StudentMoveResult, error)
 	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
-	MoveStudentsToTransit(ctx context.Context, studentIDs []int64) (*StudentMoveResult, error)
 	MoveStudentsToTransitAuthorized(ctx context.Context, studentIDs []int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
 
 	// Group Supervisor operations
@@ -61,7 +57,6 @@ type Service interface {
 	FindSupervisorsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64) ([]*active.GroupSupervisor, error)
 	EndSupervision(ctx context.Context, id int64) error
 	GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error)
-	GetAllActiveSupervisions(ctx context.Context) ([]*active.GroupSupervisor, error)
 
 	// Combined Group operations
 	GetCombinedGroup(ctx context.Context, id int64) (*active.CombinedGroup, error)
@@ -82,11 +77,9 @@ type Service interface {
 	GetGroupMappingsByCombinedGroupID(ctx context.Context, combinedGroupID int64) ([]*active.GroupMapping, error)
 
 	// Activity Session Management with Conflict Detection
-	StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error)
 	StartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)
 	CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error)
 	EndActivitySession(ctx context.Context, activeGroupID int64) error
-	ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error)
 	ForceStartActivitySessionWithSupervisors(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64) (*active.Group, error)
 	GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error)
 
@@ -308,9 +301,6 @@ type SessionTimeoutInfo struct {
 type CleanupService interface {
 	// CleanupExpiredVisits runs the cleanup process for all students
 	CleanupExpiredVisits(ctx context.Context) (*CleanupResult, error)
-
-	// CleanupVisitsForStudent runs cleanup for a specific student
-	CleanupVisitsForStudent(ctx context.Context, studentID int64) (int64, error)
 
 	// GetRetentionStatistics gets statistics about data that will be deleted
 	GetRetentionStatistics(ctx context.Context) (*RetentionStats, error)

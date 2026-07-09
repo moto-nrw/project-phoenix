@@ -62,9 +62,7 @@ func (r *PostRepository) FindByID(ctx context.Context, id int64, readerType stri
 		ModelTableExpr(tablePostsAlias).
 		Where(`"post".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "post")
 
 	if readerType == suggestions.ReaderTypeUser {
 		query = query.Where(`"post".is_hidden = FALSE`)
@@ -207,9 +205,7 @@ func (r *PostRepository) List(ctx context.Context, accountID int64, readerType s
 			WHERE c.post_id = "post".id AND c.deleted_at IS NULL
 		) cc ON true`, accountID, readerType)
 
-	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "post")
 
 	if readerType == suggestions.ReaderTypeUser {
 		query = query.Where(`"post".is_hidden = FALSE`)
@@ -277,9 +273,7 @@ func (r *PostRepository) FindByIDWithVote(ctx context.Context, id int64, account
 		) cc ON true`, accountID, readerType).
 		Where(`"post".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "post"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "post")
 
 	if readerType == suggestions.ReaderTypeUser {
 		query = query.Where(`"post".is_hidden = FALSE`)

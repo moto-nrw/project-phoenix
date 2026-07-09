@@ -79,25 +79,14 @@ func (s stubSettings) ResolveString(_ context.Context, key string) (string, erro
 	return "", nil
 }
 
-// captureBroadcaster records every parent-message fan-out with its event type so
-// the tests can assert a send fired EventParentMessage and a pure read fired
-// EventParentMessageRead.
-type captureBroadcaster struct {
-	parent []realtime.EventType
-}
-
-func (b *captureBroadcaster) BroadcastToGroup(int64, string, realtime.Event) error { return nil }
-func (b *captureBroadcaster) BroadcastToTenant(int64, realtime.Event) error        { return nil }
-func (b *captureBroadcaster) BroadcastToAll(realtime.Event) error                  { return nil }
-func (b *captureBroadcaster) BroadcastParentMessage(_, _ int64, e realtime.Event) error {
-	b.parent = append(b.parent, e.Type)
-	return nil
-}
-
-func (b *captureBroadcaster) countOf(t realtime.EventType) int {
+// parentEventCount counts recorded BroadcastParentMessage calls (the only
+// broadcast method the messaging service ever calls) whose event carries the
+// given type — the shared RecordingBroadcaster equivalent of the old
+// captureBroadcaster.countOf.
+func parentEventCount(bc *testpkg.RecordingBroadcaster, t realtime.EventType) int {
 	n := 0
-	for _, et := range b.parent {
-		if et == t {
+	for _, c := range bc.CallsByMethod("parent") {
+		if c.Event.Type == t {
 			n++
 		}
 	}
@@ -108,8 +97,8 @@ func (b *captureBroadcaster) countOf(t realtime.EventType) int {
 
 type fixture struct {
 	db           *bun.DB
-	svc          messaging.Service
-	bc           *captureBroadcaster
+	svc          *messaging.Service
+	bc           *testpkg.RecordingBroadcaster
 	chain        testpkg.ParentChain
 	staffAccount int64
 }
@@ -125,12 +114,12 @@ func newPersons(repos *repositories.Factory, db *bun.DB) usersService.PersonServ
 	})
 }
 
-func buildMessagingWithSettings(t *testing.T, settings stubSettings) (messaging.Service, *captureBroadcaster, *repositories.Factory, *bun.DB) {
+func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging.Service, *testpkg.RecordingBroadcaster, *repositories.Factory, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
-	bc := &captureBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
 		ThreadRepo:  repos.ParentMessageThread,
 		MessageRepo: repos.ParentMessage,
@@ -215,7 +204,7 @@ func TestStartThread_CreatesConversationAndBroadcasts(t *testing.T) {
 	assert.Equal(t, "Olivia Berg", detail.Messages[0].SenderName, "staff display name is denormalized onto the message")
 	assert.Equal(t, "Guten Tag, bitte um Rückruf", detail.Messages[0].Body)
 
-	assert.Equal(t, 1, f.bc.countOf(realtime.EventParentMessage), "a staff send wakes the guardian with a new-message event")
+	assert.Equal(t, 1, parentEventCount(f.bc, realtime.EventParentMessage), "a staff send wakes the guardian with a new-message event")
 }
 
 // TestStartThread_StampsStaffNameVisibleFromSetting proves the send path FREEZES
@@ -264,13 +253,13 @@ func TestPostMessage_AppendsAndBroadcasts(t *testing.T) {
 
 	started, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Hallo")
 	require.NoError(t, err)
-	f.bc.parent = nil // reset to isolate the reply's broadcast
+	f.bc.Reset() // reset to isolate the reply's broadcast
 
 	msgs, err := f.svc.PostMessage(ctx, started.ThreadID, "Noch eine Info")
 	require.NoError(t, err)
 	require.Len(t, msgs, 2)
 	assert.Equal(t, "Noch eine Info", msgs[1].Body)
-	assert.Equal(t, 1, f.bc.countOf(realtime.EventParentMessage))
+	assert.Equal(t, 1, parentEventCount(f.bc, realtime.EventParentMessage))
 }
 
 // TestPostMessage_EmptyAndTooLong pins the body guards: blank → ErrEmptyBody,
@@ -305,7 +294,7 @@ func TestGetThread_MarksReadAndBroadcastsReceipt(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, before, "guardian reply is unread to staff before opening")
 
-	f.bc.parent = nil
+	f.bc.Reset()
 	detail, err := f.svc.GetThread(staffCtx, started.ThreadID)
 	require.NoError(t, err)
 	require.Len(t, detail.Messages, 2)
@@ -313,13 +302,13 @@ func TestGetThread_MarksReadAndBroadcastsReceipt(t *testing.T) {
 	after, err := f.svc.UnreadMessageCount(staffCtx)
 	require.NoError(t, err)
 	assert.Equal(t, 0, after, "GetThread advances the staff read cursor")
-	assert.Equal(t, 1, f.bc.countOf(realtime.EventParentMessageRead), "advancing the cursor wakes the guardian's receipts")
+	assert.Equal(t, 1, parentEventCount(f.bc, realtime.EventParentMessageRead), "advancing the cursor wakes the guardian's receipts")
 
 	// Re-open: nothing new to read, so no second receipt event.
-	f.bc.parent = nil
+	f.bc.Reset()
 	_, err = f.svc.GetThread(staffCtx, started.ThreadID)
 	require.NoError(t, err)
-	assert.Equal(t, 0, f.bc.countOf(realtime.EventParentMessageRead), "a no-op read must not ping-pong a receipt event")
+	assert.Equal(t, 0, parentEventCount(f.bc, realtime.EventParentMessageRead), "a no-op read must not ping-pong a receipt event")
 }
 
 // TestGetThread_NotFound: a thread id that does not exist in the tenant is
@@ -360,12 +349,12 @@ func TestOpenThread_ExistingWithUnreadMarksReadAndBroadcasts(t *testing.T) {
 	require.NoError(t, err)
 	createGuardianMessage(t, f.db, f.chain, started.ThreadID, "Antwort")
 
-	f.bc.parent = nil
+	f.bc.Reset()
 	detail, err := f.svc.OpenThread(ctx, f.chain.StudentID, f.chain.AccountID)
 	require.NoError(t, err)
 	assert.Equal(t, started.ThreadID, detail.ThreadID, "OpenThread resolves the existing conversation")
 	require.Len(t, detail.Messages, 2)
-	assert.Equal(t, 1, f.bc.countOf(realtime.EventParentMessageRead), "opening with unread fires a read receipt")
+	assert.Equal(t, 1, parentEventCount(f.bc, realtime.EventParentMessageRead), "opening with unread fires a read receipt")
 
 	cnt, err := f.svc.UnreadMessageCount(ctx)
 	require.NoError(t, err)

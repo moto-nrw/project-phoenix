@@ -6,6 +6,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"strings"
 	"time"
 
@@ -14,119 +16,24 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Activity Session Management with Conflict Detection
-
-// StartActivitySession starts a new activity session on a device with conflict detection
-func (s *service) StartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
-	var newGroup *active.Group
-	err := s.executeSessionStart(ctx, activityID, deviceID, roomID, "StartActivitySession", func(ctx context.Context, finalRoomID int64) (*active.Group, error) {
-		group, err := s.createSessionWithSupervisor(ctx, activityID, deviceID, staffID, finalRoomID)
-		newGroup = group
-		return group, err
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	s.broadcastActivityStartEvent(ctx, newGroup, []int64{staffID})
-	return newGroup, nil
-}
 
 // determineSessionRoomID determines the room for a session with conflict checking
 func (s *service) determineSessionRoomID(ctx context.Context, activityID int64, roomID *int64) (int64, error) {
 	return s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictFail)
 }
 
-// createSessionWithSupervisor creates a new session, assigns supervisor, and transfers visits
-func (s *service) createSessionWithSupervisor(ctx context.Context, activityID, deviceID, staffID, roomID int64) (*active.Group, error) {
-	newGroup, transferredCount, err := s.createSessionBase(ctx, activityID, deviceID, roomID)
-	if err != nil {
-		return nil, err
-	}
-
-	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, newGroup.StartTime)
-
-	if transferredCount > 0 {
-		s.getLogger().InfoContext(ctx, "visits transferred to new session",
-			slog.Int("count", transferredCount),
-			slog.Int64("session_id", newGroup.ID),
-		)
-	}
-
-	return newGroup, nil
-}
-
-// assignSupervisorNonCritical assigns a supervisor but doesn't fail if assignment fails.
-// Also ensures the staff member is checked in for time tracking (NFC auto-check-in).
-func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staffID int64, startDate time.Time) {
-	supervisor := &active.GroupSupervisor{
-		StaffID:   staffID,
-		GroupID:   groupID,
-		Role:      "Supervisor",
-		StartDate: timezone.DateFromTime(startDate),
-	}
-	supervisor.SetTenantID(tenant.FromContext(ctx))
-	s.runBestEffortDB(ctx, "assign_supervisor", func() error {
-		return s.supervisorRepo.Create(ctx, supervisor)
-	}, func(err error) {
-		s.getLogger().WarnContext(ctx, "supervisor assignment failed",
-			slog.Int64("staff_id", staffID),
-			slog.Int64("group_id", groupID),
-			slog.String("error", err.Error()),
-		)
-	})
-
-	// NFC auto-check-in: ensure staff member has a work session for today.
-	// This path runs from the IoT supervisor flow (kiosk-driven activity
-	// start), so the channel is recorded as 'nfc' in the audit trail.
-	//
-	// EnsureCheckedIn returns (nil, nil) when the staff member has already
-	// checked out for the day — by design, we do not auto-reopen. That
-	// leaves an asymmetric audit trail (supervisor row recorded, no
-	// matching NFC stamp), so log it at INFO so a dispute can be traced
-	// later.
-	if s.workSessionService != nil {
-		s.runBestEffortDB(ctx, "nfc_auto_checkin", func() error {
-			session, err := s.workSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC)
-			if err != nil {
-				var plannedStart *PlannedStartNotReachedError
-				if errors.As(err, &plannedStart) {
-					s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: planned start not reached",
-						slog.Int64("staff_id", staffID),
-						slog.Int64("group_id", groupID),
-						slog.String("planned_start_time", plannedStart.PlannedStartTime),
-						slog.String("current_time", plannedStart.CurrentTime),
-					)
-					return nil
-				}
-				return err
-			}
-			if session == nil {
-				s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: staff already checked out today",
-					slog.Int64("staff_id", staffID),
-					slog.Int64("group_id", groupID),
-				)
-			}
-			return nil
-		}, func(err error) {
-			s.getLogger().WarnContext(ctx, "NFC auto-check-in failed",
-				slog.Int64("staff_id", staffID),
-				slog.String("error", err.Error()),
-			)
-		})
-	}
-}
-
 // broadcastActivityStartEvent broadcasts SSE event for activity start
 func (s *service) broadcastActivityStartEvent(ctx context.Context, group *active.Group, supervisorIDs []int64) {
-	if s.broadcaster == nil || group == nil {
+	if s.Broadcaster == nil || group == nil {
 		return
 	}
 
@@ -155,7 +62,7 @@ func (s *service) broadcastActivityStartEvent(ctx context.Context, group *active
 	s.broadcastWithLogging(ctx, activeGroupID, "", event, "activity_start")
 
 	// Notify all clients (including zero-topic) so dashboard refreshes
-	_ = s.broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+	_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
 	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, "", activeSupervisionReasonActivityStarted)
 }
 
@@ -172,12 +79,9 @@ func (s *service) validateSupervisorIDs(ctx context.Context, supervisorIDs []int
 	}
 
 	// Batch-validate all unique supervisor IDs in a single query
-	idSlice := make([]int64, 0, len(uniqueIDs))
-	for id := range uniqueIDs {
-		idSlice = append(idSlice, id)
-	}
+	idSlice := slices.Collect(maps.Keys(uniqueIDs))
 
-	staffMap, err := s.staffRepo.FindByIDs(ctx, idSlice)
+	staffMap, err := s.StaffRepo.FindByIDs(ctx, idSlice)
 	if err != nil {
 		return &ActiveError{Op: "ValidateSupervisors", Err: ErrStaffNotFound}
 	}
@@ -218,7 +122,7 @@ func (s *service) StartActivitySessionWithSupervisors(ctx context.Context, activ
 // Wraps all operations in a transaction (via TxHandler.RunInTx) so the advisory lock is always available.
 // If a transaction already exists in context (e.g. from handler-level WithTenantTx), it is reused.
 func (s *service) executeSessionStart(ctx context.Context, activityID, deviceID int64, roomID *int64, operation string, createSession func(context.Context, int64) (*active.Group, error)) error {
-	txHandler := modelBase.NewTxHandler(s.db)
+	txHandler := modelBase.NewTxHandler(s.DB)
 
 	return txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
 		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
@@ -276,7 +180,7 @@ func (s *service) createSessionWithMultipleSupervisors(ctx context.Context, acti
 // assignMultipleSupervisorsNonCritical assigns multiple supervisors but doesn't fail if assignment fails.
 // Each supervisor is inserted independently so one bad row doesn't prevent the other valid assignments.
 //
-// Mirrors the single-supervisor variant's NFC auto-check-in (assignSupervisorNonCritical):
+// Mirrors the deleted single-supervisor variant's NFC auto-check-in:
 // the kiosk-driven IoT activity start dispatches through this path, so each
 // supervisor must get a work_session stamped with source='nfc' for the audit
 // trail to distinguish kiosk scans from app check-ins. Without the loop here,
@@ -302,7 +206,7 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 		}
 		supervisor.SetTenantID(tenant.FromContext(ctx))
 		s.runBestEffortDB(ctx, "assign_supervisor", func() error {
-			return s.supervisorRepo.Create(ctx, supervisor)
+			return s.SupervisorRepo.Create(ctx, supervisor)
 		}, func(err error) {
 			s.getLogger().WarnContext(ctx, "supervisor assignment failed",
 				slog.Int64("staff_id", staffID),
@@ -316,9 +220,9 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 		// staff member already checked out today, EnsureCheckedIn returns
 		// (nil, nil) and we log it so a dispute over the supervisor row
 		// without a matching NFC stamp can be traced later.
-		if s.workSessionService != nil {
+		if s.WorkSessionService != nil {
 			s.runBestEffortDB(ctx, "nfc_auto_checkin", func() error {
-				session, err := s.workSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC)
+				session, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, active.WorkSessionSourceNFC)
 				if err != nil {
 					var plannedStart *PlannedStartNotReachedError
 					if errors.As(err, &plannedStart) {
@@ -350,68 +254,6 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 	}
 }
 
-// ForceStartActivitySession starts an activity session with override capability
-func (s *service) ForceStartActivitySession(ctx context.Context, activityID, deviceID, staffID int64, roomID *int64) (*active.Group, error) {
-	const operation = "ForceStartActivitySession"
-	txHandler := modelBase.NewTxHandler(s.db)
-
-	var newGroup *active.Group
-	err := txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
-		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
-			return err
-		}
-
-		deviceEndedSessionID, err := s.endExistingDeviceSessionForForceStart(txCtx, deviceID)
-		if err != nil {
-			return &ActiveError{Op: operation, Err: err}
-		}
-
-		finalRoomID := s.determineRoomIDWithoutConflictCheck(txCtx, activityID, roomID)
-
-		group, err := s.createSessionWithSupervisorForceStart(txCtx, activityID, deviceID, staffID, finalRoomID)
-		if err != nil {
-			return &ActiveError{Op: operation, Err: err}
-		}
-
-		if err := s.completeForceEndedTimetableMirrors(txCtx, appendActiveGroupID(nil, deviceEndedSessionID)); err != nil {
-			return &ActiveError{Op: operation, Err: err}
-		}
-
-		newGroup = group
-		return nil
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return newGroup, nil
-}
-
-// determineRoomIDWithoutConflictCheck determines room ID without checking conflicts (for force start)
-func (s *service) determineRoomIDWithoutConflictCheck(ctx context.Context, activityID int64, roomID *int64) int64 {
-	finalRoomID, _ := s.determineRoomIDWithStrategy(ctx, activityID, roomID, RoomConflictIgnore)
-	return finalRoomID
-}
-
-// createSessionWithSupervisorForceStart creates a session for force start with special logging
-func (s *service) createSessionWithSupervisorForceStart(ctx context.Context, activityID, deviceID, staffID, roomID int64) (*active.Group, error) {
-	newGroup, transferredCount, err := s.createSessionBase(ctx, activityID, deviceID, roomID)
-	if err != nil {
-		return nil, err
-	}
-
-	s.assignSupervisorNonCritical(ctx, newGroup.ID, staffID, newGroup.StartTime)
-
-	if transferredCount > 0 {
-		s.getLogger().InfoContext(ctx, "visits transferred to new session (force start)",
-			slog.Int("count", transferredCount),
-			slog.Int64("session_id", newGroup.ID),
-		)
-	}
-
-	return newGroup, nil
-}
-
 // createSessionBase creates a new active group session and transfers visits from recent sessions
 func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, roomID int64) (*active.Group, int, error) {
 	now := time.Now()
@@ -425,7 +267,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 	}
 
 	newGroup.SetTenantID(tenant.FromContext(ctx))
-	if err := s.groupRepo.Create(ctx, newGroup); err != nil {
+	if err := s.GroupRepo.Create(ctx, newGroup); err != nil {
 		return nil, 0, err
 	}
 
@@ -434,7 +276,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 		s.updateDeviceLocation(ctx, deviceID, roomID)
 	}
 
-	transferredCount, err := s.visitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
+	transferredCount, err := s.VisitRepo.TransferVisitsFromRecentSessions(ctx, newGroup.ID, deviceID)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -446,7 +288,7 @@ func (s *service) createSessionBase(ctx context.Context, activityID, deviceID, r
 // This is fire-and-forget: a failure here should not block session creation.
 func (s *service) updateDeviceLocation(ctx context.Context, deviceID, roomID int64) {
 	s.runBestEffortDB(ctx, "update_device_location", func() error {
-		return s.deviceRepo.UpdateRoomID(ctx, deviceID, roomID)
+		return s.DeviceRepo.UpdateRoomID(ctx, deviceID, roomID)
 	}, func(err error) {
 		s.getLogger().WarnContext(ctx, "failed to update device location",
 			slog.Int64("device_id", deviceID),
@@ -517,7 +359,7 @@ func (s *service) ForceStartActivitySessionWithSupervisors(ctx context.Context, 
 
 func (s *service) forceStartActivitySessionTx(ctx context.Context, activityID, deviceID int64, supervisorIDs []int64, roomID *int64, newGroup **active.Group) error {
 	const operation = "ForceStartActivitySessionWithSupervisors"
-	txHandler := modelBase.NewTxHandler(s.db)
+	txHandler := modelBase.NewTxHandler(s.DB)
 
 	return txHandler.RunInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
 		if err := s.acquireActivitySessionLock(txCtx, tx, activityID, operation); err != nil {
@@ -583,10 +425,10 @@ func appendActiveGroupIDs(ids []int64, more ...int64) []int64 {
 }
 
 func (s *service) completeForceEndedTimetableMirrors(ctx context.Context, endedSessionIDs []int64) error {
-	if s.timetableBridgeCompleter == nil || len(endedSessionIDs) == 0 {
+	if s.TimetableBridgeCompleter == nil || len(endedSessionIDs) == 0 {
 		return nil
 	}
-	completed, err := s.timetableBridgeCompleter.CompleteActiveByActiveGroupIDs(ctx, endedSessionIDs, time.Now())
+	completed, err := s.TimetableBridgeCompleter.CompleteActiveByActiveGroupIDs(ctx, endedSessionIDs, time.Now())
 	if err != nil {
 		return fmt.Errorf("complete force-ended timetable mirrors: %w", err)
 	}
@@ -599,7 +441,7 @@ func (s *service) completeForceEndedTimetableMirrors(ctx context.Context, endedS
 }
 
 func (s *service) endExistingActivitySessionsForForceStart(ctx context.Context, activityID int64) ([]int64, error) {
-	existingSessions, err := s.groupRepo.FindActiveByGroupID(ctx, activityID)
+	existingSessions, err := s.GroupRepo.FindActiveByGroupID(ctx, activityID)
 	if err != nil {
 		return nil, err
 	}
@@ -609,7 +451,7 @@ func (s *service) endExistingActivitySessionsForForceStart(ctx context.Context, 
 		if session == nil || session.ID <= 0 {
 			continue
 		}
-		if err := s.groupRepo.EndSession(ctx, session.ID); err != nil {
+		if err := s.GroupRepo.EndSession(ctx, session.ID); err != nil {
 			return nil, err
 		}
 		endedIDs = append(endedIDs, session.ID)
@@ -619,7 +461,7 @@ func (s *service) endExistingActivitySessionsForForceStart(ctx context.Context, 
 }
 
 func (s *service) endExistingDeviceSessionForForceStart(ctx context.Context, deviceID int64) (int64, error) {
-	existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+	existingSession, err := s.GroupRepo.FindActiveByDeviceID(ctx, deviceID)
 	if err != nil {
 		return 0, err
 	}
@@ -628,7 +470,7 @@ func (s *service) endExistingDeviceSessionForForceStart(ctx context.Context, dev
 		return 0, nil
 	}
 
-	if err := s.groupRepo.EndSession(ctx, existingSession.ID); err != nil {
+	if err := s.GroupRepo.EndSession(ctx, existingSession.ID); err != nil {
 		return 0, err
 	}
 
@@ -661,16 +503,16 @@ func (s *service) transferForceStartedActivityState(ctx context.Context, oldGrou
 }
 
 func (s *service) transferActiveVisitsBetweenGroups(ctx context.Context, oldGroupID, newGroupID int64) (int, error) {
-	return s.visitRepo.TransferActiveVisitsBetweenGroups(ctx, oldGroupID, newGroupID)
+	return s.VisitRepo.TransferActiveVisitsBetweenGroups(ctx, oldGroupID, newGroupID)
 }
 
 func (s *service) transferActiveSupervisorsBetweenGroups(ctx context.Context, oldGroupID, newGroupID int64, newGroupStartTime time.Time) (int, error) {
-	oldSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, oldGroupID, true)
+	oldSupervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, oldGroupID, true)
 	if err != nil {
 		return 0, err
 	}
 
-	newSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, newGroupID, true)
+	newSupervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, newGroupID, true)
 	if err != nil {
 		return 0, err
 	}
@@ -689,7 +531,7 @@ func (s *service) transferActiveSupervisorsBetweenGroups(ctx context.Context, ol
 			continue
 		}
 
-		if err := s.supervisorRepo.EndSupervision(ctx, supervisor.ID); err != nil {
+		if err := s.SupervisorRepo.EndSupervision(ctx, supervisor.ID); err != nil {
 			return transferred, err
 		}
 
@@ -704,7 +546,7 @@ func (s *service) transferActiveSupervisorsBetweenGroups(ctx context.Context, ol
 			StartDate: timezone.DateFromTime(newGroupStartTime),
 		}
 		transferredSupervisor.SetTenantID(tenant.FromContext(ctx))
-		if err := s.supervisorRepo.Create(ctx, transferredSupervisor); err != nil {
+		if err := s.SupervisorRepo.Create(ctx, transferredSupervisor); err != nil {
 			return transferred, err
 		}
 		existingStaffIDs[supervisor.StaffID] = true
@@ -719,24 +561,6 @@ func normalizeTransferredSupervisorRole(role string) string {
 		return "supervisor"
 	}
 	return role
-}
-
-// endExistingDeviceSession ends any existing session for the device
-func (s *service) endExistingDeviceSession(ctx context.Context, deviceID int64, fullCleanup bool) error {
-	existingSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
-	if err != nil {
-		return err
-	}
-
-	if existingSession == nil {
-		return nil
-	}
-
-	if fullCleanup {
-		return s.EndActivitySession(ctx, existingSession.ID)
-	}
-
-	return s.groupRepo.EndSession(ctx, existingSession.ID)
 }
 
 // determineRoomIDForForceStart determines room ID for force start with conflict warning but no failure
@@ -766,7 +590,7 @@ func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64,
 		return roomID, nil
 	}
 
-	hasConflict, _, err := s.groupRepo.CheckRoomConflict(ctx, roomID, 0)
+	hasConflict, _, err := s.GroupRepo.CheckRoomConflict(ctx, roomID, 0)
 	if err != nil {
 		return 0, err
 	}
@@ -785,7 +609,7 @@ func (s *service) validateManualRoomSelection(ctx context.Context, roomID int64,
 
 // getPlannedRoomID retrieves the planned room ID from activity configuration
 func (s *service) getPlannedRoomID(ctx context.Context, activityID int64) int64 {
-	activityGroup, err := s.activityGroupRepo.FindByID(ctx, activityID)
+	activityGroup, err := s.ActivityGroupRepo.FindByID(ctx, activityID)
 	if err == nil && activityGroup != nil && activityGroup.PlannedRoomID != nil && *activityGroup.PlannedRoomID > 0 {
 		return *activityGroup.PlannedRoomID
 	}
@@ -808,7 +632,7 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: err}
 	}
 
-	updatedGroup, err := s.groupRepo.FindWithSupervisors(ctx, activeGroupID)
+	updatedGroup, err := s.GroupRepo.FindWithSupervisors(ctx, activeGroupID)
 	if err != nil {
 		return nil, &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: err}
 	}
@@ -818,7 +642,7 @@ func (s *service) UpdateActiveGroupSupervisors(ctx context.Context, activeGroupI
 
 // validateActiveGroupForSupervisorUpdate validates that the group exists and is active
 func (s *service) validateActiveGroupForSupervisorUpdate(ctx context.Context, activeGroupID int64) error {
-	activeGroup, err := s.groupRepo.FindByID(ctx, activeGroupID)
+	activeGroup, err := s.GroupRepo.FindByID(ctx, activeGroupID)
 	if err != nil {
 		return &ActiveError{Op: "UpdateActiveGroupSupervisors", Err: ErrActiveGroupNotFound}
 	}
@@ -841,7 +665,7 @@ func deduplicateSupervisorIDs(supervisorIDs []int64) map[int64]bool {
 
 // replaceSupervisorsInTransaction replaces all supervisors for a group within a transaction
 func (s *service) replaceSupervisorsInTransaction(ctx context.Context, activeGroupID int64, uniqueSupervisors map[int64]bool) error {
-	currentSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
+	currentSupervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
 	if err != nil {
 		return err
 	}
@@ -858,7 +682,7 @@ func (s *service) endAllCurrentSupervisors(ctx context.Context, supervisors []*a
 	today := timezone.TodayDate()
 	for _, supervisor := range supervisors {
 		supervisor.EndDate = &today
-		if err := s.supervisorRepo.Update(ctx, supervisor); err != nil {
+		if err := s.SupervisorRepo.Update(ctx, supervisor); err != nil {
 			return err
 		}
 	}
@@ -904,7 +728,7 @@ func (s *service) reactivateSupervisor(ctx context.Context, supervisor *active.G
 
 	supervisor.EndDate = nil
 	supervisor.StartDate = timezone.DateFromTime(now)
-	return s.supervisorRepo.Update(ctx, supervisor)
+	return s.SupervisorRepo.Update(ctx, supervisor)
 }
 
 // createNewSupervisor creates a new supervisor record
@@ -916,13 +740,13 @@ func (s *service) createNewSupervisor(ctx context.Context, activeGroupID, superv
 		StartDate: timezone.DateFromTime(now),
 	}
 	supervisor.SetTenantID(tenant.FromContext(ctx))
-	return s.supervisorRepo.Create(ctx, supervisor)
+	return s.SupervisorRepo.Create(ctx, supervisor)
 }
 
 // CheckActivityConflict checks for conflicts before starting an activity session
 func (s *service) CheckActivityConflict(ctx context.Context, activityID, deviceID int64) (*ActivityConflictInfo, error) {
 	// Check if device is already running another session
-	existingDeviceSession, err := s.groupRepo.FindActiveByDeviceID(ctx, deviceID)
+	existingDeviceSession, err := s.GroupRepo.FindActiveByDeviceID(ctx, deviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
 	}
@@ -939,7 +763,7 @@ func (s *service) CheckActivityConflict(ctx context.Context, activityID, deviceI
 	}
 
 	// Check if activity is already active on a different device
-	existingActivitySessions, err := s.groupRepo.FindActiveByGroupID(ctx, activityID)
+	existingActivitySessions, err := s.GroupRepo.FindActiveByGroupID(ctx, activityID)
 	if err != nil {
 		return nil, &ActiveError{Op: "CheckActivityConflict", Err: err}
 	}
@@ -979,7 +803,7 @@ func getDeviceIDString(deviceID *int64) string {
 // EndActivitySession ends an active activity session
 func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) error {
 	// Verify the session exists and is active
-	group, err := s.groupRepo.FindByID(ctx, activeGroupID)
+	group, err := s.GroupRepo.FindByID(ctx, activeGroupID)
 	if err != nil {
 		return &ActiveError{Op: "EndActivitySession", Err: ErrActiveGroupNotFound}
 	}
@@ -996,29 +820,29 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 
 	// End all active visits
 	for _, visitData := range visitsToNotify {
-		if err := s.visitRepo.EndVisit(ctx, visitData.VisitID); err != nil {
+		if err := s.VisitRepo.EndVisit(ctx, visitData.VisitID); err != nil {
 			return &ActiveError{Op: "EndActivitySession", Err: err}
 		}
 	}
 
 	// End all active supervisors
-	activeSupervisors, err := s.supervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
+	activeSupervisors, err := s.SupervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
 	if err != nil {
 		return &ActiveError{Op: "EndActivitySession", Err: err}
 	}
 	for _, sup := range activeSupervisors {
-		if err := s.supervisorRepo.EndSupervision(ctx, sup.ID); err != nil {
+		if err := s.SupervisorRepo.EndSupervision(ctx, sup.ID); err != nil {
 			return &ActiveError{Op: "EndActivitySession", Err: err}
 		}
 	}
 
 	// End the session
-	if err := s.groupRepo.EndSession(ctx, activeGroupID); err != nil {
+	if err := s.GroupRepo.EndSession(ctx, activeGroupID); err != nil {
 		return &ActiveError{Op: "EndActivitySession", Err: err}
 	}
 
 	// Broadcast SSE events (fire-and-forget, outside transaction)
-	if s.broadcaster != nil {
+	if s.Broadcaster != nil {
 		activeGroupIDStr := fmt.Sprintf("%d", activeGroupID)
 		s.broadcastStudentCheckoutEvents(ctx, activeGroupIDStr, visitsToNotify)
 		s.broadcastActivityEndEvent(ctx, activeGroupID, activeGroupIDStr)
@@ -1029,7 +853,7 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 
 // GetDeviceCurrentSession gets the current active session for a device
 func (s *service) GetDeviceCurrentSession(ctx context.Context, deviceID int64) (*active.Group, error) {
-	session, err := s.groupRepo.FindActiveByDeviceIDWithNames(ctx, deviceID)
+	session, err := s.GroupRepo.FindActiveByDeviceIDWithNames(ctx, deviceID)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetDeviceCurrentSession", Err: err}
 	}
@@ -1056,7 +880,7 @@ func (s *service) ProcessSessionTimeout(ctx context.Context, deviceID int64) (*T
 // validateSessionForTimeout validates that a session exists and is still active.
 // Returns the session if valid, or an error if not found or already ended.
 func (s *service) validateSessionForTimeout(ctx context.Context, sessionID int64) (*active.Group, error) {
-	session, err := s.groupRepo.FindByID(ctx, sessionID)
+	session, err := s.GroupRepo.FindByID(ctx, sessionID)
 	if err != nil {
 		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: ErrActiveGroupNotFound}
 	}
@@ -1070,7 +894,7 @@ func (s *service) validateSessionForTimeout(ctx context.Context, sessionID int64
 
 // checkoutActiveVisits ends all active visits for a session and returns the count of students checked out.
 func (s *service) checkoutActiveVisits(ctx context.Context, sessionID int64) (int, error) {
-	visits, err := s.visitRepo.FindByActiveGroupID(ctx, sessionID)
+	visits, err := s.VisitRepo.FindByActiveGroupID(ctx, sessionID)
 	if err != nil {
 		return 0, err
 	}
@@ -1080,7 +904,7 @@ func (s *service) checkoutActiveVisits(ctx context.Context, sessionID int64) (in
 		if !visit.IsActive() {
 			continue
 		}
-		if err := s.visitRepo.EndVisit(ctx, visit.ID); err != nil {
+		if err := s.VisitRepo.EndVisit(ctx, visit.ID); err != nil {
 			return 0, err
 		}
 		studentsCheckedOut++
@@ -1091,7 +915,7 @@ func (s *service) checkoutActiveVisits(ctx context.Context, sessionID int64) (in
 
 // collectActiveVisitsForSSE gathers visit and student data needed for SSE broadcasts
 func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64) ([]visitSSEData, error) {
-	visits, err := s.visitRepo.FindByActiveGroupID(ctx, sessionID)
+	visits, err := s.VisitRepo.FindByActiveGroupID(ctx, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -1112,11 +936,8 @@ func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64
 	}
 
 	// Batch-fetch all students (1 query instead of N)
-	studentIDs := make([]int64, 0, len(studentIDSet))
-	for id := range studentIDSet {
-		studentIDs = append(studentIDs, id)
-	}
-	studentsMap, err := s.studentRepo.FindByIDs(ctx, studentIDs)
+	studentIDs := slices.Collect(maps.Keys(studentIDSet))
+	studentsMap, err := s.StudentRepo.FindByIDs(ctx, studentIDs)
 	if err != nil {
 		studentsMap = nil
 	}
@@ -1132,11 +953,8 @@ func (s *service) collectActiveVisitsForSSE(ctx context.Context, sessionID int64
 	// Batch-fetch all persons (1 query instead of M)
 	var personsMap map[int64]*userModels.Person
 	if len(personIDSet) > 0 {
-		personIDs := make([]int64, 0, len(personIDSet))
-		for id := range personIDSet {
-			personIDs = append(personIDs, id)
-		}
-		personsMap, err = s.personRepo.FindByIDs(ctx, personIDs)
+		personIDs := slices.Collect(maps.Keys(personIDSet))
+		personsMap, err = s.PersonRepo.FindByIDs(ctx, personIDs)
 		if err != nil {
 			personsMap = nil
 		}
@@ -1185,7 +1003,7 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 
-	if err := s.groupRepo.EndSession(ctx, sessionID); err != nil {
+	if err := s.GroupRepo.EndSession(ctx, sessionID); err != nil {
 		return nil, &ActiveError{Op: "ProcessSessionTimeoutByID", Err: err}
 	}
 
@@ -1197,7 +1015,7 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 	}
 
 	// Broadcast SSE events (fire-and-forget, outside transaction)
-	if s.broadcaster != nil && result != nil {
+	if s.Broadcaster != nil && result != nil {
 		sessionIDStr := fmt.Sprintf("%d", sessionID)
 		s.broadcastStudentCheckoutEvents(ctx, sessionIDStr, visitsToNotify)
 		s.broadcastActivityEndEvent(ctx, sessionID, sessionIDStr)
@@ -1208,9 +1026,9 @@ func (s *service) ProcessSessionTimeoutByID(ctx context.Context, sessionID int64
 
 // UpdateSessionActivity updates the last activity timestamp for a session
 func (s *service) UpdateSessionActivity(ctx context.Context, activeGroupID int64) error {
-	if err := s.groupRepo.UpdateLastActivity(ctx, activeGroupID, time.Now()); err != nil {
+	if err := s.GroupRepo.UpdateLastActivity(ctx, activeGroupID, time.Now()); err != nil {
 		if isUpdateLastActivitySessionMiss(err) {
-			session, findErr := s.groupRepo.FindByID(ctx, activeGroupID)
+			session, findErr := s.GroupRepo.FindByID(ctx, activeGroupID)
 			if findErr != nil {
 				if isFindByIDNoRows(findErr) {
 					return &ActiveError{Op: "UpdateSessionActivity", Err: ErrActiveGroupNotFound}
@@ -1275,7 +1093,7 @@ func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*S
 	}
 
 	// Count active students in the session
-	visits, err := s.visitRepo.FindByActiveGroupID(ctx, session.ID)
+	visits, err := s.VisitRepo.FindByActiveGroupID(ctx, session.ID)
 	if err != nil {
 		return nil, &ActiveError{Op: "GetSessionTimeoutInfo", Err: err}
 	}
@@ -1311,7 +1129,7 @@ func (s *service) GetSessionTimeoutInfo(ctx context.Context, deviceID int64) (*S
 func (s *service) CleanupAbandonedSessions(ctx context.Context, threshold time.Duration) (int, error) {
 	// Find sessions with no activity since the threshold
 	cutoffTime := time.Now().Add(-threshold)
-	sessions, err := s.groupRepo.FindActiveSessionsOlderThan(ctx, cutoffTime)
+	sessions, err := s.GroupRepo.FindActiveSessionsOlderThan(ctx, cutoffTime)
 	if err != nil {
 		return 0, &ActiveError{Op: "CleanupAbandonedSessions", Err: err}
 	}
@@ -1358,27 +1176,10 @@ func (s *service) isDeviceOnline(ctx context.Context, device *iotModels.Device, 
 }
 
 // deviceOnlineWindow resolves the per-tenant device-online window, falling back
-// to defaultDeviceOnlineWindow. The key string is inlined (rather than
-// imported from models/config) to avoid a dependency cycle through the factory,
-// matching the GetPresenceMode convention in this package.
+// to defaultDeviceOnlineWindow.
 func (s *service) deviceOnlineWindow(ctx context.Context) time.Duration {
-	const keyDeviceOnlineWindowMinutes = "iot.device_online_window_minutes"
-	if s.settings == nil {
-		return defaultDeviceOnlineWindow
-	}
-	has, err := s.settings.HasTenantOverride(ctx, keyDeviceOnlineWindowMinutes)
-	if err != nil {
-		s.getLogger().WarnContext(ctx, "device online window override check failed, using default",
-			slog.String("key", keyDeviceOnlineWindowMinutes),
-			slog.String("error", err.Error()),
-		)
-		return defaultDeviceOnlineWindow
-	}
-	if !has {
-		return defaultDeviceOnlineWindow
-	}
-	minutes, err := s.settings.ResolveInt(ctx, keyDeviceOnlineWindowMinutes)
-	if err != nil || minutes <= 0 {
+	minutes := config.ResolveIntOrDefault(ctx, s.settings, configModel.KeyDeviceOnlineWindowMinutes, 0, s.getLogger())
+	if minutes <= 0 {
 		return defaultDeviceOnlineWindow
 	}
 	return time.Duration(minutes) * time.Minute
@@ -1405,7 +1206,7 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 	}
 
 	// 1. Get all active group IDs
-	activeGroups, err := s.groupRepo.List(ctx, nil)
+	activeGroups, err := s.GroupRepo.List(ctx, nil)
 	if err != nil {
 		result.Success = false
 		return result, &ActiveError{Op: "EndDailySessions", Err: ErrDatabaseOperation}
@@ -1428,7 +1229,7 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 
 	// 2. Bulk end visits — abort remaining steps on failure to prevent
 	// sessions/supervisors being closed while visits remain active.
-	visitsEnded, err := s.visitRepo.EndVisitsByActiveGroupIDs(ctx, activeIDs)
+	visitsEnded, err := s.VisitRepo.EndVisitsByActiveGroupIDs(ctx, activeIDs)
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end visits: %v", err))
 		result.Success = false
@@ -1437,7 +1238,7 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 	result.VisitsEnded = int(visitsEnded)
 
 	// 3. Bulk end sessions
-	sessionsEnded, err := s.groupRepo.EndSessionsByIDs(ctx, activeIDs)
+	sessionsEnded, err := s.GroupRepo.EndSessionsByIDs(ctx, activeIDs)
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end sessions: %v", err))
 		result.Success = false
@@ -1447,7 +1248,7 @@ func (s *service) EndDailySessions(ctx context.Context) (*DailySessionCleanupRes
 	}
 
 	// 4. Bulk end supervisors
-	supervisorsEnded, err := s.supervisorRepo.EndSupervisionsByActiveGroupIDs(ctx, activeIDs)
+	supervisorsEnded, err := s.SupervisorRepo.EndSupervisionsByActiveGroupIDs(ctx, activeIDs)
 	if err != nil {
 		result.Errors = append(result.Errors, fmt.Sprintf("Failed to bulk-end supervisors: %v", err))
 		result.Success = false
@@ -1464,7 +1265,7 @@ func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailyS
 	today := timezone.TodayDate()
 
 	// Find orphaned supervisor records from before today with no end_date
-	staleRecords, err := s.supervisorRepo.FindStaleOpen(ctx, today)
+	staleRecords, err := s.SupervisorRepo.FindStaleOpen(ctx, today)
 	if err != nil {
 		errMsg := fmt.Sprintf("Failed to find orphaned supervisors: %v", err)
 		result.Errors = append(result.Errors, errMsg)
@@ -1478,7 +1279,7 @@ func (s *service) cleanupOrphanedSupervisors(ctx context.Context, result *DailyS
 
 		record.EndDate = &endDate
 		record.UpdatedAt = time.Now()
-		if _, err := s.supervisorRepo.UpdateColumns(ctx, record, "end_date", "updated_at"); err != nil {
+		if _, err := s.SupervisorRepo.UpdateColumns(ctx, record, "end_date", "updated_at"); err != nil {
 			errMsg := fmt.Sprintf("Failed to close orphaned supervisor %d: %v", record.ID, err)
 			result.Errors = append(result.Errors, errMsg)
 			result.Success = false

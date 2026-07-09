@@ -145,7 +145,7 @@ func TestValidateAndNormalizeSchoolClasses(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			svc := &requestService{settings: schoolClassSettingsStub{collect: tc.collect}}
+			svc := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: schoolClassSettingsStub{collect: tc.collect}}}
 			children := []SubmitChild{tc.child}
 			err := svc.validateAndNormalizeSchoolClasses(context.Background(), tc.phase, children)
 			if tc.wantErr {

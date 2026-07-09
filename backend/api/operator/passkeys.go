@@ -1,7 +1,6 @@
 package operator
 
 import (
-	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -10,7 +9,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -22,56 +20,15 @@ const headerOperatorFrontendOrigin = "X-Moto-Frontend-Origin"
 
 var errOperatorPasskeyServiceUnavailable = errors.New("operator passkey service is not configured")
 
-type operatorPasskeyVerifyRequest struct {
-	SessionID string          `json:"session_id"`
-	Response  json.RawMessage `json:"response"`
-}
-
-func (req *operatorPasskeyVerifyRequest) Bind(_ *http.Request) error {
-	req.SessionID = strings.TrimSpace(req.SessionID)
-	return validation.ValidateStruct(req,
-		validation.Field(&req.SessionID, validation.Required),
-		validation.Field(&req.Response, validation.Required),
-	)
-}
-
-type operatorPasskeyRegisterOptionsRequest struct {
-	Code string `json:"code"`
-	Name string `json:"name,omitempty"`
-}
-
-func (req *operatorPasskeyRegisterOptionsRequest) Bind(_ *http.Request) error {
-	req.Code = strings.TrimSpace(req.Code)
-	req.Name = strings.TrimSpace(req.Name)
-	return validation.ValidateStruct(req, validation.Field(&req.Code, validation.Required))
-}
-
-type operatorPasskeyRegisterVerifyRequest struct {
-	SessionID string          `json:"session_id"`
-	Name      string          `json:"name,omitempty"`
-	Response  json.RawMessage `json:"response"`
-}
-
-func (req *operatorPasskeyRegisterVerifyRequest) Bind(_ *http.Request) error {
-	req.SessionID = strings.TrimSpace(req.SessionID)
-	req.Name = strings.TrimSpace(req.Name)
-	return validation.ValidateStruct(req,
-		validation.Field(&req.SessionID, validation.Required),
-		validation.Field(&req.Response, validation.Required),
-	)
-}
+// Passkey request bodies are shared with the tenant portal via api/common.
+type (
+	operatorPasskeyVerifyRequest          = common.PasskeyVerifyRequest
+	operatorPasskeyRegisterOptionsRequest = common.PasskeyRegisterOptionsRequest
+	operatorPasskeyRegisterVerifyRequest  = common.PasskeyRegisterVerifyRequest
+)
 
 func (rs *Resource) requirePasskey(w http.ResponseWriter, r *http.Request) bool {
-	if rs.passkeyService == nil {
-		common.RenderError(w, r, &common.ErrResponse{
-			Err:            errOperatorPasskeyServiceUnavailable,
-			HTTPStatusCode: http.StatusServiceUnavailable,
-			Status:         "error",
-			ErrorText:      errOperatorPasskeyServiceUnavailable.Error(),
-		})
-		return false
-	}
-	return true
+	return common.RequireDependency(w, r, rs.passkeyService != nil, errOperatorPasskeyServiceUnavailable)
 }
 
 func (rs *Resource) PasskeyLoginOptions(w http.ResponseWriter, r *http.Request) {

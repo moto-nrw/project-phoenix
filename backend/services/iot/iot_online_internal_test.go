@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	iotModels "github.com/moto-nrw/project-phoenix/models/iot"
 )
@@ -34,8 +36,6 @@ func (s stubResolver) ResolveInt(_ context.Context, key string) (int, error) {
 	return s.minutes, s.resolveErr
 }
 
-func timePtr(t time.Time) *time.Time { return &t }
-
 func TestService_IsDeviceOnlineAt(t *testing.T) {
 	now := time.Date(2026, 6, 9, 12, 0, 0, 0, time.UTC)
 
@@ -57,53 +57,53 @@ func TestService_IsDeviceOnlineAt(t *testing.T) {
 		},
 		{
 			name:   "seen 3 minutes ago is online with default window",
-			device: &iotModels.Device{LastSeen: timePtr(now.Add(-3 * time.Minute))},
+			device: &iotModels.Device{LastSeen: testpkg.TimePtr(now.Add(-3 * time.Minute))},
 			want:   true,
 		},
 		{
 			name:   "seen exactly at the default window is online (inclusive)",
-			device: &iotModels.Device{LastSeen: timePtr(now.Add(-defaultDeviceOnlineWindow))},
+			device: &iotModels.Device{LastSeen: testpkg.TimePtr(now.Add(-defaultDeviceOnlineWindow))},
 			want:   true,
 		},
 		{
 			name:   "seen 10 minutes ago is offline with default window",
-			device: &iotModels.Device{LastSeen: timePtr(now.Add(-10 * time.Minute))},
+			device: &iotModels.Device{LastSeen: testpkg.TimePtr(now.Add(-10 * time.Minute))},
 			want:   false,
 		},
 		{
 			name:     "tenant override widens the window",
 			resolver: stubResolver{hasOverride: true, minutes: 15},
-			device:   &iotModels.Device{LastSeen: timePtr(now.Add(-10 * time.Minute))},
+			device:   &iotModels.Device{LastSeen: testpkg.TimePtr(now.Add(-10 * time.Minute))},
 			want:     true,
 		},
 		{
 			name:     "tenant override narrows the window",
 			resolver: stubResolver{hasOverride: true, minutes: 2},
-			device:   &iotModels.Device{LastSeen: timePtr(now.Add(-3 * time.Minute))},
+			device:   &iotModels.Device{LastSeen: testpkg.TimePtr(now.Add(-3 * time.Minute))},
 			want:     false,
 		},
 		{
 			name:     "no override falls back to default window",
 			resolver: stubResolver{hasOverride: false},
-			device:   &iotModels.Device{LastSeen: timePtr(now.Add(-4 * time.Minute))},
+			device:   &iotModels.Device{LastSeen: testpkg.TimePtr(now.Add(-4 * time.Minute))},
 			want:     true,
 		},
 		{
 			name:     "override-check error falls back to default window",
 			resolver: stubResolver{hasOverrideErr: errors.New("boom")},
-			device:   &iotModels.Device{LastSeen: timePtr(now.Add(-4 * time.Minute))},
+			device:   &iotModels.Device{LastSeen: testpkg.TimePtr(now.Add(-4 * time.Minute))},
 			want:     true,
 		},
 		{
 			name:     "resolve error falls back to default window",
 			resolver: stubResolver{hasOverride: true, resolveErr: errors.New("boom")},
-			device:   &iotModels.Device{LastSeen: timePtr(now.Add(-10 * time.Minute))},
+			device:   &iotModels.Device{LastSeen: testpkg.TimePtr(now.Add(-10 * time.Minute))},
 			want:     false,
 		},
 		{
 			name:     "non-positive override falls back to default window",
 			resolver: stubResolver{hasOverride: true, minutes: 0},
-			device:   &iotModels.Device{LastSeen: timePtr(now.Add(-10 * time.Minute))},
+			device:   &iotModels.Device{LastSeen: testpkg.TimePtr(now.Add(-10 * time.Minute))},
 			want:     false,
 		},
 	}

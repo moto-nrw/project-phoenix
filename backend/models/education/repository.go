@@ -10,19 +10,14 @@ import (
 
 // GroupRepository defines operations for managing education groups
 type GroupRepository interface {
-	Create(ctx context.Context, group *Group) error
-	FindByID(ctx context.Context, id interface{}) (*Group, error)
+	base.CRUDRepository[*Group]
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*Group, error)
 
 	// Exists reports whether a group with the given ID exists in the current
 	// tenant (issue #584: moved from api/timetable template validation).
 	Exists(ctx context.Context, id int64) (bool, error)
-	Update(ctx context.Context, group *Group) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*Group, error)
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*Group, error)
 	FindByName(ctx context.Context, name string) (*Group, error)
-	FindByRoom(ctx context.Context, roomID int64) ([]*Group, error)
 	FindByTeacher(ctx context.Context, teacherID int64) ([]*Group, error)
 	FindWithRoom(ctx context.Context, groupID int64) (*Group, error)
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
@@ -30,11 +25,7 @@ type GroupRepository interface {
 
 // GroupTeacherRepository defines operations for managing group-teacher relationships
 type GroupTeacherRepository interface {
-	Create(ctx context.Context, groupTeacher *GroupTeacher) error
-	FindByID(ctx context.Context, id interface{}) (*GroupTeacher, error)
-	Update(ctx context.Context, groupTeacher *GroupTeacher) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*GroupTeacher, error)
+	base.CRUDRepository[*GroupTeacher]
 	FindByGroup(ctx context.Context, groupID int64) ([]*GroupTeacher, error)
 	FindByTeacher(ctx context.Context, teacherID int64) ([]*GroupTeacher, error)
 	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*GroupTeacher, error)
@@ -48,21 +39,16 @@ type GroupTeacherRepository interface {
 
 // GroupSubstitutionRepository defines operations for managing group substitutions
 type GroupSubstitutionRepository interface {
-	Create(ctx context.Context, substitution *GroupSubstitution) error
+	base.CRUDRepository[*GroupSubstitution]
 	// ListActiveSubstitutionBlockers returns current/upcoming substitutions
 	// as caregiver-capability blocker rows.
 	ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]users.BlockerSubstitution, error)
-	FindByID(ctx context.Context, id interface{}) (*GroupSubstitution, error)
-	Update(ctx context.Context, substitution *GroupSubstitution) error
-	Delete(ctx context.Context, id interface{}) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*GroupSubstitution, error)
 	ListWithOptions(ctx context.Context, options *base.QueryOptions) ([]*GroupSubstitution, error)
 	FindByGroup(ctx context.Context, groupID int64) ([]*GroupSubstitution, error)
 	FindByRegularStaff(ctx context.Context, staffID int64) ([]*GroupSubstitution, error)
 	FindBySubstituteStaff(ctx context.Context, staffID int64) ([]*GroupSubstitution, error)
 	FindActive(ctx context.Context, date timezone.Date) ([]*GroupSubstitution, error)
 	FindActiveBySubstitute(ctx context.Context, substituteStaffID int64, date timezone.Date) ([]*GroupSubstitution, error)
-	FindActiveByGroup(ctx context.Context, groupID int64, date timezone.Date) ([]*GroupSubstitution, error)
 	FindOverlapping(ctx context.Context, staffID int64, startDate timezone.Date, endDate timezone.Date) ([]*GroupSubstitution, error)
 	// DeleteActiveOrFutureByStaffID removes substitutions involving the staff
 	// member (as regular or substitute) that have not ended before the given

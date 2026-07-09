@@ -25,20 +25,12 @@ type MFACredentialRepository struct {
 // NewMFACredentialRepository creates a new repository for MFA credential records.
 func NewMFACredentialRepository(db *bun.DB) auth.MFACredentialRepository {
 	return &MFACredentialRepository{
-		Repository: base.NewRepository[*auth.MFACredential](db, mfaCredentialTable, "MFACredential"),
+		// EntityName "MfaCredential" (not "MFACredential"): the generic derives
+		// the SQL alias by snake-casing, and it must match bun's model alias
+		// "mfa_credential" for WherePK-based methods like UpdateColumns.
+		Repository: base.NewRepository[*auth.MFACredential](db, mfaCredentialTable, "MfaCredential"),
 		db:         db,
 	}
-}
-
-// Create validates and persists a new credential.
-func (r *MFACredentialRepository) Create(ctx context.Context, credential *auth.MFACredential) error {
-	if credential == nil {
-		return fmt.Errorf("mfa credential cannot be nil")
-	}
-	if err := credential.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, credential)
 }
 
 // Update validates and persists modifications to an existing credential.
@@ -77,16 +69,9 @@ func (r *MFACredentialRepository) FindByAccountID(ctx context.Context, accountID
 
 // UpdateLastUsedAt stamps the credential after a successful verification.
 func (r *MFACredentialRepository) UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.MFACredential)(nil)).
-		ModelTableExpr(mfaCredentialTable).
-		Set("last_used_at = ?", when).
-		Where(whereID, id).
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{Op: "update mfa credential last_used_at", Err: err}
-	}
-	return nil
+	credential := &auth.MFACredential{Model: modelBase.Model{ID: id}, LastUsedAt: &when}
+	_, err := r.UpdateColumns(ctx, credential, "last_used_at")
+	return err
 }
 
 // DeleteByAccountID removes the credential for an account (used by user opt-out + admin override).

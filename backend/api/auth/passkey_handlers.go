@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"encoding/json"
 	"errors"
 	"net"
 	"net/http"
@@ -31,56 +30,16 @@ func (req *passkeyLoginOptionsRequest) Bind(_ *http.Request) error {
 	return validation.ValidateStruct(req, validation.Field(&req.TenantSlug, validation.Required))
 }
 
-type passkeyVerifyRequest struct {
-	SessionID string          `json:"session_id"`
-	Response  json.RawMessage `json:"response"`
-}
-
-func (req *passkeyVerifyRequest) Bind(_ *http.Request) error {
-	req.SessionID = strings.TrimSpace(req.SessionID)
-	return validation.ValidateStruct(req,
-		validation.Field(&req.SessionID, validation.Required),
-		validation.Field(&req.Response, validation.Required),
-	)
-}
-
-type passkeyRegisterOptionsRequest struct {
-	Code string `json:"code"`
-	Name string `json:"name,omitempty"`
-}
-
-func (req *passkeyRegisterOptionsRequest) Bind(_ *http.Request) error {
-	req.Code = strings.TrimSpace(req.Code)
-	req.Name = strings.TrimSpace(req.Name)
-	return validation.ValidateStruct(req, validation.Field(&req.Code, validation.Required))
-}
-
-type passkeyRegisterVerifyRequest struct {
-	SessionID string          `json:"session_id"`
-	Name      string          `json:"name,omitempty"`
-	Response  json.RawMessage `json:"response"`
-}
-
-func (req *passkeyRegisterVerifyRequest) Bind(_ *http.Request) error {
-	req.SessionID = strings.TrimSpace(req.SessionID)
-	req.Name = strings.TrimSpace(req.Name)
-	return validation.ValidateStruct(req,
-		validation.Field(&req.SessionID, validation.Required),
-		validation.Field(&req.Response, validation.Required),
-	)
-}
+// Passkey request bodies are shared with the operator portal via api/common;
+// only the login-options request above is tenant-specific.
+type (
+	passkeyVerifyRequest          = common.PasskeyVerifyRequest
+	passkeyRegisterOptionsRequest = common.PasskeyRegisterOptionsRequest
+	passkeyRegisterVerifyRequest  = common.PasskeyRegisterVerifyRequest
+)
 
 func (rs *Resource) requirePasskey(w http.ResponseWriter, r *http.Request) bool {
-	if rs.PasskeyService == nil {
-		common.RenderError(w, r, &common.ErrResponse{
-			Err:            errPasskeyServiceUnavailable,
-			HTTPStatusCode: http.StatusServiceUnavailable,
-			Status:         "error",
-			ErrorText:      errPasskeyServiceUnavailable.Error(),
-		})
-		return false
-	}
-	return true
+	return common.RequireDependency(w, r, rs.PasskeyService != nil, errPasskeyServiceUnavailable)
 }
 
 func requireTenantPasskeyClaims(w http.ResponseWriter, r *http.Request) (jwt.AppClaims, bool) {
@@ -114,7 +73,7 @@ func (rs *Resource) passkeyLoginOptions(w http.ResponseWriter, r *http.Request) 
 	}
 	school, err := rs.SchoolService.GetSchoolBySubdomain(r.Context(), req.TenantSlug)
 	if err != nil || school == nil || school.IsDeleted() || !school.Active {
-		common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
+		common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 		return
 	}
 	options, err := rs.PasskeyService.BeginLogin(r.Context(), authService.PasskeyLoginStartRequest{
@@ -191,7 +150,7 @@ func (rs *Resource) passkeyRegisterOptions(w http.ResponseWriter, r *http.Reques
 	}
 	school, err := rs.SchoolService.GetSchoolByID(r.Context(), claims.TenantID)
 	if err != nil || school == nil || school.IsDeleted() || !school.Active {
-		common.RenderError(w, r, ErrorNotFound(authService.ErrTenantNotFound))
+		common.RenderError(w, r, common.ErrorNotFound(authService.ErrTenantNotFound))
 		return
 	}
 	options, err := rs.PasskeyService.BeginRegistration(r.Context(), authService.PasskeyRegistrationStartRequest{

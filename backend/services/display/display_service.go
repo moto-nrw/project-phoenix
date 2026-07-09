@@ -1,6 +1,7 @@
 package display
 
 import (
+	"cmp"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -61,10 +62,7 @@ func NewService(deps Dependencies) Service {
 }
 
 func (s *service) getLogger() *slog.Logger {
-	if s.Logger != nil {
-		return s.Logger
-	}
-	return slog.Default()
+	return cmp.Or(s.Logger, slog.Default())
 }
 
 // newDisplayToken returns 32 random bytes as URL-safe base64 — same shape as

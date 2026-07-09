@@ -67,39 +67,9 @@ type ThreadDetail struct {
 	Messages          []*usersModels.ParentMessage
 }
 
-// Service is the staff-side messaging contract.
-type Service interface {
-	ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.InboxThread, error)
-	UnreadMessageCount(ctx context.Context) (int, error)
-	GetThread(ctx context.Context, threadID int64) (*ThreadDetail, error)
-	// PostMessage appends a staff reply and returns the refreshed thread messages.
-	PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, error)
-	StartThread(ctx context.Context, studentID, guardianAccountID int64, body string) (*ThreadDetail, error)
-	// OpenThread get-or-creates the conversation for a (student, guardian) pair
-	// and returns it (with history if any), without sending a message — the
-	// "open the chat" entry point for the staff WhatsApp-style flow. The empty
-	// thread it may create stays hidden from the inbox until the first message.
-	OpenThread(ctx context.Context, studentID, guardianAccountID int64) (*ThreadDetail, error)
-	ListGuardians(ctx context.Context, studentID int64) ([]*usersModels.MessageableGuardian, error)
-	// ListStudentThreads returns the staff view of one child's conversations
-	// (newest activity first), for the student-detail card. Authorizes read
-	// access to the child, then filters server-side instead of having the card
-	// fetch the whole tenant inbox.
-	ListStudentThreads(ctx context.Context, studentID int64) ([]*usersModels.InboxThread, error)
-}
-
-type service struct {
-	threadRepo  usersModels.ParentMessageThreadRepository
-	messageRepo usersModels.ParentMessageRepository
-	readRepo    usersModels.ParentMessageReadRepository
-
-	persons     userService.PersonService
-	userContext userContextService.UserContextService
-	settings    configService.SettingsService
-	broadcaster realtime.Broadcaster
-
-	db     *bun.DB
-	logger *slog.Logger
+// Service is the staff-side messaging service.
+type Service struct {
+	Config
 }
 
 // Config is the dependency-injection bundle.
@@ -116,37 +86,26 @@ type Config struct {
 }
 
 // NewService wires a staff messaging service.
-func NewService(cfg Config) Service {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
+func NewService(cfg Config) *Service {
+	if cfg.Logger == nil {
+		cfg.Logger = slog.Default()
 	}
-	return &service{
-		threadRepo:  cfg.ThreadRepo,
-		messageRepo: cfg.MessageRepo,
-		readRepo:    cfg.ReadRepo,
-		persons:     cfg.Persons,
-		userContext: cfg.UserContext,
-		settings:    cfg.Settings,
-		broadcaster: cfg.Broadcaster,
-		db:          cfg.DB,
-		logger:      logger,
-	}
+	return &Service{Config: cfg}
 }
 
-func (s *service) scope(ctx context.Context) (bool, []int64) {
+func (s *Service) scope(ctx context.Context) (bool, []int64) {
 	perms := jwt.PermissionsFromCtx(ctx)
-	return authorize.ResolveStudentReadScope(ctx, perms, s.userContext, s.settings, s.logger)
+	return authorize.ResolveStudentReadScope(ctx, perms, s.UserContext, s.Settings, s.Logger)
 }
 
 func accountIDFromCtx(ctx context.Context) int64 {
 	return int64(jwt.ClaimsFromCtx(ctx).ID)
 }
 
-func (s *service) ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.InboxThread, error) {
+func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.InboxThread, error) {
 	accountID := accountIDFromCtx(ctx)
 	allStudents, groupIDs := s.scope(ctx)
-	rows, err := s.readRepo.ListInboxForStaff(ctx, accountID, allStudents, groupIDs, onlyUnread)
+	rows, err := s.ReadRepo.ListInboxForStaff(ctx, accountID, allStudents, groupIDs, onlyUnread)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list inbox: %w", err)
 	}
@@ -189,11 +148,11 @@ func keepUnread(rows []*usersModels.InboxThread) []*usersModels.InboxThread {
 // untouched, briefly over-counting rather than hiding a real unread) lives in
 // parentmessaging.MessagingEnabled, shared with the badge and the parent side so
 // the four gate sites can never drift to disagreeing answers.
-func (s *service) suppressDisabledUnread(ctx context.Context, rows []*usersModels.InboxThread) {
+func (s *Service) suppressDisabledUnread(ctx context.Context, rows []*usersModels.InboxThread) {
 	if len(rows) == 0 {
 		return
 	}
-	if parentmessaging.MessagingEnabled(ctx, s.settings, s.logger) {
+	if parentmessaging.MessagingEnabled(ctx, s.Settings, s.Logger) {
 		return
 	}
 	for _, row := range rows {
@@ -201,19 +160,19 @@ func (s *service) suppressDisabledUnread(ctx context.Context, rows []*usersModel
 	}
 }
 
-func (s *service) UnreadMessageCount(ctx context.Context) (int, error) {
+func (s *Service) UnreadMessageCount(ctx context.Context) (int, error) {
 	// Darken the staff sidebar badge when the school has turned parent messaging
 	// off: the inbox history stays readable (ListInbox/GetThread are NOT gated),
 	// but a disabled feature must not keep lighting up a red unread count. Sends
 	// are already blocked by requireEnabled on the write paths. The enabled check
 	// (and its fail-OPEN direction) is shared via parentmessaging.MessagingEnabled
 	// so the badge, the row pills, and the write paths agree on one answer.
-	if !parentmessaging.MessagingEnabled(ctx, s.settings, s.logger) {
+	if !parentmessaging.MessagingEnabled(ctx, s.Settings, s.Logger) {
 		return 0, nil
 	}
 	accountID := accountIDFromCtx(ctx)
 	allStudents, groupIDs := s.scope(ctx)
-	count, err := s.readRepo.UnreadMessageCountForStaff(ctx, accountID, allStudents, groupIDs)
+	count, err := s.ReadRepo.UnreadMessageCountForStaff(ctx, accountID, allStudents, groupIDs)
 	if err != nil {
 		return 0, fmt.Errorf("messaging: unread count: %w", err)
 	}
@@ -221,8 +180,8 @@ func (s *service) UnreadMessageCount(ctx context.Context) (int, error) {
 }
 
 // canReadStudent loads the student and checks the staff member's read access.
-func (s *service) canReadStudent(ctx context.Context, studentID int64) error {
-	student, err := s.persons.GetStudentByID(ctx, studentID)
+func (s *Service) canReadStudent(ctx context.Context, studentID int64) error {
+	student, err := s.Persons.GetStudentByID(ctx, studentID)
 	if err != nil {
 		// A missing/out-of-tenant student (stale search result, hand-crafted id)
 		// is an authorization decision, not a server fault: GetStudentByID wraps
@@ -240,7 +199,7 @@ func (s *service) canReadStudent(ctx context.Context, studentID int64) error {
 		return ErrForbidden
 	}
 	perms := jwt.PermissionsFromCtx(ctx)
-	if !authorize.CanReadStudent(ctx, perms, student, s.userContext, s.settings, s.logger) {
+	if !authorize.CanReadStudent(ctx, perms, student, s.UserContext, s.Settings, s.Logger) {
 		return ErrForbidden
 	}
 	return nil
@@ -248,8 +207,8 @@ func (s *service) canReadStudent(ctx context.Context, studentID int64) error {
 
 // loadAuthorizedThread fetches the thread and enforces staff read access to its
 // child. Returns ErrThreadNotFound / ErrForbidden as appropriate.
-func (s *service) loadAuthorizedThread(ctx context.Context, threadID int64) (*usersModels.ParentMessageThread, error) {
-	thread, err := s.threadRepo.FindByID(ctx, threadID)
+func (s *Service) loadAuthorizedThread(ctx context.Context, threadID int64) (*usersModels.ParentMessageThread, error) {
+	thread, err := s.ThreadRepo.FindByID(ctx, threadID)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: find thread: %w", err)
 	}
@@ -272,8 +231,8 @@ func (s *service) loadAuthorizedThread(ctx context.Context, threadID int64) (*us
 // require parent_portal.access) and ListGuardiansForStudent applies the
 // identical JSONB containment filter, so the staff write path agrees with the
 // parent read path. Must run inside the tenant transaction.
-func (s *service) requireLinkedGuardian(ctx context.Context, thread *usersModels.ParentMessageThread) error {
-	guardians, err := s.threadRepo.ListGuardiansForStudent(ctx, thread.StudentID)
+func (s *Service) requireLinkedGuardian(ctx context.Context, thread *usersModels.ParentMessageThread) error {
+	guardians, err := s.ThreadRepo.ListGuardiansForStudent(ctx, thread.StudentID)
 	if err != nil {
 		return fmt.Errorf("messaging: guardian link check: %w", err)
 	}
@@ -286,16 +245,16 @@ func (s *service) requireLinkedGuardian(ctx context.Context, thread *usersModels
 // buildDetailFromMessages assembles the chat-window payload (read receipts,
 // header) from an already-fetched message snapshot, so the read paths can
 // mark-read off the SAME snapshot they return (see markReadAndBuild).
-func (s *service) buildDetailFromMessages(ctx context.Context, thread *usersModels.ParentMessageThread, messages []*usersModels.ParentMessage) (*ThreadDetail, error) {
+func (s *Service) buildDetailFromMessages(ctx context.Context, thread *usersModels.ParentMessageThread, messages []*usersModels.ParentMessage) (*ThreadDetail, error) {
 	// "OGS hat gelesen" receipt: flag guardian messages a staff member has read.
 	// Shared with the parent side via parentmessaging.DecorateReadReceipts so the
 	// receipt rule can't drift between the two chats (the staff reader's own read
 	// is excluded by passing the thread's guardian as the "other" account).
-	parentmessaging.DecorateReadReceipts(ctx, s.readRepo, s.logger, thread.ID, thread.GuardianAccountID, messages)
+	parentmessaging.DecorateReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, thread.GuardianAccountID, messages)
 	// "Gelesen" receipt on the staff's OWN messages: flag staff messages the
 	// guardian has read, using the guardian's read cursor. Symmetric to the
 	// "OGS hat gelesen" receipt above so each side sees when the other has read.
-	parentmessaging.DecorateGuardianReadReceipts(ctx, s.readRepo, s.logger, thread.ID, messages)
+	parentmessaging.DecorateGuardianReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, messages)
 	detail := &ThreadDetail{
 		ThreadID:          thread.ID,
 		StudentID:         thread.StudentID,
@@ -307,7 +266,7 @@ func (s *service) buildDetailFromMessages(ctx context.Context, thread *usersMode
 	// empty-header detail would mark the thread read while handing the client an
 	// incomplete chat. A genuinely missing header (nil, no error) is fine to
 	// leave blank — the thread simply has no resolvable student/guardian names.
-	header, err := s.readRepo.FindThreadHeader(ctx, thread.ID)
+	header, err := s.ReadRepo.FindThreadHeader(ctx, thread.ID)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: thread header: %w", err)
 	}
@@ -329,12 +288,12 @@ func (s *service) buildDetailFromMessages(ctx context.Context, thread *usersMode
 // pure-read callers (GetThread, OpenThread) can fire a read-receipt SSE wake-up to
 // the guardian's open chat only on a real move. The send callers (StartThread,
 // PostMessage) ignore it — their new-message broadcast already refreshes receipts.
-func (s *service) markReadAndBuild(ctx context.Context, thread *usersModels.ParentMessageThread) (*ThreadDetail, bool, error) {
-	messages, err := s.messageRepo.ListByThread(ctx, thread.ID, 0)
+func (s *Service) markReadAndBuild(ctx context.Context, thread *usersModels.ParentMessageThread) (*ThreadDetail, bool, error) {
+	messages, err := s.MessageRepo.ListByThread(ctx, thread.ID, 0)
 	if err != nil {
 		return nil, false, fmt.Errorf("messaging: list messages: %w", err)
 	}
-	advanced, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), true, messages)
+	advanced, err := parentmessaging.MarkReadToNewest(ctx, s.ReadRepo, thread.TenantID, thread.ID, accountIDFromCtx(ctx), true, messages)
 	if err != nil {
 		return nil, false, fmt.Errorf("messaging: mark read: %w", err)
 	}
@@ -345,7 +304,7 @@ func (s *service) markReadAndBuild(ctx context.Context, thread *usersModels.Pare
 	return detail, advanced, nil
 }
 
-func (s *service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail, error) {
+func (s *Service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail, error) {
 	thread, err := s.loadAuthorizedThread(ctx, threadID)
 	if err != nil {
 		return nil, err
@@ -362,7 +321,8 @@ func (s *service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 	return detail, nil
 }
 
-func (s *service) PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, error) {
+// PostMessage appends a staff reply and returns the refreshed thread messages.
+func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) ([]*usersModels.ParentMessage, error) {
 	body = strings.TrimSpace(body)
 	if body == "" {
 		return nil, ErrEmptyBody
@@ -389,7 +349,7 @@ func (s *service) PostMessage(ctx context.Context, threadID int64, body string) 
 		return nil, err
 	}
 
-	messages, err := s.messageRepo.ListByThread(ctx, thread.ID, 0)
+	messages, err := s.MessageRepo.ListByThread(ctx, thread.ID, 0)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list messages: %w", err)
 	}
@@ -401,7 +361,7 @@ func (s *service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// newest GUARDIAN row in the snapshot (never NOW(), never our own just-sent
 	// message), so it can't leap the cursor to ~now and swallow a guardian message
 	// committing concurrently in a still-open tx. See parentmessaging.MarkReadToNewest.
-	if _, err := parentmessaging.MarkReadToNewest(ctx, s.readRepo, thread.TenantID, thread.ID, accountID, true, messages); err != nil {
+	if _, err := parentmessaging.MarkReadToNewest(ctx, s.ReadRepo, thread.TenantID, thread.ID, accountID, true, messages); err != nil {
 		return nil, fmt.Errorf("messaging: mark read: %w", err)
 	}
 	// Re-stamp the "Gelesen" receipts on the returned snapshot: the client applies
@@ -409,7 +369,7 @@ func (s *service) PostMessage(ctx context.Context, threadID int64, body string) 
 	// guardian-read messages would lose their receipt until the next GET/SSE refresh.
 	// The just-sent message is unread by the guardian (cursor unchanged by our send),
 	// so it correctly stays unstamped.
-	parentmessaging.DecorateGuardianReadReceipts(ctx, s.readRepo, s.logger, thread.ID, messages)
+	parentmessaging.DecorateGuardianReadReceipts(ctx, s.ReadRepo, s.Logger, thread.ID, messages)
 	s.broadcastAfterCommit(ctx, thread)
 	return messages, nil
 }
@@ -419,7 +379,7 @@ func (s *service) PostMessage(ctx context.Context, threadID int64, body string) 
 // for the tenant, and the chosen recipient is an account-holding guardian of the
 // child. StartThread and OpenThread both run it so their access rules cannot
 // drift apart. Must run inside the tenant transaction.
-func (s *service) authorizeThreadParticipants(ctx context.Context, studentID, guardianAccountID int64) error {
+func (s *Service) authorizeThreadParticipants(ctx context.Context, studentID, guardianAccountID int64) error {
 	if err := s.canReadStudent(ctx, studentID); err != nil {
 		return err
 	}
@@ -427,7 +387,7 @@ func (s *service) authorizeThreadParticipants(ctx context.Context, studentID, gu
 		return err
 	}
 	// The recipient must be an account-holding guardian of this child.
-	guardians, err := s.threadRepo.ListGuardiansForStudent(ctx, studentID)
+	guardians, err := s.ThreadRepo.ListGuardiansForStudent(ctx, studentID)
 	if err != nil {
 		return fmt.Errorf("messaging: list guardians: %w", err)
 	}
@@ -440,7 +400,7 @@ func (s *service) authorizeThreadParticipants(ctx context.Context, studentID, gu
 // StartThread sends the OGS's first message to a guardian about a child. The
 // conversation is get-or-create: if one already exists for the (student,
 // guardian) pair the message is appended to it instead of opening a second.
-func (s *service) StartThread(ctx context.Context, studentID, guardianAccountID int64, body string) (*ThreadDetail, error) {
+func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID int64, body string) (*ThreadDetail, error) {
 	body = strings.TrimSpace(body)
 	if body == "" {
 		return nil, ErrEmptyBody
@@ -453,7 +413,7 @@ func (s *service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	}
 
 	accountID := accountIDFromCtx(ctx)
-	thread, err := s.threadRepo.GetOrCreate(ctx, tenant.FromContext(ctx), studentID, guardianAccountID)
+	thread, err := s.ThreadRepo.GetOrCreate(ctx, tenant.FromContext(ctx), studentID, guardianAccountID)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: get-or-create thread: %w", err)
 	}
@@ -461,7 +421,7 @@ func (s *service) StartThread(ctx context.Context, studentID, guardianAccountID 
 		return nil, err
 	}
 	s.broadcastAfterCommit(ctx, thread)
-	s.logger.Info("staff sent parent message",
+	s.Logger.Info("staff sent parent message",
 		slog.Int64("account_id", accountID),
 		slog.Int64("student_id", studentID),
 		slog.Int64("guardian_account_id", guardianAccountID),
@@ -479,15 +439,16 @@ func (s *service) StartThread(ctx context.Context, studentID, guardianAccountID 
 }
 
 // OpenThread get-or-creates the (student, guardian) conversation and returns
-// it ready for the chat window, marking it read. No message is sent; a freshly
+// it ready for the chat window, marking it read — the "open the chat" entry
+// point for the staff WhatsApp-style flow. No message is sent; a freshly
 // created thread has no messages and is filtered out of the inbox until the
 // first reply, so opening a chat never litters the inbox.
-func (s *service) OpenThread(ctx context.Context, studentID, guardianAccountID int64) (*ThreadDetail, error) {
+func (s *Service) OpenThread(ctx context.Context, studentID, guardianAccountID int64) (*ThreadDetail, error) {
 	if err := s.authorizeThreadParticipants(ctx, studentID, guardianAccountID); err != nil {
 		return nil, err
 	}
 
-	thread, err := s.threadRepo.GetOrCreate(ctx, tenant.FromContext(ctx), studentID, guardianAccountID)
+	thread, err := s.ThreadRepo.GetOrCreate(ctx, tenant.FromContext(ctx), studentID, guardianAccountID)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: get-or-create thread: %w", err)
 	}
@@ -503,22 +464,26 @@ func (s *service) OpenThread(ctx context.Context, studentID, guardianAccountID i
 	return detail, nil
 }
 
-func (s *service) ListGuardians(ctx context.Context, studentID int64) ([]*usersModels.MessageableGuardian, error) {
+func (s *Service) ListGuardians(ctx context.Context, studentID int64) ([]*usersModels.MessageableGuardian, error) {
 	if err := s.canReadStudent(ctx, studentID); err != nil {
 		return nil, err
 	}
-	guardians, err := s.threadRepo.ListGuardiansForStudent(ctx, studentID)
+	guardians, err := s.ThreadRepo.ListGuardiansForStudent(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list guardians: %w", err)
 	}
 	return guardians, nil
 }
 
-func (s *service) ListStudentThreads(ctx context.Context, studentID int64) ([]*usersModels.InboxThread, error) {
+// ListStudentThreads returns the staff view of one child's conversations
+// (newest activity first), for the student-detail card. Authorizes read
+// access to the child, then filters server-side instead of having the card
+// fetch the whole tenant inbox.
+func (s *Service) ListStudentThreads(ctx context.Context, studentID int64) ([]*usersModels.InboxThread, error) {
 	if err := s.canReadStudent(ctx, studentID); err != nil {
 		return nil, err
 	}
-	rows, err := s.readRepo.ListThreadsForStudent(ctx, accountIDFromCtx(ctx), studentID)
+	rows, err := s.ReadRepo.ListThreadsForStudent(ctx, accountIDFromCtx(ctx), studentID)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: list student threads: %w", err)
 	}
@@ -532,7 +497,7 @@ func (s *service) ListStudentThreads(ctx context.Context, studentID int64) ([]*u
 // does NOT move the sender's read cursor) is shared with the parent side via
 // parentmessaging.AppendMessage (one home for the "drive off the DB-stamped
 // created_at" rule).
-func (s *service) appendStaffMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, body string) error {
+func (s *Service) appendStaffMessage(ctx context.Context, thread *usersModels.ParentMessageThread, accountID int64, body string) error {
 	msg := &usersModels.ParentMessage{
 		ThreadID:         thread.ID,
 		StudentID:        thread.StudentID,
@@ -544,7 +509,7 @@ func (s *service) appendStaffMessage(ctx context.Context, thread *usersModels.Pa
 		Kind:             usersModels.ParentMessageKindMessage,
 	}
 	msg.SetTenantID(thread.TenantID)
-	if err := parentmessaging.AppendMessage(ctx, s.messageRepo, s.threadRepo, msg); err != nil {
+	if err := parentmessaging.AppendMessage(ctx, s.MessageRepo, s.ThreadRepo, msg); err != nil {
 		return fmt.Errorf("messaging: append staff message: %w", err)
 	}
 	return nil
@@ -556,20 +521,20 @@ func (s *service) appendStaffMessage(ctx context.Context, thread *usersModels.Pa
 // while the badge and inbox keep rendering unread — the write side now agrees
 // with the read side instead of diverging. A genuine disabled flag still returns
 // ErrMessagingDisabled (-> 403).
-func (s *service) requireEnabled(ctx context.Context) error {
-	if !parentmessaging.MessagingEnabled(ctx, s.settings, s.logger) {
+func (s *Service) requireEnabled(ctx context.Context) error {
+	if !parentmessaging.MessagingEnabled(ctx, s.Settings, s.Logger) {
 		return ErrMessagingDisabled
 	}
 	return nil
 }
 
 // resolveStaffName returns the staff member's display name, "OGS-Team" if none.
-func (s *service) resolveStaffName(ctx context.Context, accountID int64) string {
+func (s *Service) resolveStaffName(ctx context.Context, accountID int64) string {
 	name := "OGS-Team"
-	if s.persons == nil {
+	if s.Persons == nil {
 		return name
 	}
-	person, err := s.persons.FindByAccountID(ctx, accountID)
+	person, err := s.Persons.FindByAccountID(ctx, accountID)
 	if err != nil || person == nil {
 		return name
 	}
@@ -588,13 +553,13 @@ func (s *service) resolveStaffName(ctx context.Context, accountID int64) string 
 // data and is frozen per message, so a blip must not permanently reveal a name
 // for a school that explicitly opted out. Anonymizing one message is
 // recoverable and privacy-safe; a wrongful disclosure is neither.
-func (s *service) staffNameVisibleToParents(ctx context.Context) bool {
-	if s.settings == nil {
+func (s *Service) staffNameVisibleToParents(ctx context.Context) bool {
+	if s.Settings == nil {
 		return false
 	}
-	visible, err := s.settings.ResolveBool(ctx, configModels.KeyParentMessageStaffNameVisible)
+	visible, err := s.Settings.ResolveBool(ctx, configModels.KeyParentMessageStaffNameVisible)
 	if err != nil {
-		s.logger.Warn("messaging: resolve staff-name visibility failed, defaulting to anonymous",
+		s.Logger.Warn("messaging: resolve staff-name visibility failed, defaulting to anonymous",
 			slog.String("error", err.Error()),
 		)
 		return false
@@ -609,7 +574,7 @@ func (s *service) staffNameVisibleToParents(ctx context.Context) bool {
 // 5xx rollback would fire a phantom "new message" for a row that never
 // persisted. Scalars are captured now because the thread pointer may be mutated
 // after this call returns.
-func (s *service) broadcastAfterCommit(ctx context.Context, thread *usersModels.ParentMessageThread) {
+func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.ParentMessageThread) {
 	if thread == nil {
 		return
 	}
@@ -622,8 +587,8 @@ func (s *service) broadcastAfterCommit(ctx context.Context, thread *usersModels.
 	})
 }
 
-func (s *service) broadcastValues(tenantID, guardianAccountID, threadID, studentID int64) {
-	parentmessaging.Broadcast(s.broadcaster, s.logger, tenantID, guardianAccountID, threadID, studentID)
+func (s *Service) broadcastValues(tenantID, guardianAccountID, threadID, studentID int64) {
+	parentmessaging.Broadcast(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
 }
 
 // broadcastReadAfterCommit queues the read-receipt SSE wake-up to fire only AFTER
@@ -631,7 +596,7 @@ func (s *service) broadcastValues(tenantID, guardianAccountID, threadID, student
 // open chat refreshes its "Gelesen" receipts; staff tabs get a (sanitized)
 // receipt-refresh nudge. Callers fire it only when the staff cursor actually
 // advanced, so it never loops with the refetch it triggers.
-func (s *service) broadcastReadAfterCommit(ctx context.Context, thread *usersModels.ParentMessageThread) {
+func (s *Service) broadcastReadAfterCommit(ctx context.Context, thread *usersModels.ParentMessageThread) {
 	if thread == nil {
 		return
 	}
@@ -640,7 +605,7 @@ func (s *service) broadcastReadAfterCommit(ctx context.Context, thread *usersMod
 	threadID := thread.ID
 	studentID := thread.StudentID
 	tenant.RegisterAfterCommit(ctx, func() {
-		parentmessaging.BroadcastRead(s.broadcaster, s.logger, tenantID, guardianAccountID, threadID, studentID)
+		parentmessaging.BroadcastRead(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
 	})
 }
 

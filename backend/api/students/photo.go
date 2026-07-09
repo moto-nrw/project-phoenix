@@ -36,19 +36,19 @@ const (
 func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 
 	tenantID := tenant.FromContext(r.Context())
 	if tenantID <= 0 {
-		renderError(w, r, ErrorInvalidRequest(errors.New("no tenant context")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("no tenant context")))
 		return
 	}
 
 	uploaded, err := common.ParseImageWithLimits(w, r, "photo", maxStudentPhotoFile, maxStudentPhotoBody)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	defer common.CloseFile(uploaded.File)
@@ -60,7 +60,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	prefix := fmt.Sprintf("%d_%d", tenantID, id)
 	filePath, err := common.SaveImage(uploaded.File, publicPhotoBaseDir, prefix, uploaded.ContentType)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	newStoredURL := common.StudentPhotoStoredURLPrefix + filepath.Base(filePath)
@@ -84,7 +84,7 @@ func (rs *Resource) uploadStudentPhoto(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) deleteStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 	clearedURL, err := rs.StudentPhotos.CommitDelete(r.Context(), id)
@@ -105,7 +105,7 @@ func (rs *Resource) deleteStudentPhoto(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) serveStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return
 	}
 	filename := chi.URLParam(r, "filename")
@@ -119,7 +119,7 @@ func (rs *Resource) serveStudentPhoto(w http.ResponseWriter, r *http.Request) {
 	resolvedPath, resolveErr := common.ResolveStoredPath("public", storedURL, common.StudentPhotoStoredURLPrefix)
 	if resolveErr != nil {
 		// 403 not 500 — ResolveStoredPath rejected a path-traversal attempt.
-		renderError(w, r, ErrorForbidden(errors.New("could not resolve stored photo path")))
+		renderError(w, r, common.ErrorForbidden(errors.New("could not resolve stored photo path")))
 		return
 	}
 	common.ServeImage(w, r, filepath.Dir(resolvedPath), filepath.Base(resolvedPath), "private, no-cache")
@@ -131,21 +131,21 @@ func mapPhotoUploadError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, userService.ErrPhotoFeatureDisabled),
 		errors.Is(err, userService.ErrPhotoFeatureDisabledMid):
 		render.Status(r, http.StatusForbidden)
-		renderError(w, r, ErrorForbidden(errors.New(msgPhotosFeatureDisabled))) //nolint:staticcheck // ST1005: user-facing German message
+		renderError(w, r, common.ErrorForbidden(errors.New(msgPhotosFeatureDisabled))) //nolint:staticcheck // ST1005: user-facing German message
 	case errors.Is(err, userService.ErrPhotoStudentNotFound):
-		renderError(w, r, ErrorNotFound(err))
+		renderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, userService.ErrPhotoStudentForbidden),
 		errors.Is(err, userService.ErrPhotoStudentReassigned):
-		renderError(w, r, ErrorForbidden(errors.New("you can only update students in groups you supervise")))
+		renderError(w, r, common.ErrorForbidden(errors.New("you can only update students in groups you supervise")))
 	case errors.Is(err, userService.ErrPhotoConsentRequired):
-		renderError(w, r, ErrorInvalidRequest(errors.New(msgConsentRequiredFirst))) //nolint:staticcheck // ST1005: user-facing German message
+		renderError(w, r, common.ErrorInvalidRequest(errors.New(msgConsentRequiredFirst))) //nolint:staticcheck // ST1005: user-facing German message
 	case errors.Is(err, userService.ErrPhotoConsentWithdrawn):
 		// 409 — consent flipped between request and commit; frontend re-prompts.
 		renderError(w, r, common.ErrorConflictMessage(msgConsentWithdrawnRetry))
 	case errors.Is(err, userService.ErrPhotoNoTenant):
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 	default:
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 	}
 }
 
@@ -153,16 +153,16 @@ func mapPhotoDeleteError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, userService.ErrPhotoFeatureDisabled):
 		render.Status(r, http.StatusForbidden)
-		renderError(w, r, ErrorForbidden(errors.New(msgPhotosFeatureDisabled))) //nolint:staticcheck // ST1005: user-facing German message
+		renderError(w, r, common.ErrorForbidden(errors.New(msgPhotosFeatureDisabled))) //nolint:staticcheck // ST1005: user-facing German message
 	case errors.Is(err, userService.ErrPhotoStudentNotFound):
-		renderError(w, r, ErrorNotFound(errors.New("student not found")))
+		renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 	case errors.Is(err, userService.ErrPhotoStudentForbidden),
 		errors.Is(err, userService.ErrPhotoStudentReassigned):
-		renderError(w, r, ErrorForbidden(errors.New("you can only delete student photos in groups you supervise")))
+		renderError(w, r, common.ErrorForbidden(errors.New("you can only delete student photos in groups you supervise")))
 	case errors.Is(err, userService.ErrPhotoNoTenant):
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 	default:
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 	}
 }
 
@@ -170,18 +170,18 @@ func mapPhotoReadError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, userService.ErrPhotoFeatureDisabled):
 		render.Status(r, http.StatusForbidden)
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, userService.ErrPhotoStudentNotFound):
-		renderError(w, r, ErrorNotFound(err))
+		renderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, userService.ErrPhotoStudentForbidden):
-		renderError(w, r, ErrorForbidden(errors.New(msgPhotoForbiddenForAcct)))
+		renderError(w, r, common.ErrorForbidden(errors.New(msgPhotoForbiddenForAcct)))
 	case errors.Is(err, userService.ErrPhotoNotSet):
-		renderError(w, r, ErrorNotFound(errors.New(msgPhotoNotFound)))
+		renderError(w, r, common.ErrorNotFound(errors.New(msgPhotoNotFound)))
 	case errors.Is(err, userService.ErrPhotoFilenameMismatch):
-		renderError(w, r, ErrorForbidden(errors.New(msgPhotoBelongsToOther)))
+		renderError(w, r, common.ErrorForbidden(errors.New(msgPhotoBelongsToOther)))
 	case errors.Is(err, userService.ErrPhotoNoTenant):
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 	default:
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 	}
 }

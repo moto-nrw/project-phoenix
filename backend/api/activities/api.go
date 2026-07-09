@@ -14,7 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -58,15 +58,8 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
-
 	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Basic Activity Group operations (Read) - All authenticated users can read
 		r.With(withTx).Get("/", rs.listActivities)
@@ -330,19 +323,12 @@ func newActivityResponse(group *activities.Group, enrollmentCount int) ActivityR
 
 // getStaffIDAndManagePermission extracts the current staff ID and checks for admin-level permission.
 // Returns (staffID, hasAdminPermission, error). If user is not staff, returns (0, hasAdminPermission, error).
-// Note: Only AdminWildcard and FullAccess bypass ownership checks, NOT ActivitiesManage.
-// ActivitiesManage allows creating/editing activities, but ownership rules still apply.
+// Note: Only AdminWildcard and FullAccess bypass ownership checks, NOT "activities:manage".
+// "activities:manage" allows creating/editing activities, but ownership rules still apply.
 func (rs *Resource) getStaffIDAndManagePermission(r *http.Request) (int64, bool, error) {
 	// Check if user has admin-level permission that bypasses ownership checks
-	// Note: ActivitiesManage does NOT bypass ownership - only true admin permissions do
-	perms := jwt.PermissionsFromCtx(r.Context())
-	hasAdminPermission := false
-	for _, p := range perms {
-		if p == permissions.AdminWildcard || p == permissions.FullAccess {
-			hasAdminPermission = true
-			break
-		}
-	}
+	// Note: "activities:manage" does NOT bypass ownership - only true admin permissions do
+	hasAdminPermission := authorize.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context()))
 
 	// Get current staff
 	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
@@ -359,7 +345,7 @@ func (rs *Resource) getStaffIDAndManagePermission(r *http.Request) (int64, bool,
 func (rs *Resource) parseAndGetActivity(w http.ResponseWriter, r *http.Request) (*activities.Group, bool) {
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidActivityID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidActivityID)))
 		return nil, false
 	}
 
@@ -377,7 +363,7 @@ func (rs *Resource) parseAndGetActivity(w http.ResponseWriter, r *http.Request) 
 func (rs *Resource) parseStudentID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	studentID, err := common.ParseIDParam(r, "studentId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStudentID)))
 		return 0, false
 	}
 	return studentID, true
@@ -388,7 +374,7 @@ func (rs *Resource) parseStudentID(w http.ResponseWriter, r *http.Request) (int6
 func (rs *Resource) parseScheduleID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	scheduleID, err := common.ParseIDParam(r, "scheduleId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid schedule ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid schedule ID")))
 		return 0, false
 	}
 	return scheduleID, true
@@ -399,7 +385,7 @@ func (rs *Resource) parseScheduleID(w http.ResponseWriter, r *http.Request) (int
 func (rs *Resource) parseSupervisorID(w http.ResponseWriter, r *http.Request) (int64, bool) {
 	supervisorID, err := common.ParseIDParam(r, "supervisorId")
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid supervisor ID")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid supervisor ID")))
 		return 0, false
 	}
 	return supervisorID, true
@@ -449,7 +435,7 @@ func newSupervisorResponse(supervisor *activities.SupervisorPlanned) SupervisorR
 // Returns false and renders error if ownership check fails.
 func (rs *Resource) checkScheduleOwnership(w http.ResponseWriter, r *http.Request, schedule *activities.Schedule, activityID int64) bool {
 	if schedule.ActivityGroupID != activityID {
-		common.RenderError(w, r, ErrorForbidden(errors.New("schedule does not belong to the specified activity")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("schedule does not belong to the specified activity")))
 		return false
 	}
 	return true
@@ -459,7 +445,7 @@ func (rs *Resource) checkScheduleOwnership(w http.ResponseWriter, r *http.Reques
 // Returns false and renders error if ownership check fails.
 func (rs *Resource) checkSupervisorOwnership(w http.ResponseWriter, r *http.Request, supervisor *activities.SupervisorPlanned, activityID int64) bool {
 	if supervisor.GroupID != activityID {
-		common.RenderError(w, r, ErrorForbidden(errors.New("supervisor does not belong to the specified activity")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("supervisor does not belong to the specified activity")))
 		return false
 	}
 	return true
@@ -837,14 +823,14 @@ func (rs *Resource) listActivities(w http.ResponseWriter, r *http.Request) {
 	// Get activities
 	groups, err := rs.ActivityService.ListGroups(r.Context(), queryOptions)
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
 	// Get enrollment counts
 	_, enrollmentCounts, err := rs.ActivityService.GetGroupsWithEnrollmentCounts(r.Context())
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -885,7 +871,7 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidActivityID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidActivityID)))
 		return
 	}
 
@@ -899,7 +885,7 @@ func (rs *Resource) getActivity(w http.ResponseWriter, r *http.Request) {
 	// Validate group exists
 	if group == nil {
 		slog.Default().Error("Group is nil after GetGroup call", slog.Int64("group_id", id))
-		common.RenderError(w, r, ErrorInternalServer(errors.New("activity not found or could not be retrieved")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("activity not found or could not be retrieved")))
 		return
 	}
 
@@ -921,14 +907,14 @@ func (rs *Resource) createActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &ActivityRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get current staff ID - required for created_by
 	staffID, _, err := rs.getStaffIDAndManagePermission(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorForbidden(errors.New("only staff members can create activities")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("only staff members can create activities")))
 		return
 	}
 
@@ -999,14 +985,14 @@ func (rs *Resource) quickCreateActivity(w http.ResponseWriter, r *http.Request) 
 	// Parse request
 	req := &QuickActivityRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get current staff - required for created_by
 	staff, err := rs.UserContextService.GetCurrentStaff(r.Context())
 	if err != nil || staff == nil {
-		common.RenderError(w, r, ErrorForbidden(errors.New("only staff members can create activities")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("only staff members can create activities")))
 		return
 	}
 
@@ -1075,21 +1061,21 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidActivityID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidActivityID)))
 		return
 	}
 
 	// Get staff ID and check for manage permission
 	staffID, hasManagePermission, err := rs.getStaffIDAndManagePermission(r)
 	if err != nil && !hasManagePermission {
-		common.RenderError(w, r, ErrorForbidden(errors.New("only staff members can update activities")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("only staff members can update activities")))
 		return
 	}
 
 	// Parse request
 	req := &ActivityRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1118,7 +1104,7 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		// Check for ownership error
 		if errors.Is(err, activitiesSvc.ErrNotOwner) {
-			common.RenderError(w, r, ErrorForbidden(err))
+			common.RenderError(w, r, common.ErrorForbidden(err))
 			return
 		}
 		common.RenderError(w, r, ErrorRenderer(err))
@@ -1148,14 +1134,14 @@ func (rs *Resource) deleteActivity(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidActivityID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidActivityID)))
 		return
 	}
 
 	// Get staff ID and check for manage permission
 	staffID, hasManagePermission, err := rs.getStaffIDAndManagePermission(r)
 	if err != nil && !hasManagePermission {
-		common.RenderError(w, r, ErrorForbidden(errors.New("only staff members can delete activities")))
+		common.RenderError(w, r, common.ErrorForbidden(errors.New("only staff members can delete activities")))
 		return
 	}
 
@@ -1166,7 +1152,7 @@ func (rs *Resource) deleteActivity(w http.ResponseWriter, r *http.Request) {
 	}); err != nil {
 		// Check for ownership error
 		if errors.Is(err, activitiesSvc.ErrNotOwner) {
-			common.RenderError(w, r, ErrorForbidden(err))
+			common.RenderError(w, r, common.ErrorForbidden(err))
 			return
 		}
 		common.RenderError(w, r, ErrorRenderer(err))
@@ -1181,7 +1167,7 @@ func (rs *Resource) listCategories(w http.ResponseWriter, r *http.Request) {
 	// Get categories
 	categories, err := rs.ActivityService.ListCategories(r.Context())
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -1349,13 +1335,13 @@ func (rs *Resource) updateGroupEnrollments(w http.ResponseWriter, r *http.Reques
 	// Parse request
 	var req BatchEnrollmentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Validate request
 	if err := req.Bind(r); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1505,18 +1491,18 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 
 	// Validate query parameters
 	if err := parseAndValidateWeekday(weekday); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	if err := parseAndValidateRoomID(roomIDStr); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	duration, err := parseDurationWithDefault(durationStr)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1591,13 +1577,13 @@ func (rs *Resource) createActivitySchedule(w http.ResponseWriter, r *http.Reques
 	// Parse request
 	var req ScheduleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Validate request
 	if !activities.IsValidWeekday(req.Weekday) {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidWeekday)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidWeekday)))
 		return
 	}
 
@@ -1637,13 +1623,13 @@ func (rs *Resource) updateActivitySchedule(w http.ResponseWriter, r *http.Reques
 	// Parse request
 	var req ScheduleRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Validate request
 	if !activities.IsValidWeekday(req.Weekday) {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New(common.MsgInvalidWeekday)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidWeekday)))
 		return
 	}
 
@@ -1874,13 +1860,13 @@ func (rs *Resource) assignSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req SupervisorRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Validate request
 	if err := req.Bind(r); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1914,7 +1900,7 @@ func (rs *Resource) updateSupervisorRole(w http.ResponseWriter, r *http.Request)
 	// Parse request
 	var req SupervisorRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -1984,7 +1970,7 @@ func (rs *Resource) removeSupervisor(w http.ResponseWriter, r *http.Request) {
 
 	replacement, err := parseSupervisorReplacement(r)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -2016,97 +2002,4 @@ func (rs *Resource) removeSupervisor(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Supervisor removed successfully")
-}
-
-// =============================================================================
-// HANDLER ACCESSOR METHODS (for testing)
-// =============================================================================
-
-// ListActivitiesHandler returns the list activities handler
-func (rs *Resource) ListActivitiesHandler() http.HandlerFunc { return rs.listActivities }
-
-// GetActivityHandler returns the get activity handler
-func (rs *Resource) GetActivityHandler() http.HandlerFunc { return rs.getActivity }
-
-// CreateActivityHandler returns the create activity handler
-func (rs *Resource) CreateActivityHandler() http.HandlerFunc { return rs.createActivity }
-
-// QuickCreateActivityHandler returns the quick create activity handler
-func (rs *Resource) QuickCreateActivityHandler() http.HandlerFunc { return rs.quickCreateActivity }
-
-// UpdateActivityHandler returns the update activity handler
-func (rs *Resource) UpdateActivityHandler() http.HandlerFunc { return rs.updateActivity }
-
-// DeleteActivityHandler returns the delete activity handler
-func (rs *Resource) DeleteActivityHandler() http.HandlerFunc { return rs.deleteActivity }
-
-// ListCategoriesHandler returns the list categories handler
-func (rs *Resource) ListCategoriesHandler() http.HandlerFunc { return rs.listCategories }
-
-// GetTimespansHandler returns the get timespans handler
-func (rs *Resource) GetTimespansHandler() http.HandlerFunc { return rs.getTimespans }
-
-// GetActivitySchedulesHandler returns the get activity schedules handler
-func (rs *Resource) GetActivitySchedulesHandler() http.HandlerFunc { return rs.getActivitySchedules }
-
-// GetActivityScheduleHandler returns the get specific schedule handler
-func (rs *Resource) GetActivityScheduleHandler() http.HandlerFunc { return rs.getActivitySchedule }
-
-// GetAvailableTimeSlotsHandler returns the get available time slots handler
-func (rs *Resource) GetAvailableTimeSlotsHandler() http.HandlerFunc { return rs.getAvailableTimeSlots }
-
-// CreateActivityScheduleHandler returns the create schedule handler
-func (rs *Resource) CreateActivityScheduleHandler() http.HandlerFunc {
-	return rs.createActivitySchedule
-}
-
-// UpdateActivityScheduleHandler returns the update schedule handler
-func (rs *Resource) UpdateActivityScheduleHandler() http.HandlerFunc {
-	return rs.updateActivitySchedule
-}
-
-// DeleteActivityScheduleHandler returns the delete schedule handler
-func (rs *Resource) DeleteActivityScheduleHandler() http.HandlerFunc {
-	return rs.deleteActivitySchedule
-}
-
-// GetActivitySupervisorsHandler returns the get supervisors handler
-func (rs *Resource) GetActivitySupervisorsHandler() http.HandlerFunc {
-	return rs.getActivitySupervisors
-}
-
-// GetAvailableSupervisorsHandler returns the get available supervisors handler
-func (rs *Resource) GetAvailableSupervisorsHandler() http.HandlerFunc {
-	return rs.getAvailableSupervisors
-}
-
-// AssignSupervisorHandler returns the assign supervisor handler
-func (rs *Resource) AssignSupervisorHandler() http.HandlerFunc { return rs.assignSupervisor }
-
-// UpdateSupervisorRoleHandler returns the update supervisor role handler
-func (rs *Resource) UpdateSupervisorRoleHandler() http.HandlerFunc { return rs.updateSupervisorRole }
-
-// RemoveSupervisorHandler returns the remove supervisor handler
-func (rs *Resource) RemoveSupervisorHandler() http.HandlerFunc { return rs.removeSupervisor }
-
-// GetActivityStudentsHandler returns the get enrolled students handler
-func (rs *Resource) GetActivityStudentsHandler() http.HandlerFunc { return rs.getActivityStudents }
-
-// GetStudentEnrollmentsHandler returns the get student enrollments handler
-func (rs *Resource) GetStudentEnrollmentsHandler() http.HandlerFunc { return rs.getStudentEnrollments }
-
-// GetAvailableActivitiesHandler returns the get available activities handler
-func (rs *Resource) GetAvailableActivitiesHandler() http.HandlerFunc {
-	return rs.getAvailableActivities
-}
-
-// EnrollStudentHandler returns the enroll student handler
-func (rs *Resource) EnrollStudentHandler() http.HandlerFunc { return rs.enrollStudent }
-
-// UnenrollStudentHandler returns the unenroll student handler
-func (rs *Resource) UnenrollStudentHandler() http.HandlerFunc { return rs.unenrollStudent }
-
-// UpdateGroupEnrollmentsHandler returns the batch enrollment handler
-func (rs *Resource) UpdateGroupEnrollmentsHandler() http.HandlerFunc {
-	return rs.updateGroupEnrollments
 }

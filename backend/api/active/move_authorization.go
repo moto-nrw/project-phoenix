@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
@@ -83,12 +84,7 @@ func canBypassBulkMoveResourceChecks(r *http.Request) bool {
 	if claims.IsAdmin {
 		return true
 	}
-	for _, permission := range jwt.PermissionsFromCtx(r.Context()) {
-		if permission == "admin:*" || permission == "*:*" {
-			return true
-		}
-	}
-	return false
+	return authorize.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context()))
 }
 
 func (rs *Resource) supervisedActiveGroupIDs(ctx context.Context, staffID int64) (map[int64]struct{}, error) {

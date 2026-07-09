@@ -23,7 +23,7 @@ func TestCommentReadRepository_Upsert(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-read-upsert-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("creates new comment read record", func(t *testing.T) {
@@ -86,7 +86,7 @@ func TestCommentReadRepository_GetLastReadAt(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-read-get-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("returns nil when user never read comments", func(t *testing.T) {
@@ -122,7 +122,7 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-unread-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("returns 0 when no comments exist", func(t *testing.T) {
@@ -132,8 +132,8 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 	})
 
 	t.Run("counts all comments when user never read", func(t *testing.T) {
-		comment1 := createTestComment(t, db, post.ID, account.ID, "Comment 1", suggestions.AuthorTypeUser)
-		comment2 := createTestComment(t, db, post.ID, account.ID, "Comment 2", suggestions.AuthorTypeUser)
+		comment1 := testpkg.CreateTestComment(t, db, post.ID, account.ID, "Comment 1", suggestions.AuthorTypeUser)
+		comment2 := testpkg.CreateTestComment(t, db, post.ID, account.ID, "Comment 2", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment1.ID, comment2.ID)
 
 		count, err := repo.CountUnreadByPost(ctx, account.ID, post.ID, "user")
@@ -142,7 +142,7 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 	})
 
 	t.Run("counts only comments after last read time", func(t *testing.T) {
-		comment1 := createTestComment(t, db, post.ID, account.ID, "Comment 1", suggestions.AuthorTypeUser)
+		comment1 := testpkg.CreateTestComment(t, db, post.ID, account.ID, "Comment 1", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment1.ID)
 
 		err := repo.Upsert(ctx, account.ID, post.ID, "user")
@@ -150,8 +150,8 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond)
 
-		comment2 := createTestComment(t, db, post.ID, account.ID, "Comment 2", suggestions.AuthorTypeUser)
-		comment3 := createTestComment(t, db, post.ID, account.ID, "Comment 3", suggestions.AuthorTypeUser)
+		comment2 := testpkg.CreateTestComment(t, db, post.ID, account.ID, "Comment 2", suggestions.AuthorTypeUser)
+		comment3 := testpkg.CreateTestComment(t, db, post.ID, account.ID, "Comment 3", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment2.ID, comment3.ID)
 
 		count, err := repo.CountUnreadByPost(ctx, account.ID, post.ID, "user")
@@ -160,7 +160,7 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 	})
 
 	t.Run("excludes soft-deleted comments", func(t *testing.T) {
-		comment := createTestComment(t, db, post.ID, account.ID, "To be deleted", suggestions.AuthorTypeUser)
+		comment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "To be deleted", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment.ID)
 
 		commentRepo := repoSuggestions.NewCommentRepository(db)
@@ -173,10 +173,10 @@ func TestCommentReadRepository_CountUnreadByPost(t *testing.T) {
 	})
 
 	t.Run("returns 0 after reading all comments", func(t *testing.T) {
-		newPost := createTestPost(t, db, account.ID, fmt.Sprintf("New %d", time.Now().UnixNano()), "Desc")
+		newPost := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("New %d", time.Now().UnixNano()), "Desc")
 		defer cleanupPosts(t, db, newPost.ID)
 
-		comment := createTestComment(t, db, newPost.ID, account.ID, "Comment", suggestions.AuthorTypeUser)
+		comment := testpkg.CreateTestComment(t, db, newPost.ID, account.ID, "Comment", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment.ID)
 
 		err := repo.Upsert(ctx, account.ID, newPost.ID, "user")
@@ -205,13 +205,13 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 	})
 
 	t.Run("counts unread comments across multiple posts", func(t *testing.T) {
-		post1 := createTestPost(t, db, account.ID, fmt.Sprintf("Post1 %d", time.Now().UnixNano()), "Desc1")
-		post2 := createTestPost(t, db, account.ID, fmt.Sprintf("Post2 %d", time.Now().UnixNano()), "Desc2")
+		post1 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post1 %d", time.Now().UnixNano()), "Desc1")
+		post2 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post2 %d", time.Now().UnixNano()), "Desc2")
 		defer cleanupPosts(t, db, post1.ID, post2.ID)
 
-		comment1 := createTestComment(t, db, post1.ID, account.ID, "Comment on post1", suggestions.AuthorTypeUser)
-		comment2 := createTestComment(t, db, post2.ID, account.ID, "Comment on post2", suggestions.AuthorTypeUser)
-		comment3 := createTestComment(t, db, post2.ID, account.ID, "Another on post2", suggestions.AuthorTypeUser)
+		comment1 := testpkg.CreateTestComment(t, db, post1.ID, account.ID, "Comment on post1", suggestions.AuthorTypeUser)
+		comment2 := testpkg.CreateTestComment(t, db, post2.ID, account.ID, "Comment on post2", suggestions.AuthorTypeUser)
+		comment3 := testpkg.CreateTestComment(t, db, post2.ID, account.ID, "Another on post2", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment1.ID, comment2.ID, comment3.ID)
 
 		count, err := repo.CountTotalUnread(ctx, account.ID, "user")
@@ -220,11 +220,11 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 	})
 
 	t.Run("respects last read time per post", func(t *testing.T) {
-		post1 := createTestPost(t, db, account.ID, fmt.Sprintf("Post1 %d", time.Now().UnixNano()), "Desc1")
-		post2 := createTestPost(t, db, account.ID, fmt.Sprintf("Post2 %d", time.Now().UnixNano()), "Desc2")
+		post1 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post1 %d", time.Now().UnixNano()), "Desc1")
+		post2 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post2 %d", time.Now().UnixNano()), "Desc2")
 		defer cleanupPosts(t, db, post1.ID, post2.ID)
 
-		comment1 := createTestComment(t, db, post1.ID, account.ID, "Comment on post1", suggestions.AuthorTypeUser)
+		comment1 := testpkg.CreateTestComment(t, db, post1.ID, account.ID, "Comment on post1", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment1.ID)
 
 		err := repo.Upsert(ctx, account.ID, post1.ID, "user")
@@ -232,8 +232,8 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 
 		time.Sleep(100 * time.Millisecond)
 
-		comment2 := createTestComment(t, db, post1.ID, account.ID, "New on post1", suggestions.AuthorTypeUser)
-		comment3 := createTestComment(t, db, post2.ID, account.ID, "Comment on post2", suggestions.AuthorTypeUser)
+		comment2 := testpkg.CreateTestComment(t, db, post1.ID, account.ID, "New on post1", suggestions.AuthorTypeUser)
+		comment3 := testpkg.CreateTestComment(t, db, post2.ID, account.ID, "Comment on post2", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment2.ID, comment3.ID)
 
 		count, err := repo.CountTotalUnread(ctx, account.ID, "user")
@@ -242,10 +242,10 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 	})
 
 	t.Run("excludes soft-deleted comments", func(t *testing.T) {
-		post := createTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
+		post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
 		defer cleanupPosts(t, db, post.ID)
 
-		comment := createTestComment(t, db, post.ID, account.ID, "To be deleted", suggestions.AuthorTypeUser)
+		comment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "To be deleted", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment.ID)
 
 		countBefore, err := repo.CountTotalUnread(ctx, account.ID, "user")
@@ -265,10 +265,10 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 		account2 := testpkg.CreateTestAccount(t, db, fmt.Sprintf("comment-user2-%d", time.Now().UnixNano()))
 		defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account2.ID)
 
-		post := createTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
+		post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
 		defer cleanupPosts(t, db, post.ID)
 
-		comment := createTestComment(t, db, post.ID, account.ID, "Comment", suggestions.AuthorTypeUser)
+		comment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "Comment", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, comment.ID)
 
 		err := repo.Upsert(ctx, account.ID, post.ID, "user")
@@ -284,12 +284,12 @@ func TestCommentReadRepository_CountTotalUnread(t *testing.T) {
 	})
 
 	t.Run("excludes comments on hidden posts for operators", func(t *testing.T) {
-		visiblePost := createTestPost(t, db, account.ID, fmt.Sprintf("Visible %d", time.Now().UnixNano()), "Desc")
-		hiddenPost := createTestPost(t, db, account.ID, fmt.Sprintf("Hidden %d", time.Now().UnixNano()), "Desc")
+		visiblePost := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Visible %d", time.Now().UnixNano()), "Desc")
+		hiddenPost := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Hidden %d", time.Now().UnixNano()), "Desc")
 		defer cleanupPosts(t, db, visiblePost.ID, hiddenPost.ID)
 
-		visibleComment := createTestComment(t, db, visiblePost.ID, account.ID, "Visible comment", suggestions.AuthorTypeUser)
-		hiddenComment := createTestComment(t, db, hiddenPost.ID, account.ID, "Hidden comment", suggestions.AuthorTypeUser)
+		visibleComment := testpkg.CreateTestComment(t, db, visiblePost.ID, account.ID, "Visible comment", suggestions.AuthorTypeUser)
+		hiddenComment := testpkg.CreateTestComment(t, db, hiddenPost.ID, account.ID, "Hidden comment", suggestions.AuthorTypeUser)
 		defer cleanupComments(t, db, visibleComment.ID, hiddenComment.ID)
 
 		_, err := db.NewUpdate().

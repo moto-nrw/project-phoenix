@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Attendance status constants (system-controlled, E18).
@@ -34,9 +33,6 @@ const (
 // field on an attendance row.
 const InstanceStudentNoteMaxLength = 500
 
-// tableInstanceStudents is the schema-qualified table name.
-const tableInstanceStudents = "schedule.instance_students"
-
 // InstanceStudent represents a student's expected attendance at a materialized
 // activity instance, plus the three-field attendance model (E18):
 //
@@ -55,28 +51,6 @@ type InstanceStudent struct {
 	Note        *string    `bun:"note" json:"note,omitempty"`
 	CheckedInAt *time.Time `bun:"checked_in_at" json:"checked_in_at,omitempty"`
 }
-
-func (s *InstanceStudent) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.instance_students AS "instance_student"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.instance_students AS "instance_student"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name.
-func (s *InstanceStudent) TableName() string { return tableInstanceStudents }
-
-// GetID implements the Entity interface.
-func (s *InstanceStudent) GetID() any { return s.ID }
-
-// GetCreatedAt implements the Entity interface.
-func (s *InstanceStudent) GetCreatedAt() time.Time { return s.CreatedAt }
-
-// GetUpdatedAt implements the Entity interface.
-func (s *InstanceStudent) GetUpdatedAt() time.Time { return s.UpdatedAt }
 
 // Validate ensures the attendance row is well-formed.
 func (s *InstanceStudent) Validate() error {

@@ -117,6 +117,19 @@ type EnqueueRequest struct {
 // Enqueue creates a pending outbox row in the current tenant
 // transaction. Caller is responsible for being inside a tenant tx
 // (otherwise the RLS policy will reject the INSERT).
+// EnqueueOutbox implements platformModels.OutboxEnqueuer for the feature
+// services (guardian invitations, enrollment emails), discarding the
+// created row.
+func (s *OutboxService) EnqueueOutbox(ctx context.Context, req platformModels.OutboxEnqueueRequest) error {
+	_, err := s.Enqueue(ctx, EnqueueRequest{
+		Kind:              req.Kind,
+		Payload:           req.Payload,
+		RelatedEntityType: req.RelatedEntityType,
+		RelatedEntityID:   req.RelatedEntityID,
+	})
+	return err
+}
+
 func (s *OutboxService) Enqueue(ctx context.Context, req EnqueueRequest) (*platformModels.EmailOutbox, error) {
 	if s == nil || s.repo == nil {
 		return nil, errors.New("outbox service not wired")

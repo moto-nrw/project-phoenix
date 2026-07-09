@@ -107,7 +107,7 @@ func TestScenario_Run_Empty(t *testing.T) {
 
 func TestNewRuntime(t *testing.T) {
 	state := &seedapi.SeedState{BaseURL: "http://localhost:8080"}
-	client := NewClient("http://localhost:8080", false)
+	client := newClient("http://localhost:8080", false)
 	opts := FullDayOptions{StatePath: "state.json", Close: true, Verbose: true}
 
 	rt := newRuntime(state, client, opts)

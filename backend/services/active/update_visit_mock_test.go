@@ -13,6 +13,54 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGetVisitLookupErrorClassification(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("returns visit not found when lookup misses", func(t *testing.T) {
+		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return nil, sql.ErrNoRows
+			},
+		}}}
+
+		visit, err := svc.GetVisit(ctx, 100)
+
+		require.Error(t, err)
+		assert.Nil(t, visit)
+		assert.True(t, errors.Is(err, ErrVisitNotFound), "expected ErrVisitNotFound")
+	})
+
+	t.Run("returns visit not found when lookup returns nil without error", func(t *testing.T) {
+		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return nil, nil
+			},
+		}}}
+
+		visit, err := svc.GetVisit(ctx, 100)
+
+		require.Error(t, err)
+		assert.Nil(t, visit)
+		assert.True(t, errors.Is(err, ErrVisitNotFound), "expected ErrVisitNotFound")
+	})
+
+	t.Run("preserves database lookup failures", func(t *testing.T) {
+		lookupErr := errors.New("visit query failed")
+		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return nil, lookupErr
+			},
+		}}}
+
+		visit, err := svc.GetVisit(ctx, 100)
+
+		require.Error(t, err)
+		assert.Nil(t, visit)
+		assert.True(t, errors.Is(err, ErrDatabaseOperation), "expected ErrDatabaseOperation")
+		assert.False(t, errors.Is(err, ErrVisitNotFound), "database failures must not masquerade as not found")
+	})
+}
+
 func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 	ctx := context.Background()
 	entryTime := time.Now()
@@ -30,12 +78,11 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 	}
 
 	t.Run("returns visit not found when preload misses", func(t *testing.T) {
-		svc := &service{
-			visitRepo: &mockVisitRepository{
-				findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
-					return nil, sql.ErrNoRows
-				},
+		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return nil, sql.ErrNoRows
 			},
+		}},
 		}
 
 		err := svc.UpdateVisit(ctx, updatedVisit)
@@ -45,12 +92,11 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 	})
 
 	t.Run("returns visit not found when preload returns nil without error", func(t *testing.T) {
-		svc := &service{
-			visitRepo: &mockVisitRepository{
-				findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
-					return nil, nil
-				},
+		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return nil, nil
 			},
+		}},
 		}
 
 		err := svc.UpdateVisit(ctx, updatedVisit)
@@ -60,17 +106,15 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 	})
 
 	t.Run("returns active group not found when target lookup misses", func(t *testing.T) {
-		svc := &service{
-			visitRepo: &mockVisitRepository{
-				findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
-					return existingVisit, nil
-				},
+		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return existingVisit, nil
 			},
-			groupRepo: &mockGroupRepository{
-				findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-					return nil, sql.ErrNoRows
-				},
+		}, GroupRepo: &mockGroupRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+				return nil, sql.ErrNoRows
 			},
+		}},
 		}
 
 		err := svc.UpdateVisit(ctx, updatedVisit)
@@ -81,17 +125,15 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 
 	t.Run("preserves database errors from target lookup", func(t *testing.T) {
 		lookupErr := errors.New("target lookup failed")
-		svc := &service{
-			visitRepo: &mockVisitRepository{
-				findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
-					return existingVisit, nil
-				},
+		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return existingVisit, nil
 			},
-			groupRepo: &mockGroupRepository{
-				findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-					return nil, lookupErr
-				},
+		}, GroupRepo: &mockGroupRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+				return nil, lookupErr
 			},
+		}},
 		}
 
 		err := svc.UpdateVisit(ctx, updatedVisit)
@@ -101,17 +143,15 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 	})
 
 	t.Run("returns active group not found when target lookup returns nil without error", func(t *testing.T) {
-		svc := &service{
-			visitRepo: &mockVisitRepository{
-				findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
-					return existingVisit, nil
-				},
+		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return existingVisit, nil
 			},
-			groupRepo: &mockGroupRepository{
-				findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-					return nil, nil
-				},
+		}, GroupRepo: &mockGroupRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+				return nil, nil
 			},
+		}},
 		}
 
 		err := svc.UpdateVisit(ctx, updatedVisit)
@@ -122,20 +162,18 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 
 	t.Run("returns active group not found when target group is inactive", func(t *testing.T) {
 		endTime := entryTime.Add(time.Hour)
-		svc := &service{
-			visitRepo: &mockVisitRepository{
-				findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
-					return existingVisit, nil
-				},
+		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return existingVisit, nil
 			},
-			groupRepo: &mockGroupRepository{
-				findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-					return &activeModels.Group{
-						Model:   base.Model{ID: updatedVisit.ActiveGroupID},
-						EndTime: &endTime,
-					}, nil
-				},
+		}, GroupRepo: &mockGroupRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+				return &activeModels.Group{
+					Model:   base.Model{ID: updatedVisit.ActiveGroupID},
+					EndTime: &endTime,
+				}, nil
 			},
+		}},
 		}
 
 		err := svc.UpdateVisit(ctx, updatedVisit)
@@ -152,22 +190,20 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 			ActiveGroupID: existingVisit.ActiveGroupID,
 			EntryTime:     entryTime,
 		}
-		svc := &service{
-			visitRepo: &mockVisitRepository{
-				findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
-					return existingVisit, nil
-				},
-				updateFunc: func(context.Context, *activeModels.Visit) error {
-					updateCalled = true
-					return nil
-				},
+		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return existingVisit, nil
 			},
-			groupRepo: &mockGroupRepository{
-				findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
-					t.Fatal("target group should not be loaded when active group is unchanged")
-					return nil, nil
-				},
+			updateFunc: func(context.Context, *activeModels.Visit) error {
+				updateCalled = true
+				return nil
 			},
+		}, GroupRepo: &mockGroupRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+				t.Fatal("target group should not be loaded when active group is unchanged")
+				return nil, nil
+			},
+		}},
 		}
 
 		err := svc.UpdateVisit(ctx, sameGroupVisit)

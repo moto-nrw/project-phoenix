@@ -71,7 +71,7 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 		return fmt.Errorf("load seed state: %w", err)
 	}
 
-	client := NewClient(state.BaseURL, opts.Verbose)
+	client := newClient(state.BaseURL, opts.Verbose)
 
 	// Login as admin
 	if len(state.Accounts.Admin) == 0 {
@@ -161,7 +161,7 @@ func RunLive(ctx context.Context, opts LiveOptions) error {
 	}
 }
 
-func runLiveTick(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, counts *liveCounts) {
+func runLiveTick(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, counts *liveCounts) {
 	now := time.Now().Format("15:04:05")
 
 	// Keep session alive (mirrors PyrePortal's periodic ping)
@@ -228,7 +228,7 @@ func runLiveTick(client *Client, ls *liveState, state *seedapi.SeedState, device
 	}
 }
 
-func liveRoomMove(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveRoomMove(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
 	studentID := randomFromSet(ls.checkedIn)
 	if studentID == 0 {
 		return fmt.Errorf("no checked-in students")
@@ -266,7 +266,7 @@ func liveRoomMove(client *Client, ls *liveState, state *seedapi.SeedState, devic
 	return nil
 }
 
-func liveGoUnterwegs(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveGoUnterwegs(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
 	studentID := randomFromSet(ls.checkedIn)
 	if studentID == 0 {
 		return fmt.Errorf("no checked-in students")
@@ -289,7 +289,7 @@ func liveGoUnterwegs(client *Client, ls *liveState, state *seedapi.SeedState, de
 	return nil
 }
 
-func liveReturnFromUnterwegs(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveReturnFromUnterwegs(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
 	studentID := randomFromSet(ls.unterwegs)
 	if studentID == 0 {
 		// Nobody unterwegs — check in a random checked-in student to a new room instead
@@ -316,14 +316,14 @@ func liveReturnFromUnterwegs(client *Client, ls *liveState, state *seedapi.SeedS
 	return nil
 }
 
-func liveToggleSick(client *Client, ls *liveState, state *seedapi.SeedState, now string) error {
+func liveToggleSick(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, now string) error {
 	if len(state.Students) == 0 {
 		return fmt.Errorf("no students")
 	}
 	student := state.Students[rand.Intn(len(state.Students))]
 	newSick := !ls.sick[student.ID]
 
-	_, err := client.AdminPut(fmt.Sprintf("/api/students/%d", student.ID), map[string]any{
+	_, err := client.Put(fmt.Sprintf("/api/students/%d", student.ID), map[string]any{
 		"sick": newSick,
 	})
 	if err != nil {
@@ -342,7 +342,7 @@ func liveToggleSick(client *Client, ls *liveState, state *seedapi.SeedState, now
 
 // liveSchulhofRotate advances a random student through the
 // Heimatraum → AG (1-2 hops) → Schulhof → Heimatraum cycle.
-func liveSchulhofRotate(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveSchulhofRotate(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
 	studentID := ls.pickRotationCandidate()
 	if studentID == 0 {
 		return fmt.Errorf("no rotation-eligible students")
@@ -446,7 +446,7 @@ func randAGHopTarget() int {
 
 // liveAttendanceToggle confirms attendance for a random student, rate-limited
 // per student to one toggle per tick interval.
-func liveAttendanceToggle(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveAttendanceToggle(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
 	cutoff := time.Now().Add(-ls.interval)
 	eligible := make(map[int64]bool, len(ls.rfidTags))
 	for id := range ls.rfidTags {
@@ -479,7 +479,7 @@ func liveAttendanceToggle(client *Client, ls *liveState, state *seedapi.SeedStat
 }
 
 // liveSupervisorSwap reassigns a random supervisor to the primary device's session.
-func liveSupervisorSwap(client *Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
+func liveSupervisorSwap(client *seedapi.Client, ls *liveState, state *seedapi.SeedState, device seedapi.SeedDevice, now string) error {
 	if len(ls.staffIDs) == 0 {
 		return fmt.Errorf("no staff IDs in seed state")
 	}
@@ -512,7 +512,7 @@ func liveSupervisorSwap(client *Client, ls *liveState, state *seedapi.SeedState,
 }
 
 // fetchCurrentSessionID queries the device's current session (0 = none active).
-func fetchCurrentSessionID(client *Client, state *seedapi.SeedState, device seedapi.SeedDevice) (int64, error) {
+func fetchCurrentSessionID(client *seedapi.Client, state *seedapi.SeedState, device seedapi.SeedDevice) (int64, error) {
 	resp, err := client.DeviceGet("/api/iot/session/current", device.APIKey, state.DevicePIN)
 	if err != nil {
 		return 0, err
@@ -533,8 +533,8 @@ func fetchCurrentSessionID(client *Client, state *seedapi.SeedState, device seed
 }
 
 // lookupSchulhofRoom finds the auto-provisioned Schulhof system room (0 = not found).
-func lookupSchulhofRoom(client *Client) int64 {
-	resp, err := client.AdminGet("/api/rooms?include_system=true&page_size=100")
+func lookupSchulhofRoom(client *seedapi.Client) int64 {
+	resp, err := client.Get("/api/rooms?include_system=true&page_size=100")
 	if err != nil {
 		return 0
 	}
@@ -571,8 +571,8 @@ func collectStaffIDs(state *seedapi.SeedState) []int64 {
 	return ids
 }
 
-func bootstrapLiveState(client *Client, ls *liveState, students []seedapi.SeedStudent) error {
-	resp, err := client.AdminGet("/api/active/visits?active=true")
+func bootstrapLiveState(client *seedapi.Client, ls *liveState, students []seedapi.SeedStudent) error {
+	resp, err := client.Get("/api/active/visits?active=true")
 	if err != nil {
 		return err
 	}

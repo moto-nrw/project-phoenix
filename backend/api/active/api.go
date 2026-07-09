@@ -1,22 +1,20 @@
 package active
 
 import (
+	"cmp"
 	"log/slog"
-	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/policy"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
 	userSvc "github.com/moto-nrw/project-phoenix/services/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -24,6 +22,7 @@ import (
 type Resource struct {
 	ActiveService      activeSvc.Service
 	PersonService      userSvc.PersonService
+	EducationService   educationSvc.Service
 	SchulhofService    facilities.SchulhofService
 	UserContextService usercontext.UserContextService
 	SettingsService    configSvc.SettingsService
@@ -33,17 +32,15 @@ type Resource struct {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (rs *Resource) getLogger() *slog.Logger {
-	if rs.logger != nil {
-		return rs.logger
-	}
-	return slog.Default()
+	return cmp.Or(rs.logger, slog.Default())
 }
 
 // NewResource creates a new active resource
-func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, schulhofService facilities.SchulhofService, userContextService usercontext.UserContextService, settingsService configSvc.SettingsService, db *bun.DB, logger *slog.Logger) *Resource {
+func NewResource(activeService activeSvc.Service, personService userSvc.PersonService, educationService educationSvc.Service, schulhofService facilities.SchulhofService, userContextService usercontext.UserContextService, settingsService configSvc.SettingsService, db *bun.DB, logger *slog.Logger) *Resource {
 	return &Resource{
 		ActiveService:      activeService,
 		PersonService:      personService,
+		EducationService:   educationService,
 		SchulhofService:    schulhofService,
 		UserContextService: userContextService,
 		SettingsService:    settingsService,
@@ -57,15 +54,8 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
-
 	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// Active Groups
 		r.Route("/groups", func(r chi.Router) {
@@ -91,8 +81,8 @@ func (rs *Resource) Router() chi.Router {
 		r.Route("/visits", func(r chi.Router) {
 			// Read operations
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listVisits)
-			// RequiresResourceAccess needs DB → withTx goes before resource access check
-			r.With(withTx, authorize.GetResourceAuthorizer().RequiresResourceAccess("visit", policy.ActionView, VisitIDExtractor())).Get("/{id}", rs.getVisit)
+			// RequireVisitView needs DB → withTx goes before the access check
+			r.With(withTx, authorize.RequireVisitView(rs.ActiveService, rs.PersonService, rs.EducationService)).Get("/{id}", rs.getVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/student/{studentId}", rs.getStudentVisits)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get("/student/{studentId}/current", rs.getStudentCurrentVisit)
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get(routeGroupByGroupID, rs.getVisitsByGroup)
@@ -179,22 +169,4 @@ func (rs *Resource) Router() chi.Router {
 	})
 
 	return r
-}
-
-// VisitIDExtractor extracts visit information for authorization
-func VisitIDExtractor() authorize.ResourceExtractor {
-	return func(r *http.Request) (interface{}, map[string]interface{}) {
-		idStr := chi.URLParam(r, "id")
-		if idStr == "" {
-			return nil, nil
-		}
-
-		id, err := strconv.ParseInt(idStr, 10, 64)
-		if err != nil {
-			return nil, nil
-		}
-
-		// Return the visit ID as the resource ID
-		return id, nil
-	}
 }

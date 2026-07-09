@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -197,7 +198,7 @@ func (f *fakeInstanceRepo) MarkCompleted(_ context.Context, _ int64, _ time.Time
 
 func TestCheckAndRunOverdue_AlreadyRunning(t *testing.T) {
 	repo := &fakeInstanceRepo{}
-	spy := &spyBroadcaster{}
+	spy := testpkg.NewRecordingBroadcaster()
 	s := &Scheduler{
 		instanceRepo:       repo,
 		overdueBroadcaster: spy,
@@ -215,7 +216,7 @@ func TestCheckAndRunOverdue_NoTenantContext(t *testing.T) {
 	// the threshold is resolved from registry default (5), and runOverdueForTenant
 	// runs for tenant 0 with no instances, which means no broadcasts.
 	repo := &fakeInstanceRepo{instances: nil}
-	spy := &spyBroadcaster{}
+	spy := testpkg.NewRecordingBroadcaster()
 	s := &Scheduler{
 		instanceRepo:       repo,
 		overdueBroadcaster: spy,
@@ -226,9 +227,7 @@ func TestCheckAndRunOverdue_NoTenantContext(t *testing.T) {
 	s.checkAndRunOverdue(task)
 
 	assert.Equal(t, 1, repo.calls, "one per-tenant call in fallback mode")
-	spy.mu.Lock()
-	assert.Empty(t, spy.all, "no overdue instances → no broadcast")
-	spy.mu.Unlock()
+	assert.Empty(t, spy.CallsByMethod("tenant"), "no overdue instances → no broadcast")
 	// Running flag must be cleared after the call.
 	task.mu.Lock()
 	defer task.mu.Unlock()
@@ -245,7 +244,7 @@ func TestScheduleInstanceOverdueTask_MissingRepo(t *testing.T) {
 		tasks:  make(map[string]*ScheduledTask),
 		done:   make(chan struct{}),
 		// instanceRepo not set → task should not register
-		overdueBroadcaster: &spyBroadcaster{},
+		overdueBroadcaster: testpkg.NewRecordingBroadcaster(),
 	}
 	s.scheduleInstanceOverdueTask()
 	assert.Empty(t, s.tasks, "no repo → no task registered")
@@ -268,7 +267,7 @@ func TestScheduleInstanceOverdueTask_Registers(t *testing.T) {
 		tasks:              make(map[string]*ScheduledTask),
 		done:               make(chan struct{}),
 		instanceRepo:       &fakeInstanceRepo{},
-		overdueBroadcaster: &spyBroadcaster{},
+		overdueBroadcaster: testpkg.NewRecordingBroadcaster(),
 	}
 	s.scheduleInstanceOverdueTask()
 
@@ -287,7 +286,7 @@ func TestRunInstanceOverdueTaskPolling_ExitsOnDone(t *testing.T) {
 	// Pre-close done before launching so waitUntilNextMinute returns false
 	// immediately after the startup check.
 	repo := &fakeInstanceRepo{}
-	spy := &spyBroadcaster{}
+	spy := testpkg.NewRecordingBroadcaster()
 	s := &Scheduler{
 		logger:             slog.Default(),
 		tasks:              make(map[string]*ScheduledTask),
@@ -414,7 +413,8 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 	inst.ID = int64(101)
 
 	repo := &fakeInstanceRepo{instances: []*scheduleModel.ActivityInstance{inst}}
-	spy := &spyBroadcaster{fail: true}
+	spy := testpkg.NewRecordingBroadcaster()
+	spy.Err = errors.New("forced failure")
 	s := &Scheduler{
 		logger:             slog.Default(),
 		instanceRepo:       repo,
@@ -425,15 +425,13 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 	now := time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local)
 	s.runOverdueForTenant(context.Background(), 1, 5, now)
 
-	spy.mu.Lock()
-	defer spy.mu.Unlock()
-	assert.Len(t, spy.all, 1, "broadcast attempted even when failure is expected")
+	assert.Len(t, spy.CallsByMethod("tenant"), 1, "broadcast attempted even when failure is expected")
 }
 
 // threshold < 1 is a documented no-op — exercises the early-return branch.
 func TestRunOverdueForTenant_ThresholdZero(t *testing.T) {
 	repo := &fakeInstanceRepo{}
-	spy := &spyBroadcaster{}
+	spy := testpkg.NewRecordingBroadcaster()
 	s := &Scheduler{
 		logger:             slog.Default(),
 		instanceRepo:       repo,
@@ -446,16 +444,14 @@ func TestRunOverdueForTenant_ThresholdZero(t *testing.T) {
 // Exercises the repo error-log branch.
 func TestRunOverdueForTenant_RepoError(t *testing.T) {
 	repo := &fakeInstanceRepo{err: errors.New("db down")}
-	spy := &spyBroadcaster{}
+	spy := testpkg.NewRecordingBroadcaster()
 	s := &Scheduler{
 		logger:             slog.Default(),
 		instanceRepo:       repo,
 		overdueBroadcaster: spy,
 	}
 	s.runOverdueForTenant(context.Background(), 1, 5, time.Now())
-	spy.mu.Lock()
-	defer spy.mu.Unlock()
-	assert.Empty(t, spy.all, "repo error must not result in any broadcast")
+	assert.Empty(t, spy.CallsByMethod("tenant"), "repo error must not result in any broadcast")
 }
 
 func TestRunInstanceOverdueTaskPolling_TickerFires(t *testing.T) {
@@ -463,7 +459,7 @@ func TestRunInstanceOverdueTaskPolling_TickerFires(t *testing.T) {
 	// intervals so the ticker.C branch + done-exit branch both execute.
 	synctest.Test(t, func(t *testing.T) {
 		repo := &fakeInstanceRepo{}
-		spy := &spyBroadcaster{}
+		spy := testpkg.NewRecordingBroadcaster()
 		s := &Scheduler{
 			logger:             slog.Default(),
 			tasks:              make(map[string]*ScheduledTask),

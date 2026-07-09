@@ -18,19 +18,19 @@ import (
 // the review lists render, with no second source that could drift.
 func (rs *Resource) pendingChangeRequestCount(w http.ResponseWriter, r *http.Request) {
 	if rs.MasterDataReviewService == nil || rs.CareRequestService == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("change request services not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("change request services not configured")))
 		return
 	}
 	ctx := r.Context()
 
 	masterData, err := rs.MasterDataReviewService.ListPending(ctx)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	care, err := rs.CareRequestService.ListPending(ctx)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

@@ -50,9 +50,7 @@ func (r *StudentDataChangeRequestRepository) ListByStudent(ctx context.Context, 
 	if len(statuses) > 0 {
 		query = query.Where(`"student_data_change_request".status IN (?)`, bun.List(statuses))
 	}
-	if where, val, ok := base.TenantWhere(ctx, "student_data_change_request"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_data_change_request")
 	query = query.
 		OrderExpr(`"student_data_change_request".created_at DESC`).
 		OrderExpr(`"student_data_change_request".id DESC`)
@@ -79,9 +77,7 @@ func (r *StudentDataChangeRequestRepository) ListParentVisibleByStudent(ctx cont
 			users.DataChangeTargetDeparture,
 		}))
 
-	if where, val, ok := base.TenantWhere(ctx, "student_data_change_request"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_data_change_request")
 	query = query.
 		OrderExpr(`"student_data_change_request".created_at DESC`).
 		OrderExpr(`"student_data_change_request".id DESC`)
@@ -104,9 +100,7 @@ func (r *StudentDataChangeRequestRepository) ListPendingForTenant(ctx context.Co
 		ModelTableExpr(tableExprStudentDataChangeRequestsAsReq).
 		Where(`"student_data_change_request".status = ?`, users.DataChangeStatusPending)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_data_change_request"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_data_change_request")
 	query = query.
 		OrderExpr(`"student_data_change_request".created_at DESC`).
 		OrderExpr(`"student_data_change_request".id DESC`)
@@ -128,9 +122,7 @@ func (r *StudentDataChangeRequestRepository) HasPendingForField(ctx context.Cont
 		Where(`"student_data_change_request".field_key = ?`, fieldKey).
 		Where(`"student_data_change_request".status = ?`, users.DataChangeStatusPending)
 
-	if where, val, ok := base.TenantWhere(ctx, "student_data_change_request"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_data_change_request")
 
 	exists, err := query.Exists(ctx)
 	if err != nil {
@@ -151,9 +143,7 @@ func (r *StudentDataChangeRequestRepository) FindPendingByIDForUpdate(ctx contex
 		Where(`"student_data_change_request".id = ?`, id).
 		For("UPDATE")
 
-	if where, val, ok := base.TenantWhere(ctx, "student_data_change_request"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student_data_change_request")
 
 	if err := query.Scan(ctx); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -190,9 +180,7 @@ func (r *StudentDataChangeRequestRepository) Decide(ctx context.Context, id int6
 	if applied {
 		q = q.Set("applied_at = ?", now)
 	}
-	if where, val, ok := base.TenantWhere(ctx, "student_data_change_request"); ok {
-		q = q.Where(where, val)
-	}
+	q = base.WithTenantFilter(ctx, q, "student_data_change_request")
 
 	res, err := q.Exec(ctx)
 	if err != nil {

@@ -5,9 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 // Group type constants
@@ -35,41 +33,9 @@ type Group struct {
 
 	// Relations - populated when using the ORM's relations
 	Category       *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`
-	PlannedRoom    *facilities.Room     `bun:"rel:belongs-to,join:planned_room_id=id" json:"planned_room,omitempty"`
 	CreatedByStaff *users.Staff         `bun:"rel:belongs-to,join:created_by=id" json:"created_by_staff,omitempty"`
 	Supervisors    []*SupervisorPlanned `bun:"rel:has-many,join:id=group_id" json:"supervisors,omitempty"`
 	Schedules      []*Schedule          `bun:"rel:has-many,join:id=activity_group_id" json:"schedules,omitempty"`
-	Enrollments    []*StudentEnrollment `bun:"rel:has-many,join:id=activity_group_id" json:"enrollments,omitempty"`
-}
-
-func (g *Group) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`activities.groups AS "group"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`activities.groups AS "group"`)
-	}
-	return nil
-}
-
-// GetID returns the entity's ID
-func (g *Group) GetID() interface{} {
-	return g.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (g *Group) GetCreatedAt() time.Time {
-	return g.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (g *Group) GetUpdatedAt() time.Time {
-	return g.UpdatedAt
-}
-
-// TableName returns the database table name
-func (g *Group) TableName() string {
-	return "activities.groups"
 }
 
 // Validate ensures group data is valid

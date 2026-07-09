@@ -497,7 +497,7 @@ func TestWorkSessionRepository_UpdateBreakMinutesWrapsDatabaseError(t *testing.T
 
 	err := repo.UpdateBreakMinutes(testpkg.TenantContext(1), 1, 30)
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "update break minutes")
+	assert.Contains(t, err.Error(), "update columns")
 }
 
 func TestWorkSessionRepository_CloseSession(t *testing.T) {

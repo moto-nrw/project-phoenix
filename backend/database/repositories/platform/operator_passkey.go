@@ -2,7 +2,6 @@ package platform
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -30,16 +29,6 @@ func NewOperatorPasskeyCredentialRepository(db *bun.DB) platform.OperatorPasskey
 	}
 }
 
-func (r *OperatorPasskeyCredentialRepository) Create(ctx context.Context, credential *platform.OperatorPasskeyCredential) error {
-	if credential == nil {
-		return fmt.Errorf("operator passkey credential cannot be nil")
-	}
-	if err := credential.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, credential)
-}
-
 func (r *OperatorPasskeyCredentialRepository) FindActiveByOperatorID(ctx context.Context, operatorID int64) ([]*platform.OperatorPasskeyCredential, error) {
 	var credentials []*platform.OperatorPasskeyCredential
 	err := base.GetDB(ctx, r.db).NewSelect().
@@ -53,21 +42,6 @@ func (r *OperatorPasskeyCredentialRepository) FindActiveByOperatorID(ctx context
 		return nil, &modelBase.DatabaseError{Op: "find active operator passkeys by operator id", Err: err}
 	}
 	return credentials, nil
-}
-
-func (r *OperatorPasskeyCredentialRepository) FindActiveByCredentialID(ctx context.Context, credentialID []byte) (*platform.OperatorPasskeyCredential, error) {
-	credential := new(platform.OperatorPasskeyCredential)
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(credential).
-		ModelTableExpr(operatorPasskeyCredentialTableAlias).
-		Where("credential_id = ?", credentialID).
-		Where("revoked_at IS NULL").
-		Limit(1).
-		Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active operator passkey by credential id", Err: err}
-	}
-	return credential, nil
 }
 
 func (r *OperatorPasskeyCredentialRepository) FindActiveByCredentialIDAndUserHandle(ctx context.Context, credentialID, userHandle []byte) (*platform.OperatorPasskeyCredential, error) {
@@ -128,16 +102,6 @@ func NewOperatorPasskeySessionRepository(db *bun.DB) platform.OperatorPasskeySes
 	}
 }
 
-func (r *OperatorPasskeySessionRepository) Create(ctx context.Context, session *platform.OperatorPasskeySession) error {
-	if session == nil {
-		return fmt.Errorf("operator passkey session cannot be nil")
-	}
-	if err := session.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, session)
-}
-
 func (r *OperatorPasskeySessionRepository) Consume(ctx context.Context, id, purpose string, now time.Time) (*platform.OperatorPasskeySession, error) {
 	session := new(platform.OperatorPasskeySession)
 	err := base.GetDB(ctx, r.db).NewUpdate().
@@ -157,17 +121,6 @@ func (r *OperatorPasskeySessionRepository) Consume(ctx context.Context, id, purp
 }
 
 func (r *OperatorPasskeySessionRepository) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*platform.OperatorPasskeySession)(nil)).
-		ModelTableExpr(operatorPasskeySessionTable).
-		Where("expires_at < ?", now).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete expired operator passkey sessions", Err: err}
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "rows affected for delete expired operator passkey sessions", Err: err}
-	}
-	return int(affected), nil
+	deleted, err := r.DeleteBefore(ctx, "expires_at", now, "delete expired operator passkey sessions")
+	return int(deleted), err
 }

@@ -2,6 +2,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -11,8 +12,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
@@ -63,7 +62,7 @@ type Factory struct {
 	StaffAbsence             active.StaffAbsenceService
 	Activities               activities.ActivityService
 	Education                education.Service
-	GradeTransition          education.GradeTransitionService
+	GradeTransition          *education.GradeTransitionService
 	Facilities               facilities.Service
 	Schulhof                 facilities.SchulhofService
 	WC                       facilities.WCService
@@ -81,7 +80,7 @@ type Factory struct {
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
 	Materialization          schedule.MaterializationService
-	TemplateSplit            schedule.TemplateSplitService
+	TemplateSplit            *schedule.TemplateSplitService
 	TimetableCleanup         schedule.TimetableCleanupService
 	TimeTrackingCleanup      active.TimeTrackingCleanupService
 	Instance                 schedule.InstanceService
@@ -90,14 +89,14 @@ type Factory struct {
 	Users                    users.PersonService
 	StaffOffboarding         users.StaffOffboardingService
 	CaregiverCapability      users.CaregiverCapabilityService
-	Guardian                 users.GuardianService
-	GuardianProfileLoader    users.GuardianProfileLoader
+	Guardian                 *users.GuardianService
+	GuardianProfileLoader    *users.GuardianProfileLoader
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
 	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
-	ListExport               listexport.Service
-	Emergency                emergency.Service
+	ListExport               *listexport.RendererService
+	Emergency                *emergency.Service
 	Reminders                reminders.Service
 	RealtimeHub              *realtime.Hub     // SSE event hub (shared by services and API)
 	Tracker                  analytics.Tracker // Product analytics (PostHog; no-op without POSTHOG_API_KEY)
@@ -113,13 +112,13 @@ type Factory struct {
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
 	Schools              platform.SchoolService
-	WorkTimeModels       config.WorkTimeModelService
+	WorkTimeModels       *config.WorkTimeModelService
 	Students             users.StudentService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         schedule.CareScheduleRequestService
-	StudentStatusDays    active.StudentStatusDayService
+	StudentStatusDays    *active.StudentStatusDayService
 	StudentHistory       active.StudentHistoryService
-	TimetableData        schedule.TimetableDataService
+	TimetableData        *schedule.TimetableDataService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 	OperatorMFA          platform.OperatorMFAService
 	OperatorPasskey      platform.OperatorPasskeyService
@@ -139,7 +138,7 @@ type Factory struct {
 	// Enrollment domain (parent-enrollment PR 5+).
 	EnrollmentFormSchema    enrollment.FormSchemaService
 	EnrollmentCareOffering  enrollment.CareOfferingService
-	EnrollmentCaptcha       enrollment.CaptchaService
+	EnrollmentCaptcha       *enrollment.CaptchaService
 	EnrollmentRequest       enrollment.RequestService
 	EnrollmentPhase         enrollment.PhaseService
 	EnrollmentDecision      enrollment.DecisionService
@@ -151,7 +150,7 @@ type Factory struct {
 	Parent parent.Service
 
 	// Messaging (staff-side parent-OGS inbox / threads)
-	Messaging messaging.Service
+	Messaging *messaging.Service
 
 	// Calendar (staff and parent personal calendars)
 	Calendar calendarService.Service
@@ -279,16 +278,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
-		PersonRepo:         repos.Person,
-		RFIDRepo:           repos.RFIDCard,
-		AccountRepo:        repos.Account,
-		PersonGuardianRepo: repos.PersonGuardian,
-		StudentRepo:        repos.Student,
-		StaffRepo:          repos.Staff,
-		TeacherRepo:        repos.Teacher,
-		DB:                 db,
-		SettingsService:    settingsService,
-		Logger:             logger.With("service", "users"),
+		PersonRepo:      repos.Person,
+		RFIDRepo:        repos.RFIDCard,
+		AccountRepo:     repos.Account,
+		StudentRepo:     repos.Student,
+		StaffRepo:       repos.Staff,
+		TeacherRepo:     repos.Teacher,
+		DB:              db,
+		SettingsService: settingsService,
+		Logger:          logger.With("service", "users"),
 	})
 
 	// Initialize guardian service
@@ -717,13 +715,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentGuardianRepo:  repos.StudentGuardian,
 		StudentRepo:          repos.Student,
 		SchoolRepo:           repos.School,
-		Mailer:               mailer,
-		Dispatcher:           dispatcher,
-		OutboxEnqueuer:       platform.NewAuthOutboxAdapter(emailOutboxService),
+		OutboxEnqueuer:       emailOutboxService,
 		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
 		SettingsResolver:     settingsService,
 		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
-		DefaultFrom:          defaultFrom,
 		FallbackExpiry:       invitationTokenExpiry,
 		DB:                   db,
 		Logger:               authLogger.With("flow", "guardian_invitation"),
@@ -745,84 +740,28 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			DefaultFrom: defaultFrom,
 		})),
 	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentSubmitted,
-		platform.RendererFunc(enrollment.NewEnrollmentSubmittedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentAdminNotify,
-		platform.RendererFunc(enrollment.NewEnrollmentAdminNotificationRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	// Per-status decision emails dispatched by the DecisionService
-	// (PR 8 slice 2). One renderer per kind keeps subjects + templates
-	// independent and makes future copy updates contained.
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentApproved,
-		platform.RendererFunc(enrollment.NewEnrollmentApprovedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentWaitlisted,
-		platform.RendererFunc(enrollment.NewEnrollmentWaitlistedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentRejected,
-		platform.RendererFunc(enrollment.NewEnrollmentRejectedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestSubmitted,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestSubmittedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestQuestion,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestQuestionRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestParentReply,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestParentReplyRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestApproved,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestApprovedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestRejected,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestRejectedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	// Rollover (annual phase renewal) emails. Slice 1 reuses the
-	// submission template as a placeholder. Proper branded copy lands
-	// in a follow-up PR.
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentRolloverOptIn,
-		platform.RendererFunc(enrollment.NewEnrollmentRolloverOptInRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentRolloverOptOut,
-		platform.RendererFunc(enrollment.NewEnrollmentRolloverOptOutRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
+	// Enrollment outbox renderers, one per EmailKind sharing the same config.
+	// Per-status decision emails (PR 8 slice 2) keep one renderer per kind so
+	// subjects + templates stay independent and copy updates stay contained.
+	// The rollover (annual phase renewal) pair reuses the submission template
+	// as a placeholder until proper branded copy lands in a follow-up PR.
+	enrollmentRendererCfg := enrollment.EmailRendererConfig{DefaultFrom: defaultFrom}
+	for kind, newRenderer := range map[string]func(enrollment.EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error){
+		platformModels.EmailKindEnrollmentSubmitted:                enrollment.NewEnrollmentSubmittedRenderer,
+		platformModels.EmailKindEnrollmentAdminNotify:              enrollment.NewEnrollmentAdminNotificationRenderer,
+		platformModels.EmailKindEnrollmentApproved:                 enrollment.NewEnrollmentApprovedRenderer,
+		platformModels.EmailKindEnrollmentWaitlisted:               enrollment.NewEnrollmentWaitlistedRenderer,
+		platformModels.EmailKindEnrollmentRejected:                 enrollment.NewEnrollmentRejectedRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestSubmitted:   enrollment.NewEnrollmentChangeRequestSubmittedRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestQuestion:    enrollment.NewEnrollmentChangeRequestQuestionRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestParentReply: enrollment.NewEnrollmentChangeRequestParentReplyRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestApproved:    enrollment.NewEnrollmentChangeRequestApprovedRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestRejected:    enrollment.NewEnrollmentChangeRequestRejectedRenderer,
+		platformModels.EmailKindEnrollmentRolloverOptIn:            enrollment.NewEnrollmentRolloverOptInRenderer,
+		platformModels.EmailKindEnrollmentRolloverOptOut:           enrollment.NewEnrollmentRolloverOptOutRenderer,
+	} {
+		emailTemplateRegistry.Register(kind, platform.RendererFunc(newRenderer(enrollmentRendererCfg)))
+	}
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,
@@ -859,26 +798,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                     db,
 		Logger:                 logger.With("service", "staff_offboarding"),
 	})
-
-	// Initialize authorization
-	authorizationService := authorize.NewAuthorizationService()
-
-	// Create policy registry
-	policyRegistry := policies.NewPolicyRegistry(
-		educationService,
-		usersService,
-		activeService,
-	)
-
-	// Register all policies
-	if err := policyRegistry.RegisterAll(authorizationService); err != nil {
-		return nil, err
-	}
-
-	// Set global resource authorizer
-	authorize.SetResourceAuthorizer(
-		authorize.NewResourceAuthorizer(authorizationService),
-	)
 
 	// Initialize user context service
 	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
@@ -1088,7 +1007,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PhaseRepo:                repos.Phase,
 		SchoolRepo:               repos.School,
 		RateLimitRepo:            repos.SubmissionRateLimit,
-		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		OutboxEnqueuer:           emailOutboxService,
 		Settings:                 settingsService,
 		FrontendURL:              frontendURL, // admin notification email
 		ParentsURL:               parentsURL,  // parent confirmation/status emails
@@ -1134,7 +1053,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		AccountTenantRepo:        repos.AccountTenant,
 		AccountRoleRepo:          repos.AccountRole,
 		RoleRepo:                 repos.Role,
-		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		OutboxEnqueuer:           emailOutboxService,
 		FrontendURL:              frontendURL,
 		ParentsURL:               parentsURL,
 		Settings:                 settingsService,
@@ -1172,7 +1091,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
 		DecisionService:          enrollmentDecisionApplier,
 		Settings:                 settingsService,
-		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		OutboxEnqueuer:           emailOutboxService,
 		FrontendURL:              frontendURL,
 		ParentsURL:               parentsURL,
 		DB:                       db,
@@ -1187,7 +1106,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestChildRepo:         repos.RequestChild,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		SchoolRepo:               repos.School,
-		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		OutboxEnqueuer:           emailOutboxService,
 		Settings:                 settingsService,
 		DecisionService:          enrollmentDecisionService,
 		ParentsURL:               parentsURL,

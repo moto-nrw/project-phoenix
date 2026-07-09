@@ -192,19 +192,8 @@ func TestRenderError(t *testing.T) {
 
 func TestErrorConstants(t *testing.T) {
 	// Verify error variables are defined
-	assert.NotNil(t, common.ErrInvalidRequest)
 	assert.NotNil(t, common.ErrUnauthorized)
-	assert.NotNil(t, common.ErrForbidden)
-	assert.NotNil(t, common.ErrInternalServer)
-	assert.NotNil(t, common.ErrResourceNotFound)
-	assert.NotNil(t, common.ErrConflict)
-	assert.NotNil(t, common.ErrTooManyRequests)
-	assert.NotNil(t, common.ErrGone)
-
-	// Verify error messages
-	assert.Equal(t, "invalid request", common.ErrInvalidRequest.Error())
 	assert.Equal(t, "unauthorized", common.ErrUnauthorized.Error())
-	assert.Equal(t, "forbidden", common.ErrForbidden.Error())
 }
 
 func TestMessageConstants(t *testing.T) {
@@ -217,7 +206,6 @@ func TestMessageConstants(t *testing.T) {
 	assert.Equal(t, "invalid account ID", common.MsgInvalidAccountID)
 	assert.Equal(t, "invalid permission ID", common.MsgInvalidPermissionID)
 	assert.Equal(t, "invalid parent account ID", common.MsgInvalidParentAccountID)
-	assert.Equal(t, "invalid setting ID", common.MsgInvalidSettingID)
 	assert.Equal(t, "invalid room ID", common.MsgInvalidRoomID)
 	assert.Equal(t, "invalid weekday", common.MsgInvalidWeekday)
 	assert.Equal(t, "invalid person ID", common.MsgInvalidPersonID)
@@ -228,10 +216,6 @@ func TestMessageConstants(t *testing.T) {
 
 	// Verify date format constant
 	assert.Equal(t, "2006-01-02", common.DateFormatISO)
-}
-
-func TestLogRenderErrorConstant(t *testing.T) {
-	assert.Equal(t, "Error rendering error response: %v", common.LogRenderError)
 }
 
 // =============================================================================

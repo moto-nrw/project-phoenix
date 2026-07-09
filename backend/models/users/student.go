@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // StudentStatus represents the lifecycle status of a student.
@@ -24,7 +23,6 @@ const (
 	StudentStatusPending  StudentStatus = "pending"
 	StudentStatusActive   StudentStatus = "active"
 	StudentStatusInactive StudentStatus = "inactive"
-	StudentStatusAlumnus  StudentStatus = "alumnus"
 )
 
 // MaxDepartureCompanionNoteLen caps the free-text "mit wem" companion note for
@@ -113,25 +111,6 @@ type Student struct {
 	// Relations
 	Person *Person `bun:"rel:belongs-to,join:person_id=id" json:"person,omitempty"`
 	// Group relation is loaded dynamically to avoid import cycle
-}
-
-// BeforeAppendModel sets the correct table expression
-// Note: Table aliases (AS "student") are only applied for SELECT, UPDATE, and DELETE queries.
-//
-//	For INSERT queries, aliases should NOT be used, as they can cause issues with some database drivers.
-func (s *Student) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`users.students AS "student"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`users.students AS "student"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (s *Student) TableName() string {
-	return "users.students"
 }
 
 // Validate ensures student data is valid
@@ -272,21 +251,6 @@ func (s *Student) SetPerson(person *Person) {
 	if person != nil {
 		s.PersonID = person.ID
 	}
-}
-
-// GetID returns the entity's ID
-func (m *Student) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Student) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Student) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }
 
 // StudentWithGroupInfo represents a student with their group information

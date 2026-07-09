@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 const (
@@ -43,21 +42,6 @@ type StaffShift struct {
 
 	Staff *users.Staff `bun:"rel:belongs-to,join:tenant_id=tenant_id,join:staff_id=id" json:"staff,omitempty"`
 }
-
-func (s *StaffShift) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableScheduleStaffShiftsAsShift)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableScheduleStaffShiftsAsShift)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableScheduleStaffShifts)
-	}
-	return nil
-}
-
-func (s *StaffShift) TableName() string { return tableScheduleStaffShifts }
 
 // Validate ensures shift data is consistent.
 func (s *StaffShift) Validate() error {
@@ -103,19 +87,4 @@ func (s *StaffShift) Overlaps(other *StaffShift) bool {
 func (s *StaffShift) EndInstant() time.Time {
 	wc := timezone.WallClock(s.EndTime)
 	return time.Date(s.Date.Year, s.Date.Month, s.Date.Day, wc.Hour(), wc.Minute(), wc.Second(), 0, timezone.Berlin)
-}
-
-// GetID implements the Entity interface
-func (s *StaffShift) GetID() interface{} {
-	return s.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (s *StaffShift) GetCreatedAt() time.Time {
-	return s.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (s *StaffShift) GetUpdatedAt() time.Time {
-	return s.UpdatedAt
 }

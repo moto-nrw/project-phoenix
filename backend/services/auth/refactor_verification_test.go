@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -31,7 +33,7 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 		Model:        modelBase.Model{ID: 1},
 		Email:        "test@example.com",
 		Active:       true,
-		PasswordHash: stringPtr("$argon2id$v=19$m=65536,t=3,p=2$somesalt$somehash"),
+		PasswordHash: testpkg.StrPtr("$argon2id$v=19$m=65536,t=3,p=2$somesalt$somehash"),
 	})
 	tokenRepo := newStubTokenRepository()
 	roleRepo := newStubRoleRepository()
@@ -45,7 +47,7 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 
 	// Create service config with validation
 	config, err := NewServiceConfig(
-		email.NewDispatcher(newCapturingMailer(), slog.Default()),
+		email.NewDispatcher(testpkg.NewCapturingMailer(), slog.Default()),
 		newDefaultFromEmail(),
 		"http://localhost:3000",
 		30*time.Minute,
@@ -63,20 +65,16 @@ func TestRefactoringPreservesRepositoryAccess(t *testing.T) {
 	require.NotNil(t, service.repos.Token, "Should access Token repo through factory")
 	require.NotNil(t, service.repos.Role, "Should access Role repo through factory")
 
-	// Verify GetAccountByEmail uses factory (calls s.repos.Account.FindByEmail)
+	// Verify GetAccountByID uses factory (calls s.repos.Account.FindByID)
 	ctx := context.Background()
 	mock.ExpectBegin()
 	mock.ExpectCommit()
 
-	account, err := service.GetAccountByEmail(ctx, "test@example.com")
-	require.NoError(t, err, "GetAccountByEmail should work with factory pattern")
+	account, err := service.GetAccountByID(ctx, 1)
+	require.NoError(t, err, "GetAccountByID should work with factory pattern")
 	require.NotNil(t, account, "Should return account")
 	require.Equal(t, "test@example.com", account.Email)
 
 	t.Log("✅ Service successfully accesses repositories through factory")
-	t.Log("✅ GetAccountByEmail verified to work after refactoring")
-}
-
-func stringPtr(s string) *string {
-	return &s
+	t.Log("✅ GetAccountByID verified to work after refactoring")
 }

@@ -13,7 +13,7 @@ import (
 
 // testTimetableData builds the full TimetableDataService against the test
 // database — the test-side equivalent of the factory wiring.
-func testTimetableData(db *bun.DB) scheduleSvc.TimetableDataService {
+func testTimetableData(db *bun.DB) *scheduleSvc.TimetableDataService {
 	deps := scheduleSvc.TimetableDataDependencies{
 		InstanceStudentRepo:    scheduleRepo.NewInstanceStudentRepository(db),
 		ActivityInstanceRepo:   scheduleRepo.NewActivityInstanceRepository(db),

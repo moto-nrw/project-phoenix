@@ -110,12 +110,8 @@ func (s *Service) validateStaffExists(ctx context.Context, staffID int64) error 
 func (s *Service) GetSupervisor(ctx context.Context, id int64) (*activities.SupervisorPlanned, error) {
 	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
 	if err != nil {
-		// Check for "no rows" error and convert to our own error
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: opGetSupervisor, Err: ErrSupervisorNotFound}
-		}
-		// Check if the wrapped database error contains sql.ErrNoRows
-		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
+		if base.IsNoRows(err) {
 			return nil, &ActivityError{Op: opGetSupervisor, Err: ErrSupervisorNotFound}
 		}
 		return nil, &ActivityError{Op: opGetSupervisor, Err: err}
@@ -218,17 +214,6 @@ func (s *Service) handlePrimaryStatusChangeInTx(ctx context.Context, txService A
 	}
 
 	return nil
-}
-
-// GetStaffAssignments gets all supervisor assignments for a staff member
-func (s *Service) GetStaffAssignments(ctx context.Context, staffID int64) ([]*activities.SupervisorPlanned, error) {
-	// Directly use the repository
-	assignments, err := s.supervisorRepo.FindByStaffID(ctx, staffID)
-	if err != nil {
-		return nil, &ActivityError{Op: "get staff assignments", Err: err}
-	}
-
-	return assignments, nil
 }
 
 // DeleteSupervisor deletes a supervisor

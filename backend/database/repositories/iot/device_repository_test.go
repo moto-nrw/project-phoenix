@@ -158,7 +158,7 @@ func TestDeviceRepository_List(t *testing.T) {
 	})
 }
 
-func TestDeviceRepository_FindActiveDevices(t *testing.T) {
+func TestDeviceRepository_FindByStatus_Active(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -169,7 +169,7 @@ func TestDeviceRepository_FindActiveDevices(t *testing.T) {
 		device := testpkg.CreateTestDevice(t, db, "activedevice")
 		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, device.ID, 0, 0)
 
-		devices, err := repo.FindActiveDevices(ctx)
+		devices, err := repo.FindByStatus(ctx, iot.DeviceStatusActive)
 		require.NoError(t, err)
 
 		// All returned devices should be active
@@ -460,7 +460,7 @@ func TestDeviceRepository_UpdateStatus(t *testing.T) {
 // Specialized Query Tests
 // ============================================================================
 
-func TestDeviceRepository_FindDevicesRequiringMaintenance(t *testing.T) {
+func TestDeviceRepository_FindByStatus_Maintenance(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -478,7 +478,7 @@ func TestDeviceRepository_FindDevicesRequiringMaintenance(t *testing.T) {
 		require.NoError(t, err)
 		defer testpkg.CleanupTableRecords(t, db, "iot.devices", device.ID)
 
-		devices, err := repo.FindDevicesRequiringMaintenance(ctx)
+		devices, err := repo.FindByStatus(ctx, iot.DeviceStatusMaintenance)
 		require.NoError(t, err)
 
 		var found bool

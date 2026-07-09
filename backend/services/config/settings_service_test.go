@@ -1716,83 +1716,42 @@ func TestResolveString_UnknownKey(t *testing.T) {
 
 // --- Mock school repository for login image tests ---
 
-type mockSchoolRepo struct {
-	school *platform.School
-	err    error
-}
+// newMockSchoolRepo wires a testpkg.SchoolRepoMock to reproduce the exact
+// behavior of the old hand-rolled mockSchoolRepo: FindByID (and its
+// ForShare/ForUpdate aliases) return the stored school when its ID matches,
+// "school not found" otherwise, or err when set; Update stores the new
+// school (mutating what subsequent FindByID calls return); Create returns
+// err. All other methods keep the SchoolRepoMock zero-value defaults
+// (nil, nil / 0, nil), matching the old mock's always-nil behavior.
+func newMockSchoolRepo(school *platform.School, err error) *testpkg.SchoolRepoMock {
+	m := &testpkg.SchoolRepoMock{}
+	current := school
 
-func (m *mockSchoolRepo) Create(_ context.Context, _ *platform.School) error {
-	return m.err
-}
-
-func (m *mockSchoolRepo) FindByID(_ context.Context, id int64) (*platform.School, error) {
-	if m.err != nil {
-		return nil, m.err
+	findByID := func(_ context.Context, id int64) (*platform.School, error) {
+		if err != nil {
+			return nil, err
+		}
+		if current == nil || current.ID != id {
+			return nil, fmt.Errorf("school not found")
+		}
+		return current, nil
 	}
-	if m.school == nil || m.school.ID != id {
-		return nil, fmt.Errorf("school not found")
+
+	m.FindByIDFn = findByID
+	m.FindByIDForShareFn = findByID
+	m.FindByIDForUpdateFn = findByID
+	m.CreateFn = func(_ context.Context, _ *platform.School) error {
+		return err
 	}
-	return m.school, nil
-}
-
-func (m *mockSchoolRepo) FindByIDForShare(_ context.Context, id int64) (*platform.School, error) {
-	return m.FindByID(context.Background(), id)
-}
-
-func (m *mockSchoolRepo) FindByIDForUpdate(_ context.Context, id int64) (*platform.School, error) {
-	return m.FindByID(context.Background(), id)
-}
-
-func (m *mockSchoolRepo) FindBySlug(_ context.Context, _ string) (*platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepo) FindByOrganizationAndSlug(_ context.Context, _ int64, _ string) (*platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepo) FindBySubdomain(_ context.Context, _ string) (*platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepo) List(_ context.Context) ([]*platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepo) ListActive(_ context.Context) ([]platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepo) ListPublic(_ context.Context) ([]platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepo) FindActiveByAccountID(_ context.Context, _ int64) ([]platform.School, error) {
-	return nil, nil
-}
-
-func (m *mockSchoolRepo) Update(_ context.Context, school *platform.School) error {
-	if m.err != nil {
-		return m.err
+	m.UpdateFn = func(_ context.Context, s *platform.School) error {
+		if err != nil {
+			return err
+		}
+		current = s
+		return nil
 	}
-	m.school = school
-	return nil
-}
 
-func (m *mockSchoolRepo) SoftDelete(_ context.Context, _ int64) error {
-	return nil
-}
-
-func (m *mockSchoolRepo) Restore(_ context.Context, _ int64) error {
-	return nil
-}
-
-func (m *mockSchoolRepo) CountByIDs(_ context.Context, _ []int64) (int, error) {
-	return 0, nil
-}
-
-func (m *mockSchoolRepo) CountNonDeletedByOrganizationID(_ context.Context, _ int64) (int, error) {
-	return 0, nil
+	return m
 }
 
 func createServiceWithSchoolRepo(
@@ -1814,7 +1773,7 @@ func newSchool(id int64, settings string) *platform.School {
 func TestGetLoginImageURL_NoImage(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, "")}
+	schoolRepo := newMockSchoolRepo(newSchool(42, ""), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
@@ -1825,7 +1784,7 @@ func TestGetLoginImageURL_NoImage(t *testing.T) {
 func TestGetLoginImageURL_EmptyObject(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, "{}")}
+	schoolRepo := newMockSchoolRepo(newSchool(42, "{}"), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
@@ -1836,7 +1795,7 @@ func TestGetLoginImageURL_EmptyObject(t *testing.T) {
 func TestGetLoginImageURL_NullLiteral(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, "null")}
+	schoolRepo := newMockSchoolRepo(newSchool(42, "null"), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
@@ -1848,7 +1807,7 @@ func TestGetLoginImageURL_WithImage(t *testing.T) {
 	setupTest(t)
 
 	settings := `{"loginImageUrl":"/uploads/tenant/42/login.jpg","other":"value"}`
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, settings)}
+	schoolRepo := newMockSchoolRepo(newSchool(42, settings), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)
@@ -1859,7 +1818,7 @@ func TestGetLoginImageURL_WithImage(t *testing.T) {
 func TestGetLoginImageURL_InvalidTenantID(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, `{"loginImageUrl":"/img.jpg"}`)}
+	schoolRepo := newMockSchoolRepo(newSchool(42, `{"loginImageUrl":"/img.jpg"}`), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 0)
@@ -1870,7 +1829,7 @@ func TestGetLoginImageURL_InvalidTenantID(t *testing.T) {
 func TestGetLoginImageURL_NegativeTenantID(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, `{"loginImageUrl":"/img.jpg"}`)}
+	schoolRepo := newMockSchoolRepo(newSchool(42, `{"loginImageUrl":"/img.jpg"}`), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), -1)
@@ -1881,7 +1840,7 @@ func TestGetLoginImageURL_NegativeTenantID(t *testing.T) {
 func TestGetLoginImageURL_CorruptJSON(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, "not json")}
+	schoolRepo := newMockSchoolRepo(newSchool(42, "not json"), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	_, err := svc.GetLoginImageURL(context.Background(), 42)
@@ -1892,7 +1851,7 @@ func TestGetLoginImageURL_CorruptJSON(t *testing.T) {
 func TestGetLoginImageURL_RepoError(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{err: fmt.Errorf("database connection lost")}
+	schoolRepo := newMockSchoolRepo(nil, fmt.Errorf("database connection lost"))
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	_, err := svc.GetLoginImageURL(context.Background(), 42)
@@ -1903,7 +1862,7 @@ func TestGetLoginImageURL_RepoError(t *testing.T) {
 func TestGetLoginImageURL_SettingsWithOtherKeysButNoImage(t *testing.T) {
 	setupTest(t)
 
-	schoolRepo := &mockSchoolRepo{school: newSchool(42, `{"theme":"dark","lang":"de"}`)}
+	schoolRepo := newMockSchoolRepo(newSchool(42, `{"theme":"dark","lang":"de"}`), nil)
 	svc := createServiceWithSchoolRepo(newMockValueRepo(), &mockAuditRepo{}, schoolRepo)
 
 	url, err := svc.GetLoginImageURL(context.Background(), 42)

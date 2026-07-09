@@ -2,7 +2,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -30,16 +29,6 @@ func NewPasskeyCredentialRepository(db *bun.DB) auth.PasskeyCredentialRepository
 	}
 }
 
-func (r *PasskeyCredentialRepository) Create(ctx context.Context, credential *auth.PasskeyCredential) error {
-	if credential == nil {
-		return fmt.Errorf("passkey credential cannot be nil")
-	}
-	if err := credential.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, credential)
-}
-
 func (r *PasskeyCredentialRepository) FindActiveByAccountID(ctx context.Context, accountID int64) ([]*auth.PasskeyCredential, error) {
 	var credentials []*auth.PasskeyCredential
 	err := base.GetDB(ctx, r.db).NewSelect().
@@ -53,21 +42,6 @@ func (r *PasskeyCredentialRepository) FindActiveByAccountID(ctx context.Context,
 		return nil, &modelBase.DatabaseError{Op: "find active passkeys by account id", Err: err}
 	}
 	return credentials, nil
-}
-
-func (r *PasskeyCredentialRepository) FindActiveByCredentialID(ctx context.Context, credentialID []byte) (*auth.PasskeyCredential, error) {
-	credential := new(auth.PasskeyCredential)
-	err := base.GetDB(ctx, r.db).NewSelect().
-		Model(credential).
-		ModelTableExpr(passkeyCredentialTableAlias).
-		Where("credential_id = ?", credentialID).
-		Where("revoked_at IS NULL").
-		Limit(1).
-		Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find active passkey by credential id", Err: err}
-	}
-	return credential, nil
 }
 
 func (r *PasskeyCredentialRepository) FindActiveByCredentialIDAndUserHandle(ctx context.Context, credentialID, userHandle []byte) (*auth.PasskeyCredential, error) {
@@ -128,16 +102,6 @@ func NewPasskeySessionRepository(db *bun.DB) auth.PasskeySessionRepository {
 	}
 }
 
-func (r *PasskeySessionRepository) Create(ctx context.Context, session *auth.PasskeySession) error {
-	if session == nil {
-		return fmt.Errorf("passkey session cannot be nil")
-	}
-	if err := session.Validate(); err != nil {
-		return err
-	}
-	return r.Repository.Create(ctx, session)
-}
-
 func (r *PasskeySessionRepository) Consume(ctx context.Context, id, purpose string, now time.Time) (*auth.PasskeySession, error) {
 	session := new(auth.PasskeySession)
 	err := base.GetDB(ctx, r.db).NewUpdate().
@@ -157,17 +121,6 @@ func (r *PasskeySessionRepository) Consume(ctx context.Context, id, purpose stri
 }
 
 func (r *PasskeySessionRepository) DeleteExpired(ctx context.Context, now time.Time) (int, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*auth.PasskeySession)(nil)).
-		ModelTableExpr(passkeySessionTable).
-		Where("expires_at < ?", now).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete expired passkey sessions", Err: err}
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "rows affected for delete expired passkey sessions", Err: err}
-	}
-	return int(affected), nil
+	deleted, err := r.DeleteBefore(ctx, "expires_at", now, "delete expired passkey sessions")
+	return int(deleted), err
 }

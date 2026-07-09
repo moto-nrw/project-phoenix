@@ -188,11 +188,6 @@ func TestStudentPickupSchedule_GetWeekdayName(t *testing.T) {
 	}
 }
 
-func TestStudentPickupSchedule_TableName(t *testing.T) {
-	schedule := &StudentPickupSchedule{}
-	assert.Equal(t, "schedule.student_pickup_schedules", schedule.TableName())
-}
-
 func TestStudentPickupSchedule_GetID(t *testing.T) {
 	schedule := &StudentPickupSchedule{}
 	schedule.ID = 42
@@ -392,11 +387,6 @@ func TestStudentPickupException_IsAbsent(t *testing.T) {
 	}
 }
 
-func TestStudentPickupException_TableName(t *testing.T) {
-	exception := &StudentPickupException{}
-	assert.Equal(t, "schedule.student_pickup_exceptions", exception.TableName())
-}
-
 func TestStudentPickupException_GetID(t *testing.T) {
 	exception := &StudentPickupException{}
 	exception.ID = 42
@@ -583,11 +573,6 @@ func TestStudentPickupNote_Validate(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestStudentPickupNote_TableName(t *testing.T) {
-	note := &StudentPickupNote{}
-	assert.Equal(t, "schedule.student_pickup_notes", note.TableName())
 }
 
 func TestStudentPickupNote_GetID(t *testing.T) {

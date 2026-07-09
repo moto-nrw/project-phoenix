@@ -330,9 +330,7 @@ func (r *ParentMessageReadRepository) ListInboxForStaff(ctx context.Context, acc
 	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, true)
 	query = applyStaffScope(query, allStudents, groupIDs)
 	query = query.Where(threadHasMessages)
-	if where, val, ok := base.TenantWhere(ctx, "t"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "t")
 	if onlyUnread {
 		query = query.Where(guardianUnreadExists, accountID)
 	}
@@ -352,9 +350,7 @@ func (r *ParentMessageReadRepository) ListThreadsForStudent(ctx context.Context,
 	query := inboxSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, true).
 		Where("t.student_id = ?", studentID).
 		Where(threadHasMessages)
-	if where, val, ok := base.TenantWhere(ctx, "t"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "t")
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list parent message threads for student", Err: err}
 	}
@@ -373,9 +369,7 @@ func (r *ParentMessageReadRepository) ListThreadsForGuardianStudent(ctx context.
 		Where("t.student_id = ?", studentID).
 		Where(threadHasMessages).
 		Where(guardianStillLinked)
-	if where, val, ok := base.TenantWhere(ctx, "t"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "t")
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list guardian threads for student", Err: err}
 	}
@@ -446,9 +440,7 @@ func (r *ParentMessageReadRepository) FindThreadHeader(ctx context.Context, thre
 		Join("LEFT JOIN users.guardian_profiles AS gp ON gp.account_id = t.guardian_account_id AND gp.tenant_id = t.tenant_id").
 		Join("LEFT JOIN users.students_guardians AS sg ON sg.guardian_profile_id = gp.id AND sg.student_id = t.student_id").
 		Where("t.id = ?", threadID)
-	if where, val, ok := base.TenantWhere(ctx, "t"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "t")
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find thread header", Err: err}
 	}
@@ -496,9 +488,7 @@ func (r *ParentMessageReadRepository) LatestReadCursorByOther(ctx context.Contex
 		OrderExpr("r.last_read_at DESC").
 		OrderExpr("r.last_read_message_id DESC").
 		Limit(1)
-	if where, val, ok := base.TenantWhere(ctx, "r"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "r")
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "latest parent message read cursor", Err: err}
 	}
@@ -526,9 +516,7 @@ func (r *ParentMessageReadRepository) GuardianReadCursor(ctx context.Context, th
 		Where("r.thread_id = ?", threadID).
 		Where("r.account_id = t.guardian_account_id").
 		Limit(1)
-	if where, val, ok := base.TenantWhere(ctx, "r"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "r")
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "guardian parent message read cursor", Err: err}
 	}
@@ -545,9 +533,7 @@ func (r *ParentMessageReadRepository) GuardianReadCursor(ctx context.Context, th
 func (r *ParentMessageReadRepository) UnreadMessageCountForStaff(ctx context.Context, accountID int64, allStudents bool, groupIDs []int64) (int, error) {
 	query := unreadMessageCountSelect(base.GetDB(ctx, r.db).NewSelect(), accountID, true)
 	query = applyStaffScope(query, allStudents, groupIDs)
-	if where, val, ok := base.TenantWhere(ctx, "t"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "t")
 	count, err := query.Count(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "count unread parent messages for staff", Err: err}

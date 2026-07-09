@@ -56,11 +56,9 @@ func TestListRooms_ExcludesSystemRoomsByDefault(t *testing.T) {
 
 	markRoomAsSystem(t, tc.db, system.ID)
 
-	router := setupRouter(tc.resource.ListRoomsHandler(), "")
-
 	t.Run("default_excludes_system", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
 		ids := roomResponseIDs(t, rr.Body.Bytes())
@@ -70,7 +68,7 @@ func TestListRooms_ExcludesSystemRoomsByDefault(t *testing.T) {
 
 	t.Run("include_system_returns_system", func(t *testing.T) {
 		req := testutil.NewRequest("GET", "/?include_system=true", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
 		ids := roomResponseIDs(t, rr.Body.Bytes())
@@ -88,11 +86,9 @@ func TestGetAvailableRooms_ExcludesSystemRoomsByDefault(t *testing.T) {
 
 	markRoomAsSystem(t, tc.db, system.ID)
 
-	router := setupRouter(tc.resource.GetAvailableRoomsHandler(), "")
-
 	t.Run("default_excludes_system", func(t *testing.T) {
-		req := testutil.NewRequest("GET", "/", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("GET", "/available", nil)
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
 		ids := roomResponseIDs(t, rr.Body.Bytes())
@@ -101,8 +97,8 @@ func TestGetAvailableRooms_ExcludesSystemRoomsByDefault(t *testing.T) {
 	})
 
 	t.Run("include_system_returns_system", func(t *testing.T) {
-		req := testutil.NewRequest("GET", "/?include_system=true", nil)
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		req := testutil.NewRequest("GET", "/available?include_system=true", nil)
+		rr := testutil.ExecuteWithAuth(t, tc.router, req, testutil.AdminTestClaims(1))
 		assert.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 
 		ids := roomResponseIDs(t, rr.Body.Bytes())

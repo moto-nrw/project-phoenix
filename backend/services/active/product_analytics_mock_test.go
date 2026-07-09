@@ -28,7 +28,7 @@ func (r *recordingTracker) Close() error { return nil }
 
 func TestTrackProductEventCapturesTenantScopedEvent(t *testing.T) {
 	rec := &recordingTracker{}
-	svc := &service{tracker: rec}
+	svc := &service{ServiceDependencies: ServiceDependencies{Tracker: rec}}
 	ctx := tenant.WithTenantID(context.Background(), 42)
 
 	svc.trackProductEvent(ctx, "student_checked_in", map[string]any{"method": "rfid"})
@@ -45,7 +45,7 @@ func TestTrackProductEventCapturesTenantScopedEvent(t *testing.T) {
 
 func TestTrackProductEventSkipsWithoutTenant(t *testing.T) {
 	rec := &recordingTracker{}
-	svc := &service{tracker: rec}
+	svc := &service{ServiceDependencies: ServiceDependencies{Tracker: rec}}
 
 	svc.trackProductEvent(context.Background(), "student_checked_in", nil)
 
@@ -54,7 +54,7 @@ func TestTrackProductEventSkipsWithoutTenant(t *testing.T) {
 
 func TestTrackProductEventCreatesPropsWhenNil(t *testing.T) {
 	rec := &recordingTracker{}
-	svc := &service{tracker: rec}
+	svc := &service{ServiceDependencies: ServiceDependencies{Tracker: rec}}
 	ctx := tenant.WithTenantID(context.Background(), 7)
 
 	svc.trackProductEvent(ctx, "room_transfer", nil)
@@ -67,7 +67,7 @@ func TestTrackProductEventCreatesPropsWhenNil(t *testing.T) {
 
 func TestTrackProductEventDefersUntilAfterCommit(t *testing.T) {
 	rec := &recordingTracker{}
-	svc := &service{tracker: rec}
+	svc := &service{ServiceDependencies: ServiceDependencies{Tracker: rec}}
 	ctx := tenant.WithTenantID(context.Background(), 42)
 	ctx, drain := tenant.WithAfterCommitHooksForTest(ctx)
 

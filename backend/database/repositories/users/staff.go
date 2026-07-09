@@ -5,7 +5,6 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
@@ -41,9 +40,7 @@ func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*
 		ModelTableExpr(`users.staff AS "staff"`).
 		Where(`"staff".person_id = ?`, personID)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff")
 
 	err := query.Scan(ctx)
 
@@ -57,29 +54,6 @@ func (r *StaffRepository) FindByPersonID(ctx context.Context, personID int64) (*
 	return staff, nil
 }
 
-// UpdateNotes updates staff notes
-func (r *StaffRepository) UpdateNotes(ctx context.Context, id int64, notes string) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Staff)(nil)).
-		ModelTableExpr(`users.staff AS "staff"`).
-		Set(`staff_notes = ?`, notes).
-		Where(`"staff".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update notes",
-			Err: err,
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "update notes")
-}
-
 // ClearWorkTimeModel sets work_time_model_id to NULL. Used by staff
 // offboarding before the soft delete so the retained row does not block
 // work-time-model deletion via the RESTRICT FK.
@@ -90,9 +64,7 @@ func (r *StaffRepository) ClearWorkTimeModel(ctx context.Context, id int64) erro
 		Set(`work_time_model_id = NULL`).
 		Where(`"staff".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -103,36 +75,6 @@ func (r *StaffRepository) ClearWorkTimeModel(ctx context.Context, id int64) erro
 	}
 
 	return base.AssertRowsAffected(result, 1, "clear work time model")
-}
-
-// Create overrides the base Create method to handle validation
-func (r *StaffRepository) Create(ctx context.Context, staff *users.Staff) error {
-	if staff == nil {
-		return fmt.Errorf("staff cannot be nil")
-	}
-
-	// Validate staff
-	if err := staff.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, staff)
-}
-
-// Update overrides the base Update method to handle validation
-func (r *StaffRepository) Update(ctx context.Context, staff *users.Staff) error {
-	if staff == nil {
-		return fmt.Errorf("staff cannot be nil")
-	}
-
-	// Validate staff
-	if err := staff.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Update method
-	return r.Repository.Update(ctx, staff)
 }
 
 // Legacy method to maintain compatibility with old interface
@@ -152,44 +94,19 @@ func (r *StaffRepository) List(ctx context.Context, filters map[string]interface
 	return r.ListWithOptions(ctx, options)
 }
 
-// ListWithOptions provides a type-safe way to list staff with query options
-func (r *StaffRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*users.Staff, error) {
-	var staffMembers []*users.Staff
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&staffMembers).
-		ModelTableExpr(`users.staff AS "staff"`)
-
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list with options",
-			Err: err,
-		}
-	}
-
-	return staffMembers, nil
+// staffResult is the scan target for staffWithPersonQuery.
+type staffResult struct {
+	Staff  *users.Staff  `bun:"staff"`
+	Person *users.Person `bun:"person"`
 }
 
-// ListAllWithPerson retrieves all staff members with their associated person data in a single query
-func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff, error) {
-	type staffResult struct {
-		Staff  *users.Staff  `bun:"staff"`
-		Person *users.Person `bun:"person"`
-	}
-
-	var results []staffResult
-
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&results).
+// staffWithPersonQuery builds the shared staff→person LEFT JOIN with the
+// explicit ColumnExpr aliasing stanza. Callers add their WHERE clauses and
+// the tenant filter. joinSuffix appends extra join conditions (e.g.
+// `AND "person".deleted_at IS NULL` for FindWithPersonByIDs).
+func (r *StaffRepository) staffWithPersonQuery(ctx context.Context, results *[]staffResult, joinSuffix string) *bun.SelectQuery {
+	return base.GetDB(ctx, r.db).NewSelect().
+		Model(results).
 		ModelTableExpr(`users.staff AS "staff"`).
 		ColumnExpr(`"staff".id AS "staff__id"`).
 		ColumnExpr(`"staff".created_at AS "staff__created_at"`).
@@ -204,16 +121,19 @@ func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff
 		ColumnExpr(`"person".last_name AS "person__last_name"`).
 		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
 		ColumnExpr(`"person".account_id AS "person__account_id"`).
-		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id`).
+		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id` + joinSuffix)
+}
+
+// ListAllWithPerson retrieves all staff members with their associated person data in a single query
+func (r *StaffRepository) ListAllWithPerson(ctx context.Context) ([]*users.Staff, error) {
+	var results []staffResult
+
+	query := r.staffWithPersonQuery(ctx, &results, "").
 		Where(`"staff".deleted_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff")
 
-	err := query.Scan(ctx)
-
-	if err != nil {
+	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "list all with person",
 			Err: err,
@@ -326,9 +246,7 @@ func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.
 		ModelTableExpr(`users.staff AS "staff"`).
 		Where(`"staff".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		staffQuery = staffQuery.Where(where, val)
-	}
+	staffQuery = base.WithTenantFilter(ctx, staffQuery, "staff")
 
 	err := staffQuery.Scan(ctx)
 	if err != nil {
@@ -346,9 +264,7 @@ func (r *StaffRepository) FindWithPerson(ctx context.Context, id int64) (*users.
 			ModelTableExpr(`users.persons AS "person"`).
 			Where(`"person".id = ?`, staff.PersonID)
 
-		if where, val, ok := base.TenantWhere(ctx, "person"); ok {
-			personQuery = personQuery.Where(where, val)
-		}
+		personQuery = base.WithTenantFilter(ctx, personQuery, "person")
 
 		personErr := personQuery.Scan(ctx)
 
@@ -380,9 +296,7 @@ func (r *StaffRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64
 		ModelTableExpr(`users.staff AS "staff"`).
 		Where(`"staff".id IN (?)`, bun.List(ids))
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -407,35 +321,12 @@ func (r *StaffRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) 
 		return make(map[int64]*users.Staff), nil
 	}
 
-	type staffResult struct {
-		Staff  *users.Staff  `bun:"staff"`
-		Person *users.Person `bun:"person"`
-	}
-
 	var results []staffResult
 
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&results).
-		ModelTableExpr(`users.staff AS "staff"`).
-		ColumnExpr(`"staff".id AS "staff__id"`).
-		ColumnExpr(`"staff".created_at AS "staff__created_at"`).
-		ColumnExpr(`"staff".updated_at AS "staff__updated_at"`).
-		ColumnExpr(`"staff".tenant_id AS "staff__tenant_id"`).
-		ColumnExpr(`"staff".person_id AS "staff__person_id"`).
-		ColumnExpr(`"staff".staff_notes AS "staff__staff_notes"`).
-		ColumnExpr(`"person".id AS "person__id"`).
-		ColumnExpr(`"person".created_at AS "person__created_at"`).
-		ColumnExpr(`"person".updated_at AS "person__updated_at"`).
-		ColumnExpr(`"person".first_name AS "person__first_name"`).
-		ColumnExpr(`"person".last_name AS "person__last_name"`).
-		ColumnExpr(`"person".tag_id AS "person__tag_id"`).
-		ColumnExpr(`"person".account_id AS "person__account_id"`).
-		Join(`LEFT JOIN users.persons AS "person" ON "person".id = "staff".person_id AND "person".deleted_at IS NULL`).
+	query := r.staffWithPersonQuery(ctx, &results, ` AND "person".deleted_at IS NULL`).
 		Where(`"staff".id IN (?)`, bun.List(ids))
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -484,9 +375,7 @@ func (r *StaffRepository) ListStaffByRoles(ctx context.Context, roles []string) 
 		Where(`LOWER("role".name) IN (?)`, bun.List(lowerRoles)).
 		Where(`"staff".deleted_at IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "staff")
 
 	err := query.Scan(ctx, &results)
 
@@ -518,9 +407,7 @@ func (r *StaffRepository) AddNotes(ctx context.Context, id int64, notes string) 
 		Column(`"staff".staff_notes`).
 		WherePK()
 
-	if where, val, ok := base.TenantWhere(ctx, "staff"); ok {
-		updateQuery = updateQuery.Where(where, val)
-	}
+	updateQuery = base.WithTenantFilter(ctx, updateQuery, "staff")
 
 	result, err := updateQuery.Exec(ctx)
 	if err != nil {

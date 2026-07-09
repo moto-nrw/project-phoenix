@@ -4,15 +4,11 @@ import (
 	"errors"
 	"regexp"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 const (
-	tableScheduleShiftTypes       = "schedule.shift_types"
-	tableScheduleShiftTypesAsType = `schedule.shift_types AS "shift_type"`
 	maxShiftTypeNameLength        = 100
 	maxShiftTypeDescriptionLength = 500
 	DefaultShiftTypeColor         = "#6B7280"
@@ -40,21 +36,6 @@ type ShiftType struct {
 	// inserts; through this model bun always sends the explicit bool.
 	IsActive bool `bun:"is_active,notnull" json:"is_active"`
 }
-
-func (t *ShiftType) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableScheduleShiftTypes)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableScheduleShiftTypes)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableScheduleShiftTypes)
-	}
-	return nil
-}
-
-func (t *ShiftType) TableName() string { return tableScheduleShiftTypes }
 
 // expandShorthandHex turns a validated 3-digit "#RGB" color into its 6-digit
 // "#RRGGBB" form so stored colors are always the shape the frontend's native
@@ -97,12 +78,3 @@ func (t *ShiftType) Validate() error {
 
 	return nil
 }
-
-// GetID implements the Entity interface.
-func (t *ShiftType) GetID() interface{} { return t.ID }
-
-// GetCreatedAt implements the Entity interface.
-func (t *ShiftType) GetCreatedAt() time.Time { return t.CreatedAt }
-
-// GetUpdatedAt implements the Entity interface.
-func (t *ShiftType) GetUpdatedAt() time.Time { return t.UpdatedAt }

@@ -99,7 +99,7 @@ func TestActiveServiceThinDelegates(t *testing.T) {
 	t.Run("has open attendance delegates date and result", func(t *testing.T) {
 		date := timezone.DateFromTime(timezone.Now())
 		repo := &attendanceRepoForActiveWrapperTest{has: true}
-		svc := &service{attendanceRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{AttendanceRepo: repo}}
 
 		hasOpen, err := svc.HasOpenAttendanceOn(ctx, date)
 
@@ -111,7 +111,7 @@ func TestActiveServiceThinDelegates(t *testing.T) {
 	t.Run("has open attendance preserves repository error", func(t *testing.T) {
 		expectedErr := errors.New("attendance lookup failed")
 		repo := &attendanceRepoForActiveWrapperTest{err: expectedErr}
-		svc := &service{attendanceRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{AttendanceRepo: repo}}
 
 		hasOpen, err := svc.HasOpenAttendanceOn(ctx, timezone.TodayDate())
 
@@ -122,7 +122,7 @@ func TestActiveServiceThinDelegates(t *testing.T) {
 	t.Run("get rooms by ids delegates ids and result", func(t *testing.T) {
 		rooms := []*facilityModels.Room{{Name: "Aula"}}
 		repo := &roomRepoForActiveWrapperTest{rooms: rooms}
-		svc := &service{roomRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{RoomRepo: repo}}
 
 		got, err := svc.GetRoomsByIDs(ctx, []int64{10, 20})
 
@@ -134,7 +134,7 @@ func TestActiveServiceThinDelegates(t *testing.T) {
 	t.Run("get active group visits with display delegates active group id", func(t *testing.T) {
 		rows := []*activeModels.VisitWithStudentDisplay{{VisitID: 90, StudentID: 91}}
 		repo := &visitRepoForActiveWrapperTest{rows: rows}
-		svc := &service{visitRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{VisitRepo: repo}}
 
 		got, err := svc.GetActiveGroupVisitsWithDisplay(ctx, 80)
 
@@ -149,7 +149,7 @@ func TestGetActiveGroupsByIDs_Branches(t *testing.T) {
 
 	t.Run("empty input returns empty map without repository call", func(t *testing.T) {
 		repo := &groupRepoForActiveWrapperTest{}
-		svc := &service{groupRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: repo}}
 
 		groups, err := svc.GetActiveGroupsByIDs(ctx, nil)
 
@@ -160,7 +160,7 @@ func TestGetActiveGroupsByIDs_Branches(t *testing.T) {
 
 	t.Run("nil repository map becomes empty map", func(t *testing.T) {
 		repo := &groupRepoForActiveWrapperTest{}
-		svc := &service{groupRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: repo}}
 
 		groups, err := svc.GetActiveGroupsByIDs(ctx, []int64{10, 20})
 
@@ -171,7 +171,7 @@ func TestGetActiveGroupsByIDs_Branches(t *testing.T) {
 
 	t.Run("repository error maps to database operation", func(t *testing.T) {
 		repo := &groupRepoForActiveWrapperTest{err: errors.New("group lookup failed")}
-		svc := &service{groupRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: repo}}
 
 		groups, err := svc.GetActiveGroupsByIDs(ctx, []int64{10})
 
@@ -187,7 +187,7 @@ func TestGetActiveGroup_Branches(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		group := &activeModels.Group{Model: modelBase.Model{ID: 42}}
 		repo := &groupRepoForActiveWrapperTest{group: group}
-		svc := &service{groupRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: repo}}
 
 		got, err := svc.GetActiveGroup(ctx, 42)
 
@@ -200,7 +200,7 @@ func TestGetActiveGroup_Branches(t *testing.T) {
 		repo := &groupRepoForActiveWrapperTest{
 			err: &modelBase.DatabaseError{Op: "find active group", Err: sql.ErrNoRows},
 		}
-		svc := &service{groupRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: repo}}
 
 		got, err := svc.GetActiveGroup(ctx, 42)
 
@@ -210,7 +210,7 @@ func TestGetActiveGroup_Branches(t *testing.T) {
 
 	t.Run("unexpected repository error maps to database operation", func(t *testing.T) {
 		repo := &groupRepoForActiveWrapperTest{err: errors.New("group repository unavailable")}
-		svc := &service{groupRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: repo}}
 
 		got, err := svc.GetActiveGroup(ctx, 42)
 
@@ -220,7 +220,7 @@ func TestGetActiveGroup_Branches(t *testing.T) {
 
 	t.Run("nil result maps to active group not found", func(t *testing.T) {
 		repo := &groupRepoForActiveWrapperTest{}
-		svc := &service{groupRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: repo}}
 
 		got, err := svc.GetActiveGroup(ctx, 42)
 
@@ -234,7 +234,7 @@ func TestValidateStaffExists_Branches(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		repo := &staffRepoForActiveWrapperTest{staff: &userModels.Staff{}}
-		svc := &service{staffRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{StaffRepo: repo}}
 
 		err := svc.validateStaffExists(ctx, 42)
 
@@ -246,7 +246,7 @@ func TestValidateStaffExists_Branches(t *testing.T) {
 		repo := &staffRepoForActiveWrapperTest{
 			err: &modelBase.DatabaseError{Op: "find staff", Err: sql.ErrNoRows},
 		}
-		svc := &service{staffRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{StaffRepo: repo}}
 
 		err := svc.validateStaffExists(ctx, 42)
 
@@ -256,7 +256,7 @@ func TestValidateStaffExists_Branches(t *testing.T) {
 	t.Run("unexpected repository error is preserved", func(t *testing.T) {
 		expectedErr := errors.New("staff repository unavailable")
 		repo := &staffRepoForActiveWrapperTest{err: expectedErr}
-		svc := &service{staffRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{StaffRepo: repo}}
 
 		err := svc.validateStaffExists(ctx, 42)
 
@@ -278,7 +278,7 @@ func TestGetCrossTenantStudents_Branches(t *testing.T) {
 
 	t.Run("repository error is wrapped", func(t *testing.T) {
 		expectedErr := errors.New("cross tenant lookup failed")
-		svc := &service{crossTenantRepo: &crossTenantRepoForActiveWrapperTest{err: expectedErr}}
+		svc := &service{ServiceDependencies: ServiceDependencies{CrossTenantRepo: &crossTenantRepoForActiveWrapperTest{err: expectedErr}}}
 
 		students, err := svc.GetCrossTenantStudents(ctx, 10)
 
@@ -290,7 +290,7 @@ func TestGetCrossTenantStudents_Branches(t *testing.T) {
 	t.Run("returns repository rows", func(t *testing.T) {
 		rows := []activeModels.CrossTenantStudent{{StudentID: 20}}
 		repo := &crossTenantRepoForActiveWrapperTest{students: rows}
-		svc := &service{crossTenantRepo: repo}
+		svc := &service{ServiceDependencies: ServiceDependencies{CrossTenantRepo: repo}}
 
 		students, err := svc.GetCrossTenantStudents(ctx, 10)
 

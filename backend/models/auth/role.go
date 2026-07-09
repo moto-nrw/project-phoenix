@@ -5,10 +5,8 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // System role names used as base role targets for custom roles.
@@ -39,21 +37,6 @@ type Role struct {
 	Permissions []*Permission `bun:"-" json:"permissions,omitempty"`
 }
 
-// TableName returns the database table name
-func (r *Role) TableName() string {
-	return "auth.roles"
-}
-
-func (r *Role) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.roles AS "role"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.roles AS "role"`)
-	}
-	return nil
-}
-
 // Validate ensures role data is valid
 func (r *Role) Validate() error {
 	if r.Name == "" {
@@ -80,12 +63,6 @@ func (r *Role) Validate() error {
 	return nil
 }
 
-// Note: the role's permission membership check and the add/remove permission
-// mutations (formerly Role.HasPermission / Role.AddPermission /
-// Role.RemovePermission) moved out of the model in issue #586 (Rule 12) to:
-//   - auth/authorize/role_permission.go (RoleHasPermission / RoleAddPermission /
-//     RoleRemovePermission)
-
 // GetTenantID returns the tenant ID (0 if nil/system role).
 func (r *Role) GetTenantID() int64 {
 	if r.TenantID != nil {
@@ -97,19 +74,4 @@ func (r *Role) GetTenantID() int64 {
 // SetTenantID sets the tenant ID.
 func (r *Role) SetTenantID(id int64) {
 	r.TenantID = &id
-}
-
-// GetID returns the entity's ID
-func (m *Role) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *Role) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *Role) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

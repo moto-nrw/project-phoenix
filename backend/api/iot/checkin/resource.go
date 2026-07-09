@@ -1,8 +1,8 @@
 package checkin
 
 import (
+	"cmp"
 	"log/slog"
-	"net/http"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -33,10 +33,7 @@ type Resource struct {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (rs *Resource) getLogger() *slog.Logger {
-	if rs.logger != nil {
-		return rs.logger
-	}
-	return slog.Default()
+	return cmp.Or(rs.logger, slog.Default())
 }
 
 // NewResource creates a new Check-in resource
@@ -85,19 +82,3 @@ func (rs *Resource) Router() chi.Router {
 
 	return r
 }
-
-// =============================================================================
-// EXPORTED HANDLERS FOR TESTING
-// =============================================================================
-
-// DeviceCheckinHandler returns the deviceCheckin handler for testing.
-func (rs *Resource) DeviceCheckinHandler() http.HandlerFunc { return rs.deviceCheckin }
-
-// DevicePingHandler returns the devicePing handler for testing.
-func (rs *Resource) DevicePingHandler() http.HandlerFunc { return rs.devicePing }
-
-// DeviceStatusHandler returns the deviceStatus handler for testing.
-func (rs *Resource) DeviceStatusHandler() http.HandlerFunc { return rs.deviceStatus }
-
-// DevicePickupQueryHandler returns the devicePickupQuery handler for testing.
-func (rs *Resource) DevicePickupQueryHandler() http.HandlerFunc { return rs.devicePickupQuery }

@@ -2,12 +2,10 @@ package activities
 
 import (
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
 )
 
 // Define attendance status constants
@@ -19,9 +17,7 @@ const (
 )
 
 // Table name constants for BUN ORM schema qualification
-const (
-	tableActivitiesStudentEnrollments = "activities.student_enrollments"
-)
+const ()
 
 // StudentEnrollment represents a student enrolled in an activity group
 type StudentEnrollment struct {
@@ -42,39 +38,6 @@ type StudentEnrollment struct {
 	// Relations - populated when using the ORM's relations
 	Student       *users.Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
 	ActivityGroup *Group         `bun:"rel:belongs-to,join:activity_group_id=id" json:"activity_group,omitempty"`
-}
-
-func (se *StudentEnrollment) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableActivitiesStudentEnrollments)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableActivitiesStudentEnrollments)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableActivitiesStudentEnrollments)
-	}
-	return nil
-}
-
-// GetID returns the entity's ID
-func (se *StudentEnrollment) GetID() interface{} {
-	return se.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (se *StudentEnrollment) GetCreatedAt() time.Time {
-	return se.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (se *StudentEnrollment) GetUpdatedAt() time.Time {
-	return se.UpdatedAt
-}
-
-// TableName returns the database table name
-func (se *StudentEnrollment) TableName() string {
-	return tableActivitiesStudentEnrollments
 }
 
 // IsValidAttendanceStatus checks if the attendance status is valid

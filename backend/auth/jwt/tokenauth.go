@@ -1,7 +1,6 @@
 package jwt
 
 import (
-	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"log"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-chi/jwtauth/v5"
+	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	"github.com/spf13/viper"
 )
 
@@ -82,7 +82,10 @@ func resolveRandomSecret() (string, error) {
 	}
 
 	// Generate new secret
-	secret := randStringBytes(32)
+	secret, err := randstr.String(32, randstr.Alphanumeric)
+	if err != nil {
+		panic(err)
+	}
 	log.Printf("Generated new JWT secret and saving to %s", secretFile)
 
 	// Save for future use
@@ -195,18 +198,4 @@ func (a *TokenAuth) CreateRefreshJWT(c RefreshClaims) (string, error) {
 // GetRefreshExpiry returns the refresh token expiration duration
 func (a *TokenAuth) GetRefreshExpiry() time.Duration {
 	return a.JwtRefreshExpiry
-}
-
-const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-
-func randStringBytes(n int) string {
-	buf := make([]byte, n)
-	if _, err := rand.Read(buf); err != nil {
-		panic(err)
-	}
-
-	for k, v := range buf {
-		buf[k] = letterBytes[v%byte(len(letterBytes))]
-	}
-	return string(buf)
 }

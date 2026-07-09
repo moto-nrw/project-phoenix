@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -204,51 +205,6 @@ func (m *wsMockWorkTimeModelRepository) Delete(ctx context.Context, id int64) er
 	return nil
 }
 
-type wsMockStaffRepository struct {
-	findByIDFunc func(ctx context.Context, id interface{}) (*userModels.Staff, error)
-}
-
-func (m *wsMockStaffRepository) Create(ctx context.Context, staff *userModels.Staff) error {
-	return nil
-}
-
-func (m *wsMockStaffRepository) FindByID(ctx context.Context, id interface{}) (*userModels.Staff, error) {
-	if m.findByIDFunc != nil {
-		return m.findByIDFunc(ctx, id)
-	}
-	return nil, sql.ErrNoRows
-}
-
-func (m *wsMockStaffRepository) FindByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
-	return nil, sql.ErrNoRows
-}
-
-func (m *wsMockStaffRepository) Update(ctx context.Context, staff *userModels.Staff) error {
-	return nil
-}
-
-func (m *wsMockStaffRepository) Delete(ctx context.Context, id interface{}) error {
-	return nil
-}
-
-func (m *wsMockStaffRepository) List(ctx context.Context, filters map[string]interface{}) ([]*userModels.Staff, error) {
-	return nil, nil
-}
-
-func (*wsMockStaffRepository) FindReachableCalendarStaffIDs(context.Context, []int64) (map[int64]bool, error) {
-	return map[int64]bool{}, nil
-}
-
-func (m *wsMockStaffRepository) ListAllWithPerson(ctx context.Context) ([]*userModels.Staff, error) {
-	return nil, nil
-}
-
-func (m *wsMockStaffRepository) ClearWorkTimeModel(context.Context, int64) error { return nil }
-
-func (m *wsMockStaffRepository) UpdateNotes(ctx context.Context, id int64, notes string) error {
-	return nil
-}
-
 type wsMockSettingsResolver struct {
 	resolveBoolFunc func(ctx context.Context, key string) (bool, error)
 }
@@ -258,22 +214,6 @@ func (m *wsMockSettingsResolver) ResolveBool(ctx context.Context, key string) (b
 		return m.resolveBoolFunc(ctx, key)
 	}
 	return false, nil
-}
-
-func (m *wsMockStaffRepository) FindWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {
-	return nil, sql.ErrNoRows
-}
-
-func (m *wsMockStaffRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
-	return nil, nil
-}
-
-func (m *wsMockStaffRepository) FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error) {
-	return nil, nil
-}
-
-func (m *wsMockStaffRepository) ListStaffByRoles(ctx context.Context, roles []string) ([]*userModels.StaffWithRoleInfo, error) {
-	return nil, nil
 }
 
 // ============================================================================
@@ -1800,8 +1740,8 @@ func TestWSGetHistory_UsesTemplateScheduleSnapshotTargets(t *testing.T) {
 	checkOutWeekZero := weekZero.Add(25 * time.Hour)
 	checkOutWeekOne := weekOne.Add(35 * time.Hour)
 
-	svc.staffRepo = &wsMockStaffRepository{
-		findByIDFunc: func(_ context.Context, _ interface{}) (*userModels.Staff, error) {
+	svc.staffRepo = &testpkg.StaffRepoMock{
+		FindByIDFn: func(_ context.Context, _ any) (*userModels.Staff, error) {
 			return &userModels.Staff{
 				Model:              base.Model{ID: staffID},
 				WorkTimeModelID:    &modelID,

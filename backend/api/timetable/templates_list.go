@@ -29,7 +29,7 @@ type templateScheduleResponse struct {
 }
 
 func (rs *Resource) loadTemplates(ctx context.Context, templateID *int64) ([]templateResponse, error) {
-	rows, err := rs.timetableData.ListTemplateRows(ctx, templateID)
+	rows, err := rs.TimetableData.ListTemplateRows(ctx, templateID)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ type listTemplatesResponse struct {
 type templateRow = activities.TemplateListRow
 
 func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
@@ -166,7 +166,7 @@ func (rs *Resource) listTemplates(w http.ResponseWriter, r *http.Request) {
 	// overlapping period must still display its real headcount instead of
 	// "0 Kinder". Only the schedule join below stays period-filtered, which
 	// decides WHETHER the card appears at all.
-	rows, err := rs.timetableData.ListTemplateRowsForPeriod(r.Context(), periodID)
+	rows, err := rs.TimetableData.ListTemplateRowsForPeriod(r.Context(), periodID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("list templates failed", err))
 		return

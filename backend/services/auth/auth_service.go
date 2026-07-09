@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"log/slog"
@@ -131,30 +132,7 @@ func NewService(
 
 // getLogger returns the service's logger, falling back to slog.Default() if nil.
 func (s *Service) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
-}
-
-// WithTx returns a new service instance with transaction-aware repositories
-// The factory pattern simplifies this - repositories use TxFromContext(ctx) to detect transactions
-func (s *Service) WithTx(tx bun.Tx) interface{} {
-	return &Service{
-		repos:               s.repos, // Repositories detect transaction from context via TxFromContext(ctx)
-		tokenAuth:           s.tokenAuth,
-		dispatcher:          s.dispatcher,
-		defaultFrom:         s.defaultFrom,
-		frontendURL:         s.frontendURL,
-		parentsURL:          s.parentsURL,
-		passwordResetExpiry: s.passwordResetExpiry,
-		jwtExpiry:           s.jwtExpiry,
-		jwtRefreshExpiry:    s.jwtRefreshExpiry,
-		txHandler:           s.txHandler.WithTx(tx),
-		db:                  s.db,
-		logger:              s.logger,
-		mfaService:          s.mfaService,
-	}
+	return cmp.Or(s.logger, slog.Default())
 }
 
 // SetMFAService wires the optional MFA service post-construction. Idempotent

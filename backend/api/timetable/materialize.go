@@ -62,7 +62,7 @@ type materializeWarning struct {
 // permissions.SchedulesManage on the route). Manually triggers the same
 // service the scheduler uses; no setting-gate check — admin override.
 func (rs *Resource) materialize(w http.ResponseWriter, r *http.Request) {
-	if rs.materializationService == nil {
+	if rs.MaterializationService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("materialization service is not wired")))
 		return
 	}
@@ -89,7 +89,7 @@ func (rs *Resource) materialize(w http.ResponseWriter, r *http.Request) {
 		slog.String("to", to.String()),
 	)
 
-	result, err := rs.materializationService.MaterializeForTenant(
+	result, err := rs.MaterializationService.MaterializeForTenant(
 		r.Context(), from, to, scheduleSvc.MaterializationSourceManual,
 	)
 	if err != nil {

@@ -175,7 +175,7 @@ func publishDecisionScheduleSchema(t *testing.T, env *decisionTestEnv, key, targ
 			"16:00",
 		}
 	}
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung", []enrollmentModels.FormField{
 		field,
 	}, env.creatorID)
 	require.NoError(t, err)
@@ -210,7 +210,7 @@ func publishDecisionContactListSchema(t *testing.T, env *decisionTestEnv) {
 		Repo:   env.repos.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 2", []enrollmentModels.FormField{{
 		Key:         "contacts",
 		Label:       "Weitere Kontakte",
 		Type:        enrollmentModels.FormFieldContactList,
@@ -996,7 +996,7 @@ func TestDecisionService_SyncApprovedChildData_ReplacesRemovedContactList(t *tes
 		Repo:   env.repos.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 3", []enrollmentModels.FormField{{
 		Key:         "contacts",
 		Label:       "Weitere Kontakte",
 		Type:        enrollmentModels.FormFieldContactList,
@@ -1245,7 +1245,7 @@ func TestDecisionService_Decide_ContactListSelfGuardianDoesNotAbortApproval(t *t
 		Repo:   env.repos.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 4", []enrollmentModels.FormField{{
 		Key:         "contacts",
 		Label:       "Weitere Kontakte",
 		Type:        enrollmentModels.FormFieldContactList,
@@ -1326,7 +1326,7 @@ func TestDecisionService_Decide_AppliesDepartureField(t *testing.T) {
 		Repo:   env.repos.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 5", []enrollmentModels.FormField{{
 		Key:         "departure",
 		Label:       "Geh- und Abholregelung",
 		Type:        enrollmentModels.FormFieldWeekdayMode,
@@ -1392,7 +1392,7 @@ func TestDecisionService_Decide_AppliesCoupledCompanionNote(t *testing.T) {
 		Repo:   env.repos.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 6", []enrollmentModels.FormField{{
 		Key:         "allowed_modes",
 		Label:       "Erlaubte Heimwege",
 		Type:        enrollmentModels.FormFieldWeekdayMultiMode,
@@ -1461,7 +1461,7 @@ func TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied(t *testing.
 		Repo:   env.repos.FormSchema,
 		Logger: slog.Default(),
 	})
-	schema, err := schemaSvc.PublishVersion(ctx, []enrollmentModels.FormField{{
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 7", []enrollmentModels.FormField{{
 		Key:         "allowed_modes",
 		Label:       "Erlaubte Heimwege",
 		Type:        enrollmentModels.FormFieldWeekdayMultiMode,

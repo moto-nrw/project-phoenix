@@ -85,7 +85,7 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 	rs.getLogger().DebugContext(ctx, "looking up RFID tag", slog.String("rfid", rfid))
 	person, err := rs.resolvePersonByRFID(ctx, rfid)
 	if err != nil {
-		rs.recordUnregisteredTagScan(ctx, rfid)
+		iotCommon.RecordUnregisteredTagScan(ctx, rs.UnregisteredTagScans, rs.getLogger(), rfid)
 		rs.getLogger().WarnContext(ctx, "RFID tag not found",
 			slog.String("rfid", rfid),
 			slog.String("error", err.Error()),
@@ -108,23 +108,6 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 		slog.Int64("person_id", person.ID),
 	)
 	return person
-}
-
-func (rs *Resource) recordUnregisteredTagScan(ctx context.Context, rfid string) {
-	if rs.UnregisteredTagScans == nil {
-		return
-	}
-	var deviceID *int64
-	if deviceCtx := device.DeviceFromCtx(ctx); deviceCtx != nil && deviceCtx.ID > 0 {
-		id := deviceCtx.ID
-		deviceID = &id
-	}
-	if err := rs.UnregisteredTagScans.Record(ctx, rfid, deviceID); err != nil {
-		rs.getLogger().ErrorContext(ctx, "failed to record unregistered RFID scan",
-			slog.String("rfid", rfid),
-			slog.String("error", err.Error()),
-		)
-	}
 }
 
 // resolvePersonByRFID finds a person by RFID without rendering an HTTP response.
@@ -875,18 +858,6 @@ func (rs *Resource) getActiveStudentCountForGroup(ctx context.Context, activeGro
 		return nil
 	}
 	return &count
-}
-
-// countActiveStudentsInVisits counts visits without an exit time (active students).
-// Kept for tests and utility callers that already have visit data in memory.
-func countActiveStudentsInVisits(visits []*active.Visit) int {
-	count := 0
-	for _, visit := range visits {
-		if visit.ExitTime == nil {
-			count++
-		}
-	}
-	return count
 }
 
 // updateSessionActivity updates session activity for the already-selected active group.

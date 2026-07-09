@@ -58,11 +58,6 @@ func TestOperatorEmailChangeToken_Validate(t *testing.T) {
 	})
 }
 
-func TestOperatorEmailChangeToken_TableName(t *testing.T) {
-	token := &OperatorEmailChangeToken{}
-	assert.Equal(t, "platform.operator_email_change_tokens", token.TableName())
-}
-
 func TestOperatorEmailChangeToken_Accessors(t *testing.T) {
 	now := time.Now()
 	token := &OperatorEmailChangeToken{}
@@ -73,21 +68,4 @@ func TestOperatorEmailChangeToken_Accessors(t *testing.T) {
 	assert.Equal(t, int64(42), token.GetID())
 	assert.Equal(t, now, token.GetCreatedAt())
 	assert.Equal(t, now.Add(time.Hour), token.GetUpdatedAt())
-}
-
-func TestOperatorEmailChangeToken_BeforeAppendModel(t *testing.T) {
-	token := &OperatorEmailChangeToken{}
-
-	t.Run("UnknownQueryType", func(t *testing.T) {
-		// Non-Update/Delete query types should be silently ignored.
-		// Pass a string (not a *bun.UpdateQuery or *bun.DeleteQuery) to
-		// verify the type-switch falls through without error or panic.
-		err := token.BeforeAppendModel("not a query")
-		assert.NoError(t, err)
-	})
-
-	t.Run("NilInput", func(t *testing.T) {
-		err := token.BeforeAppendModel(nil)
-		assert.NoError(t, err)
-	})
 }

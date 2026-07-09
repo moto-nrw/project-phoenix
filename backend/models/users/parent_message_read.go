@@ -8,8 +8,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const tableUsersParentMessageReads = "users.parent_message_reads"
-
 // ParentMessageRead is a reader's read cursor in a thread. The reader is an
 // auth.account — guardian or staff alike. Unread for that reader is any message
 // in the thread after the cursor (LastReadAt, LastReadMessageID) that the reader
@@ -28,9 +26,6 @@ type ParentMessageRead struct {
 	// counted as read. 0 means "before any message".
 	LastReadMessageID int64 `bun:"last_read_message_id,notnull" json:"last_read_message_id"`
 }
-
-// TableName returns the schema-qualified table name.
-func (r *ParentMessageRead) TableName() string { return tableUsersParentMessageReads }
 
 // InboxThread is the list projection of a conversation: the child, the
 // guardian (name + relationship), the school (for the parent-facing "OGS

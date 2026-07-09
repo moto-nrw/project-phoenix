@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
@@ -187,12 +185,7 @@ func toThreadView(v *parentService.MessageThreadView) ThreadViewResponse {
 }
 
 func parseStudentID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "studentId"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID")))
-		return 0, false
-	}
-	return id, true
+	return common.ParsePositiveInt64IDWithError(w, r, "studentId", "invalid student ID")
 }
 
 // listMessageThreads returns every conversation the guardian owns.

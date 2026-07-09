@@ -19,7 +19,7 @@ import (
 )
 
 // setupGradeTransitionServiceTest creates service and returns cleanup function
-func setupGradeTransitionServiceTest(t *testing.T) (educationService.GradeTransitionService, *bun.DB, func()) {
+func setupGradeTransitionServiceTest(t *testing.T) (*educationService.GradeTransitionService, *bun.DB, func()) {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
@@ -40,11 +40,6 @@ func setupGradeTransitionServiceTest(t *testing.T) (educationService.GradeTransi
 	}
 
 	return service, db, cleanup
-}
-
-// Helper function to create string pointer
-func strPtr(s string) *string {
-	return &s
 }
 
 func TestGradeTransitionService_Create(t *testing.T) {
@@ -80,7 +75,7 @@ func TestGradeTransitionService_Create(t *testing.T) {
 			AcademicYear: "2026-2027",
 			CreatedBy:    account.ID,
 			Mappings: []educationService.MappingRequest{
-				{FromClass: "1a", ToClass: strPtr("2a")},
+				{FromClass: "1a", ToClass: testpkg.StrPtr("2a")},
 				{FromClass: "4a", ToClass: nil}, // graduate
 			},
 		}
@@ -127,7 +122,7 @@ func TestGradeTransitionService_Create(t *testing.T) {
 			AcademicYear: "2028-2029",
 			CreatedBy:    account.ID,
 			Mappings: []educationService.MappingRequest{
-				{FromClass: "1a", ToClass: strPtr("1a")}, // same class
+				{FromClass: "1a", ToClass: testpkg.StrPtr("1a")}, // same class
 			},
 		}
 
@@ -178,13 +173,13 @@ func TestGradeTransitionService_Update(t *testing.T) {
 
 	t.Run("update mappings", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", strPtr("2a"))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", testpkg.StrPtr("2a"))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		req := educationService.UpdateTransitionRequest{
 			Mappings: []educationService.MappingRequest{
-				{FromClass: "2a", ToClass: strPtr("3a")},
-				{FromClass: "3a", ToClass: strPtr("4a")},
+				{FromClass: "2a", ToClass: testpkg.StrPtr("3a")},
+				{FromClass: "3a", ToClass: testpkg.StrPtr("4a")},
 			},
 		}
 
@@ -290,8 +285,8 @@ func TestGradeTransitionService_GetByID(t *testing.T) {
 
 	t.Run("get transition with mappings", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", strPtr("2a"))
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "2a", strPtr("3a"))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", testpkg.StrPtr("2a"))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "2a", testpkg.StrPtr("3a"))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		result, err := service.GetByID(ctx, transition.ID)
@@ -375,7 +370,7 @@ func TestGradeTransitionService_Preview(t *testing.T) {
 
 		// Create transition with mappings
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, strPtr(class2))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class1, testpkg.StrPtr(class2))
 		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, class4, nil) // graduate
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
@@ -401,7 +396,7 @@ func TestGradeTransitionService_Preview(t *testing.T) {
 
 		// Create transition without mapping for unmappedClass
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, mappedClass, strPtr(targetClass))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, mappedClass, testpkg.StrPtr(targetClass))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		preview, err := service.Preview(ctx, transition.ID)
@@ -449,7 +444,7 @@ func TestGradeTransitionService_Apply(t *testing.T) {
 
 		// Create transition
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, strPtr(toClass))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, testpkg.StrPtr(toClass))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		result, err := service.Apply(ctx, transition.ID, account.ID)
@@ -481,7 +476,7 @@ func TestGradeTransitionService_Apply(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, strPtr(toClass))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, testpkg.StrPtr(toClass))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		_, err := service.Apply(ctx, transition.ID, account.ID)
@@ -508,7 +503,7 @@ func TestGradeTransitionService_Apply(t *testing.T) {
 
 	t.Run("cannot apply already applied transition", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "9z", strPtr("10z"))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "9z", testpkg.StrPtr("10z"))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// First apply
@@ -553,7 +548,7 @@ func TestGradeTransitionService_Revert(t *testing.T) {
 
 		// Create and apply transition
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, strPtr(toClass))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, testpkg.StrPtr(toClass))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		_, err := service.Apply(ctx, transition.ID, account.ID)
@@ -588,7 +583,7 @@ func TestGradeTransitionService_Revert(t *testing.T) {
 
 	t.Run("cannot revert draft transition", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "5x", strPtr("6x"))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "5x", testpkg.StrPtr("6x"))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		_, err := service.Revert(ctx, transition.ID, account.ID)
@@ -598,7 +593,7 @@ func TestGradeTransitionService_Revert(t *testing.T) {
 
 	t.Run("cannot revert already reverted transition", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "6y", strPtr("7y"))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "6y", testpkg.StrPtr("7y"))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// Apply then revert
@@ -725,7 +720,7 @@ func TestGradeTransitionService_GetHistory(t *testing.T) {
 		defer testpkg.CleanupActivityFixtures(t, db, student.ID)
 
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1d", strPtr("2d"))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1d", testpkg.StrPtr("2d"))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// Apply transition
@@ -784,7 +779,7 @@ func TestGradeTransitionService_Apply_RevertedTransition(t *testing.T) {
 
 		// Create transition and mapping
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, strPtr(toClass))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, fromClass, testpkg.StrPtr(toClass))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// Apply then revert
@@ -874,7 +869,7 @@ func TestGradeTransitionService_Update_InvalidMapping(t *testing.T) {
 
 		req := educationService.UpdateTransitionRequest{
 			Mappings: []educationService.MappingRequest{
-				{FromClass: "1a", ToClass: strPtr("1a")},
+				{FromClass: "1a", ToClass: testpkg.StrPtr("1a")},
 			},
 		}
 
@@ -889,7 +884,7 @@ func TestGradeTransitionService_Update_InvalidMapping(t *testing.T) {
 
 		req := educationService.UpdateTransitionRequest{
 			Mappings: []educationService.MappingRequest{
-				{FromClass: "", ToClass: strPtr("2a")},
+				{FromClass: "", ToClass: testpkg.StrPtr("2a")},
 			},
 		}
 
@@ -914,7 +909,7 @@ func TestGradeTransitionService_Create_InvalidMapping(t *testing.T) {
 			AcademicYear: "2025-2026",
 			CreatedBy:    account.ID,
 			Mappings: []educationService.MappingRequest{
-				{FromClass: "", ToClass: strPtr("2a")},
+				{FromClass: "", ToClass: testpkg.StrPtr("2a")},
 			},
 		}
 
@@ -1120,7 +1115,7 @@ func TestGradeTransitionService_Update_ClearMappings(t *testing.T) {
 
 	t.Run("update with empty mappings clears existing", func(t *testing.T) {
 		transition := testpkg.CreateTestGradeTransition(t, db, "2025-2026", account.ID)
-		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", strPtr("2a"))
+		testpkg.CreateTestGradeTransitionMapping(t, db, transition.ID, "1a", testpkg.StrPtr("2a"))
 		defer testpkg.CleanupGradeTransitionFixtures(t, db, transition.ID)
 
 		// Verify mapping exists

@@ -6,10 +6,15 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/models/auth"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/uptrace/bun"
 )
+
+// maxEmailErrorLength caps the persisted email_error column (auth email
+// delivery bookkeeping) to a sane length before storing a failure message.
+const maxEmailErrorLength = 1024
 
 const (
 	passwordResetTokenTable      = "auth.password_reset_tokens"
@@ -108,32 +113,14 @@ func (r *PasswordResetTokenRepository) MarkAsUsed(ctx context.Context, tokenID i
 
 // UpdateDeliveryResult updates the delivery metadata for a password reset token.
 func (r *PasswordResetTokenRepository) UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	update := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*auth.PasswordResetToken)(nil)).
-		ModelTableExpr(passwordResetTokenTable).
-		Where(whereID, tokenID).
-		Set("email_retry_count = ?", retryCount)
-
-	if sentAt != nil {
-		update = update.Set("email_sent_at = ?", *sentAt)
-	} else {
-		update = update.Set("email_sent_at = NULL")
-	}
-
+	token := &auth.PasswordResetToken{Model: modelBase.Model{ID: tokenID}, EmailSentAt: sentAt, EmailRetryCount: retryCount}
 	if emailError != nil {
-		update = update.Set("email_error = ?", truncateError(*emailError))
-	} else {
-		update = update.Set("email_error = NULL")
+		truncated := strutil.TruncateBytes(*emailError, maxEmailErrorLength, "")
+		token.EmailError = &truncated
 	}
 
-	if _, err := update.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update password reset delivery result",
-			Err: err,
-		}
-	}
-
-	return nil
+	_, err := r.UpdateColumns(ctx, token, "email_sent_at", "email_error", "email_retry_count")
+	return err
 }
 
 // DeleteExpiredTokens removes all expired or used tokens
@@ -179,21 +166,6 @@ func (r *PasswordResetTokenRepository) InvalidateTokensByAccountID(ctx context.C
 	}
 
 	return nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *PasswordResetTokenRepository) Create(ctx context.Context, token *auth.PasswordResetToken) error {
-	if token == nil {
-		return fmt.Errorf("password reset token cannot be nil")
-	}
-
-	// Validate token
-	if err := token.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, token)
 }
 
 // Update overrides the base Update method for schema consistency
@@ -275,29 +247,4 @@ func (r *PasswordResetTokenRepository) applyExpiredTokenFilter(query *bun.Select
 		return query.Where("expiry <= ?", time.Now())
 	}
 	return query
-}
-
-// FindTokensWithAccount retrieves password reset tokens with their associated account details
-func (r *PasswordResetTokenRepository) FindTokensWithAccount(ctx context.Context, filters map[string]interface{}) ([]*auth.PasswordResetToken, error) {
-	var tokens []*auth.PasswordResetToken
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&tokens).
-		Relation("Account")
-
-	// Apply filters
-	for field, value := range filters {
-		if value != nil {
-			query = query.Where("password_reset_token.? = ?", bun.Ident(field), value)
-		}
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with account",
-			Err: err,
-		}
-	}
-
-	return tokens, nil
 }

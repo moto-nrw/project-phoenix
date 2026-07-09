@@ -368,8 +368,3 @@ func TestFormSchema_Validate_AcceptsMultipleDistinctFields(t *testing.T) {
 	}
 	assert.NoError(t, s.Validate())
 }
-
-func TestFormSchema_TableName(t *testing.T) {
-	s := &FormSchema{}
-	assert.Equal(t, "enrollment.form_schemas", s.TableName())
-}

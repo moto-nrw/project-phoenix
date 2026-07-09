@@ -42,9 +42,7 @@ func (r *CategoryRepository) FindByName(ctx context.Context, name string) (*acti
 		ModelTableExpr(tableExprActivitiesCategoriesAsCat).
 		Where("LOWER(name) = LOWER(?)", name)
 
-	if where, val, ok := base.TenantWhere(ctx, "category"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "category")
 
 	err := query.Scan(ctx)
 
@@ -65,9 +63,7 @@ func (r *CategoryRepository) ListAll(ctx context.Context) ([]*activities.Categor
 		Model(&categories).
 		ModelTableExpr(tableExprActivitiesCategoriesAsCat)
 
-	if where, val, ok := base.TenantWhere(ctx, "category"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "category")
 
 	err := query.
 		Order("name ASC").
@@ -81,21 +77,6 @@ func (r *CategoryRepository) ListAll(ctx context.Context) ([]*activities.Categor
 	}
 
 	return categories, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *CategoryRepository) Create(ctx context.Context, category *activities.Category) error {
-	if category == nil {
-		return fmt.Errorf("category cannot be nil")
-	}
-
-	// Validate category
-	if err := category.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, category)
 }
 
 // Update overrides the base Update method to handle validation
@@ -133,27 +114,5 @@ func (r *CategoryRepository) Update(ctx context.Context, category *activities.Ca
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *CategoryRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.Category, error) {
-	var categories []*activities.Category
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&categories).
-		ModelTableExpr(`activities.categories AS "category"`)
-
-	if where, val, ok := base.TenantWhere(ctx, "category"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return categories, nil
+	return r.ListWithOptions(ctx, options)
 }

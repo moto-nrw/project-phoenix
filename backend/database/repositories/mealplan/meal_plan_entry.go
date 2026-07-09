@@ -35,9 +35,7 @@ func (r *MealPlanEntryRepository) FindByDateRange(ctx context.Context, start, en
 		OrderExpr(`"meal_plan_entry".date ASC`).
 		OrderExpr(`"meal_plan_entry".position ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "meal_plan_entry"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "meal_plan_entry")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find meal plan entries by date range", Err: err}

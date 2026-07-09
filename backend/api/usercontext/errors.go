@@ -2,7 +2,6 @@ package usercontext
 
 import (
 	"errors"
-	"net/http"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -36,20 +35,10 @@ func ErrorRenderer(err error) render.Renderer {
 			return common.ErrorInvalidRequest(err)
 		default:
 			// For general service errors, return internal server error
-			return &common.ErrResponse{
-				Err:            err,
-				HTTPStatusCode: http.StatusInternalServerError,
-				Status:         "error",
-				ErrorText:      err.Error(),
-			}
+			return common.ErrorInternalServer(err)
 		}
 	}
 
 	// If it's not a usercontext error, just return a generic error
-	return &common.ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusInternalServerError,
-		Status:         "error",
-		ErrorText:      err.Error(),
-	}
+	return common.ErrorInternalServer(err)
 }

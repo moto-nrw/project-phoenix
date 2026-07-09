@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/iot"
@@ -218,7 +219,7 @@ func (rs *Resource) mirrorSessionToTimetable(ctx context.Context, activeGroup *a
 		return
 	}
 
-	for _, staffID := range uniquePositiveIDs(supervisorIDs) {
+	for _, staffID := range sliceutil.UniquePositive(supervisorIDs) {
 		row := &scheduleModel.InstanceStaff{
 			InstanceID: inst.ID,
 			StaffID:    staffID,
@@ -318,20 +319,4 @@ func firstPositiveID(ids []int64) *int64 {
 		}
 	}
 	return nil
-}
-
-func uniquePositiveIDs(ids []int64) []int64 {
-	seen := make(map[int64]struct{}, len(ids))
-	result := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if id <= 0 {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		result = append(result, id)
-	}
-	return result
 }

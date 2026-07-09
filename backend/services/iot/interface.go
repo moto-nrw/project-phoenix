@@ -51,8 +51,5 @@ type Service interface {
 	GetDeviceByAPIKey(ctx context.Context, apiKey string) (*iot.Device, error)
 
 	// Targeted last-seen update by PK (skips existence check and full-model update)
-	UpdateDeviceLastSeen(ctx context.Context, id int64) error
 	UpdateDeviceLastSeenAt(ctx context.Context, id int64, lastSeen time.Time) error
-
-	// Transaction support is provided by base.TransactionalService
 }

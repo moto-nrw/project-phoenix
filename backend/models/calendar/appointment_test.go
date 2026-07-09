@@ -136,15 +136,6 @@ func TestAppointmentRecipientValidate(t *testing.T) {
 	}
 }
 
-func TestCalendarTableNames(t *testing.T) {
-	assert.Equal(t, "calendar.appointments", (&Appointment{}).TableName())
-	assert.Equal(t, "calendar.recurrence_rules", (&RecurrenceRule{}).TableName())
-	assert.Equal(t, "calendar.appointment_recipients", (&AppointmentRecipient{}).TableName())
-	assert.Equal(t, "calendar.appointment_recipient_students", (&AppointmentRecipientStudent{}).TableName())
-	assert.Equal(t, "calendar.appointment_targets", (&AppointmentTarget{}).TableName())
-	assert.Equal(t, "calendar.appointment_occurrence_overrides", (&AppointmentOccurrenceOverride{}).TableName())
-}
-
 func TestCalendarModelAccessors(t *testing.T) {
 	now := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
 	appointment := &Appointment{}

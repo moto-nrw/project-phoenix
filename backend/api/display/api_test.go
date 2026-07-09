@@ -311,13 +311,16 @@ func TestDisplayDashboardPublic(t *testing.T) {
 	t.Run("upcoming activities list planned instances after now", func(t *testing.T) {
 		// The upcoming filter compares wall clocks only, so offsets that
 		// cross midnight wrap to the other end of the day and flip the
-		// expectation. Small offsets + a narrow guard keep this hermetic.
-		if clock := timezone.Now().In(timezone.Berlin).Format("15:04"); clock < "00:05" || clock > "23:54" {
+		// expectation. Guard against every offset this test produces
+		// (future + the 45min instance duration, and past) landing on a
+		// different calendar day than now.
+		now := timezone.Now().In(timezone.Berlin)
+		future := now.Add(3 * time.Minute)
+		past := now.Add(-3 * time.Minute)
+		if future.Add(45*time.Minute).Day() != now.Day() || past.Day() != now.Day() {
 			t.Skip("too close to midnight for stable wall-clock offsets")
 		}
 		ctx := testpkg.TenantContext(tenantID)
-		future := timezone.Now().Add(3 * time.Minute)
-		past := timezone.Now().Add(-3 * time.Minute)
 		instances := []*scheduleModels.ActivityInstance{
 			buildInstance(tenantID, "Hausaufgaben", room.ID, future),
 			buildInstance(tenantID, "Frühsport", room.ID, past),

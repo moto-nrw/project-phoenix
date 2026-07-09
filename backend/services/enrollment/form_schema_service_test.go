@@ -62,14 +62,14 @@ func agbPDFBlock(documentURL string) enrollmentModels.FormLegalBlock {
 	}
 }
 
-func TestFormSchemaService_PublishVersion_CreatesActive(t *testing.T) {
+func TestFormSchemaService_CreateSchema_CreatesActive(t *testing.T) {
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
 	fields := []enrollmentModels.FormField{
 		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldTextarea, SortOrder: 0},
 	}
-	schema, err := svc.PublishVersion(ctx, fields, creatorID)
+	schema, err := svc.CreateSchema(ctx, "Standardformular", fields, creatorID)
 	require.NoError(t, err)
 	assert.True(t, schema.IsActive)
 	assert.Equal(t, 1, schema.Version)
@@ -81,7 +81,7 @@ func TestFormSchemaService_PublishVersion_CreatesActive(t *testing.T) {
 	assert.Equal(t, schema.ID, active.ID)
 }
 
-func TestFormSchemaService_PublishVersion_KeepsAllVersionsActive(t *testing.T) {
+func TestFormSchemaService_UpdateSchema_KeepsAllVersionsActive(t *testing.T) {
 	// Multi-schema rework (commit 5e29a0dc8): publishing a new version
 	// of the same logical schema no longer deactivates the previous
 	// version. Phases pin schemas by id, so historical versions need to
@@ -91,13 +91,13 @@ func TestFormSchemaService_PublishVersion_KeepsAllVersionsActive(t *testing.T) {
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	v1, err := svc.PublishVersion(ctx, []enrollmentModels.FormField{
+	v1, err := svc.CreateSchema(ctx, "Standardformular", []enrollmentModels.FormField{
 		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.NoError(t, err)
 	assert.True(t, v1.IsActive)
 
-	v2, err := svc.PublishVersion(ctx, []enrollmentModels.FormField{
+	v2, err := svc.UpdateSchema(ctx, v1.ID, []enrollmentModels.FormField{
 		{Key: "diet", Label: "Ernährung", Type: enrollmentModels.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.NoError(t, err)
@@ -121,21 +121,21 @@ func TestFormSchemaService_GetActive_NoRowsErrSentinel(t *testing.T) {
 		"GetActive on a tenant with no schema must return ErrNoActiveSchema")
 }
 
-func TestFormSchemaService_PublishVersion_RejectsCoreFieldKey(t *testing.T) {
+func TestFormSchemaService_CreateSchema_RejectsCoreFieldKey(t *testing.T) {
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	_, err := svc.PublishVersion(ctx, []enrollmentModels.FormField{
+	_, err := svc.CreateSchema(ctx, "Standardformular", []enrollmentModels.FormField{
 		{Key: "guardian_email", Label: "Email", Type: enrollmentModels.FormFieldText, SortOrder: 0},
 	}, creatorID)
 	require.Error(t, err, "schema with a reserved core key must be rejected")
 }
 
-func TestFormSchemaService_PublishVersion_RejectsDuplicateKey(t *testing.T) {
+func TestFormSchemaService_CreateSchema_RejectsDuplicateKey(t *testing.T) {
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	_, err := svc.PublishVersion(ctx, []enrollmentModels.FormField{
+	_, err := svc.CreateSchema(ctx, "Standardformular", []enrollmentModels.FormField{
 		{Key: "allergies", Label: "Allergien", Type: enrollmentModels.FormFieldText, SortOrder: 0},
 		{Key: "allergies", Label: "Doppelt", Type: enrollmentModels.FormFieldText, SortOrder: 1},
 	}, creatorID)
@@ -259,10 +259,13 @@ func TestFormSchemaService_ListVersions_ReturnsNewestFirst(t *testing.T) {
 	_, svc, creatorID, tenantID := setupSchemaTest(t)
 	ctx := testpkg.TenantContext(tenantID)
 
-	for i := 0; i < 3; i++ {
-		_, err := svc.PublishVersion(ctx, []enrollmentModels.FormField{
-			{Key: "field", Label: "Feld", Type: enrollmentModels.FormFieldText, SortOrder: 0},
-		}, creatorID)
+	fields := []enrollmentModels.FormField{
+		{Key: "field", Label: "Feld", Type: enrollmentModels.FormFieldText, SortOrder: 0},
+	}
+	latest, err := svc.CreateSchema(ctx, "Standardformular", fields, creatorID)
+	require.NoError(t, err)
+	for i := 0; i < 2; i++ {
+		latest, err = svc.UpdateSchema(ctx, latest.ID, fields, creatorID)
 		require.NoError(t, err)
 	}
 
@@ -529,7 +532,7 @@ func TestFormSchemaService_RenameAndPublishConcurrently_NeverSplitsLineage(t *te
 // leave a "renamed but content unchanged" lineage — the partial-save bug this
 // guards against. The publish is made to fail deterministically with a
 // reserved core-field key (same rejection as
-// TestFormSchemaService_PublishVersion_RejectsCoreFieldKey).
+// TestFormSchemaService_CreateSchema_RejectsCoreFieldKey).
 func TestFormSchemaService_RenameThenFailedPublish_RollsBackRename(t *testing.T) {
 	db, svc, creatorID, tenantID := setupSchemaTest(t)
 

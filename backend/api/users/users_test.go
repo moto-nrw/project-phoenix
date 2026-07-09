@@ -10,13 +10,11 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -48,28 +46,29 @@ func setupTestContext(t *testing.T) *testContext {
 	}
 }
 
-// setupProtectedRouter creates a router for testing protected endpoints
+// setupProtectedRouter mounts the production Router() (JWT middleware,
+// permission checks, tenant transaction) exactly as the server wires it.
 func setupProtectedRouter(t *testing.T) (*testContext, chi.Router) {
 	t.Helper()
 
 	tc := setupTestContext(t)
 
 	router := chi.NewRouter()
-	router.Use(render.SetContentType(render.ContentTypeJSON))
-
-	// Mount routes without JWT middleware for testing
-	router.Route("/users", func(r chi.Router) {
-		// Read operations
-		r.With(authorize.RequiresPermission("users:read")).Get("/", tc.resource.ListPersonsHandler())
-		r.With(authorize.RequiresPermission("users:read")).Get("/{id}", tc.resource.GetPersonHandler())
-
-		// Write operations
-		r.With(authorize.RequiresPermission("users:create")).Post("/", tc.resource.CreatePersonHandler())
-		r.With(authorize.RequiresPermission("users:update")).Put("/{id}", tc.resource.UpdatePersonHandler())
-		r.With(authorize.RequiresPermission("users:delete")).Delete("/{id}", tc.resource.DeletePersonHandler())
-	})
+	router.Mount("/users", tc.resource.Router())
 
 	return tc, router
+}
+
+// authWithPerms mints a signed JWT (tenant 1) carrying exactly the given
+// permissions and returns a request option that sets it as a Bearer token.
+// Pass no permissions to exercise the forbidden path.
+func authWithPerms(t *testing.T, perms ...string) testutil.RequestOption {
+	t.Helper()
+	claims := testutil.DefaultTestClaims()
+	claims.Roles = []string{"user"}
+	claims.IsAdmin = false
+	claims.Permissions = perms
+	return testutil.WithJWTBearer(testutil.MintTestJWT(t, claims))
 }
 
 // =============================================================================
@@ -84,8 +83,7 @@ func TestListPersons_Success(t *testing.T) {
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users", nil,
-		testutil.WithPermissions("users:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:read"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -100,8 +98,7 @@ func TestListPersons_WithFilters(t *testing.T) {
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users?first_name=FilterTest", nil,
-		testutil.WithPermissions("users:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:read"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -112,8 +109,7 @@ func TestListPersons_WithoutPermission(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users", nil,
-		testutil.WithPermissions(), // No permissions
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t), // No permissions
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -132,8 +128,7 @@ func TestGetPerson_Success(t *testing.T) {
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/%d", person.ID), nil,
-		testutil.WithPermissions("users:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:read"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -150,8 +145,7 @@ func TestGetPerson_NotFound(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/999999", nil,
-		testutil.WithPermissions("users:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:read"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -163,8 +157,7 @@ func TestGetPerson_InvalidID(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/users/invalid", nil,
-		testutil.WithPermissions("users:read"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:read"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -178,8 +171,7 @@ func TestGetPerson_WithoutPermission(t *testing.T) {
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/users/%d", person.ID), nil,
-		testutil.WithPermissions(), // No permissions
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t), // No permissions
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -204,8 +196,7 @@ func TestCreatePerson_Success(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/users", body,
-		testutil.WithPermissions("users:create"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:create"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -231,8 +222,7 @@ func TestCreatePerson_MissingFirstName(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/users", body,
-		testutil.WithPermissions("users:create"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:create"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -248,8 +238,7 @@ func TestCreatePerson_MissingLastName(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/users", body,
-		testutil.WithPermissions("users:create"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:create"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -267,8 +256,7 @@ func TestCreatePerson_WithoutTagOrAccount(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/users", body,
-		testutil.WithPermissions("users:create"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:create"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -291,8 +279,7 @@ func TestCreatePerson_WithoutPermission(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/users", body,
-		testutil.WithPermissions(), // No permissions
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t), // No permissions
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -320,8 +307,7 @@ func TestUpdatePerson_Success(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/users/%d", person.ID), body,
-		testutil.WithPermissions("users:update"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:update"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -344,8 +330,7 @@ func TestUpdatePerson_NotFound(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/users/999999", body,
-		testutil.WithPermissions("users:update"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:update"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -363,8 +348,7 @@ func TestUpdatePerson_InvalidID(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", "/users/invalid", body,
-		testutil.WithPermissions("users:update"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:update"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -384,8 +368,7 @@ func TestUpdatePerson_WithoutPermission(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/users/%d", person.ID), body,
-		testutil.WithPermissions(), // No permissions
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t), // No permissions
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -404,8 +387,7 @@ func TestDeletePerson_Success(t *testing.T) {
 	// No defer cleanup needed since we're deleting it
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/users/%d", person.ID), nil,
-		testutil.WithPermissions("users:delete"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:delete"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -416,8 +398,7 @@ func TestDeletePerson_NotFound(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/users/999999", nil,
-		testutil.WithPermissions("users:delete"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:delete"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -429,8 +410,7 @@ func TestDeletePerson_InvalidID(t *testing.T) {
 	_, router := setupProtectedRouter(t)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/users/invalid", nil,
-		testutil.WithPermissions("users:delete"),
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t, "users:delete"),
 	)
 
 	rr := testutil.ExecuteRequest(router, req)
@@ -444,8 +424,7 @@ func TestDeletePerson_WithoutPermission(t *testing.T) {
 	defer testpkg.CleanupPerson(t, tc.db, person.ID)
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/users/%d", person.ID), nil,
-		testutil.WithPermissions(), // No permissions
-		testutil.WithClaims(testutil.DefaultTestClaims()),
+		authWithPerms(t), // No permissions
 	)
 
 	rr := testutil.ExecuteRequest(router, req)

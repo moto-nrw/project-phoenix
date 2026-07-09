@@ -46,7 +46,7 @@ func TestListDevices_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices", ctx.resource.ListDevicesHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -63,7 +63,7 @@ func TestListDevices_WithTypeFilter(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices", ctx.resource.ListDevicesHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices?device_type=terminal", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -80,7 +80,7 @@ func TestListDevices_WithStatusFilter(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices", ctx.resource.ListDevicesHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices?status=active", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -97,7 +97,7 @@ func TestListDevices_WithSearchFilter(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices", ctx.resource.ListDevicesHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices?search=test", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -123,7 +123,7 @@ func TestGetDevice_Success(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/{id}", ctx.resource.GetDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/devices/%d", device.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -140,7 +140,7 @@ func TestGetDevice_NotFound(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/{id}", ctx.resource.GetDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/999999", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -157,7 +157,7 @@ func TestGetDevice_InvalidID(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/{id}", ctx.resource.GetDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -182,7 +182,7 @@ func TestGetDeviceByDeviceID_Success(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/device/{deviceId}", ctx.resource.GetDeviceByDeviceIDHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	// Use device.DeviceID which includes the fixture's unique suffix
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/devices/device/%s", device.DeviceID), nil,
@@ -200,7 +200,7 @@ func TestGetDeviceByDeviceID_NotFound(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/device/{deviceId}", ctx.resource.GetDeviceByDeviceIDHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/device/nonexistent-device", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -223,7 +223,7 @@ func TestCreateDevice_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/devices", ctx.resource.CreateDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	uniqueID := fmt.Sprintf("new-device-%d", time.Now().UnixNano())
 	body := map[string]interface{}{
@@ -255,7 +255,7 @@ func TestCreateDevice_NewDeviceHasNoRoom(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/devices", ctx.resource.CreateDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	uniqueID := fmt.Sprintf("new-device-no-room-%d", time.Now().UnixNano())
 	body := map[string]interface{}{
@@ -287,7 +287,7 @@ func TestCreateDevice_MissingDeviceID(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/devices", ctx.resource.CreateDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"device_type": "terminal",
@@ -309,7 +309,7 @@ func TestCreateDevice_MissingDeviceType(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/devices", ctx.resource.CreateDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	uniqueID := fmt.Sprintf("new-device-%d", time.Now().UnixNano())
 	body := map[string]interface{}{
@@ -341,7 +341,7 @@ func TestUpdateDevice_Success(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/devices/{id}", ctx.resource.UpdateDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"device_id":   uniqueID,
@@ -377,7 +377,7 @@ func TestUpdateDevice_PreservesSessionDerivedRoom(t *testing.T) {
 	assert.NoError(t, err)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/devices/{id}", ctx.resource.UpdateDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	// Update only the name — room_id is not in the request (auto-derived, not manual)
 	body := map[string]interface{}{
@@ -407,7 +407,7 @@ func TestUpdateDevice_NotFound(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/devices/{id}", ctx.resource.UpdateDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"device_id":   "test",
@@ -430,7 +430,7 @@ func TestUpdateDevice_InvalidID(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Put("/devices/{id}", ctx.resource.UpdateDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"device_id":   "test",
@@ -461,7 +461,7 @@ func TestDeleteDevice_Success(t *testing.T) {
 	// Note: No defer cleanup needed since we're deleting it
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Delete("/devices/{id}", ctx.resource.DeleteDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", fmt.Sprintf("/devices/%d", device.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -478,7 +478,7 @@ func TestDeleteDevice_NotFound(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Delete("/devices/{id}", ctx.resource.DeleteDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/devices/999999", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -495,7 +495,7 @@ func TestDeleteDevice_InvalidID(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Delete("/devices/{id}", ctx.resource.DeleteDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "DELETE", "/devices/invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -520,7 +520,7 @@ func TestUpdateDeviceStatus_Success(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Patch("/devices/{deviceId}/status", ctx.resource.UpdateDeviceStatusHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	body := map[string]interface{}{
 		"status": "maintenance",
@@ -545,7 +545,7 @@ func TestUpdateDeviceStatus_MissingStatus(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Patch("/devices/{deviceId}/status", ctx.resource.UpdateDeviceStatusHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	body := map[string]interface{}{}
 
@@ -572,7 +572,7 @@ func TestPingDevice_Success(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, device.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/devices/{deviceId}/ping", ctx.resource.PingDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/devices/%s/ping", device.DeviceID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -589,7 +589,7 @@ func TestPingDevice_NotFound(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/devices/{deviceId}/ping", ctx.resource.PingDeviceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices/nonexistent-device/ping", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -612,7 +612,7 @@ func TestGetDevicesByType_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/type/{type}", ctx.resource.GetDevicesByTypeHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/type/terminal", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -633,7 +633,7 @@ func TestGetDevicesByStatus_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/status/{status}", ctx.resource.GetDevicesByStatusHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/status/active", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -650,7 +650,7 @@ func TestGetDevicesByStatus_InvalidStatus(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/status/{status}", ctx.resource.GetDevicesByStatusHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/status/invalid_status", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -675,7 +675,7 @@ func TestGetDevicesByRegisteredBy_Success(t *testing.T) {
 	defer testpkg.CleanupPerson(t, ctx.db, person.ID)
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/registered-by/{personId}", ctx.resource.GetDevicesByRegisteredByHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", fmt.Sprintf("/devices/registered-by/%d", person.ID), nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -692,7 +692,7 @@ func TestGetDevicesByRegisteredBy_InvalidPersonID(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/registered-by/{personId}", ctx.resource.GetDevicesByRegisteredByHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/registered-by/invalid", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -713,7 +713,7 @@ func TestGetActiveDevices_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/active", ctx.resource.GetActiveDevicesHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/active", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -734,7 +734,7 @@ func TestGetDevicesRequiringMaintenance_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/maintenance", ctx.resource.GetDevicesRequiringMaintenanceHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/maintenance", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -755,7 +755,7 @@ func TestGetOfflineDevices_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/offline", ctx.resource.GetOfflineDevicesHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/offline", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -772,7 +772,7 @@ func TestGetOfflineDevices_WithDurationFilter(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/offline", ctx.resource.GetOfflineDevicesHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/offline?duration=30m", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -793,7 +793,7 @@ func TestGetDeviceStatistics_Success(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Get("/devices/statistics", ctx.resource.GetDeviceStatisticsHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/devices/statistics", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -822,7 +822,7 @@ func TestDetectNewDevices_NotImplemented(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/devices/detect-new", ctx.resource.DetectNewDevicesHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices/detect-new", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),
@@ -846,7 +846,7 @@ func TestScanNetwork_NotImplemented(t *testing.T) {
 	defer func() { _ = ctx.db.Close() }()
 
 	router := testutil.NewTenantRouter(ctx.db)
-	router.Post("/devices/scan-network", ctx.resource.ScanNetworkHandler())
+	router.Mount("/devices", ctx.resource.Router())
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/devices/scan-network", nil,
 		testutil.WithClaims(testutil.DefaultTestClaims()),

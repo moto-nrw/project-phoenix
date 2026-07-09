@@ -5,6 +5,27 @@ import (
 	"log/slog"
 )
 
+// The Resolve*OrDefault helpers accept narrow per-type interfaces instead of
+// the full SettingsService so that domain packages holding their own settings
+// mini-interfaces (declared to avoid importing services/config in their API
+// surface) can call them without widening their fields. SettingsService and
+// every such mini-interface satisfy these implicitly.
+
+type boolResolver interface {
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
+	ResolveBool(ctx context.Context, key string) (bool, error)
+}
+
+type intResolver interface {
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
+
+type stringResolver interface {
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
 // ResolveBoolOrDefault returns the tenant-override value for a boolean setting if
 // one exists, otherwise the provided fallback default.
 //
@@ -16,7 +37,7 @@ import (
 //
 // On any error (DB issue, missing definition) the fallback is returned and the
 // error logged, never propagated — the goal is fail-safe defaults for consumers.
-func ResolveBoolOrDefault(ctx context.Context, svc SettingsService, key string, fallback bool, logger *slog.Logger) bool {
+func ResolveBoolOrDefault(ctx context.Context, svc boolResolver, key string, fallback bool, logger *slog.Logger) bool {
 	if svc == nil {
 		return fallback
 	}
@@ -47,7 +68,7 @@ func ResolveBoolOrDefault(ctx context.Context, svc SettingsService, key string, 
 }
 
 // ResolveIntOrDefault mirrors ResolveBoolOrDefault for integer settings.
-func ResolveIntOrDefault(ctx context.Context, svc SettingsService, key string, fallback int, logger *slog.Logger) int {
+func ResolveIntOrDefault(ctx context.Context, svc intResolver, key string, fallback int, logger *slog.Logger) int {
 	if svc == nil {
 		return fallback
 	}
@@ -80,7 +101,7 @@ func ResolveIntOrDefault(ctx context.Context, svc SettingsService, key string, f
 // ResolveStringOrDefault mirrors ResolveBoolOrDefault for string settings.
 // An empty tenant-override value is treated as "no override" and returns the
 // fallback — matches the convention used elsewhere in the codebase.
-func ResolveStringOrDefault(ctx context.Context, svc SettingsService, key, fallback string, logger *slog.Logger) string {
+func ResolveStringOrDefault(ctx context.Context, svc stringResolver, key, fallback string, logger *slog.Logger) string {
 	if svc == nil {
 		return fallback
 	}

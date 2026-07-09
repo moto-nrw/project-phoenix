@@ -22,9 +22,6 @@ func TestErrorVariables(t *testing.T) {
 		name string
 		err  error
 	}{
-		{"ErrInvalidRequest", iotCommon.ErrInvalidRequest},
-		{"ErrInternalServer", iotCommon.ErrInternalServer},
-		{"ErrResourceNotFound", iotCommon.ErrResourceNotFound},
 		{"ErrRoomCapacityExceeded", iotCommon.ErrRoomCapacityExceeded},
 		{"ErrActivityCapacityExceeded", iotCommon.ErrActivityCapacityExceeded},
 	}
@@ -39,8 +36,6 @@ func TestErrorVariables(t *testing.T) {
 
 // Test Error Message Constants
 func TestErrorMessageConstants(t *testing.T) {
-	assert.NotEmpty(t, iotCommon.ErrMsgInvalidDeviceID)
-	assert.NotEmpty(t, iotCommon.ErrMsgDeviceIDRequired)
 	assert.NotEmpty(t, iotCommon.ErrMsgPersonNotStudent)
 	assert.NotEmpty(t, iotCommon.ErrMsgRFIDTagNotFound)
 }
@@ -200,31 +195,6 @@ func TestErrorRenderer_FeedbackErrors(t *testing.T) {
 func TestErrorRenderer_UnknownError(t *testing.T) {
 	unknownErr := errors.New("unknown error")
 	renderer := iotCommon.ErrorRenderer(unknownErr)
-	assert.NotNil(t, renderer)
-}
-
-// Test Error Builder Functions
-func TestErrorInvalidRequest(t *testing.T) {
-	testErr := errors.New("invalid input")
-	renderer := iotCommon.ErrorInvalidRequest(testErr)
-	assert.NotNil(t, renderer)
-}
-
-func TestErrorInternalServer(t *testing.T) {
-	testErr := errors.New("database error")
-	renderer := iotCommon.ErrorInternalServer(testErr)
-	assert.NotNil(t, renderer)
-}
-
-func TestErrorNotFound(t *testing.T) {
-	testErr := errors.New("not found")
-	renderer := iotCommon.ErrorNotFound(testErr)
-	assert.NotNil(t, renderer)
-}
-
-func TestErrorConflict(t *testing.T) {
-	testErr := errors.New("conflict")
-	renderer := iotCommon.ErrorConflict(testErr)
 	assert.NotNil(t, renderer)
 }
 

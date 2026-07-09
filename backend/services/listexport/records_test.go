@@ -1,12 +1,12 @@
 package listexport
 
 import (
-	"archive/zip"
 	"bytes"
-	"io"
 	"strings"
 	"testing"
 	"time"
+
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func sampleRecord(title string) Record {
@@ -122,7 +122,7 @@ func TestRenderRecordsDOCX_UsesRecordBlocksInsteadOfWideTable(t *testing.T) {
 		t.Errorf("filename = %q, want .docx suffix", file.Filename)
 	}
 
-	xml := readDocxDocumentXML(t, file.Data)
+	xml := testpkg.ReadDocxDocumentXML(t, file.Data)
 	if strings.Contains(xml, "<w:tbl>") {
 		t.Fatal("record DOCX must not render the wide table layout")
 	}
@@ -146,39 +146,10 @@ func TestRenderRecordsDOCX_WritesGroupHeadings(t *testing.T) {
 	if err != nil {
 		t.Fatalf("RenderRecordsDOCX: %v", err)
 	}
-	xml := readDocxDocumentXML(t, file.Data)
+	xml := testpkg.ReadDocxDocumentXML(t, file.Data)
 	for _, want := range []string{"Bestätigte Anmeldungen", "Familie Muster"} {
 		if !strings.Contains(xml, want) {
 			t.Errorf("record DOCX missing %q", want)
 		}
 	}
-}
-
-func readDocxDocumentXML(t *testing.T, data []byte) string {
-	t.Helper()
-	reader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
-	if err != nil {
-		t.Fatalf("zip reader error = %v", err)
-	}
-	for _, entry := range reader.File {
-		if entry.Name != "word/document.xml" {
-			continue
-		}
-		rc, err := entry.Open()
-		if err != nil {
-			t.Fatalf("open document.xml error = %v", err)
-		}
-		defer func() {
-			if err := rc.Close(); err != nil {
-				t.Errorf("close document.xml error = %v", err)
-			}
-		}()
-		content, err := io.ReadAll(rc)
-		if err != nil {
-			t.Fatalf("read document.xml error = %v", err)
-		}
-		return string(content)
-	}
-	t.Fatal("DOCX missing word/document.xml")
-	return ""
 }

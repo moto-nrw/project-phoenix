@@ -62,7 +62,7 @@ func CanReadStudent(
 	if student == nil {
 		return false
 	}
-	if hasAdminPermissions(userPermissions) {
+	if HasAdminWildcard(userPermissions) {
 		return true
 	}
 
@@ -83,18 +83,6 @@ func CanReadStudent(
 	}
 	for _, g := range educationGroups {
 		if g.ID == *student.GroupID {
-			return true
-		}
-	}
-	return false
-}
-
-// hasAdminPermissions checks for the wildcard admin scopes. Mirrors the
-// package-private helper in api/students so the extracted helper carries its
-// own authority check and does not depend on the caller pre-filtering.
-func hasAdminPermissions(permissions []string) bool {
-	for _, p := range permissions {
-		if p == "admin:*" || p == "*:*" {
 			return true
 		}
 	}
@@ -152,7 +140,7 @@ func CanModifyStudent(
 	userCtx StudentModifyUserContext,
 	operation string,
 ) (bool, error) {
-	if hasAdminPermissions(userPermissions) {
+	if HasAdminWildcard(userPermissions) {
 		return true, nil
 	}
 	if student == nil || student.GroupID == nil {
@@ -203,7 +191,7 @@ func CanDeleteStudent(
 // READS only. Both this filter and CanModifyStudent are write gates, so an
 // "all_staff" read scope must never widen who can see/decide change requests.
 func WritableStudentFilter(ctx context.Context, userPermissions []string, userCtx StudentModifyUserContext) func(*users.Student) bool {
-	if hasAdminPermissions(userPermissions) {
+	if HasAdminWildcard(userPermissions) {
 		return func(*users.Student) bool { return true }
 	}
 	if userCtx == nil {

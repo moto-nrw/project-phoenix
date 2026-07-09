@@ -86,50 +86,14 @@ func (s *Service) CreateCategory(ctx context.Context, category *activities.Categ
 func (s *Service) GetCategory(ctx context.Context, id int64) (*activities.Category, error) {
 	category, err := s.categoryRepo.FindByID(ctx, id)
 	if err != nil {
-		// Check for "no rows" error and convert to our own error
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: opGetCategory, Err: ErrCategoryNotFound}
-		}
-		// Check if the wrapped database error contains sql.ErrNoRows
-		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
+		if base.IsNoRows(err) {
 			return nil, &ActivityError{Op: opGetCategory, Err: ErrCategoryNotFound}
 		}
 		return nil, &ActivityError{Op: opGetCategory, Err: err}
 	}
 
 	return category, nil
-}
-
-// UpdateCategory updates an activity category
-func (s *Service) UpdateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error) {
-	if err := category.Validate(); err != nil {
-		return nil, &ActivityError{Op: "update category", Err: err}
-	}
-
-	if err := s.categoryRepo.Update(ctx, category); err != nil {
-		return nil, &ActivityError{Op: "update category", Err: err}
-	}
-
-	return category, nil
-}
-
-// DeleteCategory deletes a category
-func (s *Service) DeleteCategory(ctx context.Context, id int64) error {
-	// Check if the category is in use by any group
-	groupsWithCategory, err := s.groupRepo.FindByCategory(ctx, id)
-	if err != nil {
-		return &ActivityError{Op: "check category usage", Err: err}
-	}
-
-	if len(groupsWithCategory) > 0 {
-		return &ActivityError{Op: "delete category", Err: errors.New("category is in use by one or more activity groups")}
-	}
-
-	if err := s.categoryRepo.Delete(ctx, id); err != nil {
-		return &ActivityError{Op: "delete category", Err: err}
-	}
-
-	return nil
 }
 
 // ListCategories lists all activity categories
@@ -235,12 +199,8 @@ func (s *Service) createSchedulesInTx(ctx context.Context, txService ActivitySer
 func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, error) {
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
-		// Check for "no rows" error and convert to our own error
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
-		}
-		// Check if the wrapped database error contains sql.ErrNoRows
-		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
+		if base.IsNoRows(err) {
 			return nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
 		}
 		return nil, &ActivityError{Op: opGetGroup, Err: err}
@@ -324,52 +284,36 @@ func (s *Service) DeleteGroup(ctx context.Context, id int64, requestingStaffID i
 	return nil
 }
 
-// deleteGroupEnrollments deletes all enrollments for a group
-func deleteGroupEnrollments(ctx context.Context, service *Service, groupID int64) error {
-	enrollments, err := service.enrollmentRepo.FindByGroupID(ctx, groupID)
+// deleteGroupRows deletes every row FindByGroupID returns, one delete per
+// row (per-row deletes keep the historical query pattern and repo hooks).
+func deleteGroupRows[E interface{ GetID() any }](ctx context.Context, groupID int64, find func(context.Context, int64) ([]E, error), del func(context.Context, any) error) error {
+	rows, err := find(ctx, groupID)
 	if err != nil {
 		return err
 	}
 
-	for _, enrollment := range enrollments {
-		if err := service.enrollmentRepo.Delete(ctx, enrollment.ID); err != nil {
+	for _, row := range rows {
+		if err := del(ctx, row.GetID()); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// deleteGroupEnrollments deletes all enrollments for a group
+func deleteGroupEnrollments(ctx context.Context, service *Service, groupID int64) error {
+	return deleteGroupRows(ctx, groupID, service.enrollmentRepo.FindByGroupID, service.enrollmentRepo.Delete)
 }
 
 // deleteGroupSupervisors deletes all supervisors for a group
 func deleteGroupSupervisors(ctx context.Context, service *Service, groupID int64) error {
-	supervisors, err := service.supervisorRepo.FindByGroupID(ctx, groupID)
-	if err != nil {
-		return err
-	}
-
-	for _, supervisor := range supervisors {
-		if err := service.supervisorRepo.Delete(ctx, supervisor.ID); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return deleteGroupRows(ctx, groupID, service.supervisorRepo.FindByGroupID, service.supervisorRepo.Delete)
 }
 
 // deleteGroupSchedules deletes all schedules for a group
 func deleteGroupSchedules(ctx context.Context, service *Service, groupID int64) error {
-	schedules, err := service.scheduleRepo.FindByGroupID(ctx, groupID)
-	if err != nil {
-		return err
-	}
-
-	for _, schedule := range schedules {
-		if err := service.scheduleRepo.Delete(ctx, schedule.ID); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return deleteGroupRows(ctx, groupID, service.scheduleRepo.FindByGroupID, service.scheduleRepo.Delete)
 }
 
 // ListGroups lists activity groups with optional filters
@@ -443,12 +387,8 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 	// Get the group
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
-		// Check for "no rows" error and convert to our own error
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
-		}
-		// Check if the wrapped database error contains sql.ErrNoRows
-		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
+		if base.IsNoRows(err) {
 			return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
 		}
 		return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: err}

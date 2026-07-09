@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"cmp"
 	"context"
 	"database/sql"
 	"errors"
@@ -8,9 +9,9 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // shiftTypeNameUniqueIndex is the case-insensitive unique index from migration
@@ -76,10 +77,7 @@ func NewShiftTypeService(repo scheduleModels.ShiftTypeRepository, logger *slog.L
 }
 
 func (s *shiftTypeService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.logger, slog.Default())
 }
 
 func (s *shiftTypeService) ListShiftTypes(ctx context.Context) ([]*scheduleModels.ShiftType, error) {
@@ -123,20 +121,10 @@ func (s *shiftTypeService) nameTaken(ctx context.Context, name string, excludeID
 }
 
 // isShiftTypeNameConflict reports whether err is a Postgres unique violation
-// (23505) on the per-tenant case-insensitive name index. errors.As traverses
-// the *base.DatabaseError wrapper the repository adds (it implements Unwrap).
+// on the per-tenant case-insensitive name index. errors.As inside the helper
+// traverses the *base.DatabaseError wrapper the repository adds.
 func isShiftTypeNameConflict(err error) bool {
-	if err == nil {
-		return false
-	}
-	var pgErr pgdriver.Error
-	if !errors.As(err, &pgErr) {
-		return false
-	}
-	if pgErr.Field('C') != "23505" {
-		return false
-	}
-	return pgErr.Field('n') == shiftTypeNameUniqueIndex
+	return base.IsUniqueViolationOn(err, shiftTypeNameUniqueIndex)
 }
 
 func (s *shiftTypeService) CreateShiftType(ctx context.Context, shiftType *scheduleModels.ShiftType) (*scheduleModels.ShiftType, error) {

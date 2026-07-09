@@ -116,34 +116,6 @@ func TestAccountParent_SetLastLogin(t *testing.T) {
 	}
 }
 
-func TestAccountParent_TableName(t *testing.T) {
-	ap := &AccountParent{}
-	if got := ap.TableName(); got != "auth.accounts_parents" {
-		t.Errorf("TableName() = %v, want auth.accounts_parents", got)
-	}
-}
-
-func TestAccountParent_BeforeAppendModel(t *testing.T) {
-	// BeforeAppendModel modifies query table expressions for different query types
-	// It doesn't set timestamps - those are handled by the base model or repository
-
-	t.Run("handles nil query", func(t *testing.T) {
-		ap := &AccountParent{Email: "parent@example.com"}
-		err := ap.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		ap := &AccountParent{Email: "parent@example.com"}
-		err := ap.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestAccountParent_GetID(t *testing.T) {
 	ap := &AccountParent{
 		Model: base.Model{ID: 42},

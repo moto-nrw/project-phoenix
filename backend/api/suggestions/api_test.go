@@ -19,7 +19,6 @@ import (
 
 	apiSuggestions "github.com/moto-nrw/project-phoenix/api/suggestions"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -46,33 +45,6 @@ func setupRouter(t *testing.T) (*bun.DB, chi.Router) {
 	router.Mount("/suggestions", resource.Router())
 
 	return db, router
-}
-
-// createTestPost inserts a post directly for test setup.
-func createTestPost(t *testing.T, db *bun.DB, accountID int64, title, desc string) *suggestions.Post {
-	t.Helper()
-
-	post := &suggestions.Post{
-		Title:       title,
-		Description: desc,
-		AuthorID:    accountID,
-		Status:      suggestions.StatusOpen,
-		Score:       0,
-	}
-
-	post.SetTenantID(1)
-
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
-	defer cancel()
-
-	_, err := db.NewInsert().
-		Model(post).
-		ModelTableExpr("suggestions.posts").
-		Returning("*").
-		Exec(ctx)
-	require.NoError(t, err)
-
-	return post
 }
 
 // cleanupPosts removes test posts and their votes.
@@ -136,7 +108,7 @@ func TestListPosts_Success(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "api-list")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("APIList %d", time.Now().UnixNano()), "Desc")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("APIList %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
 
 	req := newAuthRequest(t, "GET", "/suggestions", nil, account.ID, suggestionsPermissions)
@@ -182,7 +154,7 @@ func TestGetPost_Success(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "api-get")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("APIGet %d", time.Now().UnixNano()), "Desc")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("APIGet %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
 
 	req := newAuthRequest(t, "GET", fmt.Sprintf("/suggestions/%d", post.ID), nil, account.ID, suggestionsPermissions)
@@ -304,7 +276,7 @@ func TestUpdatePost_Success(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "api-update")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("APIUpdate %d", time.Now().UnixNano()), "Original")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("APIUpdate %d", time.Now().UnixNano()), "Original")
 	defer cleanupPosts(t, db, post.ID)
 
 	body := map[string]string{"title": "Updated via API", "description": "Updated description"}
@@ -322,7 +294,7 @@ func TestUpdatePost_Forbidden(t *testing.T) {
 	other := testpkg.CreateTestAccount(t, db, "api-upd-other")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", author.ID, other.ID)
 
-	post := createTestPost(t, db, author.ID, fmt.Sprintf("APIForbid %d", time.Now().UnixNano()), "Desc")
+	post := testpkg.CreateTestPost(t, db, author.ID, fmt.Sprintf("APIForbid %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
 
 	body := map[string]string{"title": "Hacked", "description": "Should fail"}
@@ -367,7 +339,7 @@ func TestUpdatePost_DescriptionTooLong(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "api-upd-longdesc")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("DescLong %d", time.Now().UnixNano()), "Desc")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("DescLong %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
 
 	body := map[string]string{
@@ -391,7 +363,7 @@ func TestDeletePost_Success(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "api-delete")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("APIDelete %d", time.Now().UnixNano()), "Desc")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("APIDelete %d", time.Now().UnixNano()), "Desc")
 
 	req := newAuthRequest(t, "DELETE", fmt.Sprintf("/suggestions/%d", post.ID), nil, account.ID, suggestionsPermissions)
 	rr := exec(router, req)
@@ -407,7 +379,7 @@ func TestDeletePost_Forbidden(t *testing.T) {
 	other := testpkg.CreateTestAccount(t, db, "api-del-other")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", author.ID, other.ID)
 
-	post := createTestPost(t, db, author.ID, fmt.Sprintf("APIDelForbid %d", time.Now().UnixNano()), "Desc")
+	post := testpkg.CreateTestPost(t, db, author.ID, fmt.Sprintf("APIDelForbid %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
 
 	req := newAuthRequest(t, "DELETE", fmt.Sprintf("/suggestions/%d", post.ID), nil, other.ID, suggestionsPermissions)
@@ -453,7 +425,7 @@ func TestVote_Success(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "api-vote")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("APIVote %d", time.Now().UnixNano()), "Desc")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("APIVote %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
 
 	body := map[string]string{"direction": "up"}
@@ -516,7 +488,7 @@ func TestRemoveVote_Success(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "api-rmvote")
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("APIRemoveVote %d", time.Now().UnixNano()), "Desc")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("APIRemoveVote %d", time.Now().UnixNano()), "Desc")
 	defer cleanupPosts(t, db, post.ID)
 
 	// Vote first

@@ -59,14 +59,8 @@ type GroupRepository interface {
 	// FindWithSupervisors returns a group with its supervisors
 	FindWithSupervisors(ctx context.Context, groupID int64) (*Group, []*SupervisorPlanned, error)
 
-	// FindWithSchedules returns a group with its scheduled times
-	FindWithSchedules(ctx context.Context, groupID int64) (*Group, []*Schedule, error)
-
 	// FindByStaffSupervisor finds all activity groups where a staff member is a supervisor
 	FindByStaffSupervisor(ctx context.Context, staffID int64) ([]*Group, error)
-
-	// FindByStaffSupervisorToday finds all activity groups where a staff member is a supervisor for today
-	FindByStaffSupervisorToday(ctx context.Context, staffID int64) ([]*Group, error)
 
 	// FindAllTemplates returns all activity groups flagged as templates
 	// (is_template = true). Used by the materialization service to enumerate
@@ -99,9 +93,6 @@ type ScheduleRepository interface {
 
 	// FindByWeekday finds all schedules for a specific weekday
 	FindByWeekday(ctx context.Context, weekday string) ([]*Schedule, error)
-
-	// FindByTimeframeID finds all schedules for a specific timeframe
-	FindByTimeframeID(ctx context.Context, timeframeID int64) ([]*Schedule, error)
 
 	// DeleteByGroupID removes all schedules of an activity group.
 	DeleteByGroupID(ctx context.Context, groupID int64) error
@@ -144,9 +135,6 @@ type SupervisorPlannedRepository interface {
 	// FindByGroupIDs finds all supervisors for multiple groups in a single query
 	FindByGroupIDs(ctx context.Context, groupIDs []int64) ([]*SupervisorPlanned, error)
 
-	// FindPrimaryByGroupID finds the primary supervisor for a specific group
-	FindPrimaryByGroupID(ctx context.Context, groupID int64) (*SupervisorPlanned, error)
-
 	// SetPrimary sets a supervisor as the primary supervisor for a group
 	SetPrimary(ctx context.Context, id int64) error
 
@@ -178,19 +166,6 @@ type StudentEnrollmentRepository interface {
 
 	// FindByGroupID finds all enrollments for a specific group
 	FindByGroupID(ctx context.Context, groupID int64) ([]*StudentEnrollment, error)
-
-	// CountByGroupID counts the number of students enrolled in a specific group
-	CountByGroupID(ctx context.Context, groupID int64) (int, error)
-
-	// FindByValidFromRange finds enrollments within a valid_from date range
-	FindByValidFromRange(ctx context.Context, start, end timezone.Date) ([]*StudentEnrollment, error)
-
-	// UpdateAttendanceStatus updates the attendance status for a specific enrollment
-	UpdateAttendanceStatus(ctx context.Context, id int64, status *string) error
-
-	// DeleteByStudentGroupsAndWindow removes enrollments for one student,
-	// a bounded set of activity groups, and an exact validity window.
-	DeleteByStudentGroupsAndWindow(ctx context.Context, studentID int64, groupIDs []int64, validFrom timezone.Date, validUntil *timezone.Date) (int64, error)
 
 	// BackfillEnrollmentRequestChildSource stamps legacy rows that were
 	// materialized during the same approval as requestChildID but predate the

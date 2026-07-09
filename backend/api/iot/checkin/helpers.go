@@ -28,28 +28,8 @@ var timeNow = time.Now
 // (which needs a parsed time.Time) and the IoT config endpoint (which needs the raw string
 // for PyrePortal) must use this helper instead of reimplementing the chain.
 func ResolveRawDailyCheckoutTime(ctx context.Context, settingsService configSvc.SettingsService) string {
-	checkoutTimeStr := ""
-
-	// Try tenant DB override first (only if an explicit override exists)
-	if settingsService != nil {
-		if has, err := settingsService.HasTenantOverride(ctx, configModel.KeyStudentDailyCheckoutTime); err != nil {
-			slog.Warn("settings override check failed, falling back to env var",
-				slog.String("key", configModel.KeyStudentDailyCheckoutTime),
-				slog.String("error", err.Error()),
-			)
-		} else if has {
-			if val, err := settingsService.ResolveString(ctx, configModel.KeyStudentDailyCheckoutTime); err == nil && val != "" {
-				checkoutTimeStr = val
-			}
-		}
-	}
-
-	// Fall back to env var
-	if checkoutTimeStr == "" {
-		checkoutTimeStr = os.Getenv("STUDENT_DAILY_CHECKOUT_TIME")
-	}
-
-	return checkoutTimeStr
+	fallback := os.Getenv("STUDENT_DAILY_CHECKOUT_TIME")
+	return configSvc.ResolveStringOrDefault(ctx, settingsService, configModel.KeyStudentDailyCheckoutTime, fallback, slog.Default())
 }
 
 // getStudentDailyCheckoutTime resolves the daily checkout time as a parsed *time.Time.
@@ -81,14 +61,6 @@ func (rs *Resource) getStudentDailyCheckoutTime(ctx context.Context) (*time.Time
 	now := timeNow()
 	checkoutTime := time.Date(now.Year(), now.Month(), now.Day(), hour, minute, 0, 0, now.Location())
 	return &checkoutTime, nil
-}
-
-// getRoomNameFromVisit extracts the room name from a visit's active group if available.
-func getRoomNameFromVisit(visit *active.Visit) string {
-	if visit != nil && visit.ActiveGroup != nil && visit.ActiveGroup.Room != nil {
-		return visit.ActiveGroup.Room.Name
-	}
-	return ""
 }
 
 // shouldUpgradeToDailyCheckout checks if a checkout should be upgraded to daily checkout.

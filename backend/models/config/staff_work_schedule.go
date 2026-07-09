@@ -9,8 +9,6 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const tableStaffWorkSchedules = "config.staff_work_schedules"
-
 // Day of week constants (ISO: 0=Monday, 6=Sunday)
 const (
 	DayMonday    = 0
@@ -27,6 +25,8 @@ const (
 // rotation (e.g. A/B-Wochen). Existing rows from the single-week era default to
 // week_index=0 / rotation_length=1 and behave exactly as before.
 type StaffWorkSchedule struct {
+	bun.BaseModel `bun:"table:config.staff_work_schedules,alias:staff_work_schedule"`
+
 	ID             int64          `bun:"id,pk,autoincrement" json:"id"`
 	TenantID       int64          `bun:"tenant_id,notnull" json:"tenant_id"`
 	StaffID        int64          `bun:"staff_id,notnull" json:"staff_id"`
@@ -39,23 +39,6 @@ type StaffWorkSchedule struct {
 	ValidUntil     *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
 	CreatedAt      time.Time      `bun:"created_at,notnull,default:now()" json:"created_at"`
 	UpdatedAt      time.Time      `bun:"updated_at,notnull,default:now()" json:"updated_at"`
-}
-
-func (s *StaffWorkSchedule) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableStaffWorkSchedules)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableStaffWorkSchedules)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableStaffWorkSchedules)
-	}
-	return nil
-}
-
-func (s *StaffWorkSchedule) TableName() string {
-	return tableStaffWorkSchedules
 }
 
 func (s *StaffWorkSchedule) Validate() error {
@@ -97,23 +80,4 @@ type StaffWorkScheduleRepository interface {
 
 	// ReplaceSchedule atomically replaces all current schedule entries for a staff member
 	ReplaceSchedule(ctx context.Context, staffID int64, entries []*StaffWorkSchedule) error
-}
-
-// WeeklyTargetForRotationWeek calculates target minutes for one rotation week.
-func WeeklyTargetForRotationWeek(entries []*StaffWorkSchedule, weekIndex int) *int {
-	if len(entries) == 0 {
-		return nil
-	}
-	total := 0
-	found := false
-	for _, e := range entries {
-		if e.WeekIndex == weekIndex {
-			total += e.TargetMinutes
-			found = true
-		}
-	}
-	if !found {
-		return nil
-	}
-	return &total
 }

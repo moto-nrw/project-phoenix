@@ -1,6 +1,7 @@
 package sse
 
 import (
+	"cmp"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -24,10 +25,7 @@ type Resource struct {
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (rs *Resource) getLogger() *slog.Logger {
-	if rs.logger != nil {
-		return rs.logger
-	}
-	return slog.Default()
+	return cmp.Or(rs.logger, slog.Default())
 }
 
 // NewResource creates a new SSE resource

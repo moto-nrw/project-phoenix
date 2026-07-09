@@ -37,9 +37,7 @@ func (r *ShiftTypeRepository) ListAll(ctx context.Context) ([]*schedule.ShiftTyp
 		ModelTableExpr(tableExprShiftTypesAsShiftType).
 		OrderExpr(`"shift_type".name ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "shift_type"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "shift_type")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list all shift types", Err: err}
@@ -49,22 +47,7 @@ func (r *ShiftTypeRepository) ListAll(ctx context.Context) ([]*schedule.ShiftTyp
 
 // List applies QueryOptions, tenant-scoped (satisfies base.Repository[T]).
 func (r *ShiftTypeRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.ShiftType, error) {
-	var shiftTypes []*schedule.ShiftType
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&shiftTypes).
-		ModelTableExpr(tableExprShiftTypesAsShiftType)
-
-	if where, val, ok := base.TenantWhere(ctx, "shift_type"); ok {
-		query = query.Where(where, val)
-	}
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list shift types", Err: err}
-	}
-	return shiftTypes, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // Create validates before delegating to the generic insert.
@@ -145,13 +128,11 @@ func (r *ShiftTypeRepository) Update(ctx context.Context, shiftType *schedule.Sh
 }
 
 // Delete removes the shift type by ID, tenant-scoped. Overrides the generic
-// base delete on purpose: the base builds alias-qualified predicates
-// (`"shift_type".id`, `"shift_type".tenant_id`), but ShiftType.BeforeAppendModel
-// forces the DELETE table expression to the unaliased schedule.shift_types, so
-// those predicates would reference a missing correlation and the delete would
-// fail at runtime. This unaliased delete matches the hook and the Create/Update
-// overrides above. Shifts referencing the type keep their row; the FK's
-// ON DELETE SET NULL (shift_type_id) clears only the reference.
+// base delete on purpose: this file's write paths (Create/CreateIfAbsent/
+// Update/Delete) all pin the unaliased schedule.shift_types table expression
+// explicitly, so the predicates here stay unaliased to match. Shifts
+// referencing the type keep their row; the FK's ON DELETE SET NULL
+// (shift_type_id) clears only the reference.
 func (r *ShiftTypeRepository) Delete(ctx context.Context, id any) error {
 	query := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.ShiftType)(nil)).

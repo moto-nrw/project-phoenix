@@ -77,7 +77,7 @@ func TestListMasterDataChangeRequests_ReturnsPendingItems(t *testing.T) {
 			LastName:  "Beispiel",
 		}},
 	}
-	rs := &Resource{MasterDataReviewService: svc}
+	rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: svc}}
 	req := staffRequest(http.MethodGet, "/students/master-data-change-requests", "", "")
 	w := httptest.NewRecorder()
 
@@ -93,7 +93,7 @@ func TestListMasterDataChangeRequests_ReturnsPendingItems(t *testing.T) {
 
 func TestMasterDataChangeRequestRoutesRequireUsersUpdate(t *testing.T) {
 	testutil.SeedTestJWTConfig()
-	router := (&Resource{MasterDataReviewService: &fakeMasterDataReviewService{}}).Router()
+	router := (&Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}).Router()
 	// The queue + decide routes now gate on users:update (deciding a request is
 	// the same child write as editing the child directly), with per-child scope
 	// enforced in the service. A caller with only users:read cannot reach them.
@@ -129,7 +129,7 @@ func TestListMasterDataChangeRequests_RequiresConfiguredService(t *testing.T) {
 
 func TestDecideMasterDataChangeRequest_ForwardsDecisionAndReviewer(t *testing.T) {
 	svc := &fakeMasterDataReviewService{decided: reviewItem(usersModels.DataChangeStatusApproved)}
-	rs := &Resource{MasterDataReviewService: svc}
+	rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: svc}}
 	req := staffRequest(
 		http.MethodPost,
 		"/students/master-data-change-requests/100/decide",
@@ -151,7 +151,7 @@ func TestDecideMasterDataChangeRequest_ForwardsDecisionAndReviewer(t *testing.T)
 }
 
 func TestDecideMasterDataChangeRequest_RejectsBadRequest(t *testing.T) {
-	rs := &Resource{MasterDataReviewService: &fakeMasterDataReviewService{}}
+	rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{}}}
 
 	req := staffRequest(http.MethodPost, "/students/master-data-change-requests/nope/decide", `{}`, "nope")
 	w := httptest.NewRecorder()
@@ -185,7 +185,7 @@ func TestDecideMasterDataChangeRequest_MapsServiceErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rs := &Resource{MasterDataReviewService: &fakeMasterDataReviewService{decideErr: tt.err}}
+			rs := &Resource{ResourceConfig: ResourceConfig{MasterDataReviewService: &fakeMasterDataReviewService{decideErr: tt.err}}}
 			req := staffRequest(http.MethodPost, "/students/master-data-change-requests/100/decide", `{"approve":false}`, "100")
 			w := httptest.NewRecorder()
 

@@ -361,21 +361,6 @@ func (rs *Resource) fetchVisitsWithDisplayData(r *http.Request, activeGroupID in
 	return results, nil
 }
 
-func collectVisitStudentIDs(results []visitWithStudent) []int64 {
-	studentIDs := make([]int64, 0, len(results))
-	seen := make(map[int64]struct{}, len(results))
-
-	for _, result := range results {
-		if _, ok := seen[result.StudentID]; ok {
-			continue
-		}
-		seen[result.StudentID] = struct{}{}
-		studentIDs = append(studentIDs, result.StudentID)
-	}
-
-	return studentIDs
-}
-
 // fetchAttendanceStatusesForVisits fetches today's attendance status for the
 // students in results, but only for the subset the caller has full access to.
 // Students outside the caller's access scope are skipped entirely so the DB

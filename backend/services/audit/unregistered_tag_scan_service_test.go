@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/require"
@@ -202,9 +203,9 @@ func TestUnregisteredTagScanDeleteOlderThanUsesCustomDaysAndPropagatesError(t *t
 func TestNormalizeNote(t *testing.T) {
 	note := "  assigned to replacement card  "
 
-	require.Nil(t, normalizeNote(nil))
-	require.Nil(t, normalizeNote(pointerToString("   ")))
-	require.Equal(t, "assigned to replacement card", *normalizeNote(&note))
+	require.Nil(t, strutil.TrimPtrToNil(nil))
+	require.Nil(t, strutil.TrimPtrToNil(pointerToString("   ")))
+	require.Equal(t, "assigned to replacement card", *strutil.TrimPtrToNil(&note))
 }
 
 func pointerToString(value string) *string {

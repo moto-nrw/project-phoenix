@@ -81,10 +81,6 @@ var (
 	ErrCannotRemovePrimaryGuardian      = errors.New("the primary guardian cannot be removed by a parent")
 	ErrCannotRemoveStaffManagedGuardian = errors.New("staff-managed guardian contacts cannot be removed by a parent")
 	ErrCannotRemoveOwnAccess            = errors.New("a parent cannot remove their own access to a child")
-
-	// Deletion constraint errors
-	ErrRoleInUse       = errors.New("Rolle kann nicht gelöscht werden: Rolle ist aktuell Konten zugewiesen")                           //nolint:staticcheck // ST1005: user-facing German message
-	ErrPermissionInUse = errors.New("Berechtigung kann nicht gelöscht werden: Berechtigung ist aktuell Rollen oder Konten zugewiesen") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // AuthError represents an authentication-related error
