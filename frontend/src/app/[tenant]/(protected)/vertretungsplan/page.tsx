@@ -80,8 +80,12 @@ function VertretungsplanContent() {
   );
 
   const swrKey = `vertretungsplan-week-${fromISO}-${toISO}`;
-  const gapsSWRKey = `vertretungsplan-gaps-${fromISO}-${toISO}`;
-  const loadGaps = toISO >= todayISO();
+  // Gap detection is forward-looking: the endpoint rejects a past `date`, so
+  // clamp the window start to today and skip entirely for fully-past weeks.
+  const today = todayISO();
+  const gapsFromISO = fromISO < today ? today : fromISO;
+  const loadGaps = toISO >= today;
+  const gapsSWRKey = `vertretungsplan-gaps-${gapsFromISO}-${toISO}`;
 
   const { data, isLoading } = useSWRAuth(
     status === "authenticated" ? swrKey : null,
@@ -89,7 +93,7 @@ function VertretungsplanContent() {
   );
   const { data: gapsData } = useSWRAuth(
     status === "authenticated" && loadGaps ? gapsSWRKey : null,
-    () => timetableService.getGaps(fromISO, toISO),
+    () => timetableService.getGaps(gapsFromISO, toISO),
   );
   const { data: staffData } = useSWRAuth(
     status === "authenticated" ? "vertretungsplan-staff-list" : null,
@@ -280,12 +284,14 @@ function VertretungsplanContent() {
         dayEndHour={dayEndHour}
         hourHeightPx={HOUR_HEIGHT_PX}
         emptyState={
-          isLoading
-            ? { title: "Lädt…", description: "Termine werden geladen." }
-            : {
-                title: "Keine Termine",
-                description: "Für diese Woche sind keine Termine geplant.",
-              }
+          instances.length > 0
+            ? undefined
+            : isLoading
+              ? { title: "Lädt…", description: "Termine werden geladen." }
+              : {
+                  title: "Keine Termine",
+                  description: "Für diese Woche sind keine Termine geplant.",
+                }
         }
       />
 
