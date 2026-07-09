@@ -30,6 +30,7 @@ import {
 import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
 import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
+import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -208,6 +209,21 @@ export function useChildCare(studentId: string): ChildCare {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Staff approving/rejecting an excused request writes status days / flips the
+  // request's state server-side but emits only an SSE trigger — no payload and no
+  // local state change here. The portal-wide ParentRealtimeBridge turns every
+  // parent_message into a `parent-conversation-refresh` window event (carrying the
+  // affected studentId); refetch on a match so an open parent tab drops a resolved
+  // "Freigabe ausstehend", shows a rejection reason, or surfaces a newly approved
+  // absence without a manual reload. marksRead:false — load() reads no messages
+  // and advances no read cursor, so it should fire even in a background tab.
+  useMessagesActivity({
+    eventName: "parent-conversation-refresh",
+    studentId,
+    onMatch: () => void load(),
+    marksRead: false,
+  });
 
   const reportSick = useCallback(
     async (dates: string[], reason: string, status: StudentStatusKind) => {

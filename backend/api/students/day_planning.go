@@ -5,6 +5,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
@@ -65,8 +68,16 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 	// Pending parent excused-absence requests covering today (#1845): shown as an
 	// informational badge with the parent's note, without changing the planning
 	// status — the child stays "expected" until staff decide the request.
+	//
+	// The badge exposes the parent's note and belongs to the users:update-gated
+	// review queue (Änderungsanfragen). This enrichment also runs inside the
+	// users:read list/detail/export handlers, so a read-only group supervisor
+	// would otherwise see the note and approval marker without any right to the
+	// queue or to decide the request. Only enrich when the caller actually holds
+	// the review permission that gates the queue itself.
 	pendingExcused := map[int64]*activeModels.ExcusedAbsenceRequest{}
-	if rs.ExcusedRequestService != nil {
+	if rs.ExcusedRequestService != nil &&
+		authorize.HasPermission(permissions.UsersUpdate, jwt.PermissionsFromCtx(ctx)) {
 		var err error
 		pendingExcused, err = rs.ExcusedRequestService.PendingByStudentForDate(ctx, timezone.DateFromTime(now))
 		if err != nil {

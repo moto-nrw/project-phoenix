@@ -487,10 +487,18 @@ export async function submitSickNote(
   reason = "",
   status: StudentStatusKind = "sick",
 ): Promise<SickNoteSubmitResult> {
-  return postJson<SickNoteSubmitResult>(
+  const res = await postJson<SickNoteSubmitResult | StatusDay[]>(
     `/api/parent/me/children/${encodeURIComponent(studentId)}/sick-note`,
     { dates, reason, status },
   );
+  // The backend returns the bare status-day ARRAY for a direct write (a sick
+  // note, or an excused absence without the approval gate) and the
+  // { status_days, pending_request } envelope only when a gated excused request
+  // needs office approval (#1845). Normalize both to the envelope so callers see
+  // one shape.
+  return Array.isArray(res)
+    ? { status_days: res, pending_request: undefined }
+    : res;
 }
 
 /**

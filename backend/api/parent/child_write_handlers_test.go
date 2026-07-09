@@ -149,12 +149,10 @@ func TestSickNoteEndpoint_SubmitAndList(t *testing.T) {
 	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 	var env envelope
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
-	var submitResp struct {
-		StatusDays     []map[string]any `json:"status_days"`
-		PendingRequest map[string]any   `json:"pending_request"`
-	}
-	require.NoError(t, json.Unmarshal(env.Data, &submitResp))
-	days := submitResp.StatusDays
+	// A direct write responds with the bare status-day array (pre-#1845 shape),
+	// not the {status_days, pending_request} envelope — see submitSickNote.
+	var days []map[string]any
+	require.NoError(t, json.Unmarshal(env.Data, &days))
 	assert.Len(t, days, 2)
 
 	// List.
@@ -302,12 +300,9 @@ func TestSickNoteEndpoint_SubmitExcused(t *testing.T) {
 
 	var env envelope
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
-	var submitResp struct {
-		StatusDays     []map[string]any `json:"status_days"`
-		PendingRequest map[string]any   `json:"pending_request"`
-	}
-	require.NoError(t, json.Unmarshal(env.Data, &submitResp))
-	days := submitResp.StatusDays
+	// Direct write (approval gate off) → bare status-day array, not the envelope.
+	var days []map[string]any
+	require.NoError(t, json.Unmarshal(env.Data, &days))
 	require.Len(t, days, 1)
 	assert.Equal(t, "excused", days[0]["status"], "an excused submission must store an excused status day")
 	assert.Equal(t, "Zahnarzttermin", days[0]["note"])
@@ -385,14 +380,42 @@ func TestSickNoteEndpoint_DefaultsToSickWhenStatusOmitted(t *testing.T) {
 
 	var env envelope
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
-	var submitResp struct {
-		StatusDays     []map[string]any `json:"status_days"`
-		PendingRequest map[string]any   `json:"pending_request"`
-	}
-	require.NoError(t, json.Unmarshal(env.Data, &submitResp))
-	days := submitResp.StatusDays
+	// An older client that omits status hits the direct-write path → bare array.
+	// This is exactly the shape (and .map() target) such a client expects.
+	var days []map[string]any
+	require.NoError(t, json.Unmarshal(env.Data, &days))
 	require.Len(t, days, 1)
 	assert.Equal(t, "sick", days[0]["status"], "an omitted status must default to a Krankmeldung")
+}
+
+// TestSickNoteEndpoint_DirectWriteReturnsArray pins the #1845 backward-compat
+// contract: a direct write responds with a JSON ARRAY at data, not the
+// {status_days, ...} object. A parent tab loaded before this deploy calls .map()
+// on the response, so an object here would crash it.
+func TestSickNoteEndpoint_DirectWriteReturnsArray(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	router := newWriteRouter(t, db)
+	token := parentToken(t, chain.AccountID)
+	sid := strconv.FormatInt(chain.StudentID, 10)
+
+	rr := doRequest(t, router, http.MethodPost, "/me/children/"+sid+"/sick-note", token,
+		map[string]any{"dates": []string{nowISO()}, "reason": "Fieber"})
+	require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
+
+	var env envelope
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
+	// Decodes into a slice; would error if data were an object.
+	var days []map[string]any
+	require.NoError(t, json.Unmarshal(env.Data, &days),
+		"a direct write must return a bare status-day array, not an envelope object")
+	require.Len(t, days, 1)
+	// And explicitly NOT the envelope object shape.
+	var asObject map[string]any
+	assert.Error(t, json.Unmarshal(env.Data, &asObject),
+		"data must be a JSON array, never the {status_days} object, for older clients")
 }
 
 // TestSickNoteEndpoint_RejectsInvalidStatus covers the ErrInvalidStatus arm of

@@ -94,9 +94,12 @@ func toParentExcusedRequestResponse(req *activeModels.ExcusedAbsenceRequest, acc
 	}
 }
 
-// SubmitSickNoteResponse is the envelope for a parent absence submission.
-// Exactly one branch is populated: StatusDays for a direct write, or
-// PendingRequest when the excused report needs office approval (#1845).
+// SubmitSickNoteResponse is the envelope returned ONLY when an excused report
+// needs office approval (#1845): StatusDays is empty and PendingRequest carries
+// the pending request. A direct write (sick note, or excused without the gate)
+// instead responds with the bare []StatusDayResponse array — the pre-#1845 shape
+// — so a parent tab loaded before this deploy, which calls .map() on the
+// response, keeps working. New clients normalize both shapes (Array.isArray).
 type SubmitSickNoteResponse struct {
 	StatusDays     []StatusDayResponse           `json:"status_days"`
 	PendingRequest *ParentExcusedRequestResponse `json:"pending_request,omitempty"`
@@ -140,17 +143,28 @@ func (rs *Resource) submitSickNote(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := SubmitSickNoteResponse{
-		StatusDays: make([]StatusDayResponse, 0, len(result.StatusDays)),
-	}
+	statusDays := make([]StatusDayResponse, 0, len(result.StatusDays))
 	for _, d := range result.StatusDays {
-		resp.StatusDays = append(resp.StatusDays, toStatusDayResponse(d))
+		statusDays = append(statusDays, toStatusDayResponse(d))
 	}
-	if result.PendingRequest != nil {
-		pr := toParentExcusedRequestResponse(result.PendingRequest, accountID)
-		resp.PendingRequest = &pr
+
+	// Backward-compatibility (#1845): a direct write — a sick note, or an excused
+	// absence at a school WITHOUT the approval gate — responds with the bare
+	// status-day array, exactly the pre-#1845 shape. A parent tab loaded before
+	// this deploy still calls .map() on the response, so returning the
+	// {status_days, pending_request} envelope here would crash it. The envelope is
+	// used ONLY for the gated-excused path, which no pre-#1845 client can reach
+	// (the gate is a new, default-off setting). New clients normalize both shapes.
+	if result.PendingRequest == nil {
+		common.Respond(w, r, http.StatusCreated, statusDays, "Sick note submitted")
+		return
 	}
-	common.Respond(w, r, http.StatusCreated, resp, "Sick note submitted")
+
+	pr := toParentExcusedRequestResponse(result.PendingRequest, accountID)
+	common.Respond(w, r, http.StatusCreated, SubmitSickNoteResponse{
+		StatusDays:     statusDays,
+		PendingRequest: &pr,
+	}, "Sick note submitted")
 }
 
 // listExcusedRequests returns the child's pending + recently-decided excused

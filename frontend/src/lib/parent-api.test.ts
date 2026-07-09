@@ -507,6 +507,22 @@ describe("submitSickNote", () => {
     expect(seenBody).toContain('"reason":"Fieber"');
   });
 
+  it("normalizes the legacy bare-array response into the envelope shape (issue #1845 backward-compat)", async () => {
+    // A backend on the pre-#1845 contract (and the current direct-write path)
+    // responds with the bare status-day array, not the { status_days } object.
+    // submitSickNote must wrap it so callers see one shape.
+    mockFetch(async () =>
+      jsonResponse(
+        { data: [mkStatusDay("2026-06-02", "Fieber")] },
+        { status: 201 },
+      ),
+    );
+    const out = await submitSickNote("84", ["2026-06-02"], "Fieber");
+    expect(out.status_days).toHaveLength(1);
+    expect(out.status_days[0]!.note).toBe("Fieber");
+    expect(out.pending_request).toBeUndefined();
+  });
+
   it("sends an empty reason when none is supplied", async () => {
     let seenBody = "";
     mockFetch(async (_input, init) => {
