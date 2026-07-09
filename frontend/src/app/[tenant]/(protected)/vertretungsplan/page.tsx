@@ -11,7 +11,7 @@
  * per-block actions live in the SubstitutionSlideOver.
  */
 
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, TriangleAlert, UserX } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Suspense, useCallback, useMemo } from "react";
@@ -19,6 +19,7 @@ import { Suspense, useCallback, useMemo } from "react";
 import { Button } from "~/components/ui/button";
 import { PageHeader } from "~/components/ui/page-header/PageHeader";
 import { SubstitutionSlideOver } from "~/components/timetable/substitution-slide-over";
+import { TimetableStatCard } from "~/components/timetable/timetable-stat-card";
 import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { useToast } from "~/contexts/ToastContext";
@@ -33,7 +34,7 @@ import {
   getWeekRange,
   getWeekdays,
 } from "~/lib/timetable-helpers";
-import type { EnrichedInstance, GapInstance } from "~/lib/timetable-types";
+import type { EnrichedInstance } from "~/lib/timetable-types";
 
 const logger = createLogger({ component: "Vertretungsplan" });
 const HOUR_HEIGHT_PX = 90;
@@ -270,9 +271,10 @@ function VertretungsplanContent() {
         </Button>
       </div>
 
-      {(openGaps.length > 0 || acknowledgedGaps.length > 0) && (
-        <GapsSummary open={openGaps} acknowledged={acknowledgedGaps} />
-      )}
+      <VertretungsplanOverview
+        openCount={openGaps.length}
+        ackCount={acknowledgedGaps.length}
+      />
 
       <WeeklyCalendarGrid
         weekDays={weekDays}
@@ -309,33 +311,52 @@ function VertretungsplanContent() {
   );
 }
 
-function GapsSummary({
-  open,
-  acknowledged,
+// VertretungsplanOverview mirrors the Betreuungsplan's TimetableOverview so the
+// two planning pages share the same top-of-page shell (kicker + title +
+// description + two KPI stat cards). The purpose differs — this one tracks
+// staffing shortfalls, not planned counts.
+function VertretungsplanOverview({
+  openCount,
+  ackCount,
 }: {
-  open: GapInstance[];
-  acknowledged: GapInstance[];
+  openCount: number;
+  ackCount: number;
 }) {
   return (
-    <div className={`${timetableSurface} p-4 sm:p-5`}>
-      <h2 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-        Personallücken
-      </h2>
-      <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <div className="rounded-xl border border-[#FF3130]/20 bg-[#FF3130]/5 p-3">
-          <div className="text-2xl font-semibold text-[#CC2626] tabular-nums">
-            {open.length}
-          </div>
-          <div className="text-xs text-gray-600">Offene Lücken</div>
-        </div>
-        <div className="rounded-xl border border-[#EAB308]/30 bg-[#EAB308]/10 p-3">
-          <div className="text-2xl font-semibold text-[#8A6D00] tabular-nums">
-            {acknowledged.length}
-          </div>
-          <div className="text-xs text-gray-600">Bewusst unbesetzt</div>
-        </div>
+    <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-5">
+      <div>
+        <p className="text-xs font-semibold tracking-wide text-[#5080D8] uppercase">
+          Planung
+        </p>
+        <h2 className="mt-1 text-base font-semibold text-gray-900">
+          Vertretungsplan im Blick
+        </h2>
+        <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
+          Kurzfristige Abweichungen vom Betreuungsplan für eine Woche oder einen
+          Tag — Abwesenheiten, Ersatz und ausfallende oder bewusst unbesetzte
+          Blöcke, ohne die Halbjahresvorlage zu ändern.
+        </p>
       </div>
-    </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <TimetableStatCard
+          size="lg"
+          icon={<UserX className="h-4 w-4" />}
+          label="Offene Lücken"
+          value={String(openCount)}
+          sublabel="brauchen Personal"
+          tone={openCount > 0 ? "danger" : "neutral"}
+        />
+        <TimetableStatCard
+          size="lg"
+          icon={<TriangleAlert className="h-4 w-4" />}
+          label="Bewusst unbesetzt"
+          value={String(ackCount)}
+          sublabel="ohne Personal akzeptiert"
+          tone={ackCount > 0 ? "warning" : "neutral"}
+        />
+      </div>
+    </section>
   );
 }
 
