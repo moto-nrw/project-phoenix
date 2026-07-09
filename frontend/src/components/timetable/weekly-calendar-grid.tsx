@@ -33,8 +33,13 @@ import { timetableSurface } from "./timetable-style";
 
 // Grid template columns: narrow time gutter + day columns. Mobile shows a
 // single day column (gutter + 1fr) via the day strip; sm+ shows all seven.
-const GRID_COLS_CLASS =
+// The two variants are static strings so Tailwind can generate both; the
+// single-day variant powers the Vertretungsplan's "Tag" view (#1840) — the
+// week planner always passes 7 days and keeps the seven-column layout.
+const GRID_COLS_CLASS_WEEK =
   "grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_repeat(7,minmax(0,1fr))]";
+const GRID_COLS_CLASS_DAY =
+  "grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_minmax(0,1fr)]";
 
 interface WeeklyCalendarGridProps {
   weekDays: Date[]; // Mo-So (7 dates)
@@ -72,6 +77,8 @@ export function WeeklyCalendarGrid({
   onSlotClick,
   emptyState,
 }: WeeklyCalendarGridProps) {
+  const gridColsClass =
+    weekDays.length === 1 ? GRID_COLS_CLASS_DAY : GRID_COLS_CLASS_WEEK;
   const grouped = groupInstancesByDate(instances);
   const eventStarts = instances
     .map((instance) => parseTimeToMinutes(instance.startTime))
@@ -161,7 +168,7 @@ export function WeeklyCalendarGrid({
 
       {/* Sticky day header (desktop — mobile uses the day strip above) */}
       <div
-        className={`hidden h-[52px] border-b border-gray-200 bg-white sm:grid sm:h-14 ${GRID_COLS_CLASS}`}
+        className={`hidden h-[52px] border-b border-gray-200 bg-white sm:grid sm:h-14 ${gridColsClass}`}
       >
         <div aria-hidden />
         {weekDays.map((day) => {
@@ -197,7 +204,7 @@ export function WeeklyCalendarGrid({
 
       {/* Scrollable body */}
       <div className="relative max-h-[720px] overflow-y-auto">
-        <div className={`grid ${GRID_COLS_CLASS}`}>
+        <div className={`grid ${gridColsClass}`}>
           {/* Time gutter */}
           <div
             className="border-r border-gray-200 bg-gray-50"

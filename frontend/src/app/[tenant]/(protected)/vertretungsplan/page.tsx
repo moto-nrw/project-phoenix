@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * Vertretungsplan (#1840) — the weekly substitution view.
+ * Vertretungsplan (#1840), the weekly substitution view.
  *
  * Deliberately separate from the Betreuungsplan (/timetables): this surface
  * shows the materialized week as a deviation over the base plan and lets an
  * admin record absences, substitutes, cancellations, and deliberately-open
- * positions for a week or a single day — without touching the half-year
+ * positions for a week or a single day, without touching the half-year
  * template. It reuses the WeeklyCalendarGrid and the timetable API; the
  * per-block actions live in the SubstitutionSlideOver.
  */
@@ -18,12 +18,18 @@ import { Suspense, useCallback, useMemo } from "react";
 
 import { Button } from "~/components/ui/button";
 import { PageHeader } from "~/components/ui/page-header/PageHeader";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { SubstitutionSlideOver } from "~/components/timetable/substitution-slide-over";
 import { TimetableStatCard } from "~/components/timetable/timetable-stat-card";
 import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { useToast } from "~/contexts/ToastContext";
-import { todayISO, toISODate } from "~/lib/date-helpers";
+import {
+  formatDate,
+  parseISODate,
+  todayISO,
+  toISODate,
+} from "~/lib/date-helpers";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { createLogger } from "~/lib/logger";
 import { staffService } from "~/lib/staff-api";
@@ -45,6 +51,12 @@ function parseIntParam(value: string | null, fallback: number): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+function shiftDayISO(iso: string, delta: number): string {
+  const d = parseISODate(iso);
+  d.setDate(d.getDate() + delta);
+  return toISODate(d);
+}
+
 function VertretungsplanContent() {
   const { status } = useSession();
   const searchParams = useSearchParams();
@@ -54,14 +66,25 @@ function VertretungsplanContent() {
 
   const weekOffset = parseIntParam(searchParams.get("week"), 0);
   const selectedInstanceId = searchParams.get("instance");
+  // "Woche oder einen Tag" (issue #1840): the day view narrows the grid to a
+  // single day; both still fetch the surrounding week.
+  const view = searchParams.get("view") === "day" ? "day" : "week";
+  const dayISO = searchParams.get("day") ?? todayISO();
 
-  const [range] = useMemo(() => {
-    const r = getWeekRange(new Date(), weekOffset);
-    return [r];
-  }, [weekOffset]);
+  const range = useMemo(
+    () =>
+      view === "day"
+        ? getWeekRange(parseISODate(dayISO), 0)
+        : getWeekRange(new Date(), weekOffset),
+    [view, dayISO, weekOffset],
+  );
   const fromISO = toISODate(range.from);
   const toISO = toISODate(range.to);
   const weekDays = useMemo(() => getWeekdays(range.from), [range.from]);
+  const gridDays = useMemo(
+    () => (view === "day" ? [parseISODate(dayISO)] : weekDays),
+    [view, dayISO, weekDays],
+  );
 
   const updateUrlParams = useCallback(
     (updates: Record<string, string | null>) => {
@@ -102,6 +125,15 @@ function VertretungsplanContent() {
   );
 
   const instances = useMemo(() => data?.instances ?? [], [data?.instances]);
+  // The day view renders a single column, so hand the grid only that day's
+  // instances (otherwise its auto hour-window would stretch to fit other days).
+  const gridInstances = useMemo(
+    () =>
+      view === "day"
+        ? instances.filter((inst) => inst.date === dayISO)
+        : instances,
+    [view, dayISO, instances],
+  );
   const staffOptions = useMemo(
     () => (staffData ?? []).map((s) => ({ id: s.id, name: s.name })),
     [staffData],
@@ -235,40 +267,72 @@ function VertretungsplanContent() {
       <PageHeader title="Vertretungsplan" />
 
       <div
-        className={`${timetableSurface} flex items-center justify-between gap-2 p-3`}
+        className={`${timetableSurface} flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between`}
       >
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="Vorherige Woche"
-          onClick={() => updateUrlParams({ week: String(weekOffset - 1) })}
+        <Tabs
+          value={view}
+          onValueChange={(v) =>
+            updateUrlParams(
+              v === "day"
+                ? { view: "day", day: dayISO }
+                : { view: null, day: null },
+            )
+          }
         >
-          <ChevronLeft className="h-5 w-5" />
-        </Button>
-        <div className="text-center">
-          <div className="text-sm font-semibold text-gray-900 tabular-nums">
-            {formatWeekLabel(range.from, range.to)}
+          <TabsList>
+            <TabsTrigger value="week">Woche</TabsTrigger>
+            <TabsTrigger value="day">Tag</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={view === "day" ? "Vorheriger Tag" : "Vorherige Woche"}
+            onClick={() =>
+              view === "day"
+                ? updateUrlParams({ day: shiftDayISO(dayISO, -1) })
+                : updateUrlParams({ week: String(weekOffset - 1) })
+            }
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </Button>
+          <div className="min-w-[200px] text-center">
+            <div className="text-sm font-semibold text-gray-900 tabular-nums">
+              {view === "day"
+                ? formatDate(dayISO, true)
+                : formatWeekLabel(range.from, range.to)}
+            </div>
+            {(view === "day" ? dayISO !== todayISO() : weekOffset !== 0) && (
+              <button
+                type="button"
+                className="text-[11px] font-medium text-[#5A8E1F] hover:underline"
+                onClick={() =>
+                  view === "day"
+                    ? updateUrlParams({ day: todayISO() })
+                    : updateUrlParams({ week: "0" })
+                }
+              >
+                Heute
+              </button>
+            )}
           </div>
-          {weekOffset !== 0 && (
-            <button
-              type="button"
-              className="text-[11px] font-medium text-[#5A8E1F] hover:underline"
-              onClick={() => updateUrlParams({ week: "0" })}
-            >
-              Heute
-            </button>
-          )}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={view === "day" ? "Nächster Tag" : "Nächste Woche"}
+            onClick={() =>
+              view === "day"
+                ? updateUrlParams({ day: shiftDayISO(dayISO, 1) })
+                : updateUrlParams({ week: String(weekOffset + 1) })
+            }
+          >
+            <ChevronRight className="h-5 w-5" />
+          </Button>
         </div>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon"
-          aria-label="Nächste Woche"
-          onClick={() => updateUrlParams({ week: String(weekOffset + 1) })}
-        >
-          <ChevronRight className="h-5 w-5" />
-        </Button>
       </div>
 
       <VertretungsplanOverview
@@ -277,8 +341,8 @@ function VertretungsplanContent() {
       />
 
       <WeeklyCalendarGrid
-        weekDays={weekDays}
-        instances={instances}
+        weekDays={gridDays}
+        instances={gridInstances}
         selectedId={selectedInstanceId}
         onInstanceClick={handleSelectInstance}
         todayISO={todayISO()}
@@ -286,13 +350,16 @@ function VertretungsplanContent() {
         dayEndHour={dayEndHour}
         hourHeightPx={HOUR_HEIGHT_PX}
         emptyState={
-          instances.length > 0
+          gridInstances.length > 0
             ? undefined
             : isLoading
               ? { title: "Lädt…", description: "Termine werden geladen." }
               : {
                   title: "Keine Termine",
-                  description: "Für diese Woche sind keine Termine geplant.",
+                  description:
+                    view === "day"
+                      ? "Für diesen Tag sind keine Termine geplant."
+                      : "Für diese Woche sind keine Termine geplant.",
                 }
         }
       />
@@ -313,7 +380,7 @@ function VertretungsplanContent() {
 
 // VertretungsplanOverview mirrors the Betreuungsplan's TimetableOverview so the
 // two planning pages share the same top-of-page shell (kicker + title +
-// description + two KPI stat cards). The purpose differs — this one tracks
+// description + two KPI stat cards). The purpose differs, this one tracks
 // staffing shortfalls, not planned counts.
 function VertretungsplanOverview({
   openCount,
@@ -333,7 +400,7 @@ function VertretungsplanOverview({
         </h2>
         <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
           Kurzfristige Abweichungen vom Betreuungsplan für eine Woche oder einen
-          Tag — Abwesenheiten, Ersatz und ausfallende oder bewusst unbesetzte
+          Tag: Abwesenheiten, Ersatz und ausfallende oder bewusst unbesetzte
           Blöcke, ohne die Halbjahresvorlage zu ändern.
         </p>
       </div>

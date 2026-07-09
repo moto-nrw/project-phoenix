@@ -704,7 +704,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Führt kurzfristige Abweichungen vom Betreuungsplan für eine Woche oder einen Tag: Abwesenheiten, Ersatz sowie ausfallende oder bewusst unbesetzte Blöcke (nur für Admins).",
         steps: [
-          "`Planung` -> `Vertretungsplan` öffnen. Die Wochenansicht zeigt dieselben Termine wie der Betreuungsplan, hier jedoch zum Anpassen kurzfristiger Vertretungen.",
+          "`Planung` -> `Vertretungsplan` öffnen. Die Ansicht zeigt dieselben Termine wie der Betreuungsplan, hier jedoch zum Anpassen kurzfristiger Vertretungen. Oben zwischen `Woche` und `Tag` wechseln und mit den Pfeilen oder `Heute` zum passenden Zeitraum springen.",
           "Im Überblick `Vertretungsplan im Blick` zeigen `Offene Lücken` und `Bewusst unbesetzt`, wie viele Blöcke ohne Personal sind bzw. bewusst offen gelassen wurden.",
           "Einen Termin anklicken, um die Vertretungsansicht des Blocks zu öffnen. `Geplantes Personal` zeigt die Besetzung aus dem Betreuungsplan.",
           "Über `Abwesend melden` eine Person für den ganzen Tag als abwesend markieren. Anschließend unter `Ersatz eintragen` eine Ersatzperson wählen.",

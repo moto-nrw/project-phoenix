@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * SubstitutionSlideOver — the Vertretungsplan (#1840) block editor.
+ * SubstitutionSlideOver, the Vertretungsplan (#1840) block editor.
  *
  * Deliberately distinct from InstanceDetailSlideOver: that panel is the full
  * lifecycle + attendance editor for the base planner. This one is a focused
- * staffing-deviation surface — mark a person absent, assign a substitute,
- * cancel the block, or accept it running unstaffed — and it shows the base
+ * staffing-deviation surface, mark a person absent, assign a substitute,
+ * cancel the block, or accept it running unstaffed, and it shows the base
  * plan vs the substitution side by side so the difference is traceable
  * (issue #1840 AC7). Built from the shared UI kit + timetable style tokens.
  */
@@ -41,7 +41,7 @@ export interface StaffOption {
 
 interface SubstitutionSlideOverProps {
   instance: EnrichedInstance | null;
-  /** Every staff member in the tenant — the substitute picker source. */
+  /** Every staff member in the tenant, the substitute picker source. */
   staffOptions: readonly StaffOption[];
   staffNames: Map<string, string>;
   onClose: () => void;
@@ -141,7 +141,7 @@ export function SubstitutionSlideOver({
           </SlideOverHeader>
 
           <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
-            {/* Base plan vs substitution — the traceable diff. */}
+            {/* Base plan vs substitution, the traceable diff. */}
             <section className="space-y-2">
               <h3 className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
                 Geplantes Personal
