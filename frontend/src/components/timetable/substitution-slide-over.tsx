@@ -3,11 +3,11 @@
 /**
  * SubstitutionSlideOver — the Vertretungsplan (#1840) block editor.
  *
- * Follows the Betreuungsplan InstanceDetailSlideOver pattern for a clear,
- * linear flow: the body shows the block's staffing (base plan vs
- * substitution), block-level actions live in the footer, and every
- * state-changing action is confirmed in a dialog that also holds the optional
- * reason — so nothing fires unexpectedly and there are no stray inline inputs.
+ * Betreuungsplan-style layout: the body shows the block's staffing (base plan
+ * vs substitution) and block-level actions live in a pinned footer. Instead of
+ * a modal, a state-changing action reveals an inline confirm right where it was
+ * triggered — a short line, an optional reason, and Abbrechen/Bestätigen — so
+ * nothing fires unexpectedly and the flow stays in place.
  */
 
 import { TriangleAlert, UserMinus, UserX } from "lucide-react";
@@ -17,7 +17,6 @@ import { formatDate } from "~/lib/date-helpers";
 import { getActivityTypeBadge, getStatusLabel } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { Button } from "~/components/ui/button";
-import { ConfirmationModal } from "~/components/ui/modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import {
   SlideOver,
@@ -63,15 +62,72 @@ interface SubstitutionSlideOverProps {
   ) => Promise<void>;
 }
 
-// A pending confirmation. Each variant carries what the dialog needs to render
-// and what the confirm handler should run.
-type ConfirmAction =
-  | { kind: "absent"; staffId: string; staffName: string }
+// The action currently awaiting an inline confirm.
+type PendingAction =
+  | { kind: "absent"; staffId: string }
   | { kind: "cancel" }
   | { kind: "unbesetzt" };
 
 function staffLabel(staffNames: Map<string, string>, id: string): string {
   return staffNames.get(id) ?? `Personal #${id}`;
+}
+
+// InlineReasonConfirm — the in-place confirm block that replaces a trigger
+// button: an optional hint, an optional reason input, and right-aligned
+// Abbrechen/Bestätigen actions.
+function InlineReasonConfirm({
+  hint,
+  confirmText,
+  danger,
+  busy,
+  reason,
+  onReasonChange,
+  onConfirm,
+  onCancel,
+}: {
+  hint?: string;
+  confirmText: string;
+  danger?: boolean;
+  busy: boolean;
+  reason: string;
+  onReasonChange: (value: string) => void;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="space-y-2">
+      {hint && <p className="text-xs leading-5 text-gray-500">{hint}</p>}
+      <input
+        type="text"
+        autoFocus
+        value={reason}
+        onChange={(e) => onReasonChange(e.target.value)}
+        maxLength={500}
+        placeholder="Grund (optional)"
+        className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
+      />
+      <div className="flex justify-end gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          disabled={busy}
+          onClick={onCancel}
+        >
+          Abbrechen
+        </Button>
+        <Button
+          type="button"
+          variant={danger ? "danger" : "primary"}
+          size="md"
+          isLoading={busy}
+          onClick={onConfirm}
+        >
+          {confirmText}
+        </Button>
+      </div>
+    </div>
+  );
 }
 
 export function SubstitutionSlideOver({
@@ -85,16 +141,17 @@ export function SubstitutionSlideOver({
   onAcknowledge,
 }: SubstitutionSlideOverProps) {
   const [busy, setBusy] = useState(false);
-  const [confirm, setConfirm] = useState<ConfirmAction | null>(null);
+  const [pending, setPending] = useState<PendingAction | null>(null);
   const [reason, setReason] = useState("");
 
   const open = instance !== null;
   const canEdit =
     instance?.status === "planned" || instance?.status === "active";
+  const locked = pending !== null || busy;
 
-  function openConfirm(action: ConfirmAction) {
+  function start(action: PendingAction) {
     setReason("");
-    setConfirm(action);
+    setPending(action);
   }
 
   async function run(fn: () => Promise<void>) {
@@ -106,13 +163,13 @@ export function SubstitutionSlideOver({
     }
   }
 
-  async function handleConfirm() {
-    if (!instance || !confirm) return;
+  async function confirmPending() {
+    if (!instance || !pending) return;
     const trimmed = reason.trim() || undefined;
     await run(async () => {
-      switch (confirm.kind) {
+      switch (pending.kind) {
         case "absent":
-          await onMarkAbsent(confirm.staffId, instance.date, trimmed);
+          await onMarkAbsent(pending.staffId, instance.date, trimmed);
           break;
         case "cancel":
           await onCancelBlock(instance, trimmed);
@@ -122,7 +179,7 @@ export function SubstitutionSlideOver({
           break;
       }
     });
-    setConfirm(null);
+    setPending(null);
   }
 
   // Planned staff = the base plan (non-substitute rows). Substitutes are the
@@ -139,34 +196,8 @@ export function SubstitutionSlideOver({
     ? getActivityTypeBadge(instance.activityType)
     : null;
   const isUnstaffedAck = instance?.understaffedAck === true;
-
-  const confirmCopy: Record<
-    ConfirmAction["kind"],
-    { title: string; body: string; confirmText: string; danger?: boolean }
-  > = {
-    absent: {
-      title:
-        confirm?.kind === "absent"
-          ? `${confirm.staffName} abwesend melden?`
-          : "Abwesend melden?",
-      body: instance
-        ? `Gilt für alle Termine dieser Person am ${formatDate(instance.date)}.`
-        : "",
-      confirmText: "Abwesend melden",
-    },
-    cancel: {
-      title: "Block absagen?",
-      body: "Der Termin wird abgesagt. Die Halbjahresvorlage bleibt unverändert.",
-      confirmText: "Block absagen",
-      danger: true,
-    },
-    unbesetzt: {
-      title: "Bewusst unbesetzt markieren?",
-      body: "Der Block läuft absichtlich ohne Personal und zählt nicht mehr als offene Lücke.",
-      confirmText: "Markieren",
-    },
-  };
-  const activeCopy = confirm ? confirmCopy[confirm.kind] : null;
+  const blockPending =
+    pending?.kind === "cancel" || pending?.kind === "unbesetzt";
 
   return (
     <SlideOver
@@ -176,17 +207,7 @@ export function SubstitutionSlideOver({
       }}
     >
       {instance && (
-        <SlideOverContent
-          // The confirmation modal portals to document.body, outside the
-          // drawer's DOM. Without these guards Vaul treats a click inside the
-          // open modal as an outside-click and closes the drawer (issue #1358).
-          onInteractOutside={(event) => {
-            if (confirm !== null) event.preventDefault();
-          }}
-          onEscapeKeyDown={(event) => {
-            if (confirm !== null) event.preventDefault();
-          }}
-        >
+        <SlideOverContent>
           <SlideOverHeader>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
@@ -238,84 +259,102 @@ export function SubstitutionSlideOver({
                 </p>
               ) : (
                 <ul className="space-y-2">
-                  {plannedStaff.map((row) => (
-                    <li
-                      key={row.staffId}
-                      className={`${timetableNestedSurface} p-3`}
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span
-                          className={`truncate text-sm font-medium ${
-                            row.isAbsent
-                              ? "text-gray-400 line-through"
-                              : "text-gray-900"
-                          }`}
-                        >
-                          {staffLabel(staffNames, row.staffId)}
-                        </span>
-                        <div className="flex shrink-0 items-center gap-1.5">
-                          {row.isPrimary && (
-                            <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
-                              Zuständig
-                            </span>
-                          )}
-                          {row.isAbsent && (
-                            <span className="rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-[10px] font-semibold text-[#CC2626]">
-                              Abwesend
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {row.isAbsent && row.absenceReason && (
-                        <p className="mt-1 text-xs text-gray-500">
-                          Grund: {row.absenceReason}
-                        </p>
-                      )}
-
-                      {canEdit && !row.isAbsent && (
-                        <div className="mt-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="md"
-                            disabled={busy}
-                            onClick={() =>
-                              openConfirm({
-                                kind: "absent",
-                                staffId: row.staffId,
-                                staffName: staffLabel(staffNames, row.staffId),
-                              })
-                            }
+                  {plannedStaff.map((row) => {
+                    const rowPending =
+                      pending?.kind === "absent" &&
+                      pending.staffId === row.staffId;
+                    return (
+                      <li
+                        key={row.staffId}
+                        className={`${timetableNestedSurface} p-3`}
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span
+                            className={`truncate text-sm font-medium ${
+                              row.isAbsent
+                                ? "text-gray-400 line-through"
+                                : "text-gray-900"
+                            }`}
                           >
-                            <UserMinus className="mr-1.5 h-4 w-4" />
-                            Abwesend melden
-                          </Button>
-                        </div>
-                      )}
-
-                      {canEdit && row.isAbsent && (
-                        <div className="mt-2">
-                          <span className="mb-1 block text-[11px] font-medium text-gray-500">
-                            Ersatz eintragen
+                            {staffLabel(staffNames, row.staffId)}
                           </span>
-                          <CustomSelect
-                            value=""
-                            placeholder="Ersatzperson wählen…"
-                            options={substituteOptions}
-                            ariaLabel={`Ersatz für ${staffLabel(staffNames, row.staffId)}`}
-                            disabled={busy || substituteOptions.length === 0}
-                            onChange={(sub) => {
-                              if (!sub) return;
-                              void run(() =>
-                                onSubstitute(row.staffId, sub, instance.date),
-                              );
-                            }}
-                          />
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {row.isPrimary && (
+                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
+                                Zuständig
+                              </span>
+                            )}
+                            {row.isAbsent && (
+                              <span className="rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-[10px] font-semibold text-[#CC2626]">
+                                Abwesend
+                              </span>
+                            )}
+                          </div>
                         </div>
-                      )}
-                    </li>
-                  ))}
+
+                        {row.isAbsent && row.absenceReason && (
+                          <p className="mt-1 text-xs text-gray-500">
+                            Grund: {row.absenceReason}
+                          </p>
+                        )}
+
+                        {canEdit && !row.isAbsent && (
+                          <div className="mt-2">
+                            {rowPending ? (
+                              <InlineReasonConfirm
+                                hint={`Gilt für alle Termine dieser Person am ${formatDate(instance.date)}.`}
+                                confirmText="Abwesend melden"
+                                busy={busy}
+                                reason={reason}
+                                onReasonChange={setReason}
+                                onConfirm={confirmPending}
+                                onCancel={() => setPending(null)}
+                              />
+                            ) : (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="md"
+                                disabled={locked}
+                                onClick={() =>
+                                  start({
+                                    kind: "absent",
+                                    staffId: row.staffId,
+                                  })
+                                }
+                              >
+                                <UserMinus className="mr-1.5 h-4 w-4" />
+                                Abwesend melden
+                              </Button>
+                            )}
+                          </div>
+                        )}
+
+                        {canEdit && row.isAbsent && (
+                          <div className="mt-2">
+                            <span className="mb-1 block text-[11px] font-medium text-gray-500">
+                              Ersatz eintragen
+                            </span>
+                            <CustomSelect
+                              value=""
+                              placeholder="Ersatzperson wählen…"
+                              options={substituteOptions}
+                              ariaLabel={`Ersatz für ${staffLabel(staffNames, row.staffId)}`}
+                              disabled={
+                                locked || substituteOptions.length === 0
+                              }
+                              onChange={(sub) => {
+                                if (!sub) return;
+                                void run(() =>
+                                  onSubstitute(row.staffId, sub, instance.date),
+                                );
+                              }}
+                            />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
 
@@ -341,13 +380,6 @@ export function SubstitutionSlideOver({
                   </ul>
                 </div>
               )}
-
-              {canEdit && (
-                <p className="text-[11px] leading-5 text-gray-400">
-                  Abwesenheit und Ersatz gelten für alle Termine dieser Person
-                  am {formatDate(instance.date)}.
-                </p>
-              )}
             </section>
 
             {!canEdit && (
@@ -362,83 +394,62 @@ export function SubstitutionSlideOver({
 
           {canEdit && (
             <SlideOverFooter>
-              <div className="flex flex-wrap items-center gap-2">
-                {isUnstaffedAck ? (
+              {blockPending ? (
+                <InlineReasonConfirm
+                  hint={
+                    pending?.kind === "cancel"
+                      ? "Der Termin wird abgesagt. Die Halbjahresvorlage bleibt unverändert."
+                      : "Der Block läuft absichtlich ohne Personal und zählt nicht mehr als offene Lücke."
+                  }
+                  confirmText={
+                    pending?.kind === "cancel" ? "Block absagen" : "Markieren"
+                  }
+                  danger={pending?.kind === "cancel"}
+                  busy={busy}
+                  reason={reason}
+                  onReasonChange={setReason}
+                  onConfirm={confirmPending}
+                  onCancel={() => setPending(null)}
+                />
+              ) : (
+                <div className="flex flex-wrap items-center justify-end gap-2">
+                  {isUnstaffedAck ? (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
+                      disabled={locked}
+                      onClick={() => run(() => onAcknowledge(instance, false))}
+                    >
+                      Unbesetzt aufheben
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
+                      disabled={locked}
+                      onClick={() => start({ kind: "unbesetzt" })}
+                    >
+                      <TriangleAlert className="mr-1.5 h-4 w-4" />
+                      Bewusst unbesetzt
+                    </Button>
+                  )}
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="outline_danger"
                     size="md"
-                    disabled={busy}
-                    onClick={() => run(() => onAcknowledge(instance, false))}
+                    disabled={locked}
+                    onClick={() => start({ kind: "cancel" })}
                   >
-                    Unbesetzt aufheben
+                    <UserX className="mr-1.5 h-4 w-4" />
+                    Block absagen
                   </Button>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    disabled={busy}
-                    onClick={() => openConfirm({ kind: "unbesetzt" })}
-                  >
-                    <TriangleAlert className="mr-1.5 h-4 w-4" />
-                    Bewusst unbesetzt
-                  </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="outline_danger"
-                  size="md"
-                  disabled={busy}
-                  onClick={() => openConfirm({ kind: "cancel" })}
-                >
-                  <UserX className="mr-1.5 h-4 w-4" />
-                  Block absagen
-                </Button>
-              </div>
+                </div>
+              )}
             </SlideOverFooter>
           )}
         </SlideOverContent>
-      )}
-
-      {confirm && activeCopy && (
-        <ConfirmationModal
-          isOpen
-          onClose={() => setConfirm(null)}
-          onConfirm={handleConfirm}
-          title={activeCopy.title}
-          confirmText={activeCopy.confirmText}
-          cancelText="Abbrechen"
-          isConfirmLoading={busy}
-          confirmButtonClass={
-            activeCopy.danger
-              ? "bg-[#FF3130] hover:bg-[#e02b2a] text-white"
-              : undefined
-          }
-        >
-          <div className="space-y-3">
-            <p className="text-sm leading-relaxed text-gray-600">
-              {activeCopy.body}
-            </p>
-            <div>
-              <label
-                htmlFor="deviation-reason"
-                className="mb-1 block text-xs font-medium text-gray-500"
-              >
-                Grund (optional)
-              </label>
-              <input
-                id="deviation-reason"
-                type="text"
-                value={reason}
-                onChange={(e) => setReason(e.target.value)}
-                maxLength={500}
-                placeholder="z. B. krank, Fortbildung, Ausflug"
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
-              />
-            </div>
-          </div>
-        </ConfirmationModal>
       )}
     </SlideOver>
   );
