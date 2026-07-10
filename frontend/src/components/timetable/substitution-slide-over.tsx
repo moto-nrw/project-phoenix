@@ -135,10 +135,12 @@ export function SubstitutionSlideOver({
     // that day — a day-absent person cannot cover a shift (#1840).
     .filter((s) => !assignedIds.has(s.id) && !dayAbsentStaffIds.has(s.id))
     .map((s) => ({ value: s.id, label: s.name }));
-  // The data model allows only one substitute per block. If a non-absent
-  // substitute is already assigned (and not staged for removal), picking a
-  // second one would 409 (substitute_conflict) — so the picker is locked until
-  // the existing substitute is removed. Removal is the "Entfernen" button below.
+  // A block may hold several substitutes — one per absent planned position. What
+  // the backend rejects (409 substitute_conflict) is re-substituting a position
+  // that is ALREADY flagged absent while another active substitute exists. So the
+  // picker is locked only on such already-absent rows (see substituteDisabled
+  // below); a newly-absent position may still name its own distinct substitute.
+  // Removing an existing substitute is the "Entfernen" button below.
 
   const [people, setPeople] = useState<Record<string, PersonForm>>({});
   const [cancel, setCancel] = useState(false);
@@ -209,8 +211,9 @@ export function SubstitutionSlideOver({
 
   // A substitute is still covering the block when it is either non-absent and not
   // staged for removal, or absent but staged for restore. Such a substitute
-  // counts toward coverage AND locks the replacement picker (one substitute per
-  // block).
+  // counts toward coverage and locks the picker of any ALREADY-absent position
+  // (re-substituting one while another active substitute exists 409s); newly
+  // absent positions stay open (see substituteDisabled).
   const isSubstituteActive = (row: {
     staffId: string;
     isAbsent: boolean;
@@ -234,9 +237,17 @@ export function SubstitutionSlideOver({
     return p ? !p.absent : !row.isAbsent;
   }).length;
   const activeSubstitutes = substitutes.filter(isSubstituteActive).length;
-  const newReplacements = Object.values(people).filter(
-    (p) => p.absent && p.substituteId !== "",
-  ).length;
+  // Count UNIQUE newly-picked substitutes. The backend collapses the same
+  // substitute selected for two absent positions into a single covering row (the
+  // repeated (instance, substitute) pair classifies as "already on instance"), so
+  // counting the raw selections overstates coverage — it would wrongly read the
+  // block as fully staffed, disable "Bewusst unbesetzt", and clear a valid
+  // acknowledgement even though the backend still reports a shortfall (#1840).
+  const newReplacements = new Set(
+    Object.values(people)
+      .filter((p) => p.absent && p.substituteId !== "")
+      .map((p) => p.substituteId),
+  ).size;
   const projectedCoverage =
     presentPlanned + activeSubstitutes + newReplacements;
   const isUnderstaffed =
@@ -409,13 +420,17 @@ export function SubstitutionSlideOver({
                     // Each absent planned position may name its own replacement:
                     // the backend accepts distinct substitutes for distinct absent
                     // positions in one atomic save (only a repeated
-                    // (instance, substitute) pair is collapsed), so the picker must
-                    // stay open for every absent row. An EXISTING day-wide
-                    // substitute (hasActiveSubstitute) still locks it — that one is
-                    // removed first via "Entfernen" (#1840).
+                    // (instance, substitute) pair is collapsed), so a NEWLY-absent
+                    // row's picker must stay open even when another position is
+                    // already covered. An existing day-wide substitute only locks
+                    // the picker of a position that was ALREADY absent in the DB
+                    // (p.wasAbsent): the backend 409s when re-substituting an
+                    // already-flagged position while another active substitute
+                    // exists, so that one must be removed first via "Entfernen"
+                    // (#1840).
                     const substituteDisabled =
                       unstaffed ||
-                      hasActiveSubstitute ||
+                      (hasActiveSubstitute && p.wasAbsent) ||
                       substituteOptions.length === 0;
                     return (
                       <li
@@ -521,9 +536,11 @@ export function SubstitutionSlideOver({
                                   Keine Vertretung möglich, solange der Block
                                   als bewusst unbesetzt markiert ist.
                                 </p>
-                              ) : hasActiveSubstitute && !p.substituteId ? (
+                              ) : hasActiveSubstitute &&
+                                p.wasAbsent &&
+                                !p.substituteId ? (
                                 <p className="mt-1 text-[11px] text-gray-400">
-                                  Für diesen Block ist bereits eine Vertretung
+                                  Für diese Position ist bereits eine Vertretung
                                   eingetragen. Bitte zuerst „Entfernen“.
                                 </p>
                               ) : staffLoadError &&

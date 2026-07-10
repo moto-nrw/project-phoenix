@@ -224,6 +224,26 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 		return nil, fmt.Errorf("%w: cannot start instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
 
+	// Serialize against concurrent day-wide staffing saves (/substitute,
+	// /deviations) on the block's day BEFORE reading the roster we copy into
+	// active.group_supervisors. Those endpoints hold this (tenant, date) advisory
+	// lock while they flip is_absent and insert substitute rows; without contending
+	// on it, Start can read the pre-deviation roster and create supervisors from
+	// stale rows — leaving a just-absented planned supervisor live and the assigned
+	// substitute missing from the running session. Advisory xact locks are
+	// re-entrant, matching Cancel's day lock. Reload under the lock so a concurrent
+	// cancel/complete is observed before we materialize the bridge (#1840).
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), instance.Date)); err != nil {
+		return nil, &ScheduleError{Op: "start instance: lock day", Err: err}
+	}
+	instance, err = s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	if instance.Status != scheduleModel.InstanceStatusPlanned {
+		return nil, fmt.Errorf("%w: cannot start instance in status %q", ErrInvalidInstanceTransition, instance.Status)
+	}
+
 	// Conflict detection is read-only + advisory. Warnings reflect state
 	// inside the tx; they never block the transition.
 	warnings := DetectStartConflicts(ctx, ConflictDependencies{
@@ -1022,7 +1042,7 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 	// change leaves the frozen row beside a freshly materialized one (a duplicate
 	// block whose (date, group, start_time) key no longer matches). Instead we
 	// delete everything, regenerate, and reapply only the deviation fields.
-	snapshots, err := s.snapshotDeviations(ctx, from, to, activityGroupID)
+	snapshots, occurrences, err := s.snapshotDeviations(ctx, from, to, activityGroupID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "replan week: snapshot deviations", Err: err}
 	}
@@ -1040,7 +1060,7 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		return nil, &ScheduleError{Op: "replan week: materialize", Err: err}
 	}
 
-	reapplied, err := s.reapplyDeviations(ctx, snapshots)
+	reapplied, err := s.reapplyDeviations(ctx, snapshots, occurrences)
 	if err != nil {
 		return nil, &ScheduleError{Op: "replan week: reapply deviations", Err: err}
 	}
@@ -1128,12 +1148,20 @@ type snapshotSubstitute struct {
 // snapshotDeviations records every reappliable Vertretungsplan override on the
 // planned, template-backed occurrences ReplanWeek is about to delete. Only those
 // rows are regenerated, so only those can carry an override worth preserving.
-func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timezone.Date, activityGroupID *int64) ([]deviationSnapshot, error) {
+func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timezone.Date, activityGroupID *int64) ([]deviationSnapshot, map[groupDay]int, error) {
 	instances, err := s.deps.InstanceRepo.FindByTenantAndDateRange(ctx, from, to)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	snapshots := make([]deviationSnapshot, 0)
+	// occurrences counts the planned, template-backed occurrences per (group, date)
+	// BEFORE this re-plan deletes them — the ORIGINAL cardinality, not the number
+	// of deviated slots. reapplyDeviations uses it to tell a genuine
+	// single-occurrence move (follow a changed start_time) from a multi-slot day
+	// where a deviated slot was deleted and only its start_time can safely
+	// disambiguate the survivor (#1840). Counted over every matching occurrence,
+	// including those with no override.
+	occurrences := make(map[groupDay]int)
 	for _, inst := range instances {
 		if inst.Status != scheduleModel.InstanceStatusPlanned || inst.IsSpontaneous || inst.ActivityGroupID == nil {
 			continue
@@ -1141,9 +1169,10 @@ func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timez
 		if activityGroupID != nil && *inst.ActivityGroupID != *activityGroupID {
 			continue
 		}
+		occurrences[groupDay{*inst.ActivityGroupID, inst.Date}]++
 		rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, inst.ID)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		snap := deviationSnapshot{
 			date:             inst.Date,
@@ -1169,34 +1198,33 @@ func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timez
 				})
 			}
 		}
-		// Nothing overridden → nothing to reapply.
+		// Nothing overridden → nothing to reapply (but the occurrence was still
+		// counted above, which is what the sole-occurrence check needs).
 		if !snap.understaffedAck && len(snap.absentPlanned) == 0 && len(snap.substitutes) == 0 {
 			continue
 		}
 		snapshots = append(snapshots, snap)
 	}
-	return snapshots, nil
+	return snapshots, occurrences, nil
 }
 
 // reapplyDeviations reattaches each snapshotted override onto the freshly
 // materialized occurrence, returning how many snapshots were reapplied. A
 // snapshot whose occurrence no longer materializes (template weekday/period
 // changed) is silently dropped — there is nothing to attach it to.
-func (s *instanceService) reapplyDeviations(ctx context.Context, snapshots []deviationSnapshot) (int, error) {
-	// Count snapshots per (group, date). The time-agnostic single-occurrence match
-	// below is only safe when a day has exactly ONE override to reapply; when
-	// several slots on that day each carried a deviation and the series edit
-	// collapsed them to fewer occurrences, matching every snapshot to the lone
-	// survivor would merge absences, acks and substitutes from the deleted slots
-	// onto it (#1840).
-	snapsPerDay := make(map[groupDay]int, len(snapshots))
-	for _, snap := range snapshots {
-		snapsPerDay[groupDay{snap.activityGroupID, snap.date}]++
-	}
-
+func (s *instanceService) reapplyDeviations(ctx context.Context, snapshots []deviationSnapshot, occurrences map[groupDay]int) (int, error) {
 	reapplied := 0
 	for _, snap := range snapshots {
-		sole := snapsPerDay[groupDay{snap.activityGroupID, snap.date}] == 1
+		// sole is true only when the group had exactly ONE planned occurrence on
+		// this date BEFORE the re-plan deleted it. Counting snapshots instead
+		// (the old approach) misreads a multi-slot day on which only one slot
+		// carried a deviation as "sole": if a series edit then deletes that
+		// deviated slot while another survives, the time-agnostic match below would
+		// reapply the deleted slot's absences/substitutes/ack onto the surviving
+		// block. Keying on the ORIGINAL occurrence cardinality forces an exact
+		// start_time match whenever the day had more than one slot, so a deleted
+		// slot's overrides are dropped rather than misattributed (#1840).
+		sole := occurrences[groupDay{snap.activityGroupID, snap.date}] == 1
 		inst, err := s.matchRegeneratedInstance(ctx, snap, sole)
 		if err != nil {
 			return reapplied, err
@@ -1229,43 +1257,50 @@ func (s *instanceService) reapplyDeviations(ctx context.Context, snapshots []dev
 			absencesReapplied++
 		}
 
-		// Recreate substitute rows ONLY when at least one planned absence was
-		// actually reapplied on this regenerated occurrence. A substitute row only
-		// ever exists to cover an absent planned position (the /substitute and
+		// Recreate substitute rows ONLY up to the number of planned absences
+		// actually reapplied on this regenerated occurrence. A substitute row exists
+		// solely to cover an absent planned position (the /substitute and
 		// /deviations flows always flip an is_absent row on the same instance when
-		// they insert a substitute). If the "edit all occurrences" flow removed
-		// every absent employee from the template, none of the snapshotted absences
-		// land (their staff no longer have a row), so their substitutes have nothing
-		// left to cover — recreating them would leave an orphaned extra supervisor
-		// and report the block as fully staffed. Gate the loop on a restored absence
-		// so those orphans are dropped (#1840). (The snapshot carries no
-		// substitute→absent linkage, so when several absences on one instance are
-		// partially restored we conservatively recreate all substitutes; the
-		// removed-employee case the finding describes reapplies zero absences and is
-		// fixed.) The understaffed-ack reapply below still runs — a snapshot may be
+		// they insert a substitute), so the surviving absences bound how many
+		// substitutes may return. If the "edit all occurrences" flow removed SOME
+		// (not necessarily all) absent employees from the template, their absences
+		// no longer land (their staff have no row on the regenerated occurrence) and
+		// absencesReapplied drops below the substitute count — the now-uncovered
+		// substitutes must be dropped too, or they become orphaned extra supervisors
+		// that overstaff the block and report it as fully staffed.
+		//
+		// The snapshot carries no substitute→absent linkage, so we cannot tell WHICH
+		// substitute is orphaned when only some absences survive; capping the
+		// recreated count at absencesReapplied guarantees the block is never
+		// overstaffed (the common 1:1 absence↔substitute case stays exact). The
+		// understaffed-ack reapply below still runs — a snapshot may be
 		// acknowledgement-only.
 		//
-		// Skip a substitute already on the regenerated instance (e.g. now a planned
-		// supervisor) so the recreate respects UNIQUE(instance_id, staff_id).
-		if absencesReapplied > 0 {
-			for _, sub := range snap.substitutes {
-				if _, taken := byStaff[sub.staffID]; taken {
-					continue
-				}
-				newRow := &scheduleModel.InstanceStaff{
-					InstanceID:    inst.ID,
-					StaffID:       sub.staffID,
-					RoomID:        sub.roomID,
-					IsPrimary:     sub.isPrimary,
-					IsSubstitute:  true,
-					IsAbsent:      sub.isAbsent,
-					AbsenceReason: sub.reason,
-				}
-				if err := s.deps.InstanceStaffRepo.Create(ctx, newRow); err != nil {
-					return reapplied, err
-				}
-				byStaff[sub.staffID] = newRow
+		// A substitute already on the regenerated instance (e.g. now a planned
+		// supervisor) is skipped so the recreate respects UNIQUE(instance_id,
+		// staff_id); it adds no new row, so it does not consume the coverage budget.
+		recreated := 0
+		for _, sub := range snap.substitutes {
+			if recreated >= absencesReapplied {
+				break
 			}
+			if _, taken := byStaff[sub.staffID]; taken {
+				continue
+			}
+			newRow := &scheduleModel.InstanceStaff{
+				InstanceID:    inst.ID,
+				StaffID:       sub.staffID,
+				RoomID:        sub.roomID,
+				IsPrimary:     sub.isPrimary,
+				IsSubstitute:  true,
+				IsAbsent:      sub.isAbsent,
+				AbsenceReason: sub.reason,
+			}
+			if err := s.deps.InstanceStaffRepo.Create(ctx, newRow); err != nil {
+				return reapplied, err
+			}
+			byStaff[sub.staffID] = newRow
+			recreated++
 		}
 
 		// Reapply the "deliberately unstaffed" acknowledgement. SetUnderstaffedAck
@@ -1292,13 +1327,14 @@ type groupDay struct {
 }
 
 // matchRegeneratedInstance finds the freshly materialized planned occurrence a
-// snapshot should reapply to. When `sole` (this is the only override for its
-// (group, date)) a lone surviving occurrence is matched even if its start_time
-// changed, so the deviation follows the moved block. Otherwise — several daily
-// slots each carried an override — it disambiguates strictly by the original
-// start_time and drops the snapshot when none matches, so overrides from deleted
-// slots are never merged onto a surviving block (a slot whose time changed cannot
-// be mapped safely either) (#1840).
+// snapshot should reapply to. When `sole` (the group had exactly ONE planned
+// occurrence on this date before the re-plan — see reapplyDeviations) a lone
+// surviving occurrence is matched even if its start_time changed, so the
+// deviation follows the moved block. Otherwise — the day had several slots — it
+// disambiguates strictly by the original start_time and drops the snapshot when
+// none matches, so overrides from a deleted slot are never merged onto a
+// surviving block (a slot whose time changed cannot be mapped safely either)
+// (#1840).
 func (s *instanceService) matchRegeneratedInstance(ctx context.Context, snap deviationSnapshot, sole bool) (*scheduleModel.ActivityInstance, error) {
 	candidates, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, snap.activityGroupID, snap.date)
 	if err != nil {
