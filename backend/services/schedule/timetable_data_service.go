@@ -149,10 +149,22 @@ func (s *TimetableDataService) CreateInstanceStaff(ctx context.Context, staff *s
 	return s.deps.InstanceStaffRepo.Create(ctx, staff)
 }
 
-// AcquireInstanceSubstituteLock serializes concurrent substitute/deviation
-// saves against the same block within the caller's transaction (#1840).
-func (s *TimetableDataService) AcquireInstanceSubstituteLock(ctx context.Context, instanceID int64) error {
-	return s.deps.InstanceStaffRepo.AcquireInstanceSubstituteLock(ctx, instanceID)
+// AcquireSubstituteDayLock serializes concurrent substitute/deviation saves for
+// a whole (tenant, date) within the caller's transaction (#1840). A substitution
+// or absence is DAY-WIDE: one save can touch every same-day instance of the
+// affected staff, not just the block the form was opened from. A per-instance
+// lock therefore leaves two admins editing DIFFERENT blocks of the same absent
+// employee free to both classify the shared blocks and both insert a substitute
+// (distinct staff_id slips past UNIQUE(instance_id, staff_id)), leaving two live
+// supervisors on a block. Locking the day serializes the full mutation scope of
+// both /substitute and /deviations, which contend on the same key. The key is
+// hashed into the single-bigint advisory space (does not collide with the raw
+// instance-id locks used elsewhere except harmlessly — a collision only ever
+// over-serializes). Transaction-scoped: releases at commit/rollback.
+func (s *TimetableDataService) AcquireSubstituteDayLock(ctx context.Context, date timezone.Date) error {
+	tenantID := tenant.FromContext(ctx)
+	key := fmt.Sprintf("timetable:substitute-day:%d:%s", tenantID, date.String())
+	return repoBase.AcquireXactLock(ctx, s.deps.DB, key)
 }
 
 func (s *TimetableDataService) CountNonAbsentInstanceStaffByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {

@@ -62,6 +62,8 @@ const (
 	// is marked absent and the position is left open.
 	substituteActionMarkedAbsent  = "marked_absent"
 	substituteActionAlreadyAbsent = "already_absent"
+	// Present mode (#1840): a persisted day-wide absence was cleared.
+	substituteActionMarkedPresent = "marked_present"
 )
 
 // AffectedInstance is one row in the affected_instances list of the response.
@@ -137,6 +139,19 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 
 	if rs.TimetableData == nil || rs.PersonService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
+		return
+	}
+
+	// Serialize the whole (tenant, date) before any classification read. A
+	// substitution/absence is day-wide (every same-day block of the absent staff),
+	// so a per-instance lock would let two admins picking different substitutes
+	// for the same employee both classify "no substitute" and each insert one,
+	// leaving two live supervisors on a shared block. The /deviations route takes
+	// the same day lock, so the two endpoints serialize against each other too.
+	// Covers both the substitute path below and the markAbsentOnly branch.
+	// Released automatically when this request's tenant tx commits/rolls back.
+	if err := rs.TimetableData.AcquireSubstituteDayLock(ctx, date); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("lock day failed", err))
 		return
 	}
 

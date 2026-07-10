@@ -67,6 +67,9 @@ type applyDeviationsRequest struct {
 	UnderstaffedNote *string                 `json:"understaffed_note,omitempty"`
 	Absences         []deviationAbsence      `json:"absences,omitempty"`
 	Substitutions    []deviationSubstitution `json:"substitutions,omitempty"`
+	// Presences lists staff to mark present again — clearing a persisted day-wide
+	// absence so an admin who marked the wrong person can correct the plan (#1840).
+	Presences []int64 `json:"presences,omitempty"`
 }
 
 // ApplyDeviationsResponse is the 200 body.
@@ -161,16 +164,20 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 
 	// ==== PHASE A — validate + classify, no writes ====
 
-	// Serialize concurrent saves against this block BEFORE any classification
-	// read. Two admins assigning different substitutes to the same instance would
-	// otherwise both read the pre-write state, classify "no existing substitute",
+	// Serialize concurrent saves for the whole (tenant, date) BEFORE any
+	// classification read. A substitution/absence is day-wide: it touches every
+	// same-day block of the affected staff, not just this one. Locking only this
+	// instance would let two admins editing DIFFERENT blocks of the same absent
+	// employee both read the pre-write state, classify "no existing substitute",
 	// and each insert a substitute row (distinct staff_id slips past the
-	// UNIQUE(instance_id, staff_id) constraint), leaving two live supervisors on
-	// one block. The advisory lock makes the second save block until the first
-	// commits, then re-read and classify the now-present substitute as a conflict.
-	// Released automatically when this request's tenant tx commits/rolls back.
-	if err := rs.TimetableData.AcquireInstanceSubstituteLock(ctx, id); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("lock instance failed", err))
+	// UNIQUE(instance_id, staff_id) constraint), leaving two live supervisors on a
+	// shared block. The /substitute route takes the same day lock, so the two
+	// endpoints also serialize against each other. The second save blocks until
+	// the first commits, then re-reads and classifies the now-present substitute
+	// as a conflict. Released automatically when this request's tenant tx
+	// commits/rolls back.
+	if err := rs.TimetableData.AcquireSubstituteDayLock(ctx, date); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("lock day failed", err))
 		return
 	}
 
@@ -198,12 +205,24 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 		fullAbsent[sub.AbsentStaffID] = true
 	}
 
-	if err := rs.validateDeviationStaff(ctx, req, absenceOnlySet, fullAbsent, date); err != nil {
+	// presences: staff to mark present again (clear a persisted day-wide absence,
+	// #1840). Deduped. The same person cannot be both cleared and (re)marked
+	// absent in one save — validateDeviationStaff rejects the contradiction.
+	presences := dedupePositive(req.Presences)
+	presenceSet := toSet(presences)
+
+	if err := rs.validateDeviationStaff(ctx, req, absenceOnlySet, fullAbsent, presenceSet, date); err != nil {
 		common.RenderError(w, r, err)
 		return
 	}
 
 	absencePlan, rndr := rs.planAbsences(ctx, absenceOnly, date)
+	if rndr != nil {
+		common.RenderError(w, r, rndr)
+		return
+	}
+
+	presencePlan, rndr := rs.planPresences(ctx, presences, date)
 	if rndr != nil {
 		common.RenderError(w, r, rndr)
 		return
@@ -234,7 +253,7 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance staff failed", err))
 		return
 	}
-	projectedPresent := projectedNonAbsentCount(thisRows, fullAbsent, newSubByInstance[id])
+	projectedPresent := projectedNonAbsentCount(thisRows, fullAbsent, presenceSet, newSubByInstance[id])
 	plannedBaseline := 0
 	for _, row := range thisRows {
 		if !row.IsSubstitute {
@@ -263,9 +282,16 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 
 	// ==== PHASE B — apply writes ====
 	now := time.Now()
-	affected := make([]AffectedInstance, 0, len(absencePlan)+len(subPlan))
+	affected := make([]AffectedInstance, 0, len(absencePlan)+len(subPlan)+len(presencePlan))
 	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
 
+	for _, op := range presencePlan {
+		if err := rs.applyPresenceWrite(ctx, op.row, op.instance, activeTouched); err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("clear absence failed", err))
+			return
+		}
+		affected = append(affected, affectedInstanceOf(op.instance, substituteActionMarkedPresent))
+	}
 	for _, op := range absencePlan {
 		if err := rs.applyAbsenceWrite(ctx, op.row, op.instance, absenceReason[op.row.StaffID], activeTouched); err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("mark absent failed", err))
@@ -318,6 +344,16 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 			clearAck[op.op.instance.ID] = true
 		}
 	}
+	// Restoring a staff member on their OTHER same-day blocks can likewise lift
+	// one out of understaffing → clear its now-stale acknowledgement (#1840).
+	for _, op := range presencePlan {
+		if op.instance.ID == id {
+			continue
+		}
+		if op.instance.UnderstaffedAck {
+			clearAck[op.instance.ID] = true
+		}
+	}
 	for instanceID := range clearAck {
 		if err := rs.InstanceService.ClearUnderstaffedAckIfStaffed(ctx, instanceID); err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("clear stale understaffed ack failed", err))
@@ -332,6 +368,7 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 	rs.getLogger().Info("deviations applied",
 		slog.Int64("instance_id", id),
 		slog.Int("absences", len(absencePlan)),
+		slog.Int("presences", len(presencePlan)),
 		slog.Int("substitutions", len(subPlan)),
 		slog.Bool("understaffed_ack", finalAck),
 	)
@@ -365,7 +402,7 @@ type subOp struct {
 func (rs *Resource) validateDeviationStaff(
 	ctx context.Context,
 	req applyDeviationsRequest,
-	absenceOnlySet, fullAbsent map[int64]bool,
+	absenceOnlySet, fullAbsent, presenceSet map[int64]bool,
 	date timezone.Date,
 ) render.Renderer {
 	seen := make(map[int64]bool)
@@ -392,6 +429,16 @@ func (rs *Resource) validateDeviationStaff(
 
 	for id := range absenceOnlySet {
 		if rndr := ensure(id, "absent staff"); rndr != nil {
+			return rndr
+		}
+	}
+	for id := range presenceSet {
+		// A person cannot be marked present and absent (or substituted-away) in the
+		// same save — the two are contradictory day-wide states.
+		if fullAbsent[id] {
+			return common.ErrorInvalidRequest(errors.New("staff cannot be marked present and absent in the same request"))
+		}
+		if rndr := ensure(id, "present staff"); rndr != nil {
 			return rndr
 		}
 	}
@@ -422,6 +469,41 @@ func (rs *Resource) validateDeviationStaff(
 		}
 	}
 	return nil
+}
+
+// presenceOp pairs a currently-absent planned row that should be cleared with
+// its instance, ready for the Phase-B write.
+type presenceOp struct {
+	row      *scheduleModel.InstanceStaff
+	instance *scheduleModel.ActivityInstance
+}
+
+// planPresences loads every to-be-restored staff member's plannable same-day
+// rows that are currently marked absent (day-wide clear, #1840). Substitute rows
+// are left untouched — a substitute is taken out via its own absence, not a
+// presence; and a non-absent row is a no-op.
+func (rs *Resource) planPresences(ctx context.Context, presentStaffIDs []int64, date timezone.Date) ([]presenceOp, render.Renderer) {
+	plan := make([]presenceOp, 0)
+	for _, staffID := range presentStaffIDs {
+		rows, err := rs.TimetableData.GetInstanceStaffByStaffAndDate(ctx, staffID, date)
+		if err != nil {
+			return nil, common.ErrorInternalServerWrap("load present assignments failed", err)
+		}
+		for _, row := range rows {
+			if row.IsSubstitute || !row.IsAbsent {
+				continue // only a persisted planned absence can be cleared
+			}
+			instance, rndr := rs.loadPlannableInstance(ctx, row)
+			if rndr != nil {
+				return nil, rndr
+			}
+			if instance == nil {
+				continue // terminal instance, skip
+			}
+			plan = append(plan, presenceOp{row: row, instance: instance})
+		}
+	}
+	return plan, nil
 }
 
 // planAbsences loads every absent-only staff member's plannable same-day rows.
@@ -582,6 +664,29 @@ func (rs *Resource) applyAbsenceWrite(
 	return nil
 }
 
+// applyPresenceWrite clears a persisted absence on one planned row (day-wide
+// semantics; the caller loops over all same-day rows). Inverse of
+// applyAbsenceWrite (#1840). Live supervision on an already-active block is
+// restored via the live-session tools, not the planner — clearing the plan
+// absence must not silently re-inject a supervisor into a running session — so
+// this only flags the active group so its clients refetch.
+func (rs *Resource) applyPresenceWrite(
+	ctx context.Context,
+	row *scheduleModel.InstanceStaff,
+	instance *scheduleModel.ActivityInstance,
+	activeTouched map[int64]*scheduleModel.ActivityInstance,
+) error {
+	row.IsAbsent = false
+	row.AbsenceReason = nil
+	if err := rs.TimetableData.UpdateInstanceStaff(ctx, row); err != nil {
+		return err
+	}
+	if instance.Status == scheduleModel.InstanceStatusActive && instance.ActiveGroupID != nil {
+		activeTouched[*instance.ActiveGroupID] = instance
+	}
+	return nil
+}
+
 // applySubstituteWrite performs the Phase-B write for one classified substitution
 // op. Shared by /substitute and /deviations so the two paths cannot diverge.
 func (rs *Resource) applySubstituteWrite(
@@ -692,11 +797,16 @@ func projectAbsent(rows []*scheduleModel.InstanceStaff, absent map[int64]bool, o
 
 // projectedNonAbsentCount counts staff that remain non-absent on an instance
 // after the deviation writes: existing non-absent rows whose staff is not being
-// marked absent, plus each newly-added substitute row.
-func projectedNonAbsentCount(rows []*scheduleModel.InstanceStaff, fullAbsent map[int64]bool, newSubs int) int {
+// marked absent, plus rows whose persisted absence is being cleared (presence),
+// plus each newly-added substitute row.
+func projectedNonAbsentCount(rows []*scheduleModel.InstanceStaff, fullAbsent, presence map[int64]bool, newSubs int) int {
 	count := 0
 	for _, row := range rows {
-		if row.IsAbsent || fullAbsent[row.StaffID] {
+		if fullAbsent[row.StaffID] {
+			continue
+		}
+		// Present if not currently absent, or its persisted absence is being cleared.
+		if row.IsAbsent && !presence[row.StaffID] {
 			continue
 		}
 		count++

@@ -520,6 +520,8 @@ export interface ApplyDeviationsInput {
     substituteStaffId: string;
     reason?: string;
   }>;
+  /** Staff to mark present again — clears a persisted day-wide absence (#1840). */
+  presences?: string[];
 }
 
 export interface ApplyDeviationsResponse {

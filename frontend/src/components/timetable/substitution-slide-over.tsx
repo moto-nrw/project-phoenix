@@ -233,7 +233,11 @@ export function SubstitutionSlideOver({
     noteEdited ||
     removedSubs.size > 0 ||
     Object.values(people).some(
-      (p) => (p.absent && !p.wasAbsent) || (p.absent && p.substituteId !== ""),
+      (p) =>
+        (p.absent && !p.wasAbsent) ||
+        (p.absent && p.substituteId !== "") ||
+        // A persisted absence being cleared (marked present again) is a change.
+        (!p.absent && p.wasAbsent),
     );
 
   async function handleSubmit(event: React.FormEvent) {
@@ -262,6 +266,8 @@ export function SubstitutionSlideOver({
       const absences: NonNullable<ApplyDeviationsInput["absences"]> = [];
       const substitutions: NonNullable<ApplyDeviationsInput["substitutions"]> =
         [];
+      // Persisted absences the admin cleared — mark them present again (#1840).
+      const presences: NonNullable<ApplyDeviationsInput["presences"]> = [];
 
       // Removed substitutes are marked absent day-wide, which frees the block so
       // the replacement below no longer conflicts with the old substitute.
@@ -279,12 +285,16 @@ export function SubstitutionSlideOver({
           });
         } else if (newlyAbsent) {
           absences.push({ staffId, reason });
+        } else if (!p.absent && p.wasAbsent) {
+          // Was absent in the DB, now marked present → clear the day-wide absence.
+          presences.push(staffId);
         }
       }
 
       const input: ApplyDeviationsInput = {};
       if (absences.length > 0) input.absences = absences;
       if (substitutions.length > 0) input.substitutions = substitutions;
+      if (presences.length > 0) input.presences = presences;
 
       // "Bewusst unbesetzt" only holds while the block stays understaffed after
       // the save. isUnderstaffed forces it off if the block ends up fully
@@ -429,7 +439,11 @@ export function SubstitutionSlideOver({
                                   <UserMinus className="mr-1.5 h-4 w-4" />
                                   Abwesend
                                 </Button>
-                              ) : p.wasAbsent ? null : (
+                              ) : (
+                                // Both a freshly-marked absence and a persisted
+                                // one (wasAbsent) can be undone: the persisted
+                                // case clears the saved absence day-wide so a
+                                // wrongly-marked person can be corrected (#1840).
                                 <Button
                                   type="button"
                                   variant="ghost"
@@ -442,7 +456,9 @@ export function SubstitutionSlideOver({
                                   }
                                 >
                                   <RotateCcw className="mr-1.5 h-4 w-4" />
-                                  Rückgängig
+                                  {p.wasAbsent
+                                    ? "Anwesend melden"
+                                    : "Rückgängig"}
                                 </Button>
                               )}
                             </div>

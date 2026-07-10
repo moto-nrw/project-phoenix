@@ -174,9 +174,6 @@ func (r *autoStartStaffRepo) DeleteByInstanceID(context.Context, int64) error {
 func (r *autoStartStaffRepo) DeleteUpcomingByStaffID(context.Context, int64, timezone.Date) (int64, error) {
 	return 0, nil
 }
-func (r *autoStartStaffRepo) AcquireInstanceSubstituteLock(context.Context, int64) error {
-	return nil
-}
 
 type autoStartInstanceStarter struct {
 	startedIDs        []int64

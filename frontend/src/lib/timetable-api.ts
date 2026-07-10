@@ -653,6 +653,9 @@ class TimetableService {
           reason: s.reason ?? undefined,
         }));
       }
+      if (input.presences && input.presences.length > 0) {
+        body.presences = input.presences.map((staffId) => Number(staffId));
+      }
     }
 
     const response = await fetch(
