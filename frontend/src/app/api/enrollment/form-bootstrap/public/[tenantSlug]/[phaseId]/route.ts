@@ -9,15 +9,19 @@ import {
 } from "~/lib/client-headers.server";
 
 const logger = createLogger({ component: "EnrollmentFormBootstrapRoute" });
-const parentsHostAuthority = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
-if (!parentsHostAuthority) {
-  throw new Error("NEXT_PUBLIC_PARENTS_HOSTNAME is not set.");
-}
-const parentsHostname = hostnameFromAuthority(parentsHostAuthority);
-if (!parentsHostname) {
-  throw new Error(
-    "NEXT_PUBLIC_PARENTS_HOSTNAME is not a valid host authority.",
-  );
+
+function configuredParentsHostname(): string {
+  const authority = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
+  if (!authority) {
+    throw new Error("NEXT_PUBLIC_PARENTS_HOSTNAME is not set.");
+  }
+  const hostname = hostnameFromAuthority(authority);
+  if (!hostname) {
+    throw new Error(
+      "NEXT_PUBLIC_PARENTS_HOSTNAME is not a valid host authority.",
+    );
+  }
+  return hostname;
 }
 
 interface RouteContext {
@@ -26,6 +30,10 @@ interface RouteContext {
 
 export async function GET(request: NextRequest, context: RouteContext) {
   const { tenantSlug, phaseId } = await context.params;
+  // Runtime env validation normally rejects this during application startup.
+  // Keep the route independently fail-closed when build tooling explicitly
+  // skips env validation while collecting route metadata.
+  const parentsHostname = configuredParentsHostname();
   try {
     const requestHostname = hostnameFromAuthority(
       getOriginalRequestHost(request),
