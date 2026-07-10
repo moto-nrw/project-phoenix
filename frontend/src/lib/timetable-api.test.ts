@@ -664,4 +664,346 @@ describe("timetableService", () => {
       httpStatus: 502,
     });
   });
+
+  it("passes an optional cancel reason through the lifecycle body (#1840)", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { instance_id: 42, status: "cancelled" } }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { instance_id: 42, status: "cancelled" } }),
+      );
+
+    await timetableService.cancel("42", "Ausflug");
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/timetable/instances/42/cancel",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ reason: "Ausflug" }),
+      }),
+    );
+
+    await timetableService.cancel("42");
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/timetable/instances/42/cancel",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({}),
+      }),
+    );
+  });
+
+  it("sends an optional reason with a substitute (#1840)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          absent_staff_id: 11,
+          substitute_staff_id: 12,
+          date: "2026-05-04",
+          affected_instances: [],
+          warnings: [],
+        },
+      }),
+    );
+
+    await timetableService.substitute("11", "12", "2026-05-04", "krank");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/substitute",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          absent_staff_id: 11,
+          substitute_staff_id: 12,
+          date: "2026-05-04",
+          reason: "krank",
+        }),
+      }),
+    );
+  });
+
+  it("marks a staff member absent for the day without a substitute (#1840)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          absent_staff_id: 11,
+          substitute_staff_id: 0,
+          date: "2026-05-04",
+          affected_instances: [
+            {
+              instance_id: 42,
+              title: "Mensa",
+              start_time: "12:00",
+              action: "marked_absent",
+            },
+          ],
+          warnings: [],
+        },
+      }),
+    );
+
+    await expect(
+      timetableService.markAbsent("11", "2026-05-04", "krank"),
+    ).resolves.toMatchObject({
+      absentStaffId: "11",
+      affectedInstances: [{ instanceId: "42", action: "marked_absent" }],
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/substitute",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          absent_staff_id: 11,
+          date: "2026-05-04",
+          reason: "krank",
+        }),
+      }),
+    );
+  });
+
+  it("flips the understaffed acknowledgement (#1840)", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            instance_id: 42,
+            status: "planned",
+            understaffed_ack: true,
+            understaffed_note: "keine Vertretung",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            instance_id: 42,
+            status: "planned",
+            understaffed_ack: false,
+            understaffed_note: null,
+          },
+        }),
+      );
+
+    await expect(
+      timetableService.acknowledgeUnderstaffed("42", true, "keine Vertretung"),
+    ).resolves.toMatchObject({
+      instanceId: "42",
+      understaffedAck: true,
+      understaffedNote: "keine Vertretung",
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/timetable/instances/42/acknowledge-understaffed",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ ack: true, note: "keine Vertretung" }),
+      }),
+    );
+
+    await timetableService.acknowledgeUnderstaffed("42", false);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/timetable/instances/42/acknowledge-understaffed",
+      expect.objectContaining({
+        body: JSON.stringify({ ack: false }),
+      }),
+    );
+  });
+
+  it("applies a cancel-only deviation, ignoring the other edits (#1840)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          instance_id: 42,
+          cancelled: true,
+          understaffed_ack: false,
+          affected_instances: [],
+          warnings: [],
+        },
+      }),
+    );
+
+    await expect(
+      timetableService.applyDeviations("42", {
+        cancel: true,
+        cancelReason: "Ausflug",
+        understaffedAck: true,
+        absences: [{ staffId: "11" }],
+      }),
+    ).resolves.toMatchObject({ instanceId: "42", cancelled: true });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/instances/42/deviations",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ cancel: true, cancel_reason: "Ausflug" }),
+      }),
+    );
+  });
+
+  it("serializes a full deviation save into one wire body (#1840)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          instance_id: 42,
+          cancelled: false,
+          understaffed_ack: true,
+          affected_instances: [
+            {
+              instance_id: 42,
+              title: "Mensa",
+              start_time: "12:00",
+              action: "substituted",
+            },
+          ],
+          warnings: [],
+        },
+      }),
+    );
+
+    await expect(
+      timetableService.applyDeviations("42", {
+        understaffedAck: true,
+        understaffedNote: "Rest offen",
+        absences: [{ staffId: "11", reason: "krank" }, { staffId: "13" }],
+        substitutions: [
+          {
+            absentStaffId: "11",
+            substituteStaffId: "12",
+            reason: "springt ein",
+          },
+        ],
+        presences: ["14", "15"],
+      }),
+    ).resolves.toMatchObject({
+      instanceId: "42",
+      understaffedAck: true,
+      affectedInstances: [{ instanceId: "42", action: "substituted" }],
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/instances/42/deviations",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          understaffed_ack: true,
+          understaffed_note: "Rest offen",
+          absences: [{ staff_id: 11, reason: "krank" }, { staff_id: 13 }],
+          substitutions: [
+            {
+              absent_staff_id: 11,
+              substitute_staff_id: 12,
+              reason: "springt ein",
+            },
+          ],
+          presences: [14, 15],
+        }),
+      }),
+    );
+  });
+
+  it("omits the understaffed note when clearing the acknowledgement (#1840)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          instance_id: 42,
+          cancelled: false,
+          understaffed_ack: false,
+          affected_instances: [],
+          warnings: [],
+        },
+      }),
+    );
+
+    await timetableService.applyDeviations("42", {
+      understaffedAck: false,
+      understaffedNote: "sollte nicht gesendet werden",
+      absences: [],
+      substitutions: [],
+      presences: [],
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/instances/42/deviations",
+      expect.objectContaining({
+        body: JSON.stringify({ understaffed_ack: false }),
+      }),
+    );
+  });
+
+  it("marks absent without a reason and omits it from the body (#1840)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          absent_staff_id: 11,
+          substitute_staff_id: 0,
+          date: "2026-05-04",
+          affected_instances: [],
+          warnings: [],
+        },
+      }),
+    );
+
+    await timetableService.markAbsent("11", "2026-05-04");
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/substitute",
+      expect.objectContaining({
+        body: JSON.stringify({ absent_staff_id: 11, date: "2026-05-04" }),
+      }),
+    );
+  });
+
+  it("cancels via deviations without a reason and with substitutions lacking one (#1840)", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            instance_id: 42,
+            cancelled: true,
+            understaffed_ack: false,
+            affected_instances: [],
+            warnings: [],
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            instance_id: 42,
+            cancelled: false,
+            understaffed_ack: false,
+            affected_instances: [],
+            warnings: [],
+          },
+        }),
+      );
+
+    // cancel without a reason → cancel_reason is omitted.
+    await timetableService.applyDeviations("42", { cancel: true });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/timetable/instances/42/deviations",
+      expect.objectContaining({ body: JSON.stringify({ cancel: true }) }),
+    );
+
+    // No understaffedAck field, absence and substitution without a reason.
+    await timetableService.applyDeviations("42", {
+      absences: [{ staffId: "11" }],
+      substitutions: [{ absentStaffId: "11", substituteStaffId: "12" }],
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/timetable/instances/42/deviations",
+      expect.objectContaining({
+        body: JSON.stringify({
+          absences: [{ staff_id: 11 }],
+          substitutions: [{ absent_staff_id: 11, substitute_staff_id: 12 }],
+        }),
+      }),
+    );
+  });
 });

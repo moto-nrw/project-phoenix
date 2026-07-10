@@ -249,13 +249,15 @@ func deleteUnitInstance(id int64, groupID *int64, date timezone.Date, status str
 
 type deleteUnitInstanceRepo struct {
 	scheduleModel.ActivityInstanceRepository
-	instance     *scheduleModel.ActivityInstance
-	findErr      error
-	sameDayRows  []*scheduleModel.ActivityInstance
-	sameDayErr   error
-	sameDayCalls int
-	deleteErr    error
-	deleted      []int64
+	instance         *scheduleModel.ActivityInstance
+	findErr          error
+	sameDayRows      []*scheduleModel.ActivityInstance
+	sameDayErr       error
+	sameDayCalls     int
+	deleteErr        error
+	deleted          []int64
+	updatedColumns   [][]string
+	updateColumnsErr error
 }
 
 type startGuardRoomRepo struct {

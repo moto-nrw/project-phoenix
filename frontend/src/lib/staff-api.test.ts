@@ -205,6 +205,60 @@ describe("staff-api", () => {
       );
     });
 
+    it("appends the strict flag to the base URL (#1840)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([sampleBackendStaff]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([]),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      await staffService.getAllStaff(undefined, { strict: true });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff?strict=1",
+        expect.any(Object),
+      );
+    });
+
+    it("appends the strict flag after an existing search query (#1840)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+
+      mockFetch.mockImplementation((url: string) => {
+        if (url.includes("/api/staff")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([sampleBackendStaff]),
+          } as Response);
+        }
+        if (url.includes("/api/active/groups")) {
+          return Promise.resolve({
+            ok: true,
+            json: () => Promise.resolve([]),
+          } as Response);
+        }
+        return Promise.reject(new Error(`Unexpected URL: ${url}`));
+      });
+
+      await staffService.getAllStaff({ search: "Max" }, { strict: true });
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff?search=Max&strict=1",
+        expect.any(Object),
+      );
+    });
+
     it("filters staff by supervising status", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
 
