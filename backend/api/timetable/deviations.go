@@ -274,7 +274,40 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 			note = trimReason(req.UnderstaffedNote)
 		}
 		if _, err := rs.InstanceService.SetUnderstaffedAck(ctx, id, finalAck, note); err != nil {
+			// A concurrent cancel or full-staffing of THIS instance between Phase A
+			// and here makes SetUnderstaffedAck return a 4xx after the absence and
+			// substitute writes above already succeeded. TenantTxMiddleware commits
+			// non-5xx responses unless we ask otherwise, so without this the
+			// endpoint would report a failed atomic save while committing those
+			// earlier writes. Force the whole tx to roll back before rendering.
+			tenant.MarkRollback(ctx)
 			renderInstanceLifecycleError(w, r, err)
+			return
+		}
+	}
+
+	// Reconcile stale acknowledgements on the OTHER instances this save covered.
+	// When the absent person had several same-day blocks, the substitute was
+	// added to each; any of those that carried a "deliberately unstaffed"
+	// acknowledgement and is now fully staffed must have that stale ack cleared,
+	// or it stays amber while /gaps counts it staffed and its ack checkbox is
+	// disabled (fully staffed), leaving no UI path to clear it (#1840). The
+	// selected block's ack is handled explicitly above, so skip it here. Mirrors
+	// /substitute's clearAck pass; runs in the same tenant tx and only ever
+	// clears (a DB error renders 500 → the middleware rolls back).
+	clearAck := make(map[int64]bool)
+	for _, op := range subPlan {
+		if op.op.instance.ID == id {
+			continue
+		}
+		if op.op.instance.UnderstaffedAck &&
+			(op.op.action == substituteActionSubstituted || op.op.action == substituteActionAlreadyOnInstance) {
+			clearAck[op.op.instance.ID] = true
+		}
+	}
+	for instanceID := range clearAck {
+		if err := rs.InstanceService.ClearUnderstaffedAckIfStaffed(ctx, instanceID); err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("clear stale understaffed ack failed", err))
 			return
 		}
 	}

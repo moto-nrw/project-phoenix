@@ -17,7 +17,7 @@
 import { Plus, RotateCcw, UserMinus } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { formatDate, todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { getActivityTypeBadge, getStatusLabel } from "~/lib/timetable-helpers";
 import type {
   ApplyDeviationsInput,
@@ -105,7 +105,10 @@ export function SubstitutionSlideOver({
   // today ("block date is in the past"). The page can browse past weeks, so
   // gate editing on the date too — otherwise we'd offer a save that always
   // 400s (#1840). Today itself is still editable (backend allows date == today).
-  const isPast = (instance?.date ?? "") < todayISO();
+  // Use the school (Berlin) calendar date, not the browser's: the backend
+  // compares against timezone.TodayDate() (always Berlin), so a browser in
+  // another timezone must not decide "past" on its own local day (#1840).
+  const isPast = (instance?.date ?? "") < berlinTodayISO();
   const canEdit =
     !isPast &&
     (instance?.status === "planned" || instance?.status === "active");

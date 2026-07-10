@@ -283,3 +283,91 @@ func TestApplyDeviations_PastBlock_Rejected(t *testing.T) {
 	})
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 }
+
+// When the absent person has several same-day blocks, the substitute is added to
+// each; a DIFFERENT (non-selected) block that was flagged "deliberately
+// unstaffed" and is now covered must have its stale acknowledgement reconciled
+// too — not only the selected block (#1840). The selected block here is never
+// acked, so the only ack touched must be the OTHER block's.
+func TestApplyDeviations_ClearsStaleAckOnOtherBlocks(t *testing.T) {
+	s := buildDevSetup(t)
+	router := devRouter(s.ctx, s.res)
+	_, date := futureSubDate(1)
+
+	selected := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Selected"})
+	other := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Other"})
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", selected.ID, other.ID)
+	})
+	// The other block was legitimately all-absent when acked.
+	setUnderstaffedAckFixture(t, s.db, s.ctx, other.ID)
+
+	rowSel := testpkg.CreateTestInstanceStaff(t, s.db, selected.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	rowOther := testpkg.CreateTestInstanceStaff(t, s.db, other.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowSel.ID, rowOther.ID) })
+
+	// Substituting Y for A is day-wide → covers BOTH blocks in one save.
+	w := doDev(t, router, selected.ID, map[string]any{
+		"substitutions": []map[string]any{{"absent_staff_id": s.staffA, "substitute_staff_id": s.staffY}},
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	assert.Equal(t, other.ID, s.mock.lastClearAckID, "stale ack on the OTHER covered block must be reconciled")
+	assert.Zero(t, s.mock.lastAckID, "the selected block was never acked, so no explicit ack write")
+
+	var newSubIDs []int64
+	for _, instID := range []int64{selected.ID, other.ID} {
+		for _, r := range devInstanceStaff(t, s.db, s.ctx, instID) {
+			if r.StaffID == s.staffY {
+				newSubIDs = append(newSubIDs, r.ID)
+			}
+		}
+	}
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
+}
+
+// ackRouter wires the standalone acknowledge-understaffed handler with the same
+// real TimetableData facade + tenant middleware as devRouter, so the date guard
+// (which loads the instance) is exercised end to end.
+func ackRouter(parentCtx context.Context, res *Resource) chi.Router {
+	tenantID := tenant.FromContext(parentCtx)
+	r := chi.NewRouter()
+	r.Use(render.SetContentType(render.ContentTypeJSON))
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			ctx := tenant.WithTenantID(req.Context(), tenantID)
+			next.ServeHTTP(w, req.WithContext(ctx))
+		})
+	})
+	r.Post("/instances/{id}/acknowledge-understaffed", res.acknowledgeUnderstaffed)
+	return r
+}
+
+func doAck(t *testing.T, router chi.Router, instanceID int64, body any) *httptest.ResponseRecorder {
+	t.Helper()
+	raw, err := json.Marshal(body)
+	require.NoError(t, err)
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/instances/%d/acknowledge-understaffed", instanceID), bytes.NewReader(raw))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	return w
+}
+
+// The standalone /acknowledge-understaffed endpoint must reject a past block just
+// like /deviations does. A materialized past occurrence can still be
+// planned/active, so a status-only check would let a historical staffing record
+// be rewritten through this public endpoint (#1840).
+func TestAcknowledgeUnderstaffed_PastBlock_Rejected(t *testing.T) {
+	s := buildDevSetup(t)
+	router := ackRouter(s.ctx, s.res)
+	past := timezone.TodayDate().AddDays(-1)
+
+	inst := testpkg.CreateTestActivityInstance(t, s.db, past, s.roomID, testpkg.ActivityInstanceOpts{Title: "PastAck"})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+
+	w := doAck(t, router, inst.ID, map[string]any{"ack": true})
+	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), "past")
+	assert.Zero(t, s.mock.lastAckID, "service must not be reached for a past block")
+}

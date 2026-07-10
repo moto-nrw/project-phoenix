@@ -16,6 +16,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // understaffedAckRequest is the POST body shape. Note is trimmed to the same
@@ -73,6 +75,30 @@ func (rs *Resource) acknowledgeUnderstaffed(w http.ResponseWriter, r *http.Reque
 			req.Note = nil
 		} else if utf8.RuneCountInString(*req.Note) > understaffedAckNoteMaxLength {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("note is too long")))
+			return
+		}
+	}
+
+	// Past blocks are historical record and read-only, exactly as on the
+	// /deviations flow (which guards the same way, mirrors /substitute and
+	// /gaps). Status alone is insufficient: a materialized past occurrence can
+	// still be "planned"/"active", so the service's status-only check would
+	// otherwise let a historical staffing record be rewritten (set OR cleared)
+	// through this public endpoint. Gate on the Berlin calendar date. The nil
+	// check only keeps the mock-based handler unit tests (which inject no data
+	// service) working — TimetableData is always wired in production.
+	if rs.TimetableData != nil {
+		instance, err := rs.TimetableData.GetActivityInstance(r.Context(), id)
+		if err != nil {
+			if base.IsNoRows(err) {
+				common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+				return
+			}
+			common.RenderError(w, r, common.ErrorInternalServerWrap("load instance failed", err))
+			return
+		}
+		if instance != nil && instance.Date.Before(timezone.TodayDate()) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("block date is in the past")))
 			return
 		}
 	}

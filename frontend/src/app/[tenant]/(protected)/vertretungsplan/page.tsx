@@ -89,7 +89,13 @@ function VertretungsplanContent() {
     () =>
       view === "day"
         ? getWeekRange(parseISODate(dayISO), 0)
-        : getWeekRange(new Date(), weekOffset),
+        : // Anchor the week view to the school (Berlin) calendar date, not the
+          // browser's local `new Date()`. When the browser and Berlin fall in
+          // different ISO weeks around midnight (e.g. Sunday evening in New York
+          // after Berlin has reached Monday), a raw `new Date()` would anchor to
+          // the browser's previous week even though dayISO, gap clamping, and the
+          // backend all use Berlin — fetching and showing the wrong week (#1840).
+          getWeekRange(parseISODate(berlinTodayISO()), weekOffset),
     [view, dayISO, weekOffset],
   );
   const fromISO = toISODate(range.from);
