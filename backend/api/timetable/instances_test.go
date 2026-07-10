@@ -48,10 +48,12 @@ type mockInstanceService struct {
 	updateErr        error
 	ackRes           *scheduleModel.ActivityInstance
 	ackErr           error
+	clearAckErr      error
 	lastCancelReason *string
 	lastAckID        int64
 	lastAckValue     bool
 	lastAckNote      *string
+	lastClearAckID   int64
 	lastStartID      int64
 	lastStartedBy    int64
 	lastFrom         timezone.Date
@@ -101,6 +103,11 @@ func (m *mockInstanceService) SetUnderstaffedAck(_ context.Context, instanceID i
 		return nil, m.ackErr
 	}
 	return m.ackRes, nil
+}
+
+func (m *mockInstanceService) ClearUnderstaffedAckIfStaffed(_ context.Context, instanceID int64) error {
+	m.lastClearAckID = instanceID
+	return m.clearAckErr
 }
 
 func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Date, activityGroupID *int64) (*scheduleSvc.ReplanWeekResult, error) {

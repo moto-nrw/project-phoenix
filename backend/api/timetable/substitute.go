@@ -313,11 +313,14 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	// Clearing the acknowledgement has no precondition (SetUnderstaffedAck allows
-	// ack=false unconditionally) and runs in this same tenant tx.
+	// Clearing the acknowledgement RECOMPUTES coverage first: a single
+	// replacement on a block with several open positions can still leave
+	// present < planned, so the service only clears the flag when the block is
+	// no longer understaffed. Otherwise partial coverage would silently reopen
+	// an intentionally acknowledged gap (#1840). Runs in this same tenant tx.
 	if rs.InstanceService != nil {
 		for instanceID := range clearAck {
-			if _, err := rs.InstanceService.SetUnderstaffedAck(ctx, instanceID, false, nil); err != nil {
+			if err := rs.InstanceService.ClearUnderstaffedAckIfStaffed(ctx, instanceID); err != nil {
 				common.RenderError(w, r, common.ErrorInternalServerWrap("clear stale understaffed ack failed", err))
 				return
 			}

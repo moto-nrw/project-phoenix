@@ -205,6 +205,9 @@ func (s *autoStartInstanceStarter) DeleteCancelled(context.Context, int64) error
 func (s *autoStartInstanceStarter) SetUnderstaffedAck(context.Context, int64, bool, *string) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
+func (s *autoStartInstanceStarter) ClearUnderstaffedAckIfStaffed(context.Context, int64) error {
+	return nil
+}
 func (s *autoStartInstanceStarter) ReplanWeek(context.Context, timezone.Date, timezone.Date, *int64) (*ReplanWeekResult, error) {
 	return nil, nil
 }
@@ -233,7 +236,7 @@ func (r *autoStartInstanceRepo) DeleteOlderThan(context.Context, string, timezon
 	return 0, nil
 }
 
-func (r *autoStartInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64) (int64, error) {
+func (r *autoStartInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64, bool) (int64, error) {
 	return 0, nil
 }
 

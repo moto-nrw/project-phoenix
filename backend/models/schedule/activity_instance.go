@@ -147,8 +147,10 @@ type ActivityInstanceRepository interface {
 	// effective date regardless of the materialization window.
 	// activityGroupID narrows the delete to one template's instances; nil
 	// deletes across all templates. Used by ReplanWeek and the template
-	// split (WP-B3).
-	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64) (int64, error)
+	// split (WP-B3). preserveDeviations keeps Vertretungsplan overrides
+	// (#1840): true for re-plan, false for the destructive template
+	// split/end series operation — see the implementation for why.
+	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64, preserveDeviations bool) (int64, error)
 
 	// UpdateColumns is the generic partial-update helper promoted from the
 	// embedded base repository: updates only the named columns by primary

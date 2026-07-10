@@ -675,9 +675,10 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_Preserve
 	require.NoError(t, err)
 
 	to := date
-	deleted, err := repo.DeletePlannedNonSpontaneousInWindow(ctx, date, &to, nil)
+	// preserveDeviations=true (re-plan semantics): deviated instances survive.
+	deleted, err := repo.DeletePlannedNonSpontaneousInWindow(ctx, date, &to, nil, true)
 	require.NoError(t, err)
-	assert.Equal(t, int64(1), deleted, "only the non-deviated instance is deleted")
+	assert.EqualValues(t, 1, deleted, "only the non-deviated instance is deleted")
 
 	_, err = repo.FindByID(ctx, plain.ID)
 	assert.True(t, modelBase.IsNoRows(err), "plain instance must be deleted")
@@ -689,4 +690,49 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_Preserve
 	gotAck, err := repo.FindByID(ctx, ackDev.ID)
 	require.NoError(t, err, "acknowledged-shortfall instance must be preserved")
 	assert.True(t, gotAck.UnderstaffedAck)
+}
+
+// #1840: the template split/end series operation passes preserveDeviations=false
+// and must HARD-DELETE deviated rows too — otherwise "end this and all
+// following" leaves the series partly alive, and a split leaves a duplicate old
+// block next to the materialized successor.
+func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_HardDeleteIgnoresDeviations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	fx := newActivityInstanceFixtures(t, db, "dev-harddelete")
+	defer fx.cleanup()
+
+	date := timezone.NewDate(2026, 9, 28)
+
+	// A deviated instance: acknowledged shortfall AND an absent staff row.
+	dev := buildInstance(1, fx.roomID, &fx.activityID, date,
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), "DevHard")
+	require.NoError(t, repo.Create(ctx, dev))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", dev.ID)
+	staff := testpkg.CreateTestStaff(t, db, "DevH", fmt.Sprintf("%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
+	staffRow := testpkg.CreateTestInstanceStaff(t, db, dev.ID, staff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	defer testpkg.CleanupInstanceStaffFixtures(t, db, staffRow.ID)
+	_, err := db.NewUpdate().
+		Model((*scheduleModels.ActivityInstance)(nil)).
+		ModelTableExpr(`schedule.activity_instances`).
+		Set("understaffed_ack = ?", true).
+		Where("id = ?", dev.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	to := date
+	// preserveDeviations=false (split/end semantics): deviated rows are deleted.
+	deleted, err := repo.DeletePlannedNonSpontaneousInWindow(ctx, date, &to, nil, false)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, deleted, "the deviated instance is hard-deleted")
+
+	_, err = repo.FindByID(ctx, dev.ID)
+	assert.True(t, modelBase.IsNoRows(err),
+		"deviated instance must be deleted by the destructive series operation")
 }

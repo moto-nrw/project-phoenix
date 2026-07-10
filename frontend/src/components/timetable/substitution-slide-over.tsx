@@ -17,7 +17,7 @@
 import { Plus, RotateCcw, UserMinus } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { formatDate } from "~/lib/date-helpers";
+import { formatDate, todayISO } from "~/lib/date-helpers";
 import { getActivityTypeBadge, getStatusLabel } from "~/lib/timetable-helpers";
 import type {
   ApplyDeviationsInput,
@@ -67,8 +67,13 @@ interface SubstitutionSlideOverProps {
    * Applies the ENTIRE form (absences, substitute, understaffed
    * acknowledgement, cancel) in one atomic backend call (#1840). The slide-over
    * no longer sequences independent mutations that could half-commit.
+   *
+   * Resolves `true` when the save committed and the slide-over may close,
+   * `false` when it failed (403/409/500/network) so the form stays open with
+   * the user's edits intact for a retry. It must NOT reject — the caller
+   * surfaces the error as a toast and returns false.
    */
-  onApply: (input: ApplyDeviationsInput) => Promise<void>;
+  onApply: (input: ApplyDeviationsInput) => Promise<boolean>;
 }
 
 // Per-planned-person edit state.
@@ -95,8 +100,15 @@ export function SubstitutionSlideOver({
   onClose,
   onApply,
 }: SubstitutionSlideOverProps) {
+  // A materialized past occurrence can still carry status "planned"/"active",
+  // but the backend rejects every deviation on a block whose date is before
+  // today ("block date is in the past"). The page can browse past weeks, so
+  // gate editing on the date too — otherwise we'd offer a save that always
+  // 400s (#1840). Today itself is still editable (backend allows date == today).
+  const isPast = (instance?.date ?? "") < todayISO();
   const canEdit =
-    instance?.status === "planned" || instance?.status === "active";
+    !isPast &&
+    (instance?.status === "planned" || instance?.status === "active");
 
   const plannedStaff = (instance?.staff ?? []).filter((s) => !s.isSubstitute);
   const substitutes = (instance?.staff ?? []).filter((s) => s.isSubstitute);
@@ -230,11 +242,13 @@ export function SubstitutionSlideOver({
       // every other field, mirroring the UI where "Block absagen" disables the
       // rest of the form.
       if (cancel) {
-        await onApply({
+        const ok = await onApply({
           cancel: true,
           cancelReason: cancelReason.trim() || undefined,
         });
-        onClose();
+        // Only close on a committed save — a failed cancel keeps the form open
+        // so the edits survive for a retry (#1840).
+        if (ok) onClose();
         return;
       }
 
@@ -281,8 +295,9 @@ export function SubstitutionSlideOver({
         }
       }
 
-      await onApply(input);
-      onClose();
+      // Keep the slide-over open (edits preserved) unless the save committed.
+      const ok = await onApply(input);
+      if (ok) onClose();
     } finally {
       setSaving(false);
     }

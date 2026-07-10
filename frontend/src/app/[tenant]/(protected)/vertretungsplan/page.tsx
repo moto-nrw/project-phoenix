@@ -282,9 +282,9 @@ function VertretungsplanContent() {
   // mutations that could half-commit. Cache refresh runs AFTER the committed
   // mutation and cannot revert its success.
   const handleApply = useCallback(
-    async (input: ApplyDeviationsInput) => {
+    async (input: ApplyDeviationsInput): Promise<boolean> => {
       const instance = selectedInstance;
-      if (!instance) return;
+      if (!instance) return false;
       try {
         const result = await timetableService.applyDeviations(
           instance.id,
@@ -306,19 +306,20 @@ function VertretungsplanContent() {
             );
           }
         }
+        return true;
       } catch (err) {
-        // Consume the failure here: it is already logged and surfaced as a
-        // toast. The slide-over stays open on its own — its handleSubmit only
-        // calls onClose after a resolved onApply, so a rejection never closes
-        // it. Rethrowing would instead bubble past the form's `void
-        // handleSubmit(e)` as an unhandled promise rejection (dev overlay /
-        // monitoring noise) without changing the retry behaviour.
+        // Signal failure to the slide-over (return false, don't rethrow) so it
+        // keeps the form OPEN with the user's edits for a retry (#1840).
+        // Returning instead of throwing avoids an unhandled promise rejection
+        // bubbling past the form's `void handleSubmit(e)`. The error is already
+        // surfaced below as a toast.
         logger.error("apply_deviations_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         toast.error(
           err instanceof Error ? err.message : "Speichern fehlgeschlagen",
         );
+        return false;
       } finally {
         // Runs on both success and failure; non-throwing (see revalidate).
         await revalidate();

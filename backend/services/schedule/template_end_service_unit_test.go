@@ -100,6 +100,10 @@ func TestTemplateEndFromDate_ReturnsSummaryAndDeletesOpenEndedWindow(t *testing.
 	assert.Equal(t, group.ID, *instanceRepo.activityGroupID)
 	assert.Equal(t, future, instanceRepo.from)
 	assert.Nil(t, instanceRepo.to)
+	// #1840: ending a series is destructive — it must hard-delete deviated
+	// rows too, so preservation is OFF.
+	assert.False(t, instanceRepo.preserveDeviations,
+		"template end must NOT preserve deviations (destructive series delete)")
 }
 
 func TestTemplateEndFromDate_ErrorBranches(t *testing.T) {
@@ -272,17 +276,19 @@ func (r *templateEndUnitSupervisorRepo) CapActiveByGroup(_ context.Context, grou
 
 type templateEndUnitInstanceRepo struct {
 	scheduleModel.ActivityInstanceRepository
-	deleted         int64
-	err             error
-	from            timezone.Date
-	to              *timezone.Date
-	activityGroupID *int64
+	deleted            int64
+	err                error
+	from               timezone.Date
+	to                 *timezone.Date
+	activityGroupID    *int64
+	preserveDeviations bool
 }
 
-func (r *templateEndUnitInstanceRepo) DeletePlannedNonSpontaneousInWindow(_ context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64) (int64, error) {
+func (r *templateEndUnitInstanceRepo) DeletePlannedNonSpontaneousInWindow(_ context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64, preserveDeviations bool) (int64, error) {
 	r.from = from
 	r.to = to
 	r.activityGroupID = activityGroupID
+	r.preserveDeviations = preserveDeviations
 	if r.err != nil {
 		return 0, r.err
 	}

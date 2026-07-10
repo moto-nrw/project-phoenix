@@ -97,6 +97,11 @@ type InstanceService interface {
 	// gap detection stops reporting an intentionally-open position. Rejected on
 	// completed/cancelled instances with ErrInvalidInstanceTransition.
 	SetUnderstaffedAck(ctx context.Context, instanceID int64, ack bool, note *string) (*scheduleModel.ActivityInstance, error)
+	// ClearUnderstaffedAckIfStaffed clears a lingering "deliberately unstaffed"
+	// acknowledgement only when the instance's current staff rows leave it fully
+	// staffed (present >= planned). Used by the /substitute flow after adding
+	// coverage so partial coverage never reopens an acknowledged gap (#1840).
+	ClearUnderstaffedAckIfStaffed(ctx context.Context, instanceID int64) error
 	// ReplanWeek deletes planned non-spontaneous instances in [from, to] and
 	// re-materializes. A non-nil activityGroupID restricts the delete to one
 	// template's instances; nil re-plans the whole grid.
@@ -625,27 +630,56 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 		return nil, err
 	}
 
-	// Vertretungsplan integrity (#1840): "deliberately unstaffed" only holds
-	// while nobody is covering the block. If this edit (re)introduced non-absent
-	// staff, a lingering acknowledgement would leave the card amber and claim the
-	// block is intentionally empty while /gaps excludes it because it is staffed.
-	// Clear the stale acknowledgement so the two views cannot contradict — the
-	// same invariant SetUnderstaffedAck enforces at set time.
-	if instance.UnderstaffedAck {
-		counts, err := s.deps.InstanceStaffRepo.CountNonAbsentByInstanceIDs(ctx, []int64{instance.ID})
-		if err != nil {
-			return nil, &ScheduleError{Op: "update instance: recount staff", Err: err}
-		}
-		if counts[instance.ID] > 0 {
-			instance.UnderstaffedAck = false
-			instance.UnderstaffedNote = nil
-			if err := s.updateLifecycleColumns(ctx, instance, "understaffed_ack", "understaffed_note"); err != nil {
-				return nil, &ScheduleError{Op: "update instance: clear stale ack", Err: err}
-			}
-		}
+	// Vertretungsplan integrity (#1840): a lingering "deliberately unstaffed"
+	// acknowledgement must be cleared only when this edit left the block fully
+	// staffed — a partially-covered block (e.g. two planned positions, one still
+	// absent) stays understaffed and must keep its acknowledgement, or an
+	// unrelated title/room edit would silently reopen an intentionally
+	// acknowledged gap.
+	if err := s.clearStaleAckIfStaffed(ctx, instance); err != nil {
+		return nil, err
 	}
 
 	return instance, nil
+}
+
+// clearStaleAckIfStaffed clears a lingering "deliberately unstaffed"
+// acknowledgement on `instance` ONLY when its current instance_staff rows leave
+// the block fully staffed (present >= planned). A still-understaffed block keeps
+// the acknowledgement: partial coverage must not silently reopen an
+// intentionally acknowledged gap, and the amber card would otherwise contradict
+// /gaps (#1840). This is the same IsUnderstaffed rule SetUnderstaffedAck
+// enforces at set time; it writes only when it actually clears the flag.
+func (s *instanceService) clearStaleAckIfStaffed(ctx context.Context, instance *scheduleModel.ActivityInstance) error {
+	if !instance.UnderstaffedAck {
+		return nil
+	}
+	rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instance.ID)
+	if err != nil {
+		return &ScheduleError{Op: "clear stale ack: load staff", Err: err}
+	}
+	if IsUnderstaffed(rows) {
+		return nil // still short-staffed → keep the acknowledgement
+	}
+	instance.UnderstaffedAck = false
+	instance.UnderstaffedNote = nil
+	if err := s.updateLifecycleColumns(ctx, instance, "understaffed_ack", "understaffed_note"); err != nil {
+		return &ScheduleError{Op: "clear stale ack: update", Err: err}
+	}
+	return nil
+}
+
+// ClearUnderstaffedAckIfStaffed loads the instance and clears a lingering
+// understaffed acknowledgement only when its staff rows now leave it fully
+// staffed. The /substitute flow calls this after adding coverage: a single
+// replacement on a block with several open positions must not reopen an
+// acknowledged gap (#1840).
+func (s *instanceService) ClearUnderstaffedAckIfStaffed(ctx context.Context, instanceID int64) error {
+	instance, err := s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return err
+	}
+	return s.clearStaleAckIfStaffed(ctx, instance)
 }
 
 // replaceInstanceAssignments wipes and re-creates the instance's staff and
@@ -931,7 +965,9 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		return nil, &ScheduleError{Op: "replan week", Err: errors.New("no tenant in context")}
 	}
 
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, from, &to, activityGroupID)
+	// preserveDeviations=true: re-plan regenerates the week from the base plan
+	// but must keep the admin's manual Vertretungsplan overrides (#1840).
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, from, &to, activityGroupID, true)
 	if err != nil {
 		return nil, &ScheduleError{Op: "replan week: delete planned", Err: err}
 	}

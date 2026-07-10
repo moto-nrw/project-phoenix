@@ -172,6 +172,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"enrich_pickup_times_test.go",                            // Uses mock PickupScheduleService for unit testing enrichment
 		"api/timetable/api_test.go",                              // Uses mock CalendarPeriodService for unit testing handlers
 		"api/timetable/instances_test.go",                        // Uses mock InstanceService + PersonService for unit testing handlers
+		"api/timetable/understaffed_test.go",                     // Uses mock InstanceService for unit testing the acknowledge-understaffed handler (no DB); int64 literals are fake instance IDs, not DB rows
 		"api/timetable/instance_students_unit_test.go",           // Uses fake repo for unit testing attendance PATCH handler
 		"services/schedule/attendance_sync_service_unit_test.go", // Uses fake repos for unit testing graceful-degradation branches
 		"services/schedule/timetable_cleanup_service_test.go",    // Uses failingAuditRepo mock for audit-write-failure rollback coverage (WP-B14)

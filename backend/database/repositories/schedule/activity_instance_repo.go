@@ -279,31 +279,43 @@ func (r *ActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.
 // (declared at DDL level). Custom method (backend-conventions Rule 2):
 // multi-predicate lifecycle delete for the ReplanWeek admin action.
 //
-// #1840: instances carrying a Vertretungsplan deviation are PRESERVED, never
-// deleted. An acknowledged shortfall (understaffed_ack) or any instance_staff
-// row marked absent / substitute / bearing an absence reason is an explicit
-// admin override of the base plan; re-plan, template split, and template end
-// all route through here, so excluding deviated instances is what stops the
-// destructive delete + insert-only re-materialization from silently wiping
-// those overrides. A preserved instance keeps its own rows and is skipped by
-// materialization (which only inserts absent slots).
-func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64) (int64, error) {
+// #1840: `preserveDeviations` controls whether instances carrying a
+// Vertretungsplan deviation are kept. Only re-plan (ReplanWeek) passes true:
+// re-plan regenerates the week from the base plan but must NOT wipe the admin's
+// manual overrides, so a deviated row (an acknowledged shortfall, or any
+// instance_staff row marked absent / substitute / bearing an absence reason) is
+// preserved and skipped by the insert-only re-materialization.
+//
+// Template split and template end pass false: both are the destructive
+// "this and all following" series operation. Preserving a deviated old-template
+// row there is wrong — for END it would leave the "ended" series partly alive,
+// and for SPLIT the surviving old row (activity_group_id = old template) plus
+// the freshly materialized successor row (activity_group_id = new template)
+// dedupe apart and the user sees a duplicate block. So the series operation
+// hard-deletes every still-planned non-spontaneous row in the window,
+// deviations included; started/completed/cancelled/spontaneous rows always
+// survive regardless of this flag.
+func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64, preserveDeviations bool) (int64, error) {
 	q := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.ActivityInstance)(nil)).
 		ModelTableExpr(modelTblActivityInstance).
 		Where(`"activity_instance".date >= ?`, from).
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
-		Where(`"activity_instance".is_spontaneous = ?`, false).
-		// Keep deviated instances (#1840). RLS already scopes instance_staff to
-		// the tenant; the explicit tenant match keeps the correlation safe even
-		// under a superuser connection.
-		Where(`"activity_instance".understaffed_ack = ?`, false).
-		Where(`NOT EXISTS (
-			SELECT 1 FROM schedule.instance_staff AS "dev_is"
-			WHERE "dev_is".instance_id = "activity_instance".id
-			  AND "dev_is".tenant_id = "activity_instance".tenant_id
-			  AND ("dev_is".is_absent OR "dev_is".is_substitute OR "dev_is".absence_reason IS NOT NULL)
-		)`)
+		Where(`"activity_instance".is_spontaneous = ?`, false)
+
+	if preserveDeviations {
+		// Keep deviated instances (#1840, re-plan only). RLS already scopes
+		// instance_staff to the tenant; the explicit tenant match keeps the
+		// correlation safe even under a superuser connection.
+		q = q.
+			Where(`"activity_instance".understaffed_ack = ?`, false).
+			Where(`NOT EXISTS (
+				SELECT 1 FROM schedule.instance_staff AS "dev_is"
+				WHERE "dev_is".instance_id = "activity_instance".id
+				  AND "dev_is".tenant_id = "activity_instance".tenant_id
+				  AND ("dev_is".is_absent OR "dev_is".is_substitute OR "dev_is".absence_reason IS NOT NULL)
+			)`)
+	}
 
 	if to != nil {
 		q = q.Where(`"activity_instance".date <= ?`, *to)
