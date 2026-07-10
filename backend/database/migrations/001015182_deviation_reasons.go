@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	deviationReasonsVersion     = "1.15.179"
+	deviationReasonsVersion     = "1.15.182"
 	deviationReasonsDescription = "Add optional reason columns for Vertretungsplan deviations (#1840): instance_staff.absence_reason and activity_instances.cancel_reason so an absence or cancellation can carry a short 'why'."
 )
 
@@ -24,7 +24,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.179: Adding absence_reason + cancel_reason columns...")
+			fmt.Println("Migration 1.15.182: Adding absence_reason + cancel_reason columns...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE schedule.instance_staff
 				ADD COLUMN IF NOT EXISTS absence_reason TEXT;
@@ -44,7 +44,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.179...")
+			fmt.Println("Rolling back migration 1.15.182...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE schedule.activity_instances DROP COLUMN IF EXISTS cancel_reason;
 			`).Exec(ctx); err != nil {
