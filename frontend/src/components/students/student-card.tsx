@@ -531,6 +531,36 @@ export function StudentAbsenceRow({ label }: Readonly<{ label: string }>) {
 }
 
 /**
+ * Informational badge for a child with a still-pending "entschuldigt" request
+ * covering today (operations.parent_excused_requires_approval). It is NOT an
+ * absence — the child stays "expected" and keeps its normal arrival/pickup rows
+ * until the OGS confirms — so this renders as a single compact amber pill
+ * alongside them, not in place of them. The parent's note (if any) is kept to
+ * the hover title so the card stays as dense as its other rows. Amber hex comes
+ * from LOCATION_COLORS.SICK (CLAUDE.md §0).
+ */
+export function StudentPendingExcusedRow({
+  note,
+}: Readonly<{ note?: string }>) {
+  // Leading icon at the row's left edge (aligned with the other StudentInfoRow
+  // icons) and the amber pill in the text column, so this line sits in the same
+  // rhythm as the sibling rows instead of looking offset.
+  return (
+    <div className="mt-1 flex items-center gap-1.5">
+      <span className="flex-shrink-0">
+        <AbsenceIcon />
+      </span>
+      <span
+        className="inline-flex items-center rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#92710b]"
+        title={note ?? undefined}
+      >
+        Freigabe ausstehend
+      </span>
+    </div>
+  );
+}
+
+/**
  * Shared arrival time display row, mirror of PickupTimeRow:
  *   1. isAbsent → "Kommt heute nicht" (with reason if provided)
  *   2. Has arrivalTime → show time with urgency/exception icon

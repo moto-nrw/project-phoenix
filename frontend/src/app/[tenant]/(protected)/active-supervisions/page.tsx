@@ -34,6 +34,7 @@ import {
   PickupTimeRow,
   ArrivalTimeRow,
   StudentAbsenceRow,
+  StudentPendingExcusedRow,
 } from "~/components/students/student-card";
 import { fetchBulkPickupTimes } from "~/lib/pickup-schedule-api";
 import type { BulkPickupTime } from "~/lib/pickup-schedule-api";
@@ -1815,6 +1816,11 @@ function MeinRaumPageContent() {
                         <StudentInfoRow icon={<GroupIcon />}>
                           Gruppe: {student.group_name}
                         </StudentInfoRow>
+                      )}
+                      {student.pending_excused_note !== undefined && (
+                        <StudentPendingExcusedRow
+                          note={student.pending_excused_note}
+                        />
                       )}
                       {(() => {
                         const absence = getStudentAbsence({

@@ -9,6 +9,8 @@ import {
   updateParentPortalLocale,
   submitSickNote,
   listSickDays,
+  listExcusedRequests,
+  withdrawExcusedRequest,
   getChildFeatures,
   getChildMealPlan,
   getChildMasterData,
@@ -491,24 +493,41 @@ describe("submitSickNote", () => {
       seenBody = (init?.body as string) ?? "";
       seenMethod = init?.method ?? "";
       return jsonResponse(
-        { data: [mkStatusDay("2026-06-02", "Fieber")] },
+        { data: { status_days: [mkStatusDay("2026-06-02", "Fieber")] } },
         { status: 201 },
       );
     });
     const out = await submitSickNote("84", ["2026-06-02"], "Fieber");
-    expect(out).toHaveLength(1);
-    expect(out[0]!.note).toBe("Fieber");
+    expect(out.status_days).toHaveLength(1);
+    expect(out.status_days[0]!.note).toBe("Fieber");
+    expect(out.pending_request).toBeUndefined();
     expect(seenMethod).toBe("POST");
     expect(seenURL).toContain("/api/parent/me/children/84/sick-note");
     expect(seenBody).toContain('"dates":["2026-06-02"]');
     expect(seenBody).toContain('"reason":"Fieber"');
   });
 
+  it("normalizes the legacy bare-array response into the envelope shape (issue #1845 backward-compat)", async () => {
+    // A backend on the pre-#1845 contract (and the current direct-write path)
+    // responds with the bare status-day array, not the { status_days } object.
+    // submitSickNote must wrap it so callers see one shape.
+    mockFetch(async () =>
+      jsonResponse(
+        { data: [mkStatusDay("2026-06-02", "Fieber")] },
+        { status: 201 },
+      ),
+    );
+    const out = await submitSickNote("84", ["2026-06-02"], "Fieber");
+    expect(out.status_days).toHaveLength(1);
+    expect(out.status_days[0]!.note).toBe("Fieber");
+    expect(out.pending_request).toBeUndefined();
+  });
+
   it("sends an empty reason when none is supplied", async () => {
     let seenBody = "";
     mockFetch(async (_input, init) => {
       seenBody = (init?.body as string) ?? "";
-      return jsonResponse({ data: [] }, { status: 201 });
+      return jsonResponse({ data: { status_days: [] } }, { status: 201 });
     });
     await submitSickNote("84", ["2026-06-02"]);
     expect(seenBody).toContain('"reason":""');
@@ -518,7 +537,7 @@ describe("submitSickNote", () => {
     let seenBody = "";
     mockFetch(async (_input, init) => {
       seenBody = (init?.body as string) ?? "";
-      return jsonResponse({ data: [] }, { status: 201 });
+      return jsonResponse({ data: { status_days: [] } }, { status: 201 });
     });
     await submitSickNote("84", ["2026-06-02"]);
     expect(seenBody).toContain('"status":"sick"');
@@ -528,18 +547,48 @@ describe("submitSickNote", () => {
     let seenBody = "";
     mockFetch(async (_input, init) => {
       seenBody = (init?.body as string) ?? "";
-      return jsonResponse({ data: [] }, { status: 201 });
+      return jsonResponse({ data: { status_days: [] } }, { status: 201 });
     });
     await submitSickNote("84", ["2026-06-02"], "Termin", "excused");
     expect(seenBody).toContain('"status":"excused"');
     expect(seenBody).toContain('"reason":"Termin"');
   });
 
+  it("returns a pending_request (empty status_days) for a gated excused absence (issue #1845)", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        {
+          data: {
+            status_days: [],
+            pending_request: {
+              id: "req-7",
+              student_id: "84",
+              status: "pending",
+              dates: ["2026-06-02"],
+              note: "Zahnarzt",
+              created_at: "2026-06-01T09:00:00Z",
+            },
+          },
+        },
+        { status: 201 },
+      ),
+    );
+    const out = await submitSickNote(
+      "84",
+      ["2026-06-02"],
+      "Zahnarzt",
+      "excused",
+    );
+    expect(out.status_days).toHaveLength(0);
+    expect(out.pending_request?.id).toBe("req-7");
+    expect(out.pending_request?.status).toBe("pending");
+  });
+
   it("URL-encodes the student id", async () => {
     let seenURL = "";
     mockFetch(async (input) => {
       seenURL = typeof input === "string" ? input : input.toString();
-      return jsonResponse({ data: [] }, { status: 201 });
+      return jsonResponse({ data: { status_days: [] } }, { status: 201 });
     });
     await submitSickNote("a/b", ["2026-06-02"]);
     expect(seenURL).toContain("a%2Fb");
@@ -576,6 +625,59 @@ describe("listSickDays", () => {
     const out = await listSickDays("84");
     expect(out).toHaveLength(1);
     expect(seenURL).toContain("/api/parent/me/children/84/sick-note");
+  });
+});
+
+describe("listExcusedRequests", () => {
+  it("GETs the child excused-requests route and returns the data array", async () => {
+    let seenURL = "";
+    mockFetch(async (input) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      return jsonResponse({
+        data: [
+          {
+            id: "req-1",
+            student_id: "84",
+            status: "pending",
+            dates: ["2026-06-02"],
+            note: "Zahnarzt",
+            created_at: "2026-06-01T09:00:00Z",
+          },
+        ],
+      });
+    });
+    const out = await listExcusedRequests("84");
+    expect(out).toHaveLength(1);
+    expect(out[0]!.status).toBe("pending");
+    expect(seenURL).toContain("/api/parent/me/children/84/excused-requests");
+  });
+});
+
+describe("withdrawExcusedRequest", () => {
+  it("DELETEs the request and returns the withdrawn request", async () => {
+    let seenURL = "";
+    let seenMethod = "";
+    mockFetch(async (input, init) => {
+      seenURL = typeof input === "string" ? input : input.toString();
+      seenMethod = init?.method ?? "";
+      return jsonResponse({
+        data: {
+          id: "req-1",
+          student_id: "84",
+          status: "withdrawn",
+          dates: ["2026-06-02"],
+          note: "Zahnarzt",
+          created_at: "2026-06-01T09:00:00Z",
+          reviewed_at: "2026-06-01T10:00:00Z",
+        },
+      });
+    });
+    const out = await withdrawExcusedRequest("84", "req-1");
+    expect(seenMethod).toBe("DELETE");
+    expect(out.status).toBe("withdrawn");
+    expect(seenURL).toContain(
+      "/api/parent/me/children/84/excused-requests/req-1",
+    );
   });
 });
 

@@ -314,6 +314,45 @@ func (h *Hub) BroadcastParentMessage(tenantID, guardianAccountID int64, event Ev
 	return nil
 }
 
+// BroadcastToGuardian wakes ONLY the addressed guardian's own portal clients —
+// no staff copy at all. It exists for a message-INDEPENDENT guardian
+// invalidation (EventParentChildUpdated) that staff must never receive: unlike
+// BroadcastParentMessage, which also fans a sanitized copy out to every staff
+// client in the tenant so their inbox refreshes, this carries no staff-relevant
+// signal. Sending such an event via BroadcastParentMessage — once per guardian,
+// as the child-update fan-out does — would push one redundant staff event PER
+// GUARDIAN into every staff client's 32-slot channel, displacing real updates
+// under a busy tenant. Fire-and-forget, same drop semantics as the others.
+func (h *Hub) BroadcastToGuardian(tenantID, guardianAccountID int64, event Event) error {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+
+	recipients := 0
+	droppedCount := 0
+	for _, client := range h.guardianClients[guardianAccountID] {
+		recipients++
+		select {
+		case client.Channel <- event:
+		default:
+			droppedCount++
+			h.getLogger().Warn("SSE client channel full, skipping broadcast-to-guardian",
+				slog.Int64("user_id", client.UserID),
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("guardian_account_id", guardianAccountID),
+				slog.String("event_type", string(event.Type)),
+			)
+		}
+	}
+	h.getLogger().Debug("SSE event broadcast to guardian",
+		slog.Int64("tenant_id", tenantID),
+		slog.Int64("guardian_account_id", guardianAccountID),
+		slog.String("event_type", string(event.Type)),
+		slog.Int("recipient_count", recipients),
+	)
+	observability.RecordSSEBroadcast(tenantID, string(event.Type), "guardian", droppedCount)
+	return nil
+}
+
 // BroadcastToAll sends an event to every connected client regardless of group subscriptions.
 func (h *Hub) BroadcastToAll(event Event) error {
 	h.mu.RLock()

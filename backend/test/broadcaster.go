@@ -8,10 +8,10 @@ import (
 
 // BroadcastCall records one realtime.Broadcaster invocation.
 type BroadcastCall struct {
-	Method     string // "group", "tenant", "all" or "parent"
+	Method     string // "group", "tenant", "all", "parent" or "guardian"
 	TenantID   int64
 	Topic      string // active-group topic (BroadcastToGroup only)
-	GuardianID int64  // guardian account ID (BroadcastParentMessage only)
+	GuardianID int64  // guardian account ID (BroadcastParentMessage / BroadcastToGuardian)
 	Event      realtime.Event
 }
 
@@ -56,6 +56,11 @@ func (b *RecordingBroadcaster) BroadcastToAll(event realtime.Event) error {
 // BroadcastParentMessage implements realtime.Broadcaster.
 func (b *RecordingBroadcaster) BroadcastParentMessage(tenantID, guardianAccountID int64, event realtime.Event) error {
 	return b.record(BroadcastCall{Method: "parent", TenantID: tenantID, GuardianID: guardianAccountID, Event: event})
+}
+
+// BroadcastToGuardian implements realtime.Broadcaster.
+func (b *RecordingBroadcaster) BroadcastToGuardian(tenantID, guardianAccountID int64, event realtime.Event) error {
+	return b.record(BroadcastCall{Method: "guardian", TenantID: tenantID, GuardianID: guardianAccountID, Event: event})
 }
 
 // Calls returns a copy of every recorded call, in order.

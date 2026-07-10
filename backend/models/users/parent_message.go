@@ -22,6 +22,11 @@ const (
 	// care_schedule it was never a chat-request kind — it only ever appears on
 	// kind='event' rows.
 	ParentMessageRequestMasterData = "master_data"
+	// ParentMessageRequestExcusedAbsence tags notification pills for excused
+	// absence approval requests (active.excused_absence_requests, #1845). Like
+	// master_data it only ever appears on kind='event' rows, never as a chat
+	// request.
+	ParentMessageRequestExcusedAbsence = "excused_absence"
 
 	// Event types for kind='event' system pills that mirror a change request's
 	// lifecycle. ParentMessageEventRequestCreated marks a submitted request (its

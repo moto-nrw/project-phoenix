@@ -398,6 +398,19 @@ export function useGlobalSSE(): SSEHookState {
           break;
         }
 
+        case "change_requests_changed": {
+          // A parent change-request queue changed (created/decided/withdrawn).
+          // Re-dispatch the window event the staff review lists and the
+          // "Änderungsanfragen" pending-count badge already listen on, so an open
+          // review page updates in real time without depending on the parent-
+          // messaging pill (the school may have messaging disabled). Fires only on
+          // request transitions, so a plain refetch is fine — no debounce needed.
+          if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("change-requests-refresh"));
+          }
+          break;
+        }
+
         case "tenant_settings_changed": {
           // Cross-origin tenant settings sync. The backend fires this when a
           // setting whose value travels through /auth/tenant/resolve flips

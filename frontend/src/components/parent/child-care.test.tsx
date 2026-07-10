@@ -1,7 +1,47 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { PickupTimeModal, SickNoteModal } from "./child-care";
-import type { CareException } from "~/lib/parent-api";
+import {
+  PickupTimeModal,
+  SickNoteModal,
+  SickStatusSummary,
+} from "./child-care";
+import type {
+  CareException,
+  ExcusedRequest,
+  StatusDay,
+} from "~/lib/parent-api";
+import { parseISODate, todayISO, toISODate } from "~/lib/date-helpers";
+
+// de-locale (the test locale) renders YYYY-MM-DD as DD.MM.YYYY.
+function de(iso: string): string {
+  const [y, m, d] = iso.split("-");
+  return `${d}.${m}.${y}`;
+}
+
+function makeRequest(over: Partial<ExcusedRequest>): ExcusedRequest {
+  return {
+    id: "1",
+    student_id: "1",
+    status: "pending",
+    dates: [],
+    note: "Termin",
+    created_at: "2026-03-01T09:00:00Z",
+    is_self: false,
+    ...over,
+  };
+}
+
+function makeStatusDay(over: Partial<StatusDay>): StatusDay {
+  return {
+    id: "1",
+    student_id: "1",
+    date: todayISO(),
+    status: "sick",
+    reported_at: "2026-03-01T09:00:00Z",
+    source: "parent",
+    ...over,
+  };
+}
 
 // Regression coverage for the failed-preload save path: when the care-exception
 // list never loaded (careExceptionsLoaded=false), the modal must not let a
@@ -161,5 +201,70 @@ describe("SickNoteModal — Abmeldegrund", () => {
     fireEvent.click(screen.getByRole("button", { name: "Abmeldung senden" }));
 
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+// #1845 review: the parent summary must not misrepresent request dates.
+describe("SickStatusSummary — date rendering", () => {
+  it("lists non-contiguous dates instead of a false continuous range", () => {
+    render(
+      <SickStatusSummary
+        sickDays={[]}
+        excusedRequests={[
+          makeRequest({ id: "10", dates: ["2026-03-16", "2026-03-18"] }),
+        ]}
+      />,
+    );
+    // Mon + Wed must render as "16.03.2026, 18.03.2026", never "16.03.2026 – 18.03.2026"
+    // (which would wrongly imply Tuesday is included too).
+    expect(screen.getByText(/16\.03\.2026, 18\.03\.2026/)).toBeInTheDocument();
+    expect(screen.queryByText(/16\.03\.2026 – 18\.03\.2026/)).toBeNull();
+  });
+
+  it("keeps a contiguous range collapsed", () => {
+    render(
+      <SickStatusSummary
+        sickDays={[]}
+        excusedRequests={[
+          makeRequest({ id: "11", dates: ["2026-03-16", "2026-03-17"] }),
+        ]}
+      />,
+    );
+    expect(screen.getByText(/16\.03\.2026 – 17\.03\.2026/)).toBeInTheDocument();
+  });
+
+  it("shows an out-of-window approved date but not one superseded by a newer status", () => {
+    const today = todayISO();
+    const past = (() => {
+      const d = parseISODate(today);
+      d.setDate(d.getDate() - 30);
+      return toISODate(d);
+    })();
+
+    render(
+      <SickStatusSummary
+        // Authoritative current status for today: sick (a newer decision that
+        // replaced the earlier excused approval for the same day).
+        sickDays={[makeStatusDay({ date: today, status: "sick" })]}
+        excusedRequests={[
+          makeRequest({
+            id: "12",
+            status: "approved",
+            dates: [past, today],
+          }),
+        ]}
+      />,
+    );
+
+    // The past date is outside the fetched window (today..+2mo) and has no
+    // status day, so it must surface from the approved request.
+    const excusedLines = screen.getAllByText(/^Entschuldigt:/);
+    expect(excusedLines).toHaveLength(1);
+    expect(excusedLines[0]!.textContent).toContain(de(past));
+    // today must NOT appear as excused — it is authoritatively sick now, so
+    // showing it as both sick AND excused would be wrong.
+    expect(excusedLines[0]!.textContent).not.toContain(de(today));
+    // today is shown as sick instead.
+    expect(screen.getByText(/^Krank:/).textContent).toContain(de(today));
   });
 });

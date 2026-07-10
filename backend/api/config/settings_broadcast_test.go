@@ -22,6 +22,7 @@ func (c *captureBroadcaster) BroadcastToGroup(_ int64, _ string, _ realtime.Even
 }
 
 func (c *captureBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
+func (c *captureBroadcaster) BroadcastToGuardian(_, _ int64, _ realtime.Event) error    { return nil }
 
 func (c *captureBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {
 	c.called = true
