@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -196,6 +197,10 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		if inst.Status != scheduleModel.InstanceStatusPlanned || !plannedNowWindow(inst, now, opts.HorizonMinutes) {
 			continue
 		}
+		roomName := roomNames[inst.RoomID]
+		if roomName != nil && *roomName == constants.SchulhofRoomName {
+			continue
+		}
 		staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, inst.ID)
 		if err != nil {
 			return nil, err
@@ -207,7 +212,7 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		if err != nil {
 			return nil, err
 		}
-		mapped := mapPlannedInstance(inst, staffRows, studentRows, now, staffID, roomNames[inst.RoomID])
+		mapped := mapPlannedInstance(inst, staffRows, studentRows, now, staffID, roomName)
 		if opts.IncludeRoster {
 			roster, err := s.buildRoster(ctx, inst.ID)
 			if err != nil {

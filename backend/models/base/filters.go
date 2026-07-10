@@ -30,7 +30,8 @@ const (
 	OpIsNotNull Operator = "IS NOT NULL"
 
 	// Array operators
-	OpIn Operator = "IN"
+	OpIn    Operator = "IN"
+	OpNotIn Operator = "NOT IN"
 )
 
 // FilterCondition represents a single filter condition
@@ -44,6 +45,7 @@ type FilterCondition struct {
 type Filter struct {
 	conditions []FilterCondition
 	or         []Filter
+	and        []Filter
 	tableAlias string
 }
 
@@ -52,6 +54,7 @@ func NewFilter() *Filter {
 	return &Filter{
 		conditions: make([]FilterCondition, 0),
 		or:         make([]Filter, 0),
+		and:        make([]Filter, 0),
 		tableAlias: "",
 	}
 }
@@ -59,6 +62,16 @@ func NewFilter() *Filter {
 // WithTableAlias sets the table alias for the filter
 func (f *Filter) WithTableAlias(alias string) *Filter {
 	f.tableAlias = alias
+	for i := range f.or {
+		if f.or[i].tableAlias == "" {
+			f.or[i].WithTableAlias(alias)
+		}
+	}
+	for i := range f.and {
+		if f.and[i].tableAlias == "" {
+			f.and[i].WithTableAlias(alias)
+		}
+	}
 	return f
 }
 
@@ -127,9 +140,26 @@ func (f *Filter) In(field string, values ...interface{}) *Filter {
 	return f.Where(field, OpIn, values)
 }
 
+// NotIn adds a NOT IN condition.
+func (f *Filter) NotIn(field string, values ...interface{}) *Filter {
+	return f.Where(field, OpNotIn, values)
+}
+
 // Or adds a logical OR condition with another filter
 func (f *Filter) Or(filter Filter) *Filter {
+	if filter.tableAlias == "" && f.tableAlias != "" {
+		filter.WithTableAlias(f.tableAlias)
+	}
 	f.or = append(f.or, filter)
+	return f
+}
+
+// And adds a grouped logical AND condition with another filter.
+func (f *Filter) And(filter Filter) *Filter {
+	if filter.tableAlias == "" && f.tableAlias != "" {
+		filter.WithTableAlias(f.tableAlias)
+	}
+	f.and = append(f.and, filter)
 	return f
 }
 
@@ -167,14 +197,28 @@ func (f *Filter) Remove(field string) *Filter {
 
 // ApplyToQuery applies the filter to a Bun query
 func (f *Filter) ApplyToQuery(query *bun.SelectQuery) *bun.SelectQuery {
-	// Apply basic conditions
+	// Keep this filter's OR expression inside one AND group. Besides making
+	// A.Or(B).And(C) mean (A OR B) AND C, this prevents an OR branch from
+	// escaping tenant or other predicates already attached to the query.
+	if len(f.or) > 0 {
+		query = query.WhereGroup(" AND ", func(group *bun.SelectQuery) *bun.SelectQuery {
+			group = f.applyConditionsToQuery(group)
+			return applyLogicalConditions(group, f.or, " OR ")
+		})
+	} else {
+		query = f.applyConditionsToQuery(query)
+	}
+
+	// Apply grouped AND conditions
+	query = applyLogicalConditions(query, f.and, " AND ")
+
+	return query
+}
+
+func (f *Filter) applyConditionsToQuery(query *bun.SelectQuery) *bun.SelectQuery {
 	for _, condition := range f.conditions {
 		query = f.applyConditionToQuery(query, condition)
 	}
-
-	// Apply OR conditions
-	query = applyLogicalConditions(query, f.or, " OR ")
-
 	return query
 }
 
@@ -214,6 +258,10 @@ func applyOperatorWithColumnRef(query *bun.SelectQuery, columnRef string, condit
 		if values, ok := condition.Value.([]interface{}); ok {
 			return query.Where(columnRef+" IN (?)", bun.List(values))
 		}
+	case OpNotIn:
+		if values, ok := condition.Value.([]interface{}); ok {
+			return query.Where(columnRef+" NOT IN (?)", bun.List(values))
+		}
 	}
 	return query
 }
@@ -245,6 +293,10 @@ func applyOperatorWithIdent(query *bun.SelectQuery, field string, condition Filt
 	case OpIn:
 		if values, ok := condition.Value.([]interface{}); ok {
 			return query.Where("? IN (?)", fieldIdent, bun.List(values))
+		}
+	case OpNotIn:
+		if values, ok := condition.Value.([]interface{}); ok {
+			return query.Where("? NOT IN (?)", fieldIdent, bun.List(values))
 		}
 	}
 	return query

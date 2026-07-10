@@ -1182,6 +1182,7 @@ func createSchulhofRoom(t *testing.T, db *bun.DB) *facilities.Room {
 	room := &facilities.Room{
 		Name:     "Schulhof",
 		Building: "Test Building",
+		IsSystem: true,
 	}
 	room.SetTenantID(1)
 

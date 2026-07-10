@@ -22,6 +22,19 @@ func TestErrorRenderer_SystemRoomProtected(t *testing.T) {
 	assert.Contains(t, resp.ErrorText, "Systemraum")
 }
 
+func TestErrorRenderer_SystemRoomNameReserved(t *testing.T) {
+	facErr := &facilities.FacilitiesError{
+		Op:  "create room",
+		Err: facilities.ErrSystemRoomNameReserved,
+	}
+	renderer := rooms.ErrorRenderer(facErr)
+	resp, ok := renderer.(*common.ErrResponse)
+	assert.True(t, ok, "expected *common.ErrResponse")
+	assert.Equal(t, http.StatusBadRequest, resp.HTTPStatusCode)
+	assert.Contains(t, resp.ErrorText, "Schulhof")
+	assert.Contains(t, resp.ErrorText, "reserviert")
+}
+
 func TestErrorRenderer_DuplicateToiletRoom(t *testing.T) {
 	facErr := &facilities.FacilitiesError{
 		Op:  "CreateRoom",

@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -194,11 +195,15 @@ func (rs *Resource) listRooms(w http.ResponseWriter, r *http.Request) {
 		queryOptions.Filter.Equal("category", category)
 	}
 
-	// Hide auto-provisioned system rooms (Schulhof, WC) unless the caller
-	// explicitly opts in — they are IoT infrastructure, not bookable rooms
-	// (issue #923).
+	// Keep Schulhof available for staff planning while hiding infrastructure
+	// rooms such as WC. The visibility expression stays inside one grouped AND
+	// so it cannot bypass tenant, building, or category predicates.
 	if r.URL.Query().Get("include_system") != "true" {
-		queryOptions.Filter.Equal("is_system", false)
+		staffVisible := base.NewFilter().
+			Equal("is_system", false).
+			NotIn("name", constants.WCRoomName, constants.WCRoomAliasName)
+		staffVisible.Or(*base.NewFilter().Equal("name", constants.SchulhofRoomName))
+		queryOptions.Filter.And(*staffVisible)
 	}
 
 	// Add pagination if provided
@@ -424,16 +429,16 @@ func (rs *Resource) getAvailableRooms(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Hide auto-provisioned system rooms (Schulhof, WC) unless the caller
-	// explicitly opts in. Filtered here rather than in GetAvailableRooms
-	// because the IoT kiosk endpoint shares that service method and must
-	// keep seeing system rooms (issue #923).
+	// Keep Schulhof available for staff planning while hiding other system
+	// rooms. Filtered here rather than in GetAvailableRooms because the IoT
+	// kiosk endpoint shares that service method and must keep seeing them.
 	includeSystem := r.URL.Query().Get("include_system") == "true"
 
 	// Convert to response
 	roomResponses := make([]RoomResponse, 0, len(rooms))
 	for _, room := range rooms {
-		if room.IsSystem && !includeSystem {
+		if !includeSystem && (constants.IsWCRoomName(room.Name) ||
+			(room.IsSystem && room.Name != constants.SchulhofRoomName)) {
 			continue
 		}
 		roomResponses = append(roomResponses, newRoomResponseSimple(room))

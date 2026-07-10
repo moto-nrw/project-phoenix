@@ -14,9 +14,12 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -161,6 +164,16 @@ type fakeInstanceRepo struct {
 	err       error
 }
 
+type fakeOverdueRoomRepo struct {
+	facilitiesModel.RoomRepository
+	rooms []*facilitiesModel.Room
+	err   error
+}
+
+func (f *fakeOverdueRoomRepo) FindByIDs(_ context.Context, _ []int64) ([]*facilitiesModel.Room, error) {
+	return f.rooms, f.err
+}
+
 func (f *fakeInstanceRepo) Create(_ context.Context, _ *scheduleModel.ActivityInstance) error {
 	return nil
 }
@@ -234,8 +247,87 @@ func TestCheckAndRunOverdue_NoTenantContext(t *testing.T) {
 	assert.False(t, task.Running)
 }
 
+func TestRunOverdueForTenant_SkipsSchulhof(t *testing.T) {
+	today := timezone.NewDate(2026, 4, 20)
+	now := time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local)
+	newInstance := func(id, roomID int64) *scheduleModel.ActivityInstance {
+		inst := &scheduleModel.ActivityInstance{
+			Date:          today,
+			StartTime:     time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
+			EndTime:       time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
+			Status:        scheduleModel.InstanceStatusPlanned,
+			IsSpontaneous: true,
+			RoomID:        roomID,
+		}
+		inst.ID = id
+		return inst
+	}
+	schulhofInstance := newInstance(151, 251)
+	normalInstance := newInstance(152, 252)
+	repo := &fakeInstanceRepo{instances: []*scheduleModel.ActivityInstance{schulhofInstance, normalInstance}}
+	roomRepo := &fakeOverdueRoomRepo{rooms: []*facilitiesModel.Room{
+		{Model: base.Model{ID: 251}, Name: constants.SchulhofRoomName},
+		{Model: base.Model{ID: 252}, Name: "Lernraum"},
+	}}
+	spy := testpkg.NewRecordingBroadcaster()
+	s := &Scheduler{
+		logger:             slog.Default(),
+		instanceRepo:       repo,
+		instanceRoomRepo:   roomRepo,
+		overdueBroadcaster: spy,
+	}
+
+	s.runOverdueForTenant(context.Background(), 1, 5, now)
+
+	assert.Equal(t, 0, spyFilter(spy, schulhofInstance.ID, realtime.EventInstanceOverdue))
+	assert.Equal(t, 0, spyFilter(spy, schulhofInstance.ID, realtime.EventActiveSupervisionChanged))
+	assert.Equal(t, 1, spyFilter(spy, normalInstance.ID, realtime.EventInstanceOverdue))
+	assert.Equal(t, 1, spyFilter(spy, normalInstance.ID, realtime.EventActiveSupervisionChanged))
+}
+
+func TestRunOverdueForTenant_FailsClosedWhenRoomResolutionFails(t *testing.T) {
+	today := timezone.NewDate(2026, 4, 20)
+	inst := &scheduleModel.ActivityInstance{
+		Date:          today,
+		StartTime:     time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
+		EndTime:       time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
+		Status:        scheduleModel.InstanceStatusPlanned,
+		IsSpontaneous: true,
+		RoomID:        253,
+	}
+	inst.ID = 153
+
+	tests := []struct {
+		name     string
+		roomRepo *fakeOverdueRoomRepo
+	}{
+		{name: "lookup error", roomRepo: &fakeOverdueRoomRepo{err: errors.New("rooms unavailable")}},
+		{name: "unresolved room", roomRepo: &fakeOverdueRoomRepo{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			spy := testpkg.NewRecordingBroadcaster()
+			s := &Scheduler{
+				logger:             slog.Default(),
+				instanceRepo:       &fakeInstanceRepo{instances: []*scheduleModel.ActivityInstance{inst}},
+				instanceRoomRepo:   tt.roomRepo,
+				overdueBroadcaster: spy,
+			}
+
+			s.runOverdueForTenant(
+				context.Background(),
+				1,
+				5,
+				time.Date(today.Year, today.Month, today.Day, 10, 30, 0, 0, time.Local),
+			)
+
+			assert.Empty(t, spy.CallsByMethod("tenant"))
+		})
+	}
+}
+
 // -----------------------------------------------------------------------------
-// scheduleInstanceOverdueTask — registers when both deps set.
+// scheduleInstanceOverdueTask — registers when all dependencies are set.
 // -----------------------------------------------------------------------------
 
 func TestScheduleInstanceOverdueTask_MissingRepo(t *testing.T) {
@@ -261,12 +353,25 @@ func TestScheduleInstanceOverdueTask_MissingBroadcaster(t *testing.T) {
 	assert.Empty(t, s.tasks, "no broadcaster → no task registered")
 }
 
+func TestScheduleInstanceOverdueTask_MissingRoomRepo(t *testing.T) {
+	s := &Scheduler{
+		logger:             slog.Default(),
+		tasks:              make(map[string]*ScheduledTask),
+		done:               make(chan struct{}),
+		instanceRepo:       &fakeInstanceRepo{},
+		overdueBroadcaster: testpkg.NewRecordingBroadcaster(),
+	}
+	s.scheduleInstanceOverdueTask()
+	assert.Empty(t, s.tasks, "no room repo → no task registered")
+}
+
 func TestScheduleInstanceOverdueTask_Registers(t *testing.T) {
 	s := &Scheduler{
 		logger:             slog.Default(),
 		tasks:              make(map[string]*ScheduledTask),
 		done:               make(chan struct{}),
 		instanceRepo:       &fakeInstanceRepo{},
+		instanceRoomRepo:   &fakeOverdueRoomRepo{},
 		overdueBroadcaster: testpkg.NewRecordingBroadcaster(),
 	}
 	s.scheduleInstanceOverdueTask()
@@ -416,8 +521,11 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 	spy := testpkg.NewRecordingBroadcaster()
 	spy.Err = errors.New("forced failure")
 	s := &Scheduler{
-		logger:             slog.Default(),
-		instanceRepo:       repo,
+		logger:       slog.Default(),
+		instanceRepo: repo,
+		instanceRoomRepo: &fakeOverdueRoomRepo{rooms: []*facilitiesModel.Room{
+			{Model: base.Model{ID: 42}, Name: "Lernraum"},
+		}},
 		overdueBroadcaster: spy,
 	}
 

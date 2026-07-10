@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -225,6 +226,17 @@ func TestFacilitiesService_CreateRoom(t *testing.T) {
 	service := setupFacilitiesService(t, db)
 	ctx := testpkg.TenantContext(1)
 
+	for _, name := range []string{constants.SchulhofRoomName, "schulhof", "SCHULHOF"} {
+		t.Run("rejects reserved Schulhof room name "+name, func(t *testing.T) {
+			room := &facilities.Room{Name: name, Building: "Außengelände"}
+
+			err := service.CreateRoom(ctx, room)
+
+			require.ErrorIs(t, err, facilitiesSvc.ErrSystemRoomNameReserved)
+			assert.Zero(t, room.ID)
+		})
+	}
+
 	t.Run("creates room successfully", func(t *testing.T) {
 		// ARRANGE
 		capacity := 25
@@ -405,6 +417,22 @@ func TestFacilitiesService_UpdateRoom(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Systemraum")
 	})
+
+	for _, reservedName := range []string{constants.SchulhofRoomName, "schulhof"} {
+		t.Run("blocks renaming a normal room to "+reservedName, func(t *testing.T) {
+			room := testpkg.CreateTestRoom(t, db, "UpdateToSchulhof")
+			defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+			originalName := room.Name
+			room.Name = reservedName
+
+			err := service.UpdateRoom(ctx, room)
+
+			require.ErrorIs(t, err, facilitiesSvc.ErrSystemRoomNameReserved)
+			persisted, findErr := service.GetRoom(ctx, room.ID)
+			require.NoError(t, findErr)
+			assert.Equal(t, originalName, persisted.Name)
+		})
+	}
 
 	t.Run("allows updating other properties of system room", func(t *testing.T) {
 		// ARRANGE — exact name required to match constants.WCRoomName
