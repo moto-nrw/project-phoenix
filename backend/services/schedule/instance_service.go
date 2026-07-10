@@ -583,6 +583,20 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot update instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
+
+	// Serialize with the day-wide staffing endpoints (#1840). This edit rewrites
+	// the block's assignments and may MOVE it to another date, so it must hold the
+	// same (tenant, date) advisory lock the /deviations and /substitute saves take
+	// — for BOTH the current and (when moved) the new date. Without it a concurrent
+	// deviation save that read this block's old date before the move could mark the
+	// wrong day's rows absent while the moved block itself is left untouched. Taken
+	// in ascending date order so re-plan / PUT / deviation contention on shared
+	// days can never deadlock.
+	tenantID := tenant.FromContext(ctx)
+	if err := s.acquireSubstituteDayLockPair(ctx, tenantID, instance.Date, req.Date); err != nil {
+		return nil, &ScheduleError{Op: "update instance: lock day", Err: err}
+	}
+
 	if err := s.validateInstanceReferences(ctx, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, nil); err != nil {
 		return nil, &ScheduleError{Op: "update instance: validate references", Err: err}
 	}
@@ -1043,6 +1057,24 @@ func (s *instanceService) acquireSubstituteDayLocks(ctx context.Context, tenantI
 	return nil
 }
 
+// acquireSubstituteDayLockPair takes the day-wide substitute lock for two dates
+// (deduping when they are equal) in ascending order, sharing the total lock
+// ordering acquireSubstituteDayLocks relies on so a planned edit that moves a
+// block never deadlocks against a re-plan window or a deviation save (#1840).
+func (s *instanceService) acquireSubstituteDayLockPair(ctx context.Context, tenantID int64, a, b timezone.Date) error {
+	first, second := a, b
+	if second.Before(first) {
+		first, second = second, first
+	}
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenantID, first)); err != nil {
+		return err
+	}
+	if second == first {
+		return nil
+	}
+	return repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenantID, second))
+}
+
 // deviationSnapshot captures the Vertretungsplan overrides on one planned,
 // template-backed occurrence so ReplanWeek can regenerate it from the (edited)
 // template and then reapply the manual overrides (#1840). Keyed by
@@ -1131,9 +1163,21 @@ func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timez
 // snapshot whose occurrence no longer materializes (template weekday/period
 // changed) is silently dropped — there is nothing to attach it to.
 func (s *instanceService) reapplyDeviations(ctx context.Context, snapshots []deviationSnapshot) (int, error) {
+	// Count snapshots per (group, date). The time-agnostic single-occurrence match
+	// below is only safe when a day has exactly ONE override to reapply; when
+	// several slots on that day each carried a deviation and the series edit
+	// collapsed them to fewer occurrences, matching every snapshot to the lone
+	// survivor would merge absences, acks and substitutes from the deleted slots
+	// onto it (#1840).
+	snapsPerDay := make(map[groupDay]int, len(snapshots))
+	for _, snap := range snapshots {
+		snapsPerDay[groupDay{snap.activityGroupID, snap.date}]++
+	}
+
 	reapplied := 0
 	for _, snap := range snapshots {
-		inst, err := s.matchRegeneratedInstance(ctx, snap)
+		sole := snapsPerDay[groupDay{snap.activityGroupID, snap.date}] == 1
+		inst, err := s.matchRegeneratedInstance(ctx, snap, sole)
 		if err != nil {
 			return reapplied, err
 		}
@@ -1220,12 +1264,22 @@ func (s *instanceService) reapplyDeviations(ctx context.Context, snapshots []dev
 	return reapplied, nil
 }
 
+// groupDay keys snapshots by their (activity group, date) slot so reapply can
+// tell a day with a single override from one whose several slots collapsed.
+type groupDay struct {
+	activityGroupID int64
+	date            timezone.Date
+}
+
 // matchRegeneratedInstance finds the freshly materialized planned occurrence a
-// snapshot should reapply to. A single occurrence for (group, date) is matched
-// even if its start_time changed (the deviation follows the moved block); with
-// several daily slots it disambiguates by the original start_time and drops the
-// snapshot when none matches (a slot whose time changed cannot be mapped safely).
-func (s *instanceService) matchRegeneratedInstance(ctx context.Context, snap deviationSnapshot) (*scheduleModel.ActivityInstance, error) {
+// snapshot should reapply to. When `sole` (this is the only override for its
+// (group, date)) a lone surviving occurrence is matched even if its start_time
+// changed, so the deviation follows the moved block. Otherwise — several daily
+// slots each carried an override — it disambiguates strictly by the original
+// start_time and drops the snapshot when none matches, so overrides from deleted
+// slots are never merged onto a surviving block (a slot whose time changed cannot
+// be mapped safely either) (#1840).
+func (s *instanceService) matchRegeneratedInstance(ctx context.Context, snap deviationSnapshot, sole bool) (*scheduleModel.ActivityInstance, error) {
 	candidates, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, snap.activityGroupID, snap.date)
 	if err != nil {
 		return nil, err
@@ -1236,19 +1290,18 @@ func (s *instanceService) matchRegeneratedInstance(ctx context.Context, snap dev
 			planned = append(planned, c)
 		}
 	}
-	switch len(planned) {
-	case 0:
-		return nil, nil
-	case 1:
-		return planned[0], nil
-	default:
-		for _, c := range planned {
-			if formatTimeOfDay(c.StartTime) == snap.startTime {
-				return c, nil
-			}
-		}
+	if len(planned) == 0 {
 		return nil, nil
 	}
+	if len(planned) == 1 && sole {
+		return planned[0], nil
+	}
+	for _, c := range planned {
+		if formatTimeOfDay(c.StartTime) == snap.startTime {
+			return c, nil
+		}
+	}
+	return nil, nil
 }
 
 // loadForTransition is the shared load + not-found branch used by all three

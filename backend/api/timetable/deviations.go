@@ -181,6 +181,35 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Re-read the instance now that the day is locked. PUT /instances/{id} takes
+	// the same (tenant, date) lock, so once we hold it the block's date and rows
+	// are stable — but that PUT may have MOVED the block to another day between the
+	// initial read above and this lock. Planning against the stale date would mark
+	// the old day's rows absent while the moved block is left untouched, then
+	// return 200. Detect a move (or a concurrent cancel/complete of this block) and
+	// abort so the client reopens it on its new day (#1840).
+	locked, err := rs.TimetableData.GetActivityInstance(ctx, id)
+	if err != nil {
+		if base.IsNoRows(err) {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("reload instance failed", err))
+		return
+	}
+	if locked == nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+		return
+	}
+	if locked.Date != date || !isPlannableInstance(locked) {
+		common.RenderError(w, r, common.ErrorConflictWithCode(
+			errors.New("block was changed concurrently; reopen it and try again"),
+			"instance_moved",
+		))
+		return
+	}
+	instance = locked
+
 	// absenceOnly staff: marked absent with no substitute (planned-open + removed
 	// substitutes). Deduped. These project onto substitute classification below so
 	// that removing the current substitute and picking another in the same save
@@ -574,7 +603,14 @@ func (rs *Resource) planSubstitutions(
 					"substitute_conflict",
 				)
 			}
-			if existing, taken := subByInstance[instance.ID]; taken && existing != sub.SubstituteStaffID {
+			// The data model allows exactly one substitute row per instance, so a
+			// second substitution staged onto the same block is always rejected —
+			// even when it names the SAME substitute. Two absent colleagues on one
+			// block both classify "substituted" against the pre-write rows, and
+			// letting a repeated substitute id through would insert the same
+			// (instance_id, staff_id) twice in Phase B, turning a Phase-A validation
+			// into a unique-constraint 500 (#1840).
+			if _, taken := subByInstance[instance.ID]; taken {
 				return nil, nil, common.ErrorConflictWithCode(
 					fmt.Errorf("instance %d already has a substitute staged in this request", instance.ID),
 					"substitute_conflict",

@@ -466,7 +466,11 @@ function VertretungsplanContent() {
       <VertretungsplanOverview
         openCount={openGaps.length}
         ackCount={acknowledgedGaps.length}
-        gapsUnavailable={gapsErrorMessage !== null}
+        // Gaps are never fetched for a fully-past window (the endpoint rejects a
+        // past date). Without treating that skipped query as unavailable, the KPIs
+        // would render a fabricated "0 open / 0 acknowledged" for historical views
+        // even though the figures were never loaded (#1840).
+        gapsUnavailable={!loadGaps || gapsErrorMessage !== null}
       />
 
       <WeeklyCalendarGrid
