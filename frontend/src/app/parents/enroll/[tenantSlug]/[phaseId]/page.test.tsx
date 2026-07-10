@@ -81,6 +81,8 @@ const bootstrap = {
   offerings: [],
   care_offering_selection_mode: "optional",
   care_required: false,
+  collect_grade_level: false,
+  care_offerings_enabled: false,
   school_class: {
     collect: false,
     available_classes: [],
@@ -140,6 +142,8 @@ describe("ParentEnrollFormPage", () => {
       expect.objectContaining({
         gradeLevelMax: 13,
         prefetchedData: expect.objectContaining({
+          collectGradeLevel: false,
+          careOfferingsEnabled: false,
           captchaConfig: null,
           profile: parentProfile,
         }),
