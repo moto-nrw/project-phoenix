@@ -79,6 +79,7 @@ import { ChildDetail } from "./child-detail";
 import { ParentChildrenPage } from "./parent-children-page";
 import { ParentDashboard } from "./parent-dashboard";
 import type { Child, EnrollmentRequest } from "~/lib/parent-api";
+import { todayISO } from "~/lib/date-helpers";
 
 function child(overrides: Partial<Child> = {}): Child {
   return {
@@ -285,7 +286,7 @@ describe("Parent portal components", () => {
     });
     mocks.listCareExceptions.mockResolvedValueOnce([
       {
-        date: "2026-06-17",
+        date: todayISO(),
         pickup_time: "14:45",
         source: "guardian",
         updated_at: "2026-06-16T10:00:00Z",
@@ -295,17 +296,17 @@ describe("Parent portal components", () => {
     render(<ChildDetail studentId="42" />);
 
     await screen.findAllByRole("heading", { name: "Lina Muster" });
-    await waitFor(() => expect(mocks.listCareExceptions).toHaveBeenCalled());
-
-    const pickupButtons = screen.getAllByRole("button", {
-      name: /Ankunfts- und Abholzeit ändern/,
+    const enabledPickupButton = await waitFor(() => {
+      const button = screen
+        .getAllByRole("button", {
+          name: /Ankunfts- und Abholzeit ändern/,
+        })
+        .find((candidate) => !candidate.hasAttribute("disabled"));
+      if (!button) throw new Error("pickup action is still disabled");
+      return button;
     });
-    const enabledPickupButton = pickupButtons.find(
-      (button) => !button.hasAttribute("disabled"),
-    );
-    expect(enabledPickupButton).toBeTruthy();
 
-    fireEvent.click(enabledPickupButton!);
+    fireEvent.click(enabledPickupButton);
 
     expect(
       await screen.findByRole("dialog", {
