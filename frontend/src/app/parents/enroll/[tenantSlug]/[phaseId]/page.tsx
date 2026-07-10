@@ -58,10 +58,10 @@ export default function ParentEnrollFormPage({ params }: PageProps) {
       fetchPublicEnrollmentBootstrap(tenantSlug, phaseId, {
         lateInviteToken,
         // The production tenant cookie is shared across tenant subdomains.
-        // Omit it here and tell the proxy not to enrich this public payload
-        // with a tenant-session profile; parent autofill comes only from the
-        // parent-authenticated endpoint below.
-        prefetchTenantProfile: false,
+        // Omit it as transport hardening; the server independently identifies
+        // the parent portal from the proxy-preserved original request host.
+        // Parent autofill comes only from the authenticated endpoint below.
+        omitCredentials: true,
       }),
       // Parent-profile lookup is best-effort, matching EnrollmentForm's
       // existing autofill contract. It stays on the parent-authenticated API;
@@ -165,8 +165,8 @@ function toParentPrefetchedData(
     careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
     captchaConfig: null,
     legalTexts: bootstrap.legal_texts,
-    // Never reuse the tenant-session profile that the shared public bootstrap
-    // may have prefetched. Parent autofill remains scoped to the parent API.
+    // Ignore any profile on the shared bootstrap shape. Parent autofill stays
+    // scoped to the parent API, independent of public metadata transport.
     profile,
     schoolClass: bootstrap.school_class,
   };

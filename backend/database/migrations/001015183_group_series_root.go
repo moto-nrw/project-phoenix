@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	groupSeriesRootVersion     = "1.15.181"
+	groupSeriesRootVersion     = "1.15.183"
 	groupSeriesRootDescription = "Track recurring activity-template split lineage for care-offering roster materialization"
 )
 
@@ -16,14 +16,17 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     groupSeriesRootVersion,
 		Description: groupSeriesRootDescription,
-		DependsOn:   []string{groupTargetGroupVersion},
+		DependsOn: []string{
+			groupTargetGroupVersion,
+			compositePKIndexesVersion, // 1.14.4 owns UNIQUE activities.groups(tenant_id, id)
+		},
 	})
 	Migrations.MustRegister(groupSeriesRootUp, groupSeriesRootDown)
 }
 
 func groupSeriesRootUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.181: Adding split-series lineage to activities.groups...")
-	// The pre-1.15.181 schema stored no predecessor/successor identifier, so an
+	fmt.Println("Migration 1.15.183: Adding split-series lineage to activities.groups...")
+	// The pre-1.15.183 schema stored no predecessor/successor identifier, so an
 	// automatic historical backfill would have to guess from mutable template
 	// fields or coincident validity boundaries. Keep existing rows unmodified;
 	// operators can review the conservative provenance-based candidates in
@@ -45,12 +48,12 @@ func groupSeriesRootUp(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed adding activities.groups split-series lineage: %w", err)
 	}
-	fmt.Println("Migration 1.15.181: Completed successfully")
+	fmt.Println("Migration 1.15.183: Completed successfully")
 	return nil
 }
 
 func groupSeriesRootDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.181: Dropping activities.groups split-series lineage...")
+	fmt.Println("Rolling back migration 1.15.183: Dropping activities.groups split-series lineage...")
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS activities.idx_activities_groups_tenant_series_root;
 		ALTER TABLE activities.groups

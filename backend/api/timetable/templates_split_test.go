@@ -89,6 +89,22 @@ func createSourceTemplate(t *testing.T, router chi.Router, s *templateSetup, nam
 	return decodeTemplateData[createTemplateResponse](t, w)
 }
 
+func createJahrgangSourceTemplate(
+	t *testing.T,
+	router chi.Router,
+	s *templateSetup,
+	name string,
+	grade int,
+) createTemplateResponse {
+	t.Helper()
+	body := createTemplateBody(s, name)
+	body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+	body["target_grade_level"] = grade
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	return decodeTemplateData[createTemplateResponse](t, w)
+}
+
 func templateSchedules(t *testing.T, s *templateSetup, templateID int64) []*activitiesModel.Schedule {
 	t.Helper()
 	rows, err := activitiesRepo.NewScheduleRepository(s.db).FindByGroupID(s.ctx, templateID)
@@ -166,6 +182,128 @@ func TestTemplateSplitHandler_HappyPath(t *testing.T) {
 	assert.Equal(t, 0, resp.DeletedInstances, "no planned instances existed")
 	assert.Equal(t, 5, resp.InstancesCreated, "materialization count surfaces on the wire")
 	assert.Equal(t, scheduleSvc.MaterializationSourceManual, mat.source)
+}
+
+func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
+	s := buildTemplateSetup(t, nil)
+	defer s.cleanupFn()
+	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+
+	s.res.SettingsService = templateGradeSettings(13, nil)
+	created := createJahrgangSourceTemplate(t, router, s, "Tpl-GradeCap-Update-Source", 5)
+
+	// Lowering the tenant cap must not strand an existing legacy series.
+	s.res.SettingsService = templateGradeSettings(4, nil)
+	unchanged := createTemplateBody(s, "Tpl-GradeCap-Update-Unchanged")
+	unchanged["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+	unchanged["target_grade_level"] = 5
+	unchangedW := doTemplateJSON(t, router, http.MethodPut,
+		fmt.Sprintf("/templates/%d", created.TemplateID), unchanged)
+	require.Equal(t, http.StatusOK, unchangedW.Code, "body=%s", unchangedW.Body.String())
+
+	rejectedName := fmt.Sprintf("Tpl-GradeCap-Update-Rejected-%d", time.Now().UnixNano())
+	startTime, endTime := unusedTemplateClockWindow(t, s, created.TemplateID)
+	rejected := createTemplateBody(s, rejectedName)
+	rejected["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+	rejected["target_grade_level"] = 6
+	rejected["start_time"] = startTime
+	rejected["end_time"] = endTime
+	rejectedW := doTemplateJSON(t, router, http.MethodPut,
+		fmt.Sprintf("/templates/%d", created.TemplateID), rejected)
+	require.Equal(t, http.StatusBadRequest, rejectedW.Code, "body=%s", rejectedW.Body.String())
+	require.Contains(t, rejectedW.Body.String(), "target_grade_level 6 exceeds tenant maximum 4")
+
+	group, err := s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)
+	require.NoError(t, err)
+	assert.Equal(t, "Tpl-GradeCap-Update-Unchanged", group.Name)
+	require.NotNil(t, group.TargetGradeLevel)
+	assert.EqualValues(t, 5, *group.TargetGradeLevel)
+	timeframes, err := scheduleRepo.NewTimeframeRepository(s.db).FindByDescription(s.ctx, rejectedName)
+	require.NoError(t, err)
+	assert.Empty(t, timeframes, "the handler-created timeframe must roll back with the rejected update")
+
+	s.res.SettingsService = templateGradeSettings(0, errors.New("settings unavailable"))
+	settingsFailure := createTemplateBody(s, "Tpl-GradeCap-Update-SettingsFailure")
+	settingsFailureW := doTemplateJSON(t, router, http.MethodPut,
+		fmt.Sprintf("/templates/%d", created.TemplateID), settingsFailure)
+	require.Equal(t, http.StatusInternalServerError, settingsFailureW.Code, "body=%s", settingsFailureW.Body.String())
+
+	group, err = s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)
+	require.NoError(t, err)
+	assert.Equal(t, "Tpl-GradeCap-Update-Unchanged", group.Name)
+}
+
+func TestTemplateSplitHandler_EnforcesTenantGradeLevelMax(t *testing.T) {
+	t.Run("allows an unchanged legacy above-cap Jahrgang", func(t *testing.T) {
+		s := buildTemplateSetup(t, nil)
+		defer s.cleanupFn()
+		attachSplitService(s, &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}})
+		router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+
+		s.res.SettingsService = templateGradeSettings(13, nil)
+		created := createJahrgangSourceTemplate(t, router, s, "Tpl-GradeCap-Split-Legacy", 5)
+		s.res.SettingsService = templateGradeSettings(4, nil)
+		body := splitBody(s, "Tpl-GradeCap-Split-Legacy-Successor", timezone.TodayDate().AddDays(7))
+		body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+		body["target_grade_level"] = 5
+
+		w := doTemplateJSON(t, router, http.MethodPost,
+			fmt.Sprintf("/templates/%d/split", created.TemplateID), body)
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+		result := decodeTemplateData[splitTemplateResponse](t, w)
+		successor, err := s.res.TimetableData.GetActivityGroup(s.ctx, result.NewTemplateID)
+		require.NoError(t, err)
+		require.NotNil(t, successor.TargetGradeLevel)
+		assert.EqualValues(t, 5, *successor.TargetGradeLevel)
+	})
+
+	t.Run("rejects a changed above-cap Jahrgang before capping the source", func(t *testing.T) {
+		s := buildTemplateSetup(t, nil)
+		defer s.cleanupFn()
+		attachSplitService(s, &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}})
+		router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+
+		s.res.SettingsService = templateGradeSettings(13, nil)
+		created := createJahrgangSourceTemplate(t, router, s, "Tpl-GradeCap-Split-Rejected", 5)
+		s.res.SettingsService = templateGradeSettings(4, nil)
+		body := splitBody(s, "Tpl-GradeCap-Split-Rejected-Successor", timezone.TodayDate().AddDays(7))
+		body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+		body["target_grade_level"] = 6
+
+		w := doTemplateJSON(t, router, http.MethodPost,
+			fmt.Sprintf("/templates/%d/split", created.TemplateID), body)
+		require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+		for _, row := range templateSchedules(t, s, created.TemplateID) {
+			assert.Nil(t, row.ValidUntil)
+		}
+		series, err := activitiesRepo.NewGroupRepository(s.db).FindTemplateSeries(s.ctx, created.TemplateID)
+		require.NoError(t, err)
+		assert.Len(t, series, 1)
+	})
+
+	t.Run("settings failure returns 500 without mutating the source", func(t *testing.T) {
+		s := buildTemplateSetup(t, nil)
+		defer s.cleanupFn()
+		attachSplitService(s, &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}})
+		router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+
+		s.res.SettingsService = templateGradeSettings(13, nil)
+		created := createJahrgangSourceTemplate(t, router, s, "Tpl-GradeCap-Split-Settings", 5)
+		s.res.SettingsService = templateGradeSettings(0, errors.New("settings unavailable"))
+		body := splitBody(s, "Tpl-GradeCap-Split-Settings-Successor", timezone.TodayDate().AddDays(7))
+		body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+		body["target_grade_level"] = 5
+
+		w := doTemplateJSON(t, router, http.MethodPost,
+			fmt.Sprintf("/templates/%d/split", created.TemplateID), body)
+		require.Equal(t, http.StatusInternalServerError, w.Code, "body=%s", w.Body.String())
+		for _, row := range templateSchedules(t, s, created.TemplateID) {
+			assert.Nil(t, row.ValidUntil)
+		}
+		series, err := activitiesRepo.NewGroupRepository(s.db).FindTemplateSeries(s.ctx, created.TemplateID)
+		require.NoError(t, err)
+		assert.Len(t, series, 1)
+	})
 }
 
 func TestTemplateSplitHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) {

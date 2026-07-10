@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	groupCalendarPeriodVersion     = "1.15.179"
+	groupCalendarPeriodVersion     = "1.15.181"
 	groupCalendarPeriodDescription = "Add calendar_period_id FK to activities.groups - lets a template pin its own calendar period independent of its schedule rows"
 )
 
@@ -17,8 +17,8 @@ func init() {
 		Version:     groupCalendarPeriodVersion,
 		Description: groupCalendarPeriodDescription,
 		DependsOn: []string{
-			addDisplayPermissionsVersion, // 1.15.176
-			createCalendarPeriodsVersion, // 1.15.33
+			enrollmentNotificationModeAndCleanupGrantsVersion, // 1.15.180
+			createCalendarPeriodsVersion,                      // 1.15.33
 		},
 	})
 
@@ -33,7 +33,7 @@ func init() {
 }
 
 func groupCalendarPeriodUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.179: Adding calendar_period_id to activities.groups...")
+	fmt.Println("Migration 1.15.181: Adding calendar_period_id to activities.groups...")
 
 	// ON DELETE SET NULL: deleting a calendar period clears references
 	// instead of blocking the delete with a FK violation (same pattern as
@@ -60,12 +60,12 @@ func groupCalendarPeriodUp(ctx context.Context, db *bun.DB) error {
 		return fmt.Errorf("failed creating activities.groups calendar_period_id index: %w", err)
 	}
 
-	fmt.Println("Migration 1.15.179: Completed successfully")
+	fmt.Println("Migration 1.15.181: Completed successfully")
 	return nil
 }
 
 func groupCalendarPeriodDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.179: Dropping calendar_period_id from activities.groups...")
+	fmt.Println("Rolling back migration 1.15.181: Dropping calendar_period_id from activities.groups...")
 
 	_, err := db.NewRaw(`
 		DROP INDEX IF EXISTS activities.idx_activities_groups_tenant_calendar_period;

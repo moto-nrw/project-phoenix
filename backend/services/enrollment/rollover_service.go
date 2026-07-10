@@ -255,16 +255,13 @@ func (s *rolloverService) CreatePhaseFromSource(ctx context.Context, req CreateP
 		return nil, fmt.Errorf("rollover: tenant not in context")
 	}
 
-	if s.Settings == nil {
-		return nil, errors.New("rollover: enrollment settings resolver is not configured")
+	maxGrade, err := s.resolveMaxGrade(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("rollover: %w", err)
 	}
 	collectGradeLevel, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
 	if err != nil {
 		return nil, fmt.Errorf("rollover: resolve collect grade level: %w", err)
-	}
-	maxGrade, err := s.resolveMaxGrade(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("rollover: %w", err)
 	}
 
 	result := &RolloverResult{

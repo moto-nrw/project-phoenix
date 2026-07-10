@@ -3,8 +3,22 @@ import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
+import {
+  getOriginalRequestHost,
+  hostnameFromAuthority,
+} from "~/lib/client-headers.server";
 
 const logger = createLogger({ component: "EnrollmentFormBootstrapRoute" });
+const parentsHostAuthority = process.env.NEXT_PUBLIC_PARENTS_HOSTNAME;
+if (!parentsHostAuthority) {
+  throw new Error("NEXT_PUBLIC_PARENTS_HOSTNAME is not set.");
+}
+const parentsHostname = hostnameFromAuthority(parentsHostAuthority);
+if (!parentsHostname) {
+  throw new Error(
+    "NEXT_PUBLIC_PARENTS_HOSTNAME is not a valid host authority.",
+  );
+}
 
 interface RouteContext {
   params: Promise<{ tenantSlug: string; phaseId: string }>;
@@ -13,6 +27,16 @@ interface RouteContext {
 export async function GET(request: NextRequest, context: RouteContext) {
   const { tenantSlug, phaseId } = await context.params;
   try {
+    const requestHostname = hostnameFromAuthority(
+      getOriginalRequestHost(request),
+    );
+    if (!requestHostname) {
+      return NextResponse.json(
+        { error: "Invalid request host" },
+        { status: 400 },
+      );
+    }
+    const isParentPortal = requestHostname === parentsHostname;
     const lateInvite = request.nextUrl.searchParams.get("late_invite")?.trim();
     const backendUrl = new URL(
       `${getServerApiUrl()}/api/enrollment/form-bootstrap/public/${encodeURIComponent(
@@ -26,13 +50,11 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json(payload, { status: response.status });
     }
 
-    // The parent portal uses the same public bootstrap metadata but must not
-    // inherit tenant-session profile enrichment. Tenant cookies are
-    // domain-scoped across *.TENANT_DOMAIN in production, so this explicit
-    // opt-out is required in addition to the browser request omitting
-    // credentials. Return before auth() so the boundary is enforceable and
-    // testable at the proxy itself.
-    if (request.nextUrl.searchParams.get("prefetch_profile") === "0") {
+    // The parent portal uses the same public metadata, but tenant cookies are
+    // domain-scoped across tenant subdomains in production. The proxy-owned
+    // original host is the security boundary: client-controlled query flags
+    // and fetch credential options must never decide whether auth() runs.
+    if (isParentPortal) {
       return NextResponse.json(payload, { status: response.status });
     }
 

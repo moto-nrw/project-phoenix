@@ -79,6 +79,7 @@ import {
   getWeekdays,
   getYearMonths,
   getYearRange,
+  resolveTemplateCalendarPeriodId,
   toISODate,
   type TimetableCareOfferingLinkStatus,
 } from "~/lib/timetable-helpers";
@@ -891,6 +892,15 @@ function TimetablesContent() {
     () => templateData?.templates ?? [],
     [templateData?.templates],
   );
+  const modalCalendarPeriods = useMemo(() => {
+    const periodIDs = new Set(assignedPeriods.map((period) => period.id));
+    if (templatePeriodID) periodIDs.add(templatePeriodID);
+    if (editingTemplate) {
+      const pinnedPeriodID = resolveTemplateCalendarPeriodId(editingTemplate);
+      if (pinnedPeriodID) periodIDs.add(pinnedPeriodID);
+    }
+    return calendarPeriods.filter((period) => periodIDs.has(period.id));
+  }, [assignedPeriods, calendarPeriods, editingTemplate, templatePeriodID]);
   const showTemplatePeriodField = assignedPeriods.length !== 1;
   const periodCreateDefaults = useMemo(() => {
     const defaults = schoolYearPeriodDefaults(weekRange.from);
@@ -1249,11 +1259,8 @@ function TimetablesContent() {
       // Resolve which calendar period the template's schedules belong to.
       // Falls back to the period currently in scope (defaultTemplatePeriod)
       // If none is active, ask the admin to create one before continuing.
-      const scheduleWithPeriod = template.schedules.find(
-        (s) => s.calendarPeriodId,
-      );
       const periodId =
-        scheduleWithPeriod?.calendarPeriodId ?? defaultTemplatePeriod?.id;
+        resolveTemplateCalendarPeriodId(template) ?? defaultTemplatePeriod?.id;
       const period = periodId
         ? calendarPeriods.find((p) => p.id === periodId)
         : null;
@@ -1616,7 +1623,7 @@ function TimetablesContent() {
         defaultDate={quickPrefill?.date ?? selectedDay ?? fromISO}
         weekFrom={fromISO}
         weekTo={toISO}
-        calendarPeriods={assignedPeriods}
+        calendarPeriods={modalCalendarPeriods}
         defaultCalendarPeriodId={templatePeriodID ?? null}
         showPeriodField={showTemplatePeriodField}
         initialInstance={editingInstance}

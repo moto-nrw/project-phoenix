@@ -584,3 +584,14 @@ func TestGroupValidateTargetGroup_TrimsSchoolClass(t *testing.T) {
 		t.Fatalf("TargetSchoolClass = %q, want trimmed class", got)
 	}
 }
+
+func TestGroupValidateTargetGroup_CanonicalizesEmptyType(t *testing.T) {
+	group := baseValidGroup()
+
+	if err := group.ValidateTargetGroup(); err != nil {
+		t.Fatalf("ValidateTargetGroup() unexpected error: %v", err)
+	}
+	if group.TargetGroupType != TargetGroupTypeNone {
+		t.Fatalf("TargetGroupType = %q, want %q", group.TargetGroupType, TargetGroupTypeNone)
+	}
+}

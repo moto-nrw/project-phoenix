@@ -1,3 +1,4 @@
+// Verifies the tenant-safe FK installed by migration 1.15.185.
 package migrations
 
 import (

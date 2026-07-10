@@ -25,7 +25,6 @@ import (
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/uptrace/bun"
 )
 
 // Decision service integration tests. These hit the real test DB

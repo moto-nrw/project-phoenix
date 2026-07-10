@@ -102,6 +102,13 @@ const periods: CalendarPeriod[] = [
   },
 ];
 
+const templatePinnedPeriod: CalendarPeriod = {
+  ...periods[0]!,
+  id: "6",
+  name: "Sommerplanung 2026",
+  endDate: "2026-07-31",
+};
+
 const savedInstance: EnrichedInstance = {
   id: "42",
   date: "2026-05-04",
@@ -154,6 +161,15 @@ const template: TimetableTemplate = {
       calendarPeriodId: "5",
     },
   ],
+};
+
+const templateWithTemplateOnlyPeriodPin: TimetableTemplate = {
+  ...template,
+  calendarPeriodId: "6",
+  schedules: template.schedules.map((schedule) => ({
+    ...schedule,
+    calendarPeriodId: undefined,
+  })),
 };
 
 function deferred<T>() {
@@ -1122,6 +1138,29 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("initializes and saves a direct series edit with its template-only period pin", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-04T10:00:00"));
+
+    renderModal({
+      initialSeries: templateWithTemplateOnlyPeriodPin,
+      calendarPeriods: [...periods, templatePinnedPeriod],
+      showPeriodField: true,
+    });
+
+    await screen.findByText("Regeltermin bearbeiten");
+    expect(screen.getByLabelText("Planungszeitraum*")).toHaveValue("6");
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ calendar_period_id: 6 }),
+      ),
+    );
+  });
+
   it("updates an existing series and converts an instance to a series", async () => {
     // Freeze the calendar day so the "replan from today" window is stable.
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -1446,6 +1485,35 @@ describe("TimetableEventModal", () => {
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "12" });
   });
 
+  it("preserves a template-only period pin and its end for 'Ab jetzt dauerhaft'", async () => {
+    mockGetTemplate.mockResolvedValue(templateWithTemplateOnlyPeriodPin);
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+      calendarPeriods: [...periods, templatePinnedPeriod],
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() =>
+      expect(mockSplitTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          calendar_period_id: 6,
+          materialize_to: "2026-06-28",
+        }),
+      ),
+    );
+    await waitFor(() => expect(mockReplanWeek).toHaveBeenCalledTimes(1));
+    expect(mockReplanWeek).toHaveBeenCalledWith(
+      "2026-06-29",
+      "2026-07-31",
+      "7",
+    );
+  });
+
   it("preserves the fetched template roster for 'Ab jetzt dauerhaft' without users:read", async () => {
     mockFetchStudents.mockRejectedValue(new Error("forbidden"));
     mockGetTemplate.mockResolvedValue({
@@ -1546,6 +1614,37 @@ describe("TimetableEventModal", () => {
     );
     expect(mockSplitTemplate).not.toHaveBeenCalled();
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
+  });
+
+  it("preserves a template-only period pin and its end for 'Alle Termine der Serie'", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-04T10:00:00"));
+    mockGetTemplate.mockResolvedValue(templateWithTemplateOnlyPeriodPin);
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+      calendarPeriods: [...periods, templatePinnedPeriod],
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ calendar_period_id: 6 }),
+      ),
+    );
+    await waitFor(() => expect(mockReplanWeek).toHaveBeenCalledTimes(2));
+    expect(mockReplanWeek).toHaveBeenNthCalledWith(
+      2,
+      "2026-06-29",
+      "2026-07-31",
+      "7",
+    );
   });
 
   it("preserves the fetched template roster for 'Alle Termine der Serie' without users:read", async () => {

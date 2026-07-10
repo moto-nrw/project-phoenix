@@ -36,6 +36,7 @@ import {
   getActivityColor,
   getGermanWeekdayLong,
   getGermanWeekdayShort,
+  resolveTemplateCalendarPeriodId,
 } from "~/lib/timetable-helpers";
 import {
   timetableMutedSurface,
@@ -300,7 +301,7 @@ function formFromSeries(
     repeat,
     weekdays: weekdays.length > 0 ? weekdays : [1],
     calendarPeriodId:
-      firstSchedule?.calendarPeriodId ?? defaultCalendarPeriodId ?? "",
+      resolveTemplateCalendarPeriodId(series) ?? defaultCalendarPeriodId ?? "",
     studentIds: series.studentIds,
     staffIds: series.staffIds,
     primaryStaffId: series.primaryStaffId ?? "",
@@ -1027,6 +1028,8 @@ export function TimetableEventModal({
     roomId: number,
   ): UpdateTemplateBody => {
     const firstSchedule = template.schedules[0];
+    const calendarPeriodId =
+      resolveTemplateCalendarPeriodId(template) ?? form.calendarPeriodId;
     const weekdays = template.schedules.map((schedule) => schedule.weekday);
     // A materialized occurrence may have a deliberate roster override. When
     // users:read is unavailable, the occurrence snapshot is authoritative only
@@ -1061,11 +1064,9 @@ export function TimetableEventModal({
       max_participants:
         template.maxParticipants > 0 ? template.maxParticipants : undefined,
       week_pattern: firstSchedule?.weekPattern ?? 0,
-      calendar_period_id: firstSchedule?.calendarPeriodId
-        ? Number(firstSchedule.calendarPeriodId)
-        : form.calendarPeriodId
-          ? Number(form.calendarPeriodId)
-          : undefined,
+      calendar_period_id: calendarPeriodId
+        ? Number(calendarPeriodId)
+        : undefined,
       student_ids: templateStudentIDs.map(Number),
       staff_ids: templateStaffIDs.map(Number),
       primary_staff_id:
@@ -1326,8 +1327,10 @@ export function TimetableEventModal({
         onSaved({ kind: "instance", instance: saved });
       } else {
         const template = await timetableService.getTemplate(groupId);
+        const templateCalendarPeriodId =
+          resolveTemplateCalendarPeriodId(template);
         const periodEnd =
-          findPeriod(template.schedules[0]?.calendarPeriodId)?.endDate ??
+          findPeriod(templateCalendarPeriodId)?.endDate ??
           findPeriod(form.calendarPeriodId)?.endDate;
         const body = templateBodyFromForm(template, pending.roomId);
         if (scope === "following") {

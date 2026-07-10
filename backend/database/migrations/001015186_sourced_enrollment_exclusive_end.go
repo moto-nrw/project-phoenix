@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	sourcedEnrollmentExclusiveEndVersion     = "1.15.184"
+	sourcedEnrollmentExclusiveEndVersion     = "1.15.186"
 	sourcedEnrollmentExclusiveEndDescription = "Repair enrollment-sourced roster end dates to use exclusive phase bounds"
 )
 
@@ -22,11 +22,11 @@ func init() {
 }
 
 func sourcedEnrollmentExclusiveEndUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.184: Repairing sourced enrollment exclusive end dates...")
+	fmt.Println("Migration 1.15.186: Repairing sourced enrollment exclusive end dates...")
 	if err := repairSourcedEnrollmentExclusiveEnds(ctx, db); err != nil {
 		return err
 	}
-	fmt.Println("Migration 1.15.184: Completed successfully")
+	fmt.Println("Migration 1.15.186: Completed successfully")
 	return nil
 }
 

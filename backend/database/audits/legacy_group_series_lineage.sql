@@ -1,4 +1,4 @@
--- Read-only audit for template splits created before migration 1.15.181.
+-- Read-only audit for template splits created before migration 1.15.183.
 --
 -- The old schema did not store a predecessor ID, so matching schedule
 -- boundaries alone is unsafe: unrelated templates can end/start on the same

@@ -11,7 +11,7 @@ import (
 
 // This test exercises the schema installed by the normal migration runner. It
 // deliberately does not invoke the migration's Up function, so an already
-// recorded 1.15.180 cannot hide a missing upgrade migration.
+// recorded 1.15.182 cannot hide a missing upgrade migration.
 func TestGroupTargetConstraintsRejectInvalidDirectWrites(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })

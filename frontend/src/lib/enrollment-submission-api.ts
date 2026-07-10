@@ -274,12 +274,11 @@ export interface LateInviteFetchOptions {
 
 export interface PublicEnrollmentBootstrapFetchOptions extends LateInviteFetchOptions {
   /**
-   * The tenant-hosted public form may enrich the bootstrap with a tenant
-   * session profile. Parent-portal callers must opt out: the tenant session
-   * cookie is domain-scoped in production and must never cross that portal
-   * boundary, even when the parent page discards the profile afterwards.
+   * Omits browser credentials from this request. This is transport hardening
+   * for parent-portal callers, not the server-side portal boundary; the route
+   * decides profile enrichment from the proxy-preserved original host.
    */
-  prefetchTenantProfile?: boolean;
+  omitCredentials?: boolean;
 }
 
 function withLateInviteQuery(path: string, token?: string): string {
@@ -410,12 +409,9 @@ export async function fetchPublicEnrollmentBootstrap(
     tenantSlug,
   )}/${encodeURIComponent(phaseId)}`;
   path = withLateInviteQuery(path, options.lateInviteToken);
-  if (options.prefetchTenantProfile === false) {
-    path += `${path.includes("?") ? "&" : "?"}prefetch_profile=0`;
-  }
   const response = await fetch(
     path,
-    options.prefetchTenantProfile === false
+    options.omitCredentials
       ? { cache: "no-store", credentials: "omit" }
       : { cache: "no-store" },
   );

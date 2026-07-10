@@ -1,3 +1,4 @@
+// Verifies the repair installed by migration 1.15.186.
 package migrations
 
 import (

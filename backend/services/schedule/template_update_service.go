@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -46,6 +47,9 @@ type TemplateUpdateInput struct {
 	StudentIDs       []int64
 	StaffIDs         []int64
 	PrimaryStaffID   *int64
+	// GradeLevelMax is the caller's validated snapshot of
+	// enrollment.grade_level_max. Missing or out-of-range values are rejected.
+	GradeLevelMax int
 }
 
 // UpdateTemplate replaces a template's editable fields, schedules, and roster
@@ -76,6 +80,7 @@ func normalizeTemplateUpdateTarget(in *TemplateUpdateInput) error {
 	if err := target.ValidateTargetGroup(); err != nil {
 		return err
 	}
+	in.Fields.TargetGroupType = target.TargetGroupType
 	in.Fields.TargetSchoolClass = target.TargetSchoolClass
 	return nil
 }
@@ -101,6 +106,24 @@ func (s *TimetableDataService) validateTemplateUpdateRequest(ctx context.Context
 func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in TemplateUpdateInput, tenantID int64) error {
 	if err := lockTenantRecurrenceWrites(ctx, s.deps.DB); err != nil {
 		return &ScheduleError{Op: "update template: lock recurrence", Err: err}
+	}
+	existing, err := s.deps.ActivityGroupRepo.FindByID(ctx, in.TemplateID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return &ScheduleError{Op: "update template: load target", Err: ErrTemplateSegmentNotEditable}
+		}
+		return &ScheduleError{Op: "update template: load target", Err: err}
+	}
+	if existing == nil || !existing.IsTemplate || existing.ArchivedAt != nil {
+		return &ScheduleError{Op: "update template: load target", Err: ErrTemplateSegmentNotEditable}
+	}
+	if err := ValidateTemplateTargetGradeLimit(
+		in.GradeLevelMax,
+		existing,
+		in.Fields.TargetGroupType,
+		in.Fields.TargetGradeLevel,
+	); err != nil {
+		return &ScheduleError{Op: "update template: validate target grade", Err: err}
 	}
 	validFrom, validUntil, err := s.loadEditableTemplateEnvelope(ctx, in.TemplateID)
 	if err != nil {
@@ -258,6 +281,9 @@ func validateTemplateUpdateInput(in TemplateUpdateInput) error {
 	}
 	if in.RosterValidFrom.IsZero() {
 		return errors.New("roster valid_from is required")
+	}
+	if err := validateTemplateGradeLevelMax(in.GradeLevelMax); err != nil {
+		return err
 	}
 	return nil
 }

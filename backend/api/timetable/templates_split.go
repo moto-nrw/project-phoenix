@@ -102,6 +102,13 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	gradeLevelMax, err := rs.resolveTemplateGradeLevelMax(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"resolve template grade level limit failed", err))
+		return
+	}
+	in.GradeLevelMax = gradeLevelMax
 	// Same tenant-scoped period check the create/update handlers run; the
 	// returned roster start date is unused — the split anchors rosters on
 	// the effective date instead.

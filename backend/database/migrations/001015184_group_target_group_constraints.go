@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	groupTargetGroupConstraintsVersion     = "1.15.182"
+	groupTargetGroupConstraintsVersion     = "1.15.184"
 	groupTargetGroupConstraintsDescription = "Enforce valid grade and class values for timetable template target groups"
 )
 
@@ -22,7 +22,7 @@ func init() {
 }
 
 func groupTargetGroupConstraintsUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.182: Strengthening activities.groups target-group constraints...")
+	fmt.Println("Migration 1.15.184: Strengthening activities.groups target-group constraints...")
 	_, err := db.NewRaw(`
 		ALTER TABLE activities.groups
 			DROP CONSTRAINT IF EXISTS chk_activities_groups_target_group_values,
@@ -64,12 +64,12 @@ func groupTargetGroupConstraintsUp(ctx context.Context, db *bun.DB) error {
 	if err != nil {
 		return fmt.Errorf("failed strengthening activities.groups target-group constraints: %w", err)
 	}
-	fmt.Println("Migration 1.15.182: Completed successfully")
+	fmt.Println("Migration 1.15.184: Completed successfully")
 	return nil
 }
 
 func groupTargetGroupConstraintsDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.182: Restoring 1.15.180 target-group constraints...")
+	fmt.Println("Rolling back migration 1.15.184: Restoring 1.15.182 target-group constraints...")
 	_, err := db.NewRaw(`
 		ALTER TABLE activities.groups
 			DROP CONSTRAINT IF EXISTS chk_activities_groups_target_group_values,
@@ -77,7 +77,7 @@ func groupTargetGroupConstraintsDown(ctx context.Context, db *bun.DB) error {
 			DROP CONSTRAINT IF EXISTS chk_activities_groups_target_grade_level;
 	`).Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("failed restoring 1.15.180 activities.groups target-group constraints: %w", err)
+		return fmt.Errorf("failed restoring 1.15.182 activities.groups target-group constraints: %w", err)
 	}
 	return nil
 }

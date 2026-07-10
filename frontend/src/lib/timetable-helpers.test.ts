@@ -40,6 +40,7 @@ import {
   mapTemplates,
   mapWeeklyInstances,
   parseTimeToMinutes,
+  resolveTemplateCalendarPeriodId,
   toISODate,
 } from "./timetable-helpers";
 import type { EnrichedInstance, TimetableTemplate } from "./timetable-types";
@@ -597,6 +598,23 @@ describe("backend mappers", () => {
       primaryStaffId: undefined,
       schedules: [],
     });
+  });
+});
+
+describe("resolveTemplateCalendarPeriodId", () => {
+  it("prefers the first schedule pin over the template-level pin", () => {
+    const candidate = {
+      calendarPeriodId: "5",
+      schedules: [{ calendarPeriodId: "6" }],
+    } as TimetableTemplate;
+
+    expect(resolveTemplateCalendarPeriodId(candidate)).toBe("6");
+    expect(
+      resolveTemplateCalendarPeriodId({
+        ...candidate,
+        schedules: [{ calendarPeriodId: undefined }],
+      } as TimetableTemplate),
+    ).toBe("5");
   });
 });
 

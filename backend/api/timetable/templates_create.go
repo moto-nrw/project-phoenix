@@ -106,6 +106,7 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 	if err := target.ValidateTargetGroup(); err != nil {
 		return err
 	}
+	req.TargetGroupType = target.TargetGroupType
 	req.TargetSchoolClass = target.TargetSchoolClass
 	return nil
 }
@@ -180,6 +181,21 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 	if tenantID <= 0 {
 		common.RenderError(w, r, common.ErrorInternalServer(
 			errors.New("no tenant in context")))
+		return
+	}
+	gradeLevelMax, err := rs.resolveTemplateGradeLevelMax(ctx)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"resolve template grade level limit failed", err))
+		return
+	}
+	if err := scheduleSvc.ValidateTemplateTargetGradeLimit(
+		gradeLevelMax,
+		nil,
+		req.TargetGroupType,
+		req.TargetGradeLevel,
+	); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	rosterValidFrom, err := rs.templateRosterValidFrom(ctx, req.CalendarPeriodID)

@@ -67,6 +67,7 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	if err := target.ValidateTargetGroup(); err != nil {
 		return err
 	}
+	req.TargetGroupType = target.TargetGroupType
 	req.TargetSchoolClass = target.TargetSchoolClass
 	return nil
 }
@@ -163,6 +164,12 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("no tenant in context")))
 		return
 	}
+	gradeLevelMax, err := rs.resolveTemplateGradeLevelMax(ctx)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"resolve template grade level limit failed", err))
+		return
+	}
 	rosterValidFrom, err := rs.templateRosterValidFrom(ctx, req.CalendarPeriodID)
 	if err != nil {
 		renderTemplatePeriodLookupError(w, r, err)
@@ -209,6 +216,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		StudentIDs:       req.StudentIDs,
 		StaffIDs:         req.StaffIDs,
 		PrimaryStaffID:   req.PrimaryStaffID,
+		GradeLevelMax:    gradeLevelMax,
 	})
 	if updateErr != nil {
 		// findOrCreateTimeframe runs before the recurrence service. Tenant
@@ -222,6 +230,8 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 	} else if renderTemplateCareOfferingConflict(w, r, updateErr) {
 		return
 	} else if renderTemplateRosterRebaseConflict(w, r, updateErr) {
+		return
+	} else if renderTemplateTargetGradeLimit(w, r, updateErr) {
 		return
 	} else if updateErr != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("update template failed", updateErr))

@@ -106,20 +106,19 @@ func (g *Group) Validate() error {
 //
 // An empty TargetGroupType (the Go zero value for callers that construct a
 // Group{} literal without ever mentioning Zielgruppe, which is most of the
-// codebase) is treated the same as TargetGroupTypeNone: the DB column
-// defaults to 'none', and callers predating this field must not be forced
-// to set it explicitly.
+// codebase) is canonicalized to TargetGroupTypeNone. This keeps generic
+// repository creates and updates consistent with the DB's non-empty CHECK
+// constraint without forcing callers predating this field to set it.
 func (g *Group) ValidateTargetGroup() error {
 	if !IsValidTargetGroupType(g.TargetGroupType) {
 		return errors.New("invalid target group type")
 	}
 
-	targetGroupType := g.TargetGroupType
-	if targetGroupType == "" {
-		targetGroupType = TargetGroupTypeNone
+	if g.TargetGroupType == "" {
+		g.TargetGroupType = TargetGroupTypeNone
 	}
 
-	switch targetGroupType {
+	switch g.TargetGroupType {
 	case TargetGroupTypeJahrgang:
 		return g.validateGradeTarget()
 	case TargetGroupTypeKlasse:

@@ -116,6 +116,9 @@ type TemplateSplitInput struct {
 	PrimaryStaffID    *int64
 	MaterializeFrom   *timezone.Date
 	MaterializeTo     *timezone.Date
+	// GradeLevelMax is the caller's validated snapshot of
+	// enrollment.grade_level_max. Missing or out-of-range values are rejected.
+	GradeLevelMax int
 }
 
 // TemplateSplitResult summarises one Split call.
@@ -305,6 +308,14 @@ func (s *TemplateSplitService) prepareSplitSource(
 	old, err := s.loadTemplate(ctx, in.TemplateID)
 	if err != nil {
 		return nil, nil, nil, nil, err
+	}
+	if err := ValidateTemplateTargetGradeLimit(
+		in.GradeLevelMax,
+		old,
+		in.TargetGroupType,
+		in.TargetGradeLevel,
+	); err != nil {
+		return nil, nil, nil, nil, fmt.Errorf("%w: %w", ErrSplitInvalidInput, err)
 	}
 	effectiveDate, sourceValidUntil, err := s.normalizeEffectiveDateInSegment(ctx, old.ID, in.EffectiveDate, "split template", false)
 	if err != nil {
@@ -533,6 +544,9 @@ func validateSplitTemplateFields(in TemplateSplitInput) error {
 	if in.CategoryID <= 0 {
 		return fmt.Errorf("%w: category_id is required", ErrSplitInvalidInput)
 	}
+	if err := validateTemplateGradeLevelMax(in.GradeLevelMax); err != nil {
+		return fmt.Errorf("%w: %s", ErrSplitInvalidInput, err.Error())
+	}
 	return nil
 }
 
@@ -574,6 +588,7 @@ func validateSplitTargetGroup(in *TemplateSplitInput) error {
 	if err := target.ValidateTargetGroup(); err != nil {
 		return fmt.Errorf("%w: %s", ErrSplitInvalidInput, err.Error())
 	}
+	in.TargetGroupType = target.TargetGroupType
 	in.TargetSchoolClass = target.TargetSchoolClass
 	return nil
 }

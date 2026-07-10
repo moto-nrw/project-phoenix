@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -255,6 +256,7 @@ func baseSplitInput(s *scenarioSetup, effective timezone.Date, name string) sche
 		EndTime:       time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC),
 		RoomID:        s.roomID,
 		CategoryID:    s.categoryID,
+		GradeLevelMax: schoolclass.MaxGradeLevel,
 	}
 }
 
@@ -376,6 +378,7 @@ func linkedTemplateUpdateInput(t *testing.T, s *scenarioSetup, periodID *int64) 
 		StudentIDs:       []int64{s.students[0], s.students[1]},
 		StaffIDs:         []int64{s.staffID},
 		PrimaryStaffID:   &s.staffID,
+		GradeLevelMax:    schoolclass.MaxGradeLevel,
 	}
 }
 
@@ -1037,6 +1040,7 @@ func TestTemplateSplit_UpdateSegmentsPreservesBoundsDuringMaterialization(t *tes
 		StudentIDs:      []int64{s.students[0], s.students[1]},
 		StaffIDs:        []int64{s.staffID},
 		PrimaryStaffID:  &s.staffID,
+		GradeLevelMax:   schoolclass.MaxGradeLevel,
 	})
 	require.ErrorIs(t, err, scheduleSvc.ErrTemplateSegmentNotEditable)
 	assert.Equal(t, oldGroup.Name, reloadSplitGroup(t, s, s.template.ID).Name,
@@ -1066,6 +1070,7 @@ func TestTemplateSplit_UpdateSegmentsPreservesBoundsDuringMaterialization(t *tes
 		StudentIDs:       []int64{s.students[0], s.students[1], s.students[2]},
 		StaffIDs:         []int64{s.staffID},
 		PrimaryStaffID:   &s.staffID,
+		GradeLevelMax:    schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
 
@@ -1476,6 +1481,7 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 		StudentIDs:      []int64{s.students[0], s.students[1]},
 		StaffIDs:        []int64{s.staffID},
 		PrimaryStaffID:  &s.staffID,
+		GradeLevelMax:   schoolclass.MaxGradeLevel,
 	})
 	require.NoError(t, err)
 	successorSchedules := loadSplitSchedules(t, s, res.NewTemplateID)
@@ -1534,6 +1540,7 @@ func TestTemplateEnd_ConcurrentTemplateUpdatePreservesCommittedCap(t *testing.T)
 		StudentIDs:      []int64{s.students[0], s.students[1]},
 		StaffIDs:        []int64{s.staffID},
 		PrimaryStaffID:  &s.staffID,
+		GradeLevelMax:   schoolclass.MaxGradeLevel,
 	}
 
 	endMutationComplete := make(chan struct{})

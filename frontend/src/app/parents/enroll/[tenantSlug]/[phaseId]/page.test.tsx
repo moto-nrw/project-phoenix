@@ -133,7 +133,7 @@ describe("ParentEnrollFormPage", () => {
     expect(mocks.resolveTenant).toHaveBeenCalledWith("demo");
     expect(mocks.fetchBootstrap).toHaveBeenCalledWith("demo", "5", {
       lateInviteToken: undefined,
-      prefetchTenantProfile: false,
+      omitCredentials: true,
     });
     expect(mocks.fetchProfile).toHaveBeenCalledWith("demo");
     expect(mocks.enrollmentForm).toHaveBeenCalledWith(

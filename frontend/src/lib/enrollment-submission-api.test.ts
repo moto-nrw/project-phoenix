@@ -287,7 +287,7 @@ describe("enrollment-submission-api", () => {
     );
   });
 
-  it("omits cookies and tenant-profile enrichment for parent bootstrap requests", async () => {
+  it("omits credentials without adding a profile-enrichment query flag", async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({
         data: {
@@ -304,11 +304,11 @@ describe("enrollment-submission-api", () => {
 
     await fetchPublicEnrollmentBootstrap("demo", "5", {
       lateInviteToken: "invite token",
-      prefetchTenantProfile: false,
+      omitCredentials: true,
     });
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "/api/enrollment/form-bootstrap/public/demo/5?late_invite=invite%20token&prefetch_profile=0",
+      "/api/enrollment/form-bootstrap/public/demo/5?late_invite=invite%20token",
       { cache: "no-store", credentials: "omit" },
     );
   });

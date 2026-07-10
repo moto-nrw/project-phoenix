@@ -334,16 +334,13 @@ describe("InstanceDetailSlideOver", () => {
     );
 
     await expectNoUnhandledRejection(async () => {
-      fireEvent.click(
-        screen.getAllByRole("button", { name: "Als anwesend markieren" })[0]!,
-      );
+      const attendanceButton = screen.getByRole("button", {
+        name: "Kind #21 als anwesend markieren",
+      });
+      fireEvent.click(attendanceButton);
 
       await waitFor(() => expect(onAttendancePatch).toHaveBeenCalledOnce());
-      await waitFor(() =>
-        expect(
-          screen.getAllByRole("button", { name: "Als anwesend markieren" })[0],
-        ).toBeEnabled(),
-      );
+      await waitFor(() => expect(attendanceButton).toBeEnabled());
     });
   });
 
@@ -423,7 +420,7 @@ describe("InstanceDetailSlideOver", () => {
     await expectNoUnhandledRejection(async () => {
       fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
       const followingOption = screen
-        .getByText("Dieser und alle folgenden")
+        .getByText("Ab jetzt dauerhaft")
         .closest("button");
       expect(followingOption).not.toBeNull();
       fireEvent.click(followingOption!);

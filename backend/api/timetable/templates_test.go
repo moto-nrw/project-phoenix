@@ -15,9 +15,11 @@ import (
 	"github.com/go-chi/render"
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -81,6 +83,7 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 		TimetableData:          testTimetableData(db),
 		CalendarPeriodService:  scheduleSvc.NewCalendarPeriodService(scheduleRepo.NewCalendarPeriodRepository(db), nil),
 		MaterializationService: mat,
+		SettingsService:        templateGradeSettings(schoolclass.DefaultGradeLevelMax, nil),
 		DB:                     db,
 	})
 
@@ -105,6 +108,40 @@ func buildTemplateSetup(t *testing.T, mat scheduleSvc.MaterializationService) *t
 		studentB:  studentB.ID,
 		cleanupFn: cleanup,
 	}
+}
+
+func templateGradeSettings(value int, resolveErr error) *configtest.Mock {
+	return &configtest.Mock{
+		ResolveIntFn: func(_ context.Context, key string) (int, error) {
+			if key != configModel.KeyEnrollmentGradeLevelMax {
+				return 0, fmt.Errorf("unexpected integer setting %q", key)
+			}
+			return value, resolveErr
+		},
+	}
+}
+
+func TestResolveTemplateGradeLevelMax_FailsClosed(t *testing.T) {
+	t.Run("missing settings service", func(t *testing.T) {
+		_, err := (&Resource{}).resolveTemplateGradeLevelMax(context.Background())
+		assert.ErrorContains(t, err, "settings service is not configured")
+	})
+
+	t.Run("resolve failure", func(t *testing.T) {
+		resource := &Resource{Dependencies: Dependencies{
+			SettingsService: templateGradeSettings(0, errors.New("settings unavailable")),
+		}}
+		_, err := resource.resolveTemplateGradeLevelMax(context.Background())
+		assert.ErrorContains(t, err, "settings unavailable")
+	})
+
+	t.Run("out-of-range stored value", func(t *testing.T) {
+		resource := &Resource{Dependencies: Dependencies{
+			SettingsService: templateGradeSettings(14, nil),
+		}}
+		_, err := resource.resolveTemplateGradeLevelMax(context.Background())
+		assert.ErrorContains(t, err, "outside 1..13")
+	})
 }
 
 func cleanupTemplatesByPrefix(t *testing.T, db *bun.DB, prefix string) {
@@ -393,6 +430,58 @@ func TestTemplateCreate_RejectsInvalidZielgruppe(t *testing.T) {
 
 	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
 	assert.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+}
+
+func TestTemplateCreate_EnforcesTenantGradeLevelMax(t *testing.T) {
+	t.Run("rejects an above-cap Jahrgang before writing", func(t *testing.T) {
+		s := buildTemplateSetup(t, nil)
+		defer s.cleanupFn()
+		s.res.SettingsService = templateGradeSettings(4, nil)
+		router := templateRouter(s.ctx, s.res)
+
+		name := fmt.Sprintf("Tpl-GradeCap-Create-%d", time.Now().UnixNano())
+		body := createTemplateBody(s, name)
+		body["target_group_type"] = activitiesModel.TargetGroupTypeJahrgang
+		body["target_grade_level"] = 5
+
+		w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+		require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+		assert.Contains(t, w.Body.String(), "target_grade_level 5 exceeds tenant maximum 4")
+
+		count, err := s.db.NewSelect().
+			TableExpr(`activities.groups AS "group"`).
+			Where(`"group".tenant_id = ?`, tenant.FromContext(s.ctx)).
+			Where(`"group".name = ?`, name).
+			Count(s.ctx)
+		require.NoError(t, err)
+		assert.Zero(t, count)
+		timeframes, err := scheduleRepo.NewTimeframeRepository(s.db).FindByDescription(s.ctx, name)
+		require.NoError(t, err)
+		assert.Empty(t, timeframes, "grade validation must run before timeframe creation")
+	})
+
+	t.Run("settings failure returns 500 before writing", func(t *testing.T) {
+		s := buildTemplateSetup(t, nil)
+		defer s.cleanupFn()
+		s.res.SettingsService = templateGradeSettings(0, errors.New("settings unavailable"))
+		router := templateRouter(s.ctx, s.res)
+
+		name := fmt.Sprintf("Tpl-GradeCap-Settings-%d", time.Now().UnixNano())
+		body := createTemplateBody(s, name)
+		w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+		require.Equal(t, http.StatusInternalServerError, w.Code, "body=%s", w.Body.String())
+
+		count, err := s.db.NewSelect().
+			TableExpr(`activities.groups AS "group"`).
+			Where(`"group".tenant_id = ?`, tenant.FromContext(s.ctx)).
+			Where(`"group".name = ?`, name).
+			Count(s.ctx)
+		require.NoError(t, err)
+		assert.Zero(t, count)
+		timeframes, err := scheduleRepo.NewTimeframeRepository(s.db).FindByDescription(s.ctx, name)
+		require.NoError(t, err)
+		assert.Empty(t, timeframes)
+	})
 }
 
 func TestTemplateCreateValidationAndMaterializationFailure(t *testing.T) {

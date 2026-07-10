@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { TimetableTemplate } from "~/lib/timetable-types";
 
 const {
   mockSearch,
@@ -399,15 +400,11 @@ vi.mock("~/components/timetable/template-list", () => ({
     onApply,
     onArchive,
   }: {
-    templates: Array<{ id: string; name: string }>;
+    templates: TimetableTemplate[];
     onCreate: () => void;
-    onEdit: (template: { id: string; name: string }) => void;
-    onApply: (template: {
-      id: string;
-      name: string;
-      schedules: Array<{ calendarPeriodId?: string }>;
-    }) => void;
-    onArchive: (template: { id: string; name: string }) => void;
+    onEdit: (template: TimetableTemplate) => void;
+    onApply: (template: TimetableTemplate) => void;
+    onArchive: (template: TimetableTemplate) => void;
   }) => (
     <div>
       <button type="button" onClick={onCreate}>
@@ -421,15 +418,7 @@ vi.mock("~/components/timetable/template-list", () => ({
           <button type="button" onClick={() => onArchive(templates[0]!)}>
             archive-template
           </button>
-          <button
-            type="button"
-            onClick={() =>
-              onApply({
-                ...templates[0]!,
-                schedules: [{ calendarPeriodId: "5" }],
-              })
-            }
-          >
+          <button type="button" onClick={() => onApply(templates[0]!)}>
             apply-template
           </button>
         </>
@@ -522,6 +511,7 @@ vi.mock("~/components/timetable/timetable-event-modal", () => ({
     defaultDate?: string;
     defaultStartTime?: string;
     defaultEndTime?: string;
+    calendarPeriods?: Array<{ id: string }>;
     defaultCalendarPeriodId?: string | null;
     initialSeries?: { id: string } | null;
     onDeleteSeries?: (
@@ -679,7 +669,7 @@ const laterPeriod = {
   activityInstanceCount: 0,
 };
 
-const template = {
+const template: TimetableTemplate = {
   id: "7",
   name: "Yoga",
   type: "activity" as const,
@@ -687,6 +677,7 @@ const template = {
   categoryName: "AG",
   isOpen: true,
   maxParticipants: 12,
+  targetGroupType: "none",
   enrollmentCount: 8,
   supervisorCount: 1,
   requiredStaffCount: 3,
@@ -707,11 +698,13 @@ const template = {
 
 function setupSWR({
   periods = [period],
+  templates = [template],
   settingsSchema = null,
   settingsSchemaLoading = false,
   careOfferingLink = null,
 }: {
   periods?: Array<typeof period>;
+  templates?: TimetableTemplate[];
   settingsSchema?: unknown;
   settingsSchemaLoading?: boolean;
   /** null = the planner admin cannot read enrollment (status "unknown"). */
@@ -756,7 +749,7 @@ function setupSWR({
       return { data: { conflicts: [] }, isLoading: false };
     }
     if (key.startsWith("timetable-templates")) {
-      return { data: { templates: [template] }, isLoading: false };
+      return { data: { templates }, isLoading: false };
     }
     if (key.startsWith("timetable-")) {
       return {
@@ -1232,7 +1225,38 @@ describe("TimetablesPage", () => {
       expect.objectContaining({
         isOpen: true,
         defaultCalendarPeriodId: "6",
+        calendarPeriods: expect.arrayContaining([
+          expect.objectContaining({ id: "6" }),
+        ]),
       }),
+    );
+  });
+
+  it("materializes a template-only period pin instead of the current period", async () => {
+    setupSWR({
+      periods: [period, laterPeriod],
+      templates: [
+        {
+          ...template,
+          calendarPeriodId: "6",
+          schedules: template.schedules.map((schedule) => ({
+            ...schedule,
+            calendarPeriodId: undefined,
+          })),
+        },
+      ],
+    });
+    mockSearch.value = "view=series&period=5";
+    render(<TimetablesPage />);
+
+    fireEvent.click(screen.getByText("apply-template"));
+
+    await waitFor(() =>
+      expect(mockMaterialize).toHaveBeenNthCalledWith(
+        1,
+        "2027-08-01",
+        "2027-09-25",
+      ),
     );
   });
 

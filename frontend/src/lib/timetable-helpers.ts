@@ -631,6 +631,17 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
 }
 
 /**
+ * Resolves the calendar-period pin that governs a template's first schedule.
+ * A schedule pin is more specific than the template-level fallback, matching
+ * the backend materialization rule in schedulePinnedPeriodID.
+ */
+export function resolveTemplateCalendarPeriodId(
+  template: TimetableTemplate,
+): string | undefined {
+  return template.schedules[0]?.calendarPeriodId ?? template.calendarPeriodId;
+}
+
+/**
  * Groups a flat list of instances by date. Returns a stable ordering: dates
  * are sorted, instances within a date keep their incoming order (the
  * backend already returns them sorted by start_time).
