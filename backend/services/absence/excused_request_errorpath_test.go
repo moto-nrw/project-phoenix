@@ -23,6 +23,7 @@ var errBoom = errors.New("boom")
 type fakeReqRepo struct {
 	activeModels.ExcusedAbsenceRequestRepository
 	create             func(context.Context, *activeModels.ExcusedAbsenceRequest) error
+	lockStudent        func(context.Context, int64) error
 	listPendingTenant  func(context.Context) ([]*activeModels.ExcusedAbsenceRequest, error)
 	listPendingStudent func(context.Context, int64) ([]*activeModels.ExcusedAbsenceRequest, error)
 	listRecent         func(context.Context, int64, time.Time) ([]*activeModels.ExcusedAbsenceRequest, error)
@@ -35,10 +36,25 @@ type fakeReqRepo struct {
 func (r *fakeReqRepo) Create(ctx context.Context, req *activeModels.ExcusedAbsenceRequest) error {
 	return r.create(ctx, req)
 }
+
+// LockStudentRequests is a no-op unless a test drives it — the create-path tests
+// only care that the per-student lock is attempted, not its result.
+func (r *fakeReqRepo) LockStudentRequests(ctx context.Context, id int64) error {
+	if r.lockStudent == nil {
+		return nil
+	}
+	return r.lockStudent(ctx, id)
+}
 func (r *fakeReqRepo) ListPendingForTenant(ctx context.Context) ([]*activeModels.ExcusedAbsenceRequest, error) {
 	return r.listPendingTenant(ctx)
 }
+
+// ListPendingForStudent defaults to "no existing pending requests" so the
+// create-path overlap/idempotency check runs and falls through to Create.
 func (r *fakeReqRepo) ListPendingForStudent(ctx context.Context, id int64) ([]*activeModels.ExcusedAbsenceRequest, error) {
+	if r.listPendingStudent == nil {
+		return nil, nil
+	}
 	return r.listPendingStudent(ctx, id)
 }
 func (r *fakeReqRepo) ListRecentForStudent(ctx context.Context, id int64, since time.Time) ([]*activeModels.ExcusedAbsenceRequest, error) {
@@ -91,10 +107,21 @@ type fakeStatusRepo struct {
 	activeModels.StudentStatusDayRepository
 	markCleared func(context.Context, int64, string, []timezone.Date, time.Time, string) error
 	upsert      func(context.Context, *activeModels.StudentStatusDay) error
+	findActive  func(context.Context, int64, timezone.Date, timezone.Date) ([]*activeModels.StudentStatusDay, error)
 }
 
 func (r *fakeStatusRepo) MarkClearedForDates(ctx context.Context, id int64, status string, dates []timezone.Date, at time.Time, src string) error {
 	return r.markCleared(ctx, id, status, dates, at, src)
+}
+
+// FindActiveByStudentAndDateRange backs the approval-time conflict check. It
+// defaults to "no active status days" so the approve-path error tests reach the
+// injected markCleared/upsert failure instead of a spurious conflict.
+func (r *fakeStatusRepo) FindActiveByStudentAndDateRange(ctx context.Context, id int64, from, to timezone.Date) ([]*activeModels.StudentStatusDay, error) {
+	if r.findActive == nil {
+		return nil, nil
+	}
+	return r.findActive(ctx, id, from, to)
 }
 func (r *fakeStatusRepo) UpsertReported(ctx context.Context, e *activeModels.StudentStatusDay) error {
 	return r.upsert(ctx, e)

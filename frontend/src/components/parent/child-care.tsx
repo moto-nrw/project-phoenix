@@ -34,6 +34,17 @@ import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 
 const logger = createLogger({ component: "ChildCare" });
 
+// Thrown by reportSick when a gated excused absence was created server-side but
+// the follow-up reload that would surface the new pending request failed. The
+// SickNoteModal maps it to a localized "submitted but couldn't refresh" hint
+// rather than leaking a raw message — the submission itself succeeded (#1845).
+class ChildCareRefreshError extends Error {
+  constructor() {
+    super("child care refresh failed");
+    this.name = "ChildCareRefreshError";
+  }
+}
+
 const MAX_SICK_DAYS = 60;
 const MAX_NOTE_LEN = 2000;
 
@@ -59,6 +70,15 @@ function enumerateDates(fromISO: string, toISO: string): string[] {
     cursor.setDate(cursor.getDate() + 1);
   }
   return out;
+}
+
+// True when `next` (YYYY-MM-DD) is exactly the calendar day after `prev`.
+// Mirrors the staff review list's isNextDay so a Mon+Wed request is never shown
+// as "Mon – Wed" (which would wrongly imply Tuesday is included too).
+function isNextDayISO(prev: string, next: string): boolean {
+  const d = parseISODate(prev);
+  d.setDate(d.getDate() + 1);
+  return toISODate(d) === next;
 }
 
 function formatLocaleDate(iso: string, locale: string): string {
@@ -168,37 +188,54 @@ export function useChildCare(studentId: string): ChildCare {
     };
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<{ requestsOk: boolean }> => {
     const seq = ++loadSeqRef.current;
     setLoading(true);
-    // Track the care-exception fetch separately: an empty list from a failed
-    // fetch must NOT be treated as "no overrides", or the pickup modal could
-    // clear a leg it never prefilled (see careExceptionsLoaded above).
+    // Track each fetch's success separately so a failed one PRESERVES the last
+    // known list instead of wiping it to []. An empty list from a failed fetch
+    // is indistinguishable from "nothing here" and would erase already-shown
+    // sick days / pending requests / care overrides on a transient hiccup — the
+    // pickup modal also relies on careExceptionsLoaded to avoid clearing a leg it
+    // never prefilled, and a gated sick-note submit relies on requestsOk to know
+    // whether the freshly created request was actually loaded (#1845 review).
+    let sickOk = true;
+    let requestsOk = true;
     let exceptionsOk = true;
     try {
       const [days, requests, exceptions, flags] = await Promise.all([
-        listSickDays(studentId).catch(() => [] as StatusDay[]),
+        listSickDays(studentId).catch(() => {
+          sickOk = false;
+          return [] as StatusDay[];
+        }),
         // Always fetch: it's a cheap call and the response is empty for schools
         // without the approval gate, so gating it on the (separately fetched)
         // feature flag would only add an ordering dependency for no real saving.
-        listExcusedRequests(studentId).catch(() => [] as ExcusedRequest[]),
+        listExcusedRequests(studentId).catch(() => {
+          requestsOk = false;
+          return [] as ExcusedRequest[];
+        }),
         listCareExceptions(studentId).catch(() => {
           exceptionsOk = false;
           return [] as CareException[];
         }),
         getChildFeatures(studentId).catch(() => DEFAULT_FEATURES),
       ]);
-      if (!mountedRef.current || seq !== loadSeqRef.current) return;
-      setSickDays(days);
-      setExcusedRequests(requests);
-      setCareExceptions(exceptions);
+      if (!mountedRef.current || seq !== loadSeqRef.current)
+        return { requestsOk };
+      // Only overwrite a list whose fetch succeeded; keep the previous state
+      // otherwise (see above).
+      if (sickOk) setSickDays(days);
+      if (requestsOk) setExcusedRequests(requests);
+      if (exceptionsOk) setCareExceptions(exceptions);
       setCareExceptionsLoaded(exceptionsOk);
       setFeatures(flags);
+      return { requestsOk };
     } catch (err) {
       logger.warn("child_care_load_failed", {
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
+      return { requestsOk: false };
     } finally {
       // Only the latest run owns the loading flag, so a stale load resolving
       // after a newer one can't flip it back off prematurely.
@@ -262,7 +299,15 @@ export function useChildCare(studentId: string): ChildCare {
       // An authoritative reload (rather than an optimistic prepend) also avoids
       // the duplicate-row race the prepend had with a load() that an after-commit
       // parent_message could trigger before this POST resolved.
-      await load();
+      const { requestsOk } = await load();
+      if (!requestsOk) {
+        // The request WAS created server-side, but the reload that would surface
+        // it failed — closing silently would leave the parent with no pending
+        // confirmation, as if nothing happened. Propagate so the modal stays open
+        // and says so. A retry is safe: the backend treats an identical resubmit
+        // idempotently, so it won't create a duplicate request (#1845 review).
+        throw new ChildCareRefreshError();
+      }
     },
     [studentId, load],
   );
@@ -351,6 +396,21 @@ export function SickNoteModal({
   const noteRequired = status === "excused";
   const noteMissing = noteRequired && reason.trim() === "";
 
+  // Map submit failures to localized text; never surface a raw English backend
+  // string to the German-only parent UI (mirrors PickupTimeModal.resolveError).
+  const resolveSickError = (err: unknown): string => {
+    if (err instanceof ChildCareRefreshError) {
+      return t("sick.submittedButRefreshFailed");
+    }
+    if (
+      err instanceof ParentApiError &&
+      err.code === "excused_request_overlap"
+    ) {
+      return t("sick.overlapError");
+    }
+    return err instanceof Error ? err.message : t("sick.saveError");
+  };
+
   const handleSubmit = async () => {
     if (dates.length === 0) {
       setError(t("sick.invalidDate"));
@@ -366,7 +426,7 @@ export function SickNoteModal({
       await onSubmit(dates, reason, status);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("sick.saveError"));
+      setError(resolveSickError(err));
     } finally {
       setSubmitting(false);
     }
@@ -745,14 +805,22 @@ export function SickStatusSummary({
     message: string;
   } | null>(null);
 
+  // Collapse to a "first – last" range ONLY when the days are actually
+  // contiguous; otherwise list them comma-separated. The request endpoint accepts
+  // an arbitrary date list, so a Mon+Wed request must never render as "Mon – Wed"
+  // (which would wrongly imply Tuesday is included), matching the staff list
+  // (#1845 review).
   const rangeLabel = (dates: readonly string[]): string => {
     const sorted = [...dates].sort((a, b) => a.localeCompare(b));
-    const first = sorted.at(0);
-    const last = sorted.at(-1);
-    if (!first || !last) return "";
-    return first === last
-      ? formatLocaleDate(first, locale)
-      : `${formatLocaleDate(first, locale)} – ${formatLocaleDate(last, locale)}`;
+    if (sorted.length === 0) return "";
+    if (sorted.length === 1) return formatLocaleDate(sorted[0]!, locale);
+    const contiguous = sorted.every(
+      (d, i) => i === 0 || isNextDayISO(sorted[i - 1]!, d),
+    );
+    if (contiguous) {
+      return `${formatLocaleDate(sorted[0]!, locale)} – ${formatLocaleDate(sorted.at(-1)!, locale)}`;
+    }
+    return sorted.map((d) => formatLocaleDate(d, locale)).join(", ");
   };
 
   const handleWithdraw = async (requestId: string) => {
@@ -790,18 +858,34 @@ export function SickStatusSummary({
   const pending = excusedRequests.filter((r) => r.status === "pending");
   const rejected = excusedRequests.filter((r) => r.status === "rejected");
   // Approved requests normally surface as excused status days above, but the
-  // status-day fetch is windowed (today..+2 months). An approval for a past date
-  // (delayed decision) or one more than two months ahead has no status day here,
-  // so it would silently vanish once it left the pending list. The backend now
-  // returns approved requests too; render each one's dates that AREN'T already
-  // shown as a confirmed status day, so those out-of-window confirmations stay
-  // visible without duplicating the in-window ones (#1845 review).
+  // status-day fetch is windowed (today..+2 months, matching the backend's
+  // listSickDays range). An approval for a past date (delayed decision) or one
+  // more than two months ahead has NO status day here, so it would silently
+  // vanish once it left the pending list — surface those from the approved
+  // request instead.
+  //
+  // Critically, only surface dates that are genuinely OUTSIDE the fetched window.
+  // A within-window date with no excused status day was NOT dropped for being out
+  // of range — it was superseded by a newer authoritative status (e.g. staff
+  // marked the child sick, or cleared it). Showing it from the approved request
+  // would render the same day as both sick AND excused. Inside the window the
+  // status days are authoritative; the approved request only fills the gaps the
+  // windowed fetch cannot see (#1845 review).
+  const windowStart = todayISO();
+  const windowEnd = (() => {
+    const d = parseISODate(windowStart);
+    d.setMonth(d.getMonth() + 2);
+    return toISODate(d);
+  })();
   const shownExcusedDates = new Set(excusedConfirmedDates);
+  const isOutOfWindow = (d: string) => d < windowStart || d > windowEnd;
   const approvedOutOfWindow = excusedRequests
     .filter((r) => r.status === "approved")
     .map((r) => ({
       id: r.id,
-      dates: r.dates.filter((d) => !shownExcusedDates.has(d)),
+      dates: r.dates.filter(
+        (d) => isOutOfWindow(d) && !shownExcusedDates.has(d),
+      ),
     }))
     .filter((r) => r.dates.length > 0);
 

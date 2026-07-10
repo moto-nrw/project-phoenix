@@ -28,6 +28,8 @@ function decideErrorMessage(code: string | undefined): string {
       return "Die anfragende Bezugsperson hat keinen Zugriff mehr auf dieses Kind. Die Abmeldung kann nicht freigegeben werden. Bitte die Anfrage stattdessen ablehnen.";
     case "change_request_not_pending":
       return "Diese Anfrage wurde bereits entschieden oder von den Eltern zurückgezogen. Bitte die Seite neu laden.";
+    case "excused_request_status_conflict":
+      return "Für einen dieser Tage wurde inzwischen ein neuerer Status gesetzt (z. B. krank oder Ausflug). Die Freigabe würde ihn überschreiben. Bitte die Anfrage ablehnen oder den neueren Status zuerst entfernen.";
     default:
       return "Die Entscheidung konnte nicht gespeichert werden.";
   }

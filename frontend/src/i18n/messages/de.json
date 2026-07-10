@@ -275,6 +275,8 @@
       "reasonPlaceholder": "z. B. Fieber, Zahnarzttermin",
       "invalidDate": "Bitte ein gültiges Datum wählen (Bis-Datum nach Von-Datum).",
       "saveError": "Die Abmeldung konnte nicht gespeichert werden.",
+      "submittedButRefreshFailed": "Die Abmeldung wurde gesendet, konnte aber nicht angezeigt werden. Bitte laden Sie die Seite neu.",
+      "overlapError": "Für einen dieser Tage liegt bereits eine offene Abmeldung vor.",
       "submit": "Abmeldung senden",
       "reasonLabelRequired": "Notiz (Pflichtfeld)",
       "reasonRequiredError": "Bitte geben Sie eine Notiz an, warum Ihr Kind entschuldigt fehlt.",

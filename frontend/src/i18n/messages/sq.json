@@ -275,6 +275,8 @@
       "reasonPlaceholder": "p.sh. temperaturë, takim te dentisti",
       "invalidDate": "Ju lutemi zgjidhni një datë të vlefshme (data e mbarimit pas datës së fillimit).",
       "saveError": "Mungesa nuk u ruajt dot.",
+      "submittedButRefreshFailed": "Mungesa u dërgua, por nuk mund të shfaqej. Ju lutemi rifreskoni faqen.",
+      "overlapError": "Për një nga këto ditë ekziston tashmë një kërkesë mungese e hapur.",
       "submit": "Dërgo njoftimin e mungesës",
       "reasonLabelRequired": "Shënim (i detyrueshëm)",
       "reasonRequiredError": "Ju lutemi shtoni një shënim që shpjegon pse fëmija juaj mungon me arsye.",

@@ -90,6 +90,10 @@ var (
 	// ErrExcusedRequestNotPending means the excused-absence request was already
 	// decided or withdrawn, so it can no longer be withdrawn.
 	ErrExcusedRequestNotPending = errors.New("parent: excused absence request is not pending")
+	// ErrExcusedRequestOverlap means a different pending excused request already
+	// covers one of the submitted dates (#1845). An identical resubmit is handled
+	// idempotently by the request service and never reaches this error.
+	ErrExcusedRequestOverlap = errors.New("parent: excused absence request overlaps an existing pending request")
 )
 
 // resolveOwnedChild validates the account is a guardian of the student
@@ -343,6 +347,8 @@ func (s *service) submitExcusedRequest(ctx context.Context, child *parentChild, 
 			return nil, ErrEmptyNote
 		case errors.Is(txErr, absenceSvc.ErrExcusedRequestNoteTooLong):
 			return nil, ErrNoteTooLong
+		case errors.Is(txErr, absenceSvc.ErrExcusedRequestOverlap):
+			return nil, ErrExcusedRequestOverlap
 		default:
 			return nil, fmt.Errorf("parent: submit excused request: %w", txErr)
 		}

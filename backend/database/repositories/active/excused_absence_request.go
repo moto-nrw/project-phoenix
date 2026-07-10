@@ -4,6 +4,8 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
+	"math"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
@@ -13,6 +15,12 @@ import (
 )
 
 const tableExprExcusedAbsenceRequestsAsReq = `active.excused_absence_requests AS "excused_absence_request"`
+
+// excusedRequestLockClass salts the per-student advisory lock used by
+// LockStudentRequests so it shares no key space with other advisory locks. It is
+// the first arg of the two-int pg_advisory_xact_lock form ("exab" in ASCII); the
+// second arg is the student id.
+const excusedRequestLockClass int32 = 0x65786162
 
 // ErrExcusedRequestNotPending is returned when no pending row matched the id
 // under the current tenant — it was already decided (lost race) or does not
@@ -36,6 +44,22 @@ func NewExcusedAbsenceRequestRepository(db *bun.DB) activeModels.ExcusedAbsenceR
 	repo := base.NewRepository[*activeModels.ExcusedAbsenceRequest](db, "active.excused_absence_requests", "ExcusedAbsenceRequest")
 	repo.TenantScoped = true
 	return &ExcusedAbsenceRequestRepository{Repository: repo}
+}
+
+// LockStudentRequests acquires a per-student pg_advisory_xact_lock so concurrent
+// CreateRequest calls for the same child serialize (the service reads pending
+// rows then inserts — a race without this lock could produce duplicate or
+// contradictory pending requests). Held until the ambient transaction ends.
+func (r *ExcusedAbsenceRequestRepository) LockStudentRequests(ctx context.Context, studentID int64) error {
+	if studentID <= 0 || studentID > math.MaxInt32 {
+		return fmt.Errorf("LockStudentRequests: student_id %d out of advisory-lock range", studentID)
+	}
+	if _, err := base.GetDB(ctx, r.DB).
+		NewRaw("SELECT pg_advisory_xact_lock(?, ?)", excusedRequestLockClass, int32(studentID)).
+		Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "lock student excused requests", Err: err}
+	}
+	return nil
 }
 
 // ListPendingForStudent returns the student's open requests, newest-first.

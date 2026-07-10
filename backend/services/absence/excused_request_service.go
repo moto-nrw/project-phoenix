@@ -53,6 +53,20 @@ var (
 	// path is deliberately not gated on the guardian link, mirroring the
 	// care-schedule request flow.
 	ErrExcusedRequestGuardianAccessRevoked = errors.New("active: excused request guardian access revoked")
+	// ErrExcusedRequestOverlap means the guardian already has a PENDING request
+	// whose dates intersect (but are not identical to) the new submission. An
+	// identical resubmit is treated as an idempotent retry (the existing row is
+	// returned, no error); a partial overlap is refused so two pending requests
+	// can't cover the same day with contradictory outcomes. Disjoint date sets are
+	// allowed. Maps to a 409 on the parent write path.
+	ErrExcusedRequestOverlap = errors.New("active: excused request overlaps an existing pending request")
+	// ErrExcusedRequestStatusConflict means the child's absence for one of the
+	// requested dates was created or changed AFTER this request was filed — a
+	// newer sick / class-trip / excused record staff (or another flow) set in the
+	// meantime. Approving would silently overwrite that newer decision, so the
+	// approval is refused; staff resolve it by rejecting the stale request (or
+	// clearing the newer status first). Maps to a 409 on the staff decide path.
+	ErrExcusedRequestStatusConflict = errors.New("active: excused request superseded by a newer status")
 	// ErrExcusedRequestNoDates means the request carried no dates.
 	ErrExcusedRequestNoDates = errors.New("active: excused request requires at least one date")
 	// ErrExcusedRequestEmptyNote means the mandatory note was blank.
@@ -158,10 +172,37 @@ func (s *excusedAbsenceRequestService) CreateRequest(ctx context.Context, studen
 		return nil, ErrExcusedRequestNoteTooLong
 	}
 
+	sorted := dedupeSortedDates(dates)
+
+	// Serialize concurrent submissions for the same child so the idempotent-retry
+	// and overlap checks below (read pending, then insert) can't race two rows
+	// through. The advisory lock releases at the end of the ambient transaction.
+	if err := s.requestRepo.LockStudentRequests(ctx, studentID); err != nil {
+		return nil, err
+	}
+	existing, err := s.requestRepo.ListPendingForStudent(ctx, studentID)
+	if err != nil {
+		return nil, fmt.Errorf("active: check existing pending excused requests: %w", err)
+	}
+	for _, e := range existing {
+		if sameDateSet(e.Dates, sorted) {
+			// Idempotent retry: a lost response, a double-tap, or a concurrent
+			// identical submit. The pending request already exists — return it
+			// without creating a duplicate row or re-firing the pill/broadcast.
+			return e, nil
+		}
+		if datesIntersect(e.Dates, sorted) {
+			// A partial overlap: a different (non-identical) pending request already
+			// covers one of these days. Refuse rather than let two pending requests
+			// decide the same date. Disjoint submissions fall through and are allowed.
+			return nil, ErrExcusedRequestOverlap
+		}
+	}
+
 	req := &activeModels.ExcusedAbsenceRequest{
 		StudentID:   studentID,
 		SubmittedBy: guardianAccountID,
-		Dates:       dedupeSortedDates(dates),
+		Dates:       sorted,
 		Note:        trimmed,
 		Status:      activeModels.ExcusedRequestStatusPending,
 	}
@@ -396,6 +437,15 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 				return nil, ErrExcusedRequestGuardianAccessRevoked
 			}
 		}
+		// Refuse to APPLY when the child's absence for a requested date was created
+		// or changed AFTER this request was filed (a newer sick / class-trip /
+		// excused record from staff or another flow). applyExcusedRequest clears
+		// every other status for those dates and upserts excused, so a blind approve
+		// would silently overwrite that newer decision. Detect it and return a
+		// conflict; staff resolve it by rejecting the stale request.
+		if err := s.ensureNoNewerStatus(ctx, req); err != nil {
+			return nil, err
+		}
 		// Apply, status update and after-commit hooks all run in the ambient
 		// tenant transaction. A mid-apply failure propagates as a plain error
 		// (→ 500) so the WHOLE transaction rolls back rather than committing a
@@ -465,6 +515,69 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 		}
 	}
 	return item, nil
+}
+
+// ensureNoNewerStatus refuses the approval when any ACTIVE status day on a
+// requested date was reported after the request was created — i.e. a newer
+// absence decision (sick, class trip, or an updated excused note) that approving
+// would clobber. It compares each active row's reported_at against the request's
+// created_at: a status set BEFORE the request is the older state the parent's
+// request legitimately supersedes (no conflict); a status set AFTER is a fresher
+// decision that must win. Runs inside the ambient tenant transaction, right
+// before applyExcusedRequest, so the window between check and write is minimal.
+func (s *excusedAbsenceRequestService) ensureNoNewerStatus(ctx context.Context, req *activeModels.ExcusedAbsenceRequest) error {
+	if len(req.Dates) == 0 {
+		return nil
+	}
+	// req.Dates is stored sorted ascending (dedupeSortedDates), so first/last bound
+	// the range; the query spans min..max and we filter back to the exact dates.
+	minDate := req.Dates[0]
+	maxDate := req.Dates[len(req.Dates)-1]
+	rows, err := s.statusDayRepo.FindActiveByStudentAndDateRange(ctx, req.StudentID, minDate, maxDate)
+	if err != nil {
+		return err
+	}
+	dateSet := make(map[timezone.Date]struct{}, len(req.Dates))
+	for _, d := range req.Dates {
+		dateSet[d] = struct{}{}
+	}
+	for _, row := range rows {
+		if _, ok := dateSet[row.Date]; !ok {
+			continue
+		}
+		if row.ReportedAt.After(req.CreatedAt) {
+			return ErrExcusedRequestStatusConflict
+		}
+	}
+	return nil
+}
+
+// sameDateSet reports whether two date slices contain exactly the same days.
+// Both are stored deduped+sorted, so a length + positional comparison suffices.
+func sameDateSet(a, b []timezone.Date) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+// datesIntersect reports whether the two date slices share at least one day.
+func datesIntersect(a, b []timezone.Date) bool {
+	set := make(map[timezone.Date]struct{}, len(a))
+	for _, d := range a {
+		set[d] = struct{}{}
+	}
+	for _, d := range b {
+		if _, ok := set[d]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // applyExcusedRequest writes the approved request's dates as excused status

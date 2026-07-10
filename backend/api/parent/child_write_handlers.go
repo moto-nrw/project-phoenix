@@ -440,6 +440,8 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, parentService.ErrExcusedRequestNotPending):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "excused_request_not_pending"))
+	case errors.Is(err, parentService.ErrExcusedRequestOverlap):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "excused_request_overlap"))
 	case errors.Is(err, parentService.ErrCareRequestNotPending):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "request_not_open"))
 	case errors.Is(err, parentService.ErrCareRequestNotFound):

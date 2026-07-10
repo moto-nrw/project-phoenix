@@ -31,12 +31,15 @@ func (messagingDisabledSettings) ResolveBoolForTenant(_ context.Context, _ int64
 }
 
 // countingBroadcaster records how often BroadcastToTenant fired (the staff wake)
-// and which guardian accounts BroadcastParentMessage woke (the message-independent
-// guardian fan-out), so both after-commit broadcasts can be asserted.
+// and which guardian accounts BroadcastToGuardian woke (the message-independent
+// guardian fan-out), so both after-commit broadcasts can be asserted. It also
+// counts BroadcastParentMessage calls to prove the guardian child-update fan-out
+// no longer routes through the per-guardian staff-copy path (#1845 review).
 type countingBroadcaster struct {
 	tenantBroadcasts int
 	tenantEvents     []realtime.EventType
 	guardianWakeups  []int64
+	parentMessages   int
 }
 
 func (b *countingBroadcaster) BroadcastToGroup(int64, string, realtime.Event) error { return nil }
@@ -46,7 +49,11 @@ func (b *countingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) e
 	return nil
 }
 func (b *countingBroadcaster) BroadcastToAll(realtime.Event) error { return nil }
-func (b *countingBroadcaster) BroadcastParentMessage(_, guardianAccountID int64, _ realtime.Event) error {
+func (b *countingBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error {
+	b.parentMessages++
+	return nil
+}
+func (b *countingBroadcaster) BroadcastToGuardian(_, guardianAccountID int64, _ realtime.Event) error {
 	b.guardianWakeups = append(b.guardianWakeups, guardianAccountID)
 	return nil
 }
@@ -377,6 +384,8 @@ func TestTransition_WakesGuardiansIndependentOfMessaging(t *testing.T) {
 		"deciding a request must wake the child's guardian with messaging off")
 	assert.Contains(t, bc.tenantEvents, realtime.EventChangeRequestsChanged,
 		"deciding a request must wake the staff review queue with messaging off")
+	assert.Zero(t, bc.parentMessages,
+		"the guardian child-update fan-out must use BroadcastToGuardian, never the per-guardian BroadcastParentMessage staff-copy path (#1845 review)")
 }
 
 // TestDecide_ApproveRefusedWhenGuardianAccessRevoked pins the guardian-link gate
@@ -469,4 +478,131 @@ func TestExcusedAbsenceRequestModel(t *testing.T) {
 		req.Status = s
 		assert.True(t, req.IsTerminal(), "%s must be terminal", s)
 	}
+}
+
+// insertStatusDay writes one active status day for the chain's child at the
+// given reported_at, so the approval-conflict tests can position a status
+// relative to a request's created_at.
+func insertStatusDay(t *testing.T, db *bun.DB, chain testpkg.ParentChain, date timezone.Date, status string, reportedAt time.Time) {
+	t.Helper()
+	repos := repositories.NewFactory(db)
+	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return repos.StudentStatusDay.UpsertReported(txCtx, &activeModels.StudentStatusDay{
+			StudentID:  chain.StudentID,
+			Date:       date,
+			Status:     status,
+			ReportedAt: reportedAt,
+			Source:     activeModels.StudentStatusSourceManual,
+		})
+	})
+	require.NoError(t, err)
+}
+
+// TestCreateRequest_IdempotentOverlapDisjoint pins the create-path guards
+// (#1845 review): an identical resubmit returns the SAME pending row (idempotent
+// retry, no duplicate), a partial overlap is refused, and a disjoint date set is
+// allowed as a second request.
+func TestCreateRequest_IdempotentOverlapDisjoint(t *testing.T) {
+	svc, _, db := buildAbsenceService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	d1 := timezone.TodayDate().AddDays(2)
+	d2 := timezone.TodayDate().AddDays(3)
+	d3 := timezone.TodayDate().AddDays(5)
+
+	first := createPending(t, svc, db, chain, []timezone.Date{d1, d2}, "Arzttermin")
+
+	// Identical resubmit (dates in a different order) → same row, no duplicate.
+	var second *activeModels.ExcusedAbsenceRequest
+	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var e error
+		second, e = svc.CreateRequest(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{d2, d1}, "nochmal")
+		return e
+	})
+	require.NoError(t, err)
+	assert.Equal(t, first.ID, second.ID, "an identical resubmit must be idempotent, not a new row")
+
+	// Partial overlap (d2 already covered) → refused.
+	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := svc.CreateRequest(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{d2, d3}, "ueberschneidung")
+		return e
+	})
+	assert.ErrorIs(t, err, absenceSvc.ErrExcusedRequestOverlap)
+
+	// Disjoint date set → allowed as a second request.
+	var third *activeModels.ExcusedAbsenceRequest
+	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var e error
+		third, e = svc.CreateRequest(txCtx, chain.StudentID, chain.AccountID, []timezone.Date{d3}, "anderer Tag")
+		return e
+	})
+	require.NoError(t, err)
+	assert.NotEqual(t, first.ID, third.ID, "a disjoint request must create a new row")
+
+	// Exactly two pending rows exist (first + third; the overlap never inserted).
+	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		items, e := svc.ListPending(txCtx)
+		require.NoError(t, e)
+		assert.Len(t, items, 2, "only the idempotent-deduped and disjoint requests should remain pending")
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+// TestDecide_ApproveRefusedWhenNewerStatusExists pins the overwrite guard
+// (#1845 review): approving must not clobber an absence record created AFTER the
+// request was filed. A newer status blocks approval with a conflict; rejecting
+// stays available so staff can wind the stale request down.
+func TestDecide_ApproveRefusedWhenNewerStatusExists(t *testing.T) {
+	svc, _, db := buildAbsenceService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	day := timezone.TodayDate().AddDays(3)
+	pending := createPending(t, svc, db, chain, []timezone.Date{day}, "Arzttermin")
+
+	// A newer sick status for the same day, reported AFTER the request was filed.
+	insertStatusDay(t, db, chain, day, activeModels.StudentStatusDaySick, time.Now().Add(time.Hour))
+
+	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: chain.AccountID})
+		return e
+	})
+	assert.ErrorIs(t, err, absenceSvc.ErrExcusedRequestStatusConflict)
+
+	// The request stays pending, and rejecting it still works.
+	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		item, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: false, Reason: "bitte klaeren", ReviewedBy: chain.AccountID})
+		if e != nil {
+			return e
+		}
+		assert.Equal(t, activeModels.ExcusedRequestStatusRejected, item.Request.Status)
+		return nil
+	})
+	require.NoError(t, err)
+}
+
+// TestDecide_ApproveOverwritesOlderStatus is the complement: an OLDER status (set
+// BEFORE the request) is exactly what the parent's request supersedes, so
+// approval proceeds and writes the excused day.
+func TestDecide_ApproveOverwritesOlderStatus(t *testing.T) {
+	svc, _, db := buildAbsenceService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	day := timezone.TodayDate().AddDays(3)
+	// An older sick status, reported a day BEFORE the request is filed.
+	insertStatusDay(t, db, chain, day, activeModels.StudentStatusDaySick, time.Now().Add(-24*time.Hour))
+	pending := createPending(t, svc, db, chain, []timezone.Date{day}, "Arzttermin")
+
+	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		item, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: chain.AccountID})
+		if e != nil {
+			return e
+		}
+		assert.Equal(t, activeModels.ExcusedRequestStatusApproved, item.Request.Status)
+		return nil
+	})
+	require.NoError(t, err, "approving over an OLDER status the request supersedes must succeed")
 }

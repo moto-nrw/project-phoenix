@@ -324,7 +324,13 @@ func (e *Emitter) BroadcastChildUpdateToGuardians(tenantID, studentID int64) {
 			continue
 		}
 		event := realtime.NewParentChildUpdatedEvent(g.AccountID, studentID)
-		if err := e.broadcaster.BroadcastParentMessage(tenantID, g.AccountID, event); err != nil {
+		// Guardian-only: parent_child_updated is a pure care-state invalidation for
+		// the family. Routing it via BroadcastParentMessage would also push a
+		// sanitized copy to EVERY staff client — once per guardian — flooding staff
+		// channels with events they neither listen for nor need (the staff queue is
+		// woken separately via change_requests_changed). BroadcastToGuardian delivers
+		// to this guardian's own tabs and no one else (#1845 review).
+		if err := e.broadcaster.BroadcastToGuardian(tenantID, g.AccountID, event); err != nil {
 			loggerOr(e.logger).Warn("parent messaging: guardian child-update broadcast failed",
 				slog.Int64("tenant_id", tenantID),
 				slog.Int64("student_id", studentID),

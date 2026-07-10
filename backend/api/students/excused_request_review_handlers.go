@@ -110,6 +110,8 @@ func (rs *Resource) decideExcusedAbsenceRequest(w http.ResponseWriter, r *http.R
 			renderError(w, r, common.ErrorConflictWithCode(err, "change_request_not_pending"))
 		case errors.Is(err, absenceService.ErrExcusedRequestGuardianAccessRevoked):
 			renderError(w, r, common.ErrorConflictWithCode(err, "guardian_access_revoked"))
+		case errors.Is(err, absenceService.ErrExcusedRequestStatusConflict):
+			renderError(w, r, common.ErrorConflictWithCode(err, "excused_request_status_conflict"))
 		case errors.Is(err, absenceService.ErrExcusedRequestForbidden):
 			renderError(w, r, common.ErrorForbidden(err))
 		case errors.Is(err, absenceService.ErrExcusedRequestRejectReasonRequired),

@@ -66,6 +66,12 @@ func (e *ExcusedAbsenceRequest) IsTerminal() bool {
 // staff review queue runs under the request's tenant middleware).
 type ExcusedAbsenceRequestRepository interface {
 	Create(ctx context.Context, req *ExcusedAbsenceRequest) error
+
+	// LockStudentRequests takes a per-student advisory lock (released at the end
+	// of the ambient transaction) so concurrent CreateRequest calls for the same
+	// child serialize. Without it the idempotent-retry / overlap checks in the
+	// service (read pending, then insert) would race two rows through.
+	LockStudentRequests(ctx context.Context, studentID int64) error
 	// FindByID takes `any` to match the embedded generic base.Repository.
 	FindByID(ctx context.Context, id any) (*ExcusedAbsenceRequest, error)
 

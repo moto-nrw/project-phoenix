@@ -275,6 +275,8 @@
       "reasonPlaceholder": "e.g. fever, dentist appointment",
       "invalidDate": "Please choose a valid date (end date after start date).",
       "saveError": "The absence could not be saved.",
+      "submittedButRefreshFailed": "The absence was submitted but could not be displayed. Please reload the page.",
+      "overlapError": "One of these days already has an open absence request.",
       "submit": "Send absence",
       "reasonLabelRequired": "Note (required)",
       "reasonRequiredError": "Please add a note explaining why your child is excused.",
