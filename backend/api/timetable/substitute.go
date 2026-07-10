@@ -37,7 +37,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -288,75 +287,22 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	affected := make([]AffectedInstance, 0, len(plan))
 	// Collect active-group IDs we touched to fire SSE updates at the end.
 	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
+	// Instances that carried a stale "deliberately unstaffed" acknowledgement
+	// and now receive coverage — the ack must be cleared in the same tx, or the
+	// block reads amber-and-unstaffed while /gaps excludes it as staffed (#1840).
+	clearAck := make(map[int64]bool)
+	reason := trimReason(req.Reason)
 
 	for _, op := range plan {
-		switch op.action {
-		case substituteActionAlreadySubstitute:
-			// No writes.
-
-		case substituteActionAlreadyOnInstance:
-			// Mark only the absent's original row. Existing co-supervisor
-			// row stays untouched: is_substitute, is_primary, room_id
-			// preserved — the person was independently planned, not a
-			// Vertretung, and reports should preserve that distinction.
-			op.origRow.IsAbsent = true
-			if r := trimReason(req.Reason); r != nil {
-				op.origRow.AbsenceReason = r
-			}
-			if err := rs.TimetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
-				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
-				return
-			}
-			// For active instances, end the absent's supervisor row. Do NOT
-			// create a new supervisor — the substitute (co-supervisor) is
-			// already an active supervisor.
-			if op.instance.Status == scheduleModel.InstanceStatusActive && op.instance.ActiveGroupID != nil {
-				if _, err := rs.TimetableData.EndGroupSupervisor(ctx, *op.instance.ActiveGroupID, req.AbsentStaffID); err != nil {
-					common.RenderError(w, r, common.ErrorInternalServerWrap("end absent supervisor failed", err))
-					return
-				}
-				activeTouched[*op.instance.ActiveGroupID] = op.instance
-			}
-
-		case substituteActionSubstituted:
-			op.origRow.IsAbsent = true
-			if r := trimReason(req.Reason); r != nil {
-				op.origRow.AbsenceReason = r
-			}
-			if err := rs.TimetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
-				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
-				return
-			}
-			newRow := &scheduleModel.InstanceStaff{
-				InstanceID:   op.instance.ID,
-				StaffID:      req.SubstituteStaffID,
-				RoomID:       op.origRow.RoomID, // inherit room split, if any
-				IsPrimary:    false,
-				IsSubstitute: true,
-				IsAbsent:     false,
-			}
-			if err := rs.TimetableData.CreateInstanceStaff(ctx, newRow); err != nil {
-				common.RenderError(w, r, common.ErrorInternalServerWrap("create substitute staff row failed", err))
-				return
-			}
-			if op.instance.Status == scheduleModel.InstanceStatusActive && op.instance.ActiveGroupID != nil {
-				if _, err := rs.TimetableData.EndGroupSupervisor(ctx, *op.instance.ActiveGroupID, req.AbsentStaffID); err != nil {
-					common.RenderError(w, r, common.ErrorInternalServerWrap("end absent supervisor failed", err))
-					return
-				}
-				newSup := &activeModel.GroupSupervisor{
-					StaffID:   req.SubstituteStaffID,
-					GroupID:   *op.instance.ActiveGroupID,
-					Role:      "supervisor",
-					StartDate: timezone.DateFromTime(now),
-				}
-				newSup.SetTenantID(tenant.FromContext(ctx))
-				if err := rs.TimetableData.CreateGroupSupervisor(ctx, newSup); err != nil {
-					common.RenderError(w, r, common.ErrorInternalServerWrap("create substitute supervisor failed", err))
-					return
-				}
-				activeTouched[*op.instance.ActiveGroupID] = op.instance
-			}
+		if err := rs.applySubstituteWrite(ctx, op, req.SubstituteStaffID, reason, now, activeTouched); err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("apply substitute failed", err))
+			return
+		}
+		// Coverage added (or confirmed) on a block still flagged unstaffed →
+		// mark it for acknowledgement clearing below.
+		if op.instance.UnderstaffedAck &&
+			(op.action == substituteActionSubstituted || op.action == substituteActionAlreadyOnInstance) {
+			clearAck[op.instance.ID] = true
 		}
 
 		affected = append(affected, AffectedInstance{
@@ -365,6 +311,17 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 			StartTime:  op.instance.StartTime.Format("15:04"),
 			Action:     op.action,
 		})
+	}
+
+	// Clearing the acknowledgement has no precondition (SetUnderstaffedAck allows
+	// ack=false unconditionally) and runs in this same tenant tx.
+	if rs.InstanceService != nil {
+		for instanceID := range clearAck {
+			if _, err := rs.InstanceService.SetUnderstaffedAck(ctx, instanceID, false, nil); err != nil {
+				common.RenderError(w, r, common.ErrorInternalServerWrap("clear stale understaffed ack failed", err))
+				return
+			}
+		}
 	}
 
 	// ======================================================================

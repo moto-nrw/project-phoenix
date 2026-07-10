@@ -52,9 +52,13 @@ export function InstanceBlock({
   const isCompact = height <= COMPACT_HEIGHT_PX;
   const isTiny = height <= TINY_HEIGHT_PX;
 
-  // #1840 Vertretungsplan deviation signals.
+  // #1840 Vertretungsplan deviation signals. A removed substitute keeps
+  // is_substitute=true but is marked is_absent=true — they are no longer
+  // covering, so only a NON-absent substitute counts as an active replacement.
   const isUnderstaffedAck = instance.understaffedAck === true && !isCancelled;
-  const hasSubstitute = instance.staff.some((s) => s.isSubstitute);
+  const hasSubstitute = instance.staff.some(
+    (s) => s.isSubstitute && !s.isAbsent,
+  );
   const absentCount = instance.absentStaffCount;
 
   const ringClass = isSelected

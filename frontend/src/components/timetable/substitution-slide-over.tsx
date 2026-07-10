@@ -19,7 +19,10 @@ import { useEffect, useState } from "react";
 
 import { formatDate } from "~/lib/date-helpers";
 import { getActivityTypeBadge, getStatusLabel } from "~/lib/timetable-helpers";
-import type { EnrichedInstance } from "~/lib/timetable-types";
+import type {
+  ApplyDeviationsInput,
+  EnrichedInstance,
+} from "~/lib/timetable-types";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -54,24 +57,18 @@ interface SubstitutionSlideOverProps {
    * offered as substitutes — the backend rejects them too (#1840).
    */
   dayAbsentStaffIds: ReadonlySet<string>;
+  /**
+   * True when the tenant staff list failed to load. The substitute picker then
+   * shows an explicit error instead of an empty list that reads like "no staff".
+   */
+  staffLoadError?: boolean;
   onClose: () => void;
-  onMarkAbsent: (
-    absentStaffId: string,
-    date: string,
-    reason?: string,
-  ) => Promise<void>;
-  onSubstitute: (
-    absentStaffId: string,
-    substituteStaffId: string,
-    date: string,
-    reason?: string,
-  ) => Promise<void>;
-  onCancelBlock: (instance: EnrichedInstance, reason?: string) => Promise<void>;
-  onAcknowledge: (
-    instance: EnrichedInstance,
-    ack: boolean,
-    note?: string,
-  ) => Promise<void>;
+  /**
+   * Applies the ENTIRE form (absences, substitute, understaffed
+   * acknowledgement, cancel) in one atomic backend call (#1840). The slide-over
+   * no longer sequences independent mutations that could half-commit.
+   */
+  onApply: (input: ApplyDeviationsInput) => Promise<void>;
 }
 
 // Per-planned-person edit state.
@@ -94,11 +91,9 @@ export function SubstitutionSlideOver({
   staffOptions,
   staffNames,
   dayAbsentStaffIds,
+  staffLoadError = false,
   onClose,
-  onMarkAbsent,
-  onSubstitute,
-  onCancelBlock,
-  onAcknowledge,
+  onApply,
 }: SubstitutionSlideOverProps) {
   const canEdit =
     instance?.status === "planned" || instance?.status === "active";
@@ -111,6 +106,10 @@ export function SubstitutionSlideOver({
     // that day — a day-absent person cannot cover a shift (#1840).
     .filter((s) => !assignedIds.has(s.id) && !dayAbsentStaffIds.has(s.id))
     .map((s) => ({ value: s.id, label: s.name }));
+  // The data model allows only one substitute per block. If a non-absent
+  // substitute is already assigned (and not staged for removal), picking a
+  // second one would 409 (substitute_conflict) — so the picker is locked until
+  // the existing substitute is removed. Removal is the "Entfernen" button below.
 
   const [people, setPeople] = useState<Record<string, PersonForm>>({});
   const [cancel, setCancel] = useState(false);
@@ -181,12 +180,19 @@ export function SubstitutionSlideOver({
   // Staffed), so the derived flag below must account for ALL staffing that
   // survives the save — currently-present planned people, existing non-absent
   // substitutes, and any replacement newly selected here — not just new picks.
+  // A non-absent substitute that is not staged for removal is still covering the
+  // block: it counts toward "staff remaining" AND locks the replacement picker
+  // (one substitute per block).
+  const hasActiveSubstitute = substitutes.some(
+    (row) => !row.isAbsent && !removedSubs.has(row.staffId),
+  );
+
   const anyStaffRemaining =
     plannedStaff.some((row) => {
       const p = people[row.staffId];
       return p ? !p.absent : !row.isAbsent;
     }) ||
-    substitutes.some((row) => !row.isAbsent && !removedSubs.has(row.staffId)) ||
+    hasActiveSubstitute ||
     Object.values(people).some((p) => p.absent && p.substituteId !== "");
 
   // The understaffed reason is editable even when the ack flag itself doesn't
@@ -210,47 +216,62 @@ export function SubstitutionSlideOver({
     if (!instance || !hasChanges || saving) return;
     setSaving(true);
     try {
+      // Cancel is exclusive — it maps to the backend's cancel branch and ignores
+      // every other field, mirroring the UI where "Block absagen" disables the
+      // rest of the form.
       if (cancel) {
-        await onCancelBlock(instance, cancelReason.trim() || undefined);
+        await onApply({
+          cancel: true,
+          cancelReason: cancelReason.trim() || undefined,
+        });
         onClose();
         return;
       }
-      // Clearing an existing understaffed acknowledgement has no backend
-      // precondition, so do it FIRST. If a later staffing call then fails, the
-      // block is left as an honest open gap (ack=false, still short-staffed)
-      // rather than the contradictory ack=true + non-absent-substitute state
-      // that /gaps excludes from both buckets.
-      const clearingAck = wasUnstaffed && !unstaffed;
-      if (clearingAck) {
-        await onAcknowledge(instance, false);
-      }
-      // Remove substitutes who became unavailable by marking them absent
-      // day-wide — this must happen BEFORE (re)assigning a replacement so the
-      // backend no longer sees a conflicting non-absent substitute on the block
-      // (otherwise the new pick 409s with substitute_conflict).
+
+      // Build ONE payload. The backend applies absences, the substitute, the
+      // acknowledgement, and the removed-substitute absences atomically, so the
+      // frontend no longer has to order independent requests to avoid a
+      // half-saved block.
+      const absences: NonNullable<ApplyDeviationsInput["absences"]> = [];
+      const substitutions: NonNullable<ApplyDeviationsInput["substitutions"]> =
+        [];
+
+      // Removed substitutes are marked absent day-wide, which frees the block so
+      // the replacement below no longer conflicts with the old substitute.
       for (const staffId of removedSubs) {
-        await onMarkAbsent(staffId, instance.date);
+        absences.push({ staffId });
       }
-      // Apply absences/substitutes so staffing reflects the change before we
-      // (maybe) acknowledge the block as unstaffed — the backend refuses that
-      // acknowledgement while non-absent staff are still assigned.
       for (const [staffId, p] of Object.entries(people)) {
         const reason = p.reason.trim() || undefined;
         const newlyAbsent = p.absent && !p.wasAbsent;
         if (p.absent && p.substituteId) {
-          await onSubstitute(staffId, p.substituteId, instance.date, reason);
+          substitutions.push({
+            absentStaffId: staffId,
+            substituteStaffId: p.substituteId,
+            reason,
+          });
         } else if (newlyAbsent) {
-          await onMarkAbsent(staffId, instance.date, reason);
+          absences.push({ staffId, reason });
         }
       }
-      // Only set/refresh the acknowledgement here — the clear case ran above.
-      if (!clearingAck && (unstaffed !== wasUnstaffed || noteEdited)) {
-        await onAcknowledge(
-          instance,
-          unstaffed,
-          unstaffed ? unstaffedReason.trim() || undefined : undefined,
-        );
+
+      const input: ApplyDeviationsInput = {};
+      if (absences.length > 0) input.absences = absences;
+      if (substitutions.length > 0) input.substitutions = substitutions;
+
+      // "Bewusst unbesetzt" only holds when nothing covers the block after the
+      // save. anyStaffRemaining forces it off even if the (now-disabled)
+      // checkbox stayed checked, so the backend never sees a contradictory
+      // ack=true + coverage state.
+      const effectiveUnstaffed = unstaffed && !anyStaffRemaining;
+      if (effectiveUnstaffed !== wasUnstaffed || noteEdited) {
+        input.understaffedAck = effectiveUnstaffed;
+        if (effectiveUnstaffed) {
+          input.understaffedNote = unstaffedReason.trim() || undefined;
+        }
       }
+
+      await onApply(input);
       onClose();
     } finally {
       setSaving(false);
@@ -328,6 +349,7 @@ export function SubstitutionSlideOver({
                     const substituteDisabled =
                       unstaffed ||
                       otherHasSubstitute ||
+                      hasActiveSubstitute ||
                       substituteOptions.length === 0;
                     return (
                       <li
@@ -427,10 +449,21 @@ export function SubstitutionSlideOver({
                                   Keine Vertretung möglich, solange der Block
                                   als bewusst unbesetzt markiert ist.
                                 </p>
+                              ) : hasActiveSubstitute && !p.substituteId ? (
+                                <p className="mt-1 text-[11px] text-gray-400">
+                                  Für diesen Block ist bereits eine Vertretung
+                                  eingetragen. Bitte zuerst „Entfernen“.
+                                </p>
                               ) : otherHasSubstitute && !p.substituteId ? (
                                 <p className="mt-1 text-[11px] text-gray-400">
                                   Pro Block ist eine Vertretung möglich. Diese
                                   Position bleibt offen.
+                                </p>
+                              ) : staffLoadError &&
+                                substituteOptions.length === 0 ? (
+                                <p className="mt-1 text-[11px] text-[#CC2626]">
+                                  Personalliste konnte nicht geladen werden.
+                                  Bitte die Seite neu laden.
                                 </p>
                               ) : null}
                             </div>

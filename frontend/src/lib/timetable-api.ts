@@ -26,6 +26,7 @@ import type {
   BackendStartInstanceResult,
   BackendSubstituteResponse,
   BackendAcknowledgeUnderstaffedResponse,
+  BackendApplyDeviationsResponse,
   BackendTimetableTemplate,
   BackendTemplatesResponse,
   BackendWeeklyInstancesResponse,
@@ -49,6 +50,8 @@ import type {
   StartInstanceResult,
   SubstituteResponse,
   AcknowledgeUnderstaffedResponse,
+  ApplyDeviationsInput,
+  ApplyDeviationsResponse,
   TemplatesResponse,
   TimetableTemplate,
   UpdateTemplateBody,
@@ -62,6 +65,7 @@ import {
   mapExceptionConflicts,
   mapGaps,
   mapAcknowledgeUnderstaffed,
+  mapApplyDeviations,
   mapInstance,
   mapInstanceStatusResult,
   mapMaterializeResult,
@@ -612,6 +616,64 @@ class TimetableService {
 
     const raw = await unwrap<BackendAcknowledgeUnderstaffedResponse>(response);
     return mapAcknowledgeUnderstaffed(raw);
+  }
+
+  /**
+   * POST /api/timetable/instances/{id}/deviations — applies an entire
+   * Vertretungsplan slide-over save (absences, substitute, understaffed
+   * acknowledgement, cancel) in ONE backend transaction (#1840). Either every
+   * edit lands or none does; the frontend never sequences independent
+   * mutations that could half-commit.
+   */
+  async applyDeviations(
+    instanceId: string,
+    input: ApplyDeviationsInput,
+  ): Promise<ApplyDeviationsResponse> {
+    const body: Record<string, unknown> = {};
+    if (input.cancel) {
+      body.cancel = true;
+      if (input.cancelReason) body.cancel_reason = input.cancelReason;
+    } else {
+      if (input.understaffedAck !== undefined) {
+        body.understaffed_ack = input.understaffedAck;
+        if (input.understaffedAck && input.understaffedNote) {
+          body.understaffed_note = input.understaffedNote;
+        }
+      }
+      if (input.absences && input.absences.length > 0) {
+        body.absences = input.absences.map((a) => ({
+          staff_id: Number(a.staffId),
+          reason: a.reason ?? undefined,
+        }));
+      }
+      if (input.substitutions && input.substitutions.length > 0) {
+        body.substitutions = input.substitutions.map((s) => ({
+          absent_staff_id: Number(s.absentStaffId),
+          substitute_staff_id: Number(s.substituteStaffId),
+          reason: s.reason ?? undefined,
+        }));
+      }
+    }
+
+    const response = await fetch(
+      `/api/timetable/instances/${instanceId}/deviations`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(body),
+      },
+    );
+
+    const raw = await unwrap<BackendApplyDeviationsResponse>(response);
+    logger.info("deviations_applied", {
+      instance_id: instanceId,
+      cancelled: raw.cancelled,
+    });
+    return mapApplyDeviations(raw);
   }
 
   async patchAttendance(

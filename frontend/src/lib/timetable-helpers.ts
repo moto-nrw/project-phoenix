@@ -20,6 +20,7 @@ import type {
   BackendGapInstance,
   BackendGapsResponse,
   BackendAcknowledgeUnderstaffedResponse,
+  BackendApplyDeviationsResponse,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
@@ -37,6 +38,7 @@ import type {
   GapInstance,
   GapsResponse,
   AcknowledgeUnderstaffedResponse,
+  ApplyDeviationsResponse,
   InstanceStaffSummary,
   InstanceStudentSummary,
   InstanceStatusResult,
@@ -501,6 +503,29 @@ export function mapSubstitute(
     absentStaffId: String(raw.absent_staff_id),
     substituteStaffId: String(raw.substitute_staff_id),
     date: raw.date,
+    affectedInstances: (raw.affected_instances ?? []).map((item) => ({
+      instanceId: String(item.instance_id),
+      title: item.title,
+      startTime: item.start_time,
+      action: item.action,
+    })),
+    warnings: (raw.warnings ?? []).map((warning) => ({
+      instanceId: String(warning.instance_id),
+      title: warning.title,
+      date: warning.date,
+      startTime: warning.start_time,
+      endTime: warning.end_time,
+    })),
+  };
+}
+
+export function mapApplyDeviations(
+  raw: BackendApplyDeviationsResponse,
+): ApplyDeviationsResponse {
+  return {
+    instanceId: String(raw.instance_id),
+    cancelled: raw.cancelled,
+    understaffedAck: raw.understaffed_ack,
     affectedInstances: (raw.affected_instances ?? []).map((item) => ({
       instanceId: String(item.instance_id),
       title: item.title,

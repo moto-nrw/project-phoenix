@@ -498,6 +498,41 @@ export interface BackendAcknowledgeUnderstaffedResponse {
 }
 
 /**
+ * #1840: the whole Vertretungsplan slide-over save applied atomically via
+ * POST /instances/{id}/deviations. `cancel` is exclusive (other fields are
+ * ignored); `understaffedAck` undefined means "no change". IDs are frontend
+ * strings; the client converts them to numbers for the backend.
+ */
+export interface ApplyDeviationsInput {
+  cancel?: boolean;
+  cancelReason?: string;
+  understaffedAck?: boolean;
+  understaffedNote?: string;
+  absences?: Array<{ staffId: string; reason?: string }>;
+  substitutions?: Array<{
+    absentStaffId: string;
+    substituteStaffId: string;
+    reason?: string;
+  }>;
+}
+
+export interface ApplyDeviationsResponse {
+  instanceId: string;
+  cancelled: boolean;
+  understaffedAck: boolean;
+  affectedInstances: SubstituteAffectedInstance[];
+  warnings: SubstituteTimeConflict[];
+}
+
+export interface BackendApplyDeviationsResponse {
+  instance_id: number;
+  cancelled: boolean;
+  understaffed_ack: boolean;
+  affected_instances: BackendSubstituteAffectedInstance[];
+  warnings: BackendSubstituteTimeConflict[];
+}
+
+/**
  * Body for POST /api/timetable/instances. Mirrors the Go
  * createInstanceRequest shape; the caller passes ISO date and HH:MM
  * times (Berlin local), the backend handles normalisation.

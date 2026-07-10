@@ -124,6 +124,11 @@ func (rs *Resource) Router() chi.Router {
 				// like the other instance mutations.
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
+				// #1840 Vertretungsplan: apply an entire slide-over save
+				// (absences, substitute, ack, cancel) atomically in one tenant
+				// tx so a mid-save failure never commits partial state.
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+				Post("/{id}/deviations", rs.applyDeviations)
 
 			// WP-B10: three-field attendance PATCH. Gated on SchedulesManage
 			// like the lifecycle routes. Path params are {instance_id} and

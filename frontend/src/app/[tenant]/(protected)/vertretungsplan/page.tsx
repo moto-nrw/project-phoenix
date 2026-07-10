@@ -51,7 +51,10 @@ import {
   getWeekRange,
   getWeekdays,
 } from "~/lib/timetable-helpers";
-import type { EnrichedInstance } from "~/lib/timetable-types";
+import type {
+  ApplyDeviationsInput,
+  EnrichedInstance,
+} from "~/lib/timetable-types";
 
 const logger = createLogger({ component: "Vertretungsplan" });
 const HOUR_HEIGHT_PX = 90;
@@ -130,7 +133,7 @@ function VertretungsplanContent() {
     status === "authenticated" && loadGaps ? gapsSWRKey : null,
     () => timetableService.getGaps(gapsFromISO, toISO),
   );
-  const { data: staffData } = useSWRAuth(
+  const { data: staffData, error: staffError } = useSWRAuth(
     status === "authenticated" ? "vertretungsplan-staff-list" : null,
     () => staffService.getAllStaff(),
   );
@@ -166,6 +169,14 @@ function VertretungsplanContent() {
       ? gapsError.message
       : String(gapsError)
     : null;
+  // A failed staff fetch must never masquerade as an empty replacement list —
+  // every picker would silently disable and names would fall back to IDs, which
+  // is indistinguishable from a tenant with no staff (#1840).
+  const staffErrorMessage = staffError
+    ? staffError instanceof Error
+      ? staffError.message
+      : String(staffError)
+    : null;
 
   useEffect(() => {
     if (!weekErrorMessage) return;
@@ -182,6 +193,14 @@ function VertretungsplanContent() {
       `Offene Lücken konnten nicht geprüft werden: ${gapsErrorMessage}`,
     );
   }, [gapsErrorMessage, toast]);
+
+  useEffect(() => {
+    if (!staffErrorMessage) return;
+    logger.error("staff_load_failed", { error: staffErrorMessage });
+    toast.error(
+      `Personalliste konnte nicht geladen werden: ${staffErrorMessage}`,
+    );
+  }, [staffErrorMessage, toast]);
 
   const instances = useMemo(() => data?.instances ?? [], [data?.instances]);
   // The day view renders a single column, so hand the grid only that day's
@@ -233,10 +252,23 @@ function VertretungsplanContent() {
     return view === "day" ? all.filter((g) => g.date === dayISO) : all;
   }, [gapsData?.acknowledged, view, dayISO]);
 
+  // Cache refresh is deliberately SEPARATE from the committed mutation: SWR's
+  // mutate rejects by default when a revalidation fetch fails, and we must never
+  // let that turn an already-committed save into a reported failure (or abort a
+  // multi-edit save). So revalidate swallows its own errors and surfaces a
+  // distinct "please reload" toast instead of throwing back into the save (#1840).
   const revalidate = useCallback(async () => {
-    await tenantMutate(swrKey);
-    await tenantMutate(gapsSWRKey);
-  }, [gapsSWRKey, swrKey, tenantMutate]);
+    try {
+      await Promise.all([tenantMutate(swrKey), tenantMutate(gapsSWRKey)]);
+    } catch (err) {
+      logger.error("revalidate_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      toast.error(
+        "Ansicht konnte nicht aktualisiert werden. Bitte die Seite neu laden.",
+      );
+    }
+  }, [gapsSWRKey, swrKey, tenantMutate, toast]);
 
   const handleSelectInstance = useCallback(
     (instance: EnrichedInstance | null) => {
@@ -245,114 +277,49 @@ function VertretungsplanContent() {
     [updateUrlParams],
   );
 
-  const handleMarkAbsent = useCallback(
-    async (absentStaffId: string, date: string, reason?: string) => {
+  // One atomic save for the whole slide-over form. The backend applies every
+  // edit in a single transaction, so the frontend never sequences independent
+  // mutations that could half-commit. Cache refresh runs AFTER the committed
+  // mutation and cannot revert its success.
+  const handleApply = useCallback(
+    async (input: ApplyDeviationsInput) => {
+      const instance = selectedInstance;
+      if (!instance) return;
       try {
-        const result = await timetableService.markAbsent(
-          absentStaffId,
-          date,
-          reason,
+        const result = await timetableService.applyDeviations(
+          instance.id,
+          input,
         );
-        toast.success(
-          `Abwesenheit gemeldet: ${result.affectedInstances.length} Termin(e)`,
-        );
-        await revalidate();
-      } catch (err) {
-        logger.error("mark_absent_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : "Abwesenheit konnte nicht gemeldet werden",
-        );
-        throw err;
-      }
-    },
-    [revalidate, toast],
-  );
-
-  const handleSubstitute = useCallback(
-    async (
-      absentStaffId: string,
-      substituteStaffId: string,
-      date: string,
-      reason?: string,
-    ) => {
-      try {
-        const result = await timetableService.substitute(
-          absentStaffId,
-          substituteStaffId,
-          date,
-          reason,
-        );
-        toast.success(
-          `Ersatz eingetragen: ${result.affectedInstances.length} Termin(e)`,
-        );
-        if (result.warnings.length > 0) {
-          toast.error(
-            `${result.warnings.length} mögliche Zeitüberschneidung(en) prüfen.`,
+        if (result.cancelled) {
+          toast.success("Block abgesagt");
+          updateUrlParams({ instance: null });
+        } else {
+          const count = result.affectedInstances.length;
+          toast.success(
+            count > 0
+              ? `Vertretungsplan aktualisiert: ${count} Termin(e)`
+              : "Vertretungsplan aktualisiert",
           );
+          if (result.warnings.length > 0) {
+            toast.error(
+              `${result.warnings.length} mögliche Zeitüberschneidung(en) prüfen.`,
+            );
+          }
         }
-        await revalidate();
       } catch (err) {
-        logger.error("substitute_failed", {
+        logger.error("apply_deviations_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         toast.error(
-          err instanceof Error
-            ? err.message
-            : "Ersatz konnte nicht eingetragen werden",
+          err instanceof Error ? err.message : "Speichern fehlgeschlagen",
         );
-        throw err;
-      }
-    },
-    [revalidate, toast],
-  );
-
-  const handleCancelBlock = useCallback(
-    async (instance: EnrichedInstance, reason?: string) => {
-      try {
-        await timetableService.cancel(instance.id, reason);
-        toast.success("Block abgesagt");
-        updateUrlParams({ instance: null });
+        throw err; // keep the slide-over open so the admin can retry
+      } finally {
+        // Runs on both success and failure; non-throwing (see revalidate).
         await revalidate();
-      } catch (err) {
-        logger.error("cancel_block_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : "Block konnte nicht abgesagt werden",
-        );
-        throw err;
       }
     },
-    [revalidate, toast, updateUrlParams],
-  );
-
-  const handleAcknowledge = useCallback(
-    async (instance: EnrichedInstance, ack: boolean, note?: string) => {
-      try {
-        await timetableService.acknowledgeUnderstaffed(instance.id, ack, note);
-        toast.success(
-          ack ? "Als bewusst unbesetzt markiert" : "Markierung aufgehoben",
-        );
-        await revalidate();
-      } catch (err) {
-        logger.error("acknowledge_understaffed_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : "Markierung konnte nicht geändert werden",
-        );
-        throw err;
-      }
-    },
-    [revalidate, toast],
+    [selectedInstance, revalidate, toast, updateUrlParams],
   );
 
   // While the settings schema loads we cannot tell yet whether the feature is
@@ -373,6 +340,13 @@ function VertretungsplanContent() {
         <Alert
           type="error"
           message={`Vertretungsplan konnte nicht geladen werden: ${weekErrorMessage}`}
+        />
+      )}
+
+      {staffErrorMessage && (
+        <Alert
+          type="error"
+          message={`Personalliste konnte nicht geladen werden: ${staffErrorMessage}. Ersatz kann nicht ausgewählt werden, bis die Seite neu geladen wurde.`}
         />
       )}
 
@@ -488,11 +462,9 @@ function VertretungsplanContent() {
         staffOptions={staffOptions}
         staffNames={staffNames}
         dayAbsentStaffIds={dayAbsentStaffIds}
+        staffLoadError={staffErrorMessage !== null}
         onClose={() => handleSelectInstance(null)}
-        onMarkAbsent={handleMarkAbsent}
-        onSubstitute={handleSubstitute}
-        onCancelBlock={handleCancelBlock}
-        onAcknowledge={handleAcknowledge}
+        onApply={handleApply}
       />
     </div>
   );
