@@ -451,6 +451,80 @@ func TestSubstitute_Idempotent_AlreadySubstituted(t *testing.T) {
 }
 
 // -----------------------------------------------------------------------------
+// #1840 P1: terminal (completed/cancelled) instances are historical staffing
+// and must not be rewritten. GetInstanceStaffByStaffAndDate returns every
+// same-day row regardless of status, so a staff member with a finished morning
+// block and a planned afternoon block must only have the afternoon touched.
+// -----------------------------------------------------------------------------
+
+func TestSubstitute_SkipsTerminalInstances(t *testing.T) {
+	s := buildSubSetup(t)
+	defer s.cleanupFn()
+	router := subRouter(s.ctx, s.res)
+
+	// Today: a completed block and a planned block coexist. The endpoint's
+	// past-date guard allows today, so only the status filter protects the
+	// finished block.
+	dateStr, date := futureSubDate(0)
+
+	completed := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "08:00", EndHHMM: "09:00", Title: "Done", Status: schedule.InstanceStatusCompleted,
+	})
+	planned := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Todo", Status: schedule.InstanceStatusPlanned,
+	})
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", completed.ID, planned.ID)
+	})
+
+	rowDone := testpkg.CreateTestInstanceStaff(t, s.db, completed.ID, s.absent, testpkg.InstanceStaffOpts{})
+	rowTodo := testpkg.CreateTestInstanceStaff(t, s.db, planned.ID, s.absent, testpkg.InstanceStaffOpts{})
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowDone.ID, rowTodo.ID) })
+
+	t.Run("absent-only leaves the completed block untouched", func(t *testing.T) {
+		w := doSub(t, router, map[string]any{"absent_staff_id": s.absent, "date": dateStr})
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+		got := decodeSub(t, w)
+		require.Len(t, got.AffectedInstances, 1, "only the planned block is affected")
+		assert.Equal(t, planned.ID, got.AffectedInstances[0].InstanceID)
+
+		assert.False(t, readInstanceStaff(t, s.db, s.ctx, rowDone.ID).IsAbsent,
+			"completed block must not be retroactively marked absent")
+		assert.True(t, readInstanceStaff(t, s.db, s.ctx, rowTodo.ID).IsAbsent)
+	})
+
+	t.Run("substitute leaves the completed block untouched", func(t *testing.T) {
+		w := doSub(t, router, map[string]any{
+			"absent_staff_id":     s.absent,
+			"substitute_staff_id": s.substitu,
+			"date":                dateStr,
+		})
+		require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+		got := decodeSub(t, w)
+		require.Len(t, got.AffectedInstances, 1, "only the planned block is a substitute target")
+		assert.Equal(t, planned.ID, got.AffectedInstances[0].InstanceID)
+
+		// No substitute row may have been created on the completed block.
+		repo := scheduleRepo.NewInstanceStaffRepository(s.db)
+		rows, err := repo.FindByInstanceID(s.ctx, completed.ID)
+		require.NoError(t, err)
+		for _, r := range rows {
+			assert.NotEqual(t, s.substitu, r.StaffID, "no substitute row on the completed block")
+		}
+		// Clean up the substitute row created on the planned block.
+		plannedRows, err := repo.FindByInstanceID(s.ctx, planned.ID)
+		require.NoError(t, err)
+		for _, r := range plannedRows {
+			if r.IsSubstitute && r.StaffID == s.substitu {
+				t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, r.ID) })
+			}
+		}
+	})
+}
+
+// -----------------------------------------------------------------------------
 // 409 + ATOMICITY: the critical one. Multi-instance request where ONE
 // instance has a different substitute already. Must return 409 and leave
 // the OTHER instances unchanged (Dry-Run-First contract).

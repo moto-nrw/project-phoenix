@@ -33,6 +33,7 @@ import (
 	"net/http"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -221,6 +222,13 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorInternalServer(
 				fmt.Errorf("instance_staff %d references missing instance %d", orig.ID, orig.InstanceID)))
 			return
+		}
+
+		// Skip terminal (completed/cancelled) instances: those are historical
+		// staffing that must not be rewritten. A same-day already-finished block
+		// is returned by the loader but is not a valid substitute target.
+		if !isPlannableInstance(instance) {
+			continue
 		}
 
 		// All rows of this instance — needed to detect existing substitutes
@@ -426,6 +434,13 @@ func (rs *Resource) markAbsentOnly(w http.ResponseWriter, r *http.Request, req s
 			return
 		}
 
+		// Skip terminal (completed/cancelled) instances so an already-finished
+		// same-day block is never retroactively marked absent. See
+		// isPlannableInstance.
+		if !isPlannableInstance(instance) {
+			continue
+		}
+
 		action := substituteActionMarkedAbsent
 		if orig.IsAbsent {
 			// Already absent — idempotent replay, no write.
@@ -473,7 +488,10 @@ func (rs *Resource) markAbsentOnly(w http.ResponseWriter, r *http.Request, req s
 
 // trimReason normalizes an optional deviation reason: nil/blank becomes nil,
 // and an over-long value is truncated to the shared note ceiling so a single
-// oversized field can never bloat a row.
+// oversized field can never bloat a row. The ceiling counts runes, not bytes:
+// slicing on a byte offset can split a multi-byte UTF-8 rune, producing an
+// invalid string that PostgreSQL rejects. The frontend's maxLength is likewise
+// a character count, so a rune ceiling keeps the two limits consistent.
 func trimReason(reason *string) *string {
 	if reason == nil {
 		return nil
@@ -482,10 +500,22 @@ func trimReason(reason *string) *string {
 	if trimmed == "" {
 		return nil
 	}
-	if len(trimmed) > understaffedAckNoteMaxLength {
-		trimmed = trimmed[:understaffedAckNoteMaxLength]
+	if utf8.RuneCountInString(trimmed) > understaffedAckNoteMaxLength {
+		trimmed = string([]rune(trimmed)[:understaffedAckNoteMaxLength])
 	}
 	return &trimmed
+}
+
+// isPlannableInstance reports whether a substitute/absence write may touch this
+// instance. Only planned and active blocks are editable: completed and
+// cancelled ones are historical record. GetInstanceStaffByStaffAndDate returns
+// every same-day assignment regardless of status, so a staff member with an
+// already-finished morning block and a planned afternoon block would otherwise
+// have the completed block's staffing rewritten. Mirrors the /gaps candidate
+// filter and DeleteUpcomingByStaffID's "keep same-day history" rule.
+func isPlannableInstance(instance *scheduleModel.ActivityInstance) bool {
+	return instance.Status == scheduleModel.InstanceStatusPlanned ||
+		instance.Status == scheduleModel.InstanceStatusActive
 }
 
 // classifySubstitute decides the action for a single target instance. Pure

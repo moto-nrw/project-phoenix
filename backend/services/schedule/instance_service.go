@@ -65,6 +65,14 @@ var (
 	// to 409 so the UI can explain that the user must delete the series or keep
 	// the slots unchanged until slot-scoped exceptions exist.
 	ErrAmbiguousTemplateInstanceDelete = errors.New("template instance delete is ambiguous")
+
+	// ErrUnderstaffedAckStillStaffed is returned when a caller tries to mark a
+	// block "deliberately unstaffed" (understaffed_ack=true) while it still has
+	// at least one non-absent staff row. The flag means "runs on purpose with
+	// nobody covering"; allowing it alongside real staffing produces
+	// contradictory state (the block reads as unstaffed yet /gaps never lists it
+	// because it is staffed). Handlers map this to 409.
+	ErrUnderstaffedAckStillStaffed = errors.New("cannot acknowledge understaffing while staff are still assigned")
 )
 
 // ActiveSessionEnder is the subset of active.Service used by Complete and
@@ -394,6 +402,20 @@ func (s *instanceService) SetUnderstaffedAck(ctx context.Context, instanceID int
 		// allowed
 	default:
 		return nil, fmt.Errorf("%w: cannot acknowledge understaffing on instance in status %q", ErrInvalidInstanceTransition, instance.Status)
+	}
+
+	// The "deliberately unstaffed" flag only makes sense on a block with nobody
+	// covering. Setting it while non-absent staff remain would persist
+	// contradictory state, so reject it. Clearing the flag (ack=false) is always
+	// allowed.
+	if ack {
+		counts, err := s.deps.InstanceStaffRepo.CountNonAbsentByInstanceIDs(ctx, []int64{instanceID})
+		if err != nil {
+			return nil, &ScheduleError{Op: "set understaffed ack: count staff", Err: err}
+		}
+		if counts[instanceID] > 0 {
+			return nil, ErrUnderstaffedAckStillStaffed
+		}
 	}
 
 	instance.UnderstaffedAck = ack

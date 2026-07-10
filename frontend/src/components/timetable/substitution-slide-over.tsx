@@ -138,9 +138,38 @@ export function SubstitutionSlideOver({
     setPeople((prev) => ({ ...prev, [id]: { ...prev[id]!, ...patch } }));
   }
 
+  // A substitute may cover only one absence per block. Exclude ids already
+  // chosen in another row so the same person can't be picked twice — the
+  // second POST would hit UNIQUE(instance_id, staff_id) and 500 after the
+  // first row already committed, leaving a half-saved form.
+  function substituteOptionsFor(rowStaffId: string) {
+    const takenByOthers = new Set(
+      Object.entries(people)
+        .filter(([id, p]) => id !== rowStaffId && p.absent && p.substituteId)
+        .map(([, p]) => p.substituteId),
+    );
+    return substituteOptions.filter((o) => !takenByOthers.has(o.value));
+  }
+
+  // "Bewusst unbesetzt" (deliberately unstaffed) and assigning a substitute are
+  // contradictory — the block is either covered or intentionally not. The
+  // backend rejects an acknowledgement while non-absent staff remain, so keep
+  // the two mutually exclusive in the UI too.
+  const anySubstituteSelected = Object.values(people).some(
+    (p) => p.absent && p.substituteId !== "",
+  );
+
+  // The understaffed reason is editable even when the ack flag itself doesn't
+  // change, so an edit to an already-acknowledged block's note must count as a
+  // change and be dispatched.
+  const noteEdited =
+    unstaffed &&
+    unstaffedReason.trim() !== (instance?.understaffedNote ?? "").trim();
+
   const hasChanges =
     cancel ||
     unstaffed !== wasUnstaffed ||
+    noteEdited ||
     Object.values(people).some(
       (p) => (p.absent && !p.wasAbsent) || (p.absent && p.substituteId !== ""),
     );
@@ -155,13 +184,9 @@ export function SubstitutionSlideOver({
         onClose();
         return;
       }
-      if (unstaffed !== wasUnstaffed) {
-        await onAcknowledge(
-          instance,
-          unstaffed,
-          unstaffed ? unstaffedReason.trim() || undefined : undefined,
-        );
-      }
+      // Apply absences/substitutes first so staffing reflects the change before
+      // we (maybe) acknowledge the block as unstaffed — the backend refuses that
+      // acknowledgement while non-absent staff are still assigned.
       for (const [staffId, p] of Object.entries(people)) {
         const reason = p.reason.trim() || undefined;
         const newlyAbsent = p.absent && !p.wasAbsent;
@@ -170,6 +195,13 @@ export function SubstitutionSlideOver({
         } else if (newlyAbsent) {
           await onMarkAbsent(staffId, instance.date, reason);
         }
+      }
+      if (unstaffed !== wasUnstaffed || noteEdited) {
+        await onAcknowledge(
+          instance,
+          unstaffed,
+          unstaffed ? unstaffedReason.trim() || undefined : undefined,
+        );
       }
       onClose();
     } finally {
@@ -239,6 +271,7 @@ export function SubstitutionSlideOver({
                     const p = people[row.staffId];
                     if (!p) return null;
                     const name = staffLabel(staffNames, row.staffId);
+                    const rowSubOptions = substituteOptionsFor(row.staffId);
                     return (
                       <li
                         key={row.staffId}
@@ -319,10 +352,12 @@ export function SubstitutionSlideOver({
                               {canEdit ? (
                                 <CustomSelect
                                   value={p.substituteId}
-                                  options={substituteOptions}
+                                  options={rowSubOptions}
                                   ariaLabel={`Vertretung für ${name}`}
                                   placeholder="Ersatzperson wählen…"
-                                  disabled={substituteOptions.length === 0}
+                                  disabled={
+                                    unstaffed || rowSubOptions.length === 0
+                                  }
                                   onChange={(value) =>
                                     updatePerson(row.staffId, {
                                       substituteId: value,
@@ -331,6 +366,12 @@ export function SubstitutionSlideOver({
                                 />
                               ) : (
                                 <span className="text-sm text-gray-500">—</span>
+                              )}
+                              {unstaffed && (
+                                <p className="mt-1 text-[11px] text-gray-400">
+                                  Keine Vertretung möglich, solange der Block
+                                  als bewusst unbesetzt markiert ist.
+                                </p>
                               )}
                             </div>
 
@@ -420,7 +461,7 @@ export function SubstitutionSlideOver({
                     <Checkbox
                       id="vp-unstaffed"
                       checked={unstaffed}
-                      disabled={cancel}
+                      disabled={cancel || anySubstituteSelected}
                       onChange={(e) => setUnstaffed(e.target.checked)}
                     />
                     <span className="text-sm text-gray-800">
@@ -428,6 +469,12 @@ export function SubstitutionSlideOver({
                       <span className="block text-xs text-gray-500">
                         Läuft absichtlich ohne Personal und zählt nicht als
                         offene Lücke.
+                        {anySubstituteSelected && (
+                          <span className="mt-0.5 block text-[#CC2626]">
+                            Nicht möglich, solange eine Vertretung ausgewählt
+                            ist.
+                          </span>
+                        )}
                       </span>
                     </span>
                   </label>
@@ -474,14 +521,26 @@ export function SubstitutionSlideOver({
               </section>
             )}
 
-            {!canEdit && (
-              <p
-                className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
-              >
-                Vergangene oder abgeschlossene Termine können nicht mehr
-                geändert werden.
-              </p>
-            )}
+            {!canEdit &&
+              (instance.status === "cancelled" ? (
+                <div
+                  className={`${timetableMutedSurface} space-y-1 p-3 text-sm text-gray-500`}
+                >
+                  <p className="font-medium text-gray-700">
+                    Dieser Block wurde abgesagt.
+                  </p>
+                  {instance.cancelReason && (
+                    <p>Grund: {instance.cancelReason}</p>
+                  )}
+                </div>
+              ) : (
+                <p
+                  className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
+                >
+                  Vergangene oder abgeschlossene Termine können nicht mehr
+                  geändert werden.
+                </p>
+              ))}
           </form>
 
           {canEdit && (

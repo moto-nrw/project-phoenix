@@ -180,6 +180,11 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, scheduleSvc.ErrInvalidInstanceTransition):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "invalid_transition"))
+	case errors.Is(err, scheduleSvc.ErrUnderstaffedAckStillStaffed):
+		common.RenderError(w, r, common.ErrorConflictWithCode(
+			errors.New("dieser Block kann nicht als bewusst unbesetzt markiert werden, solange noch Personal eingeteilt ist"),
+			"understaffed_still_staffed",
+		))
 	case errors.Is(err, scheduleSvc.ErrAmbiguousTemplateInstanceDelete):
 		common.RenderError(w, r, common.ErrorConflictWithCode(
 			errors.New("dieser Termin kann nicht einzeln gelöscht werden, weil die Vorlage an diesem Tag mehrere Termine hat"),

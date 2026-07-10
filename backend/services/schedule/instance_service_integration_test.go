@@ -215,6 +215,28 @@ func TestInstance_SetUnderstaffedAck_CompletedRejected(t *testing.T) {
 	assert.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
 }
 
+// #1840: the deliberately-unstaffed flag may not be set while non-absent staff
+// remain — that would persist contradictory state (a block that reads as
+// unstaffed yet never appears in /gaps because it is staffed).
+func TestInstance_SetUnderstaffedAck_RejectedWhileStaffed(t *testing.T) {
+	s := buildLifecycle(t)
+	svc := instanceServiceWithBroadcaster(s, nil)
+	ai := seedInstance(t, s, true, false) // one non-absent primary staff row
+
+	_, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, nil)
+	assert.ErrorIs(t, err, scheduleSvc.ErrUnderstaffedAckStillStaffed)
+
+	// The flag never flipped in the DB.
+	reloaded, err := s.repos.ActivityInstance.FindByID(s.ctx, ai.ID)
+	require.NoError(t, err)
+	assert.False(t, reloaded.UnderstaffedAck)
+
+	// Clearing the flag stays allowed even while staffed.
+	cleared, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, false, nil)
+	require.NoError(t, err)
+	assert.False(t, cleared.UnderstaffedAck)
+}
+
 func TestInstance_SetUnderstaffedAck_NotFound(t *testing.T) {
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)
