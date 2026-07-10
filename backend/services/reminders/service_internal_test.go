@@ -9,10 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
+	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -84,6 +87,29 @@ func (f fakePickup) GetBulkEffectivePickupTimesForDate(_ context.Context, _ []in
 type fakeInstance struct {
 	instances []*scheduleModel.ActivityInstance
 	err       error
+}
+
+type fakeRoom struct {
+	rooms []*facilitiesModel.Room
+	err   error
+	empty bool
+}
+
+func (f fakeRoom) FindByIDs(_ context.Context, ids []int64) ([]*facilitiesModel.Room, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	if f.empty {
+		return []*facilitiesModel.Room{}, nil
+	}
+	if f.rooms != nil {
+		return f.rooms, nil
+	}
+	rooms := make([]*facilitiesModel.Room, 0, len(ids))
+	for _, id := range ids {
+		rooms = append(rooms, &facilitiesModel.Room{Model: modelBase.Model{ID: id}, Name: "Lernraum"})
+	}
+	return rooms, nil
 }
 
 func (f fakeInstance) FindByTenantAndDate(_ context.Context, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
@@ -338,7 +364,7 @@ func TestActivityReminders(t *testing.T) {
 		active.Status = scheduleModel.InstanceStatusActive
 		instances = append(instances, active)
 
-		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: instances}}}
+		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: instances}, Room: fakeRoom{}}}
 		out, _, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 2)
@@ -361,7 +387,7 @@ func TestActivityReminders(t *testing.T) {
 			plannedInstance("Schach", 1, 605, 700),  // upcoming
 			plannedInstance("Fußball", 1, 590, 650), // overdue
 		}
-		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: instances}}}
+		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: instances}, Room: fakeRoom{}}}
 
 		upcomingOnly, _, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, false)
 		require.NoError(t, err)
@@ -379,11 +405,66 @@ func TestActivityReminders(t *testing.T) {
 			plannedInstance("Schach", 10, 605, 700),  // room 10 — supervised
 			plannedInstance("Fußball", 99, 605, 700), // room 99 — not supervised
 		}
-		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: instances}}}
+		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: instances}, Room: fakeRoom{}}}
 		out, _, err := svc.activityReminders(context.Background(), Scope{IsAdmin: false}, []int64{10}, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
 		require.NoError(t, err)
 		require.Len(t, out, 1)
 		assert.Equal(t, "Schach", out[0].Title)
+	})
+
+	t.Run("Schulhof keeps upcoming reminder but never becomes overdue", func(t *testing.T) {
+		instances := []*scheduleModel.ActivityInstance{
+			plannedInstance("Lernzeit", 1, 590, 650),
+			plannedInstance("Schulhof-Block", 2, 590, 640),
+		}
+		rooms := fakeRoom{rooms: []*facilitiesModel.Room{
+			{Model: modelBase.Model{ID: 1}, Name: "Lernraum"},
+			{Model: modelBase.Model{ID: 2}, Name: constants.SchulhofRoomName},
+		}}
+		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: instances}, Room: rooms}}
+
+		overdueOnly, next, err := svc.activityReminders(
+			context.Background(), adminScope, nil, timezone.TodayDate(), nowMin,
+			lead, overdueThreshold, false, true,
+		)
+
+		require.NoError(t, err)
+		require.Len(t, overdueOnly, 1)
+		assert.Equal(t, "Lernzeit", overdueOnly[0].Title)
+		assert.Equal(t, 650, next, "Schulhof end time must not schedule an overdue refetch")
+
+		upcomingSvc := &service{Dependencies: Dependencies{
+			Instance: fakeInstance{instances: []*scheduleModel.ActivityInstance{
+				plannedInstance("Schulhof gleich", 2, 605, 700),
+			}},
+			Room: rooms,
+		}}
+		upcomingOnly, _, err := upcomingSvc.activityReminders(
+			context.Background(), adminScope, nil, timezone.TodayDate(), nowMin,
+			lead, overdueThreshold, true, true,
+		)
+		require.NoError(t, err)
+		require.Len(t, upcomingOnly, 1)
+		assert.Equal(t, TypeActivityStart, upcomingOnly[0].Type)
+	})
+
+	t.Run("room resolution failures suppress activity reminders", func(t *testing.T) {
+		instances := []*scheduleModel.ActivityInstance{
+			plannedInstance("Unbekannter Raum", 7, 590, 650),
+		}
+		for _, room := range []fakeRoom{
+			{err: errors.New("rooms unavailable")},
+			{empty: true},
+		} {
+			svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: instances}, Room: room}}
+			out, next, err := svc.activityReminders(
+				context.Background(), adminScope, nil, timezone.TodayDate(), nowMin,
+				lead, overdueThreshold, false, true,
+			)
+			require.Error(t, err)
+			assert.Empty(t, out)
+			assert.Equal(t, -1, next)
+		}
 	})
 
 	t.Run("nil instance reader yields nothing", func(t *testing.T) {
@@ -718,7 +799,7 @@ func TestActivityNextChange(t *testing.T) {
 		// overdue 625, slot end 700. The soonest is 610.
 		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: []*scheduleModel.ActivityInstance{
 			plannedInstance("Schach", 1, 620, 700),
-		}}}}
+		}}, Room: fakeRoom{}}}
 		out, next, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
 		require.NoError(t, err)
 		assert.Empty(t, out)
@@ -733,7 +814,7 @@ func TestActivityNextChange(t *testing.T) {
 		const nowMin = 615
 		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: []*scheduleModel.ActivityInstance{
 			plannedInstance("Schach", 1, 620, 700),
-		}}}}
+		}}, Room: fakeRoom{}}}
 		out, next, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, false)
 		require.NoError(t, err)
 		require.Len(t, out, 1)

@@ -14,24 +14,44 @@ import { Button } from "~/components/ui/button";
 import {
   type CareException,
   type ChildFeatures,
+  type ExcusedRequest,
   ParentApiError,
   type StatusDay,
   type StudentStatusKind,
   deleteCareException,
   getChildFeatures,
   listCareExceptions,
+  listExcusedRequests,
   listSickDays,
   submitCareException,
   submitSickNote,
+  withdrawExcusedRequest,
 } from "~/lib/parent-api";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
 import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
+import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 
 const logger = createLogger({ component: "ChildCare" });
 
+// Thrown by reportSick when a gated excused absence was created server-side but
+// the follow-up reload that would surface the new pending request failed. The
+// SickNoteModal maps it to a localized "submitted but couldn't refresh" hint
+// rather than leaking a raw message — the submission itself succeeded (#1845).
+class ChildCareRefreshError extends Error {
+  constructor() {
+    super("child care refresh failed");
+    this.name = "ChildCareRefreshError";
+  }
+}
+
 const MAX_SICK_DAYS = 60;
 const MAX_NOTE_LEN = 2000;
+
+// Stable empty default for SickStatusSummary's optional excusedRequests prop —
+// a fresh [] literal per render would break referential equality (oxlint
+// react/no-object-type-as-default-prop).
+const EMPTY_EXCUSED_REQUESTS: readonly ExcusedRequest[] = [];
 
 // --- date helpers (native <input type=date> already yields YYYY-MM-DD) ---
 
@@ -50,6 +70,15 @@ function enumerateDates(fromISO: string, toISO: string): string[] {
     cursor.setDate(cursor.getDate() + 1);
   }
   return out;
+}
+
+// True when `next` (YYYY-MM-DD) is exactly the calendar day after `prev`.
+// Mirrors the staff review list's isNextDay so a Mon+Wed request is never shown
+// as "Mon – Wed" (which would wrongly imply Tuesday is included too).
+function isNextDayISO(prev: string, next: string): boolean {
+  const d = parseISODate(prev);
+  d.setDate(d.getDate() + 1);
+  return toISODate(d) === next;
 }
 
 function formatLocaleDate(iso: string, locale: string): string {
@@ -75,6 +104,11 @@ function formatLocaleDate(iso: string, locale: string): string {
 // error beats showing one the backend might reject with 403.
 const DEFAULT_FEATURES: ChildFeatures = {
   sick_note_enabled: true,
+  // Default false on fetch failure: without a confirmed override we treat excused
+  // absences as immediate (the pre-feature behavior), so a transient hiccup never
+  // makes the UI claim an OGS confirmation is pending when it isn't. The backend
+  // enforces the real gate regardless.
+  excused_requires_approval: false,
   // Default false on fetch failure (least privilege), consistent with the other
   // consequential flags below: the features fetch .catch returns DEFAULT_FEATURES,
   // and a school with messaging turned OFF would otherwise show an enabled
@@ -106,6 +140,9 @@ const DEFAULT_FEATURES: ChildFeatures = {
 
 export interface ChildCare {
   readonly sickDays: StatusDay[];
+  // Excused-absence requests that went through the OGS approval gate (pending +
+  // recently-decided). Empty for schools that don't gate excused absences.
+  readonly excusedRequests: ExcusedRequest[];
   readonly careExceptions: CareException[];
   // Whether the care-exception list actually loaded. A failed fetch leaves
   // careExceptions empty, which is indistinguishable from "no overrides exist"
@@ -120,6 +157,7 @@ export interface ChildCare {
     reason: string,
     status: StudentStatusKind,
   ): Promise<void>;
+  withdrawExcused(requestId: string): Promise<void>;
   saveCareException(params: {
     date: string;
     pickupTime?: string;
@@ -130,6 +168,7 @@ export interface ChildCare {
 
 export function useChildCare(studentId: string): ChildCare {
   const [sickDays, setSickDays] = useState<StatusDay[]>([]);
+  const [excusedRequests, setExcusedRequests] = useState<ExcusedRequest[]>([]);
   const [careExceptions, setCareExceptions] = useState<CareException[]>([]);
   const [careExceptionsLoaded, setCareExceptionsLoaded] = useState(false);
   const [features, setFeatures] = useState<ChildFeatures>(DEFAULT_FEATURES);
@@ -149,32 +188,54 @@ export function useChildCare(studentId: string): ChildCare {
     };
   }, []);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (): Promise<{ requestsOk: boolean }> => {
     const seq = ++loadSeqRef.current;
     setLoading(true);
-    // Track the care-exception fetch separately: an empty list from a failed
-    // fetch must NOT be treated as "no overrides", or the pickup modal could
-    // clear a leg it never prefilled (see careExceptionsLoaded above).
+    // Track each fetch's success separately so a failed one PRESERVES the last
+    // known list instead of wiping it to []. An empty list from a failed fetch
+    // is indistinguishable from "nothing here" and would erase already-shown
+    // sick days / pending requests / care overrides on a transient hiccup — the
+    // pickup modal also relies on careExceptionsLoaded to avoid clearing a leg it
+    // never prefilled, and a gated sick-note submit relies on requestsOk to know
+    // whether the freshly created request was actually loaded (#1845 review).
+    let sickOk = true;
+    let requestsOk = true;
     let exceptionsOk = true;
     try {
-      const [days, exceptions, flags] = await Promise.all([
-        listSickDays(studentId).catch(() => [] as StatusDay[]),
+      const [days, requests, exceptions, flags] = await Promise.all([
+        listSickDays(studentId).catch(() => {
+          sickOk = false;
+          return [] as StatusDay[];
+        }),
+        // Always fetch: it's a cheap call and the response is empty for schools
+        // without the approval gate, so gating it on the (separately fetched)
+        // feature flag would only add an ordering dependency for no real saving.
+        listExcusedRequests(studentId).catch(() => {
+          requestsOk = false;
+          return [] as ExcusedRequest[];
+        }),
         listCareExceptions(studentId).catch(() => {
           exceptionsOk = false;
           return [] as CareException[];
         }),
         getChildFeatures(studentId).catch(() => DEFAULT_FEATURES),
       ]);
-      if (!mountedRef.current || seq !== loadSeqRef.current) return;
-      setSickDays(days);
-      setCareExceptions(exceptions);
+      if (!mountedRef.current || seq !== loadSeqRef.current)
+        return { requestsOk };
+      // Only overwrite a list whose fetch succeeded; keep the previous state
+      // otherwise (see above).
+      if (sickOk) setSickDays(days);
+      if (requestsOk) setExcusedRequests(requests);
+      if (exceptionsOk) setCareExceptions(exceptions);
       setCareExceptionsLoaded(exceptionsOk);
       setFeatures(flags);
+      return { requestsOk };
     } catch (err) {
       logger.warn("child_care_load_failed", {
         error: err instanceof Error ? err.message : String(err),
         student_id: studentId,
       });
+      return { requestsOk: false };
     } finally {
       // Only the latest run owns the loading flag, so a stale load resolving
       // after a newer one can't flip it back off prematurely.
@@ -186,19 +247,79 @@ export function useChildCare(studentId: string): ChildCare {
     void load();
   }, [load]);
 
+  // A parent write or a staff decision on an excused request flips the request's
+  // state / writes status days server-side but emits only an SSE trigger — no
+  // payload and no local state change here. The portal-wide ParentRealtimeBridge
+  // turns the backend's message-INDEPENDENT parent_child_updated event into a
+  // `parent-conversation-refresh` window event (carrying the affected studentId);
+  // refetch on a match so an open parent tab drops a resolved "Freigabe ausstehend",
+  // shows a rejection reason, or surfaces a newly approved absence in real time
+  // without a manual reload. That event fans out to EVERY guardian of the child and
+  // fires regardless of whether parent messaging is enabled (#1845 review), so it
+  // reaches a second guardian's tab and a messaging-off school too — the gaps the
+  // old parent_message-only path had (submitter-only, suppressed when messaging is
+  // off). marksRead:false — load() reads no messages and advances no read cursor,
+  // so it fires even in a background tab. refetchOnFocus:true stays as the fallback
+  // for a tab whose SSE stream had dropped entirely (no event ever arrives), mirroring
+  // the conversation views' focus healing.
+  useMessagesActivity({
+    eventName: "parent-conversation-refresh",
+    studentId,
+    onMatch: () => void load(),
+    marksRead: false,
+    refetchOnFocus: true,
+  });
+
   const reportSick = useCallback(
     async (dates: string[], reason: string, status: StudentStatusKind) => {
-      const updated = await submitSickNote(studentId, dates, reason, status);
-      // The POST only returns the just-submitted dates. Merge them into the
-      // already-loaded list (replacing any same-date entries) so previously
-      // reported absences don't disappear after a non-overlapping submit.
-      setSickDays((prev) => {
-        const submittedDates = new Set(updated.map((d) => d.date));
-        return [
-          ...prev.filter((d) => !submittedDates.has(d.date)),
-          ...updated,
-        ].sort((a, b) => a.date.localeCompare(b.date));
-      });
+      const { status_days } = await submitSickNote(
+        studentId,
+        dates,
+        reason,
+        status,
+      );
+      // A direct write (sick note, or an excused absence without the approval
+      // gate) returns the just-recorded days. Merge them into the already-loaded
+      // list (replacing any same-date entries) so previously reported absences
+      // don't disappear after a non-overlapping submit.
+      if (status_days.length > 0) {
+        setSickDays((prev) => {
+          const submittedDates = new Set(status_days.map((d) => d.date));
+          return [
+            ...prev.filter((d) => !submittedDates.has(d.date)),
+            ...status_days,
+          ].sort((a, b) => a.date.localeCompare(b.date));
+        });
+        return;
+      }
+      // Empty status days means the school gated this excused absence: the backend
+      // created a pending request but no longer returns it inline (the sick-note
+      // response is always the bare status-day array for backward compatibility).
+      // Reload authoritatively to surface the new "Freigabe ausstehend" request.
+      // An authoritative reload (rather than an optimistic prepend) also avoids
+      // the duplicate-row race the prepend had with a load() that an after-commit
+      // parent_message could trigger before this POST resolved.
+      const { requestsOk } = await load();
+      if (!requestsOk) {
+        // The request WAS created server-side, but the reload that would surface
+        // it failed — closing silently would leave the parent with no pending
+        // confirmation, as if nothing happened. Propagate so the modal stays open
+        // and says so. A retry is safe: the backend treats an identical resubmit
+        // idempotently, so it won't create a duplicate request (#1845 review).
+        throw new ChildCareRefreshError();
+      }
+    },
+    [studentId, load],
+  );
+
+  const withdrawExcused = useCallback(
+    async (requestId: string) => {
+      const updated = await withdrawExcusedRequest(studentId, requestId);
+      // Replace the request in place with its withdrawn form; the summary then
+      // stops offering the withdraw action and drops it from the pending list.
+      setExcusedRequests((prev) =>
+        prev.map((r) => (r.id === updated.id ? updated : r)),
+      );
     },
     [studentId],
   );
@@ -230,11 +351,13 @@ export function useChildCare(studentId: string): ChildCare {
 
   return {
     sickDays,
+    excusedRequests,
     careExceptions,
     careExceptionsLoaded,
     features,
     loading,
     reportSick,
+    withdrawExcused,
     saveCareException,
     removeCareException,
   };
@@ -245,6 +368,7 @@ export function useChildCare(studentId: string): ChildCare {
 export function SickNoteModal({
   onClose,
   onSubmit,
+  excusedRequiresApproval = false,
 }: Readonly<{
   onClose: () => void;
   onSubmit: (
@@ -252,6 +376,10 @@ export function SickNoteModal({
     reason: string,
     status: StudentStatusKind,
   ) => Promise<void>;
+  // When true AND the parent picks "Entschuldigt", the absence must be confirmed
+  // by the OGS before it takes effect — the modal shows a hint saying so. Mirrors
+  // the backend operations.parent_excused_requires_approval gate.
+  excusedRequiresApproval?: boolean;
 }>) {
   const t = useTranslations("parentChildCare");
   const initial = todayISO();
@@ -263,10 +391,33 @@ export function SickNoteModal({
   const [error, setError] = useState<string | null>(null);
 
   const dates = useMemo(() => enumerateDates(from, to), [from, to]);
+  // For an excused absence the note is mandatory (the OGS needs the reason); a
+  // sick note keeps it optional.
+  const noteRequired = status === "excused";
+  const noteMissing = noteRequired && reason.trim() === "";
+
+  // Map submit failures to localized text; never surface a raw English backend
+  // string to the German-only parent UI (mirrors PickupTimeModal.resolveError).
+  const resolveSickError = (err: unknown): string => {
+    if (err instanceof ChildCareRefreshError) {
+      return t("sick.submittedButRefreshFailed");
+    }
+    if (
+      err instanceof ParentApiError &&
+      err.code === "excused_request_overlap"
+    ) {
+      return t("sick.overlapError");
+    }
+    return err instanceof Error ? err.message : t("sick.saveError");
+  };
 
   const handleSubmit = async () => {
     if (dates.length === 0) {
       setError(t("sick.invalidDate"));
+      return;
+    }
+    if (noteMissing) {
+      setError(t("sick.reasonRequiredError"));
       return;
     }
     setSubmitting(true);
@@ -275,7 +426,7 @@ export function SickNoteModal({
       await onSubmit(dates, reason, status);
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("sick.saveError"));
+      setError(resolveSickError(err));
     } finally {
       setSubmitting(false);
     }
@@ -289,7 +440,9 @@ export function SickNoteModal({
       closeLabel={t("close")}
     >
       <div className="space-y-4">
-        <p className="text-sm leading-6 text-gray-600">{t("sick.intro")}</p>
+        <p className="text-sm leading-6 text-gray-600">
+          {excusedRequiresApproval ? t("sick.introApproval") : t("sick.intro")}
+        </p>
         <label className="block">
           <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
             {t("sick.kindLabel")}
@@ -336,9 +489,16 @@ export function SickNoteModal({
         <p className="text-xs text-gray-500">
           {t("sick.daysCount", { count: dates.length })}
         </p>
+        {noteRequired && excusedRequiresApproval && (
+          <p className="rounded-lg border border-[#EAB308]/30 bg-[#EAB308]/10 px-3 py-2 text-sm text-[#92710b]">
+            {t("sick.approvalHint")}
+          </p>
+        )}
         <label className="block">
           <span className="mb-1 block text-xs font-semibold tracking-wide text-gray-500 uppercase">
-            {t("sick.reasonLabel")}
+            {noteRequired
+              ? t("sick.reasonLabelRequired")
+              : t("sick.reasonLabel")}
           </span>
           <textarea
             value={reason}
@@ -363,7 +523,7 @@ export function SickNoteModal({
             size="md"
             className="gap-2"
             onClick={() => void handleSubmit()}
-            disabled={submitting}
+            disabled={submitting || noteMissing}
           >
             {submitting && (
               <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
@@ -622,23 +782,184 @@ export function PickupTimeModal({
 
 export function SickStatusSummary({
   sickDays,
-}: Readonly<{ sickDays: StatusDay[] }>) {
+  excusedRequests = EMPTY_EXCUSED_REQUESTS,
+  onWithdraw,
+}: Readonly<{
+  sickDays: StatusDay[];
+  // Excused requests behind the OGS approval gate. Pending ones show as
+  // "Freigabe ausstehend" with a withdraw action; rejected ones show the
+  // decision reason. Confirmed (approved) requests arrive as StatusDays instead.
+  excusedRequests?: readonly ExcusedRequest[];
+  onWithdraw?: (requestId: string) => Promise<void>;
+}>) {
   const t = useTranslations("parentChildCare");
   const locale = useLocale();
-  if (sickDays.length === 0) {
+  const [withdrawingId, setWithdrawingId] = useState<string | null>(null);
+  // Which request's withdraw last failed, plus the message to show. A failed
+  // DELETE (network error, or a 409 because the OGS already decided/withdrew it)
+  // must not stay silent — the pending row would otherwise linger with no hint
+  // that the action didn't take. Keyed by id so the error renders on the exact
+  // row the parent clicked.
+  const [withdrawError, setWithdrawError] = useState<{
+    id: string;
+    message: string;
+  } | null>(null);
+
+  // Collapse to a "first – last" range ONLY when the days are actually
+  // contiguous; otherwise list them comma-separated. The request endpoint accepts
+  // an arbitrary date list, so a Mon+Wed request must never render as "Mon – Wed"
+  // (which would wrongly imply Tuesday is included), matching the staff list
+  // (#1845 review).
+  const rangeLabel = (dates: readonly string[]): string => {
+    const sorted = [...dates].sort((a, b) => a.localeCompare(b));
+    if (sorted.length === 0) return "";
+    if (sorted.length === 1) return formatLocaleDate(sorted[0]!, locale);
+    const contiguous = sorted.every(
+      (d, i) => i === 0 || isNextDayISO(sorted[i - 1]!, d),
+    );
+    if (contiguous) {
+      return `${formatLocaleDate(sorted[0]!, locale)} – ${formatLocaleDate(sorted.at(-1)!, locale)}`;
+    }
+    return sorted.map((d) => formatLocaleDate(d, locale)).join(", ");
+  };
+
+  const handleWithdraw = async (requestId: string) => {
+    if (!onWithdraw) return;
+    setWithdrawingId(requestId);
+    setWithdrawError(null);
+    try {
+      await onWithdraw(requestId);
+    } catch (err) {
+      logger.warn("excused_request_withdraw_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        request_id: requestId,
+      });
+      // Never surface the raw backend English string to a German-only parent.
+      // Map the one known conflict (the OGS already decided the request before
+      // the parent clicked) to a specific message; everything else falls back to
+      // the generic translated hint.
+      const message =
+        err instanceof ParentApiError &&
+        err.code === "excused_request_not_pending"
+          ? t("summary.withdrawAlreadyDecided")
+          : t("summary.withdrawError");
+      setWithdrawError({ id: requestId, message });
+    } finally {
+      setWithdrawingId(null);
+    }
+  };
+
+  const sickDates = sickDays
+    .filter((d) => d.status === "sick")
+    .map((d) => d.date);
+  const excusedConfirmedDates = sickDays
+    .filter((d) => d.status === "excused")
+    .map((d) => d.date);
+  const pending = excusedRequests.filter((r) => r.status === "pending");
+  const rejected = excusedRequests.filter((r) => r.status === "rejected");
+  // Approved requests normally surface as excused status days above, but the
+  // status-day fetch is windowed (today..+2 months, matching the backend's
+  // listSickDays range). An approval for a past date (delayed decision) or one
+  // more than two months ahead has NO status day here, so it would silently
+  // vanish once it left the pending list — surface those from the approved
+  // request instead.
+  //
+  // Critically, only surface dates that are genuinely OUTSIDE the fetched window.
+  // A within-window date with no excused status day was NOT dropped for being out
+  // of range — it was superseded by a newer authoritative status (e.g. staff
+  // marked the child sick, or cleared it). Showing it from the approved request
+  // would render the same day as both sick AND excused. Inside the window the
+  // status days are authoritative; the approved request only fills the gaps the
+  // windowed fetch cannot see (#1845 review).
+  const windowStart = todayISO();
+  const windowEnd = (() => {
+    const d = parseISODate(windowStart);
+    d.setMonth(d.getMonth() + 2);
+    return toISODate(d);
+  })();
+  const shownExcusedDates = new Set(excusedConfirmedDates);
+  const isOutOfWindow = (d: string) => d < windowStart || d > windowEnd;
+  const approvedOutOfWindow = excusedRequests
+    .filter((r) => r.status === "approved")
+    .map((r) => ({
+      id: r.id,
+      dates: r.dates.filter(
+        (d) => isOutOfWindow(d) && !shownExcusedDates.has(d),
+      ),
+    }))
+    .filter((r) => r.dates.length > 0);
+
+  const hasAny =
+    sickDates.length > 0 ||
+    excusedConfirmedDates.length > 0 ||
+    approvedOutOfWindow.length > 0 ||
+    pending.length > 0 ||
+    rejected.length > 0;
+  if (!hasAny) {
     return <span className="text-sm text-gray-600">{t("summary.none")}</span>;
   }
-  const sorted = [...sickDays].sort((a, b) => a.date.localeCompare(b.date));
-  const first = sorted.at(0)!;
-  const last = sorted.at(-1)!;
-  const label =
-    sorted.length === 1
-      ? t("summary.oneDay", { date: formatLocaleDate(first.date, locale) })
-      : t("summary.range", {
-          from: formatLocaleDate(first.date, locale),
-          to: formatLocaleDate(last.date, locale),
-        });
-  return <span className="text-sm font-semibold text-gray-900">{label}</span>;
+
+  return (
+    <div className="space-y-1.5">
+      {sickDates.length > 0 && (
+        <p className="text-sm font-semibold text-gray-900">
+          {t("summary.sickLabel")}: {rangeLabel(sickDates)}
+        </p>
+      )}
+      {excusedConfirmedDates.length > 0 && (
+        <p className="text-sm font-semibold text-gray-900">
+          {t("summary.excusedLabel")}: {rangeLabel(excusedConfirmedDates)}
+        </p>
+      )}
+      {approvedOutOfWindow.map((r) => (
+        <p key={r.id} className="text-sm font-semibold text-gray-900">
+          {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
+        </p>
+      ))}
+      {pending.map((r) => (
+        <div key={r.id} className="space-y-0.5">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <p className="text-sm font-semibold text-gray-900">
+              {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
+            </p>
+            <span className="inline-flex items-center rounded-full bg-[#EAB308]/15 px-2 py-0.5 text-xs font-medium text-[#92710b]">
+              {t("summary.pendingLabel")}
+            </span>
+            {onWithdraw && r.is_self && (
+              <button
+                type="button"
+                disabled={withdrawingId === r.id}
+                onClick={() => void handleWithdraw(r.id)}
+                className="text-xs font-medium text-gray-500 underline underline-offset-2 transition-colors hover:text-gray-700 disabled:opacity-50"
+              >
+                {t("summary.withdraw")}
+              </button>
+            )}
+          </div>
+          {withdrawError?.id === r.id && (
+            <p className="text-xs text-[#CC2626]">{withdrawError.message}</p>
+          )}
+        </div>
+      ))}
+      {rejected.map((r) => (
+        <div key={r.id} className="space-y-0.5">
+          <div className="flex flex-wrap items-center gap-x-2">
+            <p className="text-sm font-semibold text-gray-900">
+              {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
+            </p>
+            <span className="inline-flex items-center rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-xs font-medium text-[#CC2626]">
+              {t("summary.rejectedLabel")}
+            </span>
+          </div>
+          {r.decision_reason && (
+            <p className="text-xs text-gray-500">
+              {t("summary.reasonPrefix")}: {r.decision_reason}
+            </p>
+          )}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 // --- OGS quick actions (parent self-service, immediate) --------------------

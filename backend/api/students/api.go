@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	absenceService "github.com/moto-nrw/project-phoenix/services/absence"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	activityService "github.com/moto-nrw/project-phoenix/services/activities"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
@@ -68,6 +69,7 @@ type ResourceConfig struct {
 	StudentService          userService.StudentService
 	MasterDataReviewService userService.MasterDataReviewService
 	CareRequestService      scheduleService.CareScheduleRequestService
+	ExcusedRequestService   absenceService.ExcusedAbsenceRequestService
 	StudentStatusDayService *activeService.StudentStatusDayService
 	StudentHistoryService   activeService.StudentHistoryService
 	ActivityService         activityService.ActivityService
@@ -127,6 +129,10 @@ func (rs *Resource) Router() chi.Router {
 		// on the same Änderungsanfragen page.
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/care-schedule-change-requests", rs.listCareScheduleChangeRequests)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/care-schedule-change-requests/{requestId}/decide", rs.decideCareScheduleChangeRequest)
+
+		// Excused-absence approval requests (#1845): staff review queue.
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Get("/excused-absence-requests", rs.listExcusedAbsenceRequests)
+		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Post("/excused-absence-requests/{requestId}/decide", rs.decideExcusedAbsenceRequest)
 
 		// Combined pending count across both review queues, driving the
 		// Änderungsanfragen sidebar badge. Same users:update gate + per-child

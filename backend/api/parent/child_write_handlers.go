@@ -58,6 +58,42 @@ func toStatusDayResponse(d *activeModels.StudentStatusDay) StatusDayResponse {
 	}
 }
 
+// ParentExcusedRequestResponse is the parent-facing projection of a pending or
+// recently-decided excused-absence approval request (#1845).
+type ParentExcusedRequestResponse struct {
+	ID             string     `json:"id"`
+	StudentID      string     `json:"student_id"`
+	Status         string     `json:"status"`
+	Dates          []string   `json:"dates"`
+	Note           string     `json:"note"`
+	DecisionReason *string    `json:"decision_reason,omitempty"`
+	CreatedAt      time.Time  `json:"created_at"`
+	ReviewedAt     *time.Time `json:"reviewed_at,omitempty"`
+	// IsSelf is true only when the CALLING guardian submitted this request. In a
+	// multi-guardian family only the submitter may withdraw it (the backend
+	// rejects a non-submitter's withdrawal), so the UI shows the withdraw action
+	// only for own requests.
+	IsSelf bool `json:"is_self"`
+}
+
+func toParentExcusedRequestResponse(req *activeModels.ExcusedAbsenceRequest, accountID int64) ParentExcusedRequestResponse {
+	dates := make([]string, 0, len(req.Dates))
+	for _, d := range req.Dates {
+		dates = append(dates, d.String())
+	}
+	return ParentExcusedRequestResponse{
+		ID:             strconv.FormatInt(req.ID, 10),
+		StudentID:      strconv.FormatInt(req.StudentID, 10),
+		Status:         req.Status,
+		Dates:          dates,
+		Note:           req.Note,
+		DecisionReason: req.DecisionReason,
+		CreatedAt:      req.CreatedAt,
+		ReviewedAt:     req.ReviewedAt,
+		IsSelf:         req.SubmittedBy == accountID,
+	}
+}
+
 // submitSickNote reports the parent's child sick for one or more dates.
 // Auth: parent-scope JWT (account from claims). Ownership of the child is
 // verified inside the service against auth.account_tenants.
@@ -90,17 +126,77 @@ func (rs *Resource) submitSickNote(w http.ResponseWriter, r *http.Request) {
 		status = activeModels.StudentStatusDaySick
 	}
 
-	rows, err := rs.ParentService.SubmitSickNote(r.Context(), accountID, studentID, dates, req.Reason, status)
+	result, err := rs.ParentService.SubmitSickNote(r.Context(), accountID, studentID, dates, req.Reason, status)
 	if err != nil {
 		renderParentWriteError(w, r, err)
 		return
 	}
 
-	out := make([]StatusDayResponse, 0, len(rows))
-	for _, d := range rows {
-		out = append(out, toStatusDayResponse(d))
+	statusDays := make([]StatusDayResponse, 0, len(result.StatusDays))
+	for _, d := range result.StatusDays {
+		statusDays = append(statusDays, toStatusDayResponse(d))
 	}
-	common.Respond(w, r, http.StatusCreated, out, "Sick note submitted")
+
+	// Backward-compatibility (#1845 review): ALWAYS respond with the bare
+	// status-day array — the shape every client (including tabs loaded before the
+	// approval gate was enabled) already calls .map() on. When the school gates an
+	// excused absence the request is created server-side but NOT returned here;
+	// StatusDays is empty and the child stays "expected". New clients discover the
+	// freshly-created pending request via GET .../excused-requests (they refetch
+	// after a submit). Returning a {status_days, pending_request} object on this
+	// path would crash an already-open #1735-era tab — which has the "excused"
+	// option but expects an array — and make it report a false failure, so the
+	// parent could resubmit and create a duplicate pending request.
+	common.Respond(w, r, http.StatusCreated, statusDays, "Sick note submitted")
+}
+
+// listExcusedRequests returns the child's pending + recently-decided excused
+// approval requests (#1845), so the parent UI can show their status.
+func (rs *Resource) listExcusedRequests(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+
+	rows, err := rs.ParentService.ListExcusedRequests(r.Context(), accountID, studentID)
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+
+	out := make([]ParentExcusedRequestResponse, 0, len(rows))
+	for _, req := range rows {
+		out = append(out, toParentExcusedRequestResponse(req, accountID))
+	}
+	common.Respond(w, r, http.StatusOK, out, "Excused requests retrieved")
+}
+
+// withdrawExcusedRequest withdraws the caller's own pending excused approval
+// request (#1845).
+func (rs *Resource) withdrawExcusedRequest(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	studentID, ok := parsePathStudentID(w, r)
+	if !ok {
+		return
+	}
+	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "requestId", "invalid request id")
+	if !ok {
+		return
+	}
+
+	req, err := rs.ParentService.WithdrawExcusedRequest(r.Context(), accountID, studentID, requestID)
+	if err != nil {
+		renderParentWriteError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, toParentExcusedRequestResponse(req, accountID), "Excused request withdrawn")
 }
 
 // listSickDays returns the child's active sick days in the requested
@@ -167,6 +263,7 @@ func parseSickDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
 // school currently allows, so it can avoid offering ones the backend rejects.
 type ChildFeaturesResponse struct {
 	SickNoteEnabled              bool `json:"sick_note_enabled"`
+	ExcusedRequiresApproval      bool `json:"excused_requires_approval"`
 	NotesEnabled                 bool `json:"notes_enabled"`
 	RequestSubmitEnabled         bool `json:"request_submit_enabled"`
 	PickupChangeEnabled          bool `json:"pickup_change_enabled"`
@@ -202,6 +299,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 	}
 	common.Respond(w, r, http.StatusOK, ChildFeaturesResponse{
 		SickNoteEnabled:              flags.SickNoteEnabled,
+		ExcusedRequiresApproval:      flags.ExcusedRequiresApproval,
 		NotesEnabled:                 flags.NotesEnabled,
 		RequestSubmitEnabled:         flags.RequestSubmitEnabled,
 		PickupChangeEnabled:          flags.PickupChangeEnabled,
@@ -338,6 +436,12 @@ func renderParentWriteError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_conflict"))
 	case errors.Is(err, parentService.ErrCareExceptionRaced):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "care_exception_raced"))
+	case errors.Is(err, parentService.ErrExcusedRequestNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, parentService.ErrExcusedRequestNotPending):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "excused_request_not_pending"))
+	case errors.Is(err, parentService.ErrExcusedRequestOverlap):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "excused_request_overlap"))
 	case errors.Is(err, parentService.ErrCareRequestNotPending):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "request_not_open"))
 	case errors.Is(err, parentService.ErrCareRequestNotFound):

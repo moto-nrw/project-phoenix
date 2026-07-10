@@ -15,6 +15,12 @@ type SSEEventType =
   | "dashboard_counts_changed"
   | "arrival_schedule_changed"
   | "tenant_settings_changed"
+  // Tenant-wide staff signal that a parent change-request queue changed (a
+  // request was created/decided/withdrawn). Staff review lists + the pending-count
+  // badge refetch on it, so an open review page updates live without depending on
+  // the parent-messaging pill. Fires only on request transitions. See
+  // backend/realtime/events.go EventChangeRequestsChanged.
+  | "change_requests_changed"
   // Timetable instance lifecycle events emitted by the backend (WP-B9).
   // The weekly planner subscribes to these so admin and office staff see
   // live status changes (start/complete/cancel) without manual refresh.
@@ -29,7 +35,13 @@ type SSEEventType =
   // Parent-OGS messaging: the COUNTERPART read the conversation. A trigger for an
   // open chat to refresh its "Gelesen" receipts only — no new message, no unread
   // badge change. See backend/realtime/events.go EventParentMessageRead.
-  | "parent_message_read";
+  | "parent_message_read"
+  // Message-INDEPENDENT invalidation delivered to every guardian of a child so an
+  // open parents-app tab refetches that child's care state (e.g. after an excused
+  // request is created/decided/withdrawn), regardless of parent messaging being on.
+  // Carries only student_id; must NOT touch any unread badge or thread list. See
+  // backend/realtime/events.go EventParentChildUpdated.
+  | "parent_child_updated";
 
 // SSE Connection Status
 export type ConnectionStatus = "connected" | "reconnecting" | "failed" | "idle";

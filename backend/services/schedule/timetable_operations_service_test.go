@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
@@ -81,6 +82,29 @@ func TestTimetableOperationsPlannedNowAllowsAdminOverview(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	assert.True(t, result[0].IsOverdue)
+}
+
+func TestTimetableOperationsPlannedNowExcludesSchulhof(t *testing.T) {
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	const schulhofRoomID int64 = 811
+	deps := newTimetableOpsDeps()
+	deps.settings.enabled = true
+	deps.rooms.rooms = append(deps.rooms.rooms, &facilitiesModel.Room{
+		Model: modelBase.Model{ID: schulhofRoomID},
+		Name:  constants.SchulhofRoomName,
+	})
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+		instanceWithRoomAndTimes(330, schulhofRoomID, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
+		instanceWithTimes(331, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
+	}
+	deps.staffRepo.byInstance[330] = []*scheduleModel.InstanceStaff{{StaffID: 220}}
+	deps.staffRepo.byInstance[331] = []*scheduleModel.InstanceStaff{{StaffID: 220}}
+
+	result, err := deps.service.PlannedNow(context.Background(), 620, true, timezone.DateFromTime(now), now, PlannedNowOptions{})
+
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(331), result[0].ID)
 }
 
 func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {
@@ -1029,12 +1053,16 @@ func wireAssignedStaff(deps *timetableOpsTestDeps, accountID, personID, staffID,
 }
 
 func instanceWithTimes(id int64, status string, start, end time.Time) *scheduleModel.ActivityInstance {
+	return instanceWithRoomAndTimes(id, 810, status, start, end)
+}
+
+func instanceWithRoomAndTimes(id, roomID int64, status string, start, end time.Time) *scheduleModel.ActivityInstance {
 	inst := &scheduleModel.ActivityInstance{
 		Date:      timezone.NewDate(start.Year(), start.Month(), start.Day()),
 		Title:     "Lernzeit",
 		StartTime: start,
 		EndTime:   end,
-		RoomID:    810,
+		RoomID:    roomID,
 		Status:    status,
 	}
 	inst.ID = id

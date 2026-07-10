@@ -264,6 +264,7 @@
     "sick": {
       "title": "Njofto mungesë",
       "intro": "Njoftoni mungesën e fëmijës për një ose më shumë ditë. Zgjidhni nëse është i sëmurë apo mungon i justifikuar për një arsye tjetër. Stafi i kujdesit e sheh njoftimin menjëherë.",
+      "introApproval": "Njoftoni mungesën e fëmijës për një ose më shumë ditë. Zgjidhni nëse është i sëmurë apo mungon i justifikuar për një arsye tjetër. Një njoftim sëmundjeje stafi e sheh menjëherë; një mungesë e justifikuar duhet të konfirmohet nga ekipi.",
       "kindLabel": "Lloji i mungesës",
       "kindSick": "I sëmurë",
       "kindExcused": "I justifikuar",
@@ -274,12 +275,25 @@
       "reasonPlaceholder": "p.sh. temperaturë, takim te dentisti",
       "invalidDate": "Ju lutemi zgjidhni një datë të vlefshme (data e mbarimit pas datës së fillimit).",
       "saveError": "Mungesa nuk u ruajt dot.",
-      "submit": "Dërgo njoftimin e mungesës"
+      "submittedButRefreshFailed": "Mungesa u dërgua, por nuk mund të shfaqej. Ju lutemi rifreskoni faqen.",
+      "overlapError": "Për një nga këto ditë ekziston tashmë një kërkesë mungese e hapur.",
+      "submit": "Dërgo njoftimin e mungesës",
+      "reasonLabelRequired": "Shënim (i detyrueshëm)",
+      "reasonRequiredError": "Ju lutemi shtoni një shënim që shpjegon pse fëmija juaj mungon me arsye.",
+      "approvalHint": "Kjo mungesë duhet të konfirmohet nga ekipi."
     },
     "summary": {
       "none": "Asnjë mungesë",
       "oneDay": "Mungon më {date}",
-      "range": "Mungon {from} – {to}"
+      "range": "Mungon {from} – {to}",
+      "sickLabel": "I sëmurë",
+      "excusedLabel": "Me arsye",
+      "pendingLabel": "Në pritje të miratimit",
+      "rejectedLabel": "U refuzua",
+      "withdraw": "Tërhiq",
+      "withdrawError": "Tërheqja dështoi. Ju lutemi rifreskoni faqen.",
+      "withdrawAlreadyDecided": "OGS-ja tashmë e ka trajtuar këtë kërkesë, prandaj nuk mund të tërhiqet më.",
+      "reasonPrefix": "Arsyeja"
     },
     "pickup": {
       "title": "Ndrysho orarin e ardhjes dhe marrjes",
@@ -985,6 +999,8 @@
     "eventRequestCreatedCareSchedule": "Kërkesë për ndryshim të orareve të kujdesit u dërgua",
     "eventRequestCreatedMasterData": "Kërkesë për ndryshim të Stammdaten u dërgua",
     "eventRequestConfirmedMasterData": "Kërkesa u konfirmua, Stammdaten u zbatuan",
+    "eventRequestCreatedExcusedAbsence": "Kërkesë për mungesë të arsyetuar u dërgua",
+    "eventRequestConfirmedExcusedAbsence": "Kërkesa u konfirmua, mungesa u regjistrua",
     "eventRequestRejected": "Kërkesa u refuzua",
     "eventRequestRejectedReason": "Kërkesa u refuzua: {reason}",
     "eventRequestWithdrawn": "Kërkesa u tërhoq",

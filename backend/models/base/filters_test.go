@@ -188,6 +188,18 @@ func TestFilter_In(t *testing.T) {
 	}
 }
 
+func TestFilter_NotIn(t *testing.T) {
+	f := NewFilter().NotIn("name", "WC", "Toilette")
+
+	if len(f.conditions) != 1 {
+		t.Fatalf("Filter.NotIn() should add one condition, got %d", len(f.conditions))
+	}
+	cond := f.conditions[0]
+	if cond.Operator != OpNotIn {
+		t.Errorf("Filter.NotIn() operator = %v, want %v", cond.Operator, OpNotIn)
+	}
+}
+
 func TestFilter_Or(t *testing.T) {
 	mainFilter := NewFilter().Equal("status", "active")
 	orFilter := Filter{}
@@ -197,6 +209,25 @@ func TestFilter_Or(t *testing.T) {
 
 	if len(mainFilter.or) != 1 {
 		t.Fatalf("Filter.Or() should add one or-filter, got %d", len(mainFilter.or))
+	}
+}
+
+func TestFilter_AndGroupsNestedConditionsAndInheritsAlias(t *testing.T) {
+	mainFilter := NewFilter().WithTableAlias("room").Equal("building", "A")
+	visibility := NewFilter().Equal("is_system", false)
+	visibility.Or(*NewFilter().Equal("name", "Schulhof"))
+
+	mainFilter.And(*visibility)
+
+	if len(mainFilter.and) != 1 {
+		t.Fatalf("Filter.And() should add one and-filter, got %d", len(mainFilter.and))
+	}
+	nested := mainFilter.and[0]
+	if nested.tableAlias != "room" {
+		t.Errorf("nested AND alias = %q, want room", nested.tableAlias)
+	}
+	if len(nested.or) != 1 || nested.or[0].tableAlias != "room" {
+		t.Fatalf("nested OR filter should inherit room alias: %+v", nested.or)
 	}
 }
 

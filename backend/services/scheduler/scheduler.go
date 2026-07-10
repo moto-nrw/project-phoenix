@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -134,6 +136,7 @@ type Scheduler struct {
 	// does not emit `instance_overdue` every minute for the same planned
 	// row. Cleared explicitly on day boundary; see checkAndRunOverdue.
 	instanceRepo         scheduleModel.ActivityInstanceRepository
+	instanceRoomRepo     facilitiesModel.RoomRepository
 	instanceStudentRepo  scheduleModel.InstanceStudentRepository
 	studentStatusDayRepo activeModel.StudentStatusDayRepository
 	overdueBroadcaster   realtime.Broadcaster
@@ -280,12 +283,13 @@ func (s *Scheduler) SetSettingsService(svc SettingsResolver) {
 }
 
 // SetInstanceOverdueDeps wires the dependencies for the WP-B9 overdue
-// instance tick. Both parameters are required; passing nil for either
+// instance tick. All parameters are required; passing nil for any of them
 // disables the tick entirely (no task registers, no SSE events fire). Same
 // opt-in shape as SetMaterializer: a partial wiring is never a silent
 // misconfiguration.
-func (s *Scheduler) SetInstanceOverdueDeps(repo scheduleModel.ActivityInstanceRepository, broadcaster realtime.Broadcaster) {
+func (s *Scheduler) SetInstanceOverdueDeps(repo scheduleModel.ActivityInstanceRepository, roomRepo facilitiesModel.RoomRepository, broadcaster realtime.Broadcaster) {
 	s.instanceRepo = repo
+	s.instanceRoomRepo = roomRepo
 	s.overdueBroadcaster = broadcaster
 }
 
@@ -1707,6 +1711,7 @@ func (s *Scheduler) checkAndRunAutoStart(task *ScheduledTask) {
 				slog.Int("started", result.Started),
 				slog.Int("skipped_no_staff", result.SkippedNoStaff),
 				slog.Int("skipped_conflict", result.SkippedConflict),
+				slog.Int("skipped_schulhof", result.SkippedSchulhof),
 				slog.Int64("duration_ms", result.DurationMS),
 			)
 		}
@@ -1732,12 +1737,12 @@ func (s *Scheduler) checkAndRunAutoStart(task *ScheduledTask) {
 // empty and each still-overdue planned instance fires once more; subscribers
 // are idempotent, that cost is acceptable for zero disk state.
 
-// scheduleInstanceOverdueTask registers the tick when both dependencies are
-// wired. No repo or no broadcaster → no task; matches SetMaterializer's
-// opt-in pattern so partial wiring is never a silent misconfiguration.
+// scheduleInstanceOverdueTask registers the tick when all dependencies are
+// wired. A partial setup registers no task, matching SetMaterializer's opt-in
+// pattern so misconfiguration cannot emit unsafe generic Schulhof reminders.
 func (s *Scheduler) scheduleInstanceOverdueTask() {
-	if s.instanceRepo == nil || s.overdueBroadcaster == nil {
-		s.getLogger().Info("instance overdue tick not configured (missing repo or broadcaster)")
+	if s.instanceRepo == nil || s.instanceRoomRepo == nil || s.overdueBroadcaster == nil {
+		s.getLogger().Info("instance overdue tick not configured (missing instance repo, room repo, or broadcaster)")
 		return
 	}
 
@@ -1803,6 +1808,8 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 	}
 
 	cutoff := time.Duration(threshold) * time.Minute
+	candidates := make([]*scheduleModel.ActivityInstance, 0, len(instances))
+	roomIDs := make(map[int64]struct{})
 
 	for _, inst := range instances {
 		if inst.Status != scheduleModel.InstanceStatusPlanned {
@@ -1810,6 +1817,55 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 		}
 		instanceStart := combineDayAndTime(today, inst.StartTime)
 		if now.Sub(instanceStart) < cutoff {
+			continue
+		}
+		candidates = append(candidates, inst)
+		roomIDs[inst.RoomID] = struct{}{}
+	}
+
+	schulhofRoomIDs := make(map[int64]struct{})
+	if len(roomIDs) > 0 {
+		if s.instanceRoomRepo == nil {
+			s.getLogger().Warn("overdue tick: room repository is not configured",
+				slog.Int64("tenant_id", tenantID),
+			)
+			return
+		}
+		ids := make([]int64, 0, len(roomIDs))
+		for roomID := range roomIDs {
+			ids = append(ids, roomID)
+		}
+		rooms, err := s.instanceRoomRepo.FindByIDs(ctx, ids)
+		if err != nil {
+			s.getLogger().Warn("overdue tick: load instance rooms failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+			return
+		}
+		resolvedRoomIDs := make(map[int64]struct{}, len(rooms))
+		for _, room := range rooms {
+			if room == nil {
+				continue
+			}
+			resolvedRoomIDs[room.ID] = struct{}{}
+			if room.Name == constants.SchulhofRoomName {
+				schulhofRoomIDs[room.ID] = struct{}{}
+			}
+		}
+		for roomID := range roomIDs {
+			if _, found := resolvedRoomIDs[roomID]; !found {
+				s.getLogger().Warn("overdue tick: instance room could not be resolved",
+					slog.Int64("tenant_id", tenantID),
+					slog.Int64("room_id", roomID),
+				)
+				return
+			}
+		}
+	}
+
+	for _, inst := range candidates {
+		if _, isSchulhof := schulhofRoomIDs[inst.RoomID]; isSchulhof {
 			continue
 		}
 		key := overdueKey{tenantID: tenantID, instanceID: inst.ID}

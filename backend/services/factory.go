@@ -20,6 +20,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services/absence"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/announcement"
@@ -116,6 +117,7 @@ type Factory struct {
 	Students             users.StudentService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         schedule.CareScheduleRequestService
+	ExcusedRequests      absence.ExcusedAbsenceRequestService
 	StudentStatusDays    *active.StudentStatusDayService
 	StudentHistory       active.StudentHistoryService
 	TimetableData        *schedule.TimetableDataService
@@ -577,6 +579,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InstanceStaffRepo: repos.InstanceStaff,
 		InstanceStudents:  repos.InstanceStudent,
 		InstanceService:   instanceService,
+		RoomRepo:          repos.Room,
 		ActiveGroupRepo:   repos.ActiveGroup,
 		SupervisorRepo:    repos.GroupSupervisor,
 		VisitRepo:         repos.ActiveVisit,
@@ -1153,6 +1156,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "care-requests"),
 	)
 
+	// Excused-absence approval requests (#1845): the optional office-approval
+	// gate for parent-submitted excused absences. Reuses the same review queue,
+	// badge and pill machinery as the care-schedule requests above; on approval
+	// it writes the excused status days directly.
+	excusedRequestService := absence.NewExcusedAbsenceRequestService(
+		repos.ExcusedAbsenceRequest,
+		repos.StudentStatusDay,
+		repos.Student,
+		repos.Person,
+		userContextService,
+		pillEmitter,
+		realtimeHub,
+		logger.With("service", "excused-requests"),
+	)
+
 	messagingService := messaging.NewService(messaging.Config{
 		ThreadRepo:  repos.ParentMessageThread,
 		MessageRepo: repos.ParentMessage,
@@ -1205,6 +1223,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ArrivalSchedules:        arrivalScheduleService,
 		PickupSchedules:         pickupScheduleService,
 		CareRequests:            careRequestService,
+		ExcusedRequests:         excusedRequestService,
 		Emitter:                 pillEmitter,
 		AnnouncementRepo:        repos.ParentAnnouncement,
 		GuardianInvites:         guardianInvitationService,
@@ -1260,6 +1279,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Attendance:  repos.Attendance,
 		Pickup:      pickupScheduleService,
 		Instance:    repos.ActivityInstance,
+		Room:        repos.Room,
 		Student:     repos.Student,
 		Person:      repos.Person,
 		Supervision: activeService,
@@ -1336,6 +1356,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Students:             studentService,
 		MasterDataReview:     users.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, logger.With("service", "master-data-review"), realtimeHub),
 		CareRequests:         careRequestService,
+		ExcusedRequests:      excusedRequestService,
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
 		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{

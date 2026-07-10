@@ -317,11 +317,12 @@ func (r *RoomRepository) FindByIDs(ctx context.Context, ids []int64) ([]*facilit
 	if len(ids) == 0 {
 		return rooms, nil
 	}
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&rooms).
 		ModelTableExpr(`facilities.rooms AS "room"`).
-		Where(`"room".id IN (?)`, bun.List(ids)).
-		Scan(ctx)
+		Where(`"room".id IN (?)`, bun.List(ids))
+	query = base.WithTenantFilter(ctx, query, "room")
+	err := query.Scan(ctx)
 	if err != nil {
 		return nil, err
 	}

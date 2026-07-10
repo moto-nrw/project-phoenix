@@ -466,6 +466,31 @@ func TestFilter_ApplyToQuery_OrCondition(t *testing.T) {
 	// Should return all records (active=true OR active=false covers all)
 }
 
+func TestFilter_ApplyToQuery_MixedOrAndKeepsExpressionGrouped(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	type logicalRow struct {
+		Active bool   `bun:"active"`
+		Name   string `bun:"name"`
+	}
+
+	filter := base.NewFilter().WithTableAlias("item").Equal("active", true)
+	filter.Or(*base.NewFilter().Equal("name", "drop"))
+	filter.And(*base.NewFilter().Equal("name", "drop"))
+
+	var rows []logicalRow
+	query := db.NewSelect().
+		TableExpr(`(VALUES (TRUE, 'keep'), (FALSE, 'drop')) AS "item"("active", "name")`).
+		ColumnExpr(`"item"."active"`).
+		ColumnExpr(`"item"."name"`)
+	query = filter.ApplyToQuery(query)
+
+	require.NoError(t, query.Scan(context.Background(), &rows))
+	require.Len(t, rows, 1, "(A OR B) AND C must not degrade to A OR (B AND C)")
+	assert.Equal(t, "drop", rows[0].Name)
+}
+
 func TestFilter_ApplyToQuery_Like(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
