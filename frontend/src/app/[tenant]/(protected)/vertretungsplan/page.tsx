@@ -190,12 +190,18 @@ function VertretungsplanContent() {
   );
 
   const handleSubstitute = useCallback(
-    async (absentStaffId: string, substituteStaffId: string, date: string) => {
+    async (
+      absentStaffId: string,
+      substituteStaffId: string,
+      date: string,
+      reason?: string,
+    ) => {
       try {
         const result = await timetableService.substitute(
           absentStaffId,
           substituteStaffId,
           date,
+          reason,
         );
         toast.success(
           `Ersatz eingetragen: ${result.affectedInstances.length} Termin(e)`,
