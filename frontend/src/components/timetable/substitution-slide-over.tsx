@@ -5,11 +5,16 @@
  *
  * Same shape as the Betreuungsplan edit surface (TimetableEventModal): a
  * SlideOver whose body is a <form> and whose footer holds Abbrechen + a single
- * "Speichern" submit button. You edit the block's staffing — mark people
- * absent, pick a substitute, cancel the block, or accept it unstaffed, each
- * with an optional reason — and nothing is applied until you save.
+ * "Speichern" submit button — nothing is applied until you save.
+ *
+ * Clarity first: each planned person is a status card whose colour and badge
+ * say at a glance whether they are present or absent. Marking someone absent is
+ * one click; the replacement ("Vertretung") and an optional reason are a
+ * clearly-labelled, secondary step so the absent person is never mistaken for
+ * their substitute.
  */
 
+import { Plus, RotateCcw, UserMinus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { formatDate } from "~/lib/date-helpers";
@@ -17,7 +22,6 @@ import { getActivityTypeBadge, getStatusLabel } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
-import { CustomSelect } from "~/components/ui/custom-select";
 import {
   SlideOver,
   SlideOverCloseButton,
@@ -69,6 +73,7 @@ interface PersonForm {
   wasAbsent: boolean;
   reason: string;
   substituteId: string;
+  showReason: boolean;
 }
 
 function staffLabel(staffNames: Map<string, string>, id: string): string {
@@ -117,6 +122,7 @@ export function SubstitutionSlideOver({
         wasAbsent: row.isAbsent,
         reason: row.absenceReason ?? "",
         substituteId: "",
+        showReason: Boolean(row.absenceReason),
       };
     }
     setPeople(seed);
@@ -131,7 +137,6 @@ export function SubstitutionSlideOver({
     setPeople((prev) => ({ ...prev, [id]: { ...prev[id]!, ...patch } }));
   }
 
-  // Whether anything would actually be dispatched on save.
   const hasChanges =
     cancel ||
     unstaffed !== wasUnstaffed ||
@@ -144,13 +149,11 @@ export function SubstitutionSlideOver({
     if (!instance || !hasChanges || saving) return;
     setSaving(true);
     try {
-      // Cancelling the block supersedes every other change.
       if (cancel) {
         await onCancelBlock(instance, cancelReason.trim() || undefined);
         onClose();
         return;
       }
-
       if (unstaffed !== wasUnstaffed) {
         await onAcknowledge(
           instance,
@@ -158,13 +161,9 @@ export function SubstitutionSlideOver({
           unstaffed ? unstaffedReason.trim() || undefined : undefined,
         );
       }
-
       for (const [staffId, p] of Object.entries(people)) {
         const reason = p.reason.trim() || undefined;
         const newlyAbsent = p.absent && !p.wasAbsent;
-        // A substitute is assigned via the substitute call (which also marks
-        // the person absent and carries the reason); a bare absence uses
-        // markAbsent.
         if (p.absent && p.substituteId) {
           await onSubstitute(staffId, p.substituteId, instance.date, reason);
         } else if (newlyAbsent) {
@@ -189,7 +188,7 @@ export function SubstitutionSlideOver({
       }}
     >
       {instance && (
-        <SlideOverContent>
+        <SlideOverContent className="overflow-hidden">
           <SlideOverHeader>
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 flex-1">
@@ -220,7 +219,7 @@ export function SubstitutionSlideOver({
           <form
             id={FORM_ID}
             onSubmit={(e) => void handleSubmit(e)}
-            className="flex-1 space-y-6 overflow-y-auto px-5 py-4"
+            className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-4"
           >
             {/* Personal */}
             <section className="space-y-2">
@@ -238,84 +237,141 @@ export function SubstitutionSlideOver({
                   {plannedStaff.map((row) => {
                     const p = people[row.staffId];
                     if (!p) return null;
-                    const showDetails = p.absent;
+                    const name = staffLabel(staffNames, row.staffId);
                     return (
                       <li
                         key={row.staffId}
-                        className={`${timetableNestedSurface} p-3`}
+                        className={`overflow-hidden rounded-xl border shadow-sm ${
+                          p.absent
+                            ? "border-[#FF3130]/25 bg-[#FF3130]/5"
+                            : "border-gray-200 bg-white"
+                        }`}
                       >
-                        <label className="flex items-center justify-between gap-2">
-                          <span className="flex min-w-0 items-center gap-2">
-                            <Checkbox
-                              checked={p.absent}
-                              disabled={!canEdit || p.wasAbsent}
-                              onChange={(e) =>
-                                updatePerson(row.staffId, {
-                                  absent: e.target.checked,
-                                })
-                              }
-                            />
-                            <span
-                              className={`truncate text-sm font-medium ${
-                                p.absent ? "text-gray-500" : "text-gray-900"
+                        {/* Status row */}
+                        <div className="flex items-center justify-between gap-2 p-3">
+                          <div className="min-w-0">
+                            <div
+                              className={`truncate text-sm font-semibold ${
+                                p.absent
+                                  ? "text-gray-400 line-through"
+                                  : "text-gray-900"
                               }`}
                             >
-                              {staffLabel(staffNames, row.staffId)}
-                            </span>
-                          </span>
-                          <span className="flex shrink-0 items-center gap-1.5">
-                            {row.isPrimary && (
-                              <span className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-semibold text-gray-600">
-                                Zuständig
-                              </span>
-                            )}
-                            {p.wasAbsent && (
-                              <span className="rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-[10px] font-semibold text-[#CC2626]">
-                                Abwesend
-                              </span>
-                            )}
-                          </span>
-                        </label>
+                              {name}
+                            </div>
+                            <div className="mt-0.5 flex items-center gap-1.5 text-[11px]">
+                              {p.absent ? (
+                                <span className="font-semibold text-[#CC2626]">
+                                  Abwesend
+                                </span>
+                              ) : (
+                                <span className="text-gray-500">Anwesend</span>
+                              )}
+                              {row.isPrimary && (
+                                <span className="text-gray-400">
+                                  • Zuständig
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {canEdit && (
+                            <div className="shrink-0">
+                              {!p.absent ? (
+                                <Button
+                                  type="button"
+                                  variant="outline_danger"
+                                  size="md"
+                                  onClick={() =>
+                                    updatePerson(row.staffId, { absent: true })
+                                  }
+                                >
+                                  <UserMinus className="mr-1.5 h-4 w-4" />
+                                  Abwesend
+                                </Button>
+                              ) : p.wasAbsent ? null : (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="md"
+                                  onClick={() =>
+                                    updatePerson(row.staffId, {
+                                      absent: false,
+                                      substituteId: "",
+                                    })
+                                  }
+                                >
+                                  <RotateCcw className="mr-1.5 h-4 w-4" />
+                                  Rückgängig
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
 
-                        {canEdit && showDetails && (
-                          <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+                        {/* Absent detail: clearly-labelled Vertretung + optional reason */}
+                        {p.absent && (
+                          <div className="space-y-2 border-t border-[#FF3130]/15 bg-white/60 p-3">
                             <div>
-                              <label
-                                htmlFor={`reason-${row.staffId}`}
-                                className="mb-1 block text-[11px] font-medium text-gray-500"
-                              >
-                                Grund (optional)
-                              </label>
+                              <span className="mb-1 block text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
+                                Vertretung für {name}
+                              </span>
+                              {canEdit ? (
+                                <select
+                                  value={p.substituteId}
+                                  aria-label={`Vertretung für ${name}`}
+                                  disabled={substituteOptions.length === 0}
+                                  onChange={(e) =>
+                                    updatePerson(row.staffId, {
+                                      substituteId: e.target.value,
+                                    })
+                                  }
+                                  className="moto-select w-full appearance-none rounded-lg border border-gray-200 bg-white px-3 py-2 pr-9 text-sm text-gray-900 focus:border-gray-400 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
+                                >
+                                  <option value="">Ersatzperson wählen…</option>
+                                  {substituteOptions.map((o) => (
+                                    <option key={o.value} value={o.value}>
+                                      {o.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="text-sm text-gray-500">—</span>
+                              )}
+                            </div>
+
+                            {p.wasAbsent ? (
+                              p.reason ? (
+                                <p className="text-xs text-gray-500">
+                                  Grund: {p.reason}
+                                </p>
+                              ) : null
+                            ) : p.showReason ? (
                               <input
-                                id={`reason-${row.staffId}`}
                                 type="text"
                                 value={p.reason}
                                 maxLength={500}
-                                disabled={p.wasAbsent}
                                 onChange={(e) =>
                                   updatePerson(row.staffId, {
                                     reason: e.target.value,
                                   })
                                 }
-                                placeholder="z. B. krank, Fortbildung"
-                                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
+                                placeholder="Grund (optional)"
+                                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:border-gray-400 focus:outline-none"
                               />
-                            </div>
-                            <div>
-                              <span className="mb-1 block text-[11px] font-medium text-gray-500">
-                                Ersatzperson (optional)
-                              </span>
-                              <CustomSelect
-                                value={p.substituteId}
-                                placeholder="Ersatzperson wählen…"
-                                options={substituteOptions}
-                                ariaLabel={`Ersatz für ${staffLabel(staffNames, row.staffId)}`}
-                                disabled={substituteOptions.length === 0}
-                                onChange={(v) =>
-                                  updatePerson(row.staffId, { substituteId: v })
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  updatePerson(row.staffId, {
+                                    showReason: true,
+                                  })
                                 }
-                              />
-                            </div>
+                                className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-gray-700"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                Grund hinzufügen
+                              </button>
+                            )}
                           </div>
                         )}
                       </li>
@@ -327,7 +383,7 @@ export function SubstitutionSlideOver({
               {substitutes.length > 0 && (
                 <div className="space-y-1 pt-1">
                   <h4 className="text-[11px] font-semibold tracking-wide text-gray-500 uppercase">
-                    Bereits als Ersatz eingetragen
+                    Aktuelle Vertretung
                   </h4>
                   <ul className="space-y-1">
                     {substitutes.map((row) => (
@@ -349,8 +405,8 @@ export function SubstitutionSlideOver({
 
               {canEdit && (
                 <p className="text-[11px] leading-5 text-gray-400">
-                  Abwesenheit und Ersatz gelten für alle Termine dieser Person
-                  am {formatDate(instance.date)}.
+                  Abwesenheit und Vertretung gelten für alle Termine dieser
+                  Person am {formatDate(instance.date)}.
                 </p>
               )}
             </section>
@@ -398,6 +454,7 @@ export function SubstitutionSlideOver({
                     <Checkbox
                       id="vp-cancel"
                       checked={cancel}
+                      disabled={unstaffed}
                       onChange={(e) => setCancel(e.target.checked)}
                     />
                     <span className="text-sm text-gray-800">
