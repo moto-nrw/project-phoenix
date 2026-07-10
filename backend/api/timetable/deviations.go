@@ -193,6 +193,26 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Reject non-positive staff ids on the RAW request, before dedupePositive
+	// silently drops them below. Absence and presence ids are otherwise filtered
+	// (id <= 0) inside dedupePositive, so {"absences":[{"staff_id":0}]} would be
+	// classified as an empty no-op and return 200 instead of the documented
+	// positive-id validation error. Substitution ids are already validated in
+	// validateDeviationStaff (they are not deduped), so only these two lists need
+	// the up-front check (#1840).
+	for _, a := range req.Absences {
+		if a.StaffID <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("absent staff must be a positive id")))
+			return
+		}
+	}
+	for _, pid := range req.Presences {
+		if pid <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("present staff must be a positive id")))
+			return
+		}
+	}
+
 	// ==== PHASE A — validate + classify, no writes ====
 
 	// Serialize concurrent saves for the whole (tenant, date) BEFORE any
@@ -290,6 +310,24 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 
 	subPlan, newSubByInstance, rndr := rs.planSubstitutions(ctx, req.Substitutions, absenceOnlySet, date)
 	if rndr != nil {
+		common.RenderError(w, r, rndr)
+		return
+	}
+
+	// Restoring a persisted absence (a "presence") must not leave a block
+	// over-staffed. There is no explicit substitute→absent link in the data model,
+	// so clearing an absence after a replacement was already assigned would orphan
+	// that replacement: e.g. a planned person is covered by substitute Y on a prior
+	// save, then in this save the planned person — or a previously-removed
+	// substitute — is restored to present while Y stays active. The block then has
+	// more people present than it has planned positions, with no UI path telling
+	// which substitute is now redundant. In a consistent state present count never
+	// exceeds the planned baseline (each substitute fills exactly one absent planned
+	// position), so present > baseline is a reliable orphan detector. Check every
+	// instance a presence touches against its projected post-save coverage and
+	// reject before any write, so the admin removes the stale substitute first
+	// rather than silently double-staffing the block (#1840).
+	if rndr := rs.rejectOverstaffingPresences(ctx, presencePlan, fullAbsent, presenceSet, newSubByInstance); rndr != nil {
 		common.RenderError(w, r, rndr)
 		return
 	}
@@ -502,7 +540,19 @@ func (rs *Resource) validateDeviationStaff(
 			return rndr
 		}
 	}
+	seenAbsentSub := make(map[int64]bool)
 	for _, sub := range req.Substitutions {
+		// Each absent person's substitution is day-wide (it covers ALL their
+		// same-day blocks), so an absent staff id must appear at most once. Two
+		// substitutions for the same absent person with DIFFERENT substitutes would
+		// both classify against the same pre-write row and both insert a substitute
+		// row in Phase B — the staging map only dedupes (instance, substitute), so
+		// one planned position would end up with two active replacements. Reject the
+		// contradiction here (#1840).
+		if seenAbsentSub[sub.AbsentStaffID] {
+			return common.ErrorInvalidRequest(errors.New("each absent staff member may have at most one substitute per request"))
+		}
+		seenAbsentSub[sub.AbsentStaffID] = true
 		if rndr := ensure(sub.AbsentStaffID, "absent staff"); rndr != nil {
 			return rndr
 		}
@@ -566,6 +616,45 @@ func (rs *Resource) planPresences(ctx context.Context, presentStaffIDs []int64, 
 		}
 	}
 	return plan, nil
+}
+
+// rejectOverstaffingPresences returns a 409 when clearing a persisted absence
+// would push any touched instance above its planned headcount, which only
+// happens when a restore orphans an already-assigned substitute (#1840). It
+// reloads each affected instance's current rows and projects the full post-save
+// coverage (day-wide absences applied, presences cleared, new substitutes added)
+// against the planned (non-substitute) baseline. Read-only: runs in Phase A so a
+// rejection never commits partial state.
+func (rs *Resource) rejectOverstaffingPresences(
+	ctx context.Context,
+	presencePlan []presenceOp,
+	fullAbsent, presenceSet map[int64]bool,
+	newSubByInstance map[int64]int,
+) render.Renderer {
+	checked := make(map[int64]bool)
+	for _, op := range presencePlan {
+		if checked[op.instance.ID] {
+			continue
+		}
+		checked[op.instance.ID] = true
+		rows, err := rs.TimetableData.GetInstanceStaff(ctx, op.instance.ID)
+		if err != nil {
+			return common.ErrorInternalServerWrap("load instance staff failed", err)
+		}
+		baseline := 0
+		for _, row := range rows {
+			if !row.IsSubstitute {
+				baseline++
+			}
+		}
+		if projectedNonAbsentCount(rows, fullAbsent, presenceSet, newSubByInstance[op.instance.ID]) > baseline {
+			return common.ErrorConflictWithCode(
+				errors.New("das Wiederherstellen dieser Anwesenheit würde den Block überbesetzen; bitte zuerst die nicht mehr benötigte Vertretung entfernen"),
+				"presence_would_overstaff",
+			)
+		}
+	}
+	return nil
 }
 
 // planAbsences loads every absent-only staff member's plannable same-day rows.

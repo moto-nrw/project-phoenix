@@ -359,6 +359,26 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64, reason *
 	if err != nil {
 		return nil, err
 	}
+
+	// Serialize the cancellation against concurrent day-wide staffing saves
+	// (/substitute, /deviations) on the block's day. Both those endpoints take
+	// this (tenant, date) advisory lock before they classify and rewrite staff
+	// rows. Cancel is a public route in its own right (POST /instances/{id}/cancel
+	// calls this service directly, not only the /deviations cancel branch); without
+	// the same lock a direct cancel can commit between another admin's lock
+	// acquisition and their staff-row writes, leaving a cancelled block with
+	// freshly-rewritten staffing — a rewritten historical block. Advisory xact
+	// locks are re-entrant, so the /deviations cancel branch (which already holds
+	// this lock) re-acquires it harmlessly. Reload under the lock so a concurrent
+	// move/complete/cancel is observed before we act (#1840).
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), instance.Date)); err != nil {
+		return nil, &ScheduleError{Op: "cancel instance: lock day", Err: err}
+	}
+	instance, err = s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+
 	switch instance.Status {
 	case scheduleModel.InstanceStatusPlanned, scheduleModel.InstanceStatusActive:
 		// allowed

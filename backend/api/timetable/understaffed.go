@@ -115,6 +115,35 @@ func (rs *Resource) acknowledgeUnderstaffed(w http.ResponseWriter, r *http.Reque
 				common.RenderError(w, r, common.ErrorInternalServerWrap("lock day failed", err))
 				return
 			}
+			// Re-read under the lock. The past-date guard above ran against a
+			// possibly-stale read: a concurrent PUT /instances/{id} may have MOVED
+			// the block to another day between that read and this lock. We now hold
+			// the lock for the ORIGINAL date, so a move to a past day would bypass
+			// the historical-record guard, and a move to another future day would
+			// leave this acknowledgement unsynchronized with staffing mutations on
+			// the day we actually hold. Detect a move (or a concurrent
+			// cancel/complete) and reject so the client reopens it on its new day,
+			// mirroring /deviations (#1840).
+			locked, err := rs.TimetableData.GetActivityInstance(r.Context(), id)
+			if err != nil {
+				if base.IsNoRows(err) {
+					common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+					return
+				}
+				common.RenderError(w, r, common.ErrorInternalServerWrap("reload instance failed", err))
+				return
+			}
+			if locked == nil {
+				common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+				return
+			}
+			if locked.Date != instance.Date {
+				common.RenderError(w, r, common.ErrorConflictWithCode(
+					errors.New("block was changed concurrently; reopen it and try again"),
+					"instance_moved",
+				))
+				return
+			}
 		}
 	}
 

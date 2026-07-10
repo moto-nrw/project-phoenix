@@ -207,18 +207,6 @@ export function SubstitutionSlideOver({
     setPeople((prev) => ({ ...prev, [id]: { ...prev[id]!, ...patch } }));
   }
 
-  // One Vertretung per block. The backend has no substitute→absence link and so
-  // safely allows only a single substitute per instance; classifySubstitute
-  // 409s a second one after the first already committed, leaving a half-saved
-  // form. We therefore let at most one absent person name a replacement here —
-  // the others stay absent-only (their position is left open). A block is
-  // "covered" by that one replacement.
-  function substituteChosenElsewhere(rowStaffId: string): boolean {
-    return Object.entries(people).some(
-      ([id, p]) => id !== rowStaffId && p.absent && p.substituteId !== "",
-    );
-  }
-
   // A substitute is still covering the block when it is either non-absent and not
   // staged for removal, or absent but staged for restore. Such a substitute
   // counts toward coverage AND locks the replacement picker (one substitute per
@@ -418,15 +406,15 @@ export function SubstitutionSlideOver({
                     const p = people[row.staffId];
                     if (!p) return null;
                     const name = staffLabel(staffNames, row.staffId);
-                    // Option A: only one Vertretung per block. Once another
-                    // absent person has a replacement, this row's picker is
-                    // locked so the save never sends a conflicting second one.
-                    const otherHasSubstitute = substituteChosenElsewhere(
-                      row.staffId,
-                    );
+                    // Each absent planned position may name its own replacement:
+                    // the backend accepts distinct substitutes for distinct absent
+                    // positions in one atomic save (only a repeated
+                    // (instance, substitute) pair is collapsed), so the picker must
+                    // stay open for every absent row. An EXISTING day-wide
+                    // substitute (hasActiveSubstitute) still locks it — that one is
+                    // removed first via "Entfernen" (#1840).
                     const substituteDisabled =
                       unstaffed ||
-                      otherHasSubstitute ||
                       hasActiveSubstitute ||
                       substituteOptions.length === 0;
                     return (
@@ -537,11 +525,6 @@ export function SubstitutionSlideOver({
                                 <p className="mt-1 text-[11px] text-gray-400">
                                   Für diesen Block ist bereits eine Vertretung
                                   eingetragen. Bitte zuerst „Entfernen“.
-                                </p>
-                              ) : otherHasSubstitute && !p.substituteId ? (
-                                <p className="mt-1 text-[11px] text-gray-400">
-                                  Pro Block ist eine Vertretung möglich. Diese
-                                  Position bleibt offen.
                                 </p>
                               ) : staffLoadError &&
                                 substituteOptions.length === 0 ? (
