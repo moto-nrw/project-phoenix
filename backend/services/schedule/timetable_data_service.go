@@ -137,6 +137,10 @@ func (s *TimetableDataService) GetInstanceStaff(ctx context.Context, instanceID 
 	return s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
 }
 
+func (s *TimetableDataService) GetInstanceStaffByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStaff, error) {
+	return s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, instanceIDs)
+}
+
 func (s *TimetableDataService) UpdateInstanceStaff(ctx context.Context, staff *scheduleModel.InstanceStaff) error {
 	return s.deps.InstanceStaffRepo.Update(ctx, staff)
 }

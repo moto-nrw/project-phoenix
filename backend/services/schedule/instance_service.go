@@ -72,7 +72,7 @@ var (
 	// nobody covering"; allowing it alongside real staffing produces
 	// contradictory state (the block reads as unstaffed yet /gaps never lists it
 	// because it is staffed). Handlers map this to 409.
-	ErrUnderstaffedAckStillStaffed = errors.New("cannot acknowledge understaffing while staff are still assigned")
+	ErrUnderstaffedAckStillStaffed = errors.New("cannot acknowledge understaffing while the block is fully staffed")
 )
 
 // ActiveSessionEnder is the subset of active.Service used by Complete and
@@ -404,16 +404,18 @@ func (s *instanceService) SetUnderstaffedAck(ctx context.Context, instanceID int
 		return nil, fmt.Errorf("%w: cannot acknowledge understaffing on instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
 
-	// The "deliberately unstaffed" flag only makes sense on a block with nobody
-	// covering. Setting it while non-absent staff remain would persist
-	// contradictory state, so reject it. Clearing the flag (ack=false) is always
-	// allowed.
+	// The "deliberately unstaffed" flag records that at least one planned
+	// position is deliberately left unfilled (#1840). It is valid whenever the
+	// block ends up understaffed — fewer people present than planned, or nobody
+	// at all — so a single absent-without-replacement position can be
+	// acknowledged while other staff remain. Only a fully staffed block (present
+	// >= planned) rejects it. Clearing the flag (ack=false) is always allowed.
 	if ack {
-		counts, err := s.deps.InstanceStaffRepo.CountNonAbsentByInstanceIDs(ctx, []int64{instanceID})
+		rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
 		if err != nil {
-			return nil, &ScheduleError{Op: "set understaffed ack: count staff", Err: err}
+			return nil, &ScheduleError{Op: "set understaffed ack: load staff", Err: err}
 		}
-		if counts[instanceID] > 0 {
+		if !IsUnderstaffed(rows) {
 			return nil, ErrUnderstaffedAckStillStaffed
 		}
 	}

@@ -8,6 +8,7 @@ import (
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -621,4 +622,71 @@ func TestActivityInstanceFKOnDelete(t *testing.T) {
 				tc.refCol, tc.refTable, tc.wantCode, confdeltype)
 		})
 	}
+}
+
+// #1840: re-plan / template split / template end route destructive deletes
+// through DeletePlannedNonSpontaneousInWindow. A planned instance carrying a
+// Vertretungsplan deviation (an acknowledged shortfall, or any instance_staff
+// row marked absent / substitute / with an absence reason) is an explicit
+// override of the base plan and must be PRESERVED; only clean planned instances
+// are deleted and re-materialized.
+func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_PreservesDeviations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	fx := newActivityInstanceFixtures(t, db, "dev-preserve")
+	defer fx.cleanup()
+
+	date := timezone.NewDate(2026, 9, 21)
+
+	// plain: no deviation → deleted.
+	plain := buildInstance(1, fx.roomID, &fx.activityID, date,
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), "Plain")
+	require.NoError(t, repo.Create(ctx, plain))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", plain.ID)
+
+	// absentDev: carries an absent instance_staff row → preserved.
+	absentDev := buildInstance(1, fx.roomID, &fx.activityID, date,
+		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC), "AbsentDev")
+	require.NoError(t, repo.Create(ctx, absentDev))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", absentDev.ID)
+	staff := testpkg.CreateTestStaff(t, db, "DevP", fmt.Sprintf("%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
+	staffRow := testpkg.CreateTestInstanceStaff(t, db, absentDev.ID, staff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	defer testpkg.CleanupInstanceStaffFixtures(t, db, staffRow.ID)
+
+	// ackDev: understaffed_ack=true → preserved.
+	ackDev := buildInstance(1, fx.roomID, &fx.activityID, date,
+		time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 17, 0, 0, 0, time.UTC), "AckDev")
+	require.NoError(t, repo.Create(ctx, ackDev))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", ackDev.ID)
+	_, err := db.NewUpdate().
+		Model((*scheduleModels.ActivityInstance)(nil)).
+		ModelTableExpr(`schedule.activity_instances`).
+		Set("understaffed_ack = ?", true).
+		Where("id = ?", ackDev.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	to := date
+	deleted, err := repo.DeletePlannedNonSpontaneousInWindow(ctx, date, &to, nil)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), deleted, "only the non-deviated instance is deleted")
+
+	_, err = repo.FindByID(ctx, plain.ID)
+	assert.True(t, modelBase.IsNoRows(err), "plain instance must be deleted")
+
+	gotAbsent, err := repo.FindByID(ctx, absentDev.ID)
+	require.NoError(t, err, "instance with an absent staff row must be preserved")
+	assert.Equal(t, absentDev.ID, gotAbsent.ID)
+
+	gotAck, err := repo.FindByID(ctx, ackDev.ID)
+	require.NoError(t, err, "acknowledged-shortfall instance must be preserved")
+	assert.True(t, gotAck.UnderstaffedAck)
 }

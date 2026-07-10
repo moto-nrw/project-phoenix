@@ -278,13 +278,32 @@ func (r *ActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.
 // grid). CASCADE removes the instance_staff / instance_students children
 // (declared at DDL level). Custom method (backend-conventions Rule 2):
 // multi-predicate lifecycle delete for the ReplanWeek admin action.
+//
+// #1840: instances carrying a Vertretungsplan deviation are PRESERVED, never
+// deleted. An acknowledged shortfall (understaffed_ack) or any instance_staff
+// row marked absent / substitute / bearing an absence reason is an explicit
+// admin override of the base plan; re-plan, template split, and template end
+// all route through here, so excluding deviated instances is what stops the
+// destructive delete + insert-only re-materialization from silently wiping
+// those overrides. A preserved instance keeps its own rows and is skipped by
+// materialization (which only inserts absent slots).
 func (r *ActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64) (int64, error) {
 	q := base.GetDB(ctx, r.db).NewDelete().
 		Model((*schedule.ActivityInstance)(nil)).
 		ModelTableExpr(modelTblActivityInstance).
 		Where(`"activity_instance".date >= ?`, from).
 		Where(`"activity_instance".status = ?`, schedule.InstanceStatusPlanned).
-		Where(`"activity_instance".is_spontaneous = ?`, false)
+		Where(`"activity_instance".is_spontaneous = ?`, false).
+		// Keep deviated instances (#1840). RLS already scopes instance_staff to
+		// the tenant; the explicit tenant match keeps the correlation safe even
+		// under a superuser connection.
+		Where(`"activity_instance".understaffed_ack = ?`, false).
+		Where(`NOT EXISTS (
+			SELECT 1 FROM schedule.instance_staff AS "dev_is"
+			WHERE "dev_is".instance_id = "activity_instance".id
+			  AND "dev_is".tenant_id = "activity_instance".tenant_id
+			  AND ("dev_is".is_absent OR "dev_is".is_substitute OR "dev_is".absence_reason IS NOT NULL)
+		)`)
 
 	if to != nil {
 		q = q.Where(`"activity_instance".date <= ?`, *to)

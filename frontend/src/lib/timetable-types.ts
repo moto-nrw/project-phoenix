@@ -164,6 +164,10 @@ export interface GapInstance {
   status: InstanceStatus;
   assignedStaffCount: number;
   absentStaffCount: number;
+  /** Non-absent count: planned people still there plus any covering substitute. */
+  presentStaffCount?: number;
+  /** Base-plan positions (non-substitute rows). A partial shortfall has 0 < present < planned. */
+  plannedStaffCount?: number;
   /** Present only on acknowledged gaps (#1840): the deliberately-unstaffed reason. */
   understaffedNote?: string;
 }
@@ -186,6 +190,8 @@ export interface BackendGapInstance {
   status: InstanceStatus;
   assigned_staff_count: number;
   absent_staff_count: number;
+  present_staff_count?: number;
+  planned_staff_count?: number;
   understaffed_note?: string | null;
 }
 

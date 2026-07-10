@@ -174,26 +174,36 @@ export function SubstitutionSlideOver({
     );
   }
 
-  // "Bewusst unbesetzt" (deliberately unstaffed) is only valid when nobody will
-  // be covering the block after this form is applied. The backend rejects the
-  // acknowledgement while any non-absent staff remain (ErrUnderstaffedAckStill
-  // Staffed), so the derived flag below must account for ALL staffing that
-  // survives the save — currently-present planned people, existing non-absent
-  // substitutes, and any replacement newly selected here — not just new picks.
   // A non-absent substitute that is not staged for removal is still covering the
-  // block: it counts toward "staff remaining" AND locks the replacement picker
-  // (one substitute per block).
+  // block: it counts toward coverage AND locks the replacement picker (one
+  // substitute per block).
   const hasActiveSubstitute = substitutes.some(
     (row) => !row.isAbsent && !removedSubs.has(row.staffId),
   );
 
-  const anyStaffRemaining =
-    plannedStaff.some((row) => {
-      const p = people[row.staffId];
-      return p ? !p.absent : !row.isAbsent;
-    }) ||
-    hasActiveSubstitute ||
-    Object.values(people).some((p) => p.absent && p.substituteId !== "");
+  // "Bewusst unbesetzt" (deliberately unstaffed) acknowledges that at least one
+  // planned position is deliberately left unfilled (#1840). It is valid whenever
+  // the block stays understaffed after this form is applied — fewer people
+  // present than planned, or nobody at all — not only when the whole block is
+  // empty. So compare the projected coverage (planned people still there +
+  // existing non-absent substitutes + any replacement newly picked here) against
+  // the number of planned (non-substitute) positions. The backend enforces the
+  // identical rule (ErrUnderstaffedAckStillStaffed only when fully staffed).
+  const plannedPositions = plannedStaff.length;
+  const presentPlanned = plannedStaff.filter((row) => {
+    const p = people[row.staffId];
+    return p ? !p.absent : !row.isAbsent;
+  }).length;
+  const activeSubstitutes = substitutes.filter(
+    (row) => !row.isAbsent && !removedSubs.has(row.staffId),
+  ).length;
+  const newReplacements = Object.values(people).filter(
+    (p) => p.absent && p.substituteId !== "",
+  ).length;
+  const projectedCoverage =
+    presentPlanned + activeSubstitutes + newReplacements;
+  const isUnderstaffed =
+    projectedCoverage === 0 || projectedCoverage < plannedPositions;
 
   // The understaffed reason is editable even when the ack flag itself doesn't
   // change, so an edit to an already-acknowledged block's note must count as a
@@ -259,11 +269,11 @@ export function SubstitutionSlideOver({
       if (absences.length > 0) input.absences = absences;
       if (substitutions.length > 0) input.substitutions = substitutions;
 
-      // "Bewusst unbesetzt" only holds when nothing covers the block after the
-      // save. anyStaffRemaining forces it off even if the (now-disabled)
-      // checkbox stayed checked, so the backend never sees a contradictory
-      // ack=true + coverage state.
-      const effectiveUnstaffed = unstaffed && !anyStaffRemaining;
+      // "Bewusst unbesetzt" only holds while the block stays understaffed after
+      // the save. isUnderstaffed forces it off if the block ends up fully
+      // staffed even though the (now-disabled) checkbox stayed checked, so the
+      // backend never sees a contradictory ack=true + fully-staffed state.
+      const effectiveUnstaffed = unstaffed && isUnderstaffed;
       if (effectiveUnstaffed !== wasUnstaffed || noteEdited) {
         input.understaffedAck = effectiveUnstaffed;
         if (effectiveUnstaffed) {
@@ -609,18 +619,18 @@ export function SubstitutionSlideOver({
                     <Checkbox
                       id="vp-unstaffed"
                       checked={unstaffed}
-                      disabled={cancel || anyStaffRemaining}
+                      disabled={cancel || !isUnderstaffed}
                       onChange={(e) => setUnstaffed(e.target.checked)}
                     />
                     <span className="text-sm text-gray-800">
                       Bewusst unbesetzt
                       <span className="block text-xs text-gray-500">
-                        Läuft absichtlich ohne Personal und zählt nicht als
-                        offene Lücke.
-                        {anyStaffRemaining && (
+                        Eine geplante Position bleibt absichtlich unbesetzt und
+                        zählt nicht als offene Lücke.
+                        {!isUnderstaffed && (
                           <span className="mt-0.5 block text-[#CC2626]">
-                            Nur möglich, wenn alle geplanten Personen abwesend
-                            und keine Vertretung eingetragen ist.
+                            Nur möglich, wenn mindestens eine geplante Position
+                            unbesetzt bleibt (weniger Personal als geplant).
                           </span>
                         )}
                       </span>

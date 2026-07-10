@@ -307,13 +307,18 @@ function VertretungsplanContent() {
           }
         }
       } catch (err) {
+        // Consume the failure here: it is already logged and surfaced as a
+        // toast. The slide-over stays open on its own — its handleSubmit only
+        // calls onClose after a resolved onApply, so a rejection never closes
+        // it. Rethrowing would instead bubble past the form's `void
+        // handleSubmit(e)` as an unhandled promise rejection (dev overlay /
+        // monitoring noise) without changing the retry behaviour.
         logger.error("apply_deviations_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         toast.error(
           err instanceof Error ? err.message : "Speichern fehlgeschlagen",
         );
-        throw err; // keep the slide-over open so the admin can retry
       } finally {
         // Runs on both success and failure; non-throwing (see revalidate).
         await revalidate();

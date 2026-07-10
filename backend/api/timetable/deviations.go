@@ -100,11 +100,28 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 
 	instance, err := rs.TimetableData.GetActivityInstance(ctx, id)
 	if err != nil {
+		// FindByID wraps sql.ErrNoRows in a DatabaseError (it never returns
+		// (nil, nil)), so a stale link or deleted/other-tenant instance must be
+		// mapped to 404 here rather than falling through to a 500.
+		if base.IsNoRows(err) {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance failed", err))
 		return
 	}
 	if instance == nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+		return
+	}
+
+	// Past blocks are historical record; no deviation — including a
+	// cancellation — may rewrite them. Guard here, before the exclusive cancel
+	// branch, so cancelling a past block is rejected exactly like every other
+	// deviation on it (the page can browse past weeks). Mirrors /substitute and
+	// /gaps.
+	if instance.Date.Before(timezone.TodayDate()) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("block date is in the past")))
 		return
 	}
 
@@ -135,12 +152,8 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// The block's own date is the day-wide scope of every absence/substitute.
-	// Past blocks are historical record, mirroring /substitute and /gaps.
+	// The past-date guard already ran above (before the cancel branch).
 	date := instance.Date
-	if date.Before(timezone.TodayDate()) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("block date is in the past")))
-		return
-	}
 	if req.UnderstaffedNote != nil && utf8.RuneCountInString(*req.UnderstaffedNote) > understaffedAckNoteMaxLength {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("note is too long")))
 		return
@@ -189,25 +202,40 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Acknowledgement reconciliation. "Deliberately unstaffed" is only valid when
-	// nobody covers the block after the save. Compute the projected non-absent
-	// count on THIS instance and decide the final flag:
-	//   - client sent understaffed_ack → honour it (reject ack=true if staffed)
-	//   - client sent nothing but the block was acked and now has coverage → clear
-	//     the stale acknowledgement so /gaps and the amber card cannot contradict.
+	// Acknowledgement reconciliation. "Deliberately unstaffed" is valid whenever
+	// the block ends up understaffed after the save — nobody present, or fewer
+	// present than planned (#1840: a single position may be left unfilled while
+	// other staff remain). Compute the projected coverage vs the planned baseline
+	// on THIS instance and decide the final flag:
+	//   - client sent understaffed_ack → honour it (reject ack=true only if the
+	//     block is fully staffed after the save)
+	//   - client sent nothing but the block was acked and is now fully staffed →
+	//     clear the stale acknowledgement so /gaps and the amber card cannot
+	//     contradict.
+	// The deviation writes never change the planned baseline: marking someone
+	// absent keeps is_substitute, and an added substitute is is_substitute=true
+	// (not a planned position), so the baseline is the current non-substitute
+	// count of thisRows.
 	thisRows, err := rs.TimetableData.GetInstanceStaff(ctx, id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance staff failed", err))
 		return
 	}
-	projected := projectedNonAbsentCount(thisRows, fullAbsent, newSubByInstance[id])
+	projectedPresent := projectedNonAbsentCount(thisRows, fullAbsent, newSubByInstance[id])
+	plannedBaseline := 0
+	for _, row := range thisRows {
+		if !row.IsSubstitute {
+			plannedBaseline++
+		}
+	}
+	projectedUnderstaffed := scheduleSvc.IsUnderstaffedCounts(projectedPresent, plannedBaseline)
 
 	finalAck := instance.UnderstaffedAck
 	ackChanged := false
 	if req.UnderstaffedAck != nil {
-		if *req.UnderstaffedAck && projected > 0 {
+		if *req.UnderstaffedAck && !projectedUnderstaffed {
 			common.RenderError(w, r, common.ErrorConflictWithCode(
-				errors.New("dieser Block kann nicht als bewusst unbesetzt markiert werden, solange noch Personal eingeteilt ist"),
+				errors.New("dieser Block kann nicht als bewusst unbesetzt markiert werden, solange er vollständig besetzt ist"),
 				"understaffed_still_staffed",
 			))
 			return
@@ -215,7 +243,7 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 		finalAck = *req.UnderstaffedAck
 		ackChanged = finalAck != instance.UnderstaffedAck ||
 			(finalAck && !sameNote(instance.UnderstaffedNote, req.UnderstaffedNote))
-	} else if instance.UnderstaffedAck && projected > 0 {
+	} else if instance.UnderstaffedAck && !projectedUnderstaffed {
 		finalAck = false
 		ackChanged = true
 	}

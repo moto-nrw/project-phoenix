@@ -436,6 +436,8 @@ function mapGapInstance(gap: BackendGapInstance): GapInstance {
     status: gap.status,
     assignedStaffCount: gap.assigned_staff_count,
     absentStaffCount: gap.absent_staff_count,
+    presentStaffCount: gap.present_staff_count,
+    plannedStaffCount: gap.planned_staff_count,
     understaffedNote: gap.understaffed_note ?? undefined,
   };
 }

@@ -237,6 +237,31 @@ func TestInstance_SetUnderstaffedAck_RejectedWhileStaffed(t *testing.T) {
 	assert.False(t, cleared.UnderstaffedAck)
 }
 
+// #1840: a single planned position may be deliberately left unfilled while
+// other staff remain. The acknowledgement is therefore allowed on a partially
+// staffed block (present < planned) — it is rejected only when the block is
+// fully staffed (see TestInstance_SetUnderstaffedAck_RejectedWhileStaffed).
+func TestInstance_SetUnderstaffedAck_AllowedWhilePartiallyStaffed(t *testing.T) {
+	s := buildLifecycle(t)
+	svc := instanceServiceWithBroadcaster(s, nil)
+	ai := seedInstance(t, s, false, false) // no staff seeded; we add two below
+
+	absentStaff := testpkg.CreateTestStaff(t, s.db, "LC-Absent", fmt.Sprintf("P-%d", time.Now().UnixNano()))
+	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, 0, absentStaff.ID, 0, 0, 0) })
+
+	// Two planned positions: one present, one absent with no replacement.
+	present := testpkg.CreateTestInstanceStaff(t, s.db, ai.ID, s.staffID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	absent := testpkg.CreateTestInstanceStaff(t, s.db, ai.ID, absentStaff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, present.ID, absent.ID) })
+
+	note := "keine Vertretung für die zweite Position"
+	got, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, &note)
+	require.NoError(t, err)
+	assert.True(t, got.UnderstaffedAck)
+	require.NotNil(t, got.UnderstaffedNote)
+	assert.Equal(t, note, *got.UnderstaffedNote)
+}
+
 func TestInstance_SetUnderstaffedAck_NotFound(t *testing.T) {
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)

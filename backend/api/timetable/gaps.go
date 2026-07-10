@@ -2,9 +2,11 @@
 //
 //	GET /api/timetable/gaps?date=YYYY-MM-DD&date_to=YYYY-MM-DD
 //
-// Lists instances in the requested window whose non-absent staff count is
-// zero. Only today and the future are queryable; ranges > 14 days are
-// rejected. Permission: SchedulesRead.
+// Lists instances in the requested window that are understaffed: nobody
+// present, OR fewer people present than the number of planned positions (#1840
+// — a single position deliberately left unfilled still counts as a shortfall).
+// Only today and the future are queryable; ranges > 14 days are rejected.
+// Permission: SchedulesRead.
 package timetable
 
 import (
@@ -17,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // maxGapRangeDays caps the /gaps window at 14 inclusive days, mirroring the
@@ -25,23 +28,28 @@ const maxGapRangeDays = 14
 
 // GapInstance is one row in the gaps response.
 type GapInstance struct {
-	InstanceID         int64   `json:"instance_id"`
-	Date               string  `json:"date"`
-	Title              string  `json:"title"`
-	StartTime          string  `json:"start_time"`
-	EndTime            string  `json:"end_time"`
-	RoomID             int64   `json:"room_id"`
-	Status             string  `json:"status"`
-	AssignedStaffCount int     `json:"assigned_staff_count"`
-	AbsentStaffCount   int     `json:"absent_staff_count"`
-	UnderstaffedNote   *string `json:"understaffed_note,omitempty"`
+	InstanceID         int64  `json:"instance_id"`
+	Date               string `json:"date"`
+	Title              string `json:"title"`
+	StartTime          string `json:"start_time"`
+	EndTime            string `json:"end_time"`
+	RoomID             int64  `json:"room_id"`
+	Status             string `json:"status"`
+	AssignedStaffCount int    `json:"assigned_staff_count"`
+	AbsentStaffCount   int    `json:"absent_staff_count"`
+	// PresentStaffCount is the non-absent count (planned people still there plus
+	// any covering substitute); PlannedStaffCount is the base-plan positions
+	// (non-substitute rows). A partial shortfall has 0 < present < planned.
+	PresentStaffCount int     `json:"present_staff_count"`
+	PlannedStaffCount int     `json:"planned_staff_count"`
+	UnderstaffedNote  *string `json:"understaffed_note,omitempty"`
 }
 
 // GapsResponse is the 200 body for GET /gaps.
 //
-// Gaps and Acknowledged partition the zero-staff instances: Gaps are the open
-// holes that still need filling, Acknowledged are the ones an admin
-// deliberately left unstaffed (understaffed_ack, #1840). The shortfall stays
+// Gaps and Acknowledged partition the understaffed instances: Gaps are the open
+// shortfalls that still need filling, Acknowledged are the ones an admin
+// deliberately left understaffed (understaffed_ack, #1840). The shortfall stays
 // visible in both — Acknowledged just moves out of the "needs action" list.
 type GapsResponse struct {
 	From         string        `json:"from"`
@@ -120,42 +128,40 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 		candidateIDs = append(candidateIDs, inst.ID)
 	}
 
-	// Single GROUP-BY query for non-absent counts across all candidates.
-	nonAbsentCounts, err := rs.TimetableData.CountNonAbsentInstanceStaffByInstanceIDs(ctx, candidateIDs)
+	// One bulk query for every candidate's staff rows, grouped in memory. This
+	// replaces the old non-absent GROUP-BY plus per-gap N+1 load: partial
+	// shortfalls are now common (any block with one unreplaced absence), so the
+	// gap list is no longer short by definition and per-gap round-trips would
+	// not scale.
+	allRows, err := rs.TimetableData.GetInstanceStaffByInstanceIDs(ctx, candidateIDs)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("count non-absent staff failed", err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load instance staff failed", err))
 		return
 	}
+	rowsByInstance := make(map[int64][]*scheduleModel.InstanceStaff, len(candidateIDs))
+	for _, row := range allRows {
+		rowsByInstance[row.InstanceID] = append(rowsByInstance[row.InstanceID], row)
+	}
 
-	// Absent-staff count is needed per-instance for the response. An instance
-	// marked as a gap (non_absent == 0) still carries information: were there
-	// staff assigned but all sick? That signal helps admins triage.
-	//
-	// NOTE (N+1): one FindByInstanceID per gap. Acceptable today because the
-	// gap list is short by definition (most instances have staff). If this
-	// grows into a hot path, replace with a second GROUP-BY on
-	// is_absent=true, batched across candidateIDs.
-	// Gaps are open holes that still need action; acknowledged holes are ones
-	// an admin deliberately left unstaffed (#1840) and are partitioned out so
-	// they stop nagging while remaining visible.
+	// Gaps are open shortfalls that still need action; acknowledged shortfalls
+	// are ones an admin deliberately left understaffed (#1840) and are
+	// partitioned out so they stop nagging while remaining visible.
 	gaps := make([]GapInstance, 0)
 	acknowledged := make([]GapInstance, 0)
 	for _, inst := range candidates {
-		if nonAbsentCounts[inst.ID] > 0 {
+		rows := rowsByInstance[inst.ID]
+		if !scheduleSvc.IsUnderstaffed(rows) {
 			continue
 		}
-		// Load the full instance_staff list to compute absent count. Not
-		// every gap has absent rows; the count is 0 when no staff was ever
-		// assigned.
-		rows, err := rs.TimetableData.GetInstanceStaff(ctx, inst.ID)
-		if err != nil {
-			common.RenderError(w, r, common.ErrorInternalServerWrap("load instance staff failed", err))
-			return
-		}
-		absentCount := 0
+		absentCount, presentCount, plannedCount := 0, 0, 0
 		for _, row := range rows {
 			if row.IsAbsent {
 				absentCount++
+			} else {
+				presentCount++
+			}
+			if !row.IsSubstitute {
+				plannedCount++
 			}
 		}
 		gi := GapInstance{
@@ -172,6 +178,8 @@ func (rs *Resource) getGaps(w http.ResponseWriter, r *http.Request) {
 			// so admins see "staff were planned, nobody's covering today".
 			AssignedStaffCount: len(rows),
 			AbsentStaffCount:   absentCount,
+			PresentStaffCount:  presentCount,
+			PlannedStaffCount:  plannedCount,
 		}
 		if inst.UnderstaffedAck {
 			gi.UnderstaffedNote = inst.UnderstaffedNote
