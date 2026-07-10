@@ -11,11 +11,18 @@
  * per-block actions live in the SubstitutionSlideOver.
  */
 
-import { ChevronLeft, ChevronRight, TriangleAlert, UserX } from "lucide-react";
+import {
+  CalendarOff,
+  ChevronLeft,
+  ChevronRight,
+  TriangleAlert,
+  UserX,
+} from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Suspense, useCallback, useMemo } from "react";
+import { Suspense, useCallback, useEffect, useMemo } from "react";
 
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { PageHeader } from "~/components/ui/page-header/PageHeader";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
@@ -32,6 +39,10 @@ import {
 } from "~/lib/date-helpers";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { createLogger } from "~/lib/logger";
+import {
+  SETTINGS_SCHEMA_SWR_KEY,
+  fetchSettingsSchema,
+} from "~/lib/settings-api";
 import { staffService } from "~/lib/staff-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
@@ -111,11 +122,11 @@ function VertretungsplanContent() {
   const loadGaps = toISO >= today;
   const gapsSWRKey = `vertretungsplan-gaps-${gapsFromISO}-${toISO}`;
 
-  const { data, isLoading } = useSWRAuth(
+  const { data, isLoading, error } = useSWRAuth(
     status === "authenticated" ? swrKey : null,
     () => timetableService.getWeek(fromISO, toISO),
   );
-  const { data: gapsData } = useSWRAuth(
+  const { data: gapsData, error: gapsError } = useSWRAuth(
     status === "authenticated" && loadGaps ? gapsSWRKey : null,
     () => timetableService.getGaps(gapsFromISO, toISO),
   );
@@ -123,6 +134,54 @@ function VertretungsplanContent() {
     status === "authenticated" ? "vertretungsplan-staff-list" : null,
     () => staffService.getAllStaff(),
   );
+
+  // Route guard: same source the sidebar uses to hide the nav entry
+  // (settings schema -> timetable.enabled). Without it, a tenant with the
+  // Betreuungsplan/Vertretungsplan disabled could still open this URL directly
+  // and mutate retained materialized data. fetchSettingsSchema returns null
+  // when the user cannot read settings; the page then renders normally
+  // (graceful default, mirroring /timetables).
+  const { data: settingsSchema, isLoading: settingsSchemaLoading } = useSWRAuth(
+    status === "authenticated" ? SETTINGS_SCHEMA_SWR_KEY : null,
+    fetchSettingsSchema,
+    { revalidateOnFocus: false, revalidateOnReconnect: false },
+  );
+  const timetableDisabled =
+    settingsSchema?.tabs
+      .flatMap((tab) => tab.categories)
+      .flatMap((category) => category.items)
+      .find((item) => item.key === "timetable.enabled")?.value === false;
+
+  // Preserve fetch failures so we never render "Keine Termine" / zero gaps as
+  // if a failed request had succeeded (an admin must not read a 403/500 as a
+  // covered, empty plan). SWR retries produce a fresh Error per attempt, so we
+  // key the toasts on the message string to avoid one toast per retry.
+  const weekErrorMessage = error
+    ? error instanceof Error
+      ? error.message
+      : String(error)
+    : null;
+  const gapsErrorMessage = gapsError
+    ? gapsError instanceof Error
+      ? gapsError.message
+      : String(gapsError)
+    : null;
+
+  useEffect(() => {
+    if (!weekErrorMessage) return;
+    logger.error("week_load_failed", { error: weekErrorMessage });
+    toast.error(
+      `Vertretungsplan konnte nicht geladen werden: ${weekErrorMessage}`,
+    );
+  }, [weekErrorMessage, toast]);
+
+  useEffect(() => {
+    if (!gapsErrorMessage) return;
+    logger.error("gaps_load_failed", { error: gapsErrorMessage });
+    toast.error(
+      `Offene Lücken konnten nicht geprüft werden: ${gapsErrorMessage}`,
+    );
+  }, [gapsErrorMessage, toast]);
 
   const instances = useMemo(() => data?.instances ?? [], [data?.instances]);
   // The day view renders a single column, so hand the grid only that day's
@@ -162,8 +221,17 @@ function VertretungsplanContent() {
     return ids;
   }, [instances, selectedInstance?.date]);
 
-  const openGaps = gapsData?.gaps ?? [];
-  const acknowledgedGaps = gapsData?.acknowledged ?? [];
+  // /gaps always returns the surrounding week, but the day view shows a single
+  // day, so scope the KPI counters to that day — otherwise viewing one day
+  // surfaces shortfalls from other days of that week (#1840).
+  const openGaps = useMemo(() => {
+    const all = gapsData?.gaps ?? [];
+    return view === "day" ? all.filter((g) => g.date === dayISO) : all;
+  }, [gapsData?.gaps, view, dayISO]);
+  const acknowledgedGaps = useMemo(() => {
+    const all = gapsData?.acknowledged ?? [];
+    return view === "day" ? all.filter((g) => g.date === dayISO) : all;
+  }, [gapsData?.acknowledged, view, dayISO]);
 
   const revalidate = useCallback(async () => {
     await tenantMutate(swrKey);
@@ -287,9 +355,26 @@ function VertretungsplanContent() {
     [revalidate, toast],
   );
 
+  // While the settings schema loads we cannot tell yet whether the feature is
+  // enabled — render nothing (Suspense-style) instead of flashing the planner.
+  if (status === "loading" || settingsSchemaLoading) {
+    return null;
+  }
+
+  if (timetableDisabled) {
+    return <VertretungsplanDisabledState />;
+  }
+
   return (
     <div className="flex flex-col gap-4">
       <PageHeader title="Vertretungsplan" />
+
+      {weekErrorMessage && (
+        <Alert
+          type="error"
+          message={`Vertretungsplan konnte nicht geladen werden: ${weekErrorMessage}`}
+        />
+      )}
 
       <div
         className={`${timetableSurface} flex flex-col gap-2 p-3 sm:flex-row sm:items-center sm:justify-between`}
@@ -365,6 +450,7 @@ function VertretungsplanContent() {
       <VertretungsplanOverview
         openCount={openGaps.length}
         ackCount={acknowledgedGaps.length}
+        gapsUnavailable={gapsErrorMessage !== null}
       />
 
       <WeeklyCalendarGrid
@@ -379,15 +465,21 @@ function VertretungsplanContent() {
         emptyState={
           gridInstances.length > 0
             ? undefined
-            : isLoading
-              ? { title: "Lädt…", description: "Termine werden geladen." }
-              : {
-                  title: "Keine Termine",
+            : weekErrorMessage
+              ? {
+                  title: "Termine konnten nicht geladen werden",
                   description:
-                    view === "day"
-                      ? "Für diesen Tag sind keine Termine geplant."
-                      : "Für diese Woche sind keine Termine geplant.",
+                    "Bitte die Seite neu laden. Dies ist kein leerer Plan.",
                 }
+              : isLoading
+                ? { title: "Lädt…", description: "Termine werden geladen." }
+                : {
+                    title: "Keine Termine",
+                    description:
+                      view === "day"
+                        ? "Für diesen Tag sind keine Termine geplant."
+                        : "Für diese Woche sind keine Termine geplant.",
+                  }
         }
       />
 
@@ -413,9 +505,12 @@ function VertretungsplanContent() {
 function VertretungsplanOverview({
   openCount,
   ackCount,
+  gapsUnavailable,
 }: {
   openCount: number;
   ackCount: number;
+  /** True when the /gaps request failed — show "—" instead of a false zero. */
+  gapsUnavailable: boolean;
 }) {
   return (
     <section className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur-md sm:p-5">
@@ -438,20 +533,50 @@ function VertretungsplanOverview({
           size="lg"
           icon={<UserX className="h-4 w-4" />}
           label="Offene Lücken"
-          value={String(openCount)}
-          sublabel="brauchen Personal"
-          tone={openCount > 0 ? "danger" : "neutral"}
+          value={gapsUnavailable ? "—" : String(openCount)}
+          sublabel={gapsUnavailable ? "nicht verfügbar" : "brauchen Personal"}
+          tone={!gapsUnavailable && openCount > 0 ? "danger" : "neutral"}
         />
         <TimetableStatCard
           size="lg"
           icon={<TriangleAlert className="h-4 w-4" />}
           label="Bewusst unbesetzt"
-          value={String(ackCount)}
-          sublabel="ohne Personal akzeptiert"
-          tone={ackCount > 0 ? "warning" : "neutral"}
+          value={gapsUnavailable ? "—" : String(ackCount)}
+          sublabel={
+            gapsUnavailable ? "nicht verfügbar" : "ohne Personal akzeptiert"
+          }
+          tone={!gapsUnavailable && ackCount > 0 ? "warning" : "neutral"}
         />
       </div>
     </section>
+  );
+}
+
+/**
+ * Rendered when the tenant setting `timetable.enabled` resolves to false. The
+ * sidebar already hides the nav entry for disabled tenants; this guard covers
+ * direct navigation without redirecting (no redirect loops). Mirrors
+ * /timetables' TimetableDisabledState.
+ */
+function VertretungsplanDisabledState() {
+  return (
+    <div
+      className="flex flex-col gap-4"
+      data-testid="vertretungsplan-disabled-state"
+    >
+      <PageHeader title="Vertretungsplan" />
+      <div className={`${timetableSurface} p-10 text-center`}>
+        <CalendarOff className="mx-auto h-10 w-10 text-gray-300" aria-hidden />
+        <h2 className="mt-4 text-base font-semibold text-gray-900">
+          Vertretungsplan ist deaktiviert
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">
+          Der Vertretungsplan gehört zum Betreuungsplan, der für diese Schule
+          ausgeschaltet ist. Er kann in den Einstellungen unter „Betrieb“ wieder
+          aktiviert werden.
+        </p>
+      </div>
+    </div>
   );
 }
 

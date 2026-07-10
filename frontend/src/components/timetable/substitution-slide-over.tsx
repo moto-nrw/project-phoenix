@@ -117,6 +117,12 @@ export function SubstitutionSlideOver({
   const [cancelReason, setCancelReason] = useState("");
   const [unstaffed, setUnstaffed] = useState(false);
   const [unstaffedReason, setUnstaffedReason] = useState("");
+  // Substitute staff ids the admin marked for removal (#1840). An assigned
+  // substitute who later becomes unavailable can be marked absent day-wide,
+  // which frees the block so another replacement can be chosen — otherwise a
+  // new pick for the original absent person 409s (substitute_conflict) because
+  // the old substitute is still non-absent.
+  const [removedSubs, setRemovedSubs] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
   const wasUnstaffed = instance?.understaffedAck === true;
@@ -140,8 +146,18 @@ export function SubstitutionSlideOver({
     setCancelReason("");
     setUnstaffed(instance.understaffedAck === true);
     setUnstaffedReason(instance.understaffedNote ?? "");
+    setRemovedSubs(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance?.id]);
+
+  function toggleRemoveSub(id: string) {
+    setRemovedSubs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   function updatePerson(id: string, patch: Partial<PersonForm>) {
     setPeople((prev) => ({ ...prev, [id]: { ...prev[id]!, ...patch } }));
@@ -170,7 +186,7 @@ export function SubstitutionSlideOver({
       const p = people[row.staffId];
       return p ? !p.absent : !row.isAbsent;
     }) ||
-    substitutes.some((row) => !row.isAbsent) ||
+    substitutes.some((row) => !row.isAbsent && !removedSubs.has(row.staffId)) ||
     Object.values(people).some((p) => p.absent && p.substituteId !== "");
 
   // The understaffed reason is editable even when the ack flag itself doesn't
@@ -184,6 +200,7 @@ export function SubstitutionSlideOver({
     cancel ||
     unstaffed !== wasUnstaffed ||
     noteEdited ||
+    removedSubs.size > 0 ||
     Object.values(people).some(
       (p) => (p.absent && !p.wasAbsent) || (p.absent && p.substituteId !== ""),
     );
@@ -198,8 +215,24 @@ export function SubstitutionSlideOver({
         onClose();
         return;
       }
-      // Apply absences/substitutes first so staffing reflects the change before
-      // we (maybe) acknowledge the block as unstaffed — the backend refuses that
+      // Clearing an existing understaffed acknowledgement has no backend
+      // precondition, so do it FIRST. If a later staffing call then fails, the
+      // block is left as an honest open gap (ack=false, still short-staffed)
+      // rather than the contradictory ack=true + non-absent-substitute state
+      // that /gaps excludes from both buckets.
+      const clearingAck = wasUnstaffed && !unstaffed;
+      if (clearingAck) {
+        await onAcknowledge(instance, false);
+      }
+      // Remove substitutes who became unavailable by marking them absent
+      // day-wide — this must happen BEFORE (re)assigning a replacement so the
+      // backend no longer sees a conflicting non-absent substitute on the block
+      // (otherwise the new pick 409s with substitute_conflict).
+      for (const staffId of removedSubs) {
+        await onMarkAbsent(staffId, instance.date);
+      }
+      // Apply absences/substitutes so staffing reflects the change before we
+      // (maybe) acknowledge the block as unstaffed — the backend refuses that
       // acknowledgement while non-absent staff are still assigned.
       for (const [staffId, p] of Object.entries(people)) {
         const reason = p.reason.trim() || undefined;
@@ -210,7 +243,8 @@ export function SubstitutionSlideOver({
           await onMarkAbsent(staffId, instance.date, reason);
         }
       }
-      if (unstaffed !== wasUnstaffed || noteEdited) {
+      // Only set/refresh the acknowledgement here — the clear case ran above.
+      if (!clearingAck && (unstaffed !== wasUnstaffed || noteEdited)) {
         await onAcknowledge(
           instance,
           unstaffed,
@@ -448,20 +482,75 @@ export function SubstitutionSlideOver({
                     Aktuelle Vertretung
                   </h4>
                   <ul className="space-y-1">
-                    {substitutes.map((row) => (
-                      <li
-                        key={row.staffId}
-                        className="flex items-center justify-between gap-2 rounded-lg bg-[#83CD2D]/10 px-3 py-2"
-                      >
-                        <span className="truncate text-sm font-medium text-gray-900">
-                          {staffLabel(staffNames, row.staffId)}
-                        </span>
-                        <span className="rounded-full bg-[#83CD2D]/20 px-2 py-0.5 text-[10px] font-semibold text-[#5A8E1F]">
-                          Ersatz
-                        </span>
-                      </li>
-                    ))}
+                    {substitutes.map((row) => {
+                      const removed = removedSubs.has(row.staffId);
+                      // An absent substitute (marked unavailable day-wide) is no
+                      // longer covering — never present them as active "Ersatz".
+                      const inactive = row.isAbsent || removed;
+                      return (
+                        <li
+                          key={row.staffId}
+                          className={`flex items-center justify-between gap-2 rounded-lg px-3 py-2 ${
+                            inactive ? "bg-gray-100" : "bg-[#83CD2D]/10"
+                          }`}
+                        >
+                          <span
+                            className={`truncate text-sm font-medium ${
+                              inactive
+                                ? "text-gray-400 line-through"
+                                : "text-gray-900"
+                            }`}
+                          >
+                            {staffLabel(staffNames, row.staffId)}
+                          </span>
+                          <div className="flex shrink-0 items-center gap-2">
+                            {row.isAbsent ? (
+                              <span className="rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-[10px] font-semibold text-[#CC2626]">
+                                Abwesend
+                              </span>
+                            ) : removed ? (
+                              <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
+                                Wird entfernt
+                              </span>
+                            ) : (
+                              <span className="rounded-full bg-[#83CD2D]/20 px-2 py-0.5 text-[10px] font-semibold text-[#5A8E1F]">
+                                Ersatz
+                              </span>
+                            )}
+                            {/* Only a non-absent substitute can be removed here;
+                                an already-absent one is out of action already. */}
+                            {canEdit && !row.isAbsent && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="compact"
+                                onClick={() => toggleRemoveSub(row.staffId)}
+                              >
+                                {removed ? (
+                                  <>
+                                    <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                                    Rückgängig
+                                  </>
+                                ) : (
+                                  <>
+                                    <UserMinus className="mr-1 h-3.5 w-3.5" />
+                                    Entfernen
+                                  </>
+                                )}
+                              </Button>
+                            )}
+                          </div>
+                        </li>
+                      );
+                    })}
                   </ul>
+                  {canEdit && substitutes.some((row) => !row.isAbsent) && (
+                    <p className="text-[11px] leading-5 text-gray-400">
+                      „Entfernen“ meldet die Vertretung für den ganzen Tag
+                      abwesend und gibt den Block für eine andere Ersatzperson
+                      frei.
+                    </p>
+                  )}
                 </div>
               )}
 
