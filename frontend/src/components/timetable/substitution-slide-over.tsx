@@ -41,7 +41,7 @@ import {
   timetableNestedSurface,
 } from "./timetable-style";
 
-export interface StaffOption {
+interface StaffOption {
   id: string;
   name: string;
 }

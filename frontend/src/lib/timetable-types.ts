@@ -443,7 +443,7 @@ interface SubstituteTimeConflict {
   endTime: string;
 }
 
-export type SubstituteAction =
+type SubstituteAction =
   | "substituted"
   | "already_substituted"
   | "already_on_instance"
