@@ -29,6 +29,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
@@ -65,6 +66,11 @@ var (
 	// to 409 so the UI can explain that the user must delete the series or keep
 	// the slots unchanged until slot-scoped exceptions exist.
 	ErrAmbiguousTemplateInstanceDelete = errors.New("template instance delete is ambiguous")
+
+	// ErrSchulhofSupervisionRequired prevents timetable instances from
+	// creating a second active group in the permanent Schulhof room. Staff
+	// must use the dedicated Schulhof supervision flow instead.
+	ErrSchulhofSupervisionRequired = errors.New("für den Schulhof bitte die Schulhof-Aufsicht verwenden")
 )
 
 // ActiveSessionEnder is the subset of active.Service used by Complete and
@@ -199,6 +205,17 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	}
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot start instance in status %q", ErrInvalidInstanceTransition, instance.Status)
+	}
+
+	room, err := s.deps.RoomRepo.FindByID(ctx, instance.RoomID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "start instance: load room", Err: err}
+	}
+	if room == nil {
+		return nil, &ScheduleError{Op: "start instance: load room", Err: errors.New("instance room not found")}
+	}
+	if room.Name == constants.SchulhofRoomName {
+		return nil, ErrSchulhofSupervisionRequired
 	}
 
 	// Conflict detection is read-only + advisory. Warnings reflect state

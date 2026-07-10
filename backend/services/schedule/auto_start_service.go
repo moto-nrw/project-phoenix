@@ -2,12 +2,15 @@ package schedule
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
+	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
@@ -25,6 +28,7 @@ type AutoStartResult struct {
 	SkippedAfterWindow  int
 	SkippedNoStaff      int
 	SkippedConflict     int
+	SkippedSchulhof     int
 	SkippedNonPlanned   int
 	Failed              int
 	DurationMS          int64
@@ -45,6 +49,7 @@ type AutoStartDependencies struct {
 	InstanceStaffRepo scheduleModel.InstanceStaffRepository
 	InstanceStudents  scheduleModel.InstanceStudentRepository
 	InstanceService   InstanceService
+	RoomRepo          facilitiesModel.RoomRepository
 	ActiveGroupRepo   activeModel.GroupRepository
 	SupervisorRepo    activeModel.GroupSupervisorRepository
 	VisitRepo         activeModel.VisitRepository
@@ -69,6 +74,9 @@ func NewAutoStartService(deps AutoStartDependencies) AutoStartService {
 	}
 	if deps.InstanceService == nil {
 		panic("schedule auto-start: InstanceService is required")
+	}
+	if deps.RoomRepo == nil {
+		panic("schedule auto-start: RoomRepo is required")
 	}
 	if deps.ConflictDetector == nil {
 		if deps.ActiveGroupRepo == nil {
@@ -114,9 +122,30 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 	}
 
 	plannedIDs := make([]int64, 0, len(instances))
+	plannedRoomIDs := make(map[int64]struct{})
 	for _, inst := range instances {
 		if inst.Status == scheduleModel.InstanceStatusPlanned {
 			plannedIDs = append(plannedIDs, inst.ID)
+			plannedRoomIDs[inst.RoomID] = struct{}{}
+		}
+	}
+	roomIDs := make([]int64, 0, len(plannedRoomIDs))
+	for roomID := range plannedRoomIDs {
+		roomIDs = append(roomIDs, roomID)
+	}
+	rooms, err := s.RoomRepo.FindByIDs(ctx, roomIDs)
+	if err != nil {
+		return result, fmt.Errorf("load rooms for auto-start: %w", err)
+	}
+	roomNames := make(map[int64]string, len(rooms))
+	for _, room := range rooms {
+		if room != nil {
+			roomNames[room.ID] = room.Name
+		}
+	}
+	for roomID := range plannedRoomIDs {
+		if _, found := roomNames[roomID]; !found {
+			return result, fmt.Errorf("load rooms for auto-start: room %d not found", roomID)
 		}
 	}
 	staffCounts, err := s.InstanceStaffRepo.CountNonAbsentByInstanceIDs(ctx, plannedIDs)
@@ -141,6 +170,10 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 			result.SkippedAfterWindow++
 			continue
 		}
+		if roomNames[inst.RoomID] == constants.SchulhofRoomName {
+			result.SkippedSchulhof++
+			continue
+		}
 		if staffCounts[inst.ID] < 1 {
 			result.SkippedNoStaff++
 			continue
@@ -157,6 +190,13 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 		}
 
 		if _, err := s.InstanceService.Start(ctx, inst.ID, 0); err != nil {
+			if errors.Is(err, ErrSchulhofSupervisionRequired) {
+				result.SkippedSchulhof++
+				s.Logger.Debug("auto-start skipped Schulhof instance",
+					slog.Int64("instance_id", inst.ID),
+				)
+				continue
+			}
 			result.Failed++
 			return result, fmt.Errorf("auto-start instance %d: %w", inst.ID, err)
 		}

@@ -361,13 +361,10 @@ function MeinRaumPageContent() {
     const ids = allRooms
       .map((room) => room.room_id)
       .filter((roomId): roomId is string => Boolean(roomId));
-    // Schulhof is tracked separately from allRooms, so add its room id here —
-    // otherwise the spontaneous-activity modal treats an occupied Schulhof as
-    // free, preselects it, and the backend rejects it as already occupied.
-    // Only mark it occupied when a session is actually running (activeGroupId
-    // set); a merely configured-but-idle Schulhof is free, and the backend
-    // conflict check only rejects an active group — gating here keeps a
-    // Schulhof-only school from seeing its only room disabled.
+    // Schulhof is tracked separately from allRooms, so keep its live room id
+    // in the occupancy set. The spontaneous modal deliberately treats that
+    // one destination as navigation to the dedicated supervision instead of
+    // disabling it; every normal occupied room remains unavailable to start.
     if (schulhofStatus?.activeGroupId && schulhofStatus.roomId)
       ids.push(schulhofStatus.roomId);
     return ids;
@@ -608,10 +605,10 @@ function MeinRaumPageContent() {
     setGroupNameToIdMap(nameToIdMap);
     groupNameToIdMapRef.current = nameToIdMap;
 
-    // Set Schulhof status for permanent tab
-    if (data.schulhofStatus) {
-      setSchulhofStatus(data.schulhofStatus);
-    }
+    // Clear stale status as well: room discovery and status provisioning are
+    // independent requests, so a missing status must not leave an old shortcut
+    // active.
+    setSchulhofStatus(dashboardError ? null : data.schulhofStatus);
 
     // Cache active groups for UnclaimedRooms component
     if (data.supervisedGroups.length > 0) {
@@ -713,6 +710,7 @@ function MeinRaumPageContent() {
     setIsLoading(false);
   }, [
     dashboardData,
+    dashboardError,
     updateRoomStudentCount,
     selectedRoomId,
     isSchulhofTabSelected,
@@ -831,7 +829,9 @@ function MeinRaumPageContent() {
       });
     },
     {
-      keepPreviousData: true, // Prevent loading flash during refetch
+      // Never expose one room's children under another room's heading while
+      // the new key loads. Same-key SSE revalidation still keeps its cache.
+      keepPreviousData: false,
       revalidateOnFocus: false, // Handled by global SSE
     },
   );
@@ -971,6 +971,9 @@ function MeinRaumPageContent() {
   // Handle dashboard error
   useEffect(() => {
     if (dashboardError) {
+      // Fail closed for the dedicated Schulhof workflow while SWR may still
+      // expose the previous dashboard data during a failed revalidation.
+      setSchulhofStatus(null);
       if (dashboardError.message.includes("403")) {
         setError("Sie haben aktuell keinen aktiven Raum zur Supervision.");
         setHasAccess(false);
@@ -980,6 +983,15 @@ function MeinRaumPageContent() {
       setIsLoading(false);
     }
   }, [dashboardError]);
+
+  useEffect(() => {
+    if (schulhofStatus?.exists || !isSchulhofTabSelected) return;
+
+    setIsSchulhofTabSelected(false);
+    setSelectedRoomId(allRooms[0]?.id ?? null);
+    setSelectedTimetableInstanceId(null);
+    setStudents([]);
+  }, [allRooms, isSchulhofTabSelected, schulhofStatus?.exists]);
 
   // Derive loading state from SWR
   useEffect(() => {
@@ -1103,6 +1115,25 @@ function MeinRaumPageContent() {
     },
     [currentStaffId, mutateDashboard, router],
   );
+
+  const handleOpenSchulhofSupervision = useCallback(() => {
+    if (!schulhofStatusRef.current?.exists) {
+      setError(
+        "Die Schulhof-Aufsicht ist gerade nicht verfügbar. Bitte laden Sie die Seite neu.",
+      );
+      return;
+    }
+    setIsSchulhofTabSelected(true);
+    setSelectedRoomId(null);
+    setSelectedTimetableInstanceId(null);
+    router.push("/active-supervisions?room=schulhof");
+    localStorage.setItem("sidebar-last-room", SCHULHOF_TAB_ID);
+    localStorage.setItem("sidebar-last-room-name", SCHULHOF_ROOM_NAME);
+    // The keyed SWR subscription becomes active with the Schulhof tab and is
+    // the single owner of loading its visits. A second manual request can land
+    // later and overwrite a fresher SSE revalidation.
+    setStudents([]);
+  }, [router]);
 
   const handleRosterAction = useCallback(
     async (
@@ -1463,7 +1494,9 @@ function MeinRaumPageContent() {
       defaultRoomId={currentRoom?.room_id}
       isStarting={isStartingSpontaneous}
       occupiedRoomIds={occupiedRoomIds}
+      schulhofSupervisionAvailable={schulhofStatus?.exists === true}
       onStart={(payload) => void handleStartSpontaneousActivity(payload)}
+      onOpenSchulhofSupervision={handleOpenSchulhofSupervision}
     />
   ) : null;
 
@@ -1992,37 +2025,7 @@ function MeinRaumPageContent() {
                       : (currentRoom?.id ?? ""),
                     onTabChange: (tabId) => {
                       if (tabId === SCHULHOF_TAB_ID) {
-                        // Switch to Schulhof tab
-                        setIsSchulhofTabSelected(true);
-                        setSelectedRoomId(null);
-                        setSelectedTimetableInstanceId(null);
-                        router.push("/active-supervisions?room=schulhof");
-                        localStorage.setItem(
-                          "sidebar-last-room",
-                          SCHULHOF_TAB_ID,
-                        );
-                        localStorage.setItem(
-                          "sidebar-last-room-name",
-                          SCHULHOF_ROOM_NAME,
-                        );
-                        // Load Schulhof visits if supervising (use ref to avoid stale closure)
-                        const currentSchulhofStatus = schulhofStatusRef.current;
-                        if (
-                          currentSchulhofStatus?.isUserSupervising &&
-                          currentSchulhofStatus?.activeGroupId
-                        ) {
-                          loadRoomVisits(
-                            currentSchulhofStatus.activeGroupId,
-                            SCHULHOF_ROOM_NAME,
-                            groupNameToIdMapRef.current,
-                          )
-                            .then(setStudents)
-                            .catch(() => {
-                              // Error already handled in loadRoomVisits
-                            });
-                        } else {
-                          setStudents([]);
-                        }
+                        handleOpenSchulhofSupervision();
                       } else {
                         // Switch to regular room
                         setIsSchulhofTabSelected(false);

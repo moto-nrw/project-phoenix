@@ -10,7 +10,13 @@
  * describes render cheaply and are packed together. All files share the identical mock header
  * below. When adding a heavy full-dashboard render test, keep it to its own small file.
  */
-import { render, screen, cleanup } from "@testing-library/react";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const navigationMockState = vi.hoisted(() => ({
@@ -84,6 +90,7 @@ vi.mock("~/components/ui/alert", () => ({
 
 // Mock Modal and ConfirmationModal
 vi.mock("~/components/ui/modal", () => ({
+  dialogAriaProps: { role: "dialog", "aria-modal": true },
   Modal: ({
     isOpen,
     children,
@@ -124,6 +131,18 @@ vi.mock("~/lib/active-api", () => ({
     getTrackingIndicators: vi.fn(() =>
       Promise.resolve({ labels: [], results: {} }),
     ),
+  },
+}));
+
+vi.mock("~/lib/activity-service", () => ({
+  activityService: {
+    getActivities: vi.fn(() => Promise.resolve([])),
+  },
+}));
+
+vi.mock("~/lib/staff-api", () => ({
+  staffService: {
+    getAllStaff: vi.fn(() => Promise.resolve([])),
   },
 }));
 
@@ -319,13 +338,144 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows Schulhof in the room picker without opening a dead-end view when status is unavailable", async () => {
+    const dashboardResult = {
+      data: {
+        supervisedGroups: [],
+        unclaimedGroups: [],
+        currentStaff: { id: "staff-1" },
+        educationalGroups: [],
+        firstRoomVisits: [],
+        firstRoomId: null,
+        capabilities: { webSpontaneousActivitiesEnabled: true },
+        schulhofStatus: null,
+        plannedNow: [],
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+    vi.mocked(useSWRAuth).mockReturnValue(dashboardResult as never);
+    global.fetch = vi.fn().mockResolvedValue({
+      json: async () => ({
+        data: [
+          { id: 3, name: "Mensa" },
+          { id: 5, name: "Schulhof" },
+        ],
+      }),
+    }) as never;
+
+    render(<MeinRaumPage />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /Spontane Aktivität starten/,
+      }),
+    );
+    fireEvent.click(await screen.findByRole("combobox", { name: "Raum" }));
+
+    expect(
+      await screen.findByRole("option", {
+        name: "Schulhof (Aufsicht nicht verfügbar)",
+      }),
+    ).toBeDisabled();
+    expect(mockPush).not.toHaveBeenCalledWith(
+      "/active-supervisions?room=schulhof",
+    );
+  });
+
+  it("clears a stale Schulhof shortcut when dashboard revalidation fails", async () => {
+    const baseDashboardData = {
+      supervisedGroups: [],
+      unclaimedGroups: [],
+      currentStaff: { id: "staff-1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: null,
+      capabilities: { webSpontaneousActivitiesEnabled: true },
+      plannedNow: [],
+    };
+    let dashboardResult: {
+      data: typeof baseDashboardData & { schulhofStatus: unknown };
+      isLoading: boolean;
+      error: Error | null;
+      mutate: typeof mockMutate;
+      isValidating: boolean;
+    } = {
+      data: {
+        ...baseDashboardData,
+        schulhofStatus: {
+          exists: true,
+          roomId: "5",
+          roomName: "Schulhof",
+          activityGroupId: null,
+          activeGroupId: null,
+          isUserSupervising: false,
+          supervisionId: null,
+          supervisorCount: 0,
+          studentCount: 0,
+          supervisors: [],
+        },
+      },
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+    const emptyResult = {
+      data: null,
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    };
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) =>
+      key?.startsWith("active-supervision-dashboard")
+        ? dashboardResult
+        : emptyResult) as never);
+    global.fetch = vi.fn().mockResolvedValue({
+      json: async () => ({
+        data: [
+          { id: 3, name: "Mensa" },
+          { id: 5, name: "Schulhof" },
+        ],
+      }),
+    }) as never;
+
+    const { rerender } = render(<MeinRaumPage />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", { name: /Spontane Aktivität starten/ }),
+      ).toBeEnabled();
+    });
+
+    dashboardResult = {
+      ...dashboardResult,
+      error: new Error("dashboard unavailable"),
+    };
+    rerender(<MeinRaumPage />);
+
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: /Spontane Aktivität starten/,
+      }),
+    );
+    fireEvent.click(await screen.findByRole("combobox", { name: "Raum" }));
+
+    expect(
+      await screen.findByRole("option", {
+        name: "Schulhof (Aufsicht nicht verfügbar)",
+      }),
+    ).toBeDisabled();
+  });
+
   it("keeps the spontaneous-activity start button clickable in the Schulhof view (regression #1746 deadlock)", async () => {
     // Without any supervised group, the Schulhof tab is auto-selected
     // (allRooms is empty + a Schulhof exists). The start button used to be
     // hard-disabled whenever the Schulhof view was active, so a user with no
     // other active group could never open the modal — a dead end. The button
-    // must stay enabled. An occupied Schulhof (activeGroupId set) is handled
-    // inside the modal's room dropdown, not by disabling the trigger.
+    // must stay enabled. An occupied Schulhof (activeGroupId set) stays an
+    // explicit shortcut inside the modal instead of disabling the trigger.
     //
     // The two return values are hoisted to stable consts so the mock yields the
     // SAME object reference on every call, exactly as real SWR does. Returning a

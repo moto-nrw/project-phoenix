@@ -7,6 +7,7 @@ package reminders
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -15,10 +16,12 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
+	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -93,6 +96,10 @@ type instanceReader interface {
 	FindByTenantAndDate(ctx context.Context, date timezone.Date) ([]*scheduleModel.ActivityInstance, error)
 }
 
+type roomReader interface {
+	FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModel.Room, error)
+}
+
 type studentReader interface {
 	// FindReadScopeByIDs returns only the id/group_id/person_id/school_class
 	// projection this service needs — read-access gating plus name display. It
@@ -128,6 +135,7 @@ type Dependencies struct {
 	Attendance  attendanceReader
 	Pickup      pickupReader
 	Instance    instanceReader
+	Room        roomReader
 	Student     studentReader
 	Person      personReader
 	Supervision supervisionReader
@@ -141,6 +149,9 @@ type service struct {
 
 // NewService builds the reminder service.
 func NewService(deps Dependencies) Service {
+	if deps.Room == nil {
+		panic("reminders.NewService: Room is required")
+	}
 	if deps.Logger == nil {
 		deps.Logger = slog.Default()
 	}
@@ -509,6 +520,42 @@ func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []
 		}
 	}
 
+	schulhofRoomIDs := make(map[int64]struct{})
+	if overdue {
+		if s.Room == nil {
+			return nil, nextChange, errors.New("activity reminder room reader is not configured")
+		}
+		uniqueRoomIDs := make(map[int64]struct{})
+		for _, inst := range instances {
+			if inst != nil && inst.Status == scheduleModel.InstanceStatusPlanned {
+				uniqueRoomIDs[inst.RoomID] = struct{}{}
+			}
+		}
+		roomIDsToLoad := make([]int64, 0, len(uniqueRoomIDs))
+		for roomID := range uniqueRoomIDs {
+			roomIDsToLoad = append(roomIDsToLoad, roomID)
+		}
+		rooms, roomErr := s.Room.FindByIDs(ctx, roomIDsToLoad)
+		if roomErr != nil {
+			return nil, nextChange, fmt.Errorf("load activity reminder rooms: %w", roomErr)
+		}
+		resolvedRoomIDs := make(map[int64]struct{}, len(rooms))
+		for _, room := range rooms {
+			if room == nil {
+				continue
+			}
+			resolvedRoomIDs[room.ID] = struct{}{}
+			if room.Name == constants.SchulhofRoomName {
+				schulhofRoomIDs[room.ID] = struct{}{}
+			}
+		}
+		for roomID := range uniqueRoomIDs {
+			if _, found := resolvedRoomIDs[roomID]; !found {
+				return nil, nextChange, fmt.Errorf("load activity reminder rooms: room %d not found", roomID)
+			}
+		}
+	}
+
 	out := make([]Reminder, 0)
 	for _, inst := range instances {
 		// Only planned instances are relevant: started/completed/cancelled rows
@@ -524,6 +571,7 @@ func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []
 		startMin := minutesOfDay(inst.StartTime)
 		endMin := minutesOfDay(inst.EndTime)
 		diff := startMin - nowMin
+		_, isSchulhof := schulhofRoomIDs[inst.RoomID]
 
 		// Track the boundaries at which this instance's reminder state flips, so
 		// the frontend can refetch exactly then instead of waiting for the poll:
@@ -538,7 +586,7 @@ func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []
 			nextChange = minFuture(nextChange, futureBoundary(startMin-lead, nowMin))
 			nextChange = minFuture(nextChange, futureBoundary(startMin+1, nowMin))
 		}
-		if overdue {
+		if overdue && !isSchulhof {
 			overdueStart := startMin + overdueThreshold
 			if overdueStart < endMin {
 				nextChange = minFuture(nextChange, futureBoundary(overdueStart, nowMin))
@@ -556,7 +604,7 @@ func (s *service) activityReminders(ctx context.Context, scope Scope, roomIDs []
 			})
 		// Overdue: planned, started late by at least the threshold, and the
 		// slot is not over yet (after end_time a reminder is pointless).
-		case overdue && diff < 0 && -diff >= overdueThreshold && nowMin < endMin:
+		case overdue && !isSchulhof && diff < 0 && -diff >= overdueThreshold && nowMin < endMin:
 			out = append(out, Reminder{
 				Type:        TypeActivityOverdue,
 				Title:       inst.Title,
