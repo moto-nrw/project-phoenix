@@ -131,6 +131,37 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 	// Cancel is exclusive: the shared Cancel service both validates the
 	// transition and ends any active bridge. Nothing else is applied.
 	if req.Cancel {
+		// Serialize the cancellation against concurrent absence/substitute saves
+		// on the same day. The non-cancel path below takes this (tenant, date) day
+		// lock before it reads and rewrites staff rows; a cancel that skipped it
+		// could commit between another admin's lock acquisition and their writes,
+		// leaving a cancelled block with freshly-rewritten staffing — a rewritten
+		// historical block. Take the same lock and reload the instance under it so a
+		// concurrent move/complete/cancel is seen before we act (#1840).
+		if err := rs.TimetableData.AcquireSubstituteDayLock(ctx, instance.Date); err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("lock day failed", err))
+			return
+		}
+		locked, err := rs.TimetableData.GetActivityInstance(ctx, id)
+		if err != nil {
+			if base.IsNoRows(err) {
+				common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+				return
+			}
+			common.RenderError(w, r, common.ErrorInternalServerWrap("reload instance failed", err))
+			return
+		}
+		if locked == nil {
+			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
+			return
+		}
+		// A concurrent PUT may have moved the block to a past day; cancelling it
+		// then would rewrite history. The initial past-date guard above ran against
+		// a possibly-stale read, so re-check under the lock before delegating.
+		if locked.Date.Before(timezone.TodayDate()) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("block date is in the past")))
+			return
+		}
 		cancelled, err := rs.InstanceService.Cancel(ctx, id, trimReason(req.CancelReason))
 		if err != nil {
 			renderInstanceLifecycleError(w, r, err)
@@ -508,9 +539,11 @@ type presenceOp struct {
 }
 
 // planPresences loads every to-be-restored staff member's plannable same-day
-// rows that are currently marked absent (day-wide clear, #1840). Substitute rows
-// are left untouched — a substitute is taken out via its own absence, not a
-// presence; and a non-absent row is a no-op.
+// rows that are currently marked absent (day-wide clear, #1840). This clears BOTH
+// a wrongly-marked planned absence and a removed substitute's absence: "Entfernen"
+// marks a substitute absent day-wide, and the inverse must bring that substitute
+// back so an accidental removal is correctable without a DB edit. A non-absent row
+// is a no-op.
 func (rs *Resource) planPresences(ctx context.Context, presentStaffIDs []int64, date timezone.Date) ([]presenceOp, render.Renderer) {
 	plan := make([]presenceOp, 0)
 	for _, staffID := range presentStaffIDs {
@@ -519,8 +552,8 @@ func (rs *Resource) planPresences(ctx context.Context, presentStaffIDs []int64, 
 			return nil, common.ErrorInternalServerWrap("load present assignments failed", err)
 		}
 		for _, row := range rows {
-			if row.IsSubstitute || !row.IsAbsent {
-				continue // only a persisted planned absence can be cleared
+			if !row.IsAbsent {
+				continue // only a persisted absence (planned or substitute) can be cleared
 			}
 			instance, rndr := rs.loadPlannableInstance(ctx, row)
 			if rndr != nil {
@@ -571,10 +604,16 @@ func (rs *Resource) planSubstitutions(
 ) ([]subOp, map[int64]int, render.Renderer) {
 	plan := make([]subOp, 0)
 	newSubByInstance := make(map[int64]int)
-	// Guard: the data model allows only one substitute per instance. Track the
-	// substitute planned per instance so two substitutions in one form cannot
-	// both target the same block.
-	subByInstance := make(map[int64]int64)
+	// Track which NEW substitute rows are staged per instance in THIS request,
+	// keyed by (instance, substitute) — NOT just instance. A block with several
+	// absent planned positions legitimately gets several DISTINCT substitutes: the
+	// only DB constraint is UNIQUE(instance_id, staff_id), and the sequential
+	// /substitute path already produces exactly that. Keying on the instance alone
+	// rejected such a valid multi-position save with a 409, so the accepted result
+	// depended on how the edits were grouped (#1840). Only a REPEATED
+	// (instance, substitute) pairing must be collapsed, or Phase B would insert the
+	// same row twice and hit the unique constraint.
+	stagedSubs := make(map[int64]map[int64]bool)
 
 	for _, sub := range subs {
 		origRows, err := rs.TimetableData.GetInstanceStaffByStaffAndDate(ctx, sub.AbsentStaffID, date)
@@ -603,22 +642,26 @@ func (rs *Resource) planSubstitutions(
 					"substitute_conflict",
 				)
 			}
-			// The data model allows exactly one substitute row per instance, so a
-			// second substitution staged onto the same block is always rejected —
-			// even when it names the SAME substitute. Two absent colleagues on one
-			// block both classify "substituted" against the pre-write rows, and
-			// letting a repeated substitute id through would insert the same
-			// (instance_id, staff_id) twice in Phase B, turning a Phase-A validation
-			// into a unique-constraint 500 (#1840).
-			if _, taken := subByInstance[instance.ID]; taken {
-				return nil, nil, common.ErrorConflictWithCode(
-					fmt.Errorf("instance %d already has a substitute staged in this request", instance.ID),
-					"substitute_conflict",
-				)
-			}
+			// Two absent colleagues on one block both classify "substituted"
+			// against the pre-write rows. Distinct substitutes are fine (two new
+			// rows, two absent positions). But the SAME substitute staged twice on
+			// one block would insert the same (instance_id, staff_id) twice in
+			// Phase B — a unique-constraint 500. Collapse the repeat into the
+			// already-on-instance action (mark the absent's row, insert nothing),
+			// exactly how the sequential /substitute path classifies a repeat, so
+			// the single covering row still lands (#1840).
 			if action == substituteActionSubstituted {
-				subByInstance[instance.ID] = sub.SubstituteStaffID
-				newSubByInstance[instance.ID]++
+				staged := stagedSubs[instance.ID]
+				if staged == nil {
+					staged = make(map[int64]bool)
+					stagedSubs[instance.ID] = staged
+				}
+				if staged[sub.SubstituteStaffID] {
+					action = substituteActionAlreadyOnInstance
+				} else {
+					staged[sub.SubstituteStaffID] = true
+					newSubByInstance[instance.ID]++
+				}
 			}
 			plan = append(plan, subOp{
 				op:     plannedOp{instance: instance, origRow: orig, action: action},

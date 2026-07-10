@@ -390,6 +390,118 @@ func TestApplyDeviations_ClearsStaleAckOnOtherBlocks(t *testing.T) {
 	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
 }
 
+// A substitute removed on a prior save is marked absent day-wide; the endpoint
+// must be able to clear that absence (bring the substitute back) so an accidental
+// removal is correctable without a DB edit. The old planPresences skipped every
+// substitute row, so a removed substitute was stuck absent forever (#1840).
+func TestApplyDeviations_RestoreRemovedSubstitute(t *testing.T) {
+	s := buildDevSetup(t)
+	router := devRouter(s.ctx, s.res)
+	_, date := futureSubDate(1)
+
+	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Restore"})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+
+	// A absent; X is a substitute who was removed earlier → marked absent day-wide.
+	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	rowX := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true, IsAbsent: true})
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowX.ID) })
+
+	w := doDev(t, router, inst.ID, map[string]any{
+		"presences": []int64{s.staffX},
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	rowXAfter := readInstanceStaff(t, s.db, s.ctx, rowX.ID)
+	assert.False(t, rowXAfter.IsAbsent, "removed substitute must be restored (absence cleared)")
+	assert.True(t, rowXAfter.IsSubstitute, "row stays a substitute row")
+}
+
+// Two absent planned staff on one block, two DISTINCT replacements, one atomic
+// save. The only DB constraint is UNIQUE(instance_id, staff_id) and the
+// sequential /substitute path already produces exactly this, so the atomic path
+// must accept it too instead of 409-ing on the second position (#1840).
+func TestApplyDeviations_TwoDistinctSubstitutes_OneBlock(t *testing.T) {
+	s := buildDevSetup(t)
+	router := devRouter(s.ctx, s.res)
+	_, date := futureSubDate(1)
+
+	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "TwoSubs"})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+
+	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	rowB := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowB.ID) })
+
+	w := doDev(t, router, inst.ID, map[string]any{
+		"substitutions": []map[string]any{
+			{"absent_staff_id": s.staffA, "substitute_staff_id": s.staffX},
+			{"absent_staff_id": s.staffB, "substitute_staff_id": s.staffY},
+		},
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	var newSubIDs []int64
+	sawX, sawY := false, false
+	for _, r := range devInstanceStaff(t, s.db, s.ctx, inst.ID) {
+		if r.StaffID == s.staffX && r.IsSubstitute && !r.IsAbsent {
+			sawX = true
+			newSubIDs = append(newSubIDs, r.ID)
+		}
+		if r.StaffID == s.staffY && r.IsSubstitute && !r.IsAbsent {
+			sawY = true
+			newSubIDs = append(newSubIDs, r.ID)
+		}
+	}
+	assert.True(t, sawX, "X substitute row created for A")
+	assert.True(t, sawY, "Y substitute row created for B")
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
+}
+
+// The SAME substitute named for both absent positions on one block must NOT
+// double-insert (instance_id, X) and 500. The repeat collapses to a single
+// covering row while both absent positions are still flagged (#1840).
+func TestApplyDeviations_SameSubstituteForTwoAbsent_OneBlock(t *testing.T) {
+	s := buildDevSetup(t)
+	router := devRouter(s.ctx, s.res)
+	_, date := futureSubDate(1)
+
+	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "SameSub"})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+
+	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	rowB := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowB.ID) })
+
+	w := doDev(t, router, inst.ID, map[string]any{
+		"substitutions": []map[string]any{
+			{"absent_staff_id": s.staffA, "substitute_staff_id": s.staffX},
+			{"absent_staff_id": s.staffB, "substitute_staff_id": s.staffX},
+		},
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	xRows := 0
+	var newSubIDs []int64
+	sawAAbsent, sawBAbsent := false, false
+	for _, r := range devInstanceStaff(t, s.db, s.ctx, inst.ID) {
+		if r.StaffID == s.staffX {
+			xRows++
+			newSubIDs = append(newSubIDs, r.ID)
+		}
+		if r.StaffID == s.staffA && r.IsAbsent {
+			sawAAbsent = true
+		}
+		if r.StaffID == s.staffB && r.IsAbsent {
+			sawBAbsent = true
+		}
+	}
+	assert.Equal(t, 1, xRows, "the shared substitute must appear exactly once")
+	assert.True(t, sawAAbsent, "A marked absent")
+	assert.True(t, sawBAbsent, "B marked absent")
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
+}
+
 // ackRouter wires the standalone acknowledge-understaffed handler with the same
 // real TimetableData facade + tenant middleware as devRouter, so the date guard
 // (which loads the instance) is exercised end to end.

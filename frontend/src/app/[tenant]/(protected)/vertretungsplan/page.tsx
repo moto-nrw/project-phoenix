@@ -37,6 +37,7 @@ import {
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
+import { hasPermission } from "~/lib/auth-utils";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { createLogger } from "~/lib/logger";
 import {
@@ -84,11 +85,17 @@ function weekOffsetForISO(iso: string, todayIso: string): number {
 }
 
 function VertretungsplanContent() {
-  const { status } = useSession();
+  const { data: session, status } = useSession();
   const searchParams = useSearchParams();
   const toast = useToast();
   const tenantMutate = useTenantMutate();
   const { dayStartHour, dayEndHour } = useTimetableDayHours();
+
+  // The week/gaps list endpoints are `schedules:read`, so a view-only user can
+  // open this page, but every deviation save needs `schedules:manage`. Gate the
+  // slide-over's editing surface on it so read-only users never see controls that
+  // would 403 on save (#1840).
+  const canManageSchedules = hasPermission(session, "schedules:manage");
 
   const weekOffset = parseIntParam(searchParams.get("week"), 0);
   const selectedInstanceId = searchParams.get("instance");
@@ -509,6 +516,7 @@ function VertretungsplanContent() {
         staffNames={staffNames}
         dayAbsentStaffIds={dayAbsentStaffIds}
         staffLoadError={staffErrorMessage !== null}
+        canManage={canManageSchedules}
         onClose={() => handleSelectInstance(null)}
         onApply={handleApply}
       />

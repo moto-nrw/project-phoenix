@@ -62,6 +62,14 @@ interface SubstitutionSlideOverProps {
    * shows an explicit error instead of an empty list that reads like "no staff".
    */
   staffLoadError?: boolean;
+  /**
+   * True when the current user holds `schedules:manage`. The list endpoints
+   * feeding this page are `schedules:read`, so a view-only user can open the
+   * slide-over, but every deviation save requires `schedules:manage` and would
+   * 403. Without this the editing controls render for a read-only user and each
+   * save fails at the backend; gate the whole editing surface on it (#1840).
+   */
+  canManage: boolean;
   onClose: () => void;
   /**
    * Applies the ENTIRE form (absences, substitute, understaffed
@@ -97,6 +105,7 @@ export function SubstitutionSlideOver({
   staffNames,
   dayAbsentStaffIds,
   staffLoadError = false,
+  canManage,
   onClose,
   onApply,
 }: SubstitutionSlideOverProps) {
@@ -109,8 +118,13 @@ export function SubstitutionSlideOver({
   // compares against timezone.TodayDate() (always Berlin), so a browser in
   // another timezone must not decide "past" on its own local day (#1840).
   const isPast = (instance?.date ?? "") < berlinTodayISO();
+  // Editable only when the block is current/future AND the user may actually
+  // save. `schedules:read` opens this page but every save needs
+  // `schedules:manage`; without canManage the controls would render and every
+  // save would 403 (#1840).
   const canEdit =
     !isPast &&
+    canManage &&
     (instance?.status === "planned" || instance?.status === "active");
 
   const plannedStaff = (instance?.staff ?? []).filter((s) => !s.isSubstitute);
@@ -137,6 +151,12 @@ export function SubstitutionSlideOver({
   // new pick for the original absent person 409s (substitute_conflict) because
   // the old substitute is still non-absent.
   const [removedSubs, setRemovedSubs] = useState<Set<string>>(new Set());
+  // Substitutes who are already marked absent (removed on a prior save) and are
+  // being brought back in this save. Clearing the persisted absence restores them
+  // as the active substitute, so an accidental "Entfernen" is correctable without
+  // a DB edit (#1840). Inverse of removedSubs; the two never touch the same row
+  // (a row is either absent → restorable, or present → removable).
+  const [restoredSubs, setRestoredSubs] = useState<Set<string>>(new Set());
   const [saving, setSaving] = useState(false);
 
   const wasUnstaffed = instance?.understaffedAck === true;
@@ -161,11 +181,21 @@ export function SubstitutionSlideOver({
     setUnstaffed(instance.understaffedAck === true);
     setUnstaffedReason(instance.understaffedNote ?? "");
     setRemovedSubs(new Set());
+    setRestoredSubs(new Set());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance?.id]);
 
   function toggleRemoveSub(id: string) {
     setRemovedSubs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleRestoreSub(id: string) {
+    setRestoredSubs((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -189,12 +219,18 @@ export function SubstitutionSlideOver({
     );
   }
 
-  // A non-absent substitute that is not staged for removal is still covering the
-  // block: it counts toward coverage AND locks the replacement picker (one
-  // substitute per block).
-  const hasActiveSubstitute = substitutes.some(
-    (row) => !row.isAbsent && !removedSubs.has(row.staffId),
-  );
+  // A substitute is still covering the block when it is either non-absent and not
+  // staged for removal, or absent but staged for restore. Such a substitute
+  // counts toward coverage AND locks the replacement picker (one substitute per
+  // block).
+  const isSubstituteActive = (row: {
+    staffId: string;
+    isAbsent: boolean;
+  }): boolean =>
+    row.isAbsent
+      ? restoredSubs.has(row.staffId)
+      : !removedSubs.has(row.staffId);
+  const hasActiveSubstitute = substitutes.some(isSubstituteActive);
 
   // "Bewusst unbesetzt" (deliberately unstaffed) acknowledges that at least one
   // planned position is deliberately left unfilled (#1840). It is valid whenever
@@ -209,9 +245,7 @@ export function SubstitutionSlideOver({
     const p = people[row.staffId];
     return p ? !p.absent : !row.isAbsent;
   }).length;
-  const activeSubstitutes = substitutes.filter(
-    (row) => !row.isAbsent && !removedSubs.has(row.staffId),
-  ).length;
+  const activeSubstitutes = substitutes.filter(isSubstituteActive).length;
   const newReplacements = Object.values(people).filter(
     (p) => p.absent && p.substituteId !== "",
   ).length;
@@ -232,6 +266,7 @@ export function SubstitutionSlideOver({
     unstaffed !== wasUnstaffed ||
     noteEdited ||
     removedSubs.size > 0 ||
+    restoredSubs.size > 0 ||
     Object.values(people).some(
       (p) =>
         (p.absent && !p.wasAbsent) ||
@@ -273,6 +308,11 @@ export function SubstitutionSlideOver({
       // the replacement below no longer conflicts with the old substitute.
       for (const staffId of removedSubs) {
         absences.push({ staffId });
+      }
+      // Restored substitutes were absent (removed on a prior save) and are brought
+      // back by clearing their day-wide absence — the inverse of removal (#1840).
+      for (const staffId of restoredSubs) {
+        presences.push(staffId);
       }
       for (const [staffId, p] of Object.entries(people)) {
         const reason = p.reason.trim() || undefined;
@@ -561,9 +601,11 @@ export function SubstitutionSlideOver({
                   <ul className="space-y-1">
                     {substitutes.map((row) => {
                       const removed = removedSubs.has(row.staffId);
-                      // An absent substitute (marked unavailable day-wide) is no
-                      // longer covering — never present them as active "Ersatz".
-                      const inactive = row.isAbsent || removed;
+                      const restored = restoredSubs.has(row.staffId);
+                      // A substitute is inactive when marked absent (and not being
+                      // restored) or staged for removal. A persisted-absent
+                      // substitute the admin restores reads as active again (#1840).
+                      const inactive = (row.isAbsent && !restored) || removed;
                       return (
                         <li
                           key={row.staffId}
@@ -581,7 +623,7 @@ export function SubstitutionSlideOver({
                             {staffLabel(staffNames, row.staffId)}
                           </span>
                           <div className="flex shrink-0 items-center gap-2">
-                            {row.isAbsent ? (
+                            {row.isAbsent && !restored ? (
                               <span className="rounded-full bg-[#FF3130]/10 px-2 py-0.5 text-[10px] font-semibold text-[#CC2626]">
                                 Abwesend
                               </span>
@@ -589,33 +631,58 @@ export function SubstitutionSlideOver({
                               <span className="rounded-full bg-gray-200 px-2 py-0.5 text-[10px] font-semibold text-gray-500">
                                 Wird entfernt
                               </span>
+                            ) : restored ? (
+                              <span className="rounded-full bg-[#83CD2D]/20 px-2 py-0.5 text-[10px] font-semibold text-[#5A8E1F]">
+                                Wird wiederhergestellt
+                              </span>
                             ) : (
                               <span className="rounded-full bg-[#83CD2D]/20 px-2 py-0.5 text-[10px] font-semibold text-[#5A8E1F]">
                                 Ersatz
                               </span>
                             )}
-                            {/* Only a non-absent substitute can be removed here;
-                                an already-absent one is out of action already. */}
-                            {canEdit && !row.isAbsent && (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                size="compact"
-                                onClick={() => toggleRemoveSub(row.staffId)}
-                              >
-                                {removed ? (
-                                  <>
-                                    <RotateCcw className="mr-1 h-3.5 w-3.5" />
-                                    Rückgängig
-                                  </>
-                                ) : (
-                                  <>
-                                    <UserMinus className="mr-1 h-3.5 w-3.5" />
-                                    Entfernen
-                                  </>
-                                )}
-                              </Button>
-                            )}
+                            {canEdit &&
+                              (row.isAbsent ? (
+                                // A persisted-absent substitute (removed on a
+                                // prior save) can be brought back so an accidental
+                                // removal is correctable without a DB edit (#1840).
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="compact"
+                                  onClick={() => toggleRestoreSub(row.staffId)}
+                                >
+                                  {restored ? (
+                                    <>
+                                      <UserMinus className="mr-1 h-3.5 w-3.5" />
+                                      Rückgängig
+                                    </>
+                                  ) : (
+                                    <>
+                                      <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                                      Anwesend melden
+                                    </>
+                                  )}
+                                </Button>
+                              ) : (
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="compact"
+                                  onClick={() => toggleRemoveSub(row.staffId)}
+                                >
+                                  {removed ? (
+                                    <>
+                                      <RotateCcw className="mr-1 h-3.5 w-3.5" />
+                                      Rückgängig
+                                    </>
+                                  ) : (
+                                    <>
+                                      <UserMinus className="mr-1 h-3.5 w-3.5" />
+                                      Entfernen
+                                    </>
+                                  )}
+                                </Button>
+                              ))}
                           </div>
                         </li>
                       );
@@ -626,6 +693,12 @@ export function SubstitutionSlideOver({
                       „Entfernen“ meldet die Vertretung für den ganzen Tag
                       abwesend und gibt den Block für eine andere Ersatzperson
                       frei.
+                    </p>
+                  )}
+                  {canEdit && substitutes.some((row) => row.isAbsent) && (
+                    <p className="text-[11px] leading-5 text-gray-400">
+                      „Anwesend melden“ macht eine entfernte Vertretung wieder
+                      verfügbar.
                     </p>
                   )}
                 </div>
@@ -725,6 +798,19 @@ export function SubstitutionSlideOver({
                     <p>Grund: {instance.cancelReason}</p>
                   )}
                 </div>
+              ) : !canManage &&
+                !isPast &&
+                (instance.status === "planned" ||
+                  instance.status === "active") ? (
+                // The block is editable in principle, but the user only holds
+                // read access to the plan — surface that instead of the
+                // "past/completed" message, which would be misleading (#1840).
+                <p
+                  className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
+                >
+                  Sie haben nur Leserechte für den Vertretungsplan. Änderungen
+                  können nur Personen mit Verwaltungsrechten vornehmen.
+                </p>
               ) : (
                 <p
                   className={`${timetableMutedSurface} p-3 text-sm text-gray-500`}
