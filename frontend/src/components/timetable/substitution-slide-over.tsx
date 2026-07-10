@@ -48,6 +48,12 @@ interface SubstitutionSlideOverProps {
   /** Every staff member in the tenant, the substitute picker source. */
   staffOptions: readonly StaffOption[];
   staffNames: Map<string, string>;
+  /**
+   * Staff ids already marked absent somewhere on this instance's date. They are
+   * out of action for the whole day (absence is day-wide) and must not be
+   * offered as substitutes — the backend rejects them too (#1840).
+   */
+  dayAbsentStaffIds: ReadonlySet<string>;
   onClose: () => void;
   onMarkAbsent: (
     absentStaffId: string,
@@ -87,6 +93,7 @@ export function SubstitutionSlideOver({
   instance,
   staffOptions,
   staffNames,
+  dayAbsentStaffIds,
   onClose,
   onMarkAbsent,
   onSubstitute,
@@ -100,7 +107,9 @@ export function SubstitutionSlideOver({
   const substitutes = (instance?.staff ?? []).filter((s) => s.isSubstitute);
   const assignedIds = new Set((instance?.staff ?? []).map((s) => s.staffId));
   const substituteOptions = staffOptions
-    .filter((s) => !assignedIds.has(s.id))
+    // Exclude staff already on this block and anyone marked absent elsewhere
+    // that day — a day-absent person cannot cover a shift (#1840).
+    .filter((s) => !assignedIds.has(s.id) && !dayAbsentStaffIds.has(s.id))
     .map((s) => ({ value: s.id, label: s.name }));
 
   const [people, setPeople] = useState<Record<string, PersonForm>>({});
@@ -138,26 +147,31 @@ export function SubstitutionSlideOver({
     setPeople((prev) => ({ ...prev, [id]: { ...prev[id]!, ...patch } }));
   }
 
-  // A substitute may cover only one absence per block. Exclude ids already
-  // chosen in another row so the same person can't be picked twice — the
-  // second POST would hit UNIQUE(instance_id, staff_id) and 500 after the
-  // first row already committed, leaving a half-saved form.
-  function substituteOptionsFor(rowStaffId: string) {
-    const takenByOthers = new Set(
-      Object.entries(people)
-        .filter(([id, p]) => id !== rowStaffId && p.absent && p.substituteId)
-        .map(([, p]) => p.substituteId),
+  // One Vertretung per block. The backend has no substitute→absence link and so
+  // safely allows only a single substitute per instance; classifySubstitute
+  // 409s a second one after the first already committed, leaving a half-saved
+  // form. We therefore let at most one absent person name a replacement here —
+  // the others stay absent-only (their position is left open). A block is
+  // "covered" by that one replacement.
+  function substituteChosenElsewhere(rowStaffId: string): boolean {
+    return Object.entries(people).some(
+      ([id, p]) => id !== rowStaffId && p.absent && p.substituteId !== "",
     );
-    return substituteOptions.filter((o) => !takenByOthers.has(o.value));
   }
 
-  // "Bewusst unbesetzt" (deliberately unstaffed) and assigning a substitute are
-  // contradictory — the block is either covered or intentionally not. The
-  // backend rejects an acknowledgement while non-absent staff remain, so keep
-  // the two mutually exclusive in the UI too.
-  const anySubstituteSelected = Object.values(people).some(
-    (p) => p.absent && p.substituteId !== "",
-  );
+  // "Bewusst unbesetzt" (deliberately unstaffed) is only valid when nobody will
+  // be covering the block after this form is applied. The backend rejects the
+  // acknowledgement while any non-absent staff remain (ErrUnderstaffedAckStill
+  // Staffed), so the derived flag below must account for ALL staffing that
+  // survives the save — currently-present planned people, existing non-absent
+  // substitutes, and any replacement newly selected here — not just new picks.
+  const anyStaffRemaining =
+    plannedStaff.some((row) => {
+      const p = people[row.staffId];
+      return p ? !p.absent : !row.isAbsent;
+    }) ||
+    substitutes.some((row) => !row.isAbsent) ||
+    Object.values(people).some((p) => p.absent && p.substituteId !== "");
 
   // The understaffed reason is editable even when the ack flag itself doesn't
   // change, so an edit to an already-acknowledged block's note must count as a
@@ -271,7 +285,16 @@ export function SubstitutionSlideOver({
                     const p = people[row.staffId];
                     if (!p) return null;
                     const name = staffLabel(staffNames, row.staffId);
-                    const rowSubOptions = substituteOptionsFor(row.staffId);
+                    // Option A: only one Vertretung per block. Once another
+                    // absent person has a replacement, this row's picker is
+                    // locked so the save never sends a conflicting second one.
+                    const otherHasSubstitute = substituteChosenElsewhere(
+                      row.staffId,
+                    );
+                    const substituteDisabled =
+                      unstaffed ||
+                      otherHasSubstitute ||
+                      substituteOptions.length === 0;
                     return (
                       <li
                         key={row.staffId}
@@ -352,12 +375,10 @@ export function SubstitutionSlideOver({
                               {canEdit ? (
                                 <CustomSelect
                                   value={p.substituteId}
-                                  options={rowSubOptions}
+                                  options={substituteOptions}
                                   ariaLabel={`Vertretung für ${name}`}
                                   placeholder="Ersatzperson wählen…"
-                                  disabled={
-                                    unstaffed || rowSubOptions.length === 0
-                                  }
+                                  disabled={substituteDisabled}
                                   onChange={(value) =>
                                     updatePerson(row.staffId, {
                                       substituteId: value,
@@ -367,12 +388,17 @@ export function SubstitutionSlideOver({
                               ) : (
                                 <span className="text-sm text-gray-500">—</span>
                               )}
-                              {unstaffed && (
+                              {unstaffed ? (
                                 <p className="mt-1 text-[11px] text-gray-400">
                                   Keine Vertretung möglich, solange der Block
                                   als bewusst unbesetzt markiert ist.
                                 </p>
-                              )}
+                              ) : otherHasSubstitute && !p.substituteId ? (
+                                <p className="mt-1 text-[11px] text-gray-400">
+                                  Pro Block ist eine Vertretung möglich. Diese
+                                  Position bleibt offen.
+                                </p>
+                              ) : null}
                             </div>
 
                             {p.wasAbsent ? (
@@ -461,7 +487,7 @@ export function SubstitutionSlideOver({
                     <Checkbox
                       id="vp-unstaffed"
                       checked={unstaffed}
-                      disabled={cancel || anySubstituteSelected}
+                      disabled={cancel || anyStaffRemaining}
                       onChange={(e) => setUnstaffed(e.target.checked)}
                     />
                     <span className="text-sm text-gray-800">
@@ -469,10 +495,10 @@ export function SubstitutionSlideOver({
                       <span className="block text-xs text-gray-500">
                         Läuft absichtlich ohne Personal und zählt nicht als
                         offene Lücke.
-                        {anySubstituteSelected && (
+                        {anyStaffRemaining && (
                           <span className="mt-0.5 block text-[#CC2626]">
-                            Nicht möglich, solange eine Vertretung ausgewählt
-                            ist.
+                            Nur möglich, wenn alle geplanten Personen abwesend
+                            und keine Vertretung eingetragen ist.
                           </span>
                         )}
                       </span>

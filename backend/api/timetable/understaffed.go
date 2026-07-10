@@ -13,15 +13,18 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 )
 
 // understaffedAckRequest is the POST body shape. Note is trimmed to the same
 // reason ceiling as activity_exceptions so the two "why" surfaces stay
-// consistent.
+// consistent. Ack is a pointer so an omitted field is distinguishable from an
+// explicit false: a malformed body such as {} must be rejected, not silently
+// treated as "clear the acknowledgement".
 type understaffedAckRequest struct {
-	Ack  bool    `json:"ack"`
+	Ack  *bool   `json:"ack"`
 	Note *string `json:"note,omitempty"`
 }
 
@@ -55,18 +58,26 @@ func (rs *Resource) acknowledgeUnderstaffed(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid JSON body")))
 		return
 	}
+	// `ack` is required: an omitted field ({} or a body missing the key) must not
+	// silently clear an existing acknowledgement and note.
+	if req.Ack == nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'ack' is required")))
+		return
+	}
 	// Normalize an empty note to nil so we never persist a blank reason, and
-	// reject an over-long one instead of silently truncating.
+	// reject an over-long one instead of silently truncating. The ceiling counts
+	// runes, not bytes, so it matches the frontend's character-based maxLength and
+	// the rune-based trimReason ceiling on the substitute path.
 	if req.Note != nil {
 		if *req.Note == "" {
 			req.Note = nil
-		} else if len(*req.Note) > understaffedAckNoteMaxLength {
+		} else if utf8.RuneCountInString(*req.Note) > understaffedAckNoteMaxLength {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("note is too long")))
 			return
 		}
 	}
 
-	instance, err := rs.InstanceService.SetUnderstaffedAck(r.Context(), id, req.Ack, req.Note)
+	instance, err := rs.InstanceService.SetUnderstaffedAck(r.Context(), id, *req.Ack, req.Note)
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return

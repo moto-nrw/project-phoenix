@@ -179,6 +179,26 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// --- Reject a substitute who is themselves absent this day ------------
+	// Marking a staff member absent is day-wide (every same-day row flips
+	// is_absent=true), so a substitute with any absent row that day is out of
+	// action and cannot cover anyone — assigning them would create a non-absent
+	// substitute row that contradicts their own absent rows, and the overlap
+	// warning would never fire because absent rows are skipped. The frontend
+	// already hides day-absent staff from the picker; this is the backend guard.
+	subDayRows, err := rs.TimetableData.GetInstanceStaffByStaffAndDate(ctx, req.SubstituteStaffID, date)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load substitute assignments failed", err))
+		return
+	}
+	for _, row := range subDayRows {
+		if row.IsAbsent {
+			common.RenderError(w, r, common.ErrorInvalidRequest(
+				errors.New("substitute is marked absent on this date")))
+			return
+		}
+	}
+
 	// --- Load absent staff's same-day assignments -------------------------
 	origRows, err := rs.TimetableData.GetInstanceStaffByStaffAndDate(ctx, req.AbsentStaffID, date)
 	if err != nil {

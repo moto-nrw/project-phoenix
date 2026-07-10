@@ -622,13 +622,51 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	if err := s.replaceInstanceAssignments(ctx, instance.ID, req.StaffIDs, req.StudentIDs); err != nil {
 		return nil, err
 	}
+
+	// Vertretungsplan integrity (#1840): "deliberately unstaffed" only holds
+	// while nobody is covering the block. If this edit (re)introduced non-absent
+	// staff, a lingering acknowledgement would leave the card amber and claim the
+	// block is intentionally empty while /gaps excludes it because it is staffed.
+	// Clear the stale acknowledgement so the two views cannot contradict — the
+	// same invariant SetUnderstaffedAck enforces at set time.
+	if instance.UnderstaffedAck {
+		counts, err := s.deps.InstanceStaffRepo.CountNonAbsentByInstanceIDs(ctx, []int64{instance.ID})
+		if err != nil {
+			return nil, &ScheduleError{Op: "update instance: recount staff", Err: err}
+		}
+		if counts[instance.ID] > 0 {
+			instance.UnderstaffedAck = false
+			instance.UnderstaffedNote = nil
+			if err := s.updateLifecycleColumns(ctx, instance, "understaffed_ack", "understaffed_note"); err != nil {
+				return nil, &ScheduleError{Op: "update instance: clear stale ack", Err: err}
+			}
+		}
+	}
+
 	return instance, nil
 }
 
 // replaceInstanceAssignments wipes and re-creates the instance's staff and
 // student rows from the request lists. Extracted from UpdatePlanned to keep
 // its cognitive complexity in check.
+//
+// Vertretungsplan integrity (#1840): the Betreuungsplan editor sends every
+// staff row as a plain staff_id, so a blind wipe-and-recreate would discard the
+// per-row deviation state (is_substitute / is_absent / absence_reason) plus the
+// is_primary and room_id overrides — an unrelated title or room edit would turn
+// absent staff and their substitutes back into ordinary present staff. To avoid
+// that, we snapshot the existing rows and carry that metadata forward for any
+// staff member who is still present in the new list.
 func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instanceID int64, staffIDs, studentIDs []int64) error {
+	prior, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
+	if err != nil {
+		return &ScheduleError{Op: "update instance: load existing staff", Err: err}
+	}
+	priorByStaff := make(map[int64]*scheduleModel.InstanceStaff, len(prior))
+	for _, row := range prior {
+		priorByStaff[row.StaffID] = row
+	}
+
 	if err := s.deps.InstanceStaffRepo.DeleteByInstanceID(ctx, instanceID); err != nil {
 		return &ScheduleError{Op: "update instance: clear staff", Err: err}
 	}
@@ -638,6 +676,13 @@ func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instan
 	tenantID := tenant.FromContext(ctx)
 	for _, staffID := range sliceutil.UniquePositive(staffIDs) {
 		row := &scheduleModel.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
+		if p := priorByStaff[staffID]; p != nil {
+			row.IsPrimary = p.IsPrimary
+			row.IsSubstitute = p.IsSubstitute
+			row.IsAbsent = p.IsAbsent
+			row.AbsenceReason = p.AbsenceReason
+			row.RoomID = p.RoomID
+		}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
 			return &ScheduleError{Op: "update instance: assign staff", Err: err}

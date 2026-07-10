@@ -25,9 +25,9 @@ import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { useToast } from "~/contexts/ToastContext";
 import {
+  berlinTodayISO,
   formatDate,
   parseISODate,
-  todayISO,
   toISODate,
 } from "~/lib/date-helpers";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
@@ -69,7 +69,7 @@ function VertretungsplanContent() {
   // "Woche oder einen Tag" (issue #1840): the day view narrows the grid to a
   // single day; both still fetch the surrounding week.
   const view = searchParams.get("view") === "day" ? "day" : "week";
-  const dayISO = searchParams.get("day") ?? todayISO();
+  const dayISO = searchParams.get("day") ?? berlinTodayISO();
 
   const range = useMemo(
     () =>
@@ -106,7 +106,7 @@ function VertretungsplanContent() {
   const swrKey = `vertretungsplan-week-${fromISO}-${toISO}`;
   // Gap detection is forward-looking: the endpoint rejects a past `date`, so
   // clamp the window start to today and skip entirely for fully-past weeks.
-  const today = todayISO();
+  const today = berlinTodayISO();
   const gapsFromISO = fromISO < today ? today : fromISO;
   const loadGaps = toISO >= today;
   const gapsSWRKey = `vertretungsplan-gaps-${gapsFromISO}-${toISO}`;
@@ -146,6 +146,21 @@ function VertretungsplanContent() {
     () => instances.find((inst) => inst.id === selectedInstanceId) ?? null,
     [instances, selectedInstanceId],
   );
+  // Staff marked absent anywhere on the selected block's date. Absence is
+  // day-wide, so these people are out of action and must not be offered as
+  // substitutes in the slide-over picker (#1840).
+  const dayAbsentStaffIds = useMemo(() => {
+    const ids = new Set<string>();
+    const date = selectedInstance?.date;
+    if (!date) return ids;
+    for (const inst of instances) {
+      if (inst.date !== date) continue;
+      for (const row of inst.staff) {
+        if (row.isAbsent) ids.add(row.staffId);
+      }
+    }
+    return ids;
+  }, [instances, selectedInstance?.date]);
 
   const openGaps = gapsData?.gaps ?? [];
   const acknowledgedGaps = gapsData?.acknowledged ?? [];
@@ -315,13 +330,15 @@ function VertretungsplanContent() {
                 ? formatDate(dayISO, true)
                 : formatWeekLabel(range.from, range.to)}
             </div>
-            {(view === "day" ? dayISO !== todayISO() : weekOffset !== 0) && (
+            {(view === "day"
+              ? dayISO !== berlinTodayISO()
+              : weekOffset !== 0) && (
               <button
                 type="button"
                 className="text-[11px] font-medium text-[#5A8E1F] hover:underline"
                 onClick={() =>
                   view === "day"
-                    ? updateUrlParams({ day: todayISO() })
+                    ? updateUrlParams({ day: berlinTodayISO() })
                     : updateUrlParams({ week: "0" })
                 }
               >
@@ -355,7 +372,7 @@ function VertretungsplanContent() {
         instances={gridInstances}
         selectedId={selectedInstanceId}
         onInstanceClick={handleSelectInstance}
-        todayISO={todayISO()}
+        todayISO={berlinTodayISO()}
         dayStartHour={dayStartHour}
         dayEndHour={dayEndHour}
         hourHeightPx={HOUR_HEIGHT_PX}
@@ -378,6 +395,7 @@ function VertretungsplanContent() {
         instance={selectedInstance}
         staffOptions={staffOptions}
         staffNames={staffNames}
+        dayAbsentStaffIds={dayAbsentStaffIds}
         onClose={() => handleSelectInstance(null)}
         onMarkAbsent={handleMarkAbsent}
         onSubstitute={handleSubstitute}
