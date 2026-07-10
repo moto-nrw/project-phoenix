@@ -18,8 +18,9 @@
 //     and end open (valid_until = NULL); its roster rows start at the
 //     effective date.
 //
-// Transaction boundary is the caller's (TenantTxMiddleware) — any failure
-// rolls back the whole split.
+// The service reuses an ambient TenantTxMiddleware transaction or opens an
+// RLS-aware tenant transaction for direct callers. Any failure rolls back the
+// whole split.
 package schedule
 
 import (
@@ -29,6 +30,8 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -120,11 +123,14 @@ type TemplateSplitDependencies struct {
 	TimeframeRepo   scheduleModel.TimeframeRepository
 	Materialization MaterializationService
 	Logger          *slog.Logger
+	DB              *bun.DB
 }
 
 // TemplateSplitService performs recurring-template scope operations.
 type TemplateSplitService struct {
-	deps TemplateSplitDependencies
+	deps                 TemplateSplitDependencies
+	lockTenantRecurrence func(context.Context) error
+	runInTx              func(context.Context, func(context.Context) error) error
 }
 
 // NewTemplateSplitService constructs a TemplateSplitService. Panics if a
@@ -133,10 +139,20 @@ type TemplateSplitService struct {
 func NewTemplateSplitService(deps TemplateSplitDependencies) *TemplateSplitService {
 	if deps.GroupRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil ||
 		deps.SupervisorRepo == nil || deps.InstanceRepo == nil || deps.TimeframeRepo == nil ||
-		deps.Materialization == nil {
+		deps.Materialization == nil || deps.DB == nil {
 		panic("schedule.NewTemplateSplitService: required dependency is nil")
 	}
-	return &TemplateSplitService{deps: deps}
+	return &TemplateSplitService{
+		deps: deps,
+		lockTenantRecurrence: func(ctx context.Context) error {
+			return lockTenantRecurrenceWrites(ctx, deps.DB)
+		},
+		runInTx: func(ctx context.Context, fn func(context.Context) error) error {
+			return tenant.WithTenantTx(ctx, deps.DB, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+				return fn(txCtx)
+			})
+		},
+	}
 }
 
 func (s *TemplateSplitService) getLogger() *slog.Logger {
@@ -146,8 +162,8 @@ func (s *TemplateSplitService) getLogger() *slog.Logger {
 // Split caps the old template at in.EffectiveDate (exclusive), creates a
 // successor template from the updated fields, deletes the old template's
 // planned future instances and optionally re-materializes the window.
-// The caller is expected to have established tenant context and a
-// transaction.
+// The service reuses an ambient request transaction or creates one when called
+// directly, so the recurrence lock covers the complete operation.
 func (s *TemplateSplitService) Split(ctx context.Context, in TemplateSplitInput) (*TemplateSplitResult, error) {
 	if err := validateSplitInput(in); err != nil {
 		return nil, err
@@ -156,15 +172,41 @@ func (s *TemplateSplitService) Split(ctx context.Context, in TemplateSplitInput)
 	if tenantID <= 0 {
 		return nil, &ScheduleError{Op: "split template", Err: errors.New("no tenant in context")}
 	}
+	if _, ok := modelBase.TxFromContext(ctx); !ok && s.runInTx != nil {
+		var result *TemplateSplitResult
+		err := s.runInTx(ctx, func(txCtx context.Context) error {
+			var err error
+			result, err = s.Split(txCtx, in)
+			return err
+		})
+		return result, err
+	}
+	if s.lockTenantRecurrence == nil {
+		return nil, &ScheduleError{Op: "split template: lock recurrence", Err: errors.New("template recurrence lock is not configured")}
+	}
+	if err := s.lockTenantRecurrence(ctx); err != nil {
+		return nil, &ScheduleError{Op: "split template: lock recurrence", Err: err}
+	}
 
 	old, err := s.loadTemplate(ctx, in.TemplateID)
 	if err != nil {
 		return nil, err
 	}
+	effectiveDate, sourceValidUntil, err := s.normalizeEffectiveDateInSegment(ctx, old.ID, in.EffectiveDate, "split template", false)
+	if err != nil {
+		return nil, err
+	}
+	if sourceValidUntil != nil {
+		return nil, fmt.Errorf(
+			"%w: bounded template segments cannot be split again",
+			ErrSplitInvalidInput,
+		)
+	}
+	in.EffectiveDate = effectiveDate
 
 	// Read the previously-active roster BEFORE capping — after the cap the
 	// "active" predicate (valid_until IS NULL) matches nothing.
-	activeEnrollments, activeSupervisors, err := s.loadActiveRoster(ctx, old.ID)
+	activeEnrollments, activeSupervisors, err := s.loadSegmentRosterCandidates(ctx, old.ID, in.EffectiveDate, sourceValidUntil)
 	if err != nil {
 		return nil, err
 	}
@@ -180,6 +222,12 @@ func (s *TemplateSplitService) Split(ctx context.Context, in TemplateSplitInput)
 	if _, err := s.deps.SupervisorRepo.CapActiveByGroup(ctx, old.ID, in.EffectiveDate); err != nil {
 		return nil, &ScheduleError{Op: "split template: cap supervisors", Err: err}
 	}
+	if _, err := s.capBoundedSegmentEnrollments(ctx, activeEnrollments, sourceValidUntil, in.EffectiveDate); err != nil {
+		return nil, err
+	}
+	if _, err := s.capBoundedSegmentSupervisors(ctx, activeSupervisors, sourceValidUntil, in.EffectiveDate); err != nil {
+		return nil, err
+	}
 
 	timeframeID, err := FindOrCreateTimeframe(ctx, s.deps.TimeframeRepo, in.StartTime, in.EndTime, in.Name)
 	if err != nil {
@@ -190,14 +238,14 @@ func (s *TemplateSplitService) Split(ctx context.Context, in TemplateSplitInput)
 	if err != nil {
 		return nil, err
 	}
-	scheduleIDs, err := s.createSuccessorSchedules(ctx, newGroup.ID, timeframeID, in, tenantID)
+	scheduleIDs, err := s.createSuccessorSchedules(ctx, newGroup.ID, timeframeID, in, tenantID, sourceValidUntil)
 	if err != nil {
 		return nil, err
 	}
-	if err := s.createStudentRoster(ctx, newGroup.ID, in, activeEnrollments, tenantID); err != nil {
+	if err := s.createStudentRoster(ctx, newGroup.ID, in, activeEnrollments, tenantID, sourceValidUntil); err != nil {
 		return nil, err
 	}
-	if err := s.createStaffRoster(ctx, newGroup.ID, in, activeSupervisors, tenantID); err != nil {
+	if err := s.createStaffRoster(ctx, newGroup.ID, in, activeSupervisors, tenantID, sourceValidUntil); err != nil {
 		return nil, err
 	}
 
@@ -249,8 +297,32 @@ func (s *TemplateSplitService) EndFromDate(ctx context.Context, in TemplateEndIn
 	if tenantID <= 0 {
 		return nil, &ScheduleError{Op: "end template", Err: errors.New("no tenant in context")}
 	}
+	if _, ok := modelBase.TxFromContext(ctx); !ok && s.runInTx != nil {
+		var result *TemplateEndResult
+		err := s.runInTx(ctx, func(txCtx context.Context) error {
+			var err error
+			result, err = s.EndFromDate(txCtx, in)
+			return err
+		})
+		return result, err
+	}
+	if s.lockTenantRecurrence == nil {
+		return nil, &ScheduleError{Op: "end template: lock recurrence", Err: errors.New("template recurrence lock is not configured")}
+	}
+	if err := s.lockTenantRecurrence(ctx); err != nil {
+		return nil, &ScheduleError{Op: "end template: lock recurrence", Err: err}
+	}
 
 	old, err := s.loadTemplate(ctx, in.TemplateID)
+	if err != nil {
+		return nil, err
+	}
+	effectiveDate, sourceValidUntil, err := s.normalizeEffectiveDateInSegment(ctx, old.ID, in.EffectiveDate, "end template", true)
+	if err != nil {
+		return nil, err
+	}
+	in.EffectiveDate = effectiveDate
+	segmentEnrollments, segmentSupervisors, err := s.loadSegmentRosterCandidates(ctx, old.ID, in.EffectiveDate, sourceValidUntil)
 	if err != nil {
 		return nil, err
 	}
@@ -267,6 +339,16 @@ func (s *TemplateSplitService) EndFromDate(ctx context.Context, in TemplateEndIn
 	if err != nil {
 		return nil, &ScheduleError{Op: "end template: cap supervisors", Err: err}
 	}
+	cappedBoundedEnrollments, err := s.capBoundedSegmentEnrollments(ctx, segmentEnrollments, sourceValidUntil, in.EffectiveDate)
+	if err != nil {
+		return nil, err
+	}
+	cappedEnrollments += cappedBoundedEnrollments
+	cappedBoundedSupervisors, err := s.capBoundedSegmentSupervisors(ctx, segmentSupervisors, sourceValidUntil, in.EffectiveDate)
+	if err != nil {
+		return nil, err
+	}
+	cappedSupervisors += cappedBoundedSupervisors
 
 	templateID := old.ID
 	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, in.EffectiveDate, nil, &templateID)
@@ -413,15 +495,71 @@ func (s *TemplateSplitService) loadTemplate(ctx context.Context, id int64) (*act
 	return group, nil
 }
 
-// loadActiveRoster returns the old template's still-active enrollment and
-// supervisor rows (valid_until IS NULL). Since migration 1.15.52 the partial
+// normalizeEffectiveDateInSegment enforces the editable segment interval
+// [valid_from, valid_until). The check runs after acquiring the tenant
+// recurrence gate, so a concurrent PUT/split/end cannot change the envelope
+// between this read and the following cap. Split rejects a date before the
+// segment start. End clamps it to valid_from, allowing the UI's default
+// "today" to delete an entire future successor without inverting its rows.
+// Both operations reject dates at or after the exclusive end because those
+// dates do not belong to this segment and could create a second successor at
+// an existing split boundary.
+func (s *TemplateSplitService) normalizeEffectiveDateInSegment(
+	ctx context.Context,
+	templateID int64,
+	effectiveDate timezone.Date,
+	op string,
+	clampBeforeStart bool,
+) (timezone.Date, *timezone.Date, error) {
+	schedules, err := s.deps.ScheduleRepo.FindByGroupID(ctx, templateID)
+	if err != nil {
+		return timezone.Date{}, nil, &ScheduleError{Op: op + ": load schedule envelope", Err: err}
+	}
+	validFrom, validUntil, err := commonScheduleValidityEnvelope(schedules)
+	if err != nil {
+		return timezone.Date{}, nil, &ScheduleError{Op: op + ": inspect schedule envelope", Err: err}
+	}
+	if validFrom != nil && effectiveDate.Before(*validFrom) {
+		if clampBeforeStart {
+			effectiveDate = *validFrom
+		} else {
+			return timezone.Date{}, nil, fmt.Errorf(
+				"%w: effective_date %s is before segment valid_from %s",
+				ErrSplitInvalidInput,
+				effectiveDate.String(),
+				validFrom.String(),
+			)
+		}
+	}
+	if validUntil != nil && !effectiveDate.Before(*validUntil) {
+		return timezone.Date{}, nil, fmt.Errorf(
+			"%w: effective_date %s must be before segment valid_until %s",
+			ErrSplitInvalidInput,
+			effectiveDate.String(),
+			validUntil.String(),
+		)
+	}
+	return effectiveDate, cloneOptionalDate(validUntil), nil
+}
+
+// loadSegmentRosterCandidates returns editor-owned enrollment and supervisor
+// rows whose validity overlaps the segment tail. This includes future-starting
+// open rows (their start is preserved) and plain bounded rows whose end equals
+// the source segment end when a predecessor is split a second time. Sourced,
+// weekday-specific, and unrelated bounded windows stay with their owning
+// workflow. Since migration 1.15.52 the partial
 // unique indexes are period-scoped — (tenant, person, group,
 // COALESCE(calendar_period_id, 0)) WHERE valid_until IS NULL — so a person
 // can have SEVERAL active rows on the same group, one per calendar period.
 // Carry-over must therefore dedupe per person before stamping the successor's
 // calendar_period_id, or the insert violates the index (see
 // createStudentRoster / createStaffRoster).
-func (s *TemplateSplitService) loadActiveRoster(ctx context.Context, groupID int64) ([]*activitiesModel.StudentEnrollment, []*activitiesModel.SupervisorPlanned, error) {
+func (s *TemplateSplitService) loadSegmentRosterCandidates(
+	ctx context.Context,
+	groupID int64,
+	effectiveDate timezone.Date,
+	segmentValidUntil *timezone.Date,
+) ([]*activitiesModel.StudentEnrollment, []*activitiesModel.SupervisorPlanned, error) {
 	enrollments, err := s.deps.EnrollmentRepo.FindByGroupID(ctx, groupID)
 	if err != nil {
 		return nil, nil, &ScheduleError{Op: "split template: load enrollments", Err: err}
@@ -433,17 +571,89 @@ func (s *TemplateSplitService) loadActiveRoster(ctx context.Context, groupID int
 
 	activeEnrollments := make([]*activitiesModel.StudentEnrollment, 0, len(enrollments))
 	for _, e := range enrollments {
-		if e != nil && e.ValidUntil == nil {
+		if e != nil && validityWindowsOverlap(e.ValidFrom, e.ValidUntil, effectiveDate, segmentValidUntil) &&
+			(enrollmentIsProtected(e) || enrollmentBelongsToSegmentRoster(e, segmentValidUntil)) {
 			activeEnrollments = append(activeEnrollments, e)
 		}
 	}
 	activeSupervisors := make([]*activitiesModel.SupervisorPlanned, 0, len(supervisors))
 	for _, sp := range supervisors {
-		if sp != nil && sp.ValidUntil == nil {
+		if sp != nil && validityWindowsOverlap(sp.ValidFrom, sp.ValidUntil, effectiveDate, segmentValidUntil) &&
+			supervisorBelongsToSegmentRoster(sp, segmentValidUntil) {
 			activeSupervisors = append(activeSupervisors, sp)
 		}
 	}
 	return activeEnrollments, activeSupervisors, nil
+}
+
+func enrollmentBelongsToSegmentRoster(row *activitiesModel.StudentEnrollment, segmentValidUntil *timezone.Date) bool {
+	if enrollmentIsProtected(row) {
+		return false
+	}
+	if row.ValidUntil == nil {
+		return true
+	}
+	return optionalDatesEqual(row.ValidUntil, segmentValidUntil)
+}
+
+func enrollmentIsProtected(row *activitiesModel.StudentEnrollment) bool {
+	return row.EnrollmentRequestChildID != nil || len(row.SelectedWeekdays) > 0
+}
+
+func supervisorBelongsToSegmentRoster(row *activitiesModel.SupervisorPlanned, segmentValidUntil *timezone.Date) bool {
+	return row.ValidUntil == nil || optionalDatesEqual(row.ValidUntil, segmentValidUntil)
+}
+
+func (s *TemplateSplitService) capBoundedSegmentEnrollments(
+	ctx context.Context,
+	rows []*activitiesModel.StudentEnrollment,
+	segmentValidUntil *timezone.Date,
+	capAt timezone.Date,
+) (int64, error) {
+	if segmentValidUntil == nil {
+		return 0, nil
+	}
+	var changed int64
+	for _, row := range rows {
+		if enrollmentIsProtected(row) || row.ValidUntil == nil || !optionalDatesEqual(row.ValidUntil, segmentValidUntil) {
+			continue
+		}
+		if !row.ValidFrom.Before(capAt) {
+			if err := s.deps.EnrollmentRepo.Delete(ctx, row.ID); err != nil {
+				return changed, &ScheduleError{Op: "cap segment: delete future enrollment", Err: err}
+			}
+		} else if err := s.deps.EnrollmentRepo.SetValidUntilByID(ctx, row.ID, capAt); err != nil {
+			return changed, &ScheduleError{Op: "cap segment: close enrollment", Err: err}
+		}
+		changed++
+	}
+	return changed, nil
+}
+
+func (s *TemplateSplitService) capBoundedSegmentSupervisors(
+	ctx context.Context,
+	rows []*activitiesModel.SupervisorPlanned,
+	segmentValidUntil *timezone.Date,
+	capAt timezone.Date,
+) (int64, error) {
+	if segmentValidUntil == nil {
+		return 0, nil
+	}
+	var changed int64
+	for _, row := range rows {
+		if row.ValidUntil == nil || !optionalDatesEqual(row.ValidUntil, segmentValidUntil) {
+			continue
+		}
+		if !row.ValidFrom.Before(capAt) {
+			if err := s.deps.SupervisorRepo.Delete(ctx, row.ID); err != nil {
+				return changed, &ScheduleError{Op: "cap segment: delete future supervisor", Err: err}
+			}
+		} else if err := s.deps.SupervisorRepo.SetValidUntilByID(ctx, row.ID, capAt); err != nil {
+			return changed, &ScheduleError{Op: "cap segment: close supervisor", Err: err}
+		}
+		changed++
+	}
+	return changed, nil
 }
 
 // createSuccessorGroup copies the old template and applies the updated fields.
@@ -479,7 +689,13 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 // createSuccessorSchedules creates one schedule row per weekday, starting at
 // the effective date (valid_from inclusive) with an open end (valid_until
 // NULL).
-func (s *TemplateSplitService) createSuccessorSchedules(ctx context.Context, groupID, timeframeID int64, in TemplateSplitInput, tenantID int64) ([]int64, error) {
+func (s *TemplateSplitService) createSuccessorSchedules(
+	ctx context.Context,
+	groupID, timeframeID int64,
+	in TemplateSplitInput,
+	tenantID int64,
+	segmentValidUntil *timezone.Date,
+) ([]int64, error) {
 	weekPattern := 0
 	if in.WeekPattern != nil {
 		weekPattern = *in.WeekPattern
@@ -495,7 +711,7 @@ func (s *TemplateSplitService) createSuccessorSchedules(ctx context.Context, gro
 			WeekPattern:      weekPattern,
 			CalendarPeriodID: in.CalendarPeriodID,
 			ValidFrom:        &validFrom, // never materialize before the split point
-			ValidUntil:       nil,        // successor ends open-ended
+			ValidUntil:       cloneOptionalDate(segmentValidUntil),
 		}
 		sched.SetTenantID(tenantID)
 		if err := s.deps.ScheduleRepo.Create(ctx, sched); err != nil {
@@ -507,8 +723,11 @@ func (s *TemplateSplitService) createSuccessorSchedules(ctx context.Context, gro
 }
 
 // createStudentRoster writes the successor's enrollments. Explicit StudentIDs
-// win; nil carries over the previously-active roster (selected_weekdays
-// preserved). All new rows start at the effective date.
+// replace the editor-owned manual roster; sourced or weekday-specific rows are
+// carried independently because the editor cannot represent their provenance
+// or per-weekday selection. Nil carries the manual roster too. Explicit rows
+// start at the effective date; carried rows retain a later valid_from. Every
+// row is clipped to the source segment's upper bound.
 //
 // The carry path dedupes per student: loadActiveRoster can return several
 // active rows per student (one per calendar period since migration 1.15.52),
@@ -516,16 +735,46 @@ func (s *TemplateSplitService) createSuccessorSchedules(ctx context.Context, gro
 // idx_student_enrollments_active. The row matching in.CalendarPeriodID is
 // preferred; selected_weekdays are unioned across the student's rows (an
 // empty list means "all weekdays" and wins the union).
-func (s *TemplateSplitService) createStudentRoster(ctx context.Context, groupID int64, in TemplateSplitInput, carried []*activitiesModel.StudentEnrollment, tenantID int64) error {
-	rows := make([]*activitiesModel.StudentEnrollment, 0, len(carried))
+func (s *TemplateSplitService) createStudentRoster(
+	ctx context.Context,
+	groupID int64,
+	in TemplateSplitInput,
+	carried []*activitiesModel.StudentEnrollment,
+	tenantID int64,
+	segmentValidUntil *timezone.Date,
+) error {
+	manualCarried := make([]*activitiesModel.StudentEnrollment, 0, len(carried))
+	protectedCarried := make([]*activitiesModel.StudentEnrollment, 0, len(carried))
+	for _, row := range carried {
+		if enrollmentIsProtected(row) {
+			protectedCarried = append(protectedCarried, row)
+		} else {
+			manualCarried = append(manualCarried, row)
+		}
+	}
+
+	// A protected row already carries the student's precise assignment. If
+	// the frontend also submitted that student's id, do not add a broad manual
+	// row for the same successor period and erase the weekday/window meaning.
+	protectedForTargetPeriod := make(map[int64]struct{})
+	for _, row := range protectedCarried {
+		if rosterPeriodApplies(row.CalendarPeriodID, in.CalendarPeriodID) {
+			protectedForTargetPeriod[row.StudentID] = struct{}{}
+		}
+	}
+
+	rows := make([]*activitiesModel.StudentEnrollment, 0, len(manualCarried))
 	if in.StudentIDs != nil {
 		for _, studentID := range sliceutil.UniquePositive(in.StudentIDs) {
+			if _, protected := protectedForTargetPeriod[studentID]; protected {
+				continue
+			}
 			rows = append(rows, &activitiesModel.StudentEnrollment{StudentID: studentID})
 		}
 	} else {
-		byStudent := make(map[int64][]*activitiesModel.StudentEnrollment, len(carried))
-		order := make([]int64, 0, len(carried))
-		for _, e := range carried {
+		byStudent := make(map[int64][]*activitiesModel.StudentEnrollment, len(manualCarried))
+		order := make([]int64, 0, len(manualCarried))
+		for _, e := range manualCarried {
 			if _, seen := byStudent[e.StudentID]; !seen {
 				order = append(order, e.StudentID)
 			}
@@ -536,17 +785,42 @@ func (s *TemplateSplitService) createStudentRoster(ctx context.Context, groupID 
 			preferred := preferCarriedRow(group, in.CalendarPeriodID, func(e *activitiesModel.StudentEnrollment) *int64 { return e.CalendarPeriodID })
 			rows = append(rows, &activitiesModel.StudentEnrollment{
 				StudentID:        studentID,
+				ValidFrom:        preferred.ValidFrom,
+				ValidUntil:       earliestOptionalDate(preferred.ValidUntil, segmentValidUntil),
 				SelectedWeekdays: unionSelectedWeekdays(group, preferred),
 			})
 		}
 	}
 	for _, row := range rows {
 		row.ActivityGroupID = groupID
-		row.ValidFrom = in.EffectiveDate
+		if row.ValidFrom.IsZero() || row.ValidFrom.Before(in.EffectiveDate) {
+			row.ValidFrom = in.EffectiveDate
+		}
+		row.ValidUntil = earliestOptionalDate(row.ValidUntil, segmentValidUntil)
 		row.CalendarPeriodID = in.CalendarPeriodID
 		row.SetTenantID(tenantID)
 		if err := s.deps.EnrollmentRepo.Create(ctx, row); err != nil {
 			return &ScheduleError{Op: "split template: create enrollment", Err: err}
+		}
+	}
+
+	for _, source := range protectedCarried {
+		validFrom := source.ValidFrom
+		if validFrom.Before(in.EffectiveDate) {
+			validFrom = in.EffectiveDate
+		}
+		row := &activitiesModel.StudentEnrollment{
+			StudentID:                source.StudentID,
+			ActivityGroupID:          groupID,
+			ValidFrom:                validFrom,
+			ValidUntil:               earliestOptionalDate(source.ValidUntil, segmentValidUntil),
+			CalendarPeriodID:         cloneOptionalInt64(source.CalendarPeriodID),
+			EnrollmentRequestChildID: cloneOptionalInt64(source.EnrollmentRequestChildID),
+			SelectedWeekdays:         append([]int(nil), source.SelectedWeekdays...),
+		}
+		row.SetTenantID(tenantID)
+		if err := s.deps.EnrollmentRepo.Create(ctx, row); err != nil {
+			return &ScheduleError{Op: "split template: carry protected enrollment", Err: err}
 		}
 	}
 	return nil
@@ -560,7 +834,14 @@ func (s *TemplateSplitService) createStudentRoster(ctx context.Context, groupID 
 // active rows per staff (one per calendar period, migration 1.15.52) collapse
 // to one successor row, preferring the row matching in.CalendarPeriodID. The
 // preferred row's is_primary flag is kept.
-func (s *TemplateSplitService) createStaffRoster(ctx context.Context, groupID int64, in TemplateSplitInput, carried []*activitiesModel.SupervisorPlanned, tenantID int64) error {
+func (s *TemplateSplitService) createStaffRoster(
+	ctx context.Context,
+	groupID int64,
+	in TemplateSplitInput,
+	carried []*activitiesModel.SupervisorPlanned,
+	tenantID int64,
+	segmentValidUntil *timezone.Date,
+) error {
 	rows := make([]*activitiesModel.SupervisorPlanned, 0, len(carried))
 	if in.StaffIDs != nil {
 		for _, staffID := range sliceutil.UniquePositive(in.StaffIDs) {
@@ -581,14 +862,19 @@ func (s *TemplateSplitService) createStaffRoster(ctx context.Context, groupID in
 		for _, staffID := range order {
 			preferred := preferCarriedRow(byStaff[staffID], in.CalendarPeriodID, func(sp *activitiesModel.SupervisorPlanned) *int64 { return sp.CalendarPeriodID })
 			rows = append(rows, &activitiesModel.SupervisorPlanned{
-				StaffID:   staffID,
-				IsPrimary: preferred.IsPrimary,
+				StaffID:    staffID,
+				IsPrimary:  preferred.IsPrimary,
+				ValidFrom:  preferred.ValidFrom,
+				ValidUntil: earliestOptionalDate(preferred.ValidUntil, segmentValidUntil),
 			})
 		}
 	}
 	for _, row := range rows {
 		row.GroupID = groupID
-		row.ValidFrom = in.EffectiveDate
+		if row.ValidFrom.IsZero() || row.ValidFrom.Before(in.EffectiveDate) {
+			row.ValidFrom = in.EffectiveDate
+		}
+		row.ValidUntil = earliestOptionalDate(row.ValidUntil, segmentValidUntil)
 		row.CalendarPeriodID = in.CalendarPeriodID
 		row.SetTenantID(tenantID)
 		if err := s.deps.SupervisorRepo.Create(ctx, row); err != nil {
@@ -611,6 +897,24 @@ func preferCarriedRow[T any](rows []T, targetPeriodID *int64, periodOf func(T) *
 		}
 	}
 	return rows[0]
+}
+
+func earliestOptionalDate(left, right *timezone.Date) *timezone.Date {
+	if left == nil {
+		return cloneOptionalDate(right)
+	}
+	if right == nil || left.Before(*right) {
+		return cloneOptionalDate(left)
+	}
+	return cloneOptionalDate(right)
+}
+
+func cloneOptionalInt64(value *int64) *int64 {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
 }
 
 // unionSelectedWeekdays merges selected_weekdays across one student's carried

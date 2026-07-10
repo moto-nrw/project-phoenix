@@ -700,7 +700,21 @@ func TestUpdateTemplatePeopleScopesReplacementToSelectedPeriod(t *testing.T) {
 // time only.
 func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	s := buildTemplateSetup(t, nil)
+	studentC := testpkg.CreateTestStudent(t, s.db, "Tpl", fmt.Sprintf("StudentC-%d", time.Now().UnixNano()), "3a")
+	staffC := testpkg.CreateTestStaff(t, s.db, "Tpl", fmt.Sprintf("StaffC-%d", time.Now().UnixNano()))
+	defer func() {
+		testpkg.CleanupTableRecords(t, s.db, "users.students", studentC.ID)
+		testpkg.CleanupTableRecords(t, s.db, "users.staff", staffC.ID)
+		testpkg.CleanupTableRecords(t, s.db, "users.persons", studentC.PersonID, staffC.PersonID)
+	}()
+	// Register this defer last so template roster rows are removed before the
+	// additional student/staff records above.
 	defer s.cleanupFn()
+
+	s.res.SettingsService = &configtest.Mock{
+		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
+		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
+	}
 	router := templateRouter(s.ctx, s.res)
 
 	// Two OVERLAPPING active periods (createTemplateTestPeriod uses the same
@@ -718,6 +732,17 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	wP := doTemplateJSON(t, router, http.MethodPost, "/templates", bodyP)
 	require.Equal(t, http.StatusCreated, wP.Code, "body=%s", wP.Body.String())
 	createdP := decodeTemplateData[createTemplateResponse](t, wP)
+	// Legacy templates can carry the period only on the group. The
+	// materializer falls back to that group pin when a schedule is NULL; the
+	// list filter must use the same precedence instead of treating it as
+	// globally visible.
+	_, err := s.db.NewUpdate().
+		Table("activities.schedules").
+		Set("calendar_period_id = NULL").
+		Where("tenant_id = ?", 1).
+		Where("activity_group_id = ?", createdP.TemplateID).
+		Exec(s.ctx)
+	require.NoError(t, err)
 
 	// Template 2: unscoped schedules (card visible under EVERY period filter)
 	// but a roster written for period P — the exact "0 Kinder" constellation.
@@ -729,12 +754,44 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	require.Equal(t, http.StatusCreated, wG.Code, "body=%s", wG.Body.String())
 	createdGlobal := decodeTemplateData[createTemplateResponse](t, wG)
 
-	for _, studentID := range []int64{s.studentA, s.studentB} {
+	// Template 3: one phase-bounded enrollment. Decision-approved care offers
+	// use a finite valid_until, so it is intentionally absent from the editor's
+	// open-row display roster but must still drive capacity while its window
+	// overlaps the selected period.
+	bodyBounded := createTemplateBody(s, "Tpl-Tolerant-Bounded")
+	bodyBounded["calendar_period_id"] = periodP.ID
+	bodyBounded["student_ids"] = []int64{}
+	bodyBounded["staff_ids"] = []int64{}
+	delete(bodyBounded, "primary_staff_id")
+	wBounded := doTemplateJSON(t, router, http.MethodPost, "/templates", bodyBounded)
+	require.Equal(t, http.StatusCreated, wBounded.Code, "body=%s", wBounded.Body.String())
+	createdBounded := decodeTemplateData[createTemplateResponse](t, wBounded)
+	boundedUntil := periodP.EndDate
+	boundedEnrollment := &activitiesModel.StudentEnrollment{
+		StudentID:        s.studentA,
+		ActivityGroupID:  createdBounded.TemplateID,
+		ValidFrom:        periodP.StartDate,
+		ValidUntil:       &boundedUntil,
+		CalendarPeriodID: &periodP.ID,
+	}
+	boundedEnrollment.SetTenantID(1)
+	require.NoError(t, s.res.TimetableData.CreateStudentEnrollment(s.ctx, boundedEnrollment))
+
+	for _, roster := range []struct {
+		studentID int64
+		periodID  *int64
+	}{
+		{studentID: s.studentA, periodID: &periodP.ID},
+		{studentID: s.studentB, periodID: &periodP.ID},
+		// Unscoped rows apply in every planning period and must therefore be
+		// included by the period-effective capacity aggregate as well.
+		{studentID: studentC.ID, periodID: nil},
+	} {
 		enrollment := &activitiesModel.StudentEnrollment{
-			StudentID:        studentID,
+			StudentID:        roster.studentID,
 			ActivityGroupID:  createdGlobal.TemplateID,
 			ValidFrom:        periodP.StartDate,
-			CalendarPeriodID: &periodP.ID,
+			CalendarPeriodID: roster.periodID,
 		}
 		enrollment.SetTenantID(1)
 		require.NoError(t, s.res.TimetableData.CreateStudentEnrollment(s.ctx, enrollment))
@@ -747,6 +804,31 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	}
 	supervisor.SetTenantID(1)
 	require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, supervisor))
+	// A bounded historical staff version overlaps P but must not be unioned
+	// into assigned capacity; only the matching open version counts.
+	boundedSupervisorUntil := periodP.EndDate
+	boundedSupervisor := &activitiesModel.SupervisorPlanned{
+		StaffID:          s.staffB,
+		GroupID:          createdGlobal.TemplateID,
+		ValidFrom:        periodP.StartDate,
+		ValidUntil:       &boundedSupervisorUntil,
+		CalendarPeriodID: &periodP.ID,
+	}
+	boundedSupervisor.SetTenantID(1)
+	require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, boundedSupervisor))
+	// Staff assigned only to overlapping period Q must stay visible in the
+	// period-tolerant roster, but must not make period P's 1/3 capacity look
+	// fully staffed.
+	for _, staffID := range []int64{s.staffB, staffC.ID} {
+		periodQSupervisor := &activitiesModel.SupervisorPlanned{
+			StaffID:          staffID,
+			GroupID:          createdGlobal.TemplateID,
+			ValidFrom:        periodQ.StartDate,
+			CalendarPeriodID: &periodQ.ID,
+		}
+		periodQSupervisor.SetTenantID(1)
+		require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, periodQSupervisor))
+	}
 
 	listFor := func(t *testing.T, periodID int64) map[int64]templateResponse {
 		t.Helper()
@@ -770,21 +852,49 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 
 		tplGlobal, ok := byID[createdGlobal.TemplateID]
 		require.True(t, ok, "unscoped template must appear under every period")
-		assert.Equal(t, 2, tplGlobal.EnrollmentCount)
-		assert.Equal(t, 1, tplGlobal.SupervisorCount)
+		assert.Equal(t, 3, tplGlobal.EnrollmentCount)
+		assert.Equal(t, 3, tplGlobal.SupervisorCount,
+			"display roster remains the union across periods")
+		assert.Equal(t, 3, tplGlobal.RequiredStaffCount)
+		assert.Equal(t, 1, tplGlobal.AssignedStaffCount,
+			"period Q staff must not inflate period P capacity")
+
+		tplBounded, ok := byID[createdBounded.TemplateID]
+		require.True(t, ok, "unscoped template with bounded roster must appear")
+		assert.Equal(t, 0, tplBounded.EnrollmentCount,
+			"bounded decision roster stays out of the open editor roster")
+		assert.Equal(t, 1, tplBounded.RequiredStaffCount,
+			"bounded enrollment overlapping P must still drive capacity")
+
+		getW := doTemplateJSON(t, router, http.MethodGet,
+			fmt.Sprintf("/templates/%d", createdBounded.TemplateID), nil)
+		require.Equal(t, http.StatusOK, getW.Code, "body=%s", getW.Body.String())
+		boundedDetail := decodeTemplateData[templateResponse](t, getW)
+		assert.Equal(t, 1, boundedDetail.RequiredStaffCount,
+			"single-template GET must use its unambiguous period pin")
 	})
 
 	t.Run("filter by the overlapping period Q shows the real headcount", func(t *testing.T) {
 		byID := listFor(t, periodQ.ID)
+		_, pVisible := byID[createdP.TemplateID]
+		assert.False(t, pVisible,
+			"an unpinned schedule must inherit its group-level P pin, not appear in Q")
 
 		// The card with unscoped schedules appears under Q — and must carry
 		// its P-scoped roster instead of "0 Kinder".
 		tplGlobal, ok := byID[createdGlobal.TemplateID]
 		require.True(t, ok, "unscoped template must appear under period Q")
-		assert.Equal(t, 2, tplGlobal.EnrollmentCount,
+		assert.Equal(t, 3, tplGlobal.EnrollmentCount,
 			"roster written for overlapping period P must still be counted (the 0-Kinder bug)")
-		assert.Equal(t, 1, tplGlobal.SupervisorCount)
-		assert.ElementsMatch(t, []int64{s.studentA, s.studentB}, tplGlobal.StudentIDs)
+		assert.Equal(t, 3, tplGlobal.SupervisorCount)
+		assert.ElementsMatch(t, []int64{s.studentA, s.studentB, studentC.ID}, tplGlobal.StudentIDs)
+		assert.Equal(t, 1, tplGlobal.RequiredStaffCount,
+			"only the unscoped child contributes to period Q capacity")
+		assert.Equal(t, 2, tplGlobal.AssignedStaffCount)
+
+		_, boundedVisible := byID[createdBounded.TemplateID]
+		assert.False(t, boundedVisible,
+			"P-pinned template must not appear under period Q")
 	})
 }
 

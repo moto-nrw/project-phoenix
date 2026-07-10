@@ -6,6 +6,7 @@ import { MonthPlannerGrid } from "./month-planner-grid";
 import { TemplateCard } from "./template-card";
 import { TemplateList } from "./template-list";
 import { TimetableAddMenu } from "./timetable-add-menu";
+import { TimetableRatioPill } from "./timetable-ratio-pill";
 import { TimetableToolbar } from "./timetable-toolbar";
 import { WeeklyCalendarGrid } from "./weekly-calendar-grid";
 import { YearPlannerGrid } from "./year-planner-grid";
@@ -240,6 +241,39 @@ describe("small timetable components", () => {
     expect(screen.getByText(/1 Kind/)).toBeInTheDocument();
   });
 
+  it("shows staffing capacity on template cards", () => {
+    render(
+      <TemplateCard
+        template={{
+          ...template,
+          requiredStaffCount: 3,
+          assignedStaffCount: 1,
+        }}
+        onEdit={vi.fn()}
+        onApply={vi.fn()}
+        onArchive={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("1/3")).toBeInTheDocument();
+    expect(screen.getByText("Besetzung:")).toHaveClass("sr-only");
+  });
+
+  it("gives compact ratio pills a screen-reader label", () => {
+    render(
+      <TimetableRatioPill
+        icon={<span />}
+        label="Besetzung"
+        value="1/3"
+        tone="warning"
+        variant="compact"
+      />,
+    );
+
+    expect(screen.getByText("Besetzung:")).toHaveClass("sr-only");
+    expect(screen.getByText("1/3")).toBeVisible();
+  });
+
   it("shows a missing-room hint only when the template has no room", () => {
     const { rerender } = render(
       <TemplateCard
@@ -460,6 +494,37 @@ describe("small timetable components", () => {
 
     expect(onMonthClick).toHaveBeenCalledWith(new Date("2026-05-01T00:00:00"));
     expect(onDayClick).toHaveBeenCalledWith("2026-05-04");
+  });
+
+  it("includes annual staffing and conflict status in day labels", () => {
+    render(
+      <YearPlannerGrid
+        months={[new Date("2026-05-01T00:00:00")]}
+        instances={[
+          {
+            ...instance,
+            requiredStaffCount: 3,
+            assignedStaffCount: 1,
+          },
+          {
+            ...instance,
+            id: "cancelled",
+            status: "cancelled",
+            requiredStaffCount: 2,
+            assignedStaffCount: 0,
+            conflictWarnings: [],
+          },
+        ]}
+        onMonthClick={vi.fn()}
+        onDayClick={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", {
+        name: "2026-05-04: 2 Termine, 1 unterbesetzter Termin, 1 Konflikt",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("keeps week events outside configured hours reachable", () => {

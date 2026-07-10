@@ -45,12 +45,10 @@ type TimetableDataDependencies struct {
 	DB                     *bun.DB
 }
 
-// TimetableDataService is the data facade behind the api/timetable handlers
-// (issue #584: handlers must not hold repositories). CONTRACT: repository
-// results and errors are returned VERBATIM — the handlers keep their
-// composition, validation, and error-to-status mapping, so responses stay
-// byte-identical. The planner endpoints' assembly logic remains in api/ as
-// accepted frozen scope; this facade owns only the data access.
+// TimetableDataService is the service boundary behind api/timetable (issue
+// #584: handlers must not hold repositories). Most read methods return
+// repository results verbatim; multi-repository writes, such as bounded
+// template replacement, own their validation and transaction here.
 type TimetableDataService struct {
 	deps TimetableDataDependencies
 }
@@ -251,18 +249,6 @@ func (s *TimetableDataService) DetectPlannedConflicts(ctx context.Context, query
 		InstanceStaffRepo: s.deps.InstanceStaffRepo,
 		InstanceStudents:  s.deps.InstanceStudentRepo,
 	}, query, logger)
-}
-
-func (s *TimetableDataService) UpdateTemplateFields(ctx context.Context, id int64, fields activitiesModel.TemplateFieldsUpdate) (int64, error) {
-	return s.deps.ActivityGroupRepo.UpdateTemplateFields(ctx, id, fields)
-}
-
-func (s *TimetableDataService) ArchiveTemplate(ctx context.Context, id int64) (int64, error) {
-	return s.deps.ActivityGroupRepo.ArchiveTemplate(ctx, id)
-}
-
-func (s *TimetableDataService) DeleteSchedulesByGroupID(ctx context.Context, groupID int64) error {
-	return s.deps.ActivityScheduleRepo.DeleteByGroupID(ctx, groupID)
 }
 
 func (s *TimetableDataService) EducationGroupExists(ctx context.Context, id int64) (bool, error) {

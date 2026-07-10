@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Search, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useModal } from "~/components/dashboard/modal-context";
 import { Alert } from "~/components/ui/alert";
@@ -26,6 +26,7 @@ import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { formatDate, todayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { fetchStudents } from "~/lib/student-api";
+import { getSchoolYear } from "~/lib/student-helpers";
 import { staffService } from "~/lib/staff-api";
 import { timetableService } from "~/lib/timetable-api";
 import { useDebounce } from "~/lib/use-debounce";
@@ -64,6 +65,7 @@ interface PersonOption {
   id: string;
   name: string;
   schoolClass?: string;
+  groupId?: string;
   groupName?: string;
 }
 
@@ -71,6 +73,10 @@ interface GroupOption {
   id: string;
   name: string;
 }
+
+const STUDENT_PAGE_SIZE = 500;
+const STUDENT_LOAD_ERROR =
+  "Die Kinderliste konnte nicht vollständig geladen werden. Bitte lade sie erneut, bevor du den Termin speicherst.";
 
 interface BackendRoomsEnvelope {
   data?: Array<{
@@ -325,6 +331,44 @@ function sortPeople<T extends PersonOption>(items: T[]): T[] {
   });
 }
 
+function schoolClassLabel(schoolClass: string): string {
+  const trimmed = schoolClass.trim();
+  return /^klasse(?:\s|$)/i.test(trimmed) ? trimmed : `Klasse ${trimmed}`;
+}
+
+async function fetchAllStudentOptions(): Promise<PersonOption[]> {
+  const firstPage = await fetchStudents({
+    page: 1,
+    page_size: STUDENT_PAGE_SIZE,
+  });
+  const totalPages = Math.max(1, firstPage.pagination?.total_pages ?? 1);
+  const remainingPages =
+    totalPages > 1
+      ? await Promise.all(
+          Array.from({ length: totalPages - 1 }, (_, index) =>
+            fetchStudents({
+              page: index + 2,
+              page_size: STUDENT_PAGE_SIZE,
+            }),
+          ),
+        )
+      : [];
+
+  const byID = new Map<string, PersonOption>();
+  for (const page of [firstPage, ...remainingPages]) {
+    for (const student of page.students) {
+      byID.set(student.id, {
+        id: student.id,
+        name: student.name,
+        schoolClass: student.school_class,
+        groupId: student.group_id,
+        groupName: student.group_name,
+      });
+    }
+  }
+  return [...byID.values()];
+}
+
 export function TimetableEventModal({
   isOpen,
   onClose,
@@ -365,6 +409,8 @@ export function TimetableEventModal({
   const [students, setStudents] = useState<PersonOption[]>([]);
   const [staff, setStaff] = useState<PersonOption[]>([]);
   const [loadingRefs, setLoadingRefs] = useState(false);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [studentLoadError, setStudentLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -381,6 +427,15 @@ export function TimetableEventModal({
   const [conflictWarnings, setConflictWarnings] = useState<
     ConflictWarningItem[]
   >([]);
+  // Reference data can outlive a close/reopen or a changed edit target. Keep
+  // whole-load and student-load generations separate so a retry may replace
+  // only the roster while stale completions can never overwrite newer state.
+  const referenceLoadSeq = useRef(0);
+  const studentLoadSeq = useRef(0);
+  const invalidateReferenceLoads = useCallback(() => {
+    referenceLoadSeq.current++;
+    studentLoadSeq.current++;
+  }, []);
   // Monotonically increasing probe id so stale responses are dropped.
   const probeSeq = useRef(0);
 
@@ -392,7 +447,16 @@ export function TimetableEventModal({
   const canDeleteSeries = isEditingSeries && initialSeries && onDeleteSeries;
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen) {
+      invalidateReferenceLoads();
+      return;
+    }
+    const referenceSeq = ++referenceLoadSeq.current;
+    const studentSeq = ++studentLoadSeq.current;
+    const isCurrentReferenceLoad = () =>
+      referenceLoadSeq.current === referenceSeq;
+    const isCurrentStudentLoad = () => studentLoadSeq.current === studentSeq;
+
     setForm(
       initialSeries
         ? formFromSeries(initialSeries, defaultDate, defaultCalendarPeriodId)
@@ -419,6 +483,8 @@ export function TimetableEventModal({
     setPendingSeriesEdit(null);
     setConflictWarnings([]);
     setLoadingRefs(true);
+    setLoadingStudents(true);
+    setStudentLoadError(null);
 
     void Promise.all([
       fetch("/api/rooms", { credentials: "include" })
@@ -459,21 +525,16 @@ export function TimetableEventModal({
           });
           return [] as GroupOption[];
         }),
-      fetchStudents({ page_size: 500 })
-        .then((res) =>
-          res.students.map((student) => ({
-            id: student.id,
-            name: student.name,
-            schoolClass: student.school_class,
-            groupName: student.group_name,
-          })),
-        )
-        .catch((err: unknown) => {
-          logger.error("students_fetch_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return [] as PersonOption[];
-        }),
+      fetchAllStudentOptions().catch((err: unknown) => {
+        logger.error("students_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (isCurrentStudentLoad()) {
+          setStudentLoadError(STUDENT_LOAD_ERROR);
+          setMoreOpen(true);
+        }
+        return [] as PersonOption[];
+      }),
       staffService
         .getAllStaff()
         .then((items) => items.map((s) => ({ id: s.id, name: s.name })))
@@ -494,18 +555,27 @@ export function TimetableEventModal({
         const sortedGroups = [...groupData].sort((a, b) =>
           a.name.localeCompare(b.name, "de"),
         );
-        setRooms(sortedRooms);
-        setCategories(sortedCategories);
-        setGroups(sortedGroups);
-        setStudents(sortPeople(studentData));
-        setStaff(sortPeople(staffData));
-        setForm((prev) =>
-          prev.categoryId || sortedCategories.length === 0
-            ? prev
-            : { ...prev, categoryId: sortedCategories[0]?.id ?? "" },
-        );
+        if (isCurrentReferenceLoad()) {
+          setRooms(sortedRooms);
+          setCategories(sortedCategories);
+          setGroups(sortedGroups);
+          setStaff(sortPeople(staffData));
+          setForm((prev) =>
+            prev.categoryId || sortedCategories.length === 0
+              ? prev
+              : { ...prev, categoryId: sortedCategories[0]?.id ?? "" },
+          );
+        }
+        if (isCurrentStudentLoad()) {
+          setStudents(sortPeople(studentData));
+        }
       })
-      .finally(() => setLoadingRefs(false));
+      .finally(() => {
+        if (isCurrentReferenceLoad()) setLoadingRefs(false);
+        if (isCurrentStudentLoad()) setLoadingStudents(false);
+      });
+
+    return invalidateReferenceLoads;
   }, [
     convertInstance,
     defaultCalendarPeriodId,
@@ -515,6 +585,7 @@ export function TimetableEventModal({
     defaultStartTime,
     initialInstance,
     initialSeries,
+    invalidateReferenceLoads,
     isOpen,
     variant,
   ]);
@@ -939,6 +1010,14 @@ export function TimetableEventModal({
     e.preventDefault();
     if (submitting) return;
     if (isEditingInstance && initialInstance?.status !== "planned") return;
+    if (loadingStudents || studentLoadError) {
+      setValidationError(
+        loadingStudents
+          ? "Die Kinderliste wird noch geladen."
+          : STUDENT_LOAD_ERROR,
+      );
+      return;
+    }
     const parsed = validateForm();
     if (!parsed) return;
 
@@ -1184,14 +1263,22 @@ export function TimetableEventModal({
     }
   };
 
-  // Bulk-add entries for the Kinder field: every distinct class and group
-  // present in the loaded students, each carrying its member ids.
+  // Bulk-add entries for the Kinder field: every distinct grade, class, and
+  // group present in the loaded students, each carrying its member ids.
   const studentBulkOptions = useMemo(() => {
+    const gradeLevels = new Map<string, string[]>();
     const classes = new Map<string, string[]>();
     const groupNames = new Map<string, string[]>();
     for (const student of students) {
       const schoolClass = student.schoolClass?.trim();
       if (schoolClass) {
+        const gradeLevel = getSchoolYear(schoolClass);
+        if (gradeLevel) {
+          gradeLevels.set(gradeLevel, [
+            ...(gradeLevels.get(gradeLevel) ?? []),
+            student.id,
+          ]);
+        }
         classes.set(schoolClass, [
           ...(classes.get(schoolClass) ?? []),
           student.id,
@@ -1208,9 +1295,14 @@ export function TimetableEventModal({
     const byName = (a: [string, string[]], b: [string, string[]]) =>
       a[0].localeCompare(b[0], "de");
     return [
+      ...[...gradeLevels.entries()].sort(byName).map(([name, memberIds]) => ({
+        key: `grade:${name}`,
+        label: `Jahrgang ${name}`,
+        memberIds,
+      })),
       ...[...classes.entries()].sort(byName).map(([name, memberIds]) => ({
         key: `class:${name}`,
-        label: `Klasse ${name}`,
+        label: schoolClassLabel(name),
         memberIds,
       })),
       ...[...groupNames.entries()].sort(byName).map(([name, memberIds]) => ({
@@ -1234,6 +1326,79 @@ export function TimetableEventModal({
       ).sort((a, b) => a.localeCompare(b, "de")),
     [students],
   );
+
+  const targetCohort = useMemo(() => {
+    let label: string | null = null;
+    let members: PersonOption[] = [];
+    if (form.targetGroupType === "jahrgang" && form.targetGradeLevel) {
+      label = `Jahrgang ${form.targetGradeLevel}`;
+      members = students.filter(
+        (student) =>
+          getSchoolYear(student.schoolClass?.trim() ?? "") ===
+          form.targetGradeLevel,
+      );
+    } else if (form.targetGroupType === "klasse" && form.targetSchoolClass) {
+      label = schoolClassLabel(form.targetSchoolClass);
+      members = students.filter(
+        (student) => student.schoolClass?.trim() === form.targetSchoolClass,
+      );
+    } else if (form.targetGroupType === "gruppe" && form.educationGroupId) {
+      const groupName = groups.find(
+        (group) => group.id === form.educationGroupId,
+      )?.name;
+      if (groupName) {
+        label = `Gruppe ${groupName}`;
+        members = students.filter(
+          (student) => student.groupId === form.educationGroupId,
+        );
+      }
+    }
+    return { label, memberIds: members.map((student) => student.id) };
+  }, [
+    form.educationGroupId,
+    form.targetGradeLevel,
+    form.targetGroupType,
+    form.targetSchoolClass,
+    groups,
+    students,
+  ]);
+  const missingTargetCohortCount = useMemo(() => {
+    const selected = new Set(form.studentIds);
+    return targetCohort.memberIds.filter((id) => !selected.has(id)).length;
+  }, [form.studentIds, targetCohort.memberIds]);
+
+  const addTargetCohort = () => {
+    if (targetCohort.memberIds.length === 0) return;
+    setForm((current) => ({
+      ...current,
+      studentIds: Array.from(
+        new Set([...current.studentIds, ...targetCohort.memberIds]),
+      ),
+    }));
+  };
+
+  const retryStudentLoad = async () => {
+    const studentSeq = ++studentLoadSeq.current;
+    const isCurrentStudentLoad = () => studentLoadSeq.current === studentSeq;
+    setLoadingStudents(true);
+    setStudentLoadError(null);
+    try {
+      const studentData = await fetchAllStudentOptions();
+      if (!isCurrentStudentLoad()) return;
+      setStudents(sortPeople(studentData));
+      setValidationError(null);
+    } catch (err) {
+      logger.error("students_retry_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      if (!isCurrentStudentLoad()) return;
+      setStudents([]);
+      setStudentLoadError(STUDENT_LOAD_ERROR);
+      setMoreOpen(true);
+    } finally {
+      if (isCurrentStudentLoad()) setLoadingStudents(false);
+    }
+  };
 
   // Datum and Notiz only apply to the single-instance scope — series-wide
   // scopes write the template, which carries neither field.
@@ -1287,14 +1452,31 @@ export function TimetableEventModal({
         </Field>
       )}
 
-      <MultiSelectField
-        label="Kinder"
-        options={students}
-        value={form.studentIds}
-        onChange={(ids) => update("studentIds", ids)}
-        metadata="student"
-        bulkOptions={studentBulkOptions}
-      />
+      {loadingStudents ? (
+        <Alert type="info" message="Kinderliste wird geladen …" />
+      ) : studentLoadError ? (
+        <div className="flex flex-col gap-2">
+          <Alert type="error" message={studentLoadError} />
+          <Button
+            type="button"
+            variant="outline"
+            size="compact"
+            className="self-start"
+            onClick={() => void retryStudentLoad()}
+          >
+            Kinder erneut laden
+          </Button>
+        </div>
+      ) : (
+        <MultiSelectField
+          label="Kinder"
+          options={students}
+          value={form.studentIds}
+          onChange={(ids) => update("studentIds", ids)}
+          metadata="student"
+          bulkOptions={studentBulkOptions}
+        />
+      )}
 
       {!isSeriesFlow && (
         <Field label="Notiz" htmlFor="event_notes">
@@ -1732,6 +1914,38 @@ export function TimetableEventModal({
                       jeweiligen Angebot gepflegt (Feld „Regeltermin“).
                     </p>
                   )}
+
+                  {targetCohort.label &&
+                    !loadingStudents &&
+                    !studentLoadError && (
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white/70 p-3">
+                        <p className="min-w-0 flex-1 text-xs leading-5 text-gray-600">
+                          Die Zielgruppe beschreibt den Regeltermin. Übernimm
+                          die passenden Kinder mit einem Klick; die Auswahl
+                          bleibt danach anpassbar.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="compact"
+                          onClick={addTargetCohort}
+                          disabled={
+                            targetCohort.memberIds.length === 0 ||
+                            missingTargetCohortCount === 0
+                          }
+                        >
+                          {targetCohort.memberIds.length === 0
+                            ? `Keine Kinder aus ${targetCohort.label} gefunden`
+                            : missingTargetCohortCount === 0
+                              ? `Alle Kinder aus ${targetCohort.label} übernommen`
+                              : `Alle ${targetCohort.memberIds.length} ${
+                                  targetCohort.memberIds.length === 1
+                                    ? "Kind"
+                                    : "Kinder"
+                                } aus ${targetCohort.label} übernehmen`}
+                        </Button>
+                      </div>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1878,6 +2092,8 @@ export function TimetableEventModal({
               disabled={
                 submitting ||
                 deletingSeries ||
+                loadingStudents ||
+                studentLoadError !== null ||
                 (isEditingInstance && initialInstance?.status !== "planned")
               }
             >
@@ -2020,6 +2236,7 @@ function MultiSelectField({
   bulkOptions?: Array<{ key: string; label: string; memberIds: string[] }>;
 }) {
   const [query, setQuery] = useState("");
+  const [gradeFilter, setGradeFilter] = useState("all");
   const [classFilter, setClassFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
   const selected = useMemo(() => new Set(value), [value]);
@@ -2034,6 +2251,18 @@ function MultiSelectField({
             .filter((item): item is string => Boolean(item)),
         ),
       ).sort((a, b) => a.localeCompare(b, "de")),
+    [options],
+  );
+
+  const gradeOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          options
+            .map((option) => getSchoolYear(option.schoolClass?.trim() ?? ""))
+            .filter((item): item is string => Boolean(item)),
+        ),
+      ).sort((a, b) => a.localeCompare(b, "de", { numeric: true })),
     [options],
   );
 
@@ -2060,12 +2289,15 @@ function MultiSelectField({
             .toLocaleLowerCase("de")
             .includes(normalizedQuery);
         const matchesClass =
-          classFilter === "all" || option.schoolClass === classFilter;
+          classFilter === "all" || option.schoolClass?.trim() === classFilter;
+        const matchesGrade =
+          gradeFilter === "all" ||
+          getSchoolYear(option.schoolClass?.trim() ?? "") === gradeFilter;
         const matchesGroup =
-          groupFilter === "all" || option.groupName === groupFilter;
-        return matchesQuery && matchesClass && matchesGroup;
+          groupFilter === "all" || option.groupName?.trim() === groupFilter;
+        return matchesQuery && matchesGrade && matchesClass && matchesGroup;
       }),
-    [classFilter, groupFilter, normalizedQuery, options],
+    [classFilter, gradeFilter, groupFilter, normalizedQuery, options],
   );
 
   const toggle = (id: string) => {
@@ -2081,7 +2313,10 @@ function MultiSelectField({
   const allVisibleSelected =
     visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
   const hasFilters =
-    query.trim() !== "" || classFilter !== "all" || groupFilter !== "all";
+    query.trim() !== "" ||
+    gradeFilter !== "all" ||
+    classFilter !== "all" ||
+    groupFilter !== "all";
 
   const selectVisible = () => {
     const next = Array.from(new Set([...value, ...visibleIds]));
@@ -2102,7 +2337,7 @@ function MultiSelectField({
         </span>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto]">
         <label className="relative">
           <span className="sr-only">{label} suchen</span>
           <Search
@@ -2117,6 +2352,21 @@ function MultiSelectField({
             className={FORM_SEARCH_CLASS}
           />
         </label>
+        {metadata === "student" && gradeOptions.length > 0 && (
+          <select
+            value={gradeFilter}
+            onChange={(event) => setGradeFilter(event.target.value)}
+            className={FORM_SELECT_CLASS}
+            aria-label="Nach Jahrgang filtern"
+          >
+            <option value="all">Alle Jahrgänge</option>
+            {gradeOptions.map((gradeLevel) => (
+              <option key={gradeLevel} value={gradeLevel}>
+                Jahrgang {gradeLevel}
+              </option>
+            ))}
+          </select>
+        )}
         {metadata === "student" && classOptions.length > 0 && (
           <select
             value={classFilter}
@@ -2170,11 +2420,11 @@ function MultiSelectField({
               if (!entry) return;
               onChange(Array.from(new Set([...value, ...entry.memberIds])));
             }}
-            aria-label="Klasse oder Gruppe komplett hinzufügen"
+            aria-label="Jahrgang, Klasse oder Gruppe komplett hinzufügen"
             className="moto-select rounded-lg border border-gray-200 bg-white py-1.5 pr-7 pl-2.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             <option value="" disabled>
-              Klasse/Gruppe komplett hinzufügen …
+              Jahrgang/Klasse/Gruppe komplett hinzufügen …
             </option>
             {bulkOptions.map((option) => (
               <option key={option.key} value={option.key}>
@@ -2197,6 +2447,7 @@ function MultiSelectField({
             type="button"
             onClick={() => {
               setQuery("");
+              setGradeFilter("all");
               setClassFilter("all");
               setGroupFilter("all");
             }}
@@ -2221,7 +2472,7 @@ function MultiSelectField({
             {filteredOptions.map((option) => (
               <label
                 key={option.id}
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-700 [contain-intrinsic-size:auto_36px] [content-visibility:auto] hover:bg-gray-50"
               >
                 <Checkbox
                   checked={selected.has(option.id)}

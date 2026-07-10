@@ -795,7 +795,7 @@ export function assignBlockLanes(
  * KPI + onboarding helpers for the planner overview zone.
  *
  * These are intentionally pure and instance/template-driven so the
- * "Geplant" / "Ohne Personal" headline cards work in every view
+ * "Geplant" / "Unterbesetzt" headline cards work in every view
  * (week/month/year/series) without hitting the 14-day-capped, week-only
  * /api/timetable/gaps endpoint.
  */
@@ -805,23 +805,31 @@ export function countPlanned(instances: EnrichedInstance[]): number {
   return instances.filter((inst) => inst.status !== "cancelled").length;
 }
 
-/**
- * Count instances with no effective staff (none assigned, or every assigned
- * person marked absent), excluding cancelled ones. A client-side
- * approximation of a Personal-Lücke that works across any date range — the
- * backend /api/timetable/gaps endpoint is capped at 14 days and week-only.
- */
-export function countStaffGaps(instances: EnrichedInstance[]): number {
-  return instances.filter(
-    (inst) =>
-      inst.status !== "cancelled" &&
-      inst.staffCount - inst.absentStaffCount <= 0,
-  ).length;
+/** Whether a non-cancelled appointment falls short of its staffing ratio. */
+export function isInstanceUnderstaffed(instance: EnrichedInstance): boolean {
+  return (
+    instance.status !== "cancelled" &&
+    instance.requiredStaffCount > 0 &&
+    instance.assignedStaffCount < instance.requiredStaffCount
+  );
 }
 
-/** Count recurring series (Regeltermine) without any assigned staff. */
-export function countTemplateStaffGaps(templates: TimetableTemplate[]): number {
-  return templates.filter((tpl) => tpl.staffIds.length === 0).length;
+/** Count appointments that fall short of their staffing ratio. */
+export function countUnderstaffedInstances(
+  instances: EnrichedInstance[],
+): number {
+  return instances.filter(isInstanceUnderstaffed).length;
+}
+
+/** Count recurring series (Regeltermine) below their staffing requirement. */
+export function countUnderstaffedTemplates(
+  templates: TimetableTemplate[],
+): number {
+  return templates.filter(
+    (template) =>
+      template.requiredStaffCount > 0 &&
+      template.assignedStaffCount < template.requiredStaffCount,
+  ).length;
 }
 
 /**

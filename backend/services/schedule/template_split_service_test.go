@@ -14,7 +14,9 @@
 package schedule_test
 
 import (
+	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -22,9 +24,11 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // futureMonday returns the first Monday strictly after today, shifted by
@@ -123,6 +127,44 @@ func loadSplitSupervisors(t *testing.T, s *scenarioSetup, groupID int64) []*acti
 		Scan(s.ctx)
 	require.NoError(t, err)
 	return rows
+}
+
+func createSplitRequestChild(t *testing.T, s *scenarioSetup, studentID int64) int64 {
+	t.Helper()
+	suffix := time.Now().UnixNano()
+	var phaseID int64
+	require.NoError(t, s.db.NewRaw(`
+		INSERT INTO enrollment.phases
+			(tenant_id, name, kind, service_start_date, service_end_date)
+		VALUES (?, ?, 'custom', '2026-01-01', '2028-12-31')
+		RETURNING id
+	`, s.tenantID, fmt.Sprintf("Split provenance %d", suffix)).Scan(s.ctx, &phaseID))
+
+	var requestID int64
+	require.NoError(t, s.db.NewRaw(`
+		INSERT INTO enrollment.requests
+			(tenant_id, phase_id, guardian_first_name, guardian_last_name,
+			 guardian_email, consent_flags, custom_data, status_token, submitted_at)
+		VALUES (?, ?, 'Anna', 'Beispiel', ?, '{}'::jsonb, '{}'::jsonb, ?, NOW())
+		RETURNING id
+	`, s.tenantID, phaseID, fmt.Sprintf("split-%d@example.test", suffix), fmt.Sprintf("split-source-%d", suffix)).Scan(s.ctx, &requestID))
+
+	var childID int64
+	require.NoError(t, s.db.NewRaw(`
+		INSERT INTO enrollment.request_children
+			(tenant_id, request_id, first_name, last_name, date_of_birth,
+			 status, activation_mode, created_student_id, sort_order, custom_data)
+		VALUES (?, ?, 'Lina', 'Quelle', '2018-04-15',
+			'approved', 'scheduled', ?, 0, '{}'::jsonb)
+		RETURNING id
+	`, s.tenantID, requestID, studentID).Scan(s.ctx, &childID))
+
+	s.extraCleanups = append([]func(){func() {
+		testpkg.CleanupTableRecords(t, s.db, "enrollment.request_children", childID)
+		testpkg.CleanupTableRecords(t, s.db, "enrollment.requests", requestID)
+		testpkg.CleanupTableRecords(t, s.db, "enrollment.phases", phaseID)
+	}}, s.extraCleanups...)
+	return childID
 }
 
 // registerSuccessorCleanup registers everything the split created for the
@@ -531,10 +573,780 @@ func TestTemplateSplit_SuccessorValidFrom_NoPhantomBeforeEffective(t *testing.T)
 		"no phantom successor instance before the effective date")
 }
 
-// Multi-period rosters (one active row per calendar period since migration
-// 1.15.52) must collapse to ONE successor row per person — previously the
-// carry path stamped every active row with the successor's period id and
-// violated idx_student_enrollments_active (500 on split).
+// Editing either side of a split series must preserve its segment boundary.
+// This is the end-to-end regression for the duplicate reported after editing
+// the complete successor series: the predecessor still owns the prior Monday,
+// while the successor starts exactly at the split Monday and never backfills.
+func TestTemplateSplit_UpdateSegmentsPreservesBoundsDuringMaterialization(t *testing.T) {
+	effective := futureMonday(1)
+	previousMonday := effective.AddDays(-7)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	defer s.runCleanup(t)
+
+	requestChildID := createSplitRequestChild(t, s, s.students[2])
+	sourcedFrom := effective.AddDays(-10)
+	sourcedUntil := effective.AddDays(20)
+	sourced := &activitiesModels.StudentEnrollment{
+		StudentID:                s.students[2],
+		ActivityGroupID:          s.template.ID,
+		ValidFrom:                sourcedFrom,
+		ValidUntil:               &sourcedUntil,
+		EnrollmentRequestChildID: &requestChildID,
+		SelectedWeekdays:         []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday},
+	}
+	sourced.SetTenantID(s.tenantID)
+	_, err := s.db.NewInsert().Model(sourced).ModelTableExpr(`activities.student_enrollments`).Exec(s.ctx)
+	require.NoError(t, err)
+	s.registerCleanup("activities.student_enrollments", sourced.ID)
+
+	futureRosterStart := effective.AddDays(5)
+	weekdaySpecific := &activitiesModels.StudentEnrollment{
+		StudentID:        s.students[2],
+		ActivityGroupID:  s.template.ID,
+		ValidFrom:        futureRosterStart,
+		SelectedWeekdays: []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday},
+	}
+	weekdaySpecific.SetTenantID(s.tenantID)
+	_, err = s.db.NewInsert().Model(weekdaySpecific).ModelTableExpr(`activities.student_enrollments`).Exec(s.ctx)
+	require.NoError(t, err)
+	s.registerCleanup("activities.student_enrollments", weekdaySpecific.ID)
+
+	in := baseSplitInput(s, effective, fmt.Sprintf("Split-Update-Bounds-%d", time.Now().UnixNano()))
+	in.CalendarPeriodID = &s.period.ID
+	res, err := s.factory.TemplateSplit.Split(s.ctx, in)
+	require.NoError(t, err)
+	registerSuccessorCleanup(t, s, res.NewTemplateID)
+
+	oldGroup := reloadSplitGroup(t, s, s.template.ID)
+	require.NotNil(t, oldGroup.PlannedRoomID)
+	err = s.factory.TimetableData.UpdateTemplate(s.ctx, scheduleSvc.TemplateUpdateInput{
+		TemplateID: s.template.ID,
+		Fields: activitiesModels.TemplateFieldsUpdate{
+			Name:              oldGroup.Name + "-edited",
+			Type:              oldGroup.Type,
+			CategoryID:        oldGroup.CategoryID,
+			RoomID:            *oldGroup.PlannedRoomID,
+			EducationGroupID:  oldGroup.EducationGroupID,
+			MaxParticipants:   oldGroup.MaxParticipants,
+			CalendarPeriodID:  oldGroup.CalendarPeriodID,
+			TargetGroupType:   oldGroup.TargetGroupType,
+			TargetGradeLevel:  oldGroup.TargetGradeLevel,
+			TargetSchoolClass: oldGroup.TargetSchoolClass,
+		},
+		Weekdays:        []int{activitiesModels.WeekdayMonday},
+		TimeframeID:     s.timeframe.ID,
+		WeekPattern:     s.schedule.WeekPattern,
+		RosterValidFrom: effective.AddDays(-30),
+		StudentIDs:      []int64{s.students[0], s.students[1]},
+		StaffIDs:        []int64{s.staffID},
+		PrimaryStaffID:  &s.staffID,
+	})
+	require.ErrorIs(t, err, scheduleSvc.ErrTemplateSegmentNotEditable)
+	assert.Equal(t, oldGroup.Name, reloadSplitGroup(t, s, s.template.ID).Name,
+		"bounded predecessor fields must remain unchanged")
+
+	successorGroup := reloadSplitGroup(t, s, res.NewTemplateID)
+	require.NotNil(t, successorGroup.PlannedRoomID)
+	err = s.factory.TimetableData.UpdateTemplate(s.ctx, scheduleSvc.TemplateUpdateInput{
+		TemplateID: res.NewTemplateID,
+		Fields: activitiesModels.TemplateFieldsUpdate{
+			Name:              successorGroup.Name + "-edited",
+			Type:              successorGroup.Type,
+			CategoryID:        successorGroup.CategoryID,
+			RoomID:            *successorGroup.PlannedRoomID,
+			EducationGroupID:  successorGroup.EducationGroupID,
+			MaxParticipants:   successorGroup.MaxParticipants,
+			CalendarPeriodID:  successorGroup.CalendarPeriodID,
+			TargetGroupType:   successorGroup.TargetGroupType,
+			TargetGradeLevel:  successorGroup.TargetGradeLevel,
+			TargetSchoolClass: successorGroup.TargetSchoolClass,
+		},
+		Weekdays:         []int{activitiesModels.WeekdayMonday},
+		TimeframeID:      s.timeframe.ID,
+		WeekPattern:      s.schedule.WeekPattern,
+		CalendarPeriodID: successorGroup.CalendarPeriodID,
+		RosterValidFrom:  effective.AddDays(-30),
+		StudentIDs:       []int64{s.students[0], s.students[1], s.students[2]},
+		StaffIDs:         []int64{s.staffID},
+		PrimaryStaffID:   &s.staffID,
+	})
+	require.NoError(t, err)
+
+	oldSchedules := loadSplitSchedules(t, s, s.template.ID)
+	require.Len(t, oldSchedules, 1)
+	assert.Nil(t, oldSchedules[0].ValidFrom)
+	require.NotNil(t, oldSchedules[0].ValidUntil)
+	assert.Equal(t, effective, *oldSchedules[0].ValidUntil,
+		"editing the predecessor must not reopen it past the split")
+
+	successorSchedules := loadSplitSchedules(t, s, res.NewTemplateID)
+	require.Len(t, successorSchedules, 1)
+	require.NotNil(t, successorSchedules[0].ValidFrom)
+	assert.Equal(t, effective, *successorSchedules[0].ValidFrom,
+		"editing the successor must not backfill before the split")
+	assert.Nil(t, successorSchedules[0].ValidUntil)
+
+	oldReplacementFrom := effective.AddDays(-30)
+	oldReplacementStudents := 0
+	for _, enrollment := range loadSplitEnrollments(t, s, s.template.ID) {
+		if enrollment.EnrollmentRequestChildID != nil || len(enrollment.SelectedWeekdays) > 0 {
+			if enrollment.ValidUntil != nil {
+				assert.False(t, enrollment.ValidUntil.Before(enrollment.ValidFrom),
+					"protected predecessor enrollment bounds must never invert")
+			}
+			continue
+		}
+		require.NotNil(t, enrollment.ValidUntil,
+			"editing the predecessor must not create an open enrollment")
+		assert.False(t, enrollment.ValidUntil.Before(enrollment.ValidFrom),
+			"predecessor enrollment bounds must never invert")
+		if enrollment.ValidFrom == oldReplacementFrom && *enrollment.ValidUntil == effective {
+			oldReplacementStudents++
+		}
+	}
+	assert.Equal(t, 2, oldReplacementStudents,
+		"the selected predecessor roster must inherit the schedule end")
+	oldReplacementStaff := 0
+	for _, supervisor := range loadSplitSupervisors(t, s, s.template.ID) {
+		require.NotNil(t, supervisor.ValidUntil,
+			"editing the predecessor must not create open supervision")
+		assert.False(t, supervisor.ValidUntil.Before(supervisor.ValidFrom),
+			"predecessor supervision bounds must never invert")
+		if supervisor.ValidFrom == oldReplacementFrom && *supervisor.ValidUntil == effective {
+			oldReplacementStaff++
+		}
+	}
+	assert.Equal(t, 1, oldReplacementStaff)
+
+	var preserved activitiesModels.StudentEnrollment
+	require.NoError(t, s.db.NewSelect().Model(&preserved).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".id = ?`, sourced.ID).
+		Where(`"student_enrollment".tenant_id = ?`, s.tenantID).
+		Scan(s.ctx))
+	require.NotNil(t, preserved.EnrollmentRequestChildID)
+	assert.Equal(t, requestChildID, *preserved.EnrollmentRequestChildID,
+		"template PUT must preserve enrollment-decision provenance")
+	assert.Equal(t, sourcedFrom, preserved.ValidFrom)
+	require.NotNil(t, preserved.ValidUntil)
+	assert.Equal(t, sourcedUntil, *preserved.ValidUntil,
+		"template PUT must not truncate a hidden bounded care-offer window")
+	assert.Equal(t, sourced.SelectedWeekdays, preserved.SelectedWeekdays)
+
+	activeSuccessorStudents := 0
+	for _, enrollment := range loadSplitEnrollments(t, s, res.NewTemplateID) {
+		if enrollment.ValidUntil == nil {
+			activeSuccessorStudents++
+			if enrollment.StudentID == s.students[2] && len(enrollment.SelectedWeekdays) > 0 {
+				assert.Equal(t, futureRosterStart, enrollment.ValidFrom,
+					"future protected roster must retain its later start")
+			} else {
+				assert.Equal(t, effective, enrollment.ValidFrom,
+					"successor manual enrollment must start at schedule valid_from")
+			}
+			continue
+		}
+		assert.False(t, enrollment.ValidUntil.Before(enrollment.ValidFrom),
+			"retired successor enrollment bounds must never invert")
+	}
+	assert.Equal(t, 3, activeSuccessorStudents)
+	protectedSuccessorRows := 0
+	for _, enrollment := range loadSplitEnrollments(t, s, res.NewTemplateID) {
+		if enrollment.StudentID != s.students[2] || len(enrollment.SelectedWeekdays) == 0 ||
+			enrollment.EnrollmentRequestChildID != nil {
+			continue
+		}
+		protectedSuccessorRows++
+		assert.Equal(t, futureRosterStart, enrollment.ValidFrom,
+			"future weekday-specific roster must not be pulled forward to the split date")
+		assert.Equal(t, weekdaySpecific.SelectedWeekdays, enrollment.SelectedWeekdays)
+	}
+	assert.Equal(t, 1, protectedSuccessorRows,
+		"explicit StudentIDs must not duplicate or widen the protected carried row")
+	carriedSourcedRows := 0
+	for _, enrollment := range loadSplitEnrollments(t, s, res.NewTemplateID) {
+		if enrollment.EnrollmentRequestChildID == nil || *enrollment.EnrollmentRequestChildID != requestChildID {
+			continue
+		}
+		carriedSourcedRows++
+		assert.Equal(t, effective, enrollment.ValidFrom,
+			"sourced row must be clipped to the successor start")
+		require.NotNil(t, enrollment.ValidUntil)
+		assert.Equal(t, sourcedUntil, *enrollment.ValidUntil)
+		assert.Equal(t, sourced.SelectedWeekdays, enrollment.SelectedWeekdays)
+	}
+	assert.Equal(t, 1, carriedSourcedRows,
+		"split must carry a hidden decision-owned enrollment independently of explicit StudentIDs")
+	activeSuccessorStaff := 0
+	for _, supervisor := range loadSplitSupervisors(t, s, res.NewTemplateID) {
+		if supervisor.ValidUntil == nil {
+			activeSuccessorStaff++
+			assert.Equal(t, effective, supervisor.ValidFrom,
+				"successor supervision must start at schedule valid_from")
+			continue
+		}
+		assert.False(t, supervisor.ValidUntil.Before(supervisor.ValidFrom),
+			"retired successor supervision bounds must never invert")
+	}
+	assert.Equal(t, 1, activeSuccessorStaff)
+
+	_, err = s.svc.MaterializeForTenant(s.ctx, previousMonday, effective, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	for _, groupID := range []int64{s.template.ID, res.NewTemplateID} {
+		for _, date := range []timezone.Date{previousMonday, effective} {
+			for _, instance := range listInstancesForDate(t, s.db, groupID, date) {
+				s.registerCleanup("schedule.activity_instances", instance.ID)
+			}
+		}
+	}
+
+	assert.Len(t, listInstancesForDate(t, s.db, s.template.ID, previousMonday), 1)
+	assert.Empty(t, listInstancesForDate(t, s.db, res.NewTemplateID, previousMonday),
+		"successor must not duplicate the predecessor before valid_from")
+	assert.Empty(t, listInstancesForDate(t, s.db, s.template.ID, effective),
+		"predecessor must stop at its exclusive valid_until")
+	assert.Len(t, listInstancesForDate(t, s.db, res.NewTemplateID, effective), 1)
+}
+
+// Re-splitting the bounded predecessor [a,b) at e must produce [a,e) and
+// [e,b), not an open middle segment that overlaps the already-existing
+// successor [b,∞). Materializing beyond b must therefore yield exactly one
+// occurrence from the original later successor.
+func TestTemplateSplit_RejectsResplittingBoundedPredecessor(t *testing.T) {
+	outerBoundary := futureMonday(3)
+	innerBoundary := outerBoundary.AddDays(-7)
+	afterOuter := outerBoundary.AddDays(7)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, innerBoundary)
+	defer s.runCleanup(t)
+
+	first, err := s.factory.TemplateSplit.Split(s.ctx,
+		baseSplitInput(s, outerBoundary, fmt.Sprintf("Split-Later-%d", time.Now().UnixNano())))
+	require.NoError(t, err)
+	registerSuccessorCleanup(t, s, first.NewTemplateID)
+
+	_, err = s.factory.TemplateSplit.Split(s.ctx,
+		baseSplitInput(s, innerBoundary, fmt.Sprintf("Split-Middle-%d", time.Now().UnixNano())))
+	require.ErrorIs(t, err, scheduleSvc.ErrSplitInvalidInput)
+
+	oldSchedules := loadSplitSchedules(t, s, s.template.ID)
+	require.Len(t, oldSchedules, 1)
+	require.NotNil(t, oldSchedules[0].ValidUntil)
+	assert.Equal(t, outerBoundary, *oldSchedules[0].ValidUntil,
+		"rejected re-split must not shorten the predecessor")
+
+	materialized, err := s.svc.MaterializeForTenant(
+		s.ctx, outerBoundary, afterOuter, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	assert.Equal(t, 2, materialized.InstancesCreated)
+	for _, groupID := range []int64{s.template.ID, first.NewTemplateID} {
+		for _, date := range []timezone.Date{outerBoundary, afterOuter} {
+			for _, instance := range listInstancesForDate(t, s.db, groupID, date) {
+				s.registerCleanup("schedule.activity_instances", instance.ID)
+			}
+		}
+	}
+
+	for _, date := range []timezone.Date{outerBoundary, afterOuter} {
+		assert.Empty(t, listInstancesForDate(t, s.db, s.template.ID, date))
+		assert.Len(t, listInstancesForDate(t, s.db, first.NewTemplateID, date), 1,
+			"the original open successor remains the only owner after a rejected re-split")
+	}
+}
+
+func TestTemplateSplitAndEnd_RespectCurrentSegmentEnvelope(t *testing.T) {
+	boundary := futureMonday(2)
+	beforeBoundary := boundary.AddDays(-1)
+	futureRosterStart := boundary.AddDays(5)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, boundary)
+	defer s.runCleanup(t)
+
+	futureEnrollment := &activitiesModels.StudentEnrollment{
+		StudentID:        s.students[0],
+		ActivityGroupID:  s.template.ID,
+		ValidFrom:        futureRosterStart,
+		CalendarPeriodID: &s.period.ID,
+	}
+	futureEnrollment.SetTenantID(s.tenantID)
+	_, err := s.db.NewInsert().Model(futureEnrollment).
+		ModelTableExpr(`activities.student_enrollments`).ExcludeColumn("selected_weekdays").Exec(s.ctx)
+	require.NoError(t, err)
+	s.registerCleanup("activities.student_enrollments", futureEnrollment.ID)
+
+	futureSupervisor := &activitiesModels.SupervisorPlanned{
+		StaffID:          s.staffID,
+		GroupID:          s.template.ID,
+		ValidFrom:        futureRosterStart,
+		CalendarPeriodID: &s.period.ID,
+	}
+	futureSupervisor.SetTenantID(s.tenantID)
+	_, err = s.db.NewInsert().Model(futureSupervisor).ModelTableExpr(`activities.supervisors`).Exec(s.ctx)
+	require.NoError(t, err)
+	s.registerCleanup("activities.supervisors", futureSupervisor.ID)
+
+	firstInput := baseSplitInput(s, boundary, fmt.Sprintf("Split-Envelope-%d", time.Now().UnixNano()))
+	firstInput.CalendarPeriodID = &s.period.ID
+	first, err := s.factory.TemplateSplit.Split(s.ctx, firstInput)
+	require.NoError(t, err)
+	registerSuccessorCleanup(t, s, first.NewTemplateID)
+
+	var carriedFutureStudent bool
+	for _, enrollment := range loadSplitEnrollments(t, s, first.NewTemplateID) {
+		if enrollment.StudentID == s.students[0] {
+			carriedFutureStudent = true
+			assert.Equal(t, futureRosterStart, enrollment.ValidFrom)
+		}
+	}
+	assert.True(t, carriedFutureStudent)
+	carriedStaff := loadSplitSupervisors(t, s, first.NewTemplateID)
+	require.Len(t, carriedStaff, 1)
+	assert.Equal(t, futureRosterStart, carriedStaff[0].ValidFrom,
+		"future-starting open supervision must retain its start on the successor")
+	for _, enrollment := range loadSplitEnrollments(t, s, s.template.ID) {
+		if enrollment.ValidUntil != nil {
+			assert.False(t, enrollment.ValidUntil.Before(enrollment.ValidFrom))
+		}
+	}
+	for _, supervisor := range loadSplitSupervisors(t, s, s.template.ID) {
+		if supervisor.ValidUntil != nil {
+			assert.False(t, supervisor.ValidUntil.Before(supervisor.ValidFrom))
+		}
+	}
+
+	t.Run("split rejects before successor start", func(t *testing.T) {
+		in := baseSplitInput(s, beforeBoundary, fmt.Sprintf("Split-Too-Early-%d", time.Now().UnixNano()))
+		in.TemplateID = first.NewTemplateID
+		_, err := s.factory.TemplateSplit.Split(s.ctx, in)
+		require.ErrorIs(t, err, scheduleSvc.ErrSplitInvalidInput)
+	})
+
+	t.Run("split and end reject predecessor exclusive end", func(t *testing.T) {
+		in := baseSplitInput(s, boundary, fmt.Sprintf("Split-At-End-%d", time.Now().UnixNano()))
+		_, splitErr := s.factory.TemplateSplit.Split(s.ctx, in)
+		require.ErrorIs(t, splitErr, scheduleSvc.ErrSplitInvalidInput)
+		_, endErr := s.factory.TemplateSplit.EndFromDate(s.ctx, scheduleSvc.TemplateEndInput{
+			TemplateID:    s.template.ID,
+			EffectiveDate: boundary,
+		})
+		require.ErrorIs(t, endErr, scheduleSvc.ErrSplitInvalidInput)
+	})
+
+	t.Run("end before future successor clamps to its start", func(t *testing.T) {
+		ended, err := s.factory.TemplateSplit.EndFromDate(s.ctx, scheduleSvc.TemplateEndInput{
+			TemplateID:    first.NewTemplateID,
+			EffectiveDate: beforeBoundary,
+		})
+		require.NoError(t, err)
+		assert.Equal(t, boundary, ended.EffectiveDate)
+
+		schedules := loadSplitSchedules(t, s, first.NewTemplateID)
+		require.Len(t, schedules, 1)
+		require.NotNil(t, schedules[0].ValidFrom)
+		require.NotNil(t, schedules[0].ValidUntil)
+		assert.Equal(t, boundary, *schedules[0].ValidFrom)
+		assert.Equal(t, boundary, *schedules[0].ValidUntil)
+		for _, enrollment := range loadSplitEnrollments(t, s, first.NewTemplateID) {
+			if enrollment.ValidUntil != nil {
+				assert.False(t, enrollment.ValidUntil.Before(enrollment.ValidFrom))
+			}
+		}
+		for _, supervisor := range loadSplitSupervisors(t, s, first.NewTemplateID) {
+			if supervisor.ValidUntil != nil {
+				assert.False(t, supervisor.ValidUntil.Before(supervisor.ValidFrom))
+			}
+		}
+	})
+}
+
+// Mirrors the reported UI sequence end to end: edit one materialized week,
+// split from the following occurrence, edit the complete successor segment,
+// then re-plan across both dates. The moved single occurrence and its
+// exception must not be joined by a backfilled successor occurrence.
+func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.T) {
+	effective := futureMonday(2)
+	singleDate := effective.AddDays(-7)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, singleDate)
+	defer s.runCleanup(t)
+
+	materialized, err := s.svc.MaterializeForTenant(s.ctx, singleDate, singleDate, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	require.Equal(t, 1, materialized.InstancesCreated)
+	instances := listInstancesForDate(t, s.db, s.template.ID, singleDate)
+	require.Len(t, instances, 1)
+	single := instances[0]
+	s.registerCleanup("schedule.activity_instances", single.ID)
+
+	// "Nur diese Woche": move the start by one hour. UpdatePlanned keeps the
+	// instance on this date and writes a cancellation exception for the old
+	// template slot so a re-plan cannot resurrect the original time.
+	updatedSingle, err := s.factory.Instance.UpdatePlanned(
+		s.ctx,
+		single.ID,
+		moveInput(s, single, singleDate, 1),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, single.ID, updatedSingle.ID)
+	exceptions := loadExceptions(t, s, s.template.ID)
+	require.Len(t, exceptions, 1)
+	assert.Equal(t, singleDate, exceptions[0].ExceptionDate)
+	assert.Equal(t, scheduleModels.ActivityExceptionCancelled, exceptions[0].ExceptionType)
+
+	// "Ab jetzt dauerhaft": split at the next Monday.
+	in := baseSplitInput(s, effective, fmt.Sprintf("Split-Single-Following-%d", time.Now().UnixNano()))
+	res, err := s.factory.TemplateSplit.Split(s.ctx, in)
+	require.NoError(t, err)
+	registerSuccessorCleanup(t, s, res.NewTemplateID)
+
+	// "Alle Termine der Serie" on the successor: a full schedule replacement
+	// must retain valid_from=effective.
+	successor := reloadSplitGroup(t, s, res.NewTemplateID)
+	require.NotNil(t, successor.PlannedRoomID)
+	err = s.factory.TimetableData.UpdateTemplate(s.ctx, scheduleSvc.TemplateUpdateInput{
+		TemplateID: res.NewTemplateID,
+		Fields: activitiesModels.TemplateFieldsUpdate{
+			Name:              successor.Name + "-all-edited",
+			Type:              successor.Type,
+			CategoryID:        successor.CategoryID,
+			RoomID:            *successor.PlannedRoomID,
+			EducationGroupID:  successor.EducationGroupID,
+			MaxParticipants:   successor.MaxParticipants,
+			CalendarPeriodID:  successor.CalendarPeriodID,
+			TargetGroupType:   successor.TargetGroupType,
+			TargetGradeLevel:  successor.TargetGradeLevel,
+			TargetSchoolClass: successor.TargetSchoolClass,
+		},
+		Weekdays:        []int{activitiesModels.WeekdayMonday},
+		TimeframeID:     s.timeframe.ID,
+		WeekPattern:     s.schedule.WeekPattern,
+		RosterValidFrom: singleDate.AddDays(-30),
+		StudentIDs:      []int64{s.students[0], s.students[1]},
+		StaffIDs:        []int64{s.staffID},
+		PrimaryStaffID:  &s.staffID,
+	})
+	require.NoError(t, err)
+	successorSchedules := loadSplitSchedules(t, s, res.NewTemplateID)
+	require.Len(t, successorSchedules, 1)
+	require.NotNil(t, successorSchedules[0].ValidFrom)
+	assert.Equal(t, effective, *successorSchedules[0].ValidFrom)
+
+	// The frontend follows a full-series PUT with a successor-scoped re-plan.
+	// Materialization still examines every template, making this the exact
+	// point where an erased valid_from used to create the duplicate.
+	result, err := s.factory.Instance.ReplanWeek(s.ctx, singleDate, effective, &res.NewTemplateID)
+	require.NoError(t, err)
+	require.NotNil(t, result.Materialization)
+	for _, groupID := range []int64{s.template.ID, res.NewTemplateID} {
+		for _, date := range []timezone.Date{singleDate, effective} {
+			for _, instance := range listInstancesForDate(t, s.db, groupID, date) {
+				s.registerCleanup("schedule.activity_instances", instance.ID)
+			}
+		}
+	}
+
+	oldSingle := listInstancesForDate(t, s.db, s.template.ID, singleDate)
+	require.Len(t, oldSingle, 1, "the explicitly edited week remains")
+	assert.Equal(t, single.ID, oldSingle[0].ID)
+	assert.Empty(t, listInstancesForDate(t, s.db, res.NewTemplateID, singleDate),
+		"the successor must not backfill next to the single-week edit")
+	assert.Empty(t, listInstancesForDate(t, s.db, s.template.ID, effective))
+	assert.Len(t, listInstancesForDate(t, s.db, res.NewTemplateID, effective), 1)
+}
+
+// Forces the stale-envelope race: EndFromDate caps the schedules but holds
+// its transaction open while PUT starts concurrently. PUT must wait on the
+// shared tenant recurrence gate, then reject the now-bounded segment instead
+// of mutating a template the active CRUD contract no longer exposes.
+func TestTemplateEnd_ConcurrentTemplateUpdatePreservesCommittedCap(t *testing.T) {
+	effective := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	defer s.runCleanup(t)
+
+	group := reloadSplitGroup(t, s, s.template.ID)
+	require.NotNil(t, group.PlannedRoomID)
+	update := scheduleSvc.TemplateUpdateInput{
+		TemplateID: s.template.ID,
+		Fields: activitiesModels.TemplateFieldsUpdate{
+			Name:              group.Name + "-concurrent-edit",
+			Type:              group.Type,
+			CategoryID:        group.CategoryID,
+			RoomID:            *group.PlannedRoomID,
+			EducationGroupID:  group.EducationGroupID,
+			MaxParticipants:   group.MaxParticipants,
+			CalendarPeriodID:  group.CalendarPeriodID,
+			TargetGroupType:   group.TargetGroupType,
+			TargetGradeLevel:  group.TargetGradeLevel,
+			TargetSchoolClass: group.TargetSchoolClass,
+		},
+		Weekdays:        []int{activitiesModels.WeekdayMonday},
+		TimeframeID:     s.timeframe.ID,
+		WeekPattern:     s.schedule.WeekPattern,
+		RosterValidFrom: effective.AddDays(-30),
+		StudentIDs:      []int64{s.students[0], s.students[1]},
+		StaffIDs:        []int64{s.staffID},
+		PrimaryStaffID:  &s.staffID,
+	}
+
+	endMutationComplete := make(chan struct{})
+	releaseEnd := make(chan struct{})
+	endDone := make(chan error, 1)
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseEnd) }) }
+	defer release()
+
+	go func() {
+		endDone <- tenant.WithTenantTx(s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			_, err := s.factory.TemplateSplit.EndFromDate(txCtx, scheduleSvc.TemplateEndInput{
+				TemplateID:    s.template.ID,
+				EffectiveDate: effective,
+			})
+			if err != nil {
+				return err
+			}
+			close(endMutationComplete)
+			<-releaseEnd // keep the cap uncommitted and the advisory lock held
+			return nil
+		})
+	}()
+
+	select {
+	case <-endMutationComplete:
+	case err := <-endDone:
+		require.NoError(t, err)
+		t.Fatal("end transaction completed before the concurrency barrier")
+	case <-time.After(5 * time.Second):
+		release()
+		t.Fatal("timed out waiting for end mutation")
+	}
+
+	updateStarted := make(chan struct{})
+	updateDone := make(chan error, 1)
+	go func() {
+		close(updateStarted)
+		updateDone <- s.factory.TimetableData.UpdateTemplate(s.ctx, update)
+	}()
+	<-updateStarted
+
+	// Give the concurrent PUT enough time to reach the contested template.
+	// Without the shared lock it reads NULL here and later recreates stale open
+	// rows after blocking on DELETE; with the lock it cannot read yet.
+	updateFinishedEarly := false
+	select {
+	case <-updateDone:
+		updateFinishedEarly = true
+	case <-time.After(250 * time.Millisecond):
+	}
+
+	release()
+	select {
+	case err := <-endDone:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for end transaction to commit")
+	}
+	if updateFinishedEarly {
+		t.Fatal("template update completed while the end transaction held the recurrence lock")
+	}
+	select {
+	case err := <-updateDone:
+		require.ErrorIs(t, err, scheduleSvc.ErrTemplateSegmentNotEditable)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for serialized template update")
+	}
+
+	schedules := loadSplitSchedules(t, s, s.template.ID)
+	require.Len(t, schedules, 1)
+	require.NotNil(t, schedules[0].ValidUntil)
+	assert.Equal(t, effective, *schedules[0].ValidUntil,
+		"rejected PUT must preserve the cap committed by the preceding end transaction")
+	assert.Equal(t, group.Name, reloadSplitGroup(t, s, s.template.ID).Name,
+		"rejected PUT must not mutate bounded template fields")
+}
+
+// The inverse side of the same gate: materialization must not read an old
+// open schedule while EndFromDate's cap is uncommitted, then insert a stale
+// predecessor occurrence after the end operation has already performed its
+// future-instance delete.
+func TestTemplateEnd_ConcurrentMaterializationCannotInsertPastCommittedCap(t *testing.T) {
+	effective := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+	defer s.runCleanup(t)
+
+	endMutationComplete := make(chan struct{})
+	releaseEnd := make(chan struct{})
+	endDone := make(chan error, 1)
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseEnd) }) }
+	defer release()
+
+	go func() {
+		endDone <- tenant.WithTenantTx(s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			_, err := s.factory.TemplateSplit.EndFromDate(txCtx, scheduleSvc.TemplateEndInput{
+				TemplateID:    s.template.ID,
+				EffectiveDate: effective,
+			})
+			if err != nil {
+				return err
+			}
+			close(endMutationComplete)
+			<-releaseEnd
+			return nil
+		})
+	}()
+
+	select {
+	case <-endMutationComplete:
+	case err := <-endDone:
+		require.NoError(t, err)
+		t.Fatal("end transaction completed before the concurrency barrier")
+	case <-time.After(5 * time.Second):
+		release()
+		t.Fatal("timed out waiting for end mutation")
+	}
+
+	type materializeOutcome struct {
+		result *scheduleSvc.MaterializationResult
+		err    error
+	}
+	materializeStarted := make(chan struct{})
+	materializeDone := make(chan materializeOutcome, 1)
+	go func() {
+		close(materializeStarted)
+		result, err := s.svc.MaterializeForTenant(s.ctx, effective, effective, scheduleSvc.MaterializationSourceManual)
+		materializeDone <- materializeOutcome{result: result, err: err}
+	}()
+	<-materializeStarted
+
+	var early materializeOutcome
+	materializedEarly := false
+	select {
+	case early = <-materializeDone:
+		materializedEarly = true
+	case <-time.After(250 * time.Millisecond):
+	}
+
+	release()
+	select {
+	case err := <-endDone:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for end transaction to commit")
+	}
+	if materializedEarly {
+		require.NoError(t, early.err)
+		t.Fatal("materialization completed while the end transaction held the recurrence gate")
+	}
+
+	var outcome materializeOutcome
+	select {
+	case outcome = <-materializeDone:
+		require.NoError(t, outcome.err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for serialized materialization")
+	}
+	require.NotNil(t, outcome.result)
+	assert.Zero(t, outcome.result.InstancesCreated)
+	assert.Equal(t, 1, outcome.result.CandidatesSkippedEnded)
+	instances := listInstancesForDate(t, s.db, s.template.ID, effective)
+	for _, instance := range instances {
+		s.registerCleanup("schedule.activity_instances", instance.ID)
+	}
+	assert.Empty(t, instances, "no predecessor occurrence may survive on/after the committed cap")
+}
+
+// Archival is also a recurrence writer: once archived_at commits, a
+// materializer that started concurrently must not insert an occurrence from a
+// template snapshot taken before the archive.
+func TestTemplateArchive_ConcurrentMaterializationCannotInsertStaleOccurrence(t *testing.T) {
+	date := futureMonday(1)
+	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
+	defer s.runCleanup(t)
+
+	archiveMutationComplete := make(chan struct{})
+	releaseArchive := make(chan struct{})
+	archiveDone := make(chan error, 1)
+	var releaseOnce sync.Once
+	release := func() { releaseOnce.Do(func() { close(releaseArchive) }) }
+	defer release()
+
+	go func() {
+		archiveDone <- tenant.WithTenantTx(s.ctx, s.db, s.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			archived, err := s.factory.TimetableData.ArchiveTemplate(txCtx, s.template.ID)
+			if err != nil {
+				return err
+			}
+			if archived != 1 {
+				return fmt.Errorf("expected one archived template, got %d", archived)
+			}
+			close(archiveMutationComplete)
+			<-releaseArchive
+			return nil
+		})
+	}()
+
+	select {
+	case <-archiveMutationComplete:
+	case err := <-archiveDone:
+		require.NoError(t, err)
+		t.Fatal("archive transaction completed before the concurrency barrier")
+	case <-time.After(5 * time.Second):
+		release()
+		t.Fatal("timed out waiting for archive mutation")
+	}
+
+	type materializeOutcome struct {
+		result *scheduleSvc.MaterializationResult
+		err    error
+	}
+	materializeStarted := make(chan struct{})
+	materializeDone := make(chan materializeOutcome, 1)
+	go func() {
+		close(materializeStarted)
+		result, err := s.svc.MaterializeForTenant(s.ctx, date, date, scheduleSvc.MaterializationSourceManual)
+		materializeDone <- materializeOutcome{result: result, err: err}
+	}()
+	<-materializeStarted
+
+	var early materializeOutcome
+	materializedEarly := false
+	select {
+	case early = <-materializeDone:
+		materializedEarly = true
+	case <-time.After(250 * time.Millisecond):
+	}
+
+	release()
+	select {
+	case err := <-archiveDone:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for archive transaction to commit")
+	}
+	if materializedEarly {
+		require.NoError(t, early.err)
+		t.Fatal("materialization completed while archive held the recurrence gate")
+	}
+
+	var outcome materializeOutcome
+	select {
+	case outcome = <-materializeDone:
+		require.NoError(t, outcome.err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for serialized materialization")
+	}
+	require.NotNil(t, outcome.result)
+	assert.Zero(t, outcome.result.InstancesCreated)
+	require.Len(t, outcome.result.Warnings, 1)
+	assert.Equal(t, scheduleSvc.MaterializationWarningCodeNoTemplates, outcome.result.Warnings[0].Code)
+	instances := listInstancesForDate(t, s.db, s.template.ID, date)
+	for _, instance := range instances {
+		s.registerCleanup("schedule.activity_instances", instance.ID)
+	}
+	assert.Empty(t, instances, "archived template must not produce a stale occurrence")
+}
+
+// Multi-period protected rosters retain each period/weekday assignment. Plain
+// supervisor rows still collapse to one successor row per person — previously
+// the carry path stamped every active row with the successor's period id and
+// violated the active-row uniqueness indexes (500 on split).
 func TestTemplateSplit_MultiPeriodRosterCarriesOnce(t *testing.T) {
 	effective := futureMonday(1)
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
@@ -590,15 +1402,25 @@ func TestTemplateSplit_MultiPeriodRosterCarriesOnce(t *testing.T) {
 	registerSuccessorCleanup(t, s, res.NewTemplateID)
 
 	newEnrollments := loadSplitEnrollments(t, s, res.NewTemplateID)
-	require.Len(t, newEnrollments, 2, "exactly one successor row per student")
-	byStudent := map[int64]*activitiesModels.StudentEnrollment{}
+	require.Len(t, newEnrollments, 3, "both protected period/weekday rows plus the other manual student survive")
+	byStudent := map[int64][]*activitiesModels.StudentEnrollment{}
 	for _, e := range newEnrollments {
-		byStudent[e.StudentID] = e
+		byStudent[e.StudentID] = append(byStudent[e.StudentID], e)
 	}
 	require.Contains(t, byStudent, s.students[0])
 	require.Contains(t, byStudent, s.students[1])
-	assert.Equal(t, []int{activitiesModels.WeekdayMonday, activitiesModels.WeekdayWednesday},
-		byStudent[s.students[0]].SelectedWeekdays, "selected_weekdays unioned across the student's rows")
+	require.Len(t, byStudent[s.students[0]], 2)
+	weekdaysByPeriod := make(map[int64][]int)
+	for _, enrollment := range byStudent[s.students[0]] {
+		periodID := int64(0)
+		if enrollment.CalendarPeriodID != nil {
+			periodID = *enrollment.CalendarPeriodID
+		}
+		weekdaysByPeriod[periodID] = enrollment.SelectedWeekdays
+	}
+	assert.Equal(t, []int{activitiesModels.WeekdayMonday}, weekdaysByPeriod[0])
+	assert.Equal(t, []int{activitiesModels.WeekdayWednesday}, weekdaysByPeriod[s.period.ID])
+	require.Len(t, byStudent[s.students[1]], 1)
 
 	newSupervisors := loadSplitSupervisors(t, s, res.NewTemplateID)
 	require.Len(t, newSupervisors, 1, "exactly one successor row per staff member")

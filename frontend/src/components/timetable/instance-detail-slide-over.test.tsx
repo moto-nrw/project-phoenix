@@ -154,10 +154,10 @@ describe("InstanceDetailSlideOver", () => {
     );
 
     expect(
-      screen.queryByRole("button", { name: "Als anwesend markieren" }),
+      screen.queryByRole("button", { name: /als anwesend markieren/ }),
     ).not.toBeInTheDocument();
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Kind abmelden" })[0]!,
+      screen.getByRole("button", { name: "Max Erwartet abmelden" }),
     );
     await waitFor(() =>
       expect(onAttendancePatch).toHaveBeenCalledWith("42", "21", {
@@ -234,7 +234,9 @@ describe("InstanceDetailSlideOver", () => {
     );
 
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Als anwesend markieren" })[0]!,
+      screen.getByRole("button", {
+        name: "Kind #21 als anwesend markieren",
+      }),
     );
     await waitFor(() =>
       expect(onAttendancePatch).toHaveBeenCalledWith("42", "21", {
@@ -243,7 +245,7 @@ describe("InstanceDetailSlideOver", () => {
       }),
     );
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Als fehlend markieren" })[0]!,
+      screen.getByRole("button", { name: "Kind #21 als fehlend markieren" }),
     );
     await waitFor(() =>
       expect(onAttendancePatch).toHaveBeenCalledWith("42", "21", {
@@ -252,7 +254,9 @@ describe("InstanceDetailSlideOver", () => {
       }),
     );
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Status zurücksetzen" })[0]!,
+      screen.getByRole("button", {
+        name: "Status von Kind #22 zurücksetzen",
+      }),
     );
     await waitFor(() =>
       expect(onAttendancePatch).toHaveBeenCalledWith("42", "22", {

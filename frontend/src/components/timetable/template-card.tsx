@@ -12,7 +12,7 @@
  * bar that ties the card back to the activity type.
  */
 
-import { Archive, Clock, DoorOpen, Users } from "lucide-react";
+import { Archive, Clock, DoorOpen, ShieldCheck, Users } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -20,6 +20,7 @@ import {
   getGermanWeekdayShort,
 } from "~/lib/timetable-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
+import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { timetableSurface } from "./timetable-style";
 
 interface TemplateCardProps {
@@ -127,6 +128,21 @@ export function TemplateCard({
               {template.supervisorCount} Personal
             </span>
           </div>
+          {template.requiredStaffCount > 0 && (
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+              <TimetableRatioPill
+                icon={<ShieldCheck className="h-3.5 w-3.5" />}
+                label="Besetzung"
+                value={`${template.assignedStaffCount}/${template.requiredStaffCount}`}
+                tone={capacityTone(
+                  template.assignedStaffCount,
+                  template.requiredStaffCount,
+                )}
+                variant="compact"
+              />
+            </div>
+          )}
         </dl>
 
         {!template.roomId && (

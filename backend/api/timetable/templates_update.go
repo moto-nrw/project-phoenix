@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -195,35 +196,22 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		TargetGradeLevel:  req.TargetGradeLevel,
 		TargetSchoolClass: req.TargetSchoolClass,
 	}
-	if _, err := rs.TimetableData.UpdateTemplateFields(ctx, id, fieldsUpdate); err != nil {
+	if err := rs.TimetableData.UpdateTemplate(ctx, scheduleSvc.TemplateUpdateInput{
+		TemplateID:       id,
+		Fields:           fieldsUpdate,
+		Weekdays:         req.Weekdays,
+		TimeframeID:      timeframeID,
+		WeekPattern:      weekPattern,
+		CalendarPeriodID: req.CalendarPeriodID,
+		RosterValidFrom:  rosterValidFrom,
+		StudentIDs:       req.StudentIDs,
+		StaffIDs:         req.StaffIDs,
+		PrimaryStaffID:   req.PrimaryStaffID,
+	}); errors.Is(err, scheduleSvc.ErrTemplateSegmentNotEditable) {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+		return
+	} else if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("update template failed", err))
-		return
-	}
-	if err := rs.TimetableData.DeleteSchedulesByGroupID(ctx, id); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("replace template schedules failed", err))
-		return
-	}
-	for _, weekday := range req.Weekdays {
-		tfID := timeframeID
-		sched := &activitiesModel.Schedule{
-			Weekday:          weekday,
-			TimeframeID:      &tfID,
-			ActivityGroupID:  id,
-			WeekPattern:      weekPattern,
-			CalendarPeriodID: req.CalendarPeriodID,
-		}
-		sched.SetTenantID(tenantID)
-		if err := rs.TimetableData.CreateActivitySchedule(ctx, sched); err != nil {
-			common.RenderError(w, r, common.ErrorInternalServerWrap("create schedule failed", err))
-			return
-		}
-	}
-	if err := rs.replaceTemplateStudents(ctx, id, req.StudentIDs, req.CalendarPeriodID, rosterValidFrom); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("assign template students failed", err))
-		return
-	}
-	if err := rs.replaceTemplateStaff(ctx, id, req.StaffIDs, req.PrimaryStaffID, req.CalendarPeriodID, rosterValidFrom); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("assign template staff failed", err))
 		return
 	}
 	templates, err := rs.loadTemplates(ctx, &id)

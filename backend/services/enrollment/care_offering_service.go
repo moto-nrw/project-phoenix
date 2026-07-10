@@ -16,6 +16,12 @@ import (
 // row doesn't exist (or the tenant can't see it via RLS).
 var ErrCareOfferingNotFound = errors.New("care offering not found")
 
+// ErrCareOfferingTemplatePeriodMismatch is returned when a linked timetable
+// template's planning period does not fully contain the enrollment phase's
+// service dates. The API maps this sentinel to a stable error code so clients
+// do not have to parse the human-readable error text.
+var ErrCareOfferingTemplatePeriodMismatch = errors.New("care offering phase must be within the linked timetable template period")
+
 // ErrCareOfferingGroupRuleConflict is returned by Create/Update when saving
 // an offering would leave two offerings in the same selection_group with
 // different non-optional selection rules. The invariant is enforced at save
@@ -308,7 +314,7 @@ func validatePhaseWithinTemplatePeriod(phase *enrollmentModels.Phase, period *sc
 		return nil
 	}
 	if phase.ServiceStartDate.Before(period.StartDate) || phase.ServiceEndDate.After(period.EndDate) {
-		return fmt.Errorf("care offering phase must be within the linked timetable template period")
+		return ErrCareOfferingTemplatePeriodMismatch
 	}
 	return nil
 }

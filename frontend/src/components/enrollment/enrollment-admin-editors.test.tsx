@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
@@ -31,11 +32,13 @@ const mocks = vi.hoisted(() => ({
   updateSchema: vi.fn(),
   uploadEnrollmentLegalDocument: vi.fn(),
   getTemplates: vi.fn(),
+  listCalendarPeriods: vi.fn(),
   enrollmentFormProps: [] as Array<{ lockChildStructure?: boolean }>,
   searchParams: new URLSearchParams(),
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    warning: vi.fn(),
   },
 }));
 
@@ -138,6 +141,12 @@ vi.mock("~/lib/timetable-api", () => ({
   },
 }));
 
+vi.mock("~/lib/calendar-period-api", () => ({
+  calendarPeriodService: {
+    list: mocks.listCalendarPeriods,
+  },
+}));
+
 vi.mock("~/lib/enrollment-admin-api", () => ({
   createLateInvite: mocks.createLateInvite,
   createManualApprovedEnrollment: mocks.createManualApprovedEnrollment,
@@ -165,6 +174,7 @@ import { PhasesEditor } from "./phases-editor";
 import type { CareOffering } from "~/lib/care-offering-api";
 import type { FormField, FormSchema } from "~/lib/enrollment-form-schema-api";
 import type { Phase } from "~/lib/enrollment-phase-api";
+import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 
 function phase(overrides: Partial<Phase> = {}): Phase {
   return {
@@ -227,6 +237,25 @@ function offering(overrides: Partial<CareOffering> = {}): CareOffering {
     sort_order: 0,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function calendarPeriod(
+  overrides: Partial<CalendarPeriod> = {},
+): CalendarPeriod {
+  return {
+    id: "period-1",
+    tenantId: "1",
+    name: "Schuljahr 2026/27",
+    periodType: "school_year",
+    startDate: "2026-08-01",
+    endDate: "2027-08-31",
+    weekCycleLength: 1,
+    weekCycleAnchor: null,
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -310,9 +339,12 @@ beforeEach(() => {
   mocks.deleteEnrollmentLegalDocument.mockReset();
   mocks.getTemplates.mockReset();
   mocks.getTemplates.mockResolvedValue({ templates: [] });
+  mocks.listCalendarPeriods.mockReset();
+  mocks.listCalendarPeriods.mockResolvedValue([]);
   mocks.enrollmentFormProps = [];
   mocks.toast.success.mockReset();
   mocks.toast.error.mockReset();
+  mocks.toast.warning.mockReset();
   mocks.searchParams = new URLSearchParams();
   Object.defineProperty(window, "confirm", {
     value: vi.fn(() => true),
@@ -517,6 +549,7 @@ describe("CareOfferingsEditor", () => {
   it("shows warnings for timetable template mismatches", async () => {
     mocks.listPhases.mockResolvedValue([phase()]);
     mocks.listCareOfferings.mockResolvedValue([offering()]);
+    mocks.listCalendarPeriods.mockResolvedValue([calendarPeriod()]);
     mocks.getTemplates.mockResolvedValue({
       templates: [
         {
@@ -546,6 +579,7 @@ describe("CareOfferingsEditor", () => {
               startTime: "13:00",
               endTime: "14:00",
               weekPattern: 0,
+              calendarPeriodId: "period-1",
             },
           ],
         },
@@ -571,11 +605,240 @@ describe("CareOfferingsEditor", () => {
         "Der Regeltermin enthält Tage, die im Angebot nicht auswählbar sind.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("offers only Regeltermine whose single period contains the phase", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([]);
+    mocks.listCalendarPeriods.mockResolvedValue([
+      calendarPeriod(),
+      calendarPeriod({
+        id: "period-short",
+        name: "Kurzer Zeitraum",
+        startDate: "2026-09-01",
+        endDate: "2026-12-31",
+      }),
+    ]);
+    const baseTemplate = {
+      type: "care" as const,
+      categoryId: "cat-1",
+      categoryName: "Betreuung",
+      isOpen: true,
+      maxParticipants: 20,
+      enrollmentCount: 0,
+      supervisorCount: 0,
+      requiredStaffCount: 0,
+      assignedStaffCount: 0,
+      studentIds: [],
+      staffIds: [],
+      targetGroupType: "none" as const,
+    };
+    mocks.getTemplates.mockResolvedValue({
+      templates: [
+        {
+          ...baseTemplate,
+          id: "8",
+          name: "Passender Regeltermin",
+          schedules: [
+            {
+              id: "schedule-compatible",
+              weekday: 1,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+              calendarPeriodId: "period-1",
+            },
+          ],
+        },
+        {
+          ...baseTemplate,
+          id: "9",
+          name: "Zu kurzer Regeltermin",
+          schedules: [
+            {
+              id: "schedule-short",
+              weekday: 1,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+              calendarPeriodId: "period-short",
+            },
+          ],
+        },
+        {
+          ...baseTemplate,
+          id: "10",
+          name: "Regeltermin ohne Slots",
+          schedules: [],
+        },
+      ],
+    });
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Erstes Betreuungsangebot anlegen",
+      }),
+    );
+    fireEvent.click(screen.getByLabelText("Regeltermin"));
+
     expect(
-      screen.getByText(
-        "Der Regeltermin muss genau eine Planungsperiode für alle Slots verwenden.",
-      ),
+      screen.getByRole("option", { name: /Passender Regeltermin/ }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: /Zu kurzer Regeltermin/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: /Regeltermin ohne Slots/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows an existing incompatible link and blocks saving it", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ activity_group_id: "9" }),
+    ]);
+    mocks.listCalendarPeriods.mockResolvedValue([
+      calendarPeriod({
+        id: "period-short",
+        startDate: "2026-09-01",
+        endDate: "2026-12-31",
+      }),
+    ]);
+    mocks.getTemplates.mockResolvedValue({
+      templates: [
+        {
+          id: "9",
+          name: "Lernzeit",
+          type: "care",
+          categoryId: "cat-1",
+          categoryName: "Betreuung",
+          isOpen: true,
+          maxParticipants: 20,
+          enrollmentCount: 0,
+          supervisorCount: 0,
+          requiredStaffCount: 0,
+          assignedStaffCount: 0,
+          studentIds: [],
+          staffIds: [],
+          targetGroupType: "none",
+          schedules: [
+            {
+              id: "schedule-short",
+              weekday: 1,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+              calendarPeriodId: "period-short",
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    expect(screen.getByLabelText("Regeltermin")).toHaveTextContent(
+      /Lernzeit.*nicht kompatibel/,
+    );
+    expect(
+      screen.getByText(/muss den gesamten Betreuungszeitraum/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+  });
+
+  it("clears a linked Regeltermin when the phase change makes it incompatible", async () => {
+    mocks.listPhases.mockResolvedValue([
+      phase(),
+      phase({
+        id: "11",
+        name: "Schuljahr 2027/28",
+        service_start_date: "2027-09-01",
+        service_end_date: "2028-07-31",
+      }),
+    ]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ activity_group_id: "8" }),
+    ]);
+    mocks.listCalendarPeriods.mockResolvedValue([calendarPeriod()]);
+    mocks.updateCareOffering.mockResolvedValue(
+      offering({ phase_id: "11", activity_group_id: null }),
+    );
+    mocks.getTemplates.mockResolvedValue({
+      templates: [
+        {
+          id: "8",
+          name: "Lernzeit",
+          type: "care",
+          categoryId: "cat-1",
+          categoryName: "Betreuung",
+          isOpen: true,
+          maxParticipants: 20,
+          enrollmentCount: 0,
+          supervisorCount: 0,
+          requiredStaffCount: 0,
+          assignedStaffCount: 0,
+          studentIds: [],
+          staffIds: [],
+          targetGroupType: "none",
+          schedules: [
+            {
+              id: "schedule-linked",
+              weekday: 1,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+              calendarPeriodId: "period-1",
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+    const form = screen
+      .getByRole("heading", { name: "Betreuungsangebot bearbeiten" })
+      .closest("form");
+    expect(form).not.toBeNull();
+    fireEvent.click(within(form!).getByLabelText("Anmeldephase"));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Schuljahr 2027/28" }),
+    );
+
+    expect(mocks.toast.warning).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /Verknüpfung zum Regeltermin wurde entfernt.*neu gewählten Anmeldephase/,
+      ),
+    );
+    expect(within(form!).getByLabelText("Regeltermin")).toHaveTextContent(
+      "Keine automatische Regeltermin-Zuordnung",
+    );
+    fireEvent.click(within(form!).getByRole("button", { name: "Speichern" }));
+    await waitFor(() => {
+      expect(mocks.updateCareOffering).toHaveBeenCalledWith(
+        "offer-1",
+        expect.objectContaining({
+          phase_id: 11,
+          activity_group_id: null,
+        }),
+      );
+    });
   });
 
   it("shows empty and error states", async () => {

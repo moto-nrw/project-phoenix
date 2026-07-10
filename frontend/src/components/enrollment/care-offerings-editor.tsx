@@ -27,6 +27,9 @@ import {
   updateCareOffering,
 } from "~/lib/care-offering-api";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
+import { calendarPeriodService } from "~/lib/calendar-period-api";
+import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
+import { CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE } from "~/lib/enrollment-error-messages";
 import { createLogger } from "~/lib/logger";
 import { timetableService } from "~/lib/timetable-api";
 import type { TimetableTemplate } from "~/lib/timetable-types";
@@ -76,6 +79,9 @@ const KIND_LABELS: Record<Phase["kind"], string> = {
   holiday: "Ferienbetreuung",
   custom: "Sonstiges",
 };
+
+const CARE_OFFERING_TEMPLATE_UNLINKED_MESSAGE =
+  "Die Verknüpfung zum Regeltermin wurde entfernt, weil sein Planungszeitraum den Betreuungszeitraum der neu gewählten Anmeldephase nicht vollständig abdeckt.";
 
 function blankInput(phaseId: number): CareOfferingInput {
   return {
@@ -153,6 +159,49 @@ function templateLabel(template: TimetableTemplate): string {
   return `${template.name} (${days || "keine Tage"}, ${time})`;
 }
 
+function singleTemplatePeriodID(template: TimetableTemplate): string | null {
+  if (template.schedules.length === 0) return null;
+
+  const periodIDs = new Set<string>();
+  for (const schedule of template.schedules) {
+    if (!schedule.calendarPeriodId) return null;
+    periodIDs.add(schedule.calendarPeriodId);
+    if (periodIDs.size > 1) return null;
+  }
+  return periodIDs.values().next().value ?? null;
+}
+
+function templateFitsPhasePeriod(
+  template: TimetableTemplate,
+  phase: Phase,
+  periods: CalendarPeriod[],
+): boolean {
+  const periodID = singleTemplatePeriodID(template);
+  if (!periodID) return false;
+  const period = periods.find((item) => item.id === periodID);
+  if (!period) return false;
+  return (
+    period.startDate <= phase.service_start_date &&
+    phase.service_end_date <= period.endDate
+  );
+}
+
+function draftHasCompatibleTemplatePeriod(
+  draft: CareOfferingInput,
+  phases: Phase[],
+  templates: TimetableTemplate[],
+  periods: CalendarPeriod[],
+): boolean {
+  if (!draft.activity_group_id) return true;
+  const phase = phases.find((item) => item.id === String(draft.phase_id));
+  const template = templates.find(
+    (item) => item.id === String(draft.activity_group_id),
+  );
+  return Boolean(
+    phase && template && templateFitsPhasePeriod(template, phase, periods),
+  );
+}
+
 function linkedTemplateWarnings(
   draft: CareOfferingInput,
   templates: TimetableTemplate[],
@@ -212,6 +261,7 @@ export function CareOfferingsEditor() {
   const [selectedPhaseId, setSelectedPhaseId] = useState<string>("");
   const [offerings, setOfferings] = useState<CareOffering[]>([]);
   const [templates, setTemplates] = useState<TimetableTemplate[]>([]);
+  const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -237,17 +287,14 @@ export function CareOfferingsEditor() {
     setLoading(true);
     setError(null);
     try {
-      const [phasesData, templateData] = await Promise.all([
+      const [phasesData, templateData, periodData] = await Promise.all([
         listPhases(),
-        timetableService.getTemplates().catch((err: unknown) => {
-          logger.error("care_offering_templates_load_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return { templates: [] as TimetableTemplate[] };
-        }),
+        timetableService.getTemplates(),
+        calendarPeriodService.list(),
       ]);
       setPhases(phasesData);
       setTemplates(templateData.templates);
+      setPeriods(periodData);
 
       let phaseId = selectedPhaseId;
       if (!phaseId && phasesData.length > 0) {
@@ -299,6 +346,11 @@ export function CareOfferingsEditor() {
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!draft) return;
+    if (!draftHasCompatibleTemplatePeriod(draft, phases, templates, periods)) {
+      setError(CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE);
+      toast.error(CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE);
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -534,10 +586,14 @@ export function CareOfferingsEditor() {
               phases={phases}
               offerings={offerings}
               templates={templates}
+              periods={periods}
               saving={saving}
               onChange={setDraft}
               onSubmit={handleSave}
               onCancel={cancelFocusMode}
+              onTemplateUnlinked={() =>
+                toast.warning(CARE_OFFERING_TEMPLATE_UNLINKED_MESSAGE)
+              }
             />
           ) : null}
 
@@ -908,10 +964,12 @@ interface CareOfferingFormProps {
   readonly phases: Phase[];
   readonly offerings: CareOffering[];
   readonly templates: TimetableTemplate[];
+  readonly periods: CalendarPeriod[];
   readonly saving: boolean;
   readonly onChange: (draft: CareOfferingInput) => void;
   readonly onSubmit: (event: React.FormEvent) => void;
   readonly onCancel: () => void;
+  readonly onTemplateUnlinked: () => void;
 }
 
 function CareOfferingForm({
@@ -921,14 +979,31 @@ function CareOfferingForm({
   phases,
   offerings,
   templates,
+  periods,
   saving,
   onChange,
   onSubmit,
   onCancel,
+  onTemplateUnlinked,
 }: CareOfferingFormProps) {
   const update = (patch: Partial<CareOfferingInput>) =>
     onChange({ ...draft, ...patch });
   const templateWarnings = linkedTemplateWarnings(draft, templates);
+  const selectedPhase = phases.find(
+    (phase) => phase.id === String(draft.phase_id),
+  );
+  const compatibleTemplates = selectedPhase
+    ? templates.filter((template) =>
+        templateFitsPhasePeriod(template, selectedPhase, periods),
+      )
+    : [];
+  const linkedTemplateID = draft.activity_group_id?.toString() ?? "";
+  const linkedTemplate = templates.find(
+    (template) => template.id === linkedTemplateID,
+  );
+  const linkedTemplatePeriodMismatch =
+    linkedTemplateID !== "" &&
+    !draftHasCompatibleTemplatePeriod(draft, phases, templates, periods);
   const triggerOptions = offerings.filter(
     (offering) =>
       offering.phase_id === String(draft.phase_id) && offering.id !== editingId,
@@ -1001,6 +1076,16 @@ function CareOfferingForm({
             value={draft.phase_id?.toString() ?? ""}
             onChange={(value) => {
               const phaseID = value ? Number(value) : 0;
+              const nextPhase = phases.find((phase) => phase.id === value);
+              const linkedTemplateRemainsCompatible = Boolean(
+                draft.activity_group_id &&
+                nextPhase &&
+                linkedTemplate &&
+                templateFitsPhasePeriod(linkedTemplate, nextPhase, periods),
+              );
+              const shouldUnlinkTemplate = Boolean(
+                draft.activity_group_id && !linkedTemplateRemainsCompatible,
+              );
               const validTriggerIDs = new Set(
                 offerings
                   .filter(
@@ -1015,7 +1100,11 @@ function CareOfferingForm({
                 auto_add_trigger_offering_ids: (
                   draft.auto_add_trigger_offering_ids ?? []
                 ).filter((id) => validTriggerIDs.has(id)),
+                activity_group_id: linkedTemplateRemainsCompatible
+                  ? draft.activity_group_id
+                  : null,
               });
+              if (shouldUnlinkTemplate) onTemplateUnlinked();
             }}
             className="mt-1"
             options={[
@@ -1041,12 +1130,26 @@ function CareOfferingForm({
               })
             }
             className="mt-1 border-gray-200 bg-white"
+            invalid={linkedTemplatePeriodMismatch}
             options={[
               {
                 value: "",
                 label: "Keine automatische Regeltermin-Zuordnung",
               },
-              ...templates.map((template) => ({
+              ...(linkedTemplatePeriodMismatch
+                ? [
+                    {
+                      value: linkedTemplateID,
+                      label: `${
+                        linkedTemplate
+                          ? templateLabel(linkedTemplate)
+                          : `Regeltermin #${linkedTemplateID}`
+                      } (nicht kompatibel)`,
+                      disabled: true,
+                    },
+                  ]
+                : []),
+              ...compatibleTemplates.map((template) => ({
                 value: String(template.id),
                 label: templateLabel(template),
               })),
@@ -1057,6 +1160,20 @@ function CareOfferingForm({
           Genehmigte Anmeldungen werden in diesen Regeltermin übernommen und an
           den ausgewählten Angebotstagen erwartet.
         </p>
+        {linkedTemplatePeriodMismatch ? (
+          <p
+            className="mt-2 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 px-3 py-2 text-xs text-[#CC2626]"
+            role="alert"
+          >
+            {CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE}
+          </p>
+        ) : null}
+        {!linkedTemplatePeriodMismatch && compatibleTemplates.length === 0 ? (
+          <p className="mt-2 text-xs text-gray-500">
+            Kein Regeltermin deckt den gesamten Betreuungszeitraum dieser Phase
+            ab.
+          </p>
+        ) : null}
         {templateWarnings.length > 0 ? (
           <ul className="mt-2 space-y-1 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">
             {templateWarnings.map((warning) => (
@@ -1359,7 +1476,12 @@ function CareOfferingForm({
         </button>
         <button
           type="submit"
-          disabled={saving || !draft.phase_id || !draft.name.trim()}
+          disabled={
+            saving ||
+            !draft.phase_id ||
+            !draft.name.trim() ||
+            linkedTemplatePeriodMismatch
+          }
           className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         >
           {saving ? "Speichert..." : editing ? "Speichern" : "Erstellen"}

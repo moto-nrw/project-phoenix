@@ -506,6 +506,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.ActivityException,
 		repos.Timeframe,
 		calendarPeriodService,
+		db,
 		logger.With("service", "materialization"),
 	)
 
@@ -522,6 +523,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		TimeframeRepo:   repos.Timeframe,
 		Materialization: materializationService,
 		Logger:          logger.With("service", "template-split"),
+		DB:              db,
 	})
 
 	// Initialize timetable GDPR cleanup service (WP-B14). Deletes

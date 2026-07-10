@@ -22,11 +22,11 @@
 //     never wall-clock timestamps. See calendar_period_service.ShouldMaterialize
 //     for the anchor math.
 //
-//   - Transaction boundary is the caller's. The scheduler wraps each tenant
-//     in its own WithTenantTx; the HTTP handler uses the tenant middleware's
-//     tx. We do not open nested transactions — a hard DB error bubbles up and
-//     aborts the tenant's run; the scheduler will retry on the next matching
-//     weekday.
+//   - Transactional tenant recurrence gate. The service reuses the scheduler/
+//     HTTP tenant transaction or opens an RLS-aware tenant transaction when
+//     called directly, then holds the tenant recurrence gate through every
+//     bounds read and instance insert. This serializes against split/end/PUT
+//     without cross-tenant contention.
 //
 //   - Duplicate template-slot races are absorbed via INSERT ... ON CONFLICT DO
 //     NOTHING and counted as raced, not fatal.
@@ -41,8 +41,11 @@ import (
 	"sort"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -110,8 +113,8 @@ const (
 type MaterializationService interface {
 	// MaterializeForTenant creates missing schedule.activity_instances (plus
 	// their instance_staff / instance_students rows) for the current tenant
-	// for every civil date in [from, to]. The caller is expected to have
-	// established tenant context and a transaction.
+	// for every civil date in [from, to]. Tenant context is required; an
+	// ambient transaction is reused and direct calls open their own.
 	//
 	// source is a logging tag only — it has no behavioural effect. Use
 	// MaterializationSourceScheduler or MaterializationSourceManual.
@@ -138,13 +141,16 @@ type materializationService struct {
 	exceptionRepo   schedule.ActivityExceptionRepository
 	timeframeRepo   schedule.TimeframeRepository
 	calendarService CalendarPeriodService
+	db              *bun.DB
 	logger          *slog.Logger
 }
 
 // NewMaterializationService constructs a MaterializationService with all
 // repository dependencies. The CalendarPeriodService is injected (rather than
 // reconstructed) so the shared A/B week algorithm stays the single source of
-// truth for the DST-safe math.
+// truth for the DST-safe math. Production wiring must provide db so direct
+// calls get an RLS-aware transaction and recurrence gate; nil is reserved for
+// pure repository-double unit tests.
 func NewMaterializationService(
 	groupRepo activities.GroupRepository,
 	scheduleRepo activities.ScheduleRepository,
@@ -157,6 +163,7 @@ func NewMaterializationService(
 	exceptionRepo schedule.ActivityExceptionRepository,
 	timeframeRepo schedule.TimeframeRepository,
 	calendarService CalendarPeriodService,
+	db *bun.DB,
 	logger *slog.Logger,
 ) MaterializationService {
 	return &materializationService{
@@ -171,6 +178,7 @@ func NewMaterializationService(
 		exceptionRepo:   exceptionRepo,
 		timeframeRepo:   timeframeRepo,
 		calendarService: calendarService,
+		db:              db,
 		logger:          logger,
 	}
 }
@@ -188,7 +196,8 @@ func (s *materializationService) ResolveWindow(baseDate timezone.Date, weeksAhea
 }
 
 // MaterializeForTenant implements the core of WP-B8. See the interface comment
-// for contract. The caller supplies tenant context + transaction.
+// for contract. Tenant context is mandatory; an ambient transaction is reused,
+// otherwise production wiring opens an RLS-aware tenant transaction.
 func (s *materializationService) MaterializeForTenant(
 	ctx context.Context,
 	from, to timezone.Date,
@@ -202,6 +211,23 @@ func (s *materializationService) MaterializeForTenant(
 	}
 	if days := from.DaysUntil(to) + 1; days > MaxMaterializationWindowDays {
 		return nil, &ScheduleError{Op: "materialize for tenant", Err: fmt.Errorf("window exceeds %d days", MaxMaterializationWindowDays)}
+	}
+	if s.db != nil {
+		if tenantID <= 0 {
+			return nil, &ScheduleError{Op: "materialize for tenant", Err: errors.New("no tenant in context")}
+		}
+		if _, ok := modelBase.TxFromContext(ctx); !ok {
+			var result *MaterializationResult
+			err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+				var err error
+				result, err = s.MaterializeForTenant(txCtx, from, to, source)
+				return err
+			})
+			return result, err
+		}
+		if err := lockTenantRecurrenceWrites(ctx, s.db); err != nil {
+			return nil, &ScheduleError{Op: "materialize for tenant: lock recurrence", Err: err}
+		}
 	}
 
 	result := &MaterializationResult{From: from, To: to}

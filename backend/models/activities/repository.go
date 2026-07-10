@@ -142,10 +142,15 @@ type SupervisorPlannedRepository interface {
 	// (staff offboarding cleanup).
 	DeleteByStaffID(ctx context.Context, staffID int64) (int64, error)
 
-	// CapActiveByGroup ends every still-active supervision (valid_until IS
-	// NULL) of the given group at validUntil (exclusive). Returns the number
-	// of rows changed. Used by the template split (WP-B3).
+	// CapActiveByGroup caps open supervision rows (valid_until IS NULL).
+	// Rows starting on/after the cap are deleted because they have no interval
+	// left; begun rows are ended at validUntil. Bounded rows are left to their
+	// owning workflow. Returns the total number changed.
 	CapActiveByGroup(ctx context.Context, groupID int64, validUntil timezone.Date) (int64, error)
+
+	// SetValidUntilByID closes exactly one supervision without writing the
+	// rest of a potentially partial read model back to the database.
+	SetValidUntilByID(ctx context.Context, id int64, validUntil timezone.Date) error
 }
 
 // StudentEnrollmentRepository defines operations for managing student enrollments
@@ -177,10 +182,15 @@ type StudentEnrollmentRepository interface {
 	// approved enrollment request child for a specific student.
 	DeleteByEnrollmentRequestChild(ctx context.Context, studentID, requestChildID int64) (int64, error)
 
-	// CapActiveByGroup ends every still-active enrollment (valid_until IS
-	// NULL) of the given group at validUntil (exclusive). Returns the number
-	// of rows changed. Used by the template split (WP-B3).
+	// CapActiveByGroup caps open enrollment rows (valid_until IS NULL). Rows
+	// starting on/after the cap are deleted because they have no interval left;
+	// begun rows are ended at validUntil. Bounded rows are left to their owning
+	// workflow. Returns the total number changed.
 	CapActiveByGroup(ctx context.Context, groupID int64, validUntil timezone.Date) (int64, error)
+
+	// SetValidUntilByID closes exactly one enrollment without writing the
+	// rest of a potentially partial read model back to the database.
+	SetValidUntilByID(ctx context.Context, id int64, validUntil timezone.Date) error
 }
 
 // TemplateFieldsUpdate carries the editable fields of PUT /templates/{id}.
@@ -226,14 +236,22 @@ type TemplateListRow struct {
 	TargetSchoolClass        sql.NullString `bun:"target_school_class"`
 	EnrollmentCount          int            `bun:"enrollment_count"`
 	SupervisorCount          int            `bun:"supervisor_count"`
-	StudentIDs               []int64        `bun:"student_ids,array"`
-	StaffIDs                 []int64        `bun:"staff_ids,array"`
-	PrimaryStaffID           sql.NullInt64  `bun:"primary_staff_id"`
-	ScheduleID               int64          `bun:"schedule_id"`
-	Weekday                  int            `bun:"weekday"`
-	StartTime                sql.NullString `bun:"start_time"`
-	EndTime                  sql.NullString `bun:"end_time"`
-	WeekPattern              int            `bun:"week_pattern"`
-	CalendarPeriodID         sql.NullInt64  `bun:"calendar_period_id"`
-	ScheduleValidUntil       sql.NullString `bun:"schedule_valid_until"`
+	// CapacityEnrollmentCount and CapacitySupervisorCount are the roster
+	// counts effective for the planning period selected by the timetable.
+	// Enrollments include bounded windows overlapping the period; supervisors
+	// stay restricted to matching open rows so historical edit versions cannot
+	// be unioned into false coverage. These counts intentionally differ from
+	// the period-tolerant display roster below.
+	CapacityEnrollmentCount int            `bun:"capacity_enrollment_count"`
+	CapacitySupervisorCount int            `bun:"capacity_supervisor_count"`
+	StudentIDs              []int64        `bun:"student_ids,array"`
+	StaffIDs                []int64        `bun:"staff_ids,array"`
+	PrimaryStaffID          sql.NullInt64  `bun:"primary_staff_id"`
+	ScheduleID              int64          `bun:"schedule_id"`
+	Weekday                 int            `bun:"weekday"`
+	StartTime               sql.NullString `bun:"start_time"`
+	EndTime                 sql.NullString `bun:"end_time"`
+	WeekPattern             int            `bun:"week_pattern"`
+	CalendarPeriodID        sql.NullInt64  `bun:"calendar_period_id"`
+	ScheduleValidUntil      sql.NullString `bun:"schedule_valid_until"`
 }

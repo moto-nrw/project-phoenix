@@ -189,14 +189,17 @@ func templateEndUnitService(
 	supervisorRepo *templateEndUnitSupervisorRepo,
 	instanceRepo *templateEndUnitInstanceRepo,
 ) *TemplateSplitService {
-	return &TemplateSplitService{deps: TemplateSplitDependencies{
-		GroupRepo:      groupRepo,
-		ScheduleRepo:   scheduleRepo,
-		EnrollmentRepo: enrollmentRepo,
-		SupervisorRepo: supervisorRepo,
-		InstanceRepo:   instanceRepo,
-		Logger:         slog.New(slog.DiscardHandler),
-	}}
+	return &TemplateSplitService{
+		deps: TemplateSplitDependencies{
+			GroupRepo:      groupRepo,
+			ScheduleRepo:   scheduleRepo,
+			EnrollmentRepo: enrollmentRepo,
+			SupervisorRepo: supervisorRepo,
+			InstanceRepo:   instanceRepo,
+			Logger:         slog.New(slog.DiscardHandler),
+		},
+		lockTenantRecurrence: func(context.Context) error { return nil },
+	}
 }
 
 func templateEndUnitGroup(id int64) *activitiesModel.Group {
@@ -225,10 +228,19 @@ func (r *templateEndUnitGroupRepo) FindByID(_ context.Context, _ any) (*activiti
 
 type templateEndUnitScheduleRepo struct {
 	activitiesModel.ScheduleRepository
+	schedules  []*activitiesModel.Schedule
+	findErr    error
 	capped     int64
 	err        error
 	groupID    int64
 	validUntil timezone.Date
+}
+
+func (r *templateEndUnitScheduleRepo) FindByGroupID(_ context.Context, _ int64) ([]*activitiesModel.Schedule, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
+	return r.schedules, nil
 }
 
 func (r *templateEndUnitScheduleRepo) CapValidUntil(_ context.Context, groupID int64, validUntil timezone.Date) (int64, error) {
@@ -247,6 +259,10 @@ type templateEndUnitEnrollmentRepo struct {
 	groupID int64
 }
 
+func (r *templateEndUnitEnrollmentRepo) FindByGroupID(_ context.Context, _ int64) ([]*activitiesModel.StudentEnrollment, error) {
+	return nil, nil
+}
+
 func (r *templateEndUnitEnrollmentRepo) CapActiveByGroup(_ context.Context, groupID int64, _ timezone.Date) (int64, error) {
 	r.groupID = groupID
 	if r.err != nil {
@@ -260,6 +276,10 @@ type templateEndUnitSupervisorRepo struct {
 	capped  int64
 	err     error
 	groupID int64
+}
+
+func (r *templateEndUnitSupervisorRepo) FindByGroupID(_ context.Context, _ int64) ([]*activitiesModel.SupervisorPlanned, error) {
+	return nil, nil
 }
 
 func (r *templateEndUnitSupervisorRepo) CapActiveByGroup(_ context.Context, groupID int64, _ timezone.Date) (int64, error) {

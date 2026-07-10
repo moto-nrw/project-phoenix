@@ -614,6 +614,8 @@ const instance = {
   absentStaffCount: 1,
   expectedStudentsCount: 1,
   presentStudentsCount: 0,
+  requiredStaffCount: 3,
+  assignedStaffCount: 1,
   conflictWarnings: [
     {
       kind: "room" as const,
@@ -654,6 +656,8 @@ const template = {
   maxParticipants: 12,
   enrollmentCount: 8,
   supervisorCount: 1,
+  requiredStaffCount: 3,
+  assignedStaffCount: 1,
   studentIds: ["21"],
   staffIds: ["11"],
   schedules: [
@@ -795,6 +799,25 @@ describe("TimetablesPage", () => {
         "database-calendar-periods-list",
       ),
     );
+  });
+
+  it("uses staffing ratios for the overview in every planner view", () => {
+    render(<TimetablesPage />);
+
+    const expectUnderstaffed = () => {
+      const label = screen.getByText("Unterbesetzt");
+      expect(label.parentElement).toHaveTextContent("1");
+      expect(
+        screen.getByText("zusätzliches Personal nötig"),
+      ).toBeInTheDocument();
+    };
+
+    expectUnderstaffed();
+
+    for (const viewButton of ["week-view", "year-view", "series-view"]) {
+      fireEvent.click(screen.getByText(viewButton));
+      expectUnderstaffed();
+    }
   });
 
   it("navigates views and runs week actions", async () => {

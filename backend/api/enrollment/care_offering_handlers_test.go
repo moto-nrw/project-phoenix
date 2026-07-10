@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -244,6 +245,16 @@ func TestCreateCareOfferingHandler_ServiceErrorReturns400(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+func TestCreateCareOfferingHandler_TemplatePeriodMismatchReturnsStableCode(t *testing.T) {
+	mock := &mockCareOfferingService{createErr: fmt.Errorf("validate linked template: %w", enrollmentService.ErrCareOfferingTemplatePeriodMismatch)}
+	router := buildCareOfferingRouter(mock)
+	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings",
+		validOfferingBody(5678, "OGS"))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.JSONEq(t, `{"status":"error","error":"validate linked template: care offering phase must be within the linked timetable template period","code":"enrollment.care_offering_template_period_mismatch"}`, w.Body.String())
+}
+
 // --- updateCareOffering ---------------------------------------------
 
 func TestUpdateCareOfferingHandler_NilServiceReturns500(t *testing.T) {
@@ -277,6 +288,16 @@ func TestUpdateCareOfferingHandler_UpdateErrorReturns400(t *testing.T) {
 	w := executeCareJSON(t, router, http.MethodPut, "/enrollment/care-offerings/1234",
 		validOfferingBody(5678, "X"))
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestUpdateCareOfferingHandler_TemplatePeriodMismatchReturnsStableCode(t *testing.T) {
+	mock := &mockCareOfferingService{updateErr: enrollmentService.ErrCareOfferingTemplatePeriodMismatch}
+	router := buildCareOfferingRouter(mock)
+	w := executeCareJSON(t, router, http.MethodPut, "/enrollment/care-offerings/1234",
+		validOfferingBody(5678, "X"))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"enrollment.care_offering_template_period_mismatch"`)
 }
 
 func TestUpdateCareOfferingHandler_RefetchErrorReturns500(t *testing.T) {

@@ -794,78 +794,86 @@ function StudentGroup({
         <span>{attendanceLabel(status, isPlanned)}</span>
         {showTimetableCounts ? <span>{students.length}</span> : null}
       </div>
-      {students.map((student) => (
-        <div
-          key={student.studentId}
-          className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 shadow-sm ${attendanceTone(
-            student.status,
-          )}`}
-        >
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-gray-900">
-              {studentNames.get(student.studentId) ??
-                `Kind #${student.studentId}`}
+      {students.map((student) => {
+        const studentName =
+          studentNames.get(student.studentId) ?? `Kind #${student.studentId}`;
+
+        return (
+          <div
+            key={student.studentId}
+            className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 shadow-sm ${attendanceTone(
+              student.status,
+            )}`}
+          >
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-gray-900">
+                {studentName}
+              </div>
+              <div className="text-[11px] text-gray-500">
+                {attendanceLabel(student.status, isPlanned)}
+                {student.substatus
+                  ? ` • ${attendanceSubstatusLabel(student.substatus)}`
+                  : ""}
+                {student.note ? ` • ${student.note}` : ""}
+              </div>
             </div>
-            <div className="text-[11px] text-gray-500">
-              {attendanceLabel(student.status, isPlanned)}
-              {student.substatus
-                ? ` • ${attendanceSubstatusLabel(student.substatus)}`
-                : ""}
-              {student.note ? ` • ${student.note}` : ""}
-            </div>
+            {onAttendancePatch && (
+              <div className="flex shrink-0 items-center gap-1">
+                {!isPlanned && student.status !== "present" && (
+                  <IconActionButton
+                    icon={<Check className="h-3.5 w-3.5" />}
+                    label={`${studentName} als anwesend markieren`}
+                    tone="green"
+                    isLoading={pendingStudentId === student.studentId}
+                    disabled={pendingStudentId !== null}
+                    onClick={() =>
+                      void handleAttendancePatch(student.studentId, {
+                        status: "present",
+                        substatus: null,
+                      })
+                    }
+                  />
+                )}
+                {student.status !== "absent" && (
+                  <IconActionButton
+                    icon={<X className="h-3.5 w-3.5" />}
+                    label={
+                      isPlanned
+                        ? `${studentName} abmelden`
+                        : `${studentName} als fehlend markieren`
+                    }
+                    tone="red"
+                    isLoading={pendingStudentId === student.studentId}
+                    disabled={pendingStudentId !== null}
+                    onClick={() =>
+                      void handleAttendancePatch(student.studentId, {
+                        status: "absent",
+                        substatus: isPlanned ? "excused" : null,
+                      })
+                    }
+                  />
+                )}
+                {student.status !== "expected" && (
+                  <IconActionButton
+                    icon={<RotateCcw className="h-3.5 w-3.5" />}
+                    label={`Status von ${studentName} zurücksetzen`}
+                    tone="slate"
+                    isLoading={pendingStudentId === student.studentId}
+                    disabled={pendingStudentId !== null}
+                    onClick={() =>
+                      void handleAttendancePatch(student.studentId, {
+                        status: "expected",
+                        substatus: null,
+                        note: null,
+                      })
+                    }
+                  />
+                )}
+              </div>
+            )}
           </div>
-          {onAttendancePatch && (
-            <div className="flex shrink-0 items-center gap-1">
-              {!isPlanned && student.status !== "present" && (
-                <IconActionButton
-                  icon={<Check className="h-3.5 w-3.5" />}
-                  label="Als anwesend markieren"
-                  tone="green"
-                  isLoading={pendingStudentId === student.studentId}
-                  disabled={pendingStudentId !== null}
-                  onClick={async () =>
-                    await handleAttendancePatch(student.studentId, {
-                      status: "present",
-                      substatus: null,
-                    })
-                  }
-                />
-              )}
-              {student.status !== "absent" && (
-                <IconActionButton
-                  icon={<X className="h-3.5 w-3.5" />}
-                  label={isPlanned ? "Kind abmelden" : "Als fehlend markieren"}
-                  tone="red"
-                  isLoading={pendingStudentId === student.studentId}
-                  disabled={pendingStudentId !== null}
-                  onClick={async () =>
-                    await handleAttendancePatch(student.studentId, {
-                      status: "absent",
-                      substatus: isPlanned ? "excused" : null,
-                    })
-                  }
-                />
-              )}
-              {student.status !== "expected" && (
-                <IconActionButton
-                  icon={<RotateCcw className="h-3.5 w-3.5" />}
-                  label="Status zurücksetzen"
-                  tone="slate"
-                  isLoading={pendingStudentId === student.studentId}
-                  disabled={pendingStudentId !== null}
-                  onClick={async () =>
-                    await handleAttendancePatch(student.studentId, {
-                      status: "expected",
-                      substatus: null,
-                      note: null,
-                    })
-                  }
-                />
-              )}
-            </div>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -917,9 +925,12 @@ function IconActionButton({
       className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${ICON_ACTION_PALETTE[tone]}`}
     >
       {isLoading ? (
-        <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        <span
+          className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+          aria-hidden
+        />
       ) : (
-        icon
+        <span aria-hidden>{icon}</span>
       )}
     </button>
   );

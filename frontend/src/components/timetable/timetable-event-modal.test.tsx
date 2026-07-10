@@ -154,6 +154,16 @@ const template: TimetableTemplate = {
   ],
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((promiseResolve, promiseReject) => {
+    resolve = promiseResolve;
+    reject = promiseReject;
+  });
+  return { promise, resolve, reject };
+}
+
 function setupRefs() {
   vi.stubGlobal(
     "fetch",
@@ -193,14 +203,38 @@ function setupRefs() {
   ]);
 }
 
+function setupRepeatableReferenceFetch() {
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: unknown) => {
+      const url = String(input);
+      if (url.includes("/api/rooms")) {
+        return {
+          json: async () => ({
+            data: [{ id: 3, name: "Mensa", building: "Haus A" }],
+          }),
+        };
+      }
+      if (url.includes("/api/activities/categories")) {
+        return {
+          json: async () => ({ data: [{ id: "2", name: "AG" }] }),
+        };
+      }
+      return {
+        json: async () => ({ data: [{ id: 31, name: "Klasse 1a" }] }),
+      };
+    }),
+  );
+}
+
 function renderModal(
   props: Partial<React.ComponentProps<typeof TimetableEventModal>> = {},
 ) {
   const onClose = vi.fn();
   const onSaved = vi.fn();
-  render(
+  const modal = (isOpen: boolean) => (
     <TimetableEventModal
-      isOpen
+      isOpen={isOpen}
       onClose={onClose}
       onSaved={onSaved}
       defaultDate="2026-05-04"
@@ -209,9 +243,15 @@ function renderModal(
       calendarPeriods={periods}
       defaultCalendarPeriodId="5"
       {...props}
-    />,
+    />
   );
-  return { onClose, onSaved };
+  const rendered = render(modal(true));
+  return {
+    ...rendered,
+    onClose,
+    onSaved,
+    setOpen: (isOpen: boolean) => rendered.rerender(modal(isOpen)),
+  };
 }
 
 describe("TimetableEventModal", () => {
@@ -333,10 +373,238 @@ describe("TimetableEventModal", () => {
     expect(screen.getByText("Max Kind")).toBeInTheDocument();
     expect(screen.getByText("Mila Kind")).toBeInTheDocument();
 
+    fireEvent.change(screen.getByLabelText("Nach Jahrgang filtern"), {
+      target: { value: "1" },
+    });
+    expect(screen.getByText("Max Kind")).toBeInTheDocument();
+    expect(screen.queryByText("Mila Kind")).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Filter zurücksetzen" }),
+    );
+
     fireEvent.click(
       screen.getAllByRole("button", { name: "Auswahl leeren" })[0]!,
     );
     expect(screen.getAllByText("0 ausgewählt").length).toBeGreaterThan(0);
+  });
+
+  it("loads every student page for complete roster selection", async () => {
+    mockFetchStudents.mockImplementation(({ page }: { page?: number } = {}) =>
+      Promise.resolve(
+        page === 2
+          ? {
+              students: [
+                {
+                  id: "22",
+                  name: "Mila Zweite Seite",
+                  school_class: "3b",
+                  group_name: "OGS Rot",
+                },
+              ],
+              pagination: {
+                current_page: 2,
+                page_size: 500,
+                total_pages: 2,
+                total_records: 2,
+              },
+            }
+          : {
+              students: [
+                {
+                  id: "21",
+                  name: "Max Erste Seite",
+                  school_class: "3a",
+                  group_name: "OGS Blau",
+                },
+              ],
+              pagination: {
+                current_page: 1,
+                page_size: 500,
+                total_pages: 2,
+                total_records: 2,
+              },
+            },
+      ),
+    );
+
+    renderModal();
+
+    expect(await screen.findByText("Max Erste Seite")).toBeInTheDocument();
+    expect(await screen.findByText("Mila Zweite Seite")).toBeInTheDocument();
+    expect(mockFetchStudents).toHaveBeenCalledWith({
+      page: 1,
+      page_size: 500,
+    });
+    expect(mockFetchStudents).toHaveBeenCalledWith({
+      page: 2,
+      page_size: 500,
+    });
+  });
+
+  it("blocks saving and retries when a later student page fails", async () => {
+    let secondPageFails = true;
+    mockFetchStudents.mockImplementation(({ page }: { page?: number } = {}) => {
+      if (page === 2 && secondPageFails) {
+        return Promise.reject(new Error("secondary page unavailable"));
+      }
+      return Promise.resolve({
+        students: [
+          page === 2
+            ? {
+                id: "22",
+                name: "Mila Zweite Seite",
+                school_class: "3b",
+                group_name: "OGS Rot",
+              }
+            : {
+                id: "21",
+                name: "Max Erste Seite",
+                school_class: "3a",
+                group_name: "OGS Blau",
+              },
+        ],
+        pagination: {
+          current_page: page ?? 1,
+          page_size: 500,
+          total_pages: 2,
+          total_records: 2,
+        },
+      });
+    });
+
+    renderModal();
+
+    expect(
+      await screen.findByText(
+        "Die Kinderliste konnte nicht vollständig geladen werden. Bitte lade sie erneut, bevor du den Termin speicherst.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(screen.queryByText("Max Erste Seite")).not.toBeInTheDocument();
+
+    secondPageFails = false;
+    fireEvent.click(
+      screen.getByRole("button", { name: "Kinder erneut laden" }),
+    );
+
+    expect(await screen.findByText("Max Erste Seite")).toBeInTheDocument();
+    expect(await screen.findByText("Mila Zweite Seite")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Die Kinderliste konnte nicht vollständig/),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+  });
+
+  it("reveals a student load failure immediately in quick mode", async () => {
+    mockFetchStudents.mockRejectedValue(new Error("students unavailable"));
+
+    renderModal({ variant: "quick" });
+
+    expect(
+      await screen.findByText(
+        "Die Kinderliste konnte nicht vollständig geladen werden. Bitte lade sie erneut, bevor du den Termin speicherst.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Weitere Optionen" }),
+    ).toHaveAttribute("aria-expanded", "true");
+    expect(
+      screen.getByRole("button", { name: "Kinder erneut laden" }),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+  });
+
+  it("ignores a stale student failure after the modal is reopened", async () => {
+    setupRepeatableReferenceFetch();
+    const staleRequest = deferred<{
+      students: Array<{
+        id: string;
+        name: string;
+        school_class: string;
+        group_name: string;
+      }>;
+    }>();
+    mockFetchStudents
+      .mockImplementationOnce(() => staleRequest.promise)
+      .mockResolvedValueOnce({
+        students: [
+          {
+            id: "22",
+            name: "Neue Kinderliste",
+            school_class: "3b",
+            group_name: "OGS Rot",
+          },
+        ],
+      });
+
+    const { setOpen } = renderModal();
+    await waitFor(() => expect(mockFetchStudents).toHaveBeenCalledOnce());
+
+    setOpen(false);
+    setOpen(true);
+
+    expect(await screen.findByText("Neue Kinderliste")).toBeInTheDocument();
+
+    await act(async () => {
+      staleRequest.reject(new Error("stale student request failed"));
+      await staleRequest.promise.catch(() => undefined);
+    });
+
+    expect(screen.getByText("Neue Kinderliste")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Die Kinderliste konnte nicht vollständig/),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+  });
+
+  it("ignores a stale retry after the modal is reopened", async () => {
+    setupRepeatableReferenceFetch();
+    const staleRetry = deferred<{
+      students: Array<{
+        id: string;
+        name: string;
+        school_class: string;
+        group_name: string;
+      }>;
+    }>();
+    mockFetchStudents
+      .mockRejectedValueOnce(new Error("initial student request failed"))
+      .mockImplementationOnce(() => staleRetry.promise)
+      .mockResolvedValueOnce({
+        students: [
+          {
+            id: "23",
+            name: "Liste nach Wiederöffnung",
+            school_class: "4a",
+            group_name: "OGS Gelb",
+          },
+        ],
+      });
+
+    const { setOpen } = renderModal();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Kinder erneut laden" }),
+    );
+    await waitFor(() => expect(mockFetchStudents).toHaveBeenCalledTimes(2));
+
+    setOpen(false);
+    setOpen(true);
+
+    expect(
+      await screen.findByText("Liste nach Wiederöffnung"),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      staleRetry.reject(new Error("stale retry failed"));
+      await staleRetry.promise.catch(() => undefined);
+    });
+
+    expect(screen.getByText("Liste nach Wiederöffnung")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Die Kinderliste konnte nicht vollständig/),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
   });
 
   it("validates shared fields before submitting", async () => {
@@ -514,6 +782,80 @@ describe("TimetableEventModal", () => {
         expect.objectContaining({
           target_group_type: "jahrgang",
           target_grade_level: 3,
+        }),
+      ),
+    );
+  });
+
+  it("adds the selected target cohort without replacing existing children", async () => {
+    mockFetchStudents.mockResolvedValue({
+      students: [
+        {
+          id: "21",
+          name: "Mara Drei A",
+          school_class: "3a",
+          group_name: "OGS Blau",
+        },
+        {
+          id: "22",
+          name: "Mika Drei B",
+          school_class: "3b",
+          group_name: "OGS Rot",
+        },
+        {
+          id: "23",
+          name: "Nora Vier A",
+          school_class: "4a",
+          group_name: "OGS Gelb",
+        },
+      ],
+    });
+    renderModal({ showPeriodField: true });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("checkbox", { name: /Nora Vier A/ }));
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Hausaufgabenbetreuung" },
+    });
+    fireEvent.change(screen.getByLabelText("Raum*"), {
+      target: { value: "3" },
+    });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    fireEvent.click(screen.getByRole("button", { name: /AG Yoga/ }));
+    fireEvent.change(screen.getByLabelText("Kategorie*"), {
+      target: { value: "2" },
+    });
+    fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
+      target: { value: "5" },
+    });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jahrgang" }), {
+      button: 0,
+    });
+    fireEvent.change(screen.getByLabelText("Jahrgang"), {
+      target: { value: "3" },
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Alle 2 Kinder aus Jahrgang 3 übernehmen",
+      }),
+    );
+
+    expect(screen.getByRole("checkbox", { name: /Mara Drei A/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Mika Drei B/ })).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: /Nora Vier A/ })).toBeChecked();
+    expect(screen.getByText("3 ausgewählt")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          target_group_type: "jahrgang",
+          target_grade_level: 3,
+          student_ids: expect.arrayContaining([21, 22, 23]),
         }),
       ),
     );
@@ -971,15 +1313,21 @@ describe("TimetableEventModal", () => {
       .getAllByText(/^(Personal|Kinder)$/)
       .map((node) => node.textContent);
     expect(fieldLabels).toEqual(["Personal", "Kinder"]);
+    expect(
+      screen.getByRole("option", { name: "Klasse 1a" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "Klasse Klasse 1a" }),
+    ).not.toBeInTheDocument();
 
     fireEvent.change(
-      screen.getByLabelText("Klasse oder Gruppe komplett hinzufügen"),
+      screen.getByLabelText("Jahrgang, Klasse oder Gruppe komplett hinzufügen"),
       { target: { value: "class:1a" } },
     );
     expect(screen.getByText("2 ausgewählt")).toBeInTheDocument();
 
     fireEvent.change(
-      screen.getByLabelText("Klasse oder Gruppe komplett hinzufügen"),
+      screen.getByLabelText("Jahrgang, Klasse oder Gruppe komplett hinzufügen"),
       { target: { value: "group:OGS Blau" } },
     );
     // Union: 21 + 22 from class 1a, 23 from group OGS Blau (21 deduplicated).

@@ -5,8 +5,8 @@ import {
   chunkDateRange,
   computeTimetableSetup,
   countPlanned,
-  countStaffGaps,
-  countTemplateStaffGaps,
+  countUnderstaffedInstances,
+  countUnderstaffedTemplates,
   formatDayHeader,
   formatMonthLabel,
   formatWeekLabel,
@@ -805,8 +805,14 @@ function planInstance(
   } as unknown as EnrichedInstance;
 }
 
-function fakeTemplate(staffIds: string[]): TimetableTemplate {
-  return { staffIds } as unknown as TimetableTemplate;
+function fakeTemplate(
+  requiredStaffCount: number,
+  assignedStaffCount: number,
+): TimetableTemplate {
+  return {
+    requiredStaffCount,
+    assignedStaffCount,
+  } as unknown as TimetableTemplate;
 }
 
 describe("countPlanned", () => {
@@ -826,31 +832,49 @@ describe("countPlanned", () => {
   });
 });
 
-describe("countStaffGaps", () => {
-  it("counts instances with no effective staff, ignoring cancelled", () => {
+describe("countUnderstaffedInstances", () => {
+  it("counts ratio shortfalls while ignoring cancelled and zero-requirement appointments", () => {
     expect(
-      countStaffGaps([
-        planInstance({ id: "none", staffCount: 0, absentStaffCount: 0 }),
-        planInstance({ id: "all-absent", staffCount: 2, absentStaffCount: 2 }),
-        planInstance({ id: "staffed", staffCount: 1, absentStaffCount: 0 }),
+      countUnderstaffedInstances([
+        planInstance({
+          id: "partially-staffed",
+          requiredStaffCount: 3,
+          assignedStaffCount: 1,
+        }),
+        planInstance({
+          id: "unstaffed",
+          requiredStaffCount: 2,
+          assignedStaffCount: 0,
+        }),
+        planInstance({
+          id: "staffed",
+          requiredStaffCount: 2,
+          assignedStaffCount: 2,
+        }),
+        planInstance({
+          id: "no-requirement",
+          requiredStaffCount: 0,
+          assignedStaffCount: 0,
+        }),
         planInstance({
           id: "cancelled-gap",
           status: "cancelled",
-          staffCount: 0,
-          absentStaffCount: 0,
+          requiredStaffCount: 2,
+          assignedStaffCount: 0,
         }),
       ]),
     ).toBe(2);
   });
 });
 
-describe("countTemplateStaffGaps", () => {
-  it("counts series without assigned staff", () => {
+describe("countUnderstaffedTemplates", () => {
+  it("counts partial and empty staffing only when the series has a requirement", () => {
     expect(
-      countTemplateStaffGaps([
-        fakeTemplate([]),
-        fakeTemplate(["7"]),
-        fakeTemplate([]),
+      countUnderstaffedTemplates([
+        fakeTemplate(3, 1),
+        fakeTemplate(2, 0),
+        fakeTemplate(2, 2),
+        fakeTemplate(0, 0),
       ]),
     ).toBe(2);
   });

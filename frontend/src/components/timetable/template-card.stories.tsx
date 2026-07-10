@@ -58,6 +58,16 @@ export const Default: Story = {
   },
 };
 
+export const Understaffed: Story = {
+  args: {
+    template: {
+      ...baseTemplate,
+      assignedStaffCount: 1,
+      requiredStaffCount: 3,
+    },
+  },
+};
+
 export const ExternalActivityNoRoom: Story = {
   args: {
     template: {

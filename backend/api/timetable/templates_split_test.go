@@ -20,6 +20,7 @@ import (
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -38,6 +39,7 @@ func attachSplitService(s *templateSetup, mat scheduleSvc.MaterializationService
 		InstanceRepo:    scheduleRepo.NewActivityInstanceRepository(s.db),
 		TimeframeRepo:   scheduleRepo.NewTimeframeRepository(s.db),
 		Materialization: mat,
+		DB:              s.db,
 	})
 }
 
@@ -54,6 +56,7 @@ func splitRouter(parentCtx context.Context, res *Resource, perms []string) chi.R
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})
+	r.Use(tenant.TenantTxMiddleware(res.DB))
 	r.Post("/templates", res.createTemplate)
 	r.Get("/templates", res.listTemplates)
 	r.Get("/templates/{id}", res.getTemplate)
@@ -71,6 +74,13 @@ func createSourceTemplate(t *testing.T, router chi.Router, s *templateSetup, nam
 	w := doTemplateJSON(t, router, http.MethodPost, "/templates", createTemplateBody(s, name))
 	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
 	return decodeTemplateData[createTemplateResponse](t, w)
+}
+
+func templateSchedules(t *testing.T, s *templateSetup, templateID int64) []*activitiesModel.Schedule {
+	t.Helper()
+	rows, err := activitiesRepo.NewScheduleRepository(s.db).FindByGroupID(s.ctx, templateID)
+	require.NoError(t, err)
+	return rows
 }
 
 func splitBody(s *templateSetup, name string, effective timezone.Date) map[string]any {
@@ -113,6 +123,103 @@ func TestTemplateSplitHandler_HappyPath(t *testing.T) {
 	assert.Equal(t, 0, resp.DeletedInstances, "no planned instances existed")
 	assert.Equal(t, 5, resp.InstancesCreated, "materialization count surfaces on the wire")
 	assert.Equal(t, scheduleSvc.MaterializationSourceManual, mat.source)
+}
+
+func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	attachSplitService(s, mat)
+	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+
+	created := createSourceTemplate(t, router, s, "Tpl-Split-Update-Quelle")
+	effective := timezone.TodayDate().AddDays(7)
+	splitW := doTemplateJSON(t, router, http.MethodPost,
+		fmt.Sprintf("/templates/%d/split", created.TemplateID),
+		splitBody(s, "Tpl-Split-Update-Nachfolger", effective))
+	require.Equal(t, http.StatusOK, splitW.Code, "body=%s", splitW.Body.String())
+	split := decodeTemplateData[splitTemplateResponse](t, splitW)
+
+	updateBody := createTemplateBody(s, "Tpl-Split-Update-Nachfolger-Bearbeitet")
+	updateBody["weekdays"] = []int{activitiesModel.WeekdayTuesday, activitiesModel.WeekdayThursday}
+	updateW := doTemplateJSON(t, router, http.MethodPut,
+		fmt.Sprintf("/templates/%d", split.NewTemplateID), updateBody)
+	require.Equal(t, http.StatusOK, updateW.Code, "body=%s", updateW.Body.String())
+
+	schedules := templateSchedules(t, s, split.NewTemplateID)
+	require.Len(t, schedules, 2)
+	for _, schedule := range schedules {
+		require.NotNil(t, schedule.ValidFrom, "editing the successor must not erase its split start")
+		assert.Equal(t, effective, *schedule.ValidFrom)
+		assert.Nil(t, schedule.ValidUntil)
+	}
+
+	enrollments, err := activitiesRepo.NewStudentEnrollmentRepository(s.db).FindByGroupID(s.ctx, split.NewTemplateID)
+	require.NoError(t, err)
+	activeEnrollments := 0
+	for _, enrollment := range enrollments {
+		if enrollment.ValidUntil == nil {
+			activeEnrollments++
+			assert.Equal(t, effective, enrollment.ValidFrom,
+				"successor roster must inherit the split start, not the period start")
+			continue
+		}
+		assert.False(t, enrollment.ValidUntil.Before(enrollment.ValidFrom),
+			"retired successor roster bounds must not invert")
+	}
+	assert.Equal(t, 2, activeEnrollments)
+
+	supervisors, err := activitiesRepo.NewSupervisorPlannedRepository(s.db).FindByGroupID(s.ctx, split.NewTemplateID)
+	require.NoError(t, err)
+	activeSupervisors := 0
+	for _, supervisor := range supervisors {
+		if supervisor.ValidUntil == nil {
+			activeSupervisors++
+			assert.Equal(t, effective, supervisor.ValidFrom,
+				"successor supervision must inherit the split start")
+			continue
+		}
+		assert.False(t, supervisor.ValidUntil.Before(supervisor.ValidFrom),
+			"retired successor supervision bounds must not invert")
+	}
+	assert.Equal(t, 2, activeSupervisors)
+}
+
+func TestTemplateUpdateHandler_RejectsInconsistentValidityEnvelopeWithoutMutation(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+
+	created := createSourceTemplate(t, router, s, "Tpl-Update-Inconsistent-Quelle")
+	before := templateSchedules(t, s, created.TemplateID)
+	require.Len(t, before, 2)
+	inconsistentFrom := timezone.TodayDate().AddDays(14)
+	_, err := s.db.NewUpdate().
+		Model((*activitiesModel.Schedule)(nil)).
+		ModelTableExpr(`activities.schedules AS "schedule"`).
+		Set("valid_from = ?", inconsistentFrom).
+		Where(`"schedule".id = ?`, before[0].ID).
+		Where(`"schedule".tenant_id = ?`, tenant.FromContext(s.ctx)).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	updateBody := createTemplateBody(s, "Tpl-Update-Inconsistent-Must-Rollback")
+	updateW := doTemplateJSON(t, router, http.MethodPut,
+		fmt.Sprintf("/templates/%d", created.TemplateID), updateBody)
+	require.Equal(t, http.StatusInternalServerError, updateW.Code, "body=%s", updateW.Body.String())
+
+	after := templateSchedules(t, s, created.TemplateID)
+	require.Len(t, after, 2, "inconsistent schedules must not be deleted")
+	assert.Equal(t, []int64{before[0].ID, before[1].ID}, []int64{after[0].ID, after[1].ID})
+	require.NotNil(t, after[0].ValidFrom)
+	assert.Equal(t, inconsistentFrom, *after[0].ValidFrom)
+	assert.Nil(t, after[1].ValidFrom)
+
+	group, err := s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)
+	require.NoError(t, err)
+	assert.Equal(t, "Tpl-Update-Inconsistent-Quelle", group.Name,
+		"validity validation must run before template fields change")
 }
 
 func TestTemplateSplitHandler_BadEffectiveDate(t *testing.T) {

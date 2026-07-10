@@ -313,7 +313,30 @@ func TestCareOfferingService_Create_RejectsPhaseOutsideTemplatePeriod(t *testing
 	_, err := svc.Create(testpkg.TenantContext(1), baseLinkedOffering(phase.ID, group.ID))
 
 	require.Error(t, err)
+	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch)
 	assert.Contains(t, err.Error(), "phase must be within")
+}
+
+func TestCareOfferingService_Update_RejectsPhaseOutsideTemplatePeriod(t *testing.T) {
+	db, svc, phase, cleanup := setupCareTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	period := createCareOfferingTestPeriod(t, db, "care-short-update-period",
+		timezone.NewDate(2026, 9, 1),
+		timezone.NewDate(2026, 12, 31))
+	group := createCareOfferingTemplateGroup(t, db, "care-short-update-template")
+	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
+
+	offering := baseLinkedOffering(phase.ID, group.ID)
+	offering.ActivityGroupID = nil
+	created, err := svc.Create(ctx, offering)
+	require.NoError(t, err)
+	created.ActivityGroupID = &group.ID
+
+	err = svc.Update(ctx, created)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch)
 }
 
 func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {

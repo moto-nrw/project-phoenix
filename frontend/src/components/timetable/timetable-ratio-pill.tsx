@@ -74,6 +74,7 @@ export function TimetableRatioPill({
           className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
           style={{ backgroundColor: color }}
         />
+        <span className="sr-only">{label}: </span>
         <span className="tabular-nums">{value}</span>
       </span>
     );

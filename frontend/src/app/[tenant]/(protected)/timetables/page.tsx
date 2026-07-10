@@ -68,8 +68,8 @@ import { timetableService } from "~/lib/timetable-api";
 import {
   chunkDateRange,
   countPlanned,
-  countStaffGaps,
-  countTemplateStaffGaps,
+  countUnderstaffedInstances,
+  countUnderstaffedTemplates,
   formatWeekLabel,
   formatMonthLabel,
   formatYearLabel,
@@ -866,19 +866,20 @@ function TimetablesContent() {
 
   // --- Overview zone (KPIs + setup guide), rendered in every view ---
   // KPIs are derived from the already-loaded instances/templates so they
-  // work in month/year too — the /api/timetable/gaps endpoint is week-only
-  // and capped at 14 days. In the week view we prefer the gaps count when
-  // loaded so the headline KPI matches the Planstatus panel below.
+  // work in every view. The /api/timetable/gaps endpoint uses a different,
+  // zero-coverage rule, so only the Planstatus panel uses it.
   const isSeriesView = view === "series";
   const plannedCount = useMemo(
     () => (isSeriesView ? templates.length : countPlanned(instances)),
     [isSeriesView, templates, instances],
   );
-  const staffGapCount = useMemo(() => {
-    if (isSeriesView) return countTemplateStaffGaps(templates);
-    if (view === "week" && gapsData) return gaps.length;
-    return countStaffGaps(instances);
-  }, [isSeriesView, templates, view, gapsData, gaps, instances]);
+  const understaffedCount = useMemo(
+    () =>
+      isSeriesView
+        ? countUnderstaffedTemplates(templates)
+        : countUnderstaffedInstances(instances),
+    [isSeriesView, templates, instances],
+  );
   const plannedSublabel = isSeriesView
     ? "als Regeltermin"
     : view === "week"
@@ -886,8 +887,10 @@ function TimetablesContent() {
       : view === "month"
         ? "diesen Monat"
         : "dieses Jahr";
-  const staffGapSublabel =
-    staffGapCount > 0 ? "brauchen Personal" : "alles besetzt";
+  const understaffedSublabel =
+    understaffedCount > 0
+      ? "zusätzliches Personal nötig"
+      : "ausreichend besetzt";
   const hasActivePeriod = useMemo(
     () => calendarPeriods.some((period) => period.isActive),
     [calendarPeriods],
@@ -1397,8 +1400,8 @@ function TimetablesContent() {
         plannedLabel={isSeriesView ? "Regeltermine" : "Geplant"}
         plannedCount={plannedCount}
         plannedSublabel={plannedSublabel}
-        staffGapCount={staffGapCount}
-        staffGapSublabel={staffGapSublabel}
+        understaffedCount={understaffedCount}
+        understaffedSublabel={understaffedSublabel}
         createLabel={
           isSeriesView ? "Regeltermin erstellen" : "Termin erstellen"
         }

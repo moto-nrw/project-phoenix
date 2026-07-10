@@ -44,6 +44,17 @@ type CareOfferingResponse struct {
 	UpdatedAt           time.Time `json:"updated_at"`
 }
 
+// ErrCodeCareOfferingTemplatePeriodMismatch lets the admin frontend map the
+// authoritative service validation to a localized explanation.
+const ErrCodeCareOfferingTemplatePeriodMismatch = "enrollment.care_offering_template_period_mismatch"
+
+func careOfferingWriteErrorRenderer(err error) render.Renderer {
+	if errors.Is(err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch) {
+		return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingTemplatePeriodMismatch)
+	}
+	return common.ErrorInvalidRequest(err)
+}
+
 func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingResponse {
 	resp := CareOfferingResponse{
 		ID:                  strconv.FormatInt(o.ID, 10),
@@ -248,7 +259,7 @@ func (rs *Resource) createCareOffering(w http.ResponseWriter, r *http.Request) {
 		return e
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, careOfferingWriteErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toCareOfferingResponse(offering), "Care offering created")
@@ -271,7 +282,7 @@ func (rs *Resource) updateCareOffering(w http.ResponseWriter, r *http.Request) {
 		},
 		func(o *enrollmentModels.CareOffering) any { return toCareOfferingResponse(o) },
 		"Care offering updated",
-		func(err error) render.Renderer { return common.ErrorInvalidRequest(err) })
+		careOfferingWriteErrorRenderer)
 }
 
 func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {

@@ -6,6 +6,7 @@ import {
   getGermanWeekdayShort,
   getMonthDays,
   groupInstancesByDate,
+  isInstanceUnderstaffed,
   toISODate,
 } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
@@ -17,6 +18,20 @@ interface YearPlannerGridProps {
   todayISO?: string;
   onMonthClick: (month: Date) => void;
   onDayClick: (dateISO: string) => void;
+}
+
+function appointmentCountLabel(count: number): string {
+  return `${count} ${count === 1 ? "Termin" : "Termine"}`;
+}
+
+function understaffedCountLabel(count: number): string {
+  return count === 1
+    ? "1 unterbesetzter Termin"
+    : `${count} unterbesetzte Termine`;
+}
+
+function conflictCountLabel(count: number): string {
+  return `${count} ${count === 1 ? "Konflikt" : "Konflikte"}`;
 }
 
 export function YearPlannerGrid({
@@ -89,17 +104,18 @@ export function YearPlannerGrid({
                 const dayInstances = grouped.get(iso) ?? [];
                 const outsideMonth = day.getMonth() !== currentMonth;
                 const isToday = iso === todayISO;
-                const hasConflicts = dayInstances.some(
-                  (instance) => instance.conflictWarnings.length > 0,
+                const dayConflictCount = dayInstances.reduce(
+                  (sum, instance) => sum + instance.conflictWarnings.length,
+                  0,
                 );
+                const understaffedCount = dayInstances.filter(
+                  isInstanceUnderstaffed,
+                ).length;
+                const hasConflicts = dayConflictCount > 0;
                 // Priority chain danger > warning > success: a day with an
                 // understaffed block outranks a mere conflict warning for
                 // the single dot this cell has room for (issue #1838).
-                const hasUnderstaffed = dayInstances.some(
-                  (instance) =>
-                    instance.requiredStaffCount > 0 &&
-                    instance.assignedStaffCount < instance.requiredStaffCount,
-                );
+                const hasUnderstaffed = understaffedCount > 0;
                 const dayDotColor = hasUnderstaffed
                   ? timetableToneColors.danger
                   : hasConflicts
@@ -114,7 +130,17 @@ export function YearPlannerGrid({
                     className={`relative flex aspect-square min-h-8 items-center justify-center rounded-lg text-[11px] font-medium tabular-nums transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
                       outsideMonth ? "text-gray-300" : "text-gray-700"
                     } ${dayInstances.length > 0 ? "border border-gray-200 bg-white shadow-sm" : ""}`}
-                    aria-label={`${iso}: ${dayInstances.length} Termine`}
+                    aria-label={[
+                      `${iso}: ${appointmentCountLabel(dayInstances.length)}`,
+                      understaffedCount > 0
+                        ? understaffedCountLabel(understaffedCount)
+                        : null,
+                      dayConflictCount > 0
+                        ? conflictCountLabel(dayConflictCount)
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
                   >
                     <span
                       className={

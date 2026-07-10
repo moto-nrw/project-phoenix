@@ -468,6 +468,16 @@ func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int6
 	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
+	// Start with the established unfiltered fallback. Single-template GET/PUT
+	// responses below replace it with period-aware counts when their group and
+	// schedules resolve to one unambiguous planning-period pin.
+	for i := range rows {
+		rows[i].CapacityEnrollmentCount = rows[i].EnrollmentCount
+		rows[i].CapacitySupervisorCount = rows[i].SupervisorCount
+	}
+	if err := r.loadPinnedTemplateCapacityCounts(ctx, rows); err != nil {
+		return nil, err
+	}
 	return rows, nil
 }
 
@@ -514,15 +524,224 @@ func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodI
 	args = append(args, tenantID)
 	args = append(args, tenantID)
 	if periodID != nil {
-		query += ` AND (s.calendar_period_id = ? OR s.calendar_period_id IS NULL)`
-		args = append(args, *periodID)
+		// Match materialization's period precedence exactly: a schedule pin is
+		// authoritative; an unpinned schedule inherits the group pin; only a
+		// schedule and group that are both unpinned are period-flexible.
+		query += ` AND (
+			s.calendar_period_id = ?
+			OR (
+				s.calendar_period_id IS NULL
+				AND (g.calendar_period_id = ? OR g.calendar_period_id IS NULL)
+			)
+		)`
+		args = append(args, *periodID, *periodID)
 	}
 	query += ` ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
 
 	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
+	if periodID == nil {
+		for i := range rows {
+			rows[i].CapacityEnrollmentCount = rows[i].EnrollmentCount
+			rows[i].CapacitySupervisorCount = rows[i].SupervisorCount
+		}
+		return rows, nil
+	}
+	if err := r.loadTemplateCapacityCounts(ctx, rows, *periodID); err != nil {
+		return nil, err
+	}
 	return rows, nil
+}
+
+// loadTemplateCapacityCounts adds the roster counts that can actually be
+// materialized in periodID. The main template-list aggregates deliberately
+// remain period-tolerant for display/editing; capacity must not let staff or
+// children assigned only to another overlapping period leak into the
+// selected period's staffing ratio.
+//
+// Both people tables are aggregated in one batched query for every returned
+// template. Enrollments contribute when unscoped/scoped to periodID and their
+// [valid_from, valid_until) window overlaps the selected planning period. This
+// includes phase-bounded care-offer enrollments which materialize during the
+// period even though the display roster intentionally lists open rows.
+// Supervisors are deliberately more conservative: only matching open rows
+// count. Template edits leave bounded historical staff versions behind, and
+// unioning those versions across a whole period could falsely report coverage.
+func (r *GroupRepository) loadTemplateCapacityCounts(
+	ctx context.Context,
+	rows []activities.TemplateListRow,
+	periodID int64,
+) error {
+	if len(rows) == 0 {
+		return nil
+	}
+
+	templateIDs := make([]int64, 0, len(rows))
+	seenTemplateIDs := make(map[int64]struct{}, len(rows))
+	for _, row := range rows {
+		if _, seen := seenTemplateIDs[row.TemplateID]; seen {
+			continue
+		}
+		seenTemplateIDs[row.TemplateID] = struct{}{}
+		templateIDs = append(templateIDs, row.TemplateID)
+	}
+	return r.loadTemplateCapacityCountsForIDs(ctx, rows, periodID, templateIDs)
+}
+
+// loadPinnedTemplateCapacityCounts upgrades unfiltered template detail rows
+// to period-aware capacity when every schedule of a template resolves to one
+// unambiguous pin. Group-level pins apply to schedules without their own pin;
+// a conflicting schedule pin is treated as ambiguous rather than reporting a
+// confidently wrong ratio. IDs are grouped by period, so this remains one
+// aggregate query per distinct period rather than one query per template.
+func (r *GroupRepository) loadPinnedTemplateCapacityCounts(
+	ctx context.Context,
+	rows []activities.TemplateListRow,
+) error {
+	type pinState struct {
+		groupPeriodID    int64
+		hasGroupPeriodID bool
+		schedulePeriodID int64
+		hasSchedulePin   bool
+		ambiguous        bool
+	}
+	states := make(map[int64]*pinState)
+	for _, row := range rows {
+		state := states[row.TemplateID]
+		if state == nil {
+			state = &pinState{}
+			states[row.TemplateID] = state
+		}
+		if row.TemplateCalendarPeriodID.Valid {
+			groupPeriodID := row.TemplateCalendarPeriodID.Int64
+			if state.hasGroupPeriodID && state.groupPeriodID != groupPeriodID {
+				state.ambiguous = true
+			}
+			state.groupPeriodID = groupPeriodID
+			state.hasGroupPeriodID = true
+		}
+		if row.CalendarPeriodID.Valid {
+			schedulePeriodID := row.CalendarPeriodID.Int64
+			if state.hasSchedulePin && state.schedulePeriodID != schedulePeriodID {
+				state.ambiguous = true
+			}
+			state.schedulePeriodID = schedulePeriodID
+			state.hasSchedulePin = true
+		} else if !row.TemplateCalendarPeriodID.Valid {
+			// With neither a schedule nor group pin, materialization chooses a
+			// period by date; no single period can summarize this template.
+			state.ambiguous = true
+		}
+	}
+
+	idsByPeriod := make(map[int64][]int64)
+	for templateID, state := range states {
+		if state.ambiguous {
+			continue
+		}
+		periodID := state.groupPeriodID
+		if !state.hasGroupPeriodID {
+			if !state.hasSchedulePin {
+				continue
+			}
+			periodID = state.schedulePeriodID
+		} else if state.hasSchedulePin && state.schedulePeriodID != periodID {
+			// The schedule pin is materialization-time-authoritative. Mixed
+			// group/schedule pins cannot be represented by one card ratio.
+			continue
+		}
+		idsByPeriod[periodID] = append(idsByPeriod[periodID], templateID)
+	}
+
+	for periodID, templateIDs := range idsByPeriod {
+		if err := r.loadTemplateCapacityCountsForIDs(ctx, rows, periodID, templateIDs); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *GroupRepository) loadTemplateCapacityCountsForIDs(
+	ctx context.Context,
+	rows []activities.TemplateListRow,
+	periodID int64,
+	templateIDs []int64,
+) error {
+	if len(templateIDs) == 0 {
+		return nil
+	}
+
+	type capacityCount struct {
+		TemplateID      int64 `bun:"template_id"`
+		EnrollmentCount int   `bun:"enrollment_count"`
+		SupervisorCount int   `bun:"supervisor_count"`
+	}
+	counts := make([]capacityCount, 0, len(templateIDs))
+	tenantID := tenant.FromContext(ctx)
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		WITH selected_period AS (
+			SELECT start_date, end_date
+			FROM schedule.calendar_periods
+			WHERE tenant_id = ?
+			  AND id = ?
+		)
+		SELECT
+			roster.activity_group_id AS template_id,
+			COUNT(DISTINCT roster.person_id) FILTER (
+				WHERE roster.member_type = 'student'
+			) AS enrollment_count,
+			COUNT(DISTINCT roster.person_id) FILTER (
+				WHERE roster.member_type = 'staff'
+			) AS supervisor_count
+		FROM (
+			SELECT
+				activity_group_id,
+				student_id AS person_id,
+				'student'::TEXT AS member_type
+			FROM activities.student_enrollments
+			CROSS JOIN selected_period
+			WHERE tenant_id = ?
+			  AND (calendar_period_id IS NULL OR calendar_period_id = ?)
+			  AND valid_from <= selected_period.end_date
+			  AND (valid_until IS NULL OR valid_until > selected_period.start_date)
+			  AND activity_group_id IN (?)
+			UNION ALL
+			SELECT
+				group_id AS activity_group_id,
+				staff_id AS person_id,
+				'staff'::TEXT AS member_type
+			FROM activities.supervisors
+			CROSS JOIN selected_period
+			WHERE tenant_id = ?
+			  AND (calendar_period_id IS NULL OR calendar_period_id = ?)
+			  AND valid_until IS NULL
+			  AND valid_from <= selected_period.end_date
+			  AND group_id IN (?)
+		) AS roster
+		GROUP BY roster.activity_group_id
+	`, tenantID, periodID, tenantID, periodID, bun.List(templateIDs), tenantID, periodID, bun.List(templateIDs)).Scan(ctx, &counts)
+	if err != nil {
+		return err
+	}
+
+	byTemplateID := make(map[int64]capacityCount, len(counts))
+	for _, count := range counts {
+		byTemplateID[count.TemplateID] = count
+	}
+	includedTemplateIDs := make(map[int64]struct{}, len(templateIDs))
+	for _, templateID := range templateIDs {
+		includedTemplateIDs[templateID] = struct{}{}
+	}
+	for i := range rows {
+		if _, included := includedTemplateIDs[rows[i].TemplateID]; !included {
+			continue
+		}
+		count := byTemplateID[rows[i].TemplateID]
+		rows[i].CapacityEnrollmentCount = count.EnrollmentCount
+		rows[i].CapacitySupervisorCount = count.SupervisorCount
+	}
+	return nil
 }
 
 // UpdateTemplateFields patches the editable fields of a non-archived template
