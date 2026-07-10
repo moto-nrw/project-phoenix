@@ -138,6 +138,66 @@ describe("tenant-api", () => {
         nfcEnabled: false,
         messagingEnabled: false,
         displayEnabled: false,
+        attendanceWebEnabled: false,
+        groupMode: "fixed_groups",
+        showTimetableCounts: true,
+        waitlistEnabled: true,
+      });
+    });
+
+    it("normalizes explicit enabled and disabled tenant settings", async () => {
+      const tenantData = {
+        tenant_id: 2,
+        slug: "settings-school",
+        name: "Settings School",
+        subdomain: "settings",
+        organization_id: 11,
+        organization_name: "Org B",
+        settings: {},
+      };
+      vi.mocked(global.fetch)
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              status: "success",
+              data: {
+                ...tenantData,
+                attendance_web_enabled: true,
+                group_mode: "open_care",
+                show_timetable_counts: true,
+                waitlist_enabled: true,
+              },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              status: "success",
+              data: {
+                ...tenantData,
+                attendance_web_enabled: false,
+                group_mode: "fixed_groups",
+                show_timetable_counts: false,
+                waitlist_enabled: false,
+              },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+
+      await expect(resolveTenant("settings-school")).resolves.toMatchObject({
+        attendanceWebEnabled: true,
+        groupMode: "open_care",
+        showTimetableCounts: true,
+        waitlistEnabled: true,
+      });
+      await expect(resolveTenant("settings-school")).resolves.toMatchObject({
+        attendanceWebEnabled: false,
+        groupMode: "fixed_groups",
+        showTimetableCounts: false,
+        waitlistEnabled: false,
       });
     });
 
@@ -360,6 +420,10 @@ describe("tenant-api", () => {
         nfcEnabled: false,
         messagingEnabled: false,
         displayEnabled: false,
+        attendanceWebEnabled: false,
+        groupMode: "fixed_groups",
+        showTimetableCounts: true,
+        waitlistEnabled: true,
       });
     });
 

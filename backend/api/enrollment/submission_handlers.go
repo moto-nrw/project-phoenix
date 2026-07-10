@@ -121,19 +121,10 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slug := strings.TrimSpace(chi.URLParam(r, "tenantSlug"))
-	if slug == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
-		return
-	}
-
-	wireReq := &SubmitEnrollmentRequest{}
-	if err := render.Bind(r, wireReq); err != nil {
+	slug, wireReq, err := bindSubmitEnrollmentRequest(r)
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
-	}
-	if wireReq.LateInviteToken == "" {
-		wireReq.LateInviteToken = lateInviteTokenFromRequest(r)
 	}
 
 	remoteIP := remoteIPFromRequest(r)
@@ -194,6 +185,21 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 		Warnings:  result.Warnings,
 	}
 	common.Respond(w, r, http.StatusCreated, resp, "Enrollment submitted")
+}
+
+func bindSubmitEnrollmentRequest(r *http.Request) (string, *SubmitEnrollmentRequest, error) {
+	slug := strings.TrimSpace(chi.URLParam(r, "tenantSlug"))
+	if slug == "" {
+		return "", nil, errors.New("tenant slug is required")
+	}
+	request := &SubmitEnrollmentRequest{}
+	if err := render.Bind(r, request); err != nil {
+		return "", nil, err
+	}
+	if request.LateInviteToken == "" {
+		request.LateInviteToken = lateInviteTokenFromRequest(r)
+	}
+	return slug, request, nil
 }
 
 // BuildServiceRequest converts the wire request into the service-layer
@@ -563,60 +569,83 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 
 func toEditDraftResponse(draft *enrollmentService.EditDraft) EditDraftResponse {
 	resp := EditDraftResponse{
-		RequestID:         strconv.FormatInt(draft.Request.ID, 10),
-		StatusToken:       draft.Request.StatusToken,
-		TenantID:          strconv.FormatInt(draft.Request.GetTenantID(), 10),
-		PhaseID:           strconv.FormatInt(draft.Request.PhaseID, 10),
-		GuardianFirstName: draft.Request.GuardianFirstName,
-		GuardianLastName:  draft.Request.GuardianLastName,
-		GuardianEmail:     draft.Request.GuardianEmail,
-		GuardianPhone:     draft.Request.GuardianPhone,
-		ConsentFlags:      draft.Request.ConsentFlags,
-		CustomData:        draft.Request.CustomData,
-		Children:          make([]EditDraftChildResponse, 0, len(draft.Children)),
+		RequestID:           strconv.FormatInt(draft.Request.ID, 10),
+		StatusToken:         draft.Request.StatusToken,
+		TenantID:            strconv.FormatInt(draft.Request.GetTenantID(), 10),
+		PhaseID:             strconv.FormatInt(draft.Request.PhaseID, 10),
+		GuardianFirstName:   draft.Request.GuardianFirstName,
+		GuardianLastName:    draft.Request.GuardianLastName,
+		GuardianEmail:       draft.Request.GuardianEmail,
+		GuardianPhone:       draft.Request.GuardianPhone,
+		ConsentFlags:        draft.Request.ConsentFlags,
+		CustomData:          draft.Request.CustomData,
+		AdditionalGuardians: toEditDraftGuardianResponses(draft.Guardians),
+		Children:            toEditDraftChildResponses(draft),
 	}
 	if draft.School != nil {
 		resp.TenantSlug = draft.School.Slug
 	}
-	for _, g := range draft.Guardians {
-		resp.AdditionalGuardians = append(resp.AdditionalGuardians, EditDraftGuardianResponse{
-			FirstName: g.FirstName,
-			LastName:  g.LastName,
-			Email:     g.Email,
-			Phone:     g.Phone,
+	return resp
+}
+
+func toEditDraftGuardianResponses(guardians []*enrollmentModels.RequestGuardian) []EditDraftGuardianResponse {
+	var responses []EditDraftGuardianResponse
+	for _, guardian := range guardians {
+		responses = append(responses, EditDraftGuardianResponse{
+			FirstName: guardian.FirstName,
+			LastName:  guardian.LastName,
+			Email:     guardian.Email,
+			Phone:     guardian.Phone,
 		})
 	}
-	for _, c := range draft.Children {
-		child := EditDraftChildResponse{
-			ID:                strconv.FormatInt(c.ID, 10),
-			FirstName:         c.FirstName,
-			LastName:          c.LastName,
-			DateOfBirth:       c.DateOfBirth.String(),
-			TargetGradeLevel:  c.TargetGradeLevel,
-			TargetSchoolClass: c.TargetSchoolClass,
-			CustomData:        c.CustomData,
-			OfferingIDs:       []string{},
-		}
-		if draft.CareOfferingsEnabled {
-			for _, link := range draft.OfferingsByChild[c.ID] {
-				child.OfferingIDs = append(child.OfferingIDs, strconv.FormatInt(link.CareOfferingID, 10))
-				if len(link.SelectedDays) > 0 {
-					manualDays := link.ManualSelectedDays
-					if len(manualDays) == 0 && len(link.AutomaticSelectedDays) == 0 {
-						manualDays = link.SelectedDays
-					}
-					child.OfferingDays = append(child.OfferingDays, EditDraftOfferingDayResponse{
-						OfferingID:            strconv.FormatInt(link.CareOfferingID, 10),
-						SelectedDays:          link.SelectedDays,
-						ManualSelectedDays:    manualDays,
-						AutomaticSelectedDays: link.AutomaticSelectedDays,
-					})
-				}
-			}
-		}
-		resp.Children = append(resp.Children, child)
+	return responses
+}
+
+func toEditDraftChildResponses(draft *enrollmentService.EditDraft) []EditDraftChildResponse {
+	responses := make([]EditDraftChildResponse, 0, len(draft.Children))
+	for _, child := range draft.Children {
+		responses = append(responses, toEditDraftChildResponse(child, draft.OfferingsByChild[child.ID], draft.CareOfferingsEnabled))
 	}
-	return resp
+	return responses
+}
+
+func toEditDraftChildResponse(child *enrollmentModels.RequestChild, offeringLinks []*enrollmentModels.RequestChildOffering, careOfferingsEnabled bool) EditDraftChildResponse {
+	response := EditDraftChildResponse{
+		ID:                strconv.FormatInt(child.ID, 10),
+		FirstName:         child.FirstName,
+		LastName:          child.LastName,
+		DateOfBirth:       child.DateOfBirth.String(),
+		TargetGradeLevel:  child.TargetGradeLevel,
+		TargetSchoolClass: child.TargetSchoolClass,
+		CustomData:        child.CustomData,
+		OfferingIDs:       []string{},
+	}
+	if !careOfferingsEnabled {
+		return response
+	}
+	for _, link := range offeringLinks {
+		response.OfferingIDs = append(response.OfferingIDs, strconv.FormatInt(link.CareOfferingID, 10))
+		if offeringDay := toEditDraftOfferingDayResponse(link); offeringDay != nil {
+			response.OfferingDays = append(response.OfferingDays, *offeringDay)
+		}
+	}
+	return response
+}
+
+func toEditDraftOfferingDayResponse(link *enrollmentModels.RequestChildOffering) *EditDraftOfferingDayResponse {
+	if len(link.SelectedDays) == 0 {
+		return nil
+	}
+	manualDays := link.ManualSelectedDays
+	if len(manualDays) == 0 && len(link.AutomaticSelectedDays) == 0 {
+		manualDays = link.SelectedDays
+	}
+	return &EditDraftOfferingDayResponse{
+		OfferingID:            strconv.FormatInt(link.CareOfferingID, 10),
+		SelectedDays:          link.SelectedDays,
+		ManualSelectedDays:    manualDays,
+		AutomaticSelectedDays: link.AutomaticSelectedDays,
+	}
 }
 
 // EditPatchRequest is the wire shape for PATCH /requests/{token}.

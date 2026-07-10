@@ -101,7 +101,7 @@ type Scheduler struct {
 	materializer               scheduleSvc.MaterializationService
 	timetableCleanup           scheduleSvc.TimetableCleanupService
 	timeTrackingCleanup        active.TimeTrackingCleanupService
-	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleanupService
+	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleaner
 	autoStart                  scheduleSvc.AutoStartService
 	settings                   SettingsResolver
 	db                         *bun.DB
@@ -252,7 +252,7 @@ func (s *Scheduler) SetTimeTrackingCleanup(svc active.TimeTrackingCleanupService
 	s.timeTrackingCleanup = svc
 }
 
-func (s *Scheduler) SetEnrollmentRejectedCleanup(svc enrollmentSvc.RejectedEnrollmentCleanupService) {
+func (s *Scheduler) SetEnrollmentRejectedCleanup(svc enrollmentSvc.RejectedEnrollmentCleaner) {
 	s.enrollmentRejectedCleanup = svc
 }
 

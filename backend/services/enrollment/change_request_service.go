@@ -902,7 +902,10 @@ func (s *changeRequestService) changeRequestCapacityOverrides(
 		preservedClaims[link.CareOfferingID]++
 	}
 
-	rs := &requestService{RequestServiceConfig: RequestServiceConfig{RequestChildOfferingRepo: s.RequestChildOfferingRepo}}
+	rs := &requestService{RequestServiceConfig: RequestServiceConfig{
+		RequestChildOfferingRepo: s.RequestChildOfferingRepo,
+		Settings:                 s.Settings,
+	}}
 	candidateOverrides, err := rs.applyCapacityOverflowWithPreservedClaims(ctx, phase, candidates, openByID, preservedClaims)
 	if err != nil {
 		return nil, fmt.Errorf("change request approve: capacity overflow: %w", err)

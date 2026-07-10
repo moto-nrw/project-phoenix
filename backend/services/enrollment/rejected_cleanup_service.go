@@ -19,7 +19,9 @@ type RejectedEnrollmentCleanupResult struct {
 	DeletedOutboxRows int64
 }
 
-type RejectedEnrollmentCleanupService interface {
+// RejectedEnrollmentCleaner removes rejected enrollment data after its
+// tenant-configured retention window.
+type RejectedEnrollmentCleaner interface {
 	CleanupRejectedEnrollments(ctx context.Context) (RejectedEnrollmentCleanupResult, error)
 }
 
@@ -46,36 +48,46 @@ func NewRejectedEnrollmentCleanupService(
 	settings RequestSettingsResolver,
 	db *bun.DB,
 	logger *slog.Logger,
-) RejectedEnrollmentCleanupService {
+) RejectedEnrollmentCleaner {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	tx := modelBase.NewTxHandler(db)
 	return &rejectedEnrollmentCleanupService{
 		requests: requests,
 		outbox:   outbox,
 		settings: settings,
-		runInTx: func(ctx context.Context, fn func(context.Context) error) error {
-			if ambient, ok := modelBase.TxFromContext(ctx); ok {
-				if _, err := ambient.ExecContext(ctx, "SAVEPOINT enrollment_rejected_cleanup"); err != nil {
-					return fmt.Errorf("create rejected enrollment cleanup savepoint: %w", err)
-				}
-				if err := fn(ctx); err != nil {
-					if _, rollbackErr := ambient.ExecContext(ctx, "ROLLBACK TO SAVEPOINT enrollment_rejected_cleanup"); rollbackErr != nil {
-						return errors.Join(err, fmt.Errorf("rollback rejected enrollment cleanup savepoint: %w", rollbackErr))
-					}
-					_, _ = ambient.ExecContext(ctx, "RELEASE SAVEPOINT enrollment_rejected_cleanup")
-					return err
-				}
-				if _, err := ambient.ExecContext(ctx, "RELEASE SAVEPOINT enrollment_rejected_cleanup"); err != nil {
-					return fmt.Errorf("release rejected enrollment cleanup savepoint: %w", err)
-				}
-				return nil
-			}
-			return tx.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
-		},
-		logger: logger,
+		runInTx:  newRejectedEnrollmentCleanupTxRunner(db),
+		logger:   logger,
 	}
+}
+
+func newRejectedEnrollmentCleanupTxRunner(db *bun.DB) func(context.Context, func(context.Context) error) error {
+	tx := modelBase.NewTxHandler(db)
+	return func(ctx context.Context, fn func(context.Context) error) error {
+		if ambient, ok := modelBase.TxFromContext(ctx); ok {
+			return runRejectedEnrollmentCleanupSavepoint(ctx, ambient, fn)
+		}
+		return tx.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error { return fn(txCtx) })
+	}
+}
+
+func runRejectedEnrollmentCleanupSavepoint(ctx context.Context, ambient *bun.Tx, fn func(context.Context) error) error {
+	if _, err := ambient.ExecContext(ctx, "SAVEPOINT enrollment_rejected_cleanup"); err != nil {
+		return fmt.Errorf("create rejected enrollment cleanup savepoint: %w", err)
+	}
+	if err := fn(ctx); err != nil {
+		if _, rollbackErr := ambient.ExecContext(ctx, "ROLLBACK TO SAVEPOINT enrollment_rejected_cleanup"); rollbackErr != nil {
+			return errors.Join(err, fmt.Errorf("rollback rejected enrollment cleanup savepoint: %w", rollbackErr))
+		}
+		if _, releaseErr := ambient.ExecContext(ctx, "RELEASE SAVEPOINT enrollment_rejected_cleanup"); releaseErr != nil {
+			return errors.Join(err, fmt.Errorf("release rejected enrollment cleanup savepoint: %w", releaseErr))
+		}
+		return err
+	}
+	if _, err := ambient.ExecContext(ctx, "RELEASE SAVEPOINT enrollment_rejected_cleanup"); err != nil {
+		return fmt.Errorf("release rejected enrollment cleanup savepoint: %w", err)
+	}
+	return nil
 }
 
 func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx context.Context) (RejectedEnrollmentCleanupResult, error) {

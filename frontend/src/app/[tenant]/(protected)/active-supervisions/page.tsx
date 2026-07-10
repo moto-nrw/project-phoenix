@@ -247,6 +247,466 @@ function RosterSummaryStat({
   );
 }
 
+type RosterAction =
+  "check-in" | "check-out" | "excused" | "absent" | "expected";
+
+interface RosterRowActionsProps {
+  readonly row: TimetableRosterRow;
+  readonly onAction: (
+    action: RosterAction,
+    row: TimetableRosterRow,
+  ) => Promise<void>;
+}
+
+function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
+  const runAction = async (action: RosterAction) => {
+    await onAction(action, row);
+  };
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {!row.currentlyPresent && row.status === "expected" ? (
+        <button
+          type="button"
+          onClick={() => runAction("check-in")}
+          className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
+        >
+          Einchecken
+        </button>
+      ) : null}
+      {!row.currentlyPresent && row.status !== "expected" ? (
+        <button
+          type="button"
+          onClick={() => runAction("check-in")}
+          className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
+        >
+          Wieder einchecken
+        </button>
+      ) : null}
+      {row.currentlyPresent ? (
+        <button
+          type="button"
+          onClick={() => runAction("check-out")}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+        >
+          Raum verlassen
+        </button>
+      ) : null}
+      {row.planned && row.status === "expected" ? (
+        <>
+          <button
+            type="button"
+            onClick={() => runAction("excused")}
+            className="rounded-md border border-[#D89A16] px-3 py-2 text-sm font-medium text-[#A66F00]"
+          >
+            Entschuldigt
+          </button>
+          <button
+            type="button"
+            onClick={() => runAction("absent")}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+          >
+            Abwesend
+          </button>
+        </>
+      ) : null}
+      {row.planned && !row.currentlyPresent && row.status === "absent" ? (
+        <button
+          type="button"
+          onClick={() => runAction("expected")}
+          className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+        >
+          Zurück auf erwartet
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+interface TimetableRosterRowProps {
+  readonly attendanceWebEnabled: boolean;
+  readonly instanceIsSpontaneous: boolean;
+  readonly row: TimetableRosterRow;
+  readonly onAction: RosterRowActionsProps["onAction"];
+}
+
+function TimetableRosterStudentRow({
+  attendanceWebEnabled,
+  instanceIsSpontaneous,
+  row,
+  onAction,
+}: TimetableRosterRowProps) {
+  const attendanceDetail = [
+    row.substatus ? ATTENDANCE_SUBSTATUS_LABELS[row.substatus] : null,
+    row.note,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <div className="font-medium text-gray-900">
+          {row.studentName || `Kind ${row.studentId}`}
+        </div>
+        <div className="mt-1 text-sm text-gray-500">
+          {rosterStudentMeta(row, instanceIsSpontaneous)}
+        </div>
+        {attendanceDetail ? (
+          <div className="mt-1 text-sm text-[#D89A16]">{attendanceDetail}</div>
+        ) : null}
+      </div>
+      {attendanceWebEnabled ? (
+        <RosterRowActions row={row} onAction={onAction} />
+      ) : null}
+    </div>
+  );
+}
+
+interface TimetableRosterSectionProps {
+  readonly attendanceWebEnabled: boolean;
+  readonly instanceIsSpontaneous: boolean;
+  readonly onAction: RosterRowActionsProps["onAction"];
+  readonly rows: TimetableRosterRow[];
+  readonly showTimetableCounts: boolean;
+  readonly title: string;
+}
+
+function TimetableRosterSection({
+  attendanceWebEnabled,
+  instanceIsSpontaneous,
+  onAction,
+  rows,
+  showTimetableCounts,
+  title,
+}: TimetableRosterSectionProps) {
+  if (rows.length === 0) return null;
+  const countLabel = showTimetableCounts ? ` (${rows.length})` : "";
+
+  return (
+    <section className="moto-content-surface overflow-hidden rounded-lg border">
+      <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700">
+        {title}
+        {countLabel}
+      </div>
+      {rows.map((row) => (
+        <TimetableRosterStudentRow
+          key={`${row.studentId}-${row.status}-${row.visitId ?? "planned"}`}
+          attendanceWebEnabled={attendanceWebEnabled}
+          instanceIsSpontaneous={instanceIsSpontaneous}
+          row={row}
+          onAction={onAction}
+        />
+      ))}
+    </section>
+  );
+}
+
+function confirmExpectedLabel(
+  isConfirmingExpected: boolean,
+  showTimetableCounts: boolean,
+  count: number,
+): string {
+  if (isConfirmingExpected) return "Bestätigt...";
+  if (showTimetableCounts) return `${count} erwartete bestätigen`;
+  return "Erwartete bestätigen";
+}
+
+interface TimetableRosterHeaderProps {
+  readonly attendanceWebEnabled: boolean;
+  readonly confirmableExpectedRows: TimetableRosterRow[];
+  readonly isCompletingInstance: boolean;
+  readonly isConfirmingExpected: boolean;
+  readonly roster: TimetableRoster;
+  readonly showTimetableCounts: boolean;
+  readonly summary: {
+    readonly absent: number;
+    readonly departed: number;
+    readonly expected: number;
+    readonly present: number;
+    readonly unplanned: number;
+  };
+  readonly onComplete: () => Promise<void>;
+  readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
+}
+
+function TimetableRosterHeader({
+  attendanceWebEnabled,
+  confirmableExpectedRows,
+  isCompletingInstance,
+  isConfirmingExpected,
+  roster,
+  showTimetableCounts,
+  summary,
+  onComplete,
+  onConfirmExpected,
+}: TimetableRosterHeaderProps) {
+  const handleConfirmExpectedClick = async () => {
+    await onConfirmExpected(confirmableExpectedRows);
+  };
+  const handleCompleteClick = async () => {
+    await onComplete();
+  };
+  const confirmLabel = confirmExpectedLabel(
+    isConfirmingExpected,
+    showTimetableCounts,
+    confirmableExpectedRows.length,
+  );
+
+  return (
+    <div className="moto-content-surface overflow-hidden rounded-2xl border border-[#83CD2D]/30 shadow-sm backdrop-blur-md">
+      <div className="flex flex-col gap-3 border-b border-[#83CD2D]/20 bg-[#83CD2D]/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/20 text-[#4A7A15]">
+            <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold tracking-wide text-[#4A7A15] uppercase">
+              Aktiv
+            </p>
+            <h2 className="truncate text-base font-semibold text-gray-900">
+              {roster.instance.title}
+            </h2>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 sm:justify-end">
+          {attendanceWebEnabled ? (
+            <button
+              type="button"
+              disabled={
+                isConfirmingExpected || confirmableExpectedRows.length === 0
+              }
+              onClick={handleConfirmExpectedClick}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#83CD2D] px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] focus-visible:ring-2 focus-visible:ring-[#83CD2D]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+              {confirmLabel}
+            </button>
+          ) : null}
+          {attendanceWebEnabled ? (
+            <button
+              type="button"
+              disabled={isCompletingInstance}
+              onClick={handleCompleteClick}
+              className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+            >
+              Beenden
+            </button>
+          ) : null}
+        </div>
+      </div>
+      {showTimetableCounts ? (
+        <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-5">
+          <RosterSummaryStat label="Anwesend" value={summary.present} />
+          <RosterSummaryStat label="Erwartet" value={summary.expected} />
+          <RosterSummaryStat label="Abwesend" value={summary.absent} />
+          <RosterSummaryStat label="Gegangen" value={summary.departed} />
+          <RosterSummaryStat label="Ungeplant" value={summary.unplanned} />
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+interface AddUnplannedStudentFormProps {
+  readonly isAddingStudent: boolean;
+  readonly results: Student[];
+  readonly search: string;
+  readonly onAdd: (studentId: string) => Promise<void>;
+  readonly onSearchChange: (value: string) => void;
+}
+
+function AddUnplannedStudentForm({
+  isAddingStudent,
+  results,
+  search,
+  onAdd,
+  onSearchChange,
+}: AddUnplannedStudentFormProps) {
+  const addStudent = async (studentId: string) => {
+    await onAdd(studentId);
+  };
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const onlyResult = results[0];
+    if (onlyResult && results.length === 1) {
+      await addStudent(onlyResult.id.toString());
+    }
+  };
+
+  return (
+    <form
+      className="moto-content-surface rounded-2xl border p-4 shadow-sm"
+      onSubmit={handleSubmit}
+    >
+      <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
+        <UserPlus className="h-4 w-4 text-gray-400" aria-hidden="true" />
+        Kind ungeplant hinzufügen
+      </div>
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input
+          type="search"
+          name="unplanned-student-search"
+          aria-label="Kind ungeplant suchen"
+          value={search}
+          onChange={(event) => onSearchChange(event.target.value)}
+          placeholder="Weiteres Kind suchen..."
+          className="min-h-10 flex-1 rounded-lg border border-gray-300 px-3 text-sm focus:border-[#83CD2D] focus:ring-2 focus:ring-[#83CD2D]/20 focus:outline-none"
+        />
+        <button
+          type="submit"
+          disabled={isAddingStudent || results.length !== 1}
+          className="rounded-lg bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] disabled:opacity-50"
+        >
+          Hinzufügen
+        </button>
+      </div>
+      {results.length > 0 ? (
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          {results.map((student) => (
+            <button
+              key={student.id}
+              type="button"
+              disabled={isAddingStudent}
+              onClick={() => addStudent(student.id.toString())}
+              className="rounded-md border border-gray-200 px-3 py-2 text-left text-sm hover:border-[#83CD2D] disabled:opacity-50"
+            >
+              <span className="font-medium text-gray-900">
+                {student.name ||
+                  [student.first_name, student.second_name]
+                    .filter(Boolean)
+                    .join(" ")}
+              </span>
+              <span className="ml-2 text-gray-500">
+                {[student.school_class, student.group_name]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </form>
+  );
+}
+
+interface TimetableRosterContentProps {
+  readonly addStudentResults: Student[];
+  readonly addStudentSearch: string;
+  readonly attendanceWebEnabled: boolean;
+  readonly isAddingStudent: boolean;
+  readonly isCompletingInstance: boolean;
+  readonly isConfirmingExpected: boolean;
+  readonly roster: TimetableRoster;
+  readonly showTimetableCounts: boolean;
+  readonly onAddStudent: (studentId: string) => Promise<void>;
+  readonly onComplete: () => Promise<void>;
+  readonly onConfirmExpected: (rows: TimetableRosterRow[]) => Promise<void>;
+  readonly onRosterAction: RosterRowActionsProps["onAction"];
+  readonly onSearchChange: (value: string) => void;
+}
+
+function TimetableRosterContent({
+  addStudentResults,
+  addStudentSearch,
+  attendanceWebEnabled,
+  isAddingStudent,
+  isCompletingInstance,
+  isConfirmingExpected,
+  roster,
+  showTimetableCounts,
+  onAddStudent,
+  onComplete,
+  onConfirmExpected,
+  onRosterAction,
+  onSearchChange,
+}: TimetableRosterContentProps) {
+  const present = roster.rows.filter(
+    (row) => row.currentlyPresent && row.planned,
+  );
+  const expected = roster.rows.filter(
+    (row) => row.planned && !row.currentlyPresent && row.status === "expected",
+  );
+  const absent = roster.rows.filter(
+    (row) => row.planned && !row.currentlyPresent && row.status === "absent",
+  );
+  const departed = roster.rows.filter(
+    (row) =>
+      !row.currentlyPresent &&
+      (row.status === "present" || (row.isUnplanned && row.visitId)),
+  );
+  const unplanned = roster.rows.filter(
+    (row) => row.isUnplanned && row.currentlyPresent,
+  );
+  const confirmableExpectedRows = expected.filter(
+    (row) => row.planned && !row.currentlyPresent,
+  );
+  const instanceIsSpontaneous = roster.instance.isSpontaneous;
+  const unplannedTitle = instanceIsSpontaneous ? "Teilnehmende" : "Ungeplant";
+  const sectionProps = {
+    attendanceWebEnabled,
+    instanceIsSpontaneous,
+    onAction: onRosterAction,
+    showTimetableCounts,
+  };
+
+  return (
+    <div className="space-y-4">
+      <TimetableRosterHeader
+        attendanceWebEnabled={attendanceWebEnabled}
+        confirmableExpectedRows={confirmableExpectedRows}
+        isCompletingInstance={isCompletingInstance}
+        isConfirmingExpected={isConfirmingExpected}
+        roster={roster}
+        showTimetableCounts={showTimetableCounts}
+        summary={{
+          absent: absent.length,
+          departed: departed.length,
+          expected: expected.length,
+          present: present.length,
+          unplanned: unplanned.length,
+        }}
+        onComplete={onComplete}
+        onConfirmExpected={onConfirmExpected}
+      />
+      {attendanceWebEnabled ? (
+        <AddUnplannedStudentForm
+          isAddingStudent={isAddingStudent}
+          results={addStudentResults}
+          search={addStudentSearch}
+          onAdd={onAddStudent}
+          onSearchChange={onSearchChange}
+        />
+      ) : null}
+      <TimetableRosterSection
+        title="Anwesend"
+        rows={present}
+        {...sectionProps}
+      />
+      <TimetableRosterSection
+        title="Erwartet"
+        rows={expected}
+        {...sectionProps}
+      />
+      <TimetableRosterSection
+        title="Entschuldigt / Abwesend"
+        rows={absent}
+        {...sectionProps}
+      />
+      <TimetableRosterSection
+        title="Nicht mehr im Raum"
+        rows={departed}
+        {...sectionProps}
+      />
+      <TimetableRosterSection
+        title={unplannedTitle}
+        rows={unplanned}
+        {...sectionProps}
+      />
+    </div>
+  );
+}
+
 function MeinRaumPageContent() {
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const showTimetableCounts = useShowTimetableCounts();
@@ -1504,263 +1964,22 @@ function MeinRaumPageContent() {
     }
 
     if (currentTimetableRoster) {
-      const isSpontaneousInstance =
-        currentTimetableRoster.instance.isSpontaneous;
-      const present = currentTimetableRoster.rows.filter(
-        (row) => row.currentlyPresent && row.planned,
-      );
-      const expected = currentTimetableRoster.rows.filter(
-        (row) =>
-          row.planned && !row.currentlyPresent && row.status === "expected",
-      );
-      const absent = currentTimetableRoster.rows.filter(
-        (row) =>
-          row.planned && !row.currentlyPresent && row.status === "absent",
-      );
-      const departed = currentTimetableRoster.rows.filter(
-        (row) =>
-          !row.currentlyPresent &&
-          (row.status === "present" || (row.isUnplanned && row.visitId)),
-      );
-      const unplanned = currentTimetableRoster.rows.filter(
-        (row) => row.isUnplanned && row.currentlyPresent,
-      );
-      const confirmableExpectedRows = expected.filter(
-        (row) => row.planned && !row.currentlyPresent,
-      );
-      const renderRosterRow = (row: TimetableRosterRow) => (
-        <div
-          key={`${row.studentId}-${row.status}-${row.visitId ?? "planned"}`}
-          className="flex flex-col gap-3 border-b border-gray-100 px-4 py-3 last:border-b-0 sm:flex-row sm:items-center sm:justify-between"
-        >
-          <div>
-            <div className="font-medium text-gray-900">
-              {row.studentName || `Kind ${row.studentId}`}
-            </div>
-            <div className="mt-1 text-sm text-gray-500">
-              {rosterStudentMeta(row, isSpontaneousInstance)}
-            </div>
-            {row.substatus || row.note ? (
-              <div className="mt-1 text-sm text-[#D89A16]">
-                {[
-                  row.substatus
-                    ? ATTENDANCE_SUBSTATUS_LABELS[row.substatus]
-                    : null,
-                  row.note,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </div>
-            ) : null}
-          </div>
-          {attendanceWebEnabled && (
-            <div className="flex flex-wrap gap-2">
-              {!row.currentlyPresent && row.status === "expected" ? (
-                <button
-                  type="button"
-                  onClick={() => void handleRosterAction("check-in", row)}
-                  className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
-                >
-                  Einchecken
-                </button>
-              ) : null}
-              {!row.currentlyPresent && row.status !== "expected" ? (
-                <button
-                  type="button"
-                  onClick={() => void handleRosterAction("check-in", row)}
-                  className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
-                >
-                  Wieder einchecken
-                </button>
-              ) : null}
-              {row.currentlyPresent ? (
-                <button
-                  type="button"
-                  onClick={() => void handleRosterAction("check-out", row)}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
-                >
-                  Raum verlassen
-                </button>
-              ) : null}
-              {row.planned && row.status === "expected" ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => void handleRosterAction("excused", row)}
-                    className="rounded-md border border-[#D89A16] px-3 py-2 text-sm font-medium text-[#A66F00]"
-                  >
-                    Entschuldigt
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => void handleRosterAction("absent", row)}
-                    className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
-                  >
-                    Abwesend
-                  </button>
-                </>
-              ) : null}
-              {row.planned &&
-              !row.currentlyPresent &&
-              row.status === "absent" ? (
-                <button
-                  type="button"
-                  onClick={() => void handleRosterAction("expected", row)}
-                  className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
-                >
-                  Zurück auf erwartet
-                </button>
-              ) : null}
-            </div>
-          )}
-        </div>
-      );
-
-      const section = (title: string, rows: TimetableRosterRow[]) =>
-        rows.length > 0 ? (
-          <section className="moto-content-surface overflow-hidden rounded-lg border">
-            <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700">
-              {title}
-              {showTimetableCounts ? ` (${rows.length})` : ""}
-            </div>
-            {rows.map(renderRosterRow)}
-          </section>
-        ) : null;
-
       return (
-        <div className="space-y-4">
-          <div className="moto-content-surface overflow-hidden rounded-2xl border border-[#83CD2D]/30 shadow-sm backdrop-blur-md">
-            <div className="flex flex-col gap-3 border-b border-[#83CD2D]/20 bg-[#83CD2D]/10 p-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex min-w-0 items-center gap-3">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#83CD2D]/20 text-[#4A7A15]">
-                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                </span>
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold tracking-wide text-[#4A7A15] uppercase">
-                    Aktiv
-                  </p>
-                  <h2 className="truncate text-base font-semibold text-gray-900">
-                    {currentTimetableRoster.instance.title}
-                  </h2>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2 sm:justify-end">
-                {attendanceWebEnabled ? (
-                  <button
-                    type="button"
-                    disabled={
-                      isConfirmingExpected ||
-                      confirmableExpectedRows.length === 0
-                    }
-                    onClick={() =>
-                      void handleConfirmExpectedStudents(
-                        confirmableExpectedRows,
-                      )
-                    }
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#83CD2D] px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] focus-visible:ring-2 focus-visible:ring-[#83CD2D]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                    {isConfirmingExpected
-                      ? "Bestätigt..."
-                      : showTimetableCounts
-                        ? `${confirmableExpectedRows.length} erwartete bestätigen`
-                        : "Erwartete bestätigen"}
-                  </button>
-                ) : null}
-                {attendanceWebEnabled ? (
-                  <button
-                    type="button"
-                    disabled={isCompletingInstance}
-                    onClick={() => void handleCompleteTimetableInstance()}
-                    className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
-                  >
-                    Beenden
-                  </button>
-                ) : null}
-              </div>
-            </div>
-            {showTimetableCounts ? (
-              <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-5">
-                <RosterSummaryStat label="Anwesend" value={present.length} />
-                <RosterSummaryStat label="Erwartet" value={expected.length} />
-                <RosterSummaryStat label="Abwesend" value={absent.length} />
-                <RosterSummaryStat label="Gegangen" value={departed.length} />
-                <RosterSummaryStat label="Ungeplant" value={unplanned.length} />
-              </div>
-            ) : null}
-          </div>
-          {attendanceWebEnabled ? (
-            <form
-              className="moto-content-surface rounded-2xl border p-4 shadow-sm"
-              onSubmit={(event) => {
-                event.preventDefault();
-                const onlyResult = addStudentResults[0];
-                if (onlyResult && addStudentResults.length === 1) {
-                  void handleAddUnplannedStudent(onlyResult.id.toString());
-                }
-              }}
-            >
-              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
-                <UserPlus
-                  className="h-4 w-4 text-gray-400"
-                  aria-hidden="true"
-                />
-                Kind ungeplant hinzufügen
-              </div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input
-                  type="search"
-                  value={addStudentSearch}
-                  onChange={(event) => setAddStudentSearch(event.target.value)}
-                  placeholder="Weiteres Kind suchen..."
-                  className="min-h-10 flex-1 rounded-lg border border-gray-300 px-3 text-sm focus:border-[#83CD2D] focus:ring-2 focus:ring-[#83CD2D]/20 focus:outline-none"
-                />
-                <button
-                  type="submit"
-                  disabled={isAddingStudent || addStudentResults.length !== 1}
-                  className="rounded-lg bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] disabled:opacity-50"
-                >
-                  Hinzufügen
-                </button>
-              </div>
-              {addStudentResults.length > 0 ? (
-                <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                  {addStudentResults.map((student) => (
-                    <button
-                      key={student.id}
-                      type="button"
-                      disabled={isAddingStudent}
-                      onClick={() =>
-                        void handleAddUnplannedStudent(student.id.toString())
-                      }
-                      className="rounded-md border border-gray-200 px-3 py-2 text-left text-sm hover:border-[#83CD2D] disabled:opacity-50"
-                    >
-                      <span className="font-medium text-gray-900">
-                        {student.name ||
-                          [student.first_name, student.second_name]
-                            .filter(Boolean)
-                            .join(" ")}
-                      </span>
-                      <span className="ml-2 text-gray-500">
-                        {[student.school_class, student.group_name]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              ) : null}
-            </form>
-          ) : null}
-          {section("Anwesend", present)}
-          {section("Erwartet", expected)}
-          {section("Entschuldigt / Abwesend", absent)}
-          {section("Nicht mehr im Raum", departed)}
-          {section(
-            isSpontaneousInstance ? "Teilnehmende" : "Ungeplant",
-            unplanned,
-          )}
-        </div>
+        <TimetableRosterContent
+          addStudentResults={addStudentResults}
+          addStudentSearch={addStudentSearch}
+          attendanceWebEnabled={attendanceWebEnabled}
+          isAddingStudent={isAddingStudent}
+          isCompletingInstance={isCompletingInstance}
+          isConfirmingExpected={isConfirmingExpected}
+          roster={currentTimetableRoster}
+          showTimetableCounts={showTimetableCounts}
+          onAddStudent={handleAddUnplannedStudent}
+          onComplete={handleCompleteTimetableInstance}
+          onConfirmExpected={handleConfirmExpectedStudents}
+          onRosterAction={handleRosterAction}
+          onSearchChange={setAddStudentSearch}
+        />
       );
     }
 

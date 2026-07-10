@@ -8,6 +8,7 @@ import (
 	"text/tabwriter"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	platformModel "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/spf13/cobra"
 )
 
@@ -51,20 +52,31 @@ func runSettingsOverrides(_ *cobra.Command, _ []string) error {
 		return err
 	}
 	defer ctx.Close()
-	keys := settingsOverrideKeys
-	if len(keys) == 0 {
-		keys = activationSettingKeys
-	}
 	schools, err := ctx.RepoFactory.School.List(context.Background())
 	if err != nil {
 		return fmt.Errorf("list schools: %w", err)
 	}
+	rows, err := collectSettingOverrideRows(context.Background(), schools, selectedSettingOverrideKeys(), ctx.RepoFactory.SettingValue)
+	if err != nil {
+		return err
+	}
+	return writeSettingOverrideRows(rows)
+}
+
+func selectedSettingOverrideKeys() []string {
+	if len(settingsOverrideKeys) > 0 {
+		return settingsOverrideKeys
+	}
+	return activationSettingKeys
+}
+
+func collectSettingOverrideRows(ctx context.Context, schools []*platformModel.School, keys []string, values configModel.SettingValueRepository) ([]settingOverrideRow, error) {
 	rows := []settingOverrideRow{}
 	for _, school := range schools {
 		for _, key := range keys {
-			value, findErr := ctx.RepoFactory.SettingValue.FindByTenantAndKey(context.Background(), school.ID, key)
+			value, findErr := values.FindByTenantAndKey(ctx, school.ID, key)
 			if findErr != nil {
-				return fmt.Errorf("read override for tenant %d key %s: %w", school.ID, key, findErr)
+				return nil, fmt.Errorf("read override for tenant %d key %s: %w", school.ID, key, findErr)
 			}
 			if value == nil {
 				continue
@@ -72,16 +84,28 @@ func runSettingsOverrides(_ *cobra.Command, _ []string) error {
 			rows = append(rows, settingOverrideRow{TenantID: school.ID, TenantSlug: school.Slug, TenantName: school.Name, Key: key, Value: value.Value})
 		}
 	}
+	return rows, nil
+}
+
+func writeSettingOverrideRows(rows []settingOverrideRow) error {
 	if settingsOverridesJSON {
-		encoded, marshalErr := json.MarshalIndent(rows, "", "  ")
-		if marshalErr != nil {
-			return marshalErr
-		}
-		if _, writeErr := fmt.Fprintln(os.Stdout, string(encoded)); writeErr != nil {
-			return fmt.Errorf("write settings overrides: %w", writeErr)
-		}
-		return nil
+		return writeSettingOverrideJSON(rows)
 	}
+	return writeSettingOverrideTable(rows)
+}
+
+func writeSettingOverrideJSON(rows []settingOverrideRow) error {
+	encoded, err := json.MarshalIndent(rows, "", "  ")
+	if err != nil {
+		return err
+	}
+	if _, err := fmt.Fprintln(os.Stdout, string(encoded)); err != nil {
+		return fmt.Errorf("write settings overrides: %w", err)
+	}
+	return nil
+}
+
+func writeSettingOverrideTable(rows []settingOverrideRow) error {
 	w := tabwriter.NewWriter(os.Stdout, 0, 4, 2, ' ', 0)
 	if _, err := fmt.Fprintln(w, "TENANT_ID\tSLUG\tSCHOOL\tKEY\tVALUE"); err != nil {
 		return fmt.Errorf("write settings header: %w", err)

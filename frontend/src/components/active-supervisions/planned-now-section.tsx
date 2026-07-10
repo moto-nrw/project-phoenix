@@ -29,6 +29,15 @@ interface PlannedNowSectionProps {
 
 const SOON_THRESHOLD_MINUTES = 15;
 
+function rosterPreviewLabel(
+  count: number,
+  showTimetableCounts: boolean,
+): string {
+  if (count === 0) return "keine Liste";
+  if (!showTimetableCounts) return "Liste verfügbar";
+  return `${count} erwartet`;
+}
+
 export function PlannedNowSection({
   plannedNow,
   hasActiveTimetableSession = false,
@@ -250,11 +259,10 @@ export function PlannedNowSection({
                         />
                         Kinder
                         <span className="text-xs font-normal text-gray-500">
-                          {instance.rosterPreview.length > 0
-                            ? showTimetableCounts
-                              ? `${instance.rosterPreview.length} erwartet`
-                              : "Liste verfügbar"
-                            : "keine Liste"}
+                          {rosterPreviewLabel(
+                            instance.rosterPreview.length,
+                            showTimetableCounts,
+                          )}
                         </span>
                       </span>
                       <ChevronDown

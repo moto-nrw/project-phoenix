@@ -2767,8 +2767,8 @@ func filterConsentFlags(flags map[string]any, blocks []LegalBlock) map[string]an
 	return out
 }
 
-// CollectsSchoolClass is the exported form of collectSchoolClass for the
-// RequestService interface (public form-load endpoints).
+// CollectsSchoolClass resolves the effective school-class capability for
+// public form-load endpoints.
 func (s *requestService) CollectsSchoolClass(ctx context.Context) (bool, error) {
 	capabilities, err := s.FormCapabilities(ctx)
 	return capabilities.CollectSchoolClass, err
@@ -2799,21 +2799,6 @@ func (s *requestService) FormCapabilities(ctx context.Context) (FormCapabilities
 		CollectSchoolClass:   collectGrade && collectClass,
 		CareOfferingsEnabled: offeringsEnabled,
 	}, nil
-}
-
-// collectSchoolClass reports whether the tenant collects the concrete
-// future class (e.g. "2a") in addition to the grade level. Brand-new
-// setting with no env-var backward-compat, so ResolveBool alone (which
-// returns the registry default when there's no tenant override) is
-// sufficient; default is false.
-//
-// A resolution error is returned rather than swallowed as "disabled": a
-// corrupt setting value or repository failure must not silently hide the
-// class field on form bootstrap or strip a submitted, possibly-required
-// class in validateAndNormalizeSchoolClasses (issue #1833).
-func (s *requestService) collectSchoolClass(ctx context.Context) (bool, error) {
-	capabilities, err := s.FormCapabilities(ctx)
-	return capabilities.CollectSchoolClass, err
 }
 
 func normalizeSubmissionForCapabilities(req *SubmitRequest, capabilities FormCapabilities) error {
@@ -2848,7 +2833,7 @@ func normalizeSubmissionForCapabilities(req *SubmitRequest, capabilities FormCap
 //
 // Trims and collapses empty strings to nil so "" never reaches the DB.
 func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, phase *enrollmentModels.Phase, children []SubmitChild) error {
-	collect, err := s.collectSchoolClass(ctx)
+	collect, err := s.CollectsSchoolClass(ctx)
 	if err != nil {
 		return fmt.Errorf("resolve collect_school_class: %w", err)
 	}

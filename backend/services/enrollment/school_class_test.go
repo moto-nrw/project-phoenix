@@ -269,6 +269,18 @@ func TestDecisionService_ResolveRolloverSchoolClass(t *testing.T) {
 			existingClass: "2a",
 			want:          "2a",
 		},
+		{
+			name:          "zero target grade keeps existing concrete class",
+			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(0)},
+			existingClass: "2a",
+			want:          "2a",
+		},
+		{
+			name:          "nil target grade keeps existing bare placeholder",
+			child:         &enrollmentModels.RequestChild{},
+			existingClass: "2",
+			want:          "2",
+		},
 	}
 
 	for _, tc := range tests {

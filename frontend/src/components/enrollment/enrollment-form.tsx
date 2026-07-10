@@ -1043,7 +1043,7 @@ export function EnrollmentForm({
             : undefined,
         custom_data: customData,
         offering_ids: careOfferingsEnabled
-          ? Array.from(c.offering_ids).map((id) => Number(id))
+          ? Array.from(c.offering_ids).map(Number)
           : undefined,
         offering_days:
           careOfferingsEnabled && offeringDaysPayload.length > 0

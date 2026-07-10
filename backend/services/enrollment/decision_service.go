@@ -1904,6 +1904,9 @@ func (s *decisionService) resolveSchoolClass(child *enrollmentModels.RequestChil
 //
 // Rules, in order:
 //   - rollover carries a concrete class (e.g. "3a") -> use it.
+//   - no concrete class and no target grade -> keep the existing class. The
+//     tenant deliberately did not collect a grade, so there is no replacement
+//     class information to apply.
 //   - no concrete class, but the current class is still an un-customized
 //     bare grade placeholder (empty or all digits, e.g. "1") -> re-derive
 //     the new grade number so grade bumps still track ("1" -> "2"). Also
@@ -1926,6 +1929,9 @@ func (s *decisionService) resolveSchoolClass(child *enrollmentModels.RequestChil
 func (s *decisionService) resolveRolloverSchoolClass(child *enrollmentModels.RequestChild, existingClass string) string {
 	if concrete := s.concreteSchoolClass(child); concrete != "" {
 		return concrete
+	}
+	if child.TargetGradeLevel == nil || *child.TargetGradeLevel == 0 {
+		return existingClass
 	}
 	if isBareGradePlaceholderClass(existingClass) {
 		return s.gradeToClass(child.TargetGradeLevel)

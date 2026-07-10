@@ -33,6 +33,7 @@ var (
 
 type OperationSettings interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
 }
 
 type TimetableAttendanceValidationError struct {
@@ -402,6 +403,10 @@ func (s *timetableOperationsService) requireCanOperate(ctx context.Context, acco
 	if !hasStaff {
 		return 0, ErrTimetableOperationForbidden
 	}
+	return s.requireFixedGroupOperationAccess(ctx, staffID, instanceID)
+}
+
+func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx context.Context, staffID, instanceID int64) (int64, error) {
 	inst, err := s.loadInstance(ctx, instanceID)
 	if err != nil {
 		return 0, err
@@ -428,13 +433,10 @@ func (s *timetableOperationsService) requireCanOperate(ctx context.Context, acco
 }
 
 func (s *timetableOperationsService) openCareMode(ctx context.Context) bool {
-	resolver, ok := s.deps.Settings.(interface {
-		ResolveString(context.Context, string) (string, error)
-	})
-	if !ok {
+	if s.deps.Settings == nil {
 		return false
 	}
-	mode, err := resolver.ResolveString(ctx, configModel.KeyGroupMode)
+	mode, err := s.deps.Settings.ResolveString(ctx, configModel.KeyGroupMode)
 	if err != nil {
 		s.logger().ErrorContext(ctx, "failed to resolve operational group mode", slog.String("error", err.Error()))
 		return false

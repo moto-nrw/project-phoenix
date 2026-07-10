@@ -145,7 +145,7 @@ type Factory struct {
 	EnrollmentReport          enrollment.ReportService
 	EnrollmentRollover        enrollment.RolloverService
 	EnrollmentChangeRequest   enrollment.ChangeRequestService
-	EnrollmentRejectedCleanup enrollment.RejectedEnrollmentCleanupService
+	EnrollmentRejectedCleanup enrollment.RejectedEnrollmentCleaner
 
 	// Parent (cross-tenant guardian portal - PR 9)
 	Parent parent.Service

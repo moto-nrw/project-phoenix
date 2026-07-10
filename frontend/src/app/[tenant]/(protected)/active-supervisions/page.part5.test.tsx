@@ -273,6 +273,10 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
+import {
+  useAttendanceWebEnabled,
+  useShowTimetableCounts,
+} from "~/lib/tenant-context";
 import MeinRaumPage from "./page";
 
 describe("MeinRaumPage (Active Supervisions) (4/5)", () => {
@@ -280,6 +284,8 @@ describe("MeinRaumPage (Active Supervisions) (4/5)", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
+    vi.mocked(useShowTimetableCounts).mockReturnValue(true);
     navigationMockState.roomParam = null;
     global.fetch = vi.fn();
     // Default mock: loading state
@@ -558,7 +564,114 @@ describe("MeinRaumPage (Active Supervisions) (4/5)", () => {
       expect(
         screen.getAllByRole("button", { name: "Raum verlassen" }),
       ).toHaveLength(2);
+      expect(
+        screen.getByRole("searchbox", { name: "Kind ungeplant suchen" }),
+      ).toHaveAttribute("name", "unplanned-student-search");
       expect(screen.queryByTestId("student-card")).not.toBeInTheDocument();
     });
+  });
+
+  it("hides roster attendance controls and counts when tenant settings disable them", async () => {
+    vi.mocked(useAttendanceWebEnabled).mockReturnValue(false);
+    vi.mocked(useShowTimetableCounts).mockReturnValue(false);
+    const dashboardData = {
+      supervisedGroups: [
+        { id: "1", name: "Raum 101", room: { id: "10", name: "Raum 101" } },
+      ],
+      unclaimedGroups: [],
+      currentStaff: { id: "1" },
+      educationalGroups: [],
+      firstRoomVisits: [],
+      firstRoomId: "10",
+    };
+
+    vi.mocked(useSWRAuth).mockImplementation(((key: string | null) => {
+      if (key?.startsWith("active-supervision-dashboard")) {
+        return {
+          data: dashboardData,
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+      if (key?.startsWith("timetable-roster-active-group")) {
+        return {
+          data: {
+            instance: {
+              id: "99",
+              title: "Kreativ AG",
+              activeGroupId: "1",
+              isSpontaneous: false,
+            },
+            rows: [
+              {
+                studentId: "100",
+                studentName: "Max Anwesend",
+                schoolClass: "1a",
+                groupName: "OGS Gruppe A",
+                planned: true,
+                isUnplanned: false,
+                currentlyPresent: true,
+                visitId: "visit-100",
+                status: "present",
+                substatus: null,
+                note: null,
+              },
+              {
+                studentId: "101",
+                studentName: "Erika Erwartet",
+                schoolClass: "2b",
+                groupName: "OGS Gruppe B",
+                planned: true,
+                isUnplanned: false,
+                currentlyPresent: false,
+                visitId: null,
+                status: "expected",
+                substatus: null,
+                note: null,
+              },
+            ],
+          },
+          isLoading: false,
+          error: null,
+          mutate: mockMutate,
+          isValidating: false,
+        };
+      }
+      return {
+        data: null,
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+    }) as never);
+
+    render(<MeinRaumPage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Max Anwesend")).toBeInTheDocument();
+      expect(screen.getByText("Erika Erwartet")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Anwesend")).toBeInTheDocument();
+    expect(screen.getByText("Erwartet")).toBeInTheDocument();
+    expect(screen.queryByText("Anwesend (1)")).not.toBeInTheDocument();
+    expect(screen.queryByText("Erwartet (1)")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /erwartete bestätigen/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Einchecken" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Raum verlassen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Beenden" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("searchbox", { name: "Kind ungeplant suchen" }),
+    ).not.toBeInTheDocument();
   });
 });

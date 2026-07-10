@@ -7,10 +7,14 @@ import (
 	"testing"
 	"time"
 
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 type cleanupSettingsStub struct {
@@ -118,4 +122,103 @@ func TestRejectedEnrollmentCleanup_StopsOnDependentDeleteFailure(t *testing.T) {
 	assert.Zero(t, result)
 	assert.Empty(t, requests.deleted)
 	assert.Empty(t, outbox.deleted)
+}
+
+func rejectedCleanupAmbientTx(t *testing.T) (context.Context, sqlmock.Sqlmock) {
+	t.Helper()
+	sqlDB, mock, err := sqlmock.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = sqlDB.Close() })
+
+	db := bun.NewDB(sqlDB, pgdialect.New())
+	mock.ExpectBegin()
+	tx, err := db.BeginTx(context.Background(), nil)
+	require.NoError(t, err)
+	return modelBase.ContextWithTx(context.Background(), &tx), mock
+}
+
+func TestRejectedEnrollmentCleanupSavepointSuccess(t *testing.T) {
+	ctx, mock := rejectedCleanupAmbientTx(t)
+	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("RELEASE SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
+
+	called := false
+	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error {
+		called = true
+		return nil
+	})
+
+	require.NoError(t, err)
+	assert.True(t, called)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRejectedEnrollmentCleanupSavepointRollsBackCallbackFailure(t *testing.T) {
+	ctx, mock := rejectedCleanupAmbientTx(t)
+	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("ROLLBACK TO SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("RELEASE SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
+	expected := errors.New("delete failed")
+
+	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error { return expected })
+
+	require.ErrorIs(t, err, expected)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRejectedEnrollmentCleanupSavepointRollbackFailureJoinsErrors(t *testing.T) {
+	ctx, mock := rejectedCleanupAmbientTx(t)
+	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
+	rollbackErr := errors.New("rollback failed")
+	mock.ExpectExec("ROLLBACK TO SAVEPOINT enrollment_rejected_cleanup").WillReturnError(rollbackErr)
+	callbackErr := errors.New("delete failed")
+
+	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error { return callbackErr })
+
+	require.ErrorIs(t, err, callbackErr)
+	require.ErrorIs(t, err, rollbackErr)
+	assert.ErrorContains(t, err, "rollback rejected enrollment cleanup savepoint")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRejectedEnrollmentCleanupSavepointRollbackReleaseFailureJoinsErrors(t *testing.T) {
+	ctx, mock := rejectedCleanupAmbientTx(t)
+	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("ROLLBACK TO SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
+	releaseErr := errors.New("release failed")
+	mock.ExpectExec("RELEASE SAVEPOINT enrollment_rejected_cleanup").WillReturnError(releaseErr)
+	callbackErr := errors.New("delete failed")
+
+	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error { return callbackErr })
+
+	require.ErrorIs(t, err, callbackErr)
+	require.ErrorIs(t, err, releaseErr)
+	assert.ErrorContains(t, err, "release rejected enrollment cleanup savepoint")
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRejectedEnrollmentCleanupSavepointCreationFailureSkipsCallback(t *testing.T) {
+	ctx, mock := rejectedCleanupAmbientTx(t)
+	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnError(errors.New("savepoint unavailable"))
+
+	called := false
+	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error {
+		called = true
+		return nil
+	})
+
+	require.EqualError(t, err, "create rejected enrollment cleanup savepoint: savepoint unavailable")
+	assert.False(t, called)
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestRejectedEnrollmentCleanupSavepointReleaseFailureIsReturned(t *testing.T) {
+	ctx, mock := rejectedCleanupAmbientTx(t)
+	mock.ExpectExec("SAVEPOINT enrollment_rejected_cleanup").WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec("RELEASE SAVEPOINT enrollment_rejected_cleanup").WillReturnError(errors.New("release failed"))
+
+	err := newRejectedEnrollmentCleanupTxRunner(nil)(ctx, func(context.Context) error { return nil })
+
+	require.EqualError(t, err, "release rejected enrollment cleanup savepoint: release failed")
+	require.NoError(t, mock.ExpectationsWereMet())
 }
