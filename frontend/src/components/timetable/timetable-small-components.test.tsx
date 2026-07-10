@@ -146,6 +146,28 @@ describe("small timetable components", () => {
     expect(screen.getByText("Spontan")).toBeInTheDocument();
   });
 
+  it("suppresses staffing warnings for cancelled month instances", () => {
+    const cancelled: EnrichedInstance = {
+      ...instance,
+      status: "cancelled",
+      isLive: false,
+      requiredStaffCount: 2,
+      assignedStaffCount: 0,
+      conflictWarnings: [],
+    };
+
+    render(
+      <MonthPlannerGrid
+        days={[new Date("2026-05-04T00:00:00")]}
+        monthDate={new Date("2026-05-01T00:00:00")}
+        instances={[cancelled]}
+        onDayClick={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText("Besetzung: 0/2")).not.toBeInTheDocument();
+  });
+
   it("offers only one-off and recurring entries in the add menu", () => {
     const onAddInstance = vi.fn();
     const onAddSeries = vi.fn();
@@ -272,6 +294,21 @@ describe("small timetable components", () => {
 
     expect(screen.getByText("Besetzung:")).toHaveClass("sr-only");
     expect(screen.getByText("1/3")).toBeVisible();
+  });
+
+  it("labels dot ratio pills without an image role", () => {
+    render(
+      <TimetableRatioPill
+        icon={null}
+        label="Besetzung"
+        value="1/3"
+        tone="warning"
+        variant="dot"
+      />,
+    );
+
+    expect(screen.getByText("Besetzung: 1/3")).toHaveClass("sr-only");
+    expect(screen.queryByRole("img")).not.toBeInTheDocument();
   });
 
   it("shows a missing-room hint only when the template has no room", () => {

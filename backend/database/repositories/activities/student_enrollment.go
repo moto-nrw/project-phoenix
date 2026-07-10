@@ -18,6 +18,7 @@ import (
 const (
 	tableActivitiesStudentEnrollments          = "activities.student_enrollments"
 	tableExprActivitiesEnrollmentsAsEnrollment = `activities.student_enrollments AS "student_enrollment"`
+	setStudentEnrollmentValidUntil             = "valid_until = ?"
 )
 
 // StudentEnrollmentRepository implements activities.StudentEnrollmentRepository interface
@@ -58,7 +59,7 @@ func (r *StudentEnrollmentRepository) CapActiveByGroup(ctx context.Context, grou
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*activities.StudentEnrollment)(nil)).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
-		Set("valid_until = ?", validUntil).
+		Set(setStudentEnrollmentValidUntil, validUntil).
 		Where(`"student_enrollment".activity_group_id = ?`, groupID).
 		Where(`"student_enrollment".valid_from < ?`, validUntil).
 		Where(`"student_enrollment".valid_until IS NULL`).
@@ -86,7 +87,7 @@ func (r *StudentEnrollmentRepository) SetValidUntilByID(ctx context.Context, id 
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*activities.StudentEnrollment)(nil)).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
-		Set("valid_until = ?", validUntil).
+		Set(setStudentEnrollmentValidUntil, validUntil).
 		Where(`"student_enrollment".id = ?`, id)
 	query = base.WithTenantFilter(ctx, query, "student_enrollment")
 
@@ -309,7 +310,10 @@ func (r *StudentEnrollmentRepository) BackfillEnrollmentRequestChildSource(ctx c
 					"student_enrollment".activity_group_id IN (?)
 					OR (
 						"student_enrollment".valid_from = "phase".service_start_date
-						AND "student_enrollment".valid_until IS NOT DISTINCT FROM "phase".service_end_date
+						AND (
+							"student_enrollment".valid_until IS NOT DISTINCT FROM "phase".service_end_date
+							OR "student_enrollment".valid_until IS NOT DISTINCT FROM ("phase".service_end_date + 1)
+						)
 					)
 				)
 		)`, requestChildID, bun.List(groupIDs))
@@ -428,7 +432,7 @@ func (r *StudentEnrollmentRepository) CloseOpenByGroupAndPeriod(ctx context.Cont
 	tenantID := tenant.FromContext(ctx)
 	update := base.GetDB(ctx, r.db).NewUpdate().
 		Table("activities.student_enrollments").
-		Set("valid_until = ?", validFrom).
+		Set(setStudentEnrollmentValidUntil, validFrom).
 		Where("tenant_id = ?", tenantID).
 		Where("activity_group_id = ?", groupID).
 		Where("valid_until IS NULL")

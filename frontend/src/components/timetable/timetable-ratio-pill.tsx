@@ -21,7 +21,7 @@ import { timetableToneColors, type TimetableTone } from "./timetable-style";
  * were hand-picked darker than the raw brand hex, e.g. amber #EAB308 as
  * plain text has poor contrast on white). */
 function darkenHex(hex: string, amount: number): string {
-  const num = parseInt(hex.slice(1), 16);
+  const num = Number.parseInt(hex.slice(1), 16);
   const r = Math.max(0, (num >> 16) - amount);
   const g = Math.max(0, ((num >> 8) & 0xff) - amount);
   const b = Math.max(0, (num & 0xff) - amount);
@@ -29,19 +29,19 @@ function darkenHex(hex: string, amount: number): string {
 }
 
 interface TimetableRatioPillProps {
-  icon: ReactNode;
-  label: string;
+  readonly icon: ReactNode;
+  readonly label: string;
   /** e.g. "2 / 3" or "—" when there is nothing to count. */
-  value: string;
-  tone: TimetableTone;
+  readonly value: string;
+  readonly tone: TimetableTone;
   /**
    * "pill" (default): full chrome for the detail slide-over.
    * "compact": inline dot + text for the weekly grid block.
    * "dot": bare colored dot for month/year grid cells (no room for text).
    */
-  variant?: "pill" | "compact" | "dot";
+  readonly variant?: "pill" | "compact" | "dot";
   /** Accessible name — required content for "dot" (no visible text). */
-  title?: string;
+  readonly title?: string;
 }
 
 export function TimetableRatioPill({
@@ -51,18 +51,18 @@ export function TimetableRatioPill({
   tone,
   variant = "pill",
   title,
-}: TimetableRatioPillProps) {
+}: Readonly<TimetableRatioPillProps>) {
   const color = timetableToneColors[tone];
   const accessibleName = title ?? `${label}: ${value}`;
 
   if (variant === "dot") {
     return (
       <span
-        role="img"
-        aria-label={accessibleName}
-        className="inline-block h-1.5 w-1.5 shrink-0 rounded-full"
+        className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full"
         style={{ backgroundColor: color }}
-      />
+      >
+        <span className="sr-only">{accessibleName}</span>
+      </span>
     );
   }
 

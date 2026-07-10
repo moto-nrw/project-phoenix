@@ -58,14 +58,16 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 			return fmt.Errorf("invalid weekday %d (must be 1=Mon … 7=Sun)", w)
 		}
 	}
-	if err := (&activitiesModel.Group{
+	target := &activitiesModel.Group{
 		TargetGroupType:   req.TargetGroupType,
 		TargetGradeLevel:  req.TargetGradeLevel,
 		TargetSchoolClass: req.TargetSchoolClass,
 		EducationGroupID:  req.EducationGroupID,
-	}).ValidateTargetGroup(); err != nil {
+	}
+	if err := target.ValidateTargetGroup(); err != nil {
 		return err
 	}
+	req.TargetSchoolClass = target.TargetSchoolClass
 	return nil
 }
 
@@ -196,7 +198,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		TargetGradeLevel:  req.TargetGradeLevel,
 		TargetSchoolClass: req.TargetSchoolClass,
 	}
-	if err := rs.TimetableData.UpdateTemplate(ctx, scheduleSvc.TemplateUpdateInput{
+	updateErr := rs.TimetableData.UpdateTemplate(ctx, scheduleSvc.TemplateUpdateInput{
 		TemplateID:       id,
 		Fields:           fieldsUpdate,
 		Weekdays:         req.Weekdays,
@@ -207,11 +209,22 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		StudentIDs:       req.StudentIDs,
 		StaffIDs:         req.StaffIDs,
 		PrimaryStaffID:   req.PrimaryStaffID,
-	}); errors.Is(err, scheduleSvc.ErrTemplateSegmentNotEditable) {
+	})
+	if updateErr != nil {
+		// findOrCreateTimeframe runs before the recurrence service. Tenant
+		// middleware commits 4xx responses unless explicitly marked, so every
+		// failed update must roll back a timeframe created by this request.
+		tenant.MarkRollback(ctx)
+	}
+	if errors.Is(updateErr, scheduleSvc.ErrTemplateSegmentNotEditable) {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
 		return
-	} else if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("update template failed", err))
+	} else if renderTemplateCareOfferingConflict(w, r, updateErr) {
+		return
+	} else if renderTemplateRosterRebaseConflict(w, r, updateErr) {
+		return
+	} else if updateErr != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("update template failed", updateErr))
 		return
 	}
 	templates, err := rs.loadTemplates(ctx, &id)
@@ -238,6 +251,9 @@ func (rs *Resource) archiveTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 	n, err := rs.TimetableData.ArchiveTemplate(r.Context(), id)
 	if err != nil {
+		if renderTemplateCareOfferingConflict(w, r, err) {
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("archive template failed", err))
 		return
 	}

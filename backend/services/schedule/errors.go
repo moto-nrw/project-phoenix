@@ -8,12 +8,15 @@ import (
 
 // Common schedule errors
 var (
-	ErrDateframeNotFound      = errors.New("dateframe not found")
-	ErrTimeframeNotFound      = errors.New("timeframe not found")
-	ErrRecurrenceRuleNotFound = errors.New("recurrence rule not found")
-	ErrInvalidDateRange       = errors.New("invalid date range")
-	ErrInvalidTimeRange       = errors.New("invalid time range")
-	ErrInvalidDuration        = errors.New("invalid duration")
+	ErrDateframeNotFound = errors.New("dateframe not found")
+	ErrTimeframeNotFound = errors.New("timeframe not found")
+	// ErrTimeframeRequiredByCareOffering covers both updates and deletions that
+	// would make a linked care offering impossible to materialize.
+	ErrTimeframeRequiredByCareOffering = errors.New("Zeitrahmen kann nicht geändert oder gelöscht werden: Ein verknüpftes Betreuungsangebot benötigt ihn") //nolint:staticcheck // ST1005: user-facing German message
+	ErrRecurrenceRuleNotFound          = errors.New("recurrence rule not found")
+	ErrInvalidDateRange                = errors.New("invalid date range")
+	ErrInvalidTimeRange                = errors.New("invalid time range")
+	ErrInvalidDuration                 = errors.New("invalid duration")
 )
 
 // ScheduleError represents a schedule-related error

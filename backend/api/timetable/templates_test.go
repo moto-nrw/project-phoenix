@@ -302,6 +302,17 @@ func TestListTemplates_CapacityFields(t *testing.T) {
 		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
 		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
 	}
+	today := timezone.TodayDate()
+	period := createTemplateTestPeriodRange(
+		t,
+		s.db,
+		"TplCapacityPeriod",
+		today.AddDays(-7),
+		today.AddDays(14),
+		1,
+		nil,
+	)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
 
 	router := templateRouter(s.ctx, s.res)
 	body := createTemplateBody(s, "Tpl-Capacity")
@@ -783,8 +794,9 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	}{
 		{studentID: s.studentA, periodID: &periodP.ID},
 		{studentID: s.studentB, periodID: &periodP.ID},
-		// Unscoped rows apply in every planning period and must therefore be
-		// included by the period-effective capacity aggregate as well.
+		// Unscoped roster rows apply to the occurrence period selected by
+		// materialization. With overlapping periods that is the lowest-ID
+		// active period (P), never both P and Q.
 		{studentID: studentC.ID, periodID: nil},
 	} {
 		enrollment := &activitiesModel.StudentEnrollment{
@@ -804,8 +816,9 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	}
 	supervisor.SetTenantID(1)
 	require.NoError(t, s.res.TimetableData.CreatePlannedSupervisor(s.ctx, supervisor))
-	// A bounded historical staff version overlaps P but must not be unioned
-	// into assigned capacity; only the matching open version counts.
+	// A bounded staff assignment contributes only on dates inside its own
+	// validity window. Occurrence-level capacity must count it there without
+	// smearing it across the rest of the period.
 	boundedSupervisorUntil := periodP.EndDate
 	boundedSupervisor := &activitiesModel.SupervisorPlanned{
 		StaffID:          s.staffB,
@@ -856,8 +869,15 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 		assert.Equal(t, 3, tplGlobal.SupervisorCount,
 			"display roster remains the union across periods")
 		assert.Equal(t, 3, tplGlobal.RequiredStaffCount)
-		assert.Equal(t, 1, tplGlobal.AssignedStaffCount,
-			"period Q staff must not inflate period P capacity")
+		assert.Equal(t, 2, tplGlobal.AssignedStaffCount,
+			"bounded period P staff counts on its actual dates; period Q staff stays excluded")
+		globalDetailW := doTemplateJSON(t, router, http.MethodGet,
+			fmt.Sprintf("/templates/%d", createdGlobal.TemplateID), nil)
+		require.Equal(t, http.StatusOK, globalDetailW.Code, "body=%s", globalDetailW.Body.String())
+		globalDetail := decodeTemplateData[templateResponse](t, globalDetailW)
+		assert.Equal(t, 3, globalDetail.RequiredStaffCount,
+			"fully unpinned detail must expose the worst actual active-period occurrence")
+		assert.Equal(t, 2, globalDetail.AssignedStaffCount)
 
 		tplBounded, ok := byID[createdBounded.TemplateID]
 		require.True(t, ok, "unscoped template with bounded roster must appear")
@@ -874,7 +894,7 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 			"single-template GET must use its unambiguous period pin")
 	})
 
-	t.Run("filter by the overlapping period Q shows the real headcount", func(t *testing.T) {
+	t.Run("filter by overlapping period Q keeps display roster but has no occurrences", func(t *testing.T) {
 		byID := listFor(t, periodQ.ID)
 		_, pVisible := byID[createdP.TemplateID]
 		assert.False(t, pVisible,
@@ -888,9 +908,10 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 			"roster written for overlapping period P must still be counted (the 0-Kinder bug)")
 		assert.Equal(t, 3, tplGlobal.SupervisorCount)
 		assert.ElementsMatch(t, []int64{s.studentA, s.studentB, studentC.ID}, tplGlobal.StudentIDs)
-		assert.Equal(t, 1, tplGlobal.RequiredStaffCount,
-			"only the unscoped child contributes to period Q capacity")
-		assert.Equal(t, 2, tplGlobal.AssignedStaffCount)
+		assert.Zero(t, tplGlobal.RequiredStaffCount,
+			"materialization assigns globally unpinned overlapping dates to lower-ID period P")
+		assert.Zero(t, tplGlobal.AssignedStaffCount,
+			"period-Q roster must not imply coverage for occurrences owned by P")
 
 		_, boundedVisible := byID[createdBounded.TemplateID]
 		assert.False(t, boundedVisible,
@@ -898,14 +919,433 @@ func TestListTemplatesEnrollmentCountIsPeriodTolerant(t *testing.T) {
 	})
 }
 
+func TestListTemplatesCapacityUsesActualOccurrences(t *testing.T) {
+	s := buildTemplateSetup(t, nil)
+	defer s.cleanupFn()
+	s.res.SettingsService = &configtest.Mock{
+		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
+		ResolveIntFn:        func(context.Context, string) (int, error) { return 1, nil },
+	}
+	router := templateRouter(s.ctx, s.res)
+
+	t.Run("does not combine weekday cohorts or validity windows", func(t *testing.T) {
+		period := createTemplateTestPeriodRange(
+			t,
+			s.db,
+			"TplOccurrenceRoster",
+			timezone.NewDate(2025, 9, 1),
+			timezone.NewDate(2025, 9, 7),
+			1,
+			nil,
+		)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Roster", period.ID,
+			[]int{activitiesModel.WeekdayMonday, activitiesModel.WeekdayWednesday}, 0)
+
+		start := timezone.NewDate(2025, 9, 1)
+		end := timezone.NewDate(2025, 9, 7).AddDays(1)
+		createCapacityEnrollment(t, s, templateID, s.studentA, start, &end, &period.ID, []int{activitiesModel.WeekdayMonday})
+		createCapacityEnrollment(t, s, templateID, s.studentB, start, &end, &period.ID, []int{activitiesModel.WeekdayWednesday})
+		mondayEnd := timezone.NewDate(2025, 9, 2)
+		wednesdayStart := timezone.NewDate(2025, 9, 3)
+		wednesdayEnd := timezone.NewDate(2025, 9, 4)
+		createCapacitySupervisor(t, s, templateID, s.staffA, start, &mondayEnd, &period.ID)
+		createCapacitySupervisor(t, s, templateID, s.staffB, wednesdayStart, &wednesdayEnd, &period.ID)
+
+		got := listCapacityTemplate(t, router, period.ID, templateID)
+		assert.Equal(t, 1, got.RequiredStaffCount,
+			"Monday and Wednesday children must not be unioned into one requirement")
+		assert.Equal(t, 1, got.AssignedStaffCount,
+			"staff validity must be evaluated on the chosen occurrence")
+
+		unfiltered := listCapacityTemplateFromListPath(t, router, "/templates", templateID)
+		assert.Equal(t, 1, unfiltered.RequiredStaffCount,
+			"the unfiltered list must use actual occurrences instead of the display-roster union")
+		assert.Equal(t, 1, unfiltered.AssignedStaffCount)
+
+		detailW := doTemplateJSON(t, router, http.MethodGet, fmt.Sprintf("/templates/%d", templateID), nil)
+		require.Equal(t, http.StatusOK, detailW.Code, "body=%s", detailW.Body.String())
+		detail := decodeTemplateData[templateResponse](t, detailW)
+		assert.Equal(t, 1, detail.RequiredStaffCount,
+			"template detail must use actual occurrences instead of the display-roster union")
+		assert.Equal(t, 1, detail.AssignedStaffCount)
+	})
+
+	t.Run("honors inclusive schedule start and exclusive schedule end", func(t *testing.T) {
+		period := createTemplateTestPeriodRange(
+			t,
+			s.db,
+			"TplOccurrenceScheduleWindow",
+			timezone.NewDate(2025, 9, 1),
+			timezone.NewDate(2025, 9, 21),
+			1,
+			nil,
+		)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Schedule-Window", period.ID,
+			[]int{activitiesModel.WeekdayMonday, activitiesModel.WeekdayWednesday}, 0)
+		windowStart := timezone.NewDate(2025, 9, 10)
+		windowEnd := timezone.NewDate(2025, 9, 11)
+		setCapacityScheduleWindow(t, s, templateID, activitiesModel.WeekdayWednesday, &windowStart, &windowEnd)
+
+		phantomStart := timezone.NewDate(2025, 9, 3)
+		phantomEnd := timezone.NewDate(2025, 9, 4)
+		futureStart := timezone.NewDate(2025, 9, 17)
+		futureEnd := timezone.NewDate(2025, 9, 18)
+		createCapacityEnrollment(t, s, templateID, s.studentA, phantomStart, &phantomEnd, &period.ID, []int{activitiesModel.WeekdayWednesday})
+		createCapacityEnrollment(t, s, templateID, s.studentB, windowStart, &windowEnd, &period.ID, []int{activitiesModel.WeekdayWednesday})
+		createCapacityEnrollment(t, s, templateID, s.studentA, futureStart, &futureEnd, &period.ID, []int{activitiesModel.WeekdayWednesday})
+		createCapacitySupervisor(t, s, templateID, s.staffA, windowStart, &windowEnd, &period.ID)
+
+		got := listCapacityTemplate(t, router, period.ID, templateID)
+		assert.Equal(t, 1, got.RequiredStaffCount)
+		assert.Equal(t, 1, got.AssignedStaffCount,
+			"out-of-window unstaffed Wednesdays must not become candidates")
+	})
+
+	t.Run("applies the calendar period week cycle", func(t *testing.T) {
+		anchor := timezone.NewDate(2025, 9, 1)
+		period := createTemplateTestPeriodRange(
+			t,
+			s.db,
+			"TplOccurrenceABWeek",
+			anchor,
+			timezone.NewDate(2025, 9, 14),
+			2,
+			&anchor,
+		)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-AB-Week", period.ID,
+			[]int{activitiesModel.WeekdayMonday}, 2)
+		weekAEnd := timezone.NewDate(2025, 9, 2)
+		createCapacityEnrollment(t, s, templateID, s.studentA, anchor, &weekAEnd, &period.ID, nil)
+
+		got := listCapacityTemplate(t, router, period.ID, templateID)
+		assert.Zero(t, got.RequiredStaffCount,
+			"the week-A roster must not create demand for a week-B-only schedule")
+		assert.Zero(t, got.AssignedStaffCount)
+	})
+
+	t.Run("removes cancelled recurrence dates from staffing", func(t *testing.T) {
+		date := timezone.NewDate(2025, 9, 3)
+		period := createTemplateTestPeriodRange(t, s.db, "TplOccurrenceCancelled",
+			timezone.NewDate(2025, 9, 1), timezone.NewDate(2025, 9, 7), 1, nil)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Cancelled", period.ID,
+			[]int{activitiesModel.WeekdayWednesday}, 0)
+		end := date.AddDays(1)
+		createCapacityEnrollment(t, s, templateID, s.studentA, date, &end, &period.ID, nil)
+		exception := &scheduleModel.ActivityException{
+			ActivityGroupID: templateID,
+			ExceptionDate:   date,
+			ExceptionType:   scheduleModel.ActivityExceptionCancelled,
+		}
+		exception.SetTenantID(1)
+		require.NoError(t, scheduleRepo.NewActivityExceptionRepository(s.db).Create(s.ctx, exception))
+
+		got := listCapacityTemplate(t, router, period.ID, templateID)
+		assert.Zero(t, got.RequiredStaffCount)
+		assert.Zero(t, got.AssignedStaffCount)
+	})
+
+	t.Run("ignores schedules without a materializable timeframe", func(t *testing.T) {
+		date := timezone.NewDate(2025, 9, 1)
+		period := createTemplateTestPeriodRange(t, s.db, "TplOccurrenceNoTimeframe",
+			date, timezone.NewDate(2025, 9, 7), 1, nil)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-No-Timeframe", period.ID,
+			[]int{activitiesModel.WeekdayMonday}, 0)
+		createCapacityEnrollment(t, s, templateID, s.studentA, date, nil, &period.ID, nil)
+
+		_, err := s.db.NewUpdate().
+			Table("activities.schedules").
+			Set("timeframe_id = NULL").
+			Where("tenant_id = ?", 1).
+			Where("activity_group_id = ?", templateID).
+			Exec(s.ctx)
+		require.NoError(t, err)
+
+		got := listCapacityTemplate(t, router, period.ID, templateID)
+		assert.Equal(t, 1, got.EnrollmentCount, "the display roster remains visible")
+		assert.Zero(t, got.RequiredStaffCount,
+			"materialization skips schedules whose timeframe was removed")
+		assert.Zero(t, got.AssignedStaffCount)
+	})
+
+	t.Run("ignores dates without an effective room", func(t *testing.T) {
+		date := timezone.NewDate(2025, 9, 1)
+		period := createTemplateTestPeriodRange(t, s.db, "TplOccurrenceNoRoom",
+			date, timezone.NewDate(2025, 9, 7), 1, nil)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-No-Room", period.ID,
+			[]int{activitiesModel.WeekdayMonday}, 0)
+		createCapacityEnrollment(t, s, templateID, s.studentA, date, nil, &period.ID, nil)
+
+		_, err := s.db.NewUpdate().
+			Table("activities.groups").
+			Set("planned_room_id = NULL").
+			Where("tenant_id = ?", 1).
+			Where("id = ?", templateID).
+			Exec(s.ctx)
+		require.NoError(t, err)
+
+		got := listCapacityTemplate(t, router, period.ID, templateID)
+		assert.Equal(t, 1, got.EnrollmentCount, "the display roster remains visible")
+		assert.Zero(t, got.RequiredStaffCount,
+			"materialization skips dates with neither a template room nor an override")
+		assert.Zero(t, got.AssignedStaffCount)
+	})
+
+	t.Run("accepts a date-specific room override when the template room is missing", func(t *testing.T) {
+		date := timezone.NewDate(2025, 9, 1)
+		period := createTemplateTestPeriodRange(t, s.db, "TplOccurrenceRoomOverride",
+			date, timezone.NewDate(2025, 9, 7), 1, nil)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Room-Override", period.ID,
+			[]int{activitiesModel.WeekdayMonday}, 0)
+		createCapacityEnrollment(t, s, templateID, s.studentA, date, nil, &period.ID, nil)
+
+		_, err := s.db.NewUpdate().
+			Table("activities.groups").
+			Set("planned_room_id = NULL").
+			Where("tenant_id = ?", 1).
+			Where("id = ?", templateID).
+			Exec(s.ctx)
+		require.NoError(t, err)
+		exception := &scheduleModel.ActivityException{
+			ActivityGroupID: templateID,
+			ExceptionDate:   date,
+			ExceptionType:   scheduleModel.ActivityExceptionModified,
+			RoomID:          &s.roomID,
+		}
+		exception.SetTenantID(1)
+		require.NoError(t, scheduleRepo.NewActivityExceptionRepository(s.db).Create(s.ctx, exception))
+
+		got := listCapacityTemplate(t, router, period.ID, templateID)
+		assert.Equal(t, 1, got.RequiredStaffCount,
+			"the materializer uses the exception room as the effective room")
+		assert.Zero(t, got.AssignedStaffCount)
+	})
+
+	t.Run("keeps simultaneous explicit periods as separate occurrences", func(t *testing.T) {
+		start := timezone.NewDate(2025, 9, 1)
+		end := timezone.NewDate(2025, 9, 7)
+		periodP := createTemplateTestPeriodRange(t, s.db, "TplOccurrenceExplicitP", start, end, 1, nil)
+		periodQ := createTemplateTestPeriodRange(t, s.db, "TplOccurrenceExplicitQ", start, end, 1, nil)
+		t.Cleanup(func() {
+			testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", periodP.ID, periodQ.ID)
+		})
+
+		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Explicit-Periods", periodP.ID,
+			[]int{activitiesModel.WeekdayMonday}, 0)
+		_, err := s.db.NewUpdate().
+			Table("activities.groups").
+			Set("calendar_period_id = NULL").
+			Where("tenant_id = ?", 1).
+			Where("id = ?", templateID).
+			Exec(s.ctx)
+		require.NoError(t, err)
+
+		startTime, err := parseClockTime("13:00")
+		require.NoError(t, err)
+		endTime, err := parseClockTime("13:50")
+		require.NoError(t, err)
+		timeframe := &scheduleModel.Timeframe{
+			StartTime:   startTime,
+			EndTime:     &endTime,
+			IsActive:    true,
+			Description: "Tpl-Occurrence-Explicit-Periods-Q",
+		}
+		timeframe.SetTenantID(1)
+		require.NoError(t, s.res.TimetableData.CreateTimeframe(s.ctx, timeframe))
+
+		timeframeID := timeframe.ID
+		scheduleQ := &activitiesModel.Schedule{
+			Weekday:          activitiesModel.WeekdayMonday,
+			TimeframeID:      &timeframeID,
+			ActivityGroupID:  templateID,
+			WeekPattern:      0,
+			CalendarPeriodID: &periodQ.ID,
+		}
+		scheduleQ.SetTenantID(1)
+		require.NoError(t, s.res.TimetableData.CreateActivitySchedule(s.ctx, scheduleQ))
+
+		validUntil := end.AddDays(1)
+		createCapacityEnrollment(t, s, templateID, s.studentA, start, &validUntil, &periodP.ID, nil)
+		createCapacityEnrollment(t, s, templateID, s.studentB, start, &validUntil, &periodQ.ID, nil)
+		createCapacitySupervisor(t, s, templateID, s.staffA, start, &validUntil, &periodP.ID)
+
+		periodPResult := listCapacityTemplate(t, router, periodP.ID, templateID)
+		assert.Equal(t, 1, periodPResult.RequiredStaffCount)
+		assert.Equal(t, 1, periodPResult.AssignedStaffCount)
+		periodQResult := listCapacityTemplate(t, router, periodQ.ID, templateID)
+		assert.Equal(t, 1, periodQResult.RequiredStaffCount)
+		assert.Zero(t, periodQResult.AssignedStaffCount)
+
+		unfiltered := listCapacityTemplateFromListPath(t, router, "/templates", templateID)
+		assert.Equal(t, 1, unfiltered.RequiredStaffCount,
+			"all-period capacity must not union period-specific rosters on the same date")
+		assert.Zero(t, unfiltered.AssignedStaffCount,
+			"the unstaffed period-Q occurrence is the real worst case")
+	})
+
+	t.Run("inactive period has no materializable staffing occurrences", func(t *testing.T) {
+		period := createTemplateTestPeriodRange(t, s.db, "TplOccurrenceInactive",
+			timezone.NewDate(2025, 9, 1), timezone.NewDate(2025, 9, 7), 1, nil)
+		t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.calendar_periods", period.ID) })
+		templateID := createCapacityTemplate(t, router, s, "Tpl-Occurrence-Inactive", period.ID,
+			[]int{activitiesModel.WeekdayMonday}, 0)
+		end := period.StartDate.AddDays(1)
+		createCapacityEnrollment(t, s, templateID, s.studentA, period.StartDate, &end, &period.ID, nil)
+		_, err := s.db.NewUpdate().Table("schedule.calendar_periods").
+			Set("is_active = FALSE").
+			Where("tenant_id = ?", 1).
+			Where("id = ?", period.ID).
+			Exec(s.ctx)
+		require.NoError(t, err)
+
+		got := listCapacityTemplate(t, router, period.ID, templateID)
+		assert.Zero(t, got.RequiredStaffCount)
+		assert.Zero(t, got.AssignedStaffCount)
+	})
+}
+
+func createCapacityTemplate(
+	t *testing.T,
+	router chi.Router,
+	s *templateSetup,
+	name string,
+	periodID int64,
+	weekdays []int,
+	weekPattern int,
+) int64 {
+	t.Helper()
+	body := createTemplateBody(s, name)
+	body["calendar_period_id"] = periodID
+	body["weekdays"] = weekdays
+	body["week_pattern"] = weekPattern
+	body["student_ids"] = []int64{}
+	body["staff_ids"] = []int64{}
+	delete(body, "primary_staff_id")
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	return decodeTemplateData[createTemplateResponse](t, w).TemplateID
+}
+
+func createCapacityEnrollment(
+	t *testing.T,
+	s *templateSetup,
+	templateID, studentID int64,
+	validFrom timezone.Date,
+	validUntil *timezone.Date,
+	periodID *int64,
+	selectedWeekdays []int,
+) {
+	t.Helper()
+	enrollment := &activitiesModel.StudentEnrollment{
+		StudentID:        studentID,
+		ActivityGroupID:  templateID,
+		ValidFrom:        validFrom,
+		ValidUntil:       validUntil,
+		CalendarPeriodID: periodID,
+		SelectedWeekdays: selectedWeekdays,
+	}
+	enrollment.SetTenantID(1)
+	require.NoError(t, activitiesRepo.NewStudentEnrollmentRepository(s.db).Create(s.ctx, enrollment))
+}
+
+func createCapacitySupervisor(
+	t *testing.T,
+	s *templateSetup,
+	templateID, staffID int64,
+	validFrom timezone.Date,
+	validUntil *timezone.Date,
+	periodID *int64,
+) {
+	t.Helper()
+	supervisor := &activitiesModel.SupervisorPlanned{
+		StaffID:          staffID,
+		GroupID:          templateID,
+		ValidFrom:        validFrom,
+		ValidUntil:       validUntil,
+		CalendarPeriodID: periodID,
+	}
+	supervisor.SetTenantID(1)
+	require.NoError(t, activitiesRepo.NewSupervisorPlannedRepository(s.db).Create(s.ctx, supervisor))
+}
+
+func setCapacityScheduleWindow(
+	t *testing.T,
+	s *templateSetup,
+	templateID int64,
+	weekday int,
+	validFrom, validUntil *timezone.Date,
+) {
+	t.Helper()
+	_, err := s.db.NewUpdate().
+		Table("activities.schedules").
+		Set("valid_from = ?", validFrom).
+		Set("valid_until = ?", validUntil).
+		Where("tenant_id = ?", 1).
+		Where("activity_group_id = ?", templateID).
+		Where("weekday = ?", weekday).
+		Exec(s.ctx)
+	require.NoError(t, err)
+}
+
+func listCapacityTemplate(t *testing.T, router chi.Router, periodID, templateID int64) templateResponse {
+	t.Helper()
+	return listCapacityTemplateFromListPath(
+		t,
+		router,
+		fmt.Sprintf("/templates?period_id=%d", periodID),
+		templateID,
+	)
+}
+
+func listCapacityTemplateFromListPath(t *testing.T, router chi.Router, path string, templateID int64) templateResponse {
+	t.Helper()
+	w := doTemplateJSON(t, router, http.MethodGet, path, nil)
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+	list := decodeTemplateData[listTemplatesResponse](t, w)
+	for _, template := range list.Templates {
+		if template.ID == templateID {
+			return template
+		}
+	}
+	require.Failf(t, "template missing", "template %d not present in %s", templateID, path)
+	return templateResponse{}
+}
+
 func createTemplateTestPeriod(t *testing.T, db *bun.DB, name string) *scheduleModel.CalendarPeriod {
+	t.Helper()
+	return createTemplateTestPeriodRange(
+		t,
+		db,
+		name,
+		timezone.NewDate(2026, 1, 1),
+		timezone.NewDate(2026, 12, 31),
+		1,
+		nil,
+	)
+}
+
+func createTemplateTestPeriodRange(
+	t *testing.T,
+	db *bun.DB,
+	name string,
+	startDate, endDate timezone.Date,
+	weekCycleLength int,
+	weekCycleAnchor *timezone.Date,
+) *scheduleModel.CalendarPeriod {
 	t.Helper()
 	period := &scheduleModel.CalendarPeriod{
 		Name:            fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
 		PeriodType:      scheduleModel.PeriodTypeCustom,
-		StartDate:       timezone.NewDate(2026, 1, 1),
-		EndDate:         timezone.NewDate(2026, 12, 31),
-		WeekCycleLength: 1,
+		StartDate:       startDate,
+		EndDate:         endDate,
+		WeekCycleLength: weekCycleLength,
+		WeekCycleAnchor: weekCycleAnchor,
 		IsActive:        true,
 	}
 	period.SetTenantID(1)

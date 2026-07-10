@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // splitTemplateRequest is the update-template body plus the split controls.
@@ -47,6 +48,38 @@ type splitTemplateResponse struct {
 	ScheduleIDs      []int64 `json:"schedule_ids"`
 	DeletedInstances int     `json:"deleted_instances"`
 	InstancesCreated int     `json:"instances_created"`
+}
+
+// ErrCodeTemplateCareOfferingConflict is shared by split, update, end, and
+// archive so the planner can show one localized resolution message for the
+// same cross-domain invariant.
+const ErrCodeTemplateCareOfferingConflict = "timetable.template_care_offering_conflict"
+
+const ErrCodeTemplateRosterRebaseConflict = "timetable.template_roster_rebase_conflict"
+
+func renderTemplateCareOfferingConflict(w http.ResponseWriter, r *http.Request, err error) bool {
+	if !errors.Is(err, scheduleSvc.ErrTemplateCareOfferingConflict) {
+		return false
+	}
+	common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
+		//nolint:staticcheck // ST1005: user-facing German message
+		errors.New("Die Änderung ist nicht möglich, weil dadurch ein verknüpftes Betreuungsangebot ungültig würde. Bitte passen Sie zuerst das Angebot oder dessen Stundenplan-Verknüpfung an."),
+		ErrCodeTemplateCareOfferingConflict,
+	))
+	return true
+}
+
+func renderTemplateRosterRebaseConflict(w http.ResponseWriter, r *http.Request, err error) bool {
+	if !errors.Is(err, scheduleSvc.ErrTemplateRosterRebaseConflict) {
+		return false
+	}
+	tenant.MarkRollback(r.Context())
+	common.RenderError(w, r, common.ErrorConflictWithCode(
+		//nolint:staticcheck // ST1005: user-facing German message
+		errors.New("Die Zeitraumänderung würde geschützte Kinderzuordnungen zusammenführen. Bitte bereinigen Sie zuerst die betroffenen Zuordnungen."),
+		ErrCodeTemplateRosterRebaseConflict,
+	))
+	return true
 }
 
 // splitTemplate handles POST /api/timetable/templates/{id}/split.
@@ -161,6 +194,12 @@ func parseOptionalSplitDate(raw *string) (*timezone.Date, error) {
 
 // renderTemplateSplitError maps the service sentinels onto HTTP statuses.
 func renderTemplateSplitError(w http.ResponseWriter, r *http.Request, err error) {
+	if renderTemplateCareOfferingConflict(w, r, err) {
+		return
+	}
+	if renderTemplateRosterRebaseConflict(w, r, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, scheduleSvc.ErrSplitTemplateNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))

@@ -24,7 +24,7 @@ func (s *Service) AddSupervisor(ctx context.Context, groupID int64, staffID int6
 
 // addSupervisorInTx contains the transaction logic for adding a supervisor
 func (s *Service) addSupervisorInTx(ctx context.Context, txService ActivityService, groupID, staffID int64, isPrimary bool) (*activities.SupervisorPlanned, error) {
-	if err := s.validateGroupExists(ctx, txService, groupID); err != nil {
+	if _, err := txService.(*Service).findMutableActivityGroup(ctx, groupID); err != nil {
 		return nil, err
 	}
 
@@ -156,6 +156,12 @@ func (s *Service) UpdateSupervisor(ctx context.Context, supervisor *activities.S
 	if err != nil {
 		return nil, &ActivityError{Op: opUpdateSupervisor, Err: err}
 	}
+	if _, err := s.findMutableActivityGroup(ctx, existingSupervisor.GroupID); err != nil {
+		return nil, &ActivityError{Op: opUpdateSupervisor, Err: err}
+	}
+	if supervisor.GroupID != existingSupervisor.GroupID {
+		return nil, &ActivityError{Op: opUpdateSupervisor, Err: errors.New("cannot change activity group for a supervisor")}
+	}
 
 	if err := supervisor.Validate(); err != nil {
 		return nil, &ActivityError{Op: opUpdateSupervisor, Err: err}
@@ -225,6 +231,9 @@ func (s *Service) DeleteSupervisor(ctx context.Context, id int64) error {
 		}
 		return &ActivityError{Op: opDeleteSupervisor, Err: err}
 	}
+	if _, err := s.findMutableActivityGroup(ctx, supervisor.GroupID); err != nil {
+		return &ActivityError{Op: opDeleteSupervisor, Err: err}
+	}
 
 	if err := s.handlePrimaryDeletionInTx(ctx, s, supervisor, id); err != nil {
 		return &ActivityError{Op: opDeleteSupervisor, Err: err}
@@ -280,6 +289,9 @@ func (s *Service) SetPrimarySupervisor(ctx context.Context, id int64) error {
 		}
 		return &ActivityError{Op: "set primary supervisor", Err: err}
 	}
+	if _, err := s.findMutableActivityGroup(ctx, supervisor.GroupID); err != nil {
+		return &ActivityError{Op: "set primary supervisor", Err: err}
+	}
 
 	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, supervisor.GroupID)
 	if err != nil {
@@ -312,9 +324,9 @@ func (s *Service) updateSupervisorPrimaryStatusInTx(ctx context.Context, txServi
 // UpdateGroupSupervisors updates the supervisors for a group
 // This follows the UpdateGroupEnrollments pattern but for supervisors
 func (s *Service) UpdateGroupSupervisors(ctx context.Context, groupID int64, staffIDs []int64) error {
-	_, err := s.groupRepo.FindByID(ctx, groupID)
+	_, err := s.findMutableActivityGroup(ctx, groupID)
 	if err != nil {
-		return &ActivityError{Op: "UpdateGroupSupervisors", Err: ErrGroupNotFound}
+		return &ActivityError{Op: "UpdateGroupSupervisors", Err: err}
 	}
 
 	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, groupID)

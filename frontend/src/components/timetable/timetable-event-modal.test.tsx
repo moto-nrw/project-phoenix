@@ -79,6 +79,8 @@ vi.mock("~/lib/timetable-api", () => ({
 
 import { TimetableEventModal } from "./timetable-event-modal";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
+import { useTenant } from "~/lib/tenant-context";
+import type { TenantInfo } from "~/lib/tenant-api";
 import type {
   EnrichedInstance,
   TimetableTemplate,
@@ -257,6 +259,11 @@ function renderModal(
 describe("TimetableEventModal", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      routingMode: "path",
+      tenant: { gradeLevelMax: 13 } as TenantInfo,
+    });
     setupRefs();
     mockCreate.mockResolvedValue(savedInstance);
     mockUpdate.mockResolvedValue(savedInstance);
@@ -442,7 +449,37 @@ describe("TimetableEventModal", () => {
     });
   });
 
-  it("blocks saving and retries when a later student page fails", async () => {
+  it("loads planner references without waiting for the student catalog", async () => {
+    const studentRequest = deferred<{
+      students: Array<{
+        id: string;
+        name: string;
+        school_class: string;
+        group_name: string;
+      }>;
+    }>();
+    mockFetchStudents.mockReturnValue(studentRequest.promise);
+
+    renderModal({ showPeriodField: true });
+
+    expect(await screen.findByText("Haus A - Mensa")).toBeInTheDocument();
+    expect(screen.getByLabelText("Raum*")).toBeEnabled();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jahrgang" }), {
+      button: 0,
+    });
+    expect(screen.getByLabelText(/^Jahrgang\*/)).toBeEnabled();
+    expect(screen.getByText(/Kinderliste wird geladen/)).toBeVisible();
+
+    await act(async () => {
+      studentRequest.resolve({ students: [] });
+      await studentRequest.promise;
+    });
+  });
+
+  it("keeps saving available and retries when a later student page fails", async () => {
     let secondPageFails = true;
     mockFetchStudents.mockImplementation(({ page }: { page?: number } = {}) => {
       if (page === 2 && secondPageFails) {
@@ -477,10 +514,10 @@ describe("TimetableEventModal", () => {
 
     expect(
       await screen.findByText(
-        "Die Kinderliste konnte nicht vollständig geladen werden. Bitte lade sie erneut, bevor du den Termin speicherst.",
+        "Die Kinderliste konnte nicht vollständig geladen werden. Die Kinderzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
     expect(screen.queryByText("Max Erste Seite")).not.toBeInTheDocument();
 
     secondPageFails = false;
@@ -496,6 +533,31 @@ describe("TimetableEventModal", () => {
     expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
   });
 
+  it("keeps saving available and retries when staff cannot be loaded", async () => {
+    mockGetAllStaff
+      .mockRejectedValueOnce(new Error("forbidden"))
+      .mockResolvedValueOnce([{ id: "11", name: "Ada Staff" }]);
+
+    renderModal();
+
+    expect(
+      await screen.findByText(
+        "Die Personalliste konnte nicht vollständig geladen werden. Die Personalzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Ada Staff")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Personal erneut laden" }),
+    );
+
+    expect(await screen.findByText("Ada Staff")).toBeInTheDocument();
+    expect(
+      screen.queryByText(/Die Personalliste konnte nicht vollständig/),
+    ).not.toBeInTheDocument();
+  });
+
   it("reveals a student load failure immediately in quick mode", async () => {
     mockFetchStudents.mockRejectedValue(new Error("students unavailable"));
 
@@ -503,7 +565,7 @@ describe("TimetableEventModal", () => {
 
     expect(
       await screen.findByText(
-        "Die Kinderliste konnte nicht vollständig geladen werden. Bitte lade sie erneut, bevor du den Termin speicherst.",
+        "Die Kinderliste konnte nicht vollständig geladen werden. Die Kinderzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -512,7 +574,81 @@ describe("TimetableEventModal", () => {
     expect(
       screen.getByRole("button", { name: "Kinder erneut laden" }),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+  });
+
+  it("preserves an existing roster when the account cannot load students", async () => {
+    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    renderModal({
+      initialInstance: { ...savedInstance, studentIds: ["21"] },
+    });
+
+    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    expect(screen.queryByText("Max Kind")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({ student_ids: [21] }),
+      ),
+    );
+  });
+
+  it("shows and preserves an existing class target without student access", async () => {
+    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    renderModal({
+      initialSeries: {
+        ...template,
+        targetGroupType: "klasse",
+        targetSchoolClass: "Klasse 3a",
+      },
+      showPeriodField: true,
+    });
+
+    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    const classSelect = screen.getByLabelText(/^Klasse\*/);
+    expect(classSelect).toHaveValue("Klasse 3a");
+    expect(classSelect).toBeDisabled();
+    expect(
+      screen.getByRole("option", { name: "Klasse 3a" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/bestehende Klassen-Zielgruppe bleibt unverändert/),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          target_group_type: "klasse",
+          target_school_class: "Klasse 3a",
+          student_ids: [21],
+        }),
+      ),
+    );
+  });
+
+  it("saves a new empty roster when the account cannot load students", async () => {
+    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    renderModal();
+
+    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Mensa" },
+    });
+    fireEvent.change(screen.getByLabelText("Raum*"), {
+      target: { value: "3" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ student_ids: [] }),
+      ),
+    );
   });
 
   it("ignores a stale student failure after the modal is reopened", async () => {
@@ -688,6 +824,46 @@ describe("TimetableEventModal", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("requires the value belonging to each selected Zielgruppe", async () => {
+    renderModal({ showPeriodField: true });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Lernzeit" },
+    });
+    fireEvent.change(screen.getByLabelText("Raum*"), {
+      target: { value: "3" },
+    });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jahrgang" }), {
+      button: 0,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(
+      await screen.findByText("Bitte einen Jahrgang auswählen."),
+    ).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Klasse" }), {
+      button: 0,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(
+      await screen.findByText("Bitte eine Klasse auswählen."),
+    ).toBeInTheDocument();
+
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Gruppe" }), {
+      button: 0,
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(
+      await screen.findByText("Bitte eine Gruppe auswählen."),
+    ).toBeInTheDocument();
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
+  });
+
   it("creates a recurring series and materializes the full period in 56-day chunks", async () => {
     const { onSaved } = renderModal({ showPeriodField: true });
 
@@ -771,8 +947,12 @@ describe("TimetableEventModal", () => {
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jahrgang" }), {
       button: 0,
     });
-    fireEvent.change(screen.getByLabelText("Jahrgang"), {
-      target: { value: "3" },
+    expect(
+      screen.getByRole("option", { name: "Jahrgang 13" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("option", { name: "Jahrgang 14" })).toBeNull();
+    fireEvent.change(screen.getByLabelText(/^Jahrgang\*/), {
+      target: { value: "13" },
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -781,7 +961,45 @@ describe("TimetableEventModal", () => {
       expect(mockCreateTemplate).toHaveBeenCalledWith(
         expect.objectContaining({
           target_group_type: "jahrgang",
-          target_grade_level: 3,
+          target_grade_level: 13,
+        }),
+      ),
+    );
+  });
+
+  it("shows and preserves an existing grade above the current tenant cap", async () => {
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      routingMode: "path",
+      tenant: { gradeLevelMax: 4 } as TenantInfo,
+    });
+    renderModal({
+      initialSeries: {
+        ...template,
+        targetGroupType: "jahrgang",
+        targetGradeLevel: 13,
+      },
+      showPeriodField: true,
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    const gradeSelect = screen.getByLabelText(/^Jahrgang\*/);
+    expect(gradeSelect).toHaveValue("13");
+    expect(
+      screen.getByRole("option", { name: "Jahrgang 13 (bestehend)" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByText(/über der aktuell konfigurierten Höchststufe 4/),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          target_group_type: "jahrgang",
+          target_grade_level: 13,
         }),
       ),
     );
@@ -833,7 +1051,7 @@ describe("TimetableEventModal", () => {
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jahrgang" }), {
       button: 0,
     });
-    fireEvent.change(screen.getByLabelText("Jahrgang"), {
+    fireEvent.change(screen.getByLabelText(/^Jahrgang\*/), {
       target: { value: "3" },
     });
 
@@ -885,7 +1103,7 @@ describe("TimetableEventModal", () => {
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Jahrgang" }), {
       button: 0,
     });
-    fireEvent.change(screen.getByLabelText("Jahrgang"), {
+    fireEvent.change(screen.getByLabelText(/^Jahrgang\*/), {
       target: { value: "3" },
     });
     fireEvent.mouseDown(screen.getByRole("tab", { name: "Keine" }), {
@@ -1228,6 +1446,71 @@ describe("TimetableEventModal", () => {
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "12" });
   });
 
+  it("preserves the fetched template roster for 'Ab jetzt dauerhaft' without users:read", async () => {
+    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    mockGetTemplate.mockResolvedValue({
+      ...template,
+      studentIds: ["21", "22"],
+    });
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+        studentIds: ["31"],
+      },
+    });
+
+    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() =>
+      expect(mockSplitTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ student_ids: [21, 22] }),
+      ),
+    );
+  });
+
+  it("preserves fetched template staff for 'Ab jetzt dauerhaft' without users:read", async () => {
+    mockGetAllStaff.mockRejectedValue(new Error("forbidden"));
+    mockGetTemplate.mockResolvedValue({
+      ...template,
+      staffIds: ["11", "12"],
+      primaryStaffId: "12",
+    });
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+        staff: [
+          {
+            staffId: "31",
+            isPrimary: true,
+            isAbsent: false,
+            isSubstitute: false,
+          },
+        ],
+      },
+    });
+
+    await screen.findByText(/Die Personalliste konnte nicht vollständig/);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() =>
+      expect(mockSplitTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          staff_ids: [11, 12],
+          primary_staff_id: 12,
+        }),
+      ),
+    );
+  });
+
   it("updates the template and replans for 'Alle Termine der Serie'", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-05-04T10:00:00"));
@@ -1263,6 +1546,134 @@ describe("TimetableEventModal", () => {
     );
     expect(mockSplitTemplate).not.toHaveBeenCalled();
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
+  });
+
+  it("preserves the fetched template roster for 'Alle Termine der Serie' without users:read", async () => {
+    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    mockGetTemplate.mockResolvedValue({
+      ...template,
+      studentIds: ["21", "22"],
+    });
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+        studentIds: ["31"],
+      },
+    });
+
+    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ student_ids: [21, 22] }),
+      ),
+    );
+  });
+
+  it("preserves fetched template staff for 'Alle Termine der Serie' without users:read", async () => {
+    mockGetAllStaff.mockRejectedValue(new Error("forbidden"));
+    mockGetTemplate.mockResolvedValue({
+      ...template,
+      staffIds: ["11", "12"],
+      primaryStaffId: "12",
+    });
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+        staff: [
+          {
+            staffId: "31",
+            isPrimary: true,
+            isAbsent: false,
+            isSubstitute: false,
+          },
+        ],
+      },
+    });
+
+    await screen.findByText(/Die Personalliste konnte nicht vollständig/);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          staff_ids: [11, 12],
+          primary_staff_id: 12,
+        }),
+      ),
+    );
+  });
+
+  it("keeps the occurrence roster for 'Nur diese Woche' without users:read", async () => {
+    mockFetchStudents.mockRejectedValue(new Error("forbidden"));
+    mockGetTemplate.mockResolvedValue({
+      ...template,
+      studentIds: ["21", "22"],
+    });
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+        studentIds: ["31"],
+      },
+    });
+
+    await screen.findByText(/Die Kinderliste konnte nicht vollständig/);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Nur diese Woche/ }));
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({ student_ids: [31] }),
+      ),
+    );
+    expect(mockGetTemplate).not.toHaveBeenCalled();
+  });
+
+  it("keeps occurrence staff for 'Nur diese Woche' without users:read", async () => {
+    mockGetAllStaff.mockRejectedValue(new Error("forbidden"));
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+        staff: [
+          {
+            staffId: "31",
+            isPrimary: true,
+            isAbsent: false,
+            isSubstitute: false,
+          },
+        ],
+      },
+    });
+
+    await screen.findByText(/Die Personalliste konnte nicht vollständig/);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Nur diese Woche/ }));
+
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({ staff_ids: [31] }),
+      ),
+    );
+    expect(mockGetTemplate).not.toHaveBeenCalled();
   });
 
   it("does not ask for a scope when editing a one-off instance", async () => {

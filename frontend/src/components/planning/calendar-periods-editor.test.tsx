@@ -50,6 +50,7 @@ vi.mock("~/components/timetable/calendar-period-modal", () => ({
     initial?: CalendarPeriod | null;
     usage?: {
       enrollmentPhaseCount: number;
+      activityGroupCount: number;
       scheduleCount: number;
       studentEnrollmentCount: number;
       supervisorCount: number;
@@ -67,6 +68,7 @@ vi.mock("~/components/timetable/calendar-period-modal", () => ({
         data-usage-total={
           usage
             ? usage.enrollmentPhaseCount +
+              usage.activityGroupCount +
               usage.scheduleCount +
               usage.studentEnrollmentCount +
               usage.supervisorCount +
@@ -114,6 +116,7 @@ function makePeriod(overrides: Partial<CalendarPeriod> = {}): CalendarPeriod {
     createdAt: "2026-01-01T00:00:00Z",
     updatedAt: "2026-01-01T00:00:00Z",
     enrollmentPhaseCount: 0,
+    activityGroupCount: 0,
     scheduleCount: 0,
     studentEnrollmentCount: 0,
     supervisorCount: 0,
@@ -176,6 +179,7 @@ describe("CalendarPeriodsEditor", () => {
         makePeriod({
           name: "Server Refresh",
           enrollmentPhaseCount: 1,
+          activityGroupCount: 6,
           scheduleCount: 2,
           studentEnrollmentCount: 3,
           supervisorCount: 4,
@@ -194,7 +198,7 @@ describe("CalendarPeriodsEditor", () => {
     await waitFor(() =>
       expect(screen.getByTestId("calendar-period-modal")).toHaveAttribute(
         "data-usage-total",
-        "15",
+        "21",
       ),
     );
     expect(screen.getByTestId("calendar-period-modal")).toHaveAttribute(

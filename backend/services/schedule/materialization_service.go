@@ -53,7 +53,10 @@ import (
 // MaxMaterializationWindowDays caps how many civil days a single call may
 // cover. 56 days (8 weeks) matches the manual-endpoint validation and keeps
 // one tenant's run well under a minute even with many templates.
-const MaxMaterializationWindowDays = 56
+const (
+	MaxMaterializationWindowDays = 56
+	materializeForTenantOp       = "materialize for tenant"
+)
 
 // MaterializationSource identifies who triggered the run. Included in structured
 // logs so the Grafana dashboards can split scheduler cadence from manual spikes.
@@ -206,30 +209,59 @@ func (s *materializationService) MaterializeForTenant(
 	start := time.Now()
 	tenantID := tenant.FromContext(ctx)
 
-	if to.Before(from) {
-		return nil, &ScheduleError{Op: "materialize for tenant", Err: errors.New("to_date must not be before from_date")}
-	}
-	if days := from.DaysUntil(to) + 1; days > MaxMaterializationWindowDays {
-		return nil, &ScheduleError{Op: "materialize for tenant", Err: fmt.Errorf("window exceeds %d days", MaxMaterializationWindowDays)}
+	if err := validateMaterializationWindow(from, to); err != nil {
+		return nil, err
 	}
 	if s.db != nil {
 		if tenantID <= 0 {
-			return nil, &ScheduleError{Op: "materialize for tenant", Err: errors.New("no tenant in context")}
+			return nil, &ScheduleError{Op: materializeForTenantOp, Err: errors.New("no tenant in context")}
 		}
 		if _, ok := modelBase.TxFromContext(ctx); !ok {
-			var result *MaterializationResult
-			err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-				var err error
-				result, err = s.MaterializeForTenant(txCtx, from, to, source)
-				return err
-			})
-			return result, err
+			return s.materializeForTenantInTransaction(ctx, tenantID, from, to, source)
 		}
 		if err := lockTenantRecurrenceWrites(ctx, s.db); err != nil {
 			return nil, &ScheduleError{Op: "materialize for tenant: lock recurrence", Err: err}
 		}
 	}
 
+	return s.materializeForTenantLocked(ctx, tenantID, from, to, source, start)
+}
+
+func validateMaterializationWindow(from, to timezone.Date) error {
+	if to.Before(from) {
+		return &ScheduleError{Op: materializeForTenantOp, Err: errors.New("to_date must not be before from_date")}
+	}
+	if days := from.DaysUntil(to) + 1; days > MaxMaterializationWindowDays {
+		return &ScheduleError{Op: materializeForTenantOp, Err: fmt.Errorf("window exceeds %d days", MaxMaterializationWindowDays)}
+	}
+	return nil
+}
+
+// materializeForTenantInTransaction deliberately re-enters the public method.
+// That keeps transaction detection and recurrence locking on one path while
+// preserving the partial result returned when a later insert fails.
+func (s *materializationService) materializeForTenantInTransaction(
+	ctx context.Context,
+	tenantID int64,
+	from, to timezone.Date,
+	source MaterializationSource,
+) (*MaterializationResult, error) {
+	var result *MaterializationResult
+	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		var err error
+		result, err = s.MaterializeForTenant(txCtx, from, to, source)
+		return err
+	})
+	return result, err
+}
+
+func (s *materializationService) materializeForTenantLocked(
+	ctx context.Context,
+	tenantID int64,
+	from, to timezone.Date,
+	source MaterializationSource,
+	start time.Time,
+) (*MaterializationResult, error) {
 	result := &MaterializationResult{From: from, To: to}
 
 	s.getLogger().Info("materialization starting",

@@ -14,9 +14,12 @@
 package auth_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"testing"
 
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
@@ -24,11 +27,13 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	authAPI "github.com/moto-nrw/project-phoenix/api/auth"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	platformRepo "github.com/moto-nrw/project-phoenix/database/repositories/platform"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -39,7 +44,25 @@ type resolveResp struct {
 	Data   struct {
 		StudentPhotosEnabled bool   `json:"student_photos_enabled"`
 		Slug                 string `json:"slug"`
+		GradeLevelMax        int    `json:"grade_level_max"`
 	} `json:"data"`
+}
+
+func newTenantResolveScope(t *testing.T, db *bun.DB) (testpkg.TenantScope, string) {
+	t.Helper()
+	scope := testpkg.NewTenantScope(t, db)
+	t.Cleanup(func() {
+		ctx := context.Background()
+		_, err := db.ExecContext(ctx, `DELETE FROM config.setting_audit WHERE tenant_id = ?`, scope.TenantID)
+		require.NoError(t, err)
+		_, err = db.ExecContext(ctx, `DELETE FROM config.setting_values WHERE tenant_id = ?`, scope.TenantID)
+		require.NoError(t, err)
+		_, err = db.ExecContext(ctx, `DELETE FROM platform.schools WHERE id = ?`, scope.TenantID)
+		require.NoError(t, err)
+		_, err = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, scope.TenantID)
+		require.NoError(t, err)
+	})
+	return scope, "t" + strconv.FormatInt(scope.TenantID, 10)
 }
 
 // TestResolveTenant_StudentPhotosEnabled_DefaultFalse verifies that a
@@ -48,14 +71,8 @@ type resolveResp struct {
 // enable the feature for a school that has not opted in.
 func TestResolveTenant_StudentPhotosEnabled_DefaultFalse(t *testing.T) {
 	db, svc := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
-
-	// SetupTestDB ensures tenant 1 exists with subdomain "t1". Reset any
-	// prior override so the test starts from the registry default.
-	_, err := db.ExecContext(t.Context(),
-		`DELETE FROM config.setting_values WHERE tenant_id = 1 AND setting_key = ?`,
-		configModel.KeyStudentPhotosEnabled)
-	require.NoError(t, err)
+	t.Cleanup(func() { _ = db.Close() })
+	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
@@ -64,7 +81,7 @@ func TestResolveTenant_StudentPhotosEnabled_DefaultFalse(t *testing.T) {
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
 
-	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug=default", nil)
+	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -74,6 +91,8 @@ func TestResolveTenant_StudentPhotosEnabled_DefaultFalse(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
 	assert.False(t, resp.Data.StudentPhotosEnabled,
 		"registry default for student_photos_enabled is false; resolver must surface that")
+	assert.Equal(t, 4, resp.Data.GradeLevelMax,
+		"tenant resolve must surface the enrollment grade cap without config:read")
 }
 
 // TestResolveTenant_StudentPhotosEnabled_OverrideTrue verifies that a
@@ -82,15 +101,15 @@ func TestResolveTenant_StudentPhotosEnabled_DefaultFalse(t *testing.T) {
 // the toggle in /settings.
 func TestResolveTenant_StudentPhotosEnabled_OverrideTrue(t *testing.T) {
 	db, svc := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
+	t.Cleanup(func() { _ = db.Close() })
+	scope, slug := newTenantResolveScope(t, db)
 
-	// Set the override for tenant 1 and clean up after.
-	ctx := testpkg.TenantContext(1)
+	ctx := scope.Context()
 	require.NoError(t,
 		svc.Settings.SetValue(ctx, configModel.KeyStudentPhotosEnabled, true, nil, nil),
-		"enable student_photos_enabled for tenant 1")
+		"enable student_photos_enabled for the isolated tenant")
 	t.Cleanup(func() {
-		_ = svc.Settings.ResetValue(ctx, configModel.KeyStudentPhotosEnabled, nil, nil)
+		require.NoError(t, svc.Settings.ResetValue(ctx, configModel.KeyStudentPhotosEnabled, nil, nil))
 	})
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
@@ -100,7 +119,7 @@ func TestResolveTenant_StudentPhotosEnabled_OverrideTrue(t *testing.T) {
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
 
-	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug=default", nil)
+	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
@@ -114,14 +133,43 @@ func TestResolveTenant_StudentPhotosEnabled_OverrideTrue(t *testing.T) {
 		"resolver must return the canonical slug")
 }
 
-// TestResolveTenant_StudentPhotosEnabled_NilSettingsServiceFallsBackFalse
-// verifies the defensive default path: when SettingsService is nil
-// (e.g. local dev without the registry wired) the resolver returns
-// false — never silently true. A settings outage MUST NOT auto-enable
-// the photo UI for opt-out schools.
-func TestResolveTenant_StudentPhotosEnabled_NilSettingsServiceFallsBackFalse(t *testing.T) {
+func TestResolveTenant_GradeLevelMax_Override(t *testing.T) {
 	db, svc := testutil.SetupAPITest(t)
-	defer func() { _ = db.Close() }()
+	t.Cleanup(func() { _ = db.Close() })
+	scope, slug := newTenantResolveScope(t, db)
+
+	ctx := scope.Context()
+	require.NoError(t,
+		svc.Settings.SetValue(ctx, configModel.KeyEnrollmentGradeLevelMax, 13, nil, nil))
+	t.Cleanup(func() {
+		require.NoError(t, svc.Settings.ResetValue(ctx, configModel.KeyEnrollmentGradeLevelMax, nil, nil))
+	})
+
+	schoolRepo := platformRepo.NewSchoolRepository(db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = svc.Settings
+	router := chi.NewRouter()
+	router.Mount("/auth", resource.Router())
+
+	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var resp resolveResp
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
+	assert.Equal(t, 13, resp.Data.GradeLevelMax)
+}
+
+// Grade-level metadata is a validation constraint used by both enrollment
+// forms and timetable targets. Without the settings service, tenant resolve
+// must fail rather than inventing grade 4 while server validation may enforce
+// a different cap. The unrelated optional feature flags retain their own
+// fail-open/fail-closed behavior whenever settings resolution is available.
+func TestResolveTenant_NilSettingsServiceFailsGradeMetadata(t *testing.T) {
+	db, svc := testutil.SetupAPITest(t)
+	t.Cleanup(func() { _ = db.Close() })
+	_, slug := newTenantResolveScope(t, db)
 
 	schoolRepo := platformRepo.NewSchoolRepository(db)
 	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
@@ -130,16 +178,65 @@ func TestResolveTenant_StudentPhotosEnabled_NilSettingsServiceFallsBackFalse(t *
 	router := chi.NewRouter()
 	router.Mount("/auth", resource.Router())
 
-	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug=default", nil)
+	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
 	router.ServeHTTP(rr, req)
 
-	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+	require.Equal(t, http.StatusInternalServerError, rr.Code, "Body: %s", rr.Body.String())
+	assert.Contains(t, rr.Body.String(), http.StatusText(http.StatusInternalServerError))
+	assert.NotContains(t, rr.Body.String(), "settings service not configured")
+}
 
-	var resp resolveResp
-	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &resp))
-	assert.False(t, resp.Data.StudentPhotosEnabled,
-		"nil SettingsService must produce false, not silently true")
+func TestResolveTenant_GradeLevelSettingsFailureIsGeneric500(t *testing.T) {
+	db, svc := testutil.SetupAPITest(t)
+	t.Cleanup(func() { _ = db.Close() })
+	_, slug := newTenantResolveScope(t, db)
+
+	schoolRepo := platformRepo.NewSchoolRepository(db)
+	resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
+	resource.SettingsService = &configtest.Mock{
+		ResolveIntForTenantFn: func(context.Context, int64, string) (int, error) {
+			return 0, errors.New("private database failure detail")
+		},
+	}
+	router := chi.NewRouter()
+	router.Mount("/auth", resource.Router())
+
+	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusInternalServerError, rr.Code, "Body: %s", rr.Body.String())
+	assert.Contains(t, rr.Body.String(), http.StatusText(http.StatusInternalServerError))
+	assert.NotContains(t, rr.Body.String(), "private database failure detail")
+}
+
+func TestResolveTenant_OutOfRangeGradeLevelIsGeneric500(t *testing.T) {
+	for _, value := range []int{0, 14} {
+		t.Run("value_"+strconv.Itoa(value), func(t *testing.T) {
+			db, svc := testutil.SetupAPITest(t)
+			t.Cleanup(func() { _ = db.Close() })
+			_, slug := newTenantResolveScope(t, db)
+
+			schoolRepo := platformRepo.NewSchoolRepository(db)
+			resource := authAPI.NewResource(svc.Auth, svc.Invitation, platformSvc.NewSchoolService(schoolRepo), db)
+			resource.SettingsService = &configtest.Mock{
+				ResolveIntForTenantFn: func(context.Context, int64, string) (int, error) {
+					return value, nil
+				},
+			}
+			router := chi.NewRouter()
+			router.Mount("/auth", resource.Router())
+
+			req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
+			rr := httptest.NewRecorder()
+			router.ServeHTTP(rr, req)
+
+			require.Equal(t, http.StatusInternalServerError, rr.Code, "Body: %s", rr.Body.String())
+			assert.Contains(t, rr.Body.String(), http.StatusText(http.StatusInternalServerError))
+			assert.NotContains(t, rr.Body.String(), "outside")
+		})
+	}
 }
 
 // TestResolveTenant_MissingSlug_400 covers the early-return path the

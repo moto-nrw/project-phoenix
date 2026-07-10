@@ -29,6 +29,7 @@ function makeTenant(displayEnabled: boolean): TenantInfo {
     nfcEnabled: false,
     messagingEnabled: false,
     displayEnabled,
+    gradeLevelMax: 4,
   };
 }
 

@@ -436,6 +436,26 @@ func TestGroupValidate_TargetGroup(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name: "Jahrgang with non-positive grade is rejected",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeJahrgang
+				g.TargetGradeLevel = int16Ptr(0)
+				return g
+			},
+			wantErr: true,
+		},
+		{
+			name: "Jahrgang above supported grade 13 is rejected",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeJahrgang
+				g.TargetGradeLevel = int16Ptr(14)
+				return g
+			},
+			wantErr: true,
+		},
+		{
 			name: "Jahrgang with school class set is rejected (cross-field)",
 			group: func() *Group {
 				g := baseValidGroup()
@@ -471,6 +491,16 @@ func TestGroupValidate_TargetGroup(t *testing.T) {
 				g := baseValidGroup()
 				g.TargetGroupType = TargetGroupTypeKlasse
 				g.TargetSchoolClass = stringPtr("")
+				return g
+			},
+			wantErr: true,
+		},
+		{
+			name: "Klasse with whitespace-only school class is rejected",
+			group: func() *Group {
+				g := baseValidGroup()
+				g.TargetGroupType = TargetGroupTypeKlasse
+				g.TargetSchoolClass = stringPtr(" \t ")
 				return g
 			},
 			wantErr: true,
@@ -538,5 +568,19 @@ func TestIsValidTargetGroupType(t *testing.T) {
 		if IsValidTargetGroupType(v) {
 			t.Errorf("IsValidTargetGroupType(%q) = true, want false", v)
 		}
+	}
+}
+
+func TestGroupValidateTargetGroup_TrimsSchoolClass(t *testing.T) {
+	class := "  Klasse 3a  "
+	group := baseValidGroup()
+	group.TargetGroupType = TargetGroupTypeKlasse
+	group.TargetSchoolClass = &class
+
+	if err := group.ValidateTargetGroup(); err != nil {
+		t.Fatalf("ValidateTargetGroup() unexpected error: %v", err)
+	}
+	if got := *group.TargetSchoolClass; got != "Klasse 3a" {
+		t.Fatalf("TargetSchoolClass = %q, want trimmed class", got)
 	}
 }

@@ -15,14 +15,14 @@ import {
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
 import { listAllTenants } from "~/lib/tenant-api";
-import type { TenantInfo, TenantListResult } from "~/lib/tenant-api";
+import type { TenantListResult, TenantSummary } from "~/lib/tenant-api";
 import { createLogger } from "~/lib/logger";
 import { env } from "~/env";
 
 const logger = createLogger({ component: "RootPage" });
 
 export default function RootPage() {
-  const [tenants, setTenants] = useState<TenantInfo[]>([]);
+  const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [listStatus, setListStatus] =
     useState<TenantListResult["status"]>("ok");

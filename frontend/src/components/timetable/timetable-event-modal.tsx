@@ -28,6 +28,7 @@ import { createLogger } from "~/lib/logger";
 import { fetchStudents } from "~/lib/student-api";
 import { getSchoolYear } from "~/lib/student-helpers";
 import { staffService } from "~/lib/staff-api";
+import { useTenant } from "~/lib/tenant-context";
 import { timetableService } from "~/lib/timetable-api";
 import { useDebounce } from "~/lib/use-debounce";
 import {
@@ -75,8 +76,11 @@ interface GroupOption {
 }
 
 const STUDENT_PAGE_SIZE = 500;
+const MAX_SUPPORTED_TARGET_GRADE_LEVEL = 13;
 const STUDENT_LOAD_ERROR =
-  "Die Kinderliste konnte nicht vollständig geladen werden. Bitte lade sie erneut, bevor du den Termin speicherst.";
+  "Die Kinderliste konnte nicht vollständig geladen werden. Die Kinderzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.";
+const STAFF_LOAD_ERROR =
+  "Die Personalliste konnte nicht vollständig geladen werden. Die Personalzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.";
 
 interface BackendRoomsEnvelope {
   data?: Array<{
@@ -117,7 +121,7 @@ interface EventFormState {
    * "gruppe" clears educationGroupId so the two never disagree.
    */
   targetGroupType: TargetGroupType;
-  targetGradeLevel: string; // "" | "1".."4", only meaningful for "jahrgang"
+  targetGradeLevel: string; // "" | configured grade, only meaningful for "jahrgang"
   targetSchoolClass: string; // "", only meaningful for "klasse"
 }
 
@@ -202,8 +206,6 @@ const TARGET_GROUP_OPTIONS: Array<{ value: TargetGroupType; label: string }> = [
   { value: "gruppe", label: "Gruppe" },
   { value: "angebot", label: "Angebotsauswahl" },
 ];
-
-const TARGET_GRADE_LEVELS = ["1", "2", "3", "4"] as const;
 
 function isoWeekday(dateISO: string): number {
   const d = new Date(`${dateISO}T00:00:00`);
@@ -307,7 +309,7 @@ function formFromSeries(
       series.targetGradeLevel !== undefined && series.targetGradeLevel !== null
         ? String(series.targetGradeLevel)
         : "",
-    targetSchoolClass: series.targetSchoolClass ?? "",
+    targetSchoolClass: series.targetSchoolClass?.trim() ?? "",
   };
 }
 
@@ -334,6 +336,50 @@ function sortPeople<T extends PersonOption>(items: T[]): T[] {
 function schoolClassLabel(schoolClass: string): string {
   const trimmed = schoolClass.trim();
   return /^klasse(?:\s|$)/i.test(trimmed) ? trimmed : `Klasse ${trimmed}`;
+}
+
+function targetCohortActionLabel(
+  label: string,
+  memberCount: number,
+  missingMemberCount: number,
+): string {
+  if (memberCount === 0) return `Keine Kinder aus ${label} gefunden`;
+  if (missingMemberCount === 0) {
+    return `Alle Kinder aus ${label} übernommen`;
+  }
+  const childLabel = memberCount === 1 ? "Kind" : "Kinder";
+  return `Alle ${memberCount} ${childLabel} aus ${label} übernehmen`;
+}
+
+function initialStudentIDs(
+  initialInstance: EnrichedInstance | null,
+  initialSeries: TimetableTemplate | null,
+  convertInstance: EnrichedInstance | null,
+): string[] {
+  if (initialSeries) return initialSeries.studentIds;
+  if (convertInstance) return convertInstance.studentIds;
+  if (initialInstance) return initialInstance.studentIds;
+  return [];
+}
+
+function initialStaffIDs(
+  initialInstance: EnrichedInstance | null,
+  initialSeries: TimetableTemplate | null,
+  convertInstance: EnrichedInstance | null,
+): string[] {
+  if (initialSeries) return initialSeries.staffIds;
+  const instance = convertInstance ?? initialInstance;
+  return instance?.staff.map((item) => item.staffId) ?? [];
+}
+
+function initialPrimaryStaffID(
+  initialInstance: EnrichedInstance | null,
+  initialSeries: TimetableTemplate | null,
+  convertInstance: EnrichedInstance | null,
+): string {
+  if (initialSeries) return initialSeries.primaryStaffId ?? "";
+  const instance = convertInstance ?? initialInstance;
+  return instance?.staff.find((item) => item.isPrimary)?.staffId ?? "";
 }
 
 async function fetchAllStudentOptions(): Promise<PersonOption[]> {
@@ -388,6 +434,7 @@ export function TimetableEventModal({
   defaultStartTime,
   defaultEndTime,
 }: TimetableEventModalProps) {
+  const { tenant } = useTenant();
   const {
     success: toastSuccess,
     error: toastError,
@@ -403,6 +450,16 @@ export function TimetableEventModal({
       defaultEndTime,
     ),
   );
+  const [initialStudentIDsSnapshot, setInitialStudentIDsSnapshot] = useState(
+    () => initialStudentIDs(initialInstance, initialSeries, convertInstance),
+  );
+  const [initialStaffIDsSnapshot, setInitialStaffIDsSnapshot] = useState(() =>
+    initialStaffIDs(initialInstance, initialSeries, convertInstance),
+  );
+  const [initialPrimaryStaffIDSnapshot, setInitialPrimaryStaffIDSnapshot] =
+    useState(() =>
+      initialPrimaryStaffID(initialInstance, initialSeries, convertInstance),
+    );
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
@@ -411,6 +468,8 @@ export function TimetableEventModal({
   const [loadingRefs, setLoadingRefs] = useState(false);
   const [loadingStudents, setLoadingStudents] = useState(false);
   const [studentLoadError, setStudentLoadError] = useState<string | null>(null);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [staffLoadError, setStaffLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -428,13 +487,16 @@ export function TimetableEventModal({
     ConflictWarningItem[]
   >([]);
   // Reference data can outlive a close/reopen or a changed edit target. Keep
-  // whole-load and student-load generations separate so a retry may replace
-  // only the roster while stale completions can never overwrite newer state.
+  // the shared, student, and staff load generations separate so a retry may
+  // replace only its own roster while stale completions cannot overwrite a
+  // newer modal state.
   const referenceLoadSeq = useRef(0);
   const studentLoadSeq = useRef(0);
+  const staffLoadSeq = useRef(0);
   const invalidateReferenceLoads = useCallback(() => {
     referenceLoadSeq.current++;
     studentLoadSeq.current++;
+    staffLoadSeq.current++;
   }, []);
   // Monotonically increasing probe id so stale responses are dropped.
   const probeSeq = useRef(0);
@@ -445,6 +507,52 @@ export function TimetableEventModal({
   const isSeriesFlow = form.repeat !== "none" || isEditingSeries;
   const choiceDialogOpen = pendingSeriesEdit !== null;
   const canDeleteSeries = isEditingSeries && initialSeries && onDeleteSeries;
+  const gradeLevelMax = tenant?.gradeLevelMax;
+  const targetGradeOptions = useMemo(() => {
+    if (gradeLevelMax === undefined) return [];
+    const options = Array.from({ length: gradeLevelMax }, (_, index) => {
+      const value = String(index + 1);
+      return { value, label: `Jahrgang ${value}`, disabled: false };
+    });
+    if (
+      form.targetGradeLevel !== "" &&
+      !options.some((option) => option.value === form.targetGradeLevel)
+    ) {
+      const gradeLevel = Number(form.targetGradeLevel);
+      const supported =
+        Number.isInteger(gradeLevel) &&
+        gradeLevel >= 1 &&
+        gradeLevel <= MAX_SUPPORTED_TARGET_GRADE_LEVEL;
+      options.push({
+        value: form.targetGradeLevel,
+        label: `Jahrgang ${form.targetGradeLevel} (${supported ? "bestehend" : "ungültig"})`,
+        disabled: true,
+      });
+    }
+    return options;
+  }, [form.targetGradeLevel, gradeLevelMax]);
+  const preservesExistingTargetGrade =
+    initialSeries?.targetGradeLevel !== undefined &&
+    initialSeries.targetGradeLevel !== null &&
+    form.targetGradeLevel === String(initialSeries.targetGradeLevel) &&
+    Number.isInteger(initialSeries.targetGradeLevel) &&
+    initialSeries.targetGradeLevel >= 1 &&
+    initialSeries.targetGradeLevel <= MAX_SUPPORTED_TARGET_GRADE_LEVEL;
+  const preservesGradeAboveTenantCap =
+    preservesExistingTargetGrade &&
+    gradeLevelMax !== undefined &&
+    Number(form.targetGradeLevel) > gradeLevelMax;
+  const studentRosterEditable = !loadingStudents && studentLoadError === null;
+  const studentIDsForSave = studentRosterEditable
+    ? form.studentIds
+    : initialStudentIDsSnapshot;
+  const staffRosterEditable = !loadingStaff && staffLoadError === null;
+  const staffIDsForSave = staffRosterEditable
+    ? form.staffIds
+    : initialStaffIDsSnapshot;
+  const primaryStaffIDForSave = staffRosterEditable
+    ? form.primaryStaffId
+    : initialPrimaryStaffIDSnapshot;
 
   useEffect(() => {
     if (!isOpen) {
@@ -453,25 +561,29 @@ export function TimetableEventModal({
     }
     const referenceSeq = ++referenceLoadSeq.current;
     const studentSeq = ++studentLoadSeq.current;
+    const staffSeq = ++staffLoadSeq.current;
     const isCurrentReferenceLoad = () =>
       referenceLoadSeq.current === referenceSeq;
     const isCurrentStudentLoad = () => studentLoadSeq.current === studentSeq;
+    const isCurrentStaffLoad = () => staffLoadSeq.current === staffSeq;
 
-    setForm(
-      initialSeries
-        ? formFromSeries(initialSeries, defaultDate, defaultCalendarPeriodId)
-        : convertInstance
-          ? formFromInstance(convertInstance, defaultCalendarPeriodId, "weekly")
-          : initialInstance
-            ? formFromInstance(initialInstance, defaultCalendarPeriodId)
-            : emptyForm(
-                defaultDate,
-                defaultCalendarPeriodId,
-                defaultRepeat,
-                defaultStartTime,
-                defaultEndTime,
-              ),
-    );
+    const nextForm = initialSeries
+      ? formFromSeries(initialSeries, defaultDate, defaultCalendarPeriodId)
+      : convertInstance
+        ? formFromInstance(convertInstance, defaultCalendarPeriodId, "weekly")
+        : initialInstance
+          ? formFromInstance(initialInstance, defaultCalendarPeriodId)
+          : emptyForm(
+              defaultDate,
+              defaultCalendarPeriodId,
+              defaultRepeat,
+              defaultStartTime,
+              defaultEndTime,
+            );
+    setInitialStudentIDsSnapshot([...nextForm.studentIds]);
+    setInitialStaffIDsSnapshot([...nextForm.staffIds]);
+    setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
+    setForm(nextForm);
     setValidationError(null);
     setFieldErrors({});
     setDeleteConfirmOpen(false);
@@ -485,6 +597,10 @@ export function TimetableEventModal({
     setLoadingRefs(true);
     setLoadingStudents(true);
     setStudentLoadError(null);
+    setStudents([]);
+    setLoadingStaff(true);
+    setStaffLoadError(null);
+    setStaff([]);
 
     void Promise.all([
       fetch("/api/rooms", { credentials: "include" })
@@ -525,27 +641,8 @@ export function TimetableEventModal({
           });
           return [] as GroupOption[];
         }),
-      fetchAllStudentOptions().catch((err: unknown) => {
-        logger.error("students_fetch_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        if (isCurrentStudentLoad()) {
-          setStudentLoadError(STUDENT_LOAD_ERROR);
-          setMoreOpen(true);
-        }
-        return [] as PersonOption[];
-      }),
-      staffService
-        .getAllStaff()
-        .then((items) => items.map((s) => ({ id: s.id, name: s.name })))
-        .catch((err: unknown) => {
-          logger.error("staff_fetch_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return [] as PersonOption[];
-        }),
     ])
-      .then(([roomData, categoryData, groupData, studentData, staffData]) => {
+      .then(([roomData, categoryData, groupData]) => {
         const sortedRooms = [...roomData].sort((a, b) =>
           a.name.localeCompare(b.name, "de"),
         );
@@ -559,20 +656,60 @@ export function TimetableEventModal({
           setRooms(sortedRooms);
           setCategories(sortedCategories);
           setGroups(sortedGroups);
-          setStaff(sortPeople(staffData));
           setForm((prev) =>
             prev.categoryId || sortedCategories.length === 0
               ? prev
               : { ...prev, categoryId: sortedCategories[0]?.id ?? "" },
           );
         }
-        if (isCurrentStudentLoad()) {
-          setStudents(sortPeople(studentData));
-        }
       })
       .finally(() => {
         if (isCurrentReferenceLoad()) setLoadingRefs(false);
+      });
+
+    // The student catalog has a stricter permission boundary than the shared
+    // planner references. Keep it on an independent lifecycle so users without
+    // users:read can still use rooms, categories and groups immediately.
+    void fetchAllStudentOptions()
+      .then((studentData) => {
+        if (!isCurrentStudentLoad()) return;
+        setStudents(sortPeople(studentData));
+      })
+      .catch((err: unknown) => {
+        logger.error("students_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!isCurrentStudentLoad()) return;
+        setStudents([]);
+        setStudentLoadError(STUDENT_LOAD_ERROR);
+        setMoreOpen(true);
+      })
+      .finally(() => {
         if (isCurrentStudentLoad()) setLoadingStudents(false);
+      });
+
+    // Staff carries the same users:read boundary as students. Keep it
+    // independent from rooms/categories/groups so a 403 cannot masquerade as
+    // an empty editable roster or delay the planner references.
+    void staffService
+      .getAllStaff()
+      .then((items) => {
+        if (!isCurrentStaffLoad()) return;
+        setStaff(
+          sortPeople(items.map((item) => ({ id: item.id, name: item.name }))),
+        );
+      })
+      .catch((err: unknown) => {
+        logger.error("staff_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!isCurrentStaffLoad()) return;
+        setStaff([]);
+        setStaffLoadError(STAFF_LOAD_ERROR);
+        setMoreOpen(true);
+      })
+      .finally(() => {
+        if (isCurrentStaffLoad()) setLoadingStaff(false);
       });
 
     return invalidateReferenceLoads;
@@ -601,8 +738,8 @@ export function TimetableEventModal({
     startTime: form.startTime,
     endTime: form.endTime,
     roomId: form.roomId,
-    staffIds: form.staffIds,
-    studentIds: form.studentIds,
+    staffIds: staffIDsForSave,
+    studentIds: studentIDsForSave,
   });
   const debouncedProbeKey = useDebounce(probeKey, 500);
   // The convert flow edits an existing instance too — its own slot must not
@@ -690,6 +827,24 @@ export function TimetableEventModal({
     clearFieldError("weekdays");
   };
 
+  const changeTargetGroupType = (nextType: TargetGroupType) => {
+    setForm((current) => ({
+      ...current,
+      targetGroupType: nextType,
+      targetGradeLevel: nextType === "jahrgang" ? current.targetGradeLevel : "",
+      targetSchoolClass: nextType === "klasse" ? current.targetSchoolClass : "",
+      educationGroupId: nextType === "gruppe" ? current.educationGroupId : "",
+    }));
+    setValidationError(null);
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next.targetGradeLevel;
+      delete next.targetSchoolClass;
+      delete next.educationGroupId;
+      return next;
+    });
+  };
+
   const validateForm = (): { roomId: number; categoryId?: number } | null => {
     const errors: Record<string, string> = {};
     if (form.title.trim() === "") {
@@ -725,6 +880,29 @@ export function TimetableEventModal({
       if (form.weekdays.length === 0) {
         errors.weekdays = "Bitte mindestens einen Wochentag auswählen.";
       }
+      if (form.targetGroupType === "jahrgang") {
+        const gradeLevel = Number(form.targetGradeLevel);
+        if (form.targetGradeLevel === "") {
+          errors.targetGradeLevel = "Bitte einen Jahrgang auswählen.";
+        } else if (
+          !Number.isInteger(gradeLevel) ||
+          gradeLevel < 1 ||
+          gradeLevel > MAX_SUPPORTED_TARGET_GRADE_LEVEL ||
+          gradeLevelMax === undefined ||
+          (gradeLevel > gradeLevelMax && !preservesExistingTargetGrade)
+        ) {
+          errors.targetGradeLevel = "Bitte einen gültigen Jahrgang auswählen.";
+        }
+      }
+      if (
+        form.targetGroupType === "klasse" &&
+        form.targetSchoolClass.trim() === ""
+      ) {
+        errors.targetSchoolClass = "Bitte eine Klasse auswählen.";
+      }
+      if (form.targetGroupType === "gruppe" && form.educationGroupId === "") {
+        errors.educationGroupId = "Bitte eine Gruppe auswählen.";
+      }
     }
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -732,7 +910,12 @@ export function TimetableEventModal({
       // a hidden field (Kategorie, Planungszeitraum, Wochentage) is visible.
       if (
         !expanded &&
-        (errors.categoryId ?? errors.calendarPeriodId ?? errors.weekdays)
+        (errors.categoryId ??
+          errors.calendarPeriodId ??
+          errors.weekdays ??
+          errors.targetGradeLevel ??
+          errors.targetSchoolClass ??
+          errors.educationGroupId)
       ) {
         setExpanded(true);
       }
@@ -794,8 +977,8 @@ export function TimetableEventModal({
       room_id: roomId,
       notes: form.notes.trim() || undefined,
       activity_group_id: activityGroupId ? Number(activityGroupId) : undefined,
-      staff_ids: form.staffIds.map(Number),
-      student_ids: form.studentIds.map(Number),
+      staff_ids: staffIDsForSave.map(Number),
+      student_ids: studentIDsForSave.map(Number),
     }) satisfies CreateInstanceBody;
 
   const seriesBody = (
@@ -819,14 +1002,14 @@ export function TimetableEventModal({
         : undefined,
     target_school_class:
       form.targetGroupType === "klasse" && form.targetSchoolClass
-        ? form.targetSchoolClass
+        ? form.targetSchoolClass.trim()
         : undefined,
     calendar_period_id: Number(form.calendarPeriodId),
     week_pattern: seriesWeekPattern(form.repeat),
-    student_ids: form.studentIds.map(Number),
-    staff_ids: form.staffIds.map(Number),
-    primary_staff_id: form.primaryStaffId
-      ? Number(form.primaryStaffId)
+    student_ids: studentIDsForSave.map(Number),
+    staff_ids: staffIDsForSave.map(Number),
+    primary_staff_id: primaryStaffIDForSave
+      ? Number(primaryStaffIDForSave)
       : undefined,
   });
 
@@ -845,7 +1028,19 @@ export function TimetableEventModal({
   ): UpdateTemplateBody => {
     const firstSchedule = template.schedules[0];
     const weekdays = template.schedules.map((schedule) => schedule.weekday);
-    const primaryStaffId = form.primaryStaffId || template.primaryStaffId;
+    // A materialized occurrence may have a deliberate roster override. When
+    // users:read is unavailable, the occurrence snapshot is authoritative only
+    // for the single-instance scope; an all/following write targets the fetched
+    // template and must preserve that template's own roster instead.
+    const templateStudentIDs = studentRosterEditable
+      ? form.studentIds
+      : template.studentIds;
+    const templateStaffIDs = staffRosterEditable
+      ? form.staffIds
+      : template.staffIds;
+    const primaryStaffId = staffRosterEditable
+      ? form.primaryStaffId || template.primaryStaffId
+      : template.primaryStaffId;
     return {
       name: form.title.trim(),
       type: template.type,
@@ -871,10 +1066,10 @@ export function TimetableEventModal({
         : form.calendarPeriodId
           ? Number(form.calendarPeriodId)
           : undefined,
-      student_ids: form.studentIds.map(Number),
-      staff_ids: form.staffIds.map(Number),
+      student_ids: templateStudentIDs.map(Number),
+      staff_ids: templateStaffIDs.map(Number),
       primary_staff_id:
-        primaryStaffId && form.staffIds.includes(primaryStaffId)
+        primaryStaffId && templateStaffIDs.includes(primaryStaffId)
           ? Number(primaryStaffId)
           : undefined,
     };
@@ -1010,14 +1205,6 @@ export function TimetableEventModal({
     e.preventDefault();
     if (submitting) return;
     if (isEditingInstance && initialInstance?.status !== "planned") return;
-    if (loadingStudents || studentLoadError) {
-      setValidationError(
-        loadingStudents
-          ? "Die Kinderliste wird noch geladen."
-          : STUDENT_LOAD_ERROR,
-      );
-      return;
-    }
     const parsed = validateForm();
     if (!parsed) return;
 
@@ -1315,17 +1502,24 @@ export function TimetableEventModal({
 
   // Distinct school-class names for the Zielgruppe "Klasse" value picker
   // (issue #1838) — reuses the already-fetched students, no new fetch.
-  const targetClassOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          students
-            .map((student) => student.schoolClass?.trim())
-            .filter((item): item is string => Boolean(item)),
-        ),
-      ).sort((a, b) => a.localeCompare(b, "de")),
-    [students],
-  );
+  const targetClassOptions = useMemo(() => {
+    const options = new Set(
+      students
+        .map((student) => student.schoolClass?.trim())
+        .filter((item): item is string => Boolean(item)),
+    );
+    const currentClass = form.targetSchoolClass.trim();
+    if (currentClass !== "") options.add(currentClass);
+    return [...options].sort((a, b) => a.localeCompare(b, "de"));
+  }, [form.targetSchoolClass, students]);
+  const targetClassDescriptionIDs = [
+    fieldErrors.targetSchoolClass ? "event_target_school_class_error" : null,
+    loadingStudents || studentLoadError
+      ? "event_target_school_class_availability"
+      : null,
+  ]
+    .filter((id): id is string => id !== null)
+    .join(" ");
 
   const targetCohort = useMemo(() => {
     let label: string | null = null;
@@ -1366,6 +1560,13 @@ export function TimetableEventModal({
     const selected = new Set(form.studentIds);
     return targetCohort.memberIds.filter((id) => !selected.has(id)).length;
   }, [form.studentIds, targetCohort.memberIds]);
+  const targetCohortButtonLabel = targetCohort.label
+    ? targetCohortActionLabel(
+        targetCohort.label,
+        targetCohort.memberIds.length,
+        missingTargetCohortCount,
+      )
+    : "";
 
   const addTargetCohort = () => {
     if (targetCohort.memberIds.length === 0) return;
@@ -1400,6 +1601,31 @@ export function TimetableEventModal({
     }
   };
 
+  const retryStaffLoad = async () => {
+    const staffSeq = ++staffLoadSeq.current;
+    const isCurrentStaffLoad = () => staffLoadSeq.current === staffSeq;
+    setLoadingStaff(true);
+    setStaffLoadError(null);
+    try {
+      const staffData = await staffService.getAllStaff();
+      if (!isCurrentStaffLoad()) return;
+      setStaff(
+        sortPeople(staffData.map((item) => ({ id: item.id, name: item.name }))),
+      );
+      setValidationError(null);
+    } catch (err) {
+      logger.error("staff_retry_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      if (!isCurrentStaffLoad()) return;
+      setStaff([]);
+      setStaffLoadError(STAFF_LOAD_ERROR);
+      setMoreOpen(true);
+    } finally {
+      if (isCurrentStaffLoad()) setLoadingStaff(false);
+    }
+  };
+
   // Datum and Notiz only apply to the single-instance scope — series-wide
   // scopes write the template, which carries neither field.
   const dateChanged =
@@ -1415,68 +1641,111 @@ export function TimetableEventModal({
         ? "Termin wiederholen"
         : "Termin";
 
+  let studentRosterField: React.ReactNode;
+  if (loadingStudents) {
+    studentRosterField = (
+      <Alert
+        type="info"
+        message="Kinderliste wird geladen … Die bestehende Kinderzuordnung bleibt beim Speichern unverändert."
+      />
+    );
+  } else if (studentLoadError) {
+    studentRosterField = (
+      <div className="flex flex-col gap-2">
+        <Alert type="warning" message={studentLoadError} />
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          className="self-start"
+          onClick={() => void retryStudentLoad()}
+        >
+          Kinder erneut laden
+        </Button>
+      </div>
+    );
+  } else {
+    studentRosterField = (
+      <MultiSelectField
+        label="Kinder"
+        options={students}
+        value={form.studentIds}
+        onChange={(ids) => update("studentIds", ids)}
+        metadata="student"
+        bulkOptions={studentBulkOptions}
+      />
+    );
+  }
+
+  let staffRosterField: React.ReactNode;
+  if (loadingStaff) {
+    staffRosterField = (
+      <Alert
+        type="info"
+        message="Personalliste wird geladen … Die bestehende Personalzuordnung bleibt beim Speichern unverändert."
+      />
+    );
+  } else if (staffLoadError) {
+    staffRosterField = (
+      <div className="flex flex-col gap-2">
+        <Alert type="warning" message={staffLoadError} />
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          className="self-start"
+          onClick={() => void retryStaffLoad()}
+        >
+          Personal erneut laden
+        </Button>
+      </div>
+    );
+  } else {
+    staffRosterField = (
+      <>
+        <MultiSelectField
+          label="Personal"
+          options={staff}
+          value={form.staffIds}
+          onChange={(ids) => {
+            update("staffIds", ids);
+            if (form.primaryStaffId && !ids.includes(form.primaryStaffId)) {
+              update("primaryStaffId", "");
+            }
+          }}
+          metadata="staff"
+        />
+
+        {isSeriesFlow && form.staffIds.length > 0 && (
+          <Field label="Zuständige Person" htmlFor="event_primary_staff">
+            <select
+              id="event_primary_staff"
+              value={form.primaryStaffId}
+              onChange={(event) => update("primaryStaffId", event.target.value)}
+              className={FORM_SELECT_CLASS}
+            >
+              <option value="">Keine Auswahl</option>
+              {staff
+                .filter((person) => form.staffIds.includes(person.id))
+                .map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.name}
+                  </option>
+                ))}
+            </select>
+          </Field>
+        )}
+      </>
+    );
+  }
+
   // Personal renders before Kinder in every mode (Streichliste 8); the
   // quick variant tucks all of this behind the "Weitere Optionen" row.
   const peopleFields = (
     <>
-      <MultiSelectField
-        label="Personal"
-        options={staff}
-        value={form.staffIds}
-        onChange={(ids) => {
-          update("staffIds", ids);
-          if (form.primaryStaffId && !ids.includes(form.primaryStaffId)) {
-            update("primaryStaffId", "");
-          }
-        }}
-        metadata="staff"
-      />
+      {staffRosterField}
 
-      {isSeriesFlow && form.staffIds.length > 0 && (
-        <Field label="Zuständige Person" htmlFor="event_primary_staff">
-          <select
-            id="event_primary_staff"
-            value={form.primaryStaffId}
-            onChange={(event) => update("primaryStaffId", event.target.value)}
-            className={FORM_SELECT_CLASS}
-          >
-            <option value="">Keine Auswahl</option>
-            {staff
-              .filter((person) => form.staffIds.includes(person.id))
-              .map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.name}
-                </option>
-              ))}
-          </select>
-        </Field>
-      )}
-
-      {loadingStudents ? (
-        <Alert type="info" message="Kinderliste wird geladen …" />
-      ) : studentLoadError ? (
-        <div className="flex flex-col gap-2">
-          <Alert type="error" message={studentLoadError} />
-          <Button
-            type="button"
-            variant="outline"
-            size="compact"
-            className="self-start"
-            onClick={() => void retryStudentLoad()}
-          >
-            Kinder erneut laden
-          </Button>
-        </div>
-      ) : (
-        <MultiSelectField
-          label="Kinder"
-          options={students}
-          value={form.studentIds}
-          onChange={(ids) => update("studentIds", ids)}
-          metadata="student"
-          bulkOptions={studentBulkOptions}
-        />
-      )}
+      {studentRosterField}
 
       {!isSeriesFlow && (
         <Field label="Notiz" htmlFor="event_notes">
@@ -1812,19 +2081,9 @@ export function TimetableEventModal({
                   </span>
                   <Tabs
                     value={form.targetGroupType}
-                    onValueChange={(value) => {
-                      const nextType = value as TargetGroupType;
-                      setForm((prev) => ({
-                        ...prev,
-                        targetGroupType: nextType,
-                        targetGradeLevel:
-                          nextType === "jahrgang" ? prev.targetGradeLevel : "",
-                        targetSchoolClass:
-                          nextType === "klasse" ? prev.targetSchoolClass : "",
-                        educationGroupId:
-                          nextType === "gruppe" ? prev.educationGroupId : "",
-                      }));
-                    }}
+                    onValueChange={(value) =>
+                      changeTargetGroupType(value as TargetGroupType)
+                    }
                   >
                     <TabsList aria-label="Zielgruppe" className="w-fit">
                       {TARGET_GROUP_OPTIONS.map((option) => (
@@ -1840,6 +2099,8 @@ export function TimetableEventModal({
                       <Field
                         label="Jahrgang"
                         htmlFor="event_target_grade_level"
+                        required
+                        error={fieldErrors.targetGradeLevel}
                       >
                         <select
                           id="event_target_grade_level"
@@ -1847,30 +2108,64 @@ export function TimetableEventModal({
                           onChange={(event) =>
                             update("targetGradeLevel", event.target.value)
                           }
-                          disabled={loadingRefs}
+                          required
+                          aria-invalid={
+                            fieldErrors.targetGradeLevel ? true : undefined
+                          }
+                          aria-describedby={
+                            fieldErrors.targetGradeLevel
+                              ? "event_target_grade_level_error"
+                              : undefined
+                          }
                           className={FORM_SELECT_CLASS}
                         >
                           <option value="">Jahrgang wählen …</option>
-                          {TARGET_GRADE_LEVELS.map((level) => (
-                            <option key={level} value={level}>
-                              Jahrgang {level}
+                          {targetGradeOptions.map((option) => (
+                            <option
+                              key={option.value}
+                              value={option.value}
+                              disabled={option.disabled}
+                            >
+                              {option.label}
                             </option>
                           ))}
                         </select>
                       </Field>
+                      {preservesGradeAboveTenantCap ? (
+                        <p className="mt-1 text-xs text-gray-500" role="status">
+                          Jahrgang {form.targetGradeLevel} liegt über der
+                          aktuell konfigurierten Höchststufe {gradeLevelMax}.
+                          Die bestehende Zielgruppe bleibt beim Speichern
+                          erhalten.
+                        </p>
+                      ) : null}
                     </div>
                   )}
 
                   {form.targetGroupType === "klasse" && (
                     <div className="mt-1">
-                      <Field label="Klasse" htmlFor="event_target_school_class">
+                      <Field
+                        label="Klasse"
+                        htmlFor="event_target_school_class"
+                        required
+                        error={fieldErrors.targetSchoolClass}
+                      >
                         <select
                           id="event_target_school_class"
                           value={form.targetSchoolClass}
                           onChange={(event) =>
                             update("targetSchoolClass", event.target.value)
                           }
-                          disabled={loadingRefs}
+                          disabled={
+                            loadingStudents || studentLoadError !== null
+                          }
+                          required
+                          aria-invalid={
+                            fieldErrors.targetSchoolClass ? true : undefined
+                          }
+                          aria-describedby={
+                            targetClassDescriptionIDs || undefined
+                          }
                           className={FORM_SELECT_CLASS}
                         >
                           <option value="">Klasse wählen …</option>
@@ -1881,12 +2176,28 @@ export function TimetableEventModal({
                           ))}
                         </select>
                       </Field>
+                      {loadingStudents || studentLoadError ? (
+                        <p
+                          id="event_target_school_class_availability"
+                          className="mt-1 text-xs text-gray-500"
+                          role="status"
+                        >
+                          {studentLoadError
+                            ? "Die Klassenliste ist nicht verfügbar. Eine bestehende Klassen-Zielgruppe bleibt unverändert."
+                            : "Klassenliste wird geladen …"}
+                        </p>
+                      ) : null}
                     </div>
                   )}
 
                   {form.targetGroupType === "gruppe" && (
                     <div className="mt-1">
-                      <Field label="Gruppe" htmlFor="event_target_gruppe">
+                      <Field
+                        label="Gruppe"
+                        htmlFor="event_target_gruppe"
+                        required
+                        error={fieldErrors.educationGroupId}
+                      >
                         <select
                           id="event_target_gruppe"
                           value={form.educationGroupId}
@@ -1894,6 +2205,15 @@ export function TimetableEventModal({
                             update("educationGroupId", event.target.value)
                           }
                           disabled={loadingRefs}
+                          required
+                          aria-invalid={
+                            fieldErrors.educationGroupId ? true : undefined
+                          }
+                          aria-describedby={
+                            fieldErrors.educationGroupId
+                              ? "event_target_gruppe_error"
+                              : undefined
+                          }
                           className={FORM_SELECT_CLASS}
                         >
                           <option value="">Gruppe wählen …</option>
@@ -1934,15 +2254,7 @@ export function TimetableEventModal({
                             missingTargetCohortCount === 0
                           }
                         >
-                          {targetCohort.memberIds.length === 0
-                            ? `Keine Kinder aus ${targetCohort.label} gefunden`
-                            : missingTargetCohortCount === 0
-                              ? `Alle Kinder aus ${targetCohort.label} übernommen`
-                              : `Alle ${targetCohort.memberIds.length} ${
-                                  targetCohort.memberIds.length === 1
-                                    ? "Kind"
-                                    : "Kinder"
-                                } aus ${targetCohort.label} übernehmen`}
+                          {targetCohortButtonLabel}
                         </Button>
                       </div>
                     )}
@@ -2092,8 +2404,6 @@ export function TimetableEventModal({
               disabled={
                 submitting ||
                 deletingSeries ||
-                loadingStudents ||
-                studentLoadError !== null ||
                 (isEditingInstance && initialInstance?.status !== "planned")
               }
             >

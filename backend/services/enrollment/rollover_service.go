@@ -9,6 +9,7 @@ import (
 
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -254,13 +255,16 @@ func (s *rolloverService) CreatePhaseFromSource(ctx context.Context, req CreateP
 		return nil, fmt.Errorf("rollover: tenant not in context")
 	}
 
-	maxGrade := s.resolveMaxGrade(ctx)
 	if s.Settings == nil {
 		return nil, errors.New("rollover: enrollment settings resolver is not configured")
 	}
 	collectGradeLevel, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
 	if err != nil {
 		return nil, fmt.Errorf("rollover: resolve collect grade level: %w", err)
+	}
+	maxGrade, err := s.resolveMaxGrade(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("rollover: %w", err)
 	}
 
 	result := &RolloverResult{
@@ -588,25 +592,27 @@ func (s *rolloverService) validateCreateRequest(req CreatePhaseFromSourceRequest
 	return nil
 }
 
-func (s *rolloverService) resolveMaxGrade(ctx context.Context) int {
-	// Default mirrors the registry default — the same setting drives
-	// both the public form's grade picker and the rollover grade cap.
-	const fallback = 4
+func (s *rolloverService) resolveMaxGrade(ctx context.Context) (int, error) {
+	// Resolve returns the registry's legitimate default when this tenant has no
+	// override. A missing service, read failure, or corrupt value must stop the
+	// rollover: substituting grade 4 would disagree with public enrollment and
+	// could silently route valid higher-grade children into admin review.
 	if s.Settings == nil {
-		return fallback
+		return 0, errors.New("resolve enrollment.grade_level_max: settings service is not configured")
 	}
-	if has, err := s.Settings.HasTenantOverride(ctx, configModel.KeyEnrollmentGradeLevelMax); err == nil && has {
-		if v, err := s.Settings.ResolveInt(ctx, configModel.KeyEnrollmentGradeLevelMax); err == nil && v > 0 {
-			return v
-		}
+	value, err := s.Settings.ResolveInt(ctx, configModel.KeyEnrollmentGradeLevelMax)
+	if err != nil {
+		return 0, fmt.Errorf("resolve enrollment.grade_level_max: %w", err)
 	}
-	// No override — pull the registry default through Resolve so a
-	// future change to the registry value flows in without a code
-	// change.
-	if v, err := s.Settings.ResolveInt(ctx, configModel.KeyEnrollmentGradeLevelMax); err == nil && v > 0 {
-		return v
+	if value < schoolclass.MinGradeLevel || value > schoolclass.MaxGradeLevel {
+		return 0, fmt.Errorf(
+			"resolve enrollment.grade_level_max: value %d is outside %d..%d",
+			value,
+			schoolclass.MinGradeLevel,
+			schoolclass.MaxGradeLevel,
+		)
 	}
-	return fallback
+	return value, nil
 }
 
 // ListReviewQueue loads admin-review rows + their parent request + the
@@ -749,10 +755,13 @@ func (s *rolloverService) RunDeadlineWorker(ctx context.Context, asOf time.Time)
 		// (rollover_auto_approve=true, via DecisionService so the
 		// existing student gets updated) or submitted (default, the
 		// admin still approves manually through the existing queue).
-		autoApproved, autoSubmitted, autoErrs := s.resolveAutoRenewed(ctx, phase)
+		autoApproved, autoSubmitted, autoErrs, autoFatalErr := s.resolveAutoRenewed(ctx, phase)
 		summary.AutoRenewedToApproved += autoApproved
 		summary.AutoRenewedToSubmitted += autoSubmitted
 		summary.AutoApproveErrors += autoErrs
+		if autoFatalErr != nil {
+			return summary, autoFatalErr
+		}
 
 		// Opt-in side: pending_renewal → withdrawn. The parent
 		// didn't act before the deadline, so the renewal lapses.
@@ -786,13 +795,15 @@ func (s *rolloverService) RunDeadlineWorker(ctx context.Context, asOf time.Time)
 // resolveAutoRenewed handles the auto_renewed cohort for one phase.
 // Returns the counts split by destination status (approved when the
 // phase opts in to auto-approve and the decision service is wired,
-// otherwise submitted) plus how many per-row Decide() calls errored.
+// otherwise submitted) plus how many per-row Decide() calls errored. A
+// savepoint-control error is returned separately because the surrounding
+// transaction is no longer safe to continue or commit.
 //
 // When rollover_auto_approve is on but decisionService is nil (test
 // environments that don't wire the full approval pipeline), we fall
 // back to the bulk-promotion-to-submitted path so the worker still
 // completes — logs a warning so the gap is visible.
-func (s *rolloverService) resolveAutoRenewed(ctx context.Context, phase *enrollmentModels.Phase) (approved, submitted, errs int) {
+func (s *rolloverService) resolveAutoRenewed(ctx context.Context, phase *enrollmentModels.Phase) (approved, submitted, errs int, fatalErr error) {
 	if !phase.RolloverAutoApprove || s.DecisionService == nil {
 		if phase.RolloverAutoApprove && s.DecisionService == nil {
 			s.Logger.Warn("rollover deadline: auto_approve=true but DecisionService not wired, falling back to submitted",
@@ -807,9 +818,9 @@ func (s *rolloverService) resolveAutoRenewed(ctx context.Context, phase *enrollm
 			s.Logger.Error("rollover deadline: promote auto_renewed failed",
 				slog.Int64("phase_id", phase.ID),
 				slog.String("error", err.Error()))
-			return 0, 0, 0
+			return 0, 0, 0, nil
 		}
-		return 0, count, 0
+		return 0, count, 0, nil
 	}
 
 	// Auto-approve path: pull each auto_renewed row, call Decide so
@@ -823,15 +834,18 @@ func (s *rolloverService) resolveAutoRenewed(ctx context.Context, phase *enrollm
 		s.Logger.Error("rollover deadline: list auto_renewed failed",
 			slog.Int64("phase_id", phase.ID),
 			slog.String("error", err.Error()))
-		return 0, 0, 0
+		return 0, 0, 0, nil
 	}
 	for _, row := range rows {
-		_, decideErr := s.DecisionService.Decide(ctx, DecideInput{
-			RequestID: row.RequestID,
-			ChildID:   row.ID,
-			Status:    DecisionApproved,
-		})
+		decideErr := s.decideAutoRenewedRow(ctx, row)
 		if decideErr != nil {
+			if errors.Is(decideErr, tenant.ErrSavepointControl) {
+				return approved, 0, errs, fmt.Errorf(
+					"rollover deadline: auto-approve savepoint failed for request_child %d: %w",
+					row.ID,
+					decideErr,
+				)
+			}
 			errs++
 			s.Logger.Error("rollover deadline: auto-approve decide failed",
 				slog.Int64("phase_id", phase.ID),
@@ -841,5 +855,26 @@ func (s *rolloverService) resolveAutoRenewed(ctx context.Context, phase *enrollm
 		}
 		approved++
 	}
-	return approved, 0, errs
+	return approved, 0, errs, nil
+}
+
+// decideAutoRenewedRow gives one approval row atomicity without sacrificing
+// the worker's best-effort batch semantics. Production callers always provide
+// an ambient tenant transaction, so a failed Decide is rolled back to the
+// savepoint and later rows can still proceed. Direct calls without a
+// transaction are retained for lightweight service tests; they do not claim
+// the production atomicity contract documented on RunDeadlineWorker.
+func (s *rolloverService) decideAutoRenewedRow(ctx context.Context, row *enrollmentModels.RequestChild) error {
+	decide := func(decideCtx context.Context) error {
+		_, err := s.DecisionService.Decide(decideCtx, DecideInput{
+			RequestID: row.RequestID,
+			ChildID:   row.ID,
+			Status:    DecisionApproved,
+		})
+		return err
+	}
+	if _, ok := base.TxFromContext(ctx); !ok {
+		return decide(ctx)
+	}
+	return tenant.WithSavepoint(ctx, decide)
 }

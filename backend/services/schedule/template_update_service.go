@@ -25,6 +25,12 @@ var ErrInconsistentTemplateScheduleValidity = errors.New("template schedules hav
 // the same 404 as their preflight lookup.
 var ErrTemplateSegmentNotEditable = errors.New("template segment is not editable")
 
+const (
+	updateTemplateOp       = "update template"
+	updateTemplateFieldsOp = "update template: update fields"
+	archiveTemplateOp      = "archive template"
+)
+
 // TemplateUpdateInput carries the template fields, recurrence shape, and
 // roster edited by PUT /timetable/templates/{id}. The validity envelope is
 // deliberately not part of this input: it is an invariant of the existing
@@ -47,77 +53,145 @@ type TemplateUpdateInput struct {
 // valid_until boundaries across all three. All schedule rows of a segment must
 // share one envelope; inconsistent existing rows are rejected before mutation.
 func (s *TimetableDataService) UpdateTemplate(ctx context.Context, in TemplateUpdateInput) error {
-	if err := validateTemplateUpdateInput(in); err != nil {
-		return &ScheduleError{Op: "update template", Err: err}
+	if err := normalizeTemplateUpdateTarget(&in); err != nil {
+		return &ScheduleError{Op: updateTemplateOp, Err: err}
 	}
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return &ScheduleError{Op: "update template", Err: errors.New("no tenant in context")}
-	}
-	if s.deps.DB == nil {
-		return &ScheduleError{Op: "update template", Err: errors.New("database is not configured")}
-	}
-	if s.deps.ActivityGroupRepo == nil || s.deps.ActivityScheduleRepo == nil ||
-		s.deps.StudentEnrollmentRepo == nil || s.deps.ActivitySupervisorRepo == nil {
-		return &ScheduleError{Op: "update template", Err: errors.New("template repositories are not configured")}
+	tenantID, err := s.validateTemplateUpdateRequest(ctx, in)
+	if err != nil {
+		return err
 	}
 
 	return tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		if err := lockTenantRecurrenceWrites(txCtx, s.deps.DB); err != nil {
-			return &ScheduleError{Op: "update template: lock recurrence", Err: err}
-		}
-		existing, err := s.deps.ActivityScheduleRepo.FindByGroupID(txCtx, in.TemplateID)
-		if err != nil {
-			return &ScheduleError{Op: "update template: load schedules", Err: err}
-		}
-		validFrom, validUntil, err := commonScheduleValidityEnvelope(existing)
-		if err != nil {
-			return &ScheduleError{Op: "update template: inspect schedule validity", Err: err}
-		}
-		if validUntil != nil {
-			return &ScheduleError{Op: "update template: inspect schedule validity", Err: ErrTemplateSegmentNotEditable}
-		}
-
-		updated, err := s.deps.ActivityGroupRepo.UpdateTemplateFields(txCtx, in.TemplateID, in.Fields)
-		if err != nil {
-			return &ScheduleError{Op: "update template: update fields", Err: err}
-		}
-		if updated == 0 {
-			// Archive can commit while the handler's read-only preflight waits
-			// for this recurrence gate. Preserve the active-CRUD 404 contract.
-			return &ScheduleError{Op: "update template: update fields", Err: ErrTemplateSegmentNotEditable}
-		}
-		if updated > 1 {
-			return &ScheduleError{
-				Op:  "update template: update fields",
-				Err: fmt.Errorf("expected one template row to change, got %d", updated),
-			}
-		}
-
-		if err := s.deps.ActivityScheduleRepo.DeleteByGroupID(txCtx, in.TemplateID); err != nil {
-			return &ScheduleError{Op: "update template: delete schedules", Err: err}
-		}
-		for _, weekday := range in.Weekdays {
-			timeframeID := in.TimeframeID
-			schedule := &activitiesModel.Schedule{
-				Weekday:          weekday,
-				TimeframeID:      &timeframeID,
-				ActivityGroupID:  in.TemplateID,
-				WeekPattern:      in.WeekPattern,
-				CalendarPeriodID: in.CalendarPeriodID,
-				ValidFrom:        cloneOptionalDate(validFrom),
-				ValidUntil:       cloneOptionalDate(validUntil),
-			}
-			schedule.SetTenantID(tenantID)
-			if err := s.deps.ActivityScheduleRepo.Create(txCtx, schedule); err != nil {
-				return &ScheduleError{Op: "update template: create schedule", Err: err}
-			}
-		}
-		if err := s.replaceTemplateRoster(txCtx, in, tenantID, validFrom, validUntil); err != nil {
-			return err
-		}
-		return nil
+		return s.updateTemplateLocked(txCtx, in, tenantID)
 	})
+}
+
+func normalizeTemplateUpdateTarget(in *TemplateUpdateInput) error {
+	target := &activitiesModel.Group{
+		TargetGroupType:   in.Fields.TargetGroupType,
+		TargetGradeLevel:  in.Fields.TargetGradeLevel,
+		TargetSchoolClass: in.Fields.TargetSchoolClass,
+		EducationGroupID:  in.Fields.EducationGroupID,
+	}
+	if err := target.ValidateTargetGroup(); err != nil {
+		return err
+	}
+	in.Fields.TargetSchoolClass = target.TargetSchoolClass
+	return nil
+}
+
+func (s *TimetableDataService) validateTemplateUpdateRequest(ctx context.Context, in TemplateUpdateInput) (int64, error) {
+	if err := validateTemplateUpdateInput(in); err != nil {
+		return 0, &ScheduleError{Op: updateTemplateOp, Err: err}
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return 0, &ScheduleError{Op: updateTemplateOp, Err: errors.New("no tenant in context")}
+	}
+	if s.deps.DB == nil {
+		return 0, &ScheduleError{Op: updateTemplateOp, Err: errors.New("database is not configured")}
+	}
+	if s.deps.ActivityGroupRepo == nil || s.deps.ActivityScheduleRepo == nil ||
+		s.deps.StudentEnrollmentRepo == nil || s.deps.ActivitySupervisorRepo == nil {
+		return 0, &ScheduleError{Op: updateTemplateOp, Err: errors.New("template repositories are not configured")}
+	}
+	return tenantID, nil
+}
+
+func (s *TimetableDataService) updateTemplateLocked(ctx context.Context, in TemplateUpdateInput, tenantID int64) error {
+	if err := lockTenantRecurrenceWrites(ctx, s.deps.DB); err != nil {
+		return &ScheduleError{Op: "update template: lock recurrence", Err: err}
+	}
+	validFrom, validUntil, err := s.loadEditableTemplateEnvelope(ctx, in.TemplateID)
+	if err != nil {
+		return err
+	}
+	if err := s.updateTemplateFields(ctx, in); err != nil {
+		return err
+	}
+	if err := s.replaceTemplateSchedules(ctx, in, tenantID, validFrom, validUntil); err != nil {
+		return err
+	}
+	if err := s.replaceTemplateRoster(ctx, in, tenantID, validFrom, validUntil); err != nil {
+		return err
+	}
+	if s.deps.ValidateCareOfferingSeries == nil {
+		return nil
+	}
+	if err := s.deps.ValidateCareOfferingSeries(ctx, in.TemplateID); err != nil {
+		return templateCareOfferingValidationError(
+			ctx,
+			"update template: validate linked care offerings",
+			"updated recurrence is incompatible with an existing care offering",
+			err,
+		)
+	}
+	return nil
+}
+
+func (s *TimetableDataService) loadEditableTemplateEnvelope(
+	ctx context.Context,
+	templateID int64,
+) (*timezone.Date, *timezone.Date, error) {
+	existing, err := s.deps.ActivityScheduleRepo.FindByGroupID(ctx, templateID)
+	if err != nil {
+		return nil, nil, &ScheduleError{Op: "update template: load schedules", Err: err}
+	}
+	validFrom, validUntil, err := commonScheduleValidityEnvelope(existing)
+	if err != nil {
+		return nil, nil, &ScheduleError{Op: "update template: inspect schedule validity", Err: err}
+	}
+	if validUntil != nil {
+		return nil, nil, &ScheduleError{Op: "update template: inspect schedule validity", Err: ErrTemplateSegmentNotEditable}
+	}
+	return validFrom, validUntil, nil
+}
+
+func (s *TimetableDataService) updateTemplateFields(ctx context.Context, in TemplateUpdateInput) error {
+	updated, err := s.deps.ActivityGroupRepo.UpdateTemplateFields(ctx, in.TemplateID, in.Fields)
+	if err != nil {
+		return &ScheduleError{Op: updateTemplateFieldsOp, Err: err}
+	}
+	if updated == 0 {
+		// Archive can commit while the handler's read-only preflight waits for
+		// this recurrence gate. Preserve the active-CRUD 404 contract.
+		return &ScheduleError{Op: updateTemplateFieldsOp, Err: ErrTemplateSegmentNotEditable}
+	}
+	if updated > 1 {
+		return &ScheduleError{
+			Op:  updateTemplateFieldsOp,
+			Err: fmt.Errorf("expected one template row to change, got %d", updated),
+		}
+	}
+	return nil
+}
+
+func (s *TimetableDataService) replaceTemplateSchedules(
+	ctx context.Context,
+	in TemplateUpdateInput,
+	tenantID int64,
+	validFrom, validUntil *timezone.Date,
+) error {
+	if err := s.deps.ActivityScheduleRepo.DeleteByGroupID(ctx, in.TemplateID); err != nil {
+		return &ScheduleError{Op: "update template: delete schedules", Err: err}
+	}
+	for _, weekday := range in.Weekdays {
+		timeframeID := in.TimeframeID
+		schedule := &activitiesModel.Schedule{
+			Weekday:          weekday,
+			TimeframeID:      &timeframeID,
+			ActivityGroupID:  in.TemplateID,
+			WeekPattern:      in.WeekPattern,
+			CalendarPeriodID: in.CalendarPeriodID,
+			ValidFrom:        cloneOptionalDate(validFrom),
+			ValidUntil:       cloneOptionalDate(validUntil),
+		}
+		schedule.SetTenantID(tenantID)
+		if err := s.deps.ActivityScheduleRepo.Create(ctx, schedule); err != nil {
+			return &ScheduleError{Op: "update template: create schedule", Err: err}
+		}
+	}
+	return nil
 }
 
 // ArchiveTemplate removes a template from future planner reads while holding
@@ -126,14 +200,14 @@ func (s *TimetableDataService) UpdateTemplate(ctx context.Context, in TemplateUp
 // then insert a stale future occurrence.
 func (s *TimetableDataService) ArchiveTemplate(ctx context.Context, templateID int64) (int64, error) {
 	if templateID <= 0 {
-		return 0, &ScheduleError{Op: "archive template", Err: errors.New("template id is required")}
+		return 0, &ScheduleError{Op: archiveTemplateOp, Err: errors.New("template id is required")}
 	}
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
-		return 0, &ScheduleError{Op: "archive template", Err: errors.New("no tenant in context")}
+		return 0, &ScheduleError{Op: archiveTemplateOp, Err: errors.New("no tenant in context")}
 	}
 	if s.deps.DB == nil || s.deps.ActivityGroupRepo == nil {
-		return 0, &ScheduleError{Op: "archive template", Err: errors.New("template service is not configured")}
+		return 0, &ScheduleError{Op: archiveTemplateOp, Err: errors.New("template service is not configured")}
 	}
 
 	var archived int64
@@ -145,6 +219,16 @@ func (s *TimetableDataService) ArchiveTemplate(ctx context.Context, templateID i
 		archived, err = s.deps.ActivityGroupRepo.ArchiveTemplate(txCtx, templateID)
 		if err != nil {
 			return &ScheduleError{Op: "archive template: update", Err: err}
+		}
+		if archived > 0 && s.deps.ValidateCareOfferingSeries != nil {
+			if err := s.deps.ValidateCareOfferingSeries(txCtx, templateID); err != nil {
+				return templateCareOfferingValidationError(
+					txCtx,
+					"archive template: validate linked care offerings",
+					"archiving the template is incompatible with an existing care offering",
+					err,
+				)
+			}
 		}
 		return nil
 	})
@@ -240,6 +324,15 @@ func (s *TimetableDataService) replaceTemplateRoster(
 	return nil
 }
 
+type rosterRetirementAction uint8
+
+const (
+	rosterRetirementSkip rosterRetirementAction = iota
+	rosterRetirementPreserve
+	rosterRetirementDelete
+	rosterRetirementClose
+)
+
 func (s *TimetableDataService) retireTemplateEnrollments(
 	ctx context.Context,
 	templateID int64,
@@ -247,45 +340,126 @@ func (s *TimetableDataService) retireTemplateEnrollments(
 	replacementFrom timezone.Date,
 	replacementUntil *timezone.Date,
 ) (map[int64]struct{}, error) {
-	preservedStudents := make(map[int64]struct{})
 	rows, err := s.deps.StudentEnrollmentRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "update template: load enrollments", Err: err}
 	}
+	protected, err := s.retireUnprotectedTemplateEnrollments(
+		ctx,
+		rows,
+		calendarPeriodID,
+		replacementFrom,
+		replacementUntil,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return s.rebaseProtectedTemplateEnrollments(ctx, protected, calendarPeriodID)
+}
+
+func (s *TimetableDataService) retireUnprotectedTemplateEnrollments(
+	ctx context.Context,
+	rows []*activitiesModel.StudentEnrollment,
+	calendarPeriodID *int64,
+	replacementFrom timezone.Date,
+	replacementUntil *timezone.Date,
+) ([]*activitiesModel.StudentEnrollment, error) {
+	protected := make([]*activitiesModel.StudentEnrollment, 0)
 	for _, row := range rows {
-		if row == nil || !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, replacementFrom, replacementUntil) {
+		if row != nil && enrollmentIsProtected(row) &&
+			validityWindowsOverlap(row.ValidFrom, row.ValidUntil, replacementFrom, replacementUntil) {
+			protected = append(protected, row)
 			continue
 		}
-		// Enrollment-offer rows and weekday-specific legacy rows are managed
-		// outside this template editor. The request does not expose their
-		// provenance or selected weekdays, so replacing them would silently
-		// discard data and widen/narrow a care-offer assignment.
-		if row.EnrollmentRequestChildID != nil || len(row.SelectedWeekdays) > 0 {
-			if rosterPeriodApplies(row.CalendarPeriodID, calendarPeriodID) {
-				preservedStudents[row.StudentID] = struct{}{}
-			}
-			continue
+		action := classifyEnrollmentRetirement(row, calendarPeriodID, replacementFrom, replacementUntil)
+		if err := s.applyEnrollmentRetirement(ctx, row, action, replacementFrom); err != nil {
+			return nil, err
 		}
-		if !optionalInt64sEqual(row.CalendarPeriodID, calendarPeriodID) {
-			continue
+	}
+	return protected, nil
+}
+
+func (s *TimetableDataService) applyEnrollmentRetirement(
+	ctx context.Context,
+	row *activitiesModel.StudentEnrollment,
+	action rosterRetirementAction,
+	replacementFrom timezone.Date,
+) error {
+	switch action {
+	case rosterRetirementDelete:
+		if err := s.deps.StudentEnrollmentRepo.Delete(ctx, row.ID); err != nil {
+			return &ScheduleError{Op: "update template: delete future enrollment", Err: err}
 		}
-		// The editor owns open template-roster rows. On a bounded predecessor it
-		// also owns the plain rows whose end exactly matches the schedule
-		// segment; unrelated bounded phase windows must survive unchanged.
-		if row.ValidUntil != nil && (replacementUntil == nil || *row.ValidUntil != *replacementUntil) {
-			continue
-		}
-		if row.ValidFrom.After(replacementFrom) {
-			if err := s.deps.StudentEnrollmentRepo.Delete(ctx, row.ID); err != nil {
-				return nil, &ScheduleError{Op: "update template: delete future enrollment", Err: err}
-			}
-			continue
-		}
+	case rosterRetirementClose:
 		if err := s.deps.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, replacementFrom); err != nil {
-			return nil, &ScheduleError{Op: "update template: close enrollment", Err: err}
+			return &ScheduleError{Op: "update template: close enrollment", Err: err}
+		}
+	}
+	return nil
+}
+
+func (s *TimetableDataService) rebaseProtectedTemplateEnrollments(
+	ctx context.Context,
+	protected []*activitiesModel.StudentEnrollment,
+	calendarPeriodID *int64,
+) (map[int64]struct{}, error) {
+	if err := validateProtectedEnrollmentRebase(protected, calendarPeriodID); err != nil {
+		return nil, &ScheduleError{Op: "update template: rebase protected enrollments", Err: err}
+	}
+	preservedStudents := make(map[int64]struct{})
+	for _, row := range protected {
+		if err := s.rebaseProtectedEnrollmentPeriod(ctx, row, calendarPeriodID); err != nil {
+			return nil, err
+		}
+		if rosterPeriodApplies(row.CalendarPeriodID, calendarPeriodID) {
+			preservedStudents[row.StudentID] = struct{}{}
 		}
 	}
 	return preservedStudents, nil
+}
+
+func (s *TimetableDataService) rebaseProtectedEnrollmentPeriod(
+	ctx context.Context,
+	row *activitiesModel.StudentEnrollment,
+	calendarPeriodID *int64,
+) error {
+	if row.CalendarPeriodID == nil || calendarPeriodID == nil ||
+		*row.CalendarPeriodID == *calendarPeriodID {
+		return nil
+	}
+	row.CalendarPeriodID = cloneOptionalInt64(calendarPeriodID)
+	if err := s.deps.StudentEnrollmentRepo.Update(ctx, row); err != nil {
+		return &ScheduleError{Op: "update template: persist protected enrollment period", Err: err}
+	}
+	return nil
+}
+
+func classifyEnrollmentRetirement(
+	row *activitiesModel.StudentEnrollment,
+	calendarPeriodID *int64,
+	replacementFrom timezone.Date,
+	replacementUntil *timezone.Date,
+) rosterRetirementAction {
+	if row == nil || !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, replacementFrom, replacementUntil) {
+		return rosterRetirementSkip
+	}
+	// Enrollment-offer rows and weekday-specific legacy rows are managed
+	// outside this template editor. The request does not expose their
+	// provenance or selected weekdays, so replacing them would silently
+	// discard data and widen/narrow a care-offer assignment.
+	if row.EnrollmentRequestChildID != nil || len(row.SelectedWeekdays) > 0 {
+		if rosterPeriodApplies(row.CalendarPeriodID, calendarPeriodID) {
+			return rosterRetirementPreserve
+		}
+		return rosterRetirementSkip
+	}
+	return classifyOwnedRosterRetirement(
+		row.ValidFrom,
+		row.ValidUntil,
+		optionalInt64sEqual(row.CalendarPeriodID, calendarPeriodID),
+		replacementFrom,
+		replacementUntil,
+	)
 }
 
 func (s *TimetableDataService) retireTemplateSupervisors(
@@ -300,26 +474,57 @@ func (s *TimetableDataService) retireTemplateSupervisors(
 		return &ScheduleError{Op: "update template: load supervisors", Err: err}
 	}
 	for _, row := range rows {
-		if row == nil || !optionalInt64sEqual(row.CalendarPeriodID, calendarPeriodID) ||
-			!validityWindowsOverlap(row.ValidFrom, row.ValidUntil, replacementFrom, replacementUntil) {
-			continue
-		}
-		// As with enrollments, open rows are editor-managed; a bounded plain
-		// roster row is replaceable only when it shares this segment's end.
-		if row.ValidUntil != nil && (replacementUntil == nil || *row.ValidUntil != *replacementUntil) {
-			continue
-		}
-		if row.ValidFrom.After(replacementFrom) {
+		switch classifySupervisorRetirement(row, calendarPeriodID, replacementFrom, replacementUntil) {
+		case rosterRetirementDelete:
 			if err := s.deps.ActivitySupervisorRepo.Delete(ctx, row.ID); err != nil {
 				return &ScheduleError{Op: "update template: delete future supervisor", Err: err}
 			}
-			continue
-		}
-		if err := s.deps.ActivitySupervisorRepo.SetValidUntilByID(ctx, row.ID, replacementFrom); err != nil {
-			return &ScheduleError{Op: "update template: close supervisor", Err: err}
+		case rosterRetirementClose:
+			if err := s.deps.ActivitySupervisorRepo.SetValidUntilByID(ctx, row.ID, replacementFrom); err != nil {
+				return &ScheduleError{Op: "update template: close supervisor", Err: err}
+			}
 		}
 	}
 	return nil
+}
+
+func classifySupervisorRetirement(
+	row *activitiesModel.SupervisorPlanned,
+	calendarPeriodID *int64,
+	replacementFrom timezone.Date,
+	replacementUntil *timezone.Date,
+) rosterRetirementAction {
+	if row == nil || !validityWindowsOverlap(row.ValidFrom, row.ValidUntil, replacementFrom, replacementUntil) {
+		return rosterRetirementSkip
+	}
+	return classifyOwnedRosterRetirement(
+		row.ValidFrom,
+		row.ValidUntil,
+		optionalInt64sEqual(row.CalendarPeriodID, calendarPeriodID),
+		replacementFrom,
+		replacementUntil,
+	)
+}
+
+func classifyOwnedRosterRetirement(
+	validFrom timezone.Date,
+	validUntil *timezone.Date,
+	periodMatches bool,
+	replacementFrom timezone.Date,
+	replacementUntil *timezone.Date,
+) rosterRetirementAction {
+	if !periodMatches {
+		return rosterRetirementSkip
+	}
+	// Open rows are editor-managed. A bounded plain roster row is replaceable
+	// only when it shares this segment's end; unrelated phase windows survive.
+	if validUntil != nil && (replacementUntil == nil || *validUntil != *replacementUntil) {
+		return rosterRetirementSkip
+	}
+	if validFrom.After(replacementFrom) {
+		return rosterRetirementDelete
+	}
+	return rosterRetirementClose
 }
 
 func validityWindowsOverlap(

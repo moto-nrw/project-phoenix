@@ -156,6 +156,8 @@ export interface EnrollmentEditBootstrap {
   school_class?: PublicSchoolClassConfig;
   collect_grade_level: boolean;
   care_offerings_enabled: boolean;
+  /** Server-authoritative tenant cap (`enrollment.grade_level_max`). */
+  grade_level_max: number;
   legal_texts: PublicLegalTexts;
   draft: EnrollmentEditDraft;
 }
@@ -268,6 +270,16 @@ export interface PublicCareOfferingsResult {
 
 export interface LateInviteFetchOptions {
   lateInviteToken?: string;
+}
+
+export interface PublicEnrollmentBootstrapFetchOptions extends LateInviteFetchOptions {
+  /**
+   * The tenant-hosted public form may enrich the bootstrap with a tenant
+   * session profile. Parent-portal callers must opt out: the tenant session
+   * cookie is domain-scoped in production and must never cross that portal
+   * boundary, even when the parent page discards the profile afterwards.
+   */
+  prefetchTenantProfile?: boolean;
 }
 
 function withLateInviteQuery(path: string, token?: string): string {
@@ -392,14 +404,20 @@ export interface PublicEnrollmentBootstrap {
 export async function fetchPublicEnrollmentBootstrap(
   tenantSlug: string,
   phaseId: string,
-  options: LateInviteFetchOptions = {},
+  options: PublicEnrollmentBootstrapFetchOptions = {},
 ): Promise<PublicEnrollmentBootstrap> {
-  const path = `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
+  let path = `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
     tenantSlug,
   )}/${encodeURIComponent(phaseId)}`;
+  path = withLateInviteQuery(path, options.lateInviteToken);
+  if (options.prefetchTenantProfile === false) {
+    path += `${path.includes("?") ? "&" : "?"}prefetch_profile=0`;
+  }
   const response = await fetch(
-    withLateInviteQuery(path, options.lateInviteToken),
-    { cache: "no-store" },
+    path,
+    options.prefetchTenantProfile === false
+      ? { cache: "no-store", credentials: "omit" }
+      : { cache: "no-store" },
   );
   if (!response.ok) {
     throw await readError(

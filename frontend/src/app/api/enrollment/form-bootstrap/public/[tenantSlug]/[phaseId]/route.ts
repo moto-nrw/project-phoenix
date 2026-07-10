@@ -26,6 +26,16 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json(payload, { status: response.status });
     }
 
+    // The parent portal uses the same public bootstrap metadata but must not
+    // inherit tenant-session profile enrichment. Tenant cookies are
+    // domain-scoped across *.TENANT_DOMAIN in production, so this explicit
+    // opt-out is required in addition to the browser request omitting
+    // credentials. Return before auth() so the boundary is enforceable and
+    // testable at the proxy itself.
+    if (request.nextUrl.searchParams.get("prefetch_profile") === "0") {
+      return NextResponse.json(payload, { status: response.status });
+    }
+
     const session = await auth().catch((error: unknown) => {
       logger.warn("profile_auth_prefetch_failed", {
         error: error instanceof Error ? error.message : String(error),

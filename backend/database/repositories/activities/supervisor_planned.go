@@ -19,6 +19,7 @@ const (
 	tableSupervisorPlanned     = "activities.supervisors"
 	tableExprSupervisorPlanned = `activities.supervisors AS "supervisor_planned"`
 	whereSupervisorIDEquals    = "id = ?"
+	setSupervisorValidUntil    = "valid_until = ?"
 )
 
 // supervisorResult holds the result of a supervisor query with joined staff and person.
@@ -127,7 +128,7 @@ func (r *SupervisorPlannedRepository) CapActiveByGroup(ctx context.Context, grou
 		query := base.GetDB(ctx, r.db).NewUpdate().
 			Model((*activities.SupervisorPlanned)(nil)).
 			ModelTableExpr(tableExprSupervisorPlanned).
-			Set("valid_until = ?", validUntil).
+			Set(setSupervisorValidUntil, validUntil).
 			Where(`"supervisor_planned".group_id = ?`, groupID).
 			Where(`"supervisor_planned".valid_from < ?`, validUntil).
 			Where(`"supervisor_planned".valid_until IS NULL`).
@@ -155,7 +156,7 @@ func (r *SupervisorPlannedRepository) SetValidUntilByID(ctx context.Context, id 
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*activities.SupervisorPlanned)(nil)).
 		ModelTableExpr(tableExprSupervisorPlanned).
-		Set("valid_until = ?", validUntil).
+		Set(setSupervisorValidUntil, validUntil).
 		Where(`"supervisor_planned".id = ?`, id)
 	query = base.WithTenantFilter(ctx, query, "supervisor_planned")
 
@@ -394,7 +395,7 @@ func (r *SupervisorPlannedRepository) CloseOpenByGroupAndPeriod(ctx context.Cont
 	tenantID := tenant.FromContext(ctx)
 	update := base.GetDB(ctx, r.db).NewUpdate().
 		Table("activities.supervisors").
-		Set("valid_until = ?", validFrom).
+		Set(setSupervisorValidUntil, validFrom).
 		Where("tenant_id = ?", tenantID).
 		Where("group_id = ?", groupID).
 		Where("valid_until IS NULL")

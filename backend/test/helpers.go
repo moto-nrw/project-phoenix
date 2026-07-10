@@ -110,7 +110,10 @@ For CI, set TEST_DB_DSN as an environment variable.`)
 
 	dsn = packageIsolatedTestDSN(t, dsn)
 
-	viper.Set("db_dsn", dsn)
+	// APP_ENV=test deliberately resolves only TEST_DB_DSN. Point that key at
+	// the package-isolated clone; setting db_dsn here would be ignored and
+	// would silently send integration tests to the shared template database.
+	viper.Set("test_db_dsn", dsn)
 	viper.Set("db_debug", false) // Set to true for SQL debugging
 	// Cap per-test pool size. Each call to SetupTestDB opens a fresh
 	// pool; the prod default is 25 connections, which exhausts

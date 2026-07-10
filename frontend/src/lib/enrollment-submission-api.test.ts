@@ -287,6 +287,32 @@ describe("enrollment-submission-api", () => {
     );
   });
 
+  it("omits cookies and tenant-profile enrichment for parent bootstrap requests", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          phase: { id: "5", name: "Ferien" },
+          schema: null,
+          offerings: [],
+          care_offering_selection_mode: "optional",
+          care_required: false,
+          captcha_config: null,
+          legal_texts: { blocks: [] },
+        },
+      }),
+    );
+
+    await fetchPublicEnrollmentBootstrap("demo", "5", {
+      lateInviteToken: "invite token",
+      prefetchTenantProfile: false,
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/enrollment/form-bootstrap/public/demo/5?late_invite=invite%20token&prefetch_profile=0",
+      { cache: "no-store", credentials: "omit" },
+    );
+  });
+
   it("returns null for unauthenticated profile requests", async () => {
     mockFetch.mockResolvedValueOnce(
       jsonResponse({ error: "unauthorized" }, { status: 401 }),
@@ -439,6 +465,7 @@ describe("enrollment-submission-api", () => {
           offerings: [],
           care_offering_selection_mode: "optional",
           care_required: false,
+          grade_level_max: 13,
           legal_texts: { blocks: [] },
           draft: {
             request_id: "99",
@@ -461,6 +488,7 @@ describe("enrollment-submission-api", () => {
       {
         draft: { request_id: "99", status_token: "tok/en" },
         phase: { id: "5" },
+        grade_level_max: 13,
       },
     );
     expect(mockFetch).toHaveBeenCalledWith(

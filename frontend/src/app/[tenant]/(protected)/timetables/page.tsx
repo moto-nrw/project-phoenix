@@ -96,6 +96,84 @@ import {
 const logger = createLogger({ component: "TimetablesPage" });
 const PERIODS_SWR_KEY = "database-calendar-periods-list";
 
+interface CareOfferingLinkSummary {
+  total: number;
+  linked: number;
+}
+
+/**
+ * Load the optional enrollment linkage summary used by the setup guide.
+ * A partial result would be actively misleading, so any failed phase request
+ * makes the whole summary unknown.
+ */
+export async function loadCareOfferingLinkSummary(): Promise<CareOfferingLinkSummary | null> {
+  try {
+    const phases = await listPhases();
+    const activePhaseIds = new Set(
+      phases.filter((phase) => phase.is_active).map((phase) => phase.id),
+    );
+    const offeringLists = await Promise.all(
+      [...activePhaseIds].map((phaseId) => listCareOfferings(phaseId)),
+    );
+    const offerings = offeringLists
+      .flat()
+      .filter(
+        (offering) =>
+          offering.is_active && activePhaseIds.has(offering.phase_id),
+      );
+
+    return {
+      total: offerings.length,
+      linked: offerings.filter((offering) => offering.activity_group_id != null)
+        .length,
+    };
+  } catch (err) {
+    logger.warn("timetable_care_offering_link_load_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+function plannedPeriodLabel(
+  view: TimetableView,
+  isSeriesView: boolean,
+): string {
+  if (isSeriesView) return "als Regeltermin";
+  if (view === "week") return "diese Woche";
+  if (view === "month") return "diesen Monat";
+  return "dieses Jahr";
+}
+
+function careOfferingLinkPresentation(summary: CareOfferingLinkSummary | null) {
+  if (summary === null) {
+    return {
+      status: "unknown" as const,
+      label: null,
+    };
+  }
+
+  return {
+    status: summary.linked > 0 ? ("linked" as const) : ("unlinked" as const),
+    label:
+      summary.total === 0
+        ? "Noch keine Angebote"
+        : `${summary.linked} von ${summary.total} Angeboten verknüpft`,
+  };
+}
+
+function calendarPeriodUsage(period: CalendarPeriod | null) {
+  if (!period) return undefined;
+  return {
+    enrollmentPhaseCount: period.enrollmentPhaseCount ?? 0,
+    activityGroupCount: period.activityGroupCount ?? 0,
+    scheduleCount: period.scheduleCount ?? 0,
+    studentEnrollmentCount: period.studentEnrollmentCount ?? 0,
+    supervisorCount: period.supervisorCount ?? 0,
+    activityInstanceCount: period.activityInstanceCount ?? 0,
+  };
+}
+
 function parseWeekOffset(raw: string | null): number {
   if (raw === null) return 0;
   const n = Number.parseInt(raw, 10);
@@ -615,38 +693,12 @@ function TimetablesContent() {
   );
   // The optional "Mit der Anmeldung verknüpfen" setup step is done only when a
   // care offering actually points at a Regeltermin — an active enrollment phase
-  // alone proves no linkage (issue #1651). The fetcher swallows errors (e.g.
-  // 403 when the planner admin can't read enrollment) so a missing permission
-  // degrades to the neutral "unknown" status instead of failing the page.
+  // alone proves no linkage (issue #1651). Missing permission or an incomplete
+  // per-phase result degrades to the neutral "unknown" status instead of
+  // failing the page or displaying a false partial count.
   const { data: careOfferingLink } = useSWRAuth(
     status === "authenticated" ? "timetable-care-offering-link" : null,
-    async () => {
-      try {
-        const phases = await listPhases();
-        const activePhaseIds = new Set(
-          phases.filter((phase) => phase.is_active).map((phase) => phase.id),
-        );
-        const offeringLists = await Promise.all(
-          [...activePhaseIds].map((phaseId) =>
-            listCareOfferings(phaseId).catch(() => []),
-          ),
-        );
-        const offerings = offeringLists
-          .flat()
-          .filter(
-            (offering) =>
-              offering.is_active && activePhaseIds.has(offering.phase_id),
-          );
-        return {
-          total: offerings.length,
-          linked: offerings.filter((offering) =>
-            Boolean(offering.activity_group_id),
-          ).length,
-        };
-      } catch {
-        return null;
-      }
-    },
+    loadCareOfferingLinkSummary,
     { revalidateOnFocus: false },
   );
   const {
@@ -880,13 +932,7 @@ function TimetablesContent() {
         : countUnderstaffedInstances(instances),
     [isSeriesView, templates, instances],
   );
-  const plannedSublabel = isSeriesView
-    ? "als Regeltermin"
-    : view === "week"
-      ? "diese Woche"
-      : view === "month"
-        ? "diesen Monat"
-        : "dieses Jahr";
+  const plannedSublabel = plannedPeriodLabel(view, isSeriesView);
   const understaffedSublabel =
     understaffedCount > 0
       ? "zusätzliches Personal nötig"
@@ -904,18 +950,12 @@ function TimetablesContent() {
     return `${period.name} · gültig bis ${formatDate(period.endDate)}`;
   }, [calendarPeriods, todayISO]);
   const hasPlan = instances.length > 0 || templates.length > 0;
+  const careOfferingPresentation = careOfferingLinkPresentation(
+    careOfferingLink ?? null,
+  );
   const careOfferingLinkStatus: TimetableCareOfferingLinkStatus =
-    careOfferingLink == null
-      ? "unknown"
-      : careOfferingLink.linked > 0
-        ? "linked"
-        : "unlinked";
-  const careOfferingLinkLabel =
-    careOfferingLink == null
-      ? null
-      : careOfferingLink.total === 0
-        ? "Noch keine Angebote"
-        : `${careOfferingLink.linked} von ${careOfferingLink.total} Angeboten verknüpft`;
+    careOfferingPresentation.status;
+  const careOfferingLinkLabel = careOfferingPresentation.label;
 
   const handleLifecycle = useCallback(
     async (action: LifecycleAction) => {
@@ -1620,6 +1660,7 @@ function TimetablesContent() {
           void tenantMutate(swrKey);
         }}
         createDefaults={periodCreateDefaults}
+        usage={calendarPeriodUsage(editingPeriod)}
       />
 
       <ConfirmationModal

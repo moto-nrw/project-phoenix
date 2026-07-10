@@ -391,6 +391,7 @@ type EditBootstrapResponse struct {
 	SchoolClass               PublicSchoolClassConfig   `json:"school_class"`
 	CollectGradeLevel         bool                      `json:"collect_grade_level"`
 	CareOfferingsEnabled      bool                      `json:"care_offerings_enabled"`
+	GradeLevelMax             int                       `json:"grade_level_max"`
 	LegalTexts                PublicLegalTextsResponse  `json:"legal_texts"`
 	Draft                     EditDraftResponse         `json:"draft"`
 	EditMode                  string                    `json:"edit_mode"`
@@ -551,6 +552,7 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 		SchoolClass:               toPublicSchoolClassConfig(draft.Phase, draft.CollectSchoolClass),
 		CollectGradeLevel:         draft.CollectGradeLevel,
 		CareOfferingsEnabled:      draft.CareOfferingsEnabled,
+		GradeLevelMax:             draft.GradeLevelMax,
 		LegalTexts: PublicLegalTextsResponse{
 			AGB:                 draft.LegalTexts.AGB,
 			DSGVO:               draft.LegalTexts.DSGVO,

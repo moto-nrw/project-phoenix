@@ -3,12 +3,14 @@ package schedule
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -21,9 +23,21 @@ const (
 
 // service implements the schedule.Service interface
 type service struct {
-	dateframeRepo      schedule.DateframeRepository
-	timeframeRepo      schedule.TimeframeRepository
-	recurrenceRuleRepo schedule.RecurrenceRuleRepository
+	dateframeRepo                       schedule.DateframeRepository
+	timeframeRepo                       schedule.TimeframeRepository
+	recurrenceRuleRepo                  schedule.RecurrenceRuleRepository
+	lockTemplateRecurrence              func(context.Context) error
+	validateCareOfferingTimeframeChange func(context.Context, int64, *schedule.Timeframe) error
+}
+
+// ServiceConfig carries the optional cross-domain guard needed by timeframe
+// deletion. NewService remains for focused tests and legacy wiring.
+type ServiceConfig struct {
+	DateframeRepo                       schedule.DateframeRepository
+	TimeframeRepo                       schedule.TimeframeRepository
+	RecurrenceRuleRepo                  schedule.RecurrenceRuleRepository
+	LockTemplateRecurrence              func(context.Context) error
+	ValidateCareOfferingTimeframeChange func(context.Context, int64, *schedule.Timeframe) error
 }
 
 // NewService creates a new schedule service
@@ -32,10 +46,22 @@ func NewService(
 	timeframeRepo schedule.TimeframeRepository,
 	recurrenceRuleRepo schedule.RecurrenceRuleRepository,
 ) Service {
+	return NewServiceWithConfig(ServiceConfig{
+		DateframeRepo:      dateframeRepo,
+		TimeframeRepo:      timeframeRepo,
+		RecurrenceRuleRepo: recurrenceRuleRepo,
+	})
+}
+
+// NewServiceWithConfig builds the schedule service with recurrence-aware
+// timeframe deletion validation.
+func NewServiceWithConfig(cfg ServiceConfig) Service {
 	return &service{
-		dateframeRepo:      dateframeRepo,
-		timeframeRepo:      timeframeRepo,
-		recurrenceRuleRepo: recurrenceRuleRepo,
+		dateframeRepo:                       cfg.DateframeRepo,
+		timeframeRepo:                       cfg.TimeframeRepo,
+		recurrenceRuleRepo:                  cfg.RecurrenceRuleRepo,
+		lockTemplateRecurrence:              cfg.LockTemplateRecurrence,
+		validateCareOfferingTimeframeChange: cfg.ValidateCareOfferingTimeframeChange,
 	}
 }
 
@@ -152,6 +178,9 @@ func (s *service) UpdateTimeframe(ctx context.Context, timeframe *schedule.Timef
 	if err := timeframe.Validate(); err != nil {
 		return &ScheduleError{Op: "update timeframe", Err: err}
 	}
+	if err := s.validateTimeframeCareOfferingChange(ctx, timeframe.ID, timeframe); err != nil {
+		return err
+	}
 
 	if err := s.timeframeRepo.Update(ctx, timeframe); err != nil {
 		return &ScheduleError{Op: "update timeframe", Err: err}
@@ -162,10 +191,40 @@ func (s *service) UpdateTimeframe(ctx context.Context, timeframe *schedule.Timef
 
 // DeleteTimeframe deletes a timeframe by its ID
 func (s *service) DeleteTimeframe(ctx context.Context, id int64) error {
+	if err := s.validateTimeframeCareOfferingChange(ctx, id, nil); err != nil {
+		return err
+	}
 	if err := s.timeframeRepo.Delete(ctx, id); err != nil {
 		return &ScheduleError{Op: "delete timeframe", Err: err}
 	}
 
+	return nil
+}
+
+func (s *service) validateTimeframeCareOfferingChange(
+	ctx context.Context,
+	id int64,
+	replacement *schedule.Timeframe,
+) error {
+	if s.validateCareOfferingTimeframeChange == nil {
+		return nil
+	}
+	op := "delete timeframe"
+	if replacement != nil {
+		op = "update timeframe"
+	}
+	if s.lockTemplateRecurrence == nil {
+		return &ScheduleError{Op: op + ": lock timetable recurrence", Err: errors.New("template recurrence lock is not configured")}
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return &ScheduleError{Op: op + ": lock timetable recurrence", Err: err}
+	}
+	if err := s.validateCareOfferingTimeframeChange(ctx, id, replacement); err != nil {
+		if errors.Is(err, enrollmentModels.ErrCareOfferingInvalid) {
+			return &ScheduleError{Op: op, Err: ErrTimeframeRequiredByCareOffering}
+		}
+		return &ScheduleError{Op: op + ": validate care offerings", Err: err}
+	}
 	return nil
 }
 

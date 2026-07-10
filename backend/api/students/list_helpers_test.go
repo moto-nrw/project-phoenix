@@ -14,6 +14,7 @@ func TestMatchesGradeLevel(t *testing.T) {
 		{"different grade does not match", "4a", 3, false},
 		{"leading-digit boundary: 13a must not match grade 1", "13a", 1, false},
 		{"double-digit grade matches", "13a", 13, true},
+		{"display label with grade matches", "Klasse 3a", 3, true},
 		{"class with no numeric prefix never matches a set grade", "Bienen", 3, false},
 	}
 	for _, tt := range tests {

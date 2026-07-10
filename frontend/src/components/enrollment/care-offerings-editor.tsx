@@ -33,6 +33,8 @@ import { CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE } from "~/lib/enrollment
 import { createLogger } from "~/lib/logger";
 import { timetableService } from "~/lib/timetable-api";
 import type { TimetableTemplate } from "~/lib/timetable-types";
+import { isSupportedGradeLevelMax } from "~/lib/grade-level";
+import { useTenant } from "~/lib/tenant-context";
 import { useToast } from "~/contexts/ToastContext";
 import {
   DataTable,
@@ -82,6 +84,15 @@ const KIND_LABELS: Record<Phase["kind"], string> = {
 
 const CARE_OFFERING_TEMPLATE_UNLINKED_MESSAGE =
   "Die Verknüpfung zum Regeltermin wurde entfernt, weil sein Planungszeitraum den Betreuungszeitraum der neu gewählten Anmeldephase nicht vollständig abdeckt.";
+const PLANNER_METADATA_UNAVAILABLE_MESSAGE =
+  "Regeltermine und Planungsperioden konnten nicht geladen werden. Die Betreuungsangebote bleiben nutzbar; bestehende Verknüpfungen können beibehalten oder entfernt werden. Neue oder geänderte Verknüpfungen sind bis zum erneuten Laden gesperrt.";
+const UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE =
+  "Die neue Regeltermin-Verknüpfung kann derzeit nicht geprüft werden. Entferne die Verknüpfung oder lade Regeltermine und Planungsperioden erneut.";
+const INACTIVE_TEMPLATE_PERIOD_MESSAGE =
+  "Ein aktives Betreuungsangebot braucht einen aktiven Planungszeitraum. Aktiviere den Zeitraum, wähle einen anderen Regeltermin oder deaktiviere das Angebot.";
+
+type PlannerMetadataStatus = "loading" | "ready" | "unavailable";
+type TemplateCompatibility = "compatible" | "incompatible" | "unknown";
 
 function blankInput(phaseId: number): CareOfferingInput {
   return {
@@ -147,6 +158,20 @@ function formatDays(days: string[]): string {
   return visibleDays.map((day) => DAY_LABELS[day] ?? day).join(", ");
 }
 
+function safeCareOfferingSaveMessage(err: unknown, creating: boolean): string {
+  if (
+    err instanceof Error &&
+    typeof (err as Error & { status?: unknown }).status === "number"
+  ) {
+    // API errors are localized and sanitized by readEnrollmentError. Plain
+    // runtime/network errors are not safe UI copy and stay in structured logs.
+    return err.message;
+  }
+  return creating
+    ? "Betreuungsangebot konnte nicht angelegt werden"
+    : "Betreuungsangebot konnte nicht gespeichert werden";
+}
+
 function templateLabel(template: TimetableTemplate): string {
   const days = template.schedules
     .map((schedule) => schedule.weekday)
@@ -164,42 +189,103 @@ function singleTemplatePeriodID(template: TimetableTemplate): string | null {
 
   const periodIDs = new Set<string>();
   for (const schedule of template.schedules) {
-    if (!schedule.calendarPeriodId) return null;
-    periodIDs.add(schedule.calendarPeriodId);
+    const periodID = schedule.calendarPeriodId ?? template.calendarPeriodId;
+    if (!periodID) return null;
+    periodIDs.add(periodID);
     if (periodIDs.size > 1) return null;
   }
   return periodIDs.values().next().value ?? null;
 }
 
-function templateFitsPhasePeriod(
+function templatePhaseCompatibility(
   template: TimetableTemplate,
   phase: Phase,
   periods: CalendarPeriod[],
-): boolean {
+  requireActivePeriod: boolean,
+): TemplateCompatibility {
   const periodID = singleTemplatePeriodID(template);
-  if (!periodID) return false;
+  if (!periodID) return "unknown";
   const period = periods.find((item) => item.id === periodID);
-  if (!period) return false;
-  return (
+  if (!period) return "unknown";
+  if (requireActivePeriod && !period.isActive) return "incompatible";
+  const fits =
     period.startDate <= phase.service_start_date &&
-    phase.service_end_date <= period.endDate
-  );
+    phase.service_end_date <= period.endDate;
+  return fits ? "compatible" : "incompatible";
 }
 
-function draftHasCompatibleTemplatePeriod(
+function draftTemplateCompatibility(
   draft: CareOfferingInput,
   phases: Phase[],
   templates: TimetableTemplate[],
   periods: CalendarPeriod[],
-): boolean {
-  if (!draft.activity_group_id) return true;
+  metadataStatus: PlannerMetadataStatus,
+): TemplateCompatibility {
+  if (!draft.activity_group_id) return "compatible";
+  if (metadataStatus !== "ready") return "unknown";
   const phase = phases.find((item) => item.id === String(draft.phase_id));
   const template = templates.find(
     (item) => item.id === String(draft.activity_group_id),
   );
-  return Boolean(
-    phase && template && templateFitsPhasePeriod(template, phase, periods),
+  if (!phase || !template) return "unknown";
+  return templatePhaseCompatibility(template, phase, periods, draft.is_active);
+}
+
+function draftUsesInactiveTemplatePeriod(
+  draft: CareOfferingInput,
+  templates: TimetableTemplate[],
+  periods: CalendarPeriod[],
+  metadataStatus: PlannerMetadataStatus,
+): boolean {
+  if (
+    !draft.is_active ||
+    !draft.activity_group_id ||
+    metadataStatus !== "ready"
+  ) {
+    return false;
+  }
+  const template = templates.find(
+    (item) => item.id === String(draft.activity_group_id),
   );
+  if (!template) return false;
+  const periodID = singleTemplatePeriodID(template);
+  if (!periodID) return false;
+  return periods.find((period) => period.id === periodID)?.isActive === false;
+}
+
+function linkedTemplateWeekdayError(
+  draft: CareOfferingInput,
+  templates: TimetableTemplate[],
+  metadataStatus: PlannerMetadataStatus,
+): string | null {
+  if (!draft.activity_group_id || metadataStatus !== "ready") return null;
+  const template = templates.find(
+    (item) => item.id === draft.activity_group_id?.toString(),
+  );
+  if (!template) return null;
+
+  const templateDays = new Set(
+    template.schedules.map((schedule) => schedule.weekday),
+  );
+  const missingDays = draft.available_days.filter((day) => {
+    const isoWeekday = CARE_DAY_TO_ISO[day];
+    return isoWeekday !== undefined && !templateDays.has(isoWeekday);
+  });
+  if (missingDays.length === 0) return null;
+
+  const labels = missingDays.map((day) => DAY_LABELS[day] ?? day).join(", ");
+  return `Der Regeltermin deckt die ausgewählten Angebotstage ${labels} nicht ab. Entferne die Verknüpfung oder ergänze passende Slots.`;
+}
+
+function hasUnverifiableTemplateChange(
+  draft: CareOfferingInput,
+  originalActivityGroupID: string | null,
+  metadataStatus: PlannerMetadataStatus,
+): boolean {
+  if (metadataStatus === "ready" || draft.activity_group_id == null) {
+    return false;
+  }
+  return String(draft.activity_group_id) !== originalActivityGroupID;
 }
 
 function linkedTemplateWarnings(
@@ -225,30 +311,12 @@ function linkedTemplateWarnings(
       .map((day) => CARE_DAY_TO_ISO[day])
       .filter((day): day is number => day !== undefined),
   );
-  if (
-    draft.available_days.some((day) => {
-      const iso = CARE_DAY_TO_ISO[day];
-      return iso !== undefined && !templateDays.has(iso);
-    })
-  ) {
-    warnings.push(
-      "Das Angebot enthält Tage, an denen der ausgewählte Regeltermin keinen Slot hat.",
-    );
-  }
   if ([...templateDays].some((day) => !offeringDays.has(day))) {
     warnings.push(
       "Der Regeltermin enthält Tage, die im Angebot nicht auswählbar sind.",
     );
   }
-  const periodIds = new Set(
-    template.schedules
-      .map((schedule) => schedule.calendarPeriodId)
-      .filter((id): id is string => Boolean(id)),
-  );
-  if (
-    periodIds.size !== 1 ||
-    template.schedules.some((schedule) => !schedule.calendarPeriodId)
-  ) {
+  if (!singleTemplatePeriodID(template)) {
     warnings.push(
       "Der Regeltermin muss genau eine Planungsperiode für alle Slots verwenden.",
     );
@@ -257,12 +325,26 @@ function linkedTemplateWarnings(
 }
 
 export function CareOfferingsEditor() {
+  const { tenant } = useTenant();
+  const gradeLevelMax = isSupportedGradeLevelMax(tenant?.gradeLevelMax)
+    ? tenant.gradeLevelMax
+    : null;
   const [phases, setPhases] = useState<Phase[]>([]);
   const [selectedPhaseId, setSelectedPhaseId] = useState<string>("");
+  const selectedPhaseIdRef = useRef("");
+  const catalogLoadSeq = useRef(0);
+  const metadataLoadSeq = useRef(0);
+  const invalidateLoads = useCallback(() => {
+    catalogLoadSeq.current++;
+    metadataLoadSeq.current++;
+  }, []);
   const [offerings, setOfferings] = useState<CareOffering[]>([]);
   const [templates, setTemplates] = useState<TimetableTemplate[]>([]);
   const [periods, setPeriods] = useState<CalendarPeriod[]>([]);
+  const [metadataStatus, setMetadataStatus] =
+    useState<PlannerMetadataStatus>("loading");
   const [loading, setLoading] = useState(true);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CareOfferingInput | null>(null);
@@ -283,44 +365,73 @@ export function CareOfferingsEditor() {
     return sum + offering.capacity;
   }, 0);
 
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+  const loadPlannerMetadata = useCallback(async () => {
+    const requestSeq = ++metadataLoadSeq.current;
+    setMetadataStatus("loading");
     try {
-      const [phasesData, templateData, periodData] = await Promise.all([
-        listPhases(),
+      const [templateData, periodData] = await Promise.all([
         timetableService.getTemplates(),
         calendarPeriodService.list(),
       ]);
-      setPhases(phasesData);
+      if (metadataLoadSeq.current !== requestSeq) return;
       setTemplates(templateData.templates);
       setPeriods(periodData);
-
-      let phaseId = selectedPhaseId;
-      if (!phaseId && phasesData.length > 0) {
-        const first =
-          phasesData.find((phase) => phase.is_active) ?? phasesData[0];
-        if (first) {
-          phaseId = first.id;
-          setSelectedPhaseId(first.id);
-        }
-      }
-
-      const offeringsData = phaseId ? await listCareOfferings(phaseId) : [];
-      setOfferings(offeringsData);
+      setMetadataStatus("ready");
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Unbekannter Fehler";
-      logger.error("care_offerings_load_failed", { error: message });
-      setError(message);
-      toast.error(message);
-    } finally {
-      setLoading(false);
+      if (metadataLoadSeq.current !== requestSeq) return;
+      const message =
+        err instanceof Error ? err.message : "Unbekannter Metadatenfehler";
+      logger.warn("care_offerings_planner_metadata_load_failed", {
+        error: message,
+      });
+      setMetadataStatus("unavailable");
     }
-  }, [selectedPhaseId, toast]);
+  }, []);
+
+  const loadAll = useCallback(
+    async (preferredPhaseId?: string) => {
+      const requestSeq = ++catalogLoadSeq.current;
+      setLoading(true);
+      setError(null);
+      setCatalogError(null);
+      try {
+        const phasesData = await listPhases();
+        if (catalogLoadSeq.current !== requestSeq) return;
+
+        let phaseId = preferredPhaseId ?? selectedPhaseIdRef.current;
+        if (!phasesData.some((phase) => phase.id === phaseId)) {
+          const first =
+            phasesData.find((phase) => phase.is_active) ?? phasesData[0];
+          phaseId = first?.id ?? "";
+        }
+        // Planner metadata and the phase-specific catalog are independent once
+        // the phase is known. Metadata failure must never hide the catalog.
+        void loadPlannerMetadata();
+        const offeringsData = phaseId ? await listCareOfferings(phaseId) : [];
+        if (catalogLoadSeq.current !== requestSeq) return;
+        setPhases(phasesData);
+        selectedPhaseIdRef.current = phaseId;
+        setSelectedPhaseId(phaseId);
+        setOfferings(offeringsData);
+      } catch (err) {
+        if (catalogLoadSeq.current !== requestSeq) return;
+        const message =
+          err instanceof Error ? err.message : "Unbekannter Fehler";
+        logger.error("care_offerings_load_failed", { error: message });
+        setOfferings([]);
+        setCatalogError(message);
+        toast.error(message);
+      } finally {
+        if (catalogLoadSeq.current === requestSeq) setLoading(false);
+      }
+    },
+    [loadPlannerMetadata, toast],
+  );
 
   useEffect(() => {
     void loadAll();
-  }, [loadAll]);
+    return invalidateLoads;
+  }, [invalidateLoads, loadAll]);
 
   const beginCreate = () => {
     if (!selectedPhaseId) return;
@@ -346,9 +457,51 @@ export function CareOfferingsEditor() {
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!draft) return;
-    if (!draftHasCompatibleTemplatePeriod(draft, phases, templates, periods)) {
-      setError(CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE);
-      toast.error(CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE);
+    const originalActivityGroupID =
+      editingId && editingId !== "new"
+        ? (offerings.find((offering) => offering.id === editingId)
+            ?.activity_group_id ?? null)
+        : null;
+    if (
+      hasUnverifiableTemplateChange(
+        draft,
+        originalActivityGroupID,
+        metadataStatus,
+      )
+    ) {
+      setError(UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE);
+      toast.error(UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE);
+      return;
+    }
+    if (
+      draftTemplateCompatibility(
+        draft,
+        phases,
+        templates,
+        periods,
+        metadataStatus,
+      ) === "incompatible"
+    ) {
+      const message = draftUsesInactiveTemplatePeriod(
+        draft,
+        templates,
+        periods,
+        metadataStatus,
+      )
+        ? INACTIVE_TEMPLATE_PERIOD_MESSAGE
+        : CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE;
+      setError(message);
+      toast.error(message);
+      return;
+    }
+    const weekdayError = linkedTemplateWeekdayError(
+      draft,
+      templates,
+      metadataStatus,
+    );
+    if (weekdayError) {
+      setError(weekdayError);
+      toast.error(weekdayError);
       return;
     }
     setSaving(true);
@@ -364,9 +517,10 @@ export function CareOfferingsEditor() {
       cancelFocusMode();
       await loadAll();
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Speichern fehlgeschlagen";
-      logger.error("care_offering_save_failed", { error: message });
+      const technicalMessage =
+        err instanceof Error ? err.message : "Unbekannter Speicherfehler";
+      logger.error("care_offering_save_failed", { error: technicalMessage });
+      const message = safeCareOfferingSaveMessage(err, editingId === "new");
       setError(message);
       toast.error(message);
     } finally {
@@ -551,7 +705,16 @@ export function CareOfferingsEditor() {
         </div>
       )}
 
-      {hasNoPhases ? (
+      {metadataStatus === "unavailable" ? (
+        <PlannerMetadataNotice onRetry={() => void loadPlannerMetadata()} />
+      ) : null}
+
+      {catalogError ? (
+        <CareOfferingCatalogError
+          message={catalogError}
+          onRetry={() => void loadAll(selectedPhaseIdRef.current)}
+        />
+      ) : hasNoPhases ? (
         <NoPhaseState />
       ) : (
         <>
@@ -563,7 +726,10 @@ export function CareOfferingsEditor() {
             selectableDaysCount={selectableDaysCount}
             totalCapacity={totalCapacity}
             focusMode={Boolean(draft || cloneSource)}
-            onPhaseChange={setSelectedPhaseId}
+            onPhaseChange={(phaseId) => {
+              selectedPhaseIdRef.current = phaseId;
+              void loadAll(phaseId);
+            }}
             onCreate={beginCreate}
           />
 
@@ -587,6 +753,14 @@ export function CareOfferingsEditor() {
               offerings={offerings}
               templates={templates}
               periods={periods}
+              metadataStatus={metadataStatus}
+              originalActivityGroupID={
+                editingId && editingId !== "new"
+                  ? (offerings.find((offering) => offering.id === editingId)
+                      ?.activity_group_id ?? null)
+                  : null
+              }
+              gradeLevelMax={gradeLevelMax}
               saving={saving}
               onChange={setDraft}
               onSubmit={handleSave}
@@ -721,6 +895,50 @@ function CareOfferingMetric({
         <span className="block text-xs text-gray-500">{label}</span>
       </span>
     </div>
+  );
+}
+
+function PlannerMetadataNotice({ onRetry }: Readonly<{ onRetry: () => void }>) {
+  return (
+    <div
+      className="flex flex-col gap-3 rounded-2xl border border-[#F3B63F]/50 bg-[#F3B63F]/10 p-4 text-sm text-[#805600] sm:flex-row sm:items-center sm:justify-between"
+      role="status"
+    >
+      <p>{PLANNER_METADATA_UNAVAILABLE_MESSAGE}</p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg border border-[#F3B63F]/60 bg-white px-3 text-sm font-medium text-[#805600] shadow-sm transition-colors hover:bg-[#F3B63F]/10 focus-visible:ring-2 focus-visible:ring-[#F3B63F] focus-visible:outline-none"
+      >
+        Erneut laden
+      </button>
+    </div>
+  );
+}
+
+function CareOfferingCatalogError({
+  message,
+  onRetry,
+}: Readonly<{ message: string; onRetry: () => void }>) {
+  return (
+    <section
+      className="moto-content-surface rounded-2xl border border-[#FF3130]/20 px-6 py-10 text-center shadow-sm"
+      role="alert"
+    >
+      <h2 className="text-base font-semibold text-gray-900">
+        Betreuungsangebote konnten nicht geladen werden
+      </h2>
+      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-[#CC2626]">
+        {message}
+      </p>
+      <button
+        type="button"
+        onClick={onRetry}
+        className="mt-5 inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+      >
+        Betreuungsangebote erneut laden
+      </button>
+    </section>
   );
 }
 
@@ -965,11 +1183,588 @@ interface CareOfferingFormProps {
   readonly offerings: CareOffering[];
   readonly templates: TimetableTemplate[];
   readonly periods: CalendarPeriod[];
+  readonly metadataStatus: PlannerMetadataStatus;
+  readonly originalActivityGroupID: string | null;
+  readonly gradeLevelMax: number | null;
   readonly saving: boolean;
   readonly onChange: (draft: CareOfferingInput) => void;
   readonly onSubmit: (event: React.FormEvent) => void;
   readonly onCancel: () => void;
   readonly onTemplateUnlinked: () => void;
+}
+
+function phaseChangePatch({
+  draft,
+  phaseID,
+  editingID,
+  phases,
+  offerings,
+  templates,
+  periods,
+  metadataStatus,
+}: Readonly<{
+  draft: CareOfferingInput;
+  phaseID: number;
+  editingID: string | null;
+  phases: Phase[];
+  offerings: CareOffering[];
+  templates: TimetableTemplate[];
+  periods: CalendarPeriod[];
+  metadataStatus: PlannerMetadataStatus;
+}>): { patch: Partial<CareOfferingInput>; templateUnlinked: boolean } {
+  const nextPhase = phases.find((phase) => phase.id === String(phaseID));
+  const linkedTemplate = templates.find(
+    (template) => template.id === String(draft.activity_group_id),
+  );
+  const compatibility =
+    metadataStatus === "ready" && nextPhase && linkedTemplate
+      ? templatePhaseCompatibility(
+          linkedTemplate,
+          nextPhase,
+          periods,
+          draft.is_active,
+        )
+      : "unknown";
+  const templateUnlinked =
+    draft.activity_group_id != null && compatibility === "incompatible";
+  const validTriggerIDs = new Set(
+    offerings
+      .filter(
+        (offering) =>
+          offering.phase_id === String(phaseID) && offering.id !== editingID,
+      )
+      .map((offering) => offering.id),
+  );
+
+  return {
+    patch: {
+      phase_id: phaseID,
+      auto_add_trigger_offering_ids: (
+        draft.auto_add_trigger_offering_ids ?? []
+      ).filter((id) => validTriggerIDs.has(id)),
+      activity_group_id: templateUnlinked ? null : draft.activity_group_id,
+    },
+    templateUnlinked,
+  };
+}
+
+function toggleSetValue<T>(values: Iterable<T>, value: T): Set<T> {
+  const next = new Set(values);
+  if (next.has(value)) next.delete(value);
+  else next.add(value);
+  return next;
+}
+
+function isSupportedAutoAddGrade(value: number): boolean {
+  return isSupportedGradeLevelMax(value);
+}
+
+function careOfferingGradeOptions(
+  gradeLevelMax: number | null,
+  selectedGrades: readonly number[],
+): number[] {
+  const options = new Set(selectedGrades.filter(isSupportedAutoAddGrade));
+  if (gradeLevelMax !== null) {
+    for (let grade = 1; grade <= gradeLevelMax; grade++) options.add(grade);
+  }
+  return [...options].sort((a, b) => a - b);
+}
+
+function unknownCompatibilityMessage(
+  metadataStatus: PlannerMetadataStatus,
+): string {
+  if (metadataStatus === "loading") {
+    return "Die Regeltermin-Kompatibilität wird geladen. Die bestehende Verknüpfung bleibt unverändert.";
+  }
+  if (metadataStatus === "unavailable") {
+    return "Die Regeltermin-Kompatibilität ist derzeit unbekannt. Die bestehende Verknüpfung bleibt erhalten und wird beim Speichern serverseitig geprüft.";
+  }
+  return "Die Planungsperiode des verknüpften Regeltermins ist nicht eindeutig. Die Verknüpfung bleibt erhalten und wird beim Speichern serverseitig geprüft.";
+}
+
+function CareOfferingTemplateField({
+  draft,
+  phases,
+  templates,
+  periods,
+  metadataStatus,
+  onChange,
+}: Readonly<{
+  draft: CareOfferingInput;
+  phases: Phase[];
+  templates: TimetableTemplate[];
+  periods: CalendarPeriod[];
+  metadataStatus: PlannerMetadataStatus;
+  onChange: (patch: Partial<CareOfferingInput>) => void;
+}>) {
+  const selectedPhase = phases.find(
+    (phase) => phase.id === String(draft.phase_id),
+  );
+  const compatibleTemplates =
+    metadataStatus === "ready" && selectedPhase
+      ? templates.filter(
+          (template) =>
+            templatePhaseCompatibility(
+              template,
+              selectedPhase,
+              periods,
+              draft.is_active,
+            ) === "compatible",
+        )
+      : [];
+  const linkedTemplateID = draft.activity_group_id?.toString() ?? "";
+  const linkedTemplate = templates.find(
+    (template) => template.id === linkedTemplateID,
+  );
+  const compatibility = draftTemplateCompatibility(
+    draft,
+    phases,
+    templates,
+    periods,
+    metadataStatus,
+  );
+  const periodMismatch = compatibility === "incompatible";
+  const inactivePeriodMismatch = draftUsesInactiveTemplatePeriod(
+    draft,
+    templates,
+    periods,
+    metadataStatus,
+  );
+  const compatibilityUnknown =
+    linkedTemplateID !== "" && compatibility === "unknown";
+  // When metadata is ready, an unresolved current link is actionable: keep
+  // that invalid option disabled, but let the user choose "Keine Zuordnung"
+  // or a compatible replacement. Disabling the whole control would leave the
+  // user stuck because the server correctly rejects the unresolved link.
+  const selectorDisabled =
+    metadataStatus !== "ready" && linkedTemplateID === "";
+  const templateWarnings =
+    metadataStatus === "ready" ? linkedTemplateWarnings(draft, templates) : [];
+  const weekdayError = linkedTemplateWeekdayError(
+    draft,
+    templates,
+    metadataStatus,
+  );
+  const options: Array<{
+    value: string;
+    label: string;
+    disabled?: boolean;
+  }> = [
+    {
+      value: "",
+      label: "Keine automatische Regeltermin-Zuordnung",
+    },
+  ];
+
+  if (periodMismatch || compatibilityUnknown) {
+    const name = linkedTemplate
+      ? templateLabel(linkedTemplate)
+      : `Regeltermin #${linkedTemplateID}`;
+    options.push({
+      value: linkedTemplateID,
+      label: `${name} (${periodMismatch ? "nicht kompatibel" : "Kompatibilität unbekannt"})`,
+      disabled: true,
+    });
+  }
+  options.push(
+    ...compatibleTemplates.map((template) => ({
+      value: String(template.id),
+      label: templateLabel(template),
+    })),
+  );
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white/70 p-4">
+      <label className="block" htmlFor="care-offering-template">
+        <span className="text-xs font-medium text-gray-700">Regeltermin</span>
+        <CustomSelect
+          id="care-offering-template"
+          value={linkedTemplateID}
+          onChange={(value) =>
+            onChange({ activity_group_id: value ? Number(value) : null })
+          }
+          disabled={selectorDisabled}
+          className="mt-1 border-gray-200 bg-white"
+          invalid={periodMismatch || weekdayError !== null}
+          options={options}
+        />
+      </label>
+      <p className="mt-2 text-xs text-gray-600">
+        Genehmigte Anmeldungen werden in diesen Regeltermin übernommen und an
+        den ausgewählten Angebotstagen erwartet.
+      </p>
+      {periodMismatch ? (
+        <p
+          className="mt-2 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 px-3 py-2 text-xs text-[#CC2626]"
+          role="alert"
+        >
+          {inactivePeriodMismatch
+            ? INACTIVE_TEMPLATE_PERIOD_MESSAGE
+            : CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE}
+        </p>
+      ) : null}
+      {compatibilityUnknown ? (
+        <p className="mt-2 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#805600]">
+          {unknownCompatibilityMessage(metadataStatus)}
+        </p>
+      ) : null}
+      {weekdayError ? (
+        <p
+          className="mt-2 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 px-3 py-2 text-xs text-[#CC2626]"
+          role="alert"
+        >
+          {weekdayError}
+        </p>
+      ) : null}
+      {metadataStatus === "ready" &&
+      !periodMismatch &&
+      !compatibilityUnknown &&
+      compatibleTemplates.length === 0 ? (
+        <p className="mt-2 text-xs text-gray-500">
+          Kein Regeltermin deckt den gesamten Betreuungszeitraum dieser Phase
+          ab.
+        </p>
+      ) : null}
+      {templateWarnings.length > 0 ? (
+        <ul className="mt-2 space-y-1 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">
+          {templateWarnings.map((warning) => (
+            <li key={warning}>{warning}</li>
+          ))}
+        </ul>
+      ) : null}
+    </section>
+  );
+}
+
+function CareOfferingWeekdayFields({
+  draft,
+  onChange,
+}: Readonly<{
+  draft: CareOfferingInput;
+  onChange: (patch: Partial<CareOfferingInput>) => void;
+}>) {
+  const toggleDay = (day: string) => {
+    const nextDays = toggleSetValue(draft.available_days, day);
+    onChange({
+      available_days: WEEKDAY_KEYS.filter((dayKey) => nextDays.has(dayKey)),
+    });
+  };
+
+  return (
+    <fieldset className="rounded-xl border border-gray-200 p-4">
+      <legend className="px-1 text-xs font-medium text-gray-700">
+        Wochentage
+      </legend>
+      <div className="flex flex-wrap gap-2">
+        {WEEKDAY_KEYS.map((day) => {
+          const active = draft.available_days.includes(day);
+          return (
+            <button
+              key={day}
+              type="button"
+              aria-pressed={active}
+              onClick={() => toggleDay(day)}
+              className={`h-9 rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                active
+                  ? "border-gray-900 bg-gray-900 text-white"
+                  : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+              }`}
+            >
+              {DAY_LABELS[day]}
+            </button>
+          );
+        })}
+      </div>
+      <div className="mt-3">
+        <CareOfferingCheckbox
+          checked={draft.days_of_week_mode === "parent_choice"}
+          onChange={(checked) =>
+            onChange({
+              days_of_week_mode: checked
+                ? "parent_choice"
+                : ("fixed" as DaysOfWeekMode),
+            })
+          }
+          label="Eltern können einzelne Tage auswählen"
+          hint="Sonst gilt das Angebot für den gesamten gewählten Rhythmus."
+        />
+      </div>
+    </fieldset>
+  );
+}
+
+function CareOfferingAutomationFields({
+  draft,
+  offerings,
+  editingID,
+  gradeLevelMax,
+  onChange,
+}: Readonly<{
+  draft: CareOfferingInput;
+  offerings: CareOffering[];
+  editingID: string | null;
+  gradeLevelMax: number | null;
+  onChange: (patch: Partial<CareOfferingInput>) => void;
+}>) {
+  const triggerOptions = offerings.filter(
+    (offering) =>
+      offering.phase_id === String(draft.phase_id) && offering.id !== editingID,
+  );
+  const toggleTriggerOffering = (offeringID: string) => {
+    const next = toggleSetValue(
+      draft.auto_add_trigger_offering_ids ?? [],
+      offeringID,
+    );
+    onChange({
+      auto_add_trigger_offering_ids: triggerOptions
+        .map((offering) => offering.id)
+        .filter((id) => next.has(id)),
+    });
+  };
+  const selectedGrades = (draft.auto_add_grade_levels ?? [])
+    .filter(isSupportedAutoAddGrade)
+    .sort((a, b) => a - b);
+  const gradeOptions = careOfferingGradeOptions(gradeLevelMax, selectedGrades);
+  const toggleAutoAddGrade = (grade: number) => {
+    const next = toggleSetValue(selectedGrades, grade);
+    onChange({
+      auto_add_grade_levels: [...next]
+        .filter(isSupportedAutoAddGrade)
+        .sort((a, b) => a - b),
+    });
+  };
+
+  return (
+    <fieldset className="rounded-xl border border-gray-200 p-4">
+      <legend className="px-1 text-xs font-medium text-gray-700">
+        Betreuungstage & Mitbuchung
+      </legend>
+      <div className="space-y-4">
+        <CareOfferingCheckbox
+          checked={draft.counts_as_care}
+          onChange={(checked) => onChange({ counts_as_care: checked })}
+          label="Als Betreuungstage zählen"
+          hint="Gilt für Filter, Kennzahlen und Exporte."
+        />
+
+        <div className="rounded-lg border border-gray-100 bg-gray-50/70 p-3">
+          <p className="text-xs font-medium text-gray-700">
+            Dieses Angebot mitbuchen, wenn Eltern eines dieser Angebote wählen:
+          </p>
+          {triggerOptions.length > 0 ? (
+            <div className="mt-2 grid gap-2 sm:grid-cols-2">
+              {triggerOptions.map((offering) => (
+                <CareOfferingCheckbox
+                  key={offering.id}
+                  checked={(draft.auto_add_trigger_offering_ids ?? []).includes(
+                    offering.id,
+                  )}
+                  onChange={() => toggleTriggerOffering(offering.id)}
+                  label={offering.name}
+                  hint={formatDays(offering.available_days)}
+                />
+              ))}
+            </div>
+          ) : (
+            <p className="mt-2 text-xs text-gray-500">
+              In dieser Phase gibt es noch kein anderes Angebot als Auslöser.
+            </p>
+          )}
+          {draft.auto_add_trigger_offering_ids.length > 0 &&
+          draft.days_of_week_mode !== "parent_choice" ? (
+            <p className="mt-2 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">
+              Mitgebuchte Angebote müssen einzelne Tage auswählbar machen.
+            </p>
+          ) : null}
+        </div>
+
+        <div>
+          <p className="text-xs font-medium text-gray-700">
+            Mitbuchung gilt für Klassenstufen
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {gradeOptions.map((grade) => {
+              const active = selectedGrades.includes(grade);
+              const aboveCurrentCap =
+                gradeLevelMax !== null && grade > gradeLevelMax;
+              return (
+                <button
+                  key={grade}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => toggleAutoAddGrade(grade)}
+                  className={`h-8 rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                    active
+                      ? "border-gray-900 bg-gray-900 text-white"
+                      : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  Klasse {grade}
+                  {aboveCurrentCap ? " (bestehend)" : ""}
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-1 text-xs text-gray-500">
+            Keine Auswahl bedeutet: Die Mitbuchung gilt für alle Klassenstufen.
+          </p>
+        </div>
+      </div>
+    </fieldset>
+  );
+}
+
+function nullableNumber(value: string): number | null {
+  return value === "" ? null : Number(value);
+}
+
+function CareOfferingCommercialFields({
+  draft,
+  onChange,
+}: Readonly<{
+  draft: CareOfferingInput;
+  onChange: (patch: Partial<CareOfferingInput>) => void;
+}>) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-3">
+      <label className="block">
+        <span className="text-xs font-medium text-gray-700">Kapazität</span>
+        <input
+          type="number"
+          name="capacity"
+          min={0}
+          value={draft.is_required ? "" : (draft.capacity ?? "")}
+          disabled={draft.is_required}
+          onChange={(event) =>
+            onChange({ capacity: nullableNumber(event.target.value) })
+          }
+          placeholder={
+            draft.is_required ? "Unbegrenzt (Pflicht)" : "Unbegrenzt"
+          }
+          className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
+        />
+        {draft.is_required ? (
+          <span className="mt-1 block text-xs text-gray-500">
+            Pflichtangebote haben keine Platzbegrenzung.
+          </span>
+        ) : null}
+      </label>
+      <label className="block">
+        <span className="text-xs font-medium text-gray-700">Preis in Cent</span>
+        <input
+          type="number"
+          name="price_cents"
+          min={0}
+          value={draft.price_cents ?? ""}
+          onChange={(event) =>
+            onChange({ price_cents: nullableNumber(event.target.value) })
+          }
+          placeholder="Optional"
+          className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        />
+      </label>
+      <label className="block">
+        <span className="text-xs font-medium text-gray-700">Reihenfolge</span>
+        <input
+          type="number"
+          name="sort_order"
+          value={draft.sort_order}
+          onChange={(event) =>
+            onChange({ sort_order: Number(event.target.value) })
+          }
+          className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        />
+        <span className="mt-1 block text-xs text-gray-500">
+          Kleinere Zahlen erscheinen im Elternformular weiter oben.
+        </span>
+      </label>
+    </div>
+  );
+}
+
+function CareOfferingDisplayFields({
+  draft,
+  onChange,
+}: Readonly<{
+  draft: CareOfferingInput;
+  onChange: (patch: Partial<CareOfferingInput>) => void;
+}>) {
+  return (
+    <fieldset className="rounded-xl border border-gray-200 p-4">
+      <legend className="px-1 text-xs font-medium text-gray-700">
+        Anzeige im Elternformular
+      </legend>
+      <div className="grid gap-2 sm:grid-cols-3">
+        <CareOfferingCheckbox
+          checked={draft.includes_holiday_care}
+          onChange={(checked) => onChange({ includes_holiday_care: checked })}
+          label="Ferienbetreuung"
+          hint="Wird als Ferienangebot gekennzeichnet"
+        />
+        <CareOfferingCheckbox
+          checked={draft.includes_lunch}
+          onChange={(checked) => onChange({ includes_lunch: checked })}
+          label="Mittagessen"
+          hint="Zeigt Eltern, dass Essen enthalten ist"
+        />
+        <CareOfferingCheckbox
+          checked={draft.is_active}
+          onChange={(checked) => onChange({ is_active: checked })}
+          label="Aktiv"
+          hint="Nur aktive Angebote sind auswählbar"
+        />
+        <CareOfferingCheckbox
+          checked={draft.is_required}
+          onChange={(checked) =>
+            onChange(
+              checked
+                ? { is_required: true, capacity: null }
+                : { is_required: false },
+            )
+          }
+          label="Pflicht"
+          hint="Jedes Kind muss dieses Angebot wählen (ohne Platzbegrenzung)"
+        />
+      </div>
+    </fieldset>
+  );
+}
+
+function submitLabel(saving: boolean, editing: boolean): string {
+  if (saving) return "Speichert...";
+  return editing ? "Speichern" : "Erstellen";
+}
+
+function CareOfferingFormActions({
+  saving,
+  editing,
+  submitDisabled,
+  onCancel,
+}: Readonly<{
+  saving: boolean;
+  editing: boolean;
+  submitDisabled: boolean;
+  onCancel: () => void;
+}>) {
+  return (
+    <div className="flex justify-end gap-2">
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={saving}
+        className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+      >
+        Abbrechen
+      </button>
+      <button
+        type="submit"
+        disabled={submitDisabled}
+        className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {submitLabel(saving, editing)}
+      </button>
+    </div>
+  );
 }
 
 function CareOfferingForm({
@@ -980,6 +1775,9 @@ function CareOfferingForm({
   offerings,
   templates,
   periods,
+  metadataStatus,
+  originalActivityGroupID,
+  gradeLevelMax,
   saving,
   onChange,
   onSubmit,
@@ -988,50 +1786,21 @@ function CareOfferingForm({
 }: CareOfferingFormProps) {
   const update = (patch: Partial<CareOfferingInput>) =>
     onChange({ ...draft, ...patch });
-  const templateWarnings = linkedTemplateWarnings(draft, templates);
-  const selectedPhase = phases.find(
-    (phase) => phase.id === String(draft.phase_id),
-  );
-  const compatibleTemplates = selectedPhase
-    ? templates.filter((template) =>
-        templateFitsPhasePeriod(template, selectedPhase, periods),
-      )
-    : [];
-  const linkedTemplateID = draft.activity_group_id?.toString() ?? "";
-  const linkedTemplate = templates.find(
-    (template) => template.id === linkedTemplateID,
-  );
   const linkedTemplatePeriodMismatch =
-    linkedTemplateID !== "" &&
-    !draftHasCompatibleTemplatePeriod(draft, phases, templates, periods);
-  const triggerOptions = offerings.filter(
-    (offering) =>
-      offering.phase_id === String(draft.phase_id) && offering.id !== editingId,
+    draftTemplateCompatibility(
+      draft,
+      phases,
+      templates,
+      periods,
+      metadataStatus,
+    ) === "incompatible";
+  const linkedTemplateWeekdayMismatch =
+    linkedTemplateWeekdayError(draft, templates, metadataStatus) !== null;
+  const unverifiableTemplateChange = hasUnverifiableTemplateChange(
+    draft,
+    originalActivityGroupID,
+    metadataStatus,
   );
-  const toggleDay = (day: string) => {
-    const nextDays = new Set(draft.available_days);
-    if (nextDays.has(day)) nextDays.delete(day);
-    else nextDays.add(day);
-    update({
-      available_days: WEEKDAY_KEYS.filter((dayKey) => nextDays.has(dayKey)),
-    });
-  };
-  const toggleAutoAddGrade = (grade: number) => {
-    const next = new Set(draft.auto_add_grade_levels ?? []);
-    if (next.has(grade)) next.delete(grade);
-    else next.add(grade);
-    update({ auto_add_grade_levels: [1, 2, 3, 4].filter((g) => next.has(g)) });
-  };
-  const toggleTriggerOffering = (offeringID: string) => {
-    const next = new Set(draft.auto_add_trigger_offering_ids ?? []);
-    if (next.has(offeringID)) next.delete(offeringID);
-    else next.add(offeringID);
-    update({
-      auto_add_trigger_offering_ids: triggerOptions
-        .map((offering) => offering.id)
-        .filter((id) => next.has(id)),
-    });
-  };
 
   return (
     <form
@@ -1076,35 +1845,18 @@ function CareOfferingForm({
             value={draft.phase_id?.toString() ?? ""}
             onChange={(value) => {
               const phaseID = value ? Number(value) : 0;
-              const nextPhase = phases.find((phase) => phase.id === value);
-              const linkedTemplateRemainsCompatible = Boolean(
-                draft.activity_group_id &&
-                nextPhase &&
-                linkedTemplate &&
-                templateFitsPhasePeriod(linkedTemplate, nextPhase, periods),
-              );
-              const shouldUnlinkTemplate = Boolean(
-                draft.activity_group_id && !linkedTemplateRemainsCompatible,
-              );
-              const validTriggerIDs = new Set(
-                offerings
-                  .filter(
-                    (offering) =>
-                      offering.phase_id === String(phaseID) &&
-                      offering.id !== editingId,
-                  )
-                  .map((offering) => offering.id),
-              );
-              update({
-                phase_id: phaseID,
-                auto_add_trigger_offering_ids: (
-                  draft.auto_add_trigger_offering_ids ?? []
-                ).filter((id) => validTriggerIDs.has(id)),
-                activity_group_id: linkedTemplateRemainsCompatible
-                  ? draft.activity_group_id
-                  : null,
+              const result = phaseChangePatch({
+                draft,
+                phaseID,
+                editingID: editingId,
+                phases,
+                offerings,
+                templates,
+                periods,
+                metadataStatus,
               });
-              if (shouldUnlinkTemplate) onTemplateUnlinked();
+              update(result.patch);
+              if (result.templateUnlinked) onTemplateUnlinked();
             }}
             className="mt-1"
             options={[
@@ -1118,70 +1870,23 @@ function CareOfferingForm({
         </label>
       </div>
 
-      <section className="rounded-xl border border-gray-200 bg-white/70 p-4">
-        <label className="block" htmlFor="care-offering-template">
-          <span className="text-xs font-medium text-gray-700">Regeltermin</span>
-          <CustomSelect
-            id="care-offering-template"
-            value={draft.activity_group_id?.toString() ?? ""}
-            onChange={(value) =>
-              update({
-                activity_group_id: value ? Number(value) : null,
-              })
-            }
-            className="mt-1 border-gray-200 bg-white"
-            invalid={linkedTemplatePeriodMismatch}
-            options={[
-              {
-                value: "",
-                label: "Keine automatische Regeltermin-Zuordnung",
-              },
-              ...(linkedTemplatePeriodMismatch
-                ? [
-                    {
-                      value: linkedTemplateID,
-                      label: `${
-                        linkedTemplate
-                          ? templateLabel(linkedTemplate)
-                          : `Regeltermin #${linkedTemplateID}`
-                      } (nicht kompatibel)`,
-                      disabled: true,
-                    },
-                  ]
-                : []),
-              ...compatibleTemplates.map((template) => ({
-                value: String(template.id),
-                label: templateLabel(template),
-              })),
-            ]}
-          />
-        </label>
-        <p className="mt-2 text-xs text-gray-600">
-          Genehmigte Anmeldungen werden in diesen Regeltermin übernommen und an
-          den ausgewählten Angebotstagen erwartet.
+      <CareOfferingTemplateField
+        draft={draft}
+        phases={phases}
+        templates={templates}
+        periods={periods}
+        metadataStatus={metadataStatus}
+        onChange={update}
+      />
+
+      {unverifiableTemplateChange ? (
+        <p
+          className="rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 px-3 py-2 text-xs text-[#CC2626]"
+          role="alert"
+        >
+          {UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE}
         </p>
-        {linkedTemplatePeriodMismatch ? (
-          <p
-            className="mt-2 rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 px-3 py-2 text-xs text-[#CC2626]"
-            role="alert"
-          >
-            {CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE}
-          </p>
-        ) : null}
-        {!linkedTemplatePeriodMismatch && compatibleTemplates.length === 0 ? (
-          <p className="mt-2 text-xs text-gray-500">
-            Kein Regeltermin deckt den gesamten Betreuungszeitraum dieser Phase
-            ab.
-          </p>
-        ) : null}
-        {templateWarnings.length > 0 ? (
-          <ul className="mt-2 space-y-1 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">
-            {templateWarnings.map((warning) => (
-              <li key={warning}>{warning}</li>
-            ))}
-          </ul>
-        ) : null}
-      </section>
+      ) : null}
 
       <label className="block">
         <span className="text-xs font-medium text-gray-700">Beschreibung</span>
@@ -1249,244 +1954,33 @@ function CareOfferingForm({
         </div>
       </fieldset>
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Wochentage
-        </legend>
-        <div className="flex flex-wrap gap-2">
-          {WEEKDAY_KEYS.map((day) => {
-            const active = draft.available_days.includes(day);
-            return (
-              <button
-                key={day}
-                type="button"
-                onClick={() => toggleDay(day)}
-                className={`h-9 rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                  active
-                    ? "border-gray-900 bg-gray-900 text-white"
-                    : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                }`}
-              >
-                {DAY_LABELS[day]}
-              </button>
-            );
-          })}
-        </div>
-        <div className="mt-3">
-          <CareOfferingCheckbox
-            checked={draft.days_of_week_mode === "parent_choice"}
-            onChange={(checked) =>
-              update({
-                days_of_week_mode: checked
-                  ? "parent_choice"
-                  : ("fixed" as DaysOfWeekMode),
-              })
-            }
-            label="Eltern können einzelne Tage auswählen"
-            hint="Sonst gilt das Angebot für den gesamten gewählten Rhythmus."
-          />
-        </div>
-      </fieldset>
+      <CareOfferingWeekdayFields draft={draft} onChange={update} />
 
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Betreuungstage & Mitbuchung
-        </legend>
-        <div className="space-y-4">
-          <CareOfferingCheckbox
-            checked={draft.counts_as_care}
-            onChange={(checked) => update({ counts_as_care: checked })}
-            label="Als Betreuungstage zählen"
-            hint="Gilt für Filter, Kennzahlen und Exporte."
-          />
+      <CareOfferingAutomationFields
+        draft={draft}
+        offerings={offerings}
+        editingID={editingId}
+        gradeLevelMax={gradeLevelMax}
+        onChange={update}
+      />
 
-          <div className="rounded-lg border border-gray-100 bg-gray-50/70 p-3">
-            <p className="text-xs font-medium text-gray-700">
-              Dieses Angebot mitbuchen, wenn Eltern eines dieser Angebote
-              wählen:
-            </p>
-            {triggerOptions.length > 0 ? (
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {triggerOptions.map((offering) => (
-                  <CareOfferingCheckbox
-                    key={offering.id}
-                    checked={(
-                      draft.auto_add_trigger_offering_ids ?? []
-                    ).includes(offering.id)}
-                    onChange={() => toggleTriggerOffering(offering.id)}
-                    label={offering.name}
-                    hint={formatDays(offering.available_days)}
-                  />
-                ))}
-              </div>
-            ) : (
-              <p className="mt-2 text-xs text-gray-500">
-                In dieser Phase gibt es noch kein anderes Angebot als Auslöser.
-              </p>
-            )}
-            {draft.auto_add_trigger_offering_ids.length > 0 &&
-            draft.days_of_week_mode !== "parent_choice" ? (
-              <p className="mt-2 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">
-                Mitgebuchte Angebote müssen einzelne Tage auswählbar machen.
-              </p>
-            ) : null}
-          </div>
+      <CareOfferingCommercialFields draft={draft} onChange={update} />
 
-          <div>
-            <p className="text-xs font-medium text-gray-700">
-              Mitbuchung gilt für Klassenstufen
-            </p>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {[1, 2, 3, 4].map((grade) => {
-                const active = (draft.auto_add_grade_levels ?? []).includes(
-                  grade,
-                );
-                return (
-                  <button
-                    key={grade}
-                    type="button"
-                    onClick={() => toggleAutoAddGrade(grade)}
-                    className={`h-8 rounded-lg border px-3 text-xs font-medium transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                      active
-                        ? "border-gray-900 bg-gray-900 text-white"
-                        : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
-                    }`}
-                  >
-                    Klasse {grade}
-                  </button>
-                );
-              })}
-            </div>
-            <p className="mt-1 text-xs text-gray-500">
-              Keine Auswahl bedeutet: Die Mitbuchung gilt für alle
-              Klassenstufen.
-            </p>
-          </div>
-        </div>
-      </fieldset>
+      <CareOfferingDisplayFields draft={draft} onChange={update} />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <label className="block">
-          <span className="text-xs font-medium text-gray-700">Kapazität</span>
-          <input
-            type="number"
-            name="capacity"
-            min={0}
-            value={draft.is_required ? "" : (draft.capacity ?? "")}
-            disabled={draft.is_required}
-            onChange={(event) =>
-              update({
-                capacity:
-                  event.target.value === "" ? null : Number(event.target.value),
-              })
-            }
-            placeholder={
-              draft.is_required ? "Unbegrenzt (Pflicht)" : "Unbegrenzt"
-            }
-            className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-50 disabled:text-gray-400"
-          />
-          {draft.is_required && (
-            <span className="mt-1 block text-xs text-gray-500">
-              Pflichtangebote haben keine Platzbegrenzung.
-            </span>
-          )}
-        </label>
-        <label className="block">
-          <span className="text-xs font-medium text-gray-700">
-            Preis in Cent
-          </span>
-          <input
-            type="number"
-            name="price_cents"
-            min={0}
-            value={draft.price_cents ?? ""}
-            onChange={(event) =>
-              update({
-                price_cents:
-                  event.target.value === "" ? null : Number(event.target.value),
-              })
-            }
-            placeholder="Optional"
-            className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          />
-        </label>
-        <label className="block">
-          <span className="text-xs font-medium text-gray-700">Reihenfolge</span>
-          <input
-            type="number"
-            name="sort_order"
-            value={draft.sort_order}
-            onChange={(event) =>
-              update({ sort_order: Number(event.target.value) })
-            }
-            className="mt-1 h-10 w-full rounded-lg border border-gray-200 px-3 text-sm shadow-sm transition-colors hover:border-gray-300 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          />
-          <span className="mt-1 block text-xs text-gray-500">
-            Kleinere Zahlen erscheinen im Elternformular weiter oben.
-          </span>
-        </label>
-      </div>
-
-      <fieldset className="rounded-xl border border-gray-200 p-4">
-        <legend className="px-1 text-xs font-medium text-gray-700">
-          Anzeige im Elternformular
-        </legend>
-        <div className="grid gap-2 sm:grid-cols-3">
-          <CareOfferingCheckbox
-            checked={draft.includes_holiday_care}
-            onChange={(checked) => update({ includes_holiday_care: checked })}
-            label="Ferienbetreuung"
-            hint="Wird als Ferienangebot gekennzeichnet"
-          />
-          <CareOfferingCheckbox
-            checked={draft.includes_lunch}
-            onChange={(checked) => update({ includes_lunch: checked })}
-            label="Mittagessen"
-            hint="Zeigt Eltern, dass Essen enthalten ist"
-          />
-          <CareOfferingCheckbox
-            checked={draft.is_active}
-            onChange={(checked) => update({ is_active: checked })}
-            label="Aktiv"
-            hint="Nur aktive Angebote sind auswählbar"
-          />
-          <CareOfferingCheckbox
-            checked={draft.is_required}
-            onChange={(checked) =>
-              update(
-                checked
-                  ? { is_required: true, capacity: null }
-                  : { is_required: false },
-              )
-            }
-            label="Pflicht"
-            hint="Jedes Kind muss dieses Angebot wählen (ohne Platzbegrenzung)"
-          />
-        </div>
-      </fieldset>
-
-      <div className="flex justify-end gap-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={saving}
-          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
-        >
-          Abbrechen
-        </button>
-        <button
-          type="submit"
-          disabled={
-            saving ||
-            !draft.phase_id ||
-            !draft.name.trim() ||
-            linkedTemplatePeriodMismatch
-          }
-          className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {saving ? "Speichert..." : editing ? "Speichern" : "Erstellen"}
-        </button>
-      </div>
+      <CareOfferingFormActions
+        saving={saving}
+        editing={editing}
+        submitDisabled={
+          saving ||
+          !draft.phase_id ||
+          !draft.name.trim() ||
+          linkedTemplatePeriodMismatch ||
+          linkedTemplateWeekdayMismatch ||
+          unverifiableTemplateChange
+        }
+        onCancel={onCancel}
+      />
     </form>
   );
 }

@@ -32,6 +32,8 @@ func ErrorRenderer(err error) render.Renderer {
 			return common.ErrorNotFound(inner)
 		case facilities.ErrRoomInUse:
 			return common.ErrorConflict(inner)
+		case facilities.ErrRoomRequiredByCareOffering:
+			return common.ErrorConflict(inner)
 		case facilities.ErrSystemRoomProtected:
 			return common.ErrorForbidden(inner)
 		case facilities.ErrSystemRoomNameReserved:

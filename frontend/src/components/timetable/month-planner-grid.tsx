@@ -139,7 +139,7 @@ export function MonthPlannerGrid({
                             aria-label={`${inst.conflictWarnings.length} Konflikte`}
                           />
                         )}
-                        {inst.requiredStaffCount > 0 && (
+                        {!isCancelled && inst.requiredStaffCount > 0 && (
                           <TimetableRatioPill
                             variant="dot"
                             icon={null}

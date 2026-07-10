@@ -2,8 +2,6 @@ package activities
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -16,12 +14,10 @@ import (
 
 // EnrollStudent enrolls a student in an activity group
 func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) error {
-	// Check if group exists
-	_, err := s.groupRepo.FindByID(ctx, groupID)
+	// Timetable rosters have provenance and recurrence semantics that this
+	// legacy endpoint cannot preserve.
+	_, err := s.findMutableActivityGroup(ctx, groupID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return &ActivityError{Op: "enroll student", Err: ErrGroupNotFound}
-		}
 		return &ActivityError{Op: "enroll student", Err: err}
 	}
 
@@ -54,7 +50,7 @@ func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) e
 
 // UnenrollStudent removes a student from an activity group
 func (s *Service) UnenrollStudent(ctx context.Context, groupID, studentID int64) error {
-	if err := s.validateGroupExists(ctx, s, groupID); err != nil {
+	if _, err := s.findMutableActivityGroup(ctx, groupID); err != nil {
 		return &ActivityError{Op: "unenroll student", Err: err}
 	}
 
@@ -88,9 +84,9 @@ func (s *Service) findEnrollmentID(enrollments []*activities.StudentEnrollment, 
 // UpdateGroupEnrollments updates the student enrollments for a group
 // This follows the education.UpdateGroupTeachers pattern but for student enrollments
 func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, studentIDs []int64) error {
-	_, err := s.groupRepo.FindByID(ctx, groupID)
+	_, err := s.findMutableActivityGroup(ctx, groupID)
 	if err != nil {
-		return &ActivityError{Op: "UpdateGroupEnrollments", Err: ErrGroupNotFound}
+		return &ActivityError{Op: "UpdateGroupEnrollments", Err: err}
 	}
 
 	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)

@@ -181,6 +181,7 @@ export function CalendarPeriodsEditor() {
       periods.find((period) => period.id === editing.id) ?? editing;
     return {
       enrollmentPhaseCount: usageSource.enrollmentPhaseCount ?? 0,
+      activityGroupCount: usageSource.activityGroupCount ?? 0,
       scheduleCount: usageSource.scheduleCount ?? 0,
       studentEnrollmentCount: usageSource.studentEnrollmentCount ?? 0,
       supervisorCount: usageSource.supervisorCount ?? 0,
@@ -191,6 +192,7 @@ export function CalendarPeriodsEditor() {
   const usageTotal = useCallback(
     (period: CalendarPeriod) =>
       (period.enrollmentPhaseCount ?? 0) +
+      (period.activityGroupCount ?? 0) +
       (period.scheduleCount ?? 0) +
       (period.studentEnrollmentCount ?? 0) +
       (period.supervisorCount ?? 0) +
@@ -250,6 +252,7 @@ export function CalendarPeriodsEditor() {
             period.scheduleCount ?? 0,
             " · ",
             {
+              activityGroupCount: period.activityGroupCount ?? 0,
               studentEnrollmentCount: period.studentEnrollmentCount ?? 0,
               supervisorCount: period.supervisorCount ?? 0,
               activityInstanceCount: period.activityInstanceCount ?? 0,

@@ -8,9 +8,12 @@ package timetable
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -21,6 +24,7 @@ import (
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -31,15 +35,24 @@ import (
 // materialization) into the test resource. Same package, so the unexported
 // field is assignable.
 func attachSplitService(s *templateSetup, mat scheduleSvc.MaterializationService) {
+	attachSplitServiceWithValidator(s, mat, func(context.Context, int64) error { return nil })
+}
+
+func attachSplitServiceWithValidator(
+	s *templateSetup,
+	mat scheduleSvc.MaterializationService,
+	validate func(context.Context, int64) error,
+) {
 	s.res.TemplateSplitService = scheduleSvc.NewTemplateSplitService(scheduleSvc.TemplateSplitDependencies{
-		GroupRepo:       activitiesRepo.NewGroupRepository(s.db),
-		ScheduleRepo:    activitiesRepo.NewScheduleRepository(s.db),
-		EnrollmentRepo:  activitiesRepo.NewStudentEnrollmentRepository(s.db),
-		SupervisorRepo:  activitiesRepo.NewSupervisorPlannedRepository(s.db),
-		InstanceRepo:    scheduleRepo.NewActivityInstanceRepository(s.db),
-		TimeframeRepo:   scheduleRepo.NewTimeframeRepository(s.db),
-		Materialization: mat,
-		DB:              s.db,
+		GroupRepo:                  activitiesRepo.NewGroupRepository(s.db),
+		ScheduleRepo:               activitiesRepo.NewScheduleRepository(s.db),
+		EnrollmentRepo:             activitiesRepo.NewStudentEnrollmentRepository(s.db),
+		SupervisorRepo:             activitiesRepo.NewSupervisorPlannedRepository(s.db),
+		InstanceRepo:               scheduleRepo.NewActivityInstanceRepository(s.db),
+		TimeframeRepo:              scheduleRepo.NewTimeframeRepository(s.db),
+		Materialization:            mat,
+		ValidateCareOfferingSeries: validate,
+		DB:                         s.db,
 	})
 }
 
@@ -83,6 +96,36 @@ func templateSchedules(t *testing.T, s *templateSetup, templateID int64) []*acti
 	return rows
 }
 
+func unusedTemplateClockWindow(t *testing.T, s *templateSetup, seed int64) (string, string) {
+	t.Helper()
+	for attempt := 0; attempt < 1200; attempt++ {
+		startMinute := 1 + (int(seed%1200)+attempt*17)%1200
+		endMinute := startMinute + 5
+		startRaw := fmt.Sprintf("%02d:%02d", startMinute/60, startMinute%60)
+		endRaw := fmt.Sprintf("%02d:%02d", endMinute/60, endMinute%60)
+		start, err := parseClockTime(startRaw)
+		require.NoError(t, err)
+		end, err := parseClockTime(endRaw)
+		require.NoError(t, err)
+		rows, err := s.res.TimetableData.GetTimeframesByTimeRange(s.ctx, start, end)
+		require.NoError(t, err)
+		exactMatch := false
+		for _, row := range rows {
+			if row != nil && row.EndTime != nil &&
+				timezone.SameClockTime(row.StartTime, start) &&
+				timezone.SameClockTime(*row.EndTime, end) {
+				exactMatch = true
+				break
+			}
+		}
+		if !exactMatch {
+			return startRaw, endRaw
+		}
+	}
+	require.FailNow(t, "could not find an unused timeframe window")
+	return "", ""
+}
+
 func splitBody(s *templateSetup, name string, effective timezone.Date) map[string]any {
 	body := createTemplateBody(s, name)
 	body["effective_date"] = effective.String()
@@ -123,6 +166,176 @@ func TestTemplateSplitHandler_HappyPath(t *testing.T) {
 	assert.Equal(t, 0, resp.DeletedInstances, "no planned instances existed")
 	assert.Equal(t, 5, resp.InstancesCreated, "materialization count surfaces on the wire")
 	assert.Equal(t, scheduleSvc.MaterializationSourceManual, mat.source)
+}
+
+func TestTemplateSplitHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	attachSplitServiceWithValidator(s, mat, func(context.Context, int64) error {
+		return fmt.Errorf("%w: linked care offering would become invalid", enrollmentModel.ErrCareOfferingInvalid)
+	})
+	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+	created := createSourceTemplate(t, router, s, "Tpl-Split-Rollback-Quelle")
+
+	w := doTemplateJSON(t, router, http.MethodPost,
+		fmt.Sprintf("/templates/%d/split", created.TemplateID),
+		splitBody(s, "Tpl-Split-Rollback-Nachfolger", timezone.TodayDate().AddDays(7)))
+	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
+	assert.Contains(t, w.Body.String(), `"code":"timetable.template_care_offering_conflict"`)
+	assert.Contains(t, w.Body.String(), "Die Änderung ist nicht möglich")
+	assert.NotContains(t, w.Body.String(), "linked care offering")
+
+	schedules := templateSchedules(t, s, created.TemplateID)
+	require.NotEmpty(t, schedules)
+	for _, schedule := range schedules {
+		assert.Nil(t, schedule.ValidUntil,
+			"the ambient TenantTxMiddleware must roll back the provisional source cap")
+	}
+	series, err := activitiesRepo.NewGroupRepository(s.db).FindTemplateSeries(s.ctx, created.TemplateID)
+	require.NoError(t, err)
+	require.Len(t, series, 1, "the rejected successor must not commit on a 400 response")
+	assert.Equal(t, created.TemplateID, series[0].ID)
+}
+
+func TestRenderTemplateSplitError_RosterRebaseConflictUsesStable409(t *testing.T) {
+	req := httptest.NewRequest(http.MethodPost, "/templates/42/split", nil)
+	recorder := httptest.NewRecorder()
+
+	renderTemplateSplitError(
+		recorder,
+		req,
+		fmt.Errorf("split failed: %w", scheduleSvc.ErrTemplateRosterRebaseConflict),
+	)
+
+	require.Equal(t, http.StatusConflict, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), `"code":"timetable.template_roster_rebase_conflict"`)
+	assert.Contains(t, recorder.Body.String(), "geschützte Kinderzuordnungen")
+}
+
+func TestTemplateSplitHandler_CareValidatorInfrastructureFailureReturnsGeneric500(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	attachSplitServiceWithValidator(s, mat, func(context.Context, int64) error {
+		return errors.New("synthetic database details")
+	})
+	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+	created := createSourceTemplate(t, router, s, "Tpl-Split-Infra-Quelle")
+
+	w := doTemplateJSON(t, router, http.MethodPost,
+		fmt.Sprintf("/templates/%d/split", created.TemplateID),
+		splitBody(s, "Tpl-Split-Infra-Nachfolger", timezone.TodayDate().AddDays(7)))
+	require.Equal(t, http.StatusInternalServerError, w.Code, "body=%s", w.Body.String())
+	assert.NotContains(t, w.Body.String(), "synthetic database details")
+
+	schedules := templateSchedules(t, s, created.TemplateID)
+	require.NotEmpty(t, schedules)
+	for _, schedule := range schedules {
+		assert.Nil(t, schedule.ValidUntil)
+	}
+	series, err := activitiesRepo.NewGroupRepository(s.db).FindTemplateSeries(s.ctx, created.TemplateID)
+	require.NoError(t, err)
+	require.Len(t, series, 1)
+	assert.Equal(t, created.TemplateID, series[0].ID)
+}
+
+func TestTemplateUpdateHandler_IncompatibleCareLinkRollsBackOn400(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+	created := createSourceTemplate(t, router, s, "Tpl-Update-Rollback-Quelle")
+
+	beforeGroup, err := s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)
+	require.NoError(t, err)
+	beforeSchedules := templateSchedules(t, s, created.TemplateID)
+	beforeEnrollments, err := activitiesRepo.NewStudentEnrollmentRepository(s.db).FindByGroupID(s.ctx, created.TemplateID)
+	require.NoError(t, err)
+	beforeSupervisors, err := activitiesRepo.NewSupervisorPlannedRepository(s.db).FindByGroupID(s.ctx, created.TemplateID)
+	require.NoError(t, err)
+
+	updateName := fmt.Sprintf("Tpl-Update-Rollback-%d", time.Now().UnixNano())
+	startTime, endTime := unusedTemplateClockWindow(t, s, created.TemplateID)
+	timeframeRepo := scheduleRepo.NewTimeframeRepository(s.db)
+	existingTimeframes, err := timeframeRepo.FindByDescription(s.ctx, updateName)
+	require.NoError(t, err)
+	require.Empty(t, existingTimeframes)
+
+	validatorReached := false
+	s.res.TimetableData = testTimetableDataWithCareValidator(s.db, func(ctx context.Context, templateID int64) error {
+		provisionalTimeframes, lookupErr := timeframeRepo.FindByDescription(ctx, updateName)
+		if lookupErr != nil {
+			return lookupErr
+		}
+		if len(provisionalTimeframes) != 1 {
+			return fmt.Errorf("expected one provisional timeframe, got %d", len(provisionalTimeframes))
+		}
+		provisionalGroup, lookupErr := activitiesRepo.NewGroupRepository(s.db).FindByID(ctx, templateID)
+		if lookupErr != nil {
+			return lookupErr
+		}
+		if provisionalGroup.Name != updateName {
+			return fmt.Errorf("expected provisional group name %q, got %q", updateName, provisionalGroup.Name)
+		}
+		validatorReached = true
+		return fmt.Errorf("%w: linked care offering would become invalid", enrollmentModel.ErrCareOfferingInvalid)
+	})
+
+	updateBody := createTemplateBody(s, updateName)
+	updateBody["weekdays"] = []int{activitiesModel.WeekdayFriday}
+	updateBody["start_time"] = startTime
+	updateBody["end_time"] = endTime
+	updateBody["student_ids"] = []int64{s.studentB}
+	updateBody["staff_ids"] = []int64{s.staffA}
+	updateBody["primary_staff_id"] = s.staffA
+	updateW := doTemplateJSON(t, router, http.MethodPut,
+		fmt.Sprintf("/templates/%d", created.TemplateID), updateBody)
+	require.Equal(t, http.StatusBadRequest, updateW.Code, "body=%s", updateW.Body.String())
+	assert.Contains(t, updateW.Body.String(), `"code":"timetable.template_care_offering_conflict"`)
+	assert.True(t, validatorReached, "the test must fail after the provisional writes, not during preflight")
+
+	afterTimeframes, err := timeframeRepo.FindByDescription(s.ctx, updateName)
+	require.NoError(t, err)
+	assert.Empty(t, afterTimeframes, "the unique timeframe created before validation must roll back")
+	afterGroup, err := s.res.TimetableData.GetActivityGroup(s.ctx, created.TemplateID)
+	require.NoError(t, err)
+	assert.Equal(t, beforeGroup.Name, afterGroup.Name)
+	assert.Equal(t, beforeGroup.Type, afterGroup.Type)
+
+	afterSchedules := templateSchedules(t, s, created.TemplateID)
+	require.Len(t, afterSchedules, len(beforeSchedules))
+	for i := range beforeSchedules {
+		assert.Equal(t, beforeSchedules[i].ID, afterSchedules[i].ID)
+		assert.Equal(t, beforeSchedules[i].Weekday, afterSchedules[i].Weekday)
+		assert.Equal(t, beforeSchedules[i].TimeframeID, afterSchedules[i].TimeframeID)
+	}
+	afterEnrollments, err := activitiesRepo.NewStudentEnrollmentRepository(s.db).FindByGroupID(s.ctx, created.TemplateID)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, enrollmentIDs(beforeEnrollments), enrollmentIDs(afterEnrollments))
+	afterSupervisors, err := activitiesRepo.NewSupervisorPlannedRepository(s.db).FindByGroupID(s.ctx, created.TemplateID)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, supervisorIDs(beforeSupervisors), supervisorIDs(afterSupervisors))
+}
+
+func enrollmentIDs(rows []*activitiesModel.StudentEnrollment) []int64 {
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row != nil {
+			ids = append(ids, row.ID)
+		}
+	}
+	return ids
+}
+
+func supervisorIDs(rows []*activitiesModel.SupervisorPlanned) []int64 {
+	ids := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if row != nil {
+			ids = append(ids, row.ID)
+		}
+	}
+	return ids
 }
 
 func TestTemplateSplitHandler_UpdateSuccessorPreservesValidFrom(t *testing.T) {

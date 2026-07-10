@@ -41,3 +41,11 @@ func lockTenantRecurrenceWrites(ctx context.Context, db *bun.DB) error {
 	}
 	return nil
 }
+
+// LockTenantRecurrenceWrites exposes the shared tenant-wide recurrence gate to
+// other services that mutate recurrence-derived state (currently enrollment
+// care-offering rosters). Callers must already be inside the tenant request
+// transaction so the advisory lock covers their complete mutation.
+func LockTenantRecurrenceWrites(ctx context.Context, db *bun.DB) error {
+	return lockTenantRecurrenceWrites(ctx, db)
+}

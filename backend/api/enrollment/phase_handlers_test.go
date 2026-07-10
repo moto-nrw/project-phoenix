@@ -438,6 +438,16 @@ func TestUpdatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
 	assert.Equal(t, http.StatusConflict, w.Code)
 }
 
+func TestUpdatePhaseHandler_CareOfferingConflictReturns409(t *testing.T) {
+	mock := &mockPhaseService{
+		getByIDResult: makePhaseModel(1234, "Updated"),
+		updateErr:     enrollmentService.ErrPhaseCareOfferingConflict,
+	}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
+	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
 func TestUpdatePhaseHandler_UpdateErrorReturns500(t *testing.T) {
 	mock := &mockPhaseService{
 		getByIDResult: makePhaseModel(1234, "Updated"),

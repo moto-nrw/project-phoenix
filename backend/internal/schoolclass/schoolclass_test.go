@@ -13,6 +13,8 @@ func TestGradePrefix(t *testing.T) {
 		{"no numeric prefix", "Bienen", ""},
 		{"empty string", "", ""},
 		{"leading whitespace trimmed", "  4c", "4"},
+		{"supported class label prefix", "Klasse 3a", "3"},
+		{"first numeric run after text", "Stufe 10 Nord", "10"},
 		{"digits only, no letter suffix", "1", "1"},
 		{"leading-digit boundary: 13a must not match grade 1 via prefix", "13a", "13"},
 	}

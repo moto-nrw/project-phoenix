@@ -97,14 +97,16 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 			return fmt.Errorf("invalid weekday %d (must be 1=Mon … 7=Sun)", w)
 		}
 	}
-	if err := (&activitiesModel.Group{
+	target := &activitiesModel.Group{
 		TargetGroupType:   req.TargetGroupType,
 		TargetGradeLevel:  req.TargetGradeLevel,
 		TargetSchoolClass: req.TargetSchoolClass,
 		EducationGroupID:  req.EducationGroupID,
-	}).ValidateTargetGroup(); err != nil {
+	}
+	if err := target.ValidateTargetGroup(); err != nil {
 		return err
 	}
+	req.TargetSchoolClass = target.TargetSchoolClass
 	return nil
 }
 

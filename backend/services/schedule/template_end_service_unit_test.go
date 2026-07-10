@@ -46,6 +46,41 @@ func TestTemplateEndInputValidation(t *testing.T) {
 	require.NoError(t, validateTemplateEndInput(TemplateEndInput{TemplateID: 10, EffectiveDate: future}))
 }
 
+func TestValidateProtectedEnrollmentRebaseRejectsActiveScopedCollision(t *testing.T) {
+	periodA, periodB, targetPeriod := int64(11), int64(12), int64(13)
+	activeA := &activitiesModel.StudentEnrollment{
+		StudentID:                42,
+		CalendarPeriodID:         &periodA,
+		EnrollmentRequestChildID: testInt64Ptr(101),
+	}
+	activeB := &activitiesModel.StudentEnrollment{
+		StudentID:                42,
+		CalendarPeriodID:         &periodB,
+		EnrollmentRequestChildID: testInt64Ptr(101),
+	}
+
+	err := validateProtectedEnrollmentRebase(
+		[]*activitiesModel.StudentEnrollment{activeA, activeB},
+		&targetPeriod,
+	)
+	require.ErrorIs(t, err, ErrTemplateRosterRebaseConflict)
+
+	boundedUntil := timezone.TodayDate().AddDays(30)
+	activeB.ValidUntil = &boundedUntil
+	require.NoError(t, validateProtectedEnrollmentRebase(
+		[]*activitiesModel.StudentEnrollment{activeA, activeB},
+		&targetPeriod,
+	), "bounded rows do not collide with the active-row partial unique index")
+	require.NoError(t, validateProtectedEnrollmentRebase(
+		[]*activitiesModel.StudentEnrollment{activeA, activeB},
+		nil,
+	), "without an explicit target period no scoped rows are merged")
+}
+
+func testInt64Ptr(value int64) *int64 {
+	return &value
+}
+
 func TestTemplateEndFromDate_RequiresTenantBeforeMutation(t *testing.T) {
 	future := timezone.TodayDate().AddDays(1)
 	groupRepo := &templateEndUnitGroupRepo{group: templateEndUnitGroup(201)}

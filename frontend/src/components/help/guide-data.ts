@@ -930,7 +930,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Betreuungsangebote` öffnen und oben die `Anmeldephase` wählen.",
           "Auf `Neues Betreuungsangebot` klicken.",
           "`Name`, `Beschreibung` und die möglichen `Wochentage` festlegen.",
-          "Unter `Regeltermin` den passenden Regeltermin aus dem Betreuungsplan verknüpfen, wenn genehmigte Anmeldungen dort erwartet werden sollen. Die Auswahl zeigt nur Regeltermine, deren Planungszeitraum den gesamten Betreuungszeitraum der Anmeldephase abdeckt.",
+          "Unter `Regeltermin` den passenden Regeltermin aus dem Betreuungsplan verknüpfen, wenn genehmigte Anmeldungen dort erwartet werden sollen. Für jeden angebotenen Wochentag muss die Regeltermin-Serie den gesamten Betreuungszeitraum der Anmeldephase lückenlos abdecken. Jeder Termin braucht eine vollständige Uhrzeit mit Ende und einen wirksamen Raum; eine Raum-Ausnahme gilt nur für ihr konkretes Datum. Bei einem aktiven Angebot müssen außerdem alle verwendeten Planungszeiträume aktiv sein.",
           "Unter `Betreuungstage & Mitbuchung` festlegen, ob das Angebot als Betreuungstage zählt und ob es mitgebucht wird, wenn Eltern bestimmte andere Angebote wählen.",
           "Bei der Mitbuchung die auslösenden Angebote auswählen und optional auf Klassenstufen eingrenzen.",
           "Optional `Kapazität`, `Preis in Cent` sowie `Mittagessen` oder `Ferienbetreuung` ergänzen.",
@@ -938,7 +938,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Anmeldung und Betreuungsplan verbinden",
-          body: "Eltern wählen weiterhin nur Angebot und Tage. Phoenix übernimmt genehmigte Kinder in den verknüpften Regeltermin und materialisiert sie dort an den passenden Angebotstagen. Passt kein Regeltermin zum Betreuungszeitraum, zuerst den Planungszeitraum des Regeltermins oder den Betreuungszeitraum der Anmeldephase korrigieren. Hinweise zeigen außerdem, wenn Angebotstage, erwartete Ankunft oder Klassengruppe nicht zusammenpassen.",
+          body: "Eltern wählen weiterhin nur Angebot und Tage. Phoenix übernimmt genehmigte Kinder in die verknüpfte Regeltermin-Serie und materialisiert sie dort an den passenden Angebotstagen. Eine Verknüpfung lässt sich nur speichern, wenn jeder angebotene Wochentag über den vollständigen Betreuungszeitraum lückenlos mit vollständiger Uhrzeit, wirksamem Raum und aktivem Planungszeitraum geplant ist. Solange ein aktives oder bereits gewähltes Angebot davon abhängt, können Änderungen am Phasenzeitraum sowie das Ändern oder Löschen verwendeter Uhrzeiten und Räume abgelehnt werden. Andernfalls zuerst die Serie, ihre Planungszeiträume oder den Betreuungszeitraum der Anmeldephase korrigieren. Hinweise zeigen außerdem, wenn erwartete Ankunft oder Klassengruppe nicht zusammenpassen.",
           tone: "blue",
         },
         screenshot:

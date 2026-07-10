@@ -36,6 +36,7 @@ type stubRequestSettings struct {
 	hasErrors    map[string]error
 	boolErrors   map[string]error
 	stringErrors map[string]error
+	intErrors    map[string]error
 }
 
 func newStubRequestSettings() *stubRequestSettings {
@@ -46,6 +47,7 @@ func newStubRequestSettings() *stubRequestSettings {
 		hasErrors:    make(map[string]error),
 		boolErrors:   make(map[string]error),
 		stringErrors: make(map[string]error),
+		intErrors:    make(map[string]error),
 	}
 }
 
@@ -92,6 +94,9 @@ func (s *stubRequestSettings) ResolveString(_ context.Context, key string) (stri
 func (s *stubRequestSettings) ResolveInt(_ context.Context, key string) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.intErrors[key]; err != nil {
+		return 0, err
+	}
 	return s.intValues[key], nil
 }
 
@@ -657,6 +662,17 @@ func TestRequestService_Submit_RejectsMissingTargetGradeLevel(t *testing.T) {
 	assert.Contains(t, err.Error(), "target_grade_level")
 }
 
+func TestRequestService_Submit_RejectsInvalidGradeLevelSetting(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 0
+
+	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "enrollment.grade_level_max")
+}
+
 func TestRequestService_Submit_RejectsInactiveOffering(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
@@ -1081,6 +1097,7 @@ func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOfferin
 	ctx := testpkg.TenantContext(1)
 	repoFactory := repositories.NewFactory(env.db)
 	offering := setupCareOfferingForCapacity(t, env, 10)
+	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 13
 
 	req := validSubmission(env.phaseID)
 	req.GuardianEmail = "draft-inactive-current@example.com"
@@ -1095,6 +1112,7 @@ func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOfferin
 	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
 	require.NoError(t, err)
 	require.Equal(t, enrollmentService.EditModeChangeRequest, draft.EditMode)
+	assert.Equal(t, 13, draft.GradeLevelMax)
 
 	var inactiveCurrent *enrollmentModels.CareOffering
 	for _, candidate := range draft.OpenOfferings {
@@ -1105,6 +1123,20 @@ func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOfferin
 	}
 	require.NotNil(t, inactiveCurrent)
 	assert.False(t, inactiveCurrent.IsActive)
+}
+
+func TestRequestService_GetEditDraft_RejectsInvalidGradeLevelSetting(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	submitted, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 0
+
+	_, err = env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "enrollment.grade_level_max")
 }
 
 func TestRequestService_GetEditDraft_DirectEditRejectsInactiveCurrentOffering(t *testing.T) {

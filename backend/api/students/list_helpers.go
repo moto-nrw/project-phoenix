@@ -30,7 +30,7 @@ type studentListParams struct {
 	includePickupTimes  bool
 	includeArrivalTimes bool
 	dayStatus           string
-	// gradeLevel filters by the leading digit of school_class (issue #1838,
+	// gradeLevel filters by the first numeric run in school_class (issue #1838,
 	// Zielgruppe "Jahrgang"). Resolved in-memory via schoolclass.GradePrefix —
 	// a SQL LIKE 'N%' would incorrectly match e.g. grade 1 against "13a".
 	// 0 = off.
@@ -255,7 +255,7 @@ func matchesLocationFilter(location, studentLocation string, hasFullAccess bool)
 	return studentLocation == location
 }
 
-// matchesGradeLevel reports whether schoolClass's leading grade digit equals
+// matchesGradeLevel reports whether schoolClass's first numeric run equals
 // gradeLevel. gradeLevel <= 0 means the filter is off (matches everything).
 // Uses schoolclass.GradePrefix rather than a naive string-prefix/LIKE check
 // so e.g. grade 1 does not also match "13a".

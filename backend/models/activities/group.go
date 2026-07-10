@@ -2,8 +2,10 @@ package activities
 
 import (
 	"errors"
+	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -43,6 +45,10 @@ type Group struct {
 	IsTemplate       bool       `bun:"is_template,notnull,default:false" json:"is_template"`
 	IsSystem         bool       `bun:"is_system,notnull,default:false" json:"is_system"`
 	ArchivedAt       *time.Time `bun:"archived_at" json:"archived_at,omitempty"`
+	// SeriesRootID identifies all segments produced by recurring-template
+	// splits. The original segment keeps NULL (it is its own root); every
+	// successor points to that original row, including successors split again.
+	SeriesRootID *int64 `bun:"series_root_id" json:"-"`
 
 	// CalendarPeriodID pins this template to a calendar period (e.g. "1.
 	// Halbjahr 2026/27"). The materialization service's selectPeriod()
@@ -115,32 +121,57 @@ func (g *Group) ValidateTargetGroup() error {
 
 	switch targetGroupType {
 	case TargetGroupTypeJahrgang:
-		if g.TargetGradeLevel == nil {
-			return errors.New("jahrgang target group requires target_grade_level")
-		}
-		if g.TargetSchoolClass != nil {
-			return errors.New("jahrgang target group must not set target_school_class")
-		}
+		return g.validateGradeTarget()
 	case TargetGroupTypeKlasse:
-		if g.TargetSchoolClass == nil || *g.TargetSchoolClass == "" {
-			return errors.New("klasse target group requires target_school_class")
-		}
-		if g.TargetGradeLevel != nil {
-			return errors.New("klasse target group must not set target_grade_level")
-		}
+		return g.validateClassTarget()
 	case TargetGroupTypeGruppe:
-		if g.EducationGroupID == nil {
-			return errors.New("gruppe target group requires education_group_id")
-		}
-		if g.TargetGradeLevel != nil || g.TargetSchoolClass != nil {
-			return errors.New("gruppe target group must not set target_grade_level or target_school_class")
-		}
+		return g.validateEducationGroupTarget()
 	case TargetGroupTypeAngebot, TargetGroupTypeNone:
-		if g.TargetGradeLevel != nil || g.TargetSchoolClass != nil {
-			return errors.New("target_grade_level and target_school_class must be empty for this target group type")
-		}
+		return g.validateValuelessTarget()
 	}
 
+	return nil
+}
+
+func (g *Group) validateGradeTarget() error {
+	if g.TargetGradeLevel == nil {
+		return errors.New("jahrgang target group requires target_grade_level")
+	}
+	if *g.TargetGradeLevel < schoolclass.MinGradeLevel || *g.TargetGradeLevel > schoolclass.MaxGradeLevel {
+		return errors.New("target_grade_level must be between 1 and 13")
+	}
+	if g.TargetSchoolClass != nil {
+		return errors.New("jahrgang target group must not set target_school_class")
+	}
+	return nil
+}
+
+func (g *Group) validateClassTarget() error {
+	if g.TargetSchoolClass == nil || strings.TrimSpace(*g.TargetSchoolClass) == "" {
+		return errors.New("klasse target group requires target_school_class")
+	}
+	trimmedClass := strings.TrimSpace(*g.TargetSchoolClass)
+	g.TargetSchoolClass = &trimmedClass
+	if g.TargetGradeLevel != nil {
+		return errors.New("klasse target group must not set target_grade_level")
+	}
+	return nil
+}
+
+func (g *Group) validateEducationGroupTarget() error {
+	if g.EducationGroupID == nil {
+		return errors.New("gruppe target group requires education_group_id")
+	}
+	if g.TargetGradeLevel != nil || g.TargetSchoolClass != nil {
+		return errors.New("gruppe target group must not set target_grade_level or target_school_class")
+	}
+	return nil
+}
+
+func (g *Group) validateValuelessTarget() error {
+	if g.TargetGradeLevel != nil || g.TargetSchoolClass != nil {
+		return errors.New("target_grade_level and target_school_class must be empty for this target group type")
+	}
 	return nil
 }
 

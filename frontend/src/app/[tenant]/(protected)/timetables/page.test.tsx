@@ -22,6 +22,8 @@ const {
   mockEventModalProps,
   mockLoggerWarn,
   mockLoggerError,
+  mockListPhases,
+  mockListCareOfferings,
 } = vi.hoisted(() => ({
   mockSearch: { value: "" },
   mockUseSession: vi.fn(),
@@ -43,6 +45,8 @@ const {
   mockEventModalProps: vi.fn(),
   mockLoggerWarn: vi.fn(),
   mockLoggerError: vi.fn(),
+  mockListPhases: vi.fn(),
+  mockListCareOfferings: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -151,6 +155,14 @@ vi.mock("~/lib/staff-api", () => ({
   staffService: {
     getAllStaff: vi.fn(),
   },
+}));
+
+vi.mock("~/lib/enrollment-phase-api", () => ({
+  listPhases: mockListPhases,
+}));
+
+vi.mock("~/lib/care-offering-api", () => ({
+  listCareOfferings: mockListCareOfferings,
 }));
 
 vi.mock("~/components/ui/loading", () => ({
@@ -564,14 +576,23 @@ vi.mock("~/components/timetable/calendar-period-modal", () => ({
     onClose,
     onSaved,
     onDeleted,
+    usage,
   }: {
     isOpen: boolean;
     onClose: () => void;
     onSaved: () => void;
     onDeleted: () => void;
+    usage?: {
+      enrollmentPhaseCount: number;
+      activityGroupCount: number;
+      scheduleCount: number;
+      studentEnrollmentCount: number;
+      supervisorCount: number;
+      activityInstanceCount: number;
+    };
   }) =>
     isOpen ? (
-      <div>
+      <div data-testid="period-modal" data-usage={JSON.stringify(usage)}>
         <button type="button" onClick={onClose}>
           period-close
         </button>
@@ -585,7 +606,7 @@ vi.mock("~/components/timetable/calendar-period-modal", () => ({
     ) : null,
 }));
 
-import TimetablesPage from "./page";
+import TimetablesPage, { loadCareOfferingLinkSummary } from "./page";
 
 const instance = {
   id: "42",
@@ -634,6 +655,12 @@ const period = {
   endDate: "2026-12-31",
   weekCycleLength: 1,
   isActive: true,
+  enrollmentPhaseCount: 1,
+  activityGroupCount: 2,
+  scheduleCount: 3,
+  studentEnrollmentCount: 4,
+  supervisorCount: 5,
+  activityInstanceCount: 6,
 };
 
 const laterPeriod = {
@@ -644,6 +671,12 @@ const laterPeriod = {
   endDate: "2028-07-31",
   weekCycleLength: 1,
   isActive: true,
+  enrollmentPhaseCount: 0,
+  activityGroupCount: 0,
+  scheduleCount: 0,
+  studentEnrollmentCount: 0,
+  supervisorCount: 0,
+  activityInstanceCount: 0,
 };
 
 const template = {
@@ -765,6 +798,8 @@ describe("TimetablesPage", () => {
         }),
     );
     mockArchiveTemplate.mockResolvedValue({});
+    mockListPhases.mockResolvedValue([]);
+    mockListCareOfferings.mockResolvedValue([]);
     setupSWR();
     window.history.replaceState(null, "", "/acme/timetables");
   });
@@ -793,6 +828,17 @@ describe("TimetablesPage", () => {
 
     fireEvent.click(screen.getByText("edit-period"));
     expect(screen.getByText("period-delete")).toBeInTheDocument();
+    expect(screen.getByTestId("period-modal")).toHaveAttribute(
+      "data-usage",
+      JSON.stringify({
+        enrollmentPhaseCount: 1,
+        activityGroupCount: 2,
+        scheduleCount: 3,
+        studentEnrollmentCount: 4,
+        supervisorCount: 5,
+        activityInstanceCount: 6,
+      }),
+    );
     fireEvent.click(screen.getByText("period-delete"));
     await waitFor(() =>
       expect(mockTenantMutate).toHaveBeenCalledWith(
@@ -1038,6 +1084,60 @@ describe("TimetablesPage", () => {
     expect(
       screen.queryByText("Mit der Anmeldung verknüpfen"),
     ).not.toBeInTheDocument();
+  });
+
+  it("treats a failed active-phase offering request as unknown", async () => {
+    mockListPhases.mockResolvedValue([
+      { id: "10", is_active: true },
+      { id: "11", is_active: true },
+    ]);
+    mockListCareOfferings.mockImplementation((phaseId: string) => {
+      if (phaseId === "11") return Promise.reject(new Error("forbidden"));
+      return Promise.resolve([
+        {
+          phase_id: "10",
+          is_active: true,
+          activity_group_id: "7",
+        },
+      ]);
+    });
+
+    await expect(loadCareOfferingLinkSummary()).resolves.toBeNull();
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      "timetable_care_offering_link_load_failed",
+      { error: "forbidden" },
+    );
+  });
+
+  it("summarizes only active offerings from active phases", async () => {
+    mockListPhases.mockResolvedValue([
+      { id: "10", is_active: true },
+      { id: "11", is_active: false },
+    ]);
+    mockListCareOfferings.mockResolvedValue([
+      {
+        phase_id: "10",
+        is_active: true,
+        activity_group_id: "7",
+      },
+      {
+        phase_id: "10",
+        is_active: true,
+        activity_group_id: null,
+      },
+      {
+        phase_id: "10",
+        is_active: false,
+        activity_group_id: "8",
+      },
+    ]);
+
+    await expect(loadCareOfferingLinkSummary()).resolves.toEqual({
+      total: 2,
+      linked: 1,
+    });
+    expect(mockListCareOfferings).toHaveBeenCalledTimes(1);
+    expect(mockListCareOfferings).toHaveBeenCalledWith("10");
   });
 
   // A fresh school has no enrollment phases at all — "0 von 0 Angeboten

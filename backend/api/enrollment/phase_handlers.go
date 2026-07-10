@@ -378,6 +378,8 @@ func phaseWriteErrorRenderer(err error) render.Renderer {
 	switch {
 	case errors.Is(err, enrollmentService.ErrPhaseDuplicateName):
 		return common.ErrorConflict(err)
+	case errors.Is(err, enrollmentService.ErrPhaseCareOfferingConflict):
+		return common.ErrorConflict(err)
 	case errors.Is(err, enrollmentService.ErrPhaseNotFound):
 		return common.ErrorNotFound(err)
 	case errors.Is(err, enrollmentService.ErrInvalidPhase):

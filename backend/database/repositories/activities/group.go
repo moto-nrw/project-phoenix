@@ -59,6 +59,31 @@ func (r *GroupRepository) FindByName(ctx context.Context, name string) (*activit
 	return group, nil
 }
 
+// FindTemplateSeries resolves groupID to its stable split-series root and
+// returns every live segment in that lineage. Tenant predicates are explicit
+// defense-in-depth alongside RLS.
+func (r *GroupRepository) FindTemplateSeries(ctx context.Context, groupID int64) ([]*activities.Group, error) {
+	tenantID := tenant.FromContext(ctx)
+	groups := make([]*activities.Group, 0)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&groups).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
+		Where(`"group".tenant_id = ?`, tenantID).
+		Where(`"group".is_template = TRUE`).
+		Where(`"group".archived_at IS NULL`).
+		Where(`COALESCE("group".series_root_id, "group".id) = (
+			SELECT COALESCE(selected.series_root_id, selected.id)
+			FROM activities.groups AS selected
+			WHERE selected.tenant_id = ? AND selected.id = ?
+		)`, tenantID, groupID).
+		OrderExpr(`"group".id ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find template series", Err: err}
+	}
+	return groups, nil
+}
+
 // FindByCategory finds all groups in a specific category
 func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) ([]*activities.Group, error) {
 	var groups []*activities.Group
@@ -468,16 +493,6 @@ func (r *GroupRepository) ListTemplateRows(ctx context.Context, templateID *int6
 	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
-	// Start with the established unfiltered fallback. Single-template GET/PUT
-	// responses below replace it with period-aware counts when their group and
-	// schedules resolve to one unambiguous planning-period pin.
-	for i := range rows {
-		rows[i].CapacityEnrollmentCount = rows[i].EnrollmentCount
-		rows[i].CapacitySupervisorCount = rows[i].SupervisorCount
-	}
-	if err := r.loadPinnedTemplateCapacityCounts(ctx, rows); err != nil {
-		return nil, err
-	}
 	return rows, nil
 }
 
@@ -541,207 +556,159 @@ func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodI
 	if err := base.GetDB(ctx, r.db).NewRaw(query, args...).Scan(ctx, &rows); err != nil {
 		return nil, err
 	}
-	if periodID == nil {
-		for i := range rows {
-			rows[i].CapacityEnrollmentCount = rows[i].EnrollmentCount
-			rows[i].CapacitySupervisorCount = rows[i].SupervisorCount
-		}
-		return rows, nil
-	}
-	if err := r.loadTemplateCapacityCounts(ctx, rows, *periodID); err != nil {
-		return nil, err
-	}
 	return rows, nil
 }
 
-// loadTemplateCapacityCounts adds the roster counts that can actually be
-// materialized in periodID. The main template-list aggregates deliberately
-// remain period-tolerant for display/editing; capacity must not let staff or
-// children assigned only to another overlapping period leak into the
-// selected period's staffing ratio.
-//
-// Both people tables are aggregated in one batched query for every returned
-// template. Enrollments contribute when unscoped/scoped to periodID and their
-// [valid_from, valid_until) window overlaps the selected planning period. This
-// includes phase-bounded care-offer enrollments which materialize during the
-// period even though the display roster intentionally lists open rows.
-// Supervisors are deliberately more conservative: only matching open rows
-// count. Template edits leave bounded historical staff versions behind, and
-// unioning those versions across a whole period could falsely report coverage.
-func (r *GroupRepository) loadTemplateCapacityCounts(
+// ListTemplateCapacityOccurrences returns one row for every date on which at
+// least one schedule of a template actually recurs. Keeping the repository
+// result date-granular is essential: the tenant-specific children/staff ratio
+// is business logic, and combining non-concurrent rosters here would erase the
+// evidence the service needs to choose the real worst occurrence.
+func (r *GroupRepository) ListTemplateCapacityOccurrences(
 	ctx context.Context,
-	rows []activities.TemplateListRow,
-	periodID int64,
-) error {
-	if len(rows) == 0 {
-		return nil
-	}
-
-	templateIDs := make([]int64, 0, len(rows))
-	seenTemplateIDs := make(map[int64]struct{}, len(rows))
-	for _, row := range rows {
-		if _, seen := seenTemplateIDs[row.TemplateID]; seen {
-			continue
-		}
-		seenTemplateIDs[row.TemplateID] = struct{}{}
-		templateIDs = append(templateIDs, row.TemplateID)
-	}
-	return r.loadTemplateCapacityCountsForIDs(ctx, rows, periodID, templateIDs)
-}
-
-// loadPinnedTemplateCapacityCounts upgrades unfiltered template detail rows
-// to period-aware capacity when every schedule of a template resolves to one
-// unambiguous pin. Group-level pins apply to schedules without their own pin;
-// a conflicting schedule pin is treated as ambiguous rather than reporting a
-// confidently wrong ratio. IDs are grouped by period, so this remains one
-// aggregate query per distinct period rather than one query per template.
-func (r *GroupRepository) loadPinnedTemplateCapacityCounts(
-	ctx context.Context,
-	rows []activities.TemplateListRow,
-) error {
-	type pinState struct {
-		groupPeriodID    int64
-		hasGroupPeriodID bool
-		schedulePeriodID int64
-		hasSchedulePin   bool
-		ambiguous        bool
-	}
-	states := make(map[int64]*pinState)
-	for _, row := range rows {
-		state := states[row.TemplateID]
-		if state == nil {
-			state = &pinState{}
-			states[row.TemplateID] = state
-		}
-		if row.TemplateCalendarPeriodID.Valid {
-			groupPeriodID := row.TemplateCalendarPeriodID.Int64
-			if state.hasGroupPeriodID && state.groupPeriodID != groupPeriodID {
-				state.ambiguous = true
-			}
-			state.groupPeriodID = groupPeriodID
-			state.hasGroupPeriodID = true
-		}
-		if row.CalendarPeriodID.Valid {
-			schedulePeriodID := row.CalendarPeriodID.Int64
-			if state.hasSchedulePin && state.schedulePeriodID != schedulePeriodID {
-				state.ambiguous = true
-			}
-			state.schedulePeriodID = schedulePeriodID
-			state.hasSchedulePin = true
-		} else if !row.TemplateCalendarPeriodID.Valid {
-			// With neither a schedule nor group pin, materialization chooses a
-			// period by date; no single period can summarize this template.
-			state.ambiguous = true
-		}
-	}
-
-	idsByPeriod := make(map[int64][]int64)
-	for templateID, state := range states {
-		if state.ambiguous {
-			continue
-		}
-		periodID := state.groupPeriodID
-		if !state.hasGroupPeriodID {
-			if !state.hasSchedulePin {
-				continue
-			}
-			periodID = state.schedulePeriodID
-		} else if state.hasSchedulePin && state.schedulePeriodID != periodID {
-			// The schedule pin is materialization-time-authoritative. Mixed
-			// group/schedule pins cannot be represented by one card ratio.
-			continue
-		}
-		idsByPeriod[periodID] = append(idsByPeriod[periodID], templateID)
-	}
-
-	for periodID, templateIDs := range idsByPeriod {
-		if err := r.loadTemplateCapacityCountsForIDs(ctx, rows, periodID, templateIDs); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (r *GroupRepository) loadTemplateCapacityCountsForIDs(
-	ctx context.Context,
-	rows []activities.TemplateListRow,
-	periodID int64,
+	periodID *int64,
 	templateIDs []int64,
-) error {
+) ([]activities.TemplateCapacityOccurrence, error) {
 	if len(templateIDs) == 0 {
-		return nil
+		return []activities.TemplateCapacityOccurrence{}, nil
 	}
 
-	type capacityCount struct {
-		TemplateID      int64 `bun:"template_id"`
-		EnrollmentCount int   `bun:"enrollment_count"`
-		SupervisorCount int   `bun:"supervisor_count"`
-	}
-	counts := make([]capacityCount, 0, len(templateIDs))
+	occurrences := make([]activities.TemplateCapacityOccurrence, 0)
 	tenantID := tenant.FromContext(ctx)
 	err := base.GetDB(ctx, r.db).NewRaw(`
 		WITH selected_period AS (
-			SELECT start_date, end_date
+			SELECT id AS calendar_period_id, start_date, end_date, week_cycle_length, week_cycle_anchor
 			FROM schedule.calendar_periods
 			WHERE tenant_id = ?
-			  AND id = ?
+			  AND is_active = TRUE
+			  AND (?::BIGINT IS NULL OR id = ?)
+		), candidate_occurrences AS (
+			SELECT DISTINCT
+				g.id AS template_id,
+				period.calendar_period_id,
+				days.day::DATE AS occurrence_date
+			FROM activities.groups AS g
+			INNER JOIN activities.schedules AS s
+				ON s.activity_group_id = g.id
+				AND s.tenant_id = g.tenant_id
+			INNER JOIN schedule.timeframes AS timeframe
+				ON timeframe.id = s.timeframe_id
+				AND timeframe.tenant_id = g.tenant_id
+				AND timeframe.start_time IS NOT NULL
+				AND timeframe.end_time IS NOT NULL
+			CROSS JOIN selected_period AS period
+			CROSS JOIN LATERAL generate_series(
+				period.start_date,
+				period.end_date,
+				INTERVAL '1 day'
+			) AS days(day)
+			LEFT JOIN schedule.activity_exceptions AS exception
+				ON exception.tenant_id = g.tenant_id
+				AND exception.activity_group_id = g.id
+				AND exception.exception_date = days.day::DATE
+			WHERE g.tenant_id = ?
+			  AND g.id IN (?)
+			  AND g.is_template = TRUE
+			  AND g.archived_at IS NULL
+			  AND exception.exception_type IS DISTINCT FROM 'cancelled'
+			  AND COALESCE(exception.room_id, g.planned_room_id, 0) > 0
+			  AND EXTRACT(ISODOW FROM days.day)::INT = s.weekday
+			  AND (s.valid_from IS NULL OR s.valid_from <= days.day::DATE)
+			  AND (s.valid_until IS NULL OR s.valid_until > days.day::DATE)
+			  AND (
+				s.calendar_period_id = period.calendar_period_id
+				OR (
+					s.calendar_period_id IS NULL
+					AND g.calendar_period_id = period.calendar_period_id
+				)
+				OR (
+					s.calendar_period_id IS NULL
+					AND g.calendar_period_id IS NULL
+					AND period.calendar_period_id = (
+						SELECT MIN(active_period.id)
+						FROM schedule.calendar_periods AS active_period
+						WHERE active_period.tenant_id = g.tenant_id
+						  AND active_period.is_active = TRUE
+						  AND active_period.start_date <= days.day::DATE
+						  AND active_period.end_date >= days.day::DATE
+					)
+				)
+			  )
+			  AND (
+				s.week_pattern = 0
+				OR period.week_cycle_length <= 1
+				OR period.week_cycle_anchor IS NULL
+				OR s.week_pattern = (
+					MOD(
+						MOD(
+							FLOOR((days.day::DATE - period.week_cycle_anchor) / 7.0)::INT,
+							period.week_cycle_length
+						) + period.week_cycle_length,
+						period.week_cycle_length
+					) + 1
+				)
+			  )
+		), student_counts AS (
+			SELECT
+				occurrence.template_id,
+				occurrence.calendar_period_id,
+				occurrence.occurrence_date,
+				COUNT(DISTINCT enrollment.student_id)::INT AS enrollment_count
+			FROM candidate_occurrences AS occurrence
+			INNER JOIN activities.student_enrollments AS enrollment
+				ON enrollment.tenant_id = ?
+				AND enrollment.activity_group_id = occurrence.template_id
+				AND enrollment.valid_from <= occurrence.occurrence_date
+				AND (enrollment.valid_until IS NULL OR enrollment.valid_until > occurrence.occurrence_date)
+				AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = occurrence.calendar_period_id)
+				AND (
+					enrollment.selected_weekdays IS NULL
+					OR jsonb_array_length(enrollment.selected_weekdays) = 0
+					OR enrollment.selected_weekdays @> jsonb_build_array(
+						EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT
+					)
+				)
+			GROUP BY occurrence.template_id, occurrence.calendar_period_id, occurrence.occurrence_date
+		), supervisor_counts AS (
+			SELECT
+				occurrence.template_id,
+				occurrence.calendar_period_id,
+				occurrence.occurrence_date,
+				COUNT(DISTINCT supervisor.staff_id)::INT AS supervisor_count
+			FROM candidate_occurrences AS occurrence
+			INNER JOIN activities.supervisors AS supervisor
+				ON supervisor.tenant_id = ?
+				AND supervisor.group_id = occurrence.template_id
+				AND supervisor.valid_from <= occurrence.occurrence_date
+				AND (supervisor.valid_until IS NULL OR supervisor.valid_until > occurrence.occurrence_date)
+				AND (supervisor.calendar_period_id IS NULL OR supervisor.calendar_period_id = occurrence.calendar_period_id)
+			GROUP BY occurrence.template_id, occurrence.calendar_period_id, occurrence.occurrence_date
 		)
 		SELECT
-			roster.activity_group_id AS template_id,
-			COUNT(DISTINCT roster.person_id) FILTER (
-				WHERE roster.member_type = 'student'
-			) AS enrollment_count,
-			COUNT(DISTINCT roster.person_id) FILTER (
-				WHERE roster.member_type = 'staff'
-			) AS supervisor_count
-		FROM (
-			SELECT
-				activity_group_id,
-				student_id AS person_id,
-				'student'::TEXT AS member_type
-			FROM activities.student_enrollments
-			CROSS JOIN selected_period
-			WHERE tenant_id = ?
-			  AND (calendar_period_id IS NULL OR calendar_period_id = ?)
-			  AND valid_from <= selected_period.end_date
-			  AND (valid_until IS NULL OR valid_until > selected_period.start_date)
-			  AND activity_group_id IN (?)
-			UNION ALL
-			SELECT
-				group_id AS activity_group_id,
-				staff_id AS person_id,
-				'staff'::TEXT AS member_type
-			FROM activities.supervisors
-			CROSS JOIN selected_period
-			WHERE tenant_id = ?
-			  AND (calendar_period_id IS NULL OR calendar_period_id = ?)
-			  AND valid_until IS NULL
-			  AND valid_from <= selected_period.end_date
-			  AND group_id IN (?)
-		) AS roster
-		GROUP BY roster.activity_group_id
-	`, tenantID, periodID, tenantID, periodID, bun.List(templateIDs), tenantID, periodID, bun.List(templateIDs)).Scan(ctx, &counts)
+			occurrence.template_id,
+			occurrence.calendar_period_id,
+			occurrence.occurrence_date,
+			COALESCE(students.enrollment_count, 0) AS enrollment_count,
+			COALESCE(staff.supervisor_count, 0) AS supervisor_count
+		FROM candidate_occurrences AS occurrence
+		LEFT JOIN student_counts AS students
+			ON students.template_id = occurrence.template_id
+			AND students.calendar_period_id = occurrence.calendar_period_id
+			AND students.occurrence_date = occurrence.occurrence_date
+		LEFT JOIN supervisor_counts AS staff
+			ON staff.template_id = occurrence.template_id
+			AND staff.calendar_period_id = occurrence.calendar_period_id
+			AND staff.occurrence_date = occurrence.occurrence_date
+		ORDER BY occurrence.template_id ASC, occurrence.occurrence_date ASC, occurrence.calendar_period_id ASC
+	`, tenantID, periodID, periodID,
+		tenantID, bun.List(templateIDs),
+		tenantID,
+		tenantID,
+	).Scan(ctx, &occurrences)
 	if err != nil {
-		return err
+		return nil, err
 	}
-
-	byTemplateID := make(map[int64]capacityCount, len(counts))
-	for _, count := range counts {
-		byTemplateID[count.TemplateID] = count
-	}
-	includedTemplateIDs := make(map[int64]struct{}, len(templateIDs))
-	for _, templateID := range templateIDs {
-		includedTemplateIDs[templateID] = struct{}{}
-	}
-	for i := range rows {
-		if _, included := includedTemplateIDs[rows[i].TemplateID]; !included {
-			continue
-		}
-		count := byTemplateID[rows[i].TemplateID]
-		rows[i].CapacityEnrollmentCount = count.EnrollmentCount
-		rows[i].CapacitySupervisorCount = count.SupervisorCount
-	}
-	return nil
+	return occurrences, nil
 }
 
 // UpdateTemplateFields patches the editable fields of a non-archived template

@@ -34,6 +34,15 @@ function conflictCountLabel(count: number): string {
   return `${count} ${count === 1 ? "Konflikt" : "Konflikte"}`;
 }
 
+function dayStatusColor(
+  hasUnderstaffed: boolean,
+  hasConflicts: boolean,
+): string {
+  if (hasUnderstaffed) return timetableToneColors.danger;
+  if (hasConflicts) return timetableToneColors.warning;
+  return timetableToneColors.success;
+}
+
 export function YearPlannerGrid({
   months,
   instances,
@@ -116,11 +125,10 @@ export function YearPlannerGrid({
                 // understaffed block outranks a mere conflict warning for
                 // the single dot this cell has room for (issue #1838).
                 const hasUnderstaffed = understaffedCount > 0;
-                const dayDotColor = hasUnderstaffed
-                  ? timetableToneColors.danger
-                  : hasConflicts
-                    ? timetableToneColors.warning
-                    : timetableToneColors.success;
+                const dayDotColor = dayStatusColor(
+                  hasUnderstaffed,
+                  hasConflicts,
+                );
 
                 return (
                   <button

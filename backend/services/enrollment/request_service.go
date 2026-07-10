@@ -19,6 +19,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -237,10 +238,15 @@ type EditDraft struct {
 	// CollectSchoolClass mirrors the tenant's enrollment.collect_school_class
 	// setting (#1833) so the reopened form knows whether to show the
 	// concrete-class field. Combined with the phase's AvailableSchoolClasses
-	// / RequireSchoolClass it forms the public concrete-class config.
+	// and RequireSchoolClass it forms the public concrete-class config.
 	CollectSchoolClass   bool
 	CollectGradeLevel    bool
 	CareOfferingsEnabled bool
+	// GradeLevelMax is the tenant's server-authoritative upper bound for
+	// target grades. Token-based edit pages have no reliable tenant context
+	// of their own, so the bootstrap must carry the value resolved inside the
+	// same tenant transaction as the rest of the draft.
+	GradeLevelMax int
 }
 
 const (
@@ -876,7 +882,10 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 	if err != nil {
 		return fmt.Errorf("resolve enrollment form capabilities: %w", err)
 	}
-	gradeMax := s.resolveGradeMax(ctx)
+	gradeMax, err := s.resolveGradeMax(ctx)
+	if err != nil {
+		return err
+	}
 	for i, child := range req.Children {
 		if strings.TrimSpace(child.FirstName) == "" || strings.TrimSpace(child.LastName) == "" {
 			return fmt.Errorf("%w: child %d missing name", ErrInvalidSubmission, i)
@@ -1596,12 +1605,18 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		legalTexts    LegalTexts
 		editMode      string
 		capabilities  FormCapabilities
+		gradeLevelMax int
 	)
 	if err := tenant.WithTenantTx(ctx, s.DB, req.GetTenantID(), func(txCtx context.Context, _ bun.Tx) error {
 		resolvedCapabilities, capabilityErr := s.FormCapabilities(txCtx)
 		if capabilityErr != nil {
 			return fmt.Errorf("edit draft: resolve form capabilities: %w", capabilityErr)
 		}
+		resolvedGradeLevelMax, gradeLevelErr := s.resolveGradeMax(txCtx)
+		if gradeLevelErr != nil {
+			return fmt.Errorf("edit draft: %w", gradeLevelErr)
+		}
+		gradeLevelMax = resolvedGradeLevelMax
 		capabilities = resolvedCapabilities
 		editMode = editModeForChildren(children)
 		if editMode == EditModeDirectEdit {
@@ -1693,6 +1708,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		CollectSchoolClass:   capabilities.CollectSchoolClass,
 		CollectGradeLevel:    capabilities.CollectGradeLevel,
 		CareOfferingsEnabled: capabilities.CareOfferingsEnabled,
+		GradeLevelMax:        gradeLevelMax,
 	}, nil
 }
 
@@ -2950,7 +2966,7 @@ func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, 
 		// leading digits are the grade it belongs to. Reject when they
 		// disagree; classes without a numeric prefix carry no derivable
 		// grade and are left to the plain list check above.
-		if prefix := schoolClassGradePrefix(chosen); prefix != "" && prefix != strconv.Itoa(grade) {
+		if prefix := schoolclass.GradePrefix(chosen); prefix != "" && prefix != strconv.Itoa(grade) {
 			return fmt.Errorf("%w: child %d target_school_class %q does not match target grade %d", ErrInvalidSubmission, i, chosen, grade)
 		}
 		children[i].TargetSchoolClass = &chosen
@@ -2968,34 +2984,34 @@ func (s *requestService) validateAndNormalizeSchoolClasses(ctx context.Context, 
 func gradeHasSelectableClass(allowed map[string]struct{}, grade int) bool {
 	want := strconv.Itoa(grade)
 	for class := range allowed {
-		if prefix := schoolClassGradePrefix(class); prefix == "" || prefix == want {
+		if prefix := schoolclass.GradePrefix(class); prefix == "" || prefix == want {
 			return true
 		}
 	}
 	return false
 }
 
-// schoolClassGradePrefix returns the leading run of digits in a school
-// class name ("2a" -> "2", "12b" -> "12"), or "" when the name has no
-// numeric prefix. Concrete class names follow the grade-number
-// convention gradeToClass produces, so the prefix is the grade the class
-// belongs to. Issue #1833.
-func schoolClassGradePrefix(class string) string {
-	class = strings.TrimSpace(class)
-	end := 0
-	for end < len(class) && class[end] >= '0' && class[end] <= '9' {
-		end++
+// resolveGradeMax reads the server-authoritative tenant setting. The setting
+// registry supplies its declared default when a tenant has no override; a
+// missing resolver, read failure, or out-of-range value is a configuration
+// error and must not silently change which grades the form accepts.
+func (s *requestService) resolveGradeMax(ctx context.Context) (int, error) {
+	if s.Settings == nil {
+		return 0, errors.New("resolve enrollment.grade_level_max: settings service is not configured")
 	}
-	return class[:end]
-}
-
-// resolveGradeMax reads the tenant setting and falls back to the current
-// registry default when unset or unreadable.
-func (s *requestService) resolveGradeMax(ctx context.Context) int {
-	if v := config.ResolveIntOrDefault(ctx, s.Settings, configModel.KeyEnrollmentGradeLevelMax, 4, nil); v > 0 {
-		return v
+	value, err := s.Settings.ResolveInt(ctx, configModel.KeyEnrollmentGradeLevelMax)
+	if err != nil {
+		return 0, fmt.Errorf("resolve enrollment.grade_level_max: %w", err)
 	}
-	return 4
+	if value < schoolclass.MinGradeLevel || value > schoolclass.MaxGradeLevel {
+		return 0, fmt.Errorf(
+			"resolve enrollment.grade_level_max: value %d is outside %d..%d",
+			value,
+			schoolclass.MinGradeLevel,
+			schoolclass.MaxGradeLevel,
+		)
+	}
+	return value, nil
 }
 
 func (s *requestService) allowSubmissionEdit(ctx context.Context) bool {

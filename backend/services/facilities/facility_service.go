@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -27,8 +28,19 @@ const (
 
 // service implements the facilities.Service interface
 type service struct {
-	roomRepo        facilities.RoomRepository
-	activeGroupRepo active.GroupRepository
+	roomRepo                         facilities.RoomRepository
+	activeGroupRepo                  active.GroupRepository
+	lockTemplateRecurrence           func(context.Context) error
+	validateCareOfferingRoomDeletion func(context.Context, int64) error
+}
+
+// ServiceConfig carries the optional cross-domain guard needed by room
+// deletion. NewService remains for focused tests and legacy wiring.
+type ServiceConfig struct {
+	RoomRepo                         facilities.RoomRepository
+	ActiveGroupRepo                  active.GroupRepository
+	LockTemplateRecurrence           func(context.Context) error
+	ValidateCareOfferingRoomDeletion func(context.Context, int64) error
 }
 
 // wcRoomAliasNames lists the accepted canonical toilet-room aliases in
@@ -44,9 +56,20 @@ var wcRoomAliasNames = [...]string{constants.WCRoomName, constants.WCRoomAliasNa
 
 // NewService creates a new facilities service
 func NewService(roomRepo facilities.RoomRepository, activeGroupRepo active.GroupRepository) Service {
+	return NewServiceWithConfig(ServiceConfig{
+		RoomRepo:        roomRepo,
+		ActiveGroupRepo: activeGroupRepo,
+	})
+}
+
+// NewServiceWithConfig builds the facilities service with recurrence-aware
+// room deletion validation.
+func NewServiceWithConfig(cfg ServiceConfig) Service {
 	return &service{
-		roomRepo:        roomRepo,
-		activeGroupRepo: activeGroupRepo,
+		roomRepo:                         cfg.RoomRepo,
+		activeGroupRepo:                  cfg.ActiveGroupRepo,
+		lockTemplateRecurrence:           cfg.LockTemplateRecurrence,
+		validateCareOfferingRoomDeletion: cfg.ValidateCareOfferingRoomDeletion,
 	}
 }
 
@@ -345,12 +368,34 @@ func (s *service) DeleteRoom(ctx context.Context, id int64) error {
 	} else if len(activeGroups) > 0 {
 		return &FacilitiesError{Op: "delete room", Err: ErrRoomInUse}
 	}
+	if err := s.validateRoomCareOfferingDeletion(ctx, id); err != nil {
+		return err
+	}
 
 	// Delete the room
 	if err := s.roomRepo.Delete(ctx, id); err != nil {
 		return &FacilitiesError{Op: "delete room", Err: err}
 	}
 
+	return nil
+}
+
+func (s *service) validateRoomCareOfferingDeletion(ctx context.Context, id int64) error {
+	if s.validateCareOfferingRoomDeletion == nil {
+		return nil
+	}
+	if s.lockTemplateRecurrence == nil {
+		return &FacilitiesError{Op: "delete room: lock timetable recurrence", Err: errors.New("template recurrence lock is not configured")}
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return &FacilitiesError{Op: "delete room: lock timetable recurrence", Err: err}
+	}
+	if err := s.validateCareOfferingRoomDeletion(ctx, id); err != nil {
+		if errors.Is(err, enrollmentModels.ErrCareOfferingInvalid) {
+			return &FacilitiesError{Op: "delete room", Err: ErrRoomRequiredByCareOffering}
+		}
+		return &FacilitiesError{Op: "delete room: validate care offerings", Err: err}
+	}
 	return nil
 }
 

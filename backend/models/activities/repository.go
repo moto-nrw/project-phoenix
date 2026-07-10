@@ -40,6 +40,15 @@ type GroupRepository interface {
 	// on the period when given).
 	ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]TemplateListRow, error)
 
+	// ListTemplateCapacityOccurrences returns one staffing snapshot per actual
+	// recurrence date in periodID. It applies the same schedule, A/B-week,
+	// cancellation, roster-validity, period, and selected-weekday rules as
+	// materialization. Choosing which occurrence is worst depends on the
+	// tenant's staffing ratio and therefore remains a service concern.
+	// A nil periodID evaluates all active periods, used by template detail
+	// responses that have no period query parameter.
+	ListTemplateCapacityOccurrences(ctx context.Context, periodID *int64, templateIDs []int64) ([]TemplateCapacityOccurrence, error)
+
 	// UpdateTemplateFields patches the editable template fields of a
 	// non-archived template row.
 	UpdateTemplateFields(ctx context.Context, id int64, fields TemplateFieldsUpdate) (rowsAffected int64, err error)
@@ -66,6 +75,10 @@ type GroupRepository interface {
 	// (is_template = true). Used by the materialization service to enumerate
 	// candidates when generating schedule.activity_instances rows.
 	FindAllTemplates(ctx context.Context) ([]*Group, error)
+
+	// FindTemplateSeries returns every non-archived template segment in the
+	// same split lineage as groupID. An unsplit template is one segment.
+	FindTemplateSeries(ctx context.Context, groupID int64) ([]*Group, error)
 }
 
 // TemplateStartTime is a (activity_group_id, weekday) → timeframe.start_time
@@ -236,12 +249,9 @@ type TemplateListRow struct {
 	TargetSchoolClass        sql.NullString `bun:"target_school_class"`
 	EnrollmentCount          int            `bun:"enrollment_count"`
 	SupervisorCount          int            `bun:"supervisor_count"`
-	// CapacityEnrollmentCount and CapacitySupervisorCount are the roster
-	// counts effective for the planning period selected by the timetable.
-	// Enrollments include bounded windows overlapping the period; supervisors
-	// stay restricted to matching open rows so historical edit versions cannot
-	// be unioned into false coverage. These counts intentionally differ from
-	// the period-tolerant display roster below.
+	// CapacityEnrollmentCount and CapacitySupervisorCount are the roster on
+	// the actual recurrence date selected as worst for the template. They
+	// intentionally differ from the period-tolerant display roster below.
 	CapacityEnrollmentCount int            `bun:"capacity_enrollment_count"`
 	CapacitySupervisorCount int            `bun:"capacity_supervisor_count"`
 	StudentIDs              []int64        `bun:"student_ids,array"`
@@ -254,4 +264,15 @@ type TemplateListRow struct {
 	WeekPattern             int            `bun:"week_pattern"`
 	CalendarPeriodID        sql.NullInt64  `bun:"calendar_period_id"`
 	ScheduleValidUntil      sql.NullString `bun:"schedule_valid_until"`
+}
+
+// TemplateCapacityOccurrence is the capacity-relevant roster for one date on
+// which a recurring template actually runs. OccurrenceDate is a calendar day,
+// not an instant; valid_until fields are evaluated as exclusive boundaries.
+type TemplateCapacityOccurrence struct {
+	TemplateID       int64         `bun:"template_id"`
+	CalendarPeriodID int64         `bun:"calendar_period_id"`
+	OccurrenceDate   timezone.Date `bun:"occurrence_date"`
+	EnrollmentCount  int           `bun:"enrollment_count"`
+	SupervisorCount  int           `bun:"supervisor_count"`
 }

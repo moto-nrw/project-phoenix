@@ -51,6 +51,11 @@ var (
 
 	// ErrSystemActivityProtected is returned when trying to delete or rename a system activity (Schulhof Freispiel, WC).
 	ErrSystemActivityProtected = errors.New("Systemaktivität kann nicht gelöscht oder umbenannt werden") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrTimetableTemplateProtected prevents the legacy activities API from
+	// bypassing recurring-template locks, lineage checks, and care-offering
+	// validation. Timetable templates must be mutated through /timetables.
+	ErrTimetableTemplateProtected = errors.New("Regeltermine müssen im Betreuungsplan bearbeitet werden") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // ActivityError represents an activity-related error
