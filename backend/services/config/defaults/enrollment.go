@@ -1,6 +1,7 @@
 package defaults
 
 import (
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/models/config"
 )
 
@@ -391,13 +392,13 @@ func registerEnrollmentPublicForm() {
 		Label:           "Höchste Klassenstufe im Formular",
 		Description:     "Eltern können Klassenstufen 1 bis zu diesem Wert auswählen. Standard ist 4 (OGS-Schuljahre 1-4); Schulen mit weiterführenden Stufen erhöhen den Wert entsprechend.",
 		Type:            config.FieldNumber,
-		Default:         4,
+		Default:         schoolclass.DefaultGradeLevelMax,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "enrollment",
 		Category:        "formular",
 		SortOrder:       22,
-		Validation:      config.Range(1, 13),
+		Validation:      config.Range(schoolclass.MinGradeLevel, schoolclass.MaxGradeLevel),
 		DependsOn:       config.DependsOnEq(config.KeyEnrollmentCollectGradeLevel, true),
 	})
 

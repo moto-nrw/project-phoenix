@@ -3,6 +3,7 @@ package schedule
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -10,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // CalendarPeriodService defines operations for managing calendar periods
@@ -35,8 +37,9 @@ type CalendarPeriodService interface {
 
 	// GetUsageCounts reports how many rows reference each calendar period of
 	// the current tenant through nullable calendar_period_id FKs.
-	// Advisory only (list display and delete warnings) — all FKs are
-	// ON DELETE SET NULL, so usage never blocks deletion.
+	// Counts drive list display and delete warnings. A linked care offering may
+	// separately block an update/delete when clearing or shrinking the period
+	// would invalidate its timetable series.
 	GetUsageCounts(ctx context.Context) (map[int64]schedule.CalendarPeriodUsage, error)
 
 	// A/B week resolution — weekPattern: 0=every, 1=week A, 2=week B
@@ -45,8 +48,22 @@ type CalendarPeriodService interface {
 
 // calendarPeriodService implements CalendarPeriodService
 type calendarPeriodService struct {
-	repo   schedule.CalendarPeriodRepository
-	logger *slog.Logger
+	repo                         schedule.CalendarPeriodRepository
+	db                           *bun.DB
+	validateCareOfferingChange   func(context.Context, int64, *schedule.CalendarPeriod) error
+	lockTenantRecurrenceMutation func(context.Context) error
+	logger                       *slog.Logger
+}
+
+// CalendarPeriodServiceConfig wires mutation-time dependencies that are not
+// needed by read-only or legacy unit-test callers. Production supplies DB and
+// ValidateCareOfferingChange so updates/deletes share the tenant recurrence
+// gate with template and care-offering mutations.
+type CalendarPeriodServiceConfig struct {
+	Repo                       schedule.CalendarPeriodRepository
+	DB                         *bun.DB
+	ValidateCareOfferingChange func(context.Context, int64, *schedule.CalendarPeriod) error
+	Logger                     *slog.Logger
 }
 
 // NewCalendarPeriodService creates a new calendar period service
@@ -54,9 +71,29 @@ func NewCalendarPeriodService(
 	repo schedule.CalendarPeriodRepository,
 	logger *slog.Logger,
 ) CalendarPeriodService {
+	return NewCalendarPeriodServiceWithConfig(CalendarPeriodServiceConfig{
+		Repo:   repo,
+		Logger: logger,
+	})
+}
+
+// NewCalendarPeriodServiceWithConfig creates the production calendar-period
+// service with transaction-scoped recurrence locking and care-link preflight
+// validation. Keeping the two-argument constructor above preserves focused
+// tests whose mutations cannot affect care offerings.
+func NewCalendarPeriodServiceWithConfig(cfg CalendarPeriodServiceConfig) CalendarPeriodService {
+	var lockMutation func(context.Context) error
+	if cfg.DB != nil {
+		lockMutation = func(ctx context.Context) error {
+			return lockTenantRecurrenceWrites(ctx, cfg.DB)
+		}
+	}
 	return &calendarPeriodService{
-		repo:   repo,
-		logger: logger,
+		repo:                         cfg.Repo,
+		db:                           cfg.DB,
+		validateCareOfferingChange:   cfg.ValidateCareOfferingChange,
+		lockTenantRecurrenceMutation: lockMutation,
+		logger:                       cfg.Logger,
 	}
 }
 
@@ -135,11 +172,12 @@ func (s *calendarPeriodService) UpdatePeriod(ctx context.Context, period *schedu
 		return &ScheduleError{Op: "update calendar period", Err: schedule.ErrCalendarPeriodNameConflict}
 	}
 
-	if err := s.repo.Update(ctx, period); err != nil {
-		return &ScheduleError{Op: "update calendar period", Err: err}
-	}
-
-	return nil
+	return s.mutatePeriod(ctx, "update calendar period", period.ID, period, func(txCtx context.Context) error {
+		if err := s.repo.Update(txCtx, period); err != nil {
+			return &ScheduleError{Op: "update calendar period", Err: err}
+		}
+		return nil
+	})
 }
 
 // GetUsageCounts reports per-period reference counts for the current tenant.
@@ -155,10 +193,51 @@ func (s *calendarPeriodService) GetUsageCounts(ctx context.Context) (map[int64]s
 
 // DeletePeriod deletes a calendar period by ID
 func (s *calendarPeriodService) DeletePeriod(ctx context.Context, id int64) error {
-	if err := s.repo.Delete(ctx, id); err != nil {
-		return &ScheduleError{Op: "delete calendar period", Err: err}
+	return s.mutatePeriod(ctx, "delete calendar period", id, nil, func(txCtx context.Context) error {
+		if err := s.repo.Delete(txCtx, id); err != nil {
+			return &ScheduleError{Op: "delete calendar period", Err: err}
+		}
+		return nil
+	})
+}
+
+// mutatePeriod serializes period changes with every recurrence-derived write,
+// validates care-offering links before the first mutation, and then executes
+// the repository write in the same tenant transaction. Preflight is deliberate:
+// a domain conflict maps to HTTP 409, and TenantTxMiddleware commits non-5xx
+// responses unless explicitly marked for rollback.
+func (s *calendarPeriodService) mutatePeriod(
+	ctx context.Context,
+	op string,
+	periodID int64,
+	replacement *schedule.CalendarPeriod,
+	mutate func(context.Context) error,
+) error {
+	if s.db == nil {
+		if s.validateCareOfferingChange != nil || s.lockTenantRecurrenceMutation != nil {
+			return &ScheduleError{Op: op, Err: errors.New("calendar period mutation database is not configured")}
+		}
+		return mutate(ctx)
 	}
-	return nil
+	if s.validateCareOfferingChange == nil {
+		return &ScheduleError{Op: op, Err: errors.New("calendar period care-offering validation is not configured")}
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return &ScheduleError{Op: op, Err: errors.New("no tenant in context")}
+	}
+	return tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if s.lockTenantRecurrenceMutation == nil {
+			return &ScheduleError{Op: op, Err: errors.New("calendar period recurrence lock is not configured")}
+		}
+		if err := s.lockTenantRecurrenceMutation(txCtx); err != nil {
+			return &ScheduleError{Op: op + ": lock recurrence", Err: err}
+		}
+		if err := s.validateCareOfferingChange(txCtx, periodID, replacement); err != nil {
+			return &ScheduleError{Op: op + ": validate linked care offerings", Err: err}
+		}
+		return mutate(txCtx)
+	})
 }
 
 // defaultSchoolYearBounds computes the German school year containing the
@@ -252,6 +331,14 @@ func (s *calendarPeriodService) FindActiveOverlaps(ctx context.Context, period *
 //
 // weekPattern: 0=every week, 1=week A, 2=week B (maps to currentPattern 1, 2, ...)
 func (s *calendarPeriodService) ShouldMaterialize(weekPattern int, instanceDate timezone.Date, period *schedule.CalendarPeriod) bool {
+	return ShouldMaterializeWeekPattern(weekPattern, instanceDate, period)
+}
+
+// ShouldMaterializeWeekPattern is the pure A/B-cycle predicate shared by
+// materialization and cross-domain care-offering recurrence validation.
+// Keeping one implementation prevents a catalog link from being accepted for
+// dates the materializer would later skip.
+func ShouldMaterializeWeekPattern(weekPattern int, instanceDate timezone.Date, period *schedule.CalendarPeriod) bool {
 	if weekPattern == 0 {
 		return true // every week
 	}

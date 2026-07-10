@@ -3,6 +3,7 @@ package enrollment_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -153,6 +154,57 @@ func TestPhaseService_Update_AppliesChanges(t *testing.T) {
 	assert.Equal(t, "phase-"+t.Name()+"-renamed", refreshed.Name)
 	assert.False(t, refreshed.IsActive)
 	assert.Equal(t, enrollmentModels.PhaseCareOverflowReject, refreshed.CareOverflowMode)
+}
+
+func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(t *testing.T) {
+	baseService, repoFactory, db, cleanup := setupPhaseTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	created, err := baseService.Create(ctx, minimalPhase(t.Name()))
+	require.NoError(t, err)
+	originalEnd := created.ServiceEndDate
+	lockCalls := 0
+	validatorCalls := 0
+	guardedService := enrollmentService.NewPhaseService(enrollmentService.PhaseServiceConfig{
+		Repo:             repoFactory.Phase,
+		RequestRepo:      repoFactory.Request,
+		RequestChildRepo: repoFactory.RequestChild,
+		CareOfferingRepo: repoFactory.CareOffering,
+		FormSchemaRepo:   repoFactory.FormSchema,
+		LockTemplateRecurrence: func(context.Context) error {
+			lockCalls++
+			return nil
+		},
+		ValidateCareOfferingPhaseChange: func(
+			_ context.Context,
+			phaseID int64,
+			replacement *enrollmentModels.Phase,
+		) error {
+			validatorCalls++
+			assert.Equal(t, created.ID, phaseID)
+			assert.Equal(t, originalEnd.AddDays(7), replacement.ServiceEndDate)
+			return fmt.Errorf("%w: synthetic uncovered occurrence", enrollmentModels.ErrCareOfferingInvalid)
+		},
+		DB:     db,
+		Logger: slog.Default(),
+	})
+
+	created.Name += "-metadata-only"
+	require.NoError(t, guardedService.Update(ctx, created),
+		"metadata-only changes must not be rejected by unrelated legacy care-offering state")
+	assert.Zero(t, validatorCalls)
+
+	created.ServiceEndDate = originalEnd.AddDays(7)
+	err = guardedService.Update(ctx, created)
+	require.ErrorIs(t, err, enrollmentService.ErrPhaseCareOfferingConflict)
+	assert.Equal(t, 2, lockCalls)
+	assert.Equal(t, 1, validatorCalls)
+
+	stored, findErr := repoFactory.Phase.FindByID(ctx, created.ID)
+	require.NoError(t, findErr)
+	assert.Equal(t, originalEnd, stored.ServiceEndDate,
+		"a rejected service-window expansion must not be persisted")
 }
 
 func TestPhaseService_Update_RejectsDuplicateName(t *testing.T) {

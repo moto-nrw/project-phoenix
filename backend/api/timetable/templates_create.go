@@ -42,22 +42,30 @@ import (
 // case is dominated by care/Mensa-style activities where the cap is the
 // room capacity, not a numerical roster limit.
 type createTemplateRequest struct {
-	Name             string  `json:"name"`
-	Type             string  `json:"type"` // care | activity | external
-	Weekdays         []int   `json:"weekdays"`
-	StartTime        string  `json:"start_time"` // HH:MM
-	EndTime          string  `json:"end_time"`   // HH:MM
-	RoomID           int64   `json:"room_id"`
-	CategoryID       int64   `json:"category_id"`
-	MaxParticipants  *int    `json:"max_participants,omitempty"`
-	WeekPattern      *int    `json:"week_pattern,omitempty"`
-	CalendarPeriodID *int64  `json:"calendar_period_id,omitempty"`
-	EducationGroupID *int64  `json:"education_group_id,omitempty"`
-	MaterializeFrom  *string `json:"materialize_from,omitempty"` // YYYY-MM-DD
-	MaterializeTo    *string `json:"materialize_to,omitempty"`   // YYYY-MM-DD
-	StudentIDs       []int64 `json:"student_ids,omitempty"`
-	StaffIDs         []int64 `json:"staff_ids,omitempty"`
-	PrimaryStaffID   *int64  `json:"primary_staff_id,omitempty"`
+	Name             string `json:"name"`
+	Type             string `json:"type"` // care | activity | external
+	Weekdays         []int  `json:"weekdays"`
+	StartTime        string `json:"start_time"` // HH:MM
+	EndTime          string `json:"end_time"`   // HH:MM
+	RoomID           int64  `json:"room_id"`
+	CategoryID       int64  `json:"category_id"`
+	MaxParticipants  *int   `json:"max_participants,omitempty"`
+	WeekPattern      *int   `json:"week_pattern,omitempty"`
+	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
+	EducationGroupID *int64 `json:"education_group_id,omitempty"`
+	// Zielgruppe (target-group) fields. TargetGroupType is one of
+	// activitiesModel.TargetGroupType* ("jahrgang" | "klasse" | "gruppe" |
+	// "angebot" | "none"/omitted). "gruppe" reuses EducationGroupID above
+	// rather than a separate field. Cross-field validity is checked via
+	// activitiesModel.Group.ValidateTargetGroup() in Bind() below.
+	TargetGroupType   string  `json:"target_group_type,omitempty"`
+	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	MaterializeFrom   *string `json:"materialize_from,omitempty"` // YYYY-MM-DD
+	MaterializeTo     *string `json:"materialize_to,omitempty"`   // YYYY-MM-DD
+	StudentIDs        []int64 `json:"student_ids,omitempty"`
+	StaffIDs          []int64 `json:"staff_ids,omitempty"`
+	PrimaryStaffID    *int64  `json:"primary_staff_id,omitempty"`
 }
 
 // Bind enforces presence, but defers format/business validation to the
@@ -89,6 +97,17 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 			return fmt.Errorf("invalid weekday %d (must be 1=Mon … 7=Sun)", w)
 		}
 	}
+	target := &activitiesModel.Group{
+		TargetGroupType:   req.TargetGroupType,
+		TargetGradeLevel:  req.TargetGradeLevel,
+		TargetSchoolClass: req.TargetSchoolClass,
+		EducationGroupID:  req.EducationGroupID,
+	}
+	if err := target.ValidateTargetGroup(); err != nil {
+		return err
+	}
+	req.TargetGroupType = target.TargetGroupType
+	req.TargetSchoolClass = target.TargetSchoolClass
 	return nil
 }
 
@@ -164,6 +183,21 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 			errors.New("no tenant in context")))
 		return
 	}
+	gradeLevelMax, err := rs.resolveTemplateGradeLevelMax(ctx)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"resolve template grade level limit failed", err))
+		return
+	}
+	if err := scheduleSvc.ValidateTemplateTargetGradeLimit(
+		gradeLevelMax,
+		nil,
+		req.TargetGroupType,
+		req.TargetGradeLevel,
+	); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	rosterValidFrom, err := rs.templateRosterValidFrom(ctx, req.CalendarPeriodID)
 	if err != nil {
 		renderTemplatePeriodLookupError(w, r, err)
@@ -194,15 +228,19 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 
 	roomIDCopy := req.RoomID
 	group := &activitiesModel.Group{
-		Name:             req.Name,
-		MaxParticipants:  maxParticipants,
-		IsOpen:           true,
-		CategoryID:       req.CategoryID,
-		PlannedRoomID:    &roomIDCopy,
-		Type:             req.Type,
-		EducationGroupID: req.EducationGroupID,
-		IsTemplate:       true,
-		CreatedBy:        createdByPtr,
+		Name:              req.Name,
+		MaxParticipants:   maxParticipants,
+		IsOpen:            true,
+		CategoryID:        req.CategoryID,
+		PlannedRoomID:     &roomIDCopy,
+		Type:              req.Type,
+		EducationGroupID:  req.EducationGroupID,
+		IsTemplate:        true,
+		CreatedBy:         createdByPtr,
+		CalendarPeriodID:  req.CalendarPeriodID,
+		TargetGroupType:   req.TargetGroupType,
+		TargetGradeLevel:  req.TargetGradeLevel,
+		TargetSchoolClass: req.TargetSchoolClass,
 	}
 	group.SetTenantID(tenantID)
 	if err := rs.TimetableData.CreateActivityGroup(ctx, group); err != nil {

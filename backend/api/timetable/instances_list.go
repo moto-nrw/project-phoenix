@@ -64,28 +64,38 @@ type instanceStudentSummary struct {
 // "activity" | "care" | "external". Spontaneous instances without a template
 // fall back to "activity" so the frontend has a deterministic colour key.
 type enrichedInstance struct {
-	ID                    int64                                 `json:"id"`
-	Date                  string                                `json:"date"`
-	StartTime             string                                `json:"start_time"`
-	EndTime               string                                `json:"end_time"`
-	Title                 string                                `json:"title"`
-	Description           *string                               `json:"description,omitempty"`
-	Notes                 *string                               `json:"notes,omitempty"`
-	Status                string                                `json:"status"`
-	IsSpontaneous         bool                                  `json:"is_spontaneous"`
-	IsLive                bool                                  `json:"is_live"`
-	ActivityGroupID       *int64                                `json:"activity_group_id,omitempty"`
-	ActivityType          string                                `json:"activity_type"`
-	RoomID                int64                                 `json:"room_id"`
-	RoomName              string                                `json:"room_name"`
-	Staff                 []instanceStaffSummary                `json:"staff"`
-	StudentIDs            []int64                               `json:"student_ids"`
-	Students              []instanceStudentSummary              `json:"students"`
-	StaffCount            int                                   `json:"staff_count"`
-	AbsentStaffCount      int                                   `json:"absent_staff_count"`
-	ExpectedStudentsCount int                                   `json:"expected_students_count"`
-	PresentStudentsCount  int                                   `json:"present_students_count"`
-	ConflictWarnings      []scheduleSvc.InstanceConflictWarning `json:"conflict_warnings"`
+	ID                    int64                    `json:"id"`
+	Date                  string                   `json:"date"`
+	StartTime             string                   `json:"start_time"`
+	EndTime               string                   `json:"end_time"`
+	Title                 string                   `json:"title"`
+	Description           *string                  `json:"description,omitempty"`
+	Notes                 *string                  `json:"notes,omitempty"`
+	Status                string                   `json:"status"`
+	IsSpontaneous         bool                     `json:"is_spontaneous"`
+	IsLive                bool                     `json:"is_live"`
+	ActivityGroupID       *int64                   `json:"activity_group_id,omitempty"`
+	ActivityType          string                   `json:"activity_type"`
+	RoomID                int64                    `json:"room_id"`
+	RoomName              string                   `json:"room_name"`
+	Staff                 []instanceStaffSummary   `json:"staff"`
+	StudentIDs            []int64                  `json:"student_ids"`
+	Students              []instanceStudentSummary `json:"students"`
+	StaffCount            int                      `json:"staff_count"`
+	AbsentStaffCount      int                      `json:"absent_staff_count"`
+	ExpectedStudentsCount int                      `json:"expected_students_count"`
+	PresentStudentsCount  int                      `json:"present_students_count"`
+	// RequiredStaffCount and AssignedStaffCount drive the Betreuungsplan
+	// capacity indicator (issue #1838): required is
+	// ceil(children/Betreuungsschlüssel), assigned is the non-absent staff
+	// count already computed above (StaffCount - AbsentStaffCount). The
+	// frontend derives "understaffed" as assigned < required, the same
+	// pattern already used for every other count on this payload — this is
+	// intentionally not modeled as a ConflictWarning (see
+	// services/schedule/capacity_service.go).
+	RequiredStaffCount int                                   `json:"required_staff_count"`
+	AssignedStaffCount int                                   `json:"assigned_staff_count"`
+	ConflictWarnings   []scheduleSvc.InstanceConflictWarning `json:"conflict_warnings"`
 }
 
 // weeklyInstancesResponse is the 200 body for GET /instances.
@@ -150,9 +160,13 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	roomCache := make(map[int64]string)
 	typeCache := make(map[int64]string)
 
+	// Resolved once per request (not per instance) — the Betreuungsschlüssel
+	// setting is tenant-wide, not per-block.
+	ratio := rs.childrenPerStaffRatio(ctx)
+
 	enriched := make([]enrichedInstance, 0, len(instances))
 	for _, inst := range instances {
-		item, err := rs.enrichInstance(ctx, inst, roomCache, typeCache)
+		item, err := rs.enrichInstance(ctx, inst, roomCache, typeCache, ratio)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap(
 				"enrich instance failed", err))
@@ -184,6 +198,7 @@ func (rs *Resource) enrichInstance(
 	inst *scheduleModel.ActivityInstance,
 	roomCache map[int64]string,
 	typeCache map[int64]string,
+	childrenPerStaffRatio int,
 ) (enrichedInstance, error) {
 	if inst == nil {
 		return enrichedInstance{}, errors.New("nil instance")
@@ -240,6 +255,9 @@ func (rs *Resource) enrichInstance(
 		}
 	}
 
+	assignedStaff := len(staffRows) - absentCount
+	childrenCount := expected + present
+
 	return enrichedInstance{
 		ID:                    inst.ID,
 		Date:                  inst.Date.Format(dateLayout),
@@ -262,6 +280,8 @@ func (rs *Resource) enrichInstance(
 		AbsentStaffCount:      absentCount,
 		ExpectedStudentsCount: expected,
 		PresentStudentsCount:  present,
+		RequiredStaffCount:    scheduleSvc.RequiredStaffForChildren(childrenCount, childrenPerStaffRatio),
+		AssignedStaffCount:    assignedStaff,
 		ConflictWarnings:      rs.instanceConflictWarnings(ctx, inst),
 	}, nil
 }

@@ -61,6 +61,7 @@ const mockTenant: TenantInfo = {
   nfcEnabled: false,
   messagingEnabled: false,
   displayEnabled: false,
+  gradeLevelMax: 4,
 };
 
 function TenantWrapper({

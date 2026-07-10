@@ -6,9 +6,11 @@ import (
 	"log/slog"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
@@ -17,11 +19,12 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/uptrace/bun"
 )
 
 // Decision service integration tests. These hit the real test DB
@@ -83,9 +86,17 @@ func setupDecisionTestWithSettings(
 ) (*decisionTestEnv, func()) {
 	t.Helper()
 	env, cleanup := setupRolloverTest(t)
+	decision := newDecisionServiceForTest(env, settings, nil)
+	return &decisionTestEnv{rolloverTestEnv: env, decision: decision}, cleanup
+}
 
+func newDecisionServiceForTest(
+	env *rolloverTestEnv,
+	settings enrollmentService.DecisionSettingsResolver,
+	lockTemplateRecurrence func(context.Context) error,
+) enrollmentService.DecisionService {
 	repoFactory := repositories.NewFactory(env.db)
-	decision := enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
+	return enrollmentService.NewDecisionService(enrollmentService.DecisionServiceConfig{
 		RequestRepo:              repoFactory.Request,
 		RequestChildRepo:         repoFactory.RequestChild,
 		RequestGuardianRepo:      repoFactory.RequestGuardian,
@@ -106,6 +117,8 @@ func setupDecisionTestWithSettings(
 		ActivityGroupRepo:        repoFactory.ActivityGroup,
 		ActivityScheduleRepo:     repoFactory.ActivitySchedule,
 		CalendarPeriodRepo:       repoFactory.CalendarPeriod,
+		TimeframeRepo:            repoFactory.Timeframe,
+		ActivityExceptionRepo:    repoFactory.ActivityException,
 		AccountRepo:              repoFactory.Account,
 		AccountTenantRepo:        repoFactory.AccountTenant,
 		AccountRoleRepo:          repoFactory.AccountRole,
@@ -114,9 +127,9 @@ func setupDecisionTestWithSettings(
 		FrontendURL:              "http://localhost:3000",
 		ParentsURL:               "http://parents.localhost:3000",
 		Settings:                 settings,
+		LockTemplateRecurrence:   lockTemplateRecurrence,
 		Logger:                   slog.Default(),
 	})
-	return &decisionTestEnv{rolloverTestEnv: env, decision: decision}, cleanup
 }
 
 func changeRequestApplierForTest(t *testing.T, env *decisionTestEnv) enrollmentService.ChangeRequestDecisionApplier {
@@ -124,6 +137,63 @@ func changeRequestApplierForTest(t *testing.T, env *decisionTestEnv) enrollmentS
 	applier, ok := env.decision.(enrollmentService.ChangeRequestDecisionApplier)
 	require.True(t, ok, "decision service must implement the change-request applier contract")
 	return applier
+}
+
+func assertOfferingAdjustmentWaitsForRecurrenceGate(
+	t *testing.T,
+	env *decisionTestEnv,
+	decision enrollmentService.DecisionService,
+	input enrollmentService.UpdateChildOfferingsInput,
+) {
+	t.Helper()
+
+	holderAcquired := make(chan struct{})
+	releaseHolder := make(chan struct{})
+	holderDone := make(chan error, 1)
+	go func() {
+		holderDone <- tenant.WithTenantTx(testpkg.TenantContext(1), env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+			if err := scheduleService.LockTenantRecurrenceWrites(txCtx, env.db); err != nil {
+				return err
+			}
+			close(holderAcquired)
+			<-releaseHolder
+			return nil
+		})
+	}()
+
+	select {
+	case <-holderAcquired:
+	case err := <-holderDone:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timed out acquiring recurrence gate in holder transaction")
+	}
+
+	adjustmentDone := make(chan error, 1)
+	go func() {
+		adjustmentDone <- tenant.WithTenantTx(testpkg.TenantContext(1), env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+			_, err := decision.UpdateChildOfferings(txCtx, input)
+			return err
+		})
+	}()
+
+	select {
+	case err := <-adjustmentDone:
+		close(releaseHolder)
+		require.NoError(t, <-holderDone)
+		require.FailNow(t, "offering adjustment bypassed the recurrence gate", "returned early with %v", err)
+	case <-time.After(200 * time.Millisecond):
+		// Expected: the adjustment is waiting on the advisory transaction lock.
+	}
+
+	close(releaseHolder)
+	require.NoError(t, <-holderDone)
+	select {
+	case err := <-adjustmentDone:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "offering adjustment did not resume after recurrence gate release")
+	}
 }
 
 // submitOneChild submits a single-child enrollment in the source
@@ -2307,6 +2377,7 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 	ctx := testpkg.TenantContext(1)
 
 	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Fixed-Days")
+	room := testpkg.CreateTestRoom(t, env.db, "Decision-Fixed-Days")
 	group := &activitiesModels.Group{
 		Name:            "Decision Fixed Days",
 		Type:            activitiesModels.GroupTypeCare,
@@ -2314,6 +2385,7 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 		MaxParticipants: 20,
 		IsOpen:          true,
 		IsTemplate:      true,
+		PlannedRoomID:   &room.ID,
 	}
 	group.SetTenantID(1)
 	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
@@ -2329,6 +2401,7 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 			Exec(ctx)
 		testpkg.CleanupTableRecords(t, env.db, "activities.groups", group.ID)
 		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
+		testpkg.CleanupTableRecords(t, env.db, "facilities.rooms", room.ID)
 	}()
 
 	offering := &enrollmentModels.CareOffering{
@@ -2390,6 +2463,136 @@ func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollme
 		"fixed offering approval must constrain enrollment to available_days")
 	require.NotNil(t, rows[0].CalendarPeriodID)
 	assert.Equal(t, period.ID, *rows[0].CalendarPeriodID)
+}
+
+func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	period := &scheduleModels.CalendarPeriod{
+		Name: "decision-split-series-" + t.Name(), PeriodType: scheduleModels.PeriodTypeCustom,
+		StartDate: timezone.NewDate(2026, 8, 1), EndDate: timezone.NewDate(2027, 8, 31),
+		WeekCycleLength: 1, IsActive: true,
+	}
+	period.SetTenantID(1)
+	require.NoError(t, env.repos.CalendarPeriod.Create(ctx, period))
+	defer testpkg.CleanupTableRecords(t, env.db, "schedule.calendar_periods", period.ID)
+	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Split-Series")
+	rootRoom := testpkg.CreateTestRoom(t, env.db, "Decision-Split-Root")
+	successorRoom := testpkg.CreateTestRoom(t, env.db, "Decision-Split-Successor")
+	timeframe := testpkg.CreateTestTimeframeForTenant(t, env.db, 1, "Decision Split")
+	root := &activitiesModels.Group{
+		Name: "Decision Split Root", Type: activitiesModels.GroupTypeCare,
+		CategoryID: category.ID, MaxParticipants: 20, IsOpen: true,
+		IsTemplate: true, CalendarPeriodID: &period.ID, PlannedRoomID: &rootRoom.ID,
+	}
+	root.SetTenantID(1)
+	require.NoError(t, env.repos.ActivityGroup.Create(ctx, root))
+	successor := &activitiesModels.Group{
+		Name: "Decision Split Successor", Type: activitiesModels.GroupTypeCare,
+		CategoryID: category.ID, MaxParticipants: 20, IsOpen: true,
+		IsTemplate: true, CalendarPeriodID: &period.ID, SeriesRootID: &root.ID, PlannedRoomID: &successorRoom.ID,
+	}
+	successor.SetTenantID(1)
+	require.NoError(t, env.repos.ActivityGroup.Create(ctx, successor))
+	boundary := timezone.NewDate(2027, 1, 1)
+	rootSchedule := &activitiesModels.Schedule{
+		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: root.ID,
+		ValidUntil: &boundary, TimeframeID: &timeframe.ID,
+	}
+	rootSchedule.SetTenantID(1)
+	require.NoError(t, env.repos.ActivitySchedule.Create(ctx, rootSchedule))
+	successorSchedule := &activitiesModels.Schedule{
+		Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: successor.ID,
+		ValidFrom: &boundary, TimeframeID: &timeframe.ID,
+	}
+	successorSchedule.SetTenantID(1)
+	require.NoError(t, env.repos.ActivitySchedule.Create(ctx, successorSchedule))
+	defer func() {
+		_, _ = env.db.NewDelete().TableExpr("activities.schedules").
+			Where("activity_group_id IN (?)", bun.List([]int64{root.ID, successor.ID})).Exec(context.Background())
+		_, _ = env.db.NewDelete().TableExpr("activities.groups").
+			Where("id IN (?)", bun.List([]int64{root.ID, successor.ID})).Exec(context.Background())
+		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
+		testpkg.CleanupTableRecords(t, env.db, "schedule.timeframes", timeframe.ID)
+		testpkg.CleanupTableRecords(t, env.db, "facilities.rooms", rootRoom.ID)
+		testpkg.CleanupTableRecords(t, env.db, "facilities.rooms", successorRoom.ID)
+	}()
+
+	offering := &enrollmentModels.CareOffering{
+		PhaseID: env.sourcePhase.ID, ActivityGroupID: &root.ID,
+		Name: "Split Series Care", DaysOfWeekMode: enrollmentModels.DaysOfWeekModeFixed,
+		AvailableDays: []string{"mon"}, IsActive: true,
+	}
+	offering.SetTenantID(1)
+	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID: 1, PhaseID: env.sourcePhase.ID,
+		GuardianFirstName: "Eltern", GuardianLastName: "SplitSeries",
+		GuardianEmail: "split-series-roster@example.com",
+		ConsentFlags: map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName: "Sina", LastName: "SplitSeries",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: testpkg.Int16Ptr(2), OfferingIDs: []int64{offering.ID},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+	childID := submitted.Children[0].ID
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID: submitted.Request.ID, ChildID: childID,
+		Status: enrollmentService.DecisionApproved, ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	assertSeriesRoster := func() {
+		rows := listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
+		byGroup := make(map[int64]activitiesModels.StudentEnrollment, len(rows))
+		for _, row := range rows {
+			if row.EnrollmentRequestChildID != nil && *row.EnrollmentRequestChildID == childID {
+				byGroup[row.ActivityGroupID] = row
+			}
+		}
+		require.Contains(t, byGroup, root.ID)
+		require.Contains(t, byGroup, successor.ID)
+		assert.Equal(t, []int{activitiesModels.WeekdayMonday}, byGroup[root.ID].SelectedWeekdays)
+		assert.Equal(t, []int{activitiesModels.WeekdayMonday}, byGroup[successor.ID].SelectedWeekdays)
+	}
+	assertSeriesRoster()
+
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID: submitted.Request.ID, ChildID: childID,
+		ActorAccountID: env.creatorID, ActorRole: "admin",
+		Reason: "Serienzuordnung erneut speichern",
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{{
+			OfferingID: offering.ID,
+		}},
+	})
+	require.NoError(t, err)
+	assertSeriesRoster()
+
+	lockedDecision := newDecisionServiceForTest(
+		env.rolloverTestEnv,
+		nil,
+		func(lockCtx context.Context) error {
+			return scheduleService.LockTenantRecurrenceWrites(lockCtx, env.db)
+		},
+	)
+	assertOfferingAdjustmentWaitsForRecurrenceGate(t, env, lockedDecision, enrollmentService.UpdateChildOfferingsInput{
+		RequestID: submitted.Request.ID, ChildID: childID,
+		ActorAccountID: env.creatorID, ActorRole: "admin",
+		Reason: "Serienzuordnung unter Sperre erneut speichern",
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{{
+			OfferingID: offering.ID,
+		}},
+	})
+	assertSeriesRoster()
 }
 
 func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering(t *testing.T) {
@@ -2603,6 +2806,7 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 	ctx := testpkg.TenantContext(1)
 
 	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Empty-Days")
+	room := testpkg.CreateTestRoom(t, env.db, "Decision-Empty-Days")
 	group := &activitiesModels.Group{
 		Name:            "Decision Empty Days",
 		Type:            activitiesModels.GroupTypeCare,
@@ -2610,6 +2814,7 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 		MaxParticipants: 20,
 		IsOpen:          true,
 		IsTemplate:      true,
+		PlannedRoomID:   &room.ID,
 	}
 	group.SetTenantID(1)
 	require.NoError(t, env.repos.ActivityGroup.Create(ctx, group))
@@ -2624,6 +2829,7 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 			Exec(ctx)
 		testpkg.CleanupTableRecords(t, env.db, "activities.groups", group.ID)
 		testpkg.CleanupTableRecords(t, env.db, "activities.categories", category.ID)
+		testpkg.CleanupTableRecords(t, env.db, "facilities.rooms", room.ID)
 	}()
 
 	offering := &enrollmentModels.CareOffering{
@@ -3189,7 +3395,66 @@ func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterPhase
 	assert.NotEqual(t, initialUntil, *rows[0].ValidUntil)
 	assert.Equal(t, env.sourcePhase.ServiceStartDate, rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, env.sourcePhase.ServiceEndDate, *rows[0].ValidUntil)
+	assert.Equal(t, env.sourcePhase.ServiceEndDate.AddDays(1), *rows[0].ValidUntil)
+}
+
+func TestDecisionService_ApprovalUsesExclusiveEndForOneDayPhase(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	serviceDay := timezone.NewDate(2027, time.April, 5)
+	env.sourcePhase.ServiceStartDate = serviceDay
+	env.sourcePhase.ServiceEndDate = serviceDay
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+
+	group := testpkg.CreateTestActivityGroup(t, env.db, "OneDayExclusiveEndGroup")
+	defer testpkg.CleanupActivityFixtures(t, env.db, group.ID, group.CategoryID, *group.CreatedBy)
+	offering := createAdjustmentCareOfferingWith(t, env, "Eintagesbetreuung", func(o *enrollmentModels.CareOffering) {
+		o.ActivityGroupID = &group.ID
+	})
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "OneDay",
+		GuardianEmail:     "decision-one-day-exclusive-end@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        "Lina",
+			LastName:         "OneDay",
+			DateOfBirth:      timezone.NewDate(2018, time.April, 15),
+			TargetGradeLevel: testpkg.Int16Ptr(2),
+			OfferingIDs:      []int64{offering.ID},
+			OfferingDays: []enrollmentService.SubmitOfferingDays{{
+				OfferingID:   offering.ID,
+				SelectedDays: []string{"mon"},
+			}},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	rows := listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
+	require.Len(t, rows, 1)
+	assert.Equal(t, serviceDay, rows[0].ValidFrom)
+	require.NotNil(t, rows[0].ValidUntil)
+	assert.Equal(t, serviceDay.AddDays(1), *rows[0].ValidUntil)
 }
 
 func listStudentEnrollmentRowsForDecisionTest(t *testing.T, env *decisionTestEnv, studentID int64) []activitiesModels.StudentEnrollment {

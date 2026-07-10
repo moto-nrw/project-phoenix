@@ -164,7 +164,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	// straight into its SWR cache without a round-trip refetch.
 	roomCache := make(map[int64]string)
 	typeCache := make(map[int64]string)
-	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache)
+	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()))
 	if err != nil {
 		// Insert succeeded; enrichment is informational. Fall through with
 		// a partial response rather than failing the whole request.

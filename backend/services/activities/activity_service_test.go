@@ -416,6 +416,133 @@ func TestActivityService_DeleteGroup(t *testing.T) {
 	})
 }
 
+func TestActivityService_RejectsLegacyMutationsForTimetableTemplates(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	ctx := testpkg.TenantContext(tenantID)
+	service := setupActivityService(t, db)
+
+	group := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, fmt.Sprintf("template-guard-%d", time.Now().UnixNano()))
+	ordinaryGroup := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, fmt.Sprintf("ordinary-guard-%d", time.Now().UnixNano()))
+	timeframe := testpkg.CreateTestTimeframeForTenant(t, db, tenantID, fmt.Sprintf("template-guard-%d", time.Now().UnixNano()))
+	schedule := &activitiesModels.Schedule{
+		ActivityGroupID: group.ID,
+		Weekday:         activitiesModels.WeekdayMonday,
+		TimeframeID:     &timeframe.ID,
+	}
+	schedule.SetTenantID(tenantID)
+	require.NoError(t, db.NewInsert().Model(schedule).ModelTableExpr(`activities.schedules`).Scan(ctx))
+	supervisor := &activitiesModels.SupervisorPlanned{
+		GroupID:   group.ID,
+		StaffID:   *group.CreatedBy,
+		IsPrimary: true,
+		ValidFrom: timezone.TodayDate(),
+	}
+	supervisor.SetTenantID(tenantID)
+	require.NoError(t, db.NewInsert().Model(supervisor).ModelTableExpr(`activities.supervisors`).Scan(ctx))
+	_, err := db.NewUpdate().
+		TableExpr(`activities.groups`).
+		Set("is_template = TRUE").
+		Where("tenant_id = ?", tenantID).
+		Where("id = ?", group.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		cleanupCtx := context.Background()
+		for _, table := range []string{
+			"activities.student_enrollments",
+			"activities.supervisors",
+			"activities.schedules",
+			"activities.groups",
+			"activities.categories",
+			"schedule.timeframes",
+		} {
+			_, cleanupErr := db.NewDelete().TableExpr(table).Where("tenant_id = ?", tenantID).Exec(cleanupCtx)
+			require.NoError(t, cleanupErr, "clean up %s", table)
+		}
+		testpkg.CleanupTenantTestData(t, db, tenantID)
+		_, cleanupErr := db.NewDelete().TableExpr("platform.schools").Where("id = ?", tenantID).Exec(cleanupCtx)
+		require.NoError(t, cleanupErr)
+		_, cleanupErr = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", tenantID).Exec(cleanupCtx)
+		require.NoError(t, cleanupErr)
+	})
+
+	template, err := service.GetGroup(ctx, group.ID)
+	require.NoError(t, err)
+	require.True(t, template.IsTemplate)
+
+	assertProtected := func(t *testing.T, err error) {
+		t.Helper()
+		require.ErrorIs(t, err, activities.ErrTimetableTemplateProtected)
+	}
+
+	t.Run("create group", func(t *testing.T) {
+		_, createErr := service.CreateGroup(ctx, &activitiesModels.Group{IsTemplate: true}, nil, nil)
+		assertProtected(t, createErr)
+	})
+	t.Run("update persisted template", func(t *testing.T) {
+		forged := *template
+		forged.IsTemplate = false
+		forged.Name = "must-not-change"
+		_, updateErr := service.UpdateGroup(ctx, &forged, *group.CreatedBy, true)
+		assertProtected(t, updateErr)
+	})
+	t.Run("convert ordinary input to template", func(t *testing.T) {
+		candidate := *ordinaryGroup
+		candidate.IsTemplate = true
+		_, updateErr := service.UpdateGroup(ctx, &candidate, *ordinaryGroup.CreatedBy, true)
+		assertProtected(t, updateErr)
+
+		storedOrdinary, getErr := service.GetGroup(ctx, ordinaryGroup.ID)
+		require.NoError(t, getErr)
+		assert.False(t, storedOrdinary.IsTemplate)
+		assert.Equal(t, ordinaryGroup.Name, storedOrdinary.Name)
+	})
+	t.Run("delete group", func(t *testing.T) {
+		assertProtected(t, service.DeleteGroup(ctx, group.ID, *group.CreatedBy, true))
+	})
+	t.Run("enrollment mutations", func(t *testing.T) {
+		assertProtected(t, service.EnrollStudent(ctx, group.ID, 999_001))
+		assertProtected(t, service.UnenrollStudent(ctx, group.ID, 999_001))
+		assertProtected(t, service.UpdateGroupEnrollments(ctx, group.ID, []int64{999_001}))
+	})
+	t.Run("schedule mutations", func(t *testing.T) {
+		_, addErr := service.AddSchedule(ctx, group.ID, &activitiesModels.Schedule{
+			Weekday: activitiesModels.WeekdayTuesday,
+		})
+		assertProtected(t, addErr)
+		updated := *schedule
+		updated.Weekday = activitiesModels.WeekdayTuesday
+		_, updateErr := service.UpdateSchedule(ctx, &updated)
+		assertProtected(t, updateErr)
+		assertProtected(t, service.DeleteSchedule(ctx, schedule.ID))
+	})
+	t.Run("supervisor mutations", func(t *testing.T) {
+		_, addErr := service.AddSupervisor(ctx, group.ID, *group.CreatedBy, false)
+		assertProtected(t, addErr)
+		updated := *supervisor
+		updated.IsPrimary = false
+		_, updateErr := service.UpdateSupervisor(ctx, &updated)
+		assertProtected(t, updateErr)
+		assertProtected(t, service.DeleteSupervisor(ctx, supervisor.ID))
+		assertProtected(t, service.SetPrimarySupervisor(ctx, supervisor.ID))
+		assertProtected(t, service.UpdateGroupSupervisors(ctx, group.ID, []int64{*group.CreatedBy}))
+	})
+
+	stored, err := service.GetGroup(ctx, group.ID)
+	require.NoError(t, err)
+	assert.Equal(t, group.Name, stored.Name)
+	storedSchedule, err := service.GetSchedule(ctx, schedule.ID)
+	require.NoError(t, err)
+	assert.Equal(t, activitiesModels.WeekdayMonday, storedSchedule.Weekday)
+	storedSupervisor, err := service.GetSupervisor(ctx, supervisor.ID)
+	require.NoError(t, err)
+	assert.True(t, storedSupervisor.IsPrimary)
+}
+
 func TestActivityService_FindByCategory(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/clientip"
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -58,9 +59,9 @@ type Resource struct {
 	GuardianInvitationService  authService.GuardianInvitationService
 	CaregiverCapabilityService usersService.CaregiverCapabilityService
 	SchoolService              platformSvc.SchoolService
-	// SettingsService is optional — when non-nil, resolveTenant enriches its
-	// response with tenant-scoped presence_mode so the frontend can decide
-	// between PresenceBadge and LocationBadge without a second fetch.
+	// SettingsService enriches tenant-shell metadata. Some optional feature
+	// flags retain defensive fallbacks, but resolveTenant requires this service
+	// for the grade-level validation contract and returns 500 when it is absent.
 	SettingsService configSvc.SettingsService
 	// MFAService is optional during the rollout window — handlers gate on
 	// nil and return 503 so deployments without the service wired in don't
@@ -366,6 +367,12 @@ type TenantResolveResponse struct {
 	// this to hide the sidebar entry / admin page for schools that haven't
 	// turned it on. Defaults to false when the setting is missing/unresolvable.
 	DisplayEnabled bool `json:"display_enabled"`
+	// GradeLevelMax is the tenant's enrollment.grade_level_max setting.
+	// Timetable users need it even without config:read, so it belongs to the
+	// same public tenant-shell metadata contract as the feature flags above.
+	// Unlike optional display flags, this constraint fails closed: omitting or
+	// inventing it would make enrollment forms disagree with server validation.
+	GradeLevelMax int `json:"grade_level_max"`
 	// CareOfferingsEnabled is shell metadata for approved-child offering
 	// corrections. Missing metadata stays enabled for compatibility with older
 	// backends; an explicit settings-resolution error fails closed so the UI
@@ -388,6 +395,29 @@ type tenantShellSettings struct {
 	groupMode              string
 	showTimetableCounts    bool
 	waitlistEnabled        bool
+}
+
+func resolveTenantGradeLevelMax(
+	ctx context.Context,
+	settings configSvc.SettingsService,
+	tenantID int64,
+) (int, error) {
+	if settings == nil {
+		return 0, errors.New("settings service not configured for grade_level_max")
+	}
+	value, err := settings.ResolveIntForTenant(ctx, tenantID, configModel.KeyEnrollmentGradeLevelMax)
+	if err != nil {
+		return 0, fmt.Errorf("resolve grade_level_max: %w", err)
+	}
+	if value < schoolclass.MinGradeLevel || value > schoolclass.MaxGradeLevel {
+		return 0, fmt.Errorf(
+			"grade_level_max %d outside %d..%d",
+			value,
+			schoolclass.MinGradeLevel,
+			schoolclass.MaxGradeLevel,
+		)
+	}
+	return value, nil
 }
 
 // resolveTenant handles GET /auth/tenant/resolve?slug={slug}
@@ -415,6 +445,18 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		orgName = school.Organization.Name
 	}
 
+	// GradeLevelMax is a validation constraint, not an optional display hint.
+	// The registry returns the legitimate default for tenants without an
+	// override; a missing settings service, read error, or corrupt value must
+	// fail the whole resolve contract instead of silently substituting grade 4.
+	gradeLevelMax, err := resolveTenantGradeLevelMax(r.Context(), rs.SettingsService, school.ID)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			http.StatusText(http.StatusInternalServerError),
+			fmt.Errorf("tenant resolve: %w", err),
+		))
+		return
+	}
 	resolved := rs.resolveTenantShellSettings(r.Context(), school.ID)
 
 	resp := &TenantResolveResponse{
@@ -431,6 +473,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		NFCEnabled:             resolved.nfcEnabled,
 		ParentMessagingEnabled: resolved.parentMessagingEnabled,
 		DisplayEnabled:         resolved.displayEnabled,
+		GradeLevelMax:          gradeLevelMax,
 		CareOfferingsEnabled:   resolved.careOfferingsEnabled,
 		AttendanceWebEnabled:   resolved.attendanceWebEnabled,
 		GroupMode:              resolved.groupMode,

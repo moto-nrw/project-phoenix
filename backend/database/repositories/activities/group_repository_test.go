@@ -42,6 +42,11 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		assert.NotZero(t, group.ID)
+		assert.Equal(t, activities.TargetGroupTypeNone, group.TargetGroupType)
+
+		persisted, err := repo.FindByID(ctx, group.ID)
+		require.NoError(t, err)
+		assert.Equal(t, activities.TargetGroupTypeNone, persisted.TargetGroupType)
 
 		testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 	})
@@ -126,6 +131,20 @@ func TestActivityGroupRepository_Update(t *testing.T) {
 		found, err := repo.FindByID(ctx, group.ID)
 		require.NoError(t, err)
 		assert.False(t, found.IsOpen)
+	})
+
+	t.Run("canonicalizes an empty target group type before a generic update", func(t *testing.T) {
+		group := testpkg.CreateTestActivityGroup(t, db, "UpdateEmptyTargetGroup")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
+
+		group.TargetGroupType = ""
+		require.NoError(t, repo.Update(ctx, group))
+		assert.Equal(t, activities.TargetGroupTypeNone, group.TargetGroupType)
+
+		found, err := repo.FindByID(ctx, group.ID)
+		require.NoError(t, err)
+		assert.Equal(t, activities.TargetGroupTypeNone, found.TargetGroupType)
 	})
 }
 

@@ -266,7 +266,12 @@ const (
 	KeyTimetableAutoStartPlanned          = "timetable.auto_start_planned"
 	KeyTimetableOverdueThresholdMinutes   = "timetable.overdue_threshold_minutes"
 	KeyTimetableShowExpectedChildrenCount = "timetable.show_expected_children_count"
-	KeyGDPRTimetableRetentionDays         = "gdpr.timetable_retention_days"
+	// KeyTimetableChildrenPerStaffRatio is the Betreuungsschlüssel: the max
+	// number of children one staff member supervises unassisted. Used to
+	// derive a block's required staff count (ceil(children/ratio)) instead
+	// of a manually-maintained headcount field.
+	KeyTimetableChildrenPerStaffRatio = "timetable.children_per_staff_ratio"
+	KeyGDPRTimetableRetentionDays     = "gdpr.timetable_retention_days"
 	// Display range for the admin weekly calendar (Apple-style grid).
 	// Both are HH:MM strings; the UI renders the visible window between them
 	// and scrolls if events fall outside.

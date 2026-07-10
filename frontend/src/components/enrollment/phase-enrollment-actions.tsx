@@ -146,10 +146,12 @@ export function ManualApprovedEnrollmentModal({
   isOpen,
   onClose,
   phase,
+  gradeLevelMax,
 }: Readonly<{
   isOpen: boolean;
   onClose: () => void;
   phase: Phase;
+  gradeLevelMax: number | null;
 }>) {
   const [prefetchedData, setPrefetchedData] =
     useState<EnrollmentFormPrefetchedData | null>(null);
@@ -160,6 +162,10 @@ export function ManualApprovedEnrollmentModal({
   const [statusUrl, setStatusUrl] = useState("");
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const configurationError =
+    gradeLevelMax === null
+      ? "Die Klassenstufen-Konfiguration ist nicht verfügbar."
+      : null;
 
   useEffect(() => {
     if (!isOpen) return;
@@ -227,9 +233,9 @@ export function ManualApprovedEnrollmentModal({
           Betreuungsangebote und dieselbe Freigabe-Logik wie die
           Online-Anmeldung. Nach dem Absenden wird das Kind direkt bestätigt.
         </p>
-        {loadError ? (
+        {loadError || configurationError ? (
           <div className="rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm text-[#9F1F1E]">
-            {loadError}
+            {loadError ?? configurationError}
           </div>
         ) : null}
         {statusUrl ? (
@@ -291,10 +297,10 @@ export function ManualApprovedEnrollmentModal({
           <p className="text-sm text-gray-500">
             Formularvorlage wird geladen...
           </p>
-        ) : prefetchedData ? (
+        ) : prefetchedData && gradeLevelMax !== null ? (
           <EnrollmentForm
             phaseID={phase.id}
-            gradeLevelMax={4}
+            gradeLevelMax={gradeLevelMax}
             onSubmitted={(url) => setStatusUrl(url)}
             prefetchedData={prefetchedData}
             submitter={submitter}

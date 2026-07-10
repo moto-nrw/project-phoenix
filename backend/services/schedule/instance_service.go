@@ -838,6 +838,18 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		// find). Fail fast instead of silently no-oping the admin action.
 		return nil, &ScheduleError{Op: "replan week", Err: errors.New("no tenant in context")}
 	}
+	if _, ok := modelBase.TxFromContext(ctx); !ok {
+		var result *ReplanWeekResult
+		err := tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			var err error
+			result, err = s.ReplanWeek(txCtx, from, to, activityGroupID)
+			return err
+		})
+		return result, err
+	}
+	if err := lockTenantRecurrenceWrites(ctx, s.deps.DB); err != nil {
+		return nil, &ScheduleError{Op: "replan week: lock recurrence", Err: err}
+	}
 
 	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, from, &to, activityGroupID)
 	if err != nil {

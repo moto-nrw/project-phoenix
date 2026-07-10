@@ -194,6 +194,19 @@ describe("settings values tenant cache busting", () => {
     expect(mockRevalidatePath).toHaveBeenCalledWith("/school-a", "layout");
   });
 
+  it("revalidates tenant metadata after changing grade_level_max", async () => {
+    await (PUT as Function)(
+      reqWithHost("school-a.moto-app.de"),
+      { value: 13 },
+      "test-token",
+      { key: "enrollment.grade_level_max" },
+    );
+    expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-school-a", {
+      expire: 0,
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/school-a", "layout");
+  });
+
   it("does NOT revalidate when key is not tenant-resolve-affecting", async () => {
     await (PUT as Function)(
       reqWithHost("school-a.moto-app.de"),

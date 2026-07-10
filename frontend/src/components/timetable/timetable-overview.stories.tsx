@@ -19,8 +19,8 @@ export const Default: Story = {
     plannedLabel: "Geplant",
     plannedCount: 12,
     plannedSublabel: "diese Woche",
-    staffGapCount: 0,
-    staffGapSublabel: "keine Lücken",
+    understaffedCount: 0,
+    understaffedSublabel: "ausreichend besetzt",
     createLabel: "Neuer Termin",
     onCreate: () => {
       // no-op for story
@@ -28,13 +28,13 @@ export const Default: Story = {
   },
 };
 
-export const WithStaffGaps: Story = {
+export const WithUnderstaffedAppointments: Story = {
   args: {
     plannedLabel: "Regeltermine",
     plannedCount: 8,
     plannedSublabel: "aktive Serien",
-    staffGapCount: 3,
-    staffGapSublabel: "offene Termine",
+    understaffedCount: 3,
+    understaffedSublabel: "zusätzliches Personal nötig",
     createLabel: "Regeltermin anlegen",
     onCreate: () => {
       // no-op for story

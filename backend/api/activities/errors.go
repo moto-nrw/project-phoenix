@@ -30,6 +30,8 @@ func ErrorRenderer(err error) render.Renderer {
 			return common.ErrorConflict(actErr)
 		case errors.Is(actErr, activities.ErrAlreadyEnrolled):
 			return common.ErrorConflict(actErr)
+		case errors.Is(actErr, activities.ErrTimetableTemplateProtected):
+			return common.ErrorConflict(actErr)
 		case errors.Is(actErr, activities.ErrOnlySupervisorRequiresReplacement):
 			return common.ErrorConflictWithCode(actErr, errorCodeOnlySupervisorReplacementRequired)
 		case errors.Is(actErr, activities.ErrNotEnrolled):

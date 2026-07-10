@@ -44,6 +44,7 @@ func TestErrorRenderer_ConflictErrors(t *testing.T) {
 	}{
 		{"ErrGroupFull", activities.ErrGroupFull},
 		{"ErrAlreadyEnrolled", activities.ErrAlreadyEnrolled},
+		{"ErrTimetableTemplateProtected", activities.ErrTimetableTemplateProtected},
 		{"ErrOnlySupervisorRequiresReplacement", activities.ErrOnlySupervisorRequiresReplacement},
 	}
 

@@ -2469,13 +2469,11 @@ function GradeLevelSelect({
   );
 }
 
-// schoolClassGradePrefix returns the leading run of digits in a school
-// class name ("2a" -> "2", "12b" -> "12"), or "" when the name has no
-// numeric prefix. Mirrors the backend helper of the same name: concrete
-// class names follow the grade-number convention, so the prefix is the
-// grade the class belongs to (#1833).
+// schoolClassGradePrefix returns the first run of digits in a school class
+// name ("2a" -> "2", "Klasse 12b" -> "12"), matching getSchoolYear and the
+// backend schoolclass helper.
 function schoolClassGradePrefix(schoolClass: string): string {
-  const match = /^\s*(\d+)/.exec(schoolClass);
+  const match = /(\d+)/.exec(schoolClass);
   return match?.[1] ?? "";
 }
 

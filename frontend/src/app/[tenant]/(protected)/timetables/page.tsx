@@ -57,6 +57,7 @@ import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { fetchStudents } from "~/lib/student-api";
 import { staffService } from "~/lib/staff-api";
 import { listPhases } from "~/lib/enrollment-phase-api";
+import { listCareOfferings } from "~/lib/care-offering-api";
 import { formatDate } from "~/lib/date-helpers";
 import {
   findPeriodForDate,
@@ -67,8 +68,8 @@ import { timetableService } from "~/lib/timetable-api";
 import {
   chunkDateRange,
   countPlanned,
-  countStaffGaps,
-  countTemplateStaffGaps,
+  countUnderstaffedInstances,
+  countUnderstaffedTemplates,
   formatWeekLabel,
   formatMonthLabel,
   formatYearLabel,
@@ -78,8 +79,9 @@ import {
   getWeekdays,
   getYearMonths,
   getYearRange,
+  resolveTemplateCalendarPeriodId,
   toISODate,
-  type TimetableEnrollmentStatus,
+  type TimetableCareOfferingLinkStatus,
 } from "~/lib/timetable-helpers";
 import type {
   EnrichedInstance,
@@ -94,6 +96,84 @@ import {
 
 const logger = createLogger({ component: "TimetablesPage" });
 const PERIODS_SWR_KEY = "database-calendar-periods-list";
+
+interface CareOfferingLinkSummary {
+  total: number;
+  linked: number;
+}
+
+/**
+ * Load the optional enrollment linkage summary used by the setup guide.
+ * A partial result would be actively misleading, so any failed phase request
+ * makes the whole summary unknown.
+ */
+export async function loadCareOfferingLinkSummary(): Promise<CareOfferingLinkSummary | null> {
+  try {
+    const phases = await listPhases();
+    const activePhaseIds = new Set(
+      phases.filter((phase) => phase.is_active).map((phase) => phase.id),
+    );
+    const offeringLists = await Promise.all(
+      [...activePhaseIds].map((phaseId) => listCareOfferings(phaseId)),
+    );
+    const offerings = offeringLists
+      .flat()
+      .filter(
+        (offering) =>
+          offering.is_active && activePhaseIds.has(offering.phase_id),
+      );
+
+    return {
+      total: offerings.length,
+      linked: offerings.filter((offering) => offering.activity_group_id != null)
+        .length,
+    };
+  } catch (err) {
+    logger.warn("timetable_care_offering_link_load_failed", {
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+function plannedPeriodLabel(
+  view: TimetableView,
+  isSeriesView: boolean,
+): string {
+  if (isSeriesView) return "als Regeltermin";
+  if (view === "week") return "diese Woche";
+  if (view === "month") return "diesen Monat";
+  return "dieses Jahr";
+}
+
+function careOfferingLinkPresentation(summary: CareOfferingLinkSummary | null) {
+  if (summary === null) {
+    return {
+      status: "unknown" as const,
+      label: null,
+    };
+  }
+
+  return {
+    status: summary.linked > 0 ? ("linked" as const) : ("unlinked" as const),
+    label:
+      summary.total === 0
+        ? "Noch keine Angebote"
+        : `${summary.linked} von ${summary.total} Angeboten verknüpft`,
+  };
+}
+
+function calendarPeriodUsage(period: CalendarPeriod | null) {
+  if (!period) return undefined;
+  return {
+    enrollmentPhaseCount: period.enrollmentPhaseCount ?? 0,
+    activityGroupCount: period.activityGroupCount ?? 0,
+    scheduleCount: period.scheduleCount ?? 0,
+    studentEnrollmentCount: period.studentEnrollmentCount ?? 0,
+    supervisorCount: period.supervisorCount ?? 0,
+    activityInstanceCount: period.activityInstanceCount ?? 0,
+  };
+}
 
 function parseWeekOffset(raw: string | null): number {
   if (raw === null) return 0;
@@ -612,13 +692,14 @@ function TimetablesContent() {
     status === "authenticated" ? "timetable-student-list" : null,
     () => fetchStudents({ page_size: 500 }),
   );
-  // Enrollment phases drive the optional "Mit der Anmeldung verknüpfen"
-  // setup step. The fetcher swallows errors (e.g. 403 when the planner
-  // admin can't read enrollment) so a missing permission degrades to the
-  // neutral "unknown" status instead of failing the page.
-  const { data: enrollmentPhases } = useSWRAuth(
-    status === "authenticated" ? "timetable-enrollment-phases" : null,
-    () => listPhases().catch(() => null),
+  // The optional "Mit der Anmeldung verknüpfen" setup step is done only when a
+  // care offering actually points at a Regeltermin — an active enrollment phase
+  // alone proves no linkage (issue #1651). Missing permission or an incomplete
+  // per-phase result degrades to the neutral "unknown" status instead of
+  // failing the page or displaying a false partial count.
+  const { data: careOfferingLink } = useSWRAuth(
+    status === "authenticated" ? "timetable-care-offering-link" : null,
+    loadCareOfferingLinkSummary,
     { revalidateOnFocus: false },
   );
   const {
@@ -811,6 +892,15 @@ function TimetablesContent() {
     () => templateData?.templates ?? [],
     [templateData?.templates],
   );
+  const modalCalendarPeriods = useMemo(() => {
+    const periodIDs = new Set(assignedPeriods.map((period) => period.id));
+    if (templatePeriodID) periodIDs.add(templatePeriodID);
+    if (editingTemplate) {
+      const pinnedPeriodID = resolveTemplateCalendarPeriodId(editingTemplate);
+      if (pinnedPeriodID) periodIDs.add(pinnedPeriodID);
+    }
+    return calendarPeriods.filter((period) => periodIDs.has(period.id));
+  }, [assignedPeriods, calendarPeriods, editingTemplate, templatePeriodID]);
   const showTemplatePeriodField = assignedPeriods.length !== 1;
   const periodCreateDefaults = useMemo(() => {
     const defaults = schoolYearPeriodDefaults(weekRange.from);
@@ -838,28 +928,25 @@ function TimetablesContent() {
 
   // --- Overview zone (KPIs + setup guide), rendered in every view ---
   // KPIs are derived from the already-loaded instances/templates so they
-  // work in month/year too — the /api/timetable/gaps endpoint is week-only
-  // and capped at 14 days. In the week view we prefer the gaps count when
-  // loaded so the headline KPI matches the Planstatus panel below.
+  // work in every view. The /api/timetable/gaps endpoint uses a different,
+  // zero-coverage rule, so only the Planstatus panel uses it.
   const isSeriesView = view === "series";
   const plannedCount = useMemo(
     () => (isSeriesView ? templates.length : countPlanned(instances)),
     [isSeriesView, templates, instances],
   );
-  const staffGapCount = useMemo(() => {
-    if (isSeriesView) return countTemplateStaffGaps(templates);
-    if (view === "week" && gapsData) return gaps.length;
-    return countStaffGaps(instances);
-  }, [isSeriesView, templates, view, gapsData, gaps, instances]);
-  const plannedSublabel = isSeriesView
-    ? "als Regeltermin"
-    : view === "week"
-      ? "diese Woche"
-      : view === "month"
-        ? "diesen Monat"
-        : "dieses Jahr";
-  const staffGapSublabel =
-    staffGapCount > 0 ? "brauchen Personal" : "alles besetzt";
+  const understaffedCount = useMemo(
+    () =>
+      isSeriesView
+        ? countUnderstaffedTemplates(templates)
+        : countUnderstaffedInstances(instances),
+    [isSeriesView, templates, instances],
+  );
+  const plannedSublabel = plannedPeriodLabel(view, isSeriesView);
+  const understaffedSublabel =
+    understaffedCount > 0
+      ? "zusätzliches Personal nötig"
+      : "ausreichend besetzt";
   const hasActivePeriod = useMemo(
     () => calendarPeriods.some((period) => period.isActive),
     [calendarPeriods],
@@ -873,23 +960,12 @@ function TimetablesContent() {
     return `${period.name} · gültig bis ${formatDate(period.endDate)}`;
   }, [calendarPeriods, todayISO]);
   const hasPlan = instances.length > 0 || templates.length > 0;
-  const enrollmentPhaseList = Array.isArray(enrollmentPhases)
-    ? enrollmentPhases
-    : null;
-  const enrollmentStatus: TimetableEnrollmentStatus =
-    enrollmentPhaseList === null
-      ? "unknown"
-      : enrollmentPhaseList.some((phase) => phase.is_active)
-        ? "active"
-        : "none";
-  const enrollmentLabel = useMemo(() => {
-    const active = (enrollmentPhaseList ?? []).filter(
-      (phase) => phase.is_active,
-    );
-    if (active.length === 0) return null;
-    if (active.length === 1) return active[0]!.name;
-    return `${active.length} aktive Phasen`;
-  }, [enrollmentPhaseList]);
+  const careOfferingPresentation = careOfferingLinkPresentation(
+    careOfferingLink ?? null,
+  );
+  const careOfferingLinkStatus: TimetableCareOfferingLinkStatus =
+    careOfferingPresentation.status;
+  const careOfferingLinkLabel = careOfferingPresentation.label;
 
   const handleLifecycle = useCallback(
     async (action: LifecycleAction) => {
@@ -1183,11 +1259,8 @@ function TimetablesContent() {
       // Resolve which calendar period the template's schedules belong to.
       // Falls back to the period currently in scope (defaultTemplatePeriod)
       // If none is active, ask the admin to create one before continuing.
-      const scheduleWithPeriod = template.schedules.find(
-        (s) => s.calendarPeriodId,
-      );
       const periodId =
-        scheduleWithPeriod?.calendarPeriodId ?? defaultTemplatePeriod?.id;
+        resolveTemplateCalendarPeriodId(template) ?? defaultTemplatePeriod?.id;
       const period = periodId
         ? calendarPeriods.find((p) => p.id === periodId)
         : null;
@@ -1374,8 +1447,8 @@ function TimetablesContent() {
         plannedLabel={isSeriesView ? "Regeltermine" : "Geplant"}
         plannedCount={plannedCount}
         plannedSublabel={plannedSublabel}
-        staffGapCount={staffGapCount}
-        staffGapSublabel={staffGapSublabel}
+        understaffedCount={understaffedCount}
+        understaffedSublabel={understaffedSublabel}
         createLabel={
           isSeriesView ? "Regeltermin erstellen" : "Termin erstellen"
         }
@@ -1385,13 +1458,13 @@ function TimetablesContent() {
       <TimetableSetupGuide
         hasActivePeriod={hasActivePeriod}
         activePeriodLabel={activePeriodLabel}
-        enrollmentStatus={enrollmentStatus}
-        enrollmentLabel={enrollmentLabel}
+        careOfferingLinkStatus={careOfferingLinkStatus}
+        careOfferingLinkLabel={careOfferingLinkLabel}
         hasPlan={hasPlan}
         plannedCount={plannedCount}
         onManagePeriods={handleManagePeriods}
         onCreateEvent={openEventCreate}
-        enrollmentHref="/admin/enrollments"
+        careOfferingsHref="/care-offerings"
       />
 
       {shouldLoadInstances && (
@@ -1550,7 +1623,7 @@ function TimetablesContent() {
         defaultDate={quickPrefill?.date ?? selectedDay ?? fromISO}
         weekFrom={fromISO}
         weekTo={toISO}
-        calendarPeriods={assignedPeriods}
+        calendarPeriods={modalCalendarPeriods}
         defaultCalendarPeriodId={templatePeriodID ?? null}
         showPeriodField={showTemplatePeriodField}
         initialInstance={editingInstance}
@@ -1594,6 +1667,7 @@ function TimetablesContent() {
           void tenantMutate(swrKey);
         }}
         createDefaults={periodCreateDefaults}
+        usage={calendarPeriodUsage(editingPeriod)}
       />
 
       <ConfirmationModal

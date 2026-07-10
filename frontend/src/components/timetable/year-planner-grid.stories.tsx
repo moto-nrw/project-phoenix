@@ -13,11 +13,17 @@ const instances: EnrichedInstance[] = [
   {
     id: "1",
     date: "2026-01-15",
+    status: "planned",
+    requiredStaffCount: 2,
+    assignedStaffCount: 1,
     conflictWarnings: [],
   } as unknown as EnrichedInstance,
   {
     id: "2",
     date: "2026-01-20",
+    status: "planned",
+    requiredStaffCount: 1,
+    assignedStaffCount: 1,
     conflictWarnings: ["overlap"],
   } as unknown as EnrichedInstance,
 ];

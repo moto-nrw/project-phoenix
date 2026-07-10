@@ -31,8 +31,8 @@ go run . gendoc                     # Generates routes.md + docs/openapi.yaml
 
 DSN resolution is **fail-fast** (`database/database_config.go`) — there are no localhost fallbacks:
 
-1. `DB_DSN` — used by CLI commands (migrate, cleanup), which connect as the `postgres` **superuser** (the seeder is API-based and opens no DB connection itself)
-2. `TEST_DB_DSN` — only honored when `APP_ENV=test` (test DB on port 5433)
+1. `APP_ENV=test` — requires `TEST_DB_DSN` and never falls through to `DB_DSN` (test DB on port 5433)
+2. Every other environment — requires `DB_DSN`; CLI commands connect as the `postgres` **superuser** (the seeder is API-based and opens no DB connection itself)
 3. Missing config exits with an error
 
 The HTTP server (`serve`) connects as the least-privilege **`phoenix_auth`** role instead (NOINHERIT; can `SET ROLE` to `phoenix_tenant`/`phoenix_admin` per request). `PHOENIX_AUTH_PASSWORD` is mandatory — the server refuses to start without it. This split is what makes RLS enforcement real: request queries run under the tenant role, never as superuser.

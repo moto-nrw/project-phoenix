@@ -28,13 +28,13 @@ function makeProps(overrides: Partial<Props> = {}): Props {
   return {
     hasActivePeriod: false,
     activePeriodLabel: null,
-    enrollmentStatus: "none",
-    enrollmentLabel: null,
+    careOfferingLinkStatus: "unlinked",
+    careOfferingLinkLabel: "0 von 3 Angeboten verknüpft",
     hasPlan: false,
     plannedCount: 0,
     onManagePeriods: vi.fn(),
     onCreateEvent: vi.fn(),
-    enrollmentHref: "/admin/enrollments",
+    careOfferingsHref: "/care-offerings",
     ...overrides,
   };
 }
@@ -74,14 +74,53 @@ describe("TimetableSetupGuide", () => {
     expect(screen.getByText("Einrichtung abgeschlossen")).toBeInTheDocument();
   });
 
-  it("hides the enrollment step when status is unknown", () => {
+  it("hides the enrollment step when the care-offering linkage is unknown", () => {
     render(
-      <TimetableSetupGuide {...makeProps({ enrollmentStatus: "unknown" })} />,
+      <TimetableSetupGuide
+        {...makeProps({ careOfferingLinkStatus: "unknown" })}
+      />,
     );
 
     expect(
       screen.queryByText("Mit der Anmeldung verknüpfen"),
     ).not.toBeInTheDocument();
+  });
+
+  // Issue #1651: the step used to tick as soon as any enrollment phase was
+  // active, even when no care offering pointed at a Regeltermin.
+  it("leaves the enrollment step open and links to the offerings when nothing is linked", () => {
+    render(
+      <TimetableSetupGuide
+        {...makeProps({
+          careOfferingLinkStatus: "unlinked",
+          careOfferingLinkLabel: "0 von 3 Angeboten verknüpft",
+        })}
+      />,
+    );
+
+    const step = screen.getByRole("link", {
+      name: /Mit der Anmeldung verknüpfen/,
+    });
+    expect(step).toHaveAttribute("href", "/care-offerings");
+    expect(step).toHaveTextContent("0 von 3 Angeboten verknüpft");
+    expect(step).toHaveTextContent("Angebote verknüpfen");
+  });
+
+  it("marks the enrollment step done once a care offering is linked", () => {
+    render(
+      <TimetableSetupGuide
+        {...makeProps({
+          careOfferingLinkStatus: "linked",
+          careOfferingLinkLabel: "2 von 3 Angeboten verknüpft",
+        })}
+      />,
+    );
+
+    const step = screen.getByRole("link", {
+      name: /Mit der Anmeldung verknüpfen/,
+    });
+    expect(step).toHaveTextContent("2 von 3 Angeboten verknüpft");
+    expect(step).toHaveTextContent("Angebote öffnen");
   });
 
   it("invokes the create + manage callbacks from the step rows", () => {

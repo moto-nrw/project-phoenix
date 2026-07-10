@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -51,7 +52,7 @@ func (r *CareOfferingRepository) FindByID(ctx context.Context, id int64) (*enrol
 		Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("care offering %d not found", id)
+			return nil, fmt.Errorf("care offering %d not found: %w", id, sql.ErrNoRows)
 		}
 		return nil, fmt.Errorf("failed to find care offering: %w", err)
 	}
@@ -221,6 +222,31 @@ func (r *CareOfferingRepository) ListByIDs(ctx context.Context, ids []int64) ([]
 	}
 	if err := r.hydrateAutoAddTriggers(ctx, offerings); err != nil {
 		return nil, err
+	}
+	return offerings, nil
+}
+
+func (r *CareOfferingRepository) ListByActivityGroupIDs(
+	ctx context.Context,
+	activityGroupIDs []int64,
+) ([]*enrollment.CareOffering, error) {
+	if len(activityGroupIDs) == 0 {
+		return []*enrollment.CareOffering{}, nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return nil, fmt.Errorf("tenant id is required to list care offerings by activity groups")
+	}
+	var offerings []*enrollment.CareOffering
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&offerings).
+		ModelTableExpr(careOfferingTableExpr).
+		Where(`"care_offering".tenant_id = ?`, tenantID).
+		Where(`"care_offering".activity_group_id IN (?)`, bun.List(activityGroupIDs)).
+		OrderExpr(`"care_offering".id`).
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list care offerings by activity groups: %w", err)
 	}
 	return offerings, nil
 }

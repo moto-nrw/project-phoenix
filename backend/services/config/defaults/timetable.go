@@ -136,6 +136,21 @@ func init() {
 		DependsOn:       timetableEnabledDependency,
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyTimetableChildrenPerStaffRatio,
+		Label:           "Betreuungsschlüssel (Kinder pro Betreuer)",
+		Description:     "Anzahl der Kinder, die eine Betreuungskraft in einem Termin höchstens allein betreuen soll. Wird verwendet, um eine mögliche Unterbesetzung anzuzeigen.",
+		Type:            config.FieldNumber,
+		Default:         12,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "stundenplan",
+		SortOrder:       36,
+		Validation:      config.Range(1, 30),
+		DependsOn:       timetableEnabledDependency,
+	})
+
 	// --- GDPR retention (gdpr tab) ---
 
 	// Timetable retention is an independent window from KeyDataCleanupEnabled:

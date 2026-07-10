@@ -586,6 +586,9 @@ func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *use
 	if !matchesNameFilters(person, params.firstName, params.lastName) {
 		return nil
 	}
+	if !matchesGradeLevel(student.SchoolClass, params.gradeLevel) {
+		return nil
+	}
 
 	// Get group data from snapshot
 	var group *education.Group

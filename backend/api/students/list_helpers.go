@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -29,6 +30,11 @@ type studentListParams struct {
 	includePickupTimes  bool
 	includeArrivalTimes bool
 	dayStatus           string
+	// gradeLevel filters by the first numeric run in school_class (issue #1838,
+	// Zielgruppe "Jahrgang"). Resolved in-memory via schoolclass.GradePrefix —
+	// a SQL LIKE 'N%' would incorrectly match e.g. grade 1 against "13a".
+	// 0 = off.
+	gradeLevel int
 	// Administrative filters (#1492). Resolved against the enriched response
 	// objects in the same in-memory pass as dayStatus so pagination and counts
 	// stay correct. bus/photoConsent are "yes"/"no"; pickupStatus is one of the
@@ -76,6 +82,13 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 		}
 	}
 
+	// Parse grade level if provided (issue #1838, Zielgruppe "Jahrgang").
+	if gradeLevelStr := r.URL.Query().Get("grade_level"); gradeLevelStr != "" {
+		if gradeLevel, err := strconv.Atoi(gradeLevelStr); err == nil && gradeLevel > 0 {
+			params.gradeLevel = gradeLevel
+		}
+	}
+
 	// Parse optional includes
 	params.includePickupTimes = r.URL.Query().Get("include_pickup_times") == "true"
 	params.includeArrivalTimes = r.URL.Query().Get("include_arrival_times") == "true"
@@ -101,6 +114,7 @@ func (p *studentListParams) hasPersonFilters() bool {
 func (p *studentListParams) hasInMemoryFilters() bool {
 	return p.hasPersonFilters() ||
 		p.dayStatus != "" && p.dayStatus != DayPlanningStatusAll ||
+		p.gradeLevel > 0 ||
 		p.hasAdministrativeFilters()
 }
 
@@ -239,6 +253,17 @@ func matchesLocationFilter(location, studentLocation string, hasFullAccess bool)
 		return true
 	}
 	return studentLocation == location
+}
+
+// matchesGradeLevel reports whether schoolClass's first numeric run equals
+// gradeLevel. gradeLevel <= 0 means the filter is off (matches everything).
+// Uses schoolclass.GradePrefix rather than a naive string-prefix/LIKE check
+// so e.g. grade 1 does not also match "13a".
+func matchesGradeLevel(schoolClass string, gradeLevel int) bool {
+	if gradeLevel <= 0 {
+		return true
+	}
+	return schoolclass.GradePrefix(schoolClass) == strconv.Itoa(gradeLevel)
 }
 
 // applyInMemoryPagination applies pagination to an already-filtered slice

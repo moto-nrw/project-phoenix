@@ -81,6 +81,15 @@ func TestSubmitEnrollmentRequest_DecodesStringChildID(t *testing.T) {
 	assert.Equal(t, int64(640000001), out.Children[0].ID)
 }
 
+func TestEditBootstrapResponse_ExposesGradeLevelMax(t *testing.T) {
+	payload, err := json.Marshal(EditBootstrapResponse{GradeLevelMax: 13})
+	require.NoError(t, err)
+
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(payload, &decoded))
+	assert.Equal(t, float64(13), decoded["grade_level_max"])
+}
+
 func TestBuildServiceRequest_RejectsBadDateOfBirth(t *testing.T) {
 	wire := &SubmitEnrollmentRequest{
 		PhaseID: 42,

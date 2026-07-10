@@ -4,6 +4,7 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -79,18 +80,12 @@ func BuildGuardianProfileResponse(claims jwt.AppClaims, loaded *usersModels.Guar
 	return resp
 }
 
-// ParseLeadingGradeLevel pulls the leading integer out of strings like "1a",
-// "2b", "10" → 1, 2, 10. Returns 0 when nothing parses (e.g. "Vorschule");
-// the form treats that as "no prefill".
+// ParseLeadingGradeLevel derives the grade using the shared class-label
+// grammar ("2b" -> 2, "Klasse 3a" -> 3). Returns 0 when the label has no
+// grade number or the extracted value cannot be represented as an int; the
+// form treats that as "no prefill".
 func ParseLeadingGradeLevel(schoolClass string) int {
-	digits := ""
-	for _, r := range schoolClass {
-		if r >= '0' && r <= '9' {
-			digits += string(r)
-			continue
-		}
-		break
-	}
+	digits := schoolclass.GradePrefix(schoolClass)
 	if digits == "" {
 		return 0
 	}

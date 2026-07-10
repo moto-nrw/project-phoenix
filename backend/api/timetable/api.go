@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
@@ -31,6 +32,19 @@ const dateLayout = "2006-01-02"
 
 const calendarPeriodRosterDeleteConflictMessage = "Kalenderzeitraum kann nicht gelöscht werden: " +
 	"Durch das Entfernen der Verknüpfungen würden doppelte aktive Kinder- oder Personalzuordnungen entstehen."
+
+const calendarPeriodCareOfferingConflictCode = "calendar_period_care_offering_conflict"
+
+const (
+	calendarPeriodsLoadErrorMessage      = "Kalenderzeiträume konnten nicht geladen werden"
+	calendarPeriodUsageErrorMessage      = "Verwendung der Kalenderzeiträume konnte nicht geladen werden"
+	calendarPeriodCreateErrorMessage     = "Kalenderzeitraum konnte nicht erstellt werden"
+	calendarPeriodsBootstrapErrorMessage = "Kalenderzeiträume konnten nicht initialisiert werden"
+)
+
+var errCalendarPeriodCareOfferingConflict = errors.New(
+	"der Kalenderzeitraum wird von einem verknüpften Betreuungsangebot benötigt; bitte zuerst das Angebot oder den Regeltermin anpassen",
+)
 
 // Resource defines the timetable API resource.
 //
@@ -279,10 +293,10 @@ type CalendarPeriodResponse struct {
 	UpdatedAt       string          `json:"updated_at"`
 	Warnings        []PeriodWarning `json:"warnings,omitempty"`
 
-	// Advisory reference counts (list/detail only). All FKs are
-	// ON DELETE SET NULL, so these never block deletion — the frontend
-	// uses them for the "Verwendung" column and the delete warning.
+	// Reference counts returned by list, detail, and bootstrap reads. The
+	// frontend uses these for the "Verwendung" column and delete-impact warning.
 	EnrollmentPhaseCount   int `json:"enrollment_phase_count"`
+	ActivityGroupCount     int `json:"activity_group_count"`
 	ScheduleCount          int `json:"schedule_count"`
 	StudentEnrollmentCount int `json:"student_enrollment_count"`
 	SupervisorCount        int `json:"supervisor_count"`
@@ -381,23 +395,17 @@ func (rs *Resource) attachOverlapWarnings(ctx context.Context, period *schedule.
 
 // Handlers
 
-// periodUsageCounts loads the advisory reference counts for the tenant's
-// periods. Count failures must never break the period endpoints: errors are
-// logged at Warn and an empty map is returned (pattern: attachOverlapWarnings).
-func (rs *Resource) periodUsageCounts(ctx context.Context) map[int64]schedule.CalendarPeriodUsage {
-	usage, err := rs.CalendarPeriodService.GetUsageCounts(ctx)
-	if err != nil {
-		rs.getLogger().Warn("calendar period usage count failed, omitting counts",
-			slog.String("error", err.Error()),
-		)
-		return nil
-	}
-	return usage
+// periodUsageCounts loads the reference counts that drive deletion impact.
+// A failure is not advisory: rendering zeroes would falsely describe a used
+// period as unused and can lead an administrator into a destructive action.
+func (rs *Resource) periodUsageCounts(ctx context.Context) (map[int64]schedule.CalendarPeriodUsage, error) {
+	return rs.CalendarPeriodService.GetUsageCounts(ctx)
 }
 
 func applyPeriodUsage(resp *CalendarPeriodResponse, usage map[int64]schedule.CalendarPeriodUsage) {
 	if u, ok := usage[resp.ID]; ok {
 		resp.EnrollmentPhaseCount = u.EnrollmentPhases
+		resp.ActivityGroupCount = u.ActivityGroups
 		resp.ScheduleCount = u.Schedules
 		resp.StudentEnrollmentCount = u.StudentEnrollments
 		resp.SupervisorCount = u.Supervisors
@@ -408,11 +416,15 @@ func applyPeriodUsage(resp *CalendarPeriodResponse, usage map[int64]schedule.Cal
 func (rs *Resource) listPeriods(w http.ResponseWriter, r *http.Request) {
 	periods, err := rs.CalendarPeriodService.GetAllPeriods(r.Context())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodsLoadErrorMessage, err))
 		return
 	}
 
-	usage := rs.periodUsageCounts(r.Context())
+	usage, err := rs.periodUsageCounts(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodUsageErrorMessage, err))
+		return
+	}
 	responses := make([]CalendarPeriodResponse, len(periods))
 	for i, p := range periods {
 		responses[i] = mapPeriodToResponse(p)
@@ -434,13 +446,18 @@ func (rs *Resource) getPeriod(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, sql.ErrNoRows) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
 		} else {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht geladen werden", err))
 		}
 		return
 	}
 
 	resp := mapPeriodToResponse(period)
-	applyPeriodUsage(&resp, rs.periodUsageCounts(r.Context()))
+	usage, err := rs.periodUsageCounts(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodUsageErrorMessage, err))
+		return
+	}
+	applyPeriodUsage(&resp, usage)
 	common.Respond(w, r, http.StatusOK, resp, "Calendar period retrieved successfully")
 }
 
@@ -474,7 +491,7 @@ func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, schedule.ErrCalendarPeriodNameConflict) {
 			common.RenderError(w, r, common.ErrorConflict(schedule.ErrCalendarPeriodNameConflict))
 		} else {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodCreateErrorMessage, err))
 		}
 		return
 	}
@@ -498,13 +515,19 @@ type bootstrapPeriodsResponse struct {
 func (rs *Resource) bootstrapPeriods(w http.ResponseWriter, r *http.Request) {
 	periods, created, err := rs.CalendarPeriodService.EnsureDefaultSchoolYear(r.Context())
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodsBootstrapErrorMessage, err))
+		return
+	}
+	usage, err := rs.periodUsageCounts(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodUsageErrorMessage, err))
 		return
 	}
 
 	responses := make([]CalendarPeriodResponse, len(periods))
 	for i, p := range periods {
 		responses[i] = mapPeriodToResponse(p)
+		applyPeriodUsage(&responses[i], usage)
 	}
 
 	common.Respond(w, r, http.StatusOK, bootstrapPeriodsResponse{
@@ -525,7 +548,7 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, sql.ErrNoRows) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
 		} else {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht geladen werden", err))
 		}
 		return
 	}
@@ -554,10 +577,17 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 	existing.IsActive = req.IsActive
 
 	if err := rs.CalendarPeriodService.UpdatePeriod(r.Context(), existing); err != nil {
-		if errors.Is(err, schedule.ErrCalendarPeriodNameConflict) {
+		switch {
+		case errors.Is(err, schedule.ErrCalendarPeriodNameConflict):
 			common.RenderError(w, r, common.ErrorConflict(schedule.ErrCalendarPeriodNameConflict))
-		} else {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
+		case errors.Is(err, schedule.ErrCalendarPeriodCareOfferingConflict):
+			tenant.MarkRollback(r.Context())
+			common.RenderError(w, r, common.ErrorConflictWithCode(
+				errCalendarPeriodCareOfferingConflict,
+				calendarPeriodCareOfferingConflictCode,
+			))
+		default:
+			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht aktualisiert werden", err))
 		}
 		return
 	}
@@ -578,18 +608,26 @@ func (rs *Resource) deletePeriod(w http.ResponseWriter, r *http.Request) {
 		if errors.Is(err, sql.ErrNoRows) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("calendar period not found")))
 		} else {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht geladen werden", err))
 		}
 		return
 	}
 
 	if err := rs.CalendarPeriodService.DeletePeriod(r.Context(), id); err != nil {
+		if errors.Is(err, schedule.ErrCalendarPeriodCareOfferingConflict) {
+			tenant.MarkRollback(r.Context())
+			common.RenderError(w, r, common.ErrorConflictWithCode(
+				errCalendarPeriodCareOfferingConflict,
+				calendarPeriodCareOfferingConflictCode,
+			))
+			return
+		}
 		if isCalendarPeriodRosterDeleteConflict(err) {
 			tenant.MarkRollback(r.Context())
 			common.RenderError(w, r, common.ErrorConflictMessage(calendarPeriodRosterDeleteConflictMessage))
 			return
 		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht gelöscht werden", err))
 		return
 	}
 
@@ -609,4 +647,26 @@ func isCalendarPeriodRosterDeleteConflict(err error) bool {
 	msg := err.Error()
 	return strings.Contains(msg, "duplicate key value violates unique constraint \"idx_student_enrollments_active\"") ||
 		strings.Contains(msg, "duplicate key value violates unique constraint \"idx_supervisors_active\"")
+}
+
+// defaultChildrenPerStaffRatio mirrors the registry default for
+// timetable.children_per_staff_ratio (services/config/defaults/timetable.go)
+// and is the fallback used when the settings service is unwired (tests) or a
+// tenant override lookup fails.
+const defaultChildrenPerStaffRatio = 12
+
+// childrenPerStaffRatio resolves the Betreuungsschlüssel setting once per
+// request so per-instance/per-template capacity math (RequiredStaffForChildren)
+// can apply a single resolved value instead of re-querying the settings
+// service for every row. Takes a context rather than *http.Request so it can
+// be called from handlers and from context-only helpers alike (e.g.
+// loadTemplates, which is shared by list/update/exists call sites).
+func (rs *Resource) childrenPerStaffRatio(ctx context.Context) int {
+	return configSvc.ResolveIntOrDefault(
+		ctx,
+		rs.SettingsService,
+		configModel.KeyTimetableChildrenPerStaffRatio,
+		defaultChildrenPerStaffRatio,
+		rs.getLogger(),
+	)
 }

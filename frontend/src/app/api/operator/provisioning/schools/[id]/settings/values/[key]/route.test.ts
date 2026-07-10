@@ -184,6 +184,47 @@ describe("PUT /api/operator/provisioning/schools/[id]/settings/values/[key]", ()
     expect(mockRevalidatePath).toHaveBeenCalledWith("/school-ten", "layout");
   });
 
+  it("revalidates tenant metadata after an operator changes grade_level_max", async () => {
+    mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({ status: "success", data: null }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          status: "success",
+          data: [{ id: 10, slug: "school-ten" }],
+        }),
+      });
+
+    const request = new NextRequest(
+      "http://localhost:3000/api/operator/provisioning/schools/10/settings/values/enrollment.grade_level_max",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: 13 }),
+      },
+    );
+    const context: RouteContext = {
+      params: Promise.resolve({
+        id: "10",
+        key: "enrollment.grade_level_max",
+      }),
+    };
+
+    const response = await PUT(request, context);
+
+    expect(response.status).toBe(200);
+    expect(mockRevalidateTag).toHaveBeenCalledWith("tenant-school-ten", {
+      expire: 0,
+    });
+    expect(mockRevalidatePath).toHaveBeenCalledWith("/school-ten", "layout");
+  });
+
   it("skips revalidation when the key does not affect /auth/tenant/resolve", async () => {
     mockAuth.mockResolvedValue({ user: { token: "valid-token" } });
     mockFetch.mockResolvedValue({

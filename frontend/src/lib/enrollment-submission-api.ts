@@ -156,6 +156,8 @@ export interface EnrollmentEditBootstrap {
   school_class?: PublicSchoolClassConfig;
   collect_grade_level: boolean;
   care_offerings_enabled: boolean;
+  /** Server-authoritative tenant cap (`enrollment.grade_level_max`). */
+  grade_level_max: number;
   legal_texts: PublicLegalTexts;
   draft: EnrollmentEditDraft;
 }
@@ -268,6 +270,15 @@ export interface PublicCareOfferingsResult {
 
 export interface LateInviteFetchOptions {
   lateInviteToken?: string;
+}
+
+export interface PublicEnrollmentBootstrapFetchOptions extends LateInviteFetchOptions {
+  /**
+   * Omits browser credentials from this request. This is transport hardening
+   * for parent-portal callers, not the server-side portal boundary; the route
+   * decides profile enrichment from the proxy-preserved original host.
+   */
+  omitCredentials?: boolean;
 }
 
 function withLateInviteQuery(path: string, token?: string): string {
@@ -392,14 +403,17 @@ export interface PublicEnrollmentBootstrap {
 export async function fetchPublicEnrollmentBootstrap(
   tenantSlug: string,
   phaseId: string,
-  options: LateInviteFetchOptions = {},
+  options: PublicEnrollmentBootstrapFetchOptions = {},
 ): Promise<PublicEnrollmentBootstrap> {
-  const path = `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
+  let path = `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
     tenantSlug,
   )}/${encodeURIComponent(phaseId)}`;
+  path = withLateInviteQuery(path, options.lateInviteToken);
   const response = await fetch(
-    withLateInviteQuery(path, options.lateInviteToken),
-    { cache: "no-store" },
+    path,
+    options.omitCredentials
+      ? { cache: "no-store", credentials: "omit" }
+      : { cache: "no-store" },
   );
   if (!response.ok) {
     throw await readError(

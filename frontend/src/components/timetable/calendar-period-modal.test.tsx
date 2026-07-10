@@ -246,6 +246,7 @@ describe("CalendarPeriodModal", () => {
         initial={period}
         usage={{
           enrollmentPhaseCount: 1,
+          activityGroupCount: 2,
           scheduleCount: 3,
           studentEnrollmentCount: 0,
           supervisorCount: 0,
@@ -257,11 +258,14 @@ describe("CalendarPeriodModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
     expect(
       screen.getByText(
-        /Dieser Zeitraum wird von 1 Anmeldephase und 3 Regelterminen? verwendet/,
+        /Dieser Zeitraum wird von 1 Anmeldephase und 2 Aktivitätsvorlagen und 3 Regelterminen? verwendet/,
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/verweigert der Server das Löschen/),
+      screen.getByText(/Betreuungsangebot-Verknüpfung ungültig würde/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Personalzuordnungen.*Löschen verhindern/),
     ).toBeInTheDocument();
   });
 

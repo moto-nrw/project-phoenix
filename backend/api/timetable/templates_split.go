@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // splitTemplateRequest is the update-template body plus the split controls.
@@ -49,6 +50,38 @@ type splitTemplateResponse struct {
 	InstancesCreated int     `json:"instances_created"`
 }
 
+// ErrCodeTemplateCareOfferingConflict is shared by split, update, end, and
+// archive so the planner can show one localized resolution message for the
+// same cross-domain invariant.
+const ErrCodeTemplateCareOfferingConflict = "timetable.template_care_offering_conflict"
+
+const ErrCodeTemplateRosterRebaseConflict = "timetable.template_roster_rebase_conflict"
+
+func renderTemplateCareOfferingConflict(w http.ResponseWriter, r *http.Request, err error) bool {
+	if !errors.Is(err, scheduleSvc.ErrTemplateCareOfferingConflict) {
+		return false
+	}
+	common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
+		//nolint:staticcheck // ST1005: user-facing German message
+		errors.New("Die Änderung ist nicht möglich, weil dadurch ein verknüpftes Betreuungsangebot ungültig würde. Bitte passen Sie zuerst das Angebot oder dessen Stundenplan-Verknüpfung an."),
+		ErrCodeTemplateCareOfferingConflict,
+	))
+	return true
+}
+
+func renderTemplateRosterRebaseConflict(w http.ResponseWriter, r *http.Request, err error) bool {
+	if !errors.Is(err, scheduleSvc.ErrTemplateRosterRebaseConflict) {
+		return false
+	}
+	tenant.MarkRollback(r.Context())
+	common.RenderError(w, r, common.ErrorConflictWithCode(
+		//nolint:staticcheck // ST1005: user-facing German message
+		errors.New("Die Zeitraumänderung würde geschützte Kinderzuordnungen zusammenführen. Bitte bereinigen Sie zuerst die betroffenen Zuordnungen."),
+		ErrCodeTemplateRosterRebaseConflict,
+	))
+	return true
+}
+
 // splitTemplate handles POST /api/timetable/templates/{id}/split.
 func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 	id, ok := templateIDFromRequest(w, r)
@@ -69,6 +102,13 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	gradeLevelMax, err := rs.resolveTemplateGradeLevelMax(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"resolve template grade level limit failed", err))
+		return
+	}
+	in.GradeLevelMax = gradeLevelMax
 	// Same tenant-scoped period check the create/update handlers run; the
 	// returned roster start date is unused — the split anchors rosters on
 	// the effective date instead.
@@ -124,24 +164,27 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 	}
 
 	return scheduleSvc.TemplateSplitInput{
-		TemplateID:       id,
-		EffectiveDate:    effectiveDate,
-		Name:             req.Name,
-		Type:             req.Type,
-		Weekdays:         req.Weekdays,
-		StartTime:        startTime,
-		EndTime:          endTime,
-		RoomID:           req.RoomID,
-		CategoryID:       req.CategoryID,
-		MaxParticipants:  req.MaxParticipants,
-		WeekPattern:      req.WeekPattern,
-		CalendarPeriodID: req.CalendarPeriodID,
-		EducationGroupID: req.EducationGroupID,
-		StudentIDs:       req.StudentIDs,
-		StaffIDs:         req.StaffIDs,
-		PrimaryStaffID:   req.PrimaryStaffID,
-		MaterializeFrom:  materializeFrom,
-		MaterializeTo:    materializeTo,
+		TemplateID:        id,
+		EffectiveDate:     effectiveDate,
+		Name:              req.Name,
+		Type:              req.Type,
+		Weekdays:          req.Weekdays,
+		StartTime:         startTime,
+		EndTime:           endTime,
+		RoomID:            req.RoomID,
+		CategoryID:        req.CategoryID,
+		MaxParticipants:   req.MaxParticipants,
+		WeekPattern:       req.WeekPattern,
+		CalendarPeriodID:  req.CalendarPeriodID,
+		EducationGroupID:  req.EducationGroupID,
+		TargetGroupType:   req.TargetGroupType,
+		TargetGradeLevel:  req.TargetGradeLevel,
+		TargetSchoolClass: req.TargetSchoolClass,
+		StudentIDs:        req.StudentIDs,
+		StaffIDs:          req.StaffIDs,
+		PrimaryStaffID:    req.PrimaryStaffID,
+		MaterializeFrom:   materializeFrom,
+		MaterializeTo:     materializeTo,
 	}, nil
 }
 
@@ -158,6 +201,12 @@ func parseOptionalSplitDate(raw *string) (*timezone.Date, error) {
 
 // renderTemplateSplitError maps the service sentinels onto HTTP statuses.
 func renderTemplateSplitError(w http.ResponseWriter, r *http.Request, err error) {
+	if renderTemplateCareOfferingConflict(w, r, err) {
+		return
+	}
+	if renderTemplateRosterRebaseConflict(w, r, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, scheduleSvc.ErrSplitTemplateNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))

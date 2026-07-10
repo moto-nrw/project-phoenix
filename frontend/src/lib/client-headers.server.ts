@@ -29,11 +29,70 @@ function isSafeForwardedHost(value: string): boolean {
   return value !== "" && !value.includes("/") && !value.includes("\\");
 }
 
-function frontendOrigin(request: NextRequest): string {
-  const host =
+const dnsLabelPattern = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/**
+ * Parses a host authority and returns a canonical hostname without its port.
+ * Malformed or ambiguous authorities are rejected instead of being repaired:
+ * callers use this value for portal isolation, where a false match is unsafe.
+ */
+export function hostnameFromAuthority(authority: string): string | null {
+  if (
+    authority === "" ||
+    /[\s/@\\?#,%]/.test(authority) ||
+    authority.endsWith(":")
+  ) {
+    return null;
+  }
+
+  try {
+    const parsed = new URL(`http://${authority}`);
+    if (
+      parsed.username !== "" ||
+      parsed.password !== "" ||
+      parsed.pathname !== "/" ||
+      parsed.search !== "" ||
+      parsed.hash !== ""
+    ) {
+      return null;
+    }
+
+    let hostname = parsed.hostname.toLowerCase();
+    if (hostname.startsWith("[") && hostname.endsWith("]")) {
+      hostname = hostname.slice(1, -1);
+      return isIP(hostname) === 6 ? hostname : null;
+    }
+    if (isIP(hostname) === 4) return hostname;
+
+    hostname = hostname.replace(/\.$/, "");
+    if (
+      hostname === "" ||
+      hostname.length > 253 ||
+      !hostname.split(".").every((label) => dnsLabelPattern.test(label))
+    ) {
+      return null;
+    }
+    return hostname;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Returns the browser-facing host captured by the application proxy. Route
+ * handlers normally see an internal Next.js request target after rewrites,
+ * so security boundaries must prefer the proxy-owned original-host header.
+ */
+export function getOriginalRequestHost(request: NextRequest): string {
+  return (
     firstHeaderValue(request.headers.get("x-moto-original-host")) ||
     firstHeaderValue(request.headers.get("host")) ||
-    firstHeaderValue(request.headers.get("x-forwarded-host"));
+    firstHeaderValue(request.headers.get("x-forwarded-host"))
+  );
+}
+
+function frontendOrigin(request: NextRequest): string {
+  const host = getOriginalRequestHost(request);
 
   if (!isSafeForwardedHost(host)) {
     return request.nextUrl.origin;

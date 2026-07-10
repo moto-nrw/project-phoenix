@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -404,4 +405,62 @@ func TestListInstances_SortedByDateAndStartTime(t *testing.T) {
 	assert.Equal(t, "Day1-12", got.Instances[0].Title)
 	assert.Equal(t, "Day1-14", got.Instances[1].Title)
 	assert.Equal(t, "Day2-12", got.Instances[2].Title)
+}
+
+func TestListInstances_CapacityFields(t *testing.T) {
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	// Tenant-override ratio of 2 children per staff member, exercised via the
+	// same HasTenantOverride -> ResolveInt chain the real settings service
+	// uses (settings-system.md), not just the registry default.
+	s.res.SettingsService = &configtest.Mock{
+		HasTenantOverrideFn: func(context.Context, string) (bool, error) { return true, nil },
+		ResolveIntFn:        func(context.Context, string) (int, error) { return 2, nil },
+	}
+
+	from, fromDate := listFutureDate(1)
+	to, _ := listFutureDate(7)
+
+	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "13:00", EndHHMM: "14:00", Title: "Capacity-List-Test",
+	})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+
+	suffix := time.Now().UnixNano()
+	staff1 := testpkg.CreateTestStaff(t, s.db, "Assigned", fmt.Sprintf("CapA-%d", suffix))
+	staff2 := testpkg.CreateTestStaff(t, s.db, "Absent", fmt.Sprintf("CapB-%d", suffix))
+	row1 := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff1.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	row2 := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, staff2.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+
+	// 5 children (3 expected + 2 present) at a ratio of 2 -> ceil(5/2) = 3
+	// required staff, against 1 actually assigned (staff2 is absent) -> understaffed.
+	personIDs := []int64{staff1.ID, staff2.ID}
+	instanceStudentIDs := make([]int64, 0, 5)
+	for i := 0; i < 5; i++ {
+		status := schedule.AttendanceStatusExpected
+		if i%2 == 0 {
+			status = schedule.AttendanceStatusPresent
+		}
+		student := testpkg.CreateTestStudent(t, s.db, "Cap", fmt.Sprintf("Cap-%d-%d", suffix, i), "1a")
+		is := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student.ID, status)
+		personIDs = append(personIDs, student.ID)
+		instanceStudentIDs = append(instanceStudentIDs, is.ID)
+	}
+
+	t.Cleanup(func() {
+		testpkg.CleanupInstanceStaffFixtures(t, s.db, row1.ID, row2.ID)
+		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", instanceStudentIDs...)
+		testpkg.CleanupActivityFixtures(t, s.db, personIDs...)
+	})
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 1)
+	item := got.Instances[0]
+	assert.Equal(t, 3, item.RequiredStaffCount, "ceil(5 children / ratio 2) = 3")
+	assert.Equal(t, 1, item.AssignedStaffCount, "1 non-absent staff assigned")
 }

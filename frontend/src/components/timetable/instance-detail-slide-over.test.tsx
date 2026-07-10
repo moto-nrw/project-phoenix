@@ -52,6 +52,8 @@ function instance(overrides: Partial<EnrichedInstance> = {}): EnrichedInstance {
     absentStaffCount: 1,
     expectedStudentsCount: 3,
     presentStudentsCount: 1,
+    requiredStaffCount: 1,
+    assignedStaffCount: 1,
     conflictWarnings: [
       {
         kind: "staff",
@@ -152,10 +154,10 @@ describe("InstanceDetailSlideOver", () => {
     );
 
     expect(
-      screen.queryByRole("button", { name: "Als anwesend markieren" }),
+      screen.queryByRole("button", { name: /als anwesend markieren/ }),
     ).not.toBeInTheDocument();
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Kind abmelden" })[0]!,
+      screen.getByRole("button", { name: "Max Erwartet abmelden" }),
     );
     await waitFor(() =>
       expect(onAttendancePatch).toHaveBeenCalledWith("42", "21", {
@@ -232,7 +234,9 @@ describe("InstanceDetailSlideOver", () => {
     );
 
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Als anwesend markieren" })[0]!,
+      screen.getByRole("button", {
+        name: "Kind #21 als anwesend markieren",
+      }),
     );
     await waitFor(() =>
       expect(onAttendancePatch).toHaveBeenCalledWith("42", "21", {
@@ -241,7 +245,7 @@ describe("InstanceDetailSlideOver", () => {
       }),
     );
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Als fehlend markieren" })[0]!,
+      screen.getByRole("button", { name: "Kind #21 als fehlend markieren" }),
     );
     await waitFor(() =>
       expect(onAttendancePatch).toHaveBeenCalledWith("42", "21", {
@@ -250,7 +254,9 @@ describe("InstanceDetailSlideOver", () => {
       }),
     );
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Status zurücksetzen" })[0]!,
+      screen.getByRole("button", {
+        name: "Status von Kind #22 zurücksetzen",
+      }),
     );
     await waitFor(() =>
       expect(onAttendancePatch).toHaveBeenCalledWith("42", "22", {
@@ -328,16 +334,13 @@ describe("InstanceDetailSlideOver", () => {
     );
 
     await expectNoUnhandledRejection(async () => {
-      fireEvent.click(
-        screen.getAllByRole("button", { name: "Als anwesend markieren" })[0]!,
-      );
+      const attendanceButton = screen.getByRole("button", {
+        name: "Kind #21 als anwesend markieren",
+      });
+      fireEvent.click(attendanceButton);
 
       await waitFor(() => expect(onAttendancePatch).toHaveBeenCalledOnce());
-      await waitFor(() =>
-        expect(
-          screen.getAllByRole("button", { name: "Als anwesend markieren" })[0],
-        ).toBeEnabled(),
-      );
+      await waitFor(() => expect(attendanceButton).toBeEnabled());
     });
   });
 
@@ -390,7 +393,7 @@ describe("InstanceDetailSlideOver", () => {
       screen.getByRole("dialog", { name: "Wiederholenden Termin löschen" }),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Dieser und alle folgenden"));
+    fireEvent.click(screen.getByText("Ab jetzt dauerhaft"));
     await waitFor(() =>
       expect(onDeleteFollowing).toHaveBeenCalledWith(
         expect.objectContaining({ id: "42", activityGroupId: "7" }),
@@ -417,7 +420,7 @@ describe("InstanceDetailSlideOver", () => {
     await expectNoUnhandledRejection(async () => {
       fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
       const followingOption = screen
-        .getByText("Dieser und alle folgenden")
+        .getByText("Ab jetzt dauerhaft")
         .closest("button");
       expect(followingOption).not.toBeNull();
       fireEvent.click(followingOption!);

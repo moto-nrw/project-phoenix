@@ -472,6 +472,28 @@ func TestTimetableSettings_WeekdayOptions(t *testing.T) {
 	}
 }
 
+func TestTimetableChildrenPerStaffRatioSetting(t *testing.T) {
+	def := config.GetDefinition("timetable.children_per_staff_ratio")
+	require.NotNil(t, def, "setting timetable.children_per_staff_ratio should exist")
+
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 12, def.Default, "children-per-staff ratio must default to 12")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "stundenplan", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(1), *def.Validation.Min)
+	assert.Equal(t, float64(30), *def.Validation.Max)
+
+	require.NotNil(t, def.DependsOn, "must be gated behind the top-level timetable toggle")
+	assert.Equal(t, "timetable.enabled", def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
+}
+
 func TestOperationsSettings_Types(t *testing.T) {
 	tests := []struct {
 		key      string

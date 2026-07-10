@@ -414,6 +414,9 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 	if s.StudentEnrollmentRepo == nil {
 		return nil
 	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return err
+	}
 	if len(beforeLinks) > 0 {
 		if err := s.backfillLegacyAdjustedEnrollments(ctx, requestChildID, studentID, beforeLinks); err != nil {
 			return err

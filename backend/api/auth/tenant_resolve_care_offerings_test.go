@@ -84,14 +84,13 @@ func TestResolveTenant_CareOfferingsEnabled(t *testing.T) {
 		assert.False(t, response.Data.CareOfferingsEnabled)
 	})
 
-	t.Run("missing settings service keeps compatibility default", func(t *testing.T) {
-		response := request(t, nil)
-		assert.True(t, response.Data.CareOfferingsEnabled)
-	})
-
 	t.Run("resolution error fails closed", func(t *testing.T) {
 		settingsErr := errors.New("settings unavailable")
 		settings := &configtest.Mock{
+			ResolveIntForTenantFn: func(_ context.Context, _ int64, key string) (int, error) {
+				require.Equal(t, configModel.KeyEnrollmentGradeLevelMax, key)
+				return 4, nil
+			},
 			ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
 				if key == configModel.KeyEnrollmentCareOfferingsEnabled {
 					return false, settingsErr

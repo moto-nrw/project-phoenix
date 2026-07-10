@@ -18,6 +18,7 @@ import {
   Pencil,
   Repeat,
   RotateCcw,
+  ShieldCheck,
   StickyNote,
   Timer,
   Trash2,
@@ -55,6 +56,12 @@ import {
   timetableMutedSurface,
   timetableNestedSurface,
 } from "./timetable-style";
+import {
+  attendanceStaffTone,
+  attendanceStudentTone,
+  capacityTone,
+  TimetableRatioPill,
+} from "./timetable-ratio-pill";
 import type {
   AttendancePatchBody,
   EnrichedInstance,
@@ -89,7 +96,7 @@ const CONFIRM_DIALOGS: Record<
     title: "Abgesagten Termin löschen?",
     body: "Der abgesagte Termin wird dauerhaft entfernt.",
     confirmText: "Löschen",
-    confirmButtonClass: "bg-red-600 hover:bg-red-700",
+    confirmButtonClass: "bg-[#FF3130] hover:bg-[#CC2626]",
   },
 };
 
@@ -739,13 +746,13 @@ export function InstanceDetailSlideOver({
           options={[
             {
               value: "single",
-              label: "Nur dieser Termin",
+              label: "Nur diese Woche",
               description:
-                "Löscht nur diesen Termin und verhindert, dass er erneut eingetragen wird.",
+                "Löscht nur diesen einen Termin und verhindert, dass er erneut eingetragen wird; der Regeltermin bleibt bestehen.",
             },
             {
               value: "following",
-              label: "Dieser und alle folgenden",
+              label: "Ab jetzt dauerhaft",
               description:
                 "Beendet den Regeltermin ab diesem Datum; frühere Termine bleiben erhalten.",
             },
@@ -787,78 +794,86 @@ function StudentGroup({
         <span>{attendanceLabel(status, isPlanned)}</span>
         {showTimetableCounts ? <span>{students.length}</span> : null}
       </div>
-      {students.map((student) => (
-        <div
-          key={student.studentId}
-          className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 shadow-sm ${attendanceTone(
-            student.status,
-          )}`}
-        >
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-gray-900">
-              {studentNames.get(student.studentId) ??
-                `Kind #${student.studentId}`}
+      {students.map((student) => {
+        const studentName =
+          studentNames.get(student.studentId) ?? `Kind #${student.studentId}`;
+
+        return (
+          <div
+            key={student.studentId}
+            className={`flex flex-wrap items-center justify-between gap-2 ${NESTED_SURFACE_BASE} px-3 py-2 ${attendanceTone(
+              student.status,
+            )}`}
+          >
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-gray-900">
+                {studentName}
+              </div>
+              <div className="text-[11px] text-gray-500">
+                {attendanceLabel(student.status, isPlanned)}
+                {student.substatus
+                  ? ` • ${attendanceSubstatusLabel(student.substatus)}`
+                  : ""}
+                {student.note ? ` • ${student.note}` : ""}
+              </div>
             </div>
-            <div className="text-[11px] text-gray-500">
-              {attendanceLabel(student.status, isPlanned)}
-              {student.substatus
-                ? ` • ${attendanceSubstatusLabel(student.substatus)}`
-                : ""}
-              {student.note ? ` • ${student.note}` : ""}
-            </div>
+            {onAttendancePatch && (
+              <div className="flex shrink-0 items-center gap-1">
+                {!isPlanned && student.status !== "present" && (
+                  <IconActionButton
+                    icon={<Check className="h-3.5 w-3.5" />}
+                    label={`${studentName} als anwesend markieren`}
+                    tone="green"
+                    isLoading={pendingStudentId === student.studentId}
+                    disabled={pendingStudentId !== null}
+                    onClick={() =>
+                      void handleAttendancePatch(student.studentId, {
+                        status: "present",
+                        substatus: null,
+                      })
+                    }
+                  />
+                )}
+                {student.status !== "absent" && (
+                  <IconActionButton
+                    icon={<X className="h-3.5 w-3.5" />}
+                    label={
+                      isPlanned
+                        ? `${studentName} abmelden`
+                        : `${studentName} als fehlend markieren`
+                    }
+                    tone="red"
+                    isLoading={pendingStudentId === student.studentId}
+                    disabled={pendingStudentId !== null}
+                    onClick={() =>
+                      void handleAttendancePatch(student.studentId, {
+                        status: "absent",
+                        substatus: isPlanned ? "excused" : null,
+                      })
+                    }
+                  />
+                )}
+                {student.status !== "expected" && (
+                  <IconActionButton
+                    icon={<RotateCcw className="h-3.5 w-3.5" />}
+                    label={`Status von ${studentName} zurücksetzen`}
+                    tone="slate"
+                    isLoading={pendingStudentId === student.studentId}
+                    disabled={pendingStudentId !== null}
+                    onClick={() =>
+                      void handleAttendancePatch(student.studentId, {
+                        status: "expected",
+                        substatus: null,
+                        note: null,
+                      })
+                    }
+                  />
+                )}
+              </div>
+            )}
           </div>
-          {onAttendancePatch && (
-            <div className="flex shrink-0 items-center gap-1">
-              {!isPlanned && student.status !== "present" && (
-                <IconActionButton
-                  icon={<Check className="h-3.5 w-3.5" />}
-                  label="Als anwesend markieren"
-                  tone="green"
-                  isLoading={pendingStudentId === student.studentId}
-                  disabled={pendingStudentId !== null}
-                  onClick={async () =>
-                    await handleAttendancePatch(student.studentId, {
-                      status: "present",
-                      substatus: null,
-                    })
-                  }
-                />
-              )}
-              {student.status !== "absent" && (
-                <IconActionButton
-                  icon={<X className="h-3.5 w-3.5" />}
-                  label={isPlanned ? "Kind abmelden" : "Als fehlend markieren"}
-                  tone="red"
-                  isLoading={pendingStudentId === student.studentId}
-                  disabled={pendingStudentId !== null}
-                  onClick={async () =>
-                    await handleAttendancePatch(student.studentId, {
-                      status: "absent",
-                      substatus: isPlanned ? "excused" : null,
-                    })
-                  }
-                />
-              )}
-              {student.status !== "expected" && (
-                <IconActionButton
-                  icon={<RotateCcw className="h-3.5 w-3.5" />}
-                  label="Status zurücksetzen"
-                  tone="slate"
-                  isLoading={pendingStudentId === student.studentId}
-                  disabled={pendingStudentId !== null}
-                  onClick={async () =>
-                    await handleAttendancePatch(student.studentId, {
-                      status: "expected",
-                      substatus: null,
-                      note: null,
-                    })
-                  }
-                />
-              )}
-            </div>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -872,6 +887,14 @@ function EmptyLine({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+/**
+ * Structural radius/shadow shared by PersonLine and the StudentGroup row —
+ * same shape as `timetableNestedSurface`, but callers layer their own
+ * tone-conditional border/bg color on top (nested surface tokens are
+ * gray/white only).
+ */
+const NESTED_SURFACE_BASE = "rounded-xl border shadow-sm";
 
 type IconActionTone = "green" | "red" | "slate";
 
@@ -901,20 +924,25 @@ function IconActionButton({
   disabled,
 }: IconActionButtonProps) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon"
       onClick={onClick}
       disabled={disabled || isLoading}
       title={label}
       aria-label={label}
-      className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${ICON_ACTION_PALETTE[tone]}`}
+      className={`rounded-full border ${ICON_ACTION_PALETTE[tone]}`}
     >
       {isLoading ? (
-        <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        <span
+          className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+          aria-hidden
+        />
       ) : (
-        icon
+        <span aria-hidden>{icon}</span>
       )}
-    </button>
+    </Button>
   );
 }
 
@@ -930,7 +958,7 @@ function PersonLine({
   const labels = meta.filter(Boolean);
   return (
     <div
-      className={`rounded-xl border px-3 py-2 shadow-sm ${
+      className={`${NESTED_SURFACE_BASE} px-3 py-2 ${
         danger
           ? "border-[#FF3130]/20 bg-[#FF3130]/10"
           : "border-gray-200 bg-white"
@@ -961,26 +989,17 @@ function StatsRow({ instance }: StatsRowProps) {
   const totalStudents = expected + present;
   const activeStaff = instance.staffCount - instance.absentStaffCount;
 
-  const studentTone: StatPillTone =
-    totalStudents === 0 ? "slate" : present > 0 ? "green" : "slate";
-  const staffTone: StatPillTone =
-    instance.staffCount === 0
-      ? "slate"
-      : instance.absentStaffCount > 0
-        ? "amber"
-        : "blue";
-
   return (
     <div className="flex flex-wrap items-center gap-1.5">
       {showTimetableCounts && (
-        <StatPill
+        <TimetableRatioPill
           icon={<Users className="h-3.5 w-3.5" />}
           label="Anwesend"
           value={totalStudents === 0 ? "—" : `${present} / ${totalStudents}`}
-          tone={studentTone}
+          tone={attendanceStudentTone(present, totalStudents)}
         />
       )}
-      <StatPill
+      <TimetableRatioPill
         icon={<UserCheck className="h-3.5 w-3.5" />}
         label="Personal"
         value={
@@ -988,69 +1007,25 @@ function StatsRow({ instance }: StatsRowProps) {
             ? "—"
             : `${activeStaff} / ${instance.staffCount}`
         }
-        tone={staffTone}
+        tone={attendanceStaffTone(
+          instance.staffCount,
+          instance.absentStaffCount,
+        )}
+      />
+      <TimetableRatioPill
+        icon={<ShieldCheck className="h-3.5 w-3.5" />}
+        label="Besetzung"
+        value={
+          instance.requiredStaffCount === 0
+            ? "—"
+            : `${instance.assignedStaffCount} / ${instance.requiredStaffCount}`
+        }
+        tone={capacityTone(
+          instance.assignedStaffCount,
+          instance.requiredStaffCount,
+        )}
       />
     </div>
-  );
-}
-
-type StatPillTone = "green" | "blue" | "amber" | "slate";
-
-interface StatPillProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  tone: StatPillTone;
-}
-
-const STAT_PILL_PALETTE: Record<
-  StatPillTone,
-  { bg: string; border: string; accent: string; muted: string }
-> = {
-  // Brand-aligned pill tints: green=GROUP_ROOM #83CD2D, blue=OTHER_ROOM
-  // #5080D8, amber=SICK #EAB308, slate=neutral gray. Solid hex (not /10
-  // classes) because these feed inline styles.
-  green: {
-    bg: "#F1F9E6",
-    border: "#D7EDB8",
-    accent: "#5A8E1F",
-    muted: "#4A7A15CC",
-  },
-  blue: {
-    bg: "#EDF3FC",
-    border: "#C9DBF6",
-    accent: "#3F66C0",
-    muted: "#2F4F9ECC",
-  },
-  amber: {
-    bg: "#FBF3D6",
-    border: "#F2E2A0",
-    accent: "#8A6D00",
-    muted: "#6E5700CC",
-  },
-  slate: {
-    bg: "#F9FAFB",
-    border: "#E5E7EB",
-    accent: "#374151",
-    muted: "#4B5563CC",
-  },
-};
-
-function StatPill({ icon, label, value, tone }: StatPillProps) {
-  const { bg, border, accent, muted } = STAT_PILL_PALETTE[tone];
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
-      style={{ backgroundColor: bg, borderColor: border, color: accent }}
-    >
-      <span aria-hidden className="flex shrink-0 items-center">
-        {icon}
-      </span>
-      <span className="font-medium" style={{ color: muted }}>
-        {label}
-      </span>
-      <span className="font-bold tabular-nums">{value}</span>
-    </span>
   );
 }
 

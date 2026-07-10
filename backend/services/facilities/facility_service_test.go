@@ -1,6 +1,8 @@
 package facilities_test
 
 import (
+	"context"
+	"fmt"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -8,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
@@ -563,6 +566,60 @@ func TestFacilitiesService_DeleteRoom(t *testing.T) {
 		// ASSERT
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "Systemraum")
+	})
+}
+
+func TestFacilitiesService_DeleteRoom_CareOfferingGuard(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	repos := repositories.NewFactory(db)
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("locks then maps materializability conflict", func(t *testing.T) {
+		room := testpkg.CreateTestRoom(t, db, "DeleteRoom-CareOffering")
+		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+		locked := false
+		validated := false
+		service := facilitiesSvc.NewServiceWithConfig(facilitiesSvc.ServiceConfig{
+			RoomRepo:        repos.Room,
+			ActiveGroupRepo: repos.ActiveGroup,
+			LockTemplateRecurrence: func(context.Context) error {
+				locked = true
+				return nil
+			},
+			ValidateCareOfferingRoomDeletion: func(_ context.Context, gotRoomID int64) error {
+				validated = true
+				assert.True(t, locked, "validation must run only after acquiring the recurrence lock")
+				assert.Equal(t, room.ID, gotRoomID)
+				return fmt.Errorf("%w: no effective room", enrollmentModels.ErrCareOfferingInvalid)
+			},
+		})
+
+		err := service.DeleteRoom(ctx, room.ID)
+		require.ErrorIs(t, err, facilitiesSvc.ErrRoomRequiredByCareOffering)
+		assert.True(t, validated)
+		_, findErr := repos.Room.FindByID(ctx, room.ID)
+		require.NoError(t, findErr, "rejected deletion must leave the room intact")
+	})
+
+	t.Run("configured validator fails closed without lock", func(t *testing.T) {
+		room := testpkg.CreateTestRoom(t, db, "DeleteRoom-MissingLock")
+		defer testpkg.CleanupActivityFixtures(t, db, room.ID)
+		validated := false
+		service := facilitiesSvc.NewServiceWithConfig(facilitiesSvc.ServiceConfig{
+			RoomRepo:        repos.Room,
+			ActiveGroupRepo: repos.ActiveGroup,
+			ValidateCareOfferingRoomDeletion: func(context.Context, int64) error {
+				validated = true
+				return nil
+			},
+		})
+
+		err := service.DeleteRoom(ctx, room.ID)
+		require.ErrorContains(t, err, "recurrence lock is not configured")
+		assert.False(t, validated)
+		_, findErr := repos.Room.FindByID(ctx, room.ID)
+		require.NoError(t, findErr)
 	})
 }
 

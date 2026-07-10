@@ -2,11 +2,9 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { CareOfferingsEditor } from "./care-offerings-editor";
 
-// CareOfferingsEditor loads its data (phases, care offerings, timetable
-// templates) via effects on mount. There is no backend in Storybook, so the
-// component renders its own loading state and then its error/empty state
-// once the requests fail — that is expected and exercised here rather than
-// mocked away.
+// CareOfferingsEditor loads phases, offerings, Regeltermine, and planning
+// periods on mount. Storybook has no backend, so this story intentionally
+// exercises the component's loading and error states without mocks.
 const meta: Meta<typeof CareOfferingsEditor> = {
   title: "enrollment/CareOfferingsEditor",
   component: CareOfferingsEditor,

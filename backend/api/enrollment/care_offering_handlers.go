@@ -44,6 +44,26 @@ type CareOfferingResponse struct {
 	UpdatedAt           time.Time `json:"updated_at"`
 }
 
+// ErrCodeCareOfferingTemplatePeriodMismatch lets the admin frontend map the
+// authoritative service validation to a localized explanation.
+const ErrCodeCareOfferingTemplatePeriodMismatch = "enrollment.care_offering_template_period_mismatch"
+
+// ErrCodeCareOfferingInUse identifies a delete blocked by existing enrollment
+// selections without exposing PostgreSQL constraint names to the client.
+const ErrCodeCareOfferingInUse = "enrollment.care_offering_in_use"
+
+func careOfferingWriteErrorRenderer(err error) render.Renderer {
+	switch {
+	case errors.Is(err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch):
+		return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingTemplatePeriodMismatch)
+	case errors.Is(err, enrollmentService.ErrCareOfferingInvalid),
+		errors.Is(err, enrollmentService.ErrCareOfferingGroupRuleConflict):
+		return common.ErrorInvalidRequest(err)
+	default:
+		return common.ErrorInternalServerWrap("care offering operation failed", err)
+	}
+}
+
 func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingResponse {
 	resp := CareOfferingResponse{
 		ID:                  strconv.FormatInt(o.ID, 10),
@@ -174,6 +194,15 @@ func (rs *Resource) listCareOfferings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	phaseFilter := r.URL.Query().Get("phase_id")
+	var phaseID int64
+	if phaseFilter != "" {
+		var parseErr error
+		phaseID, parseErr = strconv.ParseInt(phaseFilter, 10, 64)
+		if parseErr != nil || phaseID <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid phase_id")))
+			return
+		}
+	}
 	var (
 		offerings []*enrollmentModels.CareOffering
 		err       error
@@ -181,18 +210,14 @@ func (rs *Resource) listCareOfferings(w http.ResponseWriter, r *http.Request) {
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		var listErr error
 		if phaseFilter != "" {
-			id, parseErr := strconv.ParseInt(phaseFilter, 10, 64)
-			if parseErr != nil || id <= 0 {
-				return errors.New("invalid phase_id")
-			}
-			offerings, listErr = rs.CareOfferingService.ListByPhase(ctx, id)
+			offerings, listErr = rs.CareOfferingService.ListByPhase(ctx, phaseID)
 			return listErr
 		}
 		offerings, listErr = rs.CareOfferingService.List(ctx)
 		return listErr
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("list care offerings failed", err))
 		return
 	}
 
@@ -219,7 +244,11 @@ func (rs *Resource) getCareOffering(w http.ResponseWriter, r *http.Request) {
 		return e
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(err))
+		if errors.Is(err, enrollmentService.ErrCareOfferingNotFound) {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load care offering failed", err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toCareOfferingResponse(offering), "Care offering retrieved")
@@ -248,7 +277,7 @@ func (rs *Resource) createCareOffering(w http.ResponseWriter, r *http.Request) {
 		return e
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, careOfferingWriteErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toCareOfferingResponse(offering), "Care offering created")
@@ -271,7 +300,7 @@ func (rs *Resource) updateCareOffering(w http.ResponseWriter, r *http.Request) {
 		},
 		func(o *enrollmentModels.CareOffering) any { return toCareOfferingResponse(o) },
 		"Care offering updated",
-		func(err error) render.Renderer { return common.ErrorInvalidRequest(err) })
+		careOfferingWriteErrorRenderer)
 }
 
 func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {
@@ -289,7 +318,19 @@ func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// FK violation when request_child_offerings already references
 		// this offering — admin should soft-delete (is_active=false).
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		if common.IsConstraintViolation(err) {
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
+				//nolint:staticcheck // ST1005: user-facing German message
+				errors.New("Das Betreuungsangebot wird bereits verwendet und kann nicht gelöscht werden. Deaktivieren Sie es stattdessen."),
+				ErrCodeCareOfferingInUse,
+			))
+			return
+		}
+		if errors.Is(err, enrollmentService.ErrCareOfferingInvalid) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("delete care offering failed", err))
 		return
 	}
 	common.RespondNoContent(w, r)
@@ -317,7 +358,7 @@ func (rs *Resource) cloneCareOffering(w http.ResponseWriter, r *http.Request) {
 		return e
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, careOfferingWriteErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toCareOfferingResponse(clone), "Care offering cloned")

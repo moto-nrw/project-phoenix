@@ -42,6 +42,8 @@ function instance(overrides: Partial<EnrichedInstance> = {}): EnrichedInstance {
     absentStaffCount: 1,
     expectedStudentsCount: 0,
     presentStudentsCount: 0,
+    requiredStaffCount: 0,
+    assignedStaffCount: 0,
     conflictWarnings: [
       {
         kind: "room",
