@@ -309,8 +309,13 @@ func TestSickNoteEndpoint_SubmitExcused(t *testing.T) {
 }
 
 // TestSickNoteEndpoint_ExcusedApprovalPending covers the #1845 approval gate at
-// the HTTP boundary: with the setting on, an excused submission returns a
-// pending_request (not a status day) and the child stays expected.
+// the HTTP boundary: with the setting on, an excused submission creates a pending
+// request and writes NO status day (the child stays expected). The submit
+// response is the bare status-day array (empty) — the same shape every other
+// path returns — so an already-open #1735-era tab, which has the "excused" option
+// but expects an array and calls .map() on the response, never crashes on the
+// gated path (#1845 review). The freshly created request is discovered via the
+// excused-requests list endpoint the parent UI refetches after a submit.
 func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -326,17 +331,18 @@ func TestSickNoteEndpoint_ExcusedApprovalPending(t *testing.T) {
 
 	var env envelope
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))
-	var submitResp struct {
-		StatusDays     []map[string]any `json:"status_days"`
-		PendingRequest map[string]any   `json:"pending_request"`
-	}
-	require.NoError(t, json.Unmarshal(env.Data, &submitResp))
-	assert.Empty(t, submitResp.StatusDays, "no status day while pending")
-	require.NotNil(t, submitResp.PendingRequest, "an excused submission must return a pending request when approval is on")
-	assert.Equal(t, "pending", submitResp.PendingRequest["status"])
-	assert.Equal(t, true, submitResp.PendingRequest["is_self"], "the submitter's own request is flagged is_self")
+	// The gated path returns a bare (empty) status-day ARRAY, never the
+	// {status_days, pending_request} object — the crash an old tab's .map() would hit.
+	var days []map[string]any
+	require.NoError(t, json.Unmarshal(env.Data, &days),
+		"the gated excused path must return a bare status-day array, not an envelope object")
+	assert.Empty(t, days, "no status day is written while the request is pending")
+	var asObject map[string]any
+	assert.Error(t, json.Unmarshal(env.Data, &asObject),
+		"data must be a JSON array, never the {status_days} object, for older clients")
 
-	// The child's excused-requests endpoint lists the pending request.
+	// The child's excused-requests endpoint lists the pending request the submit
+	// created (this is how a new client discovers it).
 	rr = doRequest(t, router, http.MethodGet, "/me/children/"+sid+"/excused-requests", token, nil)
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &env))

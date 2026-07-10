@@ -94,17 +94,6 @@ func toParentExcusedRequestResponse(req *activeModels.ExcusedAbsenceRequest, acc
 	}
 }
 
-// SubmitSickNoteResponse is the envelope returned ONLY when an excused report
-// needs office approval (#1845): StatusDays is empty and PendingRequest carries
-// the pending request. A direct write (sick note, or excused without the gate)
-// instead responds with the bare []StatusDayResponse array — the pre-#1845 shape
-// — so a parent tab loaded before this deploy, which calls .map() on the
-// response, keeps working. New clients normalize both shapes (Array.isArray).
-type SubmitSickNoteResponse struct {
-	StatusDays     []StatusDayResponse           `json:"status_days"`
-	PendingRequest *ParentExcusedRequestResponse `json:"pending_request,omitempty"`
-}
-
 // submitSickNote reports the parent's child sick for one or more dates.
 // Auth: parent-scope JWT (account from claims). Ownership of the child is
 // verified inside the service against auth.account_tenants.
@@ -148,23 +137,17 @@ func (rs *Resource) submitSickNote(w http.ResponseWriter, r *http.Request) {
 		statusDays = append(statusDays, toStatusDayResponse(d))
 	}
 
-	// Backward-compatibility (#1845): a direct write — a sick note, or an excused
-	// absence at a school WITHOUT the approval gate — responds with the bare
-	// status-day array, exactly the pre-#1845 shape. A parent tab loaded before
-	// this deploy still calls .map() on the response, so returning the
-	// {status_days, pending_request} envelope here would crash it. The envelope is
-	// used ONLY for the gated-excused path, which no pre-#1845 client can reach
-	// (the gate is a new, default-off setting). New clients normalize both shapes.
-	if result.PendingRequest == nil {
-		common.Respond(w, r, http.StatusCreated, statusDays, "Sick note submitted")
-		return
-	}
-
-	pr := toParentExcusedRequestResponse(result.PendingRequest, accountID)
-	common.Respond(w, r, http.StatusCreated, SubmitSickNoteResponse{
-		StatusDays:     statusDays,
-		PendingRequest: &pr,
-	}, "Sick note submitted")
+	// Backward-compatibility (#1845 review): ALWAYS respond with the bare
+	// status-day array — the shape every client (including tabs loaded before the
+	// approval gate was enabled) already calls .map() on. When the school gates an
+	// excused absence the request is created server-side but NOT returned here;
+	// StatusDays is empty and the child stays "expected". New clients discover the
+	// freshly-created pending request via GET .../excused-requests (they refetch
+	// after a submit). Returning a {status_days, pending_request} object on this
+	// path would crash an already-open #1735-era tab — which has the "excused"
+	// option but expects an array — and make it report a false failure, so the
+	// parent could resubmit and create a duplicate pending request.
+	common.Respond(w, r, http.StatusCreated, statusDays, "Sick note submitted")
 }
 
 // listExcusedRequests returns the child's pending + recently-decided excused

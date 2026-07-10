@@ -30,17 +30,26 @@ func (messagingDisabledSettings) ResolveBoolForTenant(_ context.Context, _ int64
 	return false, nil
 }
 
-// countingBroadcaster records how often BroadcastToTenant fired so the
-// approve-path broadcast can be asserted.
-type countingBroadcaster struct{ tenantBroadcasts int }
+// countingBroadcaster records how often BroadcastToTenant fired (the staff wake)
+// and which guardian accounts BroadcastParentMessage woke (the message-independent
+// guardian fan-out), so both after-commit broadcasts can be asserted.
+type countingBroadcaster struct {
+	tenantBroadcasts int
+	tenantEvents     []realtime.EventType
+	guardianWakeups  []int64
+}
 
 func (b *countingBroadcaster) BroadcastToGroup(int64, string, realtime.Event) error { return nil }
-func (b *countingBroadcaster) BroadcastToTenant(int64, realtime.Event) error {
+func (b *countingBroadcaster) BroadcastToTenant(_ int64, event realtime.Event) error {
 	b.tenantBroadcasts++
+	b.tenantEvents = append(b.tenantEvents, event.Type)
 	return nil
 }
-func (b *countingBroadcaster) BroadcastToAll(realtime.Event) error                       { return nil }
-func (b *countingBroadcaster) BroadcastParentMessage(int64, int64, realtime.Event) error { return nil }
+func (b *countingBroadcaster) BroadcastToAll(realtime.Event) error { return nil }
+func (b *countingBroadcaster) BroadcastParentMessage(_, guardianAccountID int64, _ realtime.Event) error {
+	b.guardianWakeups = append(b.guardianWakeups, guardianAccountID)
+	return nil
+}
 
 // buildAbsenceService wires the excused-request service against the real test DB
 // with a real (messaging-disabled) emitter and a counting broadcaster so every
@@ -336,6 +345,38 @@ func TestDecide_ApproveClearsLiveSickToday(t *testing.T) {
 	require.NotNil(t, sick)
 	assert.False(t, *sick, "approving an excused request that includes today clears the live sick flag")
 	assert.Positive(t, bc.tenantBroadcasts, "an approval must broadcast a student update")
+}
+
+// TestTransition_WakesGuardiansIndependentOfMessaging pins the message-independent
+// guardian invalidation (#1845 review): every excused-request transition must wake
+// EVERY guardian of the child over the parent SSE fan-out even when parent
+// messaging is DISABLED — buildAbsenceService wires messagingDisabledSettings, so a
+// non-empty guardian wakeup here proves the wake does NOT depend on the messaging
+// setting (nor on which guardian acted). The old submitter-only, messaging-gated
+// pill path reached neither a co-guardian nor a messaging-off school, leaving an
+// already-open parents-app tab stale until a focus refetch.
+func TestTransition_WakesGuardiansIndependentOfMessaging(t *testing.T) {
+	svc, bc, db := buildAbsenceService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	pending := createPending(t, svc, db, chain, []timezone.Date{timezone.TodayDate().AddDays(2)}, "Arzttermin")
+	assert.Contains(t, bc.guardianWakeups, chain.AccountID,
+		"creating a pending request must wake the child's guardian with messaging off")
+	assert.Contains(t, bc.tenantEvents, realtime.EventChangeRequestsChanged,
+		"creating a pending request must wake the staff review queue with messaging off")
+
+	bc.guardianWakeups = nil
+	bc.tenantEvents = nil
+	err := tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, e := svc.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: chain.AccountID})
+		return e
+	})
+	require.NoError(t, err)
+	assert.Contains(t, bc.guardianWakeups, chain.AccountID,
+		"deciding a request must wake the child's guardian with messaging off")
+	assert.Contains(t, bc.tenantEvents, realtime.EventChangeRequestsChanged,
+		"deciding a request must wake the staff review queue with messaging off")
 }
 
 // TestDecide_ApproveRefusedWhenGuardianAccessRevoked pins the guardian-link gate

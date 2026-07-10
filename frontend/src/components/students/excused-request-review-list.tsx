@@ -8,7 +8,7 @@ import {
   ReviewDiffPanel,
 } from "~/components/students/request-review-card";
 import { createLogger } from "~/lib/logger";
-import { formatDate } from "~/lib/date-helpers";
+import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import {
   ExcusedRequestApiError,
   type StaffExcusedRequest,
@@ -33,14 +33,28 @@ function decideErrorMessage(code: string | undefined): string {
   }
 }
 
-// One-line summary for the collapsed card: the covered day (or day range).
+// True when `next` (YYYY-MM-DD) is exactly the calendar day after `prev`.
+function isNextDay(prev: string, next: string): boolean {
+  const d = parseISODate(prev);
+  d.setDate(d.getDate() + 1);
+  return toISODate(d) === next;
+}
+
+// One-line summary for the collapsed card. The request endpoint accepts an
+// arbitrary date list, so only collapse to a "first – last" range when the days
+// are actually contiguous; otherwise list them so a Mon+Wed request is never
+// shown as "Mon – Wed" (which would wrongly imply Tuesday is included too).
 function datesSummary(dates: StaffExcusedRequest["dates"]): string {
   if (dates.length === 0) return "Entschuldigung";
   const sorted = [...dates].sort((a, b) => a.localeCompare(b));
-  const first = sorted.at(0)!;
-  const last = sorted.at(-1)!;
-  if (sorted.length === 1) return formatDate(first);
-  return `${formatDate(first)} – ${formatDate(last)}`;
+  if (sorted.length === 1) return formatDate(sorted[0]!);
+  const contiguous = sorted.every(
+    (d, i) => i === 0 || isNextDay(sorted[i - 1]!, d),
+  );
+  if (contiguous) {
+    return `${formatDate(sorted[0]!)} – ${formatDate(sorted.at(-1)!)}`;
+  }
+  return sorted.map((d) => formatDate(d)).join(", ");
 }
 
 // German-only staff UI — hardcoded strings like CareRequestReviewList (the staff
@@ -92,11 +106,28 @@ export function ExcusedRequestReviewList() {
       if (suppressSelfReloadRef.current) return;
       void reloadInPlace();
     };
+    // A parent creating/withdrawing a request — and staff deciding one — broadcasts
+    // change_requests_changed to the tenant; the portal-wide global SSE re-dispatches
+    // it as `change-requests-refresh`, which the handler above reloads on. That path
+    // is real-time and INDEPENDENT of parent messaging (#1845 review), so an open
+    // review page picks up a freshly submitted request live even at a messaging-off
+    // school — where the old messages-unread-refresh pill never fires. Focus / tab
+    // visibility stay as the fallback for a tab whose SSE stream had dropped.
+    const onFocus = () => void reloadInPlace();
+    const onVisibility = () => {
+      if (typeof document !== "undefined" && !document.hidden) {
+        void reloadInPlace();
+      }
+    };
     window.addEventListener("change-requests-refresh", handler);
     window.addEventListener("messages-unread-refresh", handler);
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
     return () => {
       window.removeEventListener("change-requests-refresh", handler);
       window.removeEventListener("messages-unread-refresh", handler);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [reloadInPlace]);
 

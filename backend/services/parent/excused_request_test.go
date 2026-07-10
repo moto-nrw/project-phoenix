@@ -264,6 +264,49 @@ func TestListExcusedRequests_ShowsRecentlyRejectedLongPending(t *testing.T) {
 	assert.Equal(t, requestID, reqs[0].ID)
 }
 
+// TestListExcusedRequests_ShowsApprovedForOutOfWindowDates verifies an approved
+// request stays visible in the parent's outcome list. Its confirmed excused
+// status days live outside the parent's status-day fetch window (today..+2
+// months) when the date is far in the future (or in the past for a delayed
+// decision), so dropping approved requests from this list would make the
+// confirmation vanish entirely — the pending row would just disappear (#1845
+// review).
+func TestListExcusedRequests_ShowsApprovedForOutOfWindowDates(t *testing.T) {
+	svc, excused, _, db := buildExcusedServices(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	// A date well beyond the parent's ~2-month status-day window.
+	far := timezone.TodayDate().AddDays(120)
+	res, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{far}, "Urlaub", activeModels.StudentStatusDayExcused)
+	require.NoError(t, err)
+	requestID := res.PendingRequest.ID
+
+	err = tenant.WithTenantTx(adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
+		_, derr := excused.Decide(txCtx, absenceSvc.ExcusedRequestDecideInput{
+			RequestID: requestID,
+			Approve:   true,
+		})
+		return derr
+	})
+	require.NoError(t, err)
+
+	// The status-day view (today..+1 month here) does NOT include the far date.
+	from := timezone.TodayDate()
+	to := timezone.NewDate(from.Year, from.Month+1, from.Day)
+	absences, err := svc.ListSickDays(context.Background(), chain.AccountID, chain.StudentID, from, to)
+	require.NoError(t, err)
+	assert.Empty(t, absences, "the confirmed day is outside the parent's status-day window")
+
+	// But the approved request is still listed, so the parent sees the outcome.
+	reqs, err := svc.ListExcusedRequests(context.Background(), chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	require.Len(t, reqs, 1, "an approved out-of-window request must stay visible so the parent sees the confirmation")
+	assert.Equal(t, activeModels.ExcusedRequestStatusApproved, reqs[0].Status)
+	assert.Equal(t, requestID, reqs[0].ID)
+}
+
 // TestWithdrawExcused_AllowedAfterSubmitPermissionRevoked verifies a guardian
 // can still withdraw their OWN pending request after the school revokes their
 // sick_note.submit permission. The read view keeps offering withdrawal, so the

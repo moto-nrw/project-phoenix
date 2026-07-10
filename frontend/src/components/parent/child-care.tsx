@@ -210,39 +210,41 @@ export function useChildCare(studentId: string): ChildCare {
     void load();
   }, [load]);
 
-  // Staff approving/rejecting an excused request writes status days / flips the
-  // request's state server-side but emits only an SSE trigger — no payload and no
-  // local state change here. The portal-wide ParentRealtimeBridge turns every
-  // parent_message into a `parent-conversation-refresh` window event (carrying the
-  // affected studentId); refetch on a match so an open parent tab drops a resolved
-  // "Freigabe ausstehend", shows a rejection reason, or surfaces a newly approved
-  // absence without a manual reload. marksRead:false — load() reads no messages
-  // and advances no read cursor, so it should fire even in a background tab.
+  // A parent write or a staff decision on an excused request flips the request's
+  // state / writes status days server-side but emits only an SSE trigger — no
+  // payload and no local state change here. The portal-wide ParentRealtimeBridge
+  // turns the backend's message-INDEPENDENT parent_child_updated event into a
+  // `parent-conversation-refresh` window event (carrying the affected studentId);
+  // refetch on a match so an open parent tab drops a resolved "Freigabe ausstehend",
+  // shows a rejection reason, or surfaces a newly approved absence in real time
+  // without a manual reload. That event fans out to EVERY guardian of the child and
+  // fires regardless of whether parent messaging is enabled (#1845 review), so it
+  // reaches a second guardian's tab and a messaging-off school too — the gaps the
+  // old parent_message-only path had (submitter-only, suppressed when messaging is
+  // off). marksRead:false — load() reads no messages and advances no read cursor,
+  // so it fires even in a background tab. refetchOnFocus:true stays as the fallback
+  // for a tab whose SSE stream had dropped entirely (no event ever arrives), mirroring
+  // the conversation views' focus healing.
   useMessagesActivity({
     eventName: "parent-conversation-refresh",
     studentId,
     onMatch: () => void load(),
     marksRead: false,
+    refetchOnFocus: true,
   });
 
   const reportSick = useCallback(
     async (dates: string[], reason: string, status: StudentStatusKind) => {
-      const { status_days, pending_request } = await submitSickNote(
+      const { status_days } = await submitSickNote(
         studentId,
         dates,
         reason,
         status,
       );
-      // An excused submission behind the OGS approval gate returns no status
-      // days and a pending request instead — the child stays expected until the
-      // OGS confirms. Prepend it so the summary shows it as "Freigabe ausstehend".
-      if (pending_request) {
-        setExcusedRequests((prev) => [pending_request, ...prev]);
-      }
-      // The POST returns only the just-recorded days (empty for a gated excused
-      // submission). Merge them into the already-loaded list (replacing any
-      // same-date entries) so previously reported absences don't disappear after
-      // a non-overlapping submit.
+      // A direct write (sick note, or an excused absence without the approval
+      // gate) returns the just-recorded days. Merge them into the already-loaded
+      // list (replacing any same-date entries) so previously reported absences
+      // don't disappear after a non-overlapping submit.
       if (status_days.length > 0) {
         setSickDays((prev) => {
           const submittedDates = new Set(status_days.map((d) => d.date));
@@ -251,9 +253,18 @@ export function useChildCare(studentId: string): ChildCare {
             ...status_days,
           ].sort((a, b) => a.date.localeCompare(b.date));
         });
+        return;
       }
+      // Empty status days means the school gated this excused absence: the backend
+      // created a pending request but no longer returns it inline (the sick-note
+      // response is always the bare status-day array for backward compatibility).
+      // Reload authoritatively to surface the new "Freigabe ausstehend" request.
+      // An authoritative reload (rather than an optimistic prepend) also avoids
+      // the duplicate-row race the prepend had with a load() that an after-commit
+      // parent_message could trigger before this POST resolved.
+      await load();
     },
-    [studentId],
+    [studentId, load],
   );
 
   const withdrawExcused = useCallback(
@@ -778,10 +789,26 @@ export function SickStatusSummary({
     .map((d) => d.date);
   const pending = excusedRequests.filter((r) => r.status === "pending");
   const rejected = excusedRequests.filter((r) => r.status === "rejected");
+  // Approved requests normally surface as excused status days above, but the
+  // status-day fetch is windowed (today..+2 months). An approval for a past date
+  // (delayed decision) or one more than two months ahead has no status day here,
+  // so it would silently vanish once it left the pending list. The backend now
+  // returns approved requests too; render each one's dates that AREN'T already
+  // shown as a confirmed status day, so those out-of-window confirmations stay
+  // visible without duplicating the in-window ones (#1845 review).
+  const shownExcusedDates = new Set(excusedConfirmedDates);
+  const approvedOutOfWindow = excusedRequests
+    .filter((r) => r.status === "approved")
+    .map((r) => ({
+      id: r.id,
+      dates: r.dates.filter((d) => !shownExcusedDates.has(d)),
+    }))
+    .filter((r) => r.dates.length > 0);
 
   const hasAny =
     sickDates.length > 0 ||
     excusedConfirmedDates.length > 0 ||
+    approvedOutOfWindow.length > 0 ||
     pending.length > 0 ||
     rejected.length > 0;
   if (!hasAny) {
@@ -800,6 +827,11 @@ export function SickStatusSummary({
           {t("summary.excusedLabel")}: {rangeLabel(excusedConfirmedDates)}
         </p>
       )}
+      {approvedOutOfWindow.map((r) => (
+        <p key={r.id} className="text-sm font-semibold text-gray-900">
+          {t("summary.excusedLabel")}: {rangeLabel(r.dates)}
+        </p>
+      ))}
       {pending.map((r) => (
         <div key={r.id} className="space-y-0.5">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

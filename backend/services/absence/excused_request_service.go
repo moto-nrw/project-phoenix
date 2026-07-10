@@ -171,7 +171,7 @@ func (s *excusedAbsenceRequestService) CreateRequest(ctx context.Context, studen
 	// A new pending request adds the "Freigabe ausstehend" badge on the child;
 	// wake staff tabs so planning/search views pick it up without a manual
 	// refetch.
-	s.broadcastStudentUpdated(ctx, req.TenantID, req.StudentID)
+	s.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
 	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestCreated,
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
@@ -203,7 +203,7 @@ func (s *excusedAbsenceRequestService) WithdrawRequest(ctx context.Context, requ
 	req.Status = activeModels.ExcusedRequestStatusWithdrawn
 	// Withdrawal clears the child's pending badge; wake staff tabs so the
 	// planning/search views drop it without a manual refetch.
-	s.broadcastStudentUpdated(ctx, req.TenantID, req.StudentID)
+	s.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
 	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestStatus,
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
@@ -240,12 +240,16 @@ func (s *excusedAbsenceRequestService) ListForStudent(ctx context.Context, stude
 		if _, ok := seen[r.ID]; ok {
 			continue
 		}
-		// Approved requests already surface as excused status days, and a
-		// withdrawn request was the parent's own cancellation — neither belongs
-		// in the parent absence list, which shows only still-pending requests and
-		// rejected outcomes (so the parent learns a decline).
-		switch r.Status {
-		case activeModels.ExcusedRequestStatusApproved, activeModels.ExcusedRequestStatusWithdrawn:
+		// A withdrawn request was the parent's own cancellation — drop it. Keep
+		// APPROVED requests, though: they normally surface as excused status days,
+		// but the parent's status-day view fetches only a bounded window
+		// (today..+2 months), so an approval for a past date (a delayed decision)
+		// or one more than two months ahead would otherwise vanish entirely — the
+		// pending row disappears with nothing replacing it. Returning the approved
+		// request lets the parent UI surface those out-of-window confirmations; it
+		// de-dupes in-window dates against the status days it already shows (#1845
+		// review).
+		if r.Status == activeModels.ExcusedRequestStatusWithdrawn {
 			continue
 		}
 		seen[r.ID] = struct{}{}
@@ -438,7 +442,7 @@ func (s *excusedAbsenceRequestService) Decide(ctx context.Context, input Excused
 	}
 	// Either decision clears the child's pending badge (approval also surfaces
 	// the confirmed absence). Wake staff tabs for both outcomes.
-	s.broadcastStudentUpdated(ctx, req.TenantID, req.StudentID)
+	s.broadcastRequestTransition(ctx, req.TenantID, req.StudentID)
 	s.emitRequestPillAfterCommit(ctx, req, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestStatus,
 		ActorKind:      usersModels.ParentMessageSenderStaff,
@@ -530,28 +534,53 @@ func (s *excusedAbsenceRequestService) emitRequestPillAfterCommit(ctx context.Co
 	})
 }
 
-// broadcastStudentUpdated wakes staff tabs after any excused-request transition
-// that changes the child's "Freigabe ausstehend" badge: a new pending request
-// (badge appears), an approval (badge clears, confirmed absence shows), or a
-// rejection/withdrawal (badge clears with no absence). Without it an open
-// dashboard/planning/search view keeps showing stale pending state — or misses
-// a fresh one — until a manual refetch. Fire-and-forget.
-func (s *excusedAbsenceRequestService) broadcastStudentUpdated(ctx context.Context, tenantID, studentID int64) {
-	if s.broadcaster == nil {
-		return
-	}
+// broadcastRequestTransition wakes BOTH audiences after any excused-request
+// transition that changes the child's "Freigabe ausstehend" badge — a new pending
+// request (badge appears), an approval (badge clears, confirmed absence shows), or
+// a rejection/withdrawal (badge clears with no absence):
+//
+//   - Staff: a tenant-wide student_updated so an open dashboard/planning/search
+//     view drops or adds the badge instead of showing stale pending state.
+//   - Guardians: a message-INDEPENDENT invalidation to EVERY guardian of the child
+//     (not only the one who acted, and even when parent messaging is off) so an
+//     already-open parents-app tab refetches the child's care state in real time.
+//     This is the event-based recovery the review asked for; the parents view's
+//     focus refetch remains as a fallback for a tab whose SSE stream had dropped.
+//
+// Fire-and-forget: both wakes run AFTER commit so a woken client never reads the
+// pre-commit snapshot.
+func (s *excusedAbsenceRequestService) broadcastRequestTransition(ctx context.Context, tenantID, studentID int64) {
 	if tenantID <= 0 {
 		tenantID = tenant.FromContext(ctx)
 	}
 	tenant.RegisterAfterCommit(ctx, func() {
-		source := "excused_request"
-		event := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{Source: &source})
-		if err := s.broadcaster.BroadcastToTenant(tenantID, event); err != nil {
-			s.logger.Warn("active: broadcast student_updated after excused request decision failed",
-				slog.Int64("tenant_id", tenantID),
-				slog.Int64("student_id", studentID),
-				slog.String("error", err.Error()),
-			)
+		if s.broadcaster != nil {
+			source := "excused_request"
+			// student_updated drives the child-card "Freigabe ausstehend" badge and
+			// student list/detail caches.
+			studentEvent := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{Source: &source})
+			if err := s.broadcaster.BroadcastToTenant(tenantID, studentEvent); err != nil {
+				s.logger.Warn("active: broadcast student_updated after excused request decision failed",
+					slog.Int64("tenant_id", tenantID),
+					slog.Int64("student_id", studentID),
+					slog.String("error", err.Error()),
+				)
+			}
+			// change_requests_changed drives the staff review queue + pending-count
+			// badge in real time, independent of the parent-messaging pill (which a
+			// messaging-off school never emits) — the review's staff-side counterpart
+			// to the guardian fan-out below.
+			queueEvent := realtime.NewEvent(realtime.EventChangeRequestsChanged, "", realtime.EventData{Source: &source})
+			if err := s.broadcaster.BroadcastToTenant(tenantID, queueEvent); err != nil {
+				s.logger.Warn("active: broadcast change_requests_changed after excused request transition failed",
+					slog.Int64("tenant_id", tenantID),
+					slog.Int64("student_id", studentID),
+					slog.String("error", err.Error()),
+				)
+			}
+		}
+		if s.emitter != nil {
+			s.emitter.BroadcastChildUpdateToGuardians(tenantID, studentID)
 		}
 	})
 }

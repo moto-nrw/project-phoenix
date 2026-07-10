@@ -283,6 +283,22 @@ describe("useGlobalSSE — tenant_settings_changed", () => {
   });
 });
 
+describe("useGlobalSSE — change_requests_changed", () => {
+  it("re-dispatches change-requests-refresh so an open review queue updates live", () => {
+    renderHook(() => useGlobalSSE());
+
+    const listener = vi.fn();
+    window.addEventListener("change-requests-refresh", listener);
+
+    fireSSE(
+      makeEvent("change_requests_changed", { source: "excused_request" }),
+    );
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    window.removeEventListener("change-requests-refresh", listener);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // SWR invalidation via debounced flush
 // ---------------------------------------------------------------------------

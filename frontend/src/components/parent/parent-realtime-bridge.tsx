@@ -45,6 +45,19 @@ export function ParentRealtimeBridge() {
           detail: { studentId: event.data?.student_id ?? null },
         }),
       );
+      return;
+    }
+    if (event.type === "parent_child_updated") {
+      // Message-independent care-state invalidation: the child's care view
+      // refetches, but this is NOT a message — do NOT touch the unread badge or the
+      // thread list. Reuse the same `parent-conversation-refresh` window event the
+      // care view already listens on, carrying the affected studentId so only that
+      // child's view refetches (others skip on the id mismatch).
+      window.dispatchEvent(
+        new CustomEvent("parent-conversation-refresh", {
+          detail: { studentId: event.data?.student_id ?? null },
+        }),
+      );
     }
   }, []);
   useSSE("/api/parent/sse/events", { onMessage: handleSSE });

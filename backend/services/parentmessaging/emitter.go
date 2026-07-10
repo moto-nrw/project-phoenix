@@ -282,6 +282,59 @@ func (e *Emitter) EmitChildEvent(tenantID, studentID, guardianAccountID int64, e
 	Broadcast(e.broadcaster, e.logger, tenantID, broadcastGuardianID, threadID, studentID)
 }
 
+// BroadcastChildUpdateToGuardians wakes EVERY guardian of the child with a
+// message-INDEPENDENT SSE invalidation (EventParentChildUpdated) so an already-
+// open parents-app tab refetches the child's care state in real time — no matter
+// which guardian acted and no matter whether parent messaging is enabled. Unlike
+// EmitChildEvent it creates NO thread and NO pill and never touches the messaging
+// setting; it is a pure wake over the parent-message SSE fan-out. The guardian set
+// is the same parent_portal.access-scoped list the messaging thread fan-out uses,
+// so a guardian who lost access is not woken. Fire-and-forget: schedule it AFTER
+// the originating transaction commits (from a RegisterAfterCommit callback) so a
+// woken client never reads the pre-commit snapshot. A nil dependency is a no-op.
+func (e *Emitter) BroadcastChildUpdateToGuardians(tenantID, studentID int64) {
+	if e == nil || e.broadcaster == nil || e.threadRepo == nil || e.db == nil {
+		return
+	}
+	if tenantID <= 0 || studentID <= 0 {
+		return
+	}
+	// Detached background context: this outlives the (already committed)
+	// originating transaction. Reading the guardian list is RLS-scoped, so it runs
+	// inside its own tenant transaction like EmitChildEvent's work.
+	bgCtx := context.Background()
+	var guardians []*usersModels.MessageableGuardian
+	if err := tenant.WithTenantTx(bgCtx, e.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		gs, gerr := e.threadRepo.ListGuardiansForStudent(txCtx, studentID)
+		if gerr != nil {
+			return gerr
+		}
+		guardians = gs
+		return nil
+	}); err != nil {
+		loggerOr(e.logger).Warn("parent messaging: guardian fan-out lookup failed",
+			slog.Int64("tenant_id", tenantID),
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	for _, g := range guardians {
+		if g == nil || g.AccountID <= 0 {
+			continue
+		}
+		event := realtime.NewParentChildUpdatedEvent(g.AccountID, studentID)
+		if err := e.broadcaster.BroadcastParentMessage(tenantID, g.AccountID, event); err != nil {
+			loggerOr(e.logger).Warn("parent messaging: guardian child-update broadcast failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int64("student_id", studentID),
+				slog.Int64("guardian_account_id", g.AccountID),
+				slog.String("error", err.Error()),
+			)
+		}
+	}
+}
+
 // guardianHasChildAccess reports whether guardianAccountID is STILL a linked
 // guardian of the child with parent_portal.access — the identical JSONB
 // containment / active-account-tenant filter the parent read paths and the
