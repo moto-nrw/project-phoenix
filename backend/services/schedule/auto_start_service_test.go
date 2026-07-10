@@ -3,12 +3,15 @@ package schedule
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,6 +36,7 @@ func TestAutoStart_RunForTenant_StartsOnlyDueStaffedConflictFreeInstances(t *tes
 		InstanceRepo:      repo,
 		InstanceStaffRepo: staffRepo,
 		InstanceService:   starter,
+		RoomRepo:          &autoStartRoomRepo{},
 		ConflictDetector: func(_ context.Context, _ ConflictDependencies, inst *scheduleModel.ActivityInstance, _ *slog.Logger) []InstanceConflictWarning {
 			if inst.ID == 104 {
 				return []InstanceConflictWarning{{Kind: ConflictKindRoom, ResourceID: inst.RoomID, CanOverride: true}}
@@ -69,6 +73,7 @@ func TestAutoStart_RunForTenant_ReturnsStartError(t *testing.T) {
 		InstanceRepo:      repo,
 		InstanceStaffRepo: staffRepo,
 		InstanceService:   starter,
+		RoomRepo:          &autoStartRoomRepo{},
 		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) []InstanceConflictWarning {
 			return nil
 		},
@@ -82,6 +87,68 @@ func TestAutoStart_RunForTenant_ReturnsStartError(t *testing.T) {
 	assert.Equal(t, 1, result.Checked)
 	assert.Equal(t, 1, result.Failed)
 	assert.Equal(t, 0, result.Started)
+}
+
+func TestAutoStart_RunForTenant_SkipsSchulhofAndContinues(t *testing.T) {
+	now := time.Date(2026, 4, 20, 13, 30, 0, 0, time.Local)
+	repo := &autoStartInstanceRepo{instances: []*scheduleModel.ActivityInstance{
+		autoStartInstance(301, scheduleModel.InstanceStatusPlanned, 13, 0, 14, 0),
+		autoStartInstance(302, scheduleModel.InstanceStatusPlanned, 13, 0, 14, 0),
+	}}
+	staffRepo := &autoStartStaffRepo{counts: map[int64]int{301: 1, 302: 1}}
+	starter := &autoStartInstanceStarter{errByID: map[int64]error{
+		301: fmt.Errorf("wrapped: %w", ErrSchulhofSupervisionRequired),
+	}}
+	svc := NewAutoStartService(AutoStartDependencies{
+		InstanceRepo:      repo,
+		InstanceStaffRepo: staffRepo,
+		InstanceService:   starter,
+		RoomRepo:          &autoStartRoomRepo{},
+		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) []InstanceConflictWarning {
+			return nil
+		},
+		Logger: slog.Default(),
+	})
+
+	result, err := svc.RunForTenant(context.Background(), now)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, result.Checked)
+	assert.Equal(t, 1, result.SkippedSchulhof)
+	assert.Equal(t, 1, result.Started)
+	assert.Zero(t, result.Failed)
+	assert.Equal(t, []int64{302}, starter.startedIDs)
+}
+
+func TestAutoStart_RunForTenant_ClassifiesSchulhofBeforeConflictDetection(t *testing.T) {
+	now := time.Date(2026, 4, 20, 13, 30, 0, 0, time.Local)
+	schulhof := autoStartInstance(311, scheduleModel.InstanceStatusPlanned, 13, 0, 14, 0)
+	schulhof.RoomID = 401
+	normal := autoStartInstance(312, scheduleModel.InstanceStatusPlanned, 13, 0, 14, 0)
+	normal.RoomID = 402
+	conflictChecks := make([]int64, 0, 1)
+	starter := &autoStartInstanceStarter{}
+	svc := NewAutoStartService(AutoStartDependencies{
+		InstanceRepo:      &autoStartInstanceRepo{instances: []*scheduleModel.ActivityInstance{schulhof, normal}},
+		InstanceStaffRepo: &autoStartStaffRepo{counts: map[int64]int{311: 1, 312: 1}},
+		InstanceService:   starter,
+		RoomRepo: &autoStartRoomRepo{rooms: map[int64]*facilitiesModel.Room{
+			401: {Model: base.Model{ID: 401}, Name: constants.SchulhofRoomName},
+			402: {Model: base.Model{ID: 402}, Name: "Lernraum"},
+		}},
+		ConflictDetector: func(_ context.Context, _ ConflictDependencies, inst *scheduleModel.ActivityInstance, _ *slog.Logger) []InstanceConflictWarning {
+			conflictChecks = append(conflictChecks, inst.ID)
+			return nil
+		},
+		Logger: slog.Default(),
+	})
+
+	result, err := svc.RunForTenant(context.Background(), now)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, result.SkippedSchulhof)
+	assert.Equal(t, []int64{312}, conflictChecks)
+	assert.Equal(t, []int64{312}, starter.startedIDs)
 }
 
 func autoStartInstance(id int64, status string, startHour, startMinute, endHour, endMinute int) *scheduleModel.ActivityInstance {
@@ -99,6 +166,27 @@ func autoStartInstance(id int64, status string, startHour, startMinute, endHour,
 
 type autoStartInstanceRepo struct {
 	instances []*scheduleModel.ActivityInstance
+}
+
+type autoStartRoomRepo struct {
+	facilitiesModel.RoomRepository
+	rooms map[int64]*facilitiesModel.Room
+	err   error
+}
+
+func (r *autoStartRoomRepo) FindByIDs(_ context.Context, ids []int64) ([]*facilitiesModel.Room, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	rooms := make([]*facilitiesModel.Room, 0, len(ids))
+	for _, id := range ids {
+		if room := r.rooms[id]; room != nil {
+			rooms = append(rooms, room)
+			continue
+		}
+		rooms = append(rooms, &facilitiesModel.Room{Model: base.Model{ID: id}, Name: "Lernraum"})
+	}
+	return rooms, nil
 }
 
 func (r *autoStartInstanceRepo) Create(context.Context, *scheduleModel.ActivityInstance) error {
@@ -179,6 +267,7 @@ type autoStartInstanceStarter struct {
 	startedIDs        []int64
 	startedByStaffIDs []int64
 	err               error
+	errByID           map[int64]error
 }
 
 func (s *autoStartInstanceStarter) GetPlannedStudentIDsByDate(_ context.Context, _ []int64, _ timezone.Date) ([]int64, error) {
@@ -186,6 +275,9 @@ func (s *autoStartInstanceStarter) GetPlannedStudentIDsByDate(_ context.Context,
 }
 
 func (s *autoStartInstanceStarter) Start(_ context.Context, instanceID, startedByStaffID int64) (*StartInstanceResult, error) {
+	if err := s.errByID[instanceID]; err != nil {
+		return nil, err
+	}
 	if s.err != nil {
 		return nil, s.err
 	}

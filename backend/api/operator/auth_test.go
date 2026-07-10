@@ -10,6 +10,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -335,13 +337,13 @@ func TestLogin_ClientIPExtraction_XForwardedFor(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "192.168.1.100")
 	rr := httptest.NewRecorder()
 
-	resource.Login(rr, req)
+	serveOperatorLoginThroughXFFMiddleware(resource, rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "192.168.1.100", capturedIP)
 }
 
-func TestLogin_ClientIPExtraction_XRealIP(t *testing.T) {
+func TestLogin_ClientIPExtraction_IgnoresRawXRealIP(t *testing.T) {
 	var capturedIP string
 	mockService := &mockOperatorAuthService{
 		loginWithMFAGateFn: func(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*platformSvc.OperatorLoginResult, error) {
@@ -364,12 +366,20 @@ func TestLogin_ClientIPExtraction_XRealIP(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", bytes.NewReader(jsonBody))
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("X-Real-IP", "10.0.0.50")
+	req.RemoteAddr = "192.0.2.55:1234"
 	rr := httptest.NewRecorder()
 
 	resource.Login(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, "10.0.0.50", capturedIP)
+	assert.Equal(t, "192.0.2.55", capturedIP)
+}
+
+func serveOperatorLoginThroughXFFMiddleware(resource *operator.AuthResource, rr *httptest.ResponseRecorder, req *http.Request) {
+	router := chi.NewRouter()
+	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Post("/auth/login", resource.Login)
+	router.ServeHTTP(rr, req)
 }
 
 func TestLoginRequest_Bind(t *testing.T) {

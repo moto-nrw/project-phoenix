@@ -6,6 +6,7 @@ import type { Child, ChildFeatures, MealPlanEntry } from "~/lib/parent-api";
 const baseFeatures = {
   sick_note_enabled: true,
   notes_enabled: true,
+  excused_requires_approval: false,
   request_submit_enabled: true,
   pickup_change_enabled: true,
   related_accounts_invite_enabled: true,

@@ -29,6 +29,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -74,6 +75,11 @@ var (
 	// contradictory state (the block reads as unstaffed yet /gaps never lists it
 	// because it is staffed). Handlers map this to 409.
 	ErrUnderstaffedAckStillStaffed = errors.New("cannot acknowledge understaffing while the block is fully staffed")
+
+	// ErrSchulhofSupervisionRequired prevents timetable instances from
+	// creating a second active group in the permanent Schulhof room. Staff
+	// must use the dedicated Schulhof supervision flow instead.
+	ErrSchulhofSupervisionRequired = errors.New("für den Schulhof bitte die Schulhof-Aufsicht verwenden")
 )
 
 // ActiveSessionEnder is the subset of active.Service used by Complete and
@@ -222,6 +228,21 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	}
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot start instance in status %q", ErrInvalidInstanceTransition, instance.Status)
+	}
+
+	// Reject the permanent Schulhof room before taking any lock — timetable
+	// instances must not spin up a second active group there; staff use the
+	// dedicated Schulhof supervision flow instead. The room assignment is not
+	// touched by day-wide deviations, so this is safe to read pre-lock.
+	room, err := s.deps.RoomRepo.FindByID(ctx, instance.RoomID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "start instance: load room", Err: err}
+	}
+	if room == nil {
+		return nil, &ScheduleError{Op: "start instance: load room", Err: errors.New("instance room not found")}
+	}
+	if room.Name == constants.SchulhofRoomName {
+		return nil, ErrSchulhofSupervisionRequired
 	}
 
 	// Serialize against concurrent day-wide staffing saves (/substitute,

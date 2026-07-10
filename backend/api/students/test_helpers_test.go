@@ -60,6 +60,7 @@ func setupTestContext(t *testing.T) *testContext {
 		StudentHistoryService:   activeSvc.NewStudentHistoryService(repoFactory.Attendance, repoFactory.ActiveVisit, repoFactory.DataAccessLog),
 		InstanceService:         svc.Instance,
 		StudentStatusDayService: activeSvc.NewStudentStatusDayService(repoFactory.StudentStatusDay),
+		ExcusedRequestService:   svc.ExcusedRequests,
 		Broadcaster:             broadcaster,
 		StudentPhotos:           studentPhotos,
 		Logger:                  slog.Default(),

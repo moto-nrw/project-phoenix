@@ -2,9 +2,11 @@ package facilities_test
 
 import (
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
@@ -13,6 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+var roomRepositoryTenantCounter int64 = 920_000 + time.Now().UnixNano()%50_000
 
 // ============================================================================
 // CRUD Tests
@@ -406,6 +410,54 @@ func TestRoomRepository_List(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotEmpty(t, rooms)
 	})
+}
+
+func TestRoomRepository_ListWithOccupancy_GroupsVisibilityInsideTenantScope(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	tenantA := atomic.AddInt64(&roomRepositoryTenantCounter, 1)
+	tenantB := atomic.AddInt64(&roomRepositoryTenantCounter, 1)
+	testpkg.EnsureTestTenant(t, db, tenantA)
+	testpkg.EnsureTestTenant(t, db, tenantB)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, tenantA, tenantB) })
+
+	repo := repositories.NewFactory(db).Room
+	ctxA := testpkg.TenantContext(tenantA)
+	ctxB := testpkg.TenantContext(tenantB)
+
+	normalA := &facilities.Room{Name: "Lernraum", Building: "Haus A"}
+	normalA.SetTenantID(tenantA)
+	require.NoError(t, repo.Create(ctxA, normalA))
+	schulhofA := &facilities.Room{Name: constants.SchulhofRoomName, Building: "Außen", IsSystem: true}
+	schulhofA.SetTenantID(tenantA)
+	require.NoError(t, repo.Create(ctxA, schulhofA))
+	schulhofB := &facilities.Room{Name: constants.SchulhofRoomName, Building: "Außen", IsSystem: true}
+	schulhofB.SetTenantID(tenantB)
+	require.NoError(t, repo.Create(ctxB, schulhofB))
+
+	staffVisible := modelBase.NewFilter().
+		Equal("is_system", false).
+		NotIn("name", constants.WCRoomName, constants.WCRoomAliasName)
+	staffVisible.Or(*modelBase.NewFilter().Equal("name", constants.SchulhofRoomName))
+	options := modelBase.NewQueryOptions()
+	options.Filter.And(*staffVisible)
+
+	rows, err := repo.ListWithOccupancy(ctxA, options)
+
+	require.NoError(t, err)
+	ids := make(map[int64]bool, len(rows))
+	for _, row := range rows {
+		ids[row.ID] = true
+	}
+	assert.True(t, ids[normalA.ID])
+	assert.True(t, ids[schulhofA.ID])
+	assert.False(t, ids[schulhofB.ID], "grouped Schulhof OR must not escape tenant scope")
+
+	foundByIDs, err := repo.FindByIDs(ctxA, []int64{schulhofA.ID, schulhofB.ID})
+	require.NoError(t, err)
+	require.Len(t, foundByIDs, 1)
+	assert.Equal(t, schulhofA.ID, foundByIDs[0].ID, "FindByIDs must keep the explicit tenant filter")
 }
 
 // ============================================================================

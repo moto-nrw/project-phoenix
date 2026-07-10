@@ -331,6 +331,7 @@ export function OgsConversation({
           onSubmit={async (dates, reason, status) => {
             await care.reportSick(dates, reason, status);
           }}
+          excusedRequiresApproval={care.features.excused_requires_approval}
         />
       )}
       {activeModal === "pickup" && (

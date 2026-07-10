@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
@@ -97,6 +98,13 @@ func (s *service) CreateRoom(ctx context.Context, room *facilities.Room) error {
 	// Validate room data
 	if err := room.Validate(); err != nil {
 		return &FacilitiesError{Op: opCreateRoom, Err: translateValidationError(err)}
+	}
+	// Schulhof is an application invariant, not a normal room label. Reserve
+	// every case variant because repository name lookup is case-insensitive;
+	// only dedicated provisioning may create the exact canonical spelling.
+	if strings.EqualFold(room.Name, constants.SchulhofRoomName) &&
+		(room.Name != constants.SchulhofRoomName || !room.IsSystem) {
+		return &FacilitiesError{Op: opCreateRoom, Err: ErrSystemRoomNameReserved}
 	}
 
 	// Set tenant ID from context
@@ -235,6 +243,12 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilities.Room) error {
 	// Block renaming system rooms (Schulhof, WC)
 	if constants.IsSystemRoomName(existingRoom.Name) && room.Name != existingRoom.Name {
 		return &FacilitiesError{Op: opUpdateRoom, Err: ErrSystemRoomProtected}
+	}
+	// Reserve Schulhof as a rename target as well. Without this guard, a
+	// normal room could become Schulhof after timetable Start validated it,
+	// leaving a generic active group in the dedicated supervision room.
+	if existingRoom.Name != room.Name && strings.EqualFold(room.Name, constants.SchulhofRoomName) {
+		return &FacilitiesError{Op: opUpdateRoom, Err: ErrSystemRoomNameReserved}
 	}
 
 	// System-room color handling.

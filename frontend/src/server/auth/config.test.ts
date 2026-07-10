@@ -1477,6 +1477,44 @@ describe("authConfig", () => {
       expect(result?.scope).toBe("platform");
     });
 
+    it("should forward only the canonical operator client IP", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "success",
+          data: {
+            access_token: OPERATOR_JWT,
+            refresh_token: "op-refresh-token",
+            operator: {
+              id: 45,
+              email: "op@example.com",
+              display_name: "Op",
+            },
+          },
+        }),
+      });
+
+      const authorize = getOperatorAuthorize();
+      await authorize(
+        { email: "op@example.com", password: "correct" },
+        new Request("http://localhost:3000", {
+          headers: {
+            "x-forwarded-for": "203.0.113.10, 172.20.0.4",
+            "x-real-ip": "198.51.100.25",
+          },
+        }),
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "http://server:8080/operator/auth/login",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "X-Forwarded-For": "172.20.0.4",
+          }) as HeadersInit,
+        }),
+      );
+    });
+
     it("should return null for missing credentials", async () => {
       const authorize = getOperatorAuthorize();
       const result = await authorize({}, new Request("http://localhost:3000"));
@@ -1696,6 +1734,39 @@ describe("authConfig", () => {
 
       expect(result).not.toBeNull();
       expect(result?.scope).toBe("parent");
+    });
+
+    it("should forward only the canonical parent client IP", async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          status: "success",
+          data: {
+            access_token: PARENT_JWT,
+            refresh_token: "parent-refresh-token",
+          },
+        }),
+      });
+
+      const authorize = getParentAuthorize();
+      await authorize(
+        { email: "parent@example.com", password: "correct" },
+        new Request("http://localhost:3000", {
+          headers: {
+            "x-forwarded-for": "203.0.113.10, 172.20.0.4",
+            "x-real-ip": "198.51.100.25",
+          },
+        }),
+      );
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "http://server:8080/parent/auth/login",
+        expect.objectContaining({
+          headers: expect.objectContaining({
+            "X-Forwarded-For": "172.20.0.4",
+          }) as HeadersInit,
+        }),
+      );
     });
 
     it("should return null for missing credentials", async () => {

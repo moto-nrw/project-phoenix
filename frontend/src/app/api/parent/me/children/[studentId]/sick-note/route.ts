@@ -14,6 +14,26 @@ interface BackendStatusDay {
 interface SickNoteBody {
   dates: string[];
   reason?: string;
+  status?: string;
+}
+
+interface BackendExcusedRequest {
+  id: string;
+  student_id: string;
+  status: string;
+  dates: string[];
+  note: string;
+  decision_reason?: string;
+  created_at: string;
+  reviewed_at?: string;
+}
+
+// The POST response is the envelope `{ status_days, pending_request? }` — an
+// excused submission behind the approval gate returns an empty status_days and
+// a populated pending_request instead of recording the days immediately.
+interface SickNoteSubmitResponse {
+  status_days: BackendStatusDay[];
+  pending_request?: BackendExcusedRequest;
 }
 
 /**
@@ -31,7 +51,7 @@ export const GET = proxyGet<BackendStatusDay[]>(
  * the parent session token + 401 retry. The backend verifies the account
  * is a guardian of the child (account id from the JWT, never the URL).
  */
-export const POST = proxyPost<BackendStatusDay[], SickNoteBody>(
+export const POST = proxyPost<SickNoteSubmitResponse, SickNoteBody>(
   (params) =>
     `/parent/me/children/${requirePathSegmentParam(params, "studentId")}/sick-note`,
 );

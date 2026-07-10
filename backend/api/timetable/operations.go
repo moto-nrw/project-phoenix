@@ -180,7 +180,10 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		return
 	}
 	if room.Name == constants.SchulhofRoomName {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("für den Schulhof bitte die Schulhof-Aufsicht verwenden")))
+		common.RenderError(w, r, common.ErrorConflictWithCode(
+			scheduleSvc.ErrSchulhofSupervisionRequired,
+			schulhofSupervisionRequiredCode,
+		))
 		return
 	}
 	if err := rs.lockSpontaneousStartRoom(r.Context(), req.RoomID); err != nil {
@@ -227,6 +230,10 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		CreatedByStaffID: &createdBy,
 	})
 	if err != nil {
+		// Activity/category resolution above may already have written rows.
+		// Create can still reject the roster with a 4xx, so request rollback
+		// explicitly instead of relying only on the middleware's 5xx rule.
+		tenant.MarkRollback(r.Context())
 		renderCreateInstanceError(w, r, err)
 		return
 	}
@@ -234,6 +241,10 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 	claims := jwt.ClaimsFromCtx(r.Context())
 	result, err := rs.OperationsService.Start(r.Context(), int64(claims.ID), claims.IsAdmin, inst.ID)
 	if err != nil {
+		// Create and Start share the request transaction. A non-5xx start error
+		// (for example a room renamed to Schulhof between the initial check and
+		// Start) must not commit the already-created instance or activity rows.
+		tenant.MarkRollback(r.Context())
 		rs.renderOperationsError(w, r, err)
 		return
 	}
@@ -514,6 +525,8 @@ func (rs *Resource) renderOperationsError(w http.ResponseWriter, r *http.Request
 	switch {
 	case errors.As(err, &validationErr):
 		renderValidationErrors(w, r, attendancePatchFieldErrors(validationErr.Fields))
+	case errors.Is(err, scheduleSvc.ErrSchulhofSupervisionRequired):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, schulhofSupervisionRequiredCode))
 	case errors.Is(err, scheduleSvc.ErrTimetableOperationForbidden):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, scheduleSvc.ErrTimetableOperationNotFound):

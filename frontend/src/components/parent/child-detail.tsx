@@ -382,6 +382,7 @@ function ChildDetailContent({ child }: Readonly<{ child: Child }>) {
         <SickNoteModal
           onClose={() => setModal(null)}
           onSubmit={care.reportSick}
+          excusedRequiresApproval={care.features.excused_requires_approval}
         />
       )}
       {modal === "pickup" && (
@@ -462,7 +463,11 @@ function MobileChildAppView({
           {t("today.sickLabel")}
         </p>
         <div className="mt-2">
-          <SickStatusSummary sickDays={care.sickDays} />
+          <SickStatusSummary
+            sickDays={care.sickDays}
+            excusedRequests={care.excusedRequests}
+            onWithdraw={care.withdrawExcused}
+          />
         </div>
       </section>
 
@@ -600,7 +605,11 @@ function TodayPanel({
               {t("today.sickLabel")}
             </p>
             <div className="mt-0.5">
-              <SickStatusSummary sickDays={care.sickDays} />
+              <SickStatusSummary
+                sickDays={care.sickDays}
+                excusedRequests={care.excusedRequests}
+                onWithdraw={care.withdrawExcused}
+              />
             </div>
           </div>
         </div>

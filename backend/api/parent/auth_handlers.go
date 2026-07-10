@@ -3,7 +3,6 @@ package parent
 import (
 	"database/sql"
 	"errors"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +13,7 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 )
 
@@ -197,25 +197,7 @@ func (rs *Resource) resetPassword(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, nil, "Password reset successfully")
 }
 
-// getClientIP extracts the originating IP from common forwarding
-// headers. Local copy to avoid a circular import on api/auth's
-// helpers — same algorithm.
+// getClientIP returns the router-selected client IP for audit/rate-limit flows.
 func getClientIP(r *http.Request) string {
-	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
-		parts := strings.Split(forwarded, ",")
-		if len(parts) > 0 {
-			candidate := strings.TrimSpace(parts[0])
-			if candidate != "" {
-				return candidate
-			}
-		}
-	}
-	if real := r.Header.Get("X-Real-IP"); real != "" {
-		return strings.TrimSpace(real)
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
+	return clientip.GetClientIPString(r)
 }

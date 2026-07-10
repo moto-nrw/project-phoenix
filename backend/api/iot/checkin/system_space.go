@@ -12,8 +12,7 @@ import (
 
 // systemSpace describes one lazily-bootstrapped system area (WC, Schulhof):
 // a room, an activity category, and a permanent open activity group. The
-// per-space room lookup keeps its own error policy inside findRoom (WC aborts
-// on unexpected lookup errors, Schulhof falls through to auto-create), so the
+// per-space room lookup keeps its own error policy inside findRoom, so the
 // shared ensure/bootstrap flow below stays behavior-identical per space.
 // All error strings and log lines are built from the label to match the
 // previous per-space copies byte for byte.
@@ -33,6 +32,7 @@ type systemSpace struct {
 
 	activityName    string
 	maxParticipants int
+	selectActivity  func(groups []*activities.Group, room *facilities.Room) *activities.Group
 }
 
 // ensureSystemRoom finds or creates the space's room.
@@ -128,6 +128,17 @@ func (rs *Resource) ensureSystemCategory(ctx context.Context, sp systemSpace) (*
 // systemActivityGroup finds or creates the space's permanent activity group,
 // lazily bootstrapping room + category + activity on first use.
 func (rs *Resource) systemActivityGroup(ctx context.Context, sp systemSpace) (*activities.Group, error) {
+	var room *facilities.Room
+	var err error
+	if sp.selectActivity != nil {
+		// Selectors such as Schulhof need the canonical room to distinguish the
+		// dedicated system activity from normal activities with the same name.
+		room, err = rs.ensureSystemRoom(ctx, sp)
+		if err != nil {
+			return nil, fmt.Errorf("failed to ensure %s room: %w", sp.label, err)
+		}
+	}
+
 	// WithTableAlias("group") is applied in the repository, so use the
 	// unqualified field name.
 	options := base.NewQueryOptions()
@@ -140,19 +151,31 @@ func (rs *Resource) systemActivityGroup(ctx context.Context, sp systemSpace) (*a
 		return nil, fmt.Errorf("failed to query %s activity: %w", sp.label, err)
 	}
 
-	if len(groups) > 0 {
+	selectExisting := func(candidates []*activities.Group) *activities.Group {
+		if sp.selectActivity != nil {
+			return sp.selectActivity(candidates, room)
+		}
+		if len(candidates) > 0 {
+			return candidates[0]
+		}
+		return nil
+	}
+
+	if existingActivity := selectExisting(groups); existingActivity != nil {
 		rs.getLogger().DebugContext(ctx, "found existing "+sp.label+" activity",
-			slog.Int64("activity_id", groups[0].ID),
+			slog.Int64("activity_id", existingActivity.ID),
 		)
-		return groups[0], nil
+		return existingActivity, nil
 	}
 
 	// Activity not found - auto-create the entire infrastructure
 	rs.getLogger().InfoContext(ctx, sp.label+" activity not found, auto-creating infrastructure")
 
-	room, err := rs.ensureSystemRoom(ctx, sp)
-	if err != nil {
-		return nil, fmt.Errorf("failed to ensure %s room: %w", sp.label, err)
+	if room == nil {
+		room, err = rs.ensureSystemRoom(ctx, sp)
+		if err != nil {
+			return nil, fmt.Errorf("failed to ensure %s room: %w", sp.label, err)
+		}
 	}
 
 	category, err := rs.ensureSystemCategory(ctx, sp)
@@ -179,8 +202,10 @@ func (rs *Resource) systemActivityGroup(ctx context.Context, sp systemSpace) (*a
 		retryFilter.Equal("name", sp.activityName)
 		retryOptions.Filter = retryFilter
 		retryGroups, retryErr := rs.ActivitiesService.ListGroups(ctx, retryOptions)
-		if retryErr == nil && len(retryGroups) > 0 {
-			return retryGroups[0], nil
+		if retryErr == nil {
+			if existingActivity := selectExisting(retryGroups); existingActivity != nil {
+				return existingActivity, nil
+			}
 		}
 		return nil, fmt.Errorf("failed to auto-create %s activity: %w", sp.label, err)
 	}

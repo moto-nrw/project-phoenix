@@ -15,6 +15,8 @@ import type { Activity } from "~/lib/activity-helpers";
 import { createLogger } from "~/lib/logger";
 import { staffService, type Staff } from "~/lib/staff-api";
 
+import { SCHULHOF_ROOM_NAME } from "./view-model";
+
 const logger = createLogger({ component: "SpontaneousActivityStart" });
 const EMPTY_OCCUPIED_ROOM_IDS: readonly string[] = [];
 
@@ -49,7 +51,9 @@ interface SpontaneousActivityStartProps {
   readonly disabled?: boolean;
   readonly isStarting?: boolean;
   readonly occupiedRoomIds?: readonly string[];
+  readonly schulhofSupervisionAvailable: boolean;
   readonly onStart: (payload: SpontaneousActivityStartPayload) => void;
+  readonly onOpenSchulhofSupervision: () => void;
 }
 
 function normalizeRoomEnvelope(envelope: BackendRoomList): RoomOption[] {
@@ -89,13 +93,35 @@ function consumeListboxEscape(event: KeyboardEvent): void {
   event.nativeEvent.stopImmediatePropagation();
 }
 
+function isSchulhofRoom(room: RoomOption | undefined): boolean {
+  return room?.name === SCHULHOF_ROOM_NAME;
+}
+
+function isUnavailableForActivityStart(
+  room: RoomOption,
+  occupiedRoomIds: ReadonlySet<string>,
+  schulhofSupervisionAvailable: boolean,
+): boolean {
+  if (isSchulhofRoom(room)) return !schulhofSupervisionAvailable;
+  return occupiedRoomIds.has(room.id);
+}
+
+function isAutomaticActivityRoom(
+  room: RoomOption,
+  occupiedRoomIds: ReadonlySet<string>,
+): boolean {
+  return !isSchulhofRoom(room) && !occupiedRoomIds.has(room.id);
+}
+
 export function SpontaneousActivityStart({
   currentStaffId,
   defaultRoomId,
   disabled = false,
   isStarting = false,
   occupiedRoomIds = EMPTY_OCCUPIED_ROOM_IDS,
+  schulhofSupervisionAvailable,
   onStart,
+  onOpenSchulhofSupervision,
 }: SpontaneousActivityStartProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoadingRefs, setIsLoadingRefs] = useState(false);
@@ -103,7 +129,7 @@ export function SpontaneousActivityStart({
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [activityInput, setActivityInput] = useState("");
-  const [roomId, setRoomId] = useState(defaultRoomId ?? "");
+  const [roomId, setRoomId] = useState("");
   const [additionalStaffIds, setAdditionalStaffIds] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [activityMenuOpen, setActivityMenuOpen] = useState(false);
@@ -116,7 +142,6 @@ export function SpontaneousActivityStart({
 
   useEffect(() => {
     if (!isOpen) return;
-    setRoomId((prev) => prev || defaultRoomId || "");
     setIsLoadingRefs(true);
     setError(null);
 
@@ -144,8 +169,8 @@ export function SpontaneousActivityStart({
       }),
     ])
       .then(([activityData, roomData, staffData]) => {
-        // System rooms (Schulhof, WC) are excluded by the backend list
-        // endpoint by default — no client-side filtering needed.
+        // The staff room list includes Schulhof as a planning/navigation
+        // destination while keeping WC infrastructure hidden.
         const spontaneousRooms = roomData;
         setActivities(
           [...activityData].sort((a, b) => a.name.localeCompare(b.name, "de")),
@@ -158,21 +183,26 @@ export function SpontaneousActivityStart({
         );
         setRoomId((prev) => {
           const firstAvailableRoom =
-            spontaneousRooms.find((room) => !occupiedRoomIdSet.has(room.id)) ??
-            null;
+            spontaneousRooms.find((room) =>
+              isAutomaticActivityRoom(room, occupiedRoomIdSet),
+            ) ?? null;
+          const previousRoom = spontaneousRooms.find(
+            (room) => room.id === prev,
+          );
           if (
-            prev &&
-            !occupiedRoomIdSet.has(prev) &&
-            spontaneousRooms.some((room) => room.id === prev)
+            previousRoom &&
+            isAutomaticActivityRoom(previousRoom, occupiedRoomIdSet)
           ) {
             return prev;
           }
+          const configuredDefaultRoom = spontaneousRooms.find(
+            (room) => room.id === defaultRoomId,
+          );
           if (
-            defaultRoomId &&
-            !occupiedRoomIdSet.has(defaultRoomId) &&
-            spontaneousRooms.some((room) => room.id === defaultRoomId)
+            configuredDefaultRoom &&
+            isAutomaticActivityRoom(configuredDefaultRoom, occupiedRoomIdSet)
           ) {
-            return defaultRoomId;
+            return configuredDefaultRoom.id;
           }
           return firstAvailableRoom?.id ?? "";
         });
@@ -200,12 +230,23 @@ export function SpontaneousActivityStart({
     [activities, activityInput],
   );
   const title = selectedActivity?.name ?? activityInput.trim();
+  const selectedRoom = rooms.find((room) => room.id === roomId);
+  const isSchulhofSelected = isSchulhofRoom(selectedRoom);
   const isSelectedRoomOccupied =
-    roomId.length > 0 && occupiedRoomIdSet.has(roomId);
+    selectedRoom !== undefined &&
+    !isSchulhofSelected &&
+    isUnavailableForActivityStart(
+      selectedRoom,
+      occupiedRoomIdSet,
+      schulhofSupervisionAvailable,
+    );
+  const isSelectedSchulhofUnavailable =
+    isSchulhofSelected && !schulhofSupervisionAvailable;
   const canSubmit =
-    title.length > 0 &&
+    (isSchulhofSelected || title.length > 0) &&
     roomId.length > 0 &&
     !isSelectedRoomOccupied &&
+    !isSelectedSchulhofUnavailable &&
     !isStarting;
   const suggestedActivities = activities.slice(0, 5);
   const filteredActivities = useMemo(() => {
@@ -223,11 +264,23 @@ export function SpontaneousActivityStart({
       rooms.map((room) => ({
         value: room.id,
         label: `${room.building ? `${room.building} - ` : ""}${room.name}${
-          occupiedRoomIdSet.has(room.id) ? " (belegt)" : ""
+          isSchulhofRoom(room) && !schulhofSupervisionAvailable
+            ? " (Aufsicht nicht verfügbar)"
+            : isUnavailableForActivityStart(
+                  room,
+                  occupiedRoomIdSet,
+                  schulhofSupervisionAvailable,
+                )
+              ? " (belegt)"
+              : ""
         }`,
-        disabled: occupiedRoomIdSet.has(room.id),
+        disabled: isUnavailableForActivityStart(
+          room,
+          occupiedRoomIdSet,
+          schulhofSupervisionAvailable,
+        ),
       })),
-    [rooms, occupiedRoomIdSet],
+    [rooms, occupiedRoomIdSet, schulhofSupervisionAvailable],
   );
 
   useEffect(() => {
@@ -251,6 +304,7 @@ export function SpontaneousActivityStart({
   function resetAndClose() {
     setIsOpen(false);
     setActivityInput("");
+    setRoomId("");
     setAdditionalStaffIds([]);
     setError(null);
     setActivityMenuOpen(false);
@@ -269,8 +323,19 @@ export function SpontaneousActivityStart({
       setError("Der Raum ist bereits belegt.");
       return;
     }
+    if (isSelectedSchulhofUnavailable) {
+      setError(
+        "Die Schulhof-Aufsicht ist gerade nicht verfügbar. Bitte laden Sie die Seite neu.",
+      );
+      return;
+    }
     if (!canSubmit) {
       setError("Aktivität und Raum sind erforderlich.");
+      return;
+    }
+    if (isSchulhofSelected) {
+      onOpenSchulhofSupervision();
+      resetAndClose();
       return;
     }
     onStart({
@@ -326,11 +391,13 @@ export function SpontaneousActivityStart({
               form="spontaneous-activity-form"
               variant="primary"
               size="md"
-              isLoading={isStarting}
+              isLoading={isStarting && !isSchulhofSelected}
               loadingText="Startet ..."
               disabled={!canSubmit || isLoadingRefs}
             >
-              Aktivität starten
+              {isSchulhofSelected
+                ? "Zur Schulhof-Aufsicht"
+                : "Aktivität starten"}
             </Button>
           </>
         }
@@ -344,6 +411,7 @@ export function SpontaneousActivityStart({
 
           <div
             ref={activityFieldRef}
+            className={isSchulhofSelected ? "hidden" : undefined}
             onBlur={(event) => {
               const nextFocusedNode = event.relatedTarget;
               if (
@@ -434,7 +502,7 @@ export function SpontaneousActivityStart({
                     : undefined
                 }
                 aria-autocomplete="list"
-                required
+                required={!isSchulhofSelected}
               />
               {activityListboxOpen ? (
                 <ul
@@ -479,7 +547,7 @@ export function SpontaneousActivityStart({
             </div>
           </div>
 
-          {suggestedActivities.length > 0 ? (
+          {!isSchulhofSelected && suggestedActivities.length > 0 ? (
             <div className="flex flex-wrap gap-2">
               {suggestedActivities.map((activity) => (
                 <button
@@ -515,7 +583,14 @@ export function SpontaneousActivityStart({
             ) : null}
           </div>
 
-          {staff.length > 0 ? (
+          {isSchulhofSelected ? (
+            <Alert
+              type="info"
+              message="Der Schulhof wird über die eigene Schulhof-Aufsicht geführt. Es wird keine spontane Aktivität gestartet."
+            />
+          ) : null}
+
+          {!isSchulhofSelected && staff.length > 0 ? (
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm font-medium text-gray-700">
                 <UserPlus className="h-4 w-4" aria-hidden="true" />

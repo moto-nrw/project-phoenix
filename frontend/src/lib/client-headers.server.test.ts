@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
-import { getClientForwardHeaders } from "./client-headers.server";
+import {
+  canonicalForwardedFor,
+  getClientForwardHeaders,
+} from "./client-headers.server";
 
 describe("getClientForwardHeaders", () => {
   it("uses the request host for the frontend origin on localhost subdomains", () => {
@@ -20,6 +23,38 @@ describe("getClientForwardHeaders", () => {
       "X-Forwarded-For": "203.0.113.10",
       "User-Agent": "browser",
     });
+    expect(getClientForwardHeaders(request)).not.toHaveProperty("X-Real-IP");
+  });
+
+  it("forwards the rightmost client IP from a forwarded-for chain", () => {
+    const request = new NextRequest(
+      "http://localhost:3000/api/auth/passkeys/login/options",
+      {
+        headers: {
+          "x-forwarded-for": "203.0.113.10, 172.20.0.4",
+        },
+      },
+    );
+
+    expect(getClientForwardHeaders(request)).toMatchObject({
+      "X-Forwarded-For": "172.20.0.4",
+    });
+    expect(getClientForwardHeaders(request)).not.toHaveProperty("X-Real-IP");
+  });
+
+  it("falls back to x-real-ip when forwarded-for is absent", () => {
+    const request = new NextRequest(
+      "http://localhost:3000/api/auth/passkeys/login/options",
+      {
+        headers: {
+          "x-real-ip": "198.51.100.25",
+        },
+      },
+    );
+
+    expect(getClientForwardHeaders(request)).toMatchObject({
+      "X-Forwarded-For": "198.51.100.25",
+    });
   });
 
   it("honors x-forwarded-proto when building the frontend origin", () => {
@@ -36,5 +71,54 @@ describe("getClientForwardHeaders", () => {
     expect(getClientForwardHeaders(request)["X-Moto-Frontend-Origin"]).toBe(
       "https://school-a.moto-app.de",
     );
+  });
+});
+
+describe("canonicalForwardedFor", () => {
+  it("uses the rightmost non-empty forwarded-for entry", () => {
+    expect(
+      canonicalForwardedFor(
+        new Headers({
+          "x-forwarded-for": " , 203.0.113.10, 172.20.0.4",
+          "x-real-ip": "198.51.100.25",
+        }),
+      ),
+    ).toBe("172.20.0.4");
+  });
+
+  it("rejects spoofed leftmost entries by selecting the rightmost valid entry", () => {
+    expect(
+      canonicalForwardedFor(
+        new Headers({
+          "x-forwarded-for": "spoofed, 203.0.113.10",
+        }),
+      ),
+    ).toBe("203.0.113.10");
+  });
+
+  it("fails closed when the rightmost forwarded-for entry is invalid", () => {
+    expect(
+      canonicalForwardedFor(
+        new Headers({
+          "x-forwarded-for": "203.0.113.10, not-an-ip",
+          "x-real-ip": "198.51.100.25",
+        }),
+      ),
+    ).toBe("");
+  });
+
+  it("omits invalid x-real-ip fallback values", () => {
+    expect(
+      canonicalForwardedFor(
+        new Headers({
+          "x-real-ip": "203.0.113.10:1234",
+        }),
+      ),
+    ).toBe("");
+  });
+
+  it("returns an empty string when no client IP headers are present", () => {
+    expect(canonicalForwardedFor(new Headers())).toBe("");
+    expect(canonicalForwardedFor(null)).toBe("");
   });
 });

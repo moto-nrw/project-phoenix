@@ -2,7 +2,6 @@ package auth
 
 import (
 	"errors"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -122,7 +121,7 @@ func (rs *Resource) passkeyEnrollmentChallenge(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	result, err := rs.PasskeyService.StartEnrollmentChallenge(r.Context(), int64(claims.ID), claims.TenantID, net.ParseIP(getClientIP(r)))
+	result, err := rs.PasskeyService.StartEnrollmentChallenge(r.Context(), int64(claims.ID), claims.TenantID, parseClientIP(r))
 	if err != nil {
 		mapPasskeyError(w, r, err)
 		return
