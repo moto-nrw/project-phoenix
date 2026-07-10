@@ -71,6 +71,18 @@ function shiftDayISO(iso: string, delta: number): string {
   return toISODate(d);
 }
 
+// Number of ISO weeks between the week containing `iso` and the week containing
+// `todayIso` (0 = current week, negative = past). Both dates are snapped to
+// their Monday, so DST hour drift cannot push the ratio off an integer. Used to
+// keep the week/day tabs in sync: switching day -> week must land on the week
+// that actually contains the displayed day (#1840).
+function weekOffsetForISO(iso: string, todayIso: string): number {
+  const mondayOf = getWeekRange(parseISODate(iso), 0).from;
+  const mondayToday = getWeekRange(parseISODate(todayIso), 0).from;
+  const weekMs = 7 * 24 * 60 * 60 * 1000;
+  return Math.round((mondayOf.getTime() - mondayToday.getTime()) / weekMs);
+}
+
 function VertretungsplanContent() {
   const { status } = useSession();
   const searchParams = useSearchParams();
@@ -141,7 +153,9 @@ function VertretungsplanContent() {
   );
   const { data: staffData, error: staffError } = useSWRAuth(
     status === "authenticated" ? "vertretungsplan-staff-list" : null,
-    () => staffService.getAllStaff(),
+    // strict: a backend failure must reject (not resolve to []) so staffError
+    // fires and the picker shows the failure instead of "no staff" (#1840).
+    () => staffService.getAllStaff(undefined, { strict: true }),
   );
 
   // Route guard: same source the sidebar uses to hide the nav entry
@@ -367,13 +381,29 @@ function VertretungsplanContent() {
       >
         <Tabs
           value={view}
-          onValueChange={(v) =>
-            updateUrlParams(
-              v === "day"
-                ? { view: "day", day: dayISO }
-                : { view: null, day: null },
-            )
-          }
+          onValueChange={(v) => {
+            if (v === "day") {
+              // Land on a day inside the week currently shown, not always today:
+              // prefer today when it falls in that week, else its Monday. Clear
+              // the now-stale week param so a later switch back recomputes it
+              // from the displayed day instead of jumping to the old offset.
+              updateUrlParams({
+                view: "day",
+                day: fromISO <= today && today <= toISO ? today : fromISO,
+                week: null,
+              });
+              return;
+            }
+            // Back to week view: anchor to the week containing the displayed
+            // day (offset 0 clears the param to match the "Heute" default), and
+            // drop the day param so the two views cannot desynchronize.
+            const offset = weekOffsetForISO(dayISO, today);
+            updateUrlParams({
+              view: null,
+              day: null,
+              week: offset === 0 ? null : String(offset),
+            });
+          }}
         >
           <TabsList>
             <TabsTrigger value="week">Woche</TabsTrigger>

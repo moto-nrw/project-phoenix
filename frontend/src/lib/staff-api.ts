@@ -348,12 +348,22 @@ async function fetchActiveGroups(): Promise<ActiveGroupWithId[]> {
 
 // Staff service
 class StaffService {
-  // Get all staff members with their current supervision status
-  async getAllStaff(filters?: StaffFilters): Promise<Staff[]> {
+  // Get all staff members with their current supervision status.
+  // `options.strict` opts into the /api/staff route's non-swallowing path so a
+  // backend failure rejects here instead of masquerading as an empty staff list
+  // (the lenient default returns [] on backend errors) — callers that must tell
+  // "fetch failed" from "no staff" apart pass it (#1840).
+  async getAllStaff(
+    filters?: StaffFilters,
+    options?: { strict?: boolean },
+  ): Promise<Staff[]> {
     // Build staff URL with search filter
-    const staffUrl = filters?.search
+    let staffUrl = filters?.search
       ? `/api/staff?search=${encodeURIComponent(filters.search)}`
       : "/api/staff";
+    if (options?.strict) {
+      staffUrl += `${staffUrl.includes("?") ? "&" : "?"}strict=1`;
+    }
 
     // Fetch staff and active groups in parallel
     const [staffResponse, activeGroups] = await Promise.all([

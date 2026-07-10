@@ -166,6 +166,70 @@ func TestApplyDeviations_SwapSubstitute_OneCall(t *testing.T) {
 	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
 }
 
+// Assigning a substitute who ALREADY covers another of the absent person's
+// same-day blocks must not 500. The absent person A works block1 + block2; Y
+// already substitutes on block2 (covering B). One save assigns Y to cover A.
+// On block2, A's row is still non-absent at classification time (A is not in the
+// absence-only set), so the old classifier returned "substituted" and Phase B
+// tried to insert a SECOND Y row → UNIQUE(instance_id, staff_id) → 500 rolling
+// back the whole save. Now block2 classifies as already-on-instance: A's row is
+// flagged, no duplicate row is inserted (#1840).
+func TestApplyDeviations_SubstituteAlreadyCoversOtherBlock(t *testing.T) {
+	s := buildDevSetup(t)
+	router := devRouter(s.ctx, s.res)
+	_, date := futureSubDate(1)
+
+	inst1 := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Block1", StartHHMM: "08:00", EndHHMM: "09:00"})
+	inst2 := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Block2", StartHHMM: "10:00", EndHHMM: "11:00"})
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst1.ID, inst2.ID)
+	})
+
+	// A works both blocks and is present. On block2, Y is already a substitute
+	// (covering B, who is absent there).
+	rowA1 := testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	rowA2 := testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	rowB2 := testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffB, testpkg.InstanceStaffOpts{IsAbsent: true})
+	rowY2 := testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffY, testpkg.InstanceStaffOpts{IsSubstitute: true})
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA1.ID, rowA2.ID, rowB2.ID, rowY2.ID) })
+
+	w := doDev(t, router, inst1.ID, map[string]any{
+		"substitutions": []map[string]any{{"absent_staff_id": s.staffA, "substitute_staff_id": s.staffY}},
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	// block1: A absent, Y freshly substituting.
+	var newSubIDs []int64
+	sawA1Absent, sawY1New := false, false
+	for _, r := range devInstanceStaff(t, s.db, s.ctx, inst1.ID) {
+		if r.StaffID == s.staffA {
+			sawA1Absent = r.IsAbsent
+		}
+		if r.StaffID == s.staffY && r.IsSubstitute && !r.IsAbsent {
+			sawY1New = true
+			newSubIDs = append(newSubIDs, r.ID)
+		}
+	}
+	assert.True(t, sawA1Absent, "A marked absent on block1")
+	assert.True(t, sawY1New, "Y substitute row created on block1")
+
+	// block2: A absent, and Y still has EXACTLY ONE (its pre-existing) row — no
+	// duplicate insert.
+	sawA2Absent, yRowCount := false, 0
+	for _, r := range devInstanceStaff(t, s.db, s.ctx, inst2.ID) {
+		if r.StaffID == s.staffA {
+			sawA2Absent = r.IsAbsent
+		}
+		if r.StaffID == s.staffY {
+			yRowCount++
+		}
+	}
+	assert.True(t, sawA2Absent, "A marked absent on block2")
+	assert.Equal(t, 1, yRowCount, "Y must not be inserted twice on block2")
+
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
+}
+
 // A mid-save conflict must roll back to nothing: the absence in the same payload
 // must NOT be committed when the substitution 409s.
 func TestApplyDeviations_Conflict_NoPartialWrites(t *testing.T) {

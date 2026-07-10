@@ -149,6 +149,12 @@ func (s *TimetableDataService) CreateInstanceStaff(ctx context.Context, staff *s
 	return s.deps.InstanceStaffRepo.Create(ctx, staff)
 }
 
+// AcquireInstanceSubstituteLock serializes concurrent substitute/deviation
+// saves against the same block within the caller's transaction (#1840).
+func (s *TimetableDataService) AcquireInstanceSubstituteLock(ctx context.Context, instanceID int64) error {
+	return s.deps.InstanceStaffRepo.AcquireInstanceSubstituteLock(ctx, instanceID)
+}
+
 func (s *TimetableDataService) CountNonAbsentInstanceStaffByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {
 	return s.deps.InstanceStaffRepo.CountNonAbsentByInstanceIDs(ctx, instanceIDs)
 }

@@ -161,6 +161,19 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 
 	// ==== PHASE A — validate + classify, no writes ====
 
+	// Serialize concurrent saves against this block BEFORE any classification
+	// read. Two admins assigning different substitutes to the same instance would
+	// otherwise both read the pre-write state, classify "no existing substitute",
+	// and each insert a substitute row (distinct staff_id slips past the
+	// UNIQUE(instance_id, staff_id) constraint), leaving two live supervisors on
+	// one block. The advisory lock makes the second save block until the first
+	// commits, then re-read and classify the now-present substitute as a conflict.
+	// Released automatically when this request's tenant tx commits/rolls back.
+	if err := rs.TimetableData.AcquireInstanceSubstituteLock(ctx, id); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("lock instance failed", err))
+		return
+	}
+
 	// absenceOnly staff: marked absent with no substitute (planned-open + removed
 	// substitutes). Deduped. These project onto substitute classification below so
 	// that removing the current substitute and picking another in the same save

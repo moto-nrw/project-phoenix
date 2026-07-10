@@ -525,8 +525,21 @@ func classifySubstitute(
 		}
 	}
 
-	if origRow.IsAbsent && existingSubOfSub != nil {
-		return substituteActionAlreadySubstitute, 0, true
+	// The substitute already holds a substitute row on this instance. A second
+	// insert would violate UNIQUE(instance_id, staff_id), so we never add another
+	// row — the person already provides coverage. This holds regardless of whether
+	// the absent's row is flagged yet: in a combined /deviations save the absent's
+	// row is still non-absent at classification time (it is flipped in Phase B),
+	// and the same substitute may already cover a co-absent colleague on this
+	// block. When the absent row is already flagged there is nothing left to do
+	// (idempotent retry, e.g. re-running /substitute); otherwise the row still
+	// needs flagging, handled exactly like an already-present co-supervisor (mark
+	// absent, insert nothing) so Phase B cannot hit the unique constraint (#1840).
+	if existingSubOfSub != nil {
+		if origRow.IsAbsent {
+			return substituteActionAlreadySubstitute, 0, true
+		}
+		return substituteActionAlreadyOnInstance, 0, true
 	}
 	if origRow.IsAbsent && existingSubOfOther != nil {
 		return "", existingSubOfOther.StaffID, false

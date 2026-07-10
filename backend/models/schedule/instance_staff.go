@@ -68,6 +68,13 @@ type InstanceStaffRepository interface {
 	// returns an empty map without hitting the DB.
 	CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error)
 
+	// AcquireInstanceSubstituteLock takes a transaction-scoped advisory lock
+	// keyed on the instance id, serializing concurrent substitute/deviation
+	// saves against the same block so two admins cannot each insert a different
+	// substitute row (distinct staff_id slips past UNIQUE(instance_id, staff_id))
+	// and leave two live supervisors on one block (#1840).
+	AcquireInstanceSubstituteLock(ctx context.Context, instanceID int64) error
+
 	// DeleteByInstanceID removes all staff assignments for an instance. The
 	// CASCADE on the FK also does this on instance deletion; this method exists
 	// for the "re-plan week" flow where the instance is kept but repopulated.

@@ -32,6 +32,26 @@ func NewInstanceStaffRepository(db *bun.DB) schedule.InstanceStaffRepository {
 	}
 }
 
+// AcquireInstanceSubstituteLock takes a transaction-scoped advisory lock keyed
+// on the instance id. Concurrent substitute/deviation saves against the same
+// block serialize on it: without it two admins assigning DIFFERENT substitutes
+// to the same instance both pass the "no existing substitute" classification
+// (each reads the pre-write state) and each insert a substitute row — distinct
+// staff_id, so UNIQUE(instance_id, staff_id) does not catch them — leaving two
+// live supervisors on one block, violating the one-substitute invariant (#1840).
+// The lock releases automatically at commit/rollback. instance_id is globally
+// unique so no tenant namespacing is needed, and the single-bigint advisory-lock
+// space does not collide with the two-int32 locks used elsewhere.
+func (r *InstanceStaffRepository) AcquireInstanceSubstituteLock(ctx context.Context, instanceID int64) error {
+	_, err := base.GetDB(ctx, r.db).
+		NewRaw(`SELECT pg_advisory_xact_lock(?)`, instanceID).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "AcquireInstanceSubstituteLock", Err: err}
+	}
+	return nil
+}
+
 // FindByID overrides the base method to ensure schema-qualified queries.
 func (r *InstanceStaffRepository) FindByID(ctx context.Context, id any) (*schedule.InstanceStaff, error) {
 	var row schedule.InstanceStaff
