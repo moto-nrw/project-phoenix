@@ -336,6 +336,26 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 	if err != nil {
 		return nil, err
 	}
+
+	// Serialize completion against concurrent day-wide staffing saves
+	// (/substitute, /deviations) on the block's day, exactly as Cancel does. Those
+	// endpoints take this (tenant, date) advisory lock, re-read the instance under
+	// it, then rewrite instance_staff and open active.group_supervisors rows.
+	// Without the same lock here, a deviation save can pass its own "still
+	// plannable" re-read while Complete is mid-flight, then commit its staff writes
+	// AFTER Complete has ended the active.group and stamped the instance completed —
+	// leaving a completed block with post-completion staffing state (a rewritten
+	// historical roster, even a fresh open supervisor row on an already-closed
+	// group). Advisory xact locks are re-entrant; reload under the lock so a
+	// concurrent move/cancel/complete is observed before we act (#1840).
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), instance.Date)); err != nil {
+		return nil, &ScheduleError{Op: "complete instance: lock day", Err: err}
+	}
+	instance, err = s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+
 	if instance.Status != scheduleModel.InstanceStatusActive {
 		return nil, fmt.Errorf("%w: cannot complete instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
@@ -1279,13 +1299,27 @@ func (s *instanceService) reapplyDeviations(ctx context.Context, snapshots []dev
 		// A substitute already on the regenerated instance (e.g. now a planned
 		// supervisor) is skipped so the recreate respects UNIQUE(instance_id,
 		// staff_id); it adds no new row, so it does not consume the coverage budget.
+		//
+		// Only ACTIVE substitutes (is_absent=false) staff the block, so only they
+		// are capped at absencesReapplied — an absent substitute row is dead history
+		// (a replacement that was itself swapped out via "Entfernen") and staffs
+		// nothing. Counting absent history against the budget would let a single
+		// reapplied absence be consumed by a recreated is_absent=true row that
+		// happens to sort first in the snapshot, exhausting the budget and dropping
+		// the still-active replacement — the next ReplanWeek then silently turns a
+		// covered block into an open gap. Guarding the cap on !sub.isAbsent keeps the
+		// active coverage intact regardless of snapshot order while still bounding
+		// live substitutes to the surviving absences (#1840).
 		recreated := 0
 		for _, sub := range snap.substitutes {
-			if recreated >= absencesReapplied {
-				break
-			}
 			if _, taken := byStaff[sub.staffID]; taken {
 				continue
+			}
+			if !sub.isAbsent {
+				if recreated >= absencesReapplied {
+					continue
+				}
+				recreated++
 			}
 			newRow := &scheduleModel.InstanceStaff{
 				InstanceID:    inst.ID,
@@ -1300,7 +1334,6 @@ func (s *instanceService) reapplyDeviations(ctx context.Context, snapshots []dev
 				return reapplied, err
 			}
 			byStaff[sub.staffID] = newRow
-			recreated++
 		}
 
 		// Reapply the "deliberately unstaffed" acknowledgement. SetUnderstaffedAck

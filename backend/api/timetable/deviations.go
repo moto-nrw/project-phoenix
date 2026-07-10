@@ -726,7 +726,7 @@ func (rs *Resource) planSubstitutions(
 			action, conflictOther, ok := classifySubstitute(projectedRows, origProjected, sub.SubstituteStaffID)
 			if !ok {
 				return nil, nil, common.ErrorConflictWithCode(
-					fmt.Errorf("instance %d has a different substitute already assigned (staff_id=%d); remove the existing substitute first",
+					fmt.Errorf("instance %d is already fully covered by another substitute (staff_id=%d); remove a replacement before adding one",
 						instance.ID, conflictOther),
 					"substitute_conflict",
 				)

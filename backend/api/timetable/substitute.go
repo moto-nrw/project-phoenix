@@ -280,7 +280,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 			// tx, no DB state changed. The stable code lets the frontend
 			// render the conflict without parsing the German message.
 			common.RenderError(w, r, common.ErrorConflictWithCode(
-				fmt.Errorf("instance %d has a different substitute already assigned (staff_id=%d); remove the existing substitute first",
+				fmt.Errorf("instance %d is already fully covered by another substitute (staff_id=%d); remove a replacement before adding one",
 					instance.ID, conflictOtherStaff),
 				"substitute_conflict",
 			))
@@ -524,16 +524,23 @@ func classifySubstitute(
 	origRow *scheduleModel.InstanceStaff,
 	subID int64,
 ) (action string, conflictOtherStaff int64, ok bool) {
-	// Scan once for the three signals we need.
+	// Scan once for the signals we need: whether subID already has a row here,
+	// whether subID is a present co-supervisor, and the block's coverage balance
+	// (absent planned positions vs OTHER active substitutes already covering them).
 	var existingSubOfSub *scheduleModel.InstanceStaff
-	var existingSubOfOther *scheduleModel.InstanceStaff
 	var subAsNonAbsent *scheduleModel.InstanceStaff
+	var anyActiveSubOfOther *scheduleModel.InstanceStaff
+	absentPlanned := 0
+	activeSubsOfOther := 0
 	for _, row := range allRows {
-		if row.IsSubstitute && row.StaffID == subID {
+		switch {
+		case row.IsSubstitute && row.StaffID == subID:
 			existingSubOfSub = row
-		}
-		if row.IsSubstitute && row.StaffID != subID && !row.IsAbsent {
-			existingSubOfOther = row
+		case row.IsSubstitute && !row.IsAbsent:
+			activeSubsOfOther++
+			anyActiveSubOfOther = row
+		case !row.IsSubstitute && row.IsAbsent:
+			absentPlanned++
 		}
 		if !row.IsSubstitute && row.StaffID == subID && !row.IsAbsent {
 			subAsNonAbsent = row
@@ -556,9 +563,26 @@ func classifySubstitute(
 		}
 		return substituteActionAlreadyOnInstance, 0, true
 	}
-	if origRow.IsAbsent && existingSubOfOther != nil {
-		return "", existingSubOfOther.StaffID, false
+
+	// Count-based overstaffing guard (#1840). A substitute covers exactly one
+	// absent planned position, but the data model carries NO substitute→absent
+	// link, so coverage is tracked by BALANCE, not identity: the block still has
+	// room for another substitute only while active substitutes are FEWER than
+	// absent planned positions. Reject a new substitute only when origRow is
+	// already flagged absent AND every absent position is already covered
+	// (activeSubsOfOther >= absentPlanned) — adding one more would overstaff, so
+	// the admin must remove a redundant replacement first. When an absent slot is
+	// still open the substitute fills a real gap and is accepted; this is what lets
+	// a later save cover a still-open position without first tearing down another
+	// position's valid replacement. When origRow is not yet absent (a fresh
+	// substitution Phase B will flag) the guard does not apply — the block gains a
+	// matching absence in the same save, so coverage stays balanced.
+	// anyActiveSubOfOther is non-nil here: origRow.IsAbsent makes absentPlanned>=1,
+	// so activeSubsOfOther>=absentPlanned implies activeSubsOfOther>=1.
+	if origRow.IsAbsent && activeSubsOfOther >= absentPlanned {
+		return "", anyActiveSubOfOther.StaffID, false
 	}
+
 	if subAsNonAbsent != nil {
 		// Substitute is already a co-supervisor on this instance. We cannot
 		// insert a second row for the same staff (UNIQUE(instance_id,

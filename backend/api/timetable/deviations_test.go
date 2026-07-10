@@ -230,14 +230,18 @@ func TestApplyDeviations_SubstituteAlreadyCoversOtherBlock(t *testing.T) {
 	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
 }
 
-// A mid-save conflict must roll back to nothing: the absence in the same payload
-// must NOT be committed when the substitution 409s.
-func TestApplyDeviations_Conflict_NoPartialWrites(t *testing.T) {
+// Under the count-based coverage rule (#1840) a second substitute is accepted
+// while the block still has an OPEN absent slot — it fills the gap instead of
+// 409ing. A is absent and covered by X; B is newly marked absent in the same
+// save; Y is assigned. Two absent positions, two substitutes → the block ends up
+// fully covered rather than conflicting. (Previously this 409'd because ANY other
+// active substitute blocked covering an already-absent position.)
+func TestApplyDeviations_SecondSubstituteFillsOpenGap(t *testing.T) {
 	s := buildDevSetup(t)
 	router := devRouter(s.ctx, s.res)
 	_, date := futureSubDate(1)
 
-	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Conflict"})
+	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Pooled"})
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
 	// A absent, X already substituting A (non-absent), B planned & present.
@@ -246,9 +250,60 @@ func TestApplyDeviations_Conflict_NoPartialWrites(t *testing.T) {
 	rowB := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
 	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowX.ID, rowB.ID) })
 
-	// Assign Y to A WITHOUT removing X → substitute_conflict. B's absence is in the
-	// same payload and must not survive the abort.
+	// Mark B absent AND assign Y: two open positions (A, B), X covers one, Y fills
+	// the remaining gap — no conflict.
 	w := doDev(t, router, inst.ID, map[string]any{
+		"absences":      []map[string]any{{"staff_id": s.staffB}},
+		"substitutions": []map[string]any{{"absent_staff_id": s.staffA, "substitute_staff_id": s.staffY}},
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	var newSubIDs []int64
+	sawBAbsent, sawYActive, xStillActive := false, false, false
+	for _, r := range devInstanceStaff(t, s.db, s.ctx, inst.ID) {
+		if r.StaffID == s.staffB {
+			sawBAbsent = r.IsAbsent
+		}
+		if r.StaffID == s.staffX && r.IsSubstitute && !r.IsAbsent {
+			xStillActive = true
+		}
+		if r.StaffID == s.staffY && r.IsSubstitute && !r.IsAbsent {
+			sawYActive = true
+			newSubIDs = append(newSubIDs, r.ID)
+		}
+	}
+	assert.True(t, sawBAbsent, "B marked absent")
+	assert.True(t, xStillActive, "X remains an active substitute")
+	assert.True(t, sawYActive, "Y created as an active substitute filling the second gap")
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
+}
+
+// A genuine OVERSTAFFING conflict must still 409 and roll back everything in the
+// payload. Under the count-based rule (#1840) a substitute is rejected only when
+// the target block is ALREADY fully covered (active substitutes >= absent
+// positions); adding one more would overstaff. The co-payload absence (day-wide,
+// on another block) must NOT survive the abort — the Phase-A dry-run guarantee.
+func TestApplyDeviations_OverstaffConflict_NoPartialWrites(t *testing.T) {
+	s := buildDevSetup(t)
+	router := devRouter(s.ctx, s.res)
+	_, date := futureSubDate(1)
+
+	inst1 := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Covered", StartHHMM: "08:00", EndHHMM: "09:00"})
+	inst2 := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Other", StartHHMM: "10:00", EndHHMM: "11:00"})
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst1.ID, inst2.ID)
+	})
+
+	// inst1 already fully covered: A absent, X actively substituting (1 absent, 1
+	// active sub). inst2 has B present — the atomicity co-write target.
+	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffA, testpkg.InstanceStaffOpts{IsAbsent: true})
+	rowX := testpkg.CreateTestInstanceStaff(t, s.db, inst1.ID, s.staffX, testpkg.InstanceStaffOpts{IsSubstitute: true})
+	rowB := testpkg.CreateTestInstanceStaff(t, s.db, inst2.ID, s.staffB, testpkg.InstanceStaffOpts{})
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowX.ID, rowB.ID) })
+
+	// Add Y as a SECOND substitute to the already-covered inst1 → substitute_conflict.
+	// B's day-wide absence is in the same payload and must not survive the abort.
+	w := doDev(t, router, inst1.ID, map[string]any{
 		"absences":      []map[string]any{{"staff_id": s.staffB}},
 		"substitutions": []map[string]any{{"absent_staff_id": s.staffA, "substitute_staff_id": s.staffY}},
 	})
