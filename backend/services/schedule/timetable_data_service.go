@@ -163,8 +163,17 @@ func (s *TimetableDataService) CreateInstanceStaff(ctx context.Context, staff *s
 // over-serializes). Transaction-scoped: releases at commit/rollback.
 func (s *TimetableDataService) AcquireSubstituteDayLock(ctx context.Context, date timezone.Date) error {
 	tenantID := tenant.FromContext(ctx)
-	key := fmt.Sprintf("timetable:substitute-day:%d:%s", tenantID, date.String())
-	return repoBase.AcquireXactLock(ctx, s.deps.DB, key)
+	return repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenantID, date))
+}
+
+// substituteDayLockKey is the single source of truth for the (tenant, date)
+// advisory-lock key that serializes every day-wide staffing mutation: the
+// /substitute and /deviations endpoints (AcquireSubstituteDayLock) and the
+// re-plan-week flow, which locks the whole window before deleting/regenerating
+// the same rows (#1840). All three must hash the SAME string or they would not
+// contend.
+func substituteDayLockKey(tenantID int64, date timezone.Date) string {
+	return fmt.Sprintf("timetable:substitute-day:%d:%s", tenantID, date.String())
 }
 
 func (s *TimetableDataService) CountNonAbsentInstanceStaffByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {

@@ -97,9 +97,24 @@ func (rs *Resource) acknowledgeUnderstaffed(w http.ResponseWriter, r *http.Reque
 			common.RenderError(w, r, common.ErrorInternalServerWrap("load instance failed", err))
 			return
 		}
-		if instance != nil && instance.Date.Before(timezone.TodayDate()) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("block date is in the past")))
-			return
+		if instance != nil {
+			if instance.Date.Before(timezone.TodayDate()) {
+				common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("block date is in the past")))
+				return
+			}
+			// Serialize with substitute/deviation saves on the same (tenant, date)
+			// before validating and writing the acknowledgement. Without this lock a
+			// standalone ack=true can validate the block as understaffed while a
+			// concurrent /substitute save (which has already loaded
+			// understaffed_ack=false) is adding coverage: the ack then commits after
+			// the coverage lands, leaving a fully-staffed block still flagged
+			// acknowledged — the exact contradictory state SetUnderstaffedAck rejects
+			// synchronously. Both /substitute and /deviations take this same day lock,
+			// so taking it here serializes all three. Released when the tenant tx ends.
+			if err := rs.TimetableData.AcquireSubstituteDayLock(r.Context(), instance.Date); err != nil {
+				common.RenderError(w, r, common.ErrorInternalServerWrap("lock day failed", err))
+				return
+			}
 		}
 	}
 

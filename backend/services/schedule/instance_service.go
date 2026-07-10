@@ -29,6 +29,7 @@ import (
 	"log/slog"
 	"time"
 
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
@@ -965,6 +966,20 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		return nil, &ScheduleError{Op: "replan week", Err: errors.New("no tenant in context")}
 	}
 
+	// Serialize against concurrent per-day substitute/absence saves for EVERY date
+	// in the window BEFORE snapshotting or deleting (#1840). Re-plan deletes and
+	// regenerates the exact rows /substitute and /deviations mutate; without the
+	// day lock a concurrent save can commit a deviation between our snapshot and
+	// delete (or after the snapshot but before regenerate), so re-plan would drop
+	// it and regenerate from the stale snapshot — both requests succeed yet the
+	// saved deviation is lost. Both endpoints take
+	// timetable:substitute-day:<tenant>:<date>; we take it for the whole [from, to]
+	// range, ascending, so two overlapping re-plans acquire in the same order and
+	// cannot deadlock. Transaction-scoped: released when the tenant tx ends.
+	if err := s.acquireSubstituteDayLocks(ctx, tenantID, from, to); err != nil {
+		return nil, &ScheduleError{Op: "replan week: lock days", Err: err}
+	}
+
 	// Snapshot the manual Vertretungsplan overrides in the window BEFORE deleting
 	// (#1840). Re-plan regenerates each occurrence from the (possibly just-edited)
 	// base template. Freezing a deviated occurrence in place — the old approach —
@@ -1012,6 +1027,20 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		DeletedInstances: int(deleted),
 		Materialization:  mat,
 	}, nil
+}
+
+// acquireSubstituteDayLocks takes the day-wide substitute/deviation advisory
+// lock for every date in [from, to] inclusive, in ascending order. Ascending
+// order gives a total lock ordering so two overlapping windows can never
+// deadlock. Shares substituteDayLockKey with AcquireSubstituteDayLock so
+// re-plan contends with the /substitute and /deviations endpoints (#1840).
+func (s *instanceService) acquireSubstituteDayLocks(ctx context.Context, tenantID int64, from, to timezone.Date) error {
+	for d := from; !d.After(to); d = d.AddDays(1) {
+		if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenantID, d)); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // deviationSnapshot captures the Vertretungsplan overrides on one planned,
@@ -1122,6 +1151,7 @@ func (s *instanceService) reapplyDeviations(ctx context.Context, snapshots []dev
 
 		// Reapply planned-staff absences onto the regenerated roster. A staff no
 		// longer planned on the template simply has no row → the absence is moot.
+		absencesReapplied := 0
 		for _, ab := range snap.absentPlanned {
 			row, ok := byStaff[ab.staffID]
 			if !ok || row.IsSubstitute || row.IsAbsent {
@@ -1132,28 +1162,46 @@ func (s *instanceService) reapplyDeviations(ctx context.Context, snapshots []dev
 			if err := s.deps.InstanceStaffRepo.Update(ctx, row); err != nil {
 				return reapplied, err
 			}
+			absencesReapplied++
 		}
 
-		// Recreate substitute rows. Skip when the staff is already on the
-		// regenerated instance (e.g. now a planned supervisor) so the recreate
-		// respects UNIQUE(instance_id, staff_id).
-		for _, sub := range snap.substitutes {
-			if _, taken := byStaff[sub.staffID]; taken {
-				continue
+		// Recreate substitute rows ONLY when at least one planned absence was
+		// actually reapplied on this regenerated occurrence. A substitute row only
+		// ever exists to cover an absent planned position (the /substitute and
+		// /deviations flows always flip an is_absent row on the same instance when
+		// they insert a substitute). If the "edit all occurrences" flow removed
+		// every absent employee from the template, none of the snapshotted absences
+		// land (their staff no longer have a row), so their substitutes have nothing
+		// left to cover — recreating them would leave an orphaned extra supervisor
+		// and report the block as fully staffed. Gate the loop on a restored absence
+		// so those orphans are dropped (#1840). (The snapshot carries no
+		// substitute→absent linkage, so when several absences on one instance are
+		// partially restored we conservatively recreate all substitutes; the
+		// removed-employee case the finding describes reapplies zero absences and is
+		// fixed.) The understaffed-ack reapply below still runs — a snapshot may be
+		// acknowledgement-only.
+		//
+		// Skip a substitute already on the regenerated instance (e.g. now a planned
+		// supervisor) so the recreate respects UNIQUE(instance_id, staff_id).
+		if absencesReapplied > 0 {
+			for _, sub := range snap.substitutes {
+				if _, taken := byStaff[sub.staffID]; taken {
+					continue
+				}
+				newRow := &scheduleModel.InstanceStaff{
+					InstanceID:    inst.ID,
+					StaffID:       sub.staffID,
+					RoomID:        sub.roomID,
+					IsPrimary:     sub.isPrimary,
+					IsSubstitute:  true,
+					IsAbsent:      sub.isAbsent,
+					AbsenceReason: sub.reason,
+				}
+				if err := s.deps.InstanceStaffRepo.Create(ctx, newRow); err != nil {
+					return reapplied, err
+				}
+				byStaff[sub.staffID] = newRow
 			}
-			newRow := &scheduleModel.InstanceStaff{
-				InstanceID:    inst.ID,
-				StaffID:       sub.staffID,
-				RoomID:        sub.roomID,
-				IsPrimary:     sub.isPrimary,
-				IsSubstitute:  true,
-				IsAbsent:      sub.isAbsent,
-				AbsenceReason: sub.reason,
-			}
-			if err := s.deps.InstanceStaffRepo.Create(ctx, newRow); err != nil {
-				return reapplied, err
-			}
-			byStaff[sub.staffID] = newRow
 		}
 
 		// Reapply the "deliberately unstaffed" acknowledgement. SetUnderstaffedAck
