@@ -46,10 +46,10 @@ func FindCanonicalSchulhofRoom(ctx context.Context, facilityService Service) (*f
 // system activity attached to the canonical Schulhof room.
 func ValidateSchulhofActivityRoom(activityGroup *activityModels.Group, room *facilityModels.Room) error {
 	if activityGroup == nil {
-		return errors.New("Schulhof activity is nil")
+		return errors.New("schulhof activity is nil")
 	}
 	if room == nil {
-		return errors.New("Schulhof room is nil")
+		return errors.New("schulhof room is nil")
 	}
 	if activityGroup.Name != constants.SchulhofActivityName {
 		return fmt.Errorf(

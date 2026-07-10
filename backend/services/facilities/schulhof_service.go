@@ -81,7 +81,7 @@ type schulhofService struct {
 	logger          *slog.Logger
 }
 
-var errSchulhofActivityNotFound = errors.New("Schulhof activity not found")
+var errSchulhofActivityNotFound = errors.New("schulhof activity not found")
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
 func (s *schulhofService) getLogger() *slog.Logger {
