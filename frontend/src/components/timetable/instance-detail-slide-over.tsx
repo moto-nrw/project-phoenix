@@ -33,6 +33,10 @@ import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
+  useAttendanceWebEnabled,
+  useShowTimetableCounts,
+} from "~/lib/tenant-context";
+import {
   SlideOver,
   SlideOverCloseButton,
   SlideOverContent,
@@ -196,6 +200,143 @@ function fallbackStudentRows(studentIds: string[]): InstanceStudentSummary[] {
   }));
 }
 
+function studentsForInstance(
+  instance: EnrichedInstance | null,
+): InstanceStudentSummary[] {
+  if (!instance) return [];
+  if (instance.students.length > 0) return instance.students;
+  return fallbackStudentRows(instance.studentIds);
+}
+
+function attendancePatchForInstance(
+  attendanceWebEnabled: boolean,
+  instance: EnrichedInstance | null,
+  onAttendancePatch: InstanceDetailSlideOverProps["onAttendancePatch"],
+): InstanceDetailSlideOverProps["onAttendancePatch"] {
+  if (!attendanceWebEnabled || !instance) return undefined;
+  if (instance.status === "cancelled") return undefined;
+  return onAttendancePatch;
+}
+
+/**
+ * Parent callbacks own user-facing error reporting and rethrow so their callers
+ * can react. This drawer only owns pending UI state, so it consumes that already
+ * reported rejection and tells the local flow whether the mutation succeeded.
+ */
+async function awaitReportedAction(
+  action: () => Promise<void>,
+): Promise<boolean> {
+  try {
+    await action();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function ActivityTypeBadge({
+  activityType,
+}: Readonly<{ activityType: EnrichedInstance["activityType"] }>) {
+  const badge = getActivityTypeBadge(activityType);
+  if (!badge) return null;
+  return (
+    <span
+      className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white uppercase"
+      style={{ backgroundColor: badge.bg }}
+    >
+      {badge.label}
+    </span>
+  );
+}
+
+function AssignedStaffSection({
+  instance,
+  staffNames,
+}: Readonly<{
+  instance: EnrichedInstance;
+  staffNames: Map<string, string>;
+}>) {
+  return (
+    <Section title="Personal">
+      {instance.staff.length === 0 ? (
+        <EmptyLine>Kein Personal zugeordnet.</EmptyLine>
+      ) : (
+        <div className="space-y-1.5">
+          {instance.staff.map((item) => (
+            <PersonLine
+              key={item.staffId}
+              name={staffNames.get(item.staffId) ?? `Personal #${item.staffId}`}
+              meta={[
+                item.isPrimary ? "Zuständig" : null,
+                item.isAbsent ? "Abwesend" : null,
+                item.isSubstitute ? "Ersatz" : null,
+              ]}
+              danger={item.isAbsent}
+            />
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function InstanceStudentsSection({
+  groupedStudents,
+  handleAttendancePatch,
+  instance,
+  onAttendancePatch,
+  pendingStudentId,
+  studentNames,
+  students,
+}: Readonly<{
+  groupedStudents: Record<
+    InstanceStudentSummary["status"],
+    InstanceStudentSummary[]
+  >;
+  handleAttendancePatch: (
+    studentId: string,
+    body: AttendancePatchBody,
+  ) => Promise<void>;
+  instance: EnrichedInstance;
+  onAttendancePatch?: InstanceDetailSlideOverProps["onAttendancePatch"];
+  pendingStudentId: string | null;
+  studentNames: Map<string, string>;
+  students: InstanceStudentSummary[];
+}>) {
+  if (students.length === 0) {
+    return (
+      <Section title="Kinder">
+        <EmptyLine>Keine Kinder geplant.</EmptyLine>
+      </Section>
+    );
+  }
+
+  const groups = [
+    ["expected", groupedStudents.expected],
+    ["present", groupedStudents.present],
+    ["absent", groupedStudents.absent],
+  ] as const;
+
+  return (
+    <Section title="Kinder">
+      <div className="space-y-3">
+        {groups.map(([status, rows]) => (
+          <StudentGroup
+            key={status}
+            status={status}
+            students={rows}
+            studentNames={studentNames}
+            pendingStudentId={pendingStudentId}
+            onAttendancePatch={onAttendancePatch}
+            instanceStatus={instance.status}
+            handleAttendancePatch={handleAttendancePatch}
+          />
+        ))}
+      </div>
+    </Section>
+  );
+}
+
 export function InstanceDetailSlideOver({
   instance,
   onClose,
@@ -209,6 +350,8 @@ export function InstanceDetailSlideOver({
   onAttendancePatch,
   editDeferred = true,
 }: InstanceDetailSlideOverProps) {
+  const attendanceWebEnabled = useAttendanceWebEnabled();
+  const showTimetableCounts = useShowTimetableCounts();
   const { isModalOpen } = useModal();
   const [pendingAction, setPendingAction] = useState<LifecycleAction | null>(
     null,
@@ -221,15 +364,7 @@ export function InstanceDetailSlideOver({
     null,
   );
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
-  const students = useMemo(
-    () =>
-      instance
-        ? instance.students.length > 0
-          ? instance.students
-          : fallbackStudentRows(instance.studentIds)
-        : [],
-    [instance],
-  );
+  const students = useMemo(() => studentsForInstance(instance), [instance]);
   const groupedStudents = useMemo(
     () => ({
       expected: students.filter((student) => student.status === "expected"),
@@ -248,27 +383,27 @@ export function InstanceDetailSlideOver({
   const handleLifecycle = async (action: LifecycleAction) => {
     setPendingAction(action);
     try {
-      await onLifecycleAction(action);
+      await awaitReportedAction(() => onLifecycleAction(action));
     } finally {
       setPendingAction(null);
     }
   };
 
-  const handleDeleteCancelled = async () => {
-    if (!instance || !onDeleteCancelled) return;
+  const handleDeleteCancelled = async (): Promise<boolean> => {
+    if (!instance || !onDeleteCancelled) return false;
     setPendingDelete(true);
     try {
-      await onDeleteCancelled(instance);
+      return await awaitReportedAction(() => onDeleteCancelled(instance));
     } finally {
       setPendingDelete(false);
     }
   };
 
-  const handleDeleteFollowing = async () => {
-    if (!instance || !onDeleteFollowing) return;
+  const handleDeleteFollowing = async (): Promise<boolean> => {
+    if (!instance || !onDeleteFollowing) return false;
     setPendingDelete(true);
     try {
-      await onDeleteFollowing(instance);
+      return await awaitReportedAction(() => onDeleteFollowing(instance));
     } finally {
       setPendingDelete(false);
     }
@@ -286,25 +421,26 @@ export function InstanceDetailSlideOver({
     setPendingConfirm("delete");
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     const action = pendingConfirm;
     setPendingConfirm(null);
     if (action === "delete") {
-      void handleDeleteCancelled();
+      await handleDeleteCancelled();
     } else if (action) {
-      void handleLifecycle(action);
+      await handleLifecycle(action);
     }
   };
 
   const handleDeleteScopeSelect = async (scope: string) => {
     setPendingDeleteScope(scope);
     try {
-      if (scope === "following") {
-        await handleDeleteFollowing();
-      } else {
-        await handleDeleteCancelled();
+      const succeeded =
+        scope === "following"
+          ? await handleDeleteFollowing()
+          : await handleDeleteCancelled();
+      if (succeeded) {
+        setDeleteScopeOpen(false);
       }
-      setDeleteScopeOpen(false);
     } finally {
       setPendingDeleteScope(null);
     }
@@ -317,13 +453,20 @@ export function InstanceDetailSlideOver({
     if (!instance || !onAttendancePatch) return;
     setPendingStudentId(studentId);
     try {
-      await onAttendancePatch(instance.id, studentId, body);
+      await awaitReportedAction(() =>
+        onAttendancePatch(instance.id, studentId, body),
+      );
     } finally {
       setPendingStudentId(null);
     }
   };
 
   const open = instance !== null;
+  const attendancePatch = attendancePatchForInstance(
+    attendanceWebEnabled,
+    instance,
+    onAttendancePatch,
+  );
 
   return (
     <SlideOver
@@ -364,17 +507,7 @@ export function InstanceDetailSlideOver({
                       Spontan gestartet
                     </span>
                   )}
-                  {(() => {
-                    const tb = getActivityTypeBadge(instance.activityType);
-                    return tb ? (
-                      <span
-                        className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white uppercase"
-                        style={{ backgroundColor: tb.bg }}
-                      >
-                        {tb.label}
-                      </span>
-                    ) : null;
-                  })()}
+                  <ActivityTypeBadge activityType={instance.activityType} />
                 </div>
                 <SlideOverDescription>
                   {germanFullDate(instance.date)} • {instance.startTime} –{" "}
@@ -421,13 +554,16 @@ export function InstanceDetailSlideOver({
                         : ""
                     }`}
               </Row>
-              <Row icon={<Users className="h-4 w-4" />} label="Kinder">
-                {instance.expectedStudentsCount + instance.presentStudentsCount}{" "}
-                eingetragen
-                {instance.presentStudentsCount > 0
-                  ? ` • ${instance.presentStudentsCount} anwesend`
-                  : ""}
-              </Row>
+              {showTimetableCounts ? (
+                <Row icon={<Users className="h-4 w-4" />} label="Kinder">
+                  {instance.expectedStudentsCount +
+                    instance.presentStudentsCount}{" "}
+                  eingetragen
+                  {instance.presentStudentsCount > 0
+                    ? ` • ${instance.presentStudentsCount} anwesend`
+                    : ""}
+                </Row>
+              ) : null}
               {instance.notes && (
                 <Row icon={<StickyNote className="h-4 w-4" />} label="Notiz">
                   <span className="whitespace-pre-line">{instance.notes}</span>
@@ -435,62 +571,17 @@ export function InstanceDetailSlideOver({
               )}
             </Section>
 
-            <Section title="Personal">
-              {instance.staff.length === 0 ? (
-                <EmptyLine>Kein Personal zugeordnet.</EmptyLine>
-              ) : (
-                <div className="space-y-1.5">
-                  {instance.staff.map((item) => (
-                    <PersonLine
-                      key={item.staffId}
-                      name={
-                        staffNames.get(item.staffId) ??
-                        `Personal #${item.staffId}`
-                      }
-                      meta={[
-                        item.isPrimary ? "Zuständig" : null,
-                        item.isAbsent ? "Abwesend" : null,
-                        item.isSubstitute ? "Ersatz" : null,
-                      ]}
-                      danger={item.isAbsent}
-                    />
-                  ))}
-                </div>
-              )}
-            </Section>
+            <AssignedStaffSection instance={instance} staffNames={staffNames} />
 
-            <Section title="Kinder">
-              {students.length === 0 ? (
-                <EmptyLine>Keine Kinder geplant.</EmptyLine>
-              ) : (
-                <div className="space-y-3">
-                  {(
-                    [
-                      ["expected", groupedStudents.expected],
-                      ["present", groupedStudents.present],
-                      ["absent", groupedStudents.absent],
-                    ] as const
-                  ).map(([status, rows]) => (
-                    <StudentGroup
-                      key={status}
-                      status={status}
-                      students={rows}
-                      studentNames={studentNames}
-                      pendingStudentId={pendingStudentId}
-                      onAttendancePatch={
-                        instance.status === "planned" ||
-                        instance.status === "active" ||
-                        instance.status === "completed"
-                          ? onAttendancePatch
-                          : undefined
-                      }
-                      instanceStatus={instance.status}
-                      handleAttendancePatch={handleAttendancePatch}
-                    />
-                  ))}
-                </div>
-              )}
-            </Section>
+            <InstanceStudentsSection
+              groupedStudents={groupedStudents}
+              handleAttendancePatch={handleAttendancePatch}
+              instance={instance}
+              onAttendancePatch={attendancePatch}
+              pendingStudentId={pendingStudentId}
+              studentNames={studentNames}
+              students={students}
+            />
           </div>
 
           <SlideOverFooter>
@@ -525,7 +616,7 @@ export function InstanceDetailSlideOver({
                     </span>
                   </Button>
                 )}
-              {instance.status === "active" && (
+              {instance.status === "active" && attendanceWebEnabled && (
                 <Button
                   variant="primary"
                   size="md"
@@ -542,7 +633,7 @@ export function InstanceDetailSlideOver({
                 </Button>
               )}
               {(instance.status === "planned" ||
-                instance.status === "active") && (
+                (instance.status === "active" && attendanceWebEnabled)) && (
                 <Button
                   variant="outline_danger"
                   size="md"
@@ -659,7 +750,7 @@ export function InstanceDetailSlideOver({
                 "Beendet den Regeltermin ab diesem Datum; frühere Termine bleiben erhalten.",
             },
           ]}
-          onSelect={(value) => void handleDeleteScopeSelect(value)}
+          onSelect={handleDeleteScopeSelect}
           isBusy={pendingDeleteScope !== null}
         />
       )}
@@ -687,13 +778,14 @@ function StudentGroup({
     body: AttendancePatchBody,
   ) => Promise<void>;
 }) {
+  const showTimetableCounts = useShowTimetableCounts();
   if (students.length === 0) return null;
   const isPlanned = instanceStatus === "planned";
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-[11px] font-bold tracking-wide text-gray-400 uppercase">
         <span>{attendanceLabel(status, isPlanned)}</span>
-        <span>{students.length}</span>
+        {showTimetableCounts ? <span>{students.length}</span> : null}
       </div>
       {students.map((student) => (
         <div
@@ -724,8 +816,8 @@ function StudentGroup({
                   tone="green"
                   isLoading={pendingStudentId === student.studentId}
                   disabled={pendingStudentId !== null}
-                  onClick={() =>
-                    void handleAttendancePatch(student.studentId, {
+                  onClick={async () =>
+                    await handleAttendancePatch(student.studentId, {
                       status: "present",
                       substatus: null,
                     })
@@ -739,8 +831,8 @@ function StudentGroup({
                   tone="red"
                   isLoading={pendingStudentId === student.studentId}
                   disabled={pendingStudentId !== null}
-                  onClick={() =>
-                    void handleAttendancePatch(student.studentId, {
+                  onClick={async () =>
+                    await handleAttendancePatch(student.studentId, {
                       status: "absent",
                       substatus: isPlanned ? "excused" : null,
                     })
@@ -754,8 +846,8 @@ function StudentGroup({
                   tone="slate"
                   isLoading={pendingStudentId === student.studentId}
                   disabled={pendingStudentId !== null}
-                  onClick={() =>
-                    void handleAttendancePatch(student.studentId, {
+                  onClick={async () =>
+                    await handleAttendancePatch(student.studentId, {
                       status: "expected",
                       substatus: null,
                       note: null,
@@ -863,6 +955,7 @@ interface StatsRowProps {
 }
 
 function StatsRow({ instance }: StatsRowProps) {
+  const showTimetableCounts = useShowTimetableCounts();
   const expected = instance.expectedStudentsCount;
   const present = instance.presentStudentsCount;
   const totalStudents = expected + present;
@@ -879,12 +972,14 @@ function StatsRow({ instance }: StatsRowProps) {
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <StatPill
-        icon={<Users className="h-3.5 w-3.5" />}
-        label="Anwesend"
-        value={totalStudents === 0 ? "—" : `${present} / ${totalStudents}`}
-        tone={studentTone}
-      />
+      {showTimetableCounts && (
+        <StatPill
+          icon={<Users className="h-3.5 w-3.5" />}
+          label="Anwesend"
+          value={totalStudents === 0 ? "—" : `${present} / ${totalStudents}`}
+          tone={studentTone}
+        />
+      )}
       <StatPill
         icon={<UserCheck className="h-3.5 w-3.5" />}
         label="Personal"

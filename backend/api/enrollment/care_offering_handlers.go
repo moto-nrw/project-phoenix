@@ -352,6 +352,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		offerings      []*enrollmentModels.CareOffering
 		selectionMode  = enrollmentModels.PhaseCareOfferingSelectionOptional
 		schoolClassCfg PublicSchoolClassConfig
+		capabilities   enrollmentService.FormCapabilities
 		classErr       error
 	)
 	lateInviteToken := lateInviteTokenFromRequest(r)
@@ -368,15 +369,20 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 				return phaseErr
 			}
 			selectionMode = phase.CareOfferingSelectionMode
-			collectClasses, collectErr := rs.RequestService.CollectsSchoolClass(txCtx)
-			if collectErr != nil {
+			resolvedCapabilities, capabilityErr := rs.RequestService.FormCapabilities(txCtx)
+			if capabilityErr != nil {
 				// A settings-resolution failure (corrupt override, repo
 				// error) is a server problem, not "not found" — flag it so
 				// the outer handler returns 500 instead of a misleading 404.
-				classErr = collectErr
-				return collectErr
+				classErr = capabilityErr
+				return capabilityErr
 			}
-			schoolClassCfg = toPublicSchoolClassConfig(phase, collectClasses)
+			capabilities = resolvedCapabilities
+			schoolClassCfg = toPublicSchoolClassConfig(phase, capabilities.CollectSchoolClass)
+			if !capabilities.CareOfferingsEnabled {
+				offerings = []*enrollmentModels.CareOffering{}
+				return nil
+			}
 			list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
 			offerings = list
 			return listErr
@@ -397,9 +403,11 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 	}
 	common.Respond(w, r, http.StatusOK, PublicCareOfferingsResponse{
 		Offerings:                 items,
-		CareOfferingSelectionMode: selectionMode,
-		CareRequired:              selectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
+		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(selectionMode, capabilities.CareOfferingsEnabled),
+		CareRequired:              capabilities.CareOfferingsEnabled && selectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
 		SchoolClass:               schoolClassCfg,
+		CollectGradeLevel:         capabilities.CollectGradeLevel,
+		CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
 	}, "Public care offerings retrieved")
 }
 
@@ -451,6 +459,8 @@ type PublicCareOfferingsResponse struct {
 	CareOfferingSelectionMode string                  `json:"care_offering_selection_mode"`
 	CareRequired              bool                    `json:"care_required"`
 	SchoolClass               PublicSchoolClassConfig `json:"school_class"`
+	CollectGradeLevel         bool                    `json:"collect_grade_level"`
+	CareOfferingsEnabled      bool                    `json:"care_offerings_enabled"`
 }
 
 type PublicEnrollmentFormBootstrapResponse struct {
@@ -460,6 +470,8 @@ type PublicEnrollmentFormBootstrapResponse struct {
 	CareOfferingSelectionMode string                      `json:"care_offering_selection_mode"`
 	CareRequired              bool                        `json:"care_required"`
 	SchoolClass               PublicSchoolClassConfig     `json:"school_class"`
+	CollectGradeLevel         bool                        `json:"collect_grade_level"`
+	CareOfferingsEnabled      bool                        `json:"care_offerings_enabled"`
 	CaptchaConfig             PublicCaptchaConfigResponse `json:"captcha_config"`
 	LegalTexts                PublicLegalTextsResponse    `json:"legal_texts"`
 }
@@ -486,6 +498,13 @@ func toPublicSchoolClassConfig(phase *enrollmentModels.Phase, collect bool) Publ
 		AvailableClasses: classes,
 		Require:          phase.RequireSchoolClass,
 	}
+}
+
+func effectiveCareOfferingSelectionMode(mode string, enabled bool) string {
+	if !enabled {
+		return enrollmentModels.PhaseCareOfferingSelectionOptional
+	}
+	return mode
 }
 
 // We deliberately don't expose enrollmentService here — it is already
@@ -555,14 +574,14 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 	}
 
 	var (
-		phase          *enrollmentModels.Phase
-		schema         *enrollmentModels.FormSchema
-		offerings      []*enrollmentModels.CareOffering
-		texts          enrollmentService.LegalTexts
-		captcha        PublicCaptchaConfigResponse
-		collectClasses bool
-		classErr       error
-		legalErr       error
+		phase        *enrollmentModels.Phase
+		schema       *enrollmentModels.FormSchema
+		offerings    []*enrollmentModels.CareOffering
+		texts        enrollmentService.LegalTexts
+		captcha      PublicCaptchaConfigResponse
+		capabilities enrollmentService.FormCapabilities
+		classErr     error
+		legalErr     error
 	)
 	lateInviteToken := lateInviteTokenFromRequest(r)
 	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
@@ -575,14 +594,14 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 				return phaseErr
 			}
 			phase = loadedPhase
-			resolvedCollectClasses, collectErr := rs.RequestService.CollectsSchoolClass(txCtx)
-			if collectErr != nil {
+			resolvedCapabilities, capabilityErr := rs.RequestService.FormCapabilities(txCtx)
+			if capabilityErr != nil {
 				// Settings-resolution failure is a server problem, not "not
 				// found" — flag it so the outer handler returns 500.
-				classErr = collectErr
-				return collectErr
+				classErr = capabilityErr
+				return capabilityErr
 			}
-			collectClasses = resolvedCollectClasses
+			capabilities = resolvedCapabilities
 			if phase.FormSchemaID != nil {
 				if rs.FormSchemaService == nil {
 					return errors.New("form schema service not configured")
@@ -597,11 +616,15 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 					schema = loadedSchema
 				}
 			}
-			list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
-			if listErr != nil {
-				return listErr
+			if capabilities.CareOfferingsEnabled {
+				list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
+				if listErr != nil {
+					return listErr
+				}
+				offerings = list
+			} else {
+				offerings = []*enrollmentModels.CareOffering{}
 			}
-			offerings = list
 			captcha.Enabled = rs.CaptchaService.IsEnabled(txCtx)
 			captcha.SiteKey = rs.CaptchaService.SiteKey(txCtx)
 			legalTexts, legalTextErr := rs.RequestService.LegalTextsForPhaseWithLateInvite(txCtx, phaseID, lateInviteToken)
@@ -639,9 +662,11 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 		Phase:                     toPublicPhase(phase),
 		Schema:                    toPublicFormSchemaResponse(schema),
 		Offerings:                 items,
-		CareOfferingSelectionMode: phase.CareOfferingSelectionMode,
-		CareRequired:              phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
-		SchoolClass:               toPublicSchoolClassConfig(phase, collectClasses),
+		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(phase.CareOfferingSelectionMode, capabilities.CareOfferingsEnabled),
+		CareRequired:              capabilities.CareOfferingsEnabled && phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
+		SchoolClass:               toPublicSchoolClassConfig(phase, capabilities.CollectSchoolClass),
+		CollectGradeLevel:         capabilities.CollectGradeLevel,
+		CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
 		CaptchaConfig:             captcha,
 		LegalTexts: PublicLegalTextsResponse{
 			AGB:                 texts.AGB,

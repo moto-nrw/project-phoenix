@@ -30,13 +30,18 @@ vi.mock("~/lib/tenant-api", async (importOriginal) => {
 
 import {
   TenantProvider,
+  useAttendanceWebEnabled,
+  useCareOfferingsEnabled,
   useDisplayEnabled,
   useNFCEnabled,
+  useOpenCareGroupMode,
   usePresenceMode,
+  useShowTimetableCounts,
   useTenant,
   useTenantRoutingModeSafe,
   useTenantSafe,
   useTenantSlugSafe,
+  useWaitlistEnabled,
 } from "~/lib/tenant-context";
 
 // ============================================================================
@@ -57,6 +62,30 @@ const mockTenant: TenantInfo = {
   messagingEnabled: false,
   displayEnabled: false,
 };
+
+function TenantWrapper({
+  children,
+  tenant = mockTenant,
+}: Readonly<{
+  children: React.ReactNode;
+  tenant?: TenantInfo | null;
+}>) {
+  return (
+    <TenantProvider tenantSlug="demo-school" tenant={tenant}>
+      {children}
+    </TenantProvider>
+  );
+}
+
+function useTenantSettingValues() {
+  return {
+    careOfferingsEnabled: useCareOfferingsEnabled(),
+    attendanceWebEnabled: useAttendanceWebEnabled(),
+    openCareGroupMode: useOpenCareGroupMode(),
+    showTimetableCounts: useShowTimetableCounts(),
+    waitlistEnabled: useWaitlistEnabled(),
+  };
+}
 
 // ============================================================================
 // Tests
@@ -523,5 +552,96 @@ describe("useDisplayEnabled", () => {
     );
     const { result } = renderHook(() => useDisplayEnabled(), { wrapper });
     expect(result.current).toBe(false);
+  });
+});
+
+describe("tenant setting hooks", () => {
+  it("returns enabled values from the resolved tenant", () => {
+    const enabledTenant: TenantInfo = {
+      ...mockTenant,
+      careOfferingsEnabled: true,
+      attendanceWebEnabled: true,
+      groupMode: "open_care",
+      showTimetableCounts: true,
+      waitlistEnabled: true,
+    };
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantWrapper tenant={enabledTenant}>{children}</TenantWrapper>
+    );
+
+    const { result } = renderHook(() => useTenantSettingValues(), { wrapper });
+
+    expect(result.current).toEqual({
+      careOfferingsEnabled: true,
+      attendanceWebEnabled: true,
+      openCareGroupMode: true,
+      showTimetableCounts: true,
+      waitlistEnabled: true,
+    });
+  });
+
+  it("returns disabled values from the resolved tenant", () => {
+    const disabledTenant: TenantInfo = {
+      ...mockTenant,
+      careOfferingsEnabled: false,
+      attendanceWebEnabled: false,
+      groupMode: "fixed_groups",
+      showTimetableCounts: false,
+      waitlistEnabled: false,
+    };
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantWrapper tenant={disabledTenant}>{children}</TenantWrapper>
+    );
+
+    const { result } = renderHook(() => useTenantSettingValues(), { wrapper });
+
+    expect(result.current).toEqual({
+      careOfferingsEnabled: false,
+      attendanceWebEnabled: false,
+      openCareGroupMode: false,
+      showTimetableCounts: false,
+      waitlistEnabled: false,
+    });
+  });
+
+  it("uses safe metadata defaults when fields are missing", () => {
+    const { result } = renderHook(() => useTenantSettingValues(), {
+      wrapper: TenantWrapper,
+    });
+
+    expect(result.current).toEqual({
+      careOfferingsEnabled: true,
+      attendanceWebEnabled: false,
+      openCareGroupMode: false,
+      showTimetableCounts: true,
+      waitlistEnabled: true,
+    });
+  });
+
+  it("uses safe metadata defaults while the tenant is unresolved", () => {
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <TenantWrapper tenant={null}>{children}</TenantWrapper>
+    );
+    const { result } = renderHook(() => useTenantSettingValues(), { wrapper });
+
+    expect(result.current).toEqual({
+      careOfferingsEnabled: true,
+      attendanceWebEnabled: false,
+      openCareGroupMode: false,
+      showTimetableCounts: true,
+      waitlistEnabled: true,
+    });
+  });
+
+  it("uses safe metadata defaults outside a TenantProvider", () => {
+    const { result } = renderHook(() => useTenantSettingValues());
+
+    expect(result.current).toEqual({
+      careOfferingsEnabled: true,
+      attendanceWebEnabled: false,
+      openCareGroupMode: false,
+      showTimetableCounts: true,
+      waitlistEnabled: true,
+    });
   });
 });

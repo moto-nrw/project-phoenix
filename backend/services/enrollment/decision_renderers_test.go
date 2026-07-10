@@ -146,3 +146,20 @@ func TestNewEnrollmentRejectedRenderer_UsesRejectedSubjectAndTemplate(t *testing
 	assert.Equal(t, "enrollment-rejected.html", msg.Template)
 	assert.Contains(t, msg.Subject, "abgelehnt")
 }
+
+func TestNewEnrollmentDecisionDigestRenderer_PopulatesStatusBuckets(t *testing.T) {
+	row := validDecisionRow(platformModels.EmailKindEnrollmentDecisionDigest)
+	row.Payload["approved_names"] = []any{"Lara"}
+	row.Payload["waitlisted_names"] = []string{"Tim"}
+	row.Payload["rejected_names"] = []string{"Mina"}
+	row.Payload["withdrawn_names"] = []string{"Noah"}
+
+	msg, err := NewEnrollmentDecisionDigestRenderer(EmailRendererConfig{})(context.Background(), row)
+	require.NoError(t, err)
+	assert.Equal(t, "enrollment-decision-digest.html", msg.Template)
+	content := msg.Content.(map[string]any)
+	assert.Equal(t, []string{"Lara"}, content["ApprovedNames"])
+	assert.Equal(t, []string{"Tim"}, content["WaitlistedNames"])
+	assert.Equal(t, []string{"Mina"}, content["RejectedNames"])
+	assert.Equal(t, []string{"Noah"}, content["WithdrawnNames"])
+}

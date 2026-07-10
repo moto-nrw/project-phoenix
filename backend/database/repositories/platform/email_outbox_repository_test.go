@@ -92,6 +92,32 @@ func TestEmailOutboxRepository_Create_RejectsInvalidRow(t *testing.T) {
 	assert.Contains(t, err.Error(), "validation failed")
 }
 
+func TestEmailOutboxRepository_Create_IdempotencyKeySuppressesDuplicate(t *testing.T) {
+	db, repo, tenantID := setupOutboxRepoTest(t)
+	kind := uniqueOutboxToken("idempotent")
+	defer wipeOutbox(db, tenantID, kind)
+	key := uniqueOutboxToken("decision-key")
+	first := makeOutbox(kind)
+	first.IdempotencyKey = &key
+	second := makeOutbox(kind)
+	second.IdempotencyKey = &key
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		if err := repo.Create(ctx, first); err != nil {
+			return err
+		}
+		return repo.Create(ctx, second)
+	}))
+
+	count, err := db.NewSelect().
+		Table("platform.email_outbox").
+		Where("tenant_id = ?", tenantID).
+		Where("idempotency_key = ?", key).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+}
+
 func TestEmailOutboxRepository_FindByID_HappyPath(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("find")

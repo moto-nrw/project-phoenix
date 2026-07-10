@@ -80,9 +80,14 @@ export function EnrollmentEditPage({ params }: Props) {
     [bootstrap?.edit_mode, changeReason, statusHref, token, t],
   );
 
-  const handleSubmitted = useCallback(() => {
-    router.push(statusHref);
-  }, [router, statusHref]);
+  const handleSubmitted = useCallback(
+    (statusURL: string) => {
+      const submittedURL = new URL(statusURL, globalThis.location.origin);
+      const query = submittedURL.searchParams.toString();
+      router.push(query ? `${statusHref}?${query}` : statusHref);
+    },
+    [router, statusHref],
+  );
 
   if (loading) {
     return (
@@ -165,6 +170,8 @@ export function EnrollmentEditPage({ params }: Props) {
             schema: bootstrap.schema,
             offerings: bootstrap.offerings,
             careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
+            collectGradeLevel: bootstrap.collect_grade_level,
+            careOfferingsEnabled: bootstrap.care_offerings_enabled,
             captchaConfig: null,
             legalTexts: bootstrap.legal_texts,
             profile: null,

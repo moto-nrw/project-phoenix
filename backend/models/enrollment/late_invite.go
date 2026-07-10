@@ -29,4 +29,5 @@ type LateInviteRepository interface {
 	FindUsableByTokenHash(ctx context.Context, tokenHash string, phaseID int64, now time.Time) (*LateInvite, error)
 	FindUsableByTokenHashForUpdate(ctx context.Context, tokenHash string, phaseID int64, now time.Time) (*LateInvite, error)
 	MarkUsed(ctx context.Context, inviteID, requestID int64, usedAt time.Time) error
+	DeleteByUsedRequestID(ctx context.Context, requestID int64) (int64, error)
 }

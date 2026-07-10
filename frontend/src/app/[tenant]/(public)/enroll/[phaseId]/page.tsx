@@ -83,6 +83,8 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
       schema: bootstrap.schema,
       offerings: bootstrap.offerings,
       careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
+      collectGradeLevel: bootstrap.collect_grade_level,
+      careOfferingsEnabled: bootstrap.care_offerings_enabled,
       captchaConfig: bootstrap.captcha_config,
       legalTexts: bootstrap.legal_texts,
       profile: bootstrap.profile ?? null,
@@ -93,7 +95,8 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
   const handleSubmitted = (statusURL: string) => {
     try {
       const u = new URL(statusURL);
-      router.push(`${u.pathname}?submitted=1`);
+      u.searchParams.set("submitted", "1");
+      router.push(`${u.pathname}?${u.searchParams.toString()}`);
     } catch {
       globalThis.window.location.href = statusURL;
     }

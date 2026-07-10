@@ -71,12 +71,15 @@ const OPEN_CHANGE_REQUEST_STATUSES = new Set<EnrollmentChangeRequest["status"]>(
 interface Props {
   readonly token: string;
   readonly justSubmitted?: boolean;
+  readonly duplicateWarning?: boolean;
 }
 
-export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
+export function EnrollmentStatusView({
+  token,
+  justSubmitted = false,
+  duplicateWarning = false,
+}: Props) {
   const t = useTranslations("enrollmentStatus");
-  const locale = useLocale();
-  const pathname = usePathname();
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [changeRequests, setChangeRequests] = useState<
     EnrollmentChangeRequest[]
@@ -135,11 +138,6 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
-
-  const allEditable = status?.edit_mode === "direct_edit";
-  const editHref = pathname?.startsWith("/parents")
-    ? `/parents/enroll/status/${encodeURIComponent(token)}/edit`
-    : `${pathname?.replace(/\/$/, "") ?? ""}/edit`;
 
   const handleChangeRequestReply = async (changeRequestId: string) => {
     const body = (replyDrafts[changeRequestId] ?? "").trim();
@@ -256,139 +254,339 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
     );
   }
 
+  return (
+    <EnrollmentStatusContent
+      changeRequests={changeRequests}
+      confirmingRenewal={confirmingRenewal}
+      duplicateWarning={duplicateWarning}
+      editFirstName={editFirstName}
+      editLastName={editLastName}
+      editPhone={editPhone}
+      editing={editing}
+      error={error}
+      info={info}
+      justSubmitted={justSubmitted}
+      replyDrafts={replyDrafts}
+      replyingChangeRequest={replyingChangeRequest}
+      savingEdit={savingEdit}
+      status={status}
+      token={token}
+      withdrawingChild={withdrawingChild}
+      onChangeRequestReply={handleChangeRequestReply}
+      onConfirmRenewal={handleConfirmRenewal}
+      onEdit={handleEdit}
+      onWithdraw={handleWithdraw}
+      setEditFirstName={setEditFirstName}
+      setEditLastName={setEditLastName}
+      setEditPhone={setEditPhone}
+      setEditing={setEditing}
+      setReplyDrafts={setReplyDrafts}
+    />
+  );
+}
+
+interface EnrollmentStatusContentProps {
+  readonly changeRequests: EnrollmentChangeRequest[];
+  readonly confirmingRenewal: boolean;
+  readonly duplicateWarning: boolean;
+  readonly editFirstName: string;
+  readonly editLastName: string;
+  readonly editPhone: string;
+  readonly editing: boolean;
+  readonly error: string | null;
+  readonly info: string | null;
+  readonly justSubmitted: boolean;
+  readonly replyDrafts: Record<string, string>;
+  readonly replyingChangeRequest: string | null;
+  readonly savingEdit: boolean;
+  readonly status: StatusResponse;
+  readonly token: string;
+  readonly withdrawingChild: string | null;
+  readonly onChangeRequestReply: (changeRequestId: string) => Promise<void>;
+  readonly onConfirmRenewal: () => Promise<void>;
+  readonly onEdit: (event: React.FormEvent) => Promise<void>;
+  readonly onWithdraw: (childId?: string) => Promise<void>;
+  readonly setEditFirstName: (value: string) => void;
+  readonly setEditLastName: (value: string) => void;
+  readonly setEditPhone: (value: string) => void;
+  readonly setEditing: (value: boolean) => void;
+  readonly setReplyDrafts: React.Dispatch<
+    React.SetStateAction<Record<string, string>>
+  >;
+}
+
+function EnrollmentStatusContent({
+  changeRequests,
+  confirmingRenewal,
+  duplicateWarning,
+  editFirstName,
+  editLastName,
+  editPhone,
+  editing,
+  error,
+  info,
+  justSubmitted,
+  replyDrafts,
+  replyingChangeRequest,
+  savingEdit,
+  status,
+  token,
+  withdrawingChild,
+  onChangeRequestReply,
+  onConfirmRenewal,
+  onEdit,
+  onWithdraw,
+  setEditFirstName,
+  setEditLastName,
+  setEditPhone,
+  setEditing,
+  setReplyDrafts,
+}: EnrollmentStatusContentProps) {
+  const t = useTranslations("enrollmentStatus");
+  const locale = useLocale();
+  const pathname = usePathname();
   const submittedDate = new Date(status.submitted_at).toLocaleDateString(
     locale,
     { day: "2-digit", month: "long", year: "numeric" },
   );
-
+  const allEditable = status.edit_mode === "direct_edit";
   const allWithdrawn =
     !!status.withdrawn_at ||
-    status.children.every((c) => c.status === "withdrawn");
+    status.children.every((child) => child.status === "withdrawn");
   const hasMultipleChildren = status.children.length > 1;
   const hasOpenChangeRequest = changeRequests.some((request) =>
     OPEN_CHANGE_REQUEST_STATUSES.has(request.status),
   );
   const canRequestChange =
     status.edit_mode === "change_request" && !hasOpenChangeRequest;
-
   const pendingRenewalCount = status.children.filter(
-    (c) => c.status === "pending_renewal",
+    (child) => child.status === "pending_renewal",
   ).length;
   const autoRenewedCount = status.children.filter(
-    (c) => c.status === "auto_renewed",
+    (child) => child.status === "auto_renewed",
   ).length;
   const showOptInBanner = pendingRenewalCount > 0;
   const showOptOutBanner = !showOptInBanner && autoRenewedCount > 0;
+  const editHref = pathname?.startsWith("/parents")
+    ? `/parents/enroll/status/${encodeURIComponent(token)}/edit`
+    : `${pathname?.replace(/\/$/, "") ?? ""}/edit`;
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
-      <section className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="p-5 sm:p-8 lg:p-10">
-            <div
-              className={`flex h-12 w-12 items-center justify-center rounded-xl sm:h-14 sm:w-14 ${
-                justSubmitted
-                  ? "bg-[#83CD2D]/15 text-[#5A8E1F]"
-                  : "moto-content-surface border text-gray-600 shadow-sm"
-              }`}
-            >
-              {justSubmitted ? (
-                <Check className="h-7 w-7" aria-hidden="true" />
-              ) : (
-                <Clock className="h-7 w-7" aria-hidden="true" />
-              )}
-            </div>
-            <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
-              {justSubmitted ? t("submittedEyebrow") : t("statusEyebrow")}
-            </p>
-            <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
-              {justSubmitted ? t("submittedTitle") : t("statusTitle")}
-            </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-gray-600">
-              {justSubmitted
-                ? t("submittedDescription")
-                : t("statusDescription", { date: submittedDate })}
-            </p>
-            {(allEditable || canRequestChange) && (
-              <div className="mt-6">
-                <Link
-                  href={editHref}
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                >
-                  <Pencil className="h-4 w-4" aria-hidden="true" />
-                  {allEditable ? t("editFull") : t("requestChange")}
-                </Link>
-              </div>
-            )}
-          </div>
-          <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-8 lg:border-t-0 lg:border-l">
-            <h2 className="text-lg font-semibold text-gray-900">
-              {justSubmitted ? t("nextTitle") : t("currentTitle")}
-            </h2>
-            <ol className="mt-5 space-y-4 text-sm text-gray-600">
-              <li className="flex gap-3">
-                <StepNumber>1</StepNumber>
-                <span>
-                  {justSubmitted ? t("stepOneSubmitted") : t("stepOneStatus")}
-                </span>
-              </li>
-              <li className="flex gap-3">
-                <StepNumber>2</StepNumber>
-                <span>{t("stepTwo")}</span>
-              </li>
-              <li className="flex gap-3">
-                <StepNumber>3</StepNumber>
-                <span>{t("stepThree")}</span>
-              </li>
-            </ol>
-          </aside>
+      {duplicateWarning ? (
+        <div className="rounded-xl border border-[#F78C10]/30 bg-[#F78C10]/10 px-4 py-3 text-sm leading-6 text-[#7C4A03]">
+          {t("duplicateWarning")}
         </div>
-      </section>
+      ) : null}
+      <EnrollmentStatusHero
+        allEditable={allEditable}
+        canRequestChange={canRequestChange}
+        editHref={editHref}
+        justSubmitted={justSubmitted}
+        submittedDate={submittedDate}
+      />
+      <EnrollmentStatusSummary status={status} submittedDate={submittedDate} />
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        <StatusSummaryCard
-          icon={<Clock className="h-5 w-5" aria-hidden="true" />}
-          label={t("receivedLabel")}
-          value={submittedDate}
-        />
-        <StatusSummaryCard
-          icon={<ShieldCheck className="h-5 w-5" aria-hidden="true" />}
-          label={t("childrenLabel")}
-          value={String(status.children.length)}
-        />
-        <StatusSummaryCard
-          icon={<Mail className="h-5 w-5" aria-hidden="true" />}
-          label={t("contactLabel")}
-          value={status.guardian_email}
-        />
-      </section>
-
-      {error && (
+      {error ? (
         <div className="rounded-2xl border border-[#FF3130]/30 bg-[#FF3130]/5 p-4 text-sm text-[#CC2626]">
           {error}
         </div>
-      )}
-      {info && (
+      ) : null}
+      {info ? (
         <div className="rounded-2xl border border-[#83CD2D]/30 bg-[#83CD2D]/5 p-4 text-sm text-[#5BA01F]">
           {info}
         </div>
-      )}
+      ) : null}
 
-      {(canRequestChange || changeRequests.length > 0) && (
+      {canRequestChange || changeRequests.length > 0 ? (
         <ChangeRequestsPanel
           canCreate={canRequestChange}
           editHref={editHref}
           requests={changeRequests}
           replyDrafts={replyDrafts}
           replyingId={replyingChangeRequest}
-          onReply={(id) => void handleChangeRequestReply(id)}
+          onReply={onChangeRequestReply}
           onReplyDraftChange={(id, value) =>
-            setReplyDrafts((prev) => ({ ...prev, [id]: value }))
+            setReplyDrafts((previous) => ({ ...previous, [id]: value }))
           }
         />
-      )}
+      ) : null}
 
-      {showOptInBanner && (
+      <RenewalBanners
+        confirmingRenewal={confirmingRenewal}
+        showOptInBanner={showOptInBanner}
+        showOptOutBanner={showOptOutBanner}
+        withdrawingAll={withdrawingChild === "__all__"}
+        onConfirmRenewal={onConfirmRenewal}
+        onWithdraw={onWithdraw}
+      />
+      <EnrollmentChildrenSection
+        enrollments={status.children}
+        hasMultipleChildren={hasMultipleChildren}
+        withdrawingChild={withdrawingChild}
+        onWithdraw={onWithdraw}
+      />
+      <GuardianSection
+        allEditable={allEditable}
+        canRequestChange={canRequestChange}
+        editFirstName={editFirstName}
+        editLastName={editLastName}
+        editPhone={editPhone}
+        editing={editing}
+        savingEdit={savingEdit}
+        status={status}
+        onEdit={onEdit}
+        setEditFirstName={setEditFirstName}
+        setEditLastName={setEditLastName}
+        setEditPhone={setEditPhone}
+        setEditing={setEditing}
+      />
+      <WithdrawAllSection
+        allWithdrawn={allWithdrawn}
+        hasMultipleChildren={hasMultipleChildren}
+        withdrawingAll={withdrawingChild === "__all__"}
+        onWithdraw={onWithdraw}
+      />
+    </div>
+  );
+}
+
+interface EnrollmentStatusHeroProps {
+  readonly allEditable: boolean;
+  readonly canRequestChange: boolean;
+  readonly editHref: string;
+  readonly justSubmitted: boolean;
+  readonly submittedDate: string;
+}
+
+function EnrollmentStatusHero({
+  allEditable,
+  canRequestChange,
+  editHref,
+  justSubmitted,
+  submittedDate,
+}: EnrollmentStatusHeroProps) {
+  const t = useTranslations("enrollmentStatus");
+  const statusIconClass = justSubmitted
+    ? "bg-[#83CD2D]/15 text-[#5A8E1F]"
+    : "moto-content-surface border text-gray-600 shadow-sm";
+
+  return (
+    <section className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <div className="p-5 sm:p-8 lg:p-10">
+          <div
+            className={`flex h-12 w-12 items-center justify-center rounded-xl sm:h-14 sm:w-14 ${statusIconClass}`}
+          >
+            {justSubmitted ? (
+              <Check className="h-7 w-7" aria-hidden="true" />
+            ) : (
+              <Clock className="h-7 w-7" aria-hidden="true" />
+            )}
+          </div>
+          <p className="mt-6 text-sm font-semibold tracking-wide text-[#5080D8] uppercase">
+            {justSubmitted ? t("submittedEyebrow") : t("statusEyebrow")}
+          </p>
+          <h1 className="mt-2 max-w-2xl text-3xl font-bold tracking-tight text-wrap text-gray-900 sm:text-4xl">
+            {justSubmitted ? t("submittedTitle") : t("statusTitle")}
+          </h1>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-gray-600">
+            {justSubmitted
+              ? t("submittedDescription")
+              : t("statusDescription", { date: submittedDate })}
+          </p>
+          {allEditable || canRequestChange ? (
+            <div className="mt-6">
+              <Link
+                href={editHref}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+              >
+                <Pencil className="h-4 w-4" aria-hidden="true" />
+                {allEditable ? t("editFull") : t("requestChange")}
+              </Link>
+            </div>
+          ) : null}
+        </div>
+        <aside className="moto-dotted-background moto-dotted-background--split border-t border-gray-100 p-5 sm:p-8 lg:border-t-0 lg:border-l">
+          <h2 className="text-lg font-semibold text-gray-900">
+            {justSubmitted ? t("nextTitle") : t("currentTitle")}
+          </h2>
+          <ol className="mt-5 space-y-4 text-sm text-gray-600">
+            <li className="flex gap-3">
+              <StepNumber>1</StepNumber>
+              <span>
+                {justSubmitted ? t("stepOneSubmitted") : t("stepOneStatus")}
+              </span>
+            </li>
+            <li className="flex gap-3">
+              <StepNumber>2</StepNumber>
+              <span>{t("stepTwo")}</span>
+            </li>
+            <li className="flex gap-3">
+              <StepNumber>3</StepNumber>
+              <span>{t("stepThree")}</span>
+            </li>
+          </ol>
+        </aside>
+      </div>
+    </section>
+  );
+}
+
+function EnrollmentStatusSummary({
+  status,
+  submittedDate,
+}: Readonly<{ status: StatusResponse; submittedDate: string }>) {
+  const t = useTranslations("enrollmentStatus");
+  return (
+    <section className="grid gap-3 sm:grid-cols-3">
+      <StatusSummaryCard
+        icon={<Clock className="h-5 w-5" aria-hidden="true" />}
+        label={t("receivedLabel")}
+        value={submittedDate}
+      />
+      <StatusSummaryCard
+        icon={<ShieldCheck className="h-5 w-5" aria-hidden="true" />}
+        label={t("childrenLabel")}
+        value={String(status.children.length)}
+      />
+      <StatusSummaryCard
+        icon={<Mail className="h-5 w-5" aria-hidden="true" />}
+        label={t("contactLabel")}
+        value={status.guardian_email}
+      />
+    </section>
+  );
+}
+
+interface RenewalBannersProps {
+  readonly confirmingRenewal: boolean;
+  readonly showOptInBanner: boolean;
+  readonly showOptOutBanner: boolean;
+  readonly withdrawingAll: boolean;
+  readonly onConfirmRenewal: () => Promise<void>;
+  readonly onWithdraw: (childId?: string) => Promise<void>;
+}
+
+function RenewalBanners({
+  confirmingRenewal,
+  showOptInBanner,
+  showOptOutBanner,
+  withdrawingAll,
+  onConfirmRenewal,
+  onWithdraw,
+}: RenewalBannersProps) {
+  const t = useTranslations("enrollmentStatus");
+  const handleConfirmRenewal = async () => {
+    await onConfirmRenewal();
+  };
+  const handleWithdraw = async () => {
+    await onWithdraw();
+  };
+
+  return (
+    <>
+      {showOptInBanner ? (
         <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900">
             {t("renewalRequiredTitle")}
@@ -399,7 +597,7 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <button
               type="button"
-              onClick={() => void handleConfirmRenewal()}
+              onClick={handleConfirmRenewal}
               disabled={confirmingRenewal}
               className="h-10 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
             >
@@ -407,18 +605,16 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
             </button>
             <button
               type="button"
-              onClick={() => void handleWithdraw()}
-              disabled={withdrawingChild === "__all__"}
+              onClick={handleWithdraw}
+              disabled={withdrawingAll}
               className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
             >
-              {withdrawingChild === "__all__"
-                ? t("declining")
-                : t("declineEnrollment")}
+              {withdrawingAll ? t("declining") : t("declineEnrollment")}
             </button>
           </div>
         </section>
-      )}
-      {showOptOutBanner && (
+      ) : null}
+      {showOptOutBanner ? (
         <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
           <h2 className="text-lg font-semibold text-gray-900">
             {t("autoRenewedTitle")}
@@ -427,266 +623,370 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
           <div className="mt-4">
             <button
               type="button"
-              onClick={() => void handleWithdraw()}
-              disabled={withdrawingChild === "__all__"}
+              onClick={handleWithdraw}
+              disabled={withdrawingAll}
               className="h-10 w-full rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
             >
-              {withdrawingChild === "__all__"
-                ? t("unsubscribing")
-                : t("unsubscribe")}
+              {withdrawingAll ? t("unsubscribing") : t("unsubscribe")}
             </button>
           </div>
         </section>
-      )}
+      ) : null}
+    </>
+  );
+}
 
-      <section className="moto-content-surface space-y-4 rounded-xl border p-5 shadow-sm sm:p-6">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("enrollmentsEyebrow")}
+function childStatusTextKey(
+  child: StatusChild,
+  canWithdraw: boolean,
+): "childApprovedText" | "childPendingText" | "childLockedText" {
+  if (child.status === "approved") return "childApprovedText";
+  if (canWithdraw) return "childPendingText";
+  return "childLockedText";
+}
+
+interface EnrollmentChildRowProps {
+  readonly canWithdraw: boolean;
+  readonly child: StatusChild;
+  readonly isWithdrawing: boolean;
+  readonly onWithdraw: (childId?: string) => Promise<void>;
+}
+
+function EnrollmentChildRow({
+  canWithdraw,
+  child,
+  isWithdrawing,
+  onWithdraw,
+}: EnrollmentChildRowProps) {
+  const t = useTranslations("enrollmentStatus");
+  const handleWithdraw = async () => {
+    await onWithdraw(child.id);
+  };
+
+  return (
+    <li className="rounded-xl border border-gray-200 bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm">
+            <UserRound className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-semibold break-words text-gray-900">
+              {child.first_name} {child.last_name}
             </p>
-            <h2 className="mt-1 text-xl font-semibold text-gray-900">
-              {t("childrenLabel")}
-            </h2>
+            {child.status_reason ? (
+              <p className="mt-1 text-sm text-gray-600">
+                {child.status_reason}
+              </p>
+            ) : null}
           </div>
         </div>
-        <ul className="space-y-3">
-          {status.children.map((c) => {
-            const canWithdraw =
-              hasMultipleChildren && !TERMINAL_STATUSES.has(c.status);
-            return (
-              <li
-                key={c.id}
-                className="rounded-xl border border-gray-200 bg-white p-4"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm">
-                      <UserRound className="h-5 w-5" aria-hidden="true" />
-                    </span>
-                    <div className="min-w-0">
-                      <p className="font-semibold break-words text-gray-900">
-                        {c.first_name} {c.last_name}
-                      </p>
-                      {c.status_reason && (
-                        <p className="mt-1 text-sm text-gray-600">
-                          {c.status_reason}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <StatusPill
-                    status={c.status}
-                    label={t(`status.${c.status}`)}
-                  />
-                </div>
-                <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-sm text-gray-500">
-                    {c.status === "approved"
-                      ? t("childApprovedText")
-                      : canWithdraw
-                        ? t("childPendingText")
-                        : t("childLockedText")}
-                  </p>
-                  {canWithdraw && (
-                    <button
-                      type="button"
-                      onClick={() => void handleWithdraw(c.id)}
-                      disabled={withdrawingChild === c.id}
-                      className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
-                    >
-                      {withdrawingChild === c.id
-                        ? t("withdrawing")
-                        : t("withdrawChild")}
-                    </button>
-                  )}
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      </section>
+        <StatusPill status={child.status} label={t(`status.${child.status}`)} />
+      </div>
+      <div className="mt-4 flex flex-col gap-3 border-t border-gray-100 pt-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-gray-500">
+          {t(childStatusTextKey(child, canWithdraw))}
+        </p>
+        {canWithdraw ? (
+          <button
+            type="button"
+            onClick={handleWithdraw}
+            disabled={isWithdrawing}
+            className="h-9 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
+          >
+            {isWithdrawing ? t("withdrawing") : t("withdrawChild")}
+          </button>
+        ) : null}
+      </div>
+    </li>
+  );
+}
 
-      <section className="moto-content-surface space-y-4 rounded-xl border p-5 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-              {t("contactLabel")}
-            </p>
-            <h2 className="mt-1 text-xl font-semibold text-gray-900">
-              {t("guardianTitle")}
-            </h2>
-          </div>
-          {allEditable && !editing && (
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto"
-            >
-              <Pencil className="h-4 w-4" aria-hidden="true" />
-              {t("edit")}
-            </button>
-          )}
+function EnrollmentChildrenSection({
+  enrollments,
+  hasMultipleChildren,
+  withdrawingChild,
+  onWithdraw,
+}: Readonly<{
+  enrollments: StatusChild[];
+  hasMultipleChildren: boolean;
+  withdrawingChild: string | null;
+  onWithdraw: (childId?: string) => Promise<void>;
+}>) {
+  const t = useTranslations("enrollmentStatus");
+  return (
+    <section className="moto-content-surface space-y-4 rounded-xl border p-5 shadow-sm sm:p-6">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            {t("enrollmentsEyebrow")}
+          </p>
+          <h2 className="mt-1 text-xl font-semibold text-gray-900">
+            {t("childrenLabel")}
+          </h2>
         </div>
-        {!editing ? (
-          <dl className="grid gap-3 text-sm text-gray-700 sm:grid-cols-3">
-            <div className="rounded-xl border border-gray-200 bg-white p-4">
-              <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                {t("nameLabel")}
-              </dt>
-              <dd className="mt-1 font-semibold text-gray-900">
-                {status.guardian_first_name} {status.guardian_last_name}
-              </dd>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-white p-4">
-              <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                {t("emailLabel")}
-              </dt>
-              <dd className="mt-1 font-semibold break-all text-gray-900">
-                {status.guardian_email}
-              </dd>
-            </div>
-            <div className="rounded-xl border border-gray-200 bg-white p-4">
-              <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                {t("phoneLabel")}
-              </dt>
-              <dd className="mt-1 font-semibold text-gray-900">
-                {status.guardian_phone ?? t("notProvided")}
-              </dd>
-            </div>
-            {status.additional_guardians?.map((g: StatusGuardian, i) => (
-              <div
-                key={i}
-                className="rounded-xl border border-gray-200 bg-white p-4 sm:col-span-3"
-              >
-                <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  {t("additionalGuardiansLabel")}
-                </dt>
-                <dd className="mt-1 font-semibold text-gray-900">
-                  {g.first_name} {g.last_name}
-                </dd>
-                <dd className="mt-1 text-sm text-gray-600">
-                  {g.email && g.email.trim() !== ""
-                    ? g.email
-                    : t("notProvided")}
-                  {" · "}
-                  {g.phone && g.phone.trim() !== ""
-                    ? g.phone
-                    : t("notProvided")}
-                </dd>
-              </div>
-            ))}
-          </dl>
-        ) : (
-          <form onSubmit={handleEdit} className="space-y-4 text-sm">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block">
-                <span className="text-sm font-semibold text-gray-700">
-                  {t("firstNameLabel")}
-                </span>
-                <input
-                  type="text"
-                  value={editFirstName}
-                  onChange={(e) => setEditFirstName(e.target.value)}
-                  required
-                  className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-                />
-              </label>
-              <label className="block">
-                <span className="text-sm font-semibold text-gray-700">
-                  {t("lastNameLabel")}
-                </span>
-                <input
-                  type="text"
-                  value={editLastName}
-                  onChange={(e) => setEditLastName(e.target.value)}
-                  required
-                  className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
-                />
-              </label>
-            </div>
+      </div>
+      <ul className="space-y-3">
+        {enrollments.map((child) => {
+          const canWithdraw =
+            hasMultipleChildren && !TERMINAL_STATUSES.has(child.status);
+          return (
+            <EnrollmentChildRow
+              key={child.id}
+              canWithdraw={canWithdraw}
+              child={child}
+              isWithdrawing={withdrawingChild === child.id}
+              onWithdraw={onWithdraw}
+            />
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
+interface GuardianSectionProps {
+  readonly allEditable: boolean;
+  readonly canRequestChange: boolean;
+  readonly editFirstName: string;
+  readonly editLastName: string;
+  readonly editPhone: string;
+  readonly editing: boolean;
+  readonly savingEdit: boolean;
+  readonly status: StatusResponse;
+  readonly onEdit: (event: React.FormEvent) => Promise<void>;
+  readonly setEditFirstName: (value: string) => void;
+  readonly setEditLastName: (value: string) => void;
+  readonly setEditPhone: (value: string) => void;
+  readonly setEditing: (value: boolean) => void;
+}
+
+function GuardianSection({
+  allEditable,
+  canRequestChange,
+  editFirstName,
+  editLastName,
+  editPhone,
+  editing,
+  savingEdit,
+  status,
+  onEdit,
+  setEditFirstName,
+  setEditLastName,
+  setEditPhone,
+  setEditing,
+}: GuardianSectionProps) {
+  const t = useTranslations("enrollmentStatus");
+  const handleCancel = () => {
+    setEditing(false);
+    setEditFirstName(status.guardian_first_name);
+    setEditLastName(status.guardian_last_name);
+    setEditPhone(status.guardian_phone ?? "");
+  };
+
+  return (
+    <section className="moto-content-surface space-y-4 rounded-xl border p-5 shadow-sm sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            {t("contactLabel")}
+          </p>
+          <h2 className="mt-1 text-xl font-semibold text-gray-900">
+            {t("guardianTitle")}
+          </h2>
+        </div>
+        {allEditable && !editing ? (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-lg border border-gray-200 bg-white px-3 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:w-auto"
+          >
+            <Pencil className="h-4 w-4" aria-hidden="true" />
+            {t("edit")}
+          </button>
+        ) : null}
+      </div>
+      {!editing ? (
+        <GuardianDetails status={status} />
+      ) : (
+        <form onSubmit={onEdit} className="space-y-4 text-sm">
+          <div className="grid gap-4 sm:grid-cols-2">
             <label className="block">
               <span className="text-sm font-semibold text-gray-700">
-                {t("phoneOptionalLabel")}
+                {t("firstNameLabel")}
               </span>
               <input
-                type="tel"
-                value={editPhone}
-                onChange={(e) => setEditPhone(e.target.value)}
+                type="text"
+                value={editFirstName}
+                onChange={(event) => setEditFirstName(event.target.value)}
+                required
                 className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
               />
             </label>
-            <p className="text-sm text-gray-500">{t("emailImmutable")}</p>
-            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-              <button
-                type="submit"
-                disabled={savingEdit}
-                className="h-10 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
-              >
-                {savingEdit ? t("saving") : t("save")}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditing(false);
-                  setEditFirstName(status.guardian_first_name);
-                  setEditLastName(status.guardian_last_name);
-                  setEditPhone(status.guardian_phone ?? "");
-                }}
-                disabled={savingEdit}
-                className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
-              >
-                {t("cancel")}
-              </button>
-            </div>
-          </form>
-        )}
-        {!allEditable && !editing && (
-          <p className="text-sm text-gray-500">
-            {canRequestChange
-              ? t("editLockedWithChangeRequest")
-              : t("editLocked")}
-          </p>
-        )}
-      </section>
-
-      {!allWithdrawn && (
-        <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="flex gap-3">
-              <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm">
-                <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+            <label className="block">
+              <span className="text-sm font-semibold text-gray-700">
+                {t("lastNameLabel")}
               </span>
-              <div>
-                <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-                  {t("manageEyebrow")}
-                </p>
-                <h2 className="mt-1 text-xl font-semibold text-gray-900">
-                  {hasMultipleChildren
-                    ? t("withdrawAllTitle")
-                    : t("withdrawTitle")}
-                </h2>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
-                  {t("withdrawText")}
-                </p>
-              </div>
-            </div>
+              <input
+                type="text"
+                value={editLastName}
+                onChange={(event) => setEditLastName(event.target.value)}
+                required
+                className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+              />
+            </label>
+          </div>
+          <label className="block">
+            <span className="text-sm font-semibold text-gray-700">
+              {t("phoneOptionalLabel")}
+            </span>
+            <input
+              type="tel"
+              value={editPhone}
+              onChange={(event) => setEditPhone(event.target.value)}
+              className="mt-2 h-10 w-full rounded-lg border border-gray-200 bg-white px-3 text-sm shadow-sm focus:border-gray-400 focus-visible:ring-2 focus-visible:ring-gray-300 focus-visible:outline-none"
+            />
+          </label>
+          <p className="text-sm text-gray-500">{t("emailImmutable")}</p>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+            <button
+              type="submit"
+              disabled={savingEdit}
+              className="h-10 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+            >
+              {savingEdit ? t("saving") : t("save")}
+            </button>
             <button
               type="button"
-              onClick={() => void handleWithdraw()}
-              disabled={withdrawingChild === "__all__"}
-              className="h-10 w-full shrink-0 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:border-[#FF3130]/40 hover:bg-[#FF3130]/5 hover:text-[#9F1F1E] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
+              onClick={handleCancel}
+              disabled={savingEdit}
+              className="h-10 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
             >
-              {withdrawingChild === "__all__"
-                ? t("withdrawing")
-                : hasMultipleChildren
-                  ? t("withdrawAllTitle")
-                  : t("withdrawTitle")}
+              {t("cancel")}
             </button>
           </div>
-        </section>
+        </form>
       )}
-    </div>
+      {!allEditable && !editing ? (
+        <p className="text-sm text-gray-500">
+          {canRequestChange
+            ? t("editLockedWithChangeRequest")
+            : t("editLocked")}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+function GuardianDetails({ status }: Readonly<{ status: StatusResponse }>) {
+  const t = useTranslations("enrollmentStatus");
+  return (
+    <dl className="grid gap-3 text-sm text-gray-700 sm:grid-cols-3">
+      <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          {t("nameLabel")}
+        </dt>
+        <dd className="mt-1 font-semibold text-gray-900">
+          {status.guardian_first_name} {status.guardian_last_name}
+        </dd>
+      </div>
+      <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          {t("emailLabel")}
+        </dt>
+        <dd className="mt-1 font-semibold break-all text-gray-900">
+          {status.guardian_email}
+        </dd>
+      </div>
+      <div className="rounded-xl border border-gray-200 bg-white p-4">
+        <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+          {t("phoneLabel")}
+        </dt>
+        <dd className="mt-1 font-semibold text-gray-900">
+          {status.guardian_phone ?? t("notProvided")}
+        </dd>
+      </div>
+      {status.additional_guardians?.map((guardian: StatusGuardian, index) => (
+        <div
+          key={index}
+          className="rounded-xl border border-gray-200 bg-white p-4 sm:col-span-3"
+        >
+          <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+            {t("additionalGuardiansLabel")}
+          </dt>
+          <dd className="mt-1 font-semibold text-gray-900">
+            {guardian.first_name} {guardian.last_name}
+          </dd>
+          <dd className="mt-1 text-sm text-gray-600">
+            {guardian.email && guardian.email.trim() !== ""
+              ? guardian.email
+              : t("notProvided")}
+            {" · "}
+            {guardian.phone && guardian.phone.trim() !== ""
+              ? guardian.phone
+              : t("notProvided")}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function withdrawButtonLabelKey(
+  withdrawingAll: boolean,
+  hasMultipleChildren: boolean,
+): "withdrawing" | "withdrawAllTitle" | "withdrawTitle" {
+  if (withdrawingAll) return "withdrawing";
+  if (hasMultipleChildren) return "withdrawAllTitle";
+  return "withdrawTitle";
+}
+
+function WithdrawAllSection({
+  allWithdrawn,
+  hasMultipleChildren,
+  withdrawingAll,
+  onWithdraw,
+}: Readonly<{
+  allWithdrawn: boolean;
+  hasMultipleChildren: boolean;
+  withdrawingAll: boolean;
+  onWithdraw: (childId?: string) => Promise<void>;
+}>) {
+  const t = useTranslations("enrollmentStatus");
+  if (allWithdrawn) return null;
+  const handleWithdraw = async () => {
+    await onWithdraw();
+  };
+
+  return (
+    <section className="moto-content-surface rounded-xl border p-5 shadow-sm sm:p-6">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex gap-3">
+          <span className="moto-content-surface flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border text-gray-600 shadow-sm">
+            <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+              {t("manageEyebrow")}
+            </p>
+            <h2 className="mt-1 text-xl font-semibold text-gray-900">
+              {hasMultipleChildren ? t("withdrawAllTitle") : t("withdrawTitle")}
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600">
+              {t("withdrawText")}
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={handleWithdraw}
+          disabled={withdrawingAll}
+          className="h-10 w-full shrink-0 rounded-lg border border-gray-200 bg-white px-4 text-sm font-semibold text-gray-700 shadow-sm hover:border-[#FF3130]/40 hover:bg-[#FF3130]/5 hover:text-[#9F1F1E] focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 sm:w-auto"
+        >
+          {t(withdrawButtonLabelKey(withdrawingAll, hasMultipleChildren))}
+        </button>
+      </div>
+    </section>
   );
 }
 

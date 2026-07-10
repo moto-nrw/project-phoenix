@@ -315,6 +315,8 @@ function toManualPrefetchedData(
     schema: bootstrap.schema,
     offerings: bootstrap.offerings,
     careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
+    collectGradeLevel: bootstrap.collect_grade_level,
+    careOfferingsEnabled: bootstrap.care_offerings_enabled,
     captchaConfig: null,
     legalTexts: {
       ...bootstrap.legal_texts,

@@ -22,6 +22,11 @@ interface TenantResolveResponse {
   nfc_enabled?: boolean;
   parent_messaging_enabled?: boolean;
   display_enabled?: boolean;
+  care_offerings_enabled?: boolean;
+  attendance_web_enabled?: boolean;
+  group_mode?: string;
+  show_timetable_counts?: boolean;
+  waitlist_enabled?: boolean;
 }
 
 /**
@@ -57,6 +62,11 @@ async function fetchTenantInfo(slug: string): Promise<TenantInfo | null> {
       nfcEnabled: data.nfc_enabled === true,
       messagingEnabled: data.parent_messaging_enabled === true,
       displayEnabled: data.display_enabled === true,
+      careOfferingsEnabled: data.care_offerings_enabled !== false,
+      attendanceWebEnabled: data.attendance_web_enabled === true,
+      groupMode: data.group_mode === "open_care" ? "open_care" : "fixed_groups",
+      showTimetableCounts: data.show_timetable_counts !== false,
+      waitlistEnabled: data.waitlist_enabled !== false,
     };
   } catch {
     return null;

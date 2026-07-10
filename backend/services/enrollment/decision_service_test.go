@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,9 +16,12 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/uptrace/bun"
 )
 
 // Decision service integration tests. These hit the real test DB
@@ -43,14 +47,29 @@ type decisionTestEnv struct {
 // approval paths can be exercised without writing config.setting_values
 // rows. Any other key resolves to "" (registry-default behaviour).
 type stubActivationSettings struct {
-	mode string
+	mode                 string
+	notificationMode     string
+	careOfferingsEnabled *bool
 }
 
 func (s stubActivationSettings) ResolveString(_ context.Context, key string) (string, error) {
 	if key == configModel.KeyEnrollmentDefaultActivationMode {
 		return s.mode, nil
 	}
+	if key == configModel.KeyEnrollmentNotifyPerDecision {
+		if s.notificationMode != "" {
+			return s.notificationMode, nil
+		}
+		return configModel.EnrollmentNotifyPerDecisionImmediate, nil
+	}
 	return "", nil
+}
+
+func (s stubActivationSettings) ResolveBool(_ context.Context, key string) (bool, error) {
+	if key == configModel.KeyEnrollmentCareOfferingsEnabled && s.careOfferingsEnabled != nil {
+		return *s.careOfferingsEnabled, nil
+	}
+	return true, nil
 }
 
 func setupDecisionTest(t *testing.T) (*decisionTestEnv, func()) {
@@ -151,6 +170,41 @@ func submitOneChildWithCustomData(
 	require.NoError(t, err)
 	require.Len(t, res.Children, 1)
 	return res.Request.ID, res.Children[0].ID
+}
+
+func submitDecisionSiblings(t *testing.T, env *decisionTestEnv, guardianEmail string) *enrollmentService.SubmitResult {
+	t.Helper()
+	grade := int16(2)
+	result, err := env.requestSvc.Submit(testpkg.TenantContext(1), enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Digest",
+		GuardianEmail:     guardianEmail,
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{
+			{
+				FirstName:        "Lina",
+				LastName:         "Digest",
+				DateOfBirth:      timezone.NewDate(2018, 4, 15),
+				TargetGradeLevel: &grade,
+			},
+			{
+				FirstName:        "Noah",
+				LastName:         "Digest",
+				DateOfBirth:      timezone.NewDate(2019, 7, 2),
+				TargetGradeLevel: &grade,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Children, 2)
+	return result
 }
 
 func publishDecisionScheduleSchema(t *testing.T, env *decisionTestEnv, key, target string) {
@@ -502,6 +556,193 @@ func TestDecisionService_Decide_TerminalTransitionRejected(t *testing.T) {
 	})
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrDecisionAlreadyTerminal))
+}
+
+func TestDecisionService_Decide_ConcurrentSiblingResolutionsEnqueueOneCompleteDigest(t *testing.T) {
+	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
+		notificationMode: configModel.EnrollmentNotifyPerDecisionDigest,
+	})
+	defer cleanup()
+	submitted := submitDecisionSiblings(t, env, "concurrent-digest@example.com")
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	for _, child := range submitted.Children {
+		childID := child.ID
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			errs <- tenant.WithTenantTx(context.Background(), env.db, 1, func(ctx context.Context, _ bun.Tx) error {
+				_, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+					RequestID:  submitted.Request.ID,
+					ChildID:    childID,
+					Status:     enrollmentService.DecisionRejected,
+					ReviewedBy: env.creatorID,
+				})
+				return err
+			})
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	require.Len(t, digests, 1)
+	rejectedNames, ok := digests[0].Payload["rejected_names"].([]string)
+	require.True(t, ok)
+	assert.ElementsMatch(t, []string{"Lina Digest", "Noah Digest"}, rejectedNames)
+}
+
+func TestDecisionService_Decide_PinsDigestModeAcrossSettingChange(t *testing.T) {
+	settings := newStubRequestSettings()
+	settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionDigest
+	env, cleanup := setupDecisionTestWithSettings(t, settings)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	submitted := submitDecisionSiblings(t, env, "pinned-digest@example.com")
+
+	_, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID,
+		Status: enrollmentService.DecisionRejected, ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest))
+
+	settings.mu.Lock()
+	settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionImmediate
+	settings.mu.Unlock()
+	_, err = env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID: submitted.Request.ID, ChildID: submitted.Children[1].ID,
+		Status: enrollmentService.DecisionRejected, ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	assert.Len(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest), 1)
+	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentRejected))
+	stored, err := env.repos.Request.FindByID(ctx, submitted.Request.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.DecisionNotificationMode)
+	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
+}
+
+func TestDecisionService_Decide_PinsImmediateModeAcrossSettingChange(t *testing.T) {
+	settings := newStubRequestSettings()
+	settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionImmediate
+	env, cleanup := setupDecisionTestWithSettings(t, settings)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	submitted := submitDecisionSiblings(t, env, "pinned-immediate@example.com")
+
+	_, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID,
+		Status: enrollmentService.DecisionRejected, ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	settings.mu.Lock()
+	settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionDigest
+	settings.mu.Unlock()
+	_, err = env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID: submitted.Request.ID, ChildID: submitted.Children[1].ID,
+		Status: enrollmentService.DecisionRejected, ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	assert.Len(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentRejected), 2)
+	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest))
+	stored, err := env.repos.Request.FindByID(ctx, submitted.Request.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.DecisionNotificationMode)
+	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionImmediate, *stored.DecisionNotificationMode)
+}
+
+func TestDecisionService_Decide_WaitlistedPromotionVersionsDigestState(t *testing.T) {
+	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
+		notificationMode: configModel.EnrollmentNotifyPerDecisionDigest,
+	})
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	submitted := submitDecisionSiblings(t, env, "digest-transition@example.com")
+
+	_, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentService.DecisionRejected,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	_, err = env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[1].ID,
+		Status:     enrollmentService.DecisionWaitlisted,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	_, err = env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[1].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	// Same-state retry remains a no-op and must not enqueue another digest.
+	_, err = env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[1].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	require.Len(t, digests, 2)
+	assert.NotEqual(t, digests[0].IdempotencyKey, digests[1].IdempotencyKey)
+	assert.NotEmpty(t, digests[0].IdempotencyKey)
+	assert.NotEmpty(t, digests[1].IdempotencyKey)
+}
+
+func TestDecisionService_Decide_ReopenedSameStatusVersionsParentNotification(t *testing.T) {
+	tests := []struct {
+		name string
+		mode string
+		kind string
+	}{
+		{name: "digest", mode: configModel.EnrollmentNotifyPerDecisionDigest, kind: platformModels.EmailKindEnrollmentDecisionDigest},
+		{name: "immediate", mode: configModel.EnrollmentNotifyPerDecisionImmediate, kind: platformModels.EmailKindEnrollmentRejected},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{notificationMode: tt.mode})
+			defer cleanup()
+			ctx := testpkg.TenantContext(1)
+			requestID, childID := submitOneChild(t, env, "repeated-decision-"+tt.name+"@example.com", "Lina", "Wiederholt")
+
+			_, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+				RequestID: requestID, ChildID: childID, Status: enrollmentService.DecisionRejected, ReviewedBy: env.creatorID,
+			})
+			require.NoError(t, err)
+			// Approved change-request application uses this same repository
+			// transition when a rejected child's stored data materially changes.
+			require.NoError(t, env.repos.RequestChild.UpdateStatus(
+				ctx, childID, enrollmentModels.ChildStatusUnderReview, nil, env.creatorID,
+			))
+			_, err = env.decision.Decide(ctx, enrollmentService.DecideInput{
+				RequestID: requestID, ChildID: childID, Status: enrollmentService.DecisionRejected, ReviewedBy: env.creatorID,
+			})
+			require.NoError(t, err)
+
+			notifications := env.outbox.ByKind(tt.kind)
+			require.Len(t, notifications, 2)
+			assert.NotEqual(t, notifications[0].IdempotencyKey, notifications[1].IdempotencyKey)
+		})
+	}
 }
 
 // ---- Decide: approval (the heavy path) ----------------------------------

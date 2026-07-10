@@ -35,6 +35,10 @@ type Request struct {
 	StatusTokenExpires *time.Time     `bun:"status_token_expires" json:"status_token_expires,omitempty"`
 	SubmittedAt        time.Time      `bun:"submitted_at,notnull,default:current_timestamp" json:"submitted_at"`
 	WithdrawnAt        *time.Time     `bun:"withdrawn_at" json:"withdrawn_at,omitempty"`
+
+	// DecisionNotificationMode is pinned when the first parent-notifiable
+	// decision is made. It is internal state, not part of the request API.
+	DecisionNotificationMode *string `bun:"decision_notification_mode" json:"-"`
 }
 
 // Consent-flag keys stored in Request.ConsentFlags. These are the
@@ -91,9 +95,13 @@ type DuplicateChildKey struct {
 type RequestRepository interface {
 	Create(ctx context.Context, req *Request) error
 	FindByID(ctx context.Context, id int64) (*Request, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*Request, error)
 	FindByStatusToken(ctx context.Context, token string) (*Request, error)
 	FindByStatusTokenForUpdate(ctx context.Context, token string) (*Request, error)
 	AcquireSubmissionDedupLock(ctx context.Context, phaseID int64, emailHash uint64) error
+	// PinDecisionNotificationMode atomically stores proposed only while the
+	// request is still unpinned and always returns the effective stored mode.
+	PinDecisionNotificationMode(ctx context.Context, requestID int64, proposed string) (string, error)
 
 	// ListAdmin returns every request matching the filters, newest
 	// first. PR 8's admin review UI consumes this; the parent-facing
@@ -132,6 +140,8 @@ type RequestRepository interface {
 	// phase's care offerings are deleted because of the
 	// request_child_offerings.care_offering_id RESTRICT FK.
 	DeleteByPhaseID(ctx context.Context, phaseID int64) (int, error)
+	ListFullyRejectedBefore(ctx context.Context, cutoff time.Time) ([]int64, error)
+	DeleteByID(ctx context.Context, requestID int64) error
 
 	// ExistsBySchemaID reports whether any request row references the
 	// given schema version. The schema delete path uses this to preserve

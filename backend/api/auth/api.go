@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
 	"errors"
@@ -37,16 +38,17 @@ import (
 
 // Constants for permission strings, headers, route patterns, and error messages (S1192 - avoid duplicate string literals)
 const (
-	permUsersCreate      = "users:create"
-	permUsersManage      = "users:manage"
-	permUsersList        = "users:list"
-	permRolesRead        = "roles:read"
-	permUsersUpdate      = "users:update"
-	permRolesManage      = "roles:manage"
-	headerUserAgent      = "User-Agent"
-	pathPermissionID     = "/{permissionId}"
-	pathPermissions      = "/permissions"
-	errPasswordsNotMatch = "passwords do not match"
+	permUsersCreate                    = "users:create"
+	permUsersManage                    = "users:manage"
+	permUsersList                      = "users:list"
+	permRolesRead                      = "roles:read"
+	permUsersUpdate                    = "users:update"
+	permRolesManage                    = "roles:manage"
+	headerUserAgent                    = "User-Agent"
+	pathPermissionID                   = "/{permissionId}"
+	pathPermissions                    = "/permissions"
+	errPasswordsNotMatch               = "passwords do not match"
+	tenantResolveSettingFailureMessage = "tenant resolve setting failed"
 )
 
 // Resource defines the auth resource
@@ -364,6 +366,28 @@ type TenantResolveResponse struct {
 	// this to hide the sidebar entry / admin page for schools that haven't
 	// turned it on. Defaults to false when the setting is missing/unresolvable.
 	DisplayEnabled bool `json:"display_enabled"`
+	// CareOfferingsEnabled is shell metadata for approved-child offering
+	// corrections. Missing metadata stays enabled for compatibility with older
+	// backends; an explicit settings-resolution error fails closed so the UI
+	// cannot offer a mutation that the authoritative service will reject.
+	CareOfferingsEnabled bool   `json:"care_offerings_enabled"`
+	AttendanceWebEnabled bool   `json:"attendance_web_enabled"`
+	GroupMode            string `json:"group_mode"`
+	ShowTimetableCounts  bool   `json:"show_timetable_counts"`
+	WaitlistEnabled      bool   `json:"waitlist_enabled"`
+}
+
+type tenantShellSettings struct {
+	presenceMode           string
+	studentPhotosEnabled   bool
+	nfcEnabled             bool
+	parentMessagingEnabled bool
+	displayEnabled         bool
+	careOfferingsEnabled   bool
+	attendanceWebEnabled   bool
+	groupMode              string
+	showTimetableCounts    bool
+	waitlistEnabled        bool
 }
 
 // resolveTenant handles GET /auth/tenant/resolve?slug={slug}
@@ -375,17 +399,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	school, err := rs.SchoolService.GetSchoolBySubdomain(r.Context(), slug)
-	if err != nil || school == nil {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
-		return
-	}
-
-	if school.IsDeleted() {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
-		return
-	}
-
-	if !school.Active {
+	if err != nil || school == nil || school.IsDeleted() || !school.Active {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("tenant not found")))
 		return
 	}
@@ -401,39 +415,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		orgName = school.Organization.Name
 	}
 
-	// Resolve presence mode in the school's tenant context. resolveTenant is
-	// unauthenticated, so we don't have a tenant in the request context — use
-	// the ForTenant variant which opens its own tenant transaction.
-	presenceMode := configSvc.ResolvePresenceModeForTenant(r.Context(), rs.SettingsService, school.ID, nil)
-
-	// Same out-of-tenant-middleware story for the photo feature flag: read
-	// the setting through ResolveStringForTenant (opens its own tenant tx)
-	// and parse the boolean string. Failures fall back to false so a
-	// settings outage never auto-enables the avatar UI for opt-out schools.
-	studentPhotosEnabled := false
-	nfcEnabled := false
-	parentMessagingEnabled := false
-	displayEnabled := false
-	if rs.SettingsService != nil {
-		val, err := rs.SettingsService.ResolveStringForTenant(r.Context(), school.ID, configModel.KeyStudentPhotosEnabled)
-		if err == nil {
-			studentPhotosEnabled = val == "true"
-		}
-		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyAttendanceNFCEnabled); err == nil {
-			nfcEnabled = val
-		}
-		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyDisplayEnabled); err == nil {
-			displayEnabled = val
-		}
-		// Messaging compose visibility fails OPEN (counts a resolve error as
-		// enabled), UNLIKE the photos/NFC flags above. It must agree with the unread
-		// badge, the inbox row pills, and the reply path — all centralized in
-		// parentmessaging.MessagingEnabled* — so a config-DB blip cannot half-disable
-		// the UI (button hidden while the badge/inbox still show unread). Messaging is
-		// a soft, non-destructive flag, so brief over-enabling on an outage is the
-		// accepted trade for that consistency.
-		parentMessagingEnabled = parentmessaging.MessagingEnabledForTenant(r.Context(), rs.SettingsService, school.ID, nil)
-	}
+	resolved := rs.resolveTenantShellSettings(r.Context(), school.ID)
 
 	resp := &TenantResolveResponse{
 		TenantID:               school.ID,
@@ -444,14 +426,80 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		OrganizationName:       orgName,
 		Hidden:                 school.Hidden,
 		Settings:               settings,
-		PresenceMode:           presenceMode,
-		StudentPhotosEnabled:   studentPhotosEnabled,
-		NFCEnabled:             nfcEnabled,
-		ParentMessagingEnabled: parentMessagingEnabled,
-		DisplayEnabled:         displayEnabled,
+		PresenceMode:           resolved.presenceMode,
+		StudentPhotosEnabled:   resolved.studentPhotosEnabled,
+		NFCEnabled:             resolved.nfcEnabled,
+		ParentMessagingEnabled: resolved.parentMessagingEnabled,
+		DisplayEnabled:         resolved.displayEnabled,
+		CareOfferingsEnabled:   resolved.careOfferingsEnabled,
+		AttendanceWebEnabled:   resolved.attendanceWebEnabled,
+		GroupMode:              resolved.groupMode,
+		ShowTimetableCounts:    resolved.showTimetableCounts,
+		WaitlistEnabled:        resolved.waitlistEnabled,
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")
+}
+
+func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int64) tenantShellSettings {
+	resolved := tenantShellSettings{
+		presenceMode:         configSvc.ResolvePresenceModeForTenant(ctx, rs.SettingsService, tenantID, nil),
+		careOfferingsEnabled: true,
+		groupMode:            configModel.GroupModeFixedGroups,
+		showTimetableCounts:  true,
+		waitlistEnabled:      true,
+	}
+	if rs.SettingsService == nil {
+		return resolved
+	}
+
+	if value, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, configModel.KeyStudentPhotosEnabled); err == nil {
+		resolved.studentPhotosEnabled = value == "true"
+	}
+	if value, err := rs.SettingsService.ResolveBoolForTenant(ctx, tenantID, configModel.KeyAttendanceNFCEnabled); err == nil {
+		resolved.nfcEnabled = value
+	}
+	if value, err := rs.SettingsService.ResolveBoolForTenant(ctx, tenantID, configModel.KeyDisplayEnabled); err == nil {
+		resolved.displayEnabled = value
+	}
+	resolved.careOfferingsEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEnrollmentCareOfferingsEnabled, false, slog.LevelError)
+	resolved.attendanceWebEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyAttendanceWebEnabled, false, slog.LevelError)
+	resolved.showTimetableCounts = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
+	resolved.waitlistEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)
+	resolved.groupMode = rs.resolveTenantGroupMode(ctx, tenantID)
+
+	// Messaging compose visibility intentionally fails open so it stays in
+	// lockstep with the unread badge, inbox row pills, and reply path.
+	resolved.parentMessagingEnabled = parentmessaging.MessagingEnabledForTenant(ctx, rs.SettingsService, tenantID, nil)
+	return resolved
+}
+
+func (rs *Resource) resolveTenantShellBool(ctx context.Context, tenantID int64, key string, fallback bool, level slog.Level) bool {
+	value, err := rs.SettingsService.ResolveBoolForTenant(ctx, tenantID, key)
+	if err == nil {
+		return value
+	}
+	logTenantResolveSettingFailure(ctx, tenantID, key, err, level)
+	return fallback
+}
+
+func (rs *Resource) resolveTenantGroupMode(ctx context.Context, tenantID int64) string {
+	value, err := rs.SettingsService.ResolveStringForTenant(ctx, tenantID, configModel.KeyGroupMode)
+	if err != nil {
+		logTenantResolveSettingFailure(ctx, tenantID, configModel.KeyGroupMode, err, slog.LevelError)
+		return configModel.GroupModeFixedGroups
+	}
+	if value == configModel.GroupModeOpenCare {
+		return value
+	}
+	return configModel.GroupModeFixedGroups
+}
+
+func logTenantResolveSettingFailure(ctx context.Context, tenantID int64, key string, err error, level slog.Level) {
+	slog.Default().LogAttrs(ctx, level, tenantResolveSettingFailureMessage,
+		slog.Int64("tenant_id", tenantID),
+		slog.String("key", key),
+		slog.String("error", err.Error()))
 }
 
 // SwitchTenantRequest represents the switch-tenant request payload

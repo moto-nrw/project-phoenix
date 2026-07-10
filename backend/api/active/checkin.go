@@ -147,6 +147,9 @@ func (rs *Resource) getAuthorizedStaff(ctx context.Context, accountID int, stude
 	if staffErr != nil || staff == nil {
 		return nil, &checkinError{http.StatusForbidden, "Only staff members can check in students"}
 	}
+	if rs.openCareMode(ctx) {
+		return staff, nil
+	}
 
 	hasAccess, accessErr := rs.ActiveService.CheckTeacherStudentAccess(ctx, staff.ID, studentID)
 	if accessErr != nil {

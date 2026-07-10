@@ -82,6 +82,9 @@ describe("enrollment-submission-api", () => {
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+      schoolClass: undefined,
     });
 
     mockFetch.mockResolvedValueOnce(
@@ -91,6 +94,51 @@ describe("enrollment-submission-api", () => {
       offerings: [],
       careOfferingSelectionMode: "at_least_one",
       careRequired: true,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+      schoolClass: undefined,
+    });
+  });
+
+  it("normalizes enrollment feature flags from enabled, disabled, and missing fields", async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            offerings: [],
+            collect_grade_level: true,
+            care_offerings_enabled: true,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            offerings: [],
+            collect_grade_level: false,
+            care_offerings_enabled: false,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ data: { offerings: [] } }));
+
+    await expect(
+      fetchPublicCareOfferings("tenant", "5"),
+    ).resolves.toMatchObject({
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+    await expect(
+      fetchPublicCareOfferings("tenant", "5"),
+    ).resolves.toMatchObject({
+      collectGradeLevel: false,
+      careOfferingsEnabled: false,
+    });
+    await expect(
+      fetchPublicCareOfferings("tenant", "5"),
+    ).resolves.toMatchObject({
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
     });
   });
 

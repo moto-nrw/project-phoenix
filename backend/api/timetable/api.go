@@ -115,16 +115,16 @@ func (rs *Resource) Router() chi.Router {
 				Post("/re-plan-week", rs.replanWeek)
 			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 				Post("/{id}/start", rs.startInstance)
-			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Post("/{id}/complete", rs.completeInstance)
-			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx, rs.requireWebAttendanceForActiveInstance).
 				Post("/{id}/cancel", rs.cancelInstance)
 
 			// WP-B10: three-field attendance PATCH. Gated on SchedulesManage
 			// like the lifecycle routes. Path params are {instance_id} and
 			// {student_id} — distinct from the {id} param above so they live
 			// in a sibling route subtree.
-			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Patch("/{instance_id}/students/{student_id}", rs.patchInstanceStudent)
 		})
 
@@ -170,13 +170,13 @@ func (rs *Resource) Router() chi.Router {
 				Post("/spontaneous/start", rs.operationsCreateAndStartSpontaneous)
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Post("/instances/{id}/start", rs.operationsStart)
-			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Post("/instances/{id}/complete", rs.operationsComplete)
-			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Post("/instances/{id}/students/{student_id}/check-in", rs.operationsCheckInStudent)
-			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Post("/instances/{id}/students/{student_id}/check-out", rs.operationsCheckOutStudent)
-			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).
 				Patch("/instances/{id}/students/{student_id}/attendance", rs.operationsPatchAttendance)
 		})
 

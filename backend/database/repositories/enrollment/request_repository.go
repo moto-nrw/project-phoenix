@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/uptrace/bun"
 )
@@ -38,12 +39,23 @@ func (r *RequestRepository) Create(ctx context.Context, req *enrollment.Request)
 }
 
 func (r *RequestRepository) FindByID(ctx context.Context, id int64) (*enrollment.Request, error) {
+	return r.findByID(ctx, id, "")
+}
+
+func (r *RequestRepository) FindByIDForUpdate(ctx context.Context, id int64) (*enrollment.Request, error) {
+	return r.findByID(ctx, id, "UPDATE")
+}
+
+func (r *RequestRepository) findByID(ctx context.Context, id int64, lockClause string) (*enrollment.Request, error) {
 	req := new(enrollment.Request)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(req).
 		ModelTableExpr(requestTableExpr).
-		Where(`"request".id = ?`, id).
-		Scan(ctx)
+		Where(`"request".id = ?`, id)
+	if lockClause != "" {
+		query = query.For(lockClause)
+	}
+	err := query.Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("enrollment request %d not found", id)
@@ -211,6 +223,40 @@ func (r *RequestRepository) DeleteByPhaseID(ctx context.Context, phaseID int64) 
 	return int(affected), nil
 }
 
+func (r *RequestRepository) ListFullyRejectedBefore(ctx context.Context, cutoff time.Time) ([]int64, error) {
+	var ids []int64
+	err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`enrollment.requests AS "request"`).
+		ColumnExpr(`"request".id`).
+		Join(`JOIN enrollment.request_children AS rc ON rc.request_id = "request".id`).
+		GroupExpr(`"request".id`).
+		Having(`COUNT(rc.id) > 0`).
+		Having(`BOOL_AND(rc.status = ?)`, enrollment.ChildStatusRejected).
+		Having(`BOOL_AND(rc.reviewed_at IS NOT NULL AND rc.reviewed_at < ?)`, cutoff).
+		OrderExpr(`"request".id`).
+		Scan(ctx, &ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list fully rejected enrollment requests: %w", err)
+	}
+	return ids, nil
+}
+
+func (r *RequestRepository) DeleteByID(ctx context.Context, requestID int64) error {
+	result, err := base.GetDB(ctx, r.db).NewDelete().
+		Model((*enrollment.Request)(nil)).
+		ModelTableExpr(requestTableExpr).
+		Where(`"request".id = ?`, requestID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete enrollment request: %w", err)
+	}
+	affected, _ := result.RowsAffected()
+	if affected != 1 {
+		return errors.New("enrollment request not found for cleanup")
+	}
+	return nil
+}
+
 // ExistsBySchemaID returns true if any request row references the
 // schema version. Used to keep historical enrollment submissions
 // auditable when admins delete unused form templates.
@@ -247,6 +293,37 @@ func (r *RequestRepository) AcquireSubmissionDedupLock(ctx context.Context, phas
 		return fmt.Errorf("failed to acquire enrollment submission dedup lock: %w", err)
 	}
 	return nil
+}
+
+// PinDecisionNotificationMode freezes the notification mode for a request.
+// COALESCE makes the first successful pin win even when sibling decisions race;
+// later calls return the existing value without overwriting it.
+func (r *RequestRepository) PinDecisionNotificationMode(ctx context.Context, requestID int64, proposed string) (string, error) {
+	switch proposed {
+	case configModel.EnrollmentNotifyPerDecisionDigest, configModel.EnrollmentNotifyPerDecisionImmediate:
+		// Valid persisted modes.
+	default:
+		return "", fmt.Errorf("invalid enrollment decision notification mode %q", proposed)
+	}
+
+	var mode string
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		UPDATE enrollment.requests
+		SET decision_notification_mode = COALESCE(decision_notification_mode, ?),
+			updated_at = CASE
+				WHEN decision_notification_mode IS NULL THEN NOW()
+				ELSE updated_at
+			END
+		WHERE id = ?
+		RETURNING decision_notification_mode
+	`, proposed, requestID).Scan(ctx, &mode)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", fmt.Errorf("enrollment request %d not found for notification mode pin", requestID)
+		}
+		return "", fmt.Errorf("failed to pin enrollment decision notification mode: %w", err)
+	}
+	return mode, nil
 }
 
 func (r *RequestRepository) findByStatusToken(ctx context.Context, token, lockClause string) (*enrollment.Request, error) {

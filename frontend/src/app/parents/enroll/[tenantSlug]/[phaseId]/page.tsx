@@ -37,7 +37,8 @@ export default function ParentEnrollFormPage({ params }: PageProps) {
   const handleSubmitted = (statusURL: string) => {
     try {
       const u = new URL(statusURL);
-      router.push(`${u.pathname}?submitted=1`);
+      u.searchParams.set("submitted", "1");
+      router.push(`${u.pathname}?${u.searchParams.toString()}`);
     } catch {
       globalThis.window.location.href = statusURL;
     }

@@ -138,15 +138,16 @@ type Factory struct {
 	Display display.Service
 
 	// Enrollment domain (parent-enrollment PR 5+).
-	EnrollmentFormSchema    enrollment.FormSchemaService
-	EnrollmentCareOffering  enrollment.CareOfferingService
-	EnrollmentCaptcha       *enrollment.CaptchaService
-	EnrollmentRequest       enrollment.RequestService
-	EnrollmentPhase         enrollment.PhaseService
-	EnrollmentDecision      enrollment.DecisionService
-	EnrollmentReport        enrollment.ReportService
-	EnrollmentRollover      enrollment.RolloverService
-	EnrollmentChangeRequest enrollment.ChangeRequestService
+	EnrollmentFormSchema      enrollment.FormSchemaService
+	EnrollmentCareOffering    enrollment.CareOfferingService
+	EnrollmentCaptcha         *enrollment.CaptchaService
+	EnrollmentRequest         enrollment.RequestService
+	EnrollmentPhase           enrollment.PhaseService
+	EnrollmentDecision        enrollment.DecisionService
+	EnrollmentReport          enrollment.ReportService
+	EnrollmentRollover        enrollment.RolloverService
+	EnrollmentChangeRequest   enrollment.ChangeRequestService
+	EnrollmentRejectedCleanup enrollment.RejectedEnrollmentCleaner
 
 	// Parent (cross-tenant guardian portal - PR 9)
 	Parent parent.Service
@@ -755,6 +756,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		platformModels.EmailKindEnrollmentApproved:                 enrollment.NewEnrollmentApprovedRenderer,
 		platformModels.EmailKindEnrollmentWaitlisted:               enrollment.NewEnrollmentWaitlistedRenderer,
 		platformModels.EmailKindEnrollmentRejected:                 enrollment.NewEnrollmentRejectedRenderer,
+		platformModels.EmailKindEnrollmentDecisionDigest:           enrollment.NewEnrollmentDecisionDigestRenderer,
 		platformModels.EmailKindEnrollmentChangeRequestSubmitted:   enrollment.NewEnrollmentChangeRequestSubmittedRenderer,
 		platformModels.EmailKindEnrollmentChangeRequestQuestion:    enrollment.NewEnrollmentChangeRequestQuestionRenderer,
 		platformModels.EmailKindEnrollmentChangeRequestParentReply: enrollment.NewEnrollmentChangeRequestParentReplyRenderer,
@@ -1017,6 +1019,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                       db,
 		Logger:                   logger.With("service", "enrollment-request"),
 	})
+	enrollmentRejectedCleanupService := enrollment.NewRejectedEnrollmentCleanupService(
+		repos.Request,
+		repos.RequestChild,
+		repos.LateInvite,
+		repos.EmailOutbox,
+		settingsService,
+		db,
+		logger.With("service", "enrollment-rejected-cleanup"),
+	)
 
 	enrollmentPhaseService := enrollment.NewPhaseService(enrollment.PhaseServiceConfig{
 		Repo:             repos.Phase,
@@ -1380,15 +1391,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EmailOutboxWorker:     emailOutboxWorker,
 		EmailTemplateRegistry: emailTemplateRegistry,
 
-		EnrollmentFormSchema:    enrollmentFormSchemaService,
-		EnrollmentCareOffering:  enrollmentCareOfferingService,
-		EnrollmentCaptcha:       enrollmentCaptchaService,
-		EnrollmentRequest:       enrollmentRequestService,
-		EnrollmentPhase:         enrollmentPhaseService,
-		EnrollmentDecision:      enrollmentDecisionService,
-		EnrollmentReport:        enrollmentReportService,
-		EnrollmentRollover:      enrollmentRolloverService,
-		EnrollmentChangeRequest: enrollmentChangeRequestService,
+		EnrollmentFormSchema:      enrollmentFormSchemaService,
+		EnrollmentCareOffering:    enrollmentCareOfferingService,
+		EnrollmentCaptcha:         enrollmentCaptchaService,
+		EnrollmentRequest:         enrollmentRequestService,
+		EnrollmentPhase:           enrollmentPhaseService,
+		EnrollmentDecision:        enrollmentDecisionService,
+		EnrollmentReport:          enrollmentReportService,
+		EnrollmentRollover:        enrollmentRolloverService,
+		EnrollmentChangeRequest:   enrollmentChangeRequestService,
+		EnrollmentRejectedCleanup: enrollmentRejectedCleanupService,
 
 		Parent:             parentService,
 		Messaging:          messagingService,
