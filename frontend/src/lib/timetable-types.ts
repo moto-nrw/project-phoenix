@@ -448,7 +448,10 @@ type SubstituteAction =
   | "already_substituted"
   | "already_on_instance"
   | "marked_absent"
-  | "already_absent";
+  | "already_absent"
+  // Returned by POST /instances/{id}/deviations when a saved day-wide absence is
+  // restored (staff marked present again) — see affectedInstanceOf (#1840).
+  | "marked_present";
 
 interface SubstituteAffectedInstance {
   instanceId: string;

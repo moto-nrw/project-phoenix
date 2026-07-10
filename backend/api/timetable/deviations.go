@@ -155,6 +155,19 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorNotFound(errors.New("instance not found")))
 			return
 		}
+		// A concurrent PUT may have MOVED the block to another day between the
+		// initial read and this locked reload. The day lock we hold is keyed on the
+		// stale date, so cancelling the moved block now would (a) cancel it without
+		// holding its real day's lock and (b) break the ascending day-lock ordering
+		// the other flows rely on to avoid deadlock. Mirror the non-cancel path and
+		// abort with instance_moved so the client reopens it on its new day (#1840).
+		if locked.Date != instance.Date {
+			common.RenderError(w, r, common.ErrorConflictWithCode(
+				errors.New("block was changed concurrently; reopen it and try again"),
+				"instance_moved",
+			))
+			return
+		}
 		// A concurrent PUT may have moved the block to a past day; cancelling it
 		// then would rewrite history. The initial past-date guard above ran against
 		// a possibly-stale read, so re-check under the lock before delegating.

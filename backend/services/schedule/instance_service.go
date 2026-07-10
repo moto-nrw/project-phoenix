@@ -218,6 +218,25 @@ func (s *instanceService) getLogger() *slog.Logger {
 	return cmp.Or(s.deps.Logger, slog.Default())
 }
 
+// rejectSchulhofRoom returns ErrSchulhofSupervisionRequired when the given room
+// is the permanent Schulhof room, and a ScheduleError when the room can't be
+// loaded. Timetable instances must never spin up a second active group in
+// Schulhof — staff use the dedicated Schulhof supervision flow instead. Shared
+// by Start's pre-lock fast-fail and its authoritative post-reload re-check.
+func (s *instanceService) rejectSchulhofRoom(ctx context.Context, roomID int64) error {
+	room, err := s.deps.RoomRepo.FindByID(ctx, roomID)
+	if err != nil {
+		return &ScheduleError{Op: "start instance: load room", Err: err}
+	}
+	if room == nil {
+		return &ScheduleError{Op: "start instance: load room", Err: errors.New("instance room not found")}
+	}
+	if room.Name == constants.SchulhofRoomName {
+		return ErrSchulhofSupervisionRequired
+	}
+	return nil
+}
+
 // Start implements planned → active. Runs inside the caller's tenant tx
 // (TenantTxMiddleware); any failure rolls back the whole thing — no dangling
 // active.group, no half-linked instance, no stale supervisors.
@@ -232,17 +251,11 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 
 	// Reject the permanent Schulhof room before taking any lock — timetable
 	// instances must not spin up a second active group there; staff use the
-	// dedicated Schulhof supervision flow instead. The room assignment is not
-	// touched by day-wide deviations, so this is safe to read pre-lock.
-	room, err := s.deps.RoomRepo.FindByID(ctx, instance.RoomID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "start instance: load room", Err: err}
-	}
-	if room == nil {
-		return nil, &ScheduleError{Op: "start instance: load room", Err: errors.New("instance room not found")}
-	}
-	if room.Name == constants.SchulhofRoomName {
-		return nil, ErrSchulhofSupervisionRequired
+	// dedicated Schulhof supervision flow instead. This is a fast-fail on the
+	// pre-lock read; it is re-checked authoritatively after the locked reload
+	// below (a concurrent PUT can MOVE the block into Schulhof while we wait).
+	if err := s.rejectSchulhofRoom(ctx, instance.RoomID); err != nil {
+		return nil, err
 	}
 
 	// Serialize against concurrent day-wide staffing saves (/substitute,
@@ -263,6 +276,15 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	}
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot start instance in status %q", ErrInvalidInstanceTransition, instance.Status)
+	}
+
+	// Re-validate the room against the reloaded instance. PUT /instances/{id}
+	// takes the same (tenant, date) day lock and can MOVE the block into the
+	// permanent Schulhof room while Start is waiting on that lock; only the
+	// post-lock room_id is authoritative, so the pre-lock check above is not
+	// enough on its own (#1840, review follow-up).
+	if err := s.rejectSchulhofRoom(ctx, instance.RoomID); err != nil {
+		return nil, err
 	}
 
 	// Conflict detection is read-only + advisory. Warnings reflect state
@@ -784,11 +806,23 @@ func (s *instanceService) ClearUnderstaffedAckIfStaffed(ctx context.Context, ins
 //
 // Vertretungsplan integrity (#1840): the Betreuungsplan editor sends every
 // staff row as a plain staff_id, so a blind wipe-and-recreate would discard the
-// per-row deviation state (is_substitute / is_absent / absence_reason) plus the
-// is_primary and room_id overrides — an unrelated title or room edit would turn
-// absent staff and their substitutes back into ordinary present staff. To avoid
-// that, we snapshot the existing rows and carry that metadata forward for any
-// staff member who is still present in the new list.
+// per-row metadata. Two kinds of metadata need different treatment:
+//
+//   - is_primary and the room_id override are PLANNED attributes the editor
+//     cannot re-express (it only sends staff_ids), so they are always carried
+//     forward for a staff member who is still present — losing them would leave
+//     the block without a primary or reset a Lernzeit room split.
+//   - the DEVIATION state (is_substitute / is_absent / absence_reason) is only
+//     carried forward when the roster MEMBERSHIP is unchanged (a title/room/
+//     student-only edit): keeping it then is what stops an unrelated edit from
+//     turning absent staff and their substitutes back into ordinary present
+//     staff. But when the staff set is intentionally changed here, the admin is
+//     re-planning the base roster, so the prior deviations no longer describe it.
+//     Carrying them onto the recreated rows would leave a regular staff member
+//     stored as a substitute, corrupt the planned headcount, and make it
+//     impossible to promote a former substitute back to planned staff through
+//     this editor — so the deviation flags are dropped and every row is
+//     recreated as plain planned staff (#1840, review follow-up).
 func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instanceID int64, staffIDs, studentIDs []int64) error {
 	prior, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
 	if err != nil {
@@ -799,6 +833,19 @@ func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instan
 		priorByStaff[row.StaffID] = row
 	}
 
+	// Roster membership is unchanged iff the new set equals the prior set
+	// (staff_id is unique per instance, so a length + membership check suffices).
+	newStaffIDs := sliceutil.UniquePositive(staffIDs)
+	rosterUnchanged := len(newStaffIDs) == len(priorByStaff)
+	if rosterUnchanged {
+		for _, staffID := range newStaffIDs {
+			if _, ok := priorByStaff[staffID]; !ok {
+				rosterUnchanged = false
+				break
+			}
+		}
+	}
+
 	if err := s.deps.InstanceStaffRepo.DeleteByInstanceID(ctx, instanceID); err != nil {
 		return &ScheduleError{Op: "update instance: clear staff", Err: err}
 	}
@@ -806,14 +853,16 @@ func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instan
 		return &ScheduleError{Op: "update instance: clear students", Err: err}
 	}
 	tenantID := tenant.FromContext(ctx)
-	for _, staffID := range sliceutil.UniquePositive(staffIDs) {
+	for _, staffID := range newStaffIDs {
 		row := &scheduleModel.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
 		if p := priorByStaff[staffID]; p != nil {
 			row.IsPrimary = p.IsPrimary
-			row.IsSubstitute = p.IsSubstitute
-			row.IsAbsent = p.IsAbsent
-			row.AbsenceReason = p.AbsenceReason
 			row.RoomID = p.RoomID
+			if rosterUnchanged {
+				row.IsSubstitute = p.IsSubstitute
+				row.IsAbsent = p.IsAbsent
+				row.AbsenceReason = p.AbsenceReason
+			}
 		}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {

@@ -476,8 +476,16 @@ function VertretungsplanContent() {
         // Gaps are never fetched for a fully-past window (the endpoint rejects a
         // past date). Without treating that skipped query as unavailable, the KPIs
         // would render a fabricated "0 open / 0 acknowledged" for historical views
-        // even though the figures were never loaded (#1840).
-        gapsUnavailable={!loadGaps || gapsErrorMessage !== null}
+        // even though the figures were never loaded (#1840). A past DAY inside the
+        // current week is the same trap: loadGaps stays true because the week still
+        // reaches today, but the request start is clamped to today (gapsFromISO), so
+        // filtering the response for that earlier day yields empty arrays the figures
+        // were never loaded for — mark it unavailable too (#1840, review follow-up).
+        gapsUnavailable={
+          !loadGaps ||
+          gapsErrorMessage !== null ||
+          (view === "day" && dayISO < today)
+        }
       />
 
       <WeeklyCalendarGrid
