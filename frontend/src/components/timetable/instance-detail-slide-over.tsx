@@ -96,7 +96,7 @@ const CONFIRM_DIALOGS: Record<
     title: "Abgesagten Termin löschen?",
     body: "Der abgesagte Termin wird dauerhaft entfernt.",
     confirmText: "Löschen",
-    confirmButtonClass: "bg-red-600 hover:bg-red-700",
+    confirmButtonClass: "bg-[#FF3130] hover:bg-[#CC2626]",
   },
 };
 
@@ -801,7 +801,7 @@ function StudentGroup({
         return (
           <div
             key={student.studentId}
-            className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 shadow-sm ${attendanceTone(
+            className={`flex flex-wrap items-center justify-between gap-2 ${NESTED_SURFACE_BASE} px-3 py-2 ${attendanceTone(
               student.status,
             )}`}
           >
@@ -888,6 +888,14 @@ function EmptyLine({ children }: { children: React.ReactNode }) {
   );
 }
 
+/**
+ * Structural radius/shadow shared by PersonLine and the StudentGroup row —
+ * same shape as `timetableNestedSurface`, but callers layer their own
+ * tone-conditional border/bg color on top (nested surface tokens are
+ * gray/white only).
+ */
+const NESTED_SURFACE_BASE = "rounded-xl border shadow-sm";
+
 type IconActionTone = "green" | "red" | "slate";
 
 interface IconActionButtonProps {
@@ -916,13 +924,15 @@ function IconActionButton({
   disabled,
 }: IconActionButtonProps) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon"
       onClick={onClick}
       disabled={disabled || isLoading}
       title={label}
       aria-label={label}
-      className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${ICON_ACTION_PALETTE[tone]}`}
+      className={`rounded-full border ${ICON_ACTION_PALETTE[tone]}`}
     >
       {isLoading ? (
         <span
@@ -932,7 +942,7 @@ function IconActionButton({
       ) : (
         <span aria-hidden>{icon}</span>
       )}
-    </button>
+    </Button>
   );
 }
 
@@ -948,7 +958,7 @@ function PersonLine({
   const labels = meta.filter(Boolean);
   return (
     <div
-      className={`rounded-xl border px-3 py-2 shadow-sm ${
+      className={`${NESTED_SURFACE_BASE} px-3 py-2 ${
         danger
           ? "border-[#FF3130]/20 bg-[#FF3130]/10"
           : "border-gray-200 bg-white"

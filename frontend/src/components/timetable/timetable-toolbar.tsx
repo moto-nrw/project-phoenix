@@ -10,21 +10,16 @@
  * to fit on one line at desktop widths.
  */
 
-import { useRef, useState } from "react";
 import type { ReactNode } from "react";
-import {
-  CalendarRange,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  MoreVertical,
-  Plus,
-} from "lucide-react";
+import { CalendarRange, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
-import { useClickOutside } from "~/lib/hooks/use-click-outside";
 import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { timetablePopoverSurface, timetableSurface } from "./timetable-style";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
+import { timetableSurface } from "./timetable-style";
 
 export type TimetableView = "week" | "month" | "year" | "series";
 
@@ -162,11 +157,11 @@ export function TimetableToolbar({
           {!isOnToday && (
             <Button
               type="button"
-              variant="ghost"
+              variant="outline"
               size="compact"
               onClick={onToday}
               disabled={navDisabled}
-              className="order-4 col-span-3 justify-self-center border border-gray-200 sm:order-3"
+              className="order-4 col-span-3 justify-self-center sm:order-3"
             >
               Heute
             </Button>
@@ -194,10 +189,13 @@ export function TimetableToolbar({
           )}
 
           {showOverflow && (
-            <ToolbarOverflowMenu
-              density={showDensity ? density : undefined}
-              onDensityChange={showDensity ? onDensityChange : undefined}
-              onManagePeriods={onManagePeriods}
+            <OverflowMenu
+              ariaLabel="Weitere Optionen"
+              items={buildToolbarOverflowItems({
+                density: showDensity ? density : undefined,
+                onDensityChange: showDensity ? onDensityChange : undefined,
+                onManagePeriods,
+              })}
             />
           )}
         </div>
@@ -207,11 +205,11 @@ export function TimetableToolbar({
 }
 
 /**
- * General toolbar overflow menu ("Weitere Optionen"). Carries the week-view
- * density picker (where it applies) and the Verwaltung section that opens
- * period management from every view.
+ * Builds the toolbar's overflow-menu entries ("Weitere Optionen"). Carries
+ * the week-view density picker (where it applies) and the Verwaltung
+ * section that opens period management from every view.
  */
-function ToolbarOverflowMenu({
+function buildToolbarOverflowItems({
   density,
   onDensityChange,
   onManagePeriods,
@@ -219,93 +217,29 @@ function ToolbarOverflowMenu({
   density?: WeekDensity;
   onDensityChange?: (next: WeekDensity) => void;
   onManagePeriods?: () => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement | null>(null);
+}): OverflowMenuEntry[] {
+  const entries: OverflowMenuEntry[] = [];
 
-  useClickOutside(containerRef, () => setOpen(false), open);
+  if (density && onDensityChange) {
+    entries.push({ kind: "header", label: "Zeilenhöhe" });
+    for (const opt of DENSITY_OPTIONS) {
+      entries.push({
+        kind: "radio",
+        label: opt.label,
+        checked: density === opt.value,
+        onClick: () => onDensityChange(opt.value),
+      });
+    }
+  }
 
-  const showDensitySection = Boolean(density && onDensityChange);
+  if (onManagePeriods) {
+    entries.push({ kind: "header", label: "Verwaltung" });
+    entries.push({
+      label: "Schuljahre & Ferien",
+      icon: <CalendarRange className="h-4 w-4" aria-hidden />,
+      onClick: onManagePeriods,
+    });
+  }
 
-  return (
-    <div className="relative" ref={containerRef}>
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon"
-        onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-label="Weitere Optionen"
-      >
-        <MoreVertical className="h-4 w-4" />
-      </Button>
-
-      {open && (
-        <div
-          role="menu"
-          className={`absolute right-0 z-30 mt-2 w-56 ${timetablePopoverSurface}`}
-        >
-          {showDensitySection && (
-            <>
-              <div className="border-b border-gray-100 px-3 py-2">
-                <p className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
-                  Zeilenhöhe
-                </p>
-              </div>
-              {DENSITY_OPTIONS.map((opt) => {
-                const isActive = density === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={isActive}
-                    onClick={() => {
-                      onDensityChange?.(opt.value);
-                      setOpen(false);
-                    }}
-                    className={`flex w-full items-center justify-between px-3 py-2 text-xs font-medium transition-colors hover:bg-gray-50 ${
-                      isActive ? "text-gray-900" : "text-gray-600"
-                    }`}
-                  >
-                    <span>{opt.label}</span>
-                    {isActive && (
-                      <Check className="h-4 w-4 text-gray-900" aria-hidden />
-                    )}
-                  </button>
-                );
-              })}
-            </>
-          )}
-
-          {onManagePeriods && (
-            <>
-              <div
-                className={`border-b border-gray-100 px-3 py-2 ${
-                  showDensitySection ? "border-t" : ""
-                }`}
-              >
-                <p className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
-                  Verwaltung
-                </p>
-              </div>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={() => {
-                  setOpen(false);
-                  onManagePeriods();
-                }}
-                className="flex w-full items-center gap-2 px-3 py-2 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 hover:text-gray-900"
-              >
-                <CalendarRange className="h-4 w-4 text-gray-500" aria-hidden />
-                Schuljahre &amp; Ferien
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
+  return entries;
 }

@@ -31,6 +31,9 @@ export const timetableWarningPanel =
 
 export const timetableRequiredMark = "ml-0.5 text-[#FF3130]";
 
+/** Readable dark-amber text pairing with white/gray-50 backgrounds. */
+export const timetableWarningText = "text-[#92400E]";
+
 export const timetableStatusColors = {
   active: LOCATION_COLORS.GROUP_ROOM,
   cancelled: LOCATION_COLORS.HOME,

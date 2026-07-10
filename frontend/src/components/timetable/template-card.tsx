@@ -96,7 +96,7 @@ export function TemplateCard({
             return (
               <div
                 key={wd}
-                className={`flex h-6 w-7 items-center justify-center rounded-lg text-[10px] font-semibold ${
+                className={`flex h-6 w-7 items-center justify-center rounded-full text-[10px] font-semibold ${
                   active
                     ? "bg-gray-900 text-white"
                     : "bg-gray-100 text-gray-400"

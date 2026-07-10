@@ -10,7 +10,11 @@ import {
   toISODate,
 } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
-import { timetableSurface, timetableToneColors } from "./timetable-style";
+import {
+  timetableSurface,
+  timetableToneColors,
+  timetableWarningText,
+} from "./timetable-style";
 
 interface YearPlannerGridProps {
   months: Date[];
@@ -89,7 +93,9 @@ export function YearPlannerGrid({
                 </p>
               </div>
               {conflictCount > 0 && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-[#EAB308]/20 bg-[#EAB308]/10 px-2 py-1 text-[10px] font-semibold text-[#92400E]">
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full border border-[#EAB308]/20 bg-[#EAB308]/10 px-2 py-1 text-[10px] font-semibold ${timetableWarningText}`}
+                >
                   <AlertTriangle className="h-3 w-3" aria-hidden />
                   {conflictCount}
                 </span>
@@ -135,7 +141,7 @@ export function YearPlannerGrid({
                     key={iso}
                     type="button"
                     onClick={() => onDayClick(iso)}
-                    className={`relative flex aspect-square min-h-8 items-center justify-center rounded-lg text-[11px] font-medium tabular-nums transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                    className={`relative flex aspect-square min-h-8 items-center justify-center rounded-md text-[11px] font-medium tabular-nums transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
                       outsideMonth ? "text-gray-300" : "text-gray-700"
                     } ${dayInstances.length > 0 ? "border border-gray-200 bg-white shadow-sm" : ""}`}
                     aria-label={[

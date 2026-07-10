@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { MoreVertical } from "lucide-react";
+import { Check, MoreVertical } from "lucide-react";
 
 export interface OverflowMenuItem {
   /** Visible label. */
@@ -27,9 +27,27 @@ export interface OverflowMenuItem {
   readonly disabled?: boolean;
 }
 
+/** Non-interactive uppercase label grouping the entries below it. */
+interface OverflowMenuHeader {
+  readonly kind: "header";
+  readonly label: string;
+}
+
+/** Single-select row with a checkmark shown when active (role="menuitemradio"). */
+interface OverflowMenuRadioItem {
+  readonly kind: "radio";
+  readonly label: string;
+  readonly checked: boolean;
+  readonly onClick: () => void;
+  readonly disabled?: boolean;
+}
+
+export type OverflowMenuEntry =
+  OverflowMenuItem | OverflowMenuHeader | OverflowMenuRadioItem;
+
 interface OverflowMenuProps {
   /** Menu items to render. Empty array → renders nothing. */
-  readonly items: readonly OverflowMenuItem[];
+  readonly items: readonly OverflowMenuEntry[];
   /** Accessible label for the trigger button. */
   readonly ariaLabel?: string;
   /** Optional class for the trigger button (size/spacing tweaks). */
@@ -144,7 +162,8 @@ export function OverflowMenu({
   };
 
   const onItemKey =
-    (item: OverflowMenuItem) => (event: KeyboardEvent<HTMLButtonElement>) => {
+    (item: OverflowMenuItem | OverflowMenuRadioItem) =>
+    (event: KeyboardEvent<HTMLButtonElement>) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         if (item.disabled) return;
@@ -188,7 +207,49 @@ export function OverflowMenu({
                 matchContainerSelector ? "" : "min-w-[220px]"
               }`}
             >
-              {items.map((item, index) => {
+              {items.map((entry, index) => {
+                if ("kind" in entry && entry.kind === "header") {
+                  return (
+                    <div
+                      key={`header-${entry.label}-${index}`}
+                      className={`px-4 py-2 ${index > 0 ? "border-t border-gray-100" : ""}`}
+                    >
+                      <p className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+                        {entry.label}
+                      </p>
+                    </div>
+                  );
+                }
+
+                if ("kind" in entry && entry.kind === "radio") {
+                  return (
+                    <button
+                      key={`radio-${entry.label}-${index}`}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={entry.checked}
+                      disabled={entry.disabled}
+                      onClick={() => {
+                        if (entry.disabled) return;
+                        setIsOpen(false);
+                        entry.onClick();
+                      }}
+                      onKeyDown={onItemKey(entry)}
+                      className={`flex w-full items-center justify-between px-4 py-2 text-left text-sm font-medium transition-colors ${
+                        entry.disabled
+                          ? "cursor-not-allowed opacity-50"
+                          : "hover:bg-gray-50 active:bg-gray-100"
+                      } ${entry.checked ? "text-gray-900" : "text-gray-700"}`}
+                    >
+                      <span>{entry.label}</span>
+                      {entry.checked ? (
+                        <Check className="size-4 text-gray-900" aria-hidden />
+                      ) : null}
+                    </button>
+                  );
+                }
+
+                const item = entry;
                 const colorClass = item.destructive
                   ? "text-red-600"
                   : "text-gray-700";

@@ -1992,7 +1992,7 @@ export function TimetableEventModal({
                           key={option.value}
                           type="button"
                           onClick={() => update("type", option.value)}
-                          className={`flex flex-col items-start gap-0.5 rounded-xl border border-l-[3px] px-3 py-2 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                          className={`flex flex-col items-start gap-0.5 rounded-lg border border-l-[3px] px-3 py-2 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
                             isActive
                               ? "border-gray-300 bg-white"
                               : "border-gray-200 bg-white hover:bg-gray-50"
@@ -2022,19 +2022,17 @@ export function TimetableEventModal({
                     {WEEKDAYS.map((iso) => {
                       const isActive = form.weekdays.includes(iso);
                       return (
-                        <button
+                        <Button
                           key={iso}
                           type="button"
+                          variant={isActive ? "primary" : "outline"}
+                          size="compact"
+                          className="min-w-[44px]"
                           onClick={() => toggleWeekday(iso)}
-                          className={`min-w-[44px] rounded-lg border px-3 py-1.5 text-sm font-semibold shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                            isActive
-                              ? "border-gray-900 bg-gray-900 text-white"
-                              : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
-                          }`}
                           aria-pressed={isActive}
                         >
                           {weekdayLabel(iso)}
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>
