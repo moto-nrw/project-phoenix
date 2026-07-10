@@ -104,6 +104,20 @@ type cleanupOutboxStub struct {
 	deleted []int64
 }
 
+type cleanupLateInvitesStub struct {
+	counts  map[int64]int64
+	errFor  map[int64]error
+	deleted []int64
+}
+
+func (s *cleanupLateInvitesStub) DeleteByUsedRequestID(_ context.Context, requestID int64) (int64, error) {
+	if err := s.errFor[requestID]; err != nil {
+		return 0, err
+	}
+	s.deleted = append(s.deleted, requestID)
+	return s.counts[requestID], nil
+}
+
 func (s *cleanupOutboxStub) DeleteByRelatedEntity(_ context.Context, relatedType string, id int64) (int64, error) {
 	if relatedType != platformModels.EmailRelatedTypeEnrollmentRequest {
 		return 0, errors.New("unexpected related type")
@@ -115,17 +129,52 @@ func (s *cleanupOutboxStub) DeleteByRelatedEntity(_ context.Context, relatedType
 	return s.counts[id], nil
 }
 
-func cleanupServiceForTest(requests *cleanupRequestStub, children *cleanupChildrenStub, outbox *cleanupOutboxStub, settings cleanupSettingsStub) *rejectedEnrollmentCleanupService {
+func cleanupServiceForTest(requests *cleanupRequestStub, children *cleanupChildrenStub, outbox *cleanupOutboxStub, settings cleanupSettingsStub, lateInviteStubs ...*cleanupLateInvitesStub) *rejectedEnrollmentCleanupService {
+	lateInvites := &cleanupLateInvitesStub{counts: map[int64]int64{}, errFor: map[int64]error{}}
+	if len(lateInviteStubs) > 0 && lateInviteStubs[0] != nil {
+		lateInvites = lateInviteStubs[0]
+	}
 	return &rejectedEnrollmentCleanupService{
-		requests: requests,
-		children: children,
-		outbox:   outbox,
-		settings: settings,
-		logger:   slog.New(slog.DiscardHandler),
+		requests:    requests,
+		children:    children,
+		lateInvites: lateInvites,
+		outbox:      outbox,
+		settings:    settings,
+		logger:      slog.New(slog.DiscardHandler),
 		runInTx: func(ctx context.Context, fn func(context.Context) error) error {
 			return fn(ctx)
 		},
 	}
+}
+
+func TestRejectedEnrollmentCleanup_DeletesUsedLateInvites(t *testing.T) {
+	requests := &cleanupRequestStub{ids: []int64{11}, deleteErr: map[int64]error{}}
+	children := eligibleCleanupChildren(11)
+	lateInvites := &cleanupLateInvitesStub{counts: map[int64]int64{11: 2}, errFor: map[int64]error{}}
+	outbox := &cleanupOutboxStub{counts: map[int64]int64{11: 3}, errFor: map[int64]error{}}
+
+	result, err := cleanupServiceForTest(requests, children, outbox, cleanupSettingsStub{days: 30}, lateInvites).CleanupRejectedEnrollments(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, RejectedEnrollmentCleanupResult{DeletedRequests: 1, DeletedLateInvites: 2, DeletedOutboxRows: 3}, result)
+	assert.Equal(t, []int64{11}, lateInvites.deleted)
+	assert.Equal(t, []int64{11}, outbox.deleted)
+	assert.Equal(t, []int64{11}, requests.deleted)
+}
+
+func TestRejectedEnrollmentCleanup_StopsOnLateInviteDeleteFailure(t *testing.T) {
+	requests := &cleanupRequestStub{ids: []int64{11}, deleteErr: map[int64]error{}}
+	children := eligibleCleanupChildren(11)
+	lateInvites := &cleanupLateInvitesStub{counts: map[int64]int64{}, errFor: map[int64]error{11: errors.New("delete failed")}}
+	outbox := &cleanupOutboxStub{counts: map[int64]int64{}, errFor: map[int64]error{}}
+
+	result, err := cleanupServiceForTest(requests, children, outbox, cleanupSettingsStub{days: 30}, lateInvites).CleanupRejectedEnrollments(context.Background())
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "delete used enrollment late invites")
+	assert.Zero(t, result)
+	assert.Empty(t, outbox.deleted)
+	assert.Empty(t, requests.deleted)
 }
 
 func TestRejectedEnrollmentCleanup_DeletesOnlyRepositorySelectedRequests(t *testing.T) {

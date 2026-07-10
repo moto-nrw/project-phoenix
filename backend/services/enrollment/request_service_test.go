@@ -1343,6 +1343,40 @@ func TestRequestService_ReplaceEditable_PreservesCapacityClaimWhenWaitlistExists
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, updated.Children[0].Status)
 }
 
+func TestRequestService_ReplaceEditable_CapacityWaitlistQueuesDecisionDigest(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+	holderReq := validSubmission(env.phaseID)
+	holderReq.GuardianEmail = "holder-edit-notification@example.com"
+	holderReq.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, holderReq)
+	require.NoError(t, err)
+
+	editorReq := validSubmission(env.phaseID)
+	editorReq.GuardianEmail = "editor-waitlist-notification@example.com"
+	editor, err := env.svc.Submit(ctx, editorReq)
+	require.NoError(t, err)
+
+	replace := editorReq
+	replace.Children[0].OfferingIDs = []int64{offering.ID}
+	updated, err := env.svc.ReplaceEditable(ctx, editor.Request.StatusToken, replace)
+	require.NoError(t, err)
+	require.Len(t, updated.Children, 1)
+	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, updated.Children[0].Status)
+
+	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	require.Len(t, digests, 1)
+	assert.Equal(t, []string{"Lina Beispiel"}, digests[0].Payload["waitlisted_names"])
+	stored, err := repositories.NewFactory(env.db).Request.FindByID(ctx, editor.Request.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.DecisionNotificationMode)
+	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
+}
+
 func TestRequestService_ReplaceEditable_RejectsNewCapacityClaimWhenFull(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
@@ -1811,6 +1845,142 @@ func TestRequestService_Submit_CapacityOverflowWaitlist(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, r2.Children[0].Status,
 		"over-capacity child must be persisted as waitlisted under mode=waitlist")
+	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	require.Len(t, digests, 1)
+	assert.Equal(t, []string{"Lina Beispiel"}, digests[0].Payload["waitlisted_names"])
+	stored, err := repositories.NewFactory(env.db).Request.FindByID(ctx, r2.Request.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.DecisionNotificationMode)
+	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
+}
+
+func TestRequestService_Submit_CapacityOverflowWaitlistQueuesImmediateDecision(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionImmediate
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	holder := validSubmission(env.phaseID)
+	holder.GuardianEmail = "immediate-holder@example.com"
+	holder.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, holder)
+	require.NoError(t, err)
+
+	overflow := validSubmission(env.phaseID)
+	overflow.GuardianEmail = "immediate-overflow@example.com"
+	overflow.Children[0].OfferingIDs = []int64{offering.ID}
+	result, err := env.svc.Submit(ctx, overflow)
+	require.NoError(t, err)
+	require.Equal(t, enrollmentModels.ChildStatusWaitlisted, result.Children[0].Status)
+
+	rows := env.outbox.ByKind(platformModels.EmailKindEnrollmentWaitlisted)
+	require.Len(t, rows, 1)
+	assert.Equal(t, result.Request.ID, rows[0].RelatedEntityID)
+	assert.NotEmpty(t, rows[0].IdempotencyKey)
+	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest))
+}
+
+func TestRequestService_Submit_AllCapacityOverflowWaitlistsQueueOneDigest(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	holder := validSubmission(env.phaseID)
+	holder.GuardianEmail = "all-overflow-holder@example.com"
+	holder.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, holder)
+	require.NoError(t, err)
+
+	overflow := validSubmission(env.phaseID)
+	overflow.GuardianEmail = "all-overflow@example.com"
+	overflow.Children[0].OfferingIDs = []int64{offering.ID}
+	overflow.Children = append(overflow.Children, enrollmentService.SubmitChild{
+		FirstName:        "Noah",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+		OfferingIDs:      []int64{offering.ID},
+	})
+	result, err := env.svc.Submit(ctx, overflow)
+	require.NoError(t, err)
+	require.Len(t, result.Children, 2)
+	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, result.Children[0].Status)
+	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, result.Children[1].Status)
+
+	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	require.Len(t, digests, 1)
+	assert.ElementsMatch(t, []string{"Lina Beispiel", "Noah Beispiel"}, digests[0].Payload["waitlisted_names"])
+	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentWaitlisted))
+}
+
+func TestRequestService_Submit_MixedCapacityWaitlistPinsDigestWithoutSendingEarly(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	holder := validSubmission(env.phaseID)
+	holder.GuardianEmail = "mixed-holder@example.com"
+	holder.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, holder)
+	require.NoError(t, err)
+
+	mixed := validSubmission(env.phaseID)
+	mixed.GuardianEmail = "mixed-overflow@example.com"
+	mixed.Children[0].OfferingIDs = []int64{offering.ID}
+	mixed.Children = append(mixed.Children, enrollmentService.SubmitChild{
+		FirstName:        "Noah",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+	})
+	result, err := env.svc.Submit(ctx, mixed)
+	require.NoError(t, err)
+	require.Len(t, result.Children, 2)
+	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, result.Children[0].Status)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, result.Children[1].Status)
+	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest))
+	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentWaitlisted))
+
+	stored, err := repositories.NewFactory(env.db).Request.FindByID(ctx, result.Request.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.DecisionNotificationMode)
+	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
+}
+
+func TestRequestService_Submit_CapacityDecisionFailureRollsBackRequest(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	holder := validSubmission(env.phaseID)
+	holder.GuardianEmail = "rollback-holder@example.com"
+	holder.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, holder)
+	require.NoError(t, err)
+
+	env.outbox.mu.Lock()
+	env.outbox.err = errors.New("outbox unavailable")
+	env.outbox.mu.Unlock()
+	overflow := validSubmission(env.phaseID)
+	overflow.GuardianEmail = "rollback-overflow@example.com"
+	overflow.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err = env.svc.Submit(ctx, overflow)
+	require.ErrorContains(t, err, "notify capacity decisions")
+
+	count, countErr := env.db.NewSelect().
+		TableExpr(`enrollment.requests AS "request"`).
+		Where(`"request".guardian_email = ?`, overflow.GuardianEmail).
+		Count(ctx)
+	require.NoError(t, countErr)
+	assert.Zero(t, count)
 }
 
 // TestRequestService_Submit_CapacityOverflowReject verifies that

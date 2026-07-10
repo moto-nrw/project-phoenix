@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -871,6 +872,9 @@ func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffe
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	assert.Equal(t, offering.ID, links[0].CareOfferingID)
+	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	require.Len(t, digests, 1)
+	assert.Equal(t, []string{child.FirstName + " " + child.LastName}, digests[0].Payload["waitlisted_names"])
 }
 
 func TestChangeRequestService_Approve_DoesNotDoubleCountPreservedOfferingCapacity(t *testing.T) {

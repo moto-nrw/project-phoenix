@@ -15,8 +15,9 @@ import (
 )
 
 type RejectedEnrollmentCleanupResult struct {
-	DeletedRequests   int
-	DeletedOutboxRows int64
+	DeletedRequests    int
+	DeletedLateInvites int64
+	DeletedOutboxRows  int64
 }
 
 // RejectedEnrollmentCleaner removes rejected enrollment data after its
@@ -39,18 +40,24 @@ type rejectedRequestChildLocker interface {
 	ListByRequestIDForUpdate(ctx context.Context, requestID int64) ([]*enrollmentModels.RequestChild, error)
 }
 
+type usedLateInviteCleaner interface {
+	DeleteByUsedRequestID(ctx context.Context, requestID int64) (int64, error)
+}
+
 type rejectedEnrollmentCleanupService struct {
-	requests rejectedRequestCleaner
-	children rejectedRequestChildLocker
-	outbox   relatedOutboxCleaner
-	settings RequestSettingsResolver
-	runInTx  func(context.Context, func(context.Context) error) error
-	logger   *slog.Logger
+	requests    rejectedRequestCleaner
+	children    rejectedRequestChildLocker
+	lateInvites usedLateInviteCleaner
+	outbox      relatedOutboxCleaner
+	settings    RequestSettingsResolver
+	runInTx     func(context.Context, func(context.Context) error) error
+	logger      *slog.Logger
 }
 
 func NewRejectedEnrollmentCleanupService(
 	requests enrollmentModels.RequestRepository,
 	children enrollmentModels.RequestChildRepository,
+	lateInvites enrollmentModels.LateInviteRepository,
 	outbox relatedOutboxCleaner,
 	settings RequestSettingsResolver,
 	db *bun.DB,
@@ -60,12 +67,13 @@ func NewRejectedEnrollmentCleanupService(
 		logger = slog.Default()
 	}
 	return &rejectedEnrollmentCleanupService{
-		requests: requests,
-		children: children,
-		outbox:   outbox,
-		settings: settings,
-		runInTx:  newRejectedEnrollmentCleanupTxRunner(db),
-		logger:   logger,
+		requests:    requests,
+		children:    children,
+		lateInvites: lateInvites,
+		outbox:      outbox,
+		settings:    settings,
+		runInTx:     newRejectedEnrollmentCleanupTxRunner(db),
+		logger:      logger,
 	}
 }
 
@@ -99,7 +107,7 @@ func runRejectedEnrollmentCleanupSavepoint(ctx context.Context, ambient *bun.Tx,
 }
 
 func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx context.Context) (RejectedEnrollmentCleanupResult, error) {
-	if s.requests == nil || s.children == nil || s.outbox == nil || s.settings == nil || s.runInTx == nil {
+	if s.requests == nil || s.children == nil || s.lateInvites == nil || s.outbox == nil || s.settings == nil || s.runInTx == nil {
 		return RejectedEnrollmentCleanupResult{}, errors.New("rejected enrollment cleanup is not configured")
 	}
 	days, err := s.settings.ResolveInt(ctx, configModel.KeyEnrollmentRejectedRetentionDays)
@@ -130,6 +138,10 @@ func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx contex
 			if !childrenRemainFullyRejectedBefore(children, cutoff) {
 				continue
 			}
+			deletedLateInvites, deleteLateInvitesErr := s.lateInvites.DeleteByUsedRequestID(txCtx, requestID)
+			if deleteLateInvitesErr != nil {
+				return fmt.Errorf("delete used enrollment late invites: %w", deleteLateInvitesErr)
+			}
 			deletedOutbox, deleteOutboxErr := s.outbox.DeleteByRelatedEntity(txCtx, platformModels.EmailRelatedTypeEnrollmentRequest, requestID)
 			if deleteOutboxErr != nil {
 				return fmt.Errorf("delete dependent enrollment outbox rows: %w", deleteOutboxErr)
@@ -138,6 +150,7 @@ func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx contex
 				return fmt.Errorf("delete rejected enrollment request: %w", deleteRequestErr)
 			}
 			result.DeletedRequests++
+			result.DeletedLateInvites += deletedLateInvites
 			result.DeletedOutboxRows += deletedOutbox
 		}
 		return nil
@@ -147,6 +160,7 @@ func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx contex
 	}
 	s.logger.InfoContext(ctx, "rejected enrollment cleanup completed",
 		slog.Int("deleted_requests", result.DeletedRequests),
+		slog.Int64("deleted_late_invites", result.DeletedLateInvites),
 		slog.Int64("deleted_outbox_rows", result.DeletedOutboxRows))
 	return result, nil
 }

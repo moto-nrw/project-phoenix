@@ -854,6 +854,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		}
 	}
 
+	newlyWaitlisted := make(map[int64]struct{})
 	for i, existing := range children {
 		next := prepared.Children[i]
 		existing.FirstName = strings.TrimSpace(next.FirstName)
@@ -912,8 +913,14 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 			return err
 		}
 		if status, ok := childStatusOverrides[i]; ok {
+			if existing.Status == status {
+				continue
+			}
 			if err := s.RequestChildRepo.UpdateStatus(ctx, existing.ID, status, nil, input.ActorAccountID); err != nil {
 				return err
+			}
+			if status == enrollmentModels.ChildStatusWaitlisted {
+				newlyWaitlisted[existing.ID] = struct{}{}
 			}
 			continue
 		}
@@ -921,6 +928,21 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 			if err := s.RequestChildRepo.UpdateStatus(ctx, existing.ID, enrollmentModels.ChildStatusUnderReview, nil, input.ActorAccountID); err != nil {
 				return err
 			}
+		}
+	}
+	if len(newlyWaitlisted) > 0 {
+		refreshedChildren, err := s.RequestChildRepo.ListByRequestID(ctx, req.ID)
+		if err != nil {
+			return fmt.Errorf("change request approve: refresh capacity decisions: %w", err)
+		}
+		if err := enqueueDecisionNotifications(ctx, decisionNotificationDependencies{
+			requests:   s.RequestRepo,
+			settings:   s.Settings,
+			outbox:     s.OutboxEnqueuer,
+			schools:    s.SchoolRepo,
+			parentsURL: s.ParentsURL,
+		}, req, refreshedChildren, phase, newlyWaitlisted); err != nil {
+			return fmt.Errorf("change request approve: notify capacity decisions: %w", err)
 		}
 	}
 	return nil

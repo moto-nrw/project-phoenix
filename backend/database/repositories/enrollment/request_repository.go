@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/uptrace/bun"
 )
@@ -292,6 +293,37 @@ func (r *RequestRepository) AcquireSubmissionDedupLock(ctx context.Context, phas
 		return fmt.Errorf("failed to acquire enrollment submission dedup lock: %w", err)
 	}
 	return nil
+}
+
+// PinDecisionNotificationMode freezes the notification mode for a request.
+// COALESCE makes the first successful pin win even when sibling decisions race;
+// later calls return the existing value without overwriting it.
+func (r *RequestRepository) PinDecisionNotificationMode(ctx context.Context, requestID int64, proposed string) (string, error) {
+	switch proposed {
+	case configModel.EnrollmentNotifyPerDecisionDigest, configModel.EnrollmentNotifyPerDecisionImmediate:
+		// Valid persisted modes.
+	default:
+		return "", fmt.Errorf("invalid enrollment decision notification mode %q", proposed)
+	}
+
+	var mode string
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		UPDATE enrollment.requests
+		SET decision_notification_mode = COALESCE(decision_notification_mode, ?),
+			updated_at = CASE
+				WHEN decision_notification_mode IS NULL THEN NOW()
+				ELSE updated_at
+			END
+		WHERE id = ?
+		RETURNING decision_notification_mode
+	`, proposed, requestID).Scan(ctx, &mode)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", fmt.Errorf("enrollment request %d not found for notification mode pin", requestID)
+		}
+		return "", fmt.Errorf("failed to pin enrollment decision notification mode: %w", err)
+	}
+	return mode, nil
 }
 
 func (r *RequestRepository) findByStatusToken(ctx context.Context, token, lockClause string) (*enrollment.Request, error) {

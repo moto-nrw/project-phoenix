@@ -885,7 +885,10 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	if !validDecisionStatuses[input.Status] {
 		return nil, fmt.Errorf("%w: %s", ErrDecisionInvalidStatus, input.Status)
 	}
-	request, err := s.RequestRepo.FindByID(ctx, input.RequestID)
+	// Lock the parent before its children. Cleanup, editing, and change-request
+	// paths use the same order; the notification-mode pin updates the parent and
+	// must not introduce a parent/child lock inversion.
+	request, err := s.RequestRepo.FindByIDForUpdate(ctx, input.RequestID)
 	if err != nil {
 		return nil, ErrDecisionRequestNotFound
 	}
@@ -937,15 +940,6 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 			return nil, fmt.Errorf("decision: resolve guardian invitation setting: %w", err)
 		}
 	}
-	notificationMode := configModel.EnrollmentNotifyPerDecisionImmediate
-	if !input.SuppressParentEmail && isParentVisibleDecision(input.Status) {
-		resolvedMode, resolveErr := resolveDecisionNotificationMode(ctx, s.Settings)
-		if resolveErr != nil {
-			return nil, fmt.Errorf("decision: resolve notification mode: %w", resolveErr)
-		}
-		notificationMode = resolvedMode
-	}
-
 	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: load phase: %w", err)
@@ -1006,15 +1000,15 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	// Enqueue the parent decision email in the same transaction. An enqueue
 	// failure rolls back the decision so a retry can safely enqueue it; the
 	// tenant-scoped idempotency key prevents duplicate rows after retries.
-	if !input.SuppressParentEmail {
-		if notificationMode == configModel.EnrollmentNotifyPerDecisionImmediate {
-			if err := s.enqueueDecisionEmail(ctx, request, target, phase, input.Status, reasonPtr); err != nil {
-				return nil, err
-			}
-		} else if allChildrenParentResolved(children) {
-			if err := enqueueDecisionDigest(ctx, s.OutboxEnqueuer, s.SchoolRepo, s.ParentsURL, request, children, phase); err != nil {
-				return nil, err
-			}
+	if !input.SuppressParentEmail && isParentVisibleDecision(input.Status) {
+		if err := enqueueDecisionNotifications(ctx, decisionNotificationDependencies{
+			requests:   s.RequestRepo,
+			settings:   s.Settings,
+			outbox:     s.OutboxEnqueuer,
+			schools:    s.SchoolRepo,
+			parentsURL: s.ParentsURL,
+		}, request, children, phase, map[int64]struct{}{target.ID: {}}); err != nil {
+			return nil, err
 		}
 	}
 	outcome.Child = target
@@ -2143,71 +2137,6 @@ func sortedWeekdaySet(days map[int]bool) []int {
 // admin UI can link from a historical request back to the new student.
 func (s *decisionService) linkCreatedStudent(ctx context.Context, requestChildID, studentID int64) error {
 	return s.RequestChildRepo.LinkCreatedStudent(ctx, requestChildID, studentID)
-}
-
-// enqueueDecisionEmail enqueues a parent decision email matching the
-// new status. Only approved/waitlisted/rejected get emails; transitions
-// to under_review are admin-internal.
-func (s *decisionService) enqueueDecisionEmail(
-	ctx context.Context,
-	request *enrollmentModels.Request,
-	child *enrollmentModels.RequestChild,
-	phase *enrollmentModels.Phase,
-	status DecisionStatus,
-	reason *string,
-) error {
-	if s.OutboxEnqueuer == nil {
-		return nil
-	}
-
-	var kind string
-	switch status {
-	case DecisionApproved:
-		kind = platformModels.EmailKindEnrollmentApproved
-	case DecisionWaitlisted:
-		kind = platformModels.EmailKindEnrollmentWaitlisted
-	case DecisionRejected:
-		kind = platformModels.EmailKindEnrollmentRejected
-	default:
-		// under_review (and any future intermediate status) is
-		// admin-internal - parent stays on the existing status email.
-		return nil
-	}
-
-	schoolName, logoURL := emailBrandForSchool(ctx, s.SchoolRepo, request.TenantID, s.ParentsURL)
-	footerLogoURL := motoLogoURL(s.ParentsURL)
-	statusURL := fmt.Sprintf("%s/enroll/status/%s", s.ParentsURL, request.StatusToken)
-	phaseName := ""
-	if phase != nil {
-		phaseName = phase.Name
-	}
-
-	payload := map[string]any{
-		EnrollmentPayloadGuardianFirstName: request.GuardianFirstName,
-		EnrollmentPayloadGuardianLastName:  request.GuardianLastName,
-		EnrollmentPayloadGuardianEmail:     request.GuardianEmail,
-		EnrollmentPayloadSchoolName:        schoolName,
-		EnrollmentPayloadStatusURL:         statusURL,
-		EnrollmentPayloadLogoURL:           logoURL,
-		EnrollmentPayloadMotoLogoURL:       footerLogoURL,
-		EnrollmentPayloadChildNames:        []string{child.FirstName + " " + child.LastName},
-		EnrollmentPayloadRecipientEmail:    request.GuardianEmail,
-		"phase_name":                       phaseName,
-	}
-	if phase != nil && phase.ShowStatusReasonToParent && reason != nil && *reason != "" {
-		payload["status_reason"] = *reason
-	}
-
-	if err := s.OutboxEnqueuer.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
-		Kind:              kind,
-		Payload:           payload,
-		RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
-		RelatedEntityID:   request.ID,
-		IdempotencyKey:    decisionEmailIdempotencyKey(request.ID, child),
-	}); err != nil {
-		return fmt.Errorf("decision: enqueue parent decision email: %w", err)
-	}
-	return nil
 }
 
 // attachExistingAccountIfPresent looks up the parent email in the

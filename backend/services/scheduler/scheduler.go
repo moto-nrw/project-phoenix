@@ -700,6 +700,7 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 			s.getLogger().Info("rejected enrollment cleanup completed",
 				slog.Int64("tenant_id", tenantID),
 				slog.Int("requests_deleted", result.DeletedRequests),
+				slog.Int64("late_invites_deleted", result.DeletedLateInvites),
 				slog.Int64("outbox_rows_deleted", result.DeletedOutboxRows))
 		}
 	}

@@ -730,6 +730,17 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			}
 			createdChildren = append(createdChildren, row)
 		}
+		if len(childStatusOverrides) > 0 && !req.SuppressSubmissionEmails {
+			if err := enqueueDecisionNotifications(txCtx, decisionNotificationDependencies{
+				requests:   s.RequestRepo,
+				settings:   s.Settings,
+				outbox:     s.OutboxEnqueuer,
+				schools:    s.SchoolRepo,
+				parentsURL: s.ParentsURL,
+			}, request, createdChildren, phase, childIDsForStatus(createdChildren, enrollmentModels.ChildStatusWaitlisted)); err != nil {
+				return fmt.Errorf("submit: notify capacity decisions: %w", err)
+			}
+		}
 		return nil
 	})
 	if txErr != nil {
@@ -1971,6 +1982,17 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 			createdChildren = append(createdChildren, row)
 		}
 		updatedRequest = req
+		if len(childStatusOverrides) > 0 && !editReq.SuppressSubmissionEmails {
+			if err := enqueueDecisionNotifications(txCtx, decisionNotificationDependencies{
+				requests:   s.RequestRepo,
+				settings:   s.Settings,
+				outbox:     s.OutboxEnqueuer,
+				schools:    s.SchoolRepo,
+				parentsURL: s.ParentsURL,
+			}, req, createdChildren, phase, childIDsForStatus(createdChildren, enrollmentModels.ChildStatusWaitlisted)); err != nil {
+				return fmt.Errorf("edit replace: notify capacity decisions: %w", err)
+			}
+		}
 		return nil
 	})
 	if err != nil {
@@ -2221,13 +2243,6 @@ func (s *requestService) Withdraw(ctx context.Context, token string, childID int
 		if !allChildrenParentResolved(children) {
 			return nil
 		}
-		notificationMode, err := resolveDecisionNotificationMode(txCtx, s.Settings)
-		if err != nil {
-			return fmt.Errorf("withdraw: resolve notification mode: %w", err)
-		}
-		if notificationMode != configModel.EnrollmentNotifyPerDecisionDigest {
-			return nil
-		}
 		children, err = s.RequestChildRepo.ListByRequestID(txCtx, lockedReq.ID)
 		if err != nil {
 			return fmt.Errorf("withdraw: refresh children for decision digest: %w", err)
@@ -2236,8 +2251,27 @@ func (s *requestService) Withdraw(ctx context.Context, token string, childID int
 		if err != nil {
 			return fmt.Errorf("withdraw: load phase for decision digest: %w", err)
 		}
-		return enqueueDecisionDigest(txCtx, s.OutboxEnqueuer, s.SchoolRepo, s.ParentsURL, lockedReq, children, phase)
+		if err := enqueueDecisionNotifications(txCtx, decisionNotificationDependencies{
+			requests:   s.RequestRepo,
+			settings:   s.Settings,
+			outbox:     s.OutboxEnqueuer,
+			schools:    s.SchoolRepo,
+			parentsURL: s.ParentsURL,
+		}, lockedReq, children, phase, nil); err != nil {
+			return fmt.Errorf("withdraw: notify completed decision state: %w", err)
+		}
+		return nil
 	})
+}
+
+func childIDsForStatus(children []*enrollmentModels.RequestChild, status string) map[int64]struct{} {
+	ids := make(map[int64]struct{})
+	for _, child := range children {
+		if child != nil && child.Status == status {
+			ids[child.ID] = struct{}{}
+		}
+	}
+	return ids
 }
 
 // ConfirmRenewal transitions every pending_renewal row under the

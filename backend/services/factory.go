@@ -1022,6 +1022,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	enrollmentRejectedCleanupService := enrollment.NewRejectedEnrollmentCleanupService(
 		repos.Request,
 		repos.RequestChild,
+		repos.LateInvite,
 		repos.EmailOutbox,
 		settingsService,
 		db,

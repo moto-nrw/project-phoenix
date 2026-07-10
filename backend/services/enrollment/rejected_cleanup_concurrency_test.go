@@ -14,9 +14,11 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 type cleanupLockSignalRepository struct {
@@ -158,6 +160,7 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	cleaner := enrollmentService.NewRejectedEnrollmentCleanupService(
 		requestRepo,
 		repos.RequestChild,
+		repos.LateInvite,
 		repos.EmailOutbox,
 		cleanupRetentionSettings{days: 30},
 		db,
@@ -198,4 +201,153 @@ func TestRejectedEnrollmentCleanup_ConcurrentReopenPreservesRequestAndOutbox(t *
 	assert.Equal(t, enrollmentModels.ChildStatusUnderReview, storedChild.Status)
 	_, err = repos.EmailOutbox.FindByID(ctx, outboxRow.ID)
 	require.NoError(t, err)
+}
+
+func TestRejectedEnrollmentCleanup_TenantRoleDeletesLateInviteOutboxAndRequest(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+	scope := testpkg.NewTenantScope(t, db)
+	repos := repositories.NewFactory(db)
+	creator := testpkg.CreateTestAccount(t, db, "rejected-cleanup-late-invite")
+	relatedType := platformModels.EmailRelatedTypeEnrollmentRequest
+
+	var phaseID, requestID, outboxID, linkedInviteID, unrelatedInviteID int64
+	defer func() {
+		_, _ = db.NewDelete().TableExpr("enrollment.late_invites").Where("tenant_id = ?", scope.TenantID).Exec(context.Background())
+		if requestID > 0 {
+			_, _ = repos.EmailOutbox.DeleteByRelatedEntity(scope.Context(), relatedType, requestID)
+			testpkg.CleanupTableRecords(t, db, "enrollment.requests", requestID)
+		}
+		if phaseID > 0 {
+			testpkg.CleanupTableRecords(t, db, "enrollment.phases", phaseID)
+		}
+		testpkg.CleanupAuthFixtures(t, db, creator.ID)
+		testpkg.CleanupTableRecords(t, db, "platform.schools", scope.TenantID)
+		testpkg.CleanupTableRecords(t, db, "platform.organizations", scope.TenantID)
+	}()
+
+	oldReview := time.Now().Add(-60 * 24 * time.Hour)
+	require.NoError(t, tenant.WithTenantTx(context.Background(), db, scope.TenantID, func(ctx context.Context, _ bun.Tx) error {
+		phase := &enrollmentModels.Phase{
+			Name:             fmt.Sprintf("cleanup-late-invite-%d", scope.TenantID),
+			Kind:             enrollmentModels.PhaseKindSchoolYear,
+			ServiceStartDate: timezone.NewDate(2026, 9, 1),
+			ServiceEndDate:   timezone.NewDate(2027, 7, 31),
+			IsActive:         true,
+		}
+		if err := repos.Phase.Create(ctx, phase); err != nil {
+			return err
+		}
+		phaseID = phase.ID
+
+		request := &enrollmentModels.Request{
+			PhaseID:           phase.ID,
+			GuardianFirstName: "Cleanup",
+			GuardianLastName:  "Late Invite",
+			GuardianEmail:     fmt.Sprintf("cleanup-late-invite-%d@example.invalid", scope.TenantID),
+			ConsentFlags:      map[string]any{},
+			CustomData:        map[string]any{},
+			SubmissionSource:  enrollmentModels.RequestSourceLateInvite,
+			SourceMetadata:    map[string]any{},
+			StatusToken:       fmt.Sprintf("cleanup-late-invite-token-%d", scope.TenantID),
+			SubmittedAt:       time.Now(),
+		}
+		if err := repos.Request.Create(ctx, request); err != nil {
+			return err
+		}
+		requestID = request.ID
+
+		child := &enrollmentModels.RequestChild{
+			RequestID:      request.ID,
+			FirstName:      "Cleanup",
+			LastName:       "Child",
+			DateOfBirth:    timezone.NewDate(2018, 4, 15),
+			CustomData:     map[string]any{},
+			Status:         enrollmentModels.ChildStatusRejected,
+			ActivationMode: enrollmentModels.ChildActivationScheduled,
+			ReviewedAt:     &oldReview,
+		}
+		if err := repos.RequestChild.Create(ctx, child); err != nil {
+			return err
+		}
+
+		linkedInvite := &enrollmentModels.LateInvite{
+			PhaseID:           phase.ID,
+			TokenHash:         fmt.Sprintf("linked-invite-%d", scope.TenantID),
+			GuardianEmail:     request.GuardianEmail,
+			GuardianFirstName: testpkg.StrPtr("Cleanup"),
+			GuardianLastName:  testpkg.StrPtr("Late Invite"),
+			ExpiresAt:         time.Now().Add(24 * time.Hour),
+			CreatedBy:         creator.ID,
+			Reason:            testpkg.StrPtr("Contains enrollment PII"),
+		}
+		if err := repos.LateInvite.Create(ctx, linkedInvite); err != nil {
+			return err
+		}
+		linkedInviteID = linkedInvite.ID
+		if err := repos.LateInvite.MarkUsed(ctx, linkedInvite.ID, request.ID, time.Now()); err != nil {
+			return err
+		}
+
+		unrelatedInvite := &enrollmentModels.LateInvite{
+			PhaseID:       phase.ID,
+			TokenHash:     fmt.Sprintf("unrelated-invite-%d", scope.TenantID),
+			GuardianEmail: "unrelated@example.invalid",
+			ExpiresAt:     time.Now().Add(24 * time.Hour),
+			CreatedBy:     creator.ID,
+		}
+		if err := repos.LateInvite.Create(ctx, unrelatedInvite); err != nil {
+			return err
+		}
+		unrelatedInviteID = unrelatedInvite.ID
+
+		relatedID := request.ID
+		outbox := &platformModels.EmailOutbox{
+			Kind:              platformModels.EmailKindEnrollmentRejected,
+			RelatedEntityType: &relatedType,
+			RelatedEntityID:   &relatedID,
+			Payload:           map[string]any{"request_id": relatedID},
+			Status:            platformModels.EmailOutboxStatusPending,
+			NextRetryAt:       time.Now(),
+		}
+		if err := repos.EmailOutbox.Create(ctx, outbox); err != nil {
+			return err
+		}
+		outboxID = outbox.ID
+		return nil
+	}))
+
+	cleaner := enrollmentService.NewRejectedEnrollmentCleanupService(
+		repos.Request,
+		repos.RequestChild,
+		repos.LateInvite,
+		repos.EmailOutbox,
+		cleanupRetentionSettings{days: 30},
+		db,
+		slog.New(slog.DiscardHandler),
+	)
+	var result enrollmentService.RejectedEnrollmentCleanupResult
+	require.NoError(t, tenant.WithTenantTx(context.Background(), db, scope.TenantID, func(ctx context.Context, _ bun.Tx) error {
+		var cleanupErr error
+		result, cleanupErr = cleaner.CleanupRejectedEnrollments(ctx)
+		return cleanupErr
+	}))
+	require.Equal(t, enrollmentService.RejectedEnrollmentCleanupResult{
+		DeletedRequests:    1,
+		DeletedLateInvites: 1,
+		DeletedOutboxRows:  1,
+	}, result)
+
+	var requestCount int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM enrollment.requests WHERE id = ?`, requestID).Scan(context.Background(), &requestCount))
+	assert.Zero(t, requestCount)
+	var linkedInviteCount int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM enrollment.late_invites WHERE id = ?`, linkedInviteID).Scan(context.Background(), &linkedInviteCount))
+	assert.Zero(t, linkedInviteCount)
+	var outboxCount int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM platform.email_outbox WHERE id = ?`, outboxID).Scan(context.Background(), &outboxCount))
+	assert.Zero(t, outboxCount)
+	var unrelatedCount int
+	require.NoError(t, db.NewRaw(`SELECT COUNT(*) FROM enrollment.late_invites WHERE id = ?`, unrelatedInviteID).Scan(context.Background(), &unrelatedCount))
+	assert.Equal(t, 1, unrelatedCount)
 }
