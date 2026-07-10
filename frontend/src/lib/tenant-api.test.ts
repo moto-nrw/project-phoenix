@@ -138,6 +138,9 @@ describe("tenant-api", () => {
         nfcEnabled: false,
         messagingEnabled: false,
         displayEnabled: false,
+        // Older backend responses omit this additive field. Keep the editor
+        // available until the server explicitly publishes false.
+        careOfferingsEnabled: true,
         attendanceWebEnabled: false,
         groupMode: "fixed_groups",
         showTimetableCounts: true,
@@ -162,6 +165,7 @@ describe("tenant-api", () => {
               status: "success",
               data: {
                 ...tenantData,
+                care_offerings_enabled: true,
                 attendance_web_enabled: true,
                 group_mode: "open_care",
                 show_timetable_counts: true,
@@ -177,6 +181,7 @@ describe("tenant-api", () => {
               status: "success",
               data: {
                 ...tenantData,
+                care_offerings_enabled: false,
                 attendance_web_enabled: false,
                 group_mode: "fixed_groups",
                 show_timetable_counts: false,
@@ -188,12 +193,14 @@ describe("tenant-api", () => {
         );
 
       await expect(resolveTenant("settings-school")).resolves.toMatchObject({
+        careOfferingsEnabled: true,
         attendanceWebEnabled: true,
         groupMode: "open_care",
         showTimetableCounts: true,
         waitlistEnabled: true,
       });
       await expect(resolveTenant("settings-school")).resolves.toMatchObject({
+        careOfferingsEnabled: false,
         attendanceWebEnabled: false,
         groupMode: "fixed_groups",
         showTimetableCounts: false,

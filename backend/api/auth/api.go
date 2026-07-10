@@ -365,7 +365,12 @@ type TenantResolveResponse struct {
 	// Info-Point Dashboard is opt-in and defaults off, so the frontend needs
 	// this to hide the sidebar entry / admin page for schools that haven't
 	// turned it on. Defaults to false when the setting is missing/unresolvable.
-	DisplayEnabled       bool   `json:"display_enabled"`
+	DisplayEnabled bool `json:"display_enabled"`
+	// CareOfferingsEnabled is shell metadata for approved-child offering
+	// corrections. Missing metadata stays enabled for compatibility with older
+	// backends; an explicit settings-resolution error fails closed so the UI
+	// cannot offer a mutation that the authoritative service will reject.
+	CareOfferingsEnabled bool   `json:"care_offerings_enabled"`
 	AttendanceWebEnabled bool   `json:"attendance_web_enabled"`
 	GroupMode            string `json:"group_mode"`
 	ShowTimetableCounts  bool   `json:"show_timetable_counts"`
@@ -378,6 +383,7 @@ type tenantShellSettings struct {
 	nfcEnabled             bool
 	parentMessagingEnabled bool
 	displayEnabled         bool
+	careOfferingsEnabled   bool
 	attendanceWebEnabled   bool
 	groupMode              string
 	showTimetableCounts    bool
@@ -425,6 +431,7 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		NFCEnabled:             resolved.nfcEnabled,
 		ParentMessagingEnabled: resolved.parentMessagingEnabled,
 		DisplayEnabled:         resolved.displayEnabled,
+		CareOfferingsEnabled:   resolved.careOfferingsEnabled,
 		AttendanceWebEnabled:   resolved.attendanceWebEnabled,
 		GroupMode:              resolved.groupMode,
 		ShowTimetableCounts:    resolved.showTimetableCounts,
@@ -436,10 +443,11 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int64) tenantShellSettings {
 	resolved := tenantShellSettings{
-		presenceMode:        configSvc.ResolvePresenceModeForTenant(ctx, rs.SettingsService, tenantID, nil),
-		groupMode:           configModel.GroupModeFixedGroups,
-		showTimetableCounts: true,
-		waitlistEnabled:     true,
+		presenceMode:         configSvc.ResolvePresenceModeForTenant(ctx, rs.SettingsService, tenantID, nil),
+		careOfferingsEnabled: true,
+		groupMode:            configModel.GroupModeFixedGroups,
+		showTimetableCounts:  true,
+		waitlistEnabled:      true,
 	}
 	if rs.SettingsService == nil {
 		return resolved
@@ -454,6 +462,7 @@ func (rs *Resource) resolveTenantShellSettings(ctx context.Context, tenantID int
 	if value, err := rs.SettingsService.ResolveBoolForTenant(ctx, tenantID, configModel.KeyDisplayEnabled); err == nil {
 		resolved.displayEnabled = value
 	}
+	resolved.careOfferingsEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEnrollmentCareOfferingsEnabled, false, slog.LevelError)
 	resolved.attendanceWebEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyAttendanceWebEnabled, false, slog.LevelError)
 	resolved.showTimetableCounts = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyTimetableShowExpectedChildrenCount, true, slog.LevelWarn)
 	resolved.waitlistEnabled = rs.resolveTenantShellBool(ctx, tenantID, configModel.KeyEnrollmentWaitlistEnabled, true, slog.LevelError)

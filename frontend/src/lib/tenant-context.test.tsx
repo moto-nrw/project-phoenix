@@ -31,6 +31,7 @@ vi.mock("~/lib/tenant-api", async (importOriginal) => {
 import {
   TenantProvider,
   useAttendanceWebEnabled,
+  useCareOfferingsEnabled,
   useDisplayEnabled,
   useNFCEnabled,
   useOpenCareGroupMode,
@@ -78,6 +79,7 @@ function TenantWrapper({
 
 function useTenantSettingValues() {
   return {
+    careOfferingsEnabled: useCareOfferingsEnabled(),
     attendanceWebEnabled: useAttendanceWebEnabled(),
     openCareGroupMode: useOpenCareGroupMode(),
     showTimetableCounts: useShowTimetableCounts(),
@@ -557,6 +559,7 @@ describe("tenant setting hooks", () => {
   it("returns enabled values from the resolved tenant", () => {
     const enabledTenant: TenantInfo = {
       ...mockTenant,
+      careOfferingsEnabled: true,
       attendanceWebEnabled: true,
       groupMode: "open_care",
       showTimetableCounts: true,
@@ -569,6 +572,7 @@ describe("tenant setting hooks", () => {
     const { result } = renderHook(() => useTenantSettingValues(), { wrapper });
 
     expect(result.current).toEqual({
+      careOfferingsEnabled: true,
       attendanceWebEnabled: true,
       openCareGroupMode: true,
       showTimetableCounts: true,
@@ -579,6 +583,7 @@ describe("tenant setting hooks", () => {
   it("returns disabled values from the resolved tenant", () => {
     const disabledTenant: TenantInfo = {
       ...mockTenant,
+      careOfferingsEnabled: false,
       attendanceWebEnabled: false,
       groupMode: "fixed_groups",
       showTimetableCounts: false,
@@ -591,6 +596,7 @@ describe("tenant setting hooks", () => {
     const { result } = renderHook(() => useTenantSettingValues(), { wrapper });
 
     expect(result.current).toEqual({
+      careOfferingsEnabled: false,
       attendanceWebEnabled: false,
       openCareGroupMode: false,
       showTimetableCounts: false,
@@ -604,6 +610,7 @@ describe("tenant setting hooks", () => {
     });
 
     expect(result.current).toEqual({
+      careOfferingsEnabled: true,
       attendanceWebEnabled: false,
       openCareGroupMode: false,
       showTimetableCounts: true,
@@ -618,6 +625,7 @@ describe("tenant setting hooks", () => {
     const { result } = renderHook(() => useTenantSettingValues(), { wrapper });
 
     expect(result.current).toEqual({
+      careOfferingsEnabled: true,
       attendanceWebEnabled: false,
       openCareGroupMode: false,
       showTimetableCounts: true,
@@ -629,6 +637,7 @@ describe("tenant setting hooks", () => {
     const { result } = renderHook(() => useTenantSettingValues());
 
     expect(result.current).toEqual({
+      careOfferingsEnabled: true,
       attendanceWebEnabled: false,
       openCareGroupMode: false,
       showTimetableCounts: true,

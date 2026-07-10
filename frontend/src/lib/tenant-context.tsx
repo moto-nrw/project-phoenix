@@ -225,6 +225,18 @@ export function useDisplayEnabled(): boolean {
   return ctx?.tenant?.displayEnabled === true;
 }
 
+/**
+ * Returns whether approved-child care offerings may be corrected.
+ *
+ * Missing tenant metadata stays enabled for compatibility with older backend
+ * responses. A settings-resolution error is distinct: the backend publishes
+ * an explicit false value, which keeps the mutation UI hidden.
+ */
+export function useCareOfferingsEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.careOfferingsEnabled !== false;
+}
+
 export function useAttendanceWebEnabled(): boolean {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.attendanceWebEnabled === true;

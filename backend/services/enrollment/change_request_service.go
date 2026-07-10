@@ -49,7 +49,7 @@ type ReviewChangeRequestInput struct {
 }
 
 type ChangeRequestDecisionApplier interface {
-	UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
+	applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
 	SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*enrollmentModels.RequestChild, error)
 }
 
@@ -138,7 +138,11 @@ func (s *changeRequestService) Create(ctx context.Context, token string, input C
 		if err := s.ensureNoOpenChangeRequest(txCtx, lockedReq.ID); err != nil {
 			return err
 		}
-		prepared, _, _, _, err := s.prepareProposed(txCtx, lockedReq, children, input.Submission)
+		capabilities, err := s.formCapabilities(txCtx, nil)
+		if err != nil {
+			return err
+		}
+		prepared, _, _, _, err := s.prepareProposed(txCtx, lockedReq, children, input.Submission, capabilities, false)
 		if err != nil {
 			return err
 		}
@@ -153,13 +157,14 @@ func (s *changeRequestService) Create(ctx context.Context, token string, input C
 			notePtr = &note
 		}
 		row := &enrollmentModels.ChangeRequest{
-			RequestID:          lockedReq.ID,
-			Status:             enrollmentModels.ChangeRequestStatusPendingReview,
-			ParentNote:         notePtr,
-			BaseSnapshot:       baseSnapshot,
-			ProposedSnapshot:   proposedSnapshot,
-			Diff:               snapshotDiff(baseSnapshot, proposedSnapshot),
-			CreatedByAccountID: input.CreatedByAccountID,
+			RequestID:                      lockedReq.ID,
+			Status:                         enrollmentModels.ChangeRequestStatusPendingReview,
+			ParentNote:                     notePtr,
+			BaseSnapshot:                   baseSnapshot,
+			ProposedSnapshot:               proposedSnapshot,
+			Diff:                           snapshotDiff(baseSnapshot, proposedSnapshot),
+			CareOfferingsEnabledAtCreation: capabilities.CareOfferingsEnabled,
+			CreatedByAccountID:             input.CreatedByAccountID,
 		}
 		if err := s.ChangeRequestRepo.Create(txCtx, row); err != nil {
 			return err
@@ -408,11 +413,44 @@ func (s *changeRequestService) ensureCanCreate(ctx context.Context, req *enrollm
 	return nil
 }
 
+func (s *changeRequestService) formCapabilities(ctx context.Context, pinnedCareOfferings *bool) (FormCapabilities, error) {
+	rs := &requestService{RequestServiceConfig: RequestServiceConfig{
+		Settings:       s.Settings,
+		FormSchemaRepo: s.FormSchemaRepo,
+		Logger:         s.Logger,
+	}}
+	if pinnedCareOfferings != nil {
+		if s.Settings == nil {
+			return FormCapabilities{}, errors.New("enrollment settings resolver is not configured")
+		}
+		collectGrade, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+		if err != nil {
+			return FormCapabilities{}, fmt.Errorf("change request: resolve %s: %w", configModel.KeyEnrollmentCollectGradeLevel, err)
+		}
+		collectClass, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)
+		if err != nil {
+			return FormCapabilities{}, fmt.Errorf("change request: resolve %s: %w", configModel.KeyEnrollmentCollectSchoolClass, err)
+		}
+		return FormCapabilities{
+			CollectGradeLevel:    collectGrade,
+			CollectSchoolClass:   collectGrade && collectClass,
+			CareOfferingsEnabled: *pinnedCareOfferings,
+		}, nil
+	}
+	capabilities, err := rs.FormCapabilities(ctx)
+	if err != nil {
+		return FormCapabilities{}, fmt.Errorf("change request: resolve form capabilities: %w", err)
+	}
+	return capabilities, nil
+}
+
 func (s *changeRequestService) prepareProposed(
 	ctx context.Context,
 	req *enrollmentModels.Request,
 	children []*enrollmentModels.RequestChild,
 	incoming SubmitRequest,
+	capabilities FormCapabilities,
+	allowStoredHiddenOfferings bool,
 ) (SubmitRequest, [][]materializedOfferingSelection, *enrollmentModels.Phase, map[int64]*enrollmentModels.CareOffering, error) {
 	editReq := incoming
 	editReq.TenantID = req.GetTenantID()
@@ -432,9 +470,15 @@ func (s *changeRequestService) prepareProposed(
 		return editReq, nil, nil, nil, err
 	}
 	rs := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings, FormSchemaRepo: s.FormSchemaRepo, Logger: s.Logger}}
-	capabilities, err := rs.FormCapabilities(ctx)
-	if err != nil {
-		return editReq, nil, nil, nil, fmt.Errorf("change request: resolve form capabilities: %w", err)
+	if allowStoredHiddenOfferings && !capabilities.CareOfferingsEnabled {
+		// A disabled proposal snapshot contains the persisted, hidden links so
+		// it stays stable across setting toggles. They are trusted internal
+		// state, not fresh parent input; clear them before applying the public
+		// disabled-capability validation and restore from the locked rows below.
+		for i := range editReq.Children {
+			editReq.Children[i].OfferingIDs = nil
+			editReq.Children[i].OfferingDays = nil
+		}
 	}
 	if err := normalizeSubmissionForCapabilities(&editReq, capabilities); err != nil {
 		return editReq, nil, nil, nil, err
@@ -482,6 +526,7 @@ func (s *changeRequestService) prepareProposed(
 			return editReq, nil, nil, nil, fmt.Errorf("change request: preserve child offerings: %w", linkErr)
 		}
 		materializedSelections = preservedOfferingSelections(children, editReq.Children, existingLinks)
+		applyPreservedOfferingSelections(editReq.Children, materializedSelections)
 	}
 
 	schema, err := s.schemaForRequest(ctx, req)
@@ -661,6 +706,29 @@ func materializeAndValidateChangeRequestChildrenOfferingSelections(
 	return out, nil
 }
 
+// applyPreservedOfferingSelections copies hidden persisted links into the
+// canonical proposal. This keeps base/proposed snapshots independent of the
+// setting's current visibility and prevents a later toggle from looking like
+// an offering removal.
+func applyPreservedOfferingSelections(children []SubmitChild, selections [][]materializedOfferingSelection) {
+	for i := range children {
+		children[i].OfferingIDs = nil
+		children[i].OfferingDays = nil
+		if i >= len(selections) {
+			continue
+		}
+		for _, selection := range selections[i] {
+			children[i].OfferingIDs = append(children[i].OfferingIDs, selection.OfferingID)
+			if len(selection.SelectedDays) > 0 {
+				children[i].OfferingDays = append(children[i].OfferingDays, SubmitOfferingDays{
+					OfferingID:   selection.OfferingID,
+					SelectedDays: copyDays(selection.SelectedDays),
+				})
+			}
+		}
+	}
+}
+
 func (s *changeRequestService) schemaForRequest(ctx context.Context, req *enrollmentModels.Request) (*enrollmentModels.FormSchema, error) {
 	if req.SchemaID == nil {
 		return nil, nil
@@ -689,16 +757,9 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
 	}
-	links := []*enrollmentModels.RequestChildOffering{}
-	capabilities, err := (&requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}).FormCapabilities(ctx)
+	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
 	if err != nil {
-		return nil, fmt.Errorf("change request: resolve snapshot capabilities: %w", err)
-	}
-	if capabilities.CareOfferingsEnabled {
-		links, err = s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
-		if err != nil {
-			return nil, fmt.Errorf("change request: list child offerings: %w", err)
-		}
+		return nil, fmt.Errorf("change request: list child offerings: %w", err)
 	}
 	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(children))
 	for _, link := range links {
@@ -708,7 +769,7 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 }
 
 func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enrollmentModels.ChangeRequest, input ReviewChangeRequestInput) error {
-	req, err := s.RequestRepo.FindByID(ctx, row.RequestID)
+	req, err := s.RequestRepo.FindByIDForUpdate(ctx, row.RequestID)
 	if err != nil {
 		return ErrRequestNotFound
 	}
@@ -732,7 +793,18 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 	if err != nil {
 		return err
 	}
-	prepared, materializedSelections, phase, openByID, err := s.prepareProposed(ctx, req, children, proposed)
+	capabilities, err := s.formCapabilities(ctx, &row.CareOfferingsEnabledAtCreation)
+	if err != nil {
+		return err
+	}
+	prepared, materializedSelections, phase, openByID, err := s.prepareProposed(
+		ctx,
+		req,
+		children,
+		proposed,
+		capabilities,
+		true,
+	)
 	if err != nil {
 		return err
 	}
@@ -745,10 +817,6 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		if err != nil {
 			return fmt.Errorf("change request approve: list previous guardians: %w", err)
 		}
-	}
-	capabilities, err := (&requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}).FormCapabilities(ctx)
-	if err != nil {
-		return fmt.Errorf("change request approve: resolve form capabilities: %w", err)
 	}
 	childStatusOverrides := map[int]string{}
 	if capabilities.CareOfferingsEnabled {
@@ -814,7 +882,7 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 						SelectedDays: selection.SelectedDays,
 					})
 				}
-				if _, err := s.DecisionService.UpdateChildOfferings(ctx, offeringInput); err != nil {
+				if _, err := s.DecisionService.applyApprovedChangeRequestOfferings(ctx, offeringInput); err != nil {
 					return err
 				}
 			}
@@ -1217,6 +1285,13 @@ func (s *changeRequestService) withLockedChangeRequest(ctx context.Context, id i
 		return ErrChangeRequestNotFound
 	}
 	return tenant.WithTenantTx(ctx, s.DB, row.GetTenantID(), func(txCtx context.Context, _ bun.Tx) error {
+		// Enrollment cleanup and every request-edit flow lock the aggregate
+		// parent before its children. Take the parent before the change-request
+		// row as well: cleanup's cascading delete eventually locks this row, so
+		// the reverse order would create a parent/change-request deadlock.
+		if _, err := s.RequestRepo.FindByIDForUpdate(txCtx, row.RequestID); err != nil {
+			return ErrRequestNotFound
+		}
 		locked, err := s.ChangeRequestRepo.FindByIDForUpdate(txCtx, id)
 		if err != nil || locked == nil {
 			return ErrChangeRequestNotFound

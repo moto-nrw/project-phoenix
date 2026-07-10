@@ -500,6 +500,216 @@ func TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering(t *tes
 	require.NotNil(t, created.ChangeRequest)
 }
 
+func TestChangeRequestService_Approve_PreservesHiddenOfferingsAcrossDisabledToEnabledToggle(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+	offering := setupCareOfferingForCapacity(t, env, 10)
+
+	request := validSubmission(env.phaseID)
+	request.GuardianEmail = "change-request-disabled-enabled@example.com"
+	request.Children[0].OfferingIDs = []int64{offering.ID}
+	result, err := env.svc.Submit(ctx, request)
+	require.NoError(t, err)
+	enableChangeRequestMode(t, env, result.Children[0].ID)
+
+	// The parent cannot submit offering fields while the capability is off.
+	// Creation must still freeze the persisted hidden link in both snapshots.
+	env.settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = false
+	phone := "+49 221 444555"
+	proposed := proposedChangeSubmission(t, env, result)
+	proposed.GuardianPhone = &phone
+	svc := newChangeRequestServiceForTest(env)
+	created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
+		Submission: proposed,
+		ParentNote: "Bitte Telefonnummer korrigieren.",
+	})
+	require.NoError(t, err)
+	require.False(t, created.ChangeRequest.CareOfferingsEnabledAtCreation)
+	proposedChildren, ok := created.ChangeRequest.ProposedSnapshot["children"].([]any)
+	require.True(t, ok)
+	require.Len(t, proposedChildren, 1)
+	proposedChild, ok := proposedChildren[0].(map[string]any)
+	require.True(t, ok)
+	require.NotEmpty(t, proposedChild["offering_ids"], "hidden persisted links must be part of the frozen proposal")
+
+	// Re-enabling the UI capability must not reinterpret the frozen proposal
+	// as an offering removal or make the base snapshot look stale.
+	env.settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = true
+	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
+		Note:           "Freigegeben.",
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+	})
+	require.NoError(t, err)
+
+	links, err := repoFactory.RequestChildOffering.ListByRequestChildID(ctx, result.Children[0].ID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, offering.ID, links[0].CareOfferingID)
+}
+
+func TestChangeRequestService_Approve_AppliesPinnedOfferingChangeToApprovedChildAfterDisable(t *testing.T) {
+	careOfferingsEnabled := true
+	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
+		careOfferingsEnabled: &careOfferingsEnabled,
+	})
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	currentOffering := createAdjustmentCareOffering(t, env, "Frühbetreuung vor Umschaltung")
+	replacementOffering := createAdjustmentCareOffering(t, env, "Spätbetreuung vor Umschaltung")
+	grade := int16(2)
+
+	submission := enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Toggle",
+		GuardianEmail:     "approved-change-request-toggle@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        "Lina",
+			LastName:         "Toggle",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			OfferingIDs:      []int64{currentOffering.ID},
+			OfferingDays: []enrollmentService.SubmitOfferingDays{{
+				OfferingID:   currentOffering.ID,
+				SelectedDays: []string{"mon"},
+			}},
+		}},
+	}
+	result, err := env.requestSvc.Submit(ctx, submission)
+	require.NoError(t, err)
+	require.Len(t, result.Children, 1)
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  result.Request.ID,
+		ChildID:    result.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	proposed := submission
+	proposed.Children[0].ID = result.Children[0].ID
+	proposed.Children[0].OfferingIDs = []int64{replacementOffering.ID}
+	proposed.Children[0].OfferingDays = []enrollmentService.SubmitOfferingDays{{
+		OfferingID:   replacementOffering.ID,
+		SelectedDays: []string{"tue"},
+	}}
+	svc := newChangeRequestServiceWithDecisionForTest(t, env)
+	created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
+		Submission: proposed,
+		ParentNote: "Bitte Betreuungsangebot wechseln.",
+	})
+	require.NoError(t, err)
+	require.True(t, created.ChangeRequest.CareOfferingsEnabledAtCreation)
+
+	careOfferingsEnabled = false
+	env.settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = false
+	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentService.UpdateChildOfferingsInput{
+		RequestID:      result.Request.ID,
+		ChildID:        result.Children[0].ID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Direkte Korrektur muss gesperrt bleiben",
+		Offerings: []enrollmentService.OfferingAdjustmentSelection{{
+			OfferingID:   currentOffering.ID,
+			SelectedDays: []string{"mon"},
+		}},
+	})
+	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingsDisabled)
+
+	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
+		Note:           "Angebotswechsel freigegeben.",
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+	})
+	require.NoError(t, err)
+
+	links, err := env.repos.RequestChildOffering.ListByRequestChildID(ctx, result.Children[0].ID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, replacementOffering.ID, links[0].CareOfferingID)
+	assert.Equal(t, []string{"tue"}, links[0].SelectedDays)
+	adjustments, err := env.decision.ListOfferingAdjustments(ctx, result.Request.ID, result.Children[0].ID)
+	require.NoError(t, err)
+	require.Len(t, adjustments, 1)
+	assert.Equal(t, "Angebotswechsel freigegeben.", adjustments[0].Reason)
+}
+
+func TestChangeRequestService_Approve_ReplacesOffenPlaceholderWithNewGrade(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
+
+	submission := enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Klasse",
+		GuardianEmail:     "change-request-offen-grade@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:   "Lina",
+			LastName:    "Klasse",
+			DateOfBirth: timezone.NewDate(2018, 4, 15),
+		}},
+	}
+	result, err := env.requestSvc.Submit(ctx, submission)
+	require.NoError(t, err)
+	require.Len(t, result.Children, 1)
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  result.Request.ID,
+		ChildID:    result.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	require.Equal(t, "offen", student.SchoolClass)
+
+	// Grade collection is enabled later. The parent provides a grade but no
+	// concrete class, so the approval sync must replace the neutral placeholder
+	// instead of treating it as a customized class name.
+	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = true
+	grade := int16(3)
+	proposed := submission
+	proposed.Children[0].ID = result.Children[0].ID
+	proposed.Children[0].TargetGradeLevel = &grade
+	svc := newChangeRequestServiceWithDecisionForTest(t, env)
+	created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
+		Submission: proposed,
+		ParentNote: "Klassenstufe nachreichen.",
+	})
+	require.NoError(t, err)
+	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
+		Note:           "Klassenstufe freigegeben.",
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+	})
+	require.NoError(t, err)
+
+	student, err = env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	assert.Equal(t, "3", student.SchoolClass)
+}
+
 func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnotherChild(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()

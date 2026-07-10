@@ -240,6 +240,12 @@ func TestDecisionService_ResolveRolloverSchoolClass(t *testing.T) {
 			want:          "2",
 		},
 		{
+			name:          "open placeholder re-derives to newly collected grade",
+			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(2)},
+			existingClass: "offen",
+			want:          "2",
+		},
+		{
 			name:          "stale concrete class from old grade falls back to placeholder on grade bump",
 			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(3)},
 			existingClass: "2a",
@@ -297,10 +303,12 @@ func TestIsBareGradePlaceholderClass(t *testing.T) {
 		in   string
 		want bool
 	}{
-		{"", true},    // no class assigned yet
-		{"  ", true},  // whitespace-only placeholder
-		{"1", true},   // bare grade number
-		{"12", true},  // still all digits
+		{"", true},   // no class assigned yet
+		{"  ", true}, // whitespace-only placeholder
+		{"1", true},  // bare grade number
+		{"12", true}, // still all digits
+		{"offen", true},
+		{" OFFEN ", true},
 		{"2a", false}, // hand-assigned concrete class
 		{"Klasse", false},
 		{" 2a ", false},

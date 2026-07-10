@@ -73,7 +73,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsCreate), withTx).Post("/", rs.createActiveGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Put("/{id}", rs.updateActiveGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsDelete), withTx).Delete("/{id}", rs.deleteActiveGroup)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Post(routeEndByID, rs.endActiveGroup)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post(routeEndByID, rs.endActiveGroup)
 			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Post("/{id}/claim", rs.claimGroup)
 		})
 

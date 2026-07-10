@@ -38,12 +38,23 @@ func (r *RequestRepository) Create(ctx context.Context, req *enrollment.Request)
 }
 
 func (r *RequestRepository) FindByID(ctx context.Context, id int64) (*enrollment.Request, error) {
+	return r.findByID(ctx, id, "")
+}
+
+func (r *RequestRepository) FindByIDForUpdate(ctx context.Context, id int64) (*enrollment.Request, error) {
+	return r.findByID(ctx, id, "UPDATE")
+}
+
+func (r *RequestRepository) findByID(ctx context.Context, id int64, lockClause string) (*enrollment.Request, error) {
 	req := new(enrollment.Request)
-	err := base.GetDB(ctx, r.db).NewSelect().
+	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(req).
 		ModelTableExpr(requestTableExpr).
-		Where(`"request".id = ?`, id).
-		Scan(ctx)
+		Where(`"request".id = ?`, id)
+	if lockClause != "" {
+		query = query.For(lockClause)
+	}
+	err := query.Scan(ctx)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("enrollment request %d not found", id)

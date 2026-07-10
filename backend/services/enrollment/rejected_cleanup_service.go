@@ -31,11 +31,17 @@ type relatedOutboxCleaner interface {
 
 type rejectedRequestCleaner interface {
 	ListFullyRejectedBefore(ctx context.Context, cutoff time.Time) ([]int64, error)
+	FindByIDForUpdate(ctx context.Context, requestID int64) (*enrollmentModels.Request, error)
 	DeleteByID(ctx context.Context, requestID int64) error
+}
+
+type rejectedRequestChildLocker interface {
+	ListByRequestIDForUpdate(ctx context.Context, requestID int64) ([]*enrollmentModels.RequestChild, error)
 }
 
 type rejectedEnrollmentCleanupService struct {
 	requests rejectedRequestCleaner
+	children rejectedRequestChildLocker
 	outbox   relatedOutboxCleaner
 	settings RequestSettingsResolver
 	runInTx  func(context.Context, func(context.Context) error) error
@@ -44,6 +50,7 @@ type rejectedEnrollmentCleanupService struct {
 
 func NewRejectedEnrollmentCleanupService(
 	requests enrollmentModels.RequestRepository,
+	children enrollmentModels.RequestChildRepository,
 	outbox relatedOutboxCleaner,
 	settings RequestSettingsResolver,
 	db *bun.DB,
@@ -54,6 +61,7 @@ func NewRejectedEnrollmentCleanupService(
 	}
 	return &rejectedEnrollmentCleanupService{
 		requests: requests,
+		children: children,
 		outbox:   outbox,
 		settings: settings,
 		runInTx:  newRejectedEnrollmentCleanupTxRunner(db),
@@ -91,7 +99,7 @@ func runRejectedEnrollmentCleanupSavepoint(ctx context.Context, ambient *bun.Tx,
 }
 
 func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx context.Context) (RejectedEnrollmentCleanupResult, error) {
-	if s.requests == nil || s.outbox == nil || s.settings == nil || s.runInTx == nil {
+	if s.requests == nil || s.children == nil || s.outbox == nil || s.settings == nil || s.runInTx == nil {
 		return RejectedEnrollmentCleanupResult{}, errors.New("rejected enrollment cleanup is not configured")
 	}
 	days, err := s.settings.ResolveInt(ctx, configModel.KeyEnrollmentRejectedRetentionDays)
@@ -109,6 +117,19 @@ func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx contex
 			return listErr
 		}
 		for _, requestID := range requestIDs {
+			// Match every request-mutation path's parent -> children lock order.
+			// Locking children first and then cascading the parent delete can
+			// deadlock with an edit that already holds the request row.
+			if _, lockErr := s.requests.FindByIDForUpdate(txCtx, requestID); lockErr != nil {
+				return fmt.Errorf("lock rejected enrollment request: %w", lockErr)
+			}
+			children, lockErr := s.children.ListByRequestIDForUpdate(txCtx, requestID)
+			if lockErr != nil {
+				return fmt.Errorf("lock rejected enrollment request children: %w", lockErr)
+			}
+			if !childrenRemainFullyRejectedBefore(children, cutoff) {
+				continue
+			}
 			deletedOutbox, deleteOutboxErr := s.outbox.DeleteByRelatedEntity(txCtx, platformModels.EmailRelatedTypeEnrollmentRequest, requestID)
 			if deleteOutboxErr != nil {
 				return fmt.Errorf("delete dependent enrollment outbox rows: %w", deleteOutboxErr)
@@ -128,4 +149,16 @@ func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx contex
 		slog.Int("deleted_requests", result.DeletedRequests),
 		slog.Int64("deleted_outbox_rows", result.DeletedOutboxRows))
 	return result, nil
+}
+
+func childrenRemainFullyRejectedBefore(children []*enrollmentModels.RequestChild, cutoff time.Time) bool {
+	if len(children) == 0 {
+		return false
+	}
+	for _, child := range children {
+		if child == nil || child.Status != enrollmentModels.ChildStatusRejected || child.ReviewedAt == nil || !child.ReviewedAt.Before(cutoff) {
+			return false
+		}
+	}
+	return true
 }

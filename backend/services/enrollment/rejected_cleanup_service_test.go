@@ -10,6 +10,7 @@ import (
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,8 +42,10 @@ func (s cleanupSettingsStub) ResolveInt(_ context.Context, key string) (int, err
 type cleanupRequestStub struct {
 	ids       []int64
 	listErr   error
+	lockErr   map[int64]error
 	deleteErr map[int64]error
 	cutoff    time.Time
+	locked    []int64
 	deleted   []int64
 }
 
@@ -50,12 +53,49 @@ func (s *cleanupRequestStub) ListFullyRejectedBefore(_ context.Context, cutoff t
 	s.cutoff = cutoff
 	return s.ids, s.listErr
 }
+func (s *cleanupRequestStub) FindByIDForUpdate(_ context.Context, id int64) (*enrollmentModels.Request, error) {
+	s.locked = append(s.locked, id)
+	if err := s.lockErr[id]; err != nil {
+		return nil, err
+	}
+	return &enrollmentModels.Request{}, nil
+}
 func (s *cleanupRequestStub) DeleteByID(_ context.Context, id int64) error {
 	if err := s.deleteErr[id]; err != nil {
 		return err
 	}
 	s.deleted = append(s.deleted, id)
 	return nil
+}
+
+type cleanupChildrenStub struct {
+	byRequestID map[int64][]*enrollmentModels.RequestChild
+	errFor      map[int64]error
+	locked      []int64
+}
+
+func (s *cleanupChildrenStub) ListByRequestIDForUpdate(_ context.Context, requestID int64) ([]*enrollmentModels.RequestChild, error) {
+	s.locked = append(s.locked, requestID)
+	if err := s.errFor[requestID]; err != nil {
+		return nil, err
+	}
+	return s.byRequestID[requestID], nil
+}
+
+func eligibleCleanupChildren(requestIDs ...int64) *cleanupChildrenStub {
+	reviewedAt := time.Now().Add(-365 * 24 * time.Hour)
+	children := &cleanupChildrenStub{
+		byRequestID: make(map[int64][]*enrollmentModels.RequestChild, len(requestIDs)),
+		errFor:      map[int64]error{},
+	}
+	for _, requestID := range requestIDs {
+		children.byRequestID[requestID] = []*enrollmentModels.RequestChild{{
+			RequestID:  requestID,
+			Status:     enrollmentModels.ChildStatusRejected,
+			ReviewedAt: &reviewedAt,
+		}}
+	}
+	return children
 }
 
 type cleanupOutboxStub struct {
@@ -75,9 +115,10 @@ func (s *cleanupOutboxStub) DeleteByRelatedEntity(_ context.Context, relatedType
 	return s.counts[id], nil
 }
 
-func cleanupServiceForTest(requests *cleanupRequestStub, outbox *cleanupOutboxStub, settings cleanupSettingsStub) *rejectedEnrollmentCleanupService {
+func cleanupServiceForTest(requests *cleanupRequestStub, children *cleanupChildrenStub, outbox *cleanupOutboxStub, settings cleanupSettingsStub) *rejectedEnrollmentCleanupService {
 	return &rejectedEnrollmentCleanupService{
 		requests: requests,
+		children: children,
 		outbox:   outbox,
 		settings: settings,
 		logger:   slog.New(slog.DiscardHandler),
@@ -89,13 +130,16 @@ func cleanupServiceForTest(requests *cleanupRequestStub, outbox *cleanupOutboxSt
 
 func TestRejectedEnrollmentCleanup_DeletesOnlyRepositorySelectedRequests(t *testing.T) {
 	requests := &cleanupRequestStub{ids: []int64{11, 12}, deleteErr: map[int64]error{}}
+	children := eligibleCleanupChildren(11, 12)
 	outbox := &cleanupOutboxStub{counts: map[int64]int64{11: 2, 12: 1}, errFor: map[int64]error{}}
 	before := time.Now().Add(-30 * 24 * time.Hour)
 
-	result, err := cleanupServiceForTest(requests, outbox, cleanupSettingsStub{days: 30}).CleanupRejectedEnrollments(context.Background())
+	result, err := cleanupServiceForTest(requests, children, outbox, cleanupSettingsStub{days: 30}).CleanupRejectedEnrollments(context.Background())
 
 	require.NoError(t, err)
 	assert.Equal(t, RejectedEnrollmentCleanupResult{DeletedRequests: 2, DeletedOutboxRows: 3}, result)
+	assert.Equal(t, []int64{11, 12}, requests.locked)
+	assert.Equal(t, []int64{11, 12}, children.locked)
 	assert.Equal(t, []int64{11, 12}, outbox.deleted)
 	assert.Equal(t, []int64{11, 12}, requests.deleted)
 	assert.WithinDuration(t, before, requests.cutoff, 2*time.Second)
@@ -103,25 +147,113 @@ func TestRejectedEnrollmentCleanup_DeletesOnlyRepositorySelectedRequests(t *test
 
 func TestRejectedEnrollmentCleanup_ResolutionFailurePerformsNoDeletes(t *testing.T) {
 	requests := &cleanupRequestStub{ids: []int64{11}, deleteErr: map[int64]error{}}
+	children := eligibleCleanupChildren(11)
 	outbox := &cleanupOutboxStub{counts: map[int64]int64{}, errFor: map[int64]error{}}
 
-	_, err := cleanupServiceForTest(requests, outbox, cleanupSettingsStub{err: errors.New("settings unavailable")}).CleanupRejectedEnrollments(context.Background())
+	_, err := cleanupServiceForTest(requests, children, outbox, cleanupSettingsStub{err: errors.New("settings unavailable")}).CleanupRejectedEnrollments(context.Background())
 
 	require.Error(t, err)
+	assert.Empty(t, requests.locked)
+	assert.Empty(t, children.locked)
 	assert.Empty(t, outbox.deleted)
 	assert.Empty(t, requests.deleted)
 }
 
 func TestRejectedEnrollmentCleanup_StopsOnDependentDeleteFailure(t *testing.T) {
 	requests := &cleanupRequestStub{ids: []int64{11, 12}, deleteErr: map[int64]error{}}
+	children := eligibleCleanupChildren(11, 12)
 	outbox := &cleanupOutboxStub{counts: map[int64]int64{}, errFor: map[int64]error{11: errors.New("delete failed")}}
 
-	result, err := cleanupServiceForTest(requests, outbox, cleanupSettingsStub{days: 30}).CleanupRejectedEnrollments(context.Background())
+	result, err := cleanupServiceForTest(requests, children, outbox, cleanupSettingsStub{days: 30}).CleanupRejectedEnrollments(context.Background())
 
 	require.Error(t, err)
 	assert.Zero(t, result)
 	assert.Empty(t, requests.deleted)
 	assert.Empty(t, outbox.deleted)
+}
+
+func TestRejectedEnrollmentCleanup_RechecksLockedChildrenBeforeDeleting(t *testing.T) {
+	requests := &cleanupRequestStub{ids: []int64{11, 12}, deleteErr: map[int64]error{}}
+	children := eligibleCleanupChildren(11, 12)
+	reviewedAt := time.Now().Add(-365 * 24 * time.Hour)
+	children.byRequestID[11] = []*enrollmentModels.RequestChild{{
+		RequestID:  11,
+		Status:     enrollmentModels.ChildStatusUnderReview,
+		ReviewedAt: &reviewedAt,
+	}}
+	outbox := &cleanupOutboxStub{counts: map[int64]int64{11: 3, 12: 2}, errFor: map[int64]error{}}
+
+	result, err := cleanupServiceForTest(requests, children, outbox, cleanupSettingsStub{days: 30}).CleanupRejectedEnrollments(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, RejectedEnrollmentCleanupResult{DeletedRequests: 1, DeletedOutboxRows: 2}, result)
+	assert.Equal(t, []int64{11, 12}, requests.locked)
+	assert.Equal(t, []int64{11, 12}, children.locked)
+	assert.Equal(t, []int64{12}, outbox.deleted)
+	assert.Equal(t, []int64{12}, requests.deleted)
+}
+
+func TestRejectedEnrollmentCleanup_StopsOnRequestLockFailure(t *testing.T) {
+	requests := &cleanupRequestStub{
+		ids:       []int64{11},
+		lockErr:   map[int64]error{11: errors.New("lock failed")},
+		deleteErr: map[int64]error{},
+	}
+	children := eligibleCleanupChildren(11)
+	outbox := &cleanupOutboxStub{counts: map[int64]int64{}, errFor: map[int64]error{}}
+
+	result, err := cleanupServiceForTest(requests, children, outbox, cleanupSettingsStub{days: 30}).CleanupRejectedEnrollments(context.Background())
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "lock rejected enrollment request")
+	assert.Zero(t, result)
+	assert.Empty(t, children.locked)
+	assert.Empty(t, outbox.deleted)
+	assert.Empty(t, requests.deleted)
+}
+
+func TestRejectedEnrollmentCleanup_StopsOnChildLockFailure(t *testing.T) {
+	requests := &cleanupRequestStub{ids: []int64{11}, deleteErr: map[int64]error{}}
+	children := eligibleCleanupChildren(11)
+	children.errFor[11] = errors.New("lock failed")
+	outbox := &cleanupOutboxStub{counts: map[int64]int64{}, errFor: map[int64]error{}}
+
+	result, err := cleanupServiceForTest(requests, children, outbox, cleanupSettingsStub{days: 30}).CleanupRejectedEnrollments(context.Background())
+
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "lock rejected enrollment request children")
+	assert.Zero(t, result)
+	assert.Empty(t, outbox.deleted)
+	assert.Empty(t, requests.deleted)
+}
+
+func TestChildrenRemainFullyRejectedBefore(t *testing.T) {
+	cutoff := time.Now()
+	oldReview := cutoff.Add(-time.Hour)
+	newReview := cutoff.Add(time.Hour)
+
+	tests := []struct {
+		name     string
+		children []*enrollmentModels.RequestChild
+		want     bool
+	}{
+		{name: "no children"},
+		{name: "nil child", children: []*enrollmentModels.RequestChild{nil}},
+		{name: "reopened child", children: []*enrollmentModels.RequestChild{{Status: enrollmentModels.ChildStatusUnderReview, ReviewedAt: &oldReview}}},
+		{name: "missing review time", children: []*enrollmentModels.RequestChild{{Status: enrollmentModels.ChildStatusRejected}}},
+		{name: "review exactly at cutoff", children: []*enrollmentModels.RequestChild{{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &cutoff}}},
+		{name: "review after cutoff", children: []*enrollmentModels.RequestChild{{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &newReview}}},
+		{name: "all rejected before cutoff", children: []*enrollmentModels.RequestChild{
+			{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &oldReview},
+			{Status: enrollmentModels.ChildStatusRejected, ReviewedAt: &oldReview},
+		}, want: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, childrenRemainFullyRejectedBefore(tt.children, cutoff))
+		})
+	}
 }
 
 func rejectedCleanupAmbientTx(t *testing.T) (context.Context, sqlmock.Sqlmock) {

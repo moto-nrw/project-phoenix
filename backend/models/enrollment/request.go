@@ -91,6 +91,7 @@ type DuplicateChildKey struct {
 type RequestRepository interface {
 	Create(ctx context.Context, req *Request) error
 	FindByID(ctx context.Context, id int64) (*Request, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*Request, error)
 	FindByStatusToken(ctx context.Context, token string) (*Request, error)
 	FindByStatusTokenForUpdate(ctx context.Context, token string) (*Request, error)
 	AcquireSubmissionDedupLock(ctx context.Context, phaseID int64, emailHash uint64) error

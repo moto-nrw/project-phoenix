@@ -100,11 +100,15 @@ func (s *stubRequestSettings) ResolveInt(_ context.Context, key string) (int, er
 type recordingOutbox struct {
 	mu      sync.Mutex
 	entries []platformModels.OutboxEnqueueRequest
+	err     error
 }
 
 func (r *recordingOutbox) EnqueueOutbox(_ context.Context, req platformModels.OutboxEnqueueRequest) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.err != nil {
+		return r.err
+	}
 	r.entries = append(r.entries, req)
 	return nil
 }
@@ -1365,6 +1369,67 @@ func TestRequestService_ReplaceEditable_RejectsNewCapacityClaimWhenFull(t *testi
 	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingFull))
 }
 
+func TestRequestService_ReplaceEditable_DisabledOfferingsFollowVerifiedChildIdentity(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+
+	offeringA := setupCareOfferingForCapacity(t, env, 10)
+	offeringB := setupCareOfferingForCapacity(t, env, 10)
+	base := validSubmission(env.phaseID)
+	base.GuardianEmail = "hidden-offering-identity@example.com"
+	base.Children[0].FirstName = "Anna"
+	base.Children[0].OfferingIDs = []int64{offeringA.ID}
+	base.Children = append(base.Children, enrollmentService.SubmitChild{
+		FirstName:        "Ben",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+		OfferingIDs:      []int64{offeringB.ID},
+	})
+	submitted, err := env.svc.Submit(ctx, base)
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 2)
+	require.NoError(t, repoFactory.RequestChild.UpdateActivationPlan(
+		ctx, submitted.Children[1].ID, enrollmentModels.ChildActivationImmediate, nil,
+	))
+
+	env.settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = false
+	replace := validSubmission(env.phaseID)
+	replace.Children = []enrollmentService.SubmitChild{
+		{
+			ID:                submitted.Children[1].ID,
+			FirstName:         "Ben",
+			LastName:          "Beispiel",
+			DateOfBirth:       timezone.NewDate(2019, 8, 1),
+			TargetGradeLevel:  testpkg.Int16Ptr(2),
+			TargetSchoolClass: nil,
+		},
+		{
+			FirstName:        "Clara",
+			LastName:         "Beispiel",
+			DateOfBirth:      timezone.NewDate(2020, 9, 2),
+			TargetGradeLevel: testpkg.Int16Ptr(1),
+		},
+	}
+
+	updated, err := env.svc.ReplaceEditable(ctx, submitted.Request.StatusToken, replace)
+	require.NoError(t, err)
+	require.Len(t, updated.Children, 2)
+	assert.Equal(t, enrollmentModels.ChildActivationImmediate, updated.Children[0].ActivationMode)
+	assert.Equal(t, enrollmentModels.ChildActivationScheduled, updated.Children[1].ActivationMode)
+
+	links, err := repoFactory.RequestChildOffering.ListByRequestChildIDs(ctx, []int64{
+		updated.Children[0].ID,
+		updated.Children[1].ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, updated.Children[0].ID, links[0].RequestChildID)
+	assert.Equal(t, offeringB.ID, links[0].CareOfferingID)
+}
+
 // --- Withdraw ---
 
 func TestRequestService_Withdraw_PerChildSetsWithdrawnStatus(t *testing.T) {
@@ -1435,6 +1500,99 @@ func TestRequestService_Withdraw_PerChildRejectsApproved(t *testing.T) {
 	err = env.svc.Withdraw(ctx, result.Request.StatusToken, result.Children[0].ID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrWithdrawNotAllowed))
+}
+
+func TestRequestService_Withdraw_FinalSiblingEnqueuesDecisionDigest(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionDigest
+
+	request := validSubmission(env.phaseID)
+	request.GuardianEmail = "withdraw-digest@example.com"
+	request.Children = append(request.Children, enrollmentService.SubmitChild{
+		FirstName:        "Noah",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+	})
+	submitted, err := env.svc.Submit(ctx, request)
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 2)
+
+	repoFactory := repositories.NewFactory(env.db)
+	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+		ctx, submitted.Children[0].ID, enrollmentModels.ChildStatusRejected, nil, env.creatorID,
+	))
+	require.NoError(t, env.svc.Withdraw(ctx, submitted.Request.StatusToken, submitted.Children[1].ID))
+
+	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	require.Len(t, digests, 1)
+	assert.Equal(t, []string{"Lina Beispiel"}, digests[0].Payload["rejected_names"])
+	assert.Equal(t, []string{"Noah Beispiel"}, digests[0].Payload["withdrawn_names"])
+	assert.NotEmpty(t, digests[0].IdempotencyKey)
+
+	// Retrying an already-withdrawn child is a no-op, including notification.
+	require.NoError(t, env.svc.Withdraw(ctx, submitted.Request.StatusToken, submitted.Children[1].ID))
+	assert.Len(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest), 1)
+}
+
+func TestRequestService_Withdraw_DigestFailureRollsBackStatus(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionDigest
+
+	request := validSubmission(env.phaseID)
+	request.GuardianEmail = "withdraw-digest-failure@example.com"
+	request.Children = append(request.Children, enrollmentService.SubmitChild{
+		FirstName:        "Noah",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+	})
+	submitted, err := env.svc.Submit(ctx, request)
+	require.NoError(t, err)
+
+	repoFactory := repositories.NewFactory(env.db)
+	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+		ctx, submitted.Children[0].ID, enrollmentModels.ChildStatusRejected, nil, env.creatorID,
+	))
+	env.outbox.mu.Lock()
+	env.outbox.err = errors.New("outbox unavailable")
+	env.outbox.mu.Unlock()
+
+	err = env.svc.Withdraw(ctx, submitted.Request.StatusToken, submitted.Children[1].ID)
+	require.ErrorContains(t, err, "enqueue parent decision digest")
+	children, loadErr := repoFactory.RequestChild.ListByRequestID(ctx, submitted.Request.ID)
+	require.NoError(t, loadErr)
+	require.Len(t, children, 2)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[1].Status)
+}
+
+func TestRequestService_Withdraw_NonFinalIgnoresNotificationSettingFailure(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.stringErrors[configModel.KeyEnrollmentNotifyPerDecision] = errors.New("settings unavailable")
+
+	request := validSubmission(env.phaseID)
+	request.GuardianEmail = "withdraw-nonfinal-settings-error@example.com"
+	request.Children = append(request.Children, enrollmentService.SubmitChild{
+		FirstName:        "Noah",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+	})
+	submitted, err := env.svc.Submit(ctx, request)
+	require.NoError(t, err)
+
+	require.NoError(t, env.svc.Withdraw(ctx, submitted.Request.StatusToken, submitted.Children[0].ID))
+	children, err := repositories.NewFactory(env.db).RequestChild.ListByRequestID(ctx, submitted.Request.ID)
+	require.NoError(t, err)
+	require.Len(t, children, 2)
+	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, children[0].Status)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[1].Status)
 }
 
 // --- Rate limiting ---

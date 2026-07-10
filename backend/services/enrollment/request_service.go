@@ -1186,13 +1186,9 @@ func preservedOfferingSelections(
 		})
 	}
 	result := make([][]materializedOfferingSelection, len(incoming))
-	for i := range incoming {
-		if incoming[i].ID > 0 {
-			result[i] = byChild[incoming[i].ID]
-			continue
-		}
-		if i < len(existingChildren) {
-			result[i] = byChild[existingChildren[i].ID]
+	for i, child := range matchExistingChildrenBySubmittedIdentity(existingChildren, incoming) {
+		if child != nil {
+			result[i] = byChild[child.ID]
 		}
 	}
 	return result
@@ -1815,6 +1811,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		}
 		byKey := buildFieldsByKey(schema)
 		rawGuardian := editReq.CustomData
+		matchedExistingChildren := matchExistingChildrenBySubmittedIdentity(children, editReq.Children)
 		existingCustomData := existingChildCustomDataBySubmittedIdentity(children, editReq.Children)
 		for i := range editReq.Children {
 			childCtx := fieldVisibilityContext{
@@ -1950,11 +1947,11 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 				ActivationMode:    enrollmentModels.ChildActivationScheduled,
 				SortOrder:         i,
 			}
-			if i < len(children) {
-				row.ActivationMode = children[i].ActivationMode
-				row.ActivateOn = children[i].ActivateOn
-				row.RolloverSourceChildID = children[i].RolloverSourceChildID
-				row.ReviewReason = children[i].ReviewReason
+			if matched := matchedExistingChildren[i]; matched != nil {
+				row.ActivationMode = matched.ActivationMode
+				row.ActivateOn = matched.ActivateOn
+				row.RolloverSourceChildID = matched.RolloverSourceChildID
+				row.ReviewReason = matched.ReviewReason
 			}
 			if err := s.RequestChildRepo.Create(txCtx, row); err != nil {
 				return fmt.Errorf("edit replace: create request child %d: %w", i, err)
@@ -2172,14 +2169,25 @@ func (s *requestService) Edit(ctx context.Context, token string, patch EditPatch
 // child when childID is 0). Approved children must go through the
 // admin (terminal student records exist) - returns ErrWithdrawNotAllowed.
 func (s *requestService) Withdraw(ctx context.Context, token string, childID int64) error {
-	req, children, err := s.GetByStatusToken(ctx, token)
+	req, _, err := s.GetByStatusToken(ctx, token)
 	if err != nil {
 		return err
 	}
 
 	tenantID := req.GetTenantID()
 	tenantCtx := tenant.WithTenantID(ctx, tenantID)
-	return tenant.WithTenantTx(tenantCtx, s.DB, tenantID, func(txCtx context.Context, tx bun.Tx) error {
+	return tenant.WithTenantTx(tenantCtx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		lockedReq, err := s.RequestRepo.FindByStatusTokenForUpdate(txCtx, strings.TrimSpace(token))
+		if err != nil || lockedReq == nil {
+			return ErrRequestNotFound
+		}
+		if lockedReq.StatusTokenExpires != nil && time.Now().After(*lockedReq.StatusTokenExpires) {
+			return ErrRequestNotFound
+		}
+		children, err := s.RequestChildRepo.ListByRequestIDForUpdate(txCtx, lockedReq.ID)
+		if err != nil {
+			return fmt.Errorf("withdraw: lock request children: %w", err)
+		}
 		anyWithdrawn := false
 		for _, c := range children {
 			if childID != 0 && c.ID != childID {
@@ -2197,12 +2205,38 @@ func (s *requestService) Withdraw(ctx context.Context, token string, childID int
 			if err := s.RequestChildRepo.UpdateStatus(txCtx, c.ID, enrollmentModels.ChildStatusWithdrawn, nil, 0); err != nil {
 				return err
 			}
+			c.Status = enrollmentModels.ChildStatusWithdrawn
+			c.StatusReason = nil
 			anyWithdrawn = true
 		}
 		if childID == 0 && anyWithdrawn {
-			return s.RequestRepo.MarkWithdrawn(txCtx, req.ID, time.Now())
+			if err := s.RequestRepo.MarkWithdrawn(txCtx, lockedReq.ID, time.Now()); err != nil {
+				return err
+			}
 		}
-		return nil
+		if !anyWithdrawn {
+			return nil
+		}
+
+		if !allChildrenParentResolved(children) {
+			return nil
+		}
+		notificationMode, err := resolveDecisionNotificationMode(txCtx, s.Settings)
+		if err != nil {
+			return fmt.Errorf("withdraw: resolve notification mode: %w", err)
+		}
+		if notificationMode != configModel.EnrollmentNotifyPerDecisionDigest {
+			return nil
+		}
+		children, err = s.RequestChildRepo.ListByRequestID(txCtx, lockedReq.ID)
+		if err != nil {
+			return fmt.Errorf("withdraw: refresh children for decision digest: %w", err)
+		}
+		phase, err := s.PhaseRepo.FindByID(txCtx, lockedReq.PhaseID)
+		if err != nil {
+			return fmt.Errorf("withdraw: load phase for decision digest: %w", err)
+		}
+		return enqueueDecisionDigest(txCtx, s.OutboxEnqueuer, s.SchoolRepo, s.ParentsURL, lockedReq, children, phase)
 	})
 }
 

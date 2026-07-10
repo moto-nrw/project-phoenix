@@ -37,7 +37,10 @@ import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
-import { useWaitlistEnabled } from "~/lib/tenant-context";
+import {
+  useCareOfferingsEnabled,
+  useWaitlistEnabled,
+} from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "AdminEnrollmentDetail" });
 
@@ -865,6 +868,7 @@ export function ChildOfferingAdjustment({
   phaseId: string;
   onSaved: () => void;
 }>) {
+  const careOfferingsEnabled = useCareOfferingsEnabled();
   const [open, setOpen] = useState(false);
   const [catalog, setCatalog] = useState<CareOffering[]>([]);
   const [history, setHistory] = useState<AdminOfferingAdjustment[]>([]);
@@ -885,6 +889,10 @@ export function ChildOfferingAdjustment({
     setPortalRoot(document.body);
   }, []);
 
+  useEffect(() => {
+    if (!careOfferingsEnabled) setOpen(false);
+  }, [careOfferingsEnabled]);
+
   const loadHistory = useCallback(async () => {
     try {
       const rows = await listAdminChildOfferingAdjustments(requestId, child.id);
@@ -902,6 +910,7 @@ export function ChildOfferingAdjustment({
   }, [loadHistory]);
 
   const openEditor = async () => {
+    if (!careOfferingsEnabled) return;
     setOpen(true);
     setError(null);
     setSelected(initialManualOfferingIDs(child.offerings));
@@ -994,29 +1003,37 @@ export function ChildOfferingAdjustment({
     }
   };
 
+  if (!careOfferingsEnabled && history.length === 0) return null;
+
   return (
     <div className="rounded-lg border border-gray-100 bg-white p-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-            Nachbearbeitung
-          </h4>
-          <p className="mt-1 text-sm text-gray-600">
-            Angebote können für dieses bestätigte Kind korrigiert werden.
-          </p>
+      {careOfferingsEnabled ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+              Nachbearbeitung
+            </h4>
+            <p className="mt-1 text-sm text-gray-600">
+              Angebote können für dieses bestätigte Kind korrigiert werden.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void openEditor()}
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            <Pencil className="h-4 w-4" aria-hidden />
+            Bearbeiten
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => void openEditor()}
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          <Pencil className="h-4 w-4" aria-hidden />
-          Bearbeiten
-        </button>
-      </div>
+      ) : null}
 
       {history.length > 0 ? (
-        <div className="mt-3 border-t border-gray-100 pt-3">
+        <div
+          className={
+            careOfferingsEnabled ? "mt-3 border-t border-gray-100 pt-3" : ""
+          }
+        >
           <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
             <History className="h-3.5 w-3.5" aria-hidden />
             Änderungshistorie
@@ -1043,7 +1060,7 @@ export function ChildOfferingAdjustment({
         </div>
       ) : null}
 
-      {open && portalRoot
+      {careOfferingsEnabled && open && portalRoot
         ? createPortal(
             <div className="fixed inset-0 z-[9999] overflow-y-auto overscroll-contain bg-black/40 p-4">
               <div className="mx-auto my-8 w-full max-w-2xl rounded-xl bg-white shadow-xl">

@@ -7,6 +7,7 @@ import {
 } from "~/lib/enrollment-admin-api";
 import { ChildExtraFields } from "./admin-enrollment-detail";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
+import { useCareOfferingsEnabled } from "~/lib/tenant-context";
 
 const mocks = vi.hoisted(() => ({
   listCareOfferings: vi.fn(),
@@ -50,6 +51,7 @@ beforeEach(() => {
   mocks.listAdminChildOfferingAdjustments.mockReset();
   mocks.updateAdminChildOfferings.mockReset();
   mocks.listAdminChildOfferingAdjustments.mockResolvedValue([]);
+  vi.mocked(useCareOfferingsEnabled).mockReturnValue(true);
 });
 
 describe("formatCustomValue", () => {
@@ -197,6 +199,50 @@ describe("ChildOfferings", () => {
 });
 
 describe("ChildOfferingAdjustment", () => {
+  it("hides mutation controls while retaining adjustment history when disabled", async () => {
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+    mocks.listAdminChildOfferingAdjustments.mockResolvedValue([
+      {
+        id: "adjustment-1",
+        request_id: "request-1",
+        request_child_id: "child-1",
+        student_id: "student-1",
+        actor_account_id: "account-1",
+        actor_role: "admin",
+        actor_name_snapshot: "Ada Admin",
+        reason: "Historische Korrektur",
+        before: [],
+        after: [],
+        changed_at: "2026-01-02T00:00:00Z",
+      },
+    ]);
+
+    render(
+      <ChildOfferingAdjustment
+        requestId="request-1"
+        phaseId="phase-1"
+        onSaved={vi.fn()}
+        child={{
+          id: "child-1",
+          first_name: "Lina",
+          last_name: "Kind",
+          date_of_birth: "2018-01-01",
+          status: "approved",
+          activation_mode: "scheduled",
+        }}
+      />,
+    );
+
+    expect(
+      await screen.findByText(/Historische Korrektur/, { selector: "li" }),
+    ).toBeVisible();
+    expect(screen.getByText("Änderungshistorie")).toBeVisible();
+    expect(
+      screen.queryByRole("button", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
+    expect(mocks.listCareOfferings).not.toHaveBeenCalled();
+  });
+
   it("preserves selected source-phase offerings that are absent from the current catalog", async () => {
     mocks.listCareOfferings.mockResolvedValue([
       {

@@ -227,47 +227,67 @@ func mergeEditableCustomData(
 
 func existingChildCustomDataBySubmittedIdentity(existing []*enrollmentModels.RequestChild, submitted []SubmitChild) []map[string]any {
 	out := make([]map[string]any, len(submitted))
-	byID := make(map[int64]map[string]any, len(existing))
-	for _, child := range existing {
-		if child == nil || child.ID <= 0 {
-			continue
-		}
-		byID[child.ID] = child.CustomData
-	}
-	for i := range submitted {
-		if submitted[i].ID > 0 {
-			if custom, ok := byID[submitted[i].ID]; ok {
-				out[i] = custom
-				continue
-			}
-		}
-		if stableChildIndexIdentity(existing, submitted, i) {
-			out[i] = existing[i].CustomData
+	for i, child := range matchExistingChildrenBySubmittedIdentity(existing, submitted) {
+		if child != nil {
+			out[i] = child.CustomData
 		}
 	}
 	return out
 }
 
-func stableChildIndexIdentity(existing []*enrollmentModels.RequestChild, submitted []SubmitChild, i int) bool {
-	if i < 0 || i >= len(existing) || existing[i] == nil {
-		return false
+// matchExistingChildrenBySubmittedIdentity returns a one-to-one carryover map
+// for replacement edits. A persisted ID is authoritative. ID-less rows are
+// matched only when the normalized (name, date-of-birth) identity is unique on
+// both sides; ambiguous or genuinely new children stay unmatched. This avoids
+// silently transferring hidden offerings or lifecycle metadata by array index.
+func matchExistingChildrenBySubmittedIdentity(existing []*enrollmentModels.RequestChild, submitted []SubmitChild) []*enrollmentModels.RequestChild {
+	matches := make([]*enrollmentModels.RequestChild, len(submitted))
+	byID := make(map[int64]*enrollmentModels.RequestChild, len(existing))
+	used := make(map[int64]bool, len(existing))
+	for _, child := range existing {
+		if child != nil && child.ID > 0 {
+			byID[child.ID] = child
+		}
 	}
-	if len(existing) == 1 && len(submitted) == 1 {
-		return true
+	for i, incoming := range submitted {
+		if incoming.ID <= 0 {
+			continue
+		}
+		if child := byID[incoming.ID]; child != nil && !used[child.ID] {
+			matches[i] = child
+			used[child.ID] = true
+		}
 	}
-	if len(existing) != len(submitted) {
-		return false
+
+	existingByIdentity := make(map[string][]*enrollmentModels.RequestChild)
+	incomingByIdentity := make(map[string][]int)
+	for _, child := range existing {
+		if child == nil || child.ID <= 0 || used[child.ID] {
+			continue
+		}
+		key := requestChildIdentityKey(child.FirstName, child.LastName, child.DateOfBirth.String())
+		existingByIdentity[key] = append(existingByIdentity[key], child)
 	}
-	return sameSubmittedChildIdentity(existing[i], submitted[i])
+	for i, incoming := range submitted {
+		if matches[i] != nil || incoming.ID > 0 {
+			continue
+		}
+		key := requestChildIdentityKey(incoming.FirstName, incoming.LastName, incoming.DateOfBirth.String())
+		incomingByIdentity[key] = append(incomingByIdentity[key], i)
+	}
+	for key, indexes := range incomingByIdentity {
+		candidates := existingByIdentity[key]
+		if len(indexes) != 1 || len(candidates) != 1 {
+			continue
+		}
+		matches[indexes[0]] = candidates[0]
+	}
+	return matches
 }
 
-func sameSubmittedChildIdentity(existing *enrollmentModels.RequestChild, submitted SubmitChild) bool {
-	if existing == nil {
-		return false
-	}
-	return strings.TrimSpace(existing.FirstName) == strings.TrimSpace(submitted.FirstName) &&
-		strings.TrimSpace(existing.LastName) == strings.TrimSpace(submitted.LastName) &&
-		existing.DateOfBirth == submitted.DateOfBirth
+func requestChildIdentityKey(firstName, lastName, dateOfBirth string) string {
+	return strings.ToLower(strings.TrimSpace(firstName)) + "\x00" +
+		strings.ToLower(strings.TrimSpace(lastName)) + "\x00" + strings.TrimSpace(dateOfBirth)
 }
 
 func editableCustomDataKeys(schema *enrollmentModels.FormSchema, appliesToChild bool) map[string]bool {
