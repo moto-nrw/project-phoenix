@@ -43,6 +43,10 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	settings := newStubRequestSettings()
 	settings.boolValues[configModel.KeyEnrollmentEnabled] = true
 	settings.boolValues[configModel.KeyEnrollmentAllowSubmissionEdit] = true
+	settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = true
+	settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = true
+	settings.boolValues[configModel.KeyEnrollmentWaitlistEnabled] = true
+	settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingWarn
 	settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 4
 	settings.intValues[configModel.KeyEnrollmentStatusTokenTTLDays] = 365
 	// The shared env submits all four standard consent flags. Configure the

@@ -45,6 +45,7 @@ var (
 	// student/person validators. Mapped to 400, not 500 — submit/edit now
 	// validate up front, so this is defense-in-depth for legacy rows.
 	ErrDecisionInvalidData = errors.New("enrollment request data is invalid")
+	ErrWaitlistDisabled    = errors.New("waitlist decisions are disabled for this tenant")
 	// ErrExportTooLarge guards the phase export against assembling an
 	// unbounded payload in memory. At OGS scale a phase holds hundreds of
 	// requests (a few MB); this cap only trips on a pathological phase,
@@ -290,6 +291,7 @@ type ChildOfferingRow struct {
 // lookup is required today, so the interface stays minimal.
 type DecisionSettingsResolver interface {
 	ResolveString(ctx context.Context, key string) (string, error)
+	ResolveBool(ctx context.Context, key string) (bool, error)
 }
 
 type DecisionServiceConfig struct {
@@ -878,16 +880,10 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	if !validDecisionStatuses[input.Status] {
 		return nil, fmt.Errorf("%w: %s", ErrDecisionInvalidStatus, input.Status)
 	}
-
 	request, err := s.RequestRepo.FindByID(ctx, input.RequestID)
 	if err != nil {
 		return nil, ErrDecisionRequestNotFound
 	}
-	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
-	if err != nil {
-		return nil, fmt.Errorf("decision: load phase: %w", err)
-	}
-
 	children, err := s.RequestChildRepo.ListByRequestID(ctx, input.RequestID)
 	if err != nil {
 		return nil, fmt.Errorf("decision: load children: %w", err)
@@ -909,11 +905,49 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		return &DecideOutcome{Child: target}, nil
 	}
 
-	// Block transitions out of a terminal status. Promotion flows
-	// (waitlisted → approved, etc.) come in slice 2; for slice 1 the
-	// admin can only move out of submitted / under_review / waitlisted.
+	// Block transitions out of a terminal status before resolving settings or
+	// loading phase data. A retry of an invalid transition must keep its stable
+	// conflict contract even during an unrelated settings outage.
 	if target.IsTerminal() {
 		return nil, ErrDecisionAlreadyTerminal
+	}
+
+	if input.Status == DecisionWaitlisted {
+		enabled, resolveErr := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentWaitlistEnabled, true)
+		if resolveErr != nil {
+			return nil, fmt.Errorf("decision: resolve waitlist setting: %w", resolveErr)
+		}
+		if !enabled {
+			return nil, ErrWaitlistDisabled
+		}
+	}
+	autoInviteEnabled := true
+	if input.Status == DecisionApproved {
+		autoInviteEnabled, err = s.resolveDecisionBool(ctx, configModel.KeyEnrollmentAutoInviteGuardianOnApprove, true)
+		if err != nil {
+			return nil, fmt.Errorf("decision: resolve guardian invitation setting: %w", err)
+		}
+	}
+	notificationMode := configModel.EnrollmentNotifyPerDecisionImmediate
+	if !input.SuppressParentEmail && isParentVisibleDecision(input.Status) {
+		if s.Settings != nil {
+			resolvedMode, resolveErr := s.Settings.ResolveString(ctx, configModel.KeyEnrollmentNotifyPerDecision)
+			if resolveErr != nil {
+				return nil, fmt.Errorf("decision: resolve notification mode: %w", resolveErr)
+			}
+			notificationMode = resolvedMode
+			if notificationMode == "" {
+				notificationMode = configModel.EnrollmentNotifyPerDecisionDigest
+			}
+		}
+		if notificationMode != configModel.EnrollmentNotifyPerDecisionImmediate && notificationMode != configModel.EnrollmentNotifyPerDecisionDigest {
+			return nil, fmt.Errorf("decision: unsupported notification mode %q", notificationMode)
+		}
+	}
+
+	phase, err := s.PhaseRepo.FindByID(ctx, request.PhaseID)
+	if err != nil {
+		return nil, fmt.Errorf("decision: load phase: %w", err)
 	}
 
 	reason := strings.TrimSpace(input.Reason)
@@ -933,7 +967,7 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		if err != nil {
 			return nil, err
 		}
-		if !input.SuppressGuardianInvitation {
+		if autoInviteEnabled && !input.SuppressGuardianInvitation {
 			outcome.PendingInvite = invite
 		}
 	}
@@ -941,6 +975,8 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	if err := s.RequestChildRepo.UpdateStatus(ctx, target.ID, string(input.Status), reasonPtr, input.ReviewedBy); err != nil {
 		return nil, fmt.Errorf("decision: update child status: %w", err)
 	}
+	target.Status = string(input.Status)
+	target.StatusReason = reasonPtr
 
 	s.Logger.Info("enrollment decision applied",
 		slog.Int64("request_id", input.RequestID),
@@ -950,13 +986,19 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 		slog.Bool("created_records", input.Status == DecisionApproved),
 	)
 
-	// Enqueue parent decision email. Best-effort: log on error but
-	// don't roll back the approval. (Outbox writes share the outer tx,
-	// so a hard failure WILL roll back - log+swallow keeps the
-	// behaviour aligned with submit's "delivery is downstream of the
-	// decision".)
+	// Enqueue the parent decision email in the same transaction. An enqueue
+	// failure rolls back the decision so a retry can safely enqueue it; the
+	// tenant-scoped idempotency key prevents duplicate rows after retries.
 	if !input.SuppressParentEmail {
-		s.enqueueDecisionEmail(ctx, request, target, phase, input.Status, reasonPtr)
+		if notificationMode == configModel.EnrollmentNotifyPerDecisionImmediate {
+			if err := s.enqueueDecisionEmail(ctx, request, target, phase, input.Status, reasonPtr); err != nil {
+				return nil, err
+			}
+		} else if allChildrenParentResolved(children) {
+			if err := s.enqueueDecisionDigest(ctx, request, children, phase); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	// Refetch to surface DB-managed fields (reviewed_at, updated_at).
@@ -970,6 +1012,32 @@ func (s *decisionService) Decide(ctx context.Context, input DecideInput) (*Decid
 	}
 	outcome.Child = refreshed
 	return outcome, nil
+}
+
+func isParentVisibleDecision(status DecisionStatus) bool {
+	return status == DecisionApproved || status == DecisionRejected || status == DecisionWaitlisted
+}
+
+func allChildrenParentResolved(children []*enrollmentModels.RequestChild) bool {
+	if len(children) == 0 {
+		return false
+	}
+	for _, child := range children {
+		switch child.Status {
+		case enrollmentModels.ChildStatusApproved, enrollmentModels.ChildStatusRejected,
+			enrollmentModels.ChildStatusWaitlisted, enrollmentModels.ChildStatusWithdrawn:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func (s *decisionService) resolveDecisionBool(ctx context.Context, key string, registryDefault bool) (bool, error) {
+	if s.Settings == nil {
+		return registryDefault, nil
+	}
+	return s.Settings.ResolveBool(ctx, key)
 }
 
 // applyApproval creates the downstream records that an approval
@@ -1208,8 +1276,14 @@ func (s *decisionService) applyApproval(
 	// parent picked that is bound to an activity_group becomes a row
 	// in activities.student_enrollments. Offerings without an activity
 	// group (pure schedule-only offerings) are skipped.
-	if err := s.materializeEnrollments(ctx, child.ID, student.ID, phase); err != nil {
-		return nil, err
+	careOfferingsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
+	if err != nil {
+		return nil, fmt.Errorf("decision: resolve care offerings setting: %w", err)
+	}
+	if careOfferingsEnabled {
+		if err := s.materializeEnrollments(ctx, child.ID, student.ID, phase); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.stampActivationPlan(ctx, child.ID, activationPlan); err != nil {
@@ -1300,8 +1374,14 @@ func (s *decisionService) applyApprovalRollover(
 	}
 
 	// Materialize the new year's care offerings under this student.
-	if err := s.materializeEnrollments(ctx, child.ID, studentID, phase); err != nil {
-		return nil, err
+	careOfferingsEnabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
+	if err != nil {
+		return nil, fmt.Errorf("decision: resolve care offerings setting: %w", err)
+	}
+	if careOfferingsEnabled {
+		if err := s.materializeEnrollments(ctx, child.ID, studentID, phase); err != nil {
+			return nil, err
+		}
 	}
 
 	if err := s.stampActivationPlan(ctx, child.ID, activationPlan); err != nil {
@@ -1772,7 +1852,10 @@ func (s *decisionService) resolveAdditionalGuardianProfile(
 // rename via the student profile UI later.
 func (s *decisionService) gradeToClass(grade *int16) string {
 	if grade == nil || *grade == 0 {
-		return ""
+		// users.students.school_class is required even when the enrollment
+		// tenant deliberately does not collect a grade. Persist a neutral,
+		// non-grade placeholder while request_children keeps the grade NULL.
+		return "offen"
 	}
 	return strconv.Itoa(int(*grade))
 }
@@ -2071,9 +2154,9 @@ func (s *decisionService) enqueueDecisionEmail(
 	phase *enrollmentModels.Phase,
 	status DecisionStatus,
 	reason *string,
-) {
+) error {
 	if s.OutboxEnqueuer == nil {
-		return
+		return nil
 	}
 
 	var kind string
@@ -2087,7 +2170,7 @@ func (s *decisionService) enqueueDecisionEmail(
 	default:
 		// under_review (and any future intermediate status) is
 		// admin-internal - parent stays on the existing status email.
-		return
+		return nil
 	}
 
 	schoolName, logoURL := emailBrandForSchool(ctx, s.SchoolRepo, request.TenantID, s.ParentsURL)
@@ -2119,13 +2202,69 @@ func (s *decisionService) enqueueDecisionEmail(
 		Payload:           payload,
 		RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
 		RelatedEntityID:   request.ID,
+		IdempotencyKey:    fmt.Sprintf("enrollment-decision:%d:%d:%s", request.ID, child.ID, status),
 	}); err != nil {
-		s.Logger.Error("decision: enqueue parent decision email failed",
-			slog.Int64("request_id", request.ID),
-			slog.Int64("child_id", child.ID),
-			slog.String("kind", kind),
-			slog.String("error", err.Error()))
+		return fmt.Errorf("decision: enqueue parent decision email: %w", err)
 	}
+	return nil
+}
+
+func (s *decisionService) enqueueDecisionDigest(
+	ctx context.Context,
+	request *enrollmentModels.Request,
+	children []*enrollmentModels.RequestChild,
+	phase *enrollmentModels.Phase,
+) error {
+	if s.OutboxEnqueuer == nil {
+		return nil
+	}
+	approved := []string{}
+	waitlisted := []string{}
+	rejected := []string{}
+	withdrawn := []string{}
+	for _, child := range children {
+		name := strings.TrimSpace(child.FirstName + " " + child.LastName)
+		switch child.Status {
+		case enrollmentModels.ChildStatusApproved:
+			approved = append(approved, name)
+		case enrollmentModels.ChildStatusWaitlisted:
+			waitlisted = append(waitlisted, name)
+		case enrollmentModels.ChildStatusRejected:
+			rejected = append(rejected, name)
+		case enrollmentModels.ChildStatusWithdrawn:
+			withdrawn = append(withdrawn, name)
+		}
+	}
+	schoolName, logoURL := emailBrandForSchool(ctx, s.SchoolRepo, request.TenantID, s.ParentsURL)
+	phaseName := ""
+	if phase != nil {
+		phaseName = phase.Name
+	}
+	payload := map[string]any{
+		EnrollmentPayloadGuardianFirstName: request.GuardianFirstName,
+		EnrollmentPayloadGuardianLastName:  request.GuardianLastName,
+		EnrollmentPayloadGuardianEmail:     request.GuardianEmail,
+		EnrollmentPayloadRecipientEmail:    request.GuardianEmail,
+		EnrollmentPayloadSchoolName:        schoolName,
+		EnrollmentPayloadStatusURL:         fmt.Sprintf("%s/enroll/status/%s", s.ParentsURL, request.StatusToken),
+		EnrollmentPayloadLogoURL:           logoURL,
+		EnrollmentPayloadMotoLogoURL:       motoLogoURL(s.ParentsURL),
+		EnrollmentPayloadPhaseName:         phaseName,
+		"approved_names":                   approved,
+		"waitlisted_names":                 waitlisted,
+		"rejected_names":                   rejected,
+		"withdrawn_names":                  withdrawn,
+	}
+	if err := s.OutboxEnqueuer.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
+		Kind:              platformModels.EmailKindEnrollmentDecisionDigest,
+		Payload:           payload,
+		RelatedEntityType: platformModels.EmailRelatedTypeEnrollmentRequest,
+		RelatedEntityID:   request.ID,
+		IdempotencyKey:    fmt.Sprintf("enrollment-decision-digest:%d", request.ID),
+	}); err != nil {
+		return fmt.Errorf("decision: enqueue parent decision digest: %w", err)
+	}
+	return nil
 }
 
 func (s *decisionService) findChildByID(ctx context.Context, requestID, childID int64) (*enrollmentModels.RequestChild, error) {

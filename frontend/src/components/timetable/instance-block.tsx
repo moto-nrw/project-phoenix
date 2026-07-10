@@ -19,6 +19,7 @@ import { TriangleAlert } from "lucide-react";
 import { getActivityColor } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
 import { timetableStatusColors } from "./timetable-style";
+import { useShowTimetableCounts } from "~/lib/tenant-context";
 
 interface InstanceBlockProps {
   instance: EnrichedInstance;
@@ -46,6 +47,7 @@ export function InstanceBlock({
   isSelected,
   onClick,
 }: InstanceBlockProps) {
+  const showTimetableCounts = useShowTimetableCounts();
   const isCancelled = instance.status === "cancelled";
   const isActive = instance.status === "active";
   const hasConflict = instance.conflictWarnings.length > 0;
@@ -130,9 +132,11 @@ export function InstanceBlock({
 
         {!isCompact && !isCancelled && (
           <div className="truncate text-[10px] text-gray-500">
-            {instance.staffCount} P ·{" "}
-            {instance.expectedStudentsCount + instance.presentStudentsCount} K
-            {isActive &&
+            {instance.staffCount} P
+            {showTimetableCounts &&
+              ` · ${instance.expectedStudentsCount + instance.presentStudentsCount} K`}
+            {showTimetableCounts &&
+            isActive &&
             instance.expectedStudentsCount + instance.presentStudentsCount > 0
               ? ` · ${instance.presentStudentsCount} anwesend`
               : ""}

@@ -40,6 +40,7 @@ var (
 	ErrInvalidSubmission      = errors.New("invalid submission")
 	ErrCareOfferingClosed     = errors.New("one or more selected care offerings are not currently accepting applications")
 	ErrCareOfferingFull       = errors.New("one or more selected care offerings are at capacity")
+	ErrCareOfferingsDisabled  = errors.New("care offerings are disabled for this tenant")
 	// ErrCareOfferingMissing is returned when a phase requires at least
 	// one care offering per child but a child has no offering selected.
 	// Mapped to 400 with a stable code so the parent form can highlight
@@ -180,6 +181,22 @@ type SubmitResult struct {
 	Request   *enrollmentModels.Request
 	Children  []*enrollmentModels.RequestChild
 	StatusURL string
+	Warnings  []SubmissionWarning
+}
+
+type SubmissionWarning struct {
+	Code string `json:"code"`
+}
+
+const WarningCodeDuplicateEnrollment = "enrollment.duplicate_detected"
+
+// FormCapabilities is the effective tenant configuration for enrollment
+// inputs. It is resolved inside the tenant transaction and is authoritative
+// for both bootstrap visibility and submission validation.
+type FormCapabilities struct {
+	CollectGradeLevel    bool
+	CollectSchoolClass   bool
+	CareOfferingsEnabled bool
 }
 
 type CreateLateInviteInput struct {
@@ -221,7 +238,9 @@ type EditDraft struct {
 	// setting (#1833) so the reopened form knows whether to show the
 	// concrete-class field. Combined with the phase's AvailableSchoolClasses
 	// / RequireSchoolClass it forms the public concrete-class config.
-	CollectSchoolClass bool
+	CollectSchoolClass   bool
+	CollectGradeLevel    bool
+	CareOfferingsEnabled bool
 }
 
 const (
@@ -280,6 +299,7 @@ type RequestService interface {
 	// class field. Caller must already be inside a tenant-tx. A settings
 	// resolution failure is returned, not swallowed as "disabled".
 	CollectsSchoolClass(ctx context.Context) (bool, error)
+	FormCapabilities(ctx context.Context) (FormCapabilities, error)
 
 	// LegalTexts returns the tenant's configured legal texts and derived
 	// public blocks for the enrollment form. Empty strings mean the admin
@@ -421,6 +441,17 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if !req.AllowClosedPhase && !IsEnrollmentWindowOpen(phase, now) {
 		return nil, ErrEnrollmentWindowClosed
 	}
+	capabilities, err := s.FormCapabilities(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("submit: resolve form capabilities: %w", err)
+	}
+	if err := normalizeSubmissionForCapabilities(&req, capabilities); err != nil {
+		return nil, err
+	}
+	duplicatePolicy, err := s.Settings.ResolveString(ctx, configModel.KeyEnrollmentDuplicateHandling)
+	if err != nil {
+		return nil, fmt.Errorf("submit: resolve duplicate handling: %w", err)
+	}
 
 	// Build the dedup key list once; the actual check + insert happens
 	// inside the write tx below, after we've taken an advisory lock to
@@ -433,15 +464,22 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		})
 	}
 
-	openOfferings, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
-	if err != nil {
-		return nil, fmt.Errorf("submit: load phase offerings: %w", err)
+	openOfferings := []*enrollmentModels.CareOffering{}
+	if capabilities.CareOfferingsEnabled {
+		openOfferings, err = s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
+		if err != nil {
+			return nil, fmt.Errorf("submit: load phase offerings: %w", err)
+		}
 	}
 	openByID := make(map[int64]*enrollmentModels.CareOffering, len(openOfferings))
 	for _, o := range openOfferings {
 		openByID[o.ID] = o
 	}
-	materializedSelections, err := materializeAndValidateChildrenOfferingSelections(req.Children, openByID, phase.CareOfferingSelectionMode)
+	selectionMode := enrollmentModels.PhaseCareOfferingSelectionOptional
+	if capabilities.CareOfferingsEnabled {
+		selectionMode = phase.CareOfferingSelectionMode
+	}
+	materializedSelections, err := materializeAndValidateChildrenOfferingSelections(req.Children, openByID, selectionMode)
 	if err != nil {
 		return nil, err
 	}
@@ -451,7 +489,10 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	// non-default status (e.g. waitlisted under mode=waitlist). When the
 	// mode is 'reject' an over-capacity offering aborts the whole
 	// submission with ErrCareOfferingFull. Mode comes from the phase row.
-	childStatusOverrides, err := s.applyCapacityOverflow(ctx, phase, req.Children, openByID)
+	childStatusOverrides := map[int]string{}
+	if capabilities.CareOfferingsEnabled {
+		childStatusOverrides, err = s.applyCapacityOverflow(ctx, phase, req.Children, openByID)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -559,6 +600,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	var (
 		createdRequest  *enrollmentModels.Request
 		createdChildren []*enrollmentModels.RequestChild
+		warnings        []SubmissionWarning
 	)
 	txErr := s.txHandler.RunInTx(ctx, func(txCtx context.Context, _ bun.Tx) error {
 		// Serialize concurrent submits for the same (phase, guardian
@@ -592,7 +634,15 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 			return fmt.Errorf("submit: duplicate check: %w", dupErr)
 		}
 		if len(dupes) > 0 {
-			return ErrDuplicateEnrollment
+			switch duplicatePolicy {
+			case configModel.EnrollmentDuplicateHandlingBlock:
+				return ErrDuplicateEnrollment
+			case configModel.EnrollmentDuplicateHandlingWarn:
+				warnings = []SubmissionWarning{{Code: WarningCodeDuplicateEnrollment}}
+			case configModel.EnrollmentDuplicateHandlingIgnore:
+			default:
+				return fmt.Errorf("submit: unsupported duplicate handling %q", duplicatePolicy)
+			}
 		}
 
 		var schemaID *int64
@@ -700,6 +750,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		Request:   createdRequest,
 		Children:  createdChildren,
 		StatusURL: statusURL,
+		Warnings:  warnings,
 	}, nil
 }
 
@@ -810,6 +861,10 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 	if len(req.Children) == 0 {
 		return fmt.Errorf("%w: at least one child is required", ErrInvalidSubmission)
 	}
+	capabilities, err := s.FormCapabilities(ctx)
+	if err != nil {
+		return fmt.Errorf("resolve enrollment form capabilities: %w", err)
+	}
 	gradeMax := s.resolveGradeMax(ctx)
 	for i, child := range req.Children {
 		if strings.TrimSpace(child.FirstName) == "" || strings.TrimSpace(child.LastName) == "" {
@@ -818,10 +873,10 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 		if child.DateOfBirth.IsZero() {
 			return fmt.Errorf("%w: child %d missing date_of_birth", ErrInvalidSubmission, i)
 		}
-		if child.TargetGradeLevel == nil {
+		if capabilities.CollectGradeLevel && child.TargetGradeLevel == nil {
 			return fmt.Errorf("%w: child %d missing target_grade_level", ErrInvalidSubmission, i)
 		}
-		if *child.TargetGradeLevel < 1 || int(*child.TargetGradeLevel) > gradeMax {
+		if capabilities.CollectGradeLevel && (*child.TargetGradeLevel < 1 || int(*child.TargetGradeLevel) > gradeMax) {
 			return fmt.Errorf("%w: child %d grade out of range 1..%d", ErrInvalidSubmission, i, gradeMax)
 		}
 	}
@@ -1111,6 +1166,36 @@ func selectionPayload(selections []materializedOfferingSelection, openByID map[i
 		}
 	}
 	return ids, dayRows
+}
+
+// preservedOfferingSelections copies the persisted links onto replacement
+// child rows while the catalog is disabled. The parent cannot see or change
+// these values, but re-enabling the setting restores them intact.
+func preservedOfferingSelections(
+	existingChildren []*enrollmentModels.RequestChild,
+	incoming []SubmitChild,
+	links []*enrollmentModels.RequestChildOffering,
+) [][]materializedOfferingSelection {
+	byChild := make(map[int64][]materializedOfferingSelection, len(existingChildren))
+	for _, link := range links {
+		byChild[link.RequestChildID] = append(byChild[link.RequestChildID], materializedOfferingSelection{
+			OfferingID:            link.CareOfferingID,
+			SelectedDays:          copyDays(link.SelectedDays),
+			ManualSelectedDays:    copyDays(link.ManualSelectedDays),
+			AutomaticSelectedDays: copyDays(link.AutomaticSelectedDays),
+		})
+	}
+	result := make([][]materializedOfferingSelection, len(incoming))
+	for i := range incoming {
+		if incoming[i].ID > 0 {
+			result[i] = byChild[incoming[i].ID]
+			continue
+		}
+		if i < len(existingChildren) {
+			result[i] = byChild[existingChildren[i].ID]
+		}
+	}
+	return result
 }
 
 func autoAddAppliesToGrade(grade *int16, levels []int) bool {
@@ -1498,19 +1583,19 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 	}
 
 	var (
-		phase              *enrollmentModels.Phase
-		schema             *enrollmentModels.FormSchema
-		openOfferings      []*enrollmentModels.CareOffering
-		legalTexts         LegalTexts
-		editMode           string
-		collectSchoolClass bool
+		phase         *enrollmentModels.Phase
+		schema        *enrollmentModels.FormSchema
+		openOfferings []*enrollmentModels.CareOffering
+		legalTexts    LegalTexts
+		editMode      string
+		capabilities  FormCapabilities
 	)
 	if err := tenant.WithTenantTx(ctx, s.DB, req.GetTenantID(), func(txCtx context.Context, _ bun.Tx) error {
-		collect, collectErr := s.collectSchoolClass(txCtx)
-		if collectErr != nil {
-			return fmt.Errorf("edit draft: resolve collect_school_class: %w", collectErr)
+		resolvedCapabilities, capabilityErr := s.FormCapabilities(txCtx)
+		if capabilityErr != nil {
+			return fmt.Errorf("edit draft: resolve form capabilities: %w", capabilityErr)
 		}
-		collectSchoolClass = collect
+		capabilities = resolvedCapabilities
 		editMode = editModeForChildren(children)
 		if editMode == EditModeDirectEdit {
 			if err := s.ensureRequestEditable(txCtx, req, children); err != nil {
@@ -1534,9 +1619,12 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 			return err
 		}
 		schema = loadedSchema
-		list, err := s.CareOfferingRepo.ListActiveByPhase(txCtx, phase.ID)
-		if err != nil {
-			return fmt.Errorf("edit draft: list active offerings: %w", err)
+		list := []*enrollmentModels.CareOffering{}
+		if capabilities.CareOfferingsEnabled {
+			list, err = s.CareOfferingRepo.ListActiveByPhase(txCtx, phase.ID)
+			if err != nil {
+				return fmt.Errorf("edit draft: list active offerings: %w", err)
+			}
 		}
 		openOfferings = list
 		openByID := make(map[int64]*enrollmentModels.CareOffering, len(openOfferings))
@@ -1545,6 +1633,9 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 		}
 		missingLinkedIDs := make(map[int64]struct{})
 		for _, link := range links {
+			if !capabilities.CareOfferingsEnabled {
+				continue
+			}
 			if _, ok := openByID[link.CareOfferingID]; ok {
 				continue
 			}
@@ -1582,17 +1673,19 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 	}
 
 	return &EditDraft{
-		Request:            req,
-		Children:           children,
-		Guardians:          guardians,
-		OfferingsByChild:   linksByChild,
-		Phase:              phase,
-		School:             school,
-		Schema:             schema,
-		OpenOfferings:      openOfferings,
-		LegalTexts:         legalTexts,
-		EditMode:           editMode,
-		CollectSchoolClass: collectSchoolClass,
+		Request:              req,
+		Children:             children,
+		Guardians:            guardians,
+		OfferingsByChild:     linksByChild,
+		Phase:                phase,
+		School:               school,
+		Schema:               schema,
+		OpenOfferings:        openOfferings,
+		LegalTexts:           legalTexts,
+		EditMode:             editMode,
+		CollectSchoolClass:   capabilities.CollectSchoolClass,
+		CollectGradeLevel:    capabilities.CollectGradeLevel,
+		CareOfferingsEnabled: capabilities.CareOfferingsEnabled,
 	}, nil
 }
 
@@ -1623,6 +1716,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 	var (
 		updatedRequest  *enrollmentModels.Request
 		createdChildren []*enrollmentModels.RequestChild
+		warnings        []SubmissionWarning
 	)
 	err := tenant.WithTenantTx(ctx, s.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		req, err := s.RequestRepo.FindByStatusTokenForUpdate(txCtx, token)
@@ -1659,15 +1753,33 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		if err != nil {
 			return err
 		}
-		openOfferings, err := s.CareOfferingRepo.ListActiveByPhase(txCtx, phase.ID)
+		duplicatePolicy, err := s.Settings.ResolveString(txCtx, configModel.KeyEnrollmentDuplicateHandling)
 		if err != nil {
-			return fmt.Errorf("edit replace: load phase offerings: %w", err)
+			return fmt.Errorf("edit replace: resolve duplicate handling: %w", err)
+		}
+		capabilities, err := s.FormCapabilities(txCtx)
+		if err != nil {
+			return fmt.Errorf("edit replace: resolve form capabilities: %w", err)
+		}
+		if err := normalizeSubmissionForCapabilities(&editReq, capabilities); err != nil {
+			return err
+		}
+		openOfferings := []*enrollmentModels.CareOffering{}
+		if capabilities.CareOfferingsEnabled {
+			openOfferings, err = s.CareOfferingRepo.ListActiveByPhase(txCtx, phase.ID)
+			if err != nil {
+				return fmt.Errorf("edit replace: load phase offerings: %w", err)
+			}
 		}
 		openByID := make(map[int64]*enrollmentModels.CareOffering, len(openOfferings))
 		for _, o := range openOfferings {
 			openByID[o.ID] = o
 		}
-		materializedSelections, err := materializeAndValidateChildrenOfferingSelections(editReq.Children, openByID, phase.CareOfferingSelectionMode)
+		selectionMode := enrollmentModels.PhaseCareOfferingSelectionOptional
+		if capabilities.CareOfferingsEnabled {
+			selectionMode = phase.CareOfferingSelectionMode
+		}
+		materializedSelections, err := materializeAndValidateChildrenOfferingSelections(editReq.Children, openByID, selectionMode)
 		if err != nil {
 			return err
 		}
@@ -1756,6 +1868,9 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		for _, link := range existingLinks {
 			preservedClaims[link.CareOfferingID]++
 		}
+		if !capabilities.CareOfferingsEnabled {
+			materializedSelections = preservedOfferingSelections(children, editReq.Children, existingLinks)
+		}
 
 		if s.RequestGuardianRepo != nil {
 			if err := s.RequestGuardianRepo.DeleteByRequestID(txCtx, req.ID); err != nil {
@@ -1774,13 +1889,24 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		if dupErr != nil {
 			return fmt.Errorf("edit replace: duplicate check: %w", dupErr)
 		}
-		if len(dupes) > 0 {
+		if len(dupes) > 0 && duplicatePolicy == configModel.EnrollmentDuplicateHandlingBlock {
 			return ErrDuplicateEnrollment
 		}
+		if len(dupes) > 0 && duplicatePolicy == configModel.EnrollmentDuplicateHandlingWarn {
+			warnings = []SubmissionWarning{{Code: WarningCodeDuplicateEnrollment}}
+		}
+		if duplicatePolicy != configModel.EnrollmentDuplicateHandlingBlock &&
+			duplicatePolicy != configModel.EnrollmentDuplicateHandlingWarn &&
+			duplicatePolicy != configModel.EnrollmentDuplicateHandlingIgnore {
+			return fmt.Errorf("edit replace: unsupported duplicate handling %q", duplicatePolicy)
+		}
 
-		childStatusOverrides, err := s.applyCapacityOverflowWithPreservedClaims(txCtx, phase, editReq.Children, openByID, preservedClaims)
-		if err != nil {
-			return err
+		childStatusOverrides := map[int]string{}
+		if capabilities.CareOfferingsEnabled {
+			childStatusOverrides, err = s.applyCapacityOverflowWithPreservedClaims(txCtx, phase, editReq.Children, openByID, preservedClaims)
+			if err != nil {
+				return err
+			}
 		}
 
 		req.GuardianFirstName = strings.TrimSpace(editReq.GuardianFirstName)
@@ -1863,6 +1989,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		Request:   updatedRequest,
 		Children:  createdChildren,
 		StatusURL: enrollmentStatusURL(s.ParentsURL, updatedRequest.StatusToken),
+		Warnings:  warnings,
 	}, nil
 }
 
@@ -2643,7 +2770,35 @@ func filterConsentFlags(flags map[string]any, blocks []LegalBlock) map[string]an
 // CollectsSchoolClass is the exported form of collectSchoolClass for the
 // RequestService interface (public form-load endpoints).
 func (s *requestService) CollectsSchoolClass(ctx context.Context) (bool, error) {
-	return s.collectSchoolClass(ctx)
+	capabilities, err := s.FormCapabilities(ctx)
+	return capabilities.CollectSchoolClass, err
+}
+
+// FormCapabilities resolves the three settings that govern the enrollment
+// form's core inputs. collect_school_class is deliberately made ineffective
+// while grade collection is disabled because a class without its grade is
+// ambiguous and cannot be validated safely.
+func (s *requestService) FormCapabilities(ctx context.Context) (FormCapabilities, error) {
+	if s.Settings == nil {
+		return FormCapabilities{}, errors.New("enrollment settings resolver is not configured")
+	}
+	collectGrade, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+	if err != nil {
+		return FormCapabilities{}, fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentCollectGradeLevel, err)
+	}
+	collectClass, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)
+	if err != nil {
+		return FormCapabilities{}, fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentCollectSchoolClass, err)
+	}
+	offeringsEnabled, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled)
+	if err != nil {
+		return FormCapabilities{}, fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentCareOfferingsEnabled, err)
+	}
+	return FormCapabilities{
+		CollectGradeLevel:    collectGrade,
+		CollectSchoolClass:   collectGrade && collectClass,
+		CareOfferingsEnabled: offeringsEnabled,
+	}, nil
 }
 
 // collectSchoolClass reports whether the tenant collects the concrete
@@ -2657,10 +2812,26 @@ func (s *requestService) CollectsSchoolClass(ctx context.Context) (bool, error) 
 // class field on form bootstrap or strip a submitted, possibly-required
 // class in validateAndNormalizeSchoolClasses (issue #1833).
 func (s *requestService) collectSchoolClass(ctx context.Context) (bool, error) {
-	if s.Settings == nil {
-		return false, nil
+	capabilities, err := s.FormCapabilities(ctx)
+	return capabilities.CollectSchoolClass, err
+}
+
+func normalizeSubmissionForCapabilities(req *SubmitRequest, capabilities FormCapabilities) error {
+	for i := range req.Children {
+		child := &req.Children[i]
+		if !capabilities.CollectGradeLevel {
+			child.TargetGradeLevel = nil
+			child.TargetSchoolClass = nil
+		}
+		if !capabilities.CareOfferingsEnabled {
+			if len(child.OfferingIDs) > 0 || len(child.OfferingDays) > 0 {
+				return ErrCareOfferingsDisabled
+			}
+			child.OfferingIDs = nil
+			child.OfferingDays = nil
+		}
 	}
-	return s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)
+	return nil
 }
 
 // validateAndNormalizeSchoolClasses enforces the concrete-class rules
@@ -2854,6 +3025,20 @@ func (s *requestService) applyCapacityOverflowWithPreservedClaims(
 	mode := phase.CareOverflowMode
 	if mode == "" {
 		mode = enrollmentModels.PhaseCareOverflowWaitlist
+	}
+	if mode == enrollmentModels.PhaseCareOverflowWaitlist {
+		if s.Settings == nil {
+			return nil, errors.New("enrollment settings resolver is not configured")
+		}
+		waitlistEnabled, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentWaitlistEnabled)
+		if err != nil {
+			return nil, fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentWaitlistEnabled, err)
+		}
+		if !waitlistEnabled {
+			// Tenant-wide disable wins. Overflow remains deterministic and safe:
+			// accept above capacity instead of manufacturing a forbidden status.
+			mode = enrollmentModels.PhaseCareOverflowAllow
+		}
 	}
 
 	// Cache per-offering current count + capacity. Avoid hitting the DB

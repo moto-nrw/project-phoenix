@@ -144,6 +144,10 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	// override these maps to drive specific branches.
 	settings.boolValues[configModel.KeyEnrollmentEnabled] = true
 	settings.boolValues[configModel.KeyEnrollmentAllowSubmissionEdit] = true
+	settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = true
+	settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = true
+	settings.boolValues[configModel.KeyEnrollmentWaitlistEnabled] = true
+	settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingWarn
 	settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 4
 	settings.intValues[configModel.KeyEnrollmentStatusTokenTTLDays] = 365
 
@@ -1778,6 +1782,7 @@ func TestRequestService_Submit_CapacityNullMeansUnlimited(t *testing.T) {
 func TestRequestService_Submit_RejectsDuplicateChild(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
+	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
 	ctx := testpkg.TenantContext(1)
 
 	first, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
@@ -1801,6 +1806,7 @@ func TestRequestService_Submit_RejectsDuplicateChild(t *testing.T) {
 func TestRequestService_Submit_DedupCaseInsensitive(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
+	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
 	ctx := testpkg.TenantContext(1)
 
 	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
@@ -1815,6 +1821,39 @@ func TestRequestService_Submit_DedupCaseInsensitive(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrDuplicateEnrollment),
 		"case-different rewrite must still hit dedup; got %v", err)
+}
+
+func TestRequestService_Submit_DuplicateWarnPersistsWithMachineWarning(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingWarn
+
+	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+	duplicate := validSubmission(env.phaseID)
+	duplicate.RemoteIP = "10.0.0.61"
+	result, err := env.svc.Submit(ctx, duplicate)
+
+	require.NoError(t, err)
+	require.Len(t, result.Warnings, 1)
+	assert.Equal(t, enrollmentService.WarningCodeDuplicateEnrollment, result.Warnings[0].Code)
+}
+
+func TestRequestService_Submit_DuplicateIgnorePersistsWithoutWarning(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingIgnore
+
+	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+	duplicate := validSubmission(env.phaseID)
+	duplicate.RemoteIP = "10.0.0.62"
+	result, err := env.svc.Submit(ctx, duplicate)
+
+	require.NoError(t, err)
+	assert.Empty(t, result.Warnings)
 }
 
 // TestRequestService_Submit_DedupAllowsDifferentChild verifies the

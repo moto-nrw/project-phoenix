@@ -71,9 +71,14 @@ const OPEN_CHANGE_REQUEST_STATUSES = new Set<EnrollmentChangeRequest["status"]>(
 interface Props {
   readonly token: string;
   readonly justSubmitted?: boolean;
+  readonly duplicateWarning?: boolean;
 }
 
-export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
+export function EnrollmentStatusView({
+  token,
+  justSubmitted = false,
+  duplicateWarning = false,
+}: Props) {
   const t = useTranslations("enrollmentStatus");
   const locale = useLocale();
   const pathname = usePathname();
@@ -282,6 +287,11 @@ export function EnrollmentStatusView({ token, justSubmitted = false }: Props) {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 sm:space-y-6">
+      {duplicateWarning && (
+        <div className="rounded-xl border border-[#F78C10]/30 bg-[#F78C10]/10 px-4 py-3 text-sm leading-6 text-[#7C4A03]">
+          {t("duplicateWarning")}
+        </div>
+      )}
       <section className="moto-content-surface overflow-hidden rounded-3xl border shadow-sm">
         <div className="grid lg:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="p-5 sm:p-8 lg:p-10">

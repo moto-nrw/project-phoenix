@@ -382,6 +382,21 @@ func TestGetAllActiveSupervisions_ForbiddenForNonAdmin(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, w.Code)
 }
 
+func TestGetAllActiveSupervisions_OpenCareAllowsPermissionBearingStaff(t *testing.T) {
+	settings := mockSettingsSvc(map[string]bool{})
+	settings.ResolveStringFn = func(_ context.Context, key string) (string, error) {
+		assert.Equal(t, configModel.KeyGroupMode, key)
+		return configModel.GroupModeOpenCare, nil
+	}
+	rs := &Resource{SettingsService: settings, ActiveService: &stubActiveService{}}
+	r := newRequestWithClaims("GET", "/active/supervisors/all", staffClaims())
+	w := httptest.NewRecorder()
+
+	rs.getAllActiveSupervisions(w, r)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+}
+
 func TestGetAllActiveSupervisions_ForbiddenWhenSettingsNil(t *testing.T) {
 	rs := &Resource{SettingsService: nil}
 	r := newRequestWithClaims("GET", "/active/supervisors/all", adminClaims())

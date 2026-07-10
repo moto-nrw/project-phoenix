@@ -431,31 +431,57 @@ func (s *changeRequestService) prepareProposed(
 	if err := validateChangeRequestChildIdentity(children, editReq.Children); err != nil {
 		return editReq, nil, nil, nil, err
 	}
+	rs := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings, FormSchemaRepo: s.FormSchemaRepo, Logger: s.Logger}}
+	capabilities, err := rs.FormCapabilities(ctx)
+	if err != nil {
+		return editReq, nil, nil, nil, fmt.Errorf("change request: resolve form capabilities: %w", err)
+	}
+	if err := normalizeSubmissionForCapabilities(&editReq, capabilities); err != nil {
+		return editReq, nil, nil, nil, err
+	}
 
 	phase, err := s.PhaseRepo.FindByID(ctx, req.PhaseID)
 	if err != nil || phase == nil || !phase.IsActive {
 		return editReq, nil, nil, nil, ErrEnrollmentDisabled
 	}
-	openOfferings, err := s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
-	if err != nil {
-		return editReq, nil, nil, nil, fmt.Errorf("change request: load phase offerings: %w", err)
+	openOfferings := []*enrollmentModels.CareOffering{}
+	if capabilities.CareOfferingsEnabled {
+		openOfferings, err = s.CareOfferingRepo.ListActiveByPhase(ctx, phase.ID)
+		if err != nil {
+			return editReq, nil, nil, nil, fmt.Errorf("change request: load phase offerings: %w", err)
+		}
 	}
 	openByID := make(map[int64]*enrollmentModels.CareOffering, len(openOfferings))
 	for _, offering := range openOfferings {
 		openByID[offering.ID] = offering
 	}
-	offeringCatalogs, changeRequestByID, err := s.changeRequestOfferingCatalogs(ctx, children, openByID)
-	if err != nil {
-		return editReq, nil, nil, nil, err
-	}
-	materializedSelections, err := materializeAndValidateChangeRequestChildrenOfferingSelections(
-		editReq.Children,
-		children,
-		offeringCatalogs,
-		phase.CareOfferingSelectionMode,
-	)
-	if err != nil {
-		return editReq, nil, nil, nil, err
+	changeRequestByID := map[int64]*enrollmentModels.CareOffering{}
+	var materializedSelections [][]materializedOfferingSelection
+	if capabilities.CareOfferingsEnabled {
+		offeringCatalogs, catalogByID, catalogErr := s.changeRequestOfferingCatalogs(ctx, children, openByID)
+		if catalogErr != nil {
+			return editReq, nil, nil, nil, catalogErr
+		}
+		changeRequestByID = catalogByID
+		materializedSelections, err = materializeAndValidateChangeRequestChildrenOfferingSelections(
+			editReq.Children,
+			children,
+			offeringCatalogs,
+			phase.CareOfferingSelectionMode,
+		)
+		if err != nil {
+			return editReq, nil, nil, nil, err
+		}
+	} else {
+		childIDs := make([]int64, 0, len(children))
+		for _, child := range children {
+			childIDs = append(childIDs, child.ID)
+		}
+		existingLinks, linkErr := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+		if linkErr != nil {
+			return editReq, nil, nil, nil, fmt.Errorf("change request: preserve child offerings: %w", linkErr)
+		}
+		materializedSelections = preservedOfferingSelections(children, editReq.Children, existingLinks)
 	}
 
 	schema, err := s.schemaForRequest(ctx, req)
@@ -466,7 +492,6 @@ func (s *changeRequestService) prepareProposed(
 	if err != nil {
 		return editReq, nil, nil, nil, err
 	}
-	rs := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings, FormSchemaRepo: s.FormSchemaRepo, Logger: s.Logger}}
 	if err := normalizeAdditionalGuardians(&editReq); err != nil {
 		return editReq, nil, nil, nil, err
 	}
@@ -664,9 +689,16 @@ func (s *changeRequestService) currentSnapshot(ctx context.Context, req *enrollm
 	for _, child := range children {
 		childIDs = append(childIDs, child.ID)
 	}
-	links, err := s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+	links := []*enrollmentModels.RequestChildOffering{}
+	capabilities, err := (&requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}).FormCapabilities(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("change request: list child offerings: %w", err)
+		return nil, fmt.Errorf("change request: resolve snapshot capabilities: %w", err)
+	}
+	if capabilities.CareOfferingsEnabled {
+		links, err = s.RequestChildOfferingRepo.ListByRequestChildIDs(ctx, childIDs)
+		if err != nil {
+			return nil, fmt.Errorf("change request: list child offerings: %w", err)
+		}
 	}
 	linksByChild := make(map[int64][]*enrollmentModels.RequestChildOffering, len(children))
 	for _, link := range links {
@@ -714,9 +746,16 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 			return fmt.Errorf("change request approve: list previous guardians: %w", err)
 		}
 	}
-	childStatusOverrides, err := s.changeRequestCapacityOverrides(ctx, row, children, prepared, phase, openByID)
+	capabilities, err := (&requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}).FormCapabilities(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("change request approve: resolve form capabilities: %w", err)
+	}
+	childStatusOverrides := map[int]string{}
+	if capabilities.CareOfferingsEnabled {
+		childStatusOverrides, err = s.changeRequestCapacityOverrides(ctx, row, children, prepared, phase, openByID)
+		if err != nil {
+			return err
+		}
 	}
 
 	req.GuardianFirstName = strings.TrimSpace(prepared.GuardianFirstName)
@@ -761,21 +800,23 @@ func (s *changeRequestService) applyApprovedChange(ctx context.Context, row *enr
 		}
 		selections := materializedSelections[i]
 		if s.approvedChildUsesDecisionSync(existing) {
-			offeringInput := UpdateChildOfferingsInput{
-				RequestID:      req.ID,
-				ChildID:        existing.ID,
-				Reason:         input.Note,
-				ActorAccountID: input.ActorAccountID,
-				ActorRole:      input.ActorRole,
-			}
-			for _, selection := range selections {
-				offeringInput.Offerings = append(offeringInput.Offerings, OfferingAdjustmentSelection{
-					OfferingID:   selection.OfferingID,
-					SelectedDays: selection.SelectedDays,
-				})
-			}
-			if _, err := s.DecisionService.UpdateChildOfferings(ctx, offeringInput); err != nil {
-				return err
+			if capabilities.CareOfferingsEnabled {
+				offeringInput := UpdateChildOfferingsInput{
+					RequestID:      req.ID,
+					ChildID:        existing.ID,
+					Reason:         input.Note,
+					ActorAccountID: input.ActorAccountID,
+					ActorRole:      input.ActorRole,
+				}
+				for _, selection := range selections {
+					offeringInput.Offerings = append(offeringInput.Offerings, OfferingAdjustmentSelection{
+						OfferingID:   selection.OfferingID,
+						SelectedDays: selection.SelectedDays,
+					})
+				}
+				if _, err := s.DecisionService.UpdateChildOfferings(ctx, offeringInput); err != nil {
+					return err
+				}
 			}
 			if _, err := s.DecisionService.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
 				RequestID:                req.ID,
@@ -905,7 +946,22 @@ func (s *changeRequestService) ensureNoActiveDuplicateForApproval(ctx context.Co
 		return fmt.Errorf("change request approve: duplicate check: %w", err)
 	}
 	if len(dupes) > 0 {
-		return ErrDuplicateEnrollment
+		if s.Settings == nil {
+			return errors.New("enrollment settings resolver is not configured")
+		}
+		policy, resolveErr := s.Settings.ResolveString(ctx, configModel.KeyEnrollmentDuplicateHandling)
+		if resolveErr != nil {
+			return fmt.Errorf("change request approve: resolve duplicate handling: %w", resolveErr)
+		}
+		switch policy {
+		case configModel.EnrollmentDuplicateHandlingBlock:
+			return ErrDuplicateEnrollment
+		case configModel.EnrollmentDuplicateHandlingWarn:
+			s.Logger.WarnContext(ctx, "change request approved with active duplicate", slog.Int64("request_id", req.ID))
+		case configModel.EnrollmentDuplicateHandlingIgnore:
+		default:
+			return fmt.Errorf("change request approve: unsupported duplicate handling %q", policy)
+		}
 	}
 	return nil
 }

@@ -21,4 +21,8 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // leaves reloads/new tabs on the stale messagingEnabled value for up to the
   // layout cache TTL (300s).
   "operations.parent_notes_enabled",
+  "attendance.web_enabled",
+  "operations.group_mode",
+  "timetable.show_expected_children_count",
+  "enrollment.waitlist_enabled",
 ]);

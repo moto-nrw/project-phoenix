@@ -688,6 +688,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Beim Bearbeiten eines Termins aus einer Serie fragt die App, wofür die Änderung gilt: `Nur dieser Termin`, `Dieser und alle folgenden` oder `Alle Termine der Serie`.",
           "Beim Löschen eines Serientermins wählen Sie zwischen `Nur dieser Termin` und `Dieser und alle folgenden`; frühere Termine bleiben erhalten. Einen Regeltermin löschen Sie über `Bearbeiten` -> `Löschen` und wählen dort das `Ab Datum`.",
           "Geplante Termine erscheinen zur Startzeit in der `Aktuellen Aufsicht` unter `Als Nächstes` und werden dort mit `Starten` begonnen.",
+          "Die Zahlen für erwartete und anwesende Kinder werden nur angezeigt, wenn `Erwartete Kinderzahl anzeigen` unter `Einstellungen` -> `Betrieb` aktiviert ist. Die Kinderliste und Planungslogik bleiben auch bei ausgeblendeten Zahlen erhalten.",
         ],
         callout: {
           title: "Betreuungsplan bei Bedarf abschalten",
@@ -832,6 +833,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Unter `Einstellungen` -> `Anmeldung` -> `Rechtstexte` aktivierst du nur die Blöcke, die eure Einrichtung tatsächlich nutzt. Jeder Block hat denselben Ablauf: `Im Anmeldeformular anzeigen` einschalten, den Pflichttext im Dialog eintragen und speichern. Bei `AGB / Teilnahmebedingungen` wählst du zuerst die Quelle: `Text eingeben` oder `PDF-Datei hochladen`. Nur die gewählte Quelle erscheint im Elternformular; die andere Quelle kann gespeichert bleiben, wird aber nicht angezeigt. Ausgeschaltete Blöcke bleiben im Hintergrund gespeichert, erscheinen aber nicht im Elternformular. Eigene Formularvorlagen können diese Standardblöcke unter `Rechtstexte und Einwilligungen` je Vorlage ein- oder ausblenden, abweichend bearbeiten oder um eigene Einwilligungen ergänzen.",
           "Für Familien, die die Frist verpasst haben, `Anmeldephasen` öffnen und in der passenden Phase im Drei-Punkte-Menü `Nachzügler-Link erstellen` wählen. E-Mail-Adresse der erziehungsberechtigten Person eintragen, optional einen internen Grund notieren und den erzeugten Link an die Familie schicken. Der Link öffnet genau diese Phase trotz geschlossener Frist und kann nur einmal erfolgreich genutzt werden.",
           "Als letzte Absicherung kann ein Admin unter `Anmeldephasen` in der passenden Phase im Drei-Punkte-Menü `Manuelle Anmeldung` wählen. Dort wird dieselbe Formularvorlage wie für Eltern geladen; nach interner Begründung und Bestätigung, dass die Einwilligung extern vorliegt, wird das Kind direkt angelegt und freigegeben.",
+          "Unter `Einstellungen` -> `Anmeldung` legen Sie außerdem fest, ob Klassenstufe und Betreuungsangebote abgefragt werden. Ist die Klassenstufe ausgeschaltet, bleibt auch die konkrete Klasse wirkungslos. Ausgeschaltete Betreuungsangebote werden in Eltern-, Bearbeitungs-, Vorschau- und manuellen Formularen nicht angezeigt; der Angebotskatalog bleibt erhalten.",
         ],
         callout: {
           title: "So hängt alles zusammen",
@@ -854,7 +856,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Für Klassenlehrkräfte unter `Klasse für Klassenliste` den Klassenverband wählen und `Klassenliste exportieren` nutzen. Mit `Alle Klassen` erhältst du alle Klassenlisten in einer Datei, sauber getrennt mit eigener Überschrift je Klasse (im PDF auf einer neuen Seite). Die Liste enthält den gesamten Klassenverband, auch Kinder ohne bestätigte Anmeldung, und zeigt pro Wochentag die gebuchten Angebote, zum Beispiel `Randstunde` oder `Ganztag`, inklusive Abholzeit, Geh-/Abholweise und Kontaktdaten der Erziehungsberechtigten.",
           "Eine Anmeldung öffnen und Kind, erziehungsberechtigte Personen (Hauptkontakt und weitere erziehungsberechtigte Personen), gewähltes Betreuungsangebot und Formularangaben prüfen.",
           "Wenn eine Familie nach der Frist nachgereicht hat, erscheint die Anmeldung nach Nutzung des Nachzügler-Links ganz normal in dieser Liste. Bei der manuellen Freigabe ist das Kind bereits bestätigt; prüfe anschließend bei Bedarf den Statuslink oder die Kinddetailseite.",
-          "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken.",
+          "Mit `Bestätigen`, `Warteliste` oder `Ablehnen` entscheiden; mit `Zur Prüfung` für später vormerken. Ist die Warteliste in den Einstellungen deaktiviert, wird diese Aktion nicht angeboten. Nach einer Bestätigung lässt sich eine erziehungsberechtigte Person bei Bedarf in der Kinddetailseite manuell einladen oder erneut einladen.",
           "Bei bestätigten Kindern können Betreuungsangebote über `Betreuungsangebote bearbeiten` nachträglich korrigiert werden. Eine Begründung ist Pflicht; die Änderungshistorie zeigt danach, wer was wann angepasst hat.",
           "Wenn Eltern nach einer Entscheidung Daten korrigieren, erscheint die Anfrage unter `Änderungsanfragen`. Die Änderungsübersicht zeigt pro Kind oder erziehungsberechtigter Person, welche Felder von `Bisher` auf `Neu` geändert wurden. Dort kannst du Rückfragen senden, die Änderung freigeben oder mit Begründung ablehnen.",
           "Über `Elternansicht öffnen` jederzeit prüfen, was Familien gerade sehen.",
@@ -903,7 +905,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Betreuungszeitraum` mit `Beginn` und `Ende` festlegen.",
           "`Anmeldefenster` mit `Öffnung` und `Schließung` setzen. Bleiben beide leer, ist die Anmeldung jederzeit offen.",
           "Unter `Formular` das `Basisformular` lassen oder eine eigene Vorlage wählen.",
-          "`Verhalten bei voller Betreuung` festlegen und mit `Aktiv` die Phase für Eltern sichtbar machen.",
+          "`Verhalten bei voller Betreuung` festlegen und mit `Aktiv` die Phase für Eltern sichtbar machen. Ist die Warteliste tenantweit ausgeschaltet, nimmt `Warteliste` bei Überbelegung weitere Anmeldungen ohne Wartelistenstatus an.",
           "Unter `Konkrete Klassen` die auswählbaren Klassen (zum Beispiel 2a, 2b, 3a) pflegen und festlegen, ob die Angabe ab der 2. Klasse verpflichtend ist. Für die 1. Klasse wird weiterhin nur die Klassenstufe abgefragt. Wirksam nur, wenn `Konkrete Klasse abfragen` in den `Einstellungen` unter `Anmeldung` aktiviert ist.",
         ],
         callout: {
@@ -947,7 +949,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Das Anmeldeformular bestimmt, welche Angaben Eltern machen. Das `Basisformular` ist immer vorhanden; eigene Vorlagen ergänzen nur zusätzliche Fragen.",
         steps: [
-          "`Anmeldeformulare` öffnen. Das `Basisformular` fragt Elternteil, Kind, Klassenstufe und das gewünschte Betreuungsangebot ab.",
+          "`Anmeldeformulare` öffnen. Das `Basisformular` fragt Elternteil und Kind sowie - abhängig von den Einstellungen - Klassenstufe und Betreuungsangebot ab.",
           "Nur bei zusätzlichem Bedarf über `Neue Vorlage` eine eigene Formularvorlage mit Zusatzfragen anlegen. Für Heimwege den Stammdaten-Vorschlag `Erlaubte Heimwege` nutzen: Eltern sehen bei Betreuungsangeboten mit Tagesauswahl nur die gewählten Betreuungstage und wählen pro Betreuungstag mindestens einen Heimweg, zum Beispiel zu Fuß, Bus, Abholung oder mit anderem Kind. Bei `mit anderem Kind` ergänzen Eltern im Pflichtfeld, mit wem das Kind nach Hause geht.",
           "Bei `Abholzeiten` kannst du optional `Feste Auswahlzeiten` hinterlegen. Ohne Zeiten geben Eltern die Uhrzeit frei ein; sobald Zeiten hinterlegt sind, wählen Eltern pro Wochentag nur noch aus dieser Liste.",
           "Den Namen einer Vorlage änderst du entweder beim `Bearbeiten` direkt oben im Editor oder über das Aktionsmenü (`⋮`) -> `Umbenennen`; dort kannst du eine Vorlage auch `Löschen`. Der Name gilt für alle Versionen der Vorlage; bereits abgeschickte Anmeldungen bleiben unverändert.",
@@ -1171,7 +1173,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Nicht jede Einstellung müssen Sie selbst verwalten. Ein Teil wird vom moto-Team betreut und erscheint für Schul-Admins bewusst gar nicht.",
         steps: [
-          "Was Sie selbst anpassen: alltägliche Regeln Ihrer Schule, zum Beispiel Abmeldezeiten, Aktivitäts-Indikatoren, ob mit festen Gruppen gearbeitet wird, die Geräte-PIN und die Tablet-Buttons.",
+          "Was Sie selbst anpassen: alltägliche Regeln Ihrer Schule, zum Beispiel Abmeldezeiten, Aktivitäts-Indikatoren, ob Web-Anwesenheit und feste Gruppen genutzt werden, ob Betreuungsplan-Zahlen sichtbar sind, die Geräte-PIN und die Tablet-Buttons. Bei ausgeschalteter Web-Anwesenheit verschwinden An-/Abmeldeaktionen in der Web-App; NFC- und Systemvorgänge bleiben aktiv. `Offene Betreuung` erweitert nur den operativen Zugriff für Mitarbeitende mit dem passenden Recht.",
           "Was das moto-Team betreut: technische und schulübergreifende Einstellungen. Diese sind für Schul-Admins ausgeblendet.",
           "Der Reiter `System` ist überwiegend Sache des moto-Teams; als Admin sehen Sie dort in der Regel nur die automatische Datenbereinigung.",
           "Soll eine ausgeblendete Einstellung geändert werden, wenden Sie sich an das moto-Team.",

@@ -169,6 +169,10 @@ const tenantProviderMock = vi.hoisted(() => ({
   // that default here so unrelated tests don't accidentally exercise the
   // hidden nav item. Tests covering the feature override this mock locally.
   useDisplayEnabled: vi.fn(() => false),
+  useAttendanceWebEnabled: vi.fn(() => true),
+  useOpenCareGroupMode: vi.fn(() => false),
+  useShowTimetableCounts: vi.fn(() => true),
+  useWaitlistEnabled: vi.fn(() => true),
   TenantProvider: ({
     children,
   }: {

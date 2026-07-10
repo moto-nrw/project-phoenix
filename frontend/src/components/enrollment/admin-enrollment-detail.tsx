@@ -37,6 +37,7 @@ import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
+import { useWaitlistEnabled } from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "AdminEnrollmentDetail" });
 
@@ -95,6 +96,7 @@ interface Props {
 }
 
 export function AdminEnrollmentDetail({ requestId }: Props) {
+  const waitlistEnabled = useWaitlistEnabled();
   const tenantPath = useTenantAwarePath();
   const [data, setData] = useState<AdminRequestDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -121,6 +123,10 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const availableActions = waitlistEnabled
+    ? ACTIONS
+    : ACTIONS.filter((action) => action.status !== "waitlisted");
 
   const handleDecide = async (childId: string, status: DecisionStatus) => {
     if (!data) return;
@@ -234,6 +240,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   busy={busyChildId === child.id}
                   reason={reasons[child.id] ?? ""}
                   schemaFields={data.schema_fields}
+                  actions={availableActions}
                   onReasonChange={(value) =>
                     setReasons((prev) => ({ ...prev, [child.id]: value }))
                   }
@@ -373,6 +380,7 @@ function InfoItem({
 }
 
 function ChildInformationCard({
+  actions,
   busy,
   child,
   onDecide,
@@ -383,6 +391,7 @@ function ChildInformationCard({
   requestId,
   schemaFields,
 }: Readonly<{
+  actions: ActionDef[];
   busy: boolean;
   child: AdminRequestChild;
   requestId: string;
@@ -394,6 +403,12 @@ function ChildInformationCard({
   schemaFields?: AdminRequestSchemaField[];
 }>) {
   const terminal = TERMINAL.has(child.status);
+  const tenantPath = useTenantAwarePath();
+  const studentHref = tenantPath(
+    child.created_student_id
+      ? `/students/${child.created_student_id}`
+      : "/students",
+  );
   return (
     <article className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-4">
@@ -432,6 +447,15 @@ function ChildInformationCard({
             Letzte Entscheidung: {formatDateTime(child.reviewed_at)}
           </p>
         ) : null}
+        {child.status === "approved" && child.created_student_id ? (
+          <Link
+            href={studentHref}
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            Kind &amp; Einladung verwalten
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          </Link>
+        ) : null}
         <ChildOfferings offerings={child.offerings} />
         {child.status === "approved" ? (
           <ChildOfferingAdjustment
@@ -448,6 +472,7 @@ function ChildInformationCard({
           </div>
         ) : (
           <DecisionPanel
+            actions={actions}
             child={child}
             busy={busy}
             reason={reason}
@@ -569,12 +594,14 @@ function SidebarMetric({
 }
 
 function DecisionPanel({
+  actions,
   busy,
   child,
   onDecide,
   onReasonChange,
   reason,
 }: Readonly<{
+  actions: ActionDef[];
   busy: boolean;
   child: AdminRequestChild;
   onDecide: (status: DecisionStatus) => void;
@@ -610,7 +637,7 @@ function DecisionPanel({
       </label>
 
       <div className="mt-3 flex flex-wrap gap-2">
-        {ACTIONS.map((action) => {
+        {actions.map((action) => {
           const isCurrent = child.status === action.status;
           return (
             <button

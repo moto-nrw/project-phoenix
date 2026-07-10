@@ -238,6 +238,13 @@ func (s *rolloverService) CreatePhaseFromSource(ctx context.Context, req CreateP
 	}
 
 	maxGrade := s.resolveMaxGrade(ctx)
+	if s.Settings == nil {
+		return nil, errors.New("rollover: enrollment settings resolver is not configured")
+	}
+	collectGradeLevel, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+	if err != nil {
+		return nil, fmt.Errorf("rollover: resolve collect grade level: %w", err)
+	}
 
 	result := &RolloverResult{
 		ReviewByReason: make(map[string]int),
@@ -250,7 +257,7 @@ func (s *rolloverService) CreatePhaseFromSource(ctx context.Context, req CreateP
 		// WithTenantTx already does this, but the caller wired the
 		// outer tenant tx for us — we just need an inner runtx for
 		// commit semantics. Repos that read from ctx are unaffected.
-		return s.runCreate(txCtx, tenantID, req, maxGrade, result)
+		return s.runCreate(txCtx, tenantID, req, maxGrade, collectGradeLevel, result)
 	})
 	if txErr != nil {
 		return nil, txErr
@@ -258,7 +265,7 @@ func (s *rolloverService) CreatePhaseFromSource(ctx context.Context, req CreateP
 	return result, nil
 }
 
-func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req CreatePhaseFromSourceRequest, maxGrade int, result *RolloverResult) error {
+func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req CreatePhaseFromSourceRequest, maxGrade int, collectGradeLevel bool, result *RolloverResult) error {
 	// 1. Source phase.
 	source, err := s.PhaseRepo.FindByID(ctx, req.SourcePhaseID)
 	if err != nil || source == nil {
@@ -359,7 +366,7 @@ func (s *rolloverService) runCreate(ctx context.Context, tenantID int64, req Cre
 		if err != nil {
 			return fmt.Errorf("rollover: load source request %d: %w", sourceRequestID, err)
 		}
-		if err := s.rollOneRequest(ctx, tenantID, newPhase, sourceReq, bySourceRequest[sourceRequestID], maxGrade, result); err != nil {
+		if err := s.rollOneRequest(ctx, tenantID, newPhase, sourceReq, bySourceRequest[sourceRequestID], maxGrade, collectGradeLevel, result); err != nil {
 			return err
 		}
 		result.RequestCount++
@@ -378,6 +385,7 @@ func (s *rolloverService) rollOneRequest(
 	sourceReq *enrollmentModels.Request,
 	sourceChildren []*enrollmentModels.RequestChild,
 	maxGrade int,
+	collectGradeLevel bool,
 	result *RolloverResult,
 ) error {
 	statusToken, err := newStatusToken()
@@ -405,7 +413,11 @@ func (s *rolloverService) rollOneRequest(
 
 	childNames := make([]string, 0, len(sourceChildren))
 	for _, source := range sourceChildren {
-		newGradePtr, reviewReason := computeNewGrade(source.TargetGradeLevel, newPhase.RolloverBumpsGrade, maxGrade)
+		var newGradePtr *int16
+		reviewReason := ""
+		if collectGradeLevel {
+			newGradePtr, reviewReason = computeNewGrade(source.TargetGradeLevel, newPhase.RolloverBumpsGrade, maxGrade)
+		}
 
 		var status string
 		var reviewReasonForRow *string
@@ -433,7 +445,7 @@ func (s *rolloverService) rollOneRequest(
 		// service preserves the student's existing class instead of
 		// clobbering it.
 		var carriedClass *string
-		if !newPhase.RolloverBumpsGrade && reviewReason == "" {
+		if collectGradeLevel && !newPhase.RolloverBumpsGrade && reviewReason == "" {
 			carriedClass = source.TargetSchoolClass
 		}
 

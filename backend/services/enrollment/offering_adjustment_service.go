@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -39,6 +40,13 @@ func (s *decisionService) ListOfferingAdjustments(ctx context.Context, requestID
 }
 
 func (s *decisionService) UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
+	enabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
+	if err != nil {
+		return nil, fmt.Errorf("offering adjustment: resolve care offerings setting: %w", err)
+	}
+	if !enabled {
+		return nil, ErrCareOfferingsDisabled
+	}
 	if input.RequestID <= 0 || input.ChildID <= 0 {
 		return nil, fmt.Errorf("%w: request_id and child_id are required", ErrOfferingAdjustmentInvalid)
 	}

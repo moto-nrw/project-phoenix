@@ -739,6 +739,7 @@
     "submittedTitle": "Danke. Ihre Anmeldung wurde übermittelt.",
     "statusTitle": "Status Ihrer Anmeldung",
     "submittedDescription": "Die OGS prüft die Angaben. Den aktuellen Stand sehen Sie auf dieser Seite. Speichern Sie den Link am besten direkt oder bewahren Sie die Bestätigungs-E-Mail auf.",
+    "duplicateWarning": "Für mindestens ein Kind besteht möglicherweise bereits eine aktive Anmeldung in dieser Phase. Die neue Anmeldung wurde trotzdem gespeichert. Bitte wenden Sie sich bei Fragen an die OGS.",
     "statusDescription": "Ihre Anmeldung ist am {date} eingegangen. Hier sehen Sie den aktuellen Stand, Ihre Kontaktdaten und die angemeldeten Kinder.",
     "nextTitle": "Was jetzt passiert",
     "currentTitle": "Aktueller Stand",

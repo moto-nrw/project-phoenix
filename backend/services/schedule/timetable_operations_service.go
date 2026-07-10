@@ -178,8 +178,8 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 	if err != nil {
 		return nil, err
 	}
-	adminAll := s.adminOverviewEnabled(ctx, isAdmin)
-	if !hasStaff && !adminAll {
+	allOperational := s.adminOverviewEnabled(ctx, isAdmin) || (hasStaff && s.openCareMode(ctx))
+	if !hasStaff && !allOperational {
 		return nil, ErrTimetableOperationForbidden
 	}
 
@@ -200,7 +200,7 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		if err != nil {
 			return nil, err
 		}
-		if !adminAll && !staffAssigned(staffRows, staffID) {
+		if !allOperational && !staffAssigned(staffRows, staffID) {
 			continue
 		}
 		studentRows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, inst.ID)
@@ -393,6 +393,9 @@ func (s *timetableOperationsService) requireCanOperate(ctx context.Context, acco
 	if err != nil {
 		return 0, err
 	}
+	if hasStaff && s.openCareMode(ctx) {
+		return staffID, nil
+	}
 	if s.adminOverviewEnabled(ctx, isAdmin) {
 		return staffID, nil
 	}
@@ -422,6 +425,21 @@ func (s *timetableOperationsService) requireCanOperate(ctx context.Context, acco
 		}
 	}
 	return 0, ErrTimetableOperationForbidden
+}
+
+func (s *timetableOperationsService) openCareMode(ctx context.Context) bool {
+	resolver, ok := s.deps.Settings.(interface {
+		ResolveString(context.Context, string) (string, error)
+	})
+	if !ok {
+		return false
+	}
+	mode, err := resolver.ResolveString(ctx, configModel.KeyGroupMode)
+	if err != nil {
+		s.logger().ErrorContext(ctx, "failed to resolve operational group mode", slog.String("error", err.Error()))
+		return false
+	}
+	return mode == configModel.GroupModeOpenCare
 }
 
 func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID int64) (*OperationRoster, error) {

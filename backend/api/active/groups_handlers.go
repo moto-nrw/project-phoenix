@@ -242,8 +242,10 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	// Admin with supervision overview setting: skip staff/supervision checks
-	if !rs.isAdminWithSupervisionOverview(r) {
+	// Admin overview and open-care both broaden the operational room scope.
+	// Per-student GDPR fields below still use DetermineStudentAccess and are
+	// never broadened by group mode.
+	if !rs.isAdminWithSupervisionOverview(r) && !rs.openCareMode(r.Context()) {
 		staff, err := rs.extractStaffFromRequest(w, r)
 		if err != nil {
 			return

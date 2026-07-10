@@ -147,6 +147,16 @@ func (rs *Resource) enforceWebCheckinAccess(ctx context.Context, staffID, studen
 		configModel.WebCheckinAccessGroupSupervisors,
 		rs.getLogger(),
 	)
+	if rs.SettingsService == nil {
+		return errors.New("settings service is not configured")
+	}
+	groupMode, groupModeErr := rs.SettingsService.ResolveString(ctx, configModel.KeyGroupMode)
+	if groupModeErr != nil {
+		return fmt.Errorf("group mode resolution failed: %w", groupModeErr)
+	}
+	if groupMode == configModel.GroupModeOpenCare {
+		return nil
+	}
 	if mode == configModel.WebCheckinAccessAllStaff {
 		return evaluateWebCheckinAccess(mode, false)
 	}

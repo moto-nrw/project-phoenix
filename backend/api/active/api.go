@@ -88,21 +88,21 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission(permissions.GroupsRead), withTx).Get(routeGroupByGroupID, rs.getVisitsByGroup)
 
 			// Write operations
-			r.With(authorize.RequiresPermission(permissions.GroupsCreate), withTx).Post("/", rs.createVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Put("/{id}", rs.updateVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsDelete), withTx).Delete("/{id}", rs.deleteVisit)
-			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx).Post(routeEndByID, rs.endVisit)
+			r.With(authorize.RequiresPermission(permissions.GroupsCreate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/", rs.createVisit)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Put("/{id}", rs.updateVisit)
+			r.With(authorize.RequiresPermission(permissions.GroupsDelete), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Delete("/{id}", rs.deleteVisit)
+			r.With(authorize.RequiresPermission(permissions.GroupsUpdate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post(routeEndByID, rs.endVisit)
 
 			// Immediate checkout for students
-			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx).Post("/student/{studentId}/checkout", rs.checkoutStudent)
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/student/{studentId}/checkout", rs.checkoutStudent)
 
 			// Immediate check-in for students (from home)
-			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx).Post("/student/{studentId}/checkin", rs.checkinStudent)
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/student/{studentId}/checkin", rs.checkinStudent)
 
 			// Bulk assign checked-in students without a room visit to an active room session.
-			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx).Post("/transit/assign", rs.assignTransitStudents)
-			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx).Post("/move-to-group", rs.moveStudentsToActiveGroup)
-			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx).Post("/move-to-transit", rs.moveStudentsToTransit)
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/transit/assign", rs.assignTransitStudents)
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/move-to-group", rs.moveStudentsToActiveGroup)
+			r.With(authorize.RequiresPermission(permissions.VisitsUpdate), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/move-to-transit", rs.moveStudentsToTransit)
 		})
 
 		// Supervisors

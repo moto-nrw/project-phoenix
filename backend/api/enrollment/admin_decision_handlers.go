@@ -114,6 +114,7 @@ type AdminRequestChild struct {
 	ReviewedAt        *time.Time     `json:"reviewed_at,omitempty"`
 	ReviewedBy        *int64         `json:"reviewed_by,omitempty"`
 	ActivationMode    string         `json:"activation_mode"`
+	CreatedStudentID  string         `json:"created_student_id,omitempty"`
 	CustomData        map[string]any `json:"custom_data,omitempty"`
 	// Offerings is the per-child Betreuungsangebote selection.
 	// Populated only on the detail endpoint (listing endpoints leave
@@ -178,6 +179,7 @@ func toAdminRequestSummary(s *enrollmentService.RequestSummary) AdminRequestSumm
 			ReviewedAt:        c.ReviewedAt,
 			ReviewedBy:        c.ReviewedBy,
 			ActivationMode:    c.ActivationMode,
+			CreatedStudentID:  optionalInt64String(c.CreatedStudentID),
 			CustomData:        c.CustomData,
 		})
 	}
@@ -442,6 +444,8 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 			errors.Is(err, enrollmentService.ErrDecisionAlreadyTerminal),
 			errors.Is(err, enrollmentService.ErrDecisionInvalidData):
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		case errors.Is(err, enrollmentService.ErrWaitlistDisabled):
+			common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.waitlist_disabled"))
 		case common.IsTransientDatabaseError(err):
 			common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 		default:
@@ -471,6 +475,7 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		ReviewedAt:        updated.ReviewedAt,
 		ReviewedBy:        updated.ReviewedBy,
 		ActivationMode:    updated.ActivationMode,
+		CreatedStudentID:  optionalInt64String(updated.CreatedStudentID),
 	}, "Decision applied")
 }
 
@@ -543,6 +548,8 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 			errors.Is(err, enrollmentService.ErrCareOfferingMissing),
 			errors.Is(err, enrollmentService.ErrCareOfferingExactlyOneRequired):
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		case errors.Is(err, enrollmentService.ErrCareOfferingsDisabled):
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingsDisabled))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
@@ -560,6 +567,7 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 		ReviewedAt:        updated.ReviewedAt,
 		ReviewedBy:        updated.ReviewedBy,
 		ActivationMode:    updated.ActivationMode,
+		CreatedStudentID:  optionalInt64String(updated.CreatedStudentID),
 		CustomData:        updated.CustomData,
 	}
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
@@ -575,6 +583,13 @@ func (rs *Resource) updateAdminChildOfferings(w http.ResponseWriter, r *http.Req
 		return
 	}
 	common.Respond(w, r, http.StatusOK, out, "Child offerings updated")
+}
+
+func optionalInt64String(value *int64) string {
+	if value == nil || *value <= 0 {
+		return ""
+	}
+	return strconv.FormatInt(*value, 10)
 }
 
 func (rs *Resource) listAdminChildOfferingAdjustments(w http.ResponseWriter, r *http.Request) {

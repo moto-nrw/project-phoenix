@@ -157,6 +157,8 @@ export interface EnrollmentFormPrefetchedData {
   profile?: MeProfileResponse | null;
   /** Concrete-class config (#1833); absent falls back to disabled. */
   schoolClass?: PublicSchoolClassConfig;
+  collectGradeLevel?: boolean;
+  careOfferingsEnabled?: boolean;
 }
 
 /**
@@ -208,6 +210,12 @@ export function EnrollmentForm({
     useState<CareOfferingSelectionMode>(
       prefetchedData?.careOfferingSelectionMode ?? "optional",
     );
+  const [collectGradeLevel, setCollectGradeLevel] = useState(
+    prefetchedData?.collectGradeLevel !== false,
+  );
+  const [careOfferingsEnabled, setCareOfferingsEnabled] = useState(
+    prefetchedData?.careOfferingsEnabled !== false,
+  );
   // Concrete-class config (#1833): whether to collect a concrete class,
   // the phase's pick list, and whether it is mandatory from grade 2.
   // Seeded from prefetched data (public page) or fetched in load()
@@ -332,6 +340,8 @@ export function EnrollmentForm({
       setSchema(prefetchedData.schema);
       setOfferings(prefetchedData.offerings);
       setCareOfferingSelectionMode(prefetchedData.careOfferingSelectionMode);
+      setCollectGradeLevel(prefetchedData.collectGradeLevel !== false);
+      setCareOfferingsEnabled(prefetchedData.careOfferingsEnabled !== false);
       setSchoolClassConfig(
         prefetchedData.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
       );
@@ -398,6 +408,8 @@ export function EnrollmentForm({
                 careOfferingSelectionMode: "optional" as const,
                 careRequired: false,
                 schoolClass: EMPTY_SCHOOL_CLASS_CONFIG,
+                collectGradeLevel: true,
+                careOfferingsEnabled: true,
               }),
           profileLoader().catch(() => null),
           // Skip the captcha config when the caller already authenticated
@@ -426,6 +438,8 @@ export function EnrollmentForm({
         setSchema(schemaResult);
         setOfferings(offeringsResult.offerings);
         setCareOfferingSelectionMode(offeringsResult.careOfferingSelectionMode);
+        setCollectGradeLevel(offeringsResult.collectGradeLevel !== false);
+        setCareOfferingsEnabled(offeringsResult.careOfferingsEnabled !== false);
         setSchoolClassConfig(
           offeringsResult.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
         );
@@ -622,11 +636,15 @@ export function EnrollmentForm({
   const childConditionCtx = (child: ChildDraft): ConditionContext => ({
     guardianAnswers: customData,
     childAnswers: child.custom,
-    gradeLevel: child.target_grade_level,
+    gradeLevel: collectGradeLevel ? child.target_grade_level : undefined,
     // Care-offering conditions match by name (templates aren't phase-bound),
     // so resolve the child's selected offering ids to names.
     offeringNames: new Set(
-      Array.from(materializeCareOfferings(child, offerings).offeringIds)
+      Array.from(
+        careOfferingsEnabled
+          ? materializeCareOfferings(child, offerings).offeringIds
+          : [],
+      )
         .map((id) => offerings.find((o) => o.id === id)?.name)
         .filter((name): name is string => Boolean(name))
         .map((name) => name.toLowerCase()),
@@ -730,7 +748,7 @@ export function EnrollmentForm({
       if (!c.date_of_birth) {
         newFieldErrors[`children_${i}_date_of_birth`] = tr("errors.dob");
       }
-      if (!c.target_grade_level) {
+      if (collectGradeLevel && !c.target_grade_level) {
         newFieldErrors[`children_${i}_target_grade_level`] = tr("errors.grade");
       }
       // Concrete class is only required when the tenant collects it, the
@@ -1011,7 +1029,9 @@ export function EnrollmentForm({
         first_name: c.first_name.trim(),
         last_name: c.last_name.trim(),
         date_of_birth: c.date_of_birth,
-        target_grade_level: Number(c.target_grade_level),
+        target_grade_level: collectGradeLevel
+          ? Number(c.target_grade_level)
+          : undefined,
         // Only send a concrete class when the feature is on, the grade is
         // 2+, and a class was actually chosen; the backend re-validates
         // and normalises (#1833). Empty/grade-1 -> omitted ("Klasse offen").
@@ -1022,9 +1042,13 @@ export function EnrollmentForm({
             ? c.target_school_class.trim()
             : undefined,
         custom_data: customData,
-        offering_ids: Array.from(c.offering_ids).map((id) => Number(id)),
+        offering_ids: careOfferingsEnabled
+          ? Array.from(c.offering_ids).map((id) => Number(id))
+          : undefined,
         offering_days:
-          offeringDaysPayload.length > 0 ? offeringDaysPayload : undefined,
+          careOfferingsEnabled && offeringDaysPayload.length > 0
+            ? offeringDaysPayload
+            : undefined,
       };
     });
 
@@ -1077,7 +1101,19 @@ export function EnrollmentForm({
       const result = submitter
         ? await submitter(payload)
         : await submitEnrollment(tenantSlug, payload);
-      onSubmitted(result.status_url);
+      const statusURL = new URL(result.status_url, globalThis.location.origin);
+      if (
+        result.warnings?.some(
+          (warning) => warning.code === "enrollment.duplicate_detected",
+        )
+      ) {
+        statusURL.searchParams.set("duplicate_warning", "1");
+      }
+      onSubmitted(
+        /^https?:\/\//i.test(result.status_url)
+          ? statusURL.toString()
+          : `${statusURL.pathname}${statusURL.search}${statusURL.hash}`,
+      );
     } catch (err) {
       const message =
         err instanceof Error ? err.message : tr("submitErrorFallback");
@@ -1461,30 +1497,33 @@ export function EnrollmentForm({
                     tr={tr}
                   />
                 </div>
-                <GradeLevelSelect
-                  id={`children-${i}-target-grade-level`}
-                  value={child.target_grade_level}
-                  onChange={(v) => {
-                    const patch: Partial<ChildDraft> = {
-                      target_grade_level: v,
-                    };
-                    // Drop a concrete class that no longer belongs to the
-                    // newly selected grade, so switching from grade 3 to
-                    // grade 2 can't leave a stale "3a" the backend rejects
-                    // on submit (#1833).
-                    if (
-                      child.target_school_class &&
-                      !classMatchesGrade(child.target_school_class, v)
-                    ) {
-                      patch.target_school_class = "";
-                    }
-                    updateChild(i, patch);
-                  }}
-                  max={gradeLevelMax}
-                  error={fieldErrors[`children_${i}_target_grade_level`]}
-                  tr={tr}
-                />
-                {schoolClassConfig.collect &&
+                {collectGradeLevel && (
+                  <GradeLevelSelect
+                    id={`children-${i}-target-grade-level`}
+                    value={child.target_grade_level}
+                    onChange={(v) => {
+                      const patch: Partial<ChildDraft> = {
+                        target_grade_level: v,
+                      };
+                      // Drop a concrete class that no longer belongs to the
+                      // newly selected grade, so switching from grade 3 to
+                      // grade 2 can't leave a stale "3a" the backend rejects
+                      // on submit (#1833).
+                      if (
+                        child.target_school_class &&
+                        !classMatchesGrade(child.target_school_class, v)
+                      ) {
+                        patch.target_school_class = "";
+                      }
+                      updateChild(i, patch);
+                    }}
+                    max={gradeLevelMax}
+                    error={fieldErrors[`children_${i}_target_grade_level`]}
+                    tr={tr}
+                  />
+                )}
+                {collectGradeLevel &&
+                  schoolClassConfig.collect &&
                   Number(child.target_grade_level) >= 2 &&
                   (() => {
                     // Options are filtered to this child's grade; a phase may
@@ -1513,7 +1552,7 @@ export function EnrollmentForm({
                   })()}
               </div>
 
-              {offerings.length > 0 && (
+              {careOfferingsEnabled && offerings.length > 0 && (
                 <div className="space-y-4">
                   {/* Required offerings are part of the enrollment regardless of
                     the parent's choice. They are presented as an "always

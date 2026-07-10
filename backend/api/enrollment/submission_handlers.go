@@ -107,8 +107,9 @@ func (req *SubmitEnrollmentRequest) Bind(_ *http.Request) error {
 // email; we return it inline too so the confirmation page can show it
 // without waiting for the email.
 type SubmitEnrollmentResponse struct {
-	RequestID string `json:"request_id"`
-	StatusURL string `json:"status_url"`
+	RequestID string                                `json:"request_id"`
+	StatusURL string                                `json:"status_url"`
+	Warnings  []enrollmentService.SubmissionWarning `json:"warnings,omitempty"`
 }
 
 // submitEnrollment is the public submission handler. Verifies the
@@ -190,6 +191,7 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 	resp := SubmitEnrollmentResponse{
 		RequestID: strconv.FormatInt(result.Request.ID, 10),
 		StatusURL: result.StatusURL,
+		Warnings:  result.Warnings,
 	}
 	common.Respond(w, r, http.StatusCreated, resp, "Enrollment submitted")
 }
@@ -260,6 +262,7 @@ const (
 	ErrCodeEnrollmentCareOfferingExactlyOne      = "enrollment.care_offering_exactly_one"
 	ErrCodeEnrollmentRequiredCareOfferingMissing = "enrollment.required_care_offering_missing"
 	ErrCodeEnrollmentCareOfferingFull            = "enrollment.care_offering_full"
+	ErrCodeEnrollmentCareOfferingsDisabled       = "enrollment.care_offerings_disabled"
 	ErrCodeEnrollmentInvalidPhone                = "enrollment.invalid_phone"
 	ErrCodeEnrollmentInvalidEmail                = "enrollment.invalid_email"
 	ErrCodeEnrollmentPickupTimeNotAllowed        = "enrollment.pickup_time_not_allowed"
@@ -281,6 +284,8 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingExactlyOne))
 	case errors.Is(err, enrollmentService.ErrRequiredCareOfferingMissing):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentRequiredCareOfferingMissing))
+	case errors.Is(err, enrollmentService.ErrCareOfferingsDisabled):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingsDisabled))
 	case errors.Is(err, enrollmentService.ErrInvalidGuardianPhone):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentInvalidPhone))
 	// Must precede the generic ErrInvalidSubmission case below: the email
@@ -378,6 +383,8 @@ type EditBootstrapResponse struct {
 	CareOfferingSelectionMode string                    `json:"care_offering_selection_mode"`
 	CareRequired              bool                      `json:"care_required"`
 	SchoolClass               PublicSchoolClassConfig   `json:"school_class"`
+	CollectGradeLevel         bool                      `json:"collect_grade_level"`
+	CareOfferingsEnabled      bool                      `json:"care_offerings_enabled"`
 	LegalTexts                PublicLegalTextsResponse  `json:"legal_texts"`
 	Draft                     EditDraftResponse         `json:"draft"`
 	EditMode                  string                    `json:"edit_mode"`
@@ -533,9 +540,11 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 		Phase:                     toPublicPhase(draft.Phase),
 		Schema:                    toPublicFormSchemaResponse(draft.Schema),
 		Offerings:                 offerings,
-		CareOfferingSelectionMode: draft.Phase.CareOfferingSelectionMode,
-		CareRequired:              draft.Phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
+		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(draft.Phase.CareOfferingSelectionMode, draft.CareOfferingsEnabled),
+		CareRequired:              draft.CareOfferingsEnabled && draft.Phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
 		SchoolClass:               toPublicSchoolClassConfig(draft.Phase, draft.CollectSchoolClass),
+		CollectGradeLevel:         draft.CollectGradeLevel,
+		CareOfferingsEnabled:      draft.CareOfferingsEnabled,
 		LegalTexts: PublicLegalTextsResponse{
 			AGB:                 draft.LegalTexts.AGB,
 			DSGVO:               draft.LegalTexts.DSGVO,
@@ -588,19 +597,21 @@ func toEditDraftResponse(draft *enrollmentService.EditDraft) EditDraftResponse {
 			CustomData:        c.CustomData,
 			OfferingIDs:       []string{},
 		}
-		for _, link := range draft.OfferingsByChild[c.ID] {
-			child.OfferingIDs = append(child.OfferingIDs, strconv.FormatInt(link.CareOfferingID, 10))
-			if len(link.SelectedDays) > 0 {
-				manualDays := link.ManualSelectedDays
-				if len(manualDays) == 0 && len(link.AutomaticSelectedDays) == 0 {
-					manualDays = link.SelectedDays
+		if draft.CareOfferingsEnabled {
+			for _, link := range draft.OfferingsByChild[c.ID] {
+				child.OfferingIDs = append(child.OfferingIDs, strconv.FormatInt(link.CareOfferingID, 10))
+				if len(link.SelectedDays) > 0 {
+					manualDays := link.ManualSelectedDays
+					if len(manualDays) == 0 && len(link.AutomaticSelectedDays) == 0 {
+						manualDays = link.SelectedDays
+					}
+					child.OfferingDays = append(child.OfferingDays, EditDraftOfferingDayResponse{
+						OfferingID:            strconv.FormatInt(link.CareOfferingID, 10),
+						SelectedDays:          link.SelectedDays,
+						ManualSelectedDays:    manualDays,
+						AutomaticSelectedDays: link.AutomaticSelectedDays,
+					})
 				}
-				child.OfferingDays = append(child.OfferingDays, EditDraftOfferingDayResponse{
-					OfferingID:            strconv.FormatInt(link.CareOfferingID, 10),
-					SelectedDays:          link.SelectedDays,
-					ManualSelectedDays:    manualDays,
-					AutomaticSelectedDays: link.AutomaticSelectedDays,
-				})
 			}
 		}
 		resp.Children = append(resp.Children, child)
@@ -691,6 +702,7 @@ func (rs *Resource) replaceStatus(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, SubmitEnrollmentResponse{
 		RequestID: strconv.FormatInt(result.Request.ID, 10),
 		StatusURL: result.StatusURL,
+		Warnings:  result.Warnings,
 	}, "Request updated")
 }
 

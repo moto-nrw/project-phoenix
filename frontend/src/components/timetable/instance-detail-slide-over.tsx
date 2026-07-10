@@ -33,6 +33,10 @@ import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
+  useAttendanceWebEnabled,
+  useShowTimetableCounts,
+} from "~/lib/tenant-context";
+import {
   SlideOver,
   SlideOverCloseButton,
   SlideOverContent,
@@ -209,6 +213,8 @@ export function InstanceDetailSlideOver({
   onAttendancePatch,
   editDeferred = true,
 }: InstanceDetailSlideOverProps) {
+  const attendanceWebEnabled = useAttendanceWebEnabled();
+  const showTimetableCounts = useShowTimetableCounts();
   const { isModalOpen } = useModal();
   const [pendingAction, setPendingAction] = useState<LifecycleAction | null>(
     null,
@@ -421,13 +427,16 @@ export function InstanceDetailSlideOver({
                         : ""
                     }`}
               </Row>
-              <Row icon={<Users className="h-4 w-4" />} label="Kinder">
-                {instance.expectedStudentsCount + instance.presentStudentsCount}{" "}
-                eingetragen
-                {instance.presentStudentsCount > 0
-                  ? ` • ${instance.presentStudentsCount} anwesend`
-                  : ""}
-              </Row>
+              {showTimetableCounts ? (
+                <Row icon={<Users className="h-4 w-4" />} label="Kinder">
+                  {instance.expectedStudentsCount +
+                    instance.presentStudentsCount}{" "}
+                  eingetragen
+                  {instance.presentStudentsCount > 0
+                    ? ` • ${instance.presentStudentsCount} anwesend`
+                    : ""}
+                </Row>
+              ) : null}
               {instance.notes && (
                 <Row icon={<StickyNote className="h-4 w-4" />} label="Notiz">
                   <span className="whitespace-pre-line">{instance.notes}</span>
@@ -481,7 +490,9 @@ export function InstanceDetailSlideOver({
                         instance.status === "planned" ||
                         instance.status === "active" ||
                         instance.status === "completed"
-                          ? onAttendancePatch
+                          ? attendanceWebEnabled
+                            ? onAttendancePatch
+                            : undefined
                           : undefined
                       }
                       instanceStatus={instance.status}
@@ -525,7 +536,7 @@ export function InstanceDetailSlideOver({
                     </span>
                   </Button>
                 )}
-              {instance.status === "active" && (
+              {instance.status === "active" && attendanceWebEnabled && (
                 <Button
                   variant="primary"
                   size="md"
@@ -542,7 +553,7 @@ export function InstanceDetailSlideOver({
                 </Button>
               )}
               {(instance.status === "planned" ||
-                instance.status === "active") && (
+                (instance.status === "active" && attendanceWebEnabled)) && (
                 <Button
                   variant="outline_danger"
                   size="md"
@@ -687,13 +698,14 @@ function StudentGroup({
     body: AttendancePatchBody,
   ) => Promise<void>;
 }) {
+  const showTimetableCounts = useShowTimetableCounts();
   if (students.length === 0) return null;
   const isPlanned = instanceStatus === "planned";
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-[11px] font-bold tracking-wide text-gray-400 uppercase">
         <span>{attendanceLabel(status, isPlanned)}</span>
-        <span>{students.length}</span>
+        {showTimetableCounts ? <span>{students.length}</span> : null}
       </div>
       {students.map((student) => (
         <div
@@ -863,6 +875,7 @@ interface StatsRowProps {
 }
 
 function StatsRow({ instance }: StatsRowProps) {
+  const showTimetableCounts = useShowTimetableCounts();
   const expected = instance.expectedStudentsCount;
   const present = instance.presentStudentsCount;
   const totalStudents = expected + present;
@@ -879,12 +892,14 @@ function StatsRow({ instance }: StatsRowProps) {
 
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <StatPill
-        icon={<Users className="h-3.5 w-3.5" />}
-        label="Anwesend"
-        value={totalStudents === 0 ? "—" : `${present} / ${totalStudents}`}
-        tone={studentTone}
-      />
+      {showTimetableCounts && (
+        <StatPill
+          icon={<Users className="h-3.5 w-3.5" />}
+          label="Anwesend"
+          value={totalStudents === 0 ? "—" : `${present} / ${totalStudents}`}
+          tone={studentTone}
+        />
+      )}
       <StatPill
         icon={<UserCheck className="h-3.5 w-3.5" />}
         label="Personal"

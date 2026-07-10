@@ -96,6 +96,9 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		if api.Services.TimeTrackingCleanup != nil {
 			srv.scheduler.SetTimeTrackingCleanup(api.Services.TimeTrackingCleanup)
 		}
+		if api.Services.EnrollmentRejectedCleanup != nil {
+			srv.scheduler.SetEnrollmentRejectedCleanup(api.Services.EnrollmentRejectedCleanup)
+		}
 		// WP-B9: overdue instance tick. Requires both the ActivityInstance
 		// repo and a broadcaster — either missing disables the tick.
 		if api.repos != nil && api.Services.RealtimeHub != nil {

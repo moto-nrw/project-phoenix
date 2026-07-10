@@ -211,6 +211,40 @@ func (r *RequestRepository) DeleteByPhaseID(ctx context.Context, phaseID int64) 
 	return int(affected), nil
 }
 
+func (r *RequestRepository) ListFullyRejectedBefore(ctx context.Context, cutoff time.Time) ([]int64, error) {
+	var ids []int64
+	err := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(`enrollment.requests AS "request"`).
+		ColumnExpr(`"request".id`).
+		Join(`JOIN enrollment.request_children AS rc ON rc.request_id = "request".id`).
+		GroupExpr(`"request".id`).
+		Having(`COUNT(rc.id) > 0`).
+		Having(`BOOL_AND(rc.status = ?)`, enrollment.ChildStatusRejected).
+		Having(`BOOL_AND(rc.reviewed_at IS NOT NULL AND rc.reviewed_at < ?)`, cutoff).
+		OrderExpr(`"request".id`).
+		Scan(ctx, &ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list fully rejected enrollment requests: %w", err)
+	}
+	return ids, nil
+}
+
+func (r *RequestRepository) DeleteByID(ctx context.Context, requestID int64) error {
+	result, err := base.GetDB(ctx, r.db).NewDelete().
+		Model((*enrollment.Request)(nil)).
+		ModelTableExpr(requestTableExpr).
+		Where(`"request".id = ?`, requestID).
+		Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to delete enrollment request: %w", err)
+	}
+	affected, _ := result.RowsAffected()
+	if affected != 1 {
+		return errors.New("enrollment request not found for cleanup")
+	}
+	return nil
+}
+
 // ExistsBySchemaID returns true if any request row references the
 // schema version. Used to keep historical enrollment submissions
 // auditable when admins delete unused form templates.

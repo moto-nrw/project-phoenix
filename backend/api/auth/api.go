@@ -363,7 +363,11 @@ type TenantResolveResponse struct {
 	// Info-Point Dashboard is opt-in and defaults off, so the frontend needs
 	// this to hide the sidebar entry / admin page for schools that haven't
 	// turned it on. Defaults to false when the setting is missing/unresolvable.
-	DisplayEnabled bool `json:"display_enabled"`
+	DisplayEnabled       bool   `json:"display_enabled"`
+	AttendanceWebEnabled bool   `json:"attendance_web_enabled"`
+	GroupMode            string `json:"group_mode"`
+	ShowTimetableCounts  bool   `json:"show_timetable_counts"`
+	WaitlistEnabled      bool   `json:"waitlist_enabled"`
 }
 
 // resolveTenant handles GET /auth/tenant/resolve?slug={slug}
@@ -414,6 +418,10 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 	nfcEnabled := false
 	parentMessagingEnabled := false
 	displayEnabled := false
+	attendanceWebEnabled := false
+	groupMode := configModel.GroupModeFixedGroups
+	showTimetableCounts := true
+	waitlistEnabled := true
 	if rs.SettingsService != nil {
 		val, err := rs.SettingsService.ResolveStringForTenant(r.Context(), school.ID, configModel.KeyStudentPhotosEnabled)
 		if err == nil {
@@ -424,6 +432,52 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		}
 		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyDisplayEnabled); err == nil {
 			displayEnabled = val
+		}
+		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyAttendanceWebEnabled); err == nil {
+			attendanceWebEnabled = val
+		} else {
+			slog.Default().ErrorContext(
+				r.Context(),
+				"tenant resolve setting failed",
+				slog.Int64("tenant_id", school.ID),
+				slog.String("key", configModel.KeyAttendanceWebEnabled),
+				slog.String("error", err.Error()),
+			)
+		}
+		if val, err := rs.SettingsService.ResolveStringForTenant(r.Context(), school.ID, configModel.KeyGroupMode); err == nil {
+			if val == configModel.GroupModeOpenCare {
+				groupMode = val
+			}
+		} else {
+			slog.Default().ErrorContext(
+				r.Context(),
+				"tenant resolve setting failed",
+				slog.Int64("tenant_id", school.ID),
+				slog.String("key", configModel.KeyGroupMode),
+				slog.String("error", err.Error()),
+			)
+		}
+		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyTimetableShowExpectedChildrenCount); err == nil {
+			showTimetableCounts = val
+		} else {
+			slog.Default().WarnContext(
+				r.Context(),
+				"tenant resolve display setting failed",
+				slog.Int64("tenant_id", school.ID),
+				slog.String("key", configModel.KeyTimetableShowExpectedChildrenCount),
+				slog.String("error", err.Error()),
+			)
+		}
+		if val, err := rs.SettingsService.ResolveBoolForTenant(r.Context(), school.ID, configModel.KeyEnrollmentWaitlistEnabled); err == nil {
+			waitlistEnabled = val
+		} else {
+			slog.Default().ErrorContext(
+				r.Context(),
+				"tenant resolve setting failed",
+				slog.Int64("tenant_id", school.ID),
+				slog.String("key", configModel.KeyEnrollmentWaitlistEnabled),
+				slog.String("error", err.Error()),
+			)
 		}
 		// Messaging compose visibility fails OPEN (counts a resolve error as
 		// enabled), UNLIKE the photos/NFC flags above. It must agree with the unread
@@ -449,6 +503,10 @@ func (rs *Resource) resolveTenant(w http.ResponseWriter, r *http.Request) {
 		NFCEnabled:             nfcEnabled,
 		ParentMessagingEnabled: parentMessagingEnabled,
 		DisplayEnabled:         displayEnabled,
+		AttendanceWebEnabled:   attendanceWebEnabled,
+		GroupMode:              groupMode,
+		ShowTimetableCounts:    showTimetableCounts,
+		WaitlistEnabled:        waitlistEnabled,
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Tenant resolved successfully")

@@ -13,6 +13,10 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import {
+  useAttendanceWebEnabled,
+  useShowTimetableCounts,
+} from "~/lib/tenant-context";
 import { useOptionalSupervision } from "~/lib/supervision-context";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
@@ -244,6 +248,8 @@ function RosterSummaryStat({
 }
 
 function MeinRaumPageContent() {
+  const attendanceWebEnabled = useAttendanceWebEnabled();
+  const showTimetableCounts = useShowTimetableCounts();
   const router = useTenantRouter();
   const searchParams = useSearchParams();
   const { data: session, status } = useSession({
@@ -1547,62 +1553,66 @@ function MeinRaumPageContent() {
               </div>
             ) : null}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {!row.currentlyPresent && row.status === "expected" ? (
-              <button
-                type="button"
-                onClick={() => void handleRosterAction("check-in", row)}
-                className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
-              >
-                Einchecken
-              </button>
-            ) : null}
-            {!row.currentlyPresent && row.status !== "expected" ? (
-              <button
-                type="button"
-                onClick={() => void handleRosterAction("check-in", row)}
-                className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
-              >
-                Wieder einchecken
-              </button>
-            ) : null}
-            {row.currentlyPresent ? (
-              <button
-                type="button"
-                onClick={() => void handleRosterAction("check-out", row)}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
-              >
-                Raum verlassen
-              </button>
-            ) : null}
-            {row.planned && row.status === "expected" ? (
-              <>
+          {attendanceWebEnabled && (
+            <div className="flex flex-wrap gap-2">
+              {!row.currentlyPresent && row.status === "expected" ? (
                 <button
                   type="button"
-                  onClick={() => void handleRosterAction("excused", row)}
-                  className="rounded-md border border-[#D89A16] px-3 py-2 text-sm font-medium text-[#A66F00]"
+                  onClick={() => void handleRosterAction("check-in", row)}
+                  className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
                 >
-                  Entschuldigt
+                  Einchecken
                 </button>
+              ) : null}
+              {!row.currentlyPresent && row.status !== "expected" ? (
                 <button
                   type="button"
-                  onClick={() => void handleRosterAction("absent", row)}
+                  onClick={() => void handleRosterAction("check-in", row)}
+                  className="rounded-md bg-[#83CD2D] px-3 py-2 text-sm font-medium text-white"
+                >
+                  Wieder einchecken
+                </button>
+              ) : null}
+              {row.currentlyPresent ? (
+                <button
+                  type="button"
+                  onClick={() => void handleRosterAction("check-out", row)}
                   className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
                 >
-                  Abwesend
+                  Raum verlassen
                 </button>
-              </>
-            ) : null}
-            {row.planned && !row.currentlyPresent && row.status === "absent" ? (
-              <button
-                type="button"
-                onClick={() => void handleRosterAction("expected", row)}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
-              >
-                Zurück auf erwartet
-              </button>
-            ) : null}
-          </div>
+              ) : null}
+              {row.planned && row.status === "expected" ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void handleRosterAction("excused", row)}
+                    className="rounded-md border border-[#D89A16] px-3 py-2 text-sm font-medium text-[#A66F00]"
+                  >
+                    Entschuldigt
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleRosterAction("absent", row)}
+                    className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+                  >
+                    Abwesend
+                  </button>
+                </>
+              ) : null}
+              {row.planned &&
+              !row.currentlyPresent &&
+              row.status === "absent" ? (
+                <button
+                  type="button"
+                  onClick={() => void handleRosterAction("expected", row)}
+                  className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700"
+                >
+                  Zurück auf erwartet
+                </button>
+              ) : null}
+            </div>
+          )}
         </div>
       );
 
@@ -1610,7 +1620,8 @@ function MeinRaumPageContent() {
         rows.length > 0 ? (
           <section className="moto-content-surface overflow-hidden rounded-lg border">
             <div className="border-b border-gray-100 bg-gray-50 px-4 py-2 text-sm font-semibold text-gray-700">
-              {title} ({rows.length})
+              {title}
+              {showTimetableCounts ? ` (${rows.length})` : ""}
             </div>
             {rows.map(renderRosterRow)}
           </section>
@@ -1634,97 +1645,113 @@ function MeinRaumPageContent() {
                 </div>
               </div>
               <div className="flex flex-wrap gap-2 sm:justify-end">
-                <button
-                  type="button"
-                  disabled={
-                    isConfirmingExpected || confirmableExpectedRows.length === 0
-                  }
-                  onClick={() =>
-                    void handleConfirmExpectedStudents(confirmableExpectedRows)
-                  }
-                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#83CD2D] px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] focus-visible:ring-2 focus-visible:ring-[#83CD2D]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-                  {isConfirmingExpected
-                    ? "Bestätigt..."
-                    : `${confirmableExpectedRows.length} erwartete bestätigen`}
-                </button>
-                <button
-                  type="button"
-                  disabled={isCompletingInstance}
-                  onClick={() => void handleCompleteTimetableInstance()}
-                  className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
-                >
-                  Beenden
-                </button>
+                {attendanceWebEnabled ? (
+                  <button
+                    type="button"
+                    disabled={
+                      isConfirmingExpected ||
+                      confirmableExpectedRows.length === 0
+                    }
+                    onClick={() =>
+                      void handleConfirmExpectedStudents(
+                        confirmableExpectedRows,
+                      )
+                    }
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-[#83CD2D] px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] focus-visible:ring-2 focus-visible:ring-[#83CD2D]/30 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
+                    {isConfirmingExpected
+                      ? "Bestätigt..."
+                      : showTimetableCounts
+                        ? `${confirmableExpectedRows.length} erwartete bestätigen`
+                        : "Erwartete bestätigen"}
+                  </button>
+                ) : null}
+                {attendanceWebEnabled ? (
+                  <button
+                    type="button"
+                    disabled={isCompletingInstance}
+                    onClick={() => void handleCompleteTimetableInstance()}
+                    className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50"
+                  >
+                    Beenden
+                  </button>
+                ) : null}
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-5">
-              <RosterSummaryStat label="Anwesend" value={present.length} />
-              <RosterSummaryStat label="Erwartet" value={expected.length} />
-              <RosterSummaryStat label="Abwesend" value={absent.length} />
-              <RosterSummaryStat label="Gegangen" value={departed.length} />
-              <RosterSummaryStat label="Ungeplant" value={unplanned.length} />
-            </div>
-          </div>
-          <form
-            className="moto-content-surface rounded-2xl border p-4 shadow-sm"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const onlyResult = addStudentResults[0];
-              if (onlyResult && addStudentResults.length === 1) {
-                void handleAddUnplannedStudent(onlyResult.id.toString());
-              }
-            }}
-          >
-            <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
-              <UserPlus className="h-4 w-4 text-gray-400" aria-hidden="true" />
-              Kind ungeplant hinzufügen
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input
-                type="search"
-                value={addStudentSearch}
-                onChange={(event) => setAddStudentSearch(event.target.value)}
-                placeholder="Weiteres Kind suchen..."
-                className="min-h-10 flex-1 rounded-lg border border-gray-300 px-3 text-sm focus:border-[#83CD2D] focus:ring-2 focus:ring-[#83CD2D]/20 focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={isAddingStudent || addStudentResults.length !== 1}
-                className="rounded-lg bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] disabled:opacity-50"
-              >
-                Hinzufügen
-              </button>
-            </div>
-            {addStudentResults.length > 0 ? (
-              <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {addStudentResults.map((student) => (
-                  <button
-                    key={student.id}
-                    type="button"
-                    disabled={isAddingStudent}
-                    onClick={() =>
-                      void handleAddUnplannedStudent(student.id.toString())
-                    }
-                    className="rounded-md border border-gray-200 px-3 py-2 text-left text-sm hover:border-[#83CD2D] disabled:opacity-50"
-                  >
-                    <span className="font-medium text-gray-900">
-                      {student.name ||
-                        [student.first_name, student.second_name]
-                          .filter(Boolean)
-                          .join(" ")}
-                    </span>
-                    <span className="ml-2 text-gray-500">
-                      {[student.school_class, student.group_name]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                  </button>
-                ))}
+            {showTimetableCounts ? (
+              <div className="grid grid-cols-2 gap-2 p-4 sm:grid-cols-5">
+                <RosterSummaryStat label="Anwesend" value={present.length} />
+                <RosterSummaryStat label="Erwartet" value={expected.length} />
+                <RosterSummaryStat label="Abwesend" value={absent.length} />
+                <RosterSummaryStat label="Gegangen" value={departed.length} />
+                <RosterSummaryStat label="Ungeplant" value={unplanned.length} />
               </div>
             ) : null}
-          </form>
+          </div>
+          {attendanceWebEnabled ? (
+            <form
+              className="moto-content-surface rounded-2xl border p-4 shadow-sm"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const onlyResult = addStudentResults[0];
+                if (onlyResult && addStudentResults.length === 1) {
+                  void handleAddUnplannedStudent(onlyResult.id.toString());
+                }
+              }}
+            >
+              <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-gray-900">
+                <UserPlus
+                  className="h-4 w-4 text-gray-400"
+                  aria-hidden="true"
+                />
+                Kind ungeplant hinzufügen
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  type="search"
+                  value={addStudentSearch}
+                  onChange={(event) => setAddStudentSearch(event.target.value)}
+                  placeholder="Weiteres Kind suchen..."
+                  className="min-h-10 flex-1 rounded-lg border border-gray-300 px-3 text-sm focus:border-[#83CD2D] focus:ring-2 focus:ring-[#83CD2D]/20 focus:outline-none"
+                />
+                <button
+                  type="submit"
+                  disabled={isAddingStudent || addStudentResults.length !== 1}
+                  className="rounded-lg bg-[#83CD2D] px-4 py-2 text-sm font-medium text-white shadow-sm transition-colors hover:bg-[#74B827] disabled:opacity-50"
+                >
+                  Hinzufügen
+                </button>
+              </div>
+              {addStudentResults.length > 0 ? (
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  {addStudentResults.map((student) => (
+                    <button
+                      key={student.id}
+                      type="button"
+                      disabled={isAddingStudent}
+                      onClick={() =>
+                        void handleAddUnplannedStudent(student.id.toString())
+                      }
+                      className="rounded-md border border-gray-200 px-3 py-2 text-left text-sm hover:border-[#83CD2D] disabled:opacity-50"
+                    >
+                      <span className="font-medium text-gray-900">
+                        {student.name ||
+                          [student.first_name, student.second_name]
+                            .filter(Boolean)
+                            .join(" ")}
+                      </span>
+                      <span className="ml-2 text-gray-500">
+                        {[student.school_class, student.group_name]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+            </form>
+          ) : null}
           {section("Anwesend", present)}
           {section("Erwartet", expected)}
           {section("Entschuldigt / Abwesend", absent)}

@@ -461,6 +461,23 @@ describe("EnrollmentForm", () => {
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 
+  it("hides grade and care offerings when the tenant disables both", async () => {
+    mockFetchPublicCareOfferings.mockResolvedValue({
+      offerings: offerings(),
+      careOfferingSelectionMode: "at_least_one",
+      careRequired: true,
+      collectGradeLevel: false,
+      careOfferingsEnabled: false,
+    });
+
+    renderForm();
+    await waitForLoaded();
+
+    expect(screen.queryByLabelText("Klassenstufe *")).not.toBeInTheDocument();
+    expect(screen.queryByText("Flexible Betreuung")).not.toBeInTheDocument();
+    expect(screen.queryByText("Fixe Betreuung")).not.toBeInTheDocument();
+  });
+
   it("renders custom field help texts so parents see the admin's guidance", async () => {
     // Regression guard: help_text was stored, served, and shown in the form
     // editor, but never rendered in the actual enrollment form (CustomFieldInput

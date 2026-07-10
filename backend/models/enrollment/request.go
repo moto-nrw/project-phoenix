@@ -132,6 +132,8 @@ type RequestRepository interface {
 	// phase's care offerings are deleted because of the
 	// request_child_offerings.care_offering_id RESTRICT FK.
 	DeleteByPhaseID(ctx context.Context, phaseID int64) (int, error)
+	ListFullyRejectedBefore(ctx context.Context, cutoff time.Time) ([]int64, error)
+	DeleteByID(ctx context.Context, requestID int64) error
 
 	// ExistsBySchemaID reports whether any request row references the
 	// given schema version. The schema delete path uses this to preserve

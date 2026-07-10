@@ -2,6 +2,7 @@
 
 import { CheckSquare, Loader2 } from "lucide-react";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
+import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 
 interface SchoolCheckinModeMobileProps {
   /** Whether the page is currently in check-in/out mode. */
@@ -34,6 +35,8 @@ export function SchoolCheckinModeMobile({
   successCount,
   pendingCount,
 }: SchoolCheckinModeMobileProps) {
+  const attendanceWebEnabled = useAttendanceWebEnabled();
+  if (!attendanceWebEnabled) return null;
   if (!isActive) {
     return (
       <button

@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -100,6 +101,7 @@ type Scheduler struct {
 	materializer               scheduleSvc.MaterializationService
 	timetableCleanup           scheduleSvc.TimetableCleanupService
 	timeTrackingCleanup        active.TimeTrackingCleanupService
+	enrollmentRejectedCleanup  enrollmentSvc.RejectedEnrollmentCleanupService
 	autoStart                  scheduleSvc.AutoStartService
 	settings                   SettingsResolver
 	db                         *bun.DB
@@ -248,6 +250,10 @@ func (s *Scheduler) SetTimetableCleanup(svc scheduleSvc.TimetableCleanupService)
 // task simply doesn't register in Start().
 func (s *Scheduler) SetTimeTrackingCleanup(svc active.TimeTrackingCleanupService) {
 	s.timeTrackingCleanup = svc
+}
+
+func (s *Scheduler) SetEnrollmentRejectedCleanup(svc enrollmentSvc.RejectedEnrollmentCleanupService) {
+	s.enrollmentRejectedCleanup = svc
 }
 
 // SetAutoStartService wires the planned-instance auto-start service. When set,
@@ -675,6 +681,22 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 				slog.Int("records_deleted", deleted),
 				slog.Int("retention_days", 90),
 			)
+		}
+	}
+
+	if s.enrollmentRejectedCleanup != nil {
+		result, cleanupErr := s.enrollmentRejectedCleanup.CleanupRejectedEnrollments(ctx)
+		if cleanupErr != nil {
+			s.getLogger().Error("rejected enrollment cleanup failed",
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", cleanupErr.Error()))
+			return false
+		}
+		if result.DeletedRequests > 0 {
+			s.getLogger().Info("rejected enrollment cleanup completed",
+				slog.Int64("tenant_id", tenantID),
+				slog.Int("requests_deleted", result.DeletedRequests),
+				slog.Int64("outbox_rows_deleted", result.DeletedOutboxRows))
 		}
 	}
 

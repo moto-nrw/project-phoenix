@@ -224,3 +224,23 @@ export function useDisplayEnabled(): boolean {
   const ctx = useContext(TenantContext);
   return ctx?.tenant?.displayEnabled === true;
 }
+
+export function useAttendanceWebEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.attendanceWebEnabled === true;
+}
+
+export function useOpenCareGroupMode(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.groupMode === "open_care";
+}
+
+export function useShowTimetableCounts(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.showTimetableCounts !== false;
+}
+
+export function useWaitlistEnabled(): boolean {
+  const ctx = useContext(TenantContext);
+  return ctx?.tenant?.waitlistEnabled !== false;
+}

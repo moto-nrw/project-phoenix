@@ -50,7 +50,14 @@ func (s stubActivationSettings) ResolveString(_ context.Context, key string) (st
 	if key == configModel.KeyEnrollmentDefaultActivationMode {
 		return s.mode, nil
 	}
+	if key == configModel.KeyEnrollmentNotifyPerDecision {
+		return configModel.EnrollmentNotifyPerDecisionImmediate, nil
+	}
 	return "", nil
+}
+
+func (s stubActivationSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
+	return true, nil
 }
 
 func setupDecisionTest(t *testing.T) (*decisionTestEnv, func()) {

@@ -20,6 +20,9 @@ func (s schoolClassSettingsStub) HasTenantOverride(context.Context, string) (boo
 }
 
 func (s schoolClassSettingsStub) ResolveBool(_ context.Context, key string) (bool, error) {
+	if key == configModel.KeyEnrollmentCollectGradeLevel || key == configModel.KeyEnrollmentCareOfferingsEnabled {
+		return true, nil
+	}
 	if key == configModel.KeyEnrollmentCollectSchoolClass {
 		return s.collect, nil
 	}
@@ -194,9 +197,9 @@ func TestDecisionService_ResolveSchoolClass(t *testing.T) {
 			want:  "1",
 		},
 		{
-			name:  "no grade and no class yields empty",
+			name:  "no grade and no class yields neutral placeholder",
 			child: &enrollmentModels.RequestChild{},
-			want:  "",
+			want:  "offen",
 		},
 	}
 

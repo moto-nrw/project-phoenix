@@ -10,6 +10,7 @@ type OutboxEnqueueRequest struct {
 	Payload           map[string]any
 	RelatedEntityType string
 	RelatedEntityID   int64
+	IdempotencyKey    string
 }
 
 // OutboxEnqueuer is the narrow contract feature services need from the

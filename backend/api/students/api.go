@@ -184,7 +184,7 @@ func (rs *Resource) Router() chi.Router {
 		// The users:checkin permission is the coarse gate; the
 		// attendance.web_checkin_access setting is the fine gate enforced inside
 		// the handler (group_supervisors vs all_staff).
-		r.With(authorize.RequiresPermission(permissions.UsersCheckin), withTx).Post("/{id}/school-checkin", rs.schoolCheckinHandler)
+		r.With(authorize.RequiresPermission(permissions.UsersCheckin), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/{id}/school-checkin", rs.schoolCheckinHandler)
 
 		// Student photo (Datenverwaltung). upload + delete: users:update;
 		// serve: users:read. Feature gate + consent enforced in photo.go.

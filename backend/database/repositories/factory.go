@@ -170,7 +170,7 @@ type Factory struct {
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
 	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
-	EmailOutbox              platformModels.EmailOutboxRepository
+	EmailOutbox              platformModels.EmailOutboxCleanupRepository
 
 	// Operator MFA (issue #1308 phase 7b)
 	OperatorMFACredential     platformModels.OperatorMFACredentialRepository
