@@ -658,6 +658,8 @@ describe("backend mappers", () => {
       cancel_reason: "Ausflug",
       expected_students_count: 0,
       present_students_count: 0,
+      required_staff_count: 0,
+      assigned_staff_count: 0,
     });
 
     expect(mapped.staff[0]?.absenceReason).toBe("krank");
