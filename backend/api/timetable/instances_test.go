@@ -940,6 +940,14 @@ func TestRenderInstanceLifecycleError(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "ambiguous_template_instance_delete")
 	})
 
+	t.Run("instance-moved", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		renderInstanceLifecycleError(w, r, scheduleSvc.ErrInstanceMoved)
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), "instance_moved")
+	})
+
 	t.Run("unknown-error-500", func(t *testing.T) {
 		w := httptest.NewRecorder()
 		r := httptest.NewRequest(http.MethodGet, "/", nil)

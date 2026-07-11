@@ -557,6 +557,62 @@ func TestApplyDeviations_SameSubstituteForTwoAbsent_OneBlock(t *testing.T) {
 	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
 }
 
+// One substitute covering TWO absent staff on the same block must yield each
+// time-conflict warning ONCE, not once per absent position. collectDeviationWarnings
+// already gathers every plan op for a substitute in a single pass, so iterating
+// the substitution rows without de-duplicating the substitute id rebuilt and
+// re-appended the identical conflicts — inflating the UI warning count (#1840).
+func TestApplyDeviations_SameSubstituteForTwoAbsent_WarningsNotDuplicated(t *testing.T) {
+	s := buildDevSetup(t)
+	router := devRouter(s.ctx, s.res)
+	_, date := futureSubDate(1)
+
+	// Target block 14:00-15:00; A and B are planned there.
+	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		Title: "SameSubWarn", StartHHMM: "14:00", EndHHMM: "15:00",
+	})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+
+	// A FOREIGN block the same day 14:30-15:30 that X already staffs (non-absent).
+	// It overlaps the target, so covering the target with X raises exactly one
+	// substitute_time_conflict against this foreign assignment.
+	foreign := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		Title: "ForeignForX", StartHHMM: "14:30", EndHHMM: "15:30",
+	})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", foreign.ID) })
+
+	rowA := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	rowB := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffB, testpkg.InstanceStaffOpts{})
+	rowXForeign := testpkg.CreateTestInstanceStaff(t, s.db, foreign.ID, s.staffX, testpkg.InstanceStaffOpts{})
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowA.ID, rowB.ID, rowXForeign.ID) })
+
+	// X covers BOTH absent A and B on the target block in one save.
+	w := doDev(t, router, inst.ID, map[string]any{
+		"substitutions": []map[string]any{
+			{"absent_staff_id": s.staffA, "substitute_staff_id": s.staffX},
+			{"absent_staff_id": s.staffB, "substitute_staff_id": s.staffX},
+		},
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	var resp struct {
+		Data ApplyDeviationsResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+
+	require.Len(t, resp.Data.Warnings, 1, "the conflict must appear once, not once per absent position")
+	assert.Equal(t, inst.ID, resp.Data.Warnings[0].InstanceID)
+	assert.Equal(t, foreign.ID, resp.Data.Warnings[0].OtherID)
+
+	var newSubIDs []int64
+	for _, r := range devInstanceStaff(t, s.db, s.ctx, inst.ID) {
+		if r.StaffID == s.staffX {
+			newSubIDs = append(newSubIDs, r.ID)
+		}
+	}
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubIDs...) })
+}
+
 // ackRouter wires the standalone acknowledge-understaffed handler with the same
 // real TimetableData facade + tenant middleware as devRouter, so the date guard
 // (which loads the instance) is exercised end to end.

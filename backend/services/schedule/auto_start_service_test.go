@@ -120,6 +120,41 @@ func TestAutoStart_RunForTenant_SkipsSchulhofAndContinues(t *testing.T) {
 	assert.Equal(t, []int64{302}, starter.startedIDs)
 }
 
+// A block that Start reports as concurrently moved (ErrInstanceMoved) is a
+// benign skip, not a batch abort: the move is already committed and the next
+// scheduler tick re-reads and starts the block on its real day. The rest of the
+// batch must still start (#1840).
+func TestAutoStart_RunForTenant_SkipsMovedAndContinues(t *testing.T) {
+	now := time.Date(2026, 4, 20, 13, 30, 0, 0, time.Local)
+	repo := &autoStartInstanceRepo{instances: []*scheduleModel.ActivityInstance{
+		autoStartInstance(321, scheduleModel.InstanceStatusPlanned, 13, 0, 14, 0),
+		autoStartInstance(322, scheduleModel.InstanceStatusPlanned, 13, 0, 14, 0),
+	}}
+	staffRepo := &autoStartStaffRepo{counts: map[int64]int{321: 1, 322: 1}}
+	starter := &autoStartInstanceStarter{errByID: map[int64]error{
+		321: fmt.Errorf("wrapped: %w", ErrInstanceMoved),
+	}}
+	svc := NewAutoStartService(AutoStartDependencies{
+		InstanceRepo:      repo,
+		InstanceStaffRepo: staffRepo,
+		InstanceService:   starter,
+		RoomRepo:          &autoStartRoomRepo{},
+		ConflictDetector: func(context.Context, ConflictDependencies, *scheduleModel.ActivityInstance, *slog.Logger) []InstanceConflictWarning {
+			return nil
+		},
+		Logger: slog.Default(),
+	})
+
+	result, err := svc.RunForTenant(context.Background(), now)
+
+	require.NoError(t, err)
+	assert.Equal(t, 2, result.Checked)
+	assert.Equal(t, 1, result.SkippedMoved)
+	assert.Equal(t, 1, result.Started)
+	assert.Zero(t, result.Failed)
+	assert.Equal(t, []int64{322}, starter.startedIDs)
+}
+
 func TestAutoStart_RunForTenant_ClassifiesSchulhofBeforeConflictDetection(t *testing.T) {
 	now := time.Date(2026, 4, 20, 13, 30, 0, 0, time.Local)
 	schulhof := autoStartInstance(311, scheduleModel.InstanceStatusPlanned, 13, 0, 14, 0)

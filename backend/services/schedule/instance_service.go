@@ -80,6 +80,17 @@ var (
 	// creating a second active group in the permanent Schulhof room. Staff
 	// must use the dedicated Schulhof supervision flow instead.
 	ErrSchulhofSupervisionRequired = errors.New("für den Schulhof bitte die Schulhof-Aufsicht verwenden")
+
+	// ErrInstanceMoved is returned when a lifecycle transition (start, complete,
+	// cancel, update) reloads the instance under its (tenant, date) day lock and
+	// finds the block on a DIFFERENT date than the one it locked — a concurrent
+	// PUT /instances/{id} moved it while this call was waiting on the lock. The
+	// held advisory lock is keyed on the stale date, so continuing would act on
+	// the moved block without holding its real day's lock and would break the
+	// ascending day-lock ordering the other flows rely on to avoid deadlock.
+	// Handlers map this to 409 with code "instance_moved" so the client reopens
+	// the block on its new day (#1840).
+	ErrInstanceMoved = errors.New("instance was moved concurrently")
 )
 
 // ActiveSessionEnder is the subset of active.Service used by Complete and
@@ -267,12 +278,21 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 	// substitute missing from the running session. Advisory xact locks are
 	// re-entrant, matching Cancel's day lock. Reload under the lock so a concurrent
 	// cancel/complete is observed before we materialize the bridge (#1840).
-	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), instance.Date)); err != nil {
+	lockedDate := instance.Date
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), lockedDate)); err != nil {
 		return nil, &ScheduleError{Op: "start instance: lock day", Err: err}
 	}
 	instance, err = s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err
+	}
+	// A concurrent PUT /instances/{id} may have MOVED the block to another day
+	// while we waited on the lock keyed on lockedDate. Continuing would copy the
+	// roster into active.group_supervisors while holding only the stale day's
+	// lock, letting /substitute or /deviations saves for the block's real date
+	// race with us. Reject so the client reopens the block on its new day (#1840).
+	if instance.Date != lockedDate {
+		return nil, ErrInstanceMoved
 	}
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot start instance in status %q", ErrInvalidInstanceTransition, instance.Status)
@@ -391,12 +411,20 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 	// historical roster, even a fresh open supervisor row on an already-closed
 	// group). Advisory xact locks are re-entrant; reload under the lock so a
 	// concurrent move/cancel/complete is observed before we act (#1840).
-	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), instance.Date)); err != nil {
+	lockedDate := instance.Date
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), lockedDate)); err != nil {
 		return nil, &ScheduleError{Op: "complete instance: lock day", Err: err}
 	}
 	instance, err = s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err
+	}
+	// A concurrent PUT may have MOVED the block to another day while we waited on
+	// the lock keyed on lockedDate; the held lock no longer covers the block's
+	// real day, so ending the bridge now would race staffing saves on that day.
+	// Reject so the client reopens it on its new day (#1840).
+	if instance.Date != lockedDate {
+		return nil, ErrInstanceMoved
 	}
 
 	if instance.Status != scheduleModel.InstanceStatusActive {
@@ -454,12 +482,23 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64, reason *
 	// locks are re-entrant, so the /deviations cancel branch (which already holds
 	// this lock) re-acquires it harmlessly. Reload under the lock so a concurrent
 	// move/complete/cancel is observed before we act (#1840).
-	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), instance.Date)); err != nil {
+	lockedDate := instance.Date
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), lockedDate)); err != nil {
 		return nil, &ScheduleError{Op: "cancel instance: lock day", Err: err}
 	}
 	instance, err = s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err
+	}
+	// A concurrent PUT may have MOVED the block to another day while we waited on
+	// the lock keyed on lockedDate. The direct route POST /instances/{id}/cancel
+	// reaches this method without the /deviations branch's own move guard, so
+	// cancelling now would stamp the moved block while holding only the stale
+	// day's lock and break the ascending day-lock ordering. Reject so the client
+	// reopens it on its new day (#1840). The /deviations cancel branch already
+	// rejected a move before delegating, so this never fires a second time there.
+	if instance.Date != lockedDate {
+		return nil, ErrInstanceMoved
 	}
 
 	switch instance.Status {
@@ -696,8 +735,27 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	// in ascending date order so re-plan / PUT / deviation contention on shared
 	// days can never deadlock.
 	tenantID := tenant.FromContext(ctx)
-	if err := s.acquireSubstituteDayLockPair(ctx, tenantID, instance.Date, req.Date); err != nil {
+	lockedDate := instance.Date
+	if err := s.acquireSubstituteDayLockPair(ctx, tenantID, lockedDate, req.Date); err != nil {
 		return nil, &ScheduleError{Op: "update instance: lock day", Err: err}
+	}
+
+	// Reload and re-validate under the lock. The pre-lock read above may be stale:
+	// while we waited on the day-lock pair, a concurrent cancel/start/complete
+	// could have committed (leaving the block cancelled/active — no longer
+	// editable), or another PUT could have MOVED it to a day we do not hold the
+	// lock for. Mutating the pre-lock instance would rewrite date/staff rows on a
+	// block that is now historical, cancelled, or on a different day. Re-read and
+	// re-check status and date before applying anything (#1840).
+	instance, err = s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	if instance.Date != lockedDate {
+		return nil, ErrInstanceMoved
+	}
+	if instance.Status != scheduleModel.InstanceStatusPlanned {
+		return nil, fmt.Errorf("%w: cannot update instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
 
 	if err := s.validateInstanceReferences(ctx, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, nil); err != nil {

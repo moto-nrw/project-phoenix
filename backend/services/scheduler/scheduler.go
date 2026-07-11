@@ -1690,6 +1690,7 @@ func (s *Scheduler) checkAndRunAutoStart(task *ScheduledTask) {
 				slog.Int("skipped_no_staff", result.SkippedNoStaff),
 				slog.Int("skipped_conflict", result.SkippedConflict),
 				slog.Int("skipped_schulhof", result.SkippedSchulhof),
+				slog.Int("skipped_moved", result.SkippedMoved),
 				slog.Int64("duration_ms", result.DurationMS),
 			)
 		}

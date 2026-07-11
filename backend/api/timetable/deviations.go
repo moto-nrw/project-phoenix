@@ -801,7 +801,26 @@ func (rs *Resource) collectDeviationWarnings(
 	date timezone.Date,
 ) []scheduleSvc.SubstituteTimeConflict {
 	warnings := make([]scheduleSvc.SubstituteTimeConflict, 0)
+	// One substitute can cover several absent colleagues, which duplicates
+	// conflicts two ways (#1840):
+	//   1. the same SubstituteStaffID appears in multiple `subs` rows, and the
+	//      ops loop below already gathers EVERY op for that id — reprocessing a
+	//      repeated id rebuilds the identical conflicts; and
+	//   2. planSubstitutions stages two ops on ONE block for that substitute
+	//      (one "substituted", one "already_on_instance"), and
+	//      buildSubstituteTimeConflicts keeps BOTH as targets, so it emits the
+	//      same (instance, other) conflict twice within a single pass.
+	// Skip repeated substitute ids (1) and drop duplicate (substitute, instance,
+	// other) conflict triples (2) so each real overlap surfaces exactly once. The
+	// triple keeps genuinely distinct substitutes colliding on the same block-pair
+	// separate.
+	seenSub := make(map[int64]bool, len(subs))
+	seenConflict := make(map[[3]int64]bool)
 	for _, sub := range subs {
+		if seenSub[sub.SubstituteStaffID] {
+			continue
+		}
+		seenSub[sub.SubstituteStaffID] = true
 		ops := make([]plannedOp, 0, len(plan))
 		for _, p := range plan {
 			if p.subID == sub.SubstituteStaffID {
@@ -816,7 +835,14 @@ func (rs *Resource) collectDeviationWarnings(
 			)
 			continue
 		}
-		warnings = append(warnings, w...)
+		for _, conflict := range w {
+			key := [3]int64{sub.SubstituteStaffID, conflict.InstanceID, conflict.OtherID}
+			if seenConflict[key] {
+				continue
+			}
+			seenConflict[key] = true
+			warnings = append(warnings, conflict)
+		}
 	}
 	return warnings
 }
