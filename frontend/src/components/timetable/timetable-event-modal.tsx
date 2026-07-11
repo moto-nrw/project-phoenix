@@ -117,6 +117,12 @@ interface EventFormState {
   staffIds: string[];
   primaryStaffId: string;
   /**
+   * Manual Personalbedarf override (issue #1839). Empty = derive from the
+   * Betreuungsschlüssel; a non-negative integer overrides it. Held as a string
+   * because it is an <input> value; parsed via parseRequiredStaffOverride.
+   */
+  requiredStaff: string;
+  /**
    * Zielgruppe (target group, issue #1838). "gruppe" reuses educationGroupId
    * above as its value rather than a separate field — switching away from
    * "gruppe" clears educationGroupId so the two never disagree.
@@ -245,6 +251,7 @@ function emptyForm(
     studentIds: [],
     staffIds: [],
     primaryStaffId: "",
+    requiredStaff: "",
     targetGroupType: "none",
     targetGradeLevel: "",
     targetSchoolClass: "",
@@ -274,6 +281,10 @@ function formFromInstance(
     staffIds: instance.staff.map((item) => item.staffId),
     primaryStaffId:
       instance.staff.find((item) => item.isPrimary)?.staffId ?? "",
+    requiredStaff:
+      instance.requiredStaffOverride !== undefined
+        ? String(instance.requiredStaffOverride)
+        : "",
     targetGroupType: "none",
     targetGradeLevel: "",
     targetSchoolClass: "",
@@ -305,6 +316,10 @@ function formFromSeries(
     studentIds: series.studentIds,
     staffIds: series.staffIds,
     primaryStaffId: series.primaryStaffId ?? "",
+    requiredStaff:
+      series.requiredStaffOverride !== undefined
+        ? String(series.requiredStaffOverride)
+        : "",
     targetGroupType: series.targetGroupType,
     targetGradeLevel:
       series.targetGradeLevel !== undefined && series.targetGradeLevel !== null
@@ -316,6 +331,16 @@ function formFromSeries(
 
 function seriesWeekPattern(repeat: RepeatMode): number {
   return repeat === "biweekly" ? 2 : 0;
+}
+
+// parseRequiredStaffOverride maps the "Benötigtes Personal" input to the
+// override wire value (#1839): empty/invalid → null (clear the override, derive
+// from the Betreuungsschlüssel); a non-negative integer → manual override.
+function parseRequiredStaffOverride(value: string): number | null {
+  const trimmed = value.trim();
+  if (trimmed === "") return null;
+  const parsed = Number.parseInt(trimmed, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function sortPeople<T extends PersonOption>(items: T[]): T[] {
@@ -980,6 +1005,7 @@ export function TimetableEventModal({
       activity_group_id: activityGroupId ? Number(activityGroupId) : undefined,
       staff_ids: staffIDsForSave.map(Number),
       student_ids: studentIDsForSave.map(Number),
+      required_staff: parseRequiredStaffOverride(form.requiredStaff),
     }) satisfies CreateInstanceBody;
 
   const seriesBody = (
@@ -1007,6 +1033,7 @@ export function TimetableEventModal({
         : undefined,
     calendar_period_id: Number(form.calendarPeriodId),
     week_pattern: seriesWeekPattern(form.repeat),
+    required_staff: parseRequiredStaffOverride(form.requiredStaff),
     student_ids: studentIDsForSave.map(Number),
     staff_ids: staffIDsForSave.map(Number),
     primary_staff_id: primaryStaffIDForSave
@@ -1063,6 +1090,10 @@ export function TimetableEventModal({
       target_school_class: template.targetSchoolClass,
       max_participants:
         template.maxParticipants > 0 ? template.maxParticipants : undefined,
+      // Personalbedarf override (#1839) IS editable in this form (unlike
+      // max_participants), so an all/following save carries the form value
+      // onto the template.
+      required_staff: parseRequiredStaffOverride(form.requiredStaff),
       week_pattern: firstSchedule?.weekPattern ?? 0,
       calendar_period_id: calendarPeriodId
         ? Number(calendarPeriodId)
@@ -1747,6 +1778,23 @@ export function TimetableEventModal({
   const peopleFields = (
     <>
       {staffRosterField}
+
+      <Field label="Benötigtes Personal" htmlFor="event_required_staff">
+        <Input
+          id="event_required_staff"
+          type="number"
+          min={0}
+          inputMode="numeric"
+          value={form.requiredStaff}
+          onChange={(event) => update("requiredStaff", event.target.value)}
+          placeholder="automatisch aus Betreuungsschlüssel"
+          controlSize="compact"
+        />
+        <p className="mt-1 text-xs text-gray-500">
+          Leer = automatisch aus dem Betreuungsschlüssel (Kinderzahl) berechnet.
+          Eine Zahl legt den Bedarf fest und überschreibt die Berechnung.
+        </p>
+      </Field>
 
       {studentRosterField}
 

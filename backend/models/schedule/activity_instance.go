@@ -37,9 +37,14 @@ type ActivityInstance struct {
 	StartTime        time.Time     `bun:"start_time,notnull" json:"start_time"`
 	EndTime          time.Time     `bun:"end_time,notnull" json:"end_time"`
 	RoomID           int64         `bun:"room_id,notnull" json:"room_id"`
-	Status           string        `bun:"status,notnull,default:'planned'" json:"status"`
-	ActiveGroupID    *int64        `bun:"active_group_id" json:"active_group_id,omitempty"`
-	IsSpontaneous    bool          `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
+	// RequiredStaff is the manual Personalbedarf override (issue #1839). NULL
+	// means "derive from the Betreuungsschlüssel" (issue #1869); a set value
+	// (>= 0) is a manual override that wins over the derived figure. See
+	// services/schedule/capacity_service.go EffectiveRequiredStaff.
+	RequiredStaff *int   `bun:"required_staff" json:"required_staff,omitempty"`
+	Status        string `bun:"status,notnull,default:'planned'" json:"status"`
+	ActiveGroupID *int64 `bun:"active_group_id" json:"active_group_id,omitempty"`
+	IsSpontaneous bool   `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
 	// UnderstaffedAck records that an admin deliberately accepts this block
 	// running with zero staff (Vertretungsplan, issue #1840). When true the gap
 	// detector reports the block as an acknowledged shortfall instead of an open
@@ -81,6 +86,9 @@ func (i *ActivityInstance) Validate() error {
 	}
 	if !IsValidInstanceStatus(i.Status) {
 		return errors.New("invalid instance status")
+	}
+	if i.RequiredStaff != nil && *i.RequiredStaff < 0 {
+		return errors.New("required_staff cannot be negative")
 	}
 	return nil
 }

@@ -42,14 +42,17 @@ import (
 // case is dominated by care/Mensa-style activities where the cap is the
 // room capacity, not a numerical roster limit.
 type createTemplateRequest struct {
-	Name             string `json:"name"`
-	Type             string `json:"type"` // care | activity | external
-	Weekdays         []int  `json:"weekdays"`
-	StartTime        string `json:"start_time"` // HH:MM
-	EndTime          string `json:"end_time"`   // HH:MM
-	RoomID           int64  `json:"room_id"`
-	CategoryID       int64  `json:"category_id"`
-	MaxParticipants  *int   `json:"max_participants,omitempty"`
+	Name            string `json:"name"`
+	Type            string `json:"type"` // care | activity | external
+	Weekdays        []int  `json:"weekdays"`
+	StartTime       string `json:"start_time"` // HH:MM
+	EndTime         string `json:"end_time"`   // HH:MM
+	RoomID          int64  `json:"room_id"`
+	CategoryID      int64  `json:"category_id"`
+	MaxParticipants *int   `json:"max_participants,omitempty"`
+	// RequiredStaff is the optional manual Personalbedarf override (#1839);
+	// omitted/null = derive from the Betreuungsschlüssel.
+	RequiredStaff    *int   `json:"required_staff,omitempty"`
 	WeekPattern      *int   `json:"week_pattern,omitempty"`
 	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
 	EducationGroupID *int64 `json:"education_group_id,omitempty"`
@@ -230,6 +233,7 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 	group := &activitiesModel.Group{
 		Name:              req.Name,
 		MaxParticipants:   maxParticipants,
+		RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
 		IsOpen:            true,
 		CategoryID:        req.CategoryID,
 		PlannedRoomID:     &roomIDCopy,

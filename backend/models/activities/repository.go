@@ -211,12 +211,15 @@ type StudentEnrollmentRepository interface {
 // count grew past what's readable positionally once Zielgruppe/calendar
 // period joined the original create-time fields.
 type TemplateFieldsUpdate struct {
-	Name              string
-	Type              string
-	CategoryID        int64
-	RoomID            int64
-	EducationGroupID  *int64
-	MaxParticipants   int
+	Name             string
+	Type             string
+	CategoryID       int64
+	RoomID           int64
+	EducationGroupID *int64
+	MaxParticipants  int
+	// RequiredStaff is the manual Personalbedarf override (#1839). nil ->
+	// clear the override (derive from the Betreuungsschlüssel).
+	RequiredStaff     *int
 	CalendarPeriodID  *int64
 	TargetGroupType   string
 	TargetGradeLevel  *int16
@@ -239,6 +242,9 @@ type TemplateListRow struct {
 	EducationGroupName sql.NullString `bun:"education_group_name"`
 	IsOpen             bool           `bun:"is_open"`
 	MaxParticipants    int            `bun:"max_participants"`
+	// RequiredStaff is the template's manual Personalbedarf override (#1839);
+	// NULL = derive from the Betreuungsschlüssel.
+	RequiredStaff sql.NullInt64 `bun:"required_staff"`
 	// TemplateCalendarPeriodID is the template's OWN period pin (Group.
 	// CalendarPeriodID), distinct from CalendarPeriodID below which is the
 	// per-schedule-row pin. See materialization_service.go's

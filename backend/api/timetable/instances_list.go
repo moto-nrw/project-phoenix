@@ -97,9 +97,14 @@ type enrichedInstance struct {
 	// pattern already used for every other count on this payload — this is
 	// intentionally not modeled as a ConflictWarning (see
 	// services/schedule/capacity_service.go).
-	RequiredStaffCount int                                   `json:"required_staff_count"`
-	AssignedStaffCount int                                   `json:"assigned_staff_count"`
-	ConflictWarnings   []scheduleSvc.InstanceConflictWarning `json:"conflict_warnings"`
+	RequiredStaffCount int `json:"required_staff_count"`
+	AssignedStaffCount int `json:"assigned_staff_count"`
+	// RequiredStaffOverride is the raw manual Personalbedarf override (#1839),
+	// nil when the block derives its requirement from the Betreuungsschlüssel.
+	// The edit form needs the raw value to distinguish "derive" from a set
+	// number; RequiredStaffCount above already folds the override in.
+	RequiredStaffOverride *int                                  `json:"required_staff_override,omitempty"`
+	ConflictWarnings      []scheduleSvc.InstanceConflictWarning `json:"conflict_warnings"`
 }
 
 // weeklyInstancesResponse is the 200 body for GET /instances.
@@ -288,8 +293,9 @@ func (rs *Resource) enrichInstance(
 		CancelReason:          inst.CancelReason,
 		ExpectedStudentsCount: expected,
 		PresentStudentsCount:  present,
-		RequiredStaffCount:    scheduleSvc.RequiredStaffForChildren(childrenCount, childrenPerStaffRatio),
+		RequiredStaffCount:    scheduleSvc.EffectiveRequiredStaff(inst.RequiredStaff, childrenCount, childrenPerStaffRatio),
 		AssignedStaffCount:    assignedStaff,
+		RequiredStaffOverride: inst.RequiredStaff,
 		ConflictWarnings:      rs.instanceConflictWarnings(ctx, inst),
 	}, nil
 }

@@ -805,6 +805,92 @@ describe("backend mappers", () => {
   });
 });
 
+describe("required staff override mapping (#1839)", () => {
+  it("surfaces a manual instance override, leaving it undefined when derived", () => {
+    const withOverride = mapWeeklyInstances({
+      from: "2026-05-04",
+      to: "2026-05-08",
+      instances: [
+        {
+          id: 42,
+          date: "2026-05-04",
+          start_time: "14:00",
+          end_time: "15:00",
+          title: "Schulhof",
+          status: "planned",
+          is_spontaneous: false,
+          is_live: false,
+          activity_type: "care",
+          room_id: 3,
+          room_name: "Hof",
+          staff: [],
+          staff_count: 1,
+          absent_staff_count: 0,
+          expected_students_count: 20,
+          present_students_count: 20,
+          required_staff_count: 3,
+          assigned_staff_count: 1,
+          required_staff_override: 3,
+        },
+      ],
+    }).instances[0]!;
+    expect(withOverride.requiredStaffOverride).toBe(3);
+
+    const derived = mapWeeklyInstances({
+      from: "2026-05-04",
+      to: "2026-05-08",
+      instances: [
+        {
+          id: 43,
+          date: "2026-05-04",
+          start_time: "14:00",
+          end_time: "15:00",
+          title: "Lernzeit",
+          status: "planned",
+          is_spontaneous: false,
+          is_live: false,
+          activity_type: "care",
+          room_id: 3,
+          room_name: "Raum",
+          staff: [],
+          staff_count: 2,
+          absent_staff_count: 0,
+          expected_students_count: 10,
+          present_students_count: 10,
+          required_staff_count: 1,
+          assigned_staff_count: 2,
+        },
+      ],
+    }).instances[0]!;
+    expect(derived.requiredStaffOverride).toBeUndefined();
+  });
+
+  it("passes a template's manual override through mapTemplates", () => {
+    const template = mapTemplates({
+      templates: [
+        {
+          id: 7,
+          name: "Yoga",
+          type: "activity",
+          category_id: 2,
+          category_name: "AG",
+          is_open: true,
+          max_participants: 12,
+          target_group_type: "none",
+          enrollment_count: 8,
+          supervisor_count: 1,
+          required_staff_count: 4,
+          assigned_staff_count: 1,
+          required_staff_override: 4,
+          schedules: [],
+        },
+      ],
+    }).templates[0]!;
+    expect(template.requiredStaffOverride).toBe(4);
+    expect(template.requiredStaffCount).toBe(4);
+  });
+});
+
 describe("resolveTemplateCalendarPeriodId", () => {
   it("prefers the first schedule pin over the template-level pin", () => {
     const candidate = {

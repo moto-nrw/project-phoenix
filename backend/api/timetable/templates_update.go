@@ -14,14 +14,17 @@ import (
 )
 
 type updateTemplateRequest struct {
-	Name             string `json:"name"`
-	Type             string `json:"type"`
-	Weekdays         []int  `json:"weekdays"`
-	StartTime        string `json:"start_time"`
-	EndTime          string `json:"end_time"`
-	RoomID           int64  `json:"room_id"`
-	CategoryID       int64  `json:"category_id"`
-	MaxParticipants  *int   `json:"max_participants,omitempty"`
+	Name            string `json:"name"`
+	Type            string `json:"type"`
+	Weekdays        []int  `json:"weekdays"`
+	StartTime       string `json:"start_time"`
+	EndTime         string `json:"end_time"`
+	RoomID          int64  `json:"room_id"`
+	CategoryID      int64  `json:"category_id"`
+	MaxParticipants *int   `json:"max_participants,omitempty"`
+	// RequiredStaff is the optional manual Personalbedarf override (#1839);
+	// omitted/null clears the override (derive from the Betreuungsschlüssel).
+	RequiredStaff    *int   `json:"required_staff,omitempty"`
 	WeekPattern      *int   `json:"week_pattern,omitempty"`
 	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
 	EducationGroupID *int64 `json:"education_group_id,omitempty"`
@@ -200,6 +203,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		RoomID:            req.RoomID,
 		EducationGroupID:  req.EducationGroupID,
 		MaxParticipants:   maxParticipants,
+		RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
 		CalendarPeriodID:  req.CalendarPeriodID,
 		TargetGroupType:   req.TargetGroupType,
 		TargetGradeLevel:  req.TargetGradeLevel,

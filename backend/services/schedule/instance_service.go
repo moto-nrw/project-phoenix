@@ -153,6 +153,9 @@ type CreateInstanceInput struct {
 	StaffIDs         []int64
 	StudentIDs       []int64
 	CreatedByStaffID *int64
+	// RequiredStaff is the optional manual Personalbedarf override (#1839);
+	// nil = derive from the Betreuungsschlüssel.
+	RequiredStaff *int
 }
 
 type UpdateInstanceInput struct {
@@ -166,6 +169,9 @@ type UpdateInstanceInput struct {
 	ActivityGroupID *int64
 	StaffIDs        []int64
 	StudentIDs      []int64
+	// RequiredStaff is the optional manual Personalbedarf override (#1839);
+	// nil = derive from the Betreuungsschlüssel.
+	RequiredStaff *int
 }
 
 // StartInstanceResult bundles what the start endpoint returns. ActiveGroupID
@@ -666,6 +672,7 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		Notes:           req.Notes,
 		RoomID:          req.RoomID,
 		ActivityGroupID: req.ActivityGroupID,
+		RequiredStaff:   req.RequiredStaff,
 		Status:          scheduleModel.InstanceStatusPlanned,
 		IsSpontaneous:   isSpontaneous,
 		CreatedBy:       req.CreatedByStaffID,
@@ -782,6 +789,7 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	instance.Notes = req.Notes
 	instance.RoomID = req.RoomID
 	instance.ActivityGroupID = req.ActivityGroupID
+	instance.RequiredStaff = req.RequiredStaff
 	instance.IsSpontaneous = req.ActivityGroupID == nil
 
 	if err := s.updateLifecycleColumns(
@@ -795,6 +803,7 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 		"notes",
 		"room_id",
 		"activity_group_id",
+		"required_staff",
 		"is_spontaneous",
 	); err != nil {
 		return nil, &ScheduleError{Op: "update instance", Err: err}

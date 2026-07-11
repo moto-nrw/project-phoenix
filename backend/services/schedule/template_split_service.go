@@ -93,16 +93,19 @@ func templateCareOfferingValidationError(ctx context.Context, op, action string,
 // provided StaffIDs roster; carried-over supervisors keep their own
 // is_primary flag.
 type TemplateSplitInput struct {
-	TemplateID       int64
-	EffectiveDate    timezone.Date
-	Name             string
-	Type             string // care | activity | external
-	Weekdays         []int  // ISO 8601, Mo=1 … Su=7
-	StartTime        time.Time
-	EndTime          time.Time
-	RoomID           int64
-	CategoryID       int64
-	MaxParticipants  *int
+	TemplateID      int64
+	EffectiveDate   timezone.Date
+	Name            string
+	Type            string // care | activity | external
+	Weekdays        []int  // ISO 8601, Mo=1 … Su=7
+	StartTime       time.Time
+	EndTime         time.Time
+	RoomID          int64
+	CategoryID      int64
+	MaxParticipants *int
+	// RequiredStaff is the manual Personalbedarf override (#1839) carried onto
+	// the successor Group. nil keeps the source template's override.
+	RequiredStaff    *int
 	WeekPattern      *int // 0=every week, 1=A, 2=B; nil = 0
 	CalendarPeriodID *int64
 	EducationGroupID *int64
@@ -831,6 +834,13 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	if in.MaxParticipants != nil && *in.MaxParticipants > 0 {
 		maxParticipants = *in.MaxParticipants
 	}
+	// Personalbedarf override (#1839): a value on the split request wins;
+	// otherwise the successor inherits the source template's override (incl.
+	// NULL = derive).
+	requiredStaff := old.RequiredStaff
+	if in.RequiredStaff != nil {
+		requiredStaff = in.RequiredStaff
+	}
 	seriesRootID := old.ID
 	if old.SeriesRootID != nil {
 		seriesRootID = *old.SeriesRootID
@@ -839,6 +849,7 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	group := &activitiesModel.Group{
 		Name:              in.Name,
 		MaxParticipants:   maxParticipants,
+		RequiredStaff:     requiredStaff,
 		IsOpen:            old.IsOpen,
 		CategoryID:        in.CategoryID,
 		PlannedRoomID:     &roomID,

@@ -174,6 +174,7 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 		RoomID:            req.RoomID,
 		CategoryID:        req.CategoryID,
 		MaxParticipants:   req.MaxParticipants,
+		RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
 		WeekPattern:       req.WeekPattern,
 		CalendarPeriodID:  req.CalendarPeriodID,
 		EducationGroupID:  req.EducationGroupID,

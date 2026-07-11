@@ -7,6 +7,7 @@ package timetable
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"net/http"
 	"strconv"
@@ -80,13 +81,26 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		TargetSchoolClass:  nullableTemplateString(row.TargetSchoolClass.Valid, row.TargetSchoolClass.String),
 		EnrollmentCount:    row.EnrollmentCount,
 		SupervisorCount:    row.SupervisorCount,
-		RequiredStaffCount: scheduleSvc.RequiredStaffForChildren(row.CapacityEnrollmentCount, childrenPerStaffRatio),
-		AssignedStaffCount: row.CapacitySupervisorCount,
-		StudentIDs:         row.StudentIDs,
-		StaffIDs:           row.StaffIDs,
-		PrimaryStaffID:     nullableTemplateInt64(row.PrimaryStaffID.Valid, row.PrimaryStaffID.Int64),
-		Schedules:          []templateScheduleResponse{},
+		// Manual override (#1839) wins over the Betreuungsschlüssel-derived
+		// requirement; NULL falls back to the derived value.
+		RequiredStaffCount:    scheduleSvc.EffectiveRequiredStaff(templateRequiredStaffOverride(row.RequiredStaff), row.CapacityEnrollmentCount, childrenPerStaffRatio),
+		AssignedStaffCount:    row.CapacitySupervisorCount,
+		RequiredStaffOverride: templateRequiredStaffOverride(row.RequiredStaff),
+		StudentIDs:            row.StudentIDs,
+		StaffIDs:              row.StaffIDs,
+		PrimaryStaffID:        nullableTemplateInt64(row.PrimaryStaffID.Valid, row.PrimaryStaffID.Int64),
+		Schedules:             []templateScheduleResponse{},
 	}
+}
+
+// templateRequiredStaffOverride converts the nullable required_staff column
+// into the *int override EffectiveRequiredStaff expects (NULL -> nil = derive).
+func templateRequiredStaffOverride(n sql.NullInt64) *int {
+	if !n.Valid {
+		return nil
+	}
+	v := int(n.Int64)
+	return &v
 }
 
 func templateScheduleResponseFromRow(row templateRow) templateScheduleResponse {
@@ -155,12 +169,15 @@ type templateResponse struct {
 	SupervisorCount   int     `json:"supervisor_count"`
 	// RequiredStaffCount/AssignedStaffCount drive the Betreuungsplan capacity
 	// indicator (issue #1838) — see services/schedule/capacity_service.go.
-	RequiredStaffCount int                        `json:"required_staff_count"`
-	AssignedStaffCount int                        `json:"assigned_staff_count"`
-	StudentIDs         []int64                    `json:"student_ids"`
-	StaffIDs           []int64                    `json:"staff_ids"`
-	PrimaryStaffID     *int64                     `json:"primary_staff_id,omitempty"`
-	Schedules          []templateScheduleResponse `json:"schedules"`
+	RequiredStaffCount int `json:"required_staff_count"`
+	AssignedStaffCount int `json:"assigned_staff_count"`
+	// RequiredStaffOverride is the raw manual override (#1839), nil when the
+	// template derives its requirement from the Betreuungsschlüssel.
+	RequiredStaffOverride *int                       `json:"required_staff_override,omitempty"`
+	StudentIDs            []int64                    `json:"student_ids"`
+	StaffIDs              []int64                    `json:"staff_ids"`
+	PrimaryStaffID        *int64                     `json:"primary_staff_id,omitempty"`
+	Schedules             []templateScheduleResponse `json:"schedules"`
 }
 
 type listTemplatesResponse struct {
