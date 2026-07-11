@@ -80,6 +80,35 @@ func TestAcknowledgeUnderstaffed_EmptyNoteNormalized(t *testing.T) {
 	assert.Nil(t, mock.lastAckNote, "blank note must not be persisted")
 }
 
+func TestAcknowledgeUnderstaffed_WhitespaceNoteNormalized(t *testing.T) {
+	// A whitespace-only note must normalize to nil, not persist as an
+	// empty-looking reason — matching trimReason on the substitute path.
+	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusPlanned, UnderstaffedAck: true}
+	instance.ID = int64(10)
+	mock := &mockInstanceService{ackRes: instance}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
+
+	w := doPost(t, router, "/instances/10/acknowledge-understaffed", map[string]any{"ack": true, "note": "   "})
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Nil(t, mock.lastAckNote, "whitespace-only note must not be persisted")
+}
+
+func TestAcknowledgeUnderstaffed_NoteTrimmed(t *testing.T) {
+	// Surrounding whitespace is stripped before persisting so the stored reason
+	// is exactly the trimmed text.
+	instance := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusPlanned, UnderstaffedAck: true}
+	instance.ID = int64(11)
+	mock := &mockInstanceService{ackRes: instance}
+	rs := NewResource(Dependencies{InstanceService: mock})
+	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)
+
+	w := doPost(t, router, "/instances/11/acknowledge-understaffed", map[string]any{"ack": true, "note": "  kein Ersatz  "})
+	require.Equal(t, http.StatusOK, w.Code)
+	require.NotNil(t, mock.lastAckNote)
+	assert.Equal(t, "kein Ersatz", *mock.lastAckNote, "note is trimmed before persisting")
+}
+
 func TestAcknowledgeUnderstaffed_NoteTooLong(t *testing.T) {
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}})
 	router := setupLifecycleRouter(rs, "/instances/{id}/acknowledge-understaffed", rs.acknowledgeUnderstaffed)

@@ -13,6 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -66,16 +67,22 @@ func (rs *Resource) acknowledgeUnderstaffed(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'ack' is required")))
 		return
 	}
-	// Normalize an empty note to nil so we never persist a blank reason, and
-	// reject an over-long one instead of silently truncating. The ceiling counts
-	// runes, not bytes, so it matches the frontend's character-based maxLength and
-	// the rune-based trimReason ceiling on the substitute path.
+	// Trim the note before the empty and length checks so a whitespace-only note
+	// (e.g. "   ") normalizes to nil and is never persisted as an empty-looking
+	// reason — matching trimReason on the substitute/deviations path. We keep the
+	// reject-on-over-long behavior (rather than trimReason's silent truncation)
+	// deliberately for this standalone endpoint. The ceiling counts runes, not
+	// bytes, so it matches the frontend's character-based maxLength and the
+	// rune-based trimReason ceiling.
 	if req.Note != nil {
-		if *req.Note == "" {
+		trimmed := strings.TrimSpace(*req.Note)
+		if trimmed == "" {
 			req.Note = nil
-		} else if utf8.RuneCountInString(*req.Note) > understaffedAckNoteMaxLength {
+		} else if utf8.RuneCountInString(trimmed) > understaffedAckNoteMaxLength {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("note is too long")))
 			return
+		} else {
+			req.Note = &trimmed
 		}
 	}
 
