@@ -103,12 +103,16 @@ type TemplateSplitInput struct {
 	RoomID          int64
 	CategoryID      int64
 	MaxParticipants *int
-	// RequiredStaff is the manual Personalbedarf override (#1839) carried onto
-	// the successor Group. nil keeps the source template's override.
-	RequiredStaff    *int
-	WeekPattern      *int // 0=every week, 1=A, 2=B; nil = 0
-	CalendarPeriodID *int64
-	EducationGroupID *int64
+	// RequiredStaff is the manual Personalbedarf override (#1839) for the
+	// successor Group, already normalized (nil = clear/derive). It is only
+	// applied when RequiredStaffProvided is true; otherwise the successor
+	// inherits the source template's override. This omitted-vs-null split is
+	// what lets a "this and following" edit actually CLEAR an override.
+	RequiredStaff         *int
+	RequiredStaffProvided bool
+	WeekPattern           *int // 0=every week, 1=A, 2=B; nil = 0
+	CalendarPeriodID      *int64
+	EducationGroupID      *int64
 	// Zielgruppe (target-group) fields, carried onto the successor Group
 	// (see createSuccessorGroup). "gruppe" reuses EducationGroupID above.
 	TargetGroupType   string
@@ -834,11 +838,12 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	if in.MaxParticipants != nil && *in.MaxParticipants > 0 {
 		maxParticipants = *in.MaxParticipants
 	}
-	// Personalbedarf override (#1839): a value on the split request wins;
-	// otherwise the successor inherits the source template's override (incl.
-	// NULL = derive).
+	// Personalbedarf override (#1839): only touch the successor's override when
+	// the request actually carried the field. When provided, the (already
+	// normalized) value is authoritative — a null CLEARS it (derive). When
+	// omitted, inherit the source template's override.
 	requiredStaff := old.RequiredStaff
-	if in.RequiredStaff != nil {
+	if in.RequiredStaffProvided {
 		requiredStaff = in.RequiredStaff
 	}
 	seriesRootID := old.ID

@@ -366,9 +366,23 @@ func applyWorstTemplateCapacity(
 		}
 	}
 
+	// The manual Personalbedarf override (#1839) is per-template, so it applies
+	// uniformly to every occurrence of that template — and it must drive the
+	// worst-occurrence selection, not only the final displayed count. Otherwise
+	// scoring by the derived Betreuungsschlüssel requirement can pick a
+	// "fine-looking" occurrence while another is actually understaffed under
+	// the override.
+	overrideByTemplate := make(map[int64]*int, len(byTemplate))
+	for i := range rows {
+		if _, ok := included[rows[i].TemplateID]; !ok {
+			continue
+		}
+		overrideByTemplate[rows[i].TemplateID] = requiredStaffOverrideOf(rows[i])
+	}
+
 	worst := make(map[int64]activitiesModel.TemplateCapacityOccurrence, len(byTemplate))
 	for templateID, candidates := range byTemplate {
-		if candidate, ok := worstTemplateOccurrence(candidates, childrenPerStaffRatio); ok {
+		if candidate, ok := worstTemplateOccurrence(candidates, overrideByTemplate[templateID], childrenPerStaffRatio); ok {
 			worst[templateID] = candidate
 		}
 	}
@@ -382,13 +396,24 @@ func applyWorstTemplateCapacity(
 	}
 }
 
+// requiredStaffOverrideOf converts a template row's nullable required_staff
+// column into the *int override EffectiveRequiredStaff expects (NULL -> nil).
+func requiredStaffOverrideOf(row activitiesModel.TemplateListRow) *int {
+	if !row.RequiredStaff.Valid {
+		return nil
+	}
+	v := int(row.RequiredStaff.Int64)
+	return &v
+}
+
 func worstTemplateOccurrence(
 	occurrences []activitiesModel.TemplateCapacityOccurrence,
+	override *int,
 	childrenPerStaffRatio int,
 ) (activitiesModel.TemplateCapacityOccurrence, bool) {
 	hasPositiveDemand := false
 	for _, occurrence := range occurrences {
-		if RequiredStaffForChildren(occurrence.EnrollmentCount, childrenPerStaffRatio) > 0 {
+		if EffectiveRequiredStaff(override, occurrence.EnrollmentCount, childrenPerStaffRatio) > 0 {
 			hasPositiveDemand = true
 			break
 		}
@@ -397,10 +422,15 @@ func worstTemplateOccurrence(
 	var worst activitiesModel.TemplateCapacityOccurrence
 	found := false
 	for _, candidate := range occurrences {
-		if hasPositiveDemand && candidate.EnrollmentCount == 0 {
+		// Skip zero-enrollment occurrences only when the requirement is DERIVED
+		// (no override): with no children the derived demand is 0, so such an
+		// occurrence is never the worst. Under a manual override the demand is
+		// constant regardless of enrollment, so a zero-enrollment, zero-staff
+		// occurrence can legitimately be the worst (e.g. 0/3).
+		if override == nil && hasPositiveDemand && candidate.EnrollmentCount == 0 {
 			continue
 		}
-		if !found || templateOccurrenceIsWorse(candidate, worst, childrenPerStaffRatio) {
+		if !found || templateOccurrenceIsWorse(candidate, worst, override, childrenPerStaffRatio) {
 			worst = candidate
 			found = true
 		}
@@ -417,9 +447,10 @@ type templateCapacityScore struct {
 
 func scoreTemplateOccurrence(
 	occurrence activitiesModel.TemplateCapacityOccurrence,
+	override *int,
 	childrenPerStaffRatio int,
 ) templateCapacityScore {
-	required := RequiredStaffForChildren(occurrence.EnrollmentCount, childrenPerStaffRatio)
+	required := EffectiveRequiredStaff(override, occurrence.EnrollmentCount, childrenPerStaffRatio)
 	assigned := occurrence.SupervisorCount
 	score := templateCapacityScore{required: required}
 	if assigned < required {
@@ -438,10 +469,11 @@ func scoreTemplateOccurrence(
 func templateOccurrenceIsWorse(
 	candidate activitiesModel.TemplateCapacityOccurrence,
 	current activitiesModel.TemplateCapacityOccurrence,
+	override *int,
 	childrenPerStaffRatio int,
 ) bool {
-	candidateScore := scoreTemplateOccurrence(candidate, childrenPerStaffRatio)
-	currentScore := scoreTemplateOccurrence(current, childrenPerStaffRatio)
+	candidateScore := scoreTemplateOccurrence(candidate, override, childrenPerStaffRatio)
+	currentScore := scoreTemplateOccurrence(current, override, childrenPerStaffRatio)
 	if candidateScore.severity != currentScore.severity {
 		return candidateScore.severity > currentScore.severity
 	}

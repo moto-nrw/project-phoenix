@@ -8,6 +8,7 @@
 package timetable
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -18,14 +19,39 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// nullableInt distinguishes an omitted JSON field (Set=false) from an explicit
+// null (Set=true, Value=nil) or a concrete value (Set=true, Value=&n). The
+// stdlib `*int` collapses "omitted" and "null" to the same nil, which makes it
+// impossible to tell "leave as-is/inherit" from "clear this override" — the
+// split flow needs both (#1839).
+type nullableInt struct {
+	Set   bool
+	Value *int
+}
+
+func (n *nullableInt) UnmarshalJSON(b []byte) error {
+	n.Set = true
+	if string(b) == "null" {
+		n.Value = nil
+		return nil
+	}
+	return json.Unmarshal(b, &n.Value)
+}
+
 // splitTemplateRequest is the update-template body plus the split controls.
 // effective_date is required (YYYY-MM-DD); materialize_from/materialize_to
 // are optional and mirror the create-template materialization window.
+//
+// RequiredStaff shadows updateTemplateRequest's `*int` field (a directly
+// declared field at depth 0 dominates the embedded one at depth 1 for JSON):
+// the split must be able to CLEAR an existing override, which needs the
+// omitted-vs-null distinction the presence-aware type provides.
 type splitTemplateRequest struct {
 	updateTemplateRequest
-	EffectiveDate   string  `json:"effective_date"`
-	MaterializeFrom *string `json:"materialize_from,omitempty"` // YYYY-MM-DD
-	MaterializeTo   *string `json:"materialize_to,omitempty"`   // YYYY-MM-DD
+	RequiredStaff   nullableInt `json:"required_staff"`
+	EffectiveDate   string      `json:"effective_date"`
+	MaterializeFrom *string     `json:"materialize_from,omitempty"` // YYYY-MM-DD
+	MaterializeTo   *string     `json:"materialize_to,omitempty"`   // YYYY-MM-DD
 }
 
 // Bind reuses the update-template presence checks and adds the split's own
@@ -164,28 +190,32 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 	}
 
 	return scheduleSvc.TemplateSplitInput{
-		TemplateID:        id,
-		EffectiveDate:     effectiveDate,
-		Name:              req.Name,
-		Type:              req.Type,
-		Weekdays:          req.Weekdays,
-		StartTime:         startTime,
-		EndTime:           endTime,
-		RoomID:            req.RoomID,
-		CategoryID:        req.CategoryID,
-		MaxParticipants:   req.MaxParticipants,
-		RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
-		WeekPattern:       req.WeekPattern,
-		CalendarPeriodID:  req.CalendarPeriodID,
-		EducationGroupID:  req.EducationGroupID,
-		TargetGroupType:   req.TargetGroupType,
-		TargetGradeLevel:  req.TargetGradeLevel,
-		TargetSchoolClass: req.TargetSchoolClass,
-		StudentIDs:        req.StudentIDs,
-		StaffIDs:          req.StaffIDs,
-		PrimaryStaffID:    req.PrimaryStaffID,
-		MaterializeFrom:   materializeFrom,
-		MaterializeTo:     materializeTo,
+		TemplateID:      id,
+		EffectiveDate:   effectiveDate,
+		Name:            req.Name,
+		Type:            req.Type,
+		Weekdays:        req.Weekdays,
+		StartTime:       startTime,
+		EndTime:         endTime,
+		RoomID:          req.RoomID,
+		CategoryID:      req.CategoryID,
+		MaxParticipants: req.MaxParticipants,
+		// Three-state: only when required_staff is present in the body do we
+		// touch the successor's override — a null clears it (derive), an
+		// omitted field inherits the source template's value.
+		RequiredStaff:         normalizeRequiredStaff(req.RequiredStaff.Value),
+		RequiredStaffProvided: req.RequiredStaff.Set,
+		WeekPattern:           req.WeekPattern,
+		CalendarPeriodID:      req.CalendarPeriodID,
+		EducationGroupID:      req.EducationGroupID,
+		TargetGroupType:       req.TargetGroupType,
+		TargetGradeLevel:      req.TargetGradeLevel,
+		TargetSchoolClass:     req.TargetSchoolClass,
+		StudentIDs:            req.StudentIDs,
+		StaffIDs:              req.StaffIDs,
+		PrimaryStaffID:        req.PrimaryStaffID,
+		MaterializeFrom:       materializeFrom,
+		MaterializeTo:         materializeTo,
 	}, nil
 }
 

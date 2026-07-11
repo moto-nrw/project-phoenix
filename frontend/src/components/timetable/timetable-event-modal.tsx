@@ -335,12 +335,14 @@ function seriesWeekPattern(repeat: RepeatMode): number {
 
 // parseRequiredStaffOverride maps the "Benötigtes Personal" input to the
 // override wire value (#1839): empty/invalid → null (clear the override, derive
-// from the Betreuungsschlüssel); a non-negative integer → manual override.
+// from the Betreuungsschlüssel); a whole non-negative integer → manual
+// override. Only plain digit strings are accepted — Number.parseInt would
+// silently coerce "1e2" → 1 or "2.5" → 2 and persist the wrong requirement.
 function parseRequiredStaffOverride(value: string): number | null {
   const trimmed = value.trim();
-  if (trimmed === "") return null;
-  const parsed = Number.parseInt(trimmed, 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+  if (!/^\d+$/.test(trimmed)) return null;
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 function sortPeople<T extends PersonOption>(items: T[]): T[] {
@@ -1784,6 +1786,7 @@ export function TimetableEventModal({
           id="event_required_staff"
           type="number"
           min={0}
+          step={1}
           inputMode="numeric"
           value={form.requiredStaff}
           onChange={(event) => update("requiredStaff", event.target.value)}
