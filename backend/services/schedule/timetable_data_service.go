@@ -18,6 +18,7 @@ import (
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -28,6 +29,9 @@ type TimetableDataDependencies struct {
 	ActivityExceptionRepo  scheduleModel.ActivityExceptionRepository
 	ActivityScheduleRepo   activitiesModel.ScheduleRepository
 	InstanceStaffRepo      scheduleModel.InstanceStaffRepository
+	StaffShiftRepo         scheduleModel.StaffShiftRepository
+	StaffRepo              usersModel.StaffRepository
+	CalendarPeriodRepo     scheduleModel.CalendarPeriodRepository
 	ActiveGroupRepo        activeModel.GroupRepository
 	SupervisorRepo         activeModel.GroupSupervisorRepository
 	ArrivalScheduleRepo    scheduleModel.StudentArrivalScheduleRepository
@@ -463,6 +467,21 @@ func (s *TimetableDataService) DetectPlannedConflicts(ctx context.Context, query
 		InstanceStaffRepo: s.deps.InstanceStaffRepo,
 		InstanceStudents:  s.deps.InstanceStudentRepo,
 	}, query, logger)
+}
+
+func (s *TimetableDataService) DetectShiftCoverageWarnings(ctx context.Context, query ShiftCoverageQuery) ([]ShiftCoverageWarning, error) {
+	if s.deps.StaffShiftRepo == nil || s.deps.ActivityInstanceRepo == nil || s.deps.ActivityExceptionRepo == nil || s.deps.ActivityScheduleRepo == nil || s.deps.InstanceStaffRepo == nil || s.deps.StaffRepo == nil || s.deps.CalendarPeriodRepo == nil {
+		return nil, errors.New("shift coverage dependencies are not wired")
+	}
+	return DetectShiftCoverageWarnings(ctx, ShiftCoverageDependencies{
+		Shifts:          s.deps.StaffShiftRepo,
+		Instances:       s.deps.ActivityInstanceRepo,
+		Exceptions:      s.deps.ActivityExceptionRepo,
+		Schedules:       s.deps.ActivityScheduleRepo,
+		InstanceStaff:   s.deps.InstanceStaffRepo,
+		Staff:           s.deps.StaffRepo,
+		CalendarPeriods: s.deps.CalendarPeriodRepo,
+	}, query)
 }
 
 func (s *TimetableDataService) EducationGroupExists(ctx context.Context, id int64) (bool, error) {

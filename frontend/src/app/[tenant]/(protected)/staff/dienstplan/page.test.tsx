@@ -37,13 +37,25 @@ vi.mock("~/components/staff/dienstplan-week-grid", () => ({
   DienstplanWeekGrid: ({
     weekDays,
     todayIso,
+    assignmentsByStaff,
   }: {
     weekDays: string[];
     todayIso: string;
+    assignmentsByStaff: Map<
+      string,
+      Map<string, Array<{ activityTitle: string }>>
+    >;
   }) => (
     <div data-testid="dienstplan-grid">
       <span data-testid="dienstplan-week-days">{weekDays.join(",")}</span>
       <span data-testid="dienstplan-today">{todayIso}</span>
+      <span data-testid="dienstplan-assignments">
+        {[...assignmentsByStaff.values()]
+          .flatMap((byDate) => [...byDate.values()])
+          .flat()
+          .map((assignment) => assignment.activityTitle)
+          .join(",")}
+      </span>
     </div>
   ),
 }));
@@ -70,16 +82,15 @@ describe("DienstplanPage", () => {
   });
 
   it("shows a blocking load error instead of the editable grid", () => {
-    const mutateStaff = vi.fn();
-    const mutateShifts = vi.fn();
+    const mutateOverview = vi.fn();
     const mutateShiftTypes = vi.fn();
     mocks.useSWRAuth.mockImplementation((key: string) => {
-      if (key === "dienstplan-staff") {
+      if (key.startsWith("dienstplan-overview-")) {
         return {
-          data: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
-          error: undefined,
+          data: undefined,
+          error: new Error("server down"),
           isLoading: false,
-          mutate: mutateStaff,
+          mutate: mutateOverview,
         };
       }
       if (key === "dienstplan-shift-types") {
@@ -91,10 +102,10 @@ describe("DienstplanPage", () => {
         };
       }
       return {
-        data: undefined,
-        error: new Error("server down"),
+        data: [],
+        error: undefined,
         isLoading: false,
-        mutate: mutateShifts,
+        mutate: vi.fn(),
       };
     });
 
@@ -107,20 +118,43 @@ describe("DienstplanPage", () => {
     ).toBeInTheDocument();
     expect(screen.queryByTestId("dienstplan-grid")).not.toBeInTheDocument();
 
-    // Retrying reloads every data source the grid depends on: staff, shifts,
-    // and the shift types (#1836).
+    // Retrying reloads the batched overview and the independent shift types.
     fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
-    expect(mutateStaff).toHaveBeenCalledTimes(1);
-    expect(mutateShifts).toHaveBeenCalledTimes(1);
+    expect(mutateOverview).toHaveBeenCalledTimes(1);
     expect(mutateShiftTypes).toHaveBeenCalledTimes(1);
   });
 
   it("anchors the current week and today marker to the Berlin calendar date", () => {
     mocks.useBerlinToday.mockReturnValue("2026-07-06");
     mocks.useSWRAuth.mockImplementation((key: string) => {
-      if (key === "dienstplan-staff") {
+      if (key.startsWith("dienstplan-overview-")) {
         return {
-          data: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+          data: {
+            from: "2026-07-06",
+            to: "2026-07-10",
+            dienstplanInUse: true,
+            staff: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+            shifts: [],
+            assignments: [
+              {
+                instanceId: "91",
+                staffId: "7",
+                date: "2026-07-06",
+                startTime: "12:00",
+                endTime: "13:00",
+                activityTitle: "Mensa",
+                roomId: "4",
+                roomName: "Speiseraum",
+                status: "planned",
+                isAbsent: false,
+                isSubstitute: false,
+                absenceReason: null,
+                coverageStatus: "covered",
+                coverageReason: null,
+                uncoveredIntervals: [],
+              },
+            ],
+          },
           error: undefined,
           isLoading: false,
           mutate: vi.fn(),
@@ -142,8 +176,11 @@ describe("DienstplanPage", () => {
     expect(screen.getByTestId("dienstplan-today")).toHaveTextContent(
       "2026-07-06",
     );
+    expect(screen.getByTestId("dienstplan-assignments")).toHaveTextContent(
+      "Mensa",
+    );
     expect(mocks.useSWRAuth).toHaveBeenCalledWith(
-      "dienstplan-shifts-2026-07-06-2026-07-10",
+      "dienstplan-overview-2026-07-06-2026-07-10",
       expect.any(Function),
     );
   });

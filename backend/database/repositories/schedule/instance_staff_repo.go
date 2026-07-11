@@ -64,7 +64,7 @@ func (r *InstanceStaffRepository) FindByInstanceID(ctx context.Context, instance
 		Model(&rows).
 		ModelTableExpr(modelTblInstanceStaff).
 		Where(`"instance_staff".instance_id = ?`, instanceID).
-		Order(orderCreatedAtASC)
+		OrderExpr(`"instance_staff".created_at ASC, "instance_staff".id ASC`)
 
 	query = base.WithTenantFilter(ctx, query, aliasInstanceStaff)
 
@@ -94,7 +94,7 @@ func (r *InstanceStaffRepository) FindByInstanceIDs(ctx context.Context, instanc
 		Model(&rows).
 		ModelTableExpr(modelTblInstanceStaff).
 		Where(`"instance_staff".instance_id IN (?)`, bun.List(instanceIDs)).
-		OrderExpr(`"instance_staff".instance_id ASC, "instance_staff".id ASC`)
+		OrderExpr(`"instance_staff".instance_id ASC, "instance_staff".created_at ASC, "instance_staff".id ASC`)
 
 	query = base.WithTenantFilter(ctx, query, aliasInstanceStaff)
 

@@ -13,6 +13,7 @@ import { getSession } from "next-auth/react";
 import { createLogger } from "./logger";
 import type {
   BackendConflictCheckResult,
+  BackendShiftCoverageCheckResult,
   BackendCreateTemplateResult,
   BackendAttendanceResponse,
   BackendEndTemplateResult,
@@ -45,6 +46,8 @@ import type {
   InstanceStatusResult,
   MaterializeResult,
   ReplanWeekResult,
+  ShiftCoverageCheckParams,
+  ShiftCoverageCheckResult,
   SplitTemplateBody,
   SplitTemplateResult,
   StartInstanceResult,
@@ -59,6 +62,7 @@ import type {
 } from "./timetable-types";
 import {
   mapConflictCheckResult,
+  mapShiftCoverageCheckResult,
   mapCreateTemplateResult,
   mapEndTemplateResult,
   mapAttendance,
@@ -315,6 +319,42 @@ class TimetableService {
     });
     const raw = await unwrap<BackendConflictCheckResult>(response);
     return mapConflictCheckResult(raw);
+  }
+
+  /**
+   * POST /api/timetable/shift-coverage — batched, read-only comparison of
+   * concrete candidate dates with the assigned staff members' shifts.
+   */
+  async checkShiftCoverage(
+    params: ShiftCoverageCheckParams,
+  ): Promise<ShiftCoverageCheckResult> {
+    const response = await fetch("/api/timetable/shift-coverage", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        dates: params.dates,
+        start_time: params.startTime,
+        end_time: params.endTime,
+        staff_ids: params.staffIds.map(Number),
+        exclude_instance_id: params.excludeInstanceId
+          ? Number(params.excludeInstanceId)
+          : undefined,
+        concrete_instance_date: params.concreteInstanceDate,
+        replan_activity_group_id: params.replanActivityGroupId
+          ? Number(params.replanActivityGroupId)
+          : undefined,
+        calendar_period_id: params.calendarPeriodId
+          ? Number(params.calendarPeriodId)
+          : undefined,
+        week_pattern: params.weekPattern,
+      }),
+    });
+    const raw = await unwrap<BackendShiftCoverageCheckResult>(response);
+    return mapShiftCoverageCheckResult(raw);
   }
 
   async updateTemplate(

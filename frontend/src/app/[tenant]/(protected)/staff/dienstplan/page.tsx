@@ -20,11 +20,13 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { staffShiftService } from "~/lib/shift-api";
 import {
   groupShiftsByStaffAndDate,
+  type StaffScheduleAssignment,
+  type StaffScheduleOverview,
+  type StaffScheduleStaff,
   type StaffShift,
 } from "~/lib/shift-helpers";
 import { shiftTypeService } from "~/lib/shift-type-api";
 import { indexShiftTypes, type ShiftType } from "~/lib/shift-type-helpers";
-import { staffService, type Staff } from "~/lib/staff-api";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
@@ -46,9 +48,29 @@ function startOfWeek(d: Date): Date {
 
 interface ModalState {
   mode: ShiftEditMode;
-  staff: Staff;
+  staff: StaffScheduleStaff;
   date: string;
   shift: StaffShift | null;
+}
+
+function groupAssignmentsByStaffAndDate(
+  assignments: readonly StaffScheduleAssignment[],
+): Map<string, Map<string, StaffScheduleAssignment[]>> {
+  const byStaff = new Map<string, Map<string, StaffScheduleAssignment[]>>();
+  for (const assignment of assignments) {
+    let byDate = byStaff.get(assignment.staffId);
+    if (!byDate) {
+      byDate = new Map<string, StaffScheduleAssignment[]>();
+      byStaff.set(assignment.staffId, byDate);
+    }
+    const dayAssignments = byDate.get(assignment.date);
+    if (dayAssignments) {
+      dayAssignments.push(assignment);
+    } else {
+      byDate.set(assignment.date, [assignment]);
+    }
+  }
+  return byStaff;
 }
 
 function DienstplanContent() {
@@ -80,19 +102,13 @@ function DienstplanContent() {
   const weekTo = weekDays[4] ?? "";
 
   const {
-    data: staff,
-    error: staffError,
-    isLoading: staffLoading,
-    mutate: mutateStaff,
-  } = useSWRAuth<Staff[]>("dienstplan-staff", () => staffService.getAllStaff());
-
-  const {
-    data: shifts,
-    error: shiftsError,
-    isLoading: shiftsLoading,
-    mutate: mutateShifts,
-  } = useSWRAuth<StaffShift[]>(`dienstplan-shifts-${weekFrom}-${weekTo}`, () =>
-    staffShiftService.getShifts(weekFrom, weekTo),
+    data: overview,
+    error: overviewError,
+    isLoading: overviewLoading,
+    mutate: mutateOverview,
+  } = useSWRAuth<StaffScheduleOverview>(
+    `dienstplan-overview-${weekFrom}-${weekTo}`,
+    () => staffShiftService.getOverview(weekFrom, weekTo),
   );
 
   const {
@@ -110,17 +126,22 @@ function DienstplanContent() {
   );
 
   const sortedStaff = useMemo(() => {
-    return [...(staff ?? [])].sort((a, b) =>
+    return [...(overview?.staff ?? [])].sort((a, b) =>
       `${a.lastName} ${a.firstName}`.localeCompare(
         `${b.lastName} ${b.firstName}`,
         "de",
       ),
     );
-  }, [staff]);
+  }, [overview?.staff]);
 
   const shiftsByStaff = useMemo(
-    () => groupShiftsByStaffAndDate(shifts ?? []),
-    [shifts],
+    () => groupShiftsByStaffAndDate(overview?.shifts ?? []),
+    [overview?.shifts],
+  );
+
+  const assignmentsByStaff = useMemo(
+    () => groupAssignmentsByStaffAndDate(overview?.assignments ?? []),
+    [overview?.assignments],
   );
 
   const isOnCurrentWeek =
@@ -150,9 +171,9 @@ function DienstplanContent() {
     });
   };
 
-  const loadError = staffError ?? shiftsError ?? shiftTypesError;
+  const loadError = overviewError ?? shiftTypesError;
   const retryLoad = () => {
-    void Promise.all([mutateStaff(), mutateShifts(), mutateShiftTypes()]);
+    void Promise.all([mutateOverview(), mutateShiftTypes()]);
   };
 
   if (sessionStatus === "loading") {
@@ -182,8 +203,8 @@ function DienstplanContent() {
       <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
         <div className="mb-4 flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
           <p className="hidden text-xs text-gray-500 sm:block">
-            Geplante Schichten pro Mitarbeiter. Klicke auf eine Zelle, um eine
-            Schicht anzulegen oder zu bearbeiten.
+            Schichten und Betreuungsplan-Einsätze pro Mitarbeiter. Schichten
+            lassen sich hier anlegen und bearbeiten.
           </p>
           <div className="flex min-w-0 items-center justify-center gap-2">
             <button
@@ -259,10 +280,11 @@ function DienstplanContent() {
           <DienstplanWeekGrid
             staff={sortedStaff}
             shiftsByStaff={shiftsByStaff}
+            assignmentsByStaff={assignmentsByStaff}
             weekDays={weekDays}
             todayIso={today}
             typesById={typesById}
-            isLoading={staffLoading || shiftsLoading || shiftTypesLoading}
+            isLoading={overviewLoading || shiftTypesLoading}
             onCellClick={(member, date, shift) =>
               setModal({
                 mode: shift ? "edit" : "create",
@@ -284,7 +306,7 @@ function DienstplanContent() {
           shift={modal.shift}
           shiftTypes={shiftTypes ?? []}
           onClose={() => setModal(null)}
-          onSaved={() => void mutateShifts()}
+          onSaved={() => void mutateOverview()}
         />
       )}
       <ShiftTypeManageModal
@@ -295,7 +317,7 @@ function DienstplanContent() {
         onClose={() => setManageOpen(false)}
         onChanged={() => {
           void mutateShiftTypes();
-          void mutateShifts();
+          void mutateOverview();
         }}
       />
     </div>

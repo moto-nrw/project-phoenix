@@ -433,6 +433,68 @@ describe("timetableService", () => {
     );
   });
 
+  it("posts a batched shift-coverage probe with recurrence metadata", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          coverage_warnings: [
+            {
+              staff_id: 11,
+              staff_name: "Ada Staff",
+              date: "2026-05-06",
+              start_time: "12:00",
+              end_time: "13:00",
+              uncovered_start_time: "12:30",
+              uncovered_end_time: "13:00",
+              message: "Mittwoch ist nicht vollständig abgedeckt.",
+            },
+          ],
+        },
+      }),
+    );
+
+    await expect(
+      timetableService.checkShiftCoverage({
+        dates: ["2026-05-04", "2026-05-06"],
+        startTime: "12:00",
+        endTime: "13:00",
+        staffIds: ["11", "12"],
+        replanActivityGroupId: "7",
+        calendarPeriodId: "5",
+        weekPattern: 2,
+      }),
+    ).resolves.toEqual({
+      coverageWarnings: [
+        {
+          staffId: "11",
+          staffName: "Ada Staff",
+          date: "2026-05-06",
+          startTime: "12:00",
+          endTime: "13:00",
+          uncoveredStartTime: "12:30",
+          uncoveredEndTime: "13:00",
+          message: "Mittwoch ist nicht vollständig abgedeckt.",
+        },
+      ],
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/shift-coverage",
+      expect.objectContaining({
+        method: "POST",
+        credentials: "include",
+        body: JSON.stringify({
+          dates: ["2026-05-04", "2026-05-06"],
+          start_time: "12:00",
+          end_time: "13:00",
+          staff_ids: [11, 12],
+          replan_activity_group_id: 7,
+          calendar_period_id: 5,
+          week_pattern: 2,
+        }),
+      }),
+    );
+  });
+
   it("calls lifecycle, materialize, re-plan and quality endpoints", async () => {
     fetchMock
       .mockResolvedValueOnce(

@@ -40,11 +40,13 @@ import {
   mapSplitTemplateResult,
   mapStartInstanceResult,
   mapSubstitute,
+  mapShiftCoverageCheckResult,
   mapTemplates,
   mapWeeklyInstances,
   parseTimeToMinutes,
   resolveTemplateCalendarPeriodId,
   toISODate,
+  weekdayDatesInRange,
 } from "./timetable-helpers";
 import type { EnrichedInstance, TimetableTemplate } from "./timetable-types";
 
@@ -149,6 +151,20 @@ describe("date and range helpers", () => {
     ]);
     expect(chunkDateRange("bad", "2026-05-05", 2)).toEqual([]);
     expect(chunkDateRange("2026-05-06", "2026-05-05", 2)).toEqual([]);
+  });
+
+  it("expands selected weekdays across DST without implementing A/B rules", () => {
+    expect(weekdayDatesInRange("2026-03-23", "2026-04-08", [1, 3])).toEqual([
+      "2026-03-23",
+      "2026-03-25",
+      "2026-03-30",
+      "2026-04-01",
+      "2026-04-06",
+      "2026-04-08",
+    ]);
+    expect(weekdayDatesInRange("bad", "2026-04-08", [1])).toEqual([]);
+    expect(weekdayDatesInRange("2026-04-09", "2026-04-08", [1])).toEqual([]);
+    expect(weekdayDatesInRange("2026-04-06", "2026-04-08", [0, 8])).toEqual([]);
   });
 
   it("formats German labels", () => {
@@ -996,6 +1012,43 @@ describe("mapConflictCheckResult", () => {
       startTime: "12:00",
       endTime: "13:00",
       warnings: [],
+    });
+  });
+});
+
+describe("mapShiftCoverageCheckResult", () => {
+  it("maps exact gap warnings and keeps the array non-null", () => {
+    expect(
+      mapShiftCoverageCheckResult({
+        coverage_warnings: [
+          {
+            staff_id: 12,
+            staff_name: "Ada Lovelace",
+            date: "2026-05-06",
+            start_time: "12:00",
+            end_time: "13:00",
+            uncovered_start_time: "12:30",
+            uncovered_end_time: "13:00",
+            message: "Mittwoch ist nicht vollständig abgedeckt.",
+          },
+        ],
+      }),
+    ).toEqual({
+      coverageWarnings: [
+        {
+          staffId: "12",
+          staffName: "Ada Lovelace",
+          date: "2026-05-06",
+          startTime: "12:00",
+          endTime: "13:00",
+          uncoveredStartTime: "12:30",
+          uncoveredEndTime: "13:00",
+          message: "Mittwoch ist nicht vollständig abgedeckt.",
+        },
+      ],
+    });
+    expect(mapShiftCoverageCheckResult({})).toEqual({
+      coverageWarnings: [],
     });
   });
 });

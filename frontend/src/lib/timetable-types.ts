@@ -719,11 +719,61 @@ export interface ConflictWarningItem {
   conflictingTitle: string;
 }
 
+/**
+ * Advisory Dienstplan warning for one uncovered part of a staff assignment.
+ * The warning never blocks saving a Betreuungsplan block.
+ */
+export interface ShiftCoverageWarningItem {
+  staffId: string;
+  staffName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  uncoveredStartTime: string;
+  uncoveredEndTime: string;
+  message: string;
+}
+
 export interface ConflictCheckResult {
   date: string;
   startTime: string;
   endTime: string;
   warnings: ConflictWarningItem[];
+}
+
+/**
+ * Batched, read-only Dienstplan probe. Dates are concrete candidates; the
+ * backend applies the selected calendar period's existing A/B-week rule.
+ */
+export interface ShiftCoverageCheckParams {
+  dates: string[];
+  startTime: string;
+  endTime: string;
+  staffIds: string[];
+  excludeInstanceId?: string;
+  /** Date whose concrete roster belongs to excludeInstanceId in a series probe. */
+  concreteInstanceDate?: string;
+  /** Existing series whose concrete #1871 deviations survive this edit. */
+  replanActivityGroupId?: string;
+  calendarPeriodId?: string;
+  weekPattern?: number;
+}
+
+export interface ShiftCoverageCheckResult {
+  coverageWarnings: ShiftCoverageWarningItem[];
+}
+
+export interface BackendShiftCoverageCheckResult {
+  coverage_warnings?: Array<{
+    staff_id: number;
+    staff_name: string;
+    date: string;
+    start_time: string;
+    end_time: string;
+    uncovered_start_time: string;
+    uncovered_end_time: string;
+    message: string;
+  }>;
 }
 
 export interface BackendConflictCheckResult {

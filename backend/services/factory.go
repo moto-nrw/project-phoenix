@@ -76,6 +76,7 @@ type Factory struct {
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
+	StaffScheduleOverview    schedule.StaffScheduleOverviewService
 	ShiftTypes               schedule.ShiftTypeService
 	PickupSchedule           schedule.PickupScheduleService
 	ArrivalSchedule          schedule.ArrivalScheduleService
@@ -502,6 +503,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		logger.With("service", "staff_shift"),
 	)
+	staffScheduleOverviewService := schedule.NewStaffScheduleOverviewService(schedule.StaffScheduleOverviewDependencies{
+		Shifts:        repos.StaffShift,
+		Instances:     repos.ActivityInstance,
+		InstanceStaff: repos.InstanceStaff,
+		Rooms:         repos.Room,
+		Staff:         repos.Staff,
+	})
 
 	// Initialize pickup schedule service
 	pickupScheduleService := schedule.NewPickupScheduleService(
@@ -1360,6 +1368,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		StaffShifts:              staffShiftService,
+		StaffScheduleOverview:    staffScheduleOverviewService,
 		ShiftTypes:               shiftTypeService,
 		PickupSchedule:           pickupScheduleService,
 		Display:                  displayService,
@@ -1417,6 +1426,9 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			ActivityExceptionRepo:      repos.ActivityException,
 			ActivityScheduleRepo:       repos.ActivitySchedule,
 			InstanceStaffRepo:          repos.InstanceStaff,
+			StaffShiftRepo:             repos.StaffShift,
+			StaffRepo:                  repos.Staff,
+			CalendarPeriodRepo:         repos.CalendarPeriod,
 			ActiveGroupRepo:            repos.ActiveGroup,
 			SupervisorRepo:             repos.GroupSupervisor,
 			ArrivalScheduleRepo:        repos.StudentArrivalSchedule,
