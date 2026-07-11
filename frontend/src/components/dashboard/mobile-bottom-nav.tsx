@@ -307,6 +307,12 @@ const additionalNavItems: AdditionalNavItem[] = [
     requiresAdmin: true,
   },
   {
+    href: "/vertretungsplan",
+    label: "Vertretungsplan",
+    iconKey: "calendar",
+    requiresAdmin: true,
+  },
+  {
     href: "/database",
     label: "Datenverwaltung",
     iconKey: "database",
@@ -606,7 +612,10 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     }
     if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
     if (item.alwaysShow) return true;
-    if (item.href === "/timetables" && !timetableEnabled) {
+    if (
+      (item.href === "/timetables" || item.href === "/vertretungsplan") &&
+      !timetableEnabled
+    ) {
       return false;
     }
     if (item.requiresAdmin) return userIsAdmin;

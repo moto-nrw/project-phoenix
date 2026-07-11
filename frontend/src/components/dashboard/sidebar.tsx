@@ -288,6 +288,7 @@ const NFC_ONLY_HREFS = new Set<string>([
 const PLANNING_SUB_PAGES = [
   { href: "/calendar-periods", label: "Kalenderzeiträume" },
   { href: "/timetables", label: "Betreuungsplan" },
+  { href: "/vertretungsplan", label: "Vertretungsplan" },
   { href: "/staff/dienstplan", label: "Dienstplan" },
 ];
 
@@ -562,7 +563,9 @@ function SidebarContent({ className = "" }: SidebarProps) {
   const planningSubPages = useMemo(
     () =>
       PLANNING_SUB_PAGES.filter(
-        (page) => page.href !== "/timetables" || timetableEnabled,
+        (page) =>
+          (page.href !== "/timetables" && page.href !== "/vertretungsplan") ||
+          timetableEnabled,
       ),
     [timetableEnabled],
   );

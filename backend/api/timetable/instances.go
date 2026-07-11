@@ -13,7 +13,9 @@ package timetable
 import (
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 
@@ -120,7 +122,21 @@ func (rs *Resource) cancelInstance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	instance, err := rs.InstanceService.Cancel(r.Context(), id)
+	// Optional {reason} body (#1840). No body / empty body → nil reason, so the
+	// shared cancel keeps working for callers that send nothing.
+	var reason *string
+	if r.Body != nil {
+		var body struct {
+			Reason *string `json:"reason,omitempty"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid JSON body")))
+			return
+		}
+		reason = trimReason(body.Reason)
+	}
+
+	instance, err := rs.InstanceService.Cancel(r.Context(), id, reason)
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return
@@ -166,8 +182,18 @@ func renderInstanceLifecycleError(w http.ResponseWriter, r *http.Request, err er
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, schulhofSupervisionRequiredCode))
 	case errors.Is(err, scheduleSvc.ErrInvalidInstanceReference):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, scheduleSvc.ErrInstanceMoved):
+		common.RenderError(w, r, common.ErrorConflictWithCode(
+			errors.New("block was changed concurrently; reopen it and try again"),
+			"instance_moved",
+		))
 	case errors.Is(err, scheduleSvc.ErrInvalidInstanceTransition):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, "invalid_transition"))
+	case errors.Is(err, scheduleSvc.ErrUnderstaffedAckStillStaffed):
+		common.RenderError(w, r, common.ErrorConflictWithCode(
+			errors.New("dieser Block kann nicht als bewusst unbesetzt markiert werden, solange noch Personal eingeteilt ist"),
+			"understaffed_still_staffed",
+		))
 	case errors.Is(err, scheduleSvc.ErrAmbiguousTemplateInstanceDelete):
 		common.RenderError(w, r, common.ErrorConflictWithCode(
 			errors.New("dieser Termin kann nicht einzeln gelöscht werden, weil die Vorlage an diesem Tag mehrere Termine hat"),

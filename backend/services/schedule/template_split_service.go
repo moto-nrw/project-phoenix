@@ -273,7 +273,10 @@ func (s *TemplateSplitService) splitInTransaction(
 	// Started/completed/cancelled and spontaneous rows survive (same
 	// protection rule as ReplanWeek).
 	oldID := old.ID
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, in.EffectiveDate, nil, &oldID)
+	// preserveDeviations=false: split is the destructive series operation. A
+	// surviving deviated old-template row would dedupe apart from the new
+	// template's materialized successor and show as a duplicate block (#1840).
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, in.EffectiveDate, nil, &oldID, false)
 	if err != nil {
 		return nil, &ScheduleError{Op: "split template: delete planned instances", Err: err}
 	}
@@ -486,7 +489,10 @@ func (s *TemplateSplitService) endFromDateInTransaction(
 	}
 
 	templateID := old.ID
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, in.EffectiveDate, nil, &templateID)
+	// preserveDeviations=false: "end this and all following" must actually
+	// remove the whole planned series — keeping a deviated row would leave the
+	// ended series partly alive (#1840).
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, in.EffectiveDate, nil, &templateID, false)
 	if err != nil {
 		return nil, &ScheduleError{Op: "end template: delete planned instances", Err: err}
 	}

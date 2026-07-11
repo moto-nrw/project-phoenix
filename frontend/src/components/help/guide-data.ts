@@ -702,6 +702,29 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/stundenplan.webp",
       },
       {
+        id: "vertretungsplan",
+        title: "Vertretungsplan",
+        icon: Users,
+        summary:
+          "Führt kurzfristige Abweichungen vom Betreuungsplan für eine Woche oder einen Tag: Abwesenheiten, Ersatz sowie ausfallende oder bewusst unbesetzte Blöcke (nur für Admins).",
+        steps: [
+          "`Planung` -> `Vertretungsplan` öffnen. Die Ansicht zeigt dieselben Termine wie der Betreuungsplan, hier jedoch zum Anpassen kurzfristiger Vertretungen. Oben zwischen `Woche` und `Tag` wechseln und mit den Pfeilen oder `Heute` zum passenden Zeitraum springen.",
+          "Im Überblick `Vertretungsplan im Blick` zeigen `Offene Lücken` und `Bewusst unbesetzt`, wie viele Blöcke ohne Personal sind bzw. bewusst offen gelassen wurden.",
+          "Einen Termin anklicken, um die Vertretungsansicht des Blocks zu öffnen. `Geplantes Personal` zeigt die Besetzung aus dem Betreuungsplan.",
+          "Über `Abwesend melden` eine Person für den ganzen Tag als abwesend markieren, optional mit einem `Grund` (zum Beispiel `krank`). Anschließend unter `Ersatz eintragen` eine Ersatzperson wählen.",
+          "Ist keine Ersatzperson verfügbar, den Block unter `Bewusst unbesetzt` mit optionalem Grund markieren; er zählt dann nicht mehr als offene Lücke.",
+          "Einen Termin über `Block absagen` streichen, optional mit einem `Grund`. Der Regeltermin im Betreuungsplan bleibt dabei unverändert.",
+        ],
+        callout: {
+          title: "Abweichung statt neue Vorlage",
+          body: "Änderungen im Vertretungsplan gelten nur für die gewählte Woche bzw. den Tag und überschreiben den Betreuungsplan nicht. Wer dauerhaft etwas ändern will, passt den Regeltermin im Betreuungsplan an.",
+          tone: "blue",
+        },
+        screenshot:
+          "Vertretungsplan-Wochenansicht mit Personallücken und markierten Abweichungen.",
+        image: "/help/screens/vertretungsplan.webp",
+      },
+      {
         id: "mein-kalender",
         title: "Mein Kalender",
         icon: CalendarRange,

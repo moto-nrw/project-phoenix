@@ -26,11 +26,14 @@ import {
   getYearMonths,
   getYearRange,
   groupInstancesByDate,
+  mapAcknowledgeUnderstaffed,
+  mapApplyDeviations,
   mapAttendance,
   mapConflictCheckResult,
   mapCreateTemplateResult,
   mapExceptionConflicts,
   mapGaps,
+  mapInstance,
   mapInstanceStatusResult,
   mapMaterializeResult,
   mapReplanWeekResult,
@@ -464,6 +467,207 @@ describe("backend mappers", () => {
         conflicts: undefined as never,
       }),
     ).toMatchObject({ conflicts: [] });
+  });
+
+  it("maps gap staffing detail and the acknowledged bucket (#1840)", () => {
+    const result = mapGaps({
+      from: "2026-05-04",
+      to: "2026-05-08",
+      gaps: [
+        {
+          instance_id: 42,
+          date: "2026-05-04",
+          title: "Mensa",
+          start_time: "12:00",
+          end_time: "13:00",
+          room_id: 3,
+          status: "planned",
+          assigned_staff_count: 2,
+          absent_staff_count: 1,
+          present_staff_count: 1,
+          planned_staff_count: 2,
+          understaffed_note: null,
+        },
+      ],
+      acknowledged: [
+        {
+          instance_id: 43,
+          date: "2026-05-04",
+          title: "Freispiel",
+          start_time: "13:00",
+          end_time: "14:00",
+          room_id: 4,
+          status: "planned",
+          assigned_staff_count: 0,
+          absent_staff_count: 0,
+          present_staff_count: 0,
+          planned_staff_count: 1,
+          understaffed_note: "bewusst offen",
+        },
+      ],
+    });
+
+    expect(result.gaps[0]).toMatchObject({
+      instanceId: "42",
+      roomId: "3",
+      presentStaffCount: 1,
+      plannedStaffCount: 2,
+      understaffedNote: undefined,
+    });
+    expect(result.acknowledged[0]).toMatchObject({
+      instanceId: "43",
+      roomId: "4",
+      understaffedNote: "bewusst offen",
+    });
+  });
+
+  it("defaults the acknowledged bucket to an empty array (#1840)", () => {
+    expect(
+      mapGaps({
+        from: "2026-05-04",
+        to: "2026-05-08",
+        gaps: [],
+        acknowledged: undefined,
+      }),
+    ).toMatchObject({ gaps: [], acknowledged: [] });
+  });
+
+  it("maps the acknowledge-understaffed result, with and without a note (#1840)", () => {
+    expect(
+      mapAcknowledgeUnderstaffed({
+        instance_id: 42,
+        status: "planned",
+        understaffed_ack: true,
+        understaffed_note: "keine Vertretung",
+      }),
+    ).toEqual({
+      instanceId: "42",
+      status: "planned",
+      understaffedAck: true,
+      understaffedNote: "keine Vertretung",
+    });
+
+    expect(
+      mapAcknowledgeUnderstaffed({
+        instance_id: 42,
+        status: "planned",
+        understaffed_ack: false,
+        understaffed_note: null,
+      }),
+    ).toEqual({
+      instanceId: "42",
+      status: "planned",
+      understaffedAck: false,
+      understaffedNote: undefined,
+    });
+  });
+
+  it("maps an applied-deviations result with affected instances and warnings (#1840)", () => {
+    expect(
+      mapApplyDeviations({
+        instance_id: 42,
+        cancelled: false,
+        understaffed_ack: true,
+        affected_instances: [
+          {
+            instance_id: 43,
+            title: "Mensa",
+            start_time: "12:00",
+            action: "marked_absent",
+          },
+        ],
+        warnings: [
+          {
+            instance_id: 44,
+            title: "AG",
+            date: "2026-05-04",
+            start_time: "14:00",
+            end_time: "15:00",
+          },
+        ],
+      }),
+    ).toEqual({
+      instanceId: "42",
+      cancelled: false,
+      understaffedAck: true,
+      affectedInstances: [
+        {
+          instanceId: "43",
+          title: "Mensa",
+          startTime: "12:00",
+          action: "marked_absent",
+        },
+      ],
+      warnings: [
+        {
+          instanceId: "44",
+          title: "AG",
+          date: "2026-05-04",
+          startTime: "14:00",
+          endTime: "15:00",
+        },
+      ],
+    });
+  });
+
+  it("maps applied-deviations with empty optional collections (#1840)", () => {
+    expect(
+      mapApplyDeviations({
+        instance_id: 42,
+        cancelled: true,
+        understaffed_ack: false,
+        affected_instances: undefined as never,
+        warnings: undefined as never,
+      }),
+    ).toMatchObject({
+      instanceId: "42",
+      cancelled: true,
+      affectedInstances: [],
+      warnings: [],
+    });
+  });
+
+  it("maps deviation fields on an instance: reason, ack and cancel note (#1840)", () => {
+    const mapped = mapInstance({
+      id: 42,
+      date: "2026-05-04",
+      start_time: "12:00",
+      end_time: "13:00",
+      title: "Mensa",
+      status: "cancelled",
+      is_spontaneous: false,
+      is_live: false,
+      activity_group_id: 7,
+      activity_type: "care",
+      room_id: 3,
+      room_name: "Mensa",
+      staff: [
+        {
+          staff_id: 11,
+          is_primary: true,
+          is_absent: true,
+          is_substitute: false,
+          absence_reason: "krank",
+        },
+      ],
+      students: [],
+      staff_count: 1,
+      absent_staff_count: 1,
+      understaffed_ack: true,
+      understaffed_note: "keine Vertretung",
+      cancel_reason: "Ausflug",
+      expected_students_count: 0,
+      present_students_count: 0,
+      required_staff_count: 0,
+      assigned_staff_count: 0,
+    });
+
+    expect(mapped.staff[0]?.absenceReason).toBe("krank");
+    expect(mapped).toMatchObject({
+      understaffedAck: true,
+      understaffedNote: "keine Vertretung",
+      cancelReason: "Ausflug",
+    });
   });
 
   it("maps substitutes and templates", () => {

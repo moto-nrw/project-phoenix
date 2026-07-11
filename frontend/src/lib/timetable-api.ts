@@ -25,6 +25,8 @@ import type {
   BackendSplitTemplateResult,
   BackendStartInstanceResult,
   BackendSubstituteResponse,
+  BackendAcknowledgeUnderstaffedResponse,
+  BackendApplyDeviationsResponse,
   BackendTimetableTemplate,
   BackendTemplatesResponse,
   BackendWeeklyInstancesResponse,
@@ -47,6 +49,9 @@ import type {
   SplitTemplateResult,
   StartInstanceResult,
   SubstituteResponse,
+  AcknowledgeUnderstaffedResponse,
+  ApplyDeviationsInput,
+  ApplyDeviationsResponse,
   TemplatesResponse,
   TimetableTemplate,
   UpdateTemplateBody,
@@ -59,6 +64,8 @@ import {
   mapAttendance,
   mapExceptionConflicts,
   mapGaps,
+  mapAcknowledgeUnderstaffed,
+  mapApplyDeviations,
   mapInstance,
   mapInstanceStatusResult,
   mapMaterializeResult,
@@ -397,11 +404,15 @@ class TimetableService {
    * Cancels a planned or active instance. From active, ends the bridge
    * cleanly via active.EndActivitySession.
    */
-  async cancel(instanceId: string): Promise<InstanceStatusResult> {
+  async cancel(
+    instanceId: string,
+    reason?: string,
+  ): Promise<InstanceStatusResult> {
     return this.lifecycle<BackendInstanceStatusResult, InstanceStatusResult>(
       instanceId,
       "cancel",
       mapInstanceStatusResult,
+      reason ? { reason } : undefined,
     );
   }
 
@@ -409,6 +420,7 @@ class TimetableService {
     instanceId: string,
     action: "start" | "complete" | "cancel",
     mapper: (raw: TBackend) => TFront,
+    body: Record<string, unknown> = {},
   ): Promise<TFront> {
     const response = await fetch(
       `/api/timetable/instances/${instanceId}/${action}`,
@@ -419,7 +431,7 @@ class TimetableService {
           Accept: "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({}),
+        body: JSON.stringify(body),
       },
     );
 
@@ -530,6 +542,7 @@ class TimetableService {
     absentStaffId: string,
     substituteStaffId: string,
     date: string,
+    reason?: string,
   ): Promise<SubstituteResponse> {
     const response = await fetch("/api/timetable/substitute", {
       method: "POST",
@@ -542,11 +555,128 @@ class TimetableService {
         absent_staff_id: Number(absentStaffId),
         substitute_staff_id: Number(substituteStaffId),
         date,
+        reason: reason ?? undefined,
       }),
     });
 
     const raw = await unwrap<BackendSubstituteResponse>(response);
     return mapSubstitute(raw);
+  }
+
+  /**
+   * Mark a staff member absent across their whole day without assigning a
+   * substitute (#1840 absent-only mode). The position is left open. Same
+   * endpoint as substitute — the backend branches on the omitted
+   * substitute_staff_id.
+   */
+  async markAbsent(
+    absentStaffId: string,
+    date: string,
+    reason?: string,
+  ): Promise<SubstituteResponse> {
+    const response = await fetch("/api/timetable/substitute", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      credentials: "include",
+      body: JSON.stringify({
+        absent_staff_id: Number(absentStaffId),
+        date,
+        reason: reason ?? undefined,
+      }),
+    });
+
+    const raw = await unwrap<BackendSubstituteResponse>(response);
+    return mapSubstitute(raw);
+  }
+
+  /**
+   * Flip the "deliberately left unstaffed" acknowledgement on a block
+   * (#1840). ack=false clears the flag and any note.
+   */
+  async acknowledgeUnderstaffed(
+    instanceId: string,
+    ack: boolean,
+    note?: string,
+  ): Promise<AcknowledgeUnderstaffedResponse> {
+    const response = await fetch(
+      `/api/timetable/instances/${instanceId}/acknowledge-understaffed`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ ack, note: note ?? undefined }),
+      },
+    );
+
+    const raw = await unwrap<BackendAcknowledgeUnderstaffedResponse>(response);
+    return mapAcknowledgeUnderstaffed(raw);
+  }
+
+  /**
+   * POST /api/timetable/instances/{id}/deviations — applies an entire
+   * Vertretungsplan slide-over save (absences, substitute, understaffed
+   * acknowledgement, cancel) in ONE backend transaction (#1840). Either every
+   * edit lands or none does; the frontend never sequences independent
+   * mutations that could half-commit.
+   */
+  async applyDeviations(
+    instanceId: string,
+    input: ApplyDeviationsInput,
+  ): Promise<ApplyDeviationsResponse> {
+    const body: Record<string, unknown> = {};
+    if (input.cancel) {
+      body.cancel = true;
+      if (input.cancelReason) body.cancel_reason = input.cancelReason;
+    } else {
+      if (input.understaffedAck !== undefined) {
+        body.understaffed_ack = input.understaffedAck;
+        if (input.understaffedAck && input.understaffedNote) {
+          body.understaffed_note = input.understaffedNote;
+        }
+      }
+      if (input.absences && input.absences.length > 0) {
+        body.absences = input.absences.map((a) => ({
+          staff_id: Number(a.staffId),
+          reason: a.reason ?? undefined,
+        }));
+      }
+      if (input.substitutions && input.substitutions.length > 0) {
+        body.substitutions = input.substitutions.map((s) => ({
+          absent_staff_id: Number(s.absentStaffId),
+          substitute_staff_id: Number(s.substituteStaffId),
+          reason: s.reason ?? undefined,
+        }));
+      }
+      if (input.presences && input.presences.length > 0) {
+        body.presences = input.presences.map((staffId) => Number(staffId));
+      }
+    }
+
+    const response = await fetch(
+      `/api/timetable/instances/${instanceId}/deviations`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(body),
+      },
+    );
+
+    const raw = await unwrap<BackendApplyDeviationsResponse>(response);
+    logger.info("deviations_applied", {
+      instance_id: instanceId,
+      cancelled: raw.cancelled,
+    });
+    return mapApplyDeviations(raw);
   }
 
   async patchAttendance(

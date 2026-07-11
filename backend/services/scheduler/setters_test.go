@@ -783,7 +783,7 @@ func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, timezone.Dat
 	return 0, nil
 }
 
-func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64) (int64, error) {
+func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, timezone.Date, *timezone.Date, *int64, bool) (int64, error) {
 	return 0, nil
 }
 

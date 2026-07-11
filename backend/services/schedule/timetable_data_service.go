@@ -139,12 +139,43 @@ func (s *TimetableDataService) GetInstanceStaff(ctx context.Context, instanceID 
 	return s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
 }
 
+func (s *TimetableDataService) GetInstanceStaffByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*scheduleModel.InstanceStaff, error) {
+	return s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, instanceIDs)
+}
+
 func (s *TimetableDataService) UpdateInstanceStaff(ctx context.Context, staff *scheduleModel.InstanceStaff) error {
 	return s.deps.InstanceStaffRepo.Update(ctx, staff)
 }
 
 func (s *TimetableDataService) CreateInstanceStaff(ctx context.Context, staff *scheduleModel.InstanceStaff) error {
 	return s.deps.InstanceStaffRepo.Create(ctx, staff)
+}
+
+// AcquireSubstituteDayLock serializes concurrent substitute/deviation saves for
+// a whole (tenant, date) within the caller's transaction (#1840). A substitution
+// or absence is DAY-WIDE: one save can touch every same-day instance of the
+// affected staff, not just the block the form was opened from. A per-instance
+// lock therefore leaves two admins editing DIFFERENT blocks of the same absent
+// employee free to both classify the shared blocks and both insert a substitute
+// (distinct staff_id slips past UNIQUE(instance_id, staff_id)), leaving two live
+// supervisors on a block. Locking the day serializes the full mutation scope of
+// both /substitute and /deviations, which contend on the same key. The key is
+// hashed into the single-bigint advisory space (does not collide with the raw
+// instance-id locks used elsewhere except harmlessly — a collision only ever
+// over-serializes). Transaction-scoped: releases at commit/rollback.
+func (s *TimetableDataService) AcquireSubstituteDayLock(ctx context.Context, date timezone.Date) error {
+	tenantID := tenant.FromContext(ctx)
+	return repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenantID, date))
+}
+
+// substituteDayLockKey is the single source of truth for the (tenant, date)
+// advisory-lock key that serializes every day-wide staffing mutation: the
+// /substitute and /deviations endpoints (AcquireSubstituteDayLock) and the
+// re-plan-week flow, which locks the whole window before deleting/regenerating
+// the same rows (#1840). All three must hash the SAME string or they would not
+// contend.
+func substituteDayLockKey(tenantID int64, date timezone.Date) string {
+	return fmt.Sprintf("timetable:substitute-day:%d:%s", tenantID, date.String())
 }
 
 func (s *TimetableDataService) CountNonAbsentInstanceStaffByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {

@@ -17,7 +17,10 @@ import type {
   BackendEndTemplateResult,
   BackendExceptionConflictsResponse,
   BackendEnrichedInstance,
+  BackendGapInstance,
   BackendGapsResponse,
+  BackendAcknowledgeUnderstaffedResponse,
+  BackendApplyDeviationsResponse,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
@@ -32,7 +35,10 @@ import type {
   EndTemplateResult,
   EnrichedInstance,
   ExceptionConflictsResponse,
+  GapInstance,
   GapsResponse,
+  AcknowledgeUnderstaffedResponse,
+  ApplyDeviationsResponse,
   InstanceStaffSummary,
   InstanceStudentSummary,
   InstanceStatusResult,
@@ -320,6 +326,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     isPrimary: s.is_primary,
     isAbsent: s.is_absent,
     isSubstitute: s.is_substitute,
+    absenceReason: s.absence_reason ?? undefined,
   }));
   const students: InstanceStudentSummary[] = (raw.students ?? []).map((s) => ({
     studentId: String(s.student_id),
@@ -356,6 +363,9 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     students,
     staffCount: raw.staff_count,
     absentStaffCount: raw.absent_staff_count,
+    understaffedAck: raw.understaffed_ack ?? false,
+    understaffedNote: raw.understaffed_note ?? undefined,
+    cancelReason: raw.cancel_reason ?? undefined,
     expectedStudentsCount: raw.expected_students_count,
     presentStudentsCount: raw.present_students_count,
     requiredStaffCount: raw.required_staff_count,
@@ -417,21 +427,40 @@ export function mapReplanWeekResult(
   };
 }
 
+function mapGapInstance(gap: BackendGapInstance): GapInstance {
+  return {
+    instanceId: String(gap.instance_id),
+    date: gap.date,
+    title: gap.title,
+    startTime: gap.start_time,
+    endTime: gap.end_time,
+    roomId: String(gap.room_id),
+    status: gap.status,
+    assignedStaffCount: gap.assigned_staff_count,
+    absentStaffCount: gap.absent_staff_count,
+    presentStaffCount: gap.present_staff_count,
+    plannedStaffCount: gap.planned_staff_count,
+    understaffedNote: gap.understaffed_note ?? undefined,
+  };
+}
+
 export function mapGaps(raw: BackendGapsResponse): GapsResponse {
   return {
     from: raw.from,
     to: raw.to,
-    gaps: (raw.gaps ?? []).map((gap) => ({
-      instanceId: String(gap.instance_id),
-      date: gap.date,
-      title: gap.title,
-      startTime: gap.start_time,
-      endTime: gap.end_time,
-      roomId: String(gap.room_id),
-      status: gap.status,
-      assignedStaffCount: gap.assigned_staff_count,
-      absentStaffCount: gap.absent_staff_count,
-    })),
+    gaps: (raw.gaps ?? []).map(mapGapInstance),
+    acknowledged: (raw.acknowledged ?? []).map(mapGapInstance),
+  };
+}
+
+export function mapAcknowledgeUnderstaffed(
+  raw: BackendAcknowledgeUnderstaffedResponse,
+): AcknowledgeUnderstaffedResponse {
+  return {
+    instanceId: String(raw.instance_id),
+    status: raw.status,
+    understaffedAck: raw.understaffed_ack,
+    understaffedNote: raw.understaffed_note ?? undefined,
   };
 }
 
@@ -478,6 +507,29 @@ export function mapSubstitute(
     absentStaffId: String(raw.absent_staff_id),
     substituteStaffId: String(raw.substitute_staff_id),
     date: raw.date,
+    affectedInstances: (raw.affected_instances ?? []).map((item) => ({
+      instanceId: String(item.instance_id),
+      title: item.title,
+      startTime: item.start_time,
+      action: item.action,
+    })),
+    warnings: (raw.warnings ?? []).map((warning) => ({
+      instanceId: String(warning.instance_id),
+      title: warning.title,
+      date: warning.date,
+      startTime: warning.start_time,
+      endTime: warning.end_time,
+    })),
+  };
+}
+
+export function mapApplyDeviations(
+  raw: BackendApplyDeviationsResponse,
+): ApplyDeviationsResponse {
+  return {
+    instanceId: String(raw.instance_id),
+    cancelled: raw.cancelled,
+    understaffedAck: raw.understaffed_ack,
     affectedInstances: (raw.affected_instances ?? []).map((item) => ({
       instanceId: String(item.instance_id),
       title: item.title,

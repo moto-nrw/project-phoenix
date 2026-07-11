@@ -29,6 +29,7 @@ function isEnrollmentPath(p: string): boolean {
 const PLANNING_PATH_PREFIXES = [
   "/calendar-periods",
   "/timetables",
+  "/vertretungsplan",
   "/staff/dienstplan",
 ];
 

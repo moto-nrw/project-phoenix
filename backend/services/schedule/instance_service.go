@@ -30,6 +30,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/constants"
+	repoBase "github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
@@ -67,10 +68,29 @@ var (
 	// the slots unchanged until slot-scoped exceptions exist.
 	ErrAmbiguousTemplateInstanceDelete = errors.New("template instance delete is ambiguous")
 
+	// ErrUnderstaffedAckStillStaffed is returned when a caller tries to mark a
+	// block "deliberately unstaffed" (understaffed_ack=true) while it still has
+	// at least one non-absent staff row. The flag means "runs on purpose with
+	// nobody covering"; allowing it alongside real staffing produces
+	// contradictory state (the block reads as unstaffed yet /gaps never lists it
+	// because it is staffed). Handlers map this to 409.
+	ErrUnderstaffedAckStillStaffed = errors.New("cannot acknowledge understaffing while the block is fully staffed")
+
 	// ErrSchulhofSupervisionRequired prevents timetable instances from
 	// creating a second active group in the permanent Schulhof room. Staff
 	// must use the dedicated Schulhof supervision flow instead.
 	ErrSchulhofSupervisionRequired = errors.New("für den Schulhof bitte die Schulhof-Aufsicht verwenden")
+
+	// ErrInstanceMoved is returned when a lifecycle transition (start, complete,
+	// cancel, update) reloads the instance under its (tenant, date) day lock and
+	// finds the block on a DIFFERENT date than the one it locked — a concurrent
+	// PUT /instances/{id} moved it while this call was waiting on the lock. The
+	// held advisory lock is keyed on the stale date, so continuing would act on
+	// the moved block without holding its real day's lock and would break the
+	// ascending day-lock ordering the other flows rely on to avoid deadlock.
+	// Handlers map this to 409 with code "instance_moved" so the client reopens
+	// the block on its new day (#1840).
+	ErrInstanceMoved = errors.New("instance was moved concurrently")
 )
 
 // ActiveSessionEnder is the subset of active.Service used by Complete and
@@ -84,8 +104,22 @@ type ActiveSessionEnder interface {
 type InstanceService interface {
 	Start(ctx context.Context, instanceID, startedByStaffID int64) (*StartInstanceResult, error)
 	Complete(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
-	Cancel(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
+	// Cancel transitions planned|active → cancelled. reason is an optional
+	// short "why" stored on the instance (Vertretungsplan, #1840); pass nil for
+	// a plain cancel.
+	Cancel(ctx context.Context, instanceID int64, reason *string) (*scheduleModel.ActivityInstance, error)
 	DeleteCancelled(ctx context.Context, instanceID int64) error
+	// SetUnderstaffedAck flips the "deliberately unstaffed" acknowledgement on a
+	// planned or active instance (Vertretungsplan, issue #1840). It only
+	// annotates the block — no lifecycle transition, no active-state change — so
+	// gap detection stops reporting an intentionally-open position. Rejected on
+	// completed/cancelled instances with ErrInvalidInstanceTransition.
+	SetUnderstaffedAck(ctx context.Context, instanceID int64, ack bool, note *string) (*scheduleModel.ActivityInstance, error)
+	// ClearUnderstaffedAckIfStaffed clears a lingering "deliberately unstaffed"
+	// acknowledgement only when the instance's current staff rows leave it fully
+	// staffed (present >= planned). Used by the /substitute flow after adding
+	// coverage so partial coverage never reopens an acknowledged gap (#1840).
+	ClearUnderstaffedAckIfStaffed(ctx context.Context, instanceID int64) error
 	// ReplanWeek deletes planned non-spontaneous instances in [from, to] and
 	// re-materializes. A non-nil activityGroupID restricts the delete to one
 	// template's instances; nil re-plans the whole grid.
@@ -195,6 +229,25 @@ func (s *instanceService) getLogger() *slog.Logger {
 	return cmp.Or(s.deps.Logger, slog.Default())
 }
 
+// rejectSchulhofRoom returns ErrSchulhofSupervisionRequired when the given room
+// is the permanent Schulhof room, and a ScheduleError when the room can't be
+// loaded. Timetable instances must never spin up a second active group in
+// Schulhof — staff use the dedicated Schulhof supervision flow instead. Shared
+// by Start's pre-lock fast-fail and its authoritative post-reload re-check.
+func (s *instanceService) rejectSchulhofRoom(ctx context.Context, roomID int64) error {
+	room, err := s.deps.RoomRepo.FindByID(ctx, roomID)
+	if err != nil {
+		return &ScheduleError{Op: "start instance: load room", Err: err}
+	}
+	if room == nil {
+		return &ScheduleError{Op: "start instance: load room", Err: errors.New("instance room not found")}
+	}
+	if room.Name == constants.SchulhofRoomName {
+		return ErrSchulhofSupervisionRequired
+	}
+	return nil
+}
+
 // Start implements planned → active. Runs inside the caller's tenant tx
 // (TenantTxMiddleware); any failure rolls back the whole thing — no dangling
 // active.group, no half-linked instance, no stale supervisors.
@@ -207,15 +260,51 @@ func (s *instanceService) Start(ctx context.Context, instanceID, startedByStaffI
 		return nil, fmt.Errorf("%w: cannot start instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
 
-	room, err := s.deps.RoomRepo.FindByID(ctx, instance.RoomID)
+	// Reject the permanent Schulhof room before taking any lock — timetable
+	// instances must not spin up a second active group there; staff use the
+	// dedicated Schulhof supervision flow instead. This is a fast-fail on the
+	// pre-lock read; it is re-checked authoritatively after the locked reload
+	// below (a concurrent PUT can MOVE the block into Schulhof while we wait).
+	if err := s.rejectSchulhofRoom(ctx, instance.RoomID); err != nil {
+		return nil, err
+	}
+
+	// Serialize against concurrent day-wide staffing saves (/substitute,
+	// /deviations) on the block's day BEFORE reading the roster we copy into
+	// active.group_supervisors. Those endpoints hold this (tenant, date) advisory
+	// lock while they flip is_absent and insert substitute rows; without contending
+	// on it, Start can read the pre-deviation roster and create supervisors from
+	// stale rows — leaving a just-absented planned supervisor live and the assigned
+	// substitute missing from the running session. Advisory xact locks are
+	// re-entrant, matching Cancel's day lock. Reload under the lock so a concurrent
+	// cancel/complete is observed before we materialize the bridge (#1840).
+	lockedDate := instance.Date
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), lockedDate)); err != nil {
+		return nil, &ScheduleError{Op: "start instance: lock day", Err: err}
+	}
+	instance, err = s.loadForTransition(ctx, instanceID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "start instance: load room", Err: err}
+		return nil, err
 	}
-	if room == nil {
-		return nil, &ScheduleError{Op: "start instance: load room", Err: errors.New("instance room not found")}
+	// A concurrent PUT /instances/{id} may have MOVED the block to another day
+	// while we waited on the lock keyed on lockedDate. Continuing would copy the
+	// roster into active.group_supervisors while holding only the stale day's
+	// lock, letting /substitute or /deviations saves for the block's real date
+	// race with us. Reject so the client reopens the block on its new day (#1840).
+	if instance.Date != lockedDate {
+		return nil, ErrInstanceMoved
 	}
-	if room.Name == constants.SchulhofRoomName {
-		return nil, ErrSchulhofSupervisionRequired
+	if instance.Status != scheduleModel.InstanceStatusPlanned {
+		return nil, fmt.Errorf("%w: cannot start instance in status %q", ErrInvalidInstanceTransition, instance.Status)
+	}
+
+	// Re-validate the room against the reloaded instance. PUT /instances/{id}
+	// takes the same (tenant, date) day lock and can MOVE the block into the
+	// permanent Schulhof room while Start is waiting on that lock; only the
+	// post-lock room_id is authoritative, so the pre-lock check above is not
+	// enough on its own (#1840, review follow-up).
+	if err := s.rejectSchulhofRoom(ctx, instance.RoomID); err != nil {
+		return nil, err
 	}
 
 	// Conflict detection is read-only + advisory. Warnings reflect state
@@ -310,6 +399,34 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 	if err != nil {
 		return nil, err
 	}
+
+	// Serialize completion against concurrent day-wide staffing saves
+	// (/substitute, /deviations) on the block's day, exactly as Cancel does. Those
+	// endpoints take this (tenant, date) advisory lock, re-read the instance under
+	// it, then rewrite instance_staff and open active.group_supervisors rows.
+	// Without the same lock here, a deviation save can pass its own "still
+	// plannable" re-read while Complete is mid-flight, then commit its staff writes
+	// AFTER Complete has ended the active.group and stamped the instance completed —
+	// leaving a completed block with post-completion staffing state (a rewritten
+	// historical roster, even a fresh open supervisor row on an already-closed
+	// group). Advisory xact locks are re-entrant; reload under the lock so a
+	// concurrent move/cancel/complete is observed before we act (#1840).
+	lockedDate := instance.Date
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), lockedDate)); err != nil {
+		return nil, &ScheduleError{Op: "complete instance: lock day", Err: err}
+	}
+	instance, err = s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	// A concurrent PUT may have MOVED the block to another day while we waited on
+	// the lock keyed on lockedDate; the held lock no longer covers the block's
+	// real day, so ending the bridge now would race staffing saves on that day.
+	// Reject so the client reopens it on its new day (#1840).
+	if instance.Date != lockedDate {
+		return nil, ErrInstanceMoved
+	}
+
 	if instance.Status != scheduleModel.InstanceStatusActive {
 		return nil, fmt.Errorf("%w: cannot complete instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
@@ -348,11 +465,42 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 // Cancel implements planned|active → cancelled. From active, the bridge is
 // ended the same way Complete does (visits + supervisors close, checkout
 // events fire). From planned there is no bridge yet; just stamp the status.
-func (s *instanceService) Cancel(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
+func (s *instanceService) Cancel(ctx context.Context, instanceID int64, reason *string) (*scheduleModel.ActivityInstance, error) {
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err
 	}
+
+	// Serialize the cancellation against concurrent day-wide staffing saves
+	// (/substitute, /deviations) on the block's day. Both those endpoints take
+	// this (tenant, date) advisory lock before they classify and rewrite staff
+	// rows. Cancel is a public route in its own right (POST /instances/{id}/cancel
+	// calls this service directly, not only the /deviations cancel branch); without
+	// the same lock a direct cancel can commit between another admin's lock
+	// acquisition and their staff-row writes, leaving a cancelled block with
+	// freshly-rewritten staffing — a rewritten historical block. Advisory xact
+	// locks are re-entrant, so the /deviations cancel branch (which already holds
+	// this lock) re-acquires it harmlessly. Reload under the lock so a concurrent
+	// move/complete/cancel is observed before we act (#1840).
+	lockedDate := instance.Date
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenant.FromContext(ctx), lockedDate)); err != nil {
+		return nil, &ScheduleError{Op: "cancel instance: lock day", Err: err}
+	}
+	instance, err = s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	// A concurrent PUT may have MOVED the block to another day while we waited on
+	// the lock keyed on lockedDate. The direct route POST /instances/{id}/cancel
+	// reaches this method without the /deviations branch's own move guard, so
+	// cancelling now would stamp the moved block while holding only the stale
+	// day's lock and break the ascending day-lock ordering. Reject so the client
+	// reopens it on its new day (#1840). The /deviations cancel branch already
+	// rejected a move before delegating, so this never fires a second time there.
+	if instance.Date != lockedDate {
+		return nil, ErrInstanceMoved
+	}
+
 	switch instance.Status {
 	case scheduleModel.InstanceStatusPlanned, scheduleModel.InstanceStatusActive:
 		// allowed
@@ -377,11 +525,58 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64) (*schedu
 	now := time.Now()
 	instance.Status = scheduleModel.InstanceStatusCancelled
 	instance.CompletedAt = &now
-	if err := s.updateLifecycleColumns(ctx, instance, "status", "completed_at"); err != nil {
+	instance.CancelReason = reason
+	if err := s.updateLifecycleColumns(ctx, instance, "status", "completed_at", "cancel_reason"); err != nil {
 		return nil, &ScheduleError{Op: "cancel instance: update", Err: err}
 	}
 
 	s.broadcastInstanceEvent(ctx, realtime.EventInstanceCancelled, instance, nil, nil)
+	return instance, nil
+}
+
+// SetUnderstaffedAck flips the "deliberately unstaffed" flag (issue #1840). It
+// is a planning annotation, not a lifecycle transition: no active.group is
+// touched and no SSE lifecycle event fires. Only planned/active instances can
+// carry the flag — acknowledging a completed or cancelled block is meaningless
+// and returns ErrInvalidInstanceTransition (→ 409). Clearing the flag (ack=
+// false) also clears the note so a stale reason cannot linger.
+func (s *instanceService) SetUnderstaffedAck(ctx context.Context, instanceID int64, ack bool, note *string) (*scheduleModel.ActivityInstance, error) {
+	instance, err := s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	switch instance.Status {
+	case scheduleModel.InstanceStatusPlanned, scheduleModel.InstanceStatusActive:
+		// allowed
+	default:
+		return nil, fmt.Errorf("%w: cannot acknowledge understaffing on instance in status %q", ErrInvalidInstanceTransition, instance.Status)
+	}
+
+	// The "deliberately unstaffed" flag records that at least one planned
+	// position is deliberately left unfilled (#1840). It is valid whenever the
+	// block ends up understaffed — fewer people present than planned, or nobody
+	// at all — so a single absent-without-replacement position can be
+	// acknowledged while other staff remain. Only a fully staffed block (present
+	// >= planned) rejects it. Clearing the flag (ack=false) is always allowed.
+	if ack {
+		rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
+		if err != nil {
+			return nil, &ScheduleError{Op: "set understaffed ack: load staff", Err: err}
+		}
+		if !IsUnderstaffed(rows) {
+			return nil, ErrUnderstaffedAckStillStaffed
+		}
+	}
+
+	instance.UnderstaffedAck = ack
+	if ack {
+		instance.UnderstaffedNote = note
+	} else {
+		instance.UnderstaffedNote = nil
+	}
+	if err := s.updateLifecycleColumns(ctx, instance, "understaffed_ack", "understaffed_note"); err != nil {
+		return nil, &ScheduleError{Op: "set understaffed ack: update", Err: err}
+	}
 	return instance, nil
 }
 
@@ -530,6 +725,39 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot update instance in status %q", ErrInvalidInstanceTransition, instance.Status)
 	}
+
+	// Serialize with the day-wide staffing endpoints (#1840). This edit rewrites
+	// the block's assignments and may MOVE it to another date, so it must hold the
+	// same (tenant, date) advisory lock the /deviations and /substitute saves take
+	// — for BOTH the current and (when moved) the new date. Without it a concurrent
+	// deviation save that read this block's old date before the move could mark the
+	// wrong day's rows absent while the moved block itself is left untouched. Taken
+	// in ascending date order so re-plan / PUT / deviation contention on shared
+	// days can never deadlock.
+	tenantID := tenant.FromContext(ctx)
+	lockedDate := instance.Date
+	if err := s.acquireSubstituteDayLockPair(ctx, tenantID, lockedDate, req.Date); err != nil {
+		return nil, &ScheduleError{Op: "update instance: lock day", Err: err}
+	}
+
+	// Reload and re-validate under the lock. The pre-lock read above may be stale:
+	// while we waited on the day-lock pair, a concurrent cancel/start/complete
+	// could have committed (leaving the block cancelled/active — no longer
+	// editable), or another PUT could have MOVED it to a day we do not hold the
+	// lock for. Mutating the pre-lock instance would rewrite date/staff rows on a
+	// block that is now historical, cancelled, or on a different day. Re-read and
+	// re-check status and date before applying anything (#1840).
+	instance, err = s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return nil, err
+	}
+	if instance.Date != lockedDate {
+		return nil, ErrInstanceMoved
+	}
+	if instance.Status != scheduleModel.InstanceStatusPlanned {
+		return nil, fmt.Errorf("%w: cannot update instance in status %q", ErrInvalidInstanceTransition, instance.Status)
+	}
+
 	if err := s.validateInstanceReferences(ctx, req.RoomID, req.ActivityGroupID, req.StaffIDs, req.StudentIDs, nil); err != nil {
 		return nil, &ScheduleError{Op: "update instance: validate references", Err: err}
 	}
@@ -577,13 +805,105 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	if err := s.replaceInstanceAssignments(ctx, instance.ID, req.StaffIDs, req.StudentIDs); err != nil {
 		return nil, err
 	}
+
+	// Vertretungsplan integrity (#1840): a lingering "deliberately unstaffed"
+	// acknowledgement must be cleared only when this edit left the block fully
+	// staffed — a partially-covered block (e.g. two planned positions, one still
+	// absent) stays understaffed and must keep its acknowledgement, or an
+	// unrelated title/room edit would silently reopen an intentionally
+	// acknowledged gap.
+	if err := s.clearStaleAckIfStaffed(ctx, instance); err != nil {
+		return nil, err
+	}
+
 	return instance, nil
+}
+
+// clearStaleAckIfStaffed clears a lingering "deliberately unstaffed"
+// acknowledgement on `instance` ONLY when its current instance_staff rows leave
+// the block fully staffed (present >= planned). A still-understaffed block keeps
+// the acknowledgement: partial coverage must not silently reopen an
+// intentionally acknowledged gap, and the amber card would otherwise contradict
+// /gaps (#1840). This is the same IsUnderstaffed rule SetUnderstaffedAck
+// enforces at set time; it writes only when it actually clears the flag.
+func (s *instanceService) clearStaleAckIfStaffed(ctx context.Context, instance *scheduleModel.ActivityInstance) error {
+	if !instance.UnderstaffedAck {
+		return nil
+	}
+	rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instance.ID)
+	if err != nil {
+		return &ScheduleError{Op: "clear stale ack: load staff", Err: err}
+	}
+	if IsUnderstaffed(rows) {
+		return nil // still short-staffed → keep the acknowledgement
+	}
+	instance.UnderstaffedAck = false
+	instance.UnderstaffedNote = nil
+	if err := s.updateLifecycleColumns(ctx, instance, "understaffed_ack", "understaffed_note"); err != nil {
+		return &ScheduleError{Op: "clear stale ack: update", Err: err}
+	}
+	return nil
+}
+
+// ClearUnderstaffedAckIfStaffed loads the instance and clears a lingering
+// understaffed acknowledgement only when its staff rows now leave it fully
+// staffed. The /substitute flow calls this after adding coverage: a single
+// replacement on a block with several open positions must not reopen an
+// acknowledged gap (#1840).
+func (s *instanceService) ClearUnderstaffedAckIfStaffed(ctx context.Context, instanceID int64) error {
+	instance, err := s.loadForTransition(ctx, instanceID)
+	if err != nil {
+		return err
+	}
+	return s.clearStaleAckIfStaffed(ctx, instance)
 }
 
 // replaceInstanceAssignments wipes and re-creates the instance's staff and
 // student rows from the request lists. Extracted from UpdatePlanned to keep
 // its cognitive complexity in check.
+//
+// Vertretungsplan integrity (#1840): the Betreuungsplan editor sends every
+// staff row as a plain staff_id, so a blind wipe-and-recreate would discard the
+// per-row metadata. Two kinds of metadata need different treatment:
+//
+//   - is_primary and the room_id override are PLANNED attributes the editor
+//     cannot re-express (it only sends staff_ids), so they are always carried
+//     forward for a staff member who is still present — losing them would leave
+//     the block without a primary or reset a Lernzeit room split.
+//   - the DEVIATION state (is_substitute / is_absent / absence_reason) is only
+//     carried forward when the roster MEMBERSHIP is unchanged (a title/room/
+//     student-only edit): keeping it then is what stops an unrelated edit from
+//     turning absent staff and their substitutes back into ordinary present
+//     staff. But when the staff set is intentionally changed here, the admin is
+//     re-planning the base roster, so the prior deviations no longer describe it.
+//     Carrying them onto the recreated rows would leave a regular staff member
+//     stored as a substitute, corrupt the planned headcount, and make it
+//     impossible to promote a former substitute back to planned staff through
+//     this editor — so the deviation flags are dropped and every row is
+//     recreated as plain planned staff (#1840, review follow-up).
 func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instanceID int64, staffIDs, studentIDs []int64) error {
+	prior, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
+	if err != nil {
+		return &ScheduleError{Op: "update instance: load existing staff", Err: err}
+	}
+	priorByStaff := make(map[int64]*scheduleModel.InstanceStaff, len(prior))
+	for _, row := range prior {
+		priorByStaff[row.StaffID] = row
+	}
+
+	// Roster membership is unchanged iff the new set equals the prior set
+	// (staff_id is unique per instance, so a length + membership check suffices).
+	newStaffIDs := sliceutil.UniquePositive(staffIDs)
+	rosterUnchanged := len(newStaffIDs) == len(priorByStaff)
+	if rosterUnchanged {
+		for _, staffID := range newStaffIDs {
+			if _, ok := priorByStaff[staffID]; !ok {
+				rosterUnchanged = false
+				break
+			}
+		}
+	}
+
 	if err := s.deps.InstanceStaffRepo.DeleteByInstanceID(ctx, instanceID); err != nil {
 		return &ScheduleError{Op: "update instance: clear staff", Err: err}
 	}
@@ -591,8 +911,17 @@ func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instan
 		return &ScheduleError{Op: "update instance: clear students", Err: err}
 	}
 	tenantID := tenant.FromContext(ctx)
-	for _, staffID := range sliceutil.UniquePositive(staffIDs) {
+	for _, staffID := range newStaffIDs {
 		row := &scheduleModel.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
+		if p := priorByStaff[staffID]; p != nil {
+			row.IsPrimary = p.IsPrimary
+			row.RoomID = p.RoomID
+			if rosterUnchanged {
+				row.IsSubstitute = p.IsSubstitute
+				row.IsAbsent = p.IsAbsent
+				row.AbsenceReason = p.AbsenceReason
+			}
+		}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
 			return &ScheduleError{Op: "update instance: assign staff", Err: err}
@@ -851,7 +1180,37 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		return nil, &ScheduleError{Op: "replan week: lock recurrence", Err: err}
 	}
 
-	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, from, &to, activityGroupID)
+	// Serialize against concurrent per-day substitute/absence saves for EVERY date
+	// in the window BEFORE snapshotting or deleting (#1840). Re-plan deletes and
+	// regenerates the exact rows /substitute and /deviations mutate; without the
+	// day lock a concurrent save can commit a deviation between our snapshot and
+	// delete (or after the snapshot but before regenerate), so re-plan would drop
+	// it and regenerate from the stale snapshot — both requests succeed yet the
+	// saved deviation is lost. Both endpoints take
+	// timetable:substitute-day:<tenant>:<date>; we take it for the whole [from, to]
+	// range, ascending, so two overlapping re-plans acquire in the same order and
+	// cannot deadlock. Transaction-scoped: released when the tenant tx ends.
+	if err := s.acquireSubstituteDayLocks(ctx, tenantID, from, to); err != nil {
+		return nil, &ScheduleError{Op: "replan week: lock days", Err: err}
+	}
+
+	// Snapshot the manual Vertretungsplan overrides in the window BEFORE deleting
+	// (#1840). Re-plan regenerates each occurrence from the (possibly just-edited)
+	// base template. Freezing a deviated occurrence in place — the old approach —
+	// is wrong: the "edit all occurrences" flow updates the template and re-plans,
+	// so a frozen row keeps stale title/room/time/roster, and a template time
+	// change leaves the frozen row beside a freshly materialized one (a duplicate
+	// block whose (date, group, start_time) key no longer matches). Instead we
+	// delete everything, regenerate, and reapply only the deviation fields.
+	snapshots, occurrences, err := s.snapshotDeviations(ctx, from, to, activityGroupID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "replan week: snapshot deviations", Err: err}
+	}
+
+	// preserveDeviations=false: delete deviated occurrences too so they are
+	// regenerated with the current template values; the snapshot above lets us
+	// reapply the overrides afterward.
+	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, from, &to, activityGroupID, false)
 	if err != nil {
 		return nil, &ScheduleError{Op: "replan week: delete planned", Err: err}
 	}
@@ -861,12 +1220,19 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		return nil, &ScheduleError{Op: "replan week: materialize", Err: err}
 	}
 
+	reapplied, err := s.reapplyDeviations(ctx, snapshots, occurrences)
+	if err != nil {
+		return nil, &ScheduleError{Op: "replan week: reapply deviations", Err: err}
+	}
+
 	s.getLogger().Info("replan week completed",
 		slog.Int64("tenant_id", tenantID),
 		slog.String("from", from.String()),
 		slog.String("to", to.String()),
 		slog.Int64("deleted_instances", deleted),
 		slog.Int("instances_created", mat.InstancesCreated),
+		slog.Int("deviations_snapshotted", len(snapshots)),
+		slog.Int("deviations_reapplied", reapplied),
 	)
 
 	return &ReplanWeekResult{
@@ -875,6 +1241,296 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		DeletedInstances: int(deleted),
 		Materialization:  mat,
 	}, nil
+}
+
+// acquireSubstituteDayLocks takes the day-wide substitute/deviation advisory
+// lock for every date in [from, to] inclusive, in ascending order. Ascending
+// order gives a total lock ordering so two overlapping windows can never
+// deadlock. Shares substituteDayLockKey with AcquireSubstituteDayLock so
+// re-plan contends with the /substitute and /deviations endpoints (#1840).
+func (s *instanceService) acquireSubstituteDayLocks(ctx context.Context, tenantID int64, from, to timezone.Date) error {
+	for d := from; !d.After(to); d = d.AddDays(1) {
+		if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenantID, d)); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// acquireSubstituteDayLockPair takes the day-wide substitute lock for two dates
+// (deduping when they are equal) in ascending order, sharing the total lock
+// ordering acquireSubstituteDayLocks relies on so a planned edit that moves a
+// block never deadlocks against a re-plan window or a deviation save (#1840).
+func (s *instanceService) acquireSubstituteDayLockPair(ctx context.Context, tenantID int64, a, b timezone.Date) error {
+	first, second := a, b
+	if second.Before(first) {
+		first, second = second, first
+	}
+	if err := repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenantID, first)); err != nil {
+		return err
+	}
+	if second == first {
+		return nil
+	}
+	return repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenantID, second))
+}
+
+// deviationSnapshot captures the Vertretungsplan overrides on one planned,
+// template-backed occurrence so ReplanWeek can regenerate it from the (edited)
+// template and then reapply the manual overrides (#1840). Keyed by
+// (activityGroupID, date, startTime) — the same slot key the materializer uses —
+// so the regenerated occurrence can be matched back.
+type deviationSnapshot struct {
+	date             timezone.Date
+	activityGroupID  int64
+	startTime        string // "15:04:05", for multi-slot disambiguation
+	understaffedAck  bool
+	understaffedNote *string
+	// absentPlanned: planned (non-substitute) rows that were marked absent.
+	absentPlanned []snapshotAbsence
+	// substitutes: extra substitute rows (is_substitute=true) to recreate.
+	substitutes []snapshotSubstitute
+}
+
+type snapshotAbsence struct {
+	staffID int64
+	reason  *string
+}
+
+type snapshotSubstitute struct {
+	staffID   int64
+	roomID    *int64
+	isPrimary bool
+	isAbsent  bool
+	reason    *string
+}
+
+// snapshotDeviations records every reappliable Vertretungsplan override on the
+// planned, template-backed occurrences ReplanWeek is about to delete. Only those
+// rows are regenerated, so only those can carry an override worth preserving.
+func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timezone.Date, activityGroupID *int64) ([]deviationSnapshot, map[groupDay]int, error) {
+	instances, err := s.deps.InstanceRepo.FindByTenantAndDateRange(ctx, from, to)
+	if err != nil {
+		return nil, nil, err
+	}
+	snapshots := make([]deviationSnapshot, 0)
+	// occurrences counts the planned, template-backed occurrences per (group, date)
+	// BEFORE this re-plan deletes them — the ORIGINAL cardinality, not the number
+	// of deviated slots. reapplyDeviations uses it to tell a genuine
+	// single-occurrence move (follow a changed start_time) from a multi-slot day
+	// where a deviated slot was deleted and only its start_time can safely
+	// disambiguate the survivor (#1840). Counted over every matching occurrence,
+	// including those with no override.
+	occurrences := make(map[groupDay]int)
+	for _, inst := range instances {
+		if inst.Status != scheduleModel.InstanceStatusPlanned || inst.IsSpontaneous || inst.ActivityGroupID == nil {
+			continue
+		}
+		if activityGroupID != nil && *inst.ActivityGroupID != *activityGroupID {
+			continue
+		}
+		occurrences[groupDay{*inst.ActivityGroupID, inst.Date}]++
+		rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, inst.ID)
+		if err != nil {
+			return nil, nil, err
+		}
+		snap := deviationSnapshot{
+			date:             inst.Date,
+			activityGroupID:  *inst.ActivityGroupID,
+			startTime:        formatTimeOfDay(inst.StartTime),
+			understaffedAck:  inst.UnderstaffedAck,
+			understaffedNote: inst.UnderstaffedNote,
+		}
+		for _, row := range rows {
+			switch {
+			case row.IsSubstitute:
+				snap.substitutes = append(snap.substitutes, snapshotSubstitute{
+					staffID:   row.StaffID,
+					roomID:    row.RoomID,
+					isPrimary: row.IsPrimary,
+					isAbsent:  row.IsAbsent,
+					reason:    row.AbsenceReason,
+				})
+			case row.IsAbsent:
+				snap.absentPlanned = append(snap.absentPlanned, snapshotAbsence{
+					staffID: row.StaffID,
+					reason:  row.AbsenceReason,
+				})
+			}
+		}
+		// Nothing overridden → nothing to reapply (but the occurrence was still
+		// counted above, which is what the sole-occurrence check needs).
+		if !snap.understaffedAck && len(snap.absentPlanned) == 0 && len(snap.substitutes) == 0 {
+			continue
+		}
+		snapshots = append(snapshots, snap)
+	}
+	return snapshots, occurrences, nil
+}
+
+// reapplyDeviations reattaches each snapshotted override onto the freshly
+// materialized occurrence, returning how many snapshots were reapplied. A
+// snapshot whose occurrence no longer materializes (template weekday/period
+// changed) is silently dropped — there is nothing to attach it to.
+func (s *instanceService) reapplyDeviations(ctx context.Context, snapshots []deviationSnapshot, occurrences map[groupDay]int) (int, error) {
+	reapplied := 0
+	for _, snap := range snapshots {
+		// sole is true only when the group had exactly ONE planned occurrence on
+		// this date BEFORE the re-plan deleted it. Counting snapshots instead
+		// (the old approach) misreads a multi-slot day on which only one slot
+		// carried a deviation as "sole": if a series edit then deletes that
+		// deviated slot while another survives, the time-agnostic match below would
+		// reapply the deleted slot's absences/substitutes/ack onto the surviving
+		// block. Keying on the ORIGINAL occurrence cardinality forces an exact
+		// start_time match whenever the day had more than one slot, so a deleted
+		// slot's overrides are dropped rather than misattributed (#1840).
+		sole := occurrences[groupDay{snap.activityGroupID, snap.date}] == 1
+		inst, err := s.matchRegeneratedInstance(ctx, snap, sole)
+		if err != nil {
+			return reapplied, err
+		}
+		if inst == nil {
+			continue
+		}
+		rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, inst.ID)
+		if err != nil {
+			return reapplied, err
+		}
+		byStaff := make(map[int64]*scheduleModel.InstanceStaff, len(rows))
+		for _, row := range rows {
+			byStaff[row.StaffID] = row
+		}
+
+		// Reapply planned-staff absences onto the regenerated roster. A staff no
+		// longer planned on the template simply has no row → the absence is moot.
+		absencesReapplied := 0
+		for _, ab := range snap.absentPlanned {
+			row, ok := byStaff[ab.staffID]
+			if !ok || row.IsSubstitute || row.IsAbsent {
+				continue
+			}
+			row.IsAbsent = true
+			row.AbsenceReason = ab.reason
+			if err := s.deps.InstanceStaffRepo.Update(ctx, row); err != nil {
+				return reapplied, err
+			}
+			absencesReapplied++
+		}
+
+		// Recreate substitute rows ONLY up to the number of planned absences
+		// actually reapplied on this regenerated occurrence. A substitute row exists
+		// solely to cover an absent planned position (the /substitute and
+		// /deviations flows always flip an is_absent row on the same instance when
+		// they insert a substitute), so the surviving absences bound how many
+		// substitutes may return. If the "edit all occurrences" flow removed SOME
+		// (not necessarily all) absent employees from the template, their absences
+		// no longer land (their staff have no row on the regenerated occurrence) and
+		// absencesReapplied drops below the substitute count — the now-uncovered
+		// substitutes must be dropped too, or they become orphaned extra supervisors
+		// that overstaff the block and report it as fully staffed.
+		//
+		// The snapshot carries no substitute→absent linkage, so we cannot tell WHICH
+		// substitute is orphaned when only some absences survive; capping the
+		// recreated count at absencesReapplied guarantees the block is never
+		// overstaffed (the common 1:1 absence↔substitute case stays exact). The
+		// understaffed-ack reapply below still runs — a snapshot may be
+		// acknowledgement-only.
+		//
+		// A substitute already on the regenerated instance (e.g. now a planned
+		// supervisor) is skipped so the recreate respects UNIQUE(instance_id,
+		// staff_id); it adds no new row, so it does not consume the coverage budget.
+		//
+		// Only ACTIVE substitutes (is_absent=false) staff the block, so only they
+		// are capped at absencesReapplied — an absent substitute row is dead history
+		// (a replacement that was itself swapped out via "Entfernen") and staffs
+		// nothing. Counting absent history against the budget would let a single
+		// reapplied absence be consumed by a recreated is_absent=true row that
+		// happens to sort first in the snapshot, exhausting the budget and dropping
+		// the still-active replacement — the next ReplanWeek then silently turns a
+		// covered block into an open gap. Guarding the cap on !sub.isAbsent keeps the
+		// active coverage intact regardless of snapshot order while still bounding
+		// live substitutes to the surviving absences (#1840).
+		recreated := 0
+		for _, sub := range snap.substitutes {
+			if _, taken := byStaff[sub.staffID]; taken {
+				continue
+			}
+			if !sub.isAbsent {
+				if recreated >= absencesReapplied {
+					continue
+				}
+				recreated++
+			}
+			newRow := &scheduleModel.InstanceStaff{
+				InstanceID:    inst.ID,
+				StaffID:       sub.staffID,
+				RoomID:        sub.roomID,
+				IsPrimary:     sub.isPrimary,
+				IsSubstitute:  true,
+				IsAbsent:      sub.isAbsent,
+				AbsenceReason: sub.reason,
+			}
+			if err := s.deps.InstanceStaffRepo.Create(ctx, newRow); err != nil {
+				return reapplied, err
+			}
+			byStaff[sub.staffID] = newRow
+		}
+
+		// Reapply the "deliberately unstaffed" acknowledgement. SetUnderstaffedAck
+		// re-reads the roster we just wrote and rejects the ack only when the block
+		// is fully staffed after reapply — in which case the now-stale ack is
+		// dropped, matching the endpoints' reconciliation.
+		if snap.understaffedAck {
+			if _, err := s.SetUnderstaffedAck(ctx, inst.ID, true, snap.understaffedNote); err != nil {
+				if !errors.Is(err, ErrUnderstaffedAckStillStaffed) {
+					return reapplied, err
+				}
+			}
+		}
+		reapplied++
+	}
+	return reapplied, nil
+}
+
+// groupDay keys snapshots by their (activity group, date) slot so reapply can
+// tell a day with a single override from one whose several slots collapsed.
+type groupDay struct {
+	activityGroupID int64
+	date            timezone.Date
+}
+
+// matchRegeneratedInstance finds the freshly materialized planned occurrence a
+// snapshot should reapply to. When `sole` (the group had exactly ONE planned
+// occurrence on this date before the re-plan — see reapplyDeviations) a lone
+// surviving occurrence is matched even if its start_time changed, so the
+// deviation follows the moved block. Otherwise — the day had several slots — it
+// disambiguates strictly by the original start_time and drops the snapshot when
+// none matches, so overrides from a deleted slot are never merged onto a
+// surviving block (a slot whose time changed cannot be mapped safely either)
+// (#1840).
+func (s *instanceService) matchRegeneratedInstance(ctx context.Context, snap deviationSnapshot, sole bool) (*scheduleModel.ActivityInstance, error) {
+	candidates, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, snap.activityGroupID, snap.date)
+	if err != nil {
+		return nil, err
+	}
+	var planned []*scheduleModel.ActivityInstance
+	for _, c := range candidates {
+		if c.Status == scheduleModel.InstanceStatusPlanned && !c.IsSpontaneous {
+			planned = append(planned, c)
+		}
+	}
+	if len(planned) == 0 {
+		return nil, nil
+	}
+	if len(planned) == 1 && sole {
+		return planned[0], nil
+	}
+	for _, c := range planned {
+		if formatTimeOfDay(c.StartTime) == snap.startTime {
+			return c, nil
+		}
+	}
+	return nil, nil
 }
 
 // loadForTransition is the shared load + not-found branch used by all three

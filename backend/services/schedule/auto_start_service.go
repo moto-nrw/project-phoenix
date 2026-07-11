@@ -29,6 +29,7 @@ type AutoStartResult struct {
 	SkippedNoStaff      int
 	SkippedConflict     int
 	SkippedSchulhof     int
+	SkippedMoved        int
 	SkippedNonPlanned   int
 	Failed              int
 	DurationMS          int64
@@ -193,6 +194,17 @@ func (s *autoStartService) RunForTenant(ctx context.Context, now time.Time) (*Au
 			if errors.Is(err, ErrSchulhofSupervisionRequired) {
 				result.SkippedSchulhof++
 				s.Logger.Debug("auto-start skipped Schulhof instance",
+					slog.Int64("instance_id", inst.ID),
+				)
+				continue
+			}
+			// A concurrent admin PUT moved this block to another day between the
+			// batch read and Start's locked reload. That is benign: the move is
+			// committed, and the next scheduler tick re-reads and starts the block
+			// on its real day. Skip it rather than aborting the whole batch (#1840).
+			if errors.Is(err, ErrInstanceMoved) {
+				result.SkippedMoved++
+				s.Logger.Debug("auto-start skipped concurrently-moved instance",
 					slog.Int64("instance_id", inst.ID),
 				)
 				continue

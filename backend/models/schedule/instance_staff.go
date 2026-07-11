@@ -22,6 +22,9 @@ type InstanceStaff struct {
 	IsPrimary    bool   `bun:"is_primary,notnull,default:false" json:"is_primary"`
 	IsSubstitute bool   `bun:"is_substitute,notnull,default:false" json:"is_substitute"`
 	IsAbsent     bool   `bun:"is_absent,notnull,default:false" json:"is_absent"`
+	// AbsenceReason is an optional short "why" captured when the staff member
+	// is marked absent (Vertretungsplan, issue #1840).
+	AbsenceReason *string `bun:"absence_reason" json:"absence_reason,omitempty"`
 }
 
 // Validate ensures the staff assignment is well-formed.

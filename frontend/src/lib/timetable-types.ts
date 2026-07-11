@@ -34,6 +34,7 @@ export interface InstanceStaffSummary {
   isPrimary: boolean;
   isAbsent: boolean;
   isSubstitute: boolean;
+  absenceReason?: string;
 }
 
 type InstanceAttendanceStatus = "expected" | "present" | "absent";
@@ -74,6 +75,14 @@ export interface EnrichedInstance {
   students: InstanceStudentSummary[];
   staffCount: number;
   absentStaffCount: number;
+  /**
+   * #1840: admin deliberately accepts this block running with zero staff.
+   * Optional so existing instance fixtures need no change; the mapper always
+   * populates it (defaults false).
+   */
+  understaffedAck?: boolean;
+  understaffedNote?: string;
+  cancelReason?: string;
   expectedStudentsCount: number;
   presentStudentsCount: number;
   /**
@@ -103,6 +112,7 @@ interface BackendInstanceStaffSummary {
   is_primary: boolean;
   is_absent: boolean;
   is_substitute: boolean;
+  absence_reason?: string | null;
 }
 
 interface BackendInstanceStudentSummary {
@@ -133,6 +143,9 @@ export interface BackendEnrichedInstance {
   students?: BackendInstanceStudentSummary[];
   staff_count: number;
   absent_staff_count: number;
+  understaffed_ack?: boolean;
+  understaffed_note?: string | null;
+  cancel_reason?: string | null;
   expected_students_count: number;
   present_students_count: number;
   required_staff_count: number;
@@ -161,15 +174,23 @@ export interface GapInstance {
   status: InstanceStatus;
   assignedStaffCount: number;
   absentStaffCount: number;
+  /** Non-absent count: planned people still there plus any covering substitute. */
+  presentStaffCount?: number;
+  /** Base-plan positions (non-substitute rows). A partial shortfall has 0 < present < planned. */
+  plannedStaffCount?: number;
+  /** Present only on acknowledged gaps (#1840): the deliberately-unstaffed reason. */
+  understaffedNote?: string;
 }
 
 export interface GapsResponse {
   from: string;
   to: string;
   gaps: GapInstance[];
+  /** #1840: zero-staff blocks an admin deliberately left open — still a shortfall, no longer nagging. */
+  acknowledged: GapInstance[];
 }
 
-interface BackendGapInstance {
+export interface BackendGapInstance {
   instance_id: number;
   date: string;
   title: string;
@@ -179,12 +200,16 @@ interface BackendGapInstance {
   status: InstanceStatus;
   assigned_staff_count: number;
   absent_staff_count: number;
+  present_staff_count?: number;
+  planned_staff_count?: number;
+  understaffed_note?: string | null;
 }
 
 export interface BackendGapsResponse {
   from: string;
   to: string;
   gaps: BackendGapInstance[];
+  acknowledged?: BackendGapInstance[];
 }
 
 type ExceptionConflictKind =
@@ -450,11 +475,21 @@ interface SubstituteTimeConflict {
   endTime: string;
 }
 
+type SubstituteAction =
+  | "substituted"
+  | "already_substituted"
+  | "already_on_instance"
+  | "marked_absent"
+  | "already_absent"
+  // Returned by POST /instances/{id}/deviations when a saved day-wide absence is
+  // restored (staff marked present again) — see affectedInstanceOf (#1840).
+  | "marked_present";
+
 interface SubstituteAffectedInstance {
   instanceId: string;
   title: string;
   startTime: string;
-  action: "substituted" | "already_substituted" | "already_on_instance";
+  action: SubstituteAction;
 }
 
 export interface SubstituteResponse {
@@ -477,13 +512,65 @@ interface BackendSubstituteAffectedInstance {
   instance_id: number;
   title: string;
   start_time: string;
-  action: "substituted" | "already_substituted" | "already_on_instance";
+  action: SubstituteAction;
 }
 
 export interface BackendSubstituteResponse {
   absent_staff_id: number;
   substitute_staff_id: number;
   date: string;
+  affected_instances: BackendSubstituteAffectedInstance[];
+  warnings: BackendSubstituteTimeConflict[];
+}
+
+/** #1840: POST /instances/{id}/acknowledge-understaffed result. */
+export interface AcknowledgeUnderstaffedResponse {
+  instanceId: string;
+  status: InstanceStatus;
+  understaffedAck: boolean;
+  understaffedNote?: string;
+}
+
+export interface BackendAcknowledgeUnderstaffedResponse {
+  instance_id: number;
+  status: InstanceStatus;
+  understaffed_ack: boolean;
+  understaffed_note?: string | null;
+}
+
+/**
+ * #1840: the whole Vertretungsplan slide-over save applied atomically via
+ * POST /instances/{id}/deviations. `cancel` is exclusive (other fields are
+ * ignored); `understaffedAck` undefined means "no change". IDs are frontend
+ * strings; the client converts them to numbers for the backend.
+ */
+export interface ApplyDeviationsInput {
+  cancel?: boolean;
+  cancelReason?: string;
+  understaffedAck?: boolean;
+  understaffedNote?: string;
+  absences?: Array<{ staffId: string; reason?: string }>;
+  substitutions?: Array<{
+    absentStaffId: string;
+    substituteStaffId: string;
+    reason?: string;
+  }>;
+  /** Staff to mark present again — clears a persisted day-wide absence (#1840). */
+  presences?: string[];
+}
+
+export interface ApplyDeviationsResponse {
+  instanceId: string;
+  cancelled: boolean;
+  understaffedAck: boolean;
+  affectedInstances: SubstituteAffectedInstance[];
+  warnings: SubstituteTimeConflict[];
+}
+
+export interface BackendApplyDeviationsResponse {
+  instance_id: number;
+  cancelled: boolean;
+  understaffed_ack: boolean;
   affected_instances: BackendSubstituteAffectedInstance[];
   warnings: BackendSubstituteTimeConflict[];
 }

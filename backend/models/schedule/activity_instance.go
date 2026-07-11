@@ -40,11 +40,20 @@ type ActivityInstance struct {
 	Status           string        `bun:"status,notnull,default:'planned'" json:"status"`
 	ActiveGroupID    *int64        `bun:"active_group_id" json:"active_group_id,omitempty"`
 	IsSpontaneous    bool          `bun:"is_spontaneous,notnull,default:false" json:"is_spontaneous"`
-	Notes            *string       `bun:"notes" json:"notes,omitempty"`
-	CreatedBy        *int64        `bun:"created_by" json:"created_by,omitempty"`
-	StartedBy        *int64        `bun:"started_by" json:"started_by,omitempty"`
-	StartedAt        *time.Time    `bun:"started_at" json:"started_at,omitempty"`
-	CompletedAt      *time.Time    `bun:"completed_at" json:"completed_at,omitempty"`
+	// UnderstaffedAck records that an admin deliberately accepts this block
+	// running with zero staff (Vertretungsplan, issue #1840). When true the gap
+	// detector reports the block as an acknowledged shortfall instead of an open
+	// gap — the staffing hole stays visible, it just stops nagging.
+	UnderstaffedAck  bool    `bun:"understaffed_ack,notnull,default:false" json:"understaffed_ack"`
+	UnderstaffedNote *string `bun:"understaffed_note" json:"understaffed_note,omitempty"`
+	// CancelReason is an optional short "why" captured when a block is cancelled
+	// (Vertretungsplan, issue #1840).
+	CancelReason *string    `bun:"cancel_reason" json:"cancel_reason,omitempty"`
+	Notes        *string    `bun:"notes" json:"notes,omitempty"`
+	CreatedBy    *int64     `bun:"created_by" json:"created_by,omitempty"`
+	StartedBy    *int64     `bun:"started_by" json:"started_by,omitempty"`
+	StartedAt    *time.Time `bun:"started_at" json:"started_at,omitempty"`
+	CompletedAt  *time.Time `bun:"completed_at" json:"completed_at,omitempty"`
 }
 
 // Validate ensures activity instance data is valid for persistence.
@@ -138,8 +147,10 @@ type ActivityInstanceRepository interface {
 	// effective date regardless of the materialization window.
 	// activityGroupID narrows the delete to one template's instances; nil
 	// deletes across all templates. Used by ReplanWeek and the template
-	// split (WP-B3).
-	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64) (int64, error)
+	// split (WP-B3). preserveDeviations keeps Vertretungsplan overrides
+	// (#1840): true for re-plan, false for the destructive template
+	// split/end series operation — see the implementation for why.
+	DeletePlannedNonSpontaneousInWindow(ctx context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64, preserveDeviations bool) (int64, error)
 
 	// UpdateColumns is the generic partial-update helper promoted from the
 	// embedded base repository: updates only the named columns by primary

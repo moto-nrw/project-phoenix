@@ -6,6 +6,11 @@
 // row of the absent staff on the given date, mark the original is_absent=true
 // and insert a substitute row. Idempotent on replay; atomic on 409.
 //
+// substitute_staff_id is optional (#1840): when omitted the request is
+// "absent-only" — the staff is marked absent and each affected position is left
+// open (markAbsentOnly). No substitute row is created. Everything below applies
+// to the full substitute (both ids present) path.
+//
 // Atomicity note: the TenantTxMiddleware rolls the request transaction back
 // only on 5xx (see tenant/http_middleware.go:40). A 409 rendered mid-handler
 // would therefore commit any writes made before the 409. We avoid that with a
@@ -26,11 +31,12 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -40,9 +46,10 @@ import (
 
 // substituteRequest is the POST body shape.
 type substituteRequest struct {
-	AbsentStaffID     int64  `json:"absent_staff_id"`
-	SubstituteStaffID int64  `json:"substitute_staff_id"`
-	Date              string `json:"date"`
+	AbsentStaffID     int64   `json:"absent_staff_id"`
+	SubstituteStaffID int64   `json:"substitute_staff_id"`
+	Date              string  `json:"date"`
+	Reason            *string `json:"reason,omitempty"` // optional "why" for the absence (#1840)
 }
 
 // substituteActionType is the stable per-instance action string returned in
@@ -51,6 +58,12 @@ const (
 	substituteActionSubstituted       = "substituted"
 	substituteActionAlreadySubstitute = "already_substituted"
 	substituteActionAlreadyOnInstance = "already_on_instance"
+	// Absent-only mode (#1840): substitute_staff_id omitted. The absent staff
+	// is marked absent and the position is left open.
+	substituteActionMarkedAbsent  = "marked_absent"
+	substituteActionAlreadyAbsent = "already_absent"
+	// Present mode (#1840): a persisted day-wide absence was cleared.
+	substituteActionMarkedPresent = "marked_present"
 )
 
 // AffectedInstance is one row in the affected_instances list of the response.
@@ -90,11 +103,17 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid JSON body")))
 		return
 	}
-	if req.AbsentStaffID <= 0 || req.SubstituteStaffID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("absent_staff_id and substitute_staff_id are required")))
+	if req.AbsentStaffID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("absent_staff_id is required")))
 		return
 	}
-	if req.AbsentStaffID == req.SubstituteStaffID {
+	// substitute_staff_id is optional (#1840): omitting it (0) marks the staff
+	// absent and leaves the position open. A negative id is malformed.
+	if req.SubstituteStaffID < 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("substitute_staff_id must be a positive id")))
+		return
+	}
+	if req.SubstituteStaffID > 0 && req.AbsentStaffID == req.SubstituteStaffID {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("absent and substitute staff must differ")))
 		return
 	}
@@ -123,6 +142,19 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Serialize the whole (tenant, date) before any classification read. A
+	// substitution/absence is day-wide (every same-day block of the absent staff),
+	// so a per-instance lock would let two admins picking different substitutes
+	// for the same employee both classify "no substitute" and each insert one,
+	// leaving two live supervisors on a shared block. The /deviations route takes
+	// the same day lock, so the two endpoints serialize against each other too.
+	// Covers both the substitute path below and the markAbsentOnly branch.
+	// Released automatically when this request's tenant tx commits/rolls back.
+	if err := rs.TimetableData.AcquireSubstituteDayLock(ctx, date); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("lock day failed", err))
+		return
+	}
+
 	// --- 404 checks: both staff must exist in this tenant -----------------
 	absentStaff, err := rs.PersonService.GetStaffByID(ctx, req.AbsentStaffID)
 	if err != nil {
@@ -137,6 +169,16 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("absent staff not found")))
 		return
 	}
+
+	// Absent-only mode (#1840): no substitute given → mark the staff absent
+	// across the day and leave every affected position open. Handled by a
+	// dedicated helper so the classify/two-phase substitute path below stays
+	// exactly as-is.
+	if req.SubstituteStaffID == 0 {
+		rs.markAbsentOnly(w, r, req, date)
+		return
+	}
+
 	subStaff, err := rs.PersonService.GetStaffByID(ctx, req.SubstituteStaffID)
 	if err != nil {
 		if base.IsNoRows(err) {
@@ -149,6 +191,26 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	if subStaff == nil || subStaff.ID == 0 {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("substitute staff not found")))
 		return
+	}
+
+	// --- Reject a substitute who is themselves absent this day ------------
+	// Marking a staff member absent is day-wide (every same-day row flips
+	// is_absent=true), so a substitute with any absent row that day is out of
+	// action and cannot cover anyone — assigning them would create a non-absent
+	// substitute row that contradicts their own absent rows, and the overlap
+	// warning would never fire because absent rows are skipped. The frontend
+	// already hides day-absent staff from the picker; this is the backend guard.
+	subDayRows, err := rs.TimetableData.GetInstanceStaffByStaffAndDate(ctx, req.SubstituteStaffID, date)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load substitute assignments failed", err))
+		return
+	}
+	for _, row := range subDayRows {
+		if row.IsAbsent {
+			common.RenderError(w, r, common.ErrorInvalidRequest(
+				errors.New("substitute is marked absent on this date")))
+			return
+		}
 	}
 
 	// --- Load absent staff's same-day assignments -------------------------
@@ -196,6 +258,13 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Skip terminal (completed/cancelled) instances: those are historical
+		// staffing that must not be rewritten. A same-day already-finished block
+		// is returned by the loader but is not a valid substitute target.
+		if !isPlannableInstance(instance) {
+			continue
+		}
+
 		// All rows of this instance — needed to detect existing substitutes
 		// and co-supervisor cases.
 		allRows, err := rs.TimetableData.GetInstanceStaff(ctx, instance.ID)
@@ -211,7 +280,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 			// tx, no DB state changed. The stable code lets the frontend
 			// render the conflict without parsing the German message.
 			common.RenderError(w, r, common.ErrorConflictWithCode(
-				fmt.Errorf("instance %d has a different substitute already assigned (staff_id=%d); remove the existing substitute first",
+				fmt.Errorf("instance %d is already fully covered by another substitute (staff_id=%d); remove a replacement before adding one",
 					instance.ID, conflictOtherStaff),
 				"substitute_conflict",
 			))
@@ -233,69 +302,22 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	affected := make([]AffectedInstance, 0, len(plan))
 	// Collect active-group IDs we touched to fire SSE updates at the end.
 	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
+	// Instances that carried a stale "deliberately unstaffed" acknowledgement
+	// and now receive coverage — the ack must be cleared in the same tx, or the
+	// block reads amber-and-unstaffed while /gaps excludes it as staffed (#1840).
+	clearAck := make(map[int64]bool)
+	reason := trimReason(req.Reason)
 
 	for _, op := range plan {
-		switch op.action {
-		case substituteActionAlreadySubstitute:
-			// No writes.
-
-		case substituteActionAlreadyOnInstance:
-			// Mark only the absent's original row. Existing co-supervisor
-			// row stays untouched: is_substitute, is_primary, room_id
-			// preserved — the person was independently planned, not a
-			// Vertretung, and reports should preserve that distinction.
-			op.origRow.IsAbsent = true
-			if err := rs.TimetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
-				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
-				return
-			}
-			// For active instances, end the absent's supervisor row. Do NOT
-			// create a new supervisor — the substitute (co-supervisor) is
-			// already an active supervisor.
-			if op.instance.Status == scheduleModel.InstanceStatusActive && op.instance.ActiveGroupID != nil {
-				if _, err := rs.TimetableData.EndGroupSupervisor(ctx, *op.instance.ActiveGroupID, req.AbsentStaffID); err != nil {
-					common.RenderError(w, r, common.ErrorInternalServerWrap("end absent supervisor failed", err))
-					return
-				}
-				activeTouched[*op.instance.ActiveGroupID] = op.instance
-			}
-
-		case substituteActionSubstituted:
-			op.origRow.IsAbsent = true
-			if err := rs.TimetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
-				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
-				return
-			}
-			newRow := &scheduleModel.InstanceStaff{
-				InstanceID:   op.instance.ID,
-				StaffID:      req.SubstituteStaffID,
-				RoomID:       op.origRow.RoomID, // inherit room split, if any
-				IsPrimary:    false,
-				IsSubstitute: true,
-				IsAbsent:     false,
-			}
-			if err := rs.TimetableData.CreateInstanceStaff(ctx, newRow); err != nil {
-				common.RenderError(w, r, common.ErrorInternalServerWrap("create substitute staff row failed", err))
-				return
-			}
-			if op.instance.Status == scheduleModel.InstanceStatusActive && op.instance.ActiveGroupID != nil {
-				if _, err := rs.TimetableData.EndGroupSupervisor(ctx, *op.instance.ActiveGroupID, req.AbsentStaffID); err != nil {
-					common.RenderError(w, r, common.ErrorInternalServerWrap("end absent supervisor failed", err))
-					return
-				}
-				newSup := &activeModel.GroupSupervisor{
-					StaffID:   req.SubstituteStaffID,
-					GroupID:   *op.instance.ActiveGroupID,
-					Role:      "supervisor",
-					StartDate: timezone.DateFromTime(now),
-				}
-				newSup.SetTenantID(tenant.FromContext(ctx))
-				if err := rs.TimetableData.CreateGroupSupervisor(ctx, newSup); err != nil {
-					common.RenderError(w, r, common.ErrorInternalServerWrap("create substitute supervisor failed", err))
-					return
-				}
-				activeTouched[*op.instance.ActiveGroupID] = op.instance
-			}
+		if err := rs.applySubstituteWrite(ctx, op, req.SubstituteStaffID, reason, now, activeTouched); err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("apply substitute failed", err))
+			return
+		}
+		// Coverage added (or confirmed) on a block still flagged unstaffed →
+		// mark it for acknowledgement clearing below.
+		if op.instance.UnderstaffedAck &&
+			(op.action == substituteActionSubstituted || op.action == substituteActionAlreadyOnInstance) {
+			clearAck[op.instance.ID] = true
 		}
 
 		affected = append(affected, AffectedInstance{
@@ -304,6 +326,20 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 			StartTime:  op.instance.StartTime.Format("15:04"),
 			Action:     op.action,
 		})
+	}
+
+	// Clearing the acknowledgement RECOMPUTES coverage first: a single
+	// replacement on a block with several open positions can still leave
+	// present < planned, so the service only clears the flag when the block is
+	// no longer understaffed. Otherwise partial coverage would silently reopen
+	// an intentionally acknowledged gap (#1840). Runs in this same tenant tx.
+	if rs.InstanceService != nil {
+		for instanceID := range clearAck {
+			if err := rs.InstanceService.ClearUnderstaffedAckIfStaffed(ctx, instanceID); err != nil {
+				common.RenderError(w, r, common.ErrorInternalServerWrap("clear stale understaffed ack failed", err))
+				return
+			}
+		}
 	}
 
 	// ======================================================================
@@ -348,6 +384,135 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	}, "Substitute applied")
 }
 
+// markAbsentOnly handles the absent-only branch of POST /substitute (#1840):
+// substitute_staff_id was omitted, so we mark the absent staff's same-day
+// assignments is_absent=true and leave the positions open. No substitute row is
+// created. For active instances the absent's live supervisor row is ended, same
+// as the substitute path. There is no 409 case here — marking absent is
+// idempotent and conflict-free — so a single write pass is safe (any error is a
+// 500 that the tenant middleware rolls back). Reuses the shared SSE broadcast.
+func (rs *Resource) markAbsentOnly(w http.ResponseWriter, r *http.Request, req substituteRequest, date timezone.Date) {
+	ctx := r.Context()
+
+	origRows, err := rs.TimetableData.GetInstanceStaffByStaffAndDate(ctx, req.AbsentStaffID, date)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load absent assignments failed", err))
+		return
+	}
+	if len(origRows) == 0 {
+		rs.getLogger().Info("mark-absent no-op (no assignments)",
+			slog.Int64("absent_staff_id", req.AbsentStaffID),
+			slog.String("date", req.Date),
+		)
+		common.Respond(w, r, http.StatusOK, SubstituteResponse{
+			AbsentStaffID:     req.AbsentStaffID,
+			SubstituteStaffID: 0,
+			Date:              req.Date,
+			AffectedInstances: []AffectedInstance{},
+			Warnings:          []scheduleSvc.SubstituteTimeConflict{},
+		}, "No assignments to mark absent")
+		return
+	}
+
+	affected := make([]AffectedInstance, 0, len(origRows))
+	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
+
+	for _, orig := range origRows {
+		instance, err := rs.TimetableData.GetActivityInstance(ctx, orig.InstanceID)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("load target instance failed", err))
+			return
+		}
+		if instance == nil {
+			common.RenderError(w, r, common.ErrorInternalServer(
+				fmt.Errorf("instance_staff %d references missing instance %d", orig.ID, orig.InstanceID)))
+			return
+		}
+
+		// Skip terminal (completed/cancelled) instances so an already-finished
+		// same-day block is never retroactively marked absent. See
+		// isPlannableInstance.
+		if !isPlannableInstance(instance) {
+			continue
+		}
+
+		action := substituteActionMarkedAbsent
+		if orig.IsAbsent {
+			// Already absent — idempotent replay, no write.
+			action = substituteActionAlreadyAbsent
+		} else {
+			orig.IsAbsent = true
+			orig.AbsenceReason = trimReason(req.Reason)
+			if err := rs.TimetableData.UpdateInstanceStaff(ctx, orig); err != nil {
+				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
+				return
+			}
+			if instance.Status == scheduleModel.InstanceStatusActive && instance.ActiveGroupID != nil {
+				if _, err := rs.TimetableData.EndGroupSupervisor(ctx, *instance.ActiveGroupID, req.AbsentStaffID); err != nil {
+					common.RenderError(w, r, common.ErrorInternalServerWrap("end absent supervisor failed", err))
+					return
+				}
+				activeTouched[*instance.ActiveGroupID] = instance
+			}
+		}
+
+		affected = append(affected, AffectedInstance{
+			InstanceID: instance.ID,
+			Title:      instance.Title,
+			StartTime:  instance.StartTime.Format("15:04"),
+			Action:     action,
+		})
+	}
+
+	rs.broadcastSubstituteEvents(ctx, activeTouched)
+
+	rs.getLogger().Info("mark-absent applied",
+		slog.Int64("absent_staff_id", req.AbsentStaffID),
+		slog.String("date", req.Date),
+		slog.Int("affected_count", len(affected)),
+	)
+
+	common.Respond(w, r, http.StatusOK, SubstituteResponse{
+		AbsentStaffID:     req.AbsentStaffID,
+		SubstituteStaffID: 0,
+		Date:              req.Date,
+		AffectedInstances: affected,
+		Warnings:          []scheduleSvc.SubstituteTimeConflict{},
+	}, "Staff marked absent")
+}
+
+// trimReason normalizes an optional deviation reason: nil/blank becomes nil,
+// and an over-long value is truncated to the shared note ceiling so a single
+// oversized field can never bloat a row. The ceiling counts runes, not bytes:
+// slicing on a byte offset can split a multi-byte UTF-8 rune, producing an
+// invalid string that PostgreSQL rejects. The frontend's maxLength is likewise
+// a character count, so a rune ceiling keeps the two limits consistent.
+func trimReason(reason *string) *string {
+	if reason == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*reason)
+	if trimmed == "" {
+		return nil
+	}
+	if utf8.RuneCountInString(trimmed) > understaffedAckNoteMaxLength {
+		trimmed = string([]rune(trimmed)[:understaffedAckNoteMaxLength])
+	}
+	return &trimmed
+}
+
+// isPlannableInstance reports whether a substitute/absence write may touch this
+// instance. Only planned and active blocks are editable: completed and
+// cancelled ones are historical record. GetInstanceStaffByStaffAndDate returns
+// every same-day assignment regardless of status, so a staff member with an
+// already-finished morning block and a planned afternoon block would otherwise
+// have the completed block's staffing rewritten. Mirrors the /gaps candidate
+// filter and DeleteUpcomingByStaffID's "keep same-day history" rule.
+func isPlannableInstance(instance *scheduleModel.ActivityInstance) bool {
+	return instance.Status == scheduleModel.InstanceStatusPlanned ||
+		instance.Status == scheduleModel.InstanceStatusActive
+}
+
 // classifySubstitute decides the action for a single target instance. Pure
 // logic, no DB. Returns (action, conflictingOtherStaffID, ok=false on 409).
 //
@@ -359,28 +524,65 @@ func classifySubstitute(
 	origRow *scheduleModel.InstanceStaff,
 	subID int64,
 ) (action string, conflictOtherStaff int64, ok bool) {
-	// Scan once for the three signals we need.
+	// Scan once for the signals we need: whether subID already has a row here,
+	// whether subID is a present co-supervisor, and the block's coverage balance
+	// (absent planned positions vs OTHER active substitutes already covering them).
 	var existingSubOfSub *scheduleModel.InstanceStaff
-	var existingSubOfOther *scheduleModel.InstanceStaff
 	var subAsNonAbsent *scheduleModel.InstanceStaff
+	var anyActiveSubOfOther *scheduleModel.InstanceStaff
+	absentPlanned := 0
+	activeSubsOfOther := 0
 	for _, row := range allRows {
-		if row.IsSubstitute && row.StaffID == subID {
+		switch {
+		case row.IsSubstitute && row.StaffID == subID:
 			existingSubOfSub = row
-		}
-		if row.IsSubstitute && row.StaffID != subID && !row.IsAbsent {
-			existingSubOfOther = row
+		case row.IsSubstitute && !row.IsAbsent:
+			activeSubsOfOther++
+			anyActiveSubOfOther = row
+		case !row.IsSubstitute && row.IsAbsent:
+			absentPlanned++
 		}
 		if !row.IsSubstitute && row.StaffID == subID && !row.IsAbsent {
 			subAsNonAbsent = row
 		}
 	}
 
-	if origRow.IsAbsent && existingSubOfSub != nil {
-		return substituteActionAlreadySubstitute, 0, true
+	// The substitute already holds a substitute row on this instance. A second
+	// insert would violate UNIQUE(instance_id, staff_id), so we never add another
+	// row — the person already provides coverage. This holds regardless of whether
+	// the absent's row is flagged yet: in a combined /deviations save the absent's
+	// row is still non-absent at classification time (it is flipped in Phase B),
+	// and the same substitute may already cover a co-absent colleague on this
+	// block. When the absent row is already flagged there is nothing left to do
+	// (idempotent retry, e.g. re-running /substitute); otherwise the row still
+	// needs flagging, handled exactly like an already-present co-supervisor (mark
+	// absent, insert nothing) so Phase B cannot hit the unique constraint (#1840).
+	if existingSubOfSub != nil {
+		if origRow.IsAbsent {
+			return substituteActionAlreadySubstitute, 0, true
+		}
+		return substituteActionAlreadyOnInstance, 0, true
 	}
-	if origRow.IsAbsent && existingSubOfOther != nil {
-		return "", existingSubOfOther.StaffID, false
+
+	// Count-based overstaffing guard (#1840). A substitute covers exactly one
+	// absent planned position, but the data model carries NO substitute→absent
+	// link, so coverage is tracked by BALANCE, not identity: the block still has
+	// room for another substitute only while active substitutes are FEWER than
+	// absent planned positions. Reject a new substitute only when origRow is
+	// already flagged absent AND every absent position is already covered
+	// (activeSubsOfOther >= absentPlanned) — adding one more would overstaff, so
+	// the admin must remove a redundant replacement first. When an absent slot is
+	// still open the substitute fills a real gap and is accepted; this is what lets
+	// a later save cover a still-open position without first tearing down another
+	// position's valid replacement. When origRow is not yet absent (a fresh
+	// substitution Phase B will flag) the guard does not apply — the block gains a
+	// matching absence in the same save, so coverage stays balanced.
+	// anyActiveSubOfOther is non-nil here: origRow.IsAbsent makes absentPlanned>=1,
+	// so activeSubsOfOther>=absentPlanned implies activeSubsOfOther>=1.
+	if origRow.IsAbsent && activeSubsOfOther >= absentPlanned {
+		return "", anyActiveSubOfOther.StaffID, false
 	}
+
 	if subAsNonAbsent != nil {
 		// Substitute is already a co-supervisor on this instance. We cannot
 		// insert a second row for the same staff (UNIQUE(instance_id,
