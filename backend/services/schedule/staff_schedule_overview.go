@@ -93,7 +93,7 @@ type StaffScheduleOverviewDependencies struct {
 	Staff         StaffOverviewReader
 }
 
-type StaffScheduleOverviewService interface {
+type StaffScheduleOverviewGetter interface {
 	GetOverview(ctx context.Context, from, to timezone.Date) (*StaffScheduleOverview, error)
 }
 
@@ -101,7 +101,7 @@ type staffScheduleOverviewService struct {
 	deps StaffScheduleOverviewDependencies
 }
 
-func NewStaffScheduleOverviewService(deps StaffScheduleOverviewDependencies) StaffScheduleOverviewService {
+func NewStaffScheduleOverviewService(deps StaffScheduleOverviewDependencies) StaffScheduleOverviewGetter {
 	return &staffScheduleOverviewService{deps: deps}
 }
 
@@ -110,11 +110,45 @@ type staffDateKey struct {
 	date    timezone.Date
 }
 
+type staffScheduleOverviewData struct {
+	shifts           []*scheduleModel.StaffShift
+	visibleInstances []*scheduleModel.ActivityInstance
+	assignmentRows   []*scheduleModel.InstanceStaff
+	rooms            []*facilitiesModel.Room
+	staff            []*usersModel.Staff
+}
+
 func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to timezone.Date) (*StaffScheduleOverview, error) {
 	if err := validateShiftRange(from, to); err != nil {
 		return nil, err
 	}
 
+	data, err := s.loadOverviewData(ctx, from, to)
+	if err != nil {
+		return nil, err
+	}
+	sortOverviewStaff(data.staff)
+
+	dienstplanInUse := len(data.shifts) > 0
+	assignments := buildStaffScheduleAssignments(
+		data.visibleInstances,
+		indexAssignmentRows(data.assignmentRows),
+		indexRoomNames(data.rooms),
+		indexShifts(data.shifts),
+		dienstplanInUse,
+	)
+
+	return &StaffScheduleOverview{
+		From:            from,
+		To:              to,
+		DienstplanInUse: dienstplanInUse,
+		Staff:           data.staff,
+		Shifts:          data.shifts,
+		Assignments:     assignments,
+	}, nil
+}
+
+func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, from, to timezone.Date) (*staffScheduleOverviewData, error) {
 	shifts, err := s.deps.Shifts.FindByDateRange(ctx, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("load staff shifts: %w", err)
@@ -124,15 +158,7 @@ func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to
 		return nil, fmt.Errorf("load activity instances: %w", err)
 	}
 
-	visibleInstances := make([]*scheduleModel.ActivityInstance, 0, len(instances))
-	instanceIDs := make([]int64, 0, len(instances))
-	for _, instance := range instances {
-		if instance == nil || instance.Status == scheduleModel.InstanceStatusCancelled {
-			continue
-		}
-		visibleInstances = append(visibleInstances, instance)
-		instanceIDs = append(instanceIDs, instance.ID)
-	}
+	visibleInstances, instanceIDs := visibleActivityInstances(instances)
 
 	assignmentRows, err := s.deps.InstanceStaff.FindByInstanceIDs(ctx, instanceIDs)
 	if err != nil {
@@ -148,6 +174,29 @@ func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to
 		return nil, fmt.Errorf("load staff directory: %w", err)
 	}
 
+	return &staffScheduleOverviewData{
+		shifts:           shifts,
+		visibleInstances: visibleInstances,
+		assignmentRows:   assignmentRows,
+		rooms:            rooms,
+		staff:            staff,
+	}, nil
+}
+
+func visibleActivityInstances(instances []*scheduleModel.ActivityInstance) ([]*scheduleModel.ActivityInstance, []int64) {
+	visible := make([]*scheduleModel.ActivityInstance, 0, len(instances))
+	ids := make([]int64, 0, len(instances))
+	for _, instance := range instances {
+		if instance == nil || instance.Status == scheduleModel.InstanceStatusCancelled {
+			continue
+		}
+		visible = append(visible, instance)
+		ids = append(ids, instance.ID)
+	}
+	return visible, ids
+}
+
+func sortOverviewStaff(staff []*usersModel.Staff) {
 	sort.Slice(staff, func(i, j int) bool {
 		left := staffSortName(staff[i])
 		right := staffSortName(staff[j])
@@ -156,58 +205,70 @@ func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to
 		}
 		return left < right
 	})
+}
 
-	shiftIndex := indexShifts(shifts)
+func indexRoomNames(rooms []*facilitiesModel.Room) map[int64]string {
 	roomNames := make(map[int64]string, len(rooms))
 	for _, room := range rooms {
 		if room != nil {
 			roomNames[room.ID] = room.Name
 		}
 	}
+	return roomNames
+}
+
+func indexAssignmentRows(rows []*scheduleModel.InstanceStaff) map[int64][]*scheduleModel.InstanceStaff {
 	rowsByInstance := make(map[int64][]*scheduleModel.InstanceStaff)
-	for _, row := range assignmentRows {
+	for _, row := range rows {
 		if row != nil {
 			rowsByInstance[row.InstanceID] = append(rowsByInstance[row.InstanceID], row)
 		}
 	}
+	return rowsByInstance
+}
 
-	assignments := make([]StaffScheduleAssignment, 0, len(assignmentRows))
-	dienstplanInUse := len(shifts) > 0
+func buildStaffScheduleAssignments(
+	visibleInstances []*scheduleModel.ActivityInstance,
+	rowsByInstance map[int64][]*scheduleModel.InstanceStaff,
+	roomNames map[int64]string,
+	shiftIndex map[staffDateKey][]*scheduleModel.StaffShift,
+	dienstplanInUse bool,
+) []StaffScheduleAssignment {
+	assignments := make([]StaffScheduleAssignment, 0)
 	for _, instance := range visibleInstances {
-		rows := rowsByInstance[instance.ID]
-		for _, row := range rows {
-			roomID := instance.RoomID
-			if row.RoomID != nil {
-				roomID = *row.RoomID
-			}
-			assignment := StaffScheduleAssignment{
-				InstanceID:         instance.ID,
-				StaffID:            row.StaffID,
-				Date:               instance.Date,
-				StartTime:          timezone.WallClock(instance.StartTime),
-				EndTime:            timezone.WallClock(instance.EndTime),
-				ActivityTitle:      instance.Title,
-				RoomID:             roomID,
-				RoomName:           roomNames[roomID],
-				Status:             instance.Status,
-				IsAbsent:           row.IsAbsent,
-				IsSubstitute:       row.IsSubstitute,
-				AbsenceReason:      row.AbsenceReason,
-				UncoveredIntervals: make([]ShiftCoverageInterval, 0),
-			}
+		for _, row := range rowsByInstance[instance.ID] {
+			assignment := newStaffScheduleAssignment(instance, row, roomNames)
 			applyCoverage(&assignment, dienstplanInUse, shiftIndex[staffDateKey{row.StaffID, instance.Date}])
 			assignments = append(assignments, assignment)
 		}
 	}
+	return assignments
+}
 
-	return &StaffScheduleOverview{
-		From:            from,
-		To:              to,
-		DienstplanInUse: dienstplanInUse,
-		Staff:           staff,
-		Shifts:          shifts,
-		Assignments:     assignments,
-	}, nil
+func newStaffScheduleAssignment(
+	instance *scheduleModel.ActivityInstance,
+	row *scheduleModel.InstanceStaff,
+	roomNames map[int64]string,
+) StaffScheduleAssignment {
+	roomID := instance.RoomID
+	if row.RoomID != nil {
+		roomID = *row.RoomID
+	}
+	return StaffScheduleAssignment{
+		InstanceID:         instance.ID,
+		StaffID:            row.StaffID,
+		Date:               instance.Date,
+		StartTime:          timezone.WallClock(instance.StartTime),
+		EndTime:            timezone.WallClock(instance.EndTime),
+		ActivityTitle:      instance.Title,
+		RoomID:             roomID,
+		RoomName:           roomNames[roomID],
+		Status:             instance.Status,
+		IsAbsent:           row.IsAbsent,
+		IsSubstitute:       row.IsSubstitute,
+		AbsenceReason:      row.AbsenceReason,
+		UncoveredIntervals: make([]ShiftCoverageInterval, 0),
+	}
 }
 
 func staffID(staff *usersModel.Staff) int64 {
@@ -285,6 +346,11 @@ func stringPointer(value string) *string {
 	return &value
 }
 
+type shiftCoverageWindow struct {
+	start time.Time
+	end   time.Time
+}
+
 // uncoveredShiftIntervals returns the exact gaps in [start, end) after
 // clipping, sorting, and unioning all shift windows. Overlapping and directly
 // touching shifts form one continuous interval. BreakMinutes intentionally do
@@ -296,27 +362,16 @@ func uncoveredShiftIntervals(start, end time.Time, shifts []*scheduleModel.Staff
 		return []ShiftCoverageInterval{}
 	}
 
-	type interval struct {
-		start time.Time
-		end   time.Time
-	}
-	covered := make([]interval, 0, len(shifts))
+	covered := coveredShiftWindows(start, end, shifts)
+	return gapsBetweenShiftWindows(start, end, covered)
+}
+
+func coveredShiftWindows(start, end time.Time, shifts []*scheduleModel.StaffShift) []shiftCoverageWindow {
+	covered := make([]shiftCoverageWindow, 0, len(shifts))
 	for _, shift := range shifts {
-		if shift == nil {
-			continue
+		if window, ok := clipShiftCoverageWindow(start, end, shift); ok {
+			covered = append(covered, window)
 		}
-		shiftStart := timezone.WallClock(shift.StartTime)
-		shiftEnd := timezone.WallClock(shift.EndTime)
-		if !shiftEnd.After(start) || !end.After(shiftStart) {
-			continue
-		}
-		if shiftStart.Before(start) {
-			shiftStart = start
-		}
-		if shiftEnd.After(end) {
-			shiftEnd = end
-		}
-		covered = append(covered, interval{start: shiftStart, end: shiftEnd})
 	}
 	sort.Slice(covered, func(i, j int) bool {
 		if covered[i].start.Equal(covered[j].start) {
@@ -324,7 +379,28 @@ func uncoveredShiftIntervals(start, end time.Time, shifts []*scheduleModel.Staff
 		}
 		return covered[i].start.Before(covered[j].start)
 	})
+	return covered
+}
 
+func clipShiftCoverageWindow(start, end time.Time, shift *scheduleModel.StaffShift) (shiftCoverageWindow, bool) {
+	if shift == nil {
+		return shiftCoverageWindow{}, false
+	}
+	shiftStart := timezone.WallClock(shift.StartTime)
+	shiftEnd := timezone.WallClock(shift.EndTime)
+	if !shiftEnd.After(start) || !end.After(shiftStart) {
+		return shiftCoverageWindow{}, false
+	}
+	if shiftStart.Before(start) {
+		shiftStart = start
+	}
+	if shiftEnd.After(end) {
+		shiftEnd = end
+	}
+	return shiftCoverageWindow{start: shiftStart, end: shiftEnd}, true
+}
+
+func gapsBetweenShiftWindows(start, end time.Time, covered []shiftCoverageWindow) []ShiftCoverageInterval {
 	gaps := make([]ShiftCoverageInterval, 0)
 	cursor := start
 	for _, current := range covered {
@@ -338,7 +414,7 @@ func uncoveredShiftIntervals(start, end time.Time, shifts []*scheduleModel.Staff
 			cursor = current.end
 		}
 		if !cursor.Before(end) {
-			break
+			return gaps
 		}
 	}
 	if cursor.Before(end) {

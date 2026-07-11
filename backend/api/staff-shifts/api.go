@@ -29,14 +29,14 @@ import (
 // Resource bundles the dependencies for the staff-shift HTTP handlers.
 type Resource struct {
 	Service       scheduleSvc.StaffShiftService
-	Overview      scheduleSvc.StaffScheduleOverviewService
+	Overview      scheduleSvc.StaffScheduleOverviewGetter
 	PersonService usersSvc.PersonService
 	db            *bun.DB
 	logger        *slog.Logger
 }
 
 // NewResource wires the dependencies.
-func NewResource(service scheduleSvc.StaffShiftService, overview scheduleSvc.StaffScheduleOverviewService, personService usersSvc.PersonService, db *bun.DB, logger *slog.Logger) *Resource {
+func NewResource(service scheduleSvc.StaffShiftService, overview scheduleSvc.StaffScheduleOverviewGetter, personService usersSvc.PersonService, db *bun.DB, logger *slog.Logger) *Resource {
 	return &Resource{Service: service, Overview: overview, PersonService: personService, db: db, logger: logger}
 }
 

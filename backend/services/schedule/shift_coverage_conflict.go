@@ -221,6 +221,21 @@ func resolveEffectiveCoverageDays(
 	dates []timezone.Date,
 	staffIDs []int64,
 ) (map[timezone.Date]effectiveShiftCoverageDay, []int64, error) {
+	coverageDays := initializeEffectiveCoverageDays(query, dates, staffIDs)
+	if query.ExcludeInstanceID != nil {
+		return resolveConcreteEffectiveCoverageDays(ctx, deps.InstanceStaff, query, dates, staffIDs, coverageDays)
+	}
+	if query.ReplanActivityGroupID == nil {
+		return coverageDays, staffIDs, nil
+	}
+	return resolveSeriesEffectiveCoverageDays(ctx, deps, query, dates, staffIDs, coverageDays)
+}
+
+func initializeEffectiveCoverageDays(
+	query ShiftCoverageQuery,
+	dates []timezone.Date,
+	staffIDs []int64,
+) map[timezone.Date]effectiveShiftCoverageDay {
 	coverageDays := make(map[timezone.Date]effectiveShiftCoverageDay, len(dates))
 	for _, date := range dates {
 		coverageDays[date] = effectiveShiftCoverageDay{
@@ -230,28 +245,44 @@ func resolveEffectiveCoverageDays(
 			active:   true,
 		}
 	}
-	if query.ExcludeInstanceID != nil {
-		rows, err := deps.InstanceStaff.FindByInstanceIDs(ctx, []int64{*query.ExcludeInstanceID})
-		if err != nil {
-			return nil, nil, fmt.Errorf("load concrete staff deviations: %w", err)
-		}
-		effective := effectiveCoverageStaffIDs(staffIDs, rows)
-		concreteDate := dates[0]
-		if query.ConcreteInstanceDate != nil {
-			concreteDate = *query.ConcreteInstanceDate
-		}
-		day := coverageDays[concreteDate]
-		day.staffIDs = effective
-		coverageDays[concreteDate] = day
-		return coverageDays, uniqueEffectiveCoverageStaff(coverageDays, dates), nil
+	return coverageDays
+}
+
+func resolveConcreteEffectiveCoverageDays(
+	ctx context.Context,
+	instanceStaff InstanceStaffBatchReader,
+	query ShiftCoverageQuery,
+	dates []timezone.Date,
+	staffIDs []int64,
+	coverageDays map[timezone.Date]effectiveShiftCoverageDay,
+) (map[timezone.Date]effectiveShiftCoverageDay, []int64, error) {
+	rows, err := instanceStaff.FindByInstanceIDs(ctx, []int64{*query.ExcludeInstanceID})
+	if err != nil {
+		return nil, nil, fmt.Errorf("load concrete staff deviations: %w", err)
 	}
-	if query.ReplanActivityGroupID == nil {
-		return coverageDays, staffIDs, nil
+	concreteDate := dates[0]
+	if query.ConcreteInstanceDate != nil {
+		concreteDate = *query.ConcreteInstanceDate
 	}
+	day := coverageDays[concreteDate]
+	day.staffIDs = effectiveCoverageStaffIDs(staffIDs, rows)
+	coverageDays[concreteDate] = day
+	return coverageDays, uniqueEffectiveCoverageStaff(coverageDays, dates), nil
+}
+
+func resolveSeriesEffectiveCoverageDays(
+	ctx context.Context,
+	deps ShiftCoverageDependencies,
+	query ShiftCoverageQuery,
+	dates []timezone.Date,
+	staffIDs []int64,
+	coverageDays map[timezone.Date]effectiveShiftCoverageDay,
+) (map[timezone.Date]effectiveShiftCoverageDay, []int64, error) {
+	activityGroupID := *query.ReplanActivityGroupID
 
 	instances, err := deps.Instances.FindByActivityGroupAndDateRange(
 		ctx,
-		*query.ReplanActivityGroupID,
+		activityGroupID,
 		dates[0],
 		dates[len(dates)-1],
 	)
@@ -260,62 +291,113 @@ func resolveEffectiveCoverageDays(
 	}
 	exceptions, err := deps.Exceptions.FindByActivityGroupAndDateRange(
 		ctx,
-		*query.ReplanActivityGroupID,
+		activityGroupID,
 		dates[0],
 		dates[len(dates)-1],
 	)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load concrete series exceptions: %w", err)
 	}
-	candidatesByDate, instanceIDs := preservedDeviationCandidates(instances, dates, *query.ReplanActivityGroupID)
-	exceptionsByDate := effectiveSeriesExceptions(exceptions, dates, *query.ReplanActivityGroupID)
-	rowsByInstance := make(map[int64][]*scheduleModel.InstanceStaff, len(instanceIDs))
-	if len(instanceIDs) > 0 {
-		rows, loadErr := deps.InstanceStaff.FindByInstanceIDs(ctx, instanceIDs)
-		if loadErr != nil {
-			return nil, nil, fmt.Errorf("load concrete series deviations: %w", loadErr)
-		}
-		for _, row := range rows {
-			if row != nil {
-				rowsByInstance[row.InstanceID] = append(rowsByInstance[row.InstanceID], row)
-			}
-		}
+	candidatesByDate, instanceIDs := preservedDeviationCandidates(instances, dates, activityGroupID)
+	exceptionsByDate := effectiveSeriesExceptions(exceptions, dates, activityGroupID)
+	rowsByInstance, err := loadSeriesCoverageStaffRows(ctx, deps.InstanceStaff, instanceIDs)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	allEffective := make([]int64, 0, len(staffIDs))
 	for _, date := range dates {
-		day := coverageDays[date]
-		if exception := exceptionsByDate[date]; exception != nil {
-			if exception.IsCancellation() {
-				day.active = false
-				day.staffIDs = nil
-				coverageDays[date] = day
-				continue
-			}
-			if exception.StartTime != nil {
-				day.start = timezone.WallClock(*exception.StartTime)
-			}
-			if exception.EndTime != nil {
-				day.end = timezone.WallClock(*exception.EndTime)
-			}
-		}
-		if !timezone.WallClock(day.end).After(timezone.WallClock(day.start)) {
-			return nil, nil, invalidShiftCoverageQuery("effective exception end time must be after start time")
-		}
-		if survivingInstanceBlocksSeriesCandidate(instances, *query.ReplanActivityGroupID, date, day.start) {
-			day.active = false
-			day.staffIDs = nil
-			coverageDays[date] = day
-			continue
-		}
-		source := selectPreservedDeviationSource(candidatesByDate[date], day.start)
-		if source != nil {
-			day.staffIDs = effectiveSeriesCoverageStaffIDs(staffIDs, rowsByInstance[source.ID])
+		day, projectErr := projectSeriesCoverageDay(
+			coverageDays[date],
+			exceptionsByDate[date],
+			instances,
+			activityGroupID,
+			date,
+			candidatesByDate[date],
+			rowsByInstance,
+			staffIDs,
+		)
+		if projectErr != nil {
+			return nil, nil, projectErr
 		}
 		coverageDays[date] = day
-		allEffective = append(allEffective, day.staffIDs...)
+		if day.active {
+			allEffective = append(allEffective, day.staffIDs...)
+		}
 	}
 	return coverageDays, sliceutil.Unique(allEffective), nil
+}
+
+func loadSeriesCoverageStaffRows(
+	ctx context.Context,
+	instanceStaff InstanceStaffBatchReader,
+	instanceIDs []int64,
+) (map[int64][]*scheduleModel.InstanceStaff, error) {
+	rowsByInstance := make(map[int64][]*scheduleModel.InstanceStaff, len(instanceIDs))
+	if len(instanceIDs) == 0 {
+		return rowsByInstance, nil
+	}
+	rows, err := instanceStaff.FindByInstanceIDs(ctx, instanceIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load concrete series deviations: %w", err)
+	}
+	for _, row := range rows {
+		if row != nil {
+			rowsByInstance[row.InstanceID] = append(rowsByInstance[row.InstanceID], row)
+		}
+	}
+	return rowsByInstance, nil
+}
+
+func projectSeriesCoverageDay(
+	day effectiveShiftCoverageDay,
+	exception *scheduleModel.ActivityException,
+	instances []*scheduleModel.ActivityInstance,
+	activityGroupID int64,
+	date timezone.Date,
+	deviationCandidates []*scheduleModel.ActivityInstance,
+	rowsByInstance map[int64][]*scheduleModel.InstanceStaff,
+	staffIDs []int64,
+) (effectiveShiftCoverageDay, error) {
+	day = applySeriesCoverageException(day, exception)
+	if !day.active {
+		return day, nil
+	}
+	if !timezone.WallClock(day.end).After(timezone.WallClock(day.start)) {
+		return day, invalidShiftCoverageQuery("effective exception end time must be after start time")
+	}
+	if survivingInstanceBlocksSeriesCandidate(instances, activityGroupID, date, day.start) {
+		return inactiveCoverageDay(day), nil
+	}
+	if source := selectPreservedDeviationSource(deviationCandidates, day.start); source != nil {
+		day.staffIDs = effectiveSeriesCoverageStaffIDs(staffIDs, rowsByInstance[source.ID])
+	}
+	return day, nil
+}
+
+func applySeriesCoverageException(
+	day effectiveShiftCoverageDay,
+	exception *scheduleModel.ActivityException,
+) effectiveShiftCoverageDay {
+	if exception == nil {
+		return day
+	}
+	if exception.IsCancellation() {
+		return inactiveCoverageDay(day)
+	}
+	if exception.StartTime != nil {
+		day.start = timezone.WallClock(*exception.StartTime)
+	}
+	if exception.EndTime != nil {
+		day.end = timezone.WallClock(*exception.EndTime)
+	}
+	return day
+}
+
+func inactiveCoverageDay(day effectiveShiftCoverageDay) effectiveShiftCoverageDay {
+	day.active = false
+	day.staffIDs = nil
+	return day
 }
 
 // preservedDeviationCandidates selects only the materialized occurrences that
@@ -416,10 +498,25 @@ func selectPreservedDeviationSource(instances []*scheduleModel.ActivityInstance,
 // count, and a former substitute promoted into the proposed base roster is a
 // normal present assignment.
 func effectiveSeriesCoverageStaffIDs(proposed []int64, prior []*scheduleModel.InstanceStaff) []int64 {
-	proposedSet := make(map[int64]struct{}, len(proposed))
-	for _, staffID := range proposed {
-		proposedSet[staffID] = struct{}{}
+	proposedSet := coverageStaffIDSet(proposed)
+	absent := survivingSeriesAbsences(prior, proposedSet)
+	effective := presentProposedSeriesStaff(proposed, absent)
+	effective = append(effective, restoredSeriesSubstitutes(prior, proposedSet, len(absent))...)
+	return sliceutil.Unique(effective)
+}
+
+func coverageStaffIDSet(staffIDs []int64) map[int64]struct{} {
+	staffSet := make(map[int64]struct{}, len(staffIDs))
+	for _, staffID := range staffIDs {
+		staffSet[staffID] = struct{}{}
 	}
+	return staffSet
+}
+
+func survivingSeriesAbsences(
+	prior []*scheduleModel.InstanceStaff,
+	proposedSet map[int64]struct{},
+) map[int64]struct{} {
 	absent := make(map[int64]struct{})
 	for _, row := range prior {
 		if row == nil || row.IsSubstitute || !row.IsAbsent {
@@ -429,28 +526,42 @@ func effectiveSeriesCoverageStaffIDs(proposed []int64, prior []*scheduleModel.In
 			absent[row.StaffID] = struct{}{}
 		}
 	}
+	return absent
+}
 
-	effective := make([]int64, 0, len(proposed)+len(absent))
+func presentProposedSeriesStaff(proposed []int64, absent map[int64]struct{}) []int64 {
+	effective := make([]int64, 0, len(proposed))
 	for _, staffID := range proposed {
 		if _, isAbsent := absent[staffID]; !isAbsent {
 			effective = append(effective, staffID)
 		}
 	}
-	restoredSubstitutes := 0
+	return effective
+}
+
+func restoredSeriesSubstitutes(
+	prior []*scheduleModel.InstanceStaff,
+	proposedSet map[int64]struct{},
+	limit int,
+) []int64 {
+	restored := make([]int64, 0, limit)
 	for _, row := range prior {
-		if row == nil || !row.IsSubstitute || row.IsAbsent {
-			continue
+		if len(restored) >= limit {
+			break
 		}
-		if _, promotedToBaseRoster := proposedSet[row.StaffID]; promotedToBaseRoster {
-			continue
+		if isRestorableSeriesSubstitute(row, proposedSet) {
+			restored = append(restored, row.StaffID)
 		}
-		if restoredSubstitutes >= len(absent) {
-			continue
-		}
-		effective = append(effective, row.StaffID)
-		restoredSubstitutes++
 	}
-	return sliceutil.Unique(effective)
+	return restored
+}
+
+func isRestorableSeriesSubstitute(row *scheduleModel.InstanceStaff, proposedSet map[int64]struct{}) bool {
+	if row == nil || !row.IsSubstitute || row.IsAbsent {
+		return false
+	}
+	_, promotedToBaseRoster := proposedSet[row.StaffID]
+	return !promotedToBaseRoster
 }
 
 func uniqueEffectiveCoverageStaff(
@@ -621,6 +732,16 @@ func normalizeShiftCoverageStaffIDs(input []int64) ([]int64, error) {
 }
 
 func validateShiftCoverageOptions(query ShiftCoverageQuery, dateCount int) error {
+	if err := validateConcreteShiftCoverageOptions(query, dateCount); err != nil {
+		return err
+	}
+	if err := validateSeriesShiftCoverageOptions(query); err != nil {
+		return err
+	}
+	return validateRecurrenceShiftCoverageOptions(query)
+}
+
+func validateConcreteShiftCoverageOptions(query ShiftCoverageQuery, dateCount int) error {
 	if query.ExcludeInstanceID != nil && *query.ExcludeInstanceID <= 0 {
 		return invalidShiftCoverageQuery("exclude instance ID must be positive")
 	}
@@ -633,12 +754,20 @@ func validateShiftCoverageOptions(query ShiftCoverageQuery, dateCount int) error
 	if query.ExcludeInstanceID != nil && dateCount > 1 && query.ConcreteInstanceDate == nil {
 		return invalidShiftCoverageQuery("multi-date instance coverage requires the concrete instance date")
 	}
+	return nil
+}
+
+func validateSeriesShiftCoverageOptions(query ShiftCoverageQuery) error {
 	if query.ReplanActivityGroupID != nil && *query.ReplanActivityGroupID <= 0 {
 		return invalidShiftCoverageQuery("activity group ID must be positive")
 	}
 	if query.ReplanActivityGroupID != nil && query.ExcludeInstanceID != nil {
 		return invalidShiftCoverageQuery("activity group ID and exclude instance ID are mutually exclusive")
 	}
+	return nil
+}
+
+func validateRecurrenceShiftCoverageOptions(query ShiftCoverageQuery) error {
 	if (query.CalendarPeriodID == nil) != (query.WeekPattern == nil) {
 		return invalidShiftCoverageQuery("calendar period ID and week pattern must be provided together")
 	}

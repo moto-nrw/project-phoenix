@@ -777,15 +777,13 @@ export function TimetableEventModal({
       (candidate) => candidate.id === form.calendarPeriodId,
     );
     if (!period) return null;
-    const from = initialSeries
-      ? period.startDate > berlinTodayISO()
-        ? period.startDate
-        : berlinTodayISO()
-      : period.startDate;
+    const today = berlinTodayISO();
+    const from =
+      initialSeries && today > period.startDate ? today : period.startDate;
     const dates = weekdayDatesInRange(from, period.endDate, form.weekdays);
     if (convertInstance && form.date && !dates.includes(form.date)) {
       dates.push(form.date);
-      dates.sort();
+      dates.sort((left, right) => left.localeCompare(right));
     }
     return {
       dates,

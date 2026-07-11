@@ -63,6 +63,28 @@ function AssignmentCard({
   readonly assignment: StaffScheduleAssignment;
 }) {
   const isUncovered = assignment.coverageStatus === "uncovered";
+  let assignmentStatus = null;
+  if (assignment.isAbsent) {
+    assignmentStatus = (
+      <span
+        className="mt-1 block text-xs font-semibold"
+        style={{ color: LOCATION_COLORS.HOME }}
+      >
+        Abwesend
+        {assignment.absenceReason ? ` · ${assignment.absenceReason}` : ""}
+      </span>
+    );
+  } else if (assignment.isSubstitute) {
+    assignmentStatus = (
+      <span
+        className="mt-1 block text-xs font-semibold"
+        style={{ color: LOCATION_COLORS.OTHER_ROOM }}
+      >
+        Vertretung
+      </span>
+    );
+  }
+
   return (
     <div
       data-testid={`dienstplan-assignment-${assignment.instanceId}-${assignment.staffId}`}
@@ -88,22 +110,7 @@ function AssignmentCard({
         <MapPin className="h-3 w-3 shrink-0" aria-hidden />
         {assignment.roomName}
       </span>
-      {assignment.isAbsent ? (
-        <span
-          className="mt-1 block text-xs font-semibold"
-          style={{ color: LOCATION_COLORS.HOME }}
-        >
-          Abwesend
-          {assignment.absenceReason ? ` · ${assignment.absenceReason}` : ""}
-        </span>
-      ) : assignment.isSubstitute ? (
-        <span
-          className="mt-1 block text-xs font-semibold"
-          style={{ color: LOCATION_COLORS.OTHER_ROOM }}
-        >
-          Vertretung
-        </span>
-      ) : null}
+      {assignmentStatus}
       {isUncovered
         ? assignment.uncoveredIntervals.map((interval) => (
             <span

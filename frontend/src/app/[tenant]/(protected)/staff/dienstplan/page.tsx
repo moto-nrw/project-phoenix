@@ -306,7 +306,7 @@ function DienstplanContent() {
           shift={modal.shift}
           shiftTypes={shiftTypes ?? []}
           onClose={() => setModal(null)}
-          onSaved={() => void mutateOverview()}
+          onSaved={() => mutateOverview()}
         />
       )}
       <ShiftTypeManageModal
@@ -316,8 +316,8 @@ function DienstplanContent() {
         loadError={Boolean(shiftTypesError)}
         onClose={() => setManageOpen(false)}
         onChanged={() => {
-          void mutateShiftTypes();
-          void mutateOverview();
+          mutateShiftTypes();
+          mutateOverview();
         }}
       />
     </div>

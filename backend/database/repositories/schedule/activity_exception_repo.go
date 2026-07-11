@@ -16,6 +16,7 @@ const (
 	tableActivityExceptions   = "schedule.activity_exceptions"
 	aliasActivityException    = "activity_exception"
 	modelTblActivityException = `schedule.activity_exceptions AS "activity_exception"`
+	orderExceptionDateASC     = "exception_date ASC"
 )
 
 // ActivityExceptionRepository implements schedule.ActivityExceptionRepository.
@@ -66,7 +67,7 @@ func (r *ActivityExceptionRepository) FindByActivityGroupID(ctx context.Context,
 		Model(&rows).
 		ModelTableExpr(modelTblActivityException).
 		Where(`"activity_exception".activity_group_id = ?`, activityGroupID).
-		Order("exception_date ASC")
+		Order(orderExceptionDateASC)
 
 	query = base.WithTenantFilter(ctx, query, aliasActivityException)
 
@@ -121,7 +122,7 @@ func (r *ActivityExceptionRepository) FindByActivityGroupAndDateRange(
 		Where(`"activity_exception".activity_group_id = ?`, activityGroupID).
 		Where(`"activity_exception".exception_date >= ?`, from).
 		Where(`"activity_exception".exception_date <= ?`, to).
-		Order("exception_date ASC")
+		Order(orderExceptionDateASC)
 
 	query = base.WithTenantFilter(ctx, query, aliasActivityException)
 
@@ -142,7 +143,7 @@ func (r *ActivityExceptionRepository) FindByDateRange(ctx context.Context, from,
 		ModelTableExpr(modelTblActivityException).
 		Where(`"activity_exception".exception_date >= ?`, from).
 		Where(`"activity_exception".exception_date <= ?`, to).
-		Order("exception_date ASC")
+		Order(orderExceptionDateASC)
 
 	query = base.WithTenantFilter(ctx, query, aliasActivityException)
 
