@@ -29,6 +29,7 @@ const (
 	EmailKindEnrollmentApproved                 = "enrollment_approved"
 	EmailKindEnrollmentWaitlisted               = "enrollment_waitlisted"
 	EmailKindEnrollmentRejected                 = "enrollment_rejected"
+	EmailKindEnrollmentDecisionDigest           = "enrollment_decision_digest"
 	EmailKindEnrollmentChangeRequestSubmitted   = "enrollment_change_request_submitted"
 	EmailKindEnrollmentChangeRequestQuestion    = "enrollment_change_request_question"
 	EmailKindEnrollmentChangeRequestParentReply = "enrollment_change_request_parent_reply"
@@ -55,6 +56,7 @@ type EmailOutbox struct {
 	base.Model `bun:"schema:platform,table:email_outbox"`
 	base.TenantModel
 	Kind              string         `bun:"kind,notnull" json:"kind"`
+	IdempotencyKey    *string        `bun:"idempotency_key" json:"idempotency_key,omitempty"`
 	RelatedEntityType *string        `bun:"related_entity_type" json:"related_entity_type,omitempty"`
 	RelatedEntityID   *int64         `bun:"related_entity_id" json:"related_entity_id,omitempty"`
 	Payload           map[string]any `bun:"payload,type:jsonb,notnull,default:'{}'" json:"payload"`
@@ -127,4 +129,9 @@ type EmailOutboxRepository interface {
 	// terminal ('sent'/'failed') are left untouched. Tenant-scoped. Returns the
 	// number of rows cancelled.
 	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
+}
+
+type EmailOutboxCleanupRepository interface {
+	EmailOutboxRepository
+	DeleteByRelatedEntity(ctx context.Context, relatedType string, relatedID int64) (int64, error)
 }

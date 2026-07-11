@@ -758,3 +758,58 @@ func TestInstanceStudentRepository_FindExpectedByInstanceIDs_TenantScoped(t *tes
 	require.NoError(t, err)
 	assert.Empty(t, rows, "row from tenant 1 must not leak to tenant 2")
 }
+
+func TestInstanceStudentRepository_CountNonAbsentByInstanceIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	t.Run("EmptySlice returns empty map without touching DB", func(t *testing.T) {
+		m, err := repo.CountNonAbsentByInstanceIDs(ctx, []int64{})
+		require.NoError(t, err)
+		assert.Empty(t, m)
+	})
+
+	date := timezone.NewDate(2026, 9, 24)
+	instA, cleanupA := createInstanceFixture(t, db, "cnt-stu-a", date)
+	defer cleanupA()
+	instB, cleanupB := createInstanceFixture(t, db, "cnt-stu-b", date)
+	defer cleanupB()
+	instEmpty, cleanupEmpty := createInstanceFixture(t, db, "cnt-stu-empty", date)
+	defer cleanupEmpty()
+
+	suffix := time.Now().UnixNano()
+	studentExpected := testpkg.CreateTestStudent(t, db, "Cnt", fmt.Sprintf("S1-%d", suffix), "3a")
+	studentPresent := testpkg.CreateTestStudent(t, db, "Cnt", fmt.Sprintf("S2-%d", suffix), "3a")
+	studentAbsent := testpkg.CreateTestStudent(t, db, "Cnt", fmt.Sprintf("S3-%d", suffix), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, studentExpected.ID, studentPresent.ID, studentAbsent.ID)
+
+	// instA: expected + present (both non-absent), one absent → expect 2
+	rowA1 := testpkg.CreateTestInstanceStudent(t, db, instA.ID, studentExpected.ID, scheduleModels.AttendanceStatusExpected)
+	rowA2 := testpkg.CreateTestInstanceStudent(t, db, instA.ID, studentPresent.ID, scheduleModels.AttendanceStatusPresent)
+	rowA3 := testpkg.CreateTestInstanceStudent(t, db, instA.ID, studentAbsent.ID, scheduleModels.AttendanceStatusAbsent)
+
+	// instB: 1 expected → expect 1
+	rowB1 := testpkg.CreateTestInstanceStudent(t, db, instB.ID, studentExpected.ID, scheduleModels.AttendanceStatusExpected)
+
+	// instEmpty: nothing assigned → must NOT appear in map
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", rowA1.ID, rowA2.ID, rowA3.ID, rowB1.ID)
+
+	t.Run("GroupsByInstance", func(t *testing.T) {
+		m, err := repo.CountNonAbsentByInstanceIDs(ctx, []int64{instA.ID, instB.ID, instEmpty.ID})
+		require.NoError(t, err)
+		assert.Equal(t, 2, m[instA.ID])
+		assert.Equal(t, 1, m[instB.ID])
+		_, present := m[instEmpty.ID]
+		assert.False(t, present, "empty instance must not appear in map")
+	})
+
+	t.Run("TenantIsolation excludes other tenant rows", func(t *testing.T) {
+		otherTenantCtx := testpkg.TenantContext(999)
+		m, err := repo.CountNonAbsentByInstanceIDs(otherTenantCtx, []int64{instA.ID, instB.ID})
+		require.NoError(t, err)
+		assert.Empty(t, m)
+	})
+}

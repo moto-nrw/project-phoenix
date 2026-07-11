@@ -207,6 +207,7 @@ func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]s
 	var rows []struct {
 		ID                     int64 `bun:"id"`
 		PhaseCount             int   `bun:"phase_count"`
+		ActivityGroupCount     int   `bun:"activity_group_count"`
 		ScheduleCount          int   `bun:"schedule_count"`
 		StudentEnrollmentCount int   `bun:"student_enrollment_count"`
 		SupervisorCount        int   `bun:"supervisor_count"`
@@ -221,6 +222,11 @@ func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]s
 			WHERE p.calendar_period_id = "calendar_period".id
 			  AND p.tenant_id = "calendar_period".tenant_id
 		)::int AS phase_count`).
+		ColumnExpr(`(
+			SELECT COUNT(*) FROM activities.groups g
+			WHERE g.calendar_period_id = "calendar_period".id
+			  AND g.tenant_id = "calendar_period".tenant_id
+		)::int AS activity_group_count`).
 		ColumnExpr(`(
 			SELECT COUNT(*) FROM activities.schedules s
 			WHERE s.calendar_period_id = "calendar_period".id
@@ -254,6 +260,7 @@ func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]s
 	usage := make(map[int64]schedule.CalendarPeriodUsage, len(rows))
 	for _, row := range rows {
 		if row.PhaseCount == 0 &&
+			row.ActivityGroupCount == 0 &&
 			row.ScheduleCount == 0 &&
 			row.StudentEnrollmentCount == 0 &&
 			row.SupervisorCount == 0 &&
@@ -262,6 +269,7 @@ func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]s
 		}
 		usage[row.ID] = schedule.CalendarPeriodUsage{
 			EnrollmentPhases:   row.PhaseCount,
+			ActivityGroups:     row.ActivityGroupCount,
 			Schedules:          row.ScheduleCount,
 			StudentEnrollments: row.StudentEnrollmentCount,
 			Supervisors:        row.SupervisorCount,

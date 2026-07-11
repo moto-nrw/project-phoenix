@@ -110,6 +110,9 @@ func (s *Service) ListCategories(ctx context.Context) ([]*activities.Category, e
 
 // CreateGroup creates a new activity group with supervisors and schedules
 func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supervisorIDs []int64, schedules []*activities.Schedule) (*activities.Group, error) {
+	if group != nil && group.IsTemplate {
+		return nil, &ActivityError{Op: "create group", Err: ErrTimetableTemplateProtected}
+	}
 	if err := group.Validate(); err != nil {
 		return nil, &ActivityError{Op: "validate group", Err: err}
 	}
@@ -209,9 +212,30 @@ func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, er
 	return group, nil
 }
 
+// findMutableActivityGroup resolves the persisted group and rejects timetable
+// templates. The generic activities service has none of the recurrence lock,
+// split-lineage, or care-offering validation required to mutate templates.
+// Every legacy mutation entry point must call this guard before writing.
+func (s *Service) findMutableActivityGroup(ctx context.Context, id int64) (*activities.Group, error) {
+	group, err := s.groupRepo.FindByID(ctx, id)
+	if err != nil {
+		if base.IsNoRows(err) {
+			return nil, ErrGroupNotFound
+		}
+		return nil, err
+	}
+	if group.IsTemplate {
+		return nil, ErrTimetableTemplateProtected
+	}
+	return group, nil
+}
+
 // UpdateGroup updates an activity group with ownership verification
 // Only the creator, supervisors, or users with manage permission can update
 func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requestingStaffID int64, hasManagePermission bool) (*activities.Group, error) {
+	if group != nil && group.IsTemplate {
+		return nil, &ActivityError{Op: "update group", Err: ErrTimetableTemplateProtected}
+	}
 	if err := group.Validate(); err != nil {
 		return nil, &ActivityError{Op: "validate group", Err: err}
 	}
@@ -228,9 +252,9 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 	// Block renaming system activities (Schulhof Freispiel, WC).
 	// Placed after CanModifyActivity to avoid an extra FindByID call — CanModifyActivity
 	// already fetches the group internally for non-admin users.
-	existingGroup, err := s.groupRepo.FindByID(ctx, group.ID)
+	existingGroup, err := s.findMutableActivityGroup(ctx, group.ID)
 	if err != nil {
-		return nil, &ActivityError{Op: "update group", Err: ErrGroupNotFound}
+		return nil, &ActivityError{Op: "update group", Err: err}
 	}
 	if constants.IsSystemActivityName(existingGroup.Name) && group.Name != existingGroup.Name {
 		return nil, &ActivityError{Op: "update group", Err: ErrSystemActivityProtected}
@@ -246,12 +270,26 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 // DeleteGroup deletes an activity group and all related records with ownership verification
 // Only the creator, supervisors, or users with manage permission can delete
 func (s *Service) DeleteGroup(ctx context.Context, id int64, requestingStaffID int64, hasManagePermission bool) error {
-	// Block deletion of system activities (Schulhof Freispiel, WC).
-	// Only block if the group exists and is a system activity — if it doesn't exist,
-	// fall through to CanModifyActivity which handles admin idempotent deletes.
+	// Resolve exactly once before permission and mutation checks. Managers keep
+	// the historical idempotent-delete contract for a missing row, but return
+	// immediately so a concurrently inserted template with the same sequence ID
+	// can never be deleted after an absent preflight. Infrastructure failures
+	// are never treated as absence.
 	existingGroup, err := s.groupRepo.FindByID(ctx, id)
-	if err == nil && constants.IsSystemActivityName(existingGroup.Name) {
+	if err != nil {
+		if base.IsNoRows(err) && hasManagePermission {
+			return nil
+		}
+		if base.IsNoRows(err) {
+			return &ActivityError{Op: "delete group", Err: ErrGroupNotFound}
+		}
+		return &ActivityError{Op: "delete group", Err: err}
+	}
+	if constants.IsSystemActivityName(existingGroup.Name) {
 		return &ActivityError{Op: "delete group", Err: ErrSystemActivityProtected}
+	}
+	if existingGroup.IsTemplate {
+		return &ActivityError{Op: "delete group", Err: ErrTimetableTemplateProtected}
 	}
 
 	// Check if user can modify this activity before starting transaction
@@ -478,16 +516,4 @@ func (s *Service) CanModifyActivity(ctx context.Context, groupID int64, staffID 
 	}
 
 	return false, nil
-}
-
-// validateGroupExists checks if a group exists
-func (s *Service) validateGroupExists(ctx context.Context, txService ActivityService, groupID int64) error {
-	_, err := txService.(*Service).groupRepo.FindByID(ctx, groupID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrGroupNotFound
-		}
-		return &ActivityError{Op: opFindGroup, Err: err}
-	}
-	return nil
 }

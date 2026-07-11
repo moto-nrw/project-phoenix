@@ -73,18 +73,36 @@ func TestGetDatabaseDSN_MissingConfigFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "DB_DSN")
 }
 
-// TestGetDatabaseDSN_ExplicitDSN_OverridesAppEnv verifies that explicit DB_DSN takes precedence over APP_ENV
-func TestGetDatabaseDSN_ExplicitDSN_OverridesAppEnv(t *testing.T) {
+// TestGetDatabaseDSN_TestEnvNeverUsesDevelopmentDSN proves the documented
+// APP_ENV=test migration command cannot reset the development database merely
+// because dev.env also contains DB_DSN.
+func TestGetDatabaseDSN_TestEnvNeverUsesDevelopmentDSN(t *testing.T) {
 	defer viper.Reset()
 
-	customDSN := "postgres://explicit:explicit@explicit-host:7777/explicit_db?sslmode=require"
-	viper.Set("db_dsn", customDSN)
-	viper.Set("app_env", "test") // Should be ignored
+	developmentDSN := "postgres://development:development@localhost:5432/phoenix?sslmode=disable"
+	testDSN := "postgres://test:test@localhost:5433/phoenix_test?sslmode=disable"
+	viper.Set("db_dsn", developmentDSN)
+	viper.Set("test_db_dsn", testDSN)
+	viper.Set("app_env", "test")
 
 	result, err := resolveDatabaseDSN()
 
 	require.NoError(t, err)
-	assert.Equal(t, customDSN, result, "Explicit db_dsn should override app_env")
+	assert.Equal(t, testDSN, result)
+	assert.NotEqual(t, developmentDSN, result)
+}
+
+func TestGetDatabaseDSN_TestEnvWithoutTestDSNFailsEvenWhenDevelopmentDSNExists(t *testing.T) {
+	defer viper.Reset()
+
+	viper.Set("db_dsn", "postgres://development:development@localhost:5432/phoenix?sslmode=disable")
+	viper.Set("app_env", "test")
+
+	result, err := resolveDatabaseDSN()
+
+	require.Error(t, err)
+	assert.Empty(t, result)
+	assert.Contains(t, err.Error(), "TEST_DB_DSN")
 }
 
 // TestGetDatabaseDSN_ExplicitDSN_OverridesLegacy verifies that explicit DB_DSN takes precedence over TEST_DB_DSN

@@ -43,6 +43,8 @@ function makeInstance(
     absentStaffCount: 0,
     expectedStudentsCount: 0,
     presentStudentsCount: 0,
+    requiredStaffCount: 0,
+    assignedStaffCount: 0,
     conflictWarnings: [],
     ...overrides,
   };

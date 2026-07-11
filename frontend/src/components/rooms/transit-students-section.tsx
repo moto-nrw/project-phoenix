@@ -23,6 +23,10 @@ import { userContextService } from "~/lib/usercontext-api";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useTenantRouter } from "~/lib/tenant-router";
+import {
+  useAttendanceWebEnabled,
+  useOpenCareGroupMode,
+} from "~/lib/tenant-context";
 
 const DETAIL_CARD_CLASS =
   "rounded-3xl moto-content-surface border p-5 shadow-sm sm:p-6";
@@ -57,7 +61,9 @@ export function TransitStudentsSection({
 }: TransitStudentsSectionProps) {
   const router = useTenantRouter();
   const { data: session } = useSession();
-  const showAllTargets = canUseAllMoveTargets(session);
+  const attendanceWebEnabled = useAttendanceWebEnabled();
+  const openCare = useOpenCareGroupMode();
+  const showAllTargets = canUseAllMoveTargets(session) || openCare;
   const sectionSearchParams = useSearchParams();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(() => new Set());
   const [collapsibleExpanded, setCollapsibleExpanded] = useState(false);
@@ -291,84 +297,86 @@ export function TransitStudentsSection({
 
       {isExpanded ? (
         <>
-          <div
-            className={`mt-4 mb-4 rounded-2xl border p-3 transition-shadow ${
-              selectedVisibleCount > 0
-                ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-sm backdrop-blur"
-                : "border-transparent bg-gray-50/80 shadow-none"
-            }`}
-          >
-            <div className="flex items-start justify-between gap-3">
-              <p className="min-w-0 text-sm font-semibold text-gray-900">
-                <span className="block truncate">
-                  {selectedVisibleCount > 0
-                    ? `${selectedVisibleCount} von ${students.length} ausgewählt`
-                    : "Kinder auswählen"}
-                </span>
-                <span className="block text-xs font-medium text-gray-500">
-                  Zielraum wählen und gemeinsam zuweisen
-                </span>
-              </p>
-              {students.length > 0 ? (
+          {attendanceWebEnabled ? (
+            <div
+              className={`mt-4 mb-4 rounded-2xl border p-3 transition-shadow ${
+                selectedVisibleCount > 0
+                  ? "sticky bottom-3 z-20 border-gray-200 bg-white/95 shadow-sm backdrop-blur"
+                  : "border-transparent bg-gray-50/80 shadow-none"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <p className="min-w-0 text-sm font-semibold text-gray-900">
+                  <span className="block truncate">
+                    {selectedVisibleCount > 0
+                      ? `${selectedVisibleCount} von ${students.length} ausgewählt`
+                      : "Kinder auswählen"}
+                  </span>
+                  <span className="block text-xs font-medium text-gray-500">
+                    Zielraum wählen und gemeinsam zuweisen
+                  </span>
+                </p>
+                {students.length > 0 ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={allSelected ? clearSelection : selectAllVisible}
+                    className="h-8 shrink-0 rounded-full px-3 py-0 text-xs shadow-none"
+                  >
+                    {allSelected ? "Aufheben" : "Alle auswählen"}
+                  </Button>
+                ) : null}
+              </div>
+
+              <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                <DatabaseSelect
+                  id="transit-target-room"
+                  name="transit-target-room"
+                  label="Zielraum"
+                  value={targetGroupId}
+                  onChange={(value) => {
+                    setTargetGroupId(value);
+                    setSubmitError(null);
+                  }}
+                  disabled={
+                    groupsLoading ||
+                    staffLoading ||
+                    supervisionsLoading ||
+                    targetOptions.length === 0 ||
+                    submitting
+                  }
+                  placeholder={
+                    groupsLoading || staffLoading || supervisionsLoading
+                      ? "Aktive Räume werden geladen..."
+                      : targetOptions.length === 0
+                        ? "Keine aktiven Räume"
+                        : "Zielraum wählen"
+                  }
+                  options={targetOptions.map((group) => ({
+                    value: group.id,
+                    label: buildSessionLabel(group),
+                  }))}
+                  focusRingColor="focus:ring-gray-300"
+                  className="bg-white text-sm md:text-sm"
+                />
                 <Button
                   type="button"
-                  variant="outline"
+                  variant="primary"
                   size="sm"
-                  onClick={allSelected ? clearSelection : selectAllVisible}
-                  className="h-8 shrink-0 rounded-full px-3 py-0 text-xs shadow-none"
+                  isLoading={submitting}
+                  loadingText="Weise zu..."
+                  onClick={() => void assignSelected()}
+                  disabled={
+                    !targetGroupId || selectedVisibleCount === 0 || submitting
+                  }
+                  className="h-9 w-full px-3 py-2 text-xs shadow-sm sm:w-auto"
                 >
-                  {allSelected ? "Aufheben" : "Alle auswählen"}
+                  In Raum setzen
                 </Button>
-              ) : null}
+              </div>
             </div>
-
-            <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
-              <DatabaseSelect
-                id="transit-target-room"
-                name="transit-target-room"
-                label="Zielraum"
-                value={targetGroupId}
-                onChange={(value) => {
-                  setTargetGroupId(value);
-                  setSubmitError(null);
-                }}
-                disabled={
-                  groupsLoading ||
-                  staffLoading ||
-                  supervisionsLoading ||
-                  targetOptions.length === 0 ||
-                  submitting
-                }
-                placeholder={
-                  groupsLoading || staffLoading || supervisionsLoading
-                    ? "Aktive Räume werden geladen..."
-                    : targetOptions.length === 0
-                      ? "Keine aktiven Räume"
-                      : "Zielraum wählen"
-                }
-                options={targetOptions.map((group) => ({
-                  value: group.id,
-                  label: buildSessionLabel(group),
-                }))}
-                focusRingColor="focus:ring-gray-300"
-                className="bg-white text-sm md:text-sm"
-              />
-              <Button
-                type="button"
-                variant="primary"
-                size="sm"
-                isLoading={submitting}
-                loadingText="Weise zu..."
-                onClick={() => void assignSelected()}
-                disabled={
-                  !targetGroupId || selectedVisibleCount === 0 || submitting
-                }
-                className="h-9 w-full px-3 py-2 text-xs shadow-sm sm:w-auto"
-              >
-                In Raum setzen
-              </Button>
-            </div>
-          </div>
+          ) : null}
 
           <div className="mt-4 flex flex-col gap-2">
             {studentsLoading && students.length === 0 ? (
@@ -395,38 +403,52 @@ export function TransitStudentsSection({
                         : "border-gray-100 bg-white hover:border-gray-200 hover:bg-gray-50"
                     }`}
                   >
-                    <button
-                      type="button"
-                      role="checkbox"
-                      aria-checked={checked}
-                      aria-label={`${fullName} auswählen`}
-                      onClick={() => toggleSelected(studentId)}
-                      className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
-                    >
-                      <span
-                        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
-                          checked
-                            ? "border-gray-900 bg-gray-900"
-                            : "border-gray-300 bg-white"
-                        }`}
-                        aria-hidden="true"
+                    {attendanceWebEnabled ? (
+                      <button
+                        type="button"
+                        role="checkbox"
+                        aria-checked={checked}
+                        aria-label={`${fullName} auswählen`}
+                        onClick={() => toggleSelected(studentId)}
+                        className="flex min-w-0 flex-1 items-center gap-3 rounded-xl text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
                       >
-                        <Check
-                          className={`h-3.5 w-3.5 text-white transition-opacity ${
-                            checked ? "opacity-100" : "opacity-0"
+                        <span
+                          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md border shadow-sm transition-all ${
+                            checked
+                              ? "border-gray-900 bg-gray-900"
+                              : "border-gray-300 bg-white"
                           }`}
+                          aria-hidden="true"
+                        >
+                          <Check
+                            className={`h-3.5 w-3.5 text-white transition-opacity ${
+                              checked ? "opacity-100" : "opacity-0"
+                            }`}
+                          />
+                        </span>
+                        <CompactStudentCard
+                          studentId={student.id}
+                          firstName={student.first_name}
+                          lastName={student.second_name}
+                          schoolClass={student.school_class}
+                          groupName={student.group_name ?? undefined}
+                          photoUrl={student.photo_url ?? null}
+                          chrome="plain"
                         />
-                      </span>
-                      <CompactStudentCard
-                        studentId={student.id}
-                        firstName={student.first_name}
-                        lastName={student.second_name}
-                        schoolClass={student.school_class}
-                        groupName={student.group_name ?? undefined}
-                        photoUrl={student.photo_url ?? null}
-                        chrome="plain"
-                      />
-                    </button>
+                      </button>
+                    ) : (
+                      <div className="min-w-0 flex-1">
+                        <CompactStudentCard
+                          studentId={student.id}
+                          firstName={student.first_name}
+                          lastName={student.second_name}
+                          schoolClass={student.school_class}
+                          groupName={student.group_name ?? undefined}
+                          photoUrl={student.photo_url ?? null}
+                          chrome="plain"
+                        />
+                      </div>
+                    )}
                     <Button
                       type="button"
                       variant="outline"

@@ -368,6 +368,8 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     cancelReason: raw.cancel_reason ?? undefined,
     expectedStudentsCount: raw.expected_students_count,
     presentStudentsCount: raw.present_students_count,
+    requiredStaffCount: raw.required_staff_count,
+    assignedStaffCount: raw.assigned_staff_count,
     conflictWarnings: (raw.conflict_warnings ?? []).map((warning) => ({
       kind: warning.kind,
       resourceId: String(warning.resource_id),
@@ -644,8 +646,18 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       educationGroupName: template.education_group_name,
       isOpen: template.is_open,
       maxParticipants: template.max_participants,
+      calendarPeriodId:
+        template.calendar_period_id !== undefined &&
+        template.calendar_period_id !== null
+          ? String(template.calendar_period_id)
+          : undefined,
+      targetGroupType: template.target_group_type,
+      targetGradeLevel: template.target_grade_level,
+      targetSchoolClass: template.target_school_class,
       enrollmentCount: template.enrollment_count,
       supervisorCount: template.supervisor_count,
+      requiredStaffCount: template.required_staff_count,
+      assignedStaffCount: template.assigned_staff_count,
       studentIds: (template.student_ids ?? []).map(String),
       staffIds: (template.staff_ids ?? []).map(String),
       primaryStaffId:
@@ -668,6 +680,17 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       })),
     })),
   };
+}
+
+/**
+ * Resolves the calendar-period pin that governs a template's first schedule.
+ * A schedule pin is more specific than the template-level fallback, matching
+ * the backend materialization rule in schedulePinnedPeriodID.
+ */
+export function resolveTemplateCalendarPeriodId(
+  template: TimetableTemplate,
+): string | undefined {
+  return template.schedules[0]?.calendarPeriodId ?? template.calendarPeriodId;
 }
 
 /**
@@ -835,7 +858,7 @@ export function assignBlockLanes(
  * KPI + onboarding helpers for the planner overview zone.
  *
  * These are intentionally pure and instance/template-driven so the
- * "Geplant" / "Ohne Personal" headline cards work in every view
+ * "Geplant" / "Unterbesetzt" headline cards work in every view
  * (week/month/year/series) without hitting the 14-day-capped, week-only
  * /api/timetable/gaps endpoint.
  */
@@ -845,32 +868,44 @@ export function countPlanned(instances: EnrichedInstance[]): number {
   return instances.filter((inst) => inst.status !== "cancelled").length;
 }
 
-/**
- * Count instances with no effective staff (none assigned, or every assigned
- * person marked absent), excluding cancelled ones. A client-side
- * approximation of a Personal-Lücke that works across any date range — the
- * backend /api/timetable/gaps endpoint is capped at 14 days and week-only.
- */
-export function countStaffGaps(instances: EnrichedInstance[]): number {
-  return instances.filter(
-    (inst) =>
-      inst.status !== "cancelled" &&
-      inst.staffCount - inst.absentStaffCount <= 0,
+/** Whether a non-cancelled appointment falls short of its staffing ratio. */
+export function isInstanceUnderstaffed(instance: EnrichedInstance): boolean {
+  return (
+    instance.status !== "cancelled" &&
+    instance.requiredStaffCount > 0 &&
+    instance.assignedStaffCount < instance.requiredStaffCount
+  );
+}
+
+/** Count appointments that fall short of their staffing ratio. */
+export function countUnderstaffedInstances(
+  instances: EnrichedInstance[],
+): number {
+  return instances.filter(isInstanceUnderstaffed).length;
+}
+
+/** Count recurring series (Regeltermine) below their staffing requirement. */
+export function countUnderstaffedTemplates(
+  templates: TimetableTemplate[],
+): number {
+  return templates.filter(
+    (template) =>
+      template.requiredStaffCount > 0 &&
+      template.assignedStaffCount < template.requiredStaffCount,
   ).length;
 }
 
-/** Count recurring series (Regeltermine) without any assigned staff. */
-export function countTemplateStaffGaps(templates: TimetableTemplate[]): number {
-  return templates.filter((tpl) => tpl.staffIds.length === 0).length;
-}
-
-export type TimetableEnrollmentStatus = "active" | "none" | "unknown";
+/**
+ * Whether any active care offering points at a Betreuungsplan-Regeltermin.
+ * "unknown" means the linkage could not be read (no enrollment permission).
+ */
+export type TimetableCareOfferingLinkStatus = "linked" | "unlinked" | "unknown";
 
 export interface TimetableSetupState {
   periodDone: boolean;
   enrollmentDone: boolean;
   planDone: boolean;
-  /** false when the enrollment status is unknown (no read access) */
+  /** false when the care-offering linkage is unknown (no read access) */
   enrollmentApplicable: boolean;
   completedSteps: number;
   totalSteps: number;
@@ -882,18 +917,20 @@ export interface TimetableSetupState {
 /**
  * Status of the three onboarding steps shown in the planner setup guide
  * (Planungszeitraum / Anmeldung verknüpfen / Erste Woche planen). The
- * enrollment step is optional and is dropped from the progress count when
- * its status is unknown (the admin cannot read enrollment phases).
+ * enrollment step counts as done only when a care offering actually links to
+ * a Regeltermin — an active enrollment phase alone proves no linkage. It is
+ * optional and is dropped from the progress count when the linkage is unknown
+ * (the admin cannot read enrollment data).
  */
 export function computeTimetableSetup(input: {
   hasActivePeriod: boolean;
-  enrollment: TimetableEnrollmentStatus;
+  careOfferingLink: TimetableCareOfferingLinkStatus;
   hasPlan: boolean;
 }): TimetableSetupState {
   const periodDone = input.hasActivePeriod;
   const planDone = input.hasPlan;
-  const enrollmentApplicable = input.enrollment !== "unknown";
-  const enrollmentDone = input.enrollment === "active";
+  const enrollmentApplicable = input.careOfferingLink !== "unknown";
+  const enrollmentDone = input.careOfferingLink === "linked";
 
   const totalSteps = enrollmentApplicable ? 3 : 2;
   const completedSteps =

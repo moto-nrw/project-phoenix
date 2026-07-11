@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { TimetableTemplate } from "~/lib/timetable-types";
 
 const {
   mockSearch,
@@ -22,6 +23,8 @@ const {
   mockEventModalProps,
   mockLoggerWarn,
   mockLoggerError,
+  mockListPhases,
+  mockListCareOfferings,
 } = vi.hoisted(() => ({
   mockSearch: { value: "" },
   mockUseSession: vi.fn(),
@@ -43,6 +46,8 @@ const {
   mockEventModalProps: vi.fn(),
   mockLoggerWarn: vi.fn(),
   mockLoggerError: vi.fn(),
+  mockListPhases: vi.fn(),
+  mockListCareOfferings: vi.fn(),
 }));
 
 vi.mock("next/navigation", () => ({
@@ -151,6 +156,14 @@ vi.mock("~/lib/staff-api", () => ({
   staffService: {
     getAllStaff: vi.fn(),
   },
+}));
+
+vi.mock("~/lib/enrollment-phase-api", () => ({
+  listPhases: mockListPhases,
+}));
+
+vi.mock("~/lib/care-offering-api", () => ({
+  listCareOfferings: mockListCareOfferings,
 }));
 
 vi.mock("~/components/ui/loading", () => ({
@@ -387,15 +400,11 @@ vi.mock("~/components/timetable/template-list", () => ({
     onApply,
     onArchive,
   }: {
-    templates: Array<{ id: string; name: string }>;
+    templates: TimetableTemplate[];
     onCreate: () => void;
-    onEdit: (template: { id: string; name: string }) => void;
-    onApply: (template: {
-      id: string;
-      name: string;
-      schedules: Array<{ calendarPeriodId?: string }>;
-    }) => void;
-    onArchive: (template: { id: string; name: string }) => void;
+    onEdit: (template: TimetableTemplate) => void;
+    onApply: (template: TimetableTemplate) => void;
+    onArchive: (template: TimetableTemplate) => void;
   }) => (
     <div>
       <button type="button" onClick={onCreate}>
@@ -409,15 +418,7 @@ vi.mock("~/components/timetable/template-list", () => ({
           <button type="button" onClick={() => onArchive(templates[0]!)}>
             archive-template
           </button>
-          <button
-            type="button"
-            onClick={() =>
-              onApply({
-                ...templates[0]!,
-                schedules: [{ calendarPeriodId: "5" }],
-              })
-            }
-          >
+          <button type="button" onClick={() => onApply(templates[0]!)}>
             apply-template
           </button>
         </>
@@ -510,6 +511,7 @@ vi.mock("~/components/timetable/timetable-event-modal", () => ({
     defaultDate?: string;
     defaultStartTime?: string;
     defaultEndTime?: string;
+    calendarPeriods?: Array<{ id: string }>;
     defaultCalendarPeriodId?: string | null;
     initialSeries?: { id: string } | null;
     onDeleteSeries?: (
@@ -564,14 +566,23 @@ vi.mock("~/components/timetable/calendar-period-modal", () => ({
     onClose,
     onSaved,
     onDeleted,
+    usage,
   }: {
     isOpen: boolean;
     onClose: () => void;
     onSaved: () => void;
     onDeleted: () => void;
+    usage?: {
+      enrollmentPhaseCount: number;
+      activityGroupCount: number;
+      scheduleCount: number;
+      studentEnrollmentCount: number;
+      supervisorCount: number;
+      activityInstanceCount: number;
+    };
   }) =>
     isOpen ? (
-      <div>
+      <div data-testid="period-modal" data-usage={JSON.stringify(usage)}>
         <button type="button" onClick={onClose}>
           period-close
         </button>
@@ -585,7 +596,7 @@ vi.mock("~/components/timetable/calendar-period-modal", () => ({
     ) : null,
 }));
 
-import TimetablesPage from "./page";
+import TimetablesPage, { loadCareOfferingLinkSummary } from "./page";
 
 const instance = {
   id: "42",
@@ -614,6 +625,8 @@ const instance = {
   absentStaffCount: 1,
   expectedStudentsCount: 1,
   presentStudentsCount: 0,
+  requiredStaffCount: 3,
+  assignedStaffCount: 1,
   conflictWarnings: [
     {
       kind: "room" as const,
@@ -632,6 +645,12 @@ const period = {
   endDate: "2026-12-31",
   weekCycleLength: 1,
   isActive: true,
+  enrollmentPhaseCount: 1,
+  activityGroupCount: 2,
+  scheduleCount: 3,
+  studentEnrollmentCount: 4,
+  supervisorCount: 5,
+  activityInstanceCount: 6,
 };
 
 const laterPeriod = {
@@ -642,9 +661,15 @@ const laterPeriod = {
   endDate: "2028-07-31",
   weekCycleLength: 1,
   isActive: true,
+  enrollmentPhaseCount: 0,
+  activityGroupCount: 0,
+  scheduleCount: 0,
+  studentEnrollmentCount: 0,
+  supervisorCount: 0,
+  activityInstanceCount: 0,
 };
 
-const template = {
+const template: TimetableTemplate = {
   id: "7",
   name: "Yoga",
   type: "activity" as const,
@@ -652,8 +677,11 @@ const template = {
   categoryName: "AG",
   isOpen: true,
   maxParticipants: 12,
+  targetGroupType: "none",
   enrollmentCount: 8,
   supervisorCount: 1,
+  requiredStaffCount: 3,
+  assignedStaffCount: 1,
   studentIds: ["21"],
   staffIds: ["11"],
   schedules: [
@@ -670,15 +698,23 @@ const template = {
 
 function setupSWR({
   periods = [period],
+  templates = [template],
   settingsSchema = null,
   settingsSchemaLoading = false,
+  careOfferingLink = null,
 }: {
   periods?: Array<typeof period>;
+  templates?: TimetableTemplate[];
   settingsSchema?: unknown;
   settingsSchemaLoading?: boolean;
+  /** null = the planner admin cannot read enrollment (status "unknown"). */
+  careOfferingLink?: { total: number; linked: number } | null;
 } = {}) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
+    if (key === "timetable-care-offering-link") {
+      return { data: careOfferingLink, isLoading: false };
+    }
     if (key === "settings-schema") {
       return settingsSchemaLoading
         ? { isLoading: true }
@@ -713,7 +749,7 @@ function setupSWR({
       return { data: { conflicts: [] }, isLoading: false };
     }
     if (key.startsWith("timetable-templates")) {
-      return { data: { templates: [template] }, isLoading: false };
+      return { data: { templates }, isLoading: false };
     }
     if (key.startsWith("timetable-")) {
       return {
@@ -755,6 +791,8 @@ describe("TimetablesPage", () => {
         }),
     );
     mockArchiveTemplate.mockResolvedValue({});
+    mockListPhases.mockResolvedValue([]);
+    mockListCareOfferings.mockResolvedValue([]);
     setupSWR();
     window.history.replaceState(null, "", "/acme/timetables");
   });
@@ -783,12 +821,42 @@ describe("TimetablesPage", () => {
 
     fireEvent.click(screen.getByText("edit-period"));
     expect(screen.getByText("period-delete")).toBeInTheDocument();
+    expect(screen.getByTestId("period-modal")).toHaveAttribute(
+      "data-usage",
+      JSON.stringify({
+        enrollmentPhaseCount: 1,
+        activityGroupCount: 2,
+        scheduleCount: 3,
+        studentEnrollmentCount: 4,
+        supervisorCount: 5,
+        activityInstanceCount: 6,
+      }),
+    );
     fireEvent.click(screen.getByText("period-delete"));
     await waitFor(() =>
       expect(mockTenantMutate).toHaveBeenCalledWith(
         "database-calendar-periods-list",
       ),
     );
+  });
+
+  it("uses staffing ratios for the overview in every planner view", () => {
+    render(<TimetablesPage />);
+
+    const expectUnderstaffed = () => {
+      const label = screen.getByText("Unterbesetzt");
+      expect(label.parentElement).toHaveTextContent("1");
+      expect(
+        screen.getByText("zusätzliches Personal nötig"),
+      ).toBeInTheDocument();
+    };
+
+    expectUnderstaffed();
+
+    for (const viewButton of ["week-view", "year-view", "series-view"]) {
+      fireEvent.click(screen.getByText(viewButton));
+      expectUnderstaffed();
+    }
   });
 
   it("navigates views and runs week actions", async () => {
@@ -975,6 +1043,110 @@ describe("TimetablesPage", () => {
     expect(mockBootstrap).not.toHaveBeenCalled();
   });
 
+  // Issue #1651: the setup step reflects real care-offering linkage, not the
+  // mere existence of an active enrollment phase.
+  it("keeps the enrollment setup step open while no care offering is linked", () => {
+    setupSWR({ careOfferingLink: { total: 3, linked: 0 } });
+
+    render(<TimetablesPage />);
+
+    const step = screen.getByRole("link", {
+      name: /Mit der Anmeldung verknüpfen/,
+    });
+    expect(step).toHaveAttribute("href", "/care-offerings");
+    expect(step).toHaveTextContent("0 von 3 Angeboten verknüpft");
+  });
+
+  it("marks the enrollment setup step done once a care offering is linked", () => {
+    setupSWR({ careOfferingLink: { total: 3, linked: 2 } });
+
+    render(<TimetablesPage />);
+
+    const step = screen.getByRole("link", {
+      name: /Mit der Anmeldung verknüpfen/,
+    });
+    expect(step).toHaveTextContent("2 von 3 Angeboten verknüpft");
+    expect(step).toHaveTextContent("Angebote öffnen");
+  });
+
+  it("hides the enrollment setup step when the linkage cannot be read", () => {
+    setupSWR({ careOfferingLink: null });
+
+    render(<TimetablesPage />);
+
+    expect(
+      screen.queryByText("Mit der Anmeldung verknüpfen"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("treats a failed active-phase offering request as unknown", async () => {
+    mockListPhases.mockResolvedValue([
+      { id: "10", is_active: true },
+      { id: "11", is_active: true },
+    ]);
+    mockListCareOfferings.mockImplementation((phaseId: string) => {
+      if (phaseId === "11") return Promise.reject(new Error("forbidden"));
+      return Promise.resolve([
+        {
+          phase_id: "10",
+          is_active: true,
+          activity_group_id: "7",
+        },
+      ]);
+    });
+
+    await expect(loadCareOfferingLinkSummary()).resolves.toBeNull();
+    expect(mockLoggerWarn).toHaveBeenCalledWith(
+      "timetable_care_offering_link_load_failed",
+      { error: "forbidden" },
+    );
+  });
+
+  it("summarizes only active offerings from active phases", async () => {
+    mockListPhases.mockResolvedValue([
+      { id: "10", is_active: true },
+      { id: "11", is_active: false },
+    ]);
+    mockListCareOfferings.mockResolvedValue([
+      {
+        phase_id: "10",
+        is_active: true,
+        activity_group_id: "7",
+      },
+      {
+        phase_id: "10",
+        is_active: true,
+        activity_group_id: null,
+      },
+      {
+        phase_id: "10",
+        is_active: false,
+        activity_group_id: "8",
+      },
+    ]);
+
+    await expect(loadCareOfferingLinkSummary()).resolves.toEqual({
+      total: 2,
+      linked: 1,
+    });
+    expect(mockListCareOfferings).toHaveBeenCalledTimes(1);
+    expect(mockListCareOfferings).toHaveBeenCalledWith("10");
+  });
+
+  // A fresh school has no enrollment phases at all — "0 von 0 Angeboten
+  // verknüpft" would be nonsense on the very screen the guide exists for.
+  it("shows a plain hint instead of a 0-of-0 ratio when no offerings exist", () => {
+    setupSWR({ careOfferingLink: { total: 0, linked: 0 } });
+
+    render(<TimetablesPage />);
+
+    const step = screen.getByRole("link", {
+      name: /Mit der Anmeldung verknüpfen/,
+    });
+    expect(step).toHaveTextContent("Noch keine Angebote");
+    expect(step).not.toHaveTextContent("0 von 0");
+  });
+
   it("logs a warning when the bootstrap fails with 403", async () => {
     setupSWR({ periods: [] });
     mockBootstrap.mockRejectedValue(
@@ -1053,7 +1225,38 @@ describe("TimetablesPage", () => {
       expect.objectContaining({
         isOpen: true,
         defaultCalendarPeriodId: "6",
+        calendarPeriods: expect.arrayContaining([
+          expect.objectContaining({ id: "6" }),
+        ]),
       }),
+    );
+  });
+
+  it("materializes a template-only period pin instead of the current period", async () => {
+    setupSWR({
+      periods: [period, laterPeriod],
+      templates: [
+        {
+          ...template,
+          calendarPeriodId: "6",
+          schedules: template.schedules.map((schedule) => ({
+            ...schedule,
+            calendarPeriodId: undefined,
+          })),
+        },
+      ],
+    });
+    mockSearch.value = "view=series&period=5";
+    render(<TimetablesPage />);
+
+    fireEvent.click(screen.getByText("apply-template"));
+
+    await waitFor(() =>
+      expect(mockMaterialize).toHaveBeenNthCalledWith(
+        1,
+        "2027-08-01",
+        "2027-09-25",
+      ),
     );
   });
 

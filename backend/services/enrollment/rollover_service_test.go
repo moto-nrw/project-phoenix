@@ -3,6 +3,7 @@ package enrollment_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -37,12 +38,22 @@ type rolloverTestEnv struct {
 func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	// Close the pool after all fixture cleanups registered by the test. The
+	// decision-service tests reuse this setup and may register additional
+	// t.Cleanup hooks (for example calendar periods); closing inside the
+	// returned cleanup made those hooks run against a closed pool and leak rows
+	// into subsequent tests in the package-isolated database.
+	t.Cleanup(func() { _ = db.Close() })
 	testpkg.EnsureTestTenant(t, db, 1)
 
 	repoFactory := repositories.NewFactory(db)
 	settings := newStubRequestSettings()
 	settings.boolValues[configModel.KeyEnrollmentEnabled] = true
 	settings.boolValues[configModel.KeyEnrollmentAllowSubmissionEdit] = true
+	settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = true
+	settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = true
+	settings.boolValues[configModel.KeyEnrollmentWaitlistEnabled] = true
+	settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingWarn
 	settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 4
 	settings.intValues[configModel.KeyEnrollmentStatusTokenTTLDays] = 365
 	// The shared env submits all four standard consent flags. Configure the
@@ -165,7 +176,6 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 			Where("tenant_id = 1 AND (id = ? OR rollover_source_phase_id = ?)", sourcePhase.ID, sourcePhase.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("enrollment.form_schemas").Where("created_by = ?", account.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("auth.accounts").Where("id = ?", account.ID).Exec(bg)
-		_ = db.Close()
 	}
 	return env, cleanup
 }
@@ -232,7 +242,85 @@ func validRolloverRequest(env *rolloverTestEnv, mode string, bumpsGrade bool) en
 	}
 }
 
+func rolloverServiceWithSettings(
+	env *rolloverTestEnv,
+	settings enrollmentService.RequestSettingsResolver,
+) enrollmentService.RolloverService {
+	return enrollmentService.NewRolloverService(enrollmentService.RolloverServiceConfig{
+		PhaseRepo:                env.repos.Phase,
+		RequestRepo:              env.repos.Request,
+		RequestChildRepo:         env.repos.RequestChild,
+		RequestChildOfferingRepo: env.repos.RequestChildOffering,
+		OutboxEnqueuer:           env.outbox,
+		Settings:                 settings,
+		ParentsURL:               "http://parents.localhost:3000",
+		DB:                       env.db,
+		Logger:                   slog.Default(),
+	})
+}
+
 // --- CreatePhaseFromSource ---
+
+func TestRolloverService_CreatePhaseFromSource_RejectsMissingGradeSettingsService(t *testing.T) {
+	env, cleanup := setupRolloverTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	service := rolloverServiceWithSettings(env, nil)
+	result, err := service.CreatePhaseFromSource(
+		ctx,
+		validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true),
+	)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorContains(t, err, "enrollment.grade_level_max")
+	exists, lookupErr := env.repos.Phase.ExistsByRolloverSourcePhaseID(ctx, env.sourcePhase.ID)
+	require.NoError(t, lookupErr)
+	assert.False(t, exists, "configuration failure must not create a follow-up phase")
+}
+
+func TestRolloverService_CreatePhaseFromSource_RejectsGradeSettingReadFailure(t *testing.T) {
+	env, cleanup := setupRolloverTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.intErrors[configModel.KeyEnrollmentGradeLevelMax] = errors.New("settings unavailable")
+
+	result, err := env.rolloverSvc.CreatePhaseFromSource(
+		ctx,
+		validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true),
+	)
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.ErrorContains(t, err, "settings unavailable")
+	exists, lookupErr := env.repos.Phase.ExistsByRolloverSourcePhaseID(ctx, env.sourcePhase.ID)
+	require.NoError(t, lookupErr)
+	assert.False(t, exists, "settings read failure must not create a follow-up phase")
+}
+
+func TestRolloverService_CreatePhaseFromSource_RejectsOutOfRangeGradeSetting(t *testing.T) {
+	for _, value := range []int{0, 14} {
+		t.Run(fmt.Sprintf("value_%d", value), func(t *testing.T) {
+			env, cleanup := setupRolloverTest(t)
+			defer cleanup()
+			ctx := testpkg.TenantContext(1)
+			env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = value
+
+			result, err := env.rolloverSvc.CreatePhaseFromSource(
+				ctx,
+				validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true),
+			)
+
+			require.Error(t, err)
+			assert.Nil(t, result)
+			assert.ErrorContains(t, err, "outside 1..13")
+			exists, lookupErr := env.repos.Phase.ExistsByRolloverSourcePhaseID(ctx, env.sourcePhase.ID)
+			require.NoError(t, lookupErr)
+			assert.False(t, exists, "invalid cap must not create a follow-up phase")
+		})
+	}
+}
 
 func TestRolloverService_CreatePhaseFromSource_OptOutHappyPath(t *testing.T) {
 	env, cleanup := setupRolloverTest(t)

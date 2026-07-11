@@ -117,6 +117,7 @@ export interface AdminRequestChild {
   reviewed_at?: string | null;
   reviewed_by?: number | null;
   activation_mode: string;
+  created_student_id?: string;
   custom_data?: Record<string, unknown>;
   /** Per-child Betreuungsangebote selection — detail endpoint only. */
   offerings?: AdminRequestChildOffering[];

@@ -18,7 +18,9 @@ import { TriangleAlert } from "lucide-react";
 
 import { getActivityColor } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
+import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { timetableStatusColors } from "./timetable-style";
+import { useShowTimetableCounts } from "~/lib/tenant-context";
 
 interface InstanceBlockProps {
   instance: EnrichedInstance;
@@ -46,6 +48,7 @@ export function InstanceBlock({
   isSelected,
   onClick,
 }: InstanceBlockProps) {
+  const showTimetableCounts = useShowTimetableCounts();
   const isCancelled = instance.status === "cancelled";
   const isActive = instance.status === "active";
   const hasConflict = instance.conflictWarnings.length > 0;
@@ -149,13 +152,29 @@ export function InstanceBlock({
         )}
 
         {!isCompact && !isCancelled && (
-          <div className="truncate text-[10px] text-gray-500">
-            {instance.staffCount} P ·{" "}
-            {instance.expectedStudentsCount + instance.presentStudentsCount} K
-            {isActive &&
-            instance.expectedStudentsCount + instance.presentStudentsCount > 0
-              ? ` · ${instance.presentStudentsCount} anwesend`
-              : ""}
+          <div className="flex items-center gap-1 truncate text-[10px] text-gray-500">
+            <span className="truncate">
+              {instance.staffCount} P
+              {showTimetableCounts &&
+                ` · ${instance.expectedStudentsCount + instance.presentStudentsCount} K`}
+              {showTimetableCounts &&
+              isActive &&
+              instance.expectedStudentsCount + instance.presentStudentsCount > 0
+                ? ` · ${instance.presentStudentsCount} anwesend`
+                : ""}
+            </span>
+            {instance.requiredStaffCount > 0 && (
+              <TimetableRatioPill
+                variant="compact"
+                icon={null}
+                label="Besetzung"
+                value={`${instance.assignedStaffCount}/${instance.requiredStaffCount}`}
+                tone={capacityTone(
+                  instance.assignedStaffCount,
+                  instance.requiredStaffCount,
+                )}
+              />
+            )}
           </div>
         )}
 

@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { useShowTimetableCounts } from "~/lib/tenant-context";
 import type {
   PlannedTimetableInstance,
   TimetableRosterRow,
@@ -28,12 +29,22 @@ interface PlannedNowSectionProps {
 
 const SOON_THRESHOLD_MINUTES = 15;
 
+function rosterPreviewLabel(
+  count: number,
+  showTimetableCounts: boolean,
+): string {
+  if (count === 0) return "keine Liste";
+  if (!showTimetableCounts) return "Liste verfügbar";
+  return `${count} erwartet`;
+}
+
 export function PlannedNowSection({
   plannedNow,
   hasActiveTimetableSession = false,
   isStartingInstance,
   onStart,
 }: PlannedNowSectionProps) {
+  const showTimetableCounts = useShowTimetableCounts();
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   const [sectionExpanded, setSectionExpanded] = useState<boolean | null>(null);
   const sortedPlanned = useMemo(
@@ -127,7 +138,9 @@ export function PlannedNowSection({
             label={`${sortedPlanned.length} geplant`}
             tone="info"
           />
-          <SummaryPill icon={Users} label={`${expectedCount} Kinder`} />
+          {showTimetableCounts && (
+            <SummaryPill icon={Users} label={`${expectedCount} Kinder`} />
+          )}
           {overdueCount > 0 ? (
             <SummaryPill
               icon={CircleAlert}
@@ -203,21 +216,27 @@ export function PlannedNowSection({
                       </button>
                     </div>
 
-                    <div className="mt-4 grid grid-cols-3 gap-2">
-                      <SlotStat
-                        label="Erwartet"
-                        value={instance.expectedStudentsCount}
-                        tone="neutral"
-                      />
-                      <SlotStat
-                        label="Anwesend"
-                        value={instance.presentStudentsCount}
-                        tone={
-                          instance.presentStudentsCount > 0
-                            ? "success"
-                            : "neutral"
-                        }
-                      />
+                    <div
+                      className={`mt-4 grid gap-2 ${showTimetableCounts ? "grid-cols-3" : "grid-cols-1"}`}
+                    >
+                      {showTimetableCounts && (
+                        <>
+                          <SlotStat
+                            label="Erwartet"
+                            value={instance.expectedStudentsCount}
+                            tone="neutral"
+                          />
+                          <SlotStat
+                            label="Anwesend"
+                            value={instance.presentStudentsCount}
+                            tone={
+                              instance.presentStudentsCount > 0
+                                ? "success"
+                                : "neutral"
+                            }
+                          />
+                        </>
+                      )}
                       <SlotStat
                         label="Betreuende"
                         value={instance.assignedStaffIds.length}
@@ -240,9 +259,10 @@ export function PlannedNowSection({
                         />
                         Kinder
                         <span className="text-xs font-normal text-gray-500">
-                          {instance.rosterPreview.length > 0
-                            ? `${instance.rosterPreview.length} erwartet`
-                            : "keine Liste"}
+                          {rosterPreviewLabel(
+                            instance.rosterPreview.length,
+                            showTimetableCounts,
+                          )}
                         </span>
                       </span>
                       <ChevronDown
@@ -262,7 +282,9 @@ export function PlannedNowSection({
                             onClick={() => toggleExpanded(instance.id)}
                             className="text-xs font-medium text-[#4070C8] hover:text-[#305FAE] focus-visible:ring-2 focus-visible:ring-[#5080D8]/30 focus-visible:outline-none"
                           >
-                            {hiddenCount} weitere anzeigen
+                            {showTimetableCounts
+                              ? `${hiddenCount} weitere anzeigen`
+                              : "Weitere anzeigen"}
                           </button>
                         ) : null}
                       </div>

@@ -112,6 +112,7 @@ type EnqueueRequest struct {
 	Payload           map[string]any
 	RelatedEntityType string // optional, e.g., "enrollment_request"
 	RelatedEntityID   int64  // optional, paired with RelatedEntityType
+	IdempotencyKey    string // optional; duplicate tenant/key enqueues are ignored
 }
 
 // Enqueue creates a pending outbox row in the current tenant
@@ -126,6 +127,7 @@ func (s *OutboxService) EnqueueOutbox(ctx context.Context, req platformModels.Ou
 		Payload:           req.Payload,
 		RelatedEntityType: req.RelatedEntityType,
 		RelatedEntityID:   req.RelatedEntityID,
+		IdempotencyKey:    req.IdempotencyKey,
 	})
 	return err
 }
@@ -145,6 +147,10 @@ func (s *OutboxService) Enqueue(ctx context.Context, req EnqueueRequest) (*platf
 		Kind:    req.Kind,
 		Payload: req.Payload,
 		Status:  platformModels.EmailOutboxStatusPending,
+	}
+	if req.IdempotencyKey != "" {
+		key := req.IdempotencyKey
+		row.IdempotencyKey = &key
 	}
 	if req.RelatedEntityType != "" {
 		t := req.RelatedEntityType

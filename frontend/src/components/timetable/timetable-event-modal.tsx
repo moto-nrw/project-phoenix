@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDown, Search, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useModal } from "~/components/dashboard/modal-context";
 import { Alert } from "~/components/ui/alert";
@@ -26,7 +26,9 @@ import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { formatDate, todayISO } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { fetchStudents } from "~/lib/student-api";
+import { getSchoolYear } from "~/lib/student-helpers";
 import { staffService } from "~/lib/staff-api";
+import { useTenant } from "~/lib/tenant-context";
 import { timetableService } from "~/lib/timetable-api";
 import { useDebounce } from "~/lib/use-debounce";
 import {
@@ -34,6 +36,7 @@ import {
   getActivityColor,
   getGermanWeekdayLong,
   getGermanWeekdayShort,
+  resolveTemplateCalendarPeriodId,
 } from "~/lib/timetable-helpers";
 import {
   timetableMutedSurface,
@@ -49,6 +52,7 @@ import type {
   CreateInstanceBody,
   CreateTemplateBody,
   EnrichedInstance,
+  TargetGroupType,
   TimetableTemplate,
   UpdateTemplateBody,
 } from "~/lib/timetable-types";
@@ -63,6 +67,7 @@ interface PersonOption {
   id: string;
   name: string;
   schoolClass?: string;
+  groupId?: string;
   groupName?: string;
 }
 
@@ -70,6 +75,13 @@ interface GroupOption {
   id: string;
   name: string;
 }
+
+const STUDENT_PAGE_SIZE = 500;
+const MAX_SUPPORTED_TARGET_GRADE_LEVEL = 13;
+const STUDENT_LOAD_ERROR =
+  "Die Kinderliste konnte nicht vollständig geladen werden. Die Kinderzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.";
+const STAFF_LOAD_ERROR =
+  "Die Personalliste konnte nicht vollständig geladen werden. Die Personalzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.";
 
 interface BackendRoomsEnvelope {
   data?: Array<{
@@ -104,6 +116,14 @@ interface EventFormState {
   studentIds: string[];
   staffIds: string[];
   primaryStaffId: string;
+  /**
+   * Zielgruppe (target group, issue #1838). "gruppe" reuses educationGroupId
+   * above as its value rather than a separate field — switching away from
+   * "gruppe" clears educationGroupId so the two never disagree.
+   */
+  targetGroupType: TargetGroupType;
+  targetGradeLevel: string; // "" | configured grade, only meaningful for "jahrgang"
+  targetSchoolClass: string; // "", only meaningful for "klasse"
 }
 
 type TimetableEventModalResult =
@@ -179,6 +199,15 @@ const REPEAT_OPTIONS: Array<{ value: RepeatMode; label: string }> = [
   { value: "biweekly", label: "Alle 2 Wochen" },
 ];
 
+/** Zielgruppe (target group) tab options, issue #1838. */
+const TARGET_GROUP_OPTIONS: Array<{ value: TargetGroupType; label: string }> = [
+  { value: "none", label: "Keine" },
+  { value: "jahrgang", label: "Jahrgang" },
+  { value: "klasse", label: "Klasse" },
+  { value: "gruppe", label: "Gruppe" },
+  { value: "angebot", label: "Angebotsauswahl" },
+];
+
 function isoWeekday(dateISO: string): number {
   const d = new Date(`${dateISO}T00:00:00`);
   const day = d.getDay();
@@ -216,6 +245,9 @@ function emptyForm(
     studentIds: [],
     staffIds: [],
     primaryStaffId: "",
+    targetGroupType: "none",
+    targetGradeLevel: "",
+    targetSchoolClass: "",
   };
 }
 
@@ -242,6 +274,9 @@ function formFromInstance(
     staffIds: instance.staff.map((item) => item.staffId),
     primaryStaffId:
       instance.staff.find((item) => item.isPrimary)?.staffId ?? "",
+    targetGroupType: "none",
+    targetGradeLevel: "",
+    targetSchoolClass: "",
   };
 }
 
@@ -266,10 +301,16 @@ function formFromSeries(
     repeat,
     weekdays: weekdays.length > 0 ? weekdays : [1],
     calendarPeriodId:
-      firstSchedule?.calendarPeriodId ?? defaultCalendarPeriodId ?? "",
+      resolveTemplateCalendarPeriodId(series) ?? defaultCalendarPeriodId ?? "",
     studentIds: series.studentIds,
     staffIds: series.staffIds,
     primaryStaffId: series.primaryStaffId ?? "",
+    targetGroupType: series.targetGroupType,
+    targetGradeLevel:
+      series.targetGradeLevel !== undefined && series.targetGradeLevel !== null
+        ? String(series.targetGradeLevel)
+        : "",
+    targetSchoolClass: series.targetSchoolClass?.trim() ?? "",
   };
 }
 
@@ -293,6 +334,88 @@ function sortPeople<T extends PersonOption>(items: T[]): T[] {
   });
 }
 
+function schoolClassLabel(schoolClass: string): string {
+  const trimmed = schoolClass.trim();
+  return /^klasse(?:\s|$)/i.test(trimmed) ? trimmed : `Klasse ${trimmed}`;
+}
+
+function targetCohortActionLabel(
+  label: string,
+  memberCount: number,
+  missingMemberCount: number,
+): string {
+  if (memberCount === 0) return `Keine Kinder aus ${label} gefunden`;
+  if (missingMemberCount === 0) {
+    return `Alle Kinder aus ${label} übernommen`;
+  }
+  const childLabel = memberCount === 1 ? "Kind" : "Kinder";
+  return `Alle ${memberCount} ${childLabel} aus ${label} übernehmen`;
+}
+
+function initialStudentIDs(
+  initialInstance: EnrichedInstance | null,
+  initialSeries: TimetableTemplate | null,
+  convertInstance: EnrichedInstance | null,
+): string[] {
+  if (initialSeries) return initialSeries.studentIds;
+  if (convertInstance) return convertInstance.studentIds;
+  if (initialInstance) return initialInstance.studentIds;
+  return [];
+}
+
+function initialStaffIDs(
+  initialInstance: EnrichedInstance | null,
+  initialSeries: TimetableTemplate | null,
+  convertInstance: EnrichedInstance | null,
+): string[] {
+  if (initialSeries) return initialSeries.staffIds;
+  const instance = convertInstance ?? initialInstance;
+  return instance?.staff.map((item) => item.staffId) ?? [];
+}
+
+function initialPrimaryStaffID(
+  initialInstance: EnrichedInstance | null,
+  initialSeries: TimetableTemplate | null,
+  convertInstance: EnrichedInstance | null,
+): string {
+  if (initialSeries) return initialSeries.primaryStaffId ?? "";
+  const instance = convertInstance ?? initialInstance;
+  return instance?.staff.find((item) => item.isPrimary)?.staffId ?? "";
+}
+
+async function fetchAllStudentOptions(): Promise<PersonOption[]> {
+  const firstPage = await fetchStudents({
+    page: 1,
+    page_size: STUDENT_PAGE_SIZE,
+  });
+  const totalPages = Math.max(1, firstPage.pagination?.total_pages ?? 1);
+  const remainingPages =
+    totalPages > 1
+      ? await Promise.all(
+          Array.from({ length: totalPages - 1 }, (_, index) =>
+            fetchStudents({
+              page: index + 2,
+              page_size: STUDENT_PAGE_SIZE,
+            }),
+          ),
+        )
+      : [];
+
+  const byID = new Map<string, PersonOption>();
+  for (const page of [firstPage, ...remainingPages]) {
+    for (const student of page.students) {
+      byID.set(student.id, {
+        id: student.id,
+        name: student.name,
+        schoolClass: student.school_class,
+        groupId: student.group_id,
+        groupName: student.group_name,
+      });
+    }
+  }
+  return [...byID.values()];
+}
+
 export function TimetableEventModal({
   isOpen,
   onClose,
@@ -312,6 +435,7 @@ export function TimetableEventModal({
   defaultStartTime,
   defaultEndTime,
 }: TimetableEventModalProps) {
+  const { tenant } = useTenant();
   const {
     success: toastSuccess,
     error: toastError,
@@ -327,12 +451,26 @@ export function TimetableEventModal({
       defaultEndTime,
     ),
   );
+  const [initialStudentIDsSnapshot, setInitialStudentIDsSnapshot] = useState(
+    () => initialStudentIDs(initialInstance, initialSeries, convertInstance),
+  );
+  const [initialStaffIDsSnapshot, setInitialStaffIDsSnapshot] = useState(() =>
+    initialStaffIDs(initialInstance, initialSeries, convertInstance),
+  );
+  const [initialPrimaryStaffIDSnapshot, setInitialPrimaryStaffIDSnapshot] =
+    useState(() =>
+      initialPrimaryStaffID(initialInstance, initialSeries, convertInstance),
+    );
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [students, setStudents] = useState<PersonOption[]>([]);
   const [staff, setStaff] = useState<PersonOption[]>([]);
   const [loadingRefs, setLoadingRefs] = useState(false);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [studentLoadError, setStudentLoadError] = useState<string | null>(null);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [staffLoadError, setStaffLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -349,6 +487,18 @@ export function TimetableEventModal({
   const [conflictWarnings, setConflictWarnings] = useState<
     ConflictWarningItem[]
   >([]);
+  // Reference data can outlive a close/reopen or a changed edit target. Keep
+  // the shared, student, and staff load generations separate so a retry may
+  // replace only its own roster while stale completions cannot overwrite a
+  // newer modal state.
+  const referenceLoadSeq = useRef(0);
+  const studentLoadSeq = useRef(0);
+  const staffLoadSeq = useRef(0);
+  const invalidateReferenceLoads = useCallback(() => {
+    referenceLoadSeq.current++;
+    studentLoadSeq.current++;
+    staffLoadSeq.current++;
+  }, []);
   // Monotonically increasing probe id so stale responses are dropped.
   const probeSeq = useRef(0);
 
@@ -358,24 +508,83 @@ export function TimetableEventModal({
   const isSeriesFlow = form.repeat !== "none" || isEditingSeries;
   const choiceDialogOpen = pendingSeriesEdit !== null;
   const canDeleteSeries = isEditingSeries && initialSeries && onDeleteSeries;
+  const gradeLevelMax = tenant?.gradeLevelMax;
+  const targetGradeOptions = useMemo(() => {
+    if (gradeLevelMax === undefined) return [];
+    const options = Array.from({ length: gradeLevelMax }, (_, index) => {
+      const value = String(index + 1);
+      return { value, label: `Jahrgang ${value}`, disabled: false };
+    });
+    if (
+      form.targetGradeLevel !== "" &&
+      !options.some((option) => option.value === form.targetGradeLevel)
+    ) {
+      const gradeLevel = Number(form.targetGradeLevel);
+      const supported =
+        Number.isInteger(gradeLevel) &&
+        gradeLevel >= 1 &&
+        gradeLevel <= MAX_SUPPORTED_TARGET_GRADE_LEVEL;
+      options.push({
+        value: form.targetGradeLevel,
+        label: `Jahrgang ${form.targetGradeLevel} (${supported ? "bestehend" : "ungültig"})`,
+        disabled: true,
+      });
+    }
+    return options;
+  }, [form.targetGradeLevel, gradeLevelMax]);
+  const preservesExistingTargetGrade =
+    initialSeries?.targetGradeLevel !== undefined &&
+    initialSeries.targetGradeLevel !== null &&
+    form.targetGradeLevel === String(initialSeries.targetGradeLevel) &&
+    Number.isInteger(initialSeries.targetGradeLevel) &&
+    initialSeries.targetGradeLevel >= 1 &&
+    initialSeries.targetGradeLevel <= MAX_SUPPORTED_TARGET_GRADE_LEVEL;
+  const preservesGradeAboveTenantCap =
+    preservesExistingTargetGrade &&
+    gradeLevelMax !== undefined &&
+    Number(form.targetGradeLevel) > gradeLevelMax;
+  const studentRosterEditable = !loadingStudents && studentLoadError === null;
+  const studentIDsForSave = studentRosterEditable
+    ? form.studentIds
+    : initialStudentIDsSnapshot;
+  const staffRosterEditable = !loadingStaff && staffLoadError === null;
+  const staffIDsForSave = staffRosterEditable
+    ? form.staffIds
+    : initialStaffIDsSnapshot;
+  const primaryStaffIDForSave = staffRosterEditable
+    ? form.primaryStaffId
+    : initialPrimaryStaffIDSnapshot;
 
   useEffect(() => {
-    if (!isOpen) return;
-    setForm(
-      initialSeries
-        ? formFromSeries(initialSeries, defaultDate, defaultCalendarPeriodId)
-        : convertInstance
-          ? formFromInstance(convertInstance, defaultCalendarPeriodId, "weekly")
-          : initialInstance
-            ? formFromInstance(initialInstance, defaultCalendarPeriodId)
-            : emptyForm(
-                defaultDate,
-                defaultCalendarPeriodId,
-                defaultRepeat,
-                defaultStartTime,
-                defaultEndTime,
-              ),
-    );
+    if (!isOpen) {
+      invalidateReferenceLoads();
+      return;
+    }
+    const referenceSeq = ++referenceLoadSeq.current;
+    const studentSeq = ++studentLoadSeq.current;
+    const staffSeq = ++staffLoadSeq.current;
+    const isCurrentReferenceLoad = () =>
+      referenceLoadSeq.current === referenceSeq;
+    const isCurrentStudentLoad = () => studentLoadSeq.current === studentSeq;
+    const isCurrentStaffLoad = () => staffLoadSeq.current === staffSeq;
+
+    const nextForm = initialSeries
+      ? formFromSeries(initialSeries, defaultDate, defaultCalendarPeriodId)
+      : convertInstance
+        ? formFromInstance(convertInstance, defaultCalendarPeriodId, "weekly")
+        : initialInstance
+          ? formFromInstance(initialInstance, defaultCalendarPeriodId)
+          : emptyForm(
+              defaultDate,
+              defaultCalendarPeriodId,
+              defaultRepeat,
+              defaultStartTime,
+              defaultEndTime,
+            );
+    setInitialStudentIDsSnapshot([...nextForm.studentIds]);
+    setInitialStaffIDsSnapshot([...nextForm.staffIds]);
+    setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
+    setForm(nextForm);
     setValidationError(null);
     setFieldErrors({});
     setDeleteConfirmOpen(false);
@@ -387,6 +596,12 @@ export function TimetableEventModal({
     setPendingSeriesEdit(null);
     setConflictWarnings([]);
     setLoadingRefs(true);
+    setLoadingStudents(true);
+    setStudentLoadError(null);
+    setStudents([]);
+    setLoadingStaff(true);
+    setStaffLoadError(null);
+    setStaff([]);
 
     void Promise.all([
       fetch("/api/rooms", { credentials: "include" })
@@ -427,32 +642,8 @@ export function TimetableEventModal({
           });
           return [] as GroupOption[];
         }),
-      fetchStudents({ page_size: 500 })
-        .then((res) =>
-          res.students.map((student) => ({
-            id: student.id,
-            name: student.name,
-            schoolClass: student.school_class,
-            groupName: student.group_name,
-          })),
-        )
-        .catch((err: unknown) => {
-          logger.error("students_fetch_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return [] as PersonOption[];
-        }),
-      staffService
-        .getAllStaff()
-        .then((items) => items.map((s) => ({ id: s.id, name: s.name })))
-        .catch((err: unknown) => {
-          logger.error("staff_fetch_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return [] as PersonOption[];
-        }),
     ])
-      .then(([roomData, categoryData, groupData, studentData, staffData]) => {
+      .then(([roomData, categoryData, groupData]) => {
         const sortedRooms = [...roomData].sort((a, b) =>
           a.name.localeCompare(b.name, "de"),
         );
@@ -462,18 +653,67 @@ export function TimetableEventModal({
         const sortedGroups = [...groupData].sort((a, b) =>
           a.name.localeCompare(b.name, "de"),
         );
-        setRooms(sortedRooms);
-        setCategories(sortedCategories);
-        setGroups(sortedGroups);
+        if (isCurrentReferenceLoad()) {
+          setRooms(sortedRooms);
+          setCategories(sortedCategories);
+          setGroups(sortedGroups);
+          setForm((prev) =>
+            prev.categoryId || sortedCategories.length === 0
+              ? prev
+              : { ...prev, categoryId: sortedCategories[0]?.id ?? "" },
+          );
+        }
+      })
+      .finally(() => {
+        if (isCurrentReferenceLoad()) setLoadingRefs(false);
+      });
+
+    // The student catalog has a stricter permission boundary than the shared
+    // planner references. Keep it on an independent lifecycle so users without
+    // users:read can still use rooms, categories and groups immediately.
+    void fetchAllStudentOptions()
+      .then((studentData) => {
+        if (!isCurrentStudentLoad()) return;
         setStudents(sortPeople(studentData));
-        setStaff(sortPeople(staffData));
-        setForm((prev) =>
-          prev.categoryId || sortedCategories.length === 0
-            ? prev
-            : { ...prev, categoryId: sortedCategories[0]?.id ?? "" },
+      })
+      .catch((err: unknown) => {
+        logger.error("students_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!isCurrentStudentLoad()) return;
+        setStudents([]);
+        setStudentLoadError(STUDENT_LOAD_ERROR);
+        setMoreOpen(true);
+      })
+      .finally(() => {
+        if (isCurrentStudentLoad()) setLoadingStudents(false);
+      });
+
+    // Staff carries the same users:read boundary as students. Keep it
+    // independent from rooms/categories/groups so a 403 cannot masquerade as
+    // an empty editable roster or delay the planner references.
+    void staffService
+      .getAllStaff()
+      .then((items) => {
+        if (!isCurrentStaffLoad()) return;
+        setStaff(
+          sortPeople(items.map((item) => ({ id: item.id, name: item.name }))),
         );
       })
-      .finally(() => setLoadingRefs(false));
+      .catch((err: unknown) => {
+        logger.error("staff_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!isCurrentStaffLoad()) return;
+        setStaff([]);
+        setStaffLoadError(STAFF_LOAD_ERROR);
+        setMoreOpen(true);
+      })
+      .finally(() => {
+        if (isCurrentStaffLoad()) setLoadingStaff(false);
+      });
+
+    return invalidateReferenceLoads;
   }, [
     convertInstance,
     defaultCalendarPeriodId,
@@ -483,6 +723,7 @@ export function TimetableEventModal({
     defaultStartTime,
     initialInstance,
     initialSeries,
+    invalidateReferenceLoads,
     isOpen,
     variant,
   ]);
@@ -498,8 +739,8 @@ export function TimetableEventModal({
     startTime: form.startTime,
     endTime: form.endTime,
     roomId: form.roomId,
-    staffIds: form.staffIds,
-    studentIds: form.studentIds,
+    staffIds: staffIDsForSave,
+    studentIds: studentIDsForSave,
   });
   const debouncedProbeKey = useDebounce(probeKey, 500);
   // The convert flow edits an existing instance too — its own slot must not
@@ -587,6 +828,24 @@ export function TimetableEventModal({
     clearFieldError("weekdays");
   };
 
+  const changeTargetGroupType = (nextType: TargetGroupType) => {
+    setForm((current) => ({
+      ...current,
+      targetGroupType: nextType,
+      targetGradeLevel: nextType === "jahrgang" ? current.targetGradeLevel : "",
+      targetSchoolClass: nextType === "klasse" ? current.targetSchoolClass : "",
+      educationGroupId: nextType === "gruppe" ? current.educationGroupId : "",
+    }));
+    setValidationError(null);
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next.targetGradeLevel;
+      delete next.targetSchoolClass;
+      delete next.educationGroupId;
+      return next;
+    });
+  };
+
   const validateForm = (): { roomId: number; categoryId?: number } | null => {
     const errors: Record<string, string> = {};
     if (form.title.trim() === "") {
@@ -622,6 +881,29 @@ export function TimetableEventModal({
       if (form.weekdays.length === 0) {
         errors.weekdays = "Bitte mindestens einen Wochentag auswählen.";
       }
+      if (form.targetGroupType === "jahrgang") {
+        const gradeLevel = Number(form.targetGradeLevel);
+        if (form.targetGradeLevel === "") {
+          errors.targetGradeLevel = "Bitte einen Jahrgang auswählen.";
+        } else if (
+          !Number.isInteger(gradeLevel) ||
+          gradeLevel < 1 ||
+          gradeLevel > MAX_SUPPORTED_TARGET_GRADE_LEVEL ||
+          gradeLevelMax === undefined ||
+          (gradeLevel > gradeLevelMax && !preservesExistingTargetGrade)
+        ) {
+          errors.targetGradeLevel = "Bitte einen gültigen Jahrgang auswählen.";
+        }
+      }
+      if (
+        form.targetGroupType === "klasse" &&
+        form.targetSchoolClass.trim() === ""
+      ) {
+        errors.targetSchoolClass = "Bitte eine Klasse auswählen.";
+      }
+      if (form.targetGroupType === "gruppe" && form.educationGroupId === "") {
+        errors.educationGroupId = "Bitte eine Gruppe auswählen.";
+      }
     }
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -629,7 +911,12 @@ export function TimetableEventModal({
       // a hidden field (Kategorie, Planungszeitraum, Wochentage) is visible.
       if (
         !expanded &&
-        (errors.categoryId ?? errors.calendarPeriodId ?? errors.weekdays)
+        (errors.categoryId ??
+          errors.calendarPeriodId ??
+          errors.weekdays ??
+          errors.targetGradeLevel ??
+          errors.targetSchoolClass ??
+          errors.educationGroupId)
       ) {
         setExpanded(true);
       }
@@ -691,8 +978,8 @@ export function TimetableEventModal({
       room_id: roomId,
       notes: form.notes.trim() || undefined,
       activity_group_id: activityGroupId ? Number(activityGroupId) : undefined,
-      staff_ids: form.staffIds.map(Number),
-      student_ids: form.studentIds.map(Number),
+      staff_ids: staffIDsForSave.map(Number),
+      student_ids: studentIDsForSave.map(Number),
     }) satisfies CreateInstanceBody;
 
   const seriesBody = (
@@ -709,12 +996,21 @@ export function TimetableEventModal({
     education_group_id: form.educationGroupId
       ? Number(form.educationGroupId)
       : undefined,
+    target_group_type: form.targetGroupType,
+    target_grade_level:
+      form.targetGroupType === "jahrgang" && form.targetGradeLevel
+        ? Number(form.targetGradeLevel)
+        : undefined,
+    target_school_class:
+      form.targetGroupType === "klasse" && form.targetSchoolClass
+        ? form.targetSchoolClass.trim()
+        : undefined,
     calendar_period_id: Number(form.calendarPeriodId),
     week_pattern: seriesWeekPattern(form.repeat),
-    student_ids: form.studentIds.map(Number),
-    staff_ids: form.staffIds.map(Number),
-    primary_staff_id: form.primaryStaffId
-      ? Number(form.primaryStaffId)
+    student_ids: studentIDsForSave.map(Number),
+    staff_ids: staffIDsForSave.map(Number),
+    primary_staff_id: primaryStaffIDForSave
+      ? Number(primaryStaffIDForSave)
       : undefined,
   });
 
@@ -732,8 +1028,22 @@ export function TimetableEventModal({
     roomId: number,
   ): UpdateTemplateBody => {
     const firstSchedule = template.schedules[0];
+    const calendarPeriodId =
+      resolveTemplateCalendarPeriodId(template) ?? form.calendarPeriodId;
     const weekdays = template.schedules.map((schedule) => schedule.weekday);
-    const primaryStaffId = form.primaryStaffId || template.primaryStaffId;
+    // A materialized occurrence may have a deliberate roster override. When
+    // users:read is unavailable, the occurrence snapshot is authoritative only
+    // for the single-instance scope; an all/following write targets the fetched
+    // template and must preserve that template's own roster instead.
+    const templateStudentIDs = studentRosterEditable
+      ? form.studentIds
+      : template.studentIds;
+    const templateStaffIDs = staffRosterEditable
+      ? form.staffIds
+      : template.staffIds;
+    const primaryStaffId = staffRosterEditable
+      ? form.primaryStaffId || template.primaryStaffId
+      : template.primaryStaffId;
     return {
       name: form.title.trim(),
       type: template.type,
@@ -745,18 +1055,22 @@ export function TimetableEventModal({
       education_group_id: template.educationGroupId
         ? Number(template.educationGroupId)
         : undefined,
+      // Zielgruppe is preserved from the existing template, not edited —
+      // this body builder only carries the fields a single-instance edit
+      // actually changes (title, times, room, people).
+      target_group_type: template.targetGroupType,
+      target_grade_level: template.targetGradeLevel,
+      target_school_class: template.targetSchoolClass,
       max_participants:
         template.maxParticipants > 0 ? template.maxParticipants : undefined,
       week_pattern: firstSchedule?.weekPattern ?? 0,
-      calendar_period_id: firstSchedule?.calendarPeriodId
-        ? Number(firstSchedule.calendarPeriodId)
-        : form.calendarPeriodId
-          ? Number(form.calendarPeriodId)
-          : undefined,
-      student_ids: form.studentIds.map(Number),
-      staff_ids: form.staffIds.map(Number),
+      calendar_period_id: calendarPeriodId
+        ? Number(calendarPeriodId)
+        : undefined,
+      student_ids: templateStudentIDs.map(Number),
+      staff_ids: templateStaffIDs.map(Number),
       primary_staff_id:
-        primaryStaffId && form.staffIds.includes(primaryStaffId)
+        primaryStaffId && templateStaffIDs.includes(primaryStaffId)
           ? Number(primaryStaffId)
           : undefined,
     };
@@ -1013,8 +1327,10 @@ export function TimetableEventModal({
         onSaved({ kind: "instance", instance: saved });
       } else {
         const template = await timetableService.getTemplate(groupId);
+        const templateCalendarPeriodId =
+          resolveTemplateCalendarPeriodId(template);
         const periodEnd =
-          findPeriod(template.schedules[0]?.calendarPeriodId)?.endDate ??
+          findPeriod(templateCalendarPeriodId)?.endDate ??
           findPeriod(form.calendarPeriodId)?.endDate;
         const body = templateBodyFromForm(template, pending.roomId);
         if (scope === "following") {
@@ -1137,14 +1453,22 @@ export function TimetableEventModal({
     }
   };
 
-  // Bulk-add entries for the Kinder field: every distinct class and group
-  // present in the loaded students, each carrying its member ids.
+  // Bulk-add entries for the Kinder field: every distinct grade, class, and
+  // group present in the loaded students, each carrying its member ids.
   const studentBulkOptions = useMemo(() => {
+    const gradeLevels = new Map<string, string[]>();
     const classes = new Map<string, string[]>();
     const groupNames = new Map<string, string[]>();
     for (const student of students) {
       const schoolClass = student.schoolClass?.trim();
       if (schoolClass) {
+        const gradeLevel = getSchoolYear(schoolClass);
+        if (gradeLevel) {
+          gradeLevels.set(gradeLevel, [
+            ...(gradeLevels.get(gradeLevel) ?? []),
+            student.id,
+          ]);
+        }
         classes.set(schoolClass, [
           ...(classes.get(schoolClass) ?? []),
           student.id,
@@ -1161,9 +1485,14 @@ export function TimetableEventModal({
     const byName = (a: [string, string[]], b: [string, string[]]) =>
       a[0].localeCompare(b[0], "de");
     return [
+      ...[...gradeLevels.entries()].sort(byName).map(([name, memberIds]) => ({
+        key: `grade:${name}`,
+        label: `Jahrgang ${name}`,
+        memberIds,
+      })),
       ...[...classes.entries()].sort(byName).map(([name, memberIds]) => ({
         key: `class:${name}`,
-        label: `Klasse ${name}`,
+        label: schoolClassLabel(name),
         memberIds,
       })),
       ...[...groupNames.entries()].sort(byName).map(([name, memberIds]) => ({
@@ -1173,6 +1502,132 @@ export function TimetableEventModal({
       })),
     ];
   }, [students]);
+
+  // Distinct school-class names for the Zielgruppe "Klasse" value picker
+  // (issue #1838) — reuses the already-fetched students, no new fetch.
+  const targetClassOptions = useMemo(() => {
+    const options = new Set(
+      students
+        .map((student) => student.schoolClass?.trim())
+        .filter((item): item is string => Boolean(item)),
+    );
+    const currentClass = form.targetSchoolClass.trim();
+    if (currentClass !== "") options.add(currentClass);
+    return [...options].sort((a, b) => a.localeCompare(b, "de"));
+  }, [form.targetSchoolClass, students]);
+  const targetClassDescriptionIDs = [
+    fieldErrors.targetSchoolClass ? "event_target_school_class_error" : null,
+    loadingStudents || studentLoadError
+      ? "event_target_school_class_availability"
+      : null,
+  ]
+    .filter((id): id is string => id !== null)
+    .join(" ");
+
+  const targetCohort = useMemo(() => {
+    let label: string | null = null;
+    let members: PersonOption[] = [];
+    if (form.targetGroupType === "jahrgang" && form.targetGradeLevel) {
+      label = `Jahrgang ${form.targetGradeLevel}`;
+      members = students.filter(
+        (student) =>
+          getSchoolYear(student.schoolClass?.trim() ?? "") ===
+          form.targetGradeLevel,
+      );
+    } else if (form.targetGroupType === "klasse" && form.targetSchoolClass) {
+      label = schoolClassLabel(form.targetSchoolClass);
+      members = students.filter(
+        (student) => student.schoolClass?.trim() === form.targetSchoolClass,
+      );
+    } else if (form.targetGroupType === "gruppe" && form.educationGroupId) {
+      const groupName = groups.find(
+        (group) => group.id === form.educationGroupId,
+      )?.name;
+      if (groupName) {
+        label = `Gruppe ${groupName}`;
+        members = students.filter(
+          (student) => student.groupId === form.educationGroupId,
+        );
+      }
+    }
+    return { label, memberIds: members.map((student) => student.id) };
+  }, [
+    form.educationGroupId,
+    form.targetGradeLevel,
+    form.targetGroupType,
+    form.targetSchoolClass,
+    groups,
+    students,
+  ]);
+  const missingTargetCohortCount = useMemo(() => {
+    const selected = new Set(form.studentIds);
+    return targetCohort.memberIds.filter((id) => !selected.has(id)).length;
+  }, [form.studentIds, targetCohort.memberIds]);
+  const targetCohortButtonLabel = targetCohort.label
+    ? targetCohortActionLabel(
+        targetCohort.label,
+        targetCohort.memberIds.length,
+        missingTargetCohortCount,
+      )
+    : "";
+
+  const addTargetCohort = () => {
+    if (targetCohort.memberIds.length === 0) return;
+    setForm((current) => ({
+      ...current,
+      studentIds: Array.from(
+        new Set([...current.studentIds, ...targetCohort.memberIds]),
+      ),
+    }));
+  };
+
+  const retryStudentLoad = async () => {
+    const studentSeq = ++studentLoadSeq.current;
+    const isCurrentStudentLoad = () => studentLoadSeq.current === studentSeq;
+    setLoadingStudents(true);
+    setStudentLoadError(null);
+    try {
+      const studentData = await fetchAllStudentOptions();
+      if (!isCurrentStudentLoad()) return;
+      setStudents(sortPeople(studentData));
+      setValidationError(null);
+    } catch (err) {
+      logger.error("students_retry_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      if (!isCurrentStudentLoad()) return;
+      setStudents([]);
+      setStudentLoadError(STUDENT_LOAD_ERROR);
+      setMoreOpen(true);
+    } finally {
+      if (isCurrentStudentLoad()) setLoadingStudents(false);
+    }
+  };
+
+  const retryStaffLoad = async () => {
+    const staffSeq = ++staffLoadSeq.current;
+    const isCurrentStaffLoad = () => staffLoadSeq.current === staffSeq;
+    setLoadingStaff(true);
+    setStaffLoadError(null);
+    try {
+      const staffData = await staffService.getAllStaff();
+      if (!isCurrentStaffLoad()) return;
+      setStaff(
+        sortPeople(staffData.map((item) => ({ id: item.id, name: item.name }))),
+      );
+      setValidationError(null);
+    } catch (err) {
+      logger.error("staff_retry_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      if (!isCurrentStaffLoad()) return;
+      setStaff([]);
+      setStaffLoadError(STAFF_LOAD_ERROR);
+      setMoreOpen(true);
+    } finally {
+      if (isCurrentStaffLoad()) setLoadingStaff(false);
+    }
+  };
 
   // Datum and Notiz only apply to the single-instance scope — series-wide
   // scopes write the template, which carries neither field.
@@ -1189,43 +1644,31 @@ export function TimetableEventModal({
         ? "Termin wiederholen"
         : "Termin";
 
-  // Personal renders before Kinder in every mode (Streichliste 8); the
-  // quick variant tucks all of this behind the "Weitere Optionen" row.
-  const peopleFields = (
-    <>
-      <MultiSelectField
-        label="Personal"
-        options={staff}
-        value={form.staffIds}
-        onChange={(ids) => {
-          update("staffIds", ids);
-          if (form.primaryStaffId && !ids.includes(form.primaryStaffId)) {
-            update("primaryStaffId", "");
-          }
-        }}
-        metadata="staff"
+  let studentRosterField: React.ReactNode;
+  if (loadingStudents) {
+    studentRosterField = (
+      <Alert
+        type="info"
+        message="Kinderliste wird geladen … Die bestehende Kinderzuordnung bleibt beim Speichern unverändert."
       />
-
-      {isSeriesFlow && form.staffIds.length > 0 && (
-        <Field label="Zuständige Person" htmlFor="event_primary_staff">
-          <select
-            id="event_primary_staff"
-            value={form.primaryStaffId}
-            onChange={(event) => update("primaryStaffId", event.target.value)}
-            className={FORM_SELECT_CLASS}
-          >
-            <option value="">Keine Auswahl</option>
-            {staff
-              .filter((person) => form.staffIds.includes(person.id))
-              .map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.name}
-                </option>
-              ))}
-          </select>
-        </Field>
-      )}
-
+    );
+  } else if (studentLoadError) {
+    studentRosterField = (
+      <div className="flex flex-col gap-2">
+        <Alert type="warning" message={studentLoadError} />
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          className="self-start"
+          onClick={() => void retryStudentLoad()}
+        >
+          Kinder erneut laden
+        </Button>
+      </div>
+    );
+  } else {
+    studentRosterField = (
       <MultiSelectField
         label="Kinder"
         options={students}
@@ -1234,6 +1677,78 @@ export function TimetableEventModal({
         metadata="student"
         bulkOptions={studentBulkOptions}
       />
+    );
+  }
+
+  let staffRosterField: React.ReactNode;
+  if (loadingStaff) {
+    staffRosterField = (
+      <Alert
+        type="info"
+        message="Personalliste wird geladen … Die bestehende Personalzuordnung bleibt beim Speichern unverändert."
+      />
+    );
+  } else if (staffLoadError) {
+    staffRosterField = (
+      <div className="flex flex-col gap-2">
+        <Alert type="warning" message={staffLoadError} />
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          className="self-start"
+          onClick={() => void retryStaffLoad()}
+        >
+          Personal erneut laden
+        </Button>
+      </div>
+    );
+  } else {
+    staffRosterField = (
+      <>
+        <MultiSelectField
+          label="Personal"
+          options={staff}
+          value={form.staffIds}
+          onChange={(ids) => {
+            update("staffIds", ids);
+            if (form.primaryStaffId && !ids.includes(form.primaryStaffId)) {
+              update("primaryStaffId", "");
+            }
+          }}
+          metadata="staff"
+        />
+
+        {isSeriesFlow && form.staffIds.length > 0 && (
+          <Field label="Zuständige Person" htmlFor="event_primary_staff">
+            <select
+              id="event_primary_staff"
+              value={form.primaryStaffId}
+              onChange={(event) => update("primaryStaffId", event.target.value)}
+              className={FORM_SELECT_CLASS}
+            >
+              <option value="">Keine Auswahl</option>
+              {staff
+                .filter((person) => form.staffIds.includes(person.id))
+                .map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.name}
+                  </option>
+                ))}
+            </select>
+          </Field>
+        )}
+      </>
+    );
+  }
+
+  // Personal renders before Kinder in every mode (Streichliste 8); the
+  // quick variant tucks all of this behind the "Weitere Optionen" row.
+  const peopleFields = (
+    <>
+      {staffRosterField}
+
+      {studentRosterField}
 
       {!isSeriesFlow && (
         <Field label="Notiz" htmlFor="event_notes">
@@ -1477,7 +1992,7 @@ export function TimetableEventModal({
                           key={option.value}
                           type="button"
                           onClick={() => update("type", option.value)}
-                          className={`flex flex-col items-start gap-0.5 rounded-xl border border-l-[3px] px-3 py-2 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                          className={`flex flex-col items-start gap-0.5 rounded-lg border border-l-[3px] px-3 py-2 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
                             isActive
                               ? "border-gray-300 bg-white"
                               : "border-gray-200 bg-white hover:bg-gray-50"
@@ -1507,19 +2022,17 @@ export function TimetableEventModal({
                     {WEEKDAYS.map((iso) => {
                       const isActive = form.weekdays.includes(iso);
                       return (
-                        <button
+                        <Button
                           key={iso}
                           type="button"
+                          variant={isActive ? "primary" : "outline"}
+                          size="compact"
+                          className="min-w-[44px]"
                           onClick={() => toggleWeekday(iso)}
-                          className={`min-w-[44px] rounded-lg border px-3 py-1.5 text-sm font-semibold shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                            isActive
-                              ? "border-gray-900 bg-gray-900 text-white"
-                              : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
-                          }`}
                           aria-pressed={isActive}
                         >
                           {weekdayLabel(iso)}
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>
@@ -1530,59 +2043,222 @@ export function TimetableEventModal({
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field
-                    label="Kategorie"
-                    htmlFor="event_category"
+                <Field
+                  label="Kategorie"
+                  htmlFor="event_category"
+                  required
+                  error={fieldErrors.categoryId}
+                >
+                  <select
+                    id="event_category"
+                    value={form.categoryId}
+                    onChange={(event) =>
+                      update("categoryId", event.target.value)
+                    }
                     required
-                    error={fieldErrors.categoryId}
+                    disabled={loadingRefs}
+                    aria-invalid={fieldErrors.categoryId ? true : undefined}
+                    aria-describedby={
+                      fieldErrors.categoryId
+                        ? "event_category_error"
+                        : undefined
+                    }
+                    className={FORM_SELECT_CLASS}
                   >
-                    <select
-                      id="event_category"
-                      value={form.categoryId}
-                      onChange={(event) =>
-                        update("categoryId", event.target.value)
-                      }
-                      required
-                      disabled={loadingRefs}
-                      aria-invalid={fieldErrors.categoryId ? true : undefined}
-                      aria-describedby={
-                        fieldErrors.categoryId
-                          ? "event_category_error"
-                          : undefined
-                      }
-                      className={FORM_SELECT_CLASS}
-                    >
-                      <option value="">
-                        {loadingRefs
-                          ? "Lade Kategorien …"
-                          : "Kategorie wählen …"}
+                    <option value="">
+                      {loadingRefs ? "Lade Kategorien …" : "Kategorie wählen …"}
+                    </option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
                       </option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-gray-700">
+                    Zielgruppe
+                  </span>
+                  <Tabs
+                    value={form.targetGroupType}
+                    onValueChange={(value) =>
+                      changeTargetGroupType(value as TargetGroupType)
+                    }
+                  >
+                    <TabsList aria-label="Zielgruppe" className="w-fit">
+                      {TARGET_GROUP_OPTIONS.map((option) => (
+                        <TabsTrigger key={option.value} value={option.value}>
+                          {option.label}
+                        </TabsTrigger>
                       ))}
-                    </select>
-                  </Field>
-                  <Field label="Klassengruppe" htmlFor="event_education_group">
-                    <select
-                      id="event_education_group"
-                      value={form.educationGroupId}
-                      onChange={(event) =>
-                        update("educationGroupId", event.target.value)
-                      }
-                      disabled={loadingRefs}
-                      className={FORM_SELECT_CLASS}
-                    >
-                      <option value="">Keine Zuordnung</option>
-                      {groups.map((group) => (
-                        <option key={group.id} value={group.id}>
-                          {group.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
+                    </TabsList>
+                  </Tabs>
+
+                  {form.targetGroupType === "jahrgang" && (
+                    <div className="mt-1">
+                      <Field
+                        label="Jahrgang"
+                        htmlFor="event_target_grade_level"
+                        required
+                        error={fieldErrors.targetGradeLevel}
+                      >
+                        <select
+                          id="event_target_grade_level"
+                          value={form.targetGradeLevel}
+                          onChange={(event) =>
+                            update("targetGradeLevel", event.target.value)
+                          }
+                          required
+                          aria-invalid={
+                            fieldErrors.targetGradeLevel ? true : undefined
+                          }
+                          aria-describedby={
+                            fieldErrors.targetGradeLevel
+                              ? "event_target_grade_level_error"
+                              : undefined
+                          }
+                          className={FORM_SELECT_CLASS}
+                        >
+                          <option value="">Jahrgang wählen …</option>
+                          {targetGradeOptions.map((option) => (
+                            <option
+                              key={option.value}
+                              value={option.value}
+                              disabled={option.disabled}
+                            >
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      {preservesGradeAboveTenantCap ? (
+                        <p className="mt-1 text-xs text-gray-500" role="status">
+                          Jahrgang {form.targetGradeLevel} liegt über der
+                          aktuell konfigurierten Höchststufe {gradeLevelMax}.
+                          Die bestehende Zielgruppe bleibt beim Speichern
+                          erhalten.
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {form.targetGroupType === "klasse" && (
+                    <div className="mt-1">
+                      <Field
+                        label="Klasse"
+                        htmlFor="event_target_school_class"
+                        required
+                        error={fieldErrors.targetSchoolClass}
+                      >
+                        <select
+                          id="event_target_school_class"
+                          value={form.targetSchoolClass}
+                          onChange={(event) =>
+                            update("targetSchoolClass", event.target.value)
+                          }
+                          disabled={
+                            loadingStudents || studentLoadError !== null
+                          }
+                          required
+                          aria-invalid={
+                            fieldErrors.targetSchoolClass ? true : undefined
+                          }
+                          aria-describedby={
+                            targetClassDescriptionIDs || undefined
+                          }
+                          className={FORM_SELECT_CLASS}
+                        >
+                          <option value="">Klasse wählen …</option>
+                          {targetClassOptions.map((schoolClass) => (
+                            <option key={schoolClass} value={schoolClass}>
+                              {schoolClass}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      {loadingStudents || studentLoadError ? (
+                        <p
+                          id="event_target_school_class_availability"
+                          className="mt-1 text-xs text-gray-500"
+                          role="status"
+                        >
+                          {studentLoadError
+                            ? "Die Klassenliste ist nicht verfügbar. Eine bestehende Klassen-Zielgruppe bleibt unverändert."
+                            : "Klassenliste wird geladen …"}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {form.targetGroupType === "gruppe" && (
+                    <div className="mt-1">
+                      <Field
+                        label="Gruppe"
+                        htmlFor="event_target_gruppe"
+                        required
+                        error={fieldErrors.educationGroupId}
+                      >
+                        <select
+                          id="event_target_gruppe"
+                          value={form.educationGroupId}
+                          onChange={(event) =>
+                            update("educationGroupId", event.target.value)
+                          }
+                          disabled={loadingRefs}
+                          required
+                          aria-invalid={
+                            fieldErrors.educationGroupId ? true : undefined
+                          }
+                          aria-describedby={
+                            fieldErrors.educationGroupId
+                              ? "event_target_gruppe_error"
+                              : undefined
+                          }
+                          className={FORM_SELECT_CLASS}
+                        >
+                          <option value="">Gruppe wählen …</option>
+                          {groups.map((group) => (
+                            <option key={group.id} value={group.id}>
+                              {group.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+                  )}
+
+                  {form.targetGroupType === "angebot" && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Kinder kommen automatisch über ein Betreuungsangebot
+                      hinzu. Die Verknüpfung wird unter „Angebote“ beim
+                      jeweiligen Angebot gepflegt (Feld „Regeltermin“).
+                    </p>
+                  )}
+
+                  {targetCohort.label &&
+                    !loadingStudents &&
+                    !studentLoadError && (
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white/70 p-3">
+                        <p className="min-w-0 flex-1 text-xs leading-5 text-gray-600">
+                          Die Zielgruppe beschreibt den Regeltermin. Übernimm
+                          die passenden Kinder mit einem Klick; die Auswahl
+                          bleibt danach anpassbar.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="compact"
+                          onClick={addTargetCohort}
+                          disabled={
+                            targetCohort.memberIds.length === 0 ||
+                            missingTargetCohortCount === 0
+                          }
+                        >
+                          {targetCohortButtonLabel}
+                        </Button>
+                      </div>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1788,19 +2464,19 @@ export function TimetableEventModal({
             description={
               `Der Termin am ${formatDate(initialInstance.date)} gehört zu einem Regeltermin.` +
               (dateChanged || notesChanged
-                ? " Geändertes Datum und Notiz gelten nur bei „Nur dieser Termin“."
+                ? " Geändertes Datum und Notiz gelten nur bei „Nur diese Woche“."
                 : "")
             }
             options={[
               {
                 value: "single",
-                label: "Nur dieser Termin",
-                description: `Die Änderung gilt nur am ${formatDate(form.date)}.`,
+                label: "Nur diese Woche",
+                description: `Ändert nur den Termin am ${formatDate(form.date)}; der Regeltermin bleibt unverändert.`,
               },
               {
                 value: "following",
-                label: "Dieser und alle folgenden",
-                description: `Die Änderung gilt ab dem ${formatDate(initialInstance.date)} für diesen und alle weiteren Termine; frühere bleiben unverändert.`,
+                label: "Ab jetzt dauerhaft",
+                description: `Ändert diesen und alle künftigen Termine ab dem ${formatDate(initialInstance.date)} dauerhaft; frühere Termine bleiben unverändert.`,
               },
               {
                 value: "all",
@@ -1871,6 +2547,7 @@ function MultiSelectField({
   bulkOptions?: Array<{ key: string; label: string; memberIds: string[] }>;
 }) {
   const [query, setQuery] = useState("");
+  const [gradeFilter, setGradeFilter] = useState("all");
   const [classFilter, setClassFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
   const selected = useMemo(() => new Set(value), [value]);
@@ -1885,6 +2562,18 @@ function MultiSelectField({
             .filter((item): item is string => Boolean(item)),
         ),
       ).sort((a, b) => a.localeCompare(b, "de")),
+    [options],
+  );
+
+  const gradeOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          options
+            .map((option) => getSchoolYear(option.schoolClass?.trim() ?? ""))
+            .filter((item): item is string => Boolean(item)),
+        ),
+      ).sort((a, b) => a.localeCompare(b, "de", { numeric: true })),
     [options],
   );
 
@@ -1911,12 +2600,15 @@ function MultiSelectField({
             .toLocaleLowerCase("de")
             .includes(normalizedQuery);
         const matchesClass =
-          classFilter === "all" || option.schoolClass === classFilter;
+          classFilter === "all" || option.schoolClass?.trim() === classFilter;
+        const matchesGrade =
+          gradeFilter === "all" ||
+          getSchoolYear(option.schoolClass?.trim() ?? "") === gradeFilter;
         const matchesGroup =
-          groupFilter === "all" || option.groupName === groupFilter;
-        return matchesQuery && matchesClass && matchesGroup;
+          groupFilter === "all" || option.groupName?.trim() === groupFilter;
+        return matchesQuery && matchesGrade && matchesClass && matchesGroup;
       }),
-    [classFilter, groupFilter, normalizedQuery, options],
+    [classFilter, gradeFilter, groupFilter, normalizedQuery, options],
   );
 
   const toggle = (id: string) => {
@@ -1932,7 +2624,10 @@ function MultiSelectField({
   const allVisibleSelected =
     visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
   const hasFilters =
-    query.trim() !== "" || classFilter !== "all" || groupFilter !== "all";
+    query.trim() !== "" ||
+    gradeFilter !== "all" ||
+    classFilter !== "all" ||
+    groupFilter !== "all";
 
   const selectVisible = () => {
     const next = Array.from(new Set([...value, ...visibleIds]));
@@ -1953,7 +2648,7 @@ function MultiSelectField({
         </span>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto]">
         <label className="relative">
           <span className="sr-only">{label} suchen</span>
           <Search
@@ -1968,6 +2663,21 @@ function MultiSelectField({
             className={FORM_SEARCH_CLASS}
           />
         </label>
+        {metadata === "student" && gradeOptions.length > 0 && (
+          <select
+            value={gradeFilter}
+            onChange={(event) => setGradeFilter(event.target.value)}
+            className={FORM_SELECT_CLASS}
+            aria-label="Nach Jahrgang filtern"
+          >
+            <option value="all">Alle Jahrgänge</option>
+            {gradeOptions.map((gradeLevel) => (
+              <option key={gradeLevel} value={gradeLevel}>
+                Jahrgang {gradeLevel}
+              </option>
+            ))}
+          </select>
+        )}
         {metadata === "student" && classOptions.length > 0 && (
           <select
             value={classFilter}
@@ -2021,11 +2731,11 @@ function MultiSelectField({
               if (!entry) return;
               onChange(Array.from(new Set([...value, ...entry.memberIds])));
             }}
-            aria-label="Klasse oder Gruppe komplett hinzufügen"
+            aria-label="Jahrgang, Klasse oder Gruppe komplett hinzufügen"
             className="moto-select rounded-lg border border-gray-200 bg-white py-1.5 pr-7 pl-2.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             <option value="" disabled>
-              Klasse/Gruppe komplett hinzufügen …
+              Jahrgang/Klasse/Gruppe komplett hinzufügen …
             </option>
             {bulkOptions.map((option) => (
               <option key={option.key} value={option.key}>
@@ -2048,6 +2758,7 @@ function MultiSelectField({
             type="button"
             onClick={() => {
               setQuery("");
+              setGradeFilter("all");
               setClassFilter("all");
               setGroupFilter("all");
             }}
@@ -2072,7 +2783,7 @@ function MultiSelectField({
             {filteredOptions.map((option) => (
               <label
                 key={option.id}
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-700 [contain-intrinsic-size:auto_36px] [content-visibility:auto] hover:bg-gray-50"
               >
                 <Checkbox
                   checked={selected.has(option.id)}

@@ -40,9 +40,18 @@ type GroupRepository interface {
 	// on the period when given).
 	ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]TemplateListRow, error)
 
+	// ListTemplateCapacityOccurrences returns one staffing snapshot per actual
+	// recurrence date in periodID. It applies the same schedule, A/B-week,
+	// cancellation, roster-validity, period, and selected-weekday rules as
+	// materialization. Choosing which occurrence is worst depends on the
+	// tenant's staffing ratio and therefore remains a service concern.
+	// A nil periodID evaluates all active periods, used by template detail
+	// responses that have no period query parameter.
+	ListTemplateCapacityOccurrences(ctx context.Context, periodID *int64, templateIDs []int64) ([]TemplateCapacityOccurrence, error)
+
 	// UpdateTemplateFields patches the editable template fields of a
 	// non-archived template row.
-	UpdateTemplateFields(ctx context.Context, id int64, name, groupType string, categoryID, roomID int64, educationGroupID *int64, maxParticipants int) (rowsAffected int64, err error)
+	UpdateTemplateFields(ctx context.Context, id int64, fields TemplateFieldsUpdate) (rowsAffected int64, err error)
 
 	// ArchiveTemplate soft-deletes a non-archived template (sets archived_at).
 	ArchiveTemplate(ctx context.Context, id int64) (rowsAffected int64, err error)
@@ -66,6 +75,10 @@ type GroupRepository interface {
 	// (is_template = true). Used by the materialization service to enumerate
 	// candidates when generating schedule.activity_instances rows.
 	FindAllTemplates(ctx context.Context) ([]*Group, error)
+
+	// FindTemplateSeries returns every non-archived template segment in the
+	// same split lineage as groupID. An unsplit template is one segment.
+	FindTemplateSeries(ctx context.Context, groupID int64) ([]*Group, error)
 }
 
 // TemplateStartTime is a (activity_group_id, weekday) → timeframe.start_time
@@ -142,10 +155,15 @@ type SupervisorPlannedRepository interface {
 	// (staff offboarding cleanup).
 	DeleteByStaffID(ctx context.Context, staffID int64) (int64, error)
 
-	// CapActiveByGroup ends every still-active supervision (valid_until IS
-	// NULL) of the given group at validUntil (exclusive). Returns the number
-	// of rows changed. Used by the template split (WP-B3).
+	// CapActiveByGroup caps open supervision rows (valid_until IS NULL).
+	// Rows starting on/after the cap are deleted because they have no interval
+	// left; begun rows are ended at validUntil. Bounded rows are left to their
+	// owning workflow. Returns the total number changed.
 	CapActiveByGroup(ctx context.Context, groupID int64, validUntil timezone.Date) (int64, error)
+
+	// SetValidUntilByID closes exactly one supervision without writing the
+	// rest of a potentially partial read model back to the database.
+	SetValidUntilByID(ctx context.Context, id int64, validUntil timezone.Date) error
 }
 
 // StudentEnrollmentRepository defines operations for managing student enrollments
@@ -177,10 +195,32 @@ type StudentEnrollmentRepository interface {
 	// approved enrollment request child for a specific student.
 	DeleteByEnrollmentRequestChild(ctx context.Context, studentID, requestChildID int64) (int64, error)
 
-	// CapActiveByGroup ends every still-active enrollment (valid_until IS
-	// NULL) of the given group at validUntil (exclusive). Returns the number
-	// of rows changed. Used by the template split (WP-B3).
+	// CapActiveByGroup caps open enrollment rows (valid_until IS NULL). Rows
+	// starting on/after the cap are deleted because they have no interval left;
+	// begun rows are ended at validUntil. Bounded rows are left to their owning
+	// workflow. Returns the total number changed.
 	CapActiveByGroup(ctx context.Context, groupID int64, validUntil timezone.Date) (int64, error)
+
+	// SetValidUntilByID closes exactly one enrollment without writing the
+	// rest of a potentially partial read model back to the database.
+	SetValidUntilByID(ctx context.Context, id int64, validUntil timezone.Date) error
+}
+
+// TemplateFieldsUpdate carries the editable fields of PUT /templates/{id}.
+// Grouped into a struct (rather than positional params) because the field
+// count grew past what's readable positionally once Zielgruppe/calendar
+// period joined the original create-time fields.
+type TemplateFieldsUpdate struct {
+	Name              string
+	Type              string
+	CategoryID        int64
+	RoomID            int64
+	EducationGroupID  *int64
+	MaxParticipants   int
+	CalendarPeriodID  *int64
+	TargetGroupType   string
+	TargetGradeLevel  *int16
+	TargetSchoolClass *string
 }
 
 // TemplateListRow is one row of the template list read model produced by
@@ -199,16 +239,40 @@ type TemplateListRow struct {
 	EducationGroupName sql.NullString `bun:"education_group_name"`
 	IsOpen             bool           `bun:"is_open"`
 	MaxParticipants    int            `bun:"max_participants"`
-	EnrollmentCount    int            `bun:"enrollment_count"`
-	SupervisorCount    int            `bun:"supervisor_count"`
-	StudentIDs         []int64        `bun:"student_ids,array"`
-	StaffIDs           []int64        `bun:"staff_ids,array"`
-	PrimaryStaffID     sql.NullInt64  `bun:"primary_staff_id"`
-	ScheduleID         int64          `bun:"schedule_id"`
-	Weekday            int            `bun:"weekday"`
-	StartTime          sql.NullString `bun:"start_time"`
-	EndTime            sql.NullString `bun:"end_time"`
-	WeekPattern        int            `bun:"week_pattern"`
-	CalendarPeriodID   sql.NullInt64  `bun:"calendar_period_id"`
-	ScheduleValidUntil sql.NullString `bun:"schedule_valid_until"`
+	// TemplateCalendarPeriodID is the template's OWN period pin (Group.
+	// CalendarPeriodID), distinct from CalendarPeriodID below which is the
+	// per-schedule-row pin. See materialization_service.go's
+	// schedulePinnedPeriodID for the precedence between the two.
+	TemplateCalendarPeriodID sql.NullInt64  `bun:"template_calendar_period_id"`
+	TargetGroupType          string         `bun:"target_group_type"`
+	TargetGradeLevel         sql.NullInt16  `bun:"target_grade_level"`
+	TargetSchoolClass        sql.NullString `bun:"target_school_class"`
+	EnrollmentCount          int            `bun:"enrollment_count"`
+	SupervisorCount          int            `bun:"supervisor_count"`
+	// CapacityEnrollmentCount and CapacitySupervisorCount are the roster on
+	// the actual recurrence date selected as worst for the template. They
+	// intentionally differ from the period-tolerant display roster below.
+	CapacityEnrollmentCount int            `bun:"capacity_enrollment_count"`
+	CapacitySupervisorCount int            `bun:"capacity_supervisor_count"`
+	StudentIDs              []int64        `bun:"student_ids,array"`
+	StaffIDs                []int64        `bun:"staff_ids,array"`
+	PrimaryStaffID          sql.NullInt64  `bun:"primary_staff_id"`
+	ScheduleID              int64          `bun:"schedule_id"`
+	Weekday                 int            `bun:"weekday"`
+	StartTime               sql.NullString `bun:"start_time"`
+	EndTime                 sql.NullString `bun:"end_time"`
+	WeekPattern             int            `bun:"week_pattern"`
+	CalendarPeriodID        sql.NullInt64  `bun:"calendar_period_id"`
+	ScheduleValidUntil      sql.NullString `bun:"schedule_valid_until"`
+}
+
+// TemplateCapacityOccurrence is the capacity-relevant roster for one date on
+// which a recurring template actually runs. OccurrenceDate is a calendar day,
+// not an instant; valid_until fields are evaluated as exclusive boundaries.
+type TemplateCapacityOccurrence struct {
+	TemplateID       int64         `bun:"template_id"`
+	CalendarPeriodID int64         `bun:"calendar_period_id"`
+	OccurrenceDate   timezone.Date `bun:"occurrence_date"`
+	EnrollmentCount  int           `bun:"enrollment_count"`
+	SupervisorCount  int           `bun:"supervisor_count"`
 }

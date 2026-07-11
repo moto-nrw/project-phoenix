@@ -5,6 +5,7 @@
 package active_test
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -17,10 +18,14 @@ import (
 	"github.com/uptrace/bun"
 
 	activeAPI "github.com/moto-nrw/project-phoenix/api/active"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -37,6 +42,16 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *activeAPI.Resource
+}
+
+type recordingEndActiveGroupService struct {
+	activeSvc.Service
+	endCalls int
+}
+
+func (s *recordingEndActiveGroupService) EndActiveGroupSession(ctx context.Context, id int64) error {
+	s.endCalls++
+	return s.Service.EndActiveGroupSession(ctx, id)
 }
 
 // setupTestContext creates test resources for active handler tests
@@ -247,6 +262,39 @@ func TestEndActiveGroup(t *testing.T) {
 	group := testpkg.CreateTestActivityGroup(t, tc.db, fmt.Sprintf("End Activity %d", time.Now().UnixNano()))
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, group.ID, room.ID)
 	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID, activeGroup.ID)
+
+	t.Run("disabled web attendance blocks group teardown", func(t *testing.T) {
+		disabledSettings := &configtest.Mock{
+			ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
+				assert.Equal(t, configModel.KeyAttendanceWebEnabled, key)
+				return false, nil
+			},
+		}
+		recordingService := &recordingEndActiveGroupService{Service: tc.services.Active}
+		disabledResource := activeAPI.NewResource(
+			recordingService,
+			tc.services.Users,
+			tc.services.Education,
+			tc.services.Schulhof,
+			tc.services.UserContext,
+			disabledSettings,
+			tc.db,
+			slog.Default(),
+		)
+		disabledRouter := chi.NewRouter()
+		disabledRouter.Mount("/active", disabledResource.Router())
+		settingCtx := testpkg.TenantContext(adminClaims.TenantID)
+
+		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/groups/%d/end", activeGroup.ID), nil)
+		rr := testutil.ExecuteWithAuthPermissions(t, disabledRouter, req, adminClaims, []string{permissions.GroupsUpdate})
+
+		testutil.AssertForbidden(t, rr)
+		assert.Contains(t, rr.Body.String(), common.ErrCodeAttendanceWebDisabled)
+		assert.Zero(t, recordingService.endCalls, "the disabled route must not invoke group teardown")
+		stored, err := tc.services.Active.GetActiveGroup(settingCtx, activeGroup.ID)
+		require.NoError(t, err)
+		assert.Nil(t, stored.EndTime, "the disabled route must not invoke group teardown")
+	})
 
 	t.Run("success ending active group", func(t *testing.T) {
 		req := testutil.NewJSONRequest(t, "POST", fmt.Sprintf("/active/groups/%d/end", activeGroup.ID), nil)

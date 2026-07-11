@@ -9,24 +9,29 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type updateTemplateRequest struct {
-	Name             string  `json:"name"`
-	Type             string  `json:"type"`
-	Weekdays         []int   `json:"weekdays"`
-	StartTime        string  `json:"start_time"`
-	EndTime          string  `json:"end_time"`
-	RoomID           int64   `json:"room_id"`
-	CategoryID       int64   `json:"category_id"`
-	MaxParticipants  *int    `json:"max_participants,omitempty"`
-	WeekPattern      *int    `json:"week_pattern,omitempty"`
-	CalendarPeriodID *int64  `json:"calendar_period_id,omitempty"`
-	EducationGroupID *int64  `json:"education_group_id,omitempty"`
-	StudentIDs       []int64 `json:"student_ids,omitempty"`
-	StaffIDs         []int64 `json:"staff_ids,omitempty"`
-	PrimaryStaffID   *int64  `json:"primary_staff_id,omitempty"`
+	Name             string `json:"name"`
+	Type             string `json:"type"`
+	Weekdays         []int  `json:"weekdays"`
+	StartTime        string `json:"start_time"`
+	EndTime          string `json:"end_time"`
+	RoomID           int64  `json:"room_id"`
+	CategoryID       int64  `json:"category_id"`
+	MaxParticipants  *int   `json:"max_participants,omitempty"`
+	WeekPattern      *int   `json:"week_pattern,omitempty"`
+	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
+	EducationGroupID *int64 `json:"education_group_id,omitempty"`
+	// Zielgruppe fields — see createTemplateRequest for the full contract.
+	TargetGroupType   string  `json:"target_group_type,omitempty"`
+	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	StudentIDs        []int64 `json:"student_ids,omitempty"`
+	StaffIDs          []int64 `json:"staff_ids,omitempty"`
+	PrimaryStaffID    *int64  `json:"primary_staff_id,omitempty"`
 }
 
 func (req *updateTemplateRequest) Bind(_ *http.Request) error {
@@ -53,6 +58,17 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 			return fmt.Errorf("invalid weekday %d (must be 1=Mon … 7=Sun)", w)
 		}
 	}
+	target := &activitiesModel.Group{
+		TargetGroupType:   req.TargetGroupType,
+		TargetGradeLevel:  req.TargetGradeLevel,
+		TargetSchoolClass: req.TargetSchoolClass,
+		EducationGroupID:  req.EducationGroupID,
+	}
+	if err := target.ValidateTargetGroup(); err != nil {
+		return err
+	}
+	req.TargetGroupType = target.TargetGroupType
+	req.TargetSchoolClass = target.TargetSchoolClass
 	return nil
 }
 
@@ -148,6 +164,12 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("no tenant in context")))
 		return
 	}
+	gradeLevelMax, err := rs.resolveTemplateGradeLevelMax(ctx)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"resolve template grade level limit failed", err))
+		return
+	}
 	rosterValidFrom, err := rs.templateRosterValidFrom(ctx, req.CalendarPeriodID)
 	if err != nil {
 		renderTemplatePeriodLookupError(w, r, err)
@@ -171,35 +193,48 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve timeframe failed", err))
 		return
 	}
-	if _, err := rs.TimetableData.UpdateTemplateFields(ctx, id, req.Name, req.Type, req.CategoryID, req.RoomID, req.EducationGroupID, maxParticipants); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("update template failed", err))
+	fieldsUpdate := activitiesModel.TemplateFieldsUpdate{
+		Name:              req.Name,
+		Type:              req.Type,
+		CategoryID:        req.CategoryID,
+		RoomID:            req.RoomID,
+		EducationGroupID:  req.EducationGroupID,
+		MaxParticipants:   maxParticipants,
+		CalendarPeriodID:  req.CalendarPeriodID,
+		TargetGroupType:   req.TargetGroupType,
+		TargetGradeLevel:  req.TargetGradeLevel,
+		TargetSchoolClass: req.TargetSchoolClass,
+	}
+	updateErr := rs.TimetableData.UpdateTemplate(ctx, scheduleSvc.TemplateUpdateInput{
+		TemplateID:       id,
+		Fields:           fieldsUpdate,
+		Weekdays:         req.Weekdays,
+		TimeframeID:      timeframeID,
+		WeekPattern:      weekPattern,
+		CalendarPeriodID: req.CalendarPeriodID,
+		RosterValidFrom:  rosterValidFrom,
+		StudentIDs:       req.StudentIDs,
+		StaffIDs:         req.StaffIDs,
+		PrimaryStaffID:   req.PrimaryStaffID,
+		GradeLevelMax:    gradeLevelMax,
+	})
+	if updateErr != nil {
+		// findOrCreateTimeframe runs before the recurrence service. Tenant
+		// middleware commits 4xx responses unless explicitly marked, so every
+		// failed update must roll back a timeframe created by this request.
+		tenant.MarkRollback(ctx)
+	}
+	if errors.Is(updateErr, scheduleSvc.ErrTemplateSegmentNotEditable) {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
 		return
-	}
-	if err := rs.TimetableData.DeleteSchedulesByGroupID(ctx, id); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("replace template schedules failed", err))
+	} else if renderTemplateCareOfferingConflict(w, r, updateErr) {
 		return
-	}
-	for _, weekday := range req.Weekdays {
-		tfID := timeframeID
-		sched := &activitiesModel.Schedule{
-			Weekday:          weekday,
-			TimeframeID:      &tfID,
-			ActivityGroupID:  id,
-			WeekPattern:      weekPattern,
-			CalendarPeriodID: req.CalendarPeriodID,
-		}
-		sched.SetTenantID(tenantID)
-		if err := rs.TimetableData.CreateActivitySchedule(ctx, sched); err != nil {
-			common.RenderError(w, r, common.ErrorInternalServerWrap("create schedule failed", err))
-			return
-		}
-	}
-	if err := rs.replaceTemplateStudents(ctx, id, req.StudentIDs, req.CalendarPeriodID, rosterValidFrom); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("assign template students failed", err))
+	} else if renderTemplateRosterRebaseConflict(w, r, updateErr) {
 		return
-	}
-	if err := rs.replaceTemplateStaff(ctx, id, req.StaffIDs, req.PrimaryStaffID, req.CalendarPeriodID, rosterValidFrom); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("assign template staff failed", err))
+	} else if renderTemplateTargetGradeLimit(w, r, updateErr) {
+		return
+	} else if updateErr != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("update template failed", updateErr))
 		return
 	}
 	templates, err := rs.loadTemplates(ctx, &id)
@@ -226,6 +261,9 @@ func (rs *Resource) archiveTemplate(w http.ResponseWriter, r *http.Request) {
 	}
 	n, err := rs.TimetableData.ArchiveTemplate(r.Context(), id)
 	if err != nil {
+		if renderTemplateCareOfferingConflict(w, r, err) {
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServerWrap("archive template failed", err))
 		return
 	}

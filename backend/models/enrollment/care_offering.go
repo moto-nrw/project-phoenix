@@ -47,6 +47,13 @@ var validSelectionRules = map[string]bool{
 	SelectionRuleAtMostOne:  true,
 }
 
+// ErrCareOfferingInvalid classifies an administrator-controlled catalog or
+// timetable-link configuration that cannot be accepted. It lives with the
+// shared model so enrollment and schedule services can agree on the boundary
+// between a client-correctable conflict (HTTP 400) and an infrastructure
+// failure (HTTP 500) without introducing a service-package import cycle.
+var ErrCareOfferingInvalid = errors.New("invalid care offering configuration")
+
 // CareOffering is a row in enrollment.care_offerings - one care option
 // in the tenant's catalog. Admins build the catalog per calendar period
 // (typically a school year, occasionally a holiday); parents pick from
@@ -195,6 +202,11 @@ type CareOfferingRepository interface {
 	// ListByIDs returns the exact care offerings referenced by ids,
 	// regardless of phase. Empty input returns an empty slice.
 	ListByIDs(ctx context.Context, ids []int64) ([]*CareOffering, error)
+
+	// ListByActivityGroupIDs returns offerings whose timetable link points at
+	// one of the supplied groups. Split validation uses it to find every care
+	// offering attached anywhere in one recurring-template series.
+	ListByActivityGroupIDs(ctx context.Context, activityGroupIDs []int64) ([]*CareOffering, error)
 
 	// CountByPhaseID returns how many care offerings belong to the phase.
 	// Powers the phase-delete confirmation modal.

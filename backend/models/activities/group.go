@@ -2,8 +2,10 @@ package activities
 
 import (
 	"errors"
+	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -13,6 +15,19 @@ const (
 	GroupTypeActivity = "activity"
 	GroupTypeCare     = "care"
 	GroupTypeExternal = "external"
+)
+
+// Target-group ("Zielgruppe") type constants for Betreuungsplan templates.
+// "gruppe" deliberately has no dedicated value column - it reuses
+// EducationGroupID. "angebot" (Angebotsauswahl) needs no value column
+// either: its roster comes from the existing CareOffering.ActivityGroupID
+// bridge, not from a value stored on the Group.
+const (
+	TargetGroupTypeJahrgang = "jahrgang"
+	TargetGroupTypeKlasse   = "klasse"
+	TargetGroupTypeGruppe   = "gruppe"
+	TargetGroupTypeAngebot  = "angebot"
+	TargetGroupTypeNone     = "none"
 )
 
 // Group represents an activity group
@@ -30,6 +45,29 @@ type Group struct {
 	IsTemplate       bool       `bun:"is_template,notnull,default:false" json:"is_template"`
 	IsSystem         bool       `bun:"is_system,notnull,default:false" json:"is_system"`
 	ArchivedAt       *time.Time `bun:"archived_at" json:"archived_at,omitempty"`
+	// SeriesRootID identifies all segments produced by recurring-template
+	// splits. The original segment keeps NULL (it is its own root); every
+	// successor points to that original row, including successors split again.
+	SeriesRootID *int64 `bun:"series_root_id" json:"-"`
+
+	// CalendarPeriodID pins this template to a calendar period (e.g. "1.
+	// Halbjahr 2026/27"). The materialization service's selectPeriod()
+	// prefers a schedule row's own pin over this one; this is the
+	// template-level fallback and the value read by list responses that
+	// only have the Group row.
+	CalendarPeriodID *int64 `bun:"calendar_period_id" json:"calendar_period_id,omitempty"`
+
+	// Zielgruppe (target-group) fields. TargetGroupType is one of the
+	// TargetGroupType* constants; exactly one of the following holds the
+	// type's value, enforced by Validate():
+	//   jahrgang -> TargetGradeLevel
+	//   klasse   -> TargetSchoolClass
+	//   gruppe   -> EducationGroupID (existing field, no new column)
+	//   angebot  -> none (roster derives from CareOffering.ActivityGroupID)
+	//   none     -> none (today's default: manually curated roster)
+	TargetGroupType   string  `bun:"target_group_type,notnull,default:'none'" json:"target_group_type"`
+	TargetGradeLevel  *int16  `bun:"target_grade_level" json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string `bun:"target_school_class" json:"target_school_class,omitempty"`
 
 	// Relations - populated when using the ORM's relations
 	Category       *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`
@@ -52,7 +90,99 @@ func (g *Group) Validate() error {
 		return errors.New("category ID is required")
 	}
 
+	if err := g.ValidateTargetGroup(); err != nil {
+		return err
+	}
+
 	return nil
+}
+
+// ValidateTargetGroup enforces that TargetGroupType and its matching value
+// field are consistent - the same type-conditional-invariant style used by
+// ActivityException.Validate() (models/schedule/activity_exception.go).
+// Exported so API handlers can validate the Zielgruppe fields from a request
+// body up front (400) before constructing/persisting a full Group, without
+// duplicating this switch.
+//
+// An empty TargetGroupType (the Go zero value for callers that construct a
+// Group{} literal without ever mentioning Zielgruppe, which is most of the
+// codebase) is canonicalized to TargetGroupTypeNone. This keeps generic
+// repository creates and updates consistent with the DB's non-empty CHECK
+// constraint without forcing callers predating this field to set it.
+func (g *Group) ValidateTargetGroup() error {
+	if !IsValidTargetGroupType(g.TargetGroupType) {
+		return errors.New("invalid target group type")
+	}
+
+	if g.TargetGroupType == "" {
+		g.TargetGroupType = TargetGroupTypeNone
+	}
+
+	switch g.TargetGroupType {
+	case TargetGroupTypeJahrgang:
+		return g.validateGradeTarget()
+	case TargetGroupTypeKlasse:
+		return g.validateClassTarget()
+	case TargetGroupTypeGruppe:
+		return g.validateEducationGroupTarget()
+	case TargetGroupTypeAngebot, TargetGroupTypeNone:
+		return g.validateValuelessTarget()
+	}
+
+	return nil
+}
+
+func (g *Group) validateGradeTarget() error {
+	if g.TargetGradeLevel == nil {
+		return errors.New("jahrgang target group requires target_grade_level")
+	}
+	if *g.TargetGradeLevel < schoolclass.MinGradeLevel || *g.TargetGradeLevel > schoolclass.MaxGradeLevel {
+		return errors.New("target_grade_level must be between 1 and 13")
+	}
+	if g.TargetSchoolClass != nil {
+		return errors.New("jahrgang target group must not set target_school_class")
+	}
+	return nil
+}
+
+func (g *Group) validateClassTarget() error {
+	if g.TargetSchoolClass == nil || strings.TrimSpace(*g.TargetSchoolClass) == "" {
+		return errors.New("klasse target group requires target_school_class")
+	}
+	trimmedClass := strings.TrimSpace(*g.TargetSchoolClass)
+	g.TargetSchoolClass = &trimmedClass
+	if g.TargetGradeLevel != nil {
+		return errors.New("klasse target group must not set target_grade_level")
+	}
+	return nil
+}
+
+func (g *Group) validateEducationGroupTarget() error {
+	if g.EducationGroupID == nil {
+		return errors.New("gruppe target group requires education_group_id")
+	}
+	if g.TargetGradeLevel != nil || g.TargetSchoolClass != nil {
+		return errors.New("gruppe target group must not set target_grade_level or target_school_class")
+	}
+	return nil
+}
+
+func (g *Group) validateValuelessTarget() error {
+	if g.TargetGradeLevel != nil || g.TargetSchoolClass != nil {
+		return errors.New("target_grade_level and target_school_class must be empty for this target group type")
+	}
+	return nil
+}
+
+// IsValidTargetGroupType reports whether t is a permitted Zielgruppe type.
+// The empty string is accepted as an alias for TargetGroupTypeNone (the Go
+// zero value for callers predating this field).
+func IsValidTargetGroupType(t string) bool {
+	switch t {
+	case "", TargetGroupTypeJahrgang, TargetGroupTypeKlasse, TargetGroupTypeGruppe, TargetGroupTypeAngebot, TargetGroupTypeNone:
+		return true
+	}
+	return false
 }
 
 // IsOwnedBy checks if the group was created by the given staff member

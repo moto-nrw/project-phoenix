@@ -33,6 +33,7 @@ function makeTenant(
     nfcEnabled: false,
     messagingEnabled: false,
     displayEnabled: false,
+    gradeLevelMax: 4,
   };
 }
 

@@ -72,6 +72,20 @@ describe("proxy", () => {
     );
   });
 
+  it("overwrites a client-forged original host with the resolved tenant host", () => {
+    const req = new NextRequest(
+      "http://school.localhost:3000/api/enrollment/form-bootstrap/public/school/5",
+    );
+    req.headers.set("host", "school.localhost:3000");
+    req.headers.set("x-moto-original-host", PARENTS_HOSTNAME);
+
+    const res = proxy(req);
+
+    expect(getForwardedRequestHeader(res, "x-moto-original-host")).toBe(
+      "school.localhost:3000",
+    );
+  });
+
   describe("operator subdomain", () => {
     it("rewrites / to /operator", () => {
       const res = proxy(

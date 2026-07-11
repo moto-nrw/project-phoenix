@@ -753,6 +753,7 @@
     "submittedTitle": "Thank you. Your enrollment has been submitted.",
     "statusTitle": "Status of your enrollment",
     "submittedDescription": "The OGS reviews your information. You can see the current status on this page. Save the link or keep the confirmation email.",
+    "duplicateWarning": "At least one child may already have an active enrollment in this phase. The new enrollment was saved anyway. Contact the OGS if you have questions.",
     "statusDescription": "Your enrollment was received on {date}. Here you can see the current status, your contact details and the enrolled children.",
     "nextTitle": "What happens next",
     "currentTitle": "Current status",

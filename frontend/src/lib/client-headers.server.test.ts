@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 import {
   canonicalForwardedFor,
   getClientForwardHeaders,
+  hostnameFromAuthority,
 } from "./client-headers.server";
 
 describe("getClientForwardHeaders", () => {
@@ -71,6 +72,41 @@ describe("getClientForwardHeaders", () => {
     expect(getClientForwardHeaders(request)["X-Moto-Frontend-Origin"]).toBe(
       "https://school-a.moto-app.de",
     );
+  });
+});
+
+describe("hostnameFromAuthority", () => {
+  it.each([
+    ["Parents.Example.Test", "parents.example.test"],
+    ["parents.example.test:443", "parents.example.test"],
+    ["parents.example.test.", "parents.example.test"],
+    ["127.0.0.1:3000", "127.0.0.1"],
+    ["[2001:0db8::1]", "2001:db8::1"],
+    ["[2001:db8::1]:443", "2001:db8::1"],
+  ])("normalizes %s to %s", (authority, expected) => {
+    expect(hostnameFromAuthority(authority)).toBe(expected);
+  });
+
+  it.each([
+    "",
+    " parents.example.test",
+    "parents.example.test ",
+    "parent user.example.test",
+    "parent@parents.example.test",
+    "parents.example.test/path",
+    "parents.example.test\\path",
+    "parents.example.test?query",
+    "parents.example.test#fragment",
+    "parents.example.test:",
+    "parents.example.test:invalid",
+    "parents.example.test:65536",
+    "https://parents.example.test",
+    "parents..example.test",
+    "parents_example.test",
+    "2001:db8::1",
+    "[2001:db8::1",
+  ])("rejects malformed authority %s", (authority) => {
+    expect(hostnameFromAuthority(authority)).toBeNull();
   });
 });
 

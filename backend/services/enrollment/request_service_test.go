@@ -36,6 +36,7 @@ type stubRequestSettings struct {
 	hasErrors    map[string]error
 	boolErrors   map[string]error
 	stringErrors map[string]error
+	intErrors    map[string]error
 }
 
 func newStubRequestSettings() *stubRequestSettings {
@@ -46,6 +47,7 @@ func newStubRequestSettings() *stubRequestSettings {
 		hasErrors:    make(map[string]error),
 		boolErrors:   make(map[string]error),
 		stringErrors: make(map[string]error),
+		intErrors:    make(map[string]error),
 	}
 }
 
@@ -92,6 +94,9 @@ func (s *stubRequestSettings) ResolveString(_ context.Context, key string) (stri
 func (s *stubRequestSettings) ResolveInt(_ context.Context, key string) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if err := s.intErrors[key]; err != nil {
+		return 0, err
+	}
 	return s.intValues[key], nil
 }
 
@@ -100,11 +105,15 @@ func (s *stubRequestSettings) ResolveInt(_ context.Context, key string) (int, er
 type recordingOutbox struct {
 	mu      sync.Mutex
 	entries []platformModels.OutboxEnqueueRequest
+	err     error
 }
 
 func (r *recordingOutbox) EnqueueOutbox(_ context.Context, req platformModels.OutboxEnqueueRequest) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.err != nil {
+		return r.err
+	}
 	r.entries = append(r.entries, req)
 	return nil
 }
@@ -144,6 +153,10 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	// override these maps to drive specific branches.
 	settings.boolValues[configModel.KeyEnrollmentEnabled] = true
 	settings.boolValues[configModel.KeyEnrollmentAllowSubmissionEdit] = true
+	settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = true
+	settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = true
+	settings.boolValues[configModel.KeyEnrollmentWaitlistEnabled] = true
+	settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingWarn
 	settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 4
 	settings.intValues[configModel.KeyEnrollmentStatusTokenTTLDays] = 365
 
@@ -649,6 +662,17 @@ func TestRequestService_Submit_RejectsMissingTargetGradeLevel(t *testing.T) {
 	assert.Contains(t, err.Error(), "target_grade_level")
 }
 
+func TestRequestService_Submit_RejectsInvalidGradeLevelSetting(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 0
+
+	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "enrollment.grade_level_max")
+}
+
 func TestRequestService_Submit_RejectsInactiveOffering(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
@@ -1073,6 +1097,7 @@ func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOfferin
 	ctx := testpkg.TenantContext(1)
 	repoFactory := repositories.NewFactory(env.db)
 	offering := setupCareOfferingForCapacity(t, env, 10)
+	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 13
 
 	req := validSubmission(env.phaseID)
 	req.GuardianEmail = "draft-inactive-current@example.com"
@@ -1087,6 +1112,7 @@ func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOfferin
 	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
 	require.NoError(t, err)
 	require.Equal(t, enrollmentService.EditModeChangeRequest, draft.EditMode)
+	assert.Equal(t, 13, draft.GradeLevelMax)
 
 	var inactiveCurrent *enrollmentModels.CareOffering
 	for _, candidate := range draft.OpenOfferings {
@@ -1097,6 +1123,20 @@ func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOfferin
 	}
 	require.NotNil(t, inactiveCurrent)
 	assert.False(t, inactiveCurrent.IsActive)
+}
+
+func TestRequestService_GetEditDraft_RejectsInvalidGradeLevelSetting(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	submitted, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 0
+
+	_, err = env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
+	require.Error(t, err)
+	assert.ErrorContains(t, err, "enrollment.grade_level_max")
 }
 
 func TestRequestService_GetEditDraft_DirectEditRejectsInactiveCurrentOffering(t *testing.T) {
@@ -1335,6 +1375,40 @@ func TestRequestService_ReplaceEditable_PreservesCapacityClaimWhenWaitlistExists
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, updated.Children[0].Status)
 }
 
+func TestRequestService_ReplaceEditable_CapacityWaitlistQueuesDecisionDigest(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+	holderReq := validSubmission(env.phaseID)
+	holderReq.GuardianEmail = "holder-edit-notification@example.com"
+	holderReq.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, holderReq)
+	require.NoError(t, err)
+
+	editorReq := validSubmission(env.phaseID)
+	editorReq.GuardianEmail = "editor-waitlist-notification@example.com"
+	editor, err := env.svc.Submit(ctx, editorReq)
+	require.NoError(t, err)
+
+	replace := editorReq
+	replace.Children[0].OfferingIDs = []int64{offering.ID}
+	updated, err := env.svc.ReplaceEditable(ctx, editor.Request.StatusToken, replace)
+	require.NoError(t, err)
+	require.Len(t, updated.Children, 1)
+	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, updated.Children[0].Status)
+
+	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	require.Len(t, digests, 1)
+	assert.Equal(t, []string{"Lina Beispiel"}, digests[0].Payload["waitlisted_names"])
+	stored, err := repositories.NewFactory(env.db).Request.FindByID(ctx, editor.Request.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.DecisionNotificationMode)
+	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
+}
+
 func TestRequestService_ReplaceEditable_RejectsNewCapacityClaimWhenFull(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
@@ -1359,6 +1433,67 @@ func TestRequestService_ReplaceEditable_RejectsNewCapacityClaimWhenFull(t *testi
 	_, err = env.svc.ReplaceEditable(ctx, editor.Request.StatusToken, replace)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrCareOfferingFull))
+}
+
+func TestRequestService_ReplaceEditable_DisabledOfferingsFollowVerifiedChildIdentity(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+
+	offeringA := setupCareOfferingForCapacity(t, env, 10)
+	offeringB := setupCareOfferingForCapacity(t, env, 10)
+	base := validSubmission(env.phaseID)
+	base.GuardianEmail = "hidden-offering-identity@example.com"
+	base.Children[0].FirstName = "Anna"
+	base.Children[0].OfferingIDs = []int64{offeringA.ID}
+	base.Children = append(base.Children, enrollmentService.SubmitChild{
+		FirstName:        "Ben",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+		OfferingIDs:      []int64{offeringB.ID},
+	})
+	submitted, err := env.svc.Submit(ctx, base)
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 2)
+	require.NoError(t, repoFactory.RequestChild.UpdateActivationPlan(
+		ctx, submitted.Children[1].ID, enrollmentModels.ChildActivationImmediate, nil,
+	))
+
+	env.settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = false
+	replace := validSubmission(env.phaseID)
+	replace.Children = []enrollmentService.SubmitChild{
+		{
+			ID:                submitted.Children[1].ID,
+			FirstName:         "Ben",
+			LastName:          "Beispiel",
+			DateOfBirth:       timezone.NewDate(2019, 8, 1),
+			TargetGradeLevel:  testpkg.Int16Ptr(2),
+			TargetSchoolClass: nil,
+		},
+		{
+			FirstName:        "Clara",
+			LastName:         "Beispiel",
+			DateOfBirth:      timezone.NewDate(2020, 9, 2),
+			TargetGradeLevel: testpkg.Int16Ptr(1),
+		},
+	}
+
+	updated, err := env.svc.ReplaceEditable(ctx, submitted.Request.StatusToken, replace)
+	require.NoError(t, err)
+	require.Len(t, updated.Children, 2)
+	assert.Equal(t, enrollmentModels.ChildActivationImmediate, updated.Children[0].ActivationMode)
+	assert.Equal(t, enrollmentModels.ChildActivationScheduled, updated.Children[1].ActivationMode)
+
+	links, err := repoFactory.RequestChildOffering.ListByRequestChildIDs(ctx, []int64{
+		updated.Children[0].ID,
+		updated.Children[1].ID,
+	})
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, updated.Children[0].ID, links[0].RequestChildID)
+	assert.Equal(t, offeringB.ID, links[0].CareOfferingID)
 }
 
 // --- Withdraw ---
@@ -1431,6 +1566,99 @@ func TestRequestService_Withdraw_PerChildRejectsApproved(t *testing.T) {
 	err = env.svc.Withdraw(ctx, result.Request.StatusToken, result.Children[0].ID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrWithdrawNotAllowed))
+}
+
+func TestRequestService_Withdraw_FinalSiblingEnqueuesDecisionDigest(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionDigest
+
+	request := validSubmission(env.phaseID)
+	request.GuardianEmail = "withdraw-digest@example.com"
+	request.Children = append(request.Children, enrollmentService.SubmitChild{
+		FirstName:        "Noah",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+	})
+	submitted, err := env.svc.Submit(ctx, request)
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 2)
+
+	repoFactory := repositories.NewFactory(env.db)
+	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+		ctx, submitted.Children[0].ID, enrollmentModels.ChildStatusRejected, nil, env.creatorID,
+	))
+	require.NoError(t, env.svc.Withdraw(ctx, submitted.Request.StatusToken, submitted.Children[1].ID))
+
+	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	require.Len(t, digests, 1)
+	assert.Equal(t, []string{"Lina Beispiel"}, digests[0].Payload["rejected_names"])
+	assert.Equal(t, []string{"Noah Beispiel"}, digests[0].Payload["withdrawn_names"])
+	assert.NotEmpty(t, digests[0].IdempotencyKey)
+
+	// Retrying an already-withdrawn child is a no-op, including notification.
+	require.NoError(t, env.svc.Withdraw(ctx, submitted.Request.StatusToken, submitted.Children[1].ID))
+	assert.Len(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest), 1)
+}
+
+func TestRequestService_Withdraw_DigestFailureRollsBackStatus(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionDigest
+
+	request := validSubmission(env.phaseID)
+	request.GuardianEmail = "withdraw-digest-failure@example.com"
+	request.Children = append(request.Children, enrollmentService.SubmitChild{
+		FirstName:        "Noah",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+	})
+	submitted, err := env.svc.Submit(ctx, request)
+	require.NoError(t, err)
+
+	repoFactory := repositories.NewFactory(env.db)
+	require.NoError(t, repoFactory.RequestChild.UpdateStatus(
+		ctx, submitted.Children[0].ID, enrollmentModels.ChildStatusRejected, nil, env.creatorID,
+	))
+	env.outbox.mu.Lock()
+	env.outbox.err = errors.New("outbox unavailable")
+	env.outbox.mu.Unlock()
+
+	err = env.svc.Withdraw(ctx, submitted.Request.StatusToken, submitted.Children[1].ID)
+	require.ErrorContains(t, err, "enqueue parent decision digest")
+	children, loadErr := repoFactory.RequestChild.ListByRequestID(ctx, submitted.Request.ID)
+	require.NoError(t, loadErr)
+	require.Len(t, children, 2)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[1].Status)
+}
+
+func TestRequestService_Withdraw_NonFinalIgnoresNotificationSettingFailure(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.stringErrors[configModel.KeyEnrollmentNotifyPerDecision] = errors.New("settings unavailable")
+
+	request := validSubmission(env.phaseID)
+	request.GuardianEmail = "withdraw-nonfinal-settings-error@example.com"
+	request.Children = append(request.Children, enrollmentService.SubmitChild{
+		FirstName:        "Noah",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+	})
+	submitted, err := env.svc.Submit(ctx, request)
+	require.NoError(t, err)
+
+	require.NoError(t, env.svc.Withdraw(ctx, submitted.Request.StatusToken, submitted.Children[0].ID))
+	children, err := repositories.NewFactory(env.db).RequestChild.ListByRequestID(ctx, submitted.Request.ID)
+	require.NoError(t, err)
+	require.Len(t, children, 2)
+	assert.Equal(t, enrollmentModels.ChildStatusWithdrawn, children[0].Status)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, children[1].Status)
 }
 
 // --- Rate limiting ---
@@ -1649,6 +1877,142 @@ func TestRequestService_Submit_CapacityOverflowWaitlist(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, r2.Children[0].Status,
 		"over-capacity child must be persisted as waitlisted under mode=waitlist")
+	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	require.Len(t, digests, 1)
+	assert.Equal(t, []string{"Lina Beispiel"}, digests[0].Payload["waitlisted_names"])
+	stored, err := repositories.NewFactory(env.db).Request.FindByID(ctx, r2.Request.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.DecisionNotificationMode)
+	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
+}
+
+func TestRequestService_Submit_CapacityOverflowWaitlistQueuesImmediateDecision(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionImmediate
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	holder := validSubmission(env.phaseID)
+	holder.GuardianEmail = "immediate-holder@example.com"
+	holder.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, holder)
+	require.NoError(t, err)
+
+	overflow := validSubmission(env.phaseID)
+	overflow.GuardianEmail = "immediate-overflow@example.com"
+	overflow.Children[0].OfferingIDs = []int64{offering.ID}
+	result, err := env.svc.Submit(ctx, overflow)
+	require.NoError(t, err)
+	require.Equal(t, enrollmentModels.ChildStatusWaitlisted, result.Children[0].Status)
+
+	rows := env.outbox.ByKind(platformModels.EmailKindEnrollmentWaitlisted)
+	require.Len(t, rows, 1)
+	assert.Equal(t, result.Request.ID, rows[0].RelatedEntityID)
+	assert.NotEmpty(t, rows[0].IdempotencyKey)
+	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest))
+}
+
+func TestRequestService_Submit_AllCapacityOverflowWaitlistsQueueOneDigest(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	holder := validSubmission(env.phaseID)
+	holder.GuardianEmail = "all-overflow-holder@example.com"
+	holder.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, holder)
+	require.NoError(t, err)
+
+	overflow := validSubmission(env.phaseID)
+	overflow.GuardianEmail = "all-overflow@example.com"
+	overflow.Children[0].OfferingIDs = []int64{offering.ID}
+	overflow.Children = append(overflow.Children, enrollmentService.SubmitChild{
+		FirstName:        "Noah",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+		OfferingIDs:      []int64{offering.ID},
+	})
+	result, err := env.svc.Submit(ctx, overflow)
+	require.NoError(t, err)
+	require.Len(t, result.Children, 2)
+	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, result.Children[0].Status)
+	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, result.Children[1].Status)
+
+	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	require.Len(t, digests, 1)
+	assert.ElementsMatch(t, []string{"Lina Beispiel", "Noah Beispiel"}, digests[0].Payload["waitlisted_names"])
+	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentWaitlisted))
+}
+
+func TestRequestService_Submit_MixedCapacityWaitlistPinsDigestWithoutSendingEarly(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	holder := validSubmission(env.phaseID)
+	holder.GuardianEmail = "mixed-holder@example.com"
+	holder.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, holder)
+	require.NoError(t, err)
+
+	mixed := validSubmission(env.phaseID)
+	mixed.GuardianEmail = "mixed-overflow@example.com"
+	mixed.Children[0].OfferingIDs = []int64{offering.ID}
+	mixed.Children = append(mixed.Children, enrollmentService.SubmitChild{
+		FirstName:        "Noah",
+		LastName:         "Beispiel",
+		DateOfBirth:      timezone.NewDate(2019, 8, 1),
+		TargetGradeLevel: testpkg.Int16Ptr(2),
+	})
+	result, err := env.svc.Submit(ctx, mixed)
+	require.NoError(t, err)
+	require.Len(t, result.Children, 2)
+	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, result.Children[0].Status)
+	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, result.Children[1].Status)
+	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest))
+	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentWaitlisted))
+
+	stored, err := repositories.NewFactory(env.db).Request.FindByID(ctx, result.Request.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.DecisionNotificationMode)
+	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
+}
+
+func TestRequestService_Submit_CapacityDecisionFailureRollsBackRequest(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
+	offering := setupCareOfferingForCapacity(t, env, 1)
+
+	holder := validSubmission(env.phaseID)
+	holder.GuardianEmail = "rollback-holder@example.com"
+	holder.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err := env.svc.Submit(ctx, holder)
+	require.NoError(t, err)
+
+	env.outbox.mu.Lock()
+	env.outbox.err = errors.New("outbox unavailable")
+	env.outbox.mu.Unlock()
+	overflow := validSubmission(env.phaseID)
+	overflow.GuardianEmail = "rollback-overflow@example.com"
+	overflow.Children[0].OfferingIDs = []int64{offering.ID}
+	_, err = env.svc.Submit(ctx, overflow)
+	require.ErrorContains(t, err, "notify capacity decisions")
+
+	count, countErr := env.db.NewSelect().
+		TableExpr(`enrollment.requests AS "request"`).
+		Where(`"request".guardian_email = ?`, overflow.GuardianEmail).
+		Count(ctx)
+	require.NoError(t, countErr)
+	assert.Zero(t, count)
 }
 
 // TestRequestService_Submit_CapacityOverflowReject verifies that
@@ -1778,6 +2142,7 @@ func TestRequestService_Submit_CapacityNullMeansUnlimited(t *testing.T) {
 func TestRequestService_Submit_RejectsDuplicateChild(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
+	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
 	ctx := testpkg.TenantContext(1)
 
 	first, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
@@ -1801,6 +2166,7 @@ func TestRequestService_Submit_RejectsDuplicateChild(t *testing.T) {
 func TestRequestService_Submit_DedupCaseInsensitive(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
+	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
 	ctx := testpkg.TenantContext(1)
 
 	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
@@ -1815,6 +2181,39 @@ func TestRequestService_Submit_DedupCaseInsensitive(t *testing.T) {
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentService.ErrDuplicateEnrollment),
 		"case-different rewrite must still hit dedup; got %v", err)
+}
+
+func TestRequestService_Submit_DuplicateWarnPersistsWithMachineWarning(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingWarn
+
+	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+	duplicate := validSubmission(env.phaseID)
+	duplicate.RemoteIP = "10.0.0.61"
+	result, err := env.svc.Submit(ctx, duplicate)
+
+	require.NoError(t, err)
+	require.Len(t, result.Warnings, 1)
+	assert.Equal(t, enrollmentService.WarningCodeDuplicateEnrollment, result.Warnings[0].Code)
+}
+
+func TestRequestService_Submit_DuplicateIgnorePersistsWithoutWarning(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingIgnore
+
+	_, err := env.svc.Submit(ctx, validSubmission(env.phaseID))
+	require.NoError(t, err)
+	duplicate := validSubmission(env.phaseID)
+	duplicate.RemoteIP = "10.0.0.62"
+	result, err := env.svc.Submit(ctx, duplicate)
+
+	require.NoError(t, err)
+	assert.Empty(t, result.Warnings)
 }
 
 // TestRequestService_Submit_DedupAllowsDifferentChild verifies the

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -39,6 +40,32 @@ func (s *decisionService) ListOfferingAdjustments(ctx context.Context, requestID
 }
 
 func (s *decisionService) UpdateChildOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
+	return s.updateChildOfferings(ctx, input, true)
+}
+
+// applyApprovedChangeRequestOfferings applies an offering proposal whose
+// capability was validated and pinned when the parent created the change
+// request. The unexported method keeps this bypass inaccessible to HTTP input;
+// all validation, capacity-related preparation, rematerialization, and audit
+// behavior below remains identical to a direct admin adjustment.
+func (s *decisionService) applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error) {
+	return s.updateChildOfferings(ctx, input, false)
+}
+
+func (s *decisionService) updateChildOfferings(
+	ctx context.Context,
+	input UpdateChildOfferingsInput,
+	enforceLiveCapability bool,
+) (*enrollmentModels.RequestChild, error) {
+	if enforceLiveCapability {
+		enabled, err := s.resolveDecisionBool(ctx, configModel.KeyEnrollmentCareOfferingsEnabled, true)
+		if err != nil {
+			return nil, fmt.Errorf("offering adjustment: resolve care offerings setting: %w", err)
+		}
+		if !enabled {
+			return nil, ErrCareOfferingsDisabled
+		}
+	}
 	if input.RequestID <= 0 || input.ChildID <= 0 {
 		return nil, fmt.Errorf("%w: request_id and child_id are required", ErrOfferingAdjustmentInvalid)
 	}
@@ -386,6 +413,9 @@ func (s *decisionService) rematerializeAdjustedEnrollments(
 ) error {
 	if s.StudentEnrollmentRepo == nil {
 		return nil
+	}
+	if err := s.lockTemplateRecurrence(ctx); err != nil {
+		return err
 	}
 	if len(beforeLinks) > 0 {
 		if err := s.backfillLegacyAdjustedEnrollments(ctx, requestChildID, studentID, beforeLinks); err != nil {

@@ -26,6 +26,7 @@ const meta = {
     isOpen: true,
     onClose: () => undefined,
     phase,
+    gradeLevelMax: 13,
   },
 } satisfies Meta<typeof ManualApprovedEnrollmentModal>;
 

@@ -1,0 +1,17 @@
+{{define "enrollment-decision-digest.html"}}
+{{template "header" .}}
+<div class="email-body">
+    {{template "school-brand" .}}
+    <h1>Entscheidung zu Ihrer Anmeldung</h1>
+    <p>Sehr geehrte/r {{.GuardianFirstName}} {{.GuardianLastName}},</p>
+    <p>für alle Kinder Ihrer Anmeldung liegt nun eine Entscheidung vor.{{if .PhaseName}} Phase: <strong>{{.PhaseName}}</strong>.{{end}}</p>
+    {{if .ApprovedNames}}<div class="highlight-box"><strong>Bestätigt</strong><ul>{{range .ApprovedNames}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
+    {{if .WaitlistedNames}}<div class="highlight-box"><strong>Warteliste</strong><ul>{{range .WaitlistedNames}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
+    {{if .RejectedNames}}<div class="highlight-box"><strong>Abgelehnt</strong><ul>{{range .RejectedNames}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
+    {{if .WithdrawnNames}}<div class="highlight-box"><strong>Zurückgezogen</strong><ul>{{range .WithdrawnNames}}<li>{{.}}</li>{{end}}</ul></div>{{end}}
+    <div class="button-wrapper" style="text-align: center;"><a class="button" href="{{.StatusURL}}">Anmeldungsstatus ansehen</a></div>
+    <p style="margin-top: 24px; font-size: 14px; color: #6b7280;">Falls der Button nicht funktioniert, kopieren Sie bitte diesen Link:</p>
+    <div class="link-box"><a href="{{.StatusURL}}">{{.StatusURL}}</a></div>
+</div>
+{{template "footer" .}}
+{{end}}

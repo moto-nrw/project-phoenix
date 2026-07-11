@@ -753,6 +753,7 @@
     "submittedTitle": "Faleminderit. Regjistrimi juaj u dërgua.",
     "statusTitle": "Statusi i regjistrimit tuaj",
     "submittedDescription": "OGS-ja kontrollon të dhënat tuaja. Statusin aktual e shihni në këtë faqe. Ruani lidhjen ose e-mailin e konfirmimit.",
+    "duplicateWarning": "Për të paktën një fëmijë mund të ketë tashmë një regjistrim aktiv në këtë fazë. Regjistrimi i ri u ruajt gjithsesi. Kontaktoni OGS-në nëse keni pyetje.",
     "statusDescription": "Regjistrimi juaj u pranua më {date}. Këtu shihni statusin aktual, kontaktet dhe fëmijët e regjistruar.",
     "nextTitle": "Çfarë ndodh më pas",
     "currentTitle": "Statusi aktual",

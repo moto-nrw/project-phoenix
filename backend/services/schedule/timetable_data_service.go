@@ -42,15 +42,17 @@ type TimetableDataDependencies struct {
 	StudentEnrollmentRepo  activitiesModel.StudentEnrollmentRepository
 	TimeframeRepo          scheduleModel.TimeframeRepository
 	EducationGroupRepo     educationModel.GroupRepository
-	DB                     *bun.DB
+	// ValidateCareOfferingSeries rejects archival when a care offering still
+	// depends on the template being live. Production always wires it; partial
+	// read-only test facades may leave it nil.
+	ValidateCareOfferingSeries func(context.Context, int64) error
+	DB                         *bun.DB
 }
 
-// TimetableDataService is the data facade behind the api/timetable handlers
-// (issue #584: handlers must not hold repositories). CONTRACT: repository
-// results and errors are returned VERBATIM — the handlers keep their
-// composition, validation, and error-to-status mapping, so responses stay
-// byte-identical. The planner endpoints' assembly logic remains in api/ as
-// accepted frozen scope; this facade owns only the data access.
+// TimetableDataService is the service boundary behind api/timetable (issue
+// #584: handlers must not hold repositories). Most read methods return
+// repository results verbatim; multi-repository writes, such as bounded
+// template replacement, own their validation and transaction here.
 type TimetableDataService struct {
 	deps TimetableDataDependencies
 }
@@ -268,12 +270,191 @@ func (s *TimetableDataService) CreateTimeframe(ctx context.Context, timeframe *s
 	return s.deps.TimeframeRepo.Create(ctx, timeframe)
 }
 
-func (s *TimetableDataService) ListTemplateRows(ctx context.Context, templateID *int64) ([]activitiesModel.TemplateListRow, error) {
-	return s.deps.ActivityGroupRepo.ListTemplateRows(ctx, templateID)
+func (s *TimetableDataService) ListTemplateRows(
+	ctx context.Context,
+	templateID *int64,
+	childrenPerStaffRatio int,
+) ([]activitiesModel.TemplateListRow, error) {
+	rows, err := s.deps.ActivityGroupRepo.ListTemplateRows(ctx, templateID)
+	if err != nil {
+		return nil, err
+	}
+	setDisplayRosterCapacity(rows)
+	// Detail has no period query parameter, so evaluate every active period.
+	// The repository still applies materialization's deterministic period
+	// selection for globally-unpinned templates on overlapping dates.
+	if err := s.attachWorstTemplateCapacity(ctx, rows, nil, distinctTemplateIDs(rows), childrenPerStaffRatio); err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
-func (s *TimetableDataService) ListTemplateRowsForPeriod(ctx context.Context, periodID *int64) ([]activitiesModel.TemplateListRow, error) {
-	return s.deps.ActivityGroupRepo.ListTemplateRowsForPeriod(ctx, periodID)
+func (s *TimetableDataService) ListTemplateRowsForPeriod(
+	ctx context.Context,
+	periodID *int64,
+	childrenPerStaffRatio int,
+) ([]activitiesModel.TemplateListRow, error) {
+	rows, err := s.deps.ActivityGroupRepo.ListTemplateRowsForPeriod(ctx, periodID)
+	if err != nil {
+		return nil, err
+	}
+	setDisplayRosterCapacity(rows)
+	if err := s.attachWorstTemplateCapacity(
+		ctx,
+		rows,
+		periodID,
+		distinctTemplateIDs(rows),
+		childrenPerStaffRatio,
+	); err != nil {
+		return nil, err
+	}
+	return rows, nil
+}
+
+func setDisplayRosterCapacity(rows []activitiesModel.TemplateListRow) {
+	for i := range rows {
+		rows[i].CapacityEnrollmentCount = rows[i].EnrollmentCount
+		rows[i].CapacitySupervisorCount = rows[i].SupervisorCount
+	}
+}
+
+func distinctTemplateIDs(rows []activitiesModel.TemplateListRow) []int64 {
+	ids := make([]int64, 0, len(rows))
+	seen := make(map[int64]struct{}, len(rows))
+	for _, row := range rows {
+		if _, exists := seen[row.TemplateID]; exists {
+			continue
+		}
+		seen[row.TemplateID] = struct{}{}
+		ids = append(ids, row.TemplateID)
+	}
+	return ids
+}
+
+func (s *TimetableDataService) attachWorstTemplateCapacity(
+	ctx context.Context,
+	rows []activitiesModel.TemplateListRow,
+	periodID *int64,
+	templateIDs []int64,
+	childrenPerStaffRatio int,
+) error {
+	if len(templateIDs) == 0 {
+		return nil
+	}
+	occurrences, err := s.deps.ActivityGroupRepo.ListTemplateCapacityOccurrences(ctx, periodID, templateIDs)
+	if err != nil {
+		return err
+	}
+	applyWorstTemplateCapacity(rows, templateIDs, occurrences, childrenPerStaffRatio)
+	return nil
+}
+
+func applyWorstTemplateCapacity(
+	rows []activitiesModel.TemplateListRow,
+	templateIDs []int64,
+	occurrences []activitiesModel.TemplateCapacityOccurrence,
+	childrenPerStaffRatio int,
+) {
+	included := make(map[int64]struct{}, len(templateIDs))
+	for _, templateID := range templateIDs {
+		included[templateID] = struct{}{}
+	}
+	byTemplate := make(map[int64][]activitiesModel.TemplateCapacityOccurrence)
+	for _, occurrence := range occurrences {
+		if _, ok := included[occurrence.TemplateID]; ok {
+			byTemplate[occurrence.TemplateID] = append(byTemplate[occurrence.TemplateID], occurrence)
+		}
+	}
+
+	worst := make(map[int64]activitiesModel.TemplateCapacityOccurrence, len(byTemplate))
+	for templateID, candidates := range byTemplate {
+		if candidate, ok := worstTemplateOccurrence(candidates, childrenPerStaffRatio); ok {
+			worst[templateID] = candidate
+		}
+	}
+	for i := range rows {
+		if _, ok := included[rows[i].TemplateID]; !ok {
+			continue
+		}
+		candidate := worst[rows[i].TemplateID]
+		rows[i].CapacityEnrollmentCount = candidate.EnrollmentCount
+		rows[i].CapacitySupervisorCount = candidate.SupervisorCount
+	}
+}
+
+func worstTemplateOccurrence(
+	occurrences []activitiesModel.TemplateCapacityOccurrence,
+	childrenPerStaffRatio int,
+) (activitiesModel.TemplateCapacityOccurrence, bool) {
+	hasPositiveDemand := false
+	for _, occurrence := range occurrences {
+		if RequiredStaffForChildren(occurrence.EnrollmentCount, childrenPerStaffRatio) > 0 {
+			hasPositiveDemand = true
+			break
+		}
+	}
+
+	var worst activitiesModel.TemplateCapacityOccurrence
+	found := false
+	for _, candidate := range occurrences {
+		if hasPositiveDemand && candidate.EnrollmentCount == 0 {
+			continue
+		}
+		if !found || templateOccurrenceIsWorse(candidate, worst, childrenPerStaffRatio) {
+			worst = candidate
+			found = true
+		}
+	}
+	return worst, found
+}
+
+type templateCapacityScore struct {
+	severity int
+	shortage int
+	surplus  int
+	required int
+}
+
+func scoreTemplateOccurrence(
+	occurrence activitiesModel.TemplateCapacityOccurrence,
+	childrenPerStaffRatio int,
+) templateCapacityScore {
+	required := RequiredStaffForChildren(occurrence.EnrollmentCount, childrenPerStaffRatio)
+	assigned := occurrence.SupervisorCount
+	score := templateCapacityScore{required: required}
+	if assigned < required {
+		score.shortage = required - assigned
+		if assigned == 0 {
+			score.severity = 2 // danger
+		} else {
+			score.severity = 1 // warning
+		}
+	} else {
+		score.surplus = assigned - required
+	}
+	return score
+}
+
+func templateOccurrenceIsWorse(
+	candidate activitiesModel.TemplateCapacityOccurrence,
+	current activitiesModel.TemplateCapacityOccurrence,
+	childrenPerStaffRatio int,
+) bool {
+	candidateScore := scoreTemplateOccurrence(candidate, childrenPerStaffRatio)
+	currentScore := scoreTemplateOccurrence(current, childrenPerStaffRatio)
+	if candidateScore.severity != currentScore.severity {
+		return candidateScore.severity > currentScore.severity
+	}
+	if candidateScore.shortage != currentScore.shortage {
+		return candidateScore.shortage > currentScore.shortage
+	}
+	if candidateScore.surplus != currentScore.surplus {
+		return candidateScore.surplus < currentScore.surplus
+	}
+	if candidateScore.required != currentScore.required {
+		return candidateScore.required > currentScore.required
+	}
+	return candidate.OccurrenceDate.Before(current.OccurrenceDate)
 }
 
 func (s *TimetableDataService) DetectPlannedConflicts(ctx context.Context, query PlannedConflictQuery, logger *slog.Logger) []PlannedConflictWarning {
@@ -282,18 +463,6 @@ func (s *TimetableDataService) DetectPlannedConflicts(ctx context.Context, query
 		InstanceStaffRepo: s.deps.InstanceStaffRepo,
 		InstanceStudents:  s.deps.InstanceStudentRepo,
 	}, query, logger)
-}
-
-func (s *TimetableDataService) UpdateTemplateFields(ctx context.Context, id int64, name, groupType string, categoryID, roomID int64, educationGroupID *int64, maxParticipants int) (int64, error) {
-	return s.deps.ActivityGroupRepo.UpdateTemplateFields(ctx, id, name, groupType, categoryID, roomID, educationGroupID, maxParticipants)
-}
-
-func (s *TimetableDataService) ArchiveTemplate(ctx context.Context, id int64) (int64, error) {
-	return s.deps.ActivityGroupRepo.ArchiveTemplate(ctx, id)
-}
-
-func (s *TimetableDataService) DeleteSchedulesByGroupID(ctx context.Context, groupID int64) error {
-	return s.deps.ActivityScheduleRepo.DeleteByGroupID(ctx, groupID)
 }
 
 func (s *TimetableDataService) EducationGroupExists(ctx context.Context, id int64) (bool, error) {

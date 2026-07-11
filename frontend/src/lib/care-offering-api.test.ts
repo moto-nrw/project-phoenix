@@ -183,6 +183,23 @@ describe("updateCareOffering", () => {
       /Betreuungsangebot konnte nicht gespeichert werden/,
     );
   });
+
+  it("maps the template-period mismatch code to a German explanation", async () => {
+    mockFetch(async () =>
+      jsonResponse(
+        {
+          error:
+            "care offering phase must be within the linked timetable template period",
+          code: "enrollment.care_offering_template_period_mismatch",
+        },
+        { status: 400 },
+      ),
+    );
+
+    await expect(updateCareOffering("1234", validInput)).rejects.toThrow(
+      /Planungszeitraum.*gesamten Betreuungszeitraum/,
+    );
+  });
 });
 
 // --- deleteCareOffering --------------------------------------------

@@ -397,13 +397,15 @@ func TestListPeriods(t *testing.T) {
 	})
 
 	t.Run("returns 500 on service error", func(t *testing.T) {
-		mock := &mockCalendarPeriodService{err: errors.New("db error")}
+		mock := &mockCalendarPeriodService{err: errors.New("db error: password=calendar-secret")}
 		res := NewResource(Dependencies{CalendarPeriodService: mock})
 		router := setupTestRouter(res.listPeriods, http.MethodGet, false)
 
 		w := executeRequest(router, http.MethodGet, "/", nil)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Contains(t, w.Body.String(), calendarPeriodsLoadErrorMessage)
+		assert.NotContains(t, w.Body.String(), "password=calendar-secret")
 	})
 }
 
@@ -417,6 +419,7 @@ func TestListPeriods_UsageCounts(t *testing.T) {
 			usage: map[int64]schedule.CalendarPeriodUsage{
 				p1.ID: {
 					EnrollmentPhases:   2,
+					ActivityGroups:     7,
 					Schedules:          3,
 					StudentEnrollments: 4,
 					Supervisors:        5,
@@ -431,24 +434,27 @@ func TestListPeriods_UsageCounts(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Body.String(), `"enrollment_phase_count":2`)
+		assert.Contains(t, w.Body.String(), `"activity_group_count":7`)
 		assert.Contains(t, w.Body.String(), `"schedule_count":3`)
 		assert.Contains(t, w.Body.String(), `"student_enrollment_count":4`)
 		assert.Contains(t, w.Body.String(), `"supervisor_count":5`)
 		assert.Contains(t, w.Body.String(), `"activity_instance_count":6`)
 	})
 
-	t.Run("usage count failure does not break the list", func(t *testing.T) {
+	t.Run("usage count failure fails the list without reporting false zeroes", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{
 			periods:  []*schedule.CalendarPeriod{p1},
-			usageErr: errors.New("count failed"),
+			usageErr: errors.New("count failed: relation internal_usage_table does not exist"),
 		}
 		res := NewResource(Dependencies{CalendarPeriodService: mock})
 		router := setupTestRouter(res.listPeriods, http.MethodGet, false)
 
 		w := executeRequest(router, http.MethodGet, "/", nil)
 
-		assert.Equal(t, http.StatusOK, w.Code)
-		assert.Contains(t, w.Body.String(), `"enrollment_phase_count":0`)
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Contains(t, w.Body.String(), calendarPeriodUsageErrorMessage)
+		assert.NotContains(t, w.Body.String(), "internal_usage_table")
+		assert.NotContains(t, w.Body.String(), `"enrollment_phase_count":0`)
 	})
 }
 
@@ -508,6 +514,22 @@ func TestGetPeriod(t *testing.T) {
 		w := executeRequest(router, http.MethodGet, "/42", nil)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
+	})
+
+	t.Run("usage count failure fails detail without reporting false zeroes", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{
+			period:   newTestPeriod(),
+			usageErr: errors.New("usage failed: private query details"),
+		}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+		router := setupTestRouter(res.getPeriod, http.MethodGet, true)
+
+		w := executeRequest(router, http.MethodGet, "/42", nil)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Contains(t, w.Body.String(), calendarPeriodUsageErrorMessage)
+		assert.NotContains(t, w.Body.String(), "private query details")
+		assert.NotContains(t, w.Body.String(), `"enrollment_phase_count":0`)
 	})
 }
 
@@ -745,7 +767,7 @@ func TestCreatePeriod(t *testing.T) {
 	})
 
 	t.Run("returns 500 on service error", func(t *testing.T) {
-		mock := &mockCalendarPeriodService{err: errors.New("create failed")}
+		mock := &mockCalendarPeriodService{err: errors.New("create failed: duplicate detail from postgres")}
 		res := NewResource(Dependencies{CalendarPeriodService: mock})
 		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
 
@@ -759,6 +781,8 @@ func TestCreatePeriod(t *testing.T) {
 		w := executeRequest(router, http.MethodPost, "/", body)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Contains(t, w.Body.String(), calendarPeriodCreateErrorMessage)
+		assert.NotContains(t, w.Body.String(), "duplicate detail from postgres")
 	})
 }
 
@@ -872,6 +896,9 @@ func TestBootstrapPeriods(t *testing.T) {
 		mock := &mockCalendarPeriodService{
 			bootstrapPeriods: []*schedule.CalendarPeriod{p},
 			bootstrapCreated: true,
+			usage: map[int64]schedule.CalendarPeriodUsage{
+				p.ID: {ActivityGroups: 3},
+			},
 		}
 		res := NewResource(Dependencies{CalendarPeriodService: mock})
 		router := setupTestRouter(res.bootstrapPeriods, http.MethodPost, false)
@@ -886,6 +913,7 @@ func TestBootstrapPeriods(t *testing.T) {
 		assert.True(t, env.Data.Created)
 		require.Len(t, env.Data.Periods, 1)
 		assert.Equal(t, p.Name, env.Data.Periods[0].Name)
+		assert.Equal(t, 3, env.Data.Periods[0].ActivityGroupCount)
 	})
 
 	t.Run("returns 200 with created false when periods already exist", func(t *testing.T) {
@@ -907,13 +935,31 @@ func TestBootstrapPeriods(t *testing.T) {
 	})
 
 	t.Run("returns 500 on service error", func(t *testing.T) {
-		mock := &mockCalendarPeriodService{bootstrapErr: errors.New("bootstrap failed")}
+		mock := &mockCalendarPeriodService{bootstrapErr: errors.New("bootstrap failed: db host 10.0.0.8")}
 		res := NewResource(Dependencies{CalendarPeriodService: mock})
 		router := setupTestRouter(res.bootstrapPeriods, http.MethodPost, false)
 
 		w := executeRequest(router, http.MethodPost, "/", nil)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Contains(t, w.Body.String(), calendarPeriodsBootstrapErrorMessage)
+		assert.NotContains(t, w.Body.String(), "10.0.0.8")
+	})
+
+	t.Run("usage count failure fails bootstrap instead of returning unused periods", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{
+			bootstrapPeriods: []*schedule.CalendarPeriod{newTestPeriod()},
+			usageErr:         errors.New("usage failed: SELECT secret_usage"),
+		}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+		router := setupTestRouter(res.bootstrapPeriods, http.MethodPost, false)
+
+		w := executeRequest(router, http.MethodPost, "/", nil)
+
+		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Contains(t, w.Body.String(), calendarPeriodUsageErrorMessage)
+		assert.NotContains(t, w.Body.String(), "secret_usage")
+		assert.NotContains(t, w.Body.String(), `"enrollment_phase_count":0`)
 	})
 }
 
@@ -1068,6 +1114,8 @@ func TestUpdatePeriod(t *testing.T) {
 		w := executeRequest(r, http.MethodPut, "/42", nil)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Contains(t, w.Body.String(), "Kalenderzeitraum konnte nicht geladen werden")
+		assert.NotContains(t, w.Body.String(), "db connection failed")
 	})
 
 	t.Run("returns 400 for invalid start_date in update", func(t *testing.T) {
@@ -1178,6 +1226,31 @@ func TestUpdatePeriod(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "already exists")
 	})
 
+	t.Run("returns stable 409 when linked care offerings require the period", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{
+			period:    existingPeriod,
+			updateErr: schedule.ErrCalendarPeriodCareOfferingConflict,
+		}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+
+		r := chi.NewRouter()
+		r.Use(render.SetContentType(render.ContentTypeJSON))
+		r.Put("/{id}", res.updatePeriod)
+
+		body := CalendarPeriodRequest{
+			Name:       "Incompatible Range",
+			PeriodType: "school_year",
+			StartDate:  "2025-09-01",
+			EndDate:    "2026-06-30",
+		}
+
+		w := executeRequest(r, http.MethodPut, "/42", body)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), `"code":"calendar_period_care_offering_conflict"`)
+		assert.Contains(t, w.Body.String(), "verknüpften Betreuungsangebot")
+	})
+
 	t.Run("returns 500 on service update error", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{
 			period:    existingPeriod,
@@ -1199,6 +1272,8 @@ func TestUpdatePeriod(t *testing.T) {
 		w := executeRequest(r, http.MethodPut, "/42", body)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Contains(t, w.Body.String(), "Kalenderzeitraum konnte nicht aktualisiert werden")
+		assert.NotContains(t, w.Body.String(), "db write failed")
 	})
 }
 
@@ -1254,6 +1329,21 @@ func TestDeletePeriod(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "doppelte aktive Kinder- oder Personalzuordnungen")
 	})
 
+	t.Run("returns stable 409 when linked care offerings require the period", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{
+			period:    newTestPeriod(),
+			deleteErr: schedule.ErrCalendarPeriodCareOfferingConflict,
+		}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+		router := setupTestRouter(res.deletePeriod, http.MethodDelete, true)
+
+		w := executeRequest(router, http.MethodDelete, "/42", nil)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), `"code":"calendar_period_care_offering_conflict"`)
+		assert.Contains(t, w.Body.String(), "verknüpften Betreuungsangebot")
+	})
+
 	t.Run("returns 500 on service error", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{
 			period:    newTestPeriod(),
@@ -1265,6 +1355,8 @@ func TestDeletePeriod(t *testing.T) {
 		w := executeRequest(router, http.MethodDelete, "/42", nil)
 
 		assert.Equal(t, http.StatusInternalServerError, w.Code)
+		assert.Contains(t, w.Body.String(), "Kalenderzeitraum konnte nicht gelöscht werden")
+		assert.NotContains(t, w.Body.String(), "delete failed")
 	})
 }
 
@@ -1312,4 +1404,63 @@ func TestDeletePeriod_RosterConflictMarksTenantRollback(t *testing.T) {
 	_, err := repo.FindByID(testpkg.TenantContext(1), profile.ID)
 	assert.ErrorIs(t, err, users.ErrGuardianProfileNotFound,
 		"calendar period delete conflicts must roll back writes despite returning 409")
+}
+
+func TestDeletePeriod_CareOfferingConflictMarksTenantRollback(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	tenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	t.Cleanup(func() {
+		cleanupCtx := context.Background()
+		_, cleanupErr := db.NewDelete().
+			TableExpr("users.guardian_profiles").
+			Where("tenant_id = ?", tenantID).
+			Exec(cleanupCtx)
+		require.NoError(t, cleanupErr)
+		testpkg.CleanupTenantTestData(t, db, tenantID)
+		_, cleanupErr = db.NewDelete().TableExpr("platform.schools").Where("id = ?", tenantID).Exec(cleanupCtx)
+		require.NoError(t, cleanupErr)
+		_, cleanupErr = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", tenantID).Exec(cleanupCtx)
+		require.NoError(t, cleanupErr)
+	})
+
+	repo := repositories.NewFactory(db).GuardianProfile
+	email := fmt.Sprintf("period-care-conflict-rollback-%d@test.local", time.Now().UnixNano())
+	profile := &users.GuardianProfile{
+		FirstName:              "CarePeriod",
+		LastName:               "Rollback",
+		Email:                  &email,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+
+	mock := &mockCalendarPeriodService{
+		period: newTestPeriod(),
+		deleteHook: func(ctx context.Context, id int64) error {
+			require.Equal(t, int64(42), id)
+			require.NoError(t, repo.Create(ctx, profile))
+			require.Greater(t, profile.ID, int64(0), "probe insert must happen inside the tenant tx")
+			return schedule.ErrCalendarPeriodCareOfferingConflict
+		},
+	}
+	res := NewResource(Dependencies{CalendarPeriodService: mock})
+
+	router := chi.NewRouter()
+	router.Use(render.SetContentType(render.ContentTypeJSON))
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			next.ServeHTTP(w, req.WithContext(tenant.WithTenantID(req.Context(), tenantID)))
+		})
+	})
+	router.Use(tenant.TenantTxMiddleware(db))
+	router.Delete("/{id}", res.deletePeriod)
+
+	w := executeRequest(router, http.MethodDelete, "/42", nil)
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"calendar_period_care_offering_conflict"`)
+	_, err := repo.FindByID(testpkg.TenantContext(tenantID), profile.ID)
+	assert.ErrorIs(t, err, users.ErrGuardianProfileNotFound,
+		"care-offering period conflicts must roll back writes despite returning 409")
 }

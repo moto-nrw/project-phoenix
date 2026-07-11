@@ -12,6 +12,7 @@ import (
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -583,6 +584,7 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 
 	t.Run("unassigned staff is forbidden", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
+		deps.settings.mode = configModel.GroupModeFixedGroups
 		wireAssignedStaff(deps, 676, 497, 257, instanceID)
 		deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{{StaffID: 258}}
 		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
@@ -590,6 +592,63 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		_, err := deps.service.Roster(context.Background(), 676, false, instanceID)
 
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	})
+
+	t.Run("open care allows staff without instance assignment or supervision", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.mode = configModel.GroupModeOpenCare
+		wireAssignedStaff(deps, 693, 515, 274, instanceID)
+		deps.staffRepo.byInstance[instanceID] = nil
+
+		_, err := deps.service.Complete(context.Background(), 693, false, instanceID)
+
+		require.NoError(t, err)
+		assert.Equal(t, []int64{instanceID}, deps.instanceService.completed)
+	})
+
+	t.Run("group mode resolution failure keeps fixed-group checks", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.stringErr = errors.New("settings unavailable")
+		wireAssignedStaff(deps, 694, 516, 275, instanceID)
+		deps.staffRepo.byInstance[instanceID] = nil
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+
+		_, err := deps.service.Complete(context.Background(), 694, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Empty(t, deps.instanceService.completed)
+	})
+
+	t.Run("missing settings keeps fixed-group checks", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 696, 517, 276, instanceID)
+		deps.staffRepo.byInstance[instanceID] = nil
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		deps.service.(*timetableOperationsService).deps.Settings = nil
+
+		_, err := deps.service.Complete(context.Background(), 696, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Empty(t, deps.instanceService.completed)
+	})
+
+	t.Run("open care still requires a staff identity", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.mode = configModel.GroupModeOpenCare
+
+		_, err := deps.service.Roster(context.Background(), 695, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	})
+
+	t.Run("admin overview allows an admin without a staff identity", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.enabled = true
+
+		_, err := deps.service.Complete(context.Background(), 697, true, instanceID)
+
+		require.NoError(t, err)
+		assert.Equal(t, []int64{instanceID}, deps.instanceService.completed)
 	})
 
 	t.Run("missing account id is forbidden before repository lookup", func(t *testing.T) {
@@ -1361,10 +1420,19 @@ func (s *fakeOpsPersonService) GetStaffByPersonID(_ context.Context, personID in
 }
 
 type fakeOpsSettings struct {
-	enabled bool
-	err     error
+	enabled   bool
+	err       error
+	mode      string
+	stringErr error
 }
 
 func (s *fakeOpsSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
 	return s.enabled, s.err
+}
+
+func (s *fakeOpsSettings) ResolveString(_ context.Context, _ string) (string, error) {
+	if s.stringErr != nil {
+		return "", s.stringErr
+	}
+	return s.mode, nil
 }

@@ -46,7 +46,7 @@ export interface SubmitChildPayload {
   first_name: string;
   last_name: string;
   date_of_birth: string; // YYYY-MM-DD
-  target_grade_level: number;
+  target_grade_level?: number;
   /**
    * Concrete future class (e.g. "2a"), collected from grade 2 upwards
    * when the tenant enables it (#1833). Omitted for grade 1 or when the
@@ -97,6 +97,7 @@ export interface SubmitEnrollmentPayload {
 export interface SubmitEnrollmentResult {
   request_id: string;
   status_url: string;
+  warnings?: Array<{ code: string }>;
 }
 
 interface EnrollmentEditDraftOfferingDays {
@@ -153,6 +154,10 @@ export interface EnrollmentEditBootstrap {
   care_required: boolean;
   /** Concrete-class config (#1833) so reopened edits keep the class field. */
   school_class?: PublicSchoolClassConfig;
+  collect_grade_level: boolean;
+  care_offerings_enabled: boolean;
+  /** Server-authoritative tenant cap (`enrollment.grade_level_max`). */
+  grade_level_max: number;
   legal_texts: PublicLegalTexts;
   draft: EnrollmentEditDraft;
 }
@@ -259,10 +264,21 @@ export interface PublicCareOfferingsResult {
    * EMPTY_SCHOOL_CLASS_CONFIG when absent.
    */
   schoolClass?: PublicSchoolClassConfig;
+  collectGradeLevel: boolean;
+  careOfferingsEnabled: boolean;
 }
 
 export interface LateInviteFetchOptions {
   lateInviteToken?: string;
+}
+
+export interface PublicEnrollmentBootstrapFetchOptions extends LateInviteFetchOptions {
+  /**
+   * Omits browser credentials from this request. This is transport hardening
+   * for parent-portal callers, not the server-side portal boundary; the route
+   * decides profile enrichment from the proxy-preserved original host.
+   */
+  omitCredentials?: boolean;
 }
 
 function withLateInviteQuery(path: string, token?: string): string {
@@ -300,6 +316,8 @@ export async function fetchPublicCareOfferings(
     care_offering_selection_mode?: CareOfferingSelectionMode;
     care_required?: boolean;
     school_class?: unknown;
+    collect_grade_level?: boolean;
+    care_offerings_enabled?: boolean;
   }>(response);
   const mode =
     payload?.care_offering_selection_mode ??
@@ -308,6 +326,8 @@ export async function fetchPublicCareOfferings(
     offerings: Array.isArray(payload?.offerings) ? payload.offerings : [],
     careOfferingSelectionMode: mode,
     careRequired: mode !== "optional",
+    collectGradeLevel: payload?.collect_grade_level !== false,
+    careOfferingsEnabled: payload?.care_offerings_enabled !== false,
     // Attach the config only when the backend actually sent it, so the
     // normalized shape for a payload without `school_class` is unchanged.
     schoolClass:
@@ -373,6 +393,8 @@ export interface PublicEnrollmentBootstrap {
   care_offering_selection_mode: CareOfferingSelectionMode;
   care_required: boolean;
   school_class?: PublicSchoolClassConfig;
+  collect_grade_level: boolean;
+  care_offerings_enabled: boolean;
   captcha_config: PublicCaptchaConfig | null;
   legal_texts: PublicLegalTexts;
   profile?: MeProfileResponse | null;
@@ -381,14 +403,17 @@ export interface PublicEnrollmentBootstrap {
 export async function fetchPublicEnrollmentBootstrap(
   tenantSlug: string,
   phaseId: string,
-  options: LateInviteFetchOptions = {},
+  options: PublicEnrollmentBootstrapFetchOptions = {},
 ): Promise<PublicEnrollmentBootstrap> {
-  const path = `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
+  let path = `/api/enrollment/form-bootstrap/public/${encodeURIComponent(
     tenantSlug,
   )}/${encodeURIComponent(phaseId)}`;
+  path = withLateInviteQuery(path, options.lateInviteToken);
   const response = await fetch(
-    withLateInviteQuery(path, options.lateInviteToken),
-    { cache: "no-store" },
+    path,
+    options.omitCredentials
+      ? { cache: "no-store", credentials: "omit" }
+      : { cache: "no-store" },
   );
   if (!response.ok) {
     throw await readError(

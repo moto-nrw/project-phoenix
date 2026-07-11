@@ -31,6 +31,17 @@ describe("enrollment-error-messages", () => {
     ).toContain("bereits voll");
   });
 
+  it("maps an incompatible Regeltermin period to a German explanation", () => {
+    expect(
+      translateEnrollmentErrorMessage(
+        "care offering phase must be within the linked timetable template period",
+        "enrollment.care_offering_template_period_mismatch",
+      ),
+    ).toBe(
+      "Der Planungszeitraum des gewählten Regeltermins muss den gesamten Betreuungszeitraum der Anmeldephase abdecken. Wähle einen passenden Regeltermin oder entferne die Verknüpfung.",
+    );
+  });
+
   it("does not expose unknown English backend text to the UI", async () => {
     const logger = { error: vi.fn(), warn: vi.fn() };
     const error = await readEnrollmentError(

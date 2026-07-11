@@ -9,6 +9,10 @@ import {
   useTenantMutateMatching,
 } from "~/lib/swr";
 import { TransitStudentsSection } from "./transit-students-section";
+import {
+  useAttendanceWebEnabled,
+  useOpenCareGroupMode,
+} from "~/lib/tenant-context";
 
 const { mockPush, mockSearchParamsToString } = vi.hoisted(() => ({
   mockPush: vi.fn(),
@@ -194,6 +198,8 @@ function mockTransitData({
 
 describe("TransitStudentsSection", () => {
   beforeEach(() => {
+    vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
+    vi.mocked(useOpenCareGroupMode).mockReturnValue(false);
     vi.clearAllMocks();
     mockSearchParamsToString.mockReturnValue("room=__transit__");
     mockUseSession.mockReturnValue({
@@ -311,6 +317,44 @@ describe("TransitStudentsSection", () => {
     expect(
       screen.getByRole("option", { name: "Werkraum · Gruppe C" }),
     ).toHaveValue("103");
+  });
+
+  it("keeps all active target rooms visible in open-care mode", () => {
+    vi.mocked(useOpenCareGroupMode).mockReturnValue(true);
+    mockTransitData({
+      activeGroups: [
+        mockGroups[0]!,
+        {
+          ...mockGroups[0]!,
+          id: "103",
+          roomId: "303",
+          room: { id: 303, name: "Werkraum" },
+          actualGroup: { id: 203, name: "Gruppe C" },
+        },
+      ],
+      activeSupervisions: [],
+    });
+
+    render(<TransitStudentsSection />);
+
+    expect(
+      screen.getByRole("option", { name: "Aula · Gruppe A" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Werkraum · Gruppe C" }),
+    ).toBeInTheDocument();
+  });
+
+  it("renders transit students read-only when web attendance is disabled", () => {
+    vi.mocked(useAttendanceWebEnabled).mockReturnValue(false);
+
+    render(<TransitStudentsSection />);
+
+    expect(screen.queryByText("Kinder auswählen")).not.toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(
+      screen.getAllByRole("button", { name: /Profil öffnen/ }),
+    ).toHaveLength(2);
   });
 
   it("assigns selected transit students to the selected active room", async () => {

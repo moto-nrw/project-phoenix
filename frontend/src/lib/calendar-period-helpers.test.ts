@@ -54,12 +54,13 @@ describe("calendar-period-helpers", () => {
     it("formats every calendar-period reference category", () => {
       expect(
         formatPeriodUsage(0, 0, " · ", {
+          activityGroupCount: 1,
           studentEnrollmentCount: 1,
           supervisorCount: 2,
           activityInstanceCount: 3,
         }),
       ).toBe(
-        "1 Schülerzuordnung · 2 Mitarbeitenden-Zuordnungen · 3 Termininstanzen",
+        "1 Aktivitätsvorlage · 1 Schülerzuordnung · 2 Mitarbeitenden-Zuordnungen · 3 Termininstanzen",
       );
     });
   });

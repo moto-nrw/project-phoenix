@@ -43,6 +43,21 @@ func TestErrorRenderer_TimeframeNotFound(t *testing.T) {
 	assert.Contains(t, errResp.ErrorText, "timeframe not found")
 }
 
+func TestErrorRenderer_TimeframeCareOfferingConflict(t *testing.T) {
+	err := &scheduleSvc.ScheduleError{
+		Op:  "UpdateTimeframe",
+		Err: scheduleSvc.ErrTimeframeRequiredByCareOffering,
+	}
+
+	renderer := ErrorRenderer(err)
+	require.NotNil(t, renderer)
+
+	errResp, ok := renderer.(*common.ErrResponse)
+	require.True(t, ok, "Expected *common.ErrResponse")
+	assert.Equal(t, http.StatusConflict, errResp.HTTPStatusCode)
+	assert.Contains(t, errResp.ErrorText, "geändert oder gelöscht")
+}
+
 func TestErrorRenderer_RecurrenceRuleNotFound(t *testing.T) {
 	err := &scheduleSvc.ScheduleError{
 		Op:  "GetRecurrenceRule",

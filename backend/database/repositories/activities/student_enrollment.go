@@ -18,6 +18,7 @@ import (
 const (
 	tableActivitiesStudentEnrollments          = "activities.student_enrollments"
 	tableExprActivitiesEnrollmentsAsEnrollment = `activities.student_enrollments AS "student_enrollment"`
+	setStudentEnrollmentValidUntil             = "valid_until = ?"
 )
 
 // StudentEnrollmentRepository implements activities.StudentEnrollmentRepository interface
@@ -36,17 +37,34 @@ func NewStudentEnrollmentRepository(db *bun.DB) activities.StudentEnrollmentRepo
 	}
 }
 
-// CapActiveByGroup ends every still-active enrollment (valid_until IS NULL)
-// of the given group at validUntil (exclusive). Returns the number of rows
-// changed. Custom method (backend-conventions Rule 2): multi-row bulk update
-// for the template split (WP-B3).
+// CapActiveByGroup truncates open enrollments. Future-only open rows are
+// deleted instead of creating valid_until < valid_from; begun open rows are
+// capped. Bounded care-offer windows remain untouched.
 func (r *StudentEnrollmentRepository) CapActiveByGroup(ctx context.Context, groupID int64, validUntil timezone.Date) (int64, error) {
+	deleteQuery := base.GetDB(ctx, r.db).NewDelete().
+		Model((*activities.StudentEnrollment)(nil)).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
+		Where(`"student_enrollment".activity_group_id = ?`, groupID).
+		Where(`"student_enrollment".valid_from >= ?`, validUntil).
+		Where(`"student_enrollment".valid_until IS NULL`).
+		Where(`"student_enrollment".enrollment_request_child_id IS NULL`).
+		Where(`COALESCE(jsonb_array_length("student_enrollment".selected_weekdays), 0) = 0`)
+	deleteQuery = base.WithTenantFilter(ctx, deleteQuery, "student_enrollment")
+	deletedResult, err := deleteQuery.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete future enrollments by group", Err: err}
+	}
+	deleted, _ := deletedResult.RowsAffected()
+
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*activities.StudentEnrollment)(nil)).
 		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
-		Set("valid_until = ?", validUntil).
+		Set(setStudentEnrollmentValidUntil, validUntil).
 		Where(`"student_enrollment".activity_group_id = ?`, groupID).
-		Where(`"student_enrollment".valid_until IS NULL`)
+		Where(`"student_enrollment".valid_from < ?`, validUntil).
+		Where(`"student_enrollment".valid_until IS NULL`).
+		Where(`"student_enrollment".enrollment_request_child_id IS NULL`).
+		Where(`COALESCE(jsonb_array_length("student_enrollment".selected_weekdays), 0) = 0`)
 
 	query = base.WithTenantFilter(ctx, query, "student_enrollment")
 
@@ -58,7 +76,26 @@ func (r *StudentEnrollmentRepository) CapActiveByGroup(ctx context.Context, grou
 		}
 	}
 	rows, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
-	return rows, nil
+	return deleted + rows, nil
+}
+
+// SetValidUntilByID closes one enrollment using a narrow update. FindByGroupID
+// intentionally projects only fields needed by roster reads, so feeding that
+// model through Update would clear omitted provenance such as
+// enrollment_request_child_id.
+func (r *StudentEnrollmentRepository) SetValidUntilByID(ctx context.Context, id int64, validUntil timezone.Date) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*activities.StudentEnrollment)(nil)).
+		ModelTableExpr(tableExprActivitiesEnrollmentsAsEnrollment).
+		Set(setStudentEnrollmentValidUntil, validUntil).
+		Where(`"student_enrollment".id = ?`, id)
+	query = base.WithTenantFilter(ctx, query, "student_enrollment")
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "set enrollment valid_until", Err: err}
+	}
+	return base.AssertRowsAffected(result, 1, "set enrollment valid_until")
 }
 
 // FindByStudentID finds all enrollments for a specific student
@@ -181,6 +218,7 @@ func (r *StudentEnrollmentRepository) FindByGroupID(ctx context.Context, groupID
 		ColumnExpr(`"student_enrollment".valid_from AS "student_enrollment__valid_from"`).
 		ColumnExpr(`"student_enrollment".valid_until AS "student_enrollment__valid_until"`).
 		ColumnExpr(`"student_enrollment".calendar_period_id AS "student_enrollment__calendar_period_id"`).
+		ColumnExpr(`"student_enrollment".enrollment_request_child_id AS "student_enrollment__enrollment_request_child_id"`).
 		ColumnExpr(`"student_enrollment".selected_weekdays AS "student_enrollment__selected_weekdays"`).
 		ColumnExpr(`"student_enrollment".attendance_status AS "student_enrollment__attendance_status"`).
 		ColumnExpr(`"student".id AS "student__id"`).
@@ -272,7 +310,10 @@ func (r *StudentEnrollmentRepository) BackfillEnrollmentRequestChildSource(ctx c
 					"student_enrollment".activity_group_id IN (?)
 					OR (
 						"student_enrollment".valid_from = "phase".service_start_date
-						AND "student_enrollment".valid_until IS NOT DISTINCT FROM "phase".service_end_date
+						AND (
+							"student_enrollment".valid_until IS NOT DISTINCT FROM "phase".service_end_date
+							OR "student_enrollment".valid_until IS NOT DISTINCT FROM ("phase".service_end_date + 1)
+						)
 					)
 				)
 		)`, requestChildID, bun.List(groupIDs))
@@ -391,7 +432,7 @@ func (r *StudentEnrollmentRepository) CloseOpenByGroupAndPeriod(ctx context.Cont
 	tenantID := tenant.FromContext(ctx)
 	update := base.GetDB(ctx, r.db).NewUpdate().
 		Table("activities.student_enrollments").
-		Set("valid_until = ?", validFrom).
+		Set(setStudentEnrollmentValidUntil, validFrom).
 		Where("tenant_id = ?", tenantID).
 		Where("activity_group_id = ?", groupID).
 		Where("valid_until IS NULL")

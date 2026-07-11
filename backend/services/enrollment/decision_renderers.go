@@ -110,3 +110,23 @@ func NewEnrollmentRejectedRenderer(cfg EmailRendererConfig) func(context.Context
 		)
 	}
 }
+
+// NewEnrollmentDecisionDigestRenderer renders the single request-level
+// summary emitted after every child has a parent-visible final decision.
+func NewEnrollmentDecisionDigestRenderer(cfg EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error) {
+	return func(_ context.Context, row *platformModels.EmailOutbox) (*email.Message, error) {
+		message, err := renderDecisionMessage(cfg, row, "Entscheidung zu Ihrer Anmeldung", "enrollment-decision-digest.html")
+		if err != nil {
+			return nil, err
+		}
+		content, ok := message.Content.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("%s renderer produced invalid content", row.Kind)
+		}
+		content["ApprovedNames"] = payloadStringSlice(row.Payload, "approved_names")
+		content["WaitlistedNames"] = payloadStringSlice(row.Payload, "waitlisted_names")
+		content["RejectedNames"] = payloadStringSlice(row.Payload, "rejected_names")
+		content["WithdrawnNames"] = payloadStringSlice(row.Payload, "withdrawn_names")
+		return message, nil
+	}
+}

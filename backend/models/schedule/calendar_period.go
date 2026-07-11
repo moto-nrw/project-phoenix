@@ -23,6 +23,11 @@ var (
 	// ErrCalendarPeriodNameConflict is returned when a create or update would
 	// violate the per-tenant name uniqueness rule.
 	ErrCalendarPeriodNameConflict = errors.New("calendar period name already exists")
+	// ErrCalendarPeriodCareOfferingConflict is returned when changing or
+	// deleting a period would invalidate a care offering's linked timetable
+	// series. The caller must keep the period unchanged until the offering is
+	// relinked or removed.
+	ErrCalendarPeriodCareOfferingConflict = errors.New("calendar period is required by a linked care offering")
 )
 
 // CalendarPeriodNameMaxLength is the maximum length of the name field.
@@ -104,6 +109,7 @@ func (p *CalendarPeriod) ContainsDate(date time.Time) bool {
 // collide with an existing unscoped active assignment.
 type CalendarPeriodUsage struct {
 	EnrollmentPhases   int
+	ActivityGroups     int
 	Schedules          int
 	StudentEnrollments int
 	Supervisors        int

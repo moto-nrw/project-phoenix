@@ -20,6 +20,7 @@ export default function EnrollmentStatusPage({ params }: PageProps) {
   const searchParams = useSearchParams();
   const { tenant } = useTenant();
   const justSubmitted = searchParams.get("submitted") === "1";
+  const duplicateWarning = searchParams.get("duplicate_warning") === "1";
 
   return (
     <PublicEnrollmentPageShell withInlineSwitcher>
@@ -30,7 +31,11 @@ export default function EnrollmentStatusPage({ params }: PageProps) {
           <PublicEnrollmentLocaleSwitcher />
         </div>
       </div>
-      <EnrollmentStatusView token={token} justSubmitted={justSubmitted} />
+      <EnrollmentStatusView
+        token={token}
+        justSubmitted={justSubmitted}
+        duplicateWarning={duplicateWarning}
+      />
     </PublicEnrollmentPageShell>
   );
 }

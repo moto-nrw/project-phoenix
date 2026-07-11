@@ -35,6 +35,18 @@ func TestErrorRenderer_SystemRoomNameReserved(t *testing.T) {
 	assert.Contains(t, resp.ErrorText, "reserviert")
 }
 
+func TestErrorRenderer_RoomRequiredByCareOffering(t *testing.T) {
+	facErr := &facilities.FacilitiesError{
+		Op:  "delete room",
+		Err: facilities.ErrRoomRequiredByCareOffering,
+	}
+	renderer := rooms.ErrorRenderer(facErr)
+	resp, ok := renderer.(*common.ErrResponse)
+	assert.True(t, ok, "expected *common.ErrResponse")
+	assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
+	assert.Contains(t, resp.ErrorText, "verknüpftes Betreuungsangebot")
+}
+
 func TestErrorRenderer_DuplicateToiletRoom(t *testing.T) {
 	facErr := &facilities.FacilitiesError{
 		Op:  "CreateRoom",

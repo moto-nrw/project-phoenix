@@ -1,6 +1,10 @@
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { StudentsInRoomSection } from "./students-in-room-section";
+import {
+  useAttendanceWebEnabled,
+  useOpenCareGroupMode,
+} from "~/lib/tenant-context";
 
 // ----------------------------------------------------------------------------
 // Mocks
@@ -242,6 +246,8 @@ const setBulkData = ({
 };
 
 beforeEach(() => {
+  vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
+  vi.mocked(useOpenCareGroupMode).mockReturnValue(false);
   mockPush.mockReset();
   mockUseSWRAuth.mockReset();
   mockUseTenantMutateMatching.mockReset();
@@ -515,6 +521,17 @@ describe("StudentsInRoomSection", () => {
   });
 
   describe("bulk room move", () => {
+    it("renders the roster read-only when web attendance is disabled", () => {
+      vi.mocked(useAttendanceWebEnabled).mockReturnValue(false);
+      setSWR({ data: { students: [makeStudent()] } });
+      setBulkData();
+
+      render(<StudentsInRoomSection roomId="42" roomName="OGS-Raum 1" />);
+
+      expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+      expect(screen.queryByText("Kinder auswählen")).not.toBeInTheDocument();
+      expect(screen.getByTestId("compact-student-card-1")).toBeInTheDocument();
+    });
     it("selects multiple children and moves their current visits to the selected room", async () => {
       const refreshCaches = vi.fn().mockResolvedValue(undefined);
       mockUseTenantMutateMatching.mockReturnValue(refreshCaches);

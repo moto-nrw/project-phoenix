@@ -180,6 +180,7 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 	resp := enrollmentAPI.SubmitEnrollmentResponse{
 		RequestID: strconv.FormatInt(result.Request.ID, 10),
 		StatusURL: result.StatusURL,
+		Warnings:  result.Warnings,
 	}
 	common.Respond(w, r, http.StatusCreated, resp, "Enrollment submitted")
 }

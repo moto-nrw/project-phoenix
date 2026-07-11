@@ -138,15 +138,16 @@ type Factory struct {
 	Display display.Service
 
 	// Enrollment domain (parent-enrollment PR 5+).
-	EnrollmentFormSchema    enrollment.FormSchemaService
-	EnrollmentCareOffering  enrollment.CareOfferingService
-	EnrollmentCaptcha       *enrollment.CaptchaService
-	EnrollmentRequest       enrollment.RequestService
-	EnrollmentPhase         enrollment.PhaseService
-	EnrollmentDecision      enrollment.DecisionService
-	EnrollmentReport        enrollment.ReportService
-	EnrollmentRollover      enrollment.RolloverService
-	EnrollmentChangeRequest enrollment.ChangeRequestService
+	EnrollmentFormSchema      enrollment.FormSchemaService
+	EnrollmentCareOffering    enrollment.CareOfferingService
+	EnrollmentCaptcha         *enrollment.CaptchaService
+	EnrollmentRequest         enrollment.RequestService
+	EnrollmentPhase           enrollment.PhaseService
+	EnrollmentDecision        enrollment.DecisionService
+	EnrollmentReport          enrollment.ReportService
+	EnrollmentRollover        enrollment.RolloverService
+	EnrollmentChangeRequest   enrollment.ChangeRequestService
+	EnrollmentRejectedCleanup enrollment.RejectedEnrollmentCleaner
 
 	// Parent (cross-tenant guardian portal - PR 9)
 	Parent parent.Service
@@ -416,11 +417,50 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, err
 	}
 
+	// Construct care-offering validation before services that can mutate its
+	// recurrence resources. Room/timeframe FKs use ON DELETE SET NULL, so those
+	// delete services must preflight the same materializability invariant as
+	// template and calendar-period mutations.
+	enrollmentCareOfferingService := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
+		Repo:                     repos.CareOffering,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		ActivityGroupRepo:        repos.ActivityGroup,
+		ActivityScheduleRepo:     repos.ActivitySchedule,
+		CalendarPeriodRepo:       repos.CalendarPeriod,
+		TimeframeRepo:            repos.Timeframe,
+		ActivityExceptionRepo:    repos.ActivityException,
+		PhaseRepo:                repos.Phase,
+		LockTemplateRecurrence: func(ctx context.Context) error {
+			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		},
+		Logger: logger.With("service", "enrollment-care-offering"),
+	})
+	careOfferingSeriesValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingSeriesValidator)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not implement series validation")
+	}
+	careOfferingCalendarPeriodValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingCalendarPeriodValidator)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not implement calendar period validation")
+	}
+	careOfferingResourceValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingMaterializationResourceValidator)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not implement materialization resource validation")
+	}
+	careOfferingPhaseValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingPhaseValidator)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not implement phase validation")
+	}
+
 	// Initialize facilities service
-	facilitiesService := facilities.NewService(
-		repos.Room,
-		repos.ActiveGroup,
-	)
+	facilitiesService := facilities.NewServiceWithConfig(facilities.ServiceConfig{
+		RoomRepo:        repos.Room,
+		ActiveGroupRepo: repos.ActiveGroup,
+		LockTemplateRecurrence: func(ctx context.Context) error {
+			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		},
+		ValidateCareOfferingRoomDeletion: careOfferingResourceValidator.ValidateRoomDeletion,
+	})
 
 	// Initialize Schulhof service (depends on facilities, activities, and active services)
 	schulhofService := facilities.NewSchulhofService(
@@ -438,11 +478,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	)
 
 	// Initialize schedule service
-	scheduleService := schedule.NewService(
-		repos.Dateframe,
-		repos.Timeframe,
-		repos.RecurrenceRule,
-	)
+	scheduleService := schedule.NewServiceWithConfig(schedule.ServiceConfig{
+		DateframeRepo:      repos.Dateframe,
+		TimeframeRepo:      repos.Timeframe,
+		RecurrenceRuleRepo: repos.RecurrenceRule,
+		LockTemplateRecurrence: func(ctx context.Context) error {
+			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		},
+		ValidateCareOfferingTimeframeChange: careOfferingResourceValidator.ValidateTimeframeChange,
+	})
 
 	// Initialize shift type service (Schichtarten, #1836)
 	shiftTypeService := schedule.NewShiftTypeService(
@@ -483,11 +527,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:            logger.With("service", "display"),
 	})
 
-	// Initialize calendar period service
-	calendarPeriodService := schedule.NewCalendarPeriodService(
-		repos.CalendarPeriod,
-		logger.With("service", "calendar-period"),
-	)
+	// Period updates/deletes use the same tenant recurrence transaction and
+	// advisory lock as template and care-offering mutations. The preflight
+	// callback sees the proposed post-update row (or nil for delete) before any
+	// FK can be cleared by ON DELETE SET NULL.
+	calendarPeriodService := schedule.NewCalendarPeriodServiceWithConfig(schedule.CalendarPeriodServiceConfig{
+		Repo:                       repos.CalendarPeriod,
+		DB:                         db,
+		ValidateCareOfferingChange: careOfferingCalendarPeriodValidator.ValidateCalendarPeriodChange,
+		Logger:                     logger.With("service", "calendar-period"),
+	})
 
 	// Initialize materialization service (WP-B8). Turns activity templates into
 	// concrete schedule.activity_instances + instance_staff/instance_students
@@ -505,6 +554,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.ActivityException,
 		repos.Timeframe,
 		calendarPeriodService,
+		db,
 		logger.With("service", "materialization"),
 	)
 
@@ -513,14 +563,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// creates a successor template and re-plans the affected window via the
 	// materialization service.
 	templateSplitService := schedule.NewTemplateSplitService(schedule.TemplateSplitDependencies{
-		GroupRepo:       repos.ActivityGroup,
-		ScheduleRepo:    repos.ActivitySchedule,
-		EnrollmentRepo:  repos.StudentEnrollment,
-		SupervisorRepo:  repos.ActivitySupervisor,
-		InstanceRepo:    repos.ActivityInstance,
-		TimeframeRepo:   repos.Timeframe,
-		Materialization: materializationService,
-		Logger:          logger.With("service", "template-split"),
+		GroupRepo:                  repos.ActivityGroup,
+		ScheduleRepo:               repos.ActivitySchedule,
+		EnrollmentRepo:             repos.StudentEnrollment,
+		SupervisorRepo:             repos.ActivitySupervisor,
+		InstanceRepo:               repos.ActivityInstance,
+		TimeframeRepo:              repos.Timeframe,
+		Materialization:            materializationService,
+		ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
+		Logger:                     logger.With("service", "template-split"),
+		DB:                         db,
 	})
 
 	// Initialize timetable GDPR cleanup service (WP-B14). Deletes
@@ -755,6 +807,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		platformModels.EmailKindEnrollmentApproved:                 enrollment.NewEnrollmentApprovedRenderer,
 		platformModels.EmailKindEnrollmentWaitlisted:               enrollment.NewEnrollmentWaitlistedRenderer,
 		platformModels.EmailKindEnrollmentRejected:                 enrollment.NewEnrollmentRejectedRenderer,
+		platformModels.EmailKindEnrollmentDecisionDigest:           enrollment.NewEnrollmentDecisionDigestRenderer,
 		platformModels.EmailKindEnrollmentChangeRequestSubmitted:   enrollment.NewEnrollmentChangeRequestSubmittedRenderer,
 		platformModels.EmailKindEnrollmentChangeRequestQuestion:    enrollment.NewEnrollmentChangeRequestQuestionRenderer,
 		platformModels.EmailKindEnrollmentChangeRequestParentReply: enrollment.NewEnrollmentChangeRequestParentReplyRenderer,
@@ -985,15 +1038,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:      logger.With("service", "enrollment-form-schema"),
 	})
 
-	enrollmentCareOfferingService := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
-		Repo:                 repos.CareOffering,
-		ActivityGroupRepo:    repos.ActivityGroup,
-		ActivityScheduleRepo: repos.ActivitySchedule,
-		CalendarPeriodRepo:   repos.CalendarPeriod,
-		PhaseRepo:            repos.Phase,
-		Logger:               logger.With("service", "enrollment-care-offering"),
-	})
-
 	enrollmentCaptchaService := enrollment.NewCaptchaService(enrollment.CaptchaServiceConfig{
 		Settings: settingsService,
 		Logger:   logger.With("service", "enrollment-captcha"),
@@ -1017,6 +1061,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                       db,
 		Logger:                   logger.With("service", "enrollment-request"),
 	})
+	enrollmentRejectedCleanupService := enrollment.NewRejectedEnrollmentCleanupService(
+		repos.Request,
+		repos.RequestChild,
+		repos.LateInvite,
+		repos.EmailOutbox,
+		settingsService,
+		db,
+		logger.With("service", "enrollment-rejected-cleanup"),
+	)
 
 	enrollmentPhaseService := enrollment.NewPhaseService(enrollment.PhaseServiceConfig{
 		Repo:             repos.Phase,
@@ -1025,8 +1078,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CareOfferingRepo: repos.CareOffering,
 		FormSchemaRepo:   repos.FormSchema,
 		CalendarPeriods:  calendarPeriodService,
-		DB:               db,
-		Logger:           logger.With("service", "enrollment-phase"),
+		LockTemplateRecurrence: func(ctx context.Context) error {
+			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		},
+		ValidateCareOfferingPhaseChange: careOfferingPhaseValidator.ValidatePhaseChange,
+		DB:                              db,
+		Logger:                          logger.With("service", "enrollment-phase"),
 	})
 
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
@@ -1052,6 +1109,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActivityGroupRepo:        repos.ActivityGroup,
 		ActivityScheduleRepo:     repos.ActivitySchedule,
 		CalendarPeriodRepo:       repos.CalendarPeriod,
+		TimeframeRepo:            repos.Timeframe,
+		ActivityExceptionRepo:    repos.ActivityException,
 		AccountRepo:              repos.Account,
 		AccountTenantRepo:        repos.AccountTenant,
 		AccountRoleRepo:          repos.AccountRole,
@@ -1060,7 +1119,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		FrontendURL:              frontendURL,
 		ParentsURL:               parentsURL,
 		Settings:                 settingsService,
-		Logger:                   logger.With("service", "enrollment-decision"),
+		LockTemplateRecurrence: func(ctx context.Context) error {
+			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		},
+		Logger: logger.With("service", "enrollment-decision"),
 	})
 
 	enrollmentReportService := enrollment.NewReportService(enrollment.ReportServiceConfig{
@@ -1350,26 +1412,27 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
 		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
 		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
-			InstanceStudentRepo:    repos.InstanceStudent,
-			ActivityInstanceRepo:   repos.ActivityInstance,
-			ActivityExceptionRepo:  repos.ActivityException,
-			ActivityScheduleRepo:   repos.ActivitySchedule,
-			InstanceStaffRepo:      repos.InstanceStaff,
-			ActiveGroupRepo:        repos.ActiveGroup,
-			SupervisorRepo:         repos.GroupSupervisor,
-			ArrivalScheduleRepo:    repos.StudentArrivalSchedule,
-			ArrivalExceptionRepo:   repos.StudentArrivalException,
-			PickupScheduleRepo:     repos.StudentPickupSchedule,
-			PickupExceptionRepo:    repos.StudentPickupException,
-			VisitRepo:              repos.ActiveVisit,
-			RoomRepo:               repos.Room,
-			ActivityCategoryRepo:   repos.ActivityCategory,
-			ActivityGroupRepo:      repos.ActivityGroup,
-			ActivitySupervisorRepo: repos.ActivitySupervisor,
-			StudentEnrollmentRepo:  repos.StudentEnrollment,
-			TimeframeRepo:          repos.Timeframe,
-			EducationGroupRepo:     repos.Group,
-			DB:                     db,
+			InstanceStudentRepo:        repos.InstanceStudent,
+			ActivityInstanceRepo:       repos.ActivityInstance,
+			ActivityExceptionRepo:      repos.ActivityException,
+			ActivityScheduleRepo:       repos.ActivitySchedule,
+			InstanceStaffRepo:          repos.InstanceStaff,
+			ActiveGroupRepo:            repos.ActiveGroup,
+			SupervisorRepo:             repos.GroupSupervisor,
+			ArrivalScheduleRepo:        repos.StudentArrivalSchedule,
+			ArrivalExceptionRepo:       repos.StudentArrivalException,
+			PickupScheduleRepo:         repos.StudentPickupSchedule,
+			PickupExceptionRepo:        repos.StudentPickupException,
+			VisitRepo:                  repos.ActiveVisit,
+			RoomRepo:                   repos.Room,
+			ActivityCategoryRepo:       repos.ActivityCategory,
+			ActivityGroupRepo:          repos.ActivityGroup,
+			ActivitySupervisorRepo:     repos.ActivitySupervisor,
+			StudentEnrollmentRepo:      repos.StudentEnrollment,
+			TimeframeRepo:              repos.Timeframe,
+			EducationGroupRepo:         repos.Group,
+			ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
+			DB:                         db,
 		}),
 		OperatorSuggestions:  operatorSuggestionsService,
 		OperatorMFA:          operatorMFAService,
@@ -1380,15 +1443,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EmailOutboxWorker:     emailOutboxWorker,
 		EmailTemplateRegistry: emailTemplateRegistry,
 
-		EnrollmentFormSchema:    enrollmentFormSchemaService,
-		EnrollmentCareOffering:  enrollmentCareOfferingService,
-		EnrollmentCaptcha:       enrollmentCaptchaService,
-		EnrollmentRequest:       enrollmentRequestService,
-		EnrollmentPhase:         enrollmentPhaseService,
-		EnrollmentDecision:      enrollmentDecisionService,
-		EnrollmentReport:        enrollmentReportService,
-		EnrollmentRollover:      enrollmentRolloverService,
-		EnrollmentChangeRequest: enrollmentChangeRequestService,
+		EnrollmentFormSchema:      enrollmentFormSchemaService,
+		EnrollmentCareOffering:    enrollmentCareOfferingService,
+		EnrollmentCaptcha:         enrollmentCaptchaService,
+		EnrollmentRequest:         enrollmentRequestService,
+		EnrollmentPhase:           enrollmentPhaseService,
+		EnrollmentDecision:        enrollmentDecisionService,
+		EnrollmentReport:          enrollmentReportService,
+		EnrollmentRollover:        enrollmentRolloverService,
+		EnrollmentChangeRequest:   enrollmentChangeRequestService,
+		EnrollmentRejectedCleanup: enrollmentRejectedCleanupService,
 
 		Parent:             parentService,
 		Messaging:          messagingService,

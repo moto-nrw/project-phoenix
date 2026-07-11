@@ -25,17 +25,20 @@ type ChangeRequest struct {
 	base.Model `bun:"schema:enrollment,table:change_requests"`
 	base.TenantModel
 
-	RequestID           int64          `bun:"request_id,notnull" json:"request_id"`
-	RequestChildID      *int64         `bun:"request_child_id" json:"request_child_id,omitempty"`
-	Status              string         `bun:"status,notnull,default:'pending_review'" json:"status"`
-	ParentNote          *string        `bun:"parent_note" json:"parent_note,omitempty"`
-	AdminDecisionNote   *string        `bun:"admin_decision_note" json:"admin_decision_note,omitempty"`
-	BaseSnapshot        map[string]any `bun:"base_snapshot,type:jsonb,notnull,default:'{}'" json:"base_snapshot"`
-	ProposedSnapshot    map[string]any `bun:"proposed_snapshot,type:jsonb,notnull,default:'{}'" json:"proposed_snapshot"`
-	Diff                map[string]any `bun:"diff_json,type:jsonb,notnull,default:'{}'" json:"diff"`
-	CreatedByAccountID  *int64         `bun:"created_by_account_id" json:"created_by_account_id,omitempty"`
-	ReviewedByAccountID *int64         `bun:"reviewed_by_account_id" json:"reviewed_by_account_id,omitempty"`
-	ReviewedAt          *time.Time     `bun:"reviewed_at" json:"reviewed_at,omitempty"`
+	RequestID         int64          `bun:"request_id,notnull" json:"request_id"`
+	RequestChildID    *int64         `bun:"request_child_id" json:"request_child_id,omitempty"`
+	Status            string         `bun:"status,notnull,default:'pending_review'" json:"status"`
+	ParentNote        *string        `bun:"parent_note" json:"parent_note,omitempty"`
+	AdminDecisionNote *string        `bun:"admin_decision_note" json:"admin_decision_note,omitempty"`
+	BaseSnapshot      map[string]any `bun:"base_snapshot,type:jsonb,notnull,default:'{}'" json:"base_snapshot"`
+	ProposedSnapshot  map[string]any `bun:"proposed_snapshot,type:jsonb,notnull,default:'{}'" json:"proposed_snapshot"`
+	Diff              map[string]any `bun:"diff_json,type:jsonb,notnull,default:'{}'" json:"diff"`
+	// CareOfferingsEnabledAtCreation pins the form capability used to validate
+	// and apply this proposal. It is internal workflow state, not API data.
+	CareOfferingsEnabledAtCreation bool       `bun:"care_offerings_enabled_at_creation,notnull" json:"-"`
+	CreatedByAccountID             *int64     `bun:"created_by_account_id" json:"created_by_account_id,omitempty"`
+	ReviewedByAccountID            *int64     `bun:"reviewed_by_account_id" json:"reviewed_by_account_id,omitempty"`
+	ReviewedAt                     *time.Time `bun:"reviewed_at" json:"reviewed_at,omitempty"`
 }
 
 // ChangeRequestMessage is one parent/staff/system message in the public

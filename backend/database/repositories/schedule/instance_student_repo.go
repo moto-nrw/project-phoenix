@@ -109,6 +109,44 @@ func (r *InstanceStudentRepository) FindExpectedByInstanceIDs(ctx context.Contex
 	return rows, nil
 }
 
+// CountNonAbsentByInstanceIDs groups instance_students by instance_id and
+// returns the count of rows with status != 'absent' per instance. One query
+// with GROUP BY, mirroring InstanceStaffRepository.CountNonAbsentByInstanceIDs
+// (instance_staff_repo.go). Instances with zero non-absent rows do not appear
+// in the returned map — callers must treat missing keys as zero.
+func (r *InstanceStudentRepository) CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {
+	if len(instanceIDs) == 0 {
+		return map[int64]int{}, nil
+	}
+
+	var rows []struct {
+		InstanceID int64 `bun:"instance_id"`
+		Cnt        int   `bun:"cnt"`
+	}
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(modelTblInstanceStudent).
+		ColumnExpr(`"instance_student".instance_id AS instance_id`).
+		ColumnExpr(`COUNT(*)::int AS cnt`).
+		Where(`"instance_student".instance_id IN (?)`, bun.List(instanceIDs)).
+		Where(`"instance_student".status != ?`, schedule.AttendanceStatusAbsent).
+		GroupExpr(`"instance_student".instance_id`)
+
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)
+
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "count non-absent by instance ids",
+			Err: err,
+		}
+	}
+
+	out := make(map[int64]int, len(rows))
+	for _, row := range rows {
+		out[row.InstanceID] = row.Cnt
+	}
+	return out, nil
+}
+
 // FindByStudentAndDateRange returns attendance rows for a student across all
 // instances whose date falls within the inclusive range.
 func (r *InstanceStudentRepository) FindByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*schedule.InstanceStudent, error) {

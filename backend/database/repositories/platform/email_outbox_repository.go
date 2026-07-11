@@ -20,7 +20,7 @@ type EmailOutboxRepository struct {
 }
 
 // NewEmailOutboxRepository wires a new repository.
-func NewEmailOutboxRepository(db *bun.DB) platform.EmailOutboxRepository {
+func NewEmailOutboxRepository(db *bun.DB) platform.EmailOutboxCleanupRepository {
 	return &EmailOutboxRepository{db: db}
 }
 
@@ -35,6 +35,7 @@ func (r *EmailOutboxRepository) Create(ctx context.Context, row *platform.EmailO
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(row).
 		ModelTableExpr(tableExprAlias).
+		On("CONFLICT (tenant_id, idempotency_key) WHERE idempotency_key IS NOT NULL DO NOTHING").
 		Returning("*").
 		Exec(ctx)
 	if err != nil {
@@ -58,6 +59,20 @@ func (r *EmailOutboxRepository) FindByID(ctx context.Context, id int64) (*platfo
 		return nil, fmt.Errorf("failed to find email outbox row: %w", err)
 	}
 	return row, nil
+}
+
+func (r *EmailOutboxRepository) DeleteByRelatedEntity(ctx context.Context, relatedType string, relatedID int64) (int64, error) {
+	result, err := base.GetDB(ctx, r.db).NewDelete().
+		Model((*platform.EmailOutbox)(nil)).
+		ModelTableExpr(tableExprAlias).
+		Where(`"email_outbox".related_entity_type = ?`, relatedType).
+		Where(`"email_outbox".related_entity_id = ?`, relatedID).
+		Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete related email outbox rows: %w", err)
+	}
+	affected, _ := result.RowsAffected()
+	return affected, nil
 }
 
 // ClaimDuePending atomically reserves up to `limit` rows. The CTE pattern

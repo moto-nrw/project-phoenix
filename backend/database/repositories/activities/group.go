@@ -59,6 +59,31 @@ func (r *GroupRepository) FindByName(ctx context.Context, name string) (*activit
 	return group, nil
 }
 
+// FindTemplateSeries resolves groupID to its stable split-series root and
+// returns every live segment in that lineage. Tenant predicates are explicit
+// defense-in-depth alongside RLS.
+func (r *GroupRepository) FindTemplateSeries(ctx context.Context, groupID int64) ([]*activities.Group, error) {
+	tenantID := tenant.FromContext(ctx)
+	groups := make([]*activities.Group, 0)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&groups).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
+		Where(`"group".tenant_id = ?`, tenantID).
+		Where(`"group".is_template = TRUE`).
+		Where(`"group".archived_at IS NULL`).
+		Where(`COALESCE("group".series_root_id, "group".id) = (
+			SELECT COALESCE(selected.series_root_id, selected.id)
+			FROM activities.groups AS selected
+			WHERE selected.tenant_id = ? AND selected.id = ?
+		)`, tenantID, groupID).
+		OrderExpr(`"group".id ASC`).
+		Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find template series", Err: err}
+	}
+	return groups, nil
+}
+
 // FindByCategory finds all groups in a specific category
 func (r *GroupRepository) FindByCategory(ctx context.Context, categoryID int64) ([]*activities.Group, error) {
 	var groups []*activities.Group
@@ -393,6 +418,10 @@ const templateListSelect = `
 				COALESCE(eg.name, '') AS education_group_name,
 				g.is_open,
 			g.max_participants,
+			g.calendar_period_id AS template_calendar_period_id,
+			g.target_group_type,
+			g.target_grade_level,
+			g.target_school_class,
 			COALESCE(enrollments.count, 0) AS enrollment_count,
 			COALESCE(supervisors.count, 0) AS supervisor_count,
 			COALESCE(enrollments.student_ids, ARRAY[]::BIGINT[]) AS student_ids,
@@ -510,8 +539,17 @@ func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodI
 	args = append(args, tenantID)
 	args = append(args, tenantID)
 	if periodID != nil {
-		query += ` AND (s.calendar_period_id = ? OR s.calendar_period_id IS NULL)`
-		args = append(args, *periodID)
+		// Match materialization's period precedence exactly: a schedule pin is
+		// authoritative; an unpinned schedule inherits the group pin; only a
+		// schedule and group that are both unpinned are period-flexible.
+		query += ` AND (
+			s.calendar_period_id = ?
+			OR (
+				s.calendar_period_id IS NULL
+				AND (g.calendar_period_id = ? OR g.calendar_period_id IS NULL)
+			)
+		)`
+		args = append(args, *periodID, *periodID)
 	}
 	query += ` ORDER BY g.name ASC, s.weekday ASC, tf.start_time ASC`
 
@@ -521,18 +559,188 @@ func (r *GroupRepository) ListTemplateRowsForPeriod(ctx context.Context, periodI
 	return rows, nil
 }
 
-// UpdateTemplateFields patches the editable fields of a non-archived template
-// (issue #584: moved verbatim from api/timetable).
-func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, name, groupType string, categoryID, roomID int64, educationGroupID *int64, maxParticipants int) (int64, error) {
+// ListTemplateCapacityOccurrences returns one row for every date on which at
+// least one schedule of a template actually recurs. Keeping the repository
+// result date-granular is essential: the tenant-specific children/staff ratio
+// is business logic, and combining non-concurrent rosters here would erase the
+// evidence the service needs to choose the real worst occurrence.
+func (r *GroupRepository) ListTemplateCapacityOccurrences(
+	ctx context.Context,
+	periodID *int64,
+	templateIDs []int64,
+) ([]activities.TemplateCapacityOccurrence, error) {
+	if len(templateIDs) == 0 {
+		return []activities.TemplateCapacityOccurrence{}, nil
+	}
+
+	occurrences := make([]activities.TemplateCapacityOccurrence, 0)
 	tenantID := tenant.FromContext(ctx)
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		WITH selected_period AS (
+			SELECT id AS calendar_period_id, start_date, end_date, week_cycle_length, week_cycle_anchor
+			FROM schedule.calendar_periods
+			WHERE tenant_id = ?
+			  AND is_active = TRUE
+			  AND (?::BIGINT IS NULL OR id = ?)
+		), candidate_occurrences AS (
+			SELECT DISTINCT
+				g.id AS template_id,
+				period.calendar_period_id,
+				days.day::DATE AS occurrence_date
+			FROM activities.groups AS g
+			INNER JOIN activities.schedules AS s
+				ON s.activity_group_id = g.id
+				AND s.tenant_id = g.tenant_id
+			INNER JOIN schedule.timeframes AS timeframe
+				ON timeframe.id = s.timeframe_id
+				AND timeframe.tenant_id = g.tenant_id
+				AND timeframe.start_time IS NOT NULL
+				AND timeframe.end_time IS NOT NULL
+			CROSS JOIN selected_period AS period
+			CROSS JOIN LATERAL generate_series(
+				period.start_date,
+				period.end_date,
+				INTERVAL '1 day'
+			) AS days(day)
+			LEFT JOIN schedule.activity_exceptions AS exception
+				ON exception.tenant_id = g.tenant_id
+				AND exception.activity_group_id = g.id
+				AND exception.exception_date = days.day::DATE
+			WHERE g.tenant_id = ?
+			  AND g.id IN (?)
+			  AND g.is_template = TRUE
+			  AND g.archived_at IS NULL
+			  AND exception.exception_type IS DISTINCT FROM 'cancelled'
+			  AND COALESCE(exception.room_id, g.planned_room_id, 0) > 0
+			  AND EXTRACT(ISODOW FROM days.day)::INT = s.weekday
+			  AND (s.valid_from IS NULL OR s.valid_from <= days.day::DATE)
+			  AND (s.valid_until IS NULL OR s.valid_until > days.day::DATE)
+			  AND (
+				s.calendar_period_id = period.calendar_period_id
+				OR (
+					s.calendar_period_id IS NULL
+					AND g.calendar_period_id = period.calendar_period_id
+				)
+				OR (
+					s.calendar_period_id IS NULL
+					AND g.calendar_period_id IS NULL
+					AND period.calendar_period_id = (
+						SELECT MIN(active_period.id)
+						FROM schedule.calendar_periods AS active_period
+						WHERE active_period.tenant_id = g.tenant_id
+						  AND active_period.is_active = TRUE
+						  AND active_period.start_date <= days.day::DATE
+						  AND active_period.end_date >= days.day::DATE
+					)
+				)
+			  )
+			  AND (
+				s.week_pattern = 0
+				OR period.week_cycle_length <= 1
+				OR period.week_cycle_anchor IS NULL
+				OR s.week_pattern = (
+					MOD(
+						MOD(
+							FLOOR((days.day::DATE - period.week_cycle_anchor) / 7.0)::INT,
+							period.week_cycle_length
+						) + period.week_cycle_length,
+						period.week_cycle_length
+					) + 1
+				)
+			  )
+		), student_counts AS (
+			SELECT
+				occurrence.template_id,
+				occurrence.calendar_period_id,
+				occurrence.occurrence_date,
+				COUNT(DISTINCT enrollment.student_id)::INT AS enrollment_count
+			FROM candidate_occurrences AS occurrence
+			INNER JOIN activities.student_enrollments AS enrollment
+				ON enrollment.tenant_id = ?
+				AND enrollment.activity_group_id = occurrence.template_id
+				AND enrollment.valid_from <= occurrence.occurrence_date
+				AND (enrollment.valid_until IS NULL OR enrollment.valid_until > occurrence.occurrence_date)
+				AND (enrollment.calendar_period_id IS NULL OR enrollment.calendar_period_id = occurrence.calendar_period_id)
+				AND (
+					enrollment.selected_weekdays IS NULL
+					OR jsonb_array_length(enrollment.selected_weekdays) = 0
+					OR enrollment.selected_weekdays @> jsonb_build_array(
+						EXTRACT(ISODOW FROM occurrence.occurrence_date)::INT
+					)
+				)
+			GROUP BY occurrence.template_id, occurrence.calendar_period_id, occurrence.occurrence_date
+		), supervisor_counts AS (
+			SELECT
+				occurrence.template_id,
+				occurrence.calendar_period_id,
+				occurrence.occurrence_date,
+				COUNT(DISTINCT supervisor.staff_id)::INT AS supervisor_count
+			FROM candidate_occurrences AS occurrence
+			INNER JOIN activities.supervisors AS supervisor
+				ON supervisor.tenant_id = ?
+				AND supervisor.group_id = occurrence.template_id
+				AND supervisor.valid_from <= occurrence.occurrence_date
+				AND (supervisor.valid_until IS NULL OR supervisor.valid_until > occurrence.occurrence_date)
+				AND (supervisor.calendar_period_id IS NULL OR supervisor.calendar_period_id = occurrence.calendar_period_id)
+			GROUP BY occurrence.template_id, occurrence.calendar_period_id, occurrence.occurrence_date
+		)
+		SELECT
+			occurrence.template_id,
+			occurrence.calendar_period_id,
+			occurrence.occurrence_date,
+			COALESCE(students.enrollment_count, 0) AS enrollment_count,
+			COALESCE(staff.supervisor_count, 0) AS supervisor_count
+		FROM candidate_occurrences AS occurrence
+		LEFT JOIN student_counts AS students
+			ON students.template_id = occurrence.template_id
+			AND students.calendar_period_id = occurrence.calendar_period_id
+			AND students.occurrence_date = occurrence.occurrence_date
+		LEFT JOIN supervisor_counts AS staff
+			ON staff.template_id = occurrence.template_id
+			AND staff.calendar_period_id = occurrence.calendar_period_id
+			AND staff.occurrence_date = occurrence.occurrence_date
+		ORDER BY occurrence.template_id ASC, occurrence.occurrence_date ASC, occurrence.calendar_period_id ASC
+	`, tenantID, periodID, periodID,
+		tenantID, bun.List(templateIDs),
+		tenantID,
+		tenantID,
+	).Scan(ctx, &occurrences)
+	if err != nil {
+		return nil, err
+	}
+	return occurrences, nil
+}
+
+// UpdateTemplateFields patches the editable fields of a non-archived template
+// (issue #584: moved verbatim from api/timetable; extended for
+// calendar_period_id/Zielgruppe in issue #1838).
+func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fields activities.TemplateFieldsUpdate) (int64, error) {
+	tenantID := tenant.FromContext(ctx)
+
+	// This is a raw column Set(), which bypasses bun's Model()-based
+	// zero-value-to-DEFAULT omission (the mechanism that lets
+	// activities.Group{} literals elsewhere in the codebase skip
+	// TargetGroupType entirely and still satisfy the DB CHECK constraint via
+	// its 'none' default). An empty string here must be normalized
+	// explicitly, or it is sent as literal '' and violates
+	// chk_activities_groups_target_group_type.
+	targetGroupType := fields.TargetGroupType
+	if targetGroupType == "" {
+		targetGroupType = activities.TargetGroupTypeNone
+	}
+
 	res, err := base.GetDB(ctx, r.db).NewUpdate().
 		Table("activities.groups").
-		Set("name = ?", name).
-		Set("type = ?", groupType).
-		Set("category_id = ?", categoryID).
-		Set("planned_room_id = ?", roomID).
-		Set("education_group_id = ?", educationGroupID).
-		Set("max_participants = ?", maxParticipants).
+		Set("name = ?", fields.Name).
+		Set("type = ?", fields.Type).
+		Set("category_id = ?", fields.CategoryID).
+		Set("planned_room_id = ?", fields.RoomID).
+		Set("education_group_id = ?", fields.EducationGroupID).
+		Set("max_participants = ?", fields.MaxParticipants).
+		Set("calendar_period_id = ?", fields.CalendarPeriodID).
+		Set("target_group_type = ?", targetGroupType).
+		Set("target_grade_level = ?", fields.TargetGradeLevel).
+		Set("target_school_class = ?", fields.TargetSchoolClass).
 		Set("updated_at = ?", time.Now()).
 		Where("tenant_id = ?", tenantID).
 		Where("id = ?", id).

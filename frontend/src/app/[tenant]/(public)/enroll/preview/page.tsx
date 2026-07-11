@@ -13,6 +13,7 @@ import {
   PublicInfoCard,
 } from "~/components/enrollment/public-enrollment-shell";
 import { useTenant } from "~/lib/tenant-context";
+import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import {
   fetchEnrollmentPreviewBootstrap,
   schemaToPublicFormSchema,
@@ -25,6 +26,10 @@ export default function EnrollmentPreviewPage() {
   const schemaId = searchParams.get("schemaId");
   const isBasePreview = searchParams.get("base") === "1";
   const { tenant } = useTenant();
+  const resolvedGradeLevelMax = tenant?.gradeLevelMax;
+  const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
+    ? resolvedGradeLevelMax
+    : null;
   const [schema, setSchema] = useState<FormSchema | null>(null);
   const [assignedPhaseCount, setAssignedPhaseCount] = useState(0);
   const [activeAssignedPhaseCount, setActiveAssignedPhaseCount] = useState(0);
@@ -148,13 +153,13 @@ export default function EnrollmentPreviewPage() {
             <div className="moto-content-surface rounded-3xl border p-6 text-sm font-medium text-gray-600 shadow-sm">
               Vorschau wird geladen…
             </div>
-          ) : error ? (
+          ) : error || gradeLevelMax === null ? (
             <div className="moto-content-surface rounded-3xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-6 text-sm font-medium text-[#9F1F1E] shadow-sm">
-              {error}
+              {error ?? "Die Klassenstufen-Konfiguration ist nicht verfügbar."}
             </div>
           ) : (
             <EnrollmentForm
-              gradeLevelMax={4}
+              gradeLevelMax={gradeLevelMax}
               localizedCopy
               onSubmitted={() => undefined}
               profileFetcher={previewProfileFetcher}

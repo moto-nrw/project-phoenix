@@ -9,6 +9,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { InstanceDetailSlideOver } from "./instance-detail-slide-over";
 import type { EnrichedInstance } from "~/lib/timetable-types";
+import {
+  useAttendanceWebEnabled,
+  useShowTimetableCounts,
+} from "~/lib/tenant-context";
 
 function instance(overrides: Partial<EnrichedInstance> = {}): EnrichedInstance {
   return {
@@ -48,6 +52,8 @@ function instance(overrides: Partial<EnrichedInstance> = {}): EnrichedInstance {
     absentStaffCount: 1,
     expectedStudentsCount: 3,
     presentStudentsCount: 1,
+    requiredStaffCount: 1,
+    assignedStaffCount: 1,
     conflictWarnings: [
       {
         kind: "staff",
@@ -65,9 +71,28 @@ function confirmDialogButton(name: string) {
   return within(dialogs[dialogs.length - 1]!).getByRole("button", { name });
 }
 
+async function expectNoUnhandledRejection(
+  action: () => Promise<void>,
+): Promise<void> {
+  const unhandledRejections: unknown[] = [];
+  const recordUnhandledRejection = (reason: unknown) => {
+    unhandledRejections.push(reason);
+  };
+  process.on("unhandledRejection", recordUnhandledRejection);
+  try {
+    await action();
+    await new Promise<void>((resolve) => setTimeout(resolve, 0));
+    expect(unhandledRejections).toEqual([]);
+  } finally {
+    process.off("unhandledRejection", recordUnhandledRejection);
+  }
+}
+
 describe("InstanceDetailSlideOver", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(useAttendanceWebEnabled).mockReturnValue(true);
+    vi.mocked(useShowTimetableCounts).mockReturnValue(true);
   });
 
   it("renders nothing without a selected instance", () => {
@@ -129,10 +154,10 @@ describe("InstanceDetailSlideOver", () => {
     );
 
     expect(
-      screen.queryByRole("button", { name: "Als anwesend markieren" }),
+      screen.queryByRole("button", { name: /als anwesend markieren/ }),
     ).not.toBeInTheDocument();
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Kind abmelden" })[0]!,
+      screen.getByRole("button", { name: "Max Erwartet abmelden" }),
     );
     await waitFor(() =>
       expect(onAttendancePatch).toHaveBeenCalledWith("42", "21", {
@@ -209,7 +234,9 @@ describe("InstanceDetailSlideOver", () => {
     );
 
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Als anwesend markieren" })[0]!,
+      screen.getByRole("button", {
+        name: "Kind #21 als anwesend markieren",
+      }),
     );
     await waitFor(() =>
       expect(onAttendancePatch).toHaveBeenCalledWith("42", "21", {
@@ -218,7 +245,7 @@ describe("InstanceDetailSlideOver", () => {
       }),
     );
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Als fehlend markieren" })[0]!,
+      screen.getByRole("button", { name: "Kind #21 als fehlend markieren" }),
     );
     await waitFor(() =>
       expect(onAttendancePatch).toHaveBeenCalledWith("42", "21", {
@@ -227,7 +254,9 @@ describe("InstanceDetailSlideOver", () => {
       }),
     );
     fireEvent.click(
-      screen.getAllByRole("button", { name: "Status zurücksetzen" })[0]!,
+      screen.getByRole("button", {
+        name: "Status von Kind #22 zurücksetzen",
+      }),
     );
     await waitFor(() =>
       expect(onAttendancePatch).toHaveBeenCalledWith("42", "22", {
@@ -236,6 +265,83 @@ describe("InstanceDetailSlideOver", () => {
         note: null,
       }),
     );
+  });
+
+  it("hides attendance mutations when web attendance is disabled", () => {
+    vi.mocked(useAttendanceWebEnabled).mockReturnValue(false);
+    const onAttendancePatch = vi.fn();
+
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({ status: "active", isLive: true })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onAttendancePatch={onAttendancePatch}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", { name: "Als anwesend markieren" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Als fehlend markieren" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Status zurücksetzen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Beenden" }),
+    ).not.toBeInTheDocument();
+    expect(onAttendancePatch).not.toHaveBeenCalled();
+  });
+
+  it("contains a reported lifecycle rejection and resets pending state", async () => {
+    const onLifecycleAction = vi
+      .fn()
+      .mockRejectedValue(new Error("already reported lifecycle failure"));
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({ status: "active", isLive: true })}
+        onClose={vi.fn()}
+        onLifecycleAction={onLifecycleAction}
+      />,
+    );
+
+    await expectNoUnhandledRejection(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Beenden" }));
+      fireEvent.click(confirmDialogButton("Beenden"));
+
+      await waitFor(() =>
+        expect(onLifecycleAction).toHaveBeenCalledWith("complete"),
+      );
+      await waitFor(() =>
+        expect(screen.getByRole("button", { name: "Beenden" })).toBeEnabled(),
+      );
+    });
+  });
+
+  it("contains a reported attendance rejection and resets the row action", async () => {
+    const onAttendancePatch = vi
+      .fn()
+      .mockRejectedValue(new Error("already reported attendance failure"));
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({ status: "active", isLive: true })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onAttendancePatch={onAttendancePatch}
+      />,
+    );
+
+    await expectNoUnhandledRejection(async () => {
+      const attendanceButton = screen.getByRole("button", {
+        name: "Kind #21 als anwesend markieren",
+      });
+      fireEvent.click(attendanceButton);
+
+      await waitFor(() => expect(onAttendancePatch).toHaveBeenCalledOnce());
+      await waitFor(() => expect(attendanceButton).toBeEnabled());
+    });
   });
 
   it("handles cancelled fallback student states", async () => {
@@ -287,13 +393,44 @@ describe("InstanceDetailSlideOver", () => {
       screen.getByRole("dialog", { name: "Wiederholenden Termin löschen" }),
     ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByText("Dieser und alle folgenden"));
+    fireEvent.click(screen.getByText("Ab jetzt dauerhaft"));
     await waitFor(() =>
       expect(onDeleteFollowing).toHaveBeenCalledWith(
         expect.objectContaining({ id: "42", activityGroupId: "7" }),
       ),
     );
     expect(onDeleteCancelled).not.toHaveBeenCalled();
+  });
+
+  it("contains a reported recurring-delete rejection and keeps the scope dialog usable", async () => {
+    const onDeleteFollowing = vi
+      .fn()
+      .mockRejectedValue(new Error("already reported delete failure"));
+
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({ activityGroupId: "7", isSpontaneous: false })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onDeleteCancelled={vi.fn()}
+        onDeleteFollowing={onDeleteFollowing}
+      />,
+    );
+
+    await expectNoUnhandledRejection(async () => {
+      fireEvent.click(screen.getByRole("button", { name: /Löschen/ }));
+      const followingOption = screen
+        .getByText("Ab jetzt dauerhaft")
+        .closest("button");
+      expect(followingOption).not.toBeNull();
+      fireEvent.click(followingOption!);
+
+      await waitFor(() => expect(onDeleteFollowing).toHaveBeenCalledOnce());
+      await waitFor(() => expect(followingOption).toBeEnabled());
+      expect(
+        screen.getByRole("dialog", { name: "Wiederholenden Termin löschen" }),
+      ).toBeInTheDocument();
+    });
   });
 
   it("uses single delete for spontaneous instances even when they have an activity group", async () => {

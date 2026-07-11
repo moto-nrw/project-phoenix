@@ -69,6 +69,9 @@ func (rs *Resource) endTemplate(w http.ResponseWriter, r *http.Request) {
 }
 
 func renderTemplateEndError(w http.ResponseWriter, r *http.Request, err error) {
+	if renderTemplateCareOfferingConflict(w, r, err) {
+		return
+	}
 	switch {
 	case errors.Is(err, scheduleSvc.ErrSplitTemplateNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))

@@ -142,6 +142,14 @@ type InstanceStudentRepository interface {
 	// modification exception attached.
 	FindExpectedByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*InstanceStudent, error)
 
+	// CountNonAbsentByInstanceIDs groups rows by instance_id and returns the
+	// count of rows with status != 'absent' per instance, mirroring
+	// InstanceStaffRepository.CountNonAbsentByInstanceIDs. Instances with
+	// zero non-absent rows do not appear in the returned map - callers must
+	// treat missing keys as zero. Feeds the Betreuungsplan capacity
+	// computation (children count per block).
+	CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error)
+
 	// FindByStudentAndDateRange returns attendance rows for a student across
 	// all instances whose date falls in the inclusive range. Used by the
 	// per-student day view (aggregation layer).

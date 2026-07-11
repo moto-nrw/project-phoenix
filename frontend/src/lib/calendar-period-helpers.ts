@@ -57,12 +57,9 @@ export interface BackendCalendarPeriod {
   updated_at: string;
   /** Only present on create/update responses. */
   warnings?: BackendCalendarPeriodWarning[] | null;
-  /**
-   * Advisory reference counts (list/detail responses). All FKs are
-   * ON DELETE SET NULL, so these never block deletion — they feed the
-   * "Verwendung" column and the delete warning.
-   */
+  /** Advisory reference counts used for usage and delete-impact copy. */
   enrollment_phase_count?: number;
+  activity_group_count?: number;
   schedule_count?: number;
   student_enrollment_count?: number;
   supervisor_count?: number;
@@ -87,6 +84,8 @@ export interface CalendarPeriod {
    * fixtures and older callers stay valid; mapPeriod always sets it.
    */
   enrollmentPhaseCount?: number;
+  /** How many activity templates use this as their template-level period. */
+  activityGroupCount?: number;
   /** How many Regeltermine (activities.schedules) reference this period (advisory). */
   scheduleCount?: number;
   /** How many student roster rows reference this period (advisory). */
@@ -122,6 +121,7 @@ export function mapPeriod(raw: BackendCalendarPeriod): CalendarPeriod {
     createdAt: raw.created_at,
     updatedAt: raw.updated_at,
     enrollmentPhaseCount: raw.enrollment_phase_count ?? 0,
+    activityGroupCount: raw.activity_group_count ?? 0,
     scheduleCount: raw.schedule_count ?? 0,
     studentEnrollmentCount: raw.student_enrollment_count ?? 0,
     supervisorCount: raw.supervisor_count ?? 0,
@@ -208,6 +208,7 @@ export function formatPeriodUsage(
   scheduleCount: number,
   separator = " · ",
   extra?: {
+    activityGroupCount?: number;
     studentEnrollmentCount?: number;
     supervisorCount?: number;
     activityInstanceCount?: number;
@@ -219,6 +220,14 @@ export function formatPeriodUsage(
       enrollmentPhaseCount === 1
         ? "1 Anmeldephase"
         : `${enrollmentPhaseCount} Anmeldephasen`,
+    );
+  }
+  const activityGroupCount = extra?.activityGroupCount ?? 0;
+  if (activityGroupCount > 0) {
+    parts.push(
+      activityGroupCount === 1
+        ? "1 Aktivitätsvorlage"
+        : `${activityGroupCount} Aktivitätsvorlagen`,
     );
   }
   if (scheduleCount > 0) {

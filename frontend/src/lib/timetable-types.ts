@@ -85,6 +85,14 @@ export interface EnrichedInstance {
   cancelReason?: string;
   expectedStudentsCount: number;
   presentStudentsCount: number;
+  /**
+   * Betreuungsplan capacity indicator (issue #1838): requiredStaffCount is
+   * ceil(children / Betreuungsschlüssel); assignedStaffCount is the
+   * non-absent staff count (staffCount - absentStaffCount, computed
+   * backend-side). Understaffed = assignedStaffCount < requiredStaffCount.
+   */
+  requiredStaffCount: number;
+  assignedStaffCount: number;
   conflictWarnings: ConflictWarning[];
 }
 
@@ -140,6 +148,8 @@ export interface BackendEnrichedInstance {
   cancel_reason?: string | null;
   expected_students_count: number;
   present_students_count: number;
+  required_staff_count: number;
+  assigned_staff_count: number;
   conflict_warnings?: Array<{
     kind: ConflictKind;
     resource_id: number;
@@ -256,6 +266,14 @@ interface TemplateSchedule {
   validUntil?: string;
 }
 
+/**
+ * Zielgruppe (target group) type for a Betreuungsplan block (issue #1838).
+ * "gruppe" reuses educationGroupId/educationGroupName above rather than a
+ * separate value field.
+ */
+export type TargetGroupType =
+  "jahrgang" | "klasse" | "gruppe" | "angebot" | "none";
+
 export interface TimetableTemplate {
   id: string;
   name: string;
@@ -268,8 +286,16 @@ export interface TimetableTemplate {
   educationGroupName?: string;
   isOpen: boolean;
   maxParticipants: number;
+  /** The template's own calendar-period pin (distinct from each schedule's). */
+  calendarPeriodId?: string;
+  targetGroupType: TargetGroupType;
+  targetGradeLevel?: number;
+  targetSchoolClass?: string;
   enrollmentCount: number;
   supervisorCount: number;
+  /** Betreuungsplan capacity indicator (issue #1838) — see EnrichedInstance. */
+  requiredStaffCount: number;
+  assignedStaffCount: number;
   studentIds: string[];
   staffIds: string[];
   primaryStaffId?: string;
@@ -302,8 +328,14 @@ export interface BackendTimetableTemplate {
   education_group_name?: string;
   is_open: boolean;
   max_participants: number;
+  calendar_period_id?: number;
+  target_group_type: TargetGroupType;
+  target_grade_level?: number;
+  target_school_class?: string;
   enrollment_count: number;
   supervisor_count: number;
+  required_staff_count: number;
+  assigned_staff_count: number;
   student_ids?: number[];
   staff_ids?: number[];
   primary_staff_id?: number;
@@ -581,6 +613,9 @@ export interface CreateTemplateBody {
   max_participants?: number;
   week_pattern?: number;
   calendar_period_id?: number;
+  target_group_type?: TargetGroupType;
+  target_grade_level?: number;
+  target_school_class?: string;
   materialize_from?: string;
   materialize_to?: string;
   student_ids?: number[];

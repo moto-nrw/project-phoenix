@@ -40,6 +40,7 @@ const binaryTenant: TenantInfo = {
   nfcEnabled: true,
   messagingEnabled: true,
   displayEnabled: false,
+  gradeLevelMax: 4,
 };
 
 export const Binary: Story = {

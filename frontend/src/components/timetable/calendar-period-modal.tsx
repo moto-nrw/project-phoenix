@@ -49,6 +49,7 @@ interface CalendarPeriodModalProps {
    */
   usage?: {
     enrollmentPhaseCount: number;
+    activityGroupCount: number;
     scheduleCount: number;
     studentEnrollmentCount: number;
     supervisorCount: number;
@@ -134,26 +135,32 @@ export function CalendarPeriodModal({
 
   const isEdit = Boolean(initial);
 
-  // Most period links are nullable and get unlinked on delete. Roster rows can
-  // still make the delete fail when unlinking would create duplicate active
-  // unscoped assignments, so the warning must not promise success.
+  // Most period links are nullable and get unlinked on delete. The server can
+  // still reject the mutation when unpinning would invalidate a care-offering
+  // link or create duplicate active unscoped roster assignments, so the
+  // warning must not promise success.
   const usageText = usage
     ? formatPeriodUsage(
         usage.enrollmentPhaseCount,
         usage.scheduleCount,
         " und ",
         {
+          activityGroupCount: usage.activityGroupCount,
           studentEnrollmentCount: usage.studentEnrollmentCount,
           supervisorCount: usage.supervisorCount,
           activityInstanceCount: usage.activityInstanceCount,
         },
       )
     : "";
+  const groupDeleteImpact =
+    (usage?.activityGroupCount ?? 0) > 0
+      ? " Aktivitätsvorlagen verlieren dabei ihre Zeitraumfestlegung."
+      : "";
   const deleteWarning = usageText
-    ? `Dieser Zeitraum wird von ${usageText} verwendet. Beim Löschen werden diese Verknüpfungen entfernt, die Anmeldephasen und Termine selbst bleiben erhalten.`
-    : "Beim Löschen werden bestehende Verknüpfungen zu Anmeldephasen und Regelterminen entfernt.";
+    ? `Dieser Zeitraum wird von ${usageText} verwendet. Beim Löschen werden diese Verknüpfungen entfernt.${groupDeleteImpact} Die Anmeldephasen, Vorlagen und Termine selbst bleiben erhalten.`
+    : "Beim Löschen werden bestehende Verknüpfungen zu Anmeldephasen, Aktivitätsvorlagen und Regelterminen entfernt.";
   const deleteConflictHint =
-    "Falls dadurch doppelte aktive Kinder- oder Personalzuordnungen ohne Zeitraum entstehen würden, verweigert der Server das Löschen.";
+    "Der Server verweigert das Löschen, wenn dadurch eine Betreuungsangebot-Verknüpfung ungültig würde. Auch doppelte aktive Kinder- oder Personalzuordnungen ohne Zeitraum können das Löschen verhindern.";
 
   useEffect(() => {
     if (!isOpen) return;

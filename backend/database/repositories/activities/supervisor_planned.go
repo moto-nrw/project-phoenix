@@ -19,6 +19,7 @@ const (
 	tableSupervisorPlanned     = "activities.supervisors"
 	tableExprSupervisorPlanned = `activities.supervisors AS "supervisor_planned"`
 	whereSupervisorIDEquals    = "id = ?"
+	setSupervisorValidUntil    = "valid_until = ?"
 )
 
 // supervisorResult holds the result of a supervisor query with joined staff and person.
@@ -96,10 +97,9 @@ func NewSupervisorPlannedRepository(db *bun.DB) activities.SupervisorPlannedRepo
 	}
 }
 
-// CapActiveByGroup ends every still-active supervision (valid_until IS NULL)
-// of the given group at validUntil (exclusive). Returns the number of rows
-// changed. Custom method (backend-conventions Rule 2): multi-row bulk update
-// for the template split (WP-B3).
+// CapActiveByGroup truncates open supervisions. Future-only open rows are
+// deleted instead of creating valid_until < valid_from; begun open rows are
+// capped. Bounded rows remain untouched.
 //
 // Two statements, non-primary rows first: the BEFORE UPDATE trigger
 // ensure_single_primary_supervisor reacts to ANY update of a row with
@@ -111,13 +111,26 @@ func NewSupervisorPlannedRepository(db *bun.DB) activities.SupervisorPlannedRepo
 // rows first leaves the primary row's trigger side effect targeting rows
 // modified by a PREVIOUS command, which PostgreSQL permits.
 func (r *SupervisorPlannedRepository) CapActiveByGroup(ctx context.Context, groupID int64, validUntil timezone.Date) (int64, error) {
-	var total int64
+	deleteQuery := base.GetDB(ctx, r.db).NewDelete().
+		Model((*activities.SupervisorPlanned)(nil)).
+		ModelTableExpr(tableExprSupervisorPlanned).
+		Where(`"supervisor_planned".group_id = ?`, groupID).
+		Where(`"supervisor_planned".valid_from >= ?`, validUntil).
+		Where(`"supervisor_planned".valid_until IS NULL`)
+	deleteQuery = base.WithTenantFilter(ctx, deleteQuery, "supervisor_planned")
+	deletedResult, err := deleteQuery.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete future supervisors by group", Err: err}
+	}
+	total, _ := deletedResult.RowsAffected()
+
 	for _, isPrimary := range []bool{false, true} {
 		query := base.GetDB(ctx, r.db).NewUpdate().
 			Model((*activities.SupervisorPlanned)(nil)).
 			ModelTableExpr(tableExprSupervisorPlanned).
-			Set("valid_until = ?", validUntil).
+			Set(setSupervisorValidUntil, validUntil).
 			Where(`"supervisor_planned".group_id = ?`, groupID).
+			Where(`"supervisor_planned".valid_from < ?`, validUntil).
 			Where(`"supervisor_planned".valid_until IS NULL`).
 			Where(`"supervisor_planned".is_primary = ?`, isPrimary)
 
@@ -134,6 +147,24 @@ func (r *SupervisorPlannedRepository) CapActiveByGroup(ctx context.Context, grou
 		total += rows
 	}
 	return total, nil
+}
+
+// SetValidUntilByID closes one supervision using a narrow update. This avoids
+// writing relation-backed or otherwise partial read models back to the roster
+// table when only the validity boundary changes.
+func (r *SupervisorPlannedRepository) SetValidUntilByID(ctx context.Context, id int64, validUntil timezone.Date) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*activities.SupervisorPlanned)(nil)).
+		ModelTableExpr(tableExprSupervisorPlanned).
+		Set(setSupervisorValidUntil, validUntil).
+		Where(`"supervisor_planned".id = ?`, id)
+	query = base.WithTenantFilter(ctx, query, "supervisor_planned")
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "set supervisor valid_until", Err: err}
+	}
+	return base.AssertRowsAffected(result, 1, "set supervisor valid_until")
 }
 
 // FindByStaffID finds all supervisions for a specific staff member
@@ -364,7 +395,7 @@ func (r *SupervisorPlannedRepository) CloseOpenByGroupAndPeriod(ctx context.Cont
 	tenantID := tenant.FromContext(ctx)
 	update := base.GetDB(ctx, r.db).NewUpdate().
 		Table("activities.supervisors").
-		Set("valid_until = ?", validFrom).
+		Set(setSupervisorValidUntil, validFrom).
 		Where("tenant_id = ?", tenantID).
 		Where("group_id = ?", groupID).
 		Where("valid_until IS NULL")

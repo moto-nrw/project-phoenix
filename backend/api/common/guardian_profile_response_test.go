@@ -24,9 +24,11 @@ func TestParseLeadingGradeLevel_AllDigits(t *testing.T) {
 	assert.Equal(t, 13, ParseLeadingGradeLevel("13"))
 }
 
-func TestParseLeadingGradeLevel_LeadingLetterIsZero(t *testing.T) {
-	// "a1" → 0. "Vorschule" → 0. Both signal "no autofill" to the form.
-	assert.Equal(t, 0, ParseLeadingGradeLevel("a1"))
+func TestParseLeadingGradeLevel_SupportedPrefixedLabel(t *testing.T) {
+	assert.Equal(t, 3, ParseLeadingGradeLevel("Klasse 3a"))
+	assert.Equal(t, 1, ParseLeadingGradeLevel("a1"))
+
+	// Labels without any numeric grade still produce no prefill.
 	assert.Equal(t, 0, ParseLeadingGradeLevel("Vorschule"))
 }
 

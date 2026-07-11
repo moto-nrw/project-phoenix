@@ -16,6 +16,8 @@ func ErrorRenderer(err error) render.Renderer {
 			return common.ErrorNotFound(schedErr)
 		case scheduleSvc.ErrTimeframeNotFound:
 			return common.ErrorNotFound(schedErr)
+		case scheduleSvc.ErrTimeframeRequiredByCareOffering:
+			return common.ErrorConflict(schedErr)
 		case scheduleSvc.ErrRecurrenceRuleNotFound:
 			return common.ErrorNotFound(schedErr)
 		case scheduleSvc.ErrInvalidDateRange:

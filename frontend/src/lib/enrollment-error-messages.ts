@@ -15,6 +15,9 @@ export type EnrollmentAPIError = Error & {
   rawMessage?: string;
 };
 
+export const CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE =
+  "Der Planungszeitraum des gewählten Regeltermins muss den gesamten Betreuungszeitraum der Anmeldephase abdecken. Wähle einen passenden Regeltermin oder entferne die Verknüpfung.";
+
 const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
   "enrollment.care_offering_missing":
     "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
@@ -24,6 +27,8 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Für jedes Kind muss ein verpflichtendes Betreuungsangebot ausgewählt sein.",
   "enrollment.care_offering_full":
     "Eines der ausgewählten Betreuungsangebote ist bereits voll und kann derzeit keine weiteren Anmeldungen aufnehmen. Bitte wähle ein anderes Angebot oder wende dich an die Schule.",
+  "enrollment.care_offering_template_period_mismatch":
+    CARE_OFFERING_TEMPLATE_PERIOD_MISMATCH_MESSAGE,
   "enrollment.disabled":
     "Die Online-Anmeldung ist für diese Schule aktuell nicht freigeschaltet. Bitte wende dich an die Schulleitung.",
   "enrollment.window_closed":

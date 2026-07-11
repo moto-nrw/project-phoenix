@@ -9,6 +9,7 @@ import {
   toISODate,
 } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
+import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { timetableSurface } from "./timetable-style";
 
 interface MonthPlannerGridProps {
@@ -136,6 +137,18 @@ export function MonthPlannerGrid({
                           <AlertTriangle
                             className="h-3 w-3 shrink-0 text-[#EAB308]"
                             aria-label={`${inst.conflictWarnings.length} Konflikte`}
+                          />
+                        )}
+                        {!isCancelled && inst.requiredStaffCount > 0 && (
+                          <TimetableRatioPill
+                            variant="dot"
+                            icon={null}
+                            label="Besetzung"
+                            value={`${inst.assignedStaffCount}/${inst.requiredStaffCount}`}
+                            tone={capacityTone(
+                              inst.assignedStaffCount,
+                              inst.requiredStaffCount,
+                            )}
                           />
                         )}
                       </div>
