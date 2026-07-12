@@ -146,3 +146,22 @@ func TestApplyWorstTemplateCapacityClearsTemplatesWithoutOccurrences(t *testing.
 	assert.Zero(t, rows[1].CapacityEnrollmentCount)
 	assert.Zero(t, rows[1].CapacitySupervisorCount)
 }
+
+func TestApplyWorstTemplateCapacity_MarksOccurrenceFound(t *testing.T) {
+	// Template 1 has a real occurrence, template 2 has none (every date
+	// cancelled / AB-week-filtered / unmaterializable). The flag lets the
+	// handler suppress the manual required_staff override for template 2 so a
+	// never-occurring block cannot show a false 0/N understaffing indicator.
+	rows := []activities.TemplateListRow{
+		{TemplateID: 1, RequiredStaff: sql.NullInt64{Int64: 3, Valid: true}},
+		{TemplateID: 2, RequiredStaff: sql.NullInt64{Int64: 3, Valid: true}},
+	}
+	occurrences := []activities.TemplateCapacityOccurrence{
+		{TemplateID: 1, OccurrenceDate: timezone.NewDate(2026, 1, 5), EnrollmentCount: 4, SupervisorCount: 1},
+	}
+
+	applyWorstTemplateCapacity(rows, []int64{1, 2}, occurrences, 12)
+
+	assert.True(t, rows[0].CapacityOccurrenceFound)
+	assert.False(t, rows[1].CapacityOccurrenceFound)
+}

@@ -394,7 +394,8 @@ func applyWorstTemplateCapacity(
 		if _, ok := included[rows[i].TemplateID]; !ok {
 			continue
 		}
-		candidate := worst[rows[i].TemplateID]
+		candidate, found := worst[rows[i].TemplateID]
+		rows[i].CapacityOccurrenceFound = found
 		rows[i].CapacityEnrollmentCount = candidate.EnrollmentCount
 		rows[i].CapacitySupervisorCount = candidate.SupervisorCount
 	}

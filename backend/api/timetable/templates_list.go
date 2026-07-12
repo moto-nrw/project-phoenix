@@ -64,26 +64,24 @@ func mapTemplateRows(rows []templateRow, childrenPerStaffRatio int) []templateRe
 
 func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templateResponse {
 	return templateResponse{
-		ID:                 row.TemplateID,
-		Name:               row.Name,
-		Type:               row.Type,
-		CategoryID:         row.CategoryID,
-		CategoryName:       row.CategoryName,
-		RoomID:             nullableTemplateInt64(row.RoomID.Valid, row.RoomID.Int64),
-		RoomName:           row.RoomName.String,
-		EducationGroupID:   educationGroupIDFromRow(row),
-		EducationGroupName: row.EducationGroupName.String,
-		IsOpen:             row.IsOpen,
-		MaxParticipants:    row.MaxParticipants,
-		CalendarPeriodID:   nullableTemplateInt64(row.TemplateCalendarPeriodID.Valid, row.TemplateCalendarPeriodID.Int64),
-		TargetGroupType:    row.TargetGroupType,
-		TargetGradeLevel:   nullableTemplateInt16(row.TargetGradeLevel.Valid, row.TargetGradeLevel.Int16),
-		TargetSchoolClass:  nullableTemplateString(row.TargetSchoolClass.Valid, row.TargetSchoolClass.String),
-		EnrollmentCount:    row.EnrollmentCount,
-		SupervisorCount:    row.SupervisorCount,
-		// Manual override (#1839) wins over the Betreuungsschlüssel-derived
-		// requirement; NULL falls back to the derived value.
-		RequiredStaffCount:    scheduleSvc.EffectiveRequiredStaff(templateRequiredStaffOverride(row.RequiredStaff), row.CapacityEnrollmentCount, childrenPerStaffRatio),
+		ID:                    row.TemplateID,
+		Name:                  row.Name,
+		Type:                  row.Type,
+		CategoryID:            row.CategoryID,
+		CategoryName:          row.CategoryName,
+		RoomID:                nullableTemplateInt64(row.RoomID.Valid, row.RoomID.Int64),
+		RoomName:              row.RoomName.String,
+		EducationGroupID:      educationGroupIDFromRow(row),
+		EducationGroupName:    row.EducationGroupName.String,
+		IsOpen:                row.IsOpen,
+		MaxParticipants:       row.MaxParticipants,
+		CalendarPeriodID:      nullableTemplateInt64(row.TemplateCalendarPeriodID.Valid, row.TemplateCalendarPeriodID.Int64),
+		TargetGroupType:       row.TargetGroupType,
+		TargetGradeLevel:      nullableTemplateInt16(row.TargetGradeLevel.Valid, row.TargetGradeLevel.Int16),
+		TargetSchoolClass:     nullableTemplateString(row.TargetSchoolClass.Valid, row.TargetSchoolClass.String),
+		EnrollmentCount:       row.EnrollmentCount,
+		SupervisorCount:       row.SupervisorCount,
+		RequiredStaffCount:    templateRequiredStaffCount(row, childrenPerStaffRatio),
 		AssignedStaffCount:    row.CapacitySupervisorCount,
 		RequiredStaffOverride: templateRequiredStaffOverride(row.RequiredStaff),
 		StudentIDs:            row.StudentIDs,
@@ -91,6 +89,20 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		PrimaryStaffID:        nullableTemplateInt64(row.PrimaryStaffID.Valid, row.PrimaryStaffID.Int64),
 		Schedules:             []templateScheduleResponse{},
 	}
+}
+
+// templateRequiredStaffCount computes the displayed staffing requirement.
+// The manual override (#1839) wins over the Betreuungsschlüssel-derived
+// value, but only when a real occurrence was selected for capacity scoring:
+// a template with no occurrence in the period (every date cancelled,
+// AB-week-filtered, or unmaterializable) must not report a false 0/N
+// understaffing indicator for a block that never runs.
+func templateRequiredStaffCount(row templateRow, childrenPerStaffRatio int) int {
+	override := templateRequiredStaffOverride(row.RequiredStaff)
+	if !row.CapacityOccurrenceFound {
+		override = nil
+	}
+	return scheduleSvc.EffectiveRequiredStaff(override, row.CapacityEnrollmentCount, childrenPerStaffRatio)
 }
 
 // templateRequiredStaffOverride converts the nullable required_staff column

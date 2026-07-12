@@ -258,8 +258,14 @@ type TemplateListRow struct {
 	// CapacityEnrollmentCount and CapacitySupervisorCount are the roster on
 	// the actual recurrence date selected as worst for the template. They
 	// intentionally differ from the period-tolerant display roster below.
-	CapacityEnrollmentCount int            `bun:"capacity_enrollment_count"`
-	CapacitySupervisorCount int            `bun:"capacity_supervisor_count"`
+	CapacityEnrollmentCount int `bun:"capacity_enrollment_count"`
+	CapacitySupervisorCount int `bun:"capacity_supervisor_count"`
+	// CapacityOccurrenceFound reports whether a real occurrence was selected
+	// for the capacity counts above. When false (every date cancelled,
+	// AB-week-filtered, or unmaterializable) the manual required_staff
+	// override must not create demand — otherwise the list shows a false 0/N
+	// understaffing indicator for a block that never occurs (#1839).
+	CapacityOccurrenceFound bool           `bun:"-"`
 	StudentIDs              []int64        `bun:"student_ids,array"`
 	StaffIDs                []int64        `bun:"staff_ids,array"`
 	PrimaryStaffID          sql.NullInt64  `bun:"primary_staff_id"`
