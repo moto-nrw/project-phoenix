@@ -609,13 +609,14 @@ export function TimetableEventModal({
   const abWeekParity: 1 | 2 | null =
     abWeekCycleSlot === 1 || abWeekCycleSlot === 2 ? abWeekCycleSlot : null;
   // The backend materializes the A/B week_pattern by matching the period's
-  // cycle slot, so in a 3- or 4-week cycle a "biweekly" series would actually
-  // run every three/four weeks. New biweekly series are therefore disallowed
-  // for such periods (validateForm); stored series keep their pattern
-  // editable. Weeks beyond B (Woche C/D) only exist in those long cycles and
-  // are surfaced via the hint below.
+  // cycle slot. It only represents a fortnightly schedule when the period has
+  // an anchored two-week cycle. New biweekly series are therefore disallowed
+  // for every other period (validateForm); stored series keep their pattern
+  // editable. Weeks beyond B (Woche C/D) only exist in longer cycles and are
+  // surfaced via the hint below.
   const biweeklyUnavailable =
-    (selectedCalendarPeriod?.weekCycleLength ?? 0) > 2;
+    selectedCalendarPeriod?.weekCycleLength !== 2 ||
+    !selectedCalendarPeriod.weekCycleAnchor;
   const abWeekBeyondCycle = abWeekCycleSlot !== null && abWeekCycleSlot > 2;
   const abWeekHint = abWeekBeyondCycle
     ? `Woche vom ${formatDate(mondayOfWeekISO(form.date))} ist Woche ${String.fromCharCode(64 + abWeekCycleSlot)} und liegt außerhalb des A/B-Rhythmus. Ein 14-tägiger Termin findet in dieser Woche nicht statt.`
@@ -1194,17 +1195,17 @@ export function TimetableEventModal({
       if (form.weekdays.length === 0) {
         errors.weekdays = "Bitte mindestens einen Wochentag auswählen.";
       }
-      // "Alle 2 Wochen" only genuinely repeats every two weeks when the
-      // period cycle is at most two weeks long; in a 3-/4-week cycle the
-      // A/B week_pattern fires once per cycle instead. Series edits are
-      // exempt: their stored pattern stays valid and editable.
+      // "Alle 2 Wochen" only genuinely repeats every two weeks in an anchored
+      // two-week period. Otherwise the A/B week_pattern either fires weekly or
+      // once per longer cycle. Series edits are exempt so their stored pattern
+      // stays editable.
       if (
         form.repeat === "biweekly" &&
         !isEditingSeries &&
         biweeklyUnavailable
       ) {
         errors.weekPattern =
-          'Der gewählte Planungszeitraum nutzt einen Zyklus von mehr als zwei Wochen. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.';
+          'Der gewählte Planungszeitraum hat keinen verankerten Zwei-Wochen-Zyklus. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.';
       }
       if (form.targetGroupType === "jahrgang") {
         const gradeLevel = Number(form.targetGradeLevel);

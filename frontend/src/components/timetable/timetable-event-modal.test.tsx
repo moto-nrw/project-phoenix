@@ -2498,27 +2498,46 @@ describe("TimetableEventModal", () => {
     ).toBeInTheDocument();
   });
 
-  it("disables 'Alle 2 Wochen' for new series in cycles longer than two weeks", async () => {
-    const threeWeekCycle: CalendarPeriod = {
-      ...periods[0]!,
-      id: "9",
+  it.each([
+    {
+      name: "a one-week cycle",
+      weekCycleLength: 1,
+      weekCycleAnchor: "2026-05-04",
+    },
+    {
+      name: "a cycle longer than two weeks",
       weekCycleLength: 3,
       weekCycleAnchor: "2026-05-04",
-    };
-    renderModal({
-      calendarPeriods: [threeWeekCycle],
-      defaultCalendarPeriodId: "9",
-      // 2026-05-04 is Woche A: the guard depends on the cycle length alone,
-      // not on which week the modal was opened from.
-      defaultDate: "2026-05-04",
-    });
+    },
+    {
+      name: "a two-week cycle without an anchor",
+      weekCycleLength: 2,
+      weekCycleAnchor: null,
+    },
+  ])(
+    "disables 'Alle 2 Wochen' for new series in $name",
+    async ({ weekCycleLength, weekCycleAnchor }) => {
+      const threeWeekCycle: CalendarPeriod = {
+        ...periods[0]!,
+        id: "9",
+        weekCycleLength,
+        weekCycleAnchor,
+      };
+      renderModal({
+        calendarPeriods: [threeWeekCycle],
+        defaultCalendarPeriodId: "9",
+        // 2026-05-04 is Woche A: the guard depends on the cycle length alone,
+        // not on which week the modal was opened from.
+        defaultDate: "2026-05-04",
+      });
 
-    await screen.findByText("Haus A - Mensa");
-    const biweeklyTab = screen.getByRole("tab", { name: "Alle 2 Wochen" });
-    expect(biweeklyTab).toBeDisabled();
-    fireEvent.mouseDown(biweeklyTab, { button: 0 });
-    expect(biweeklyTab).toHaveAttribute("data-state", "inactive");
-  });
+      await screen.findByText("Haus A - Mensa");
+      const biweeklyTab = screen.getByRole("tab", { name: "Alle 2 Wochen" });
+      expect(biweeklyTab).toBeDisabled();
+      fireEvent.mouseDown(biweeklyTab, { button: 0 });
+      expect(biweeklyTab).toHaveAttribute("data-state", "inactive");
+    },
+  );
 
   it("keeps a stored biweekly series editable in cycles longer than two weeks", async () => {
     const threeWeekCycle: CalendarPeriod = {
@@ -2600,7 +2619,7 @@ describe("TimetableEventModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     expect(
       await screen.findByText(
-        'Der gewählte Planungszeitraum nutzt einen Zyklus von mehr als zwei Wochen. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.',
+        'Der gewählte Planungszeitraum hat keinen verankerten Zwei-Wochen-Zyklus. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.',
       ),
     ).toBeInTheDocument();
     expect(mockCreateTemplate).not.toHaveBeenCalled();
@@ -2611,7 +2630,7 @@ describe("TimetableEventModal", () => {
     });
     expect(
       screen.queryByText(
-        'Der gewählte Planungszeitraum nutzt einen Zyklus von mehr als zwei Wochen. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.',
+        'Der gewählte Planungszeitraum hat keinen verankerten Zwei-Wochen-Zyklus. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.',
       ),
     ).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
