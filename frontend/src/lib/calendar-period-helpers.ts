@@ -159,6 +159,36 @@ export function mapPeriodWithWarnings(
   };
 }
 
+/**
+ * Resolves whether the week containing isoDate is Woche A (1) or Woche B (2)
+ * inside the period's A/B cycle. Mirrors the backend predicate
+ * ShouldMaterializeWeekPattern (calendar_period_service.go): floor the day
+ * difference to the cycle anchor by 7, then a 1-based modulo over the cycle
+ * length. Returns null when the period has no usable cycle (length <= 1 or no
+ * anchor — materialization is fail-open there) or when the resolved slot is
+ * beyond B (cycle length > 2).
+ */
+export function weekPatternForDate(
+  period: CalendarPeriod | null | undefined,
+  isoDate: string,
+): 1 | 2 | null {
+  if (!period || period.weekCycleLength <= 1 || !period.weekCycleAnchor) {
+    return null;
+  }
+  const toUTCDays = (iso: string): number => {
+    const [year, month, day] = iso.split("-").map(Number);
+    if (!year || !month || !day) return Number.NaN;
+    return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000);
+  };
+  const daysDiff = toUTCDays(isoDate) - toUTCDays(period.weekCycleAnchor);
+  if (Number.isNaN(daysDiff)) return null;
+  const cycle = period.weekCycleLength;
+  const pattern = (((Math.floor(daysDiff / 7) % cycle) + cycle) % cycle) + 1;
+  if (pattern === 1) return 1;
+  if (pattern === 2) return 2;
+  return null;
+}
+
 export function findPeriodForDate(
   periods: CalendarPeriod[],
   isoDate: string,
