@@ -180,6 +180,12 @@ export interface CareException {
   // the tile resolves this to an absence, not the base-plan pickup. Absent (and
   // thus undefined) for ordinary rows.
   readonly pickup_absent?: boolean;
+  // The arrival-leg counterpart: an arrival-exception row with no expected time
+  // ("not coming today", StudentArrivalException.IsAbsent). Like pickup_absent it
+  // creates no status day, so today_absent misses it; either leg being absent
+  // resolves the tile to an absence rather than the base-plan pickup. Undefined
+  // for ordinary rows.
+  readonly arrival_absent?: boolean;
 }
 
 // A guardian linked to the child, with portal-access status.

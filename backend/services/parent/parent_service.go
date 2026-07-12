@@ -310,6 +310,14 @@ type CareException struct {
 	// latter falls back to the base plan. Such a row creates no status day, so
 	// the care-schedule today_absent signal misses it (#1725 review).
 	PickupAbsent bool
+	// ArrivalAbsent is the arrival-leg counterpart: true when an arrival-exception
+	// row exists for the day with no expected arrival (StudentArrivalException.
+	// IsAbsent) — the child is not coming. Like PickupAbsent it creates no status
+	// day, so today_absent misses it; either leg being absent must resolve the
+	// tile to an absence rather than falling back to the base-plan pickup, so a
+	// guardian is never told to expect a pickup for a child who is not coming
+	// (#1725 review).
+	ArrivalAbsent bool
 }
 
 // Profile carries the parent's explicit parents-portal locale choice.

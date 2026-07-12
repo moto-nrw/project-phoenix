@@ -67,16 +67,22 @@ type CareExceptionResponse struct {
 	// falling back to the base-plan pickup. Omitted (false) for ordinary rows,
 	// so existing consumers are unaffected (#1725 review).
 	PickupAbsent bool `json:"pickup_absent,omitempty"`
+	// ArrivalAbsent is the arrival-leg counterpart: an arrival exception with no
+	// expected time ("not coming today"). Either leg being absent resolves the
+	// tile to an absence, so a guardian is never told to expect a pickup for a
+	// child who is not coming. Omitted (false) for ordinary rows (#1725 review).
+	ArrivalAbsent bool `json:"arrival_absent,omitempty"`
 }
 
 func toCareExceptionResponse(c *parentService.CareException) CareExceptionResponse {
 	return CareExceptionResponse{
-		Date:         c.Date.String(),
-		PickupTime:   formatCareExceptionTime(c.PickupTime),
-		ArrivalTime:  formatCareExceptionTime(c.ArrivalTime),
-		Source:       c.Source,
-		UpdatedAt:    c.UpdatedAt,
-		PickupAbsent: c.PickupAbsent,
+		Date:          c.Date.String(),
+		PickupTime:    formatCareExceptionTime(c.PickupTime),
+		ArrivalTime:   formatCareExceptionTime(c.ArrivalTime),
+		Source:        c.Source,
+		UpdatedAt:     c.UpdatedAt,
+		PickupAbsent:  c.PickupAbsent,
+		ArrivalAbsent: c.ArrivalAbsent,
 	}
 }
 

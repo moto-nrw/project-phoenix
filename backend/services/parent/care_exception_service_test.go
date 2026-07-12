@@ -639,6 +639,48 @@ func TestListCareExceptions_FlagsAbsentPickupRow(t *testing.T) {
 	assert.Equal(t, absentDay, list[0].Date)
 	assert.Nil(t, list[0].PickupTime, "an absent pickup row carries no time")
 	assert.True(t, list[0].PickupAbsent, "a timeless pickup row must flag the day absent")
+	assert.False(t, list[0].ArrivalAbsent, "no arrival row exists, so the arrival leg is not absent")
+	assert.Equal(t, scheduleModels.ExceptionSourceStaff, list[0].Source)
+}
+
+// TestListCareExceptions_FlagsAbsentArrivalRow is the arrival-leg twin of
+// TestListCareExceptions_FlagsAbsentPickupRow: a staff arrival exception with NO
+// expected time (StudentArrivalException.IsAbsent — "not coming today") surfaces
+// as ArrivalAbsent. Like a timeless pickup row it creates no status day, so the
+// today_absent signal alone would miss it and the parent tile would wrongly fall
+// back to the base-plan pickup for a child who is not coming (#1725 review).
+func TestListCareExceptions_FlagsAbsentArrivalRow(t *testing.T) {
+	svc, _, db := buildCareService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
+	ctx := context.Background()
+	repos := repositories.NewFactory(db)
+	defer func() {
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM schedule.student_arrival_exceptions WHERE student_id = ?`, chain.StudentID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.staff WHERE id = ?`, staff.ID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
+	}()
+
+	absentDay := timezone.TodayDate().AddDays(1)
+	// A staff arrival row with no expected time — the "child is absent today" marker.
+	absent := &scheduleModels.StudentArrivalException{
+		StudentID:       chain.StudentID,
+		ExceptionDate:   absentDay,
+		ExpectedArrival: nil,
+		CreatedBy:       staff.ID,
+	}
+	absent.SetTenantID(chain.TenantID)
+	require.NoError(t, repos.StudentArrivalException.Create(ctx, absent))
+
+	list, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID,
+		timezone.TodayDate(), timezone.TodayDate().AddDays(30))
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	assert.Equal(t, absentDay, list[0].Date)
+	assert.Nil(t, list[0].ArrivalTime, "an absent arrival row carries no time")
+	assert.True(t, list[0].ArrivalAbsent, "a timeless arrival row must flag the day absent")
+	assert.False(t, list[0].PickupAbsent, "no pickup row exists, so the pickup leg is not absent")
 	assert.Equal(t, scheduleModels.ExceptionSourceStaff, list[0].Source)
 }
 

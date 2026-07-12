@@ -216,12 +216,15 @@ export function resolveTodayPickup(params: {
   // A CareException overrides arrival and pickup independently, so a missing
   // pickup_time normally means "pickup not changed" (fall back to the base
   // plan), NOT "no pickup". Absence is expressed through today_absent above —
-  // EXCEPT a staff "not coming today" pickup exception (a pickup row with no
-  // time, pickup_absent). It creates no status day, so today_absent misses it;
-  // resolve it as an absence here rather than showing the base-plan pickup
-  // (#1725 review).
+  // EXCEPT a staff "not coming today" exception (a pickup row with no time,
+  // pickup_absent, OR an arrival row with no time, arrival_absent). Neither
+  // creates a status day, so today_absent misses both; either leg being absent
+  // resolves as an absence here rather than showing the base-plan pickup — a
+  // guardian must never be told to expect a pickup for a child who is not
+  // coming (#1725 review).
   const override = careExceptions.find((entry) => entry.date === today);
-  if (override?.pickup_absent) return { kind: "absent" };
+  if (override?.pickup_absent || override?.arrival_absent)
+    return { kind: "absent" };
   if (override?.pickup_time) {
     // "changed" only when we can see a base plan to differ FROM and the times
     // actually differ; an override equal to the plan is no real change, and a
@@ -284,6 +287,14 @@ export function useChildCare(studentId: string): ChildCare {
   // class trip), carried on the care-schedule response. Only trusted when
   // weekPlanLoaded — it rides that same fetch.
   const [todayAbsent, setTodayAbsent] = useState(false);
+  // The Berlin day the week-plan signal (todayAbsent above) was resolved for.
+  // The server computes today_absent against ITS current day, so a response is
+  // only valid while that day is still "today". A tab left open across midnight
+  // advances `today` (below) before the reload lands — without this stamp the
+  // stale absence boolean would be applied to the new date, asserting a wrong
+  // absence or pickup until the reload finishes, and indefinitely if it hangs
+  // (#1725 review). null until the first successful load.
+  const [weekPlanDate, setWeekPlanDate] = useState<string | null>(null);
   const [features, setFeatures] = useState<ChildFeatures>(DEFAULT_FEATURES);
   const [loading, setLoading] = useState(true);
   // Today's calendar day in the SCHOOL's timezone (Europe/Berlin) — the axis the
@@ -356,6 +367,9 @@ export function useChildCare(studentId: string): ChildCare {
       if (weekPlanOk && plan) {
         setWeekdays(plan.weekdays);
         setTodayAbsent(plan.today_absent);
+        // Stamp the day this signal describes so a midnight rollover invalidates
+        // it until the next reload (#1725 review).
+        setWeekPlanDate(berlinTodayISO());
       }
       setWeekPlanLoaded(weekPlanOk);
       setFeatures(flags);
@@ -443,9 +457,12 @@ export function useChildCare(studentId: string): ChildCare {
         // statuses (sick/excused) count as an absence, so a today status day is
         // sufficient; the authoritative server signal agrees on the next load
         // (#1725 review). Only meaningful once the week plan loaded, but setting
-        // it early is harmless — the tile shows "unknown" until then.
+        // it early is harmless — the tile shows "unknown" until then. Re-stamp
+        // the signal's date to today so the midnight-rollover guard keeps trusting
+        // this optimistic absence (we're asserting today's, which we just wrote).
         if (status_days.some((d) => d.date === berlinTodayISO())) {
           setTodayAbsent(true);
+          setWeekPlanDate(berlinTodayISO());
         }
         return;
       }
@@ -510,7 +527,12 @@ export function useChildCare(studentId: string): ChildCare {
     () =>
       resolveTodayPickup({
         weekdays,
-        weekPlanLoaded,
+        // The week-plan signal (base plan AND todayAbsent) is only valid for the
+        // day it was resolved for. If the tab crossed midnight, `today` advanced
+        // ahead of the reload; treat the signal as not-yet-loaded for the new
+        // date so the tile shows "unknown" (asserting nothing) instead of a stale
+        // absence or pickup — safe even if the reload hangs (#1725 review).
+        weekPlanLoaded: weekPlanLoaded && weekPlanDate === today,
         todayAbsent,
         careExceptions,
         careExceptionsLoaded,
@@ -519,6 +541,7 @@ export function useChildCare(studentId: string): ChildCare {
     [
       weekdays,
       weekPlanLoaded,
+      weekPlanDate,
       todayAbsent,
       careExceptions,
       careExceptionsLoaded,

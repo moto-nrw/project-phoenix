@@ -1025,6 +1025,12 @@ func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arriv
 	for _, a := range arrivals {
 		ce := get(a.ExceptionDate)
 		ce.ArrivalTime = a.ExpectedArrival
+		// An arrival row with no expected time is a "not coming today" absence
+		// marker (StudentArrivalException.IsAbsent), the arrival-leg twin of a
+		// timeless pickup row. It creates no status day either, so carry the
+		// distinction to the parent UI: an arrival-only absence must resolve to
+		// an absence, not fall through to a regular pickup time (#1725 review).
+		ce.ArrivalAbsent = a.IsAbsent()
 		if a.UpdatedAt.After(ce.UpdatedAt) {
 			ce.UpdatedAt = a.UpdatedAt
 		}

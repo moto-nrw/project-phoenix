@@ -385,6 +385,25 @@ describe("resolveTodayPickup", () => {
     ).toEqual({ kind: "absent" });
   });
 
+  it("resolves a staff arrival-only absence as absent over a regular pickup", () => {
+    // An arrival row with no time (arrival_absent) is a "not coming today" marker
+    // that also creates no status day. Even with a regular base-plan pickup, the
+    // tile must resolve to an absence, not tell the guardian to expect a pickup
+    // for a child who is not coming (#1725 review).
+    expect(
+      resolveTodayPickup({
+        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekPlanLoaded: true,
+        todayAbsent: false,
+        careExceptions: [
+          makeException({ source: "staff", arrival_absent: true }),
+        ],
+        careExceptionsLoaded: true,
+        today: TODAY,
+      }),
+    ).toEqual({ kind: "absent" });
+  });
+
   it("returns 'none' on a care day with no pickup configured", () => {
     expect(
       resolveTodayPickup({
