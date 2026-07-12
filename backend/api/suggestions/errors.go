@@ -5,57 +5,46 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	suggestionsSvc "github.com/moto-nrw/project-phoenix/services/suggestions"
 )
 
-// ErrResponse renderer type for handling errors
-type ErrResponse struct {
-	Err            error `json:"-"`
-	HTTPStatusCode int   `json:"-"`
-
-	StatusText string `json:"status"`
-	ErrorText  string `json:"error,omitempty"`
-}
-
-// Render sets the specific error code for the response
-func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
-	render.Status(r, e.HTTPStatusCode)
-	return nil
+// newErrResponse builds a common.ErrResponse carrying this package's
+// historical human-readable status classification (e.g. "Not Found")
+// instead of api/common's literal "error". Wire bytes pinned by
+// wire_format_test.go (issue #575 B1).
+func newErrResponse(status int, statusText string, err error) *common.ErrResponse {
+	return &common.ErrResponse{
+		Err:            err,
+		HTTPStatusCode: status,
+		Status:         statusText,
+		ErrorText:      err.Error(),
+	}
 }
 
 // ErrorRenderer returns a render.Renderer for the given error
 func ErrorRenderer(err error) render.Renderer {
-	renderer := &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusInternalServerError,
-		StatusText:     "Internal Server Error",
-		ErrorText:      err.Error(),
-	}
+	renderer := newErrResponse(http.StatusInternalServerError, "Internal Server Error", err)
 
 	switch {
 	case errors.Is(err, suggestionsSvc.ErrPostNotFound):
 		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Not Found"
+		renderer.Status = "Not Found"
 	case errors.Is(err, suggestionsSvc.ErrCommentNotFound):
 		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Not Found"
+		renderer.Status = "Not Found"
 	case errors.Is(err, suggestionsSvc.ErrForbidden):
 		renderer.HTTPStatusCode = http.StatusForbidden
-		renderer.StatusText = "Forbidden"
+		renderer.Status = "Forbidden"
 	case errors.Is(err, suggestionsSvc.ErrInvalidData):
 		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Bad Request"
+		renderer.Status = "Bad Request"
 	}
 
 	return renderer
 }
 
-// ErrorInvalidRequest returns an ErrResponse for invalid requests
+// ErrorInvalidRequest returns an error response for invalid requests
 func ErrorInvalidRequest(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusBadRequest,
-		StatusText:     "Invalid Request",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusBadRequest, "Invalid Request", err)
 }

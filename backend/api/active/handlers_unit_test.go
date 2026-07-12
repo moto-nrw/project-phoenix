@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -676,120 +677,120 @@ func TestErrorRenderer_ActiveGroupNotFound(t *testing.T) {
 	err := activeSvc.ErrActiveGroupNotFound
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Active Group Not Found", errResp.StatusText)
+	assert.Equal(t, "Active Group Not Found", errResp.Status)
 }
 
 func TestErrorRenderer_VisitNotFound(t *testing.T) {
 	err := activeSvc.ErrVisitNotFound
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Visit Not Found", errResp.StatusText)
+	assert.Equal(t, "Visit Not Found", errResp.Status)
 }
 
 func TestErrorRenderer_GroupSupervisorNotFound(t *testing.T) {
 	err := activeSvc.ErrGroupSupervisorNotFound
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Group Supervisor Not Found", errResp.StatusText)
+	assert.Equal(t, "Group Supervisor Not Found", errResp.Status)
 }
 
 func TestErrorRenderer_CombinedGroupNotFound(t *testing.T) {
 	err := activeSvc.ErrCombinedGroupNotFound
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Combined Group Not Found", errResp.StatusText)
+	assert.Equal(t, "Combined Group Not Found", errResp.Status)
 }
 
 func TestErrorRenderer_GroupMappingNotFound(t *testing.T) {
 	err := activeSvc.ErrGroupMappingNotFound
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Group Mapping Not Found", errResp.StatusText)
+	assert.Equal(t, "Group Mapping Not Found", errResp.Status)
 }
 
 func TestErrorRenderer_InvalidData(t *testing.T) {
 	err := activeSvc.ErrInvalidData
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Invalid Data", errResp.StatusText)
+	assert.Equal(t, "Invalid Data", errResp.Status)
 }
 
 func TestErrorRenderer_ActiveGroupAlreadyEnded(t *testing.T) {
 	err := activeSvc.ErrActiveGroupAlreadyEnded
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Active Group Already Ended", errResp.StatusText)
+	assert.Equal(t, "Active Group Already Ended", errResp.Status)
 }
 
 func TestErrorRenderer_VisitAlreadyEnded(t *testing.T) {
 	err := activeSvc.ErrVisitAlreadyEnded
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Visit Already Ended", errResp.StatusText)
+	assert.Equal(t, "Visit Already Ended", errResp.Status)
 }
 
 func TestErrorRenderer_SupervisionAlreadyEnded(t *testing.T) {
 	err := activeSvc.ErrSupervisionAlreadyEnded
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Supervision Already Ended", errResp.StatusText)
+	assert.Equal(t, "Supervision Already Ended", errResp.Status)
 }
 
 func TestErrorRenderer_CombinedGroupAlreadyEnded(t *testing.T) {
 	err := activeSvc.ErrCombinedGroupAlreadyEnded
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Combined Group Already Ended", errResp.StatusText)
+	assert.Equal(t, "Combined Group Already Ended", errResp.Status)
 }
 
 func TestErrorRenderer_GroupAlreadyInCombination(t *testing.T) {
 	err := activeSvc.ErrGroupAlreadyInCombination
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Group Already In Combination", errResp.StatusText)
+	assert.Equal(t, "Group Already In Combination", errResp.Status)
 }
 
 func TestErrorRenderer_StudentAlreadyInGroup(t *testing.T) {
 	err := activeSvc.ErrStudentAlreadyInGroup
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Student Already In Group", errResp.StatusText)
+	assert.Equal(t, "Student Already In Group", errResp.Status)
 }
 
 func TestErrorRenderer_StudentAlreadyActive(t *testing.T) {
@@ -803,60 +804,60 @@ func TestErrorRenderer_StudentAlreadyActive(t *testing.T) {
 	err := activeSvc.ErrStudentAlreadyActive
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusConflict, errResp.HTTPStatusCode)
-	assert.Equal(t, "Student Already Has Active Visit", errResp.StatusText)
+	assert.Equal(t, "Student Already Has Active Visit", errResp.Status)
 }
 
 func TestErrorRenderer_StaffAlreadySupervising(t *testing.T) {
 	err := activeSvc.ErrStaffAlreadySupervising
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Staff Already Supervising This Group", errResp.StatusText)
+	assert.Equal(t, "Staff Already Supervising This Group", errResp.Status)
 }
 
 func TestErrorRenderer_CannotDeleteActiveGroup(t *testing.T) {
 	err := activeSvc.ErrCannotDeleteActiveGroup
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Cannot Delete Active Group With Active Visits", errResp.StatusText)
+	assert.Equal(t, "Cannot Delete Active Group With Active Visits", errResp.Status)
 }
 
 func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
 	err := activeSvc.ErrInvalidTimeRange
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Invalid Time Range", errResp.StatusText)
+	assert.Equal(t, "Invalid Time Range", errResp.Status)
 }
 
 func TestErrorRenderer_RoomConflict(t *testing.T) {
 	err := activeSvc.ErrRoomConflict
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 409, errResp.HTTPStatusCode)
-	assert.Equal(t, "Room Conflict", errResp.StatusText)
+	assert.Equal(t, "Room Conflict", errResp.Status)
 }
 
 func TestErrorRenderer_UnknownError(t *testing.T) {
 	err := errors.New("unknown error")
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 500, errResp.HTTPStatusCode)
-	assert.Equal(t, "Internal Server Error", errResp.StatusText)
+	assert.Equal(t, "Internal Server Error", errResp.Status)
 	assert.Equal(t, "unknown error", errResp.ErrorText)
 }
 

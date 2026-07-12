@@ -5,83 +5,61 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 )
 
-// ErrResponse renderer type for handling all sorts of errors.
-type ErrResponse struct {
-	Err            error `json:"-"` // low-level runtime error
-	HTTPStatusCode int   `json:"-"` // http response status code
-
-	StatusText string `json:"status"`          // user-level status message
-	AppCode    int    `json:"code,omitempty"`  // application-specific error code
-	ErrorText  string `json:"error,omitempty"` // application-level error message, for debugging
-}
-
-// Render sets the specific error code for the response
-func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
-	render.Status(r, e.HTTPStatusCode)
-	return nil
+// newErrResponse builds a common.ErrResponse carrying this package's
+// historical human-readable status classification (e.g. "Invalid Feedback
+// Data") instead of api/common's literal "error". Wire bytes pinned by
+// wire_format_test.go (issue #575 B1).
+func newErrResponse(status int, statusText string, err error) *common.ErrResponse {
+	return &common.ErrResponse{
+		Err:            err,
+		HTTPStatusCode: status,
+		Status:         statusText,
+		ErrorText:      err.Error(),
+	}
 }
 
 // ErrorRenderer returns a render.Renderer for the given error
 func ErrorRenderer(err error) render.Renderer {
 	// Default to internal server error
-	renderer := &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusInternalServerError,
-		StatusText:     "Internal Server Error",
-		ErrorText:      err.Error(),
-	}
+	renderer := newErrResponse(http.StatusInternalServerError, "Internal Server Error", err)
 
 	// Handle specific error types
 	switch {
 	case errors.Is(err, feedbackSvc.ErrEntryNotFound):
 		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Resource Not Found"
+		renderer.Status = "Resource Not Found"
 
 	case errors.Is(err, feedbackSvc.ErrInvalidEntryData):
 		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Invalid Feedback Data"
+		renderer.Status = "Invalid Feedback Data"
 
 	case errors.Is(err, feedbackSvc.ErrInvalidDateRange):
 		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Invalid Date Range"
+		renderer.Status = "Invalid Date Range"
 
 	case errors.Is(err, feedbackSvc.ErrStudentNotFound):
 		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Student Not Found"
+		renderer.Status = "Student Not Found"
 	}
 
 	return renderer
 }
 
-// ErrorInvalidRequest returns an ErrResponse for invalid requests
+// ErrorInvalidRequest returns an error response for invalid requests
 func ErrorInvalidRequest(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusBadRequest,
-		StatusText:     "Invalid Request",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusBadRequest, "Invalid Request", err)
 }
 
-// ErrorInternalServer returns an ErrResponse for server errors
+// ErrorInternalServer returns an error response for server errors
 func ErrorInternalServer(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusInternalServerError,
-		StatusText:     "Internal Server Error",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusInternalServerError, "Internal Server Error", err)
 }
 
-// ErrorForbidden returns an ErrResponse for forbidden requests
+// ErrorForbidden returns an error response for forbidden requests
 func ErrorForbidden(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusForbidden,
-		StatusText:     "Forbidden",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusForbidden, "Forbidden", err)
 }

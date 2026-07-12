@@ -5,84 +5,79 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/api/common"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
-// ErrResponse renderer type for handling all sorts of errors.
-type ErrResponse struct {
-	Err            error `json:"-"` // low-level runtime error
-	HTTPStatusCode int   `json:"-"` // http response status code
-
-	StatusText string `json:"status"`          // user-level status message
-	AppCode    int    `json:"code,omitempty"`  // application-specific error code
-	ErrorText  string `json:"error,omitempty"` // application-level error message, for debugging
-}
-
-// Render sets the specific error code for the response
-func (e *ErrResponse) Render(_ http.ResponseWriter, r *http.Request) error {
-	render.Status(r, e.HTTPStatusCode)
-	return nil
+// newErrResponse builds a common.ErrResponse carrying this package's
+// historical human-readable status classification (e.g. "Room Conflict")
+// instead of api/common's literal "error". The wire bytes are pinned by
+// wire_format_test.go — normalizing the status values to "error" is a
+// separate, frontend-audited change, not part of the struct consolidation
+// (issue #575 B1).
+func newErrResponse(status int, statusText string, err error) *common.ErrResponse {
+	return &common.ErrResponse{
+		Err:            err,
+		HTTPStatusCode: status,
+		Status:         statusText,
+		ErrorText:      err.Error(),
+	}
 }
 
 // ErrorRenderer returns a render.Renderer for the given error
 func ErrorRenderer(err error) render.Renderer {
 	// Default to internal server error
-	renderer := &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusInternalServerError,
-		StatusText:     "Internal Server Error",
-		ErrorText:      err.Error(),
-	}
+	renderer := newErrResponse(http.StatusInternalServerError, "Internal Server Error", err)
 
 	// Handle specific error types
 	switch {
 	case errors.Is(err, activeSvc.ErrActiveGroupNotFound):
 		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Active Group Not Found"
+		renderer.Status = "Active Group Not Found"
 
 	case errors.Is(err, activeSvc.ErrVisitNotFound):
 		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Visit Not Found"
+		renderer.Status = "Visit Not Found"
 
 	case errors.Is(err, activeSvc.ErrGroupSupervisorNotFound):
 		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Group Supervisor Not Found"
+		renderer.Status = "Group Supervisor Not Found"
 
 	case errors.Is(err, activeSvc.ErrCombinedGroupNotFound):
 		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Combined Group Not Found"
+		renderer.Status = "Combined Group Not Found"
 
 	case errors.Is(err, activeSvc.ErrGroupMappingNotFound):
 		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Group Mapping Not Found"
+		renderer.Status = "Group Mapping Not Found"
 
 	case errors.Is(err, activeSvc.ErrInvalidData):
 		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Invalid Data"
+		renderer.Status = "Invalid Data"
 
 	case errors.Is(err, activeSvc.ErrActiveGroupAlreadyEnded):
 		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Active Group Already Ended"
+		renderer.Status = "Active Group Already Ended"
 
 	case errors.Is(err, activeSvc.ErrVisitAlreadyEnded):
 		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Visit Already Ended"
+		renderer.Status = "Visit Already Ended"
 
 	case errors.Is(err, activeSvc.ErrSupervisionAlreadyEnded):
 		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Supervision Already Ended"
+		renderer.Status = "Supervision Already Ended"
 
 	case errors.Is(err, activeSvc.ErrCombinedGroupAlreadyEnded):
 		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Combined Group Already Ended"
+		renderer.Status = "Combined Group Already Ended"
 
 	case errors.Is(err, activeSvc.ErrGroupAlreadyInCombination):
 		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Group Already In Combination"
+		renderer.Status = "Group Already In Combination"
 
 	case errors.Is(err, activeSvc.ErrStudentAlreadyInGroup):
 		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Student Already In Group"
+		renderer.Status = "Student Already In Group"
 
 	case errors.Is(err, activeSvc.ErrStudentAlreadyActive):
 		// 409 Conflict — the request is well-formed but conflicts with
@@ -96,80 +91,60 @@ func ErrorRenderer(err error) render.Renderer {
 		// the IoT path's 409 response and the semantic meaning of the
 		// error.
 		renderer.HTTPStatusCode = http.StatusConflict
-		renderer.StatusText = "Student Already Has Active Visit"
+		renderer.Status = "Student Already Has Active Visit"
 
 	case errors.Is(err, activeSvc.ErrStudentsNotPresent):
 		renderer.HTTPStatusCode = http.StatusConflict
-		renderer.StatusText = "Students Not Present"
+		renderer.Status = "Students Not Present"
 
 	case errors.Is(err, activeSvc.ErrStudentMoveForbidden):
 		renderer.HTTPStatusCode = http.StatusForbidden
-		renderer.StatusText = "Forbidden"
+		renderer.Status = "Forbidden"
 
 	case errors.Is(err, activeSvc.ErrStaffAlreadySupervising):
 		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Staff Already Supervising This Group"
+		renderer.Status = "Staff Already Supervising This Group"
 
 	case errors.Is(err, activeSvc.ErrCannotDeleteActiveGroup):
 		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Cannot Delete Active Group With Active Visits"
+		renderer.Status = "Cannot Delete Active Group With Active Visits"
 
 	case errors.Is(err, activeSvc.ErrInvalidTimeRange):
 		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.StatusText = "Invalid Time Range"
+		renderer.Status = "Invalid Time Range"
 
 	case errors.Is(err, activeSvc.ErrRoomConflict):
 		renderer.HTTPStatusCode = http.StatusConflict
-		renderer.StatusText = "Room Conflict"
+		renderer.Status = "Room Conflict"
 
 	case errors.Is(err, activeSvc.ErrStudentNotFound):
 		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Student Not Found"
+		renderer.Status = "Student Not Found"
 
 	case errors.Is(err, activeSvc.ErrStaffNotFound):
 		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.StatusText = "Staff Not Found"
+		renderer.Status = "Staff Not Found"
 	}
 
 	return renderer
 }
 
-// ErrorInvalidRequest returns an ErrResponse for invalid requests
+// ErrorInvalidRequest returns an error response for invalid requests
 func ErrorInvalidRequest(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusBadRequest,
-		StatusText:     "Invalid Request",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusBadRequest, "Invalid Request", err)
 }
 
-// ErrorInternalServer returns an ErrResponse for server errors
+// ErrorInternalServer returns an error response for server errors
 func ErrorInternalServer(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusInternalServerError,
-		StatusText:     "Internal Server Error",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusInternalServerError, "Internal Server Error", err)
 }
 
-// ErrorForbidden returns an ErrResponse for forbidden actions
+// ErrorForbidden returns an error response for forbidden actions
 func ErrorForbidden(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusForbidden,
-		StatusText:     "Forbidden",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusForbidden, "Forbidden", err)
 }
 
-// ErrorUnauthorized returns an ErrResponse for unauthorized actions
+// ErrorUnauthorized returns an error response for unauthorized actions
 func ErrorUnauthorized(err error) render.Renderer {
-	return &ErrResponse{
-		Err:            err,
-		HTTPStatusCode: http.StatusUnauthorized,
-		StatusText:     "Unauthorized",
-		ErrorText:      err.Error(),
-	}
+	return newErrResponse(http.StatusUnauthorized, "Unauthorized", err)
 }
