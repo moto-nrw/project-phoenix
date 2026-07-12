@@ -82,6 +82,15 @@ const (
 	KeyCheckoutWCEnabled          = "checkout.wc_enabled"
 )
 
+// Checkin capacity-detail disclosure settings (issue #1879, devices tab).
+// Gate whether the 409 capacity-exceeded responses include the `details`
+// object PyrePortal renders as "{Name} ist voll (X/Y ...)". When off, the
+// backend omits `details` and the kiosk shows its generic German fallback.
+const (
+	KeyCheckinActivityCapacityDetailsEnabled = "checkin.activity_capacity_details_enabled"
+	KeyCheckinRoomCapacityDetailsEnabled     = "checkin.room_capacity_details_enabled"
+)
+
 // IoT device health-monitoring settings (issue #586 — Rule 12 extraction).
 // A device counts as "online" when its last_seen timestamp is within
 // KeyDeviceOnlineWindowMinutes of now. The 5-minute window moved off the

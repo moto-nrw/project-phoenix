@@ -279,7 +279,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		var err error
 		checkoutVisitID, previousRoomName, err = rs.Checkin.ProcessCheckout(ctx, student, person, currentVisit)
 		if err != nil {
-			renderCheckinError(w, r, err)
+			rs.renderCheckinError(w, r, err)
 			return
 		}
 		checkedOut = true
@@ -302,7 +302,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 		CurrentVisit: currentVisit,
 	})
 	if err != nil {
-		renderCheckinError(w, r, err)
+		rs.renderCheckinError(w, r, err)
 		return
 	}
 	newVisitID := checkinResult.NewVisitID

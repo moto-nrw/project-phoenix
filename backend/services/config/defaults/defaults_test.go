@@ -45,6 +45,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"checkout.raumwechsel_enabled",
 		"checkout.schulhof_enabled",
 		"checkout.wc_enabled",
+		// Capacity-detail disclosure toggles (issue #1879, devices tab).
+		"checkin.activity_capacity_details_enabled",
+		"checkin.room_capacity_details_enabled",
 		// Device online/offline window for health monitoring (issue #586, Rule 12).
 		"iot.device_online_window_minutes",
 		"tracking.indicators_enabled",
@@ -1162,6 +1165,34 @@ func TestDevicesSettings(t *testing.T) {
 	assert.Equal(t, false, wc.Default, "wc should default to false (opt-in)")
 }
 
+func TestCheckinCapacityDetailSettings(t *testing.T) {
+	keys := []string{
+		config.KeyCheckinActivityCapacityDetailsEnabled,
+		config.KeyCheckinRoomCapacityDetailsEnabled,
+	}
+	for _, key := range keys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		assert.Equal(t, config.FieldBoolean, def.Type, "setting %q should be boolean", key)
+		assert.Equal(t, "devices", def.Tab, "setting %q should be in devices tab", key)
+		assert.Equal(t, "kapazität", def.Category, "setting %q should be in kapazität category", key)
+		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
+		require.NotNil(t, def.DependsOn, "setting %q should be gated by nfc_enabled", key)
+		assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
+	}
+
+	// Activity defaults to false: the rich kiosk message was never visible
+	// before issue #1879, so it stays opt-in.
+	activity := config.GetDefinition(config.KeyCheckinActivityCapacityDetailsEnabled)
+	assert.Equal(t, false, activity.Default, "activity capacity details should default to false (opt-in)")
+
+	// Room defaults to true: schools already see the rich room message today.
+	room := config.GetDefinition(config.KeyCheckinRoomCapacityDetailsEnabled)
+	assert.Equal(t, true, room.Default, "room capacity details should default to true (preserves existing behavior)")
+}
+
 func TestStudentDailyCheckoutTime_OptionalDefault(t *testing.T) {
 	def := config.GetDefinition("operations.student_daily_checkout_time")
 	require.NotNil(t, def)
@@ -1230,6 +1261,8 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"checkout.raumwechsel_enabled", true},
 		{"checkout.schulhof_enabled", false},
 		{"checkout.wc_enabled", false},
+		{"checkin.activity_capacity_details_enabled", false},
+		{"checkin.room_capacity_details_enabled", true},
 		{"tracking.indicators_enabled", false},
 		{"tracking.indicator_1", ""},
 		{"tracking.indicator_2", ""},

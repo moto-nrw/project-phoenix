@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
@@ -48,16 +49,30 @@ func parseCheckinRequest(ctx context.Context, w http.ResponseWriter, r *http.Req
 
 // renderCheckinError maps a CheckinService typed error to the exact renderer the
 // pre-extraction handler emitted, keeping the PyrePortal wire contract intact.
-func renderCheckinError(w http.ResponseWriter, r *http.Request, err error) {
+// The capacity 409s carry their `details` object only when the tenant's
+// checkin.*_capacity_details_enabled setting allows it (issue #1879); when
+// off, the NoDetails variant is rendered and the kiosk shows its generic
+// German fallback.
+func (rs *Resource) renderCheckinError(w http.ResponseWriter, r *http.Request, err error) {
+	ctx := r.Context()
+
 	var roomCap *checkinSvc.RoomCapacityError
 	if errors.As(err, &roomCap) {
-		common.RenderError(w, r, ErrorRoomCapacityExceeded(roomCap.RoomID, roomCap.RoomName, roomCap.CurrentOccupancy, roomCap.MaxCapacity))
+		if rs.capacityDetailsEnabled(ctx, configModel.KeyCheckinRoomCapacityDetailsEnabled, true) {
+			common.RenderError(w, r, ErrorRoomCapacityExceeded(roomCap.RoomID, roomCap.RoomName, roomCap.CurrentOccupancy, roomCap.MaxCapacity))
+		} else {
+			common.RenderError(w, r, ErrorRoomCapacityExceededNoDetails())
+		}
 		return
 	}
 
 	var actCap *checkinSvc.ActivityCapacityError
 	if errors.As(err, &actCap) {
-		common.RenderError(w, r, ErrorActivityCapacityExceeded(actCap.ActivityID, actCap.ActivityName, actCap.CurrentOccupancy, actCap.MaxCapacity))
+		if rs.capacityDetailsEnabled(ctx, configModel.KeyCheckinActivityCapacityDetailsEnabled, false) {
+			common.RenderError(w, r, ErrorActivityCapacityExceeded(actCap.ActivityID, actCap.ActivityName, actCap.CurrentOccupancy, actCap.MaxCapacity))
+		} else {
+			common.RenderError(w, r, ErrorActivityCapacityExceededNoDetails())
+		}
 		return
 	}
 
@@ -84,6 +99,27 @@ func renderCheckinError(w http.ResponseWriter, r *http.Request, err error) {
 
 	// Fallback — no typed error matched (should not happen). Render a generic 500.
 	common.RenderError(w, r, common.ErrorInternalServer(err))
+}
+
+// capacityDetailsEnabled resolves a capacity-detail disclosure setting,
+// failing safe to `fallback` when the settings service is absent
+// (bare-struct tests) or resolution errors. The fallback must match the
+// registry default for the key (activity=false, room=true) so the fail-safe
+// path preserves default behavior instead of surfacing a 500.
+func (rs *Resource) capacityDetailsEnabled(ctx context.Context, key string, fallback bool) bool {
+	if rs.SettingsService == nil {
+		return fallback
+	}
+	val, err := rs.SettingsService.ResolveBool(ctx, key)
+	if err != nil {
+		rs.getLogger().WarnContext(ctx, "failed to resolve capacity detail setting; using fallback",
+			slog.String("setting_key", key),
+			slog.Bool("fallback", fallback),
+			slog.String("error", err.Error()),
+		)
+		return fallback
+	}
+	return val
 }
 
 // lookupPersonByRFID finds a person by RFID tag and validates the assignment
@@ -172,7 +208,7 @@ func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request,
 
 	result, err := rs.Checkin.AddStaffAsSupervisor(ctx, deviceCtx.ID, deviceCtx.DeviceID, staff.ID)
 	if err != nil {
-		renderCheckinError(w, r, err)
+		rs.renderCheckinError(w, r, err)
 		return
 	}
 
