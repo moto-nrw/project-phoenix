@@ -180,7 +180,18 @@ export function weekCycleSlotForDate(
   const toUTCDays = (iso: string): number => {
     const [year, month, day] = iso.split("-").map(Number);
     if (!year || !month || !day) return Number.NaN;
-    return Math.floor(Date.UTC(year, month - 1, day) / 86_400_000);
+    const utcMs = Date.UTC(year, month - 1, day);
+    // Date.UTC silently rolls invalid components over (2026-02-30 becomes
+    // March 2nd); only a lossless round-trip proves the date is real.
+    const roundTrip = new Date(utcMs);
+    if (
+      roundTrip.getUTCFullYear() !== year ||
+      roundTrip.getUTCMonth() !== month - 1 ||
+      roundTrip.getUTCDate() !== day
+    ) {
+      return Number.NaN;
+    }
+    return Math.floor(utcMs / 86_400_000);
   };
   const daysDiff = toUTCDays(isoDate) - toUTCDays(period.weekCycleAnchor);
   if (Number.isNaN(daysDiff)) return null;

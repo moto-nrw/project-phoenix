@@ -148,6 +148,18 @@ describe("calendar-period-helpers", () => {
       ).toBeNull();
       expect(weekCycleSlotForDate(threeWeekCycle, "ungueltig")).toBeNull();
     });
+
+    it("returns null for calendar-invalid dates instead of rolling them over", () => {
+      // Date.UTC would normalize these to 2026-03-02 / 2027-01-01.
+      expect(weekCycleSlotForDate(threeWeekCycle, "2026-02-30")).toBeNull();
+      expect(weekCycleSlotForDate(threeWeekCycle, "2026-13-01")).toBeNull();
+      expect(
+        weekCycleSlotForDate(
+          { ...threeWeekCycle, weekCycleAnchor: "2026-02-30" },
+          "2026-05-04",
+        ),
+      ).toBeNull();
+    });
   });
 
   describe("findPeriodForDate", () => {
