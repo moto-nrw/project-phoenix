@@ -391,6 +391,60 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 	})
 }
 
+// TestCalendarPeriodService_ConcurrentCreateSameTypeOverlap guards the
+// serialization of CreatePeriod: two concurrent creates of overlapping active
+// same-type periods must yield exactly one row. Without the tenant recurrence
+// gate both requests could pass the overlap check before either insert
+// commits, silently violating the hard invariant.
+func TestCalendarPeriodService_ConcurrentCreateSameTypeOverlap(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	svc := setupCalendarPeriodService(t, db)
+	tenantID, ctx := newBootstrapTenant(t, db)
+
+	suffix := time.Now().UnixNano()
+	makePeriod := func(name string) *scheduleModels.CalendarPeriod {
+		return &scheduleModels.CalendarPeriod{
+			Name:            fmt.Sprintf("%s-%d", name, suffix),
+			PeriodType:      scheduleModels.PeriodTypeSemester,
+			StartDate:       timezone.NewDate(2040, 8, 1),
+			EndDate:         timezone.NewDate(2041, 1, 31),
+			WeekCycleLength: 1,
+			IsActive:        true,
+		}
+	}
+
+	results := make(chan error, 2)
+	var wg sync.WaitGroup
+	for i := range 2 {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			results <- svc.CreatePeriod(ctx, makePeriod(fmt.Sprintf("Concurrent-Create-%d", index)))
+		}(i)
+	}
+	wg.Wait()
+	close(results)
+
+	conflicts := 0
+	for err := range results {
+		if err != nil {
+			require.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodOverlapConflict)
+			conflicts++
+		}
+	}
+	assert.Equal(t, 1, conflicts, "exactly one create must lose the overlap race")
+
+	var rowCount int
+	require.NoError(t, db.NewSelect().
+		TableExpr("schedule.calendar_periods").
+		ColumnExpr("COUNT(*)").
+		Where("tenant_id = ?", tenantID).
+		Scan(ctx, &rowCount))
+	assert.Equal(t, 1, rowCount, "the losing create must not leave a second overlapping row")
+}
+
 func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

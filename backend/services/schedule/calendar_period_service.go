@@ -128,37 +128,43 @@ func (s *calendarPeriodService) GetPeriodByID(ctx context.Context, id int64) (*s
 	return period, nil
 }
 
-// CreatePeriod creates a new calendar period
+// CreatePeriod creates a new calendar period. The duplicate-name and
+// same-type overlap checks run under the tenant recurrence gate: without it,
+// two concurrent creates could both pass the overlap check before either
+// insert commits, violating the hard active/same-type invariant (#1837).
 func (s *calendarPeriodService) CreatePeriod(ctx context.Context, period *schedule.CalendarPeriod) error {
+	const op = "create calendar period"
 	if err := period.Validate(); err != nil {
-		return &ScheduleError{Op: "create calendar period", Err: err}
+		return &ScheduleError{Op: op, Err: err}
 	}
 
-	// Check for duplicate name
-	existing, err := s.repo.FindByName(ctx, period.Name)
-	if err != nil {
-		return &ScheduleError{Op: "create calendar period", Err: err}
-	}
-	if existing != nil {
-		return &ScheduleError{Op: "create calendar period", Err: schedule.ErrCalendarPeriodNameConflict}
-	}
+	return s.withRecurrenceGate(ctx, op, func(txCtx context.Context) error {
+		// Check for duplicate name
+		existing, err := s.repo.FindByName(txCtx, period.Name)
+		if err != nil {
+			return &ScheduleError{Op: op, Err: err}
+		}
+		if existing != nil {
+			return &ScheduleError{Op: op, Err: schedule.ErrCalendarPeriodNameConflict}
+		}
 
-	if err := s.ensureNoActiveSameTypeOverlap(ctx, period); err != nil {
-		return err
-	}
+		if err := s.ensureNoActiveSameTypeOverlap(txCtx, period); err != nil {
+			return err
+		}
 
-	period.SetTenantID(tenant.FromContext(ctx))
-	if err := s.repo.Create(ctx, period); err != nil {
-		return &ScheduleError{Op: "create calendar period", Err: err}
-	}
+		period.SetTenantID(tenant.FromContext(txCtx))
+		if err := s.repo.Create(txCtx, period); err != nil {
+			return &ScheduleError{Op: op, Err: err}
+		}
 
-	s.getLogger().Info("calendar period created",
-		slog.Int64("period_id", period.ID),
-		slog.String("name", period.Name),
-		slog.String("period_type", period.PeriodType),
-	)
+		s.getLogger().Info("calendar period created",
+			slog.Int64("period_id", period.ID),
+			slog.String("name", period.Name),
+			slog.String("period_type", period.PeriodType),
+		)
 
-	return nil
+		return nil
+	})
 }
 
 // UpdatePeriod updates an existing calendar period
@@ -252,14 +258,36 @@ func (s *calendarPeriodService) mutatePeriod(
 	replacement *schedule.CalendarPeriod,
 	mutate func(context.Context) error,
 ) error {
+	if s.db != nil && s.validateCareOfferingChange == nil {
+		return &ScheduleError{Op: op, Err: errors.New("calendar period care-offering validation is not configured")}
+	}
+	return s.withRecurrenceGate(ctx, op, func(txCtx context.Context) error {
+		// nil only on the legacy DB-less unit-test path, where the gate above
+		// already guarantees no care-offering dependency was wired.
+		if s.validateCareOfferingChange != nil {
+			if err := s.validateCareOfferingChange(txCtx, periodID, replacement); err != nil {
+				return &ScheduleError{Op: op + ": validate linked care offerings", Err: err}
+			}
+		}
+		return mutate(txCtx)
+	})
+}
+
+// withRecurrenceGate runs mutate inside a tenant transaction while holding the
+// tenant-wide recurrence advisory lock, serializing the change against every
+// other recurrence-derived write (creates, updates, deletes, re-planning,
+// materialization). Without a configured DB (legacy unit-test constructor)
+// mutate runs directly, provided no gate dependency was wired.
+func (s *calendarPeriodService) withRecurrenceGate(
+	ctx context.Context,
+	op string,
+	mutate func(context.Context) error,
+) error {
 	if s.db == nil {
 		if s.validateCareOfferingChange != nil || s.lockTenantRecurrenceMutation != nil {
 			return &ScheduleError{Op: op, Err: errors.New("calendar period mutation database is not configured")}
 		}
 		return mutate(ctx)
-	}
-	if s.validateCareOfferingChange == nil {
-		return &ScheduleError{Op: op, Err: errors.New("calendar period care-offering validation is not configured")}
 	}
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
@@ -271,9 +299,6 @@ func (s *calendarPeriodService) mutatePeriod(
 		}
 		if err := s.lockTenantRecurrenceMutation(txCtx); err != nil {
 			return &ScheduleError{Op: op + ": lock recurrence", Err: err}
-		}
-		if err := s.validateCareOfferingChange(txCtx, periodID, replacement); err != nil {
-			return &ScheduleError{Op: op + ": validate linked care offerings", Err: err}
 		}
 		return mutate(txCtx)
 	})
