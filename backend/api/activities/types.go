@@ -16,10 +16,14 @@ const (
 
 // CategoryResponse represents a category API response
 type CategoryResponse struct {
-	ID          int64     `json:"id"`
-	Name        string    `json:"name"`
-	Description string    `json:"description,omitempty"`
-	Color       string    `json:"color,omitempty"`
+	ID          int64  `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description,omitempty"`
+	Color       string `json:"color,omitempty"`
+	// ShiftTypeID is the optional Dienstplan-Schichtart this category maps to
+	// (#1836/#1837 follow-up); nil = no mapping. Consumers resolve the shift
+	// type's name/color from the shift-types list.
+	ShiftTypeID *int64    `json:"shift_type_id,omitempty"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
 }

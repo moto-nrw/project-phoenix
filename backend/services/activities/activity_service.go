@@ -106,6 +106,18 @@ func (s *Service) ListCategories(ctx context.Context) ([]*activities.Category, e
 	return categories, nil
 }
 
+// SetCategoryShiftTypeLinks maps the given categories to a Dienstplan shift type
+// and clears the mapping on any category no longer linked to it (#1837
+// follow-up). Called from the shift-types admin flow; the FK lives on the
+// category side, so the write is owned here. Runs inside the caller's tenant
+// transaction (the shift-types router wires TenantTxMiddleware).
+func (s *Service) SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error {
+	if err := s.categoryRepo.SetShiftTypeForCategories(ctx, shiftTypeID, categoryIDs); err != nil {
+		return &ActivityError{Op: "set category shift type links", Err: err}
+	}
+	return nil
+}
+
 // ======== Activity Group Methods ========
 
 // CreateGroup creates a new activity group with supervisors and schedules

@@ -15,6 +15,12 @@ interface ShiftTypePayload {
   color: string;
   description: string;
   isActive: boolean;
+  /**
+   * Timetable-Kategorien mapped to this shift type (#1837 follow-up). When
+   * provided (including an empty array) it replaces the current mapping;
+   * omitted leaves the mapping untouched (matches the backend's nil semantics).
+   */
+  categoryIds?: string[];
 }
 
 export class ShiftTypeApiError extends Error {
@@ -35,6 +41,11 @@ function toBackendBody(payload: ShiftTypePayload) {
     color: payload.color,
     description: payload.description,
     is_active: payload.isActive,
+    // Only send category_ids when the caller manages the mapping; omitting it
+    // leaves the existing Kategorie↔Schichtart links untouched server-side.
+    ...(payload.categoryIds !== undefined
+      ? { category_ids: payload.categoryIds.map(Number) }
+      : {}),
   };
 }
 

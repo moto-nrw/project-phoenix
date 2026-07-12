@@ -79,6 +79,48 @@ func (r *CategoryRepository) ListAll(ctx context.Context) ([]*activities.Categor
 	return categories, nil
 }
 
+// SetShiftTypeForCategories syncs the Kategorie↔Schichtart mapping for one
+// shift type: sets shift_type_id = shiftTypeID for categoryIDs and clears it on
+// any category currently pointing at this shift type that is no longer listed.
+// Both statements are tenant-scoped; run inside the ambient tenant transaction
+// so the sync is atomic (#1837 follow-up).
+func (r *CategoryRepository) SetShiftTypeForCategories(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error {
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return fmt.Errorf("no tenant in context")
+	}
+	db := base.GetDB(ctx, r.db)
+
+	// Clear the mapping on categories that used to point at this shift type but
+	// were de-selected. When categoryIDs is empty every link is cleared.
+	clear := db.NewUpdate().
+		Table(tableActivitiesCategories).
+		Set("shift_type_id = NULL").
+		Where("tenant_id = ?", tenantID).
+		Where("shift_type_id = ?", shiftTypeID)
+	if len(categoryIDs) > 0 {
+		clear = clear.Where("id NOT IN (?)", bun.In(categoryIDs))
+	}
+	if _, err := clear.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "clear category shift type", Err: err}
+	}
+
+	if len(categoryIDs) == 0 {
+		return nil
+	}
+
+	if _, err := db.NewUpdate().
+		Table(tableActivitiesCategories).
+		Set("shift_type_id = ?", shiftTypeID).
+		Where("tenant_id = ?", tenantID).
+		Where("id IN (?)", bun.In(categoryIDs)).
+		Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "set category shift type", Err: err}
+	}
+
+	return nil
+}
+
 // Update overrides the base Update method to handle validation
 func (r *CategoryRepository) Update(ctx context.Context, category *activities.Category) error {
 	if category == nil {

@@ -10,6 +10,9 @@ import { ColorPickerField } from "~/components/ui/color-picker-field";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
+import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import { getCategories } from "~/lib/activity-api";
+import type { ActivityCategory } from "~/lib/activity-helpers";
 import { getApiErrorMessage } from "~/lib/api-error-message";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
@@ -49,6 +52,8 @@ export function ShiftTypeManageModal({
   const [color, setColor] = useState<string | null>(DEFAULT_NEW_COLOR);
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [categories, setCategories] = useState<ActivityCategory[]>([]);
   const [busy, setBusy] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +66,41 @@ export function ShiftTypeManageModal({
     setError(null);
     setDeleteTarget(null);
   }, [isOpen]);
+
+  // Load the Timetable-Kategorien so they can be mapped to a shift type. Each
+  // category carries its current shift_type_id, which drives the form's
+  // preselection below (#1837 follow-up).
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    void getCategories()
+      .then((list) => {
+        if (!cancelled) setCategories(list);
+      })
+      .catch((err: unknown) => {
+        logger.error("shift_type_categories_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!cancelled) setCategories([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  // Preselect the categories currently mapped to the shift type being edited
+  // (empty for a new shift type). Re-runs when categories finish loading so a
+  // fast "open → edit" cannot miss the preselection.
+  useEffect(() => {
+    if (view !== "form") return;
+    setCategoryIds(
+      editing
+        ? categories
+            .filter((category) => category.shiftTypeId === editing.id)
+            .map((category) => category.id)
+        : [],
+    );
+  }, [view, editing, categories]);
 
   const openCreate = () => {
     setEditing(null);
@@ -114,6 +154,7 @@ export function ShiftTypeManageModal({
         color: color ?? DEFAULT_NEW_COLOR,
         description: description.trim(),
         isActive,
+        categoryIds,
       };
       if (editing) {
         await shiftTypeService.updateShiftType(editing.id, payload);
@@ -366,6 +407,34 @@ export function ShiftTypeManageModal({
                 className="block w-full resize-none rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
               />
             </label>
+
+            <div>
+              <span
+                id="shift-type-categories-label"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
+                Timetable-Kategorien (optional)
+              </span>
+              <MultiCheckboxSelect
+                ariaLabel="Timetable-Kategorien"
+                value={categoryIds}
+                onChange={setCategoryIds}
+                options={categories.map((category) => ({
+                  value: category.id,
+                  label: category.name,
+                }))}
+                emptyLabel="Keine Kategorie zugeordnet"
+                unavailableLabel="Keine Kategorien vorhanden"
+                multipleLabel={(count) => `${count} Kategorien`}
+                searchable
+                searchPlaceholder="Kategorie suchen…"
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Ordnet Betreuungsblöcke dieser Kategorien im Stundenplan dieser
+                Schichtart zu. Eine Kategorie kann nur einer Schichtart
+                zugeordnet sein.
+              </p>
+            </div>
 
             <label
               htmlFor="shift-type-active"
