@@ -7,11 +7,14 @@ package checkin
 // WIRE CONTRACT (PyrePortal): the Code values, Message strings, and details
 // field names below are substring-matched by the kiosk
 // (PyrePortal/src/services/apiErrors.ts) and pinned byte-for-byte by
-// wire_format_test.go. Note the activity-capacity details keys are
-// current_occupancy/max_capacity while PyrePortal reads
-// current_participants/max_participants — a known mismatch preserved
-// deliberately; fixing it requires a coordinated backend+PyrePortal change
-// (tracked separately, issue #575 follow-up).
+// wire_format_test.go. Since issue #1879 PyrePortal reads the activity
+// details via current_occupancy/max_capacity (same keys as the room error).
+//
+// Whether the capacity 409s carry the `details` object at all is gated per
+// tenant by the checkin.*_capacity_details_enabled settings — see
+// renderCheckinError in workflow.go. When a setting is off the *NoDetails
+// renderer variants below are used and the kiosk falls back to its generic
+// German message.
 
 import (
 	"errors"
@@ -110,6 +113,43 @@ func ErrorActivityCapacityExceeded(activityID int64, activityName string, curren
 			CurrentOccupancy: currentOccupancy,
 			MaxCapacity:      maxCapacity,
 		},
+	}
+}
+
+// capacityErrorNoDetails is the details-omitted variant of the capacity 409
+// bodies, emitted when the tenant's capacity-detail disclosure setting is off
+// (issue #1879): same status/code/message, but no `details` field exists on
+// the struct at all, so the key is absent from the JSON and PyrePortal falls
+// back to its generic German message.
+type capacityErrorNoDetails struct {
+	Status  string `json:"status"`
+	Message string `json:"message"`
+	Code    string `json:"code"`
+}
+
+// Render implements the render.Renderer interface
+func (e *capacityErrorNoDetails) Render(_ http.ResponseWriter, r *http.Request) error {
+	render.Status(r, http.StatusConflict)
+	return nil
+}
+
+// ErrorRoomCapacityExceededNoDetails returns the ROOM_CAPACITY_EXCEEDED 409
+// without the details object.
+func ErrorRoomCapacityExceededNoDetails() render.Renderer {
+	return &capacityErrorNoDetails{
+		Status:  "error",
+		Message: "Room capacity exceeded",
+		Code:    "ROOM_CAPACITY_EXCEEDED",
+	}
+}
+
+// ErrorActivityCapacityExceededNoDetails returns the ACTIVITY_CAPACITY_EXCEEDED
+// 409 without the details object.
+func ErrorActivityCapacityExceededNoDetails() render.Renderer {
+	return &capacityErrorNoDetails{
+		Status:  "error",
+		Message: "Activity capacity exceeded",
+		Code:    "ACTIVITY_CAPACITY_EXCEEDED",
 	}
 }
 

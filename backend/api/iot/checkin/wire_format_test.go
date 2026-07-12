@@ -13,13 +13,11 @@
 // JSON, and appends a trailing newline) and asserts the literal body
 // string, including the "code" values and the exact "details" key names.
 //
-// IMPORTANT: the activity-capacity response's details keys are pinned
-// AS THEY ARE TODAY, even though there is a known, deliberately-preserved
-// mismatch between what this handler emits and what PyrePortal's client
-// code expects for that specific response. Do NOT "fix" that mismatch via
-// this golden — any such fix is a deliberate behavior change that belongs
-// in its own commit coordinated with the PyrePortal repo, not a side
-// effect of the B1 error-consolidation refactor.
+// Since issue #1879 PyrePortal reads the activity-capacity details via
+// current_occupancy/max_capacity (the keys pinned here), and the capacity
+// 409s additionally have per-tenant NoDetails variants (details omitted
+// when the checkin.*_capacity_details_enabled setting is off) — pinned by
+// the *_NoDetails goldens below.
 //
 // Changing an expectation in this file requires proof that the wire format
 // change is intentional — not just "the refactor made the test fail."
@@ -58,10 +56,32 @@ func TestWireFormat_IoTCommon_ErrorActivityCapacityExceeded(t *testing.T) {
 	renderer := iotCommon.ErrorActivityCapacityExceeded(7, "Bastelraum", 5, 4)
 	gotStatus, gotBody := renderWireIoTCommon(t, renderer)
 	assert.Equal(t, 409, gotStatus)
-	// Pinned as-is: see the file-top comment re: the known, deliberately
-	// preserved details-key mismatch for this response.
 	assert.Equal(t,
 		"{\"status\":\"error\",\"message\":\"Activity capacity exceeded\",\"code\":\"ACTIVITY_CAPACITY_EXCEEDED\",\"details\":{\"activity_id\":7,\"activity_name\":\"Bastelraum\",\"current_occupancy\":5,\"max_capacity\":4}}\n",
+		gotBody,
+	)
+}
+
+func TestWireFormat_IoTCommon_ErrorRoomCapacityExceeded_NoDetails(t *testing.T) {
+	// Emitted when checkin.room_capacity_details_enabled is off (issue #1879):
+	// same status/code/message, no `details` key at all.
+	renderer := iotCommon.ErrorRoomCapacityExceededNoDetails()
+	gotStatus, gotBody := renderWireIoTCommon(t, renderer)
+	assert.Equal(t, 409, gotStatus)
+	assert.Equal(t,
+		"{\"status\":\"error\",\"message\":\"Room capacity exceeded\",\"code\":\"ROOM_CAPACITY_EXCEEDED\"}\n",
+		gotBody,
+	)
+}
+
+func TestWireFormat_IoTCommon_ErrorActivityCapacityExceeded_NoDetails(t *testing.T) {
+	// Emitted when checkin.activity_capacity_details_enabled is off — the
+	// default (issue #1879): same status/code/message, no `details` key.
+	renderer := iotCommon.ErrorActivityCapacityExceededNoDetails()
+	gotStatus, gotBody := renderWireIoTCommon(t, renderer)
+	assert.Equal(t, 409, gotStatus)
+	assert.Equal(t,
+		"{\"status\":\"error\",\"message\":\"Activity capacity exceeded\",\"code\":\"ACTIVITY_CAPACITY_EXCEEDED\"}\n",
 		gotBody,
 	)
 }
