@@ -23,7 +23,7 @@ import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
-import { formatDate, todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { fetchStudents } from "~/lib/student-api";
 import { getSchoolYear } from "~/lib/student-helpers";
@@ -37,6 +37,7 @@ import {
   getGermanWeekdayLong,
   getGermanWeekdayShort,
   resolveTemplateCalendarPeriodId,
+  weekdayDatesInRange,
 } from "~/lib/timetable-helpers";
 import {
   timetableMutedSurface,
@@ -52,6 +53,8 @@ import type {
   CreateInstanceBody,
   CreateTemplateBody,
   EnrichedInstance,
+  ShiftCoverageCheckParams,
+  ShiftCoverageWarningItem,
   TargetGroupType,
   TimetableTemplate,
   UpdateTemplateBody,
@@ -82,6 +85,26 @@ const STUDENT_LOAD_ERROR =
   "Die Kinderliste konnte nicht vollständig geladen werden. Die Kinderzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.";
 const STAFF_LOAD_ERROR =
   "Die Personalliste konnte nicht vollständig geladen werden. Die Personalzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.";
+const COVERAGE_CHECK_ERROR =
+  "Die Dienstplan-Abdeckung konnte nicht geprüft werden. Speichern ist weiterhin möglich.";
+const COVERAGE_CHECK_TIMEOUT_MS = 5_000;
+
+function checkShiftCoverageWithSignal(
+  probe: ShiftCoverageCheckParams,
+  signal: AbortSignal,
+) {
+  const aborted = new Promise<never>((_, reject) => {
+    signal.addEventListener(
+      "abort",
+      () => reject(new DOMException("Coverage check aborted", "AbortError")),
+      { once: true },
+    );
+  });
+  return Promise.race([
+    timetableService.checkShiftCoverage(probe, { signal }),
+    aborted,
+  ]);
+}
 
 interface BackendRoomsEnvelope {
   data?: Array<{
@@ -111,6 +134,7 @@ interface EventFormState {
   educationGroupId: string;
   notes: string;
   repeat: RepeatMode;
+  weekPattern: 0 | 1 | 2;
   weekdays: number[];
   calendarPeriodId: string;
   studentIds: string[];
@@ -156,6 +180,7 @@ interface TimetableEventModalProps {
   variant?: "full" | "quick";
   defaultStartTime?: string;
   defaultEndTime?: string;
+  canCheckShiftCoverage: boolean;
 }
 
 const logger = createLogger({ component: "TimetableEventModal" });
@@ -240,6 +265,7 @@ function emptyForm(
     educationGroupId: "",
     notes: "",
     repeat: defaultRepeat,
+    weekPattern: defaultRepeat === "biweekly" ? 2 : 0,
     weekdays: weekday >= 1 && weekday <= 5 ? [weekday] : [1],
     calendarPeriodId: defaultCalendarPeriodId ?? "",
     studentIds: [],
@@ -268,6 +294,7 @@ function formFromInstance(
     educationGroupId: "",
     notes: instance.notes ?? "",
     repeat,
+    weekPattern: repeat === "biweekly" ? 2 : 0,
     weekdays: weekday >= 1 && weekday <= 5 ? [weekday] : [1],
     calendarPeriodId: defaultCalendarPeriodId ?? "",
     studentIds: instance.studentIds,
@@ -287,7 +314,11 @@ function formFromSeries(
 ): EventFormState {
   const firstSchedule = series.schedules[0];
   const weekdays = series.schedules.map((schedule) => schedule.weekday);
-  const repeat = firstSchedule?.weekPattern === 2 ? "biweekly" : "weekly";
+  const weekPattern =
+    firstSchedule?.weekPattern === 1 || firstSchedule?.weekPattern === 2
+      ? firstSchedule.weekPattern
+      : 0;
+  const repeat = weekPattern === 2 ? "biweekly" : "weekly";
   return {
     title: series.name,
     date: defaultDate,
@@ -299,6 +330,7 @@ function formFromSeries(
     educationGroupId: series.educationGroupId ?? "",
     notes: "",
     repeat,
+    weekPattern,
     weekdays: weekdays.length > 0 ? weekdays : [1],
     calendarPeriodId:
       resolveTemplateCalendarPeriodId(series) ?? defaultCalendarPeriodId ?? "",
@@ -312,10 +344,6 @@ function formFromSeries(
         : "",
     targetSchoolClass: series.targetSchoolClass?.trim() ?? "",
   };
-}
-
-function seriesWeekPattern(repeat: RepeatMode): number {
-  return repeat === "biweekly" ? 2 : 0;
 }
 
 function sortPeople<T extends PersonOption>(items: T[]): T[] {
@@ -434,6 +462,7 @@ export function TimetableEventModal({
   variant = "full",
   defaultStartTime,
   defaultEndTime,
+  canCheckShiftCoverage,
 }: TimetableEventModalProps) {
   const { tenant } = useTenant();
   const {
@@ -487,6 +516,13 @@ export function TimetableEventModal({
   const [conflictWarnings, setConflictWarnings] = useState<
     ConflictWarningItem[]
   >([]);
+  const [coverageWarnings, setCoverageWarnings] = useState<
+    ShiftCoverageWarningItem[]
+  >([]);
+  const [coverageWarningCount, setCoverageWarningCount] = useState(0);
+  const [coverageCheckError, setCoverageCheckError] = useState<string | null>(
+    null,
+  );
   // Reference data can outlive a close/reopen or a changed edit target. Keep
   // the shared, student, and staff load generations separate so a retry may
   // replace only its own roster while stale completions cannot overwrite a
@@ -501,6 +537,7 @@ export function TimetableEventModal({
   }, []);
   // Monotonically increasing probe id so stale responses are dropped.
   const probeSeq = useRef(0);
+  const coverageProbeSeq = useRef(0);
 
   const isEditingInstance = initialInstance !== null;
   const isEditingSeries = initialSeries !== null;
@@ -588,13 +625,16 @@ export function TimetableEventModal({
     setValidationError(null);
     setFieldErrors({});
     setDeleteConfirmOpen(false);
-    setDeleteEffectiveDate(todayISO());
+    setDeleteEffectiveDate(berlinTodayISO());
     setDeleteError(null);
     setDeletingSeries(false);
     setExpanded(variant === "full");
     setMoreOpen(false);
     setPendingSeriesEdit(null);
     setConflictWarnings([]);
+    setCoverageWarnings([]);
+    setCoverageWarningCount(0);
+    setCoverageCheckError(null);
     setLoadingRefs(true);
     setLoadingStudents(true);
     setStudentLoadError(null);
@@ -728,12 +768,10 @@ export function TimetableEventModal({
     variant,
   ]);
 
-  // ---------------------------------------------------------------------
-  // Inline conflict probe (QA M7). Advisory only — warnings never disable
-  // Speichern. For series (weekly) drafts the backend check is date-based,
-  // so we probe with the form's single date (the instance date / first
-  // occurrence); acceptable for Phase 3.
-  // ---------------------------------------------------------------------
+  // Advisory room/staff/student conflicts and Dienstplan coverage are
+  // separate reads. Exact shift gaps have the stricter time-tracking
+  // permission boundary, and a failed coverage read must not erase valid
+  // planning conflicts or disable Speichern.
   const probeKey = JSON.stringify({
     date: form.date,
     startTime: form.startTime,
@@ -746,6 +784,60 @@ export function TimetableEventModal({
   // The convert flow edits an existing instance too — its own slot must not
   // self-conflict, exactly like the regular instance edit.
   const excludeInstanceId = initialInstance?.id ?? convertInstance?.id;
+
+  const coverageProbe = useMemo(() => {
+    if (!form.startTime || !form.endTime || staffIDsForSave.length === 0) {
+      return null;
+    }
+    if (!isSeriesFlow) {
+      return {
+        dates: form.date ? [form.date] : [],
+        startTime: form.startTime,
+        endTime: form.endTime,
+        staffIds: staffIDsForSave,
+        excludeInstanceId: initialInstance?.id,
+      };
+    }
+
+    const period = calendarPeriods.find(
+      (candidate) => candidate.id === form.calendarPeriodId,
+    );
+    if (!period) return null;
+    const today = berlinTodayISO();
+    const from =
+      initialSeries && today > period.startDate ? today : period.startDate;
+    const dates = weekdayDatesInRange(from, period.endDate, form.weekdays);
+    if (convertInstance && form.date && !dates.includes(form.date)) {
+      dates.push(form.date);
+      dates.sort((left, right) => left.localeCompare(right));
+    }
+    return {
+      dates,
+      startTime: form.startTime,
+      endTime: form.endTime,
+      staffIds: staffIDsForSave,
+      excludeInstanceId: convertInstance?.id,
+      concreteInstanceDate: convertInstance ? form.date : undefined,
+      replanActivityGroupId: initialSeries?.id,
+      calendarPeriodId: period.id,
+      weekPattern: form.weekPattern,
+    };
+  }, [
+    calendarPeriods,
+    convertInstance,
+    form.calendarPeriodId,
+    form.date,
+    form.endTime,
+    form.weekPattern,
+    form.startTime,
+    form.weekdays,
+    initialInstance?.id,
+    initialSeries,
+    isSeriesFlow,
+    staffIDsForSave,
+  ]);
+  const coverageProbeKey = JSON.stringify(coverageProbe);
+  const debouncedCoverageProbeKey = useDebounce(coverageProbeKey, 500);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -791,9 +883,117 @@ export function TimetableEventModal({
         logger.warn("conflict_probe_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        if (probeSeq.current === seq) setConflictWarnings([]);
+        if (probeSeq.current === seq) {
+          setConflictWarnings([]);
+        }
       });
   }, [debouncedProbeKey, excludeInstanceId, isOpen, probeKey]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!canCheckShiftCoverage) {
+      setCoverageWarnings([]);
+      setCoverageWarningCount(0);
+      setCoverageCheckError(null);
+      return;
+    }
+    if (debouncedCoverageProbeKey !== coverageProbeKey) {
+      coverageProbeSeq.current++;
+      return;
+    }
+    const probe = JSON.parse(debouncedCoverageProbeKey) as typeof coverageProbe;
+    if (!probe || probe.dates.length === 0) {
+      setCoverageWarnings([]);
+      setCoverageWarningCount(0);
+      setCoverageCheckError(null);
+      return;
+    }
+
+    const seq = ++coverageProbeSeq.current;
+    const controller = new AbortController();
+    const timeoutID = window.setTimeout(
+      () => controller.abort(),
+      COVERAGE_CHECK_TIMEOUT_MS,
+    );
+    setCoverageCheckError(null);
+    checkShiftCoverageWithSignal(probe, controller.signal)
+      .then((result) => {
+        if (coverageProbeSeq.current !== seq) return;
+        setCoverageWarnings(result.coverageWarnings);
+        setCoverageWarningCount(
+          result.coverageWarningCount ?? result.coverageWarnings.length,
+        );
+        setCoverageCheckError(null);
+      })
+      .catch((err: unknown) => {
+        logger.warn("shift_coverage_probe_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (coverageProbeSeq.current === seq) {
+          setCoverageWarnings([]);
+          setCoverageWarningCount(0);
+          setCoverageCheckError(COVERAGE_CHECK_ERROR);
+        }
+      })
+      .finally(() => window.clearTimeout(timeoutID));
+    return () => {
+      window.clearTimeout(timeoutID);
+      controller.abort();
+    };
+  }, [
+    canCheckShiftCoverage,
+    coverageProbeKey,
+    debouncedCoverageProbeKey,
+    isOpen,
+  ]);
+
+  // Recheck the exact live payload before every write. The debounced probe
+  // gives early feedback while editing, while this awaited probe closes the
+  // fast-save race. Warnings and probe failures remain advisory: both are
+  // surfaced as durable toasts and the write continues without confirmation.
+  const checkCoverageBeforeSave = async (
+    probe: ShiftCoverageCheckParams | null,
+  ): Promise<void> => {
+    if (!canCheckShiftCoverage || !probe || probe.dates.length === 0) return;
+    const controller = new AbortController();
+    const timeoutID = window.setTimeout(
+      () => controller.abort(),
+      COVERAGE_CHECK_TIMEOUT_MS,
+    );
+    try {
+      const result = await checkShiftCoverageWithSignal(
+        probe,
+        controller.signal,
+      );
+      const warningCount =
+        result.coverageWarningCount ?? result.coverageWarnings.length;
+      setCoverageWarnings(result.coverageWarnings);
+      setCoverageWarningCount(warningCount);
+      setCoverageCheckError(null);
+      for (const warning of result.coverageWarnings.slice(0, 3)) {
+        toastWarning(warning.message, { duration: 10_000 });
+      }
+      if (warningCount > 3) {
+        toastWarning(
+          `${warningCount - 3} weitere Dienstplan-Lücken wurden gefunden.`,
+          { duration: 10_000 },
+        );
+      }
+    } catch (coverageError) {
+      logger.warn("shift_coverage_pre_save_failed", {
+        error:
+          coverageError instanceof Error
+            ? coverageError.message
+            : String(coverageError),
+      });
+      setCoverageWarnings([]);
+      setCoverageWarningCount(0);
+      setCoverageCheckError(COVERAGE_CHECK_ERROR);
+      toastWarning(COVERAGE_CHECK_ERROR, { duration: 10_000 });
+    } finally {
+      window.clearTimeout(timeoutID);
+    }
+  };
 
   const clearFieldError = (key: string) => {
     setFieldErrors((prev) => {
@@ -814,6 +1014,16 @@ export function TimetableEventModal({
     // The end-before-start error is stored under endTime but depends on both
     // time fields, so correcting the start time must clear it too.
     if (key === "startTime") clearFieldError("endTime");
+  };
+
+  const updateRepeat = (repeat: RepeatMode) => {
+    setForm((prev) => ({
+      ...prev,
+      repeat,
+      weekPattern: repeat === "biweekly" ? 2 : 0,
+    }));
+    setValidationError(null);
+    clearFieldError("repeat");
   };
 
   const toggleWeekday = (iso: number) => {
@@ -950,17 +1160,17 @@ export function TimetableEventModal({
   const handleQuickPresetChange = (value: string) => {
     switch (value as QuickRepeatPreset) {
       case "einmalig":
-        update("repeat", "none");
+        updateRepeat("none");
         break;
       case "woechentlich-am":
-        update("repeat", "weekly");
+        updateRepeat("weekly");
         update(
           "weekdays",
           dateWeekday >= 1 && dateWeekday <= 5 ? [dateWeekday] : [1],
         );
         break;
       case "jeden-wochentag":
-        update("repeat", "weekly");
+        updateRepeat("weekly");
         update("weekdays", [...WEEKDAYS]);
         break;
       case "benutzerdefiniert":
@@ -1006,7 +1216,7 @@ export function TimetableEventModal({
         ? form.targetSchoolClass.trim()
         : undefined,
     calendar_period_id: Number(form.calendarPeriodId),
-    week_pattern: seriesWeekPattern(form.repeat),
+    week_pattern: form.weekPattern,
     student_ids: studentIDsForSave.map(Number),
     staff_ids: staffIDsForSave.map(Number),
     primary_staff_id: primaryStaffIDForSave
@@ -1090,7 +1300,11 @@ export function TimetableEventModal({
     const endISO =
       periodEndISO ?? findPeriod(form.calendarPeriodId)?.endDate ?? weekTo;
     if (!endISO) return true;
-    const chunks = chunkDateRange(todayISO(), endISO, MATERIALIZE_CHUNK_DAYS);
+    const chunks = chunkDateRange(
+      berlinTodayISO(),
+      endISO,
+      MATERIALIZE_CHUNK_DAYS,
+    );
     for (const chunk of chunks) {
       try {
         const result = await timetableService.replanWeek(
@@ -1218,6 +1432,7 @@ export function TimetableEventModal({
 
     setSubmitting(true);
     try {
+      await checkCoverageBeforeSave(coverageProbe);
       if (!isSeriesFlow) {
         const body = instanceBody(
           parsed.roomId,
@@ -1311,6 +1526,58 @@ export function TimetableEventModal({
    * rebuilds future planned instances. A changed Datum only applies to
    * "single" — series-wide scopes ignore it.
    */
+  const seriesCoverageProbe = (
+    template: TimetableTemplate,
+    body: UpdateTemplateBody,
+    fromISO: string,
+    replanActivityGroupId?: string,
+  ) => {
+    const calendarPeriodId =
+      resolveTemplateCalendarPeriodId(template) ?? form.calendarPeriodId;
+    const period = findPeriod(calendarPeriodId);
+    const staffIds = (body.staff_ids ?? []).map(String);
+    if (
+      !period ||
+      body.weekdays.length === 0 ||
+      staffIds.length === 0 ||
+      !body.start_time ||
+      !body.end_time
+    ) {
+      return null;
+    }
+    const from = fromISO > period.startDate ? fromISO : period.startDate;
+    let dates = weekdayDatesInRange(from, period.endDate, body.weekdays);
+    // Without replanActivityGroupId the backend cannot apply the segment's
+    // validity envelope, so the probe caps itself at the schedules'
+    // validUntil (exclusive boundary): a split successor inherits it and
+    // never creates occurrences on or after that date. All schedules of a
+    // segment share the boundary; the latest one wins if they ever diverge,
+    // and one open-ended schedule leaves the probe uncapped.
+    let latestValidUntil: string | undefined;
+    for (const schedule of template.schedules) {
+      if (!schedule.validUntil) {
+        latestValidUntil = undefined;
+        break;
+      }
+      if (!latestValidUntil || schedule.validUntil > latestValidUntil) {
+        latestValidUntil = schedule.validUntil;
+      }
+    }
+    if (latestValidUntil) {
+      const boundary = latestValidUntil;
+      dates = dates.filter((date) => date < boundary);
+    }
+    return {
+      dates,
+      startTime: body.start_time,
+      endTime: body.end_time,
+      staffIds,
+      replanActivityGroupId,
+      calendarPeriodId: period.id,
+      weekPattern: body.week_pattern ?? 0,
+    };
+  };
+
   const handleScopeSelect = async (scope: string) => {
     if (submitting) return;
     const pending = pendingSeriesEdit;
@@ -1319,6 +1586,7 @@ export function TimetableEventModal({
     setSubmitting(true);
     try {
       if (scope === "single") {
+        await checkCoverageBeforeSave(coverageProbe);
         const saved = await timetableService.update(
           initialInstance.id,
           instanceBody(pending.roomId, groupId),
@@ -1333,6 +1601,14 @@ export function TimetableEventModal({
           findPeriod(templateCalendarPeriodId)?.endDate ??
           findPeriod(form.calendarPeriodId)?.endDate;
         const body = templateBodyFromForm(template, pending.roomId);
+        const typedScope = scope === "following" ? "following" : "all";
+        const scopeProbe = seriesCoverageProbe(
+          template,
+          body,
+          typedScope === "following" ? initialInstance.date : berlinTodayISO(),
+          typedScope === "all" ? groupId : undefined,
+        );
+        await checkCoverageBeforeSave(scopeProbe);
         if (scope === "following") {
           const effectiveDate = initialInstance.date;
           const chunks = chunkDateRange(
@@ -1419,14 +1695,14 @@ export function TimetableEventModal({
   };
 
   const openSeriesDeleteConfirm = () => {
-    setDeleteEffectiveDate(todayISO());
+    setDeleteEffectiveDate(berlinTodayISO());
     setDeleteError(null);
     setDeleteConfirmOpen(true);
   };
 
   const handleConfirmSeriesDelete = async () => {
     if (!initialSeries || !onDeleteSeries || deletingSeries) return;
-    const minDate = todayISO();
+    const minDate = berlinTodayISO();
     if (!deleteEffectiveDate) {
       setDeleteError("Bitte ein Datum auswählen.");
       return;
@@ -1928,7 +2204,7 @@ export function TimetableEventModal({
                   value={form.repeat}
                   onValueChange={(value) => {
                     const nextRepeat = value as RepeatMode;
-                    update("repeat", nextRepeat);
+                    updateRepeat(nextRepeat);
                     if (nextRepeat !== "none" && form.weekdays.length === 0) {
                       const weekday = isoWeekday(form.date);
                       update(
@@ -2353,17 +2629,67 @@ export function TimetableEventModal({
           </div>
         </form>
 
-        {conflictWarnings.length > 0 && (
+        {(conflictWarnings.length > 0 ||
+          coverageWarnings.length > 0 ||
+          coverageCheckError) && (
           // Advisory pre-save hints (QA M7): visible in quick and expanded
           // mode, pinned above the footer. Never disables Speichern.
-          <div className="flex flex-col gap-2 border-t border-gray-200 px-5 py-3">
+          <div className="flex max-h-[40vh] flex-col gap-2 overflow-y-auto overscroll-contain border-t border-gray-200 px-5 py-3">
+            <p className="sr-only" aria-live="polite">
+              {`${conflictWarnings.length} Terminüberschneidungen und ${coverageWarningCount} Dienstplan-Lücken gefunden. Speichern ist weiterhin möglich.`}
+            </p>
             {conflictWarnings.map((warning, index) => (
               <Alert
                 key={`${warning.kind}-${warning.resourceId}-${index}`}
                 type="warning"
                 message={`Hinweis: ${warning.message}`}
+                announce="off"
               />
             ))}
+            {coverageWarningCount > 0 && (
+              <Alert
+                type="warning"
+                message={`${coverageWarningCount} Dienstplan-${coverageWarningCount === 1 ? "Lücke" : "Lücken"} gefunden. Speichern ist weiterhin möglich.`}
+                announce="off"
+              />
+            )}
+            {coverageWarnings.slice(0, 3).map((warning, index) => (
+              <p
+                key={`shift-coverage-example-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${index}`}
+                className="rounded-lg border border-yellow-100 bg-yellow-50/50 px-3 py-2 text-sm text-yellow-800"
+              >
+                {warning.message}
+              </p>
+            ))}
+            {coverageWarningCount > 3 && (
+              <details className="rounded-lg border border-yellow-100 bg-yellow-50/40 px-3 py-2 text-sm text-yellow-800">
+                <summary className="cursor-pointer font-medium focus-visible:ring-2 focus-visible:ring-yellow-600 focus-visible:outline-none">
+                  {coverageWarningCount - 3} weitere Lücken anzeigen
+                </summary>
+                <div className="mt-2 max-h-48 space-y-2 overflow-y-auto overscroll-contain pr-1">
+                  {coverageWarnings.slice(3).map((warning, index) => (
+                    <p
+                      key={`shift-coverage-detail-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${index}`}
+                      className="border-t border-yellow-100 pt-2 first:border-t-0 first:pt-0"
+                    >
+                      {warning.message}
+                    </p>
+                  ))}
+                  {coverageWarningCount > coverageWarnings.length && (
+                    <p className="border-t border-yellow-100 pt-2 font-medium">
+                      Es werden höchstens 100 Beispiele angezeigt.
+                    </p>
+                  )}
+                </div>
+              </details>
+            )}
+            {coverageCheckError && (
+              <Alert
+                type="warning"
+                message={`Hinweis: ${coverageCheckError}`}
+                announce="off"
+              />
+            )}
           </div>
         )}
 
@@ -2441,7 +2767,7 @@ export function TimetableEventModal({
                   id="series_delete_effective_date"
                   type="date"
                   value={deleteEffectiveDate}
-                  min={todayISO()}
+                  min={berlinTodayISO()}
                   controlSize="compact"
                   aria-invalid={deleteError ? true : undefined}
                   disabled={deletingSeries}

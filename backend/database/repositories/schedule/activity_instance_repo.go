@@ -202,6 +202,35 @@ func (r *ActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Cont
 	return instances, nil
 }
 
+// FindByActivityGroupAndDateRange returns one template's instances within an
+// inclusive range. This custom read is necessary because the generic exact-
+// filter shape cannot express inclusive date bounds; the group predicate is
+// applied in SQL so a long-running probe never loads every tenant block.
+func (r *ActivityInstanceRepository) FindByActivityGroupAndDateRange(
+	ctx context.Context,
+	activityGroupID int64,
+	from, to timezone.Date,
+) ([]*schedule.ActivityInstance, error) {
+	var instances []*schedule.ActivityInstance
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&instances).
+		ModelTableExpr(modelTblActivityInstance).
+		Where(`"activity_instance".activity_group_id = ?`, activityGroupID).
+		Where(`"activity_instance".date >= ?`, from).
+		Where(`"activity_instance".date <= ?`, to).
+		Order("date ASC", "start_time ASC")
+
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by activity group and date range",
+			Err: err,
+		}
+	}
+	return instances, nil
+}
+
 // FindByActiveGroupID returns the instance bridged to the given active.group,
 // or nil if none exists. The bridge is 1:1 — enforced by a UNIQUE partial
 // index on schedule.activity_instances(active_group_id) WHERE IS NOT NULL.

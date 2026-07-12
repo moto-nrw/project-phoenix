@@ -78,6 +78,25 @@ func TestInstanceStaffRepository_Create_and_FindByInstanceID(t *testing.T) {
 		assert.GreaterOrEqual(t, len(rows), 2)
 	})
 
+	t.Run("single and batch reads share created-at substitute order", func(t *testing.T) {
+		baseTime := time.Date(2026, 9, 15, 8, 0, 0, 0, time.UTC)
+		_, err := db.NewUpdate().Table("schedule.instance_staff").
+			Set("created_at = ?", baseTime.Add(time.Hour)).Where("id = ?", rowA.ID).Exec(ctx)
+		require.NoError(t, err)
+		_, err = db.NewUpdate().Table("schedule.instance_staff").
+			Set("created_at = ?", baseTime).Where("id = ?", rowB.ID).Exec(ctx)
+		require.NoError(t, err)
+
+		single, err := repo.FindByInstanceID(ctx, inst.ID)
+		require.NoError(t, err)
+		batch, err := repo.FindByInstanceIDs(ctx, []int64{inst.ID})
+		require.NoError(t, err)
+		require.Len(t, single, 2)
+		require.Len(t, batch, 2)
+		assert.Equal(t, []int64{rowB.ID, rowA.ID}, []int64{single[0].ID, single[1].ID})
+		assert.Equal(t, []int64{rowB.ID, rowA.ID}, []int64{batch[0].ID, batch[1].ID})
+	})
+
 	t.Run("UNIQUE(instance_id, staff_id) blocks duplicate", func(t *testing.T) {
 		dup := &scheduleModels.InstanceStaff{
 			InstanceID: inst.ID,

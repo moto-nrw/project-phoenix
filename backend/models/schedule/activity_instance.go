@@ -125,6 +125,10 @@ type ActivityInstanceRepository interface {
 	// times on the same weekday.
 	FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date timezone.Date) ([]*ActivityInstance, error)
 
+	// FindByActivityGroupAndDateRange returns one template's instances within
+	// an inclusive date range in one tenant-scoped query.
+	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to timezone.Date) ([]*ActivityInstance, error)
+
 	// FindByActiveGroupID returns the instance that is currently bridged to the
 	// given active.group, or nil if none.
 	FindByActiveGroupID(ctx context.Context, activeGroupID int64) (*ActivityInstance, error)
