@@ -1,4 +1,4 @@
-package attendance
+package checkin
 
 import (
 	"errors"

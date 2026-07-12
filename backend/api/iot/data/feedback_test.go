@@ -1,8 +1,8 @@
-// Package feedback_test tests the IoT feedback API handlers with hermetic test pattern.
+// Package data_test tests (feedback) the IoT feedback API handlers with hermetic test pattern.
 //
 // These tests verify HTTP request/response handling, status codes, and error responses.
 // They use real services with a test database (no mocks).
-package feedback_test
+package data_test
 
 import (
 	"bytes"
@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	feedbackAPI "github.com/moto-nrw/project-phoenix/api/iot/feedback"
+	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -43,28 +43,28 @@ func newFakeSettingsService(boolValues map[string]bool) *configtest.Mock {
 	}
 }
 
-// testContext holds shared test dependencies.
-type testContext struct {
+// feedbackTestContext holds shared test dependencies.
+type feedbackTestContext struct {
 	db       *bun.DB
 	services *services.Factory
-	resource *feedbackAPI.Resource
+	resource *dataAPI.FeedbackResource
 }
 
-// setupTestContext initializes test database, services, and resource.
-func setupTestContext(t *testing.T) *testContext {
+// setupFeedbackTestContext initializes test database, services, and resource.
+func setupFeedbackTestContext(t *testing.T) *feedbackTestContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
 
 	// Create feedback resource
-	resource := feedbackAPI.NewResource(
+	resource := dataAPI.NewFeedbackResource(
 		svc.IoT,
 		svc.Users,
 		svc.Feedback,
 		nil,
 	)
 
-	return &testContext{
+	return &feedbackTestContext{
 		db:       db,
 		services: svc,
 		resource: resource,
@@ -76,7 +76,7 @@ func setupTestContext(t *testing.T) *testContext {
 // =============================================================================
 
 func TestSubmitFeedback_NoDevice(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
@@ -95,7 +95,7 @@ func TestSubmitFeedback_NoDevice(t *testing.T) {
 }
 
 func TestSubmitFeedback_InvalidJSON(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-1")
@@ -115,7 +115,7 @@ func TestSubmitFeedback_InvalidJSON(t *testing.T) {
 }
 
 func TestSubmitFeedback_MissingStudentID(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-2")
@@ -136,7 +136,7 @@ func TestSubmitFeedback_MissingStudentID(t *testing.T) {
 }
 
 func TestSubmitFeedback_MissingValue(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-3")
@@ -157,7 +157,7 @@ func TestSubmitFeedback_MissingValue(t *testing.T) {
 }
 
 func TestSubmitFeedback_InvalidStudentID(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-4")
@@ -179,7 +179,7 @@ func TestSubmitFeedback_InvalidStudentID(t *testing.T) {
 }
 
 func TestSubmitFeedback_StudentNotFound(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-5")
@@ -201,7 +201,7 @@ func TestSubmitFeedback_StudentNotFound(t *testing.T) {
 }
 
 func TestSubmitFeedback_Success(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-6")
@@ -224,7 +224,7 @@ func TestSubmitFeedback_Success(t *testing.T) {
 }
 
 func TestSubmitFeedback_NeutralValue(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-7")
@@ -247,7 +247,7 @@ func TestSubmitFeedback_NeutralValue(t *testing.T) {
 }
 
 func TestSubmitFeedback_NegativeValue(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-8")
@@ -270,7 +270,7 @@ func TestSubmitFeedback_NegativeValue(t *testing.T) {
 }
 
 func TestSubmitFeedback_InvalidValue(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-9")
@@ -298,7 +298,7 @@ func TestSubmitFeedback_InvalidValue(t *testing.T) {
 // =============================================================================
 
 func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-disabled")
@@ -308,7 +308,7 @@ func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
 	disabledSettings := newFakeSettingsService(map[string]bool{
 		configModel.KeyFeedbackEnabled: false,
 	})
-	resource := feedbackAPI.NewResource(
+	resource := dataAPI.NewFeedbackResource(
 		ctx.services.IoT,
 		ctx.services.Users,
 		ctx.services.Feedback,
@@ -345,7 +345,7 @@ func TestSubmitFeedback_FeedbackDisabled(t *testing.T) {
 }
 
 func TestSubmitFeedback_FeedbackEnabled(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupFeedbackTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "feedback-test-device-enabled")
@@ -355,7 +355,7 @@ func TestSubmitFeedback_FeedbackEnabled(t *testing.T) {
 	enabledSettings := newFakeSettingsService(map[string]bool{
 		configModel.KeyFeedbackEnabled: true,
 	})
-	resource := feedbackAPI.NewResource(
+	resource := dataAPI.NewFeedbackResource(
 		ctx.services.IoT,
 		ctx.services.Users,
 		ctx.services.Feedback,

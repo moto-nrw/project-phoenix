@@ -1,4 +1,4 @@
-package rfid
+package data
 
 import (
 	"errors"
@@ -12,7 +12,7 @@ import (
 )
 
 // assignStaffRFIDTag handles assigning an RFID tag to a staff member (device-authenticated endpoint)
-func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
+func (rs *RFIDResource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
@@ -82,7 +82,7 @@ func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 }
 
 // unassignStaffRFIDTag handles removing an RFID tag from a staff member (device-authenticated endpoint)
-func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
+func (rs *RFIDResource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
@@ -145,7 +145,7 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 
 // getStaffAndPerson retrieves staff and person details by staff ID with error handling
 // Returns staff, person, and success status. If ok=false, error response already sent
-func (rs *Resource) getStaffAndPerson(w http.ResponseWriter, r *http.Request, staffID int64) (*users.Staff, *users.Person, bool) {
+func (rs *RFIDResource) getStaffAndPerson(w http.ResponseWriter, r *http.Request, staffID int64) (*users.Staff, *users.Person, bool) {
 	// Get the staff member
 	staff, err := rs.UsersService.GetStaffByID(r.Context(), staffID)
 	if err != nil {

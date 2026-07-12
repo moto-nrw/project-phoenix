@@ -1,4 +1,4 @@
-package attendance
+package checkin
 
 import (
 	"context"
@@ -18,7 +18,7 @@ import (
 )
 
 // getAttendanceStatus handles getting a student's attendance status by RFID
-func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) {
+func (rs *AttendanceResource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
@@ -77,7 +77,7 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 }
 
 // toggleAttendance handles toggling a student's attendance state via RFID tag
-func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
+func (rs *AttendanceResource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device and staff from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
 
@@ -117,7 +117,7 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 // Helper functions
 
 // findStudentByRFID finds a student by RFID tag and returns the student, person, and success status
-func (rs *Resource) findStudentByRFID(w http.ResponseWriter, r *http.Request, normalizedRFID string) (*users.Student, *users.Person, bool) {
+func (rs *AttendanceResource) findStudentByRFID(w http.ResponseWriter, r *http.Request, normalizedRFID string) (*users.Student, *users.Person, bool) {
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil {
 		shared.RecordUnregisteredTagScan(r.Context(), rs.UnregisteredTagScans, slog.Default(), normalizedRFID)
@@ -140,7 +140,7 @@ func (rs *Resource) findStudentByRFID(w http.ResponseWriter, r *http.Request, no
 }
 
 // getStudentGroupInfo gets optional group information for a student
-func (rs *Resource) getStudentGroupInfo(ctx context.Context, student *users.Student) *AttendanceGroupInfo {
+func (rs *AttendanceResource) getStudentGroupInfo(ctx context.Context, student *users.Student) *AttendanceGroupInfo {
 	if student.GroupID == nil {
 		return nil
 	}
@@ -157,7 +157,7 @@ func (rs *Resource) getStudentGroupInfo(ctx context.Context, student *users.Stud
 }
 
 // handleCancelAction handles the "cancel" action for attendance toggle
-func (rs *Resource) handleCancelAction(w http.ResponseWriter, r *http.Request) {
+func (rs *AttendanceResource) handleCancelAction(w http.ResponseWriter, r *http.Request) {
 	response := AttendanceToggleResponse{
 		Action:  "cancelled",
 		Message: "Attendance tracking cancelled",
@@ -171,7 +171,7 @@ func (rs *Resource) handleCancelAction(w http.ResponseWriter, r *http.Request) {
 // record when the student confirms "nach Hause". If a visit is still open,
 // CheckOutStudent ends it in the same request transaction (issue #895 — see
 // services/active.performCheckOut).
-func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, normalizedRFID string, req *AttendanceToggleRequest, deviceID int64) {
+func (rs *AttendanceResource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, normalizedRFID string, req *AttendanceToggleRequest, deviceID int64) {
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil || person == nil {
@@ -278,7 +278,7 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 }
 
 // handleNormalToggle handles the normal "confirm" action for attendance toggle
-func (rs *Resource) handleNormalToggle(w http.ResponseWriter, r *http.Request, normalizedRFID string) {
+func (rs *AttendanceResource) handleNormalToggle(w http.ResponseWriter, r *http.Request, normalizedRFID string) {
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil {
@@ -318,7 +318,7 @@ func (rs *Resource) handleNormalToggle(w http.ResponseWriter, r *http.Request, n
 }
 
 // lookupStudent gets student from person ID with error handling
-func (rs *Resource) lookupStudent(w http.ResponseWriter, r *http.Request, personID int64) *users.Student {
+func (rs *AttendanceResource) lookupStudent(w http.ResponseWriter, r *http.Request, personID int64) *users.Student {
 	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), personID)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgPersonNotStudent)))
@@ -332,7 +332,7 @@ func (rs *Resource) lookupStudent(w http.ResponseWriter, r *http.Request, person
 }
 
 // getStaffIDFromContext extracts staff ID from device context
-func (rs *Resource) getStaffIDFromContext(ctx context.Context) int64 {
+func (rs *AttendanceResource) getStaffIDFromContext(ctx context.Context) int64 {
 	if staffCtx := device.StaffFromCtx(ctx); staffCtx != nil {
 		return staffCtx.ID
 	}
@@ -340,7 +340,7 @@ func (rs *Resource) getStaffIDFromContext(ctx context.Context) int64 {
 }
 
 // sendToggleResponse builds and sends the attendance toggle response
-func (rs *Resource) sendToggleResponse(w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, result *activeSvc.AttendanceResult) {
+func (rs *AttendanceResource) sendToggleResponse(w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person, result *activeSvc.AttendanceResult) {
 	// Get updated attendance status
 	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
 	if err != nil {
@@ -378,7 +378,7 @@ func (rs *Resource) sendToggleResponse(w http.ResponseWriter, r *http.Request, s
 }
 
 // buildAttendanceMessage creates user-friendly message for attendance action
-func (rs *Resource) buildAttendanceMessage(action, firstName string) string {
+func (rs *AttendanceResource) buildAttendanceMessage(action, firstName string) string {
 	switch action {
 	case "checked_in":
 		return fmt.Sprintf("Hallo %s!", firstName)

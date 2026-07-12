@@ -9,12 +9,8 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/api/iot/attendance"
 	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
-	"github.com/moto-nrw/project-phoenix/api/iot/devices"
-	feedbackAPI "github.com/moto-nrw/project-phoenix/api/iot/feedback"
-	rfidAPI "github.com/moto-nrw/project-phoenix/api/iot/rfid"
 	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -105,7 +101,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Mount devices sub-router (handles device CRUD and admin operations)
 		// All device routes require JWT authentication with IOT permissions
-		devicesResource := devices.NewResource(rs.IoTService)
+		devicesResource := NewDevicesResource(rs.IoTService)
 		r.With(withTx).Mount("/", devicesResource.Router())
 	})
 
@@ -159,7 +155,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/status", checkinHandler)
 
 		// Feedback endpoint (device-based feedback submission)
-		feedbackResource := feedbackAPI.NewResource(rs.IoTService, rs.UsersService, rs.FeedbackService, rs.SettingsService)
+		feedbackResource := dataAPI.NewFeedbackResource(rs.IoTService, rs.UsersService, rs.FeedbackService, rs.SettingsService)
 		r.Post("/feedback", delegateHandler(feedbackResource.Router()))
 
 		// Data query endpoints (device + PIN auth)
@@ -171,7 +167,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/rfid/{tagId}", dataHandler)
 
 		// Mount attendance sub-router (handles daily attendance tracking)
-		attendanceResource := attendance.NewResource(rs.UsersService, rs.ActiveService, rs.EducationService, rs.SettingsService, rs.UnregisteredTagScans)
+		attendanceResource := checkinAPI.NewAttendanceResource(rs.UsersService, rs.ActiveService, rs.EducationService, rs.SettingsService, rs.UnregisteredTagScans)
 		r.Mount("/attendance", attendanceResource.Router())
 
 		// Mount sessions sub-router (handles activity session management and timeout)
@@ -190,7 +186,7 @@ func (rs *Resource) Router() chi.Router {
 		r.Mount("/session", sessionsResource.Router())
 
 		// Mount RFID sub-router (handles RFID tag assignment/unassignment for staff)
-		rfidResource := rfidAPI.NewResource(rs.UsersService)
+		rfidResource := dataAPI.NewRFIDResource(rs.UsersService)
 		r.Mount("/staff", rfidResource.Router())
 	})
 

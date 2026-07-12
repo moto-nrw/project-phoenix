@@ -1,4 +1,4 @@
-package rfid
+package data
 
 import (
 	"errors"

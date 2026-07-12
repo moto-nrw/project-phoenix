@@ -1,8 +1,8 @@
-// Package rfid_test tests the IoT RFID API handlers with hermetic test pattern.
+// Package data_test tests (rfid) the IoT RFID API handlers with hermetic test pattern.
 //
 // These tests verify HTTP request/response handling, status codes, and error responses.
 // They use real services with a test database (no mocks).
-package rfid_test
+package data_test
 
 import (
 	"bytes"
@@ -15,30 +15,30 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 
-	rfidAPI "github.com/moto-nrw/project-phoenix/api/iot/rfid"
+	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// testContext holds shared test dependencies.
-type testContext struct {
+// rfidTestContext holds shared test dependencies.
+type rfidTestContext struct {
 	db       *bun.DB
 	services *services.Factory
-	resource *rfidAPI.Resource
+	resource *dataAPI.RFIDResource
 }
 
-// setupTestContext initializes test database, services, and resource.
-func setupTestContext(t *testing.T) *testContext {
+// setupRFIDTestContext initializes test database, services, and resource.
+func setupRFIDTestContext(t *testing.T) *rfidTestContext {
 	t.Helper()
 
 	db, svc := testutil.SetupAPITest(t)
 
 	// Create RFID resource
-	resource := rfidAPI.NewResource(svc.Users)
+	resource := dataAPI.NewRFIDResource(svc.Users)
 
-	return &testContext{
+	return &rfidTestContext{
 		db:       db,
 		services: svc,
 		resource: resource,
@@ -50,7 +50,7 @@ func setupTestContext(t *testing.T) *testContext {
 // =============================================================================
 
 func TestAssignRFIDTag_NoDevice(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupRFIDTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
@@ -68,7 +68,7 @@ func TestAssignRFIDTag_NoDevice(t *testing.T) {
 }
 
 func TestAssignRFIDTag_InvalidStaffID(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupRFIDTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-1")
@@ -89,7 +89,7 @@ func TestAssignRFIDTag_InvalidStaffID(t *testing.T) {
 }
 
 func TestAssignRFIDTag_InvalidJSON(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupRFIDTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-2")
@@ -109,7 +109,7 @@ func TestAssignRFIDTag_InvalidJSON(t *testing.T) {
 }
 
 func TestAssignRFIDTag_MissingRFIDTag(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupRFIDTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-3")
@@ -128,7 +128,7 @@ func TestAssignRFIDTag_MissingRFIDTag(t *testing.T) {
 }
 
 func TestAssignRFIDTag_RFIDTagTooShort(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupRFIDTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-4")
@@ -149,7 +149,7 @@ func TestAssignRFIDTag_RFIDTagTooShort(t *testing.T) {
 }
 
 func TestAssignRFIDTag_StaffNotFound(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupRFIDTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-5")
@@ -170,7 +170,7 @@ func TestAssignRFIDTag_StaffNotFound(t *testing.T) {
 }
 
 func TestAssignRFIDTag_Success(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupRFIDTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-6")
@@ -198,7 +198,7 @@ func TestAssignRFIDTag_Success(t *testing.T) {
 // =============================================================================
 
 func TestUnassignRFIDTag_NoDevice(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupRFIDTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	router := ctx.resource.Router()
@@ -212,7 +212,7 @@ func TestUnassignRFIDTag_NoDevice(t *testing.T) {
 }
 
 func TestUnassignRFIDTag_InvalidStaffID(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupRFIDTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-7")
@@ -229,7 +229,7 @@ func TestUnassignRFIDTag_InvalidStaffID(t *testing.T) {
 }
 
 func TestUnassignRFIDTag_StaffNotFound(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupRFIDTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-8")
@@ -246,7 +246,7 @@ func TestUnassignRFIDTag_StaffNotFound(t *testing.T) {
 }
 
 func TestUnassignRFIDTag_NoTagAssigned(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupRFIDTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-9")
@@ -264,7 +264,7 @@ func TestUnassignRFIDTag_NoTagAssigned(t *testing.T) {
 }
 
 func TestUnassignRFIDTag_Success(t *testing.T) {
-	ctx := setupTestContext(t)
+	ctx := setupRFIDTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
 
 	testDevice := testpkg.CreateTestDevice(t, ctx.db, "rfid-test-device-10")

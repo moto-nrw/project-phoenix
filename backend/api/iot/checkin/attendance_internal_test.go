@@ -1,6 +1,6 @@
-// Package attendance internal tests for pure helper functions.
+// Package checkin internal tests (attendance) for pure helper functions.
 // These tests verify logic that doesn't require database access.
-package attendance
+package checkin
 
 import (
 	"context"
@@ -19,25 +19,25 @@ import (
 // =============================================================================
 
 func TestBuildAttendanceMessage_CheckedIn(t *testing.T) {
-	rs := &Resource{}
+	rs := &AttendanceResource{}
 	msg := rs.buildAttendanceMessage("checked_in", "Max")
 	assert.Equal(t, "Hallo Max!", msg)
 }
 
 func TestBuildAttendanceMessage_CheckedOut(t *testing.T) {
-	rs := &Resource{}
+	rs := &AttendanceResource{}
 	msg := rs.buildAttendanceMessage("checked_out", "Anna")
 	assert.Equal(t, "Tschüss Anna!", msg)
 }
 
 func TestBuildAttendanceMessage_UnknownAction(t *testing.T) {
-	rs := &Resource{}
+	rs := &AttendanceResource{}
 	msg := rs.buildAttendanceMessage("transferred", "Ben")
 	assert.Equal(t, "Attendance transferred for Ben", msg)
 }
 
 func TestBuildAttendanceMessage_EmptyAction(t *testing.T) {
-	rs := &Resource{}
+	rs := &AttendanceResource{}
 	msg := rs.buildAttendanceMessage("", "Test")
 	assert.Equal(t, "Attendance  for Test", msg)
 }
@@ -47,7 +47,7 @@ func TestBuildAttendanceMessage_EmptyAction(t *testing.T) {
 // =============================================================================
 
 func TestGetStaffIDFromContext_NoStaffContext(t *testing.T) {
-	rs := &Resource{}
+	rs := &AttendanceResource{}
 	// With context that doesn't have staff set
 	ctx := context.Background()
 	staffID := rs.getStaffIDFromContext(ctx)
@@ -115,7 +115,7 @@ func TestAttendanceStudentInfo_NilGroup(t *testing.T) {
 // =============================================================================
 
 func TestGetStudentGroupInfo_NilGroupID(t *testing.T) {
-	rs := &Resource{}
+	rs := &AttendanceResource{}
 	student := &users.Student{} // GroupID is nil
 	result := rs.getStudentGroupInfo(context.Background(), student)
 	assert.Nil(t, result, "Expected nil when student has no group")
@@ -126,7 +126,7 @@ func TestGetStudentGroupInfo_NilGroupID(t *testing.T) {
 // =============================================================================
 
 func TestHandleCancelAction_Response(t *testing.T) {
-	rs := &Resource{}
+	rs := &AttendanceResource{}
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest("POST", "/toggle", nil)
 

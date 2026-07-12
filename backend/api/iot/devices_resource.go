@@ -1,4 +1,4 @@
-package devices
+package iot
 
 import (
 	"github.com/go-chi/chi/v5"
@@ -8,14 +8,14 @@ import (
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 )
 
-// Resource defines the Devices API resource
-type Resource struct {
+// DevicesResource defines the Devices API resource
+type DevicesResource struct {
 	IoTService iotSvc.Service
 }
 
-// NewResource creates a new Devices resource
-func NewResource(iotService iotSvc.Service) *Resource {
-	return &Resource{
+// NewDevicesResource creates a new Devices resource
+func NewDevicesResource(iotService iotSvc.Service) *DevicesResource {
+	return &DevicesResource{
 		IoTService: iotService,
 	}
 }
@@ -23,7 +23,7 @@ func NewResource(iotService iotSvc.Service) *Resource {
 // Router returns a configured router for device management endpoints
 // This router is mounted under /iot/ and handles all device CRUD operations
 // All routes require JWT authentication with appropriate IOT permissions
-func (rs *Resource) Router() chi.Router {
+func (rs *DevicesResource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 

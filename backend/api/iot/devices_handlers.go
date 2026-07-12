@@ -1,4 +1,4 @@
-package devices
+package iot
 
 import (
 	"errors"
@@ -24,7 +24,7 @@ const (
 )
 
 // listDevices handles listing all devices with optional filtering
-func (rs *Resource) listDevices(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) listDevices(w http.ResponseWriter, r *http.Request) {
 	// Get filter parameters
 	deviceType := r.URL.Query().Get("device_type")
 	status := r.URL.Query().Get("status")
@@ -67,7 +67,7 @@ func (rs *Resource) listDevices(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDevice handles getting a device by ID
-func (rs *Resource) getDevice(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) getDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -86,7 +86,7 @@ func (rs *Resource) getDevice(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDeviceByDeviceID handles getting a device by its device ID
-func (rs *Resource) getDeviceByDeviceID(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) getDeviceByDeviceID(w http.ResponseWriter, r *http.Request) {
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
@@ -105,7 +105,7 @@ func (rs *Resource) getDeviceByDeviceID(w http.ResponseWriter, r *http.Request) 
 }
 
 // createDevice handles creating a new device
-func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) createDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &DeviceRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -144,7 +144,7 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 }
 
 // updateDevice handles updating an existing device
-func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) updateDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -192,7 +192,7 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 }
 
 // deleteDevice handles deleting a device
-func (rs *Resource) deleteDevice(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) deleteDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
@@ -214,7 +214,7 @@ func (rs *Resource) deleteDevice(w http.ResponseWriter, r *http.Request) {
 }
 
 // updateDeviceStatus handles updating the status of a device
-func (rs *Resource) updateDeviceStatus(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) updateDeviceStatus(w http.ResponseWriter, r *http.Request) {
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
@@ -239,7 +239,7 @@ func (rs *Resource) updateDeviceStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // pingDevice handles pinging a device to update its last seen time
-func (rs *Resource) pingDevice(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) pingDevice(w http.ResponseWriter, r *http.Request) {
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
@@ -257,7 +257,7 @@ func (rs *Resource) pingDevice(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDevicesByType handles getting devices by type
-func (rs *Resource) getDevicesByType(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) getDevicesByType(w http.ResponseWriter, r *http.Request) {
 	// Get type from URL
 	deviceType := chi.URLParam(r, "type")
 	if deviceType == "" {
@@ -279,7 +279,7 @@ func (rs *Resource) getDevicesByType(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDevicesByStatus handles getting devices by status
-func (rs *Resource) getDevicesByStatus(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) getDevicesByStatus(w http.ResponseWriter, r *http.Request) {
 	// Get status from URL
 	status := chi.URLParam(r, "status")
 	if status == "" {
@@ -308,7 +308,7 @@ func (rs *Resource) getDevicesByStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDevicesByRegisteredBy handles getting devices registered by a specific person
-func (rs *Resource) getDevicesByRegisteredBy(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) getDevicesByRegisteredBy(w http.ResponseWriter, r *http.Request) {
 	// Parse person ID from URL
 	personID, err := common.ParseIDParam(r, "personId")
 	if err != nil {
@@ -330,7 +330,7 @@ func (rs *Resource) getDevicesByRegisteredBy(w http.ResponseWriter, r *http.Requ
 }
 
 // getActiveDevices handles getting all active devices
-func (rs *Resource) getActiveDevices(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) getActiveDevices(w http.ResponseWriter, r *http.Request) {
 	// Get active devices
 	devices, err := rs.IoTService.GetActiveDevices(r.Context())
 	if err != nil {
@@ -345,7 +345,7 @@ func (rs *Resource) getActiveDevices(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDevicesRequiringMaintenance handles getting devices requiring maintenance
-func (rs *Resource) getDevicesRequiringMaintenance(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) getDevicesRequiringMaintenance(w http.ResponseWriter, r *http.Request) {
 	// Get devices requiring maintenance
 	devices, err := rs.IoTService.GetDevicesRequiringMaintenance(r.Context())
 	if err != nil {
@@ -360,7 +360,7 @@ func (rs *Resource) getDevicesRequiringMaintenance(w http.ResponseWriter, r *htt
 }
 
 // getOfflineDevices handles getting offline devices
-func (rs *Resource) getOfflineDevices(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) getOfflineDevices(w http.ResponseWriter, r *http.Request) {
 	// Get duration parameter (default to 1 hour)
 	durationStr := r.URL.Query().Get("duration")
 	duration := time.Hour // default
@@ -385,7 +385,7 @@ func (rs *Resource) getOfflineDevices(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDeviceStatistics handles getting device statistics
-func (rs *Resource) getDeviceStatistics(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) getDeviceStatistics(w http.ResponseWriter, r *http.Request) {
 	// Get device type statistics
 	typeStats, err := rs.IoTService.GetDeviceTypeStatistics(r.Context())
 	if err != nil {
@@ -427,7 +427,7 @@ func (rs *Resource) getDeviceStatistics(w http.ResponseWriter, r *http.Request) 
 }
 
 // detectNewDevices handles detecting new devices on the network
-func (rs *Resource) detectNewDevices(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) detectNewDevices(w http.ResponseWriter, r *http.Request) {
 	// Detect new devices
 	devices, err := rs.IoTService.DetectNewDevices(r.Context())
 	if err != nil {
@@ -442,7 +442,7 @@ func (rs *Resource) detectNewDevices(w http.ResponseWriter, r *http.Request) {
 }
 
 // scanNetwork handles scanning the network for IoT devices
-func (rs *Resource) scanNetwork(w http.ResponseWriter, r *http.Request) {
+func (rs *DevicesResource) scanNetwork(w http.ResponseWriter, r *http.Request) {
 	// Scan network
 	scanResults, err := rs.IoTService.ScanNetwork(r.Context())
 	if err != nil {

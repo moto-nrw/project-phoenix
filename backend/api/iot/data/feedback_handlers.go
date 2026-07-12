@@ -1,4 +1,4 @@
-package feedback
+package data
 
 import (
 	"database/sql"
@@ -17,7 +17,7 @@ import (
 )
 
 // deviceSubmitFeedback handles feedback submission from RFID devices
-func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request) {
+func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request) {
 	// Get authenticated device from context
 	deviceCtx := device.DeviceFromCtx(r.Context())
 

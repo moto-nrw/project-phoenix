@@ -1,4 +1,4 @@
-package devices_test
+package iot
 
 import (
 	"fmt"
@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 
-	devicesAPI "github.com/moto-nrw/project-phoenix/api/iot/devices"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -19,7 +18,7 @@ import (
 type testContext struct {
 	db       *bun.DB
 	services *services.Factory
-	resource *devicesAPI.Resource
+	resource *DevicesResource
 }
 
 // setupTestContext initializes test database, services, and resource.
@@ -28,7 +27,7 @@ func setupTestContext(t *testing.T) *testContext {
 
 	db, svc := testutil.SetupAPITest(t)
 
-	resource := devicesAPI.NewResource(svc.IoT)
+	resource := NewDevicesResource(svc.IoT)
 
 	return &testContext{
 		db:       db,

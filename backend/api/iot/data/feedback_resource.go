@@ -1,4 +1,4 @@
-package feedback
+package data
 
 import (
 	"github.com/go-chi/chi/v5"
@@ -9,17 +9,17 @@ import (
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
-// Resource defines the Feedback API resource
-type Resource struct {
+// FeedbackResource defines the Feedback API resource
+type FeedbackResource struct {
 	IoTService      iotSvc.Service
 	UsersService    usersSvc.PersonService
 	FeedbackService feedbackSvc.Service
 	SettingsService configSvc.SettingsService
 }
 
-// NewResource creates a new Feedback resource
-func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService, feedbackService feedbackSvc.Service, settingsService configSvc.SettingsService) *Resource {
-	return &Resource{
+// NewFeedbackResource creates a new Feedback resource
+func NewFeedbackResource(iotService iotSvc.Service, usersService usersSvc.PersonService, feedbackService feedbackSvc.Service, settingsService configSvc.SettingsService) *FeedbackResource {
+	return &FeedbackResource{
 		IoTService:      iotService,
 		UsersService:    usersService,
 		FeedbackService: feedbackService,
@@ -30,7 +30,7 @@ func NewResource(iotService iotSvc.Service, usersService usersSvc.PersonService,
 // Router returns a configured router for feedback submission endpoints
 // This router is mounted under /iot/ and handles device-based feedback submission
 // All routes require device authentication (API key + Staff PIN)
-func (rs *Resource) Router() chi.Router {
+func (rs *FeedbackResource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 

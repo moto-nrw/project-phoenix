@@ -1,4 +1,4 @@
-package devices
+package iot
 
 import (
 	"context"

@@ -1,4 +1,4 @@
-package rfid
+package data
 
 import (
 	"github.com/go-chi/chi/v5"
@@ -6,14 +6,14 @@ import (
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
-// Resource defines the RFID API resource
-type Resource struct {
+// RFIDResource defines the RFID API resource
+type RFIDResource struct {
 	UsersService usersSvc.PersonService
 }
 
-// NewResource creates a new RFID resource
-func NewResource(usersService usersSvc.PersonService) *Resource {
-	return &Resource{
+// NewRFIDResource creates a new RFID resource
+func NewRFIDResource(usersService usersSvc.PersonService) *RFIDResource {
+	return &RFIDResource{
 		UsersService: usersService,
 	}
 }
@@ -21,7 +21,7 @@ func NewResource(usersService usersSvc.PersonService) *Resource {
 // Router returns a configured router for RFID tag management endpoints
 // This router is mounted under /iot/staff/ and handles RFID tag assignment/unassignment
 // All routes require device authentication (API key + Staff PIN)
-func (rs *Resource) Router() chi.Router {
+func (rs *RFIDResource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
