@@ -11,6 +11,7 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import {
   AuthShell,
+  MotoIconBrand,
   authInputClassName,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
@@ -64,7 +65,7 @@ export default function RootPage() {
       title="Willkommen"
       subtitle="Wählen Sie Ihre Einrichtung aus."
       variant="tenant-select"
-      brand={null}
+      brand={<MotoIconBrand />}
       footer={
         <p className="text-sm text-gray-500">
           Noch nicht registriert?{" "}

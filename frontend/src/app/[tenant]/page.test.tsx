@@ -131,6 +131,11 @@ describe("HomePage (Login)", () => {
       status: "unauthenticated",
       update: vi.fn(),
     });
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      routingMode: "path",
+      tenant: null,
+    });
 
     // Mock Element.animate globally
     Element.prototype.animate = mockAnimate;
@@ -179,6 +184,34 @@ describe("HomePage (Login)", () => {
         screen.getByAltText("Grundschule Musterstadt Logo"),
       ).toBeInTheDocument();
     });
+  });
+
+  it("shows the moto attribution when a tenant login logo is configured", async () => {
+    vi.mocked(useTenant).mockReturnValue({
+      tenantSlug: "test-tenant",
+      routingMode: "path",
+      tenant: {
+        name: "Grundschule Musterstadt",
+        settings: {
+          loginImageUrl: "/uploads/school-logo.png",
+        },
+      } as ReturnType<typeof useTenant>["tenant"],
+    });
+
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Bereitgestellt von")).toBeInTheDocument();
+    });
+  });
+
+  it("does not show the moto attribution without a tenant login logo", async () => {
+    render(<HomePage />);
+
+    await waitFor(() => {
+      expect(screen.getByText("Willkommen bei moto")).toBeInTheDocument();
+    });
+    expect(screen.queryByText("Bereitgestellt von")).not.toBeInTheDocument();
   });
 
   it("displays login subtitle", async () => {

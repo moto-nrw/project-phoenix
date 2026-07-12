@@ -10,6 +10,7 @@ import { TenantSwitcher } from "~/components/tenant/tenant-switcher";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import { useBreadcrumb } from "~/lib/breadcrumb-context";
 import { LanguageSwitcher } from "~/components/parent/language-switcher";
+import { useTenantSafe } from "~/lib/tenant-context";
 
 // Import extracted components
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
@@ -57,6 +58,7 @@ export function Header() {
   const [isScrolled, setIsScrolled] = useState(false);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const pathname = usePathname();
+  const tenantContext = useTenantSafe();
   // parentNav is available in every shell; only parent-mode branches read it, so
   // the German staff/operator labels are untouched (they render the de mirror).
   const tParentNav = useTranslations("parentNav");
@@ -149,6 +151,7 @@ export function Header() {
   // Use JWT name as single source of truth (avoids flicker from async profile fetch)
   const displayName = userName;
   const displayAvatar = profile?.avatar;
+  const brandLabel = mode === "teacher" ? tenantContext?.tenant?.name : null;
 
   const isSessionExpired = sessionExpired;
 
@@ -170,7 +173,11 @@ export function Header() {
         >
           {/* Left section: Logo + Brand + Context */}
           <div className="flex flex-shrink-0 items-center space-x-4">
-            <BrandLink isScrolled={isScrolled} href={homeUrl} />
+            <BrandLink
+              isScrolled={isScrolled}
+              href={homeUrl}
+              label={brandLabel}
+            />
             <BreadcrumbDivider />
             <HeaderBreadcrumb
               pathname={pathname}

@@ -12,6 +12,7 @@ import { trackEvent } from "~/lib/analytics";
 import { SmartRedirect } from "~/components/auth/smart-redirect";
 import {
   AuthShell,
+  MotoBrand,
   authInputClassName,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
@@ -89,6 +90,8 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const { data: session, status } = useSession();
   const loginTitle = tenant?.name?.trim() ? tenant.name : "Willkommen bei moto";
+  const tenantLoginImageUrl = tenant?.settings?.loginImageUrl;
+  const hasTenantLoginLogo = Boolean(tenantLoginImageUrl);
 
   // Guard against calling signOut multiple times during stale session cleanup
   const isCleaningSessionRef = useRef(false);
@@ -329,18 +332,21 @@ function LoginForm() {
         title={loginTitle}
         subtitle="Melden Sie sich mit Ihrem Konto an."
         variant="tenant"
+        showMotoAttribution={hasTenantLoginLogo}
         brand={
-          tenant?.settings?.loginImageUrl ? (
+          tenantLoginImageUrl ? (
             <Image
-              src={loginImageSrc(tenant.settings.loginImageUrl)}
-              alt={`${tenant.name} Logo`}
+              src={loginImageSrc(tenantLoginImageUrl)}
+              alt={`${tenant?.name ?? "Einrichtung"} Logo`}
               width={180}
               height={104}
               className="max-h-[104px] w-auto object-contain"
               priority
               unoptimized
             />
-          ) : null
+          ) : (
+            <MotoBrand />
+          )
         }
       >
         {isCheckingAuth && (
@@ -525,7 +531,7 @@ export default function HomePage() {
           title="Willkommen"
           subtitle="Melden Sie sich mit Ihrem Konto an."
           variant="tenant"
-          brand={null}
+          brand={<MotoBrand />}
         >
           <div className="flex flex-col items-center gap-4 py-8">
             <div className="h-10 w-10 animate-spin rounded-full border-2 border-gray-200 border-t-gray-950" />
