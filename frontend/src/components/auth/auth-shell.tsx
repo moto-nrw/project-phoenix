@@ -146,7 +146,7 @@ export function MotoBrand() {
     <div className="flex items-center justify-center gap-3">
       <Image
         src="/images/moto_transparent.webp"
-        alt="moto"
+        alt=""
         width={44}
         height={32}
         className="h-8 w-11 object-contain"
