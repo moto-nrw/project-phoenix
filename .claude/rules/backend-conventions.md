@@ -136,7 +136,12 @@ The old per-entity `BeforeAppendModel(query any) error` hooks never ran: bun's h
 gocognit -over 15 backend/api/
 ```
 
-**Not CI-enforced today** (gocognit is in neither `.golangci.yml` nor the workflows) — apply it in review. Current worst offenders score 64, 45, 44, 41, 39 (~53 functions over 15); new code must not join them.
+**CI-enforced since 2026-07-12** (issue #575 B0): `TestHandlerComplexityRatchet` (`backend/test/handler_complexity_ratchet_test.go`) fails any function under `api/` scoring over 15 that is not in its shrink-only allowlist (seeded with the 75 offenders existing at ratchet time; keys match `gocognit -over 15 api/` output 1:1). When a refactor lowers a score, ratchet the entry down; never raise one or add one.
+
+Two shapes that keep handlers under the threshold without hiding logic:
+
+- **Pure pass-through handlers** (parse → one service call → respond) should not exist as named functions at all — register them with the `api/common` handler builders (`IDAction`, `TwoIDAction`, `IDFetch`, `BindAction`) directly in `Router()`. Cutoff: a handler with per-request branching, multi-service reads, or response shaping keeps a named function; do not grow option-struct builder variants to force-fit those.
+- **Error classification** belongs in a declarative rule table (`api/common/error_rules.go`: `ErrorRule` + `RulesRenderer` / `UnwrapRenderer`), not a hand-written switch. `UnwrapRenderer` covers the domain-wrapper pattern (render the inner sentinel, keep the wrapped error for 500 logs). The one sanctioned hand-written renderer is `api/iot/internal/shared.ErrorRenderer` (multi-domain dispatch + PyrePortal wire contract).
 
 ---
 
@@ -173,7 +178,7 @@ import "github.com/moto-nrw/project-phoenix/api/common"
 common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID")))
 ```
 
-The duplication has GROWN since this rule was written (~49 `Error*` functions outside `api/common` across 13 `errors.go` files as of 2026-06-12, vs ~30 in April) and has no ratchet yet. Don't add to it; deleting a local copy in favor of `api/common` is always welcome.
+Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` structs and constructor sets in `active`, `feedback`, and `suggestions` were deleted — those packages keep thin `newErrResponse` wrappers only because their wire format carries human-text `status` values (pinned by per-package `wire_format_test.go` goldens; normalizing to `"error"` is a separate frontend-audited change). `api/operator` stays deliberately divergent (`json:"message"`). Do not reintroduce local `Error*` constructor sets — declare classification in an error-rule table (see Rule 4) and let `api/common` build the responses.
 
 ---
 
@@ -232,6 +237,10 @@ err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 ### Exceptions
 
 Cross-repo / cross-schema cleanup operations that genuinely don't fit a single repo's responsibility may use raw SQL — but the raw SQL must live in `database/repositories/{domain}/cleanup.go`, not inside the service. Document with a comment why a repo method isn't possible.
+
+### Handler-side transactions (`tenant.WithTenantTx` in `api/`)
+
+A `tenant.WithTenantTx` closure in a handler is usually the smell of a missing service method — multi-step writes belong in a service method that the handler's transaction wraps as ONE call (see `UpdateGroupWithDetails`, #575 B10). The exception is a genuine cross-service composition with no natural owner: `createStudent` atomically composes Guardian + Person + Student + Arrival/Pickup-schedule services (the latter live in `services/schedule`, so a `services/users` orchestrator would import-cycle), and `updateStudent`'s locked-row invariants include an in-tx re-authorization against the caller's JWT permissions — HTTP-bound policy that doesn't belong in a service. Those handler-side transactions are sanctioned; new ones need the same written justification.
 
 ### Why
 

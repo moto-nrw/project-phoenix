@@ -25,6 +25,7 @@ require (
 	github.com/uptrace/bun v1.2.18
 	github.com/uptrace/bun/dialect/pgdialect v1.2.18
 	github.com/uptrace/bun/driver/pgdriver v1.2.18
+	github.com/uudashr/gocognit v1.2.1
 	github.com/vanng822/go-premailer v1.34.0
 	github.com/wneessen/go-mail v0.8.0
 	github.com/xuri/excelize/v2 v2.10.1

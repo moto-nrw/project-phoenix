@@ -120,6 +120,9 @@ jobs:
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
+          # The route-table golden builds the production API, whose serve
+          # connection uses the role created above with this password.
+          PHOENIX_AUTH_PASSWORD: phoenix_auth_ci
           # Dummy 32+ char secret so services.NewFactory can init the MFA
           # service in tests. NewFactory hard-fails without it (the secret
           # is the HMAC key for trusted-device cookies). Production and

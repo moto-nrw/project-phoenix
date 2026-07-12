@@ -9,7 +9,7 @@ import (
 	"unicode/utf8"
 
 	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
-	rfidAPI "github.com/moto-nrw/project-phoenix/api/iot/rfid"
+	iotDataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -295,8 +295,8 @@ type UpdateStudentRequest struct {
 }
 
 // RFIDAssignmentRequest is the RFID tag assignment payload, shared with
-// the device-auth endpoint in api/iot/rfid (single declaration site).
-type RFIDAssignmentRequest = rfidAPI.RFIDAssignmentRequest
+// the device-auth endpoint in api/iot/data (single declaration site).
+type RFIDAssignmentRequest = iotDataAPI.RFIDAssignmentRequest
 
 // RFIDAssignmentResponse represents an RFID tag assignment response
 type RFIDAssignmentResponse struct {

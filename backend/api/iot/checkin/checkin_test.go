@@ -26,6 +26,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	checkinsvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -36,6 +37,22 @@ type testContext struct {
 	db       *bun.DB
 	services *services.Factory
 	resource *checkinAPI.Resource
+}
+
+// injectFailingUsers points both the handler's UsersService AND its extracted
+// CheckinService at the given (usually failing) person service. Person/student/
+// staff resolution moved into the CheckinService (issue #575 B8), so fault
+// injection must reach that seam — setting resource.UsersService alone no longer
+// affects the pickup-query/checkin resolution path.
+func (ctx *testContext) injectFailingUsers(users usersSvc.PersonService) {
+	ctx.resource.UsersService = users
+	ctx.resource.Checkin = checkinsvc.NewCheckinService(checkinsvc.CheckinServiceDeps{
+		Active:     ctx.services.Active,
+		Users:      users,
+		Facilities: ctx.services.Facilities,
+		Activities: ctx.services.Activities,
+		Logger:     slog.Default(),
+	})
 }
 
 type failingPickupScheduleService struct {
@@ -105,8 +122,7 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.IoT,
 		svc.Users,
 		svc.Active,
-		svc.Facilities,
-		svc.Activities,
+		svc.Checkin,
 		svc.Education,
 		svc.PickupSchedule,
 		nil, // settings service (nil = env var fallback)
@@ -2923,10 +2939,10 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenRFIDLookupFails(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, ctx.db, "PickupRFIDFailure", "Staff")
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, staff.ID)
 
-	ctx.resource.UsersService = &failingPersonService{
+	ctx.injectFailingUsers(&failingPersonService{
 		PersonService:  ctx.services.Users,
 		findByTagIDErr: errors.New("rfid lookup exploded"),
-	}
+	})
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -2960,13 +2976,13 @@ func TestDevicePickupQuery_ReturnsServerErrorWhenStudentResolutionFails(t *testi
 	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, student.PersonID, card.ID)
 
-	ctx.resource.UsersService = &failingPersonService{
+	ctx.injectFailingUsers(&failingPersonService{
 		PersonService: ctx.services.Users,
 		studentRepo: &failingStudentRepository{
 			StudentRepository: repositories.NewFactory(ctx.db).Student,
 			err:               errors.New("student lookup exploded"),
 		},
-	}
+	})
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -3201,14 +3217,14 @@ func TestDevicePickupQuery_StaffLookupFailureReturnsServerError(t *testing.T) {
 	defer testpkg.CleanupRFIDCards(t, ctx.db, card.ID)
 	testpkg.LinkRFIDToStudent(t, ctx.db, person.ID, card.ID)
 
-	// Override UsersService with a failing staff repository
-	ctx.resource.UsersService = &failingPersonService{
+	// Override person resolution with a failing staff repository
+	ctx.injectFailingUsers(&failingPersonService{
 		PersonService: ctx.services.Users,
 		staffRepo: &failingStaffRepository{
 			StaffRepository: repositories.NewFactory(ctx.db).Staff,
 			err:             errors.New("staff lookup exploded"),
 		},
-	}
+	})
 
 	router := testutil.NewTenantRouter(ctx.db)
 	router.Mount("/", ctx.resource.Router())
@@ -3332,13 +3348,24 @@ func TestDeviceCheckin_DuplicateActiveVisit_AppLevelPath_Returns409WithRoomDetai
 	existingVisit := testpkg.CreateTestVisit(t, ctx.db, student.ID, activeGroupA.ID, existingEntry, nil)
 	defer testpkg.CleanupActivityFixtures(t, ctx.db, existingVisit.ID)
 
-	// Build a Resource that injects the duplicate-visit failure path.
+	// Build a Resource that injects the duplicate-visit failure path. The
+	// check-in logic (and its active-service dependency) now lives in the
+	// extracted CheckinService (issue #575 B8), so the wrapped active service
+	// is injected there; the handler's own ActiveService receives the same
+	// wrapper for consistency.
+	wrappedActive := &duplicateVisitActiveService{Service: ctx.services.Active}
+	wrappedCheckin := checkinsvc.NewCheckinService(checkinsvc.CheckinServiceDeps{
+		Active:     wrappedActive,
+		Users:      ctx.services.Users,
+		Facilities: ctx.services.Facilities,
+		Activities: ctx.services.Activities,
+		Logger:     slog.Default(),
+	})
 	wrappedResource := checkinAPI.NewResource(
 		ctx.services.IoT,
 		ctx.services.Users,
-		&duplicateVisitActiveService{Service: ctx.services.Active},
-		ctx.services.Facilities,
-		ctx.services.Activities,
+		wrappedActive,
+		wrappedCheckin,
 		ctx.services.Education,
 		ctx.services.PickupSchedule,
 		nil,

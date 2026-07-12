@@ -39,6 +39,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/feedback"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
+	iotcheckin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/mealplan"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
@@ -73,6 +74,7 @@ type Factory struct {
 	MealPlan                 mealplan.Service
 	Suggestions              suggestions.Service
 	IoT                      iot.Service
+	Checkin                  *iotcheckin.CheckinService
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
@@ -477,6 +479,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		activitiesService,
 		facilitiesLogger,
 	)
+
+	// Initialize RFID check-in service (issue #575 B8). Orchestrates the
+	// active/users/facilities/activities services for the /api/iot check-in
+	// workflow. Lives in the services/iot/checkin sub-package to avoid the
+	// services/iot ↔ services/active ↔ auth/device import cycle.
+	checkinService := iotcheckin.NewCheckinService(iotcheckin.CheckinServiceDeps{
+		Active:     activeService,
+		Users:      usersService,
+		Facilities: facilitiesService,
+		Activities: activitiesService,
+		Logger:     logger.With("service", "checkin"),
+	})
 
 	// Initialize schedule service
 	scheduleService := schedule.NewServiceWithConfig(schedule.ServiceConfig{
@@ -1366,6 +1380,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		MealPlan:                 mealPlanService,
 		Suggestions:              suggestionsService,
 		IoT:                      iotService,
+		Checkin:                  checkinService,
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		StaffShifts:              staffShiftService,

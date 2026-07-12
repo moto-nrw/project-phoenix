@@ -289,11 +289,8 @@ func (rs *Resource) updateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse session ID from URL
-	idStr := chi.URLParam(r, "id")
-	sessionID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidSessionID)))
+	sessionID, ok := common.ParseInt64IDWithError(w, r, "id", errInvalidSessionID)
+	if !ok {
 		return
 	}
 
@@ -393,11 +390,8 @@ func (rs *Resource) getBreaks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse session ID from URL
-	idStr := chi.URLParam(r, "sessionId")
-	sessionID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidSessionID)))
+	sessionID, ok := common.ParseInt64IDWithError(w, r, "sessionId", errInvalidSessionID)
+	if !ok {
 		return
 	}
 
@@ -421,11 +415,8 @@ func (rs *Resource) getSessionEdits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse session ID from URL
-	idStr := chi.URLParam(r, "id")
-	sessionID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidSessionID)))
+	sessionID, ok := common.ParseInt64IDWithError(w, r, "id", errInvalidSessionID)
+	if !ok {
 		return
 	}
 
@@ -543,10 +534,8 @@ func (rs *Resource) updateAbsence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	idStr := chi.URLParam(r, "id")
-	absenceID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid absence ID")))
+	absenceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid absence ID")
+	if !ok {
 		return
 	}
 
@@ -579,10 +568,8 @@ func (rs *Resource) deleteAbsence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	idStr := chi.URLParam(r, "id")
-	absenceID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid absence ID")))
+	absenceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid absence ID")
+	if !ok {
 		return
 	}
 
@@ -634,10 +621,8 @@ func (rs *Resource) cancelAbsence(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
-	idStr := chi.URLParam(r, "id")
-	absenceID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid absence ID")))
+	absenceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid absence ID")
+	if !ok {
 		return
 	}
 	tenantID := tenant.FromContext(r.Context())

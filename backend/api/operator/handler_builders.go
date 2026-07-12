@@ -13,19 +13,13 @@ import (
 
 // idList parses one int64 id parameter, fetches a payload via fn, and
 // responds 200 with the payload. Errors are rendered via renderErr.
+//
+// Thin inline-shape adapter over common.IDFetch (issue #575 B2): operator
+// handlers are named methods that internal tests invoke directly, so the
+// call sites keep the (w, r, ...) shape instead of switching to the
+// HandlerFunc-factory style.
 func idList[T any](w http.ResponseWriter, r *http.Request, param, invalidMsg string, fn func(ctx context.Context, id int64) (T, error), renderErr func(error) render.Renderer, successMsg string) {
-	id, ok := common.ParseInt64IDWithError(w, r, param, invalidMsg)
-	if !ok {
-		return
-	}
-
-	payload, err := fn(r.Context(), id)
-	if err != nil {
-		common.RenderError(w, r, renderErr(err))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, payload, successMsg)
+	common.IDFetch(param, invalidMsg, fn, renderErr, successMsg)(w, r)
 }
 
 // idAuditedAction parses one int64 id parameter and invokes an
