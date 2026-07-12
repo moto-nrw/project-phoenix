@@ -1562,6 +1562,57 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(mockSplitTemplate).toHaveBeenCalled());
   });
 
+  it("caps the coverage probe at the schedules' validUntil for 'Ab jetzt dauerhaft'", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-04T10:00:00"));
+    const shortPeriod: CalendarPeriod = {
+      ...periods[0]!,
+      startDate: "2026-05-04",
+      endDate: "2026-05-15",
+    };
+    mockGetTemplate.mockResolvedValue({
+      ...template,
+      schedules: [
+        { ...template.schedules[0]!, weekday: 1, validUntil: "2026-05-11" },
+        {
+          ...template.schedules[0]!,
+          id: "10",
+          weekday: 3,
+          validUntil: "2026-05-11",
+        },
+      ],
+    });
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+        staff: [
+          {
+            staffId: "11",
+            isPrimary: true,
+            isAbsent: false,
+            isSubstitute: false,
+          },
+        ],
+      },
+      calendarPeriods: [shortPeriod],
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    // validUntil is exclusive: the split successor inherits the boundary,
+    // so 2026-05-11 and 2026-05-13 are never created and must not be probed.
+    await waitFor(() =>
+      expect(mockCheckShiftCoverage).toHaveBeenCalledWith(
+        expect.objectContaining({ dates: ["2026-05-04", "2026-05-06"] }),
+      ),
+    );
+    await waitFor(() => expect(mockSplitTemplate).toHaveBeenCalled());
+  });
+
   it("preserves a template-only period pin and its end for 'Ab jetzt dauerhaft'", async () => {
     mockGetTemplate.mockResolvedValue(templateWithTemplateOnlyPeriodPin);
     renderModal({

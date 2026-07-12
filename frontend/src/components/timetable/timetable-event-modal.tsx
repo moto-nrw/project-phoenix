@@ -1528,33 +1528,53 @@ export function TimetableEventModal({
    */
   const seriesCoverageProbe = (
     template: TimetableTemplate,
+    body: UpdateTemplateBody,
     fromISO: string,
-    proposedStaffIds: string[],
     replanActivityGroupId?: string,
   ) => {
     const calendarPeriodId =
       resolveTemplateCalendarPeriodId(template) ?? form.calendarPeriodId;
     const period = findPeriod(calendarPeriodId);
-    const weekdays = template.schedules.map((schedule) => schedule.weekday);
-    const firstSchedule = template.schedules[0];
+    const staffIds = (body.staff_ids ?? []).map(String);
     if (
       !period ||
-      weekdays.length === 0 ||
-      proposedStaffIds.length === 0 ||
-      !form.startTime ||
-      !form.endTime
+      body.weekdays.length === 0 ||
+      staffIds.length === 0 ||
+      !body.start_time ||
+      !body.end_time
     ) {
       return null;
     }
     const from = fromISO > period.startDate ? fromISO : period.startDate;
+    let dates = weekdayDatesInRange(from, period.endDate, body.weekdays);
+    // Without replanActivityGroupId the backend cannot apply the segment's
+    // validity envelope, so the probe caps itself at the schedules'
+    // validUntil (exclusive boundary): a split successor inherits it and
+    // never creates occurrences on or after that date. All schedules of a
+    // segment share the boundary; the latest one wins if they ever diverge,
+    // and one open-ended schedule leaves the probe uncapped.
+    let scheduleValidUntil: string | undefined;
+    for (const schedule of template.schedules) {
+      if (!schedule.validUntil) {
+        scheduleValidUntil = undefined;
+        break;
+      }
+      if (!scheduleValidUntil || schedule.validUntil > scheduleValidUntil) {
+        scheduleValidUntil = schedule.validUntil;
+      }
+    }
+    if (scheduleValidUntil) {
+      const boundary = scheduleValidUntil;
+      dates = dates.filter((date) => date < boundary);
+    }
     return {
-      dates: weekdayDatesInRange(from, period.endDate, weekdays),
-      startTime: form.startTime,
-      endTime: form.endTime,
-      staffIds: proposedStaffIds,
+      dates,
+      startTime: body.start_time,
+      endTime: body.end_time,
+      staffIds,
       replanActivityGroupId,
       calendarPeriodId: period.id,
-      weekPattern: firstSchedule?.weekPattern ?? 0,
+      weekPattern: body.week_pattern ?? 0,
     };
   };
 
@@ -1584,8 +1604,8 @@ export function TimetableEventModal({
         const typedScope = scope === "following" ? "following" : "all";
         const scopeProbe = seriesCoverageProbe(
           template,
+          body,
           typedScope === "following" ? initialInstance.date : berlinTodayISO(),
-          (body.staff_ids ?? []).map(String),
           typedScope === "all" ? groupId : undefined,
         );
         await checkCoverageBeforeSave(scopeProbe);
