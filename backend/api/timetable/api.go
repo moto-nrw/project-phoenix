@@ -178,12 +178,13 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/conflicts", rs.getPlannedConflicts)
 
-		// Shift coverage exposes Dienstplan availability, so it requires both
-		// timetable read access and shift-management access. It is separate from
-		// /conflicts, which remains available to schedules:read-only users.
+			// Shift coverage exposes Dienstplan availability, so it requires both
+			// timetable read access and shift-management access. It is separate from
+			// /conflicts, which remains available to schedules:read-only users.
 		r.With(authorize.RequiresAllPermissions(
 			permissions.SchedulesRead,
 			permissions.TimeTrackingManage,
+			permissions.UsersRead,
 		), withTx).Post("/shift-coverage", rs.checkShiftCoverage)
 
 		r.Route("/operations", func(r chi.Router) {

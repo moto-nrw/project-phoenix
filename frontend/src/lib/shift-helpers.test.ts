@@ -119,6 +119,7 @@ describe("mapStaffScheduleOverview", () => {
       from: "2026-07-06",
       to: "2026-07-10",
       dienstplanInUse: true,
+      dienstplanUsedWeeks: [],
       staff: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
       shifts: [
         {

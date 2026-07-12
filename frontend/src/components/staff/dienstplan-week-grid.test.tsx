@@ -84,6 +84,15 @@ describe("DienstplanWeekGrid", () => {
     expect(
       screen.getByText("Nicht abgedeckt: 12:30–14:00"),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Dienstplan-Wochenansicht" }),
+    ).toHaveAttribute("tabindex", "0");
+    expect(
+      screen.getByRole("rowheader", { name: "Lovelace, Ada" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Wische horizontal, um weitere Wochentage zu sehen."),
+    ).toBeInTheDocument();
 
     fireEvent.click(screen.getByText("Mensa"));
     expect(onCellClick).not.toHaveBeenCalled();

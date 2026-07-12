@@ -1034,6 +1034,7 @@ describe("mapShiftCoverageCheckResult", () => {
         ],
       }),
     ).toEqual({
+      coverageWarningCount: 1,
       coverageWarnings: [
         {
           staffId: "12",
@@ -1049,6 +1050,7 @@ describe("mapShiftCoverageCheckResult", () => {
     });
     expect(mapShiftCoverageCheckResult({})).toEqual({
       coverageWarnings: [],
+      coverageWarningCount: 0,
     });
   });
 });

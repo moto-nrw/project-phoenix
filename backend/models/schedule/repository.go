@@ -57,6 +57,14 @@ type StaffShiftRepository interface {
 	// one date (batch lookup for the auto-checkout job).
 	FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date timezone.Date) ([]*StaffShift, error)
 
+	// FindByStaffIDsAndDates returns only the shifts relevant to a batched
+	// hypothetical coverage probe.
+	FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []timezone.Date) ([]*StaffShift, error)
+
+	// FindUsedCalendarWeeks returns the Monday of every ISO week containing at
+	// least one tenant shift in the inclusive range.
+	FindUsedCalendarWeeks(ctx context.Context, start, end timezone.Date) ([]timezone.Date, error)
+
 	// DeleteUpcomingByStaffID removes planned shifts on or after from. Past
 	// shifts stay as history. Used by staff offboarding.
 	DeleteUpcomingByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error)

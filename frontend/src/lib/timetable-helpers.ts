@@ -673,6 +673,8 @@ export function mapShiftCoverageCheckResult(
       uncoveredEndTime: warning.uncovered_end_time,
       message: warning.message,
     })),
+    coverageWarningCount:
+      raw.coverage_warning_count ?? raw.coverage_warnings?.length ?? 0,
   };
 }
 

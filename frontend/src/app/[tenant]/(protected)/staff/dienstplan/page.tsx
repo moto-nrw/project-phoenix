@@ -14,7 +14,7 @@ import {
 import { ShiftTypeManageModal } from "~/components/staff/shift-type-manage-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { staffShiftService } from "~/lib/shift-api";
@@ -27,6 +27,7 @@ import {
 } from "~/lib/shift-helpers";
 import { shiftTypeService } from "~/lib/shift-type-api";
 import { indexShiftTypes, type ShiftType } from "~/lib/shift-type-helpers";
+import { staffService, type Staff } from "~/lib/staff-api";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
@@ -82,6 +83,10 @@ function DienstplanContent() {
   });
   const router = useTenantRouter();
   const canEdit = isAdmin(session);
+  const canUseAssignmentOverview =
+    hasPermission(session, "time_tracking:manage") &&
+    hasPermission(session, "schedules:read") &&
+    hasPermission(session, "users:read");
   const today = useBerlinToday();
 
   const [weekAnchor, setWeekAnchor] = useState<Date>(() =>
@@ -107,8 +112,30 @@ function DienstplanContent() {
     isLoading: overviewLoading,
     mutate: mutateOverview,
   } = useSWRAuth<StaffScheduleOverview>(
-    `dienstplan-overview-${weekFrom}-${weekTo}`,
+    canUseAssignmentOverview
+      ? `dienstplan-overview-${weekFrom}-${weekTo}`
+      : null,
     () => staffShiftService.getOverview(weekFrom, weekTo),
+  );
+
+  const {
+    data: legacyStaff,
+    error: legacyStaffError,
+    isLoading: legacyStaffLoading,
+    mutate: mutateLegacyStaff,
+  } = useSWRAuth<Staff[]>(
+    canUseAssignmentOverview ? null : "dienstplan-staff",
+    () => staffService.getAllStaff(),
+  );
+
+  const {
+    data: legacyShifts,
+    error: legacyShiftsError,
+    isLoading: legacyShiftsLoading,
+    mutate: mutateLegacyShifts,
+  } = useSWRAuth<StaffShift[]>(
+    canUseAssignmentOverview ? null : `dienstplan-shifts-${weekFrom}-${weekTo}`,
+    () => staffShiftService.getShifts(weekFrom, weekTo),
   );
 
   const {
@@ -126,17 +153,29 @@ function DienstplanContent() {
   );
 
   const sortedStaff = useMemo(() => {
-    return [...(overview?.staff ?? [])].sort((a, b) =>
+    const staff: StaffScheduleStaff[] = canUseAssignmentOverview
+      ? (overview?.staff ?? [])
+      : (legacyStaff ?? []).map((member) => ({
+          id: member.id,
+          firstName: member.firstName,
+          lastName: member.lastName,
+        }));
+    return [...staff].sort((a, b) =>
       `${a.lastName} ${a.firstName}`.localeCompare(
         `${b.lastName} ${b.firstName}`,
         "de",
       ),
     );
-  }, [overview?.staff]);
+  }, [canUseAssignmentOverview, legacyStaff, overview?.staff]);
 
   const shiftsByStaff = useMemo(
-    () => groupShiftsByStaffAndDate(overview?.shifts ?? []),
-    [overview?.shifts],
+    () =>
+      groupShiftsByStaffAndDate(
+        canUseAssignmentOverview
+          ? (overview?.shifts ?? [])
+          : (legacyShifts ?? []),
+      ),
+    [canUseAssignmentOverview, legacyShifts, overview?.shifts],
   );
 
   const assignmentsByStaff = useMemo(
@@ -171,10 +210,22 @@ function DienstplanContent() {
     });
   };
 
-  const loadError = overviewError ?? shiftTypesError;
+  const scheduleError = canUseAssignmentOverview
+    ? overviewError
+    : (legacyStaffError ?? legacyShiftsError);
+  const scheduleLoading = canUseAssignmentOverview
+    ? overviewLoading
+    : legacyStaffLoading || legacyShiftsLoading;
   const retryLoad = () => {
-    void Promise.all([mutateOverview(), mutateShiftTypes()]);
+    void Promise.all(
+      canUseAssignmentOverview
+        ? [mutateOverview()]
+        : [mutateLegacyStaff(), mutateLegacyShifts()],
+    );
   };
+  const mutateScheduleData = canUseAssignmentOverview
+    ? mutateOverview
+    : mutateLegacyShifts;
 
   if (sessionStatus === "loading") {
     return <DienstplanPageSkeleton />;
@@ -195,6 +246,7 @@ function DienstplanContent() {
           variant="primary"
           size="md"
           onClick={() => setManageOpen(true)}
+          disabled={Boolean(shiftTypesError)}
         >
           <Settings2 className="mr-1.5 h-4 w-4" />
           Schichtarten verwalten
@@ -262,7 +314,13 @@ function DienstplanContent() {
             </button>
           </div>
         </div>
-        {loadError ? (
+        {shiftTypesError && (
+          <Alert
+            type="warning"
+            message="Schichtarten konnten nicht geladen werden. Der Dienstplan wird mit neutralen Schichtfarben angezeigt; die Schichtartenverwaltung ist vorübergehend deaktiviert."
+          />
+        )}
+        {scheduleError ? (
           <div className="space-y-3">
             <Alert
               type="error"
@@ -284,7 +342,7 @@ function DienstplanContent() {
             weekDays={weekDays}
             todayIso={today}
             typesById={typesById}
-            isLoading={overviewLoading || shiftTypesLoading}
+            isLoading={scheduleLoading}
             onCellClick={(member, date, shift) =>
               setModal({
                 mode: shift ? "edit" : "create",
@@ -306,18 +364,18 @@ function DienstplanContent() {
           shift={modal.shift}
           shiftTypes={shiftTypes ?? []}
           onClose={() => setModal(null)}
-          onSaved={() => mutateOverview()}
+          onSaved={() => mutateScheduleData()}
         />
       )}
       <ShiftTypeManageModal
-        isOpen={manageOpen}
+        isOpen={manageOpen && !shiftTypesError}
         shiftTypes={shiftTypes ?? []}
         isLoading={shiftTypesLoading}
         loadError={Boolean(shiftTypesError)}
         onClose={() => setManageOpen(false)}
         onChanged={() => {
           mutateShiftTypes();
-          mutateOverview();
+          mutateScheduleData();
         }}
       />
     </div>

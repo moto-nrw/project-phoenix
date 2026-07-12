@@ -101,6 +101,7 @@ export interface BackendStaffScheduleOverview {
   from: string;
   to: string;
   dienstplan_in_use: boolean;
+  dienstplan_used_weeks?: string[];
   staff: BackendStaffScheduleStaff[];
   shifts: BackendStaffShift[];
   assignments: BackendStaffScheduleAssignment[];
@@ -112,6 +113,7 @@ export interface StaffScheduleOverview {
   /** Inclusive calendar-day range end as "YYYY-MM-DD". */
   to: string;
   dienstplanInUse: boolean;
+  dienstplanUsedWeeks: string[];
   staff: StaffScheduleStaff[];
   shifts: StaffShift[];
   assignments: StaffScheduleAssignment[];
@@ -138,6 +140,9 @@ export function mapStaffScheduleOverview(
     from: data.from.slice(0, 10),
     to: data.to.slice(0, 10),
     dienstplanInUse: data.dienstplan_in_use,
+    dienstplanUsedWeeks: (data.dienstplan_used_weeks ?? []).map((week) =>
+      week.slice(0, 10),
+    ),
     staff: data.staff.map((member) => ({
       id: member.id.toString(),
       firstName: member.first_name,

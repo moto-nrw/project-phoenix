@@ -34,7 +34,8 @@ type ShiftCoverageRequest struct {
 // ShiftCoverageResponse deliberately contains no shift rows; callers receive
 // only advisory uncovered intervals after passing both permissions.
 type ShiftCoverageResponse struct {
-	CoverageWarnings []scheduleSvc.ShiftCoverageWarning `json:"coverage_warnings"`
+	CoverageWarnings     []scheduleSvc.ShiftCoverageWarning `json:"coverage_warnings"`
+	CoverageWarningCount int                                `json:"coverage_warning_count"`
 }
 
 func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
@@ -78,7 +79,7 @@ func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
 		concreteInstanceDate = &date
 	}
 
-	warnings, err := rs.TimetableData.DetectShiftCoverageWarnings(r.Context(), scheduleSvc.ShiftCoverageQuery{
+	result, err := rs.TimetableData.DetectShiftCoverageWarnings(r.Context(), scheduleSvc.ShiftCoverageQuery{
 		Dates:                 dates,
 		StartTime:             start,
 		EndTime:               end,
@@ -97,10 +98,13 @@ func (rs *Resource) checkShiftCoverage(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(shiftCoverageLoadErrorMessage, err))
 		return
 	}
-	if warnings == nil {
-		warnings = make([]scheduleSvc.ShiftCoverageWarning, 0)
+	if result.Warnings == nil {
+		result.Warnings = make([]scheduleSvc.ShiftCoverageWarning, 0)
 	}
-	common.Respond(w, r, http.StatusOK, ShiftCoverageResponse{CoverageWarnings: warnings}, "Shift coverage checked")
+	common.Respond(w, r, http.StatusOK, ShiftCoverageResponse{
+		CoverageWarnings:     result.Warnings,
+		CoverageWarningCount: result.TotalWarningCount,
+	}, "Shift coverage checked")
 }
 
 func renderShiftCoverageBadRequest(w http.ResponseWriter, r *http.Request) {

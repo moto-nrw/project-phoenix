@@ -505,6 +505,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	)
 	staffScheduleOverviewService := schedule.NewStaffScheduleOverviewService(schedule.StaffScheduleOverviewDependencies{
 		Shifts:        repos.StaffShift,
+		ShiftWeeks:    repos.StaffShift,
 		Instances:     repos.ActivityInstance,
 		InstanceStaff: repos.InstanceStaff,
 		Rooms:         repos.Room,

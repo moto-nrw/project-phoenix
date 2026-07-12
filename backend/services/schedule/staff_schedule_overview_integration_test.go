@@ -123,7 +123,7 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 
 	localOverview, err := service.GetOverview(testpkg.TenantContext(1), date, date.AddDays(4))
 	require.NoError(t, err)
-	assert.Equal(t, int64(5), queryCounter.count.Load(), "overview query count must stay fixed as assignment volume grows")
+	assert.Equal(t, int64(6), queryCounter.count.Load(), "overview query count must stay fixed as assignment volume grows")
 	assert.False(t, localOverview.DienstplanInUse, "foreign tenant shift must not activate the local Dienstplan")
 	localAssignments := make(map[int64]scheduleSvc.StaffScheduleAssignment)
 	for _, assignment := range localOverview.Assignments {
@@ -142,7 +142,7 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 
 	foreignOverview, err := service.GetOverview(testpkg.TenantContext(foreignTenantID), date, date.AddDays(4))
 	require.NoError(t, err)
-	assert.Equal(t, int64(10), queryCounter.count.Load(), "each overview request must perform exactly five batched reads")
+	assert.Equal(t, int64(12), queryCounter.count.Load(), "each overview request must perform exactly six batched reads")
 	assert.True(t, foreignOverview.DienstplanInUse)
 	require.Len(t, foreignOverview.Assignments, 1)
 	assert.Equal(t, foreign.instanceID, foreignOverview.Assignments[0].InstanceID)
@@ -300,7 +300,7 @@ func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t 
 		CalendarPeriodID: &period.ID, WeekPattern: &pattern,
 	})
 	require.NoError(t, err)
-	assert.Equal(t, int64(7), queryCounter.count.Load(), "series volume must use seven fixed batch reads")
+	assert.Equal(t, int64(8), queryCounter.count.Load(), "series volume must use eight fixed batch reads")
 	require.Len(t, warnings, 1, "pre-valid_from candidates must not be projected")
 	assert.Equal(t, nextWednesday.String(), warnings[0].Date)
 	for _, warning := range warnings {

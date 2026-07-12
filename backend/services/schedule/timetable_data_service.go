@@ -469,11 +469,11 @@ func (s *TimetableDataService) DetectPlannedConflicts(ctx context.Context, query
 	}, query, logger)
 }
 
-func (s *TimetableDataService) DetectShiftCoverageWarnings(ctx context.Context, query ShiftCoverageQuery) ([]ShiftCoverageWarning, error) {
+func (s *TimetableDataService) DetectShiftCoverageWarnings(ctx context.Context, query ShiftCoverageQuery) (ShiftCoverageResult, error) {
 	if s.deps.StaffShiftRepo == nil || s.deps.ActivityInstanceRepo == nil || s.deps.ActivityExceptionRepo == nil || s.deps.ActivityScheduleRepo == nil || s.deps.InstanceStaffRepo == nil || s.deps.StaffRepo == nil || s.deps.CalendarPeriodRepo == nil {
-		return nil, errors.New("shift coverage dependencies are not wired")
+		return ShiftCoverageResult{}, errors.New("shift coverage dependencies are not wired")
 	}
-	return DetectShiftCoverageWarnings(ctx, ShiftCoverageDependencies{
+	return DetectShiftCoverage(ctx, ShiftCoverageDependencies{
 		Shifts:          s.deps.StaffShiftRepo,
 		Instances:       s.deps.ActivityInstanceRepo,
 		Exceptions:      s.deps.ActivityExceptionRepo,

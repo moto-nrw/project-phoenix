@@ -1,5 +1,7 @@
 "use client";
 
+/* oxlint-disable jsx-a11y/no-noninteractive-tabindex -- the labeled horizontal scroll region must be keyboard-focusable */
+
 import { MapPin, Plus, TriangleAlert } from "lucide-react";
 
 import { Skeleton } from "~/components/ui/skeleton";
@@ -154,104 +156,129 @@ export function DienstplanWeekGrid({
   }
 
   return (
-    <div className="max-w-full overflow-x-auto rounded-2xl border border-gray-100">
-      <table className="w-full min-w-[960px] border-collapse text-sm">
-        <thead>
-          <tr className="bg-gray-50 text-left text-xs tracking-wider text-gray-500 uppercase">
-            <th className="sticky left-0 z-10 bg-gray-50 px-4 py-3 font-semibold">
-              Mitarbeiter
-            </th>
-            {weekDays.map((date, i) => (
-              <th
-                key={date}
-                className={`px-3 py-3 font-semibold ${date === todayIso ? "bg-amber-50/60" : ""}`}
-              >
-                {DAY_LABELS[i]} {formatColumnDate(date)}
+    <div>
+      <p
+        id="dienstplan-scroll-hint"
+        className="mb-2 text-xs text-gray-600 sm:hidden"
+      >
+        Wische horizontal, um weitere Wochentage zu sehen.
+      </p>
+      <div
+        role="region"
+        aria-label="Dienstplan-Wochenansicht"
+        aria-describedby="dienstplan-scroll-hint"
+        tabIndex={0}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+          event.preventDefault();
+          event.currentTarget.scrollBy({
+            left: event.key === "ArrowLeft" ? -240 : 240,
+            behavior: "smooth",
+          });
+        }}
+        className="max-w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-gray-100 focus-visible:ring-2 focus-visible:ring-[#83CD2D] focus-visible:outline-none"
+      >
+        <table className="w-full min-w-[960px] border-collapse text-sm">
+          <thead>
+            <tr className="bg-gray-50 text-left text-xs tracking-wider text-gray-500 uppercase">
+              <th className="sticky left-0 z-10 bg-gray-50 px-4 py-3 font-semibold">
+                Mitarbeiter
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-gray-100">
-          {staff.map((member) => {
-            const byDate = shiftsByStaff.get(member.id);
-            const assignmentsByDate = assignmentsByStaff.get(member.id);
-            return (
-              <tr key={member.id} className="bg-white">
-                <td className="sticky left-0 z-10 bg-white px-4 py-2 font-medium whitespace-nowrap text-gray-900">
-                  {member.lastName}, {member.firstName}
-                </td>
-                {weekDays.map((date) => {
-                  const shifts = byDate?.get(date) ?? [];
-                  const assignments = assignmentsByDate?.get(date) ?? [];
-                  return (
-                    <td
-                      key={date}
-                      className={`group px-3 py-2 align-top ${date === todayIso ? "bg-amber-50/40" : ""}`}
-                    >
-                      <div className="flex min-h-9 flex-col gap-1">
-                        {shifts.map((shift) => {
-                          const type = shift.shiftTypeId
-                            ? typesById.get(shift.shiftTypeId)
-                            : undefined;
-                          return (
-                            <button
-                              key={shift.id}
-                              type="button"
-                              onClick={() => onCellClick(member, date, shift)}
-                              style={{
-                                borderLeftColor:
-                                  type?.color ?? UNTYPED_SHIFT_COLOR,
-                                // Light tint of the shift-type color as the slot
-                                // background (~10% opacity via 8-digit hex).
-                                backgroundColor: type
-                                  ? `${type.color}1A`
-                                  : undefined,
-                              }}
-                              className="w-full rounded-md border border-l-2 border-gray-200 bg-white px-2 py-1 text-left transition-shadow hover:shadow-sm"
-                            >
-                              <span className="font-semibold tabular-nums">
-                                {formatShiftLabel(shift)}
-                              </span>
-                              {type && (
-                                <span className="block truncate text-xs text-gray-600">
-                                  {type.name}
+              {weekDays.map((date, i) => (
+                <th
+                  key={date}
+                  className={`px-3 py-3 font-semibold ${date === todayIso ? "bg-amber-50/60" : ""}`}
+                >
+                  {DAY_LABELS[i]} {formatColumnDate(date)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-gray-100">
+            {staff.map((member) => {
+              const byDate = shiftsByStaff.get(member.id);
+              const assignmentsByDate = assignmentsByStaff.get(member.id);
+              return (
+                <tr key={member.id} className="bg-white">
+                  <th
+                    scope="row"
+                    className="sticky left-0 z-10 bg-white px-4 py-2 text-left font-medium whitespace-nowrap text-gray-900"
+                  >
+                    {member.lastName}, {member.firstName}
+                  </th>
+                  {weekDays.map((date) => {
+                    const shifts = byDate?.get(date) ?? [];
+                    const assignments = assignmentsByDate?.get(date) ?? [];
+                    return (
+                      <td
+                        key={date}
+                        className={`group px-3 py-2 align-top ${date === todayIso ? "bg-amber-50/40" : ""}`}
+                      >
+                        <div className="flex min-h-9 flex-col gap-1">
+                          {shifts.map((shift) => {
+                            const type = shift.shiftTypeId
+                              ? typesById.get(shift.shiftTypeId)
+                              : undefined;
+                            return (
+                              <button
+                                key={shift.id}
+                                type="button"
+                                onClick={() => onCellClick(member, date, shift)}
+                                style={{
+                                  borderLeftColor:
+                                    type?.color ?? UNTYPED_SHIFT_COLOR,
+                                  // Light tint of the shift-type color as the slot
+                                  // background (~10% opacity via 8-digit hex).
+                                  backgroundColor: type
+                                    ? `${type.color}1A`
+                                    : undefined,
+                                }}
+                                className="w-full rounded-md border border-l-2 border-gray-200 bg-white px-2 py-1 text-left transition-shadow hover:shadow-sm"
+                              >
+                                <span className="font-semibold tabular-nums">
+                                  {formatShiftLabel(shift)}
                                 </span>
-                              )}
-                              {shift.breakMinutes > 0 && (
-                                <span className="block text-xs text-gray-500">
-                                  Pause {shift.breakMinutes} min
-                                </span>
-                              )}
-                            </button>
-                          );
-                        })}
-                        {assignments.map((assignment) => (
-                          <AssignmentCard
-                            key={`${assignment.instanceId}-${assignment.staffId}`}
-                            assignment={assignment}
-                          />
-                        ))}
-                        <button
-                          type="button"
-                          onClick={() => onCellClick(member, date, null)}
-                          aria-label={`Schicht anlegen für ${member.firstName} ${member.lastName} am ${formatColumnDate(date)}`}
-                          className={`flex h-7 w-full items-center justify-center rounded-md border border-dashed border-gray-200 text-gray-400 transition-opacity hover:bg-gray-50 hover:text-gray-600 focus:opacity-100 ${
-                            shifts.length > 0
-                              ? "opacity-100 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100"
-                              : "opacity-60 hover:opacity-100"
-                          }`}
-                        >
-                          <Plus className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </td>
-                  );
-                })}
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                                {type && (
+                                  <span className="block truncate text-xs text-gray-600">
+                                    {type.name}
+                                  </span>
+                                )}
+                                {shift.breakMinutes > 0 && (
+                                  <span className="block text-xs text-gray-500">
+                                    Pause {shift.breakMinutes} min
+                                  </span>
+                                )}
+                              </button>
+                            );
+                          })}
+                          {assignments.map((assignment) => (
+                            <AssignmentCard
+                              key={`${assignment.instanceId}-${assignment.staffId}`}
+                              assignment={assignment}
+                            />
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => onCellClick(member, date, null)}
+                            aria-label={`Schicht anlegen für ${member.firstName} ${member.lastName} am ${formatColumnDate(date)}`}
+                            className={`flex h-7 w-full items-center justify-center rounded-md border border-dashed border-gray-200 text-gray-400 transition-opacity hover:bg-gray-50 hover:text-gray-600 focus:opacity-100 ${
+                              shifts.length > 0
+                                ? "opacity-100 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100"
+                                : "opacity-60 hover:opacity-100"
+                            }`}
+                          >
+                            <Plus className="h-4 w-4" aria-hidden />
+                          </button>
+                        </div>
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

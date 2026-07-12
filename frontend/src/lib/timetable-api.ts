@@ -327,6 +327,7 @@ class TimetableService {
    */
   async checkShiftCoverage(
     params: ShiftCoverageCheckParams,
+    options?: { signal?: AbortSignal },
   ): Promise<ShiftCoverageCheckResult> {
     const response = await fetch("/api/timetable/shift-coverage", {
       method: "POST",
@@ -335,6 +336,7 @@ class TimetableService {
         Accept: "application/json",
       },
       credentials: "include",
+      signal: options?.signal,
       body: JSON.stringify({
         dates: params.dates,
         start_time: params.startTime,

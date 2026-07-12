@@ -76,7 +76,7 @@ vi.mock("~/lib/timetable-api", () => ({
     splitTemplate: mockSplitTemplate,
     replanWeek: mockReplanWeek,
     checkConflicts: mockCheckConflicts,
-    checkShiftCoverage: mockCheckShiftCoverage,
+    checkShiftCoverage: (probe: unknown) => mockCheckShiftCoverage(probe),
   },
 }));
 
@@ -263,6 +263,7 @@ function renderModal(
       weekTo="2026-05-08"
       calendarPeriods={periods}
       defaultCalendarPeriodId="5"
+      canCheckShiftCoverage
       {...props}
     />
   );
@@ -2003,10 +2004,110 @@ describe("TimetableEventModal", () => {
 
     expect(
       await screen.findByText(
-        "Hinweis: Ada Staff ist für 12:00–13:00 eingeteilt; nicht durch eine Schicht abgedeckt: 12:30–13:00.",
+        "Ada Staff ist für 12:00–13:00 eingeteilt; nicht durch eine Schicht abgedeckt: 12:30–13:00.",
       ),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+  });
+
+  it("aggregates large coverage results without creating assertive alerts", async () => {
+    const warnings = Array.from({ length: 100 }, (_, index) => ({
+      staffId: "11",
+      staffName: "Ada Staff",
+      date: `2026-05-${String((index % 28) + 1).padStart(2, "0")}`,
+      startTime: "12:00",
+      endTime: "13:00",
+      uncoveredStartTime: "12:30",
+      uncoveredEndTime: "13:00",
+      message: `Beispiel-Lücke ${index + 1}`,
+    }));
+    mockCheckShiftCoverage.mockResolvedValue({
+      coverageWarnings: warnings,
+      coverageWarningCount: 130,
+    });
+    renderModal();
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
+
+    expect(
+      await screen.findByText(
+        "130 Dienstplan-Lücken gefunden. Speichern ist weiterhin möglich.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("127 weitere Lücken anzeigen")).toBeInTheDocument();
+    expect(screen.getByText("Beispiel-Lücke 1")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+    expect(document.querySelectorAll('[aria-live="polite"]')).toHaveLength(1);
+    expect(screen.queryAllByRole("alert")).toHaveLength(0);
+  });
+
+  it("aborts a hanging one-off pre-save coverage check and still writes", async () => {
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        staff: [
+          {
+            staffId: "11",
+            isPrimary: true,
+            isAbsent: false,
+            isSubstitute: false,
+          },
+        ],
+      },
+    });
+    await screen.findByText("Haus A - Mensa");
+    mockCheckShiftCoverage.mockClear();
+    mockCheckShiftCoverage.mockReturnValueOnce(new Promise(() => undefined));
+    vi.useFakeTimers();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+
+    expect(mockUpdate).toHaveBeenCalled();
+  });
+
+  it("aborts a hanging direct-series pre-save coverage check and still writes", async () => {
+    renderModal({ initialSeries: template });
+    await screen.findByText("Haus A - Mensa");
+    mockCheckShiftCoverage.mockClear();
+    mockCheckShiftCoverage.mockReturnValueOnce(new Promise(() => undefined));
+    vi.useFakeTimers();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+
+    expect(mockUpdateTemplate).toHaveBeenCalledWith(
+      "7",
+      expect.objectContaining({ week_pattern: 0 }),
+    );
+  });
+
+  it("skips coverage entirely when the caller lacks the combined capability", async () => {
+    renderModal({
+      canCheckShiftCoverage: false,
+      initialInstance: {
+        ...savedInstance,
+        staff: [
+          {
+            staffId: "11",
+            isPrimary: true,
+            isAbsent: false,
+            isSubstitute: false,
+          },
+        ],
+      },
+    });
+    await screen.findByText("Haus A - Mensa");
+    mockCheckShiftCoverage.mockClear();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => expect(mockUpdate).toHaveBeenCalled());
+    expect(mockCheckShiftCoverage).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText(/Dienstplan-Abdeckung konnte nicht geprüft werden/),
+    ).not.toBeInTheDocument();
   });
 
   it("checks the latest assignment before a fast save and continues after warnings", async () => {
@@ -2113,6 +2214,32 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("preserves an A-week series in both coverage and direct saves", async () => {
+    const aWeekTemplate: TimetableTemplate = {
+      ...template,
+      schedules: template.schedules.map((schedule) => ({
+        ...schedule,
+        weekPattern: 1,
+      })),
+    };
+    renderModal({ initialSeries: aWeekTemplate });
+
+    await screen.findByText("Haus A - Mensa");
+    await waitFor(() =>
+      expect(mockCheckShiftCoverage).toHaveBeenCalledWith(
+        expect.objectContaining({ weekPattern: 1 }),
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ week_pattern: 1 }),
+      ),
+    );
+  });
+
   it("shows a non-blocking warning when shift coverage cannot be checked", async () => {
     mockCheckShiftCoverage.mockRejectedValue(new Error("probe down"));
     renderModal();
@@ -2215,6 +2342,7 @@ describe("TimetableEventModal", () => {
       weekTo: "2026-05-08",
       calendarPeriods: periods,
       defaultCalendarPeriodId: "5",
+      canCheckShiftCoverage: true,
     } as const;
     const { rerender } = render(<TimetableEventModal {...baseProps} />);
 

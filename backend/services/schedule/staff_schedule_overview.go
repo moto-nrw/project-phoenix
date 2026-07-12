@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -56,6 +57,7 @@ type StaffScheduleOverview struct {
 	From            timezone.Date
 	To              timezone.Date
 	DienstplanInUse bool
+	UsedWeeks       []timezone.Date
 	Staff           []*usersModel.Staff
 	Shifts          []*scheduleModel.StaffShift
 	Assignments     []StaffScheduleAssignment
@@ -66,6 +68,10 @@ type StaffScheduleOverview struct {
 // interfaces used by mutation services.
 type StaffShiftRangeReader interface {
 	FindByDateRange(ctx context.Context, start, end timezone.Date) ([]*scheduleModel.StaffShift, error)
+}
+
+type StaffShiftWeekUsageReader interface {
+	FindUsedCalendarWeeks(ctx context.Context, start, end timezone.Date) ([]timezone.Date, error)
 }
 
 type ActivityInstanceRangeReader interface {
@@ -87,6 +93,7 @@ type StaffOverviewReader interface {
 
 type StaffScheduleOverviewDependencies struct {
 	Shifts        StaffShiftRangeReader
+	ShiftWeeks    StaffShiftWeekUsageReader
 	Instances     ActivityInstanceRangeReader
 	InstanceStaff InstanceStaffBatchReader
 	Rooms         RoomBatchReader
@@ -102,6 +109,11 @@ type staffScheduleOverviewService struct {
 }
 
 func NewStaffScheduleOverviewService(deps StaffScheduleOverviewDependencies) StaffScheduleOverviewGetter {
+	if deps.ShiftWeeks == nil {
+		if reader, ok := deps.Shifts.(StaffShiftWeekUsageReader); ok {
+			deps.ShiftWeeks = reader
+		}
+	}
 	return &staffScheduleOverviewService{deps: deps}
 }
 
@@ -112,6 +124,7 @@ type staffDateKey struct {
 
 type staffScheduleOverviewData struct {
 	shifts           []*scheduleModel.StaffShift
+	usedWeeks        []timezone.Date
 	visibleInstances []*scheduleModel.ActivityInstance
 	assignmentRows   []*scheduleModel.InstanceStaff
 	rooms            []*facilitiesModel.Room
@@ -129,19 +142,21 @@ func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to
 	}
 	sortOverviewStaff(data.staff)
 
-	dienstplanInUse := len(data.shifts) > 0
+	usedWeeks := indexCalendarWeeks(data.usedWeeks)
+	dienstplanInUse := len(usedWeeks) > 0
 	assignments := buildStaffScheduleAssignments(
 		data.visibleInstances,
 		indexAssignmentRows(data.assignmentRows),
 		indexRoomNames(data.rooms),
 		indexShifts(data.shifts),
-		dienstplanInUse,
+		usedWeeks,
 	)
 
 	return &StaffScheduleOverview{
 		From:            from,
 		To:              to,
 		DienstplanInUse: dienstplanInUse,
+		UsedWeeks:       data.usedWeeks,
 		Staff:           data.staff,
 		Shifts:          data.shifts,
 		Assignments:     assignments,
@@ -149,9 +164,18 @@ func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to
 }
 
 func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, from, to timezone.Date) (*staffScheduleOverviewData, error) {
+	if s.deps.ShiftWeeks == nil {
+		return nil, errors.New("staff-shift week usage reader is not wired")
+	}
 	shifts, err := s.deps.Shifts.FindByDateRange(ctx, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("load staff shifts: %w", err)
+	}
+	firstWeekFrom, _ := containingCalendarWeek(from)
+	_, lastWeekTo := containingCalendarWeek(to)
+	usedWeeks, err := s.deps.ShiftWeeks.FindUsedCalendarWeeks(ctx, firstWeekFrom, lastWeekTo)
+	if err != nil {
+		return nil, fmt.Errorf("load used staff-shift weeks: %w", err)
 	}
 	instances, err := s.deps.Instances.FindByTenantAndDateRange(ctx, from, to)
 	if err != nil {
@@ -176,6 +200,7 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 
 	return &staffScheduleOverviewData{
 		shifts:           shifts,
+		usedWeeks:        usedWeeks,
 		visibleInstances: visibleInstances,
 		assignmentRows:   assignmentRows,
 		rooms:            rooms,
@@ -232,17 +257,28 @@ func buildStaffScheduleAssignments(
 	rowsByInstance map[int64][]*scheduleModel.InstanceStaff,
 	roomNames map[int64]string,
 	shiftIndex map[staffDateKey][]*scheduleModel.StaffShift,
-	dienstplanInUse bool,
+	usedWeeks map[timezone.Date]bool,
 ) []StaffScheduleAssignment {
 	assignments := make([]StaffScheduleAssignment, 0)
 	for _, instance := range visibleInstances {
 		for _, row := range rowsByInstance[instance.ID] {
 			assignment := newStaffScheduleAssignment(instance, row, roomNames)
-			applyCoverage(&assignment, dienstplanInUse, shiftIndex[staffDateKey{row.StaffID, instance.Date}])
+			weekFrom, _ := containingCalendarWeek(instance.Date)
+			applyCoverage(&assignment, usedWeeks[weekFrom], shiftIndex[staffDateKey{row.StaffID, instance.Date}])
 			assignments = append(assignments, assignment)
 		}
 	}
 	return assignments
+}
+
+func indexCalendarWeeks(weeks []timezone.Date) map[timezone.Date]bool {
+	used := make(map[timezone.Date]bool, len(weeks))
+	for _, week := range weeks {
+		if !week.IsZero() {
+			used[week] = true
+		}
+	}
+	return used
 }
 
 func newStaffScheduleAssignment(

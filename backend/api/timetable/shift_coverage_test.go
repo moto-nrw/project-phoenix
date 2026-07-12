@@ -178,6 +178,7 @@ func TestShiftCoverage_SuppressesEachUnusedWorkWeekIndependently(t *testing.T) {
 	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
 	result := decodeShiftCoverage(t, recorder)
 	require.Len(t, result.CoverageWarnings, 1)
+	assert.Equal(t, 1, result.CoverageWarningCount)
 	assert.Equal(t, usedMonday.String(), result.CoverageWarnings[0].Date)
 }
 
@@ -231,7 +232,7 @@ func TestShiftCoverage_ValidationAndStableErrors(t *testing.T) {
 	})
 }
 
-func TestShiftCoverage_RouteRequiresBothPermissionsAndLegacyConflictsStaysReadOnlyAccessible(t *testing.T) {
+func TestShiftCoverage_RouteRequiresAllPermissionsAndLegacyConflictsStaysReadOnlyAccessible(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	db, services := testutil.SetupAPITest(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -251,14 +252,18 @@ func TestShiftCoverage_RouteRequiresBothPermissionsAndLegacyConflictsStaysReadOn
 	assert.Equal(t, http.StatusForbidden, onlySchedulesRead.Code, onlySchedulesRead.Body.String())
 	onlyShiftManage := testutil.ExecuteWithAuthPermissions(t, router, coverageRequest(), claims, []string{permissions.TimeTrackingManage})
 	assert.Equal(t, http.StatusForbidden, onlyShiftManage.Code, onlyShiftManage.Body.String())
-	both := testutil.ExecuteWithAuthPermissions(t, router, coverageRequest(), claims, []string{
+	withoutUsers := testutil.ExecuteWithAuthPermissions(t, router, coverageRequest(), claims, []string{
 		permissions.SchedulesRead, permissions.TimeTrackingManage,
 	})
-	require.Equal(t, http.StatusOK, both.Code, both.Body.String())
+	require.Equal(t, http.StatusForbidden, withoutUsers.Code, withoutUsers.Body.String())
+	all := testutil.ExecuteWithAuthPermissions(t, router, coverageRequest(), claims, []string{
+		permissions.SchedulesRead, permissions.TimeTrackingManage, permissions.UsersRead,
+	})
+	require.Equal(t, http.StatusOK, all.Code, all.Body.String())
 	var coverageEnvelope struct {
 		Data ShiftCoverageResponse `json:"data"`
 	}
-	require.NoError(t, json.Unmarshal(both.Body.Bytes(), &coverageEnvelope))
+	require.NoError(t, json.Unmarshal(all.Body.Bytes(), &coverageEnvelope))
 	assert.NotNil(t, coverageEnvelope.Data.CoverageWarnings)
 
 	legacyRequest := httptest.NewRequest(http.MethodGet,

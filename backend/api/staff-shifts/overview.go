@@ -44,12 +44,17 @@ type OverviewResponse struct {
 	From            string                  `json:"from"`
 	To              string                  `json:"to"`
 	DienstplanInUse bool                    `json:"dienstplan_in_use"`
+	UsedWeeks       []string                `json:"dienstplan_used_weeks"`
 	Staff           []OverviewStaffResponse `json:"staff"`
 	Shifts          []ShiftResponse         `json:"shifts"`
 	Assignments     []AssignmentResponse    `json:"assignments"`
 }
 
 func toOverviewResponse(overview *scheduleSvc.StaffScheduleOverview) OverviewResponse {
+	usedWeeks := make([]string, 0, len(overview.UsedWeeks))
+	for _, week := range overview.UsedWeeks {
+		usedWeeks = append(usedWeeks, week.String())
+	}
 	staff := make([]OverviewStaffResponse, 0, len(overview.Staff))
 	for _, member := range overview.Staff {
 		if member == nil || member.Person == nil {
@@ -94,6 +99,7 @@ func toOverviewResponse(overview *scheduleSvc.StaffScheduleOverview) OverviewRes
 		From:            overview.From.String(),
 		To:              overview.To.String(),
 		DienstplanInUse: overview.DienstplanInUse,
+		UsedWeeks:       usedWeeks,
 		Staff:           staff,
 		Shifts:          ToShiftResponses(overview.Shifts),
 		Assignments:     assignments,

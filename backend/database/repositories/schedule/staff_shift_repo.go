@@ -102,6 +102,56 @@ func (r *StaffShiftRepository) FindByStaffIDsAndDate(ctx context.Context, staffI
 	return shifts, nil
 }
 
+// FindByStaffIDsAndDates returns only shifts that can affect the supplied
+// staff/date coverage comparisons. This avoids scanning every tenant shift in
+// the continuous span between sparse candidate dates.
+func (r *StaffShiftRepository) FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []timezone.Date) ([]*schedule.StaffShift, error) {
+	if len(staffIDs) == 0 || len(dates) == 0 {
+		return nil, nil
+	}
+	var shifts []*schedule.StaffShift
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&shifts).
+		ModelTableExpr(tableExprStaffShiftsAsShift).
+		Where(`"staff_shift".staff_id IN (?)`, bun.List(staffIDs)).
+		Where(`"staff_shift".date IN (?)`, bun.List(dates)).
+		OrderExpr(`"staff_shift".date ASC`).
+		OrderExpr(`"staff_shift".staff_id ASC`).
+		OrderExpr(`"staff_shift".start_time ASC`)
+
+	query = base.WithTenantFilter(ctx, query, "staff_shift")
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find staff shifts by staff IDs and dates", Err: err}
+	}
+	normalizeShiftWallClock(shifts)
+	return shifts, nil
+}
+
+// FindUsedCalendarWeeks returns distinct ISO-week Mondays for tenant shifts in
+// the inclusive range. The result is small even for multi-week probes.
+func (r *StaffShiftRepository) FindUsedCalendarWeeks(ctx context.Context, start, end timezone.Date) ([]timezone.Date, error) {
+	type usedWeekRow struct {
+		WeekStart timezone.Date `bun:"week_start,type:date"`
+	}
+	var rows []usedWeekRow
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(tableExprStaffShiftsAsShift).
+		ColumnExpr(`DISTINCT date_trunc('week', "staff_shift".date)::date AS week_start`).
+		Where(`"staff_shift".date >= ?`, start).
+		Where(`"staff_shift".date <= ?`, end).
+		OrderExpr(`week_start ASC`)
+
+	query = base.WithTenantFilter(ctx, query, "staff_shift")
+	if err := query.Scan(ctx, &rows); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find used staff-shift calendar weeks", Err: err}
+	}
+	weeks := make([]timezone.Date, 0, len(rows))
+	for _, row := range rows {
+		weeks = append(weeks, row.WeekStart)
+	}
+	return weeks, nil
+}
+
 // DeleteUpcomingByStaffID removes planned shifts from the given date onwards.
 // Past Dienstplan rows stay as history after staff offboarding.
 func (r *StaffShiftRepository) DeleteUpcomingByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error) {

@@ -146,7 +146,7 @@ func TestOverviewHandler_RejectsBadRangeAndPropagatesServiceFailure(t *testing.T
 	})
 }
 
-func TestOverviewRoute_RequiresBothScheduleAndShiftPermissions(t *testing.T) {
+func TestOverviewRoute_RequiresScheduleShiftAndUserPermissions(t *testing.T) {
 	testutil.SeedTestJWTConfig()
 	db, _ := testutil.SetupAPITest(t)
 	t.Cleanup(func() { _ = db.Close() })
@@ -168,9 +168,15 @@ func TestOverviewRoute_RequiresBothScheduleAndShiftPermissions(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, shiftOnly.Code, shiftOnly.Body.String())
 	scheduleOnly := testutil.ExecuteWithAuthPermissions(t, router, request(), claims, []string{permissions.SchedulesRead})
 	assert.Equal(t, http.StatusForbidden, scheduleOnly.Code, scheduleOnly.Body.String())
-	both := testutil.ExecuteWithAuthPermissions(t, router, request(), claims, []string{
+	withoutUsers := testutil.ExecuteWithAuthPermissions(t, router, request(), claims, []string{
 		permissions.TimeTrackingManage,
 		permissions.SchedulesRead,
 	})
-	assert.Equal(t, http.StatusOK, both.Code, both.Body.String())
+	assert.Equal(t, http.StatusForbidden, withoutUsers.Code, withoutUsers.Body.String())
+	all := testutil.ExecuteWithAuthPermissions(t, router, request(), claims, []string{
+		permissions.TimeTrackingManage,
+		permissions.SchedulesRead,
+		permissions.UsersRead,
+	})
+	assert.Equal(t, http.StatusOK, all.Code, all.Body.String())
 }

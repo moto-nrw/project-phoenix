@@ -20,10 +20,11 @@ const (
 	// A school-year series contains at most roughly 260 selected weekdays. The
 	// defensive 366 bounds admit a full leap-year candidate set without
 	// allowing an unbounded read through a malformed API request.
-	maxShiftCoverageCandidateDates = 366
-	maxShiftCoverageSpanDays       = 366
-	maxShiftCoverageStaffIDs       = 500
-	maxShiftCoverageComparisons    = 10_000
+	maxShiftCoverageCandidateDates   = 366
+	maxShiftCoverageSpanDays         = 366
+	maxShiftCoverageStaffIDs         = 500
+	maxShiftCoverageComparisons      = 10_000
+	maxReturnedShiftCoverageWarnings = 100
 )
 
 // ErrInvalidShiftCoverageQuery identifies caller-controlled validation
@@ -41,6 +42,11 @@ type ShiftCoverageWarning struct {
 	UncoveredStartTime string `json:"uncovered_start_time"`
 	UncoveredEndTime   string `json:"uncovered_end_time"`
 	Message            string `json:"message"`
+}
+
+type ShiftCoverageResult struct {
+	Warnings          []ShiftCoverageWarning
+	TotalWarningCount int
 }
 
 // ShiftCoverageQuery describes one single-occurrence or recurring-series
@@ -79,7 +85,7 @@ type ActivityScheduleGroupReader interface {
 }
 
 type ShiftCoverageDependencies struct {
-	Shifts          StaffShiftRangeReader
+	Shifts          StaffShiftCoverageReader
 	Instances       ActivityGroupInstanceRangeReader
 	Exceptions      ActivityExceptionRangeReader
 	Schedules       ActivityScheduleGroupReader
@@ -88,30 +94,35 @@ type ShiftCoverageDependencies struct {
 	CalendarPeriods CalendarPeriodByIDReader
 }
 
+type StaffShiftCoverageReader interface {
+	FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []timezone.Date) ([]*scheduleModel.StaffShift, error)
+	FindUsedCalendarWeeks(ctx context.Context, start, end timezone.Date) ([]timezone.Date, error)
+}
+
 // DetectShiftCoverageWarnings checks every effective occurrence with a fixed
-// number of batched reads. A ReplanWeek projection uses at most seven reads:
+// number of batched reads. A ReplanWeek projection uses at most eight reads:
 // period, the group's recurrence envelope, group-scoped instances,
 // group-scoped exceptions, all concrete staff rows, all shifts, and all
-// warning names.
-func DetectShiftCoverageWarnings(ctx context.Context, deps ShiftCoverageDependencies, query ShiftCoverageQuery) ([]ShiftCoverageWarning, error) {
+// tenant week usage, and warning names.
+func DetectShiftCoverage(ctx context.Context, deps ShiftCoverageDependencies, query ShiftCoverageQuery) (ShiftCoverageResult, error) {
 	dates, staffIDs, err := normalizeShiftCoverageQuery(query)
 	if err != nil {
-		return nil, err
+		return ShiftCoverageResult{}, err
 	}
 	dates, err = resolveShiftCoverageDates(ctx, deps.CalendarPeriods, query, dates)
 	if err != nil {
-		return nil, err
+		return ShiftCoverageResult{}, err
 	}
 	if len(dates) == 0 {
-		return []ShiftCoverageWarning{}, nil
+		return emptyShiftCoverageResult(), nil
 	}
 	if query.ReplanActivityGroupID != nil {
 		dates, err = resolveSeriesCoverageDates(ctx, deps.Schedules, *query.ReplanActivityGroupID, dates)
 		if err != nil {
-			return nil, err
+			return ShiftCoverageResult{}, err
 		}
 		if len(dates) == 0 {
-			return []ShiftCoverageWarning{}, nil
+			return emptyShiftCoverageResult(), nil
 		}
 	}
 	coverageDays, effectiveStaffIDs, err := resolveEffectiveCoverageDays(
@@ -122,27 +133,39 @@ func DetectShiftCoverageWarnings(ctx context.Context, deps ShiftCoverageDependen
 		staffIDs,
 	)
 	if err != nil {
-		return nil, err
+		return ShiftCoverageResult{}, err
 	}
 	if len(effectiveStaffIDs) == 0 {
-		return []ShiftCoverageWarning{}, nil
+		return emptyShiftCoverageResult(), nil
 	}
-	shifts, err := loadShiftCoverageRange(ctx, deps.Shifts, dates)
+	shifts, usedWeeks, err := loadShiftCoverageData(ctx, deps.Shifts, dates, effectiveStaffIDs)
 	if err != nil {
-		return nil, err
+		return ShiftCoverageResult{}, err
 	}
-	if len(shifts) == 0 {
-		return []ShiftCoverageWarning{}, nil
+	if len(usedWeeks) == 0 {
+		return emptyShiftCoverageResult(), nil
 	}
-	pending := collectPendingCoverageWarnings(dates, coverageDays, shifts)
+	pending, total := collectPendingCoverageWarnings(dates, coverageDays, shifts, usedWeeks)
 	if len(pending) == 0 {
-		return []ShiftCoverageWarning{}, nil
+		return emptyShiftCoverageResult(), nil
 	}
 	staff, loadErr := deps.Staff.FindWithPersonByIDs(ctx, effectiveStaffIDs)
 	if loadErr != nil {
-		return nil, fmt.Errorf("load staff names for coverage warnings: %w", loadErr)
+		return ShiftCoverageResult{}, fmt.Errorf("load staff names for coverage warnings: %w", loadErr)
 	}
-	return buildShiftCoverageWarnings(pending, staff), nil
+	return ShiftCoverageResult{Warnings: buildShiftCoverageWarnings(pending, staff), TotalWarningCount: total}, nil
+}
+
+// DetectShiftCoverageWarnings preserves the warning-only service contract used
+// by existing non-HTTP callers. The API uses DetectShiftCoverage to expose the
+// total count alongside the bounded detail list.
+func DetectShiftCoverageWarnings(ctx context.Context, deps ShiftCoverageDependencies, query ShiftCoverageQuery) ([]ShiftCoverageWarning, error) {
+	result, err := DetectShiftCoverage(ctx, deps, query)
+	return result.Warnings, err
+}
+
+func emptyShiftCoverageResult() ShiftCoverageResult {
+	return ShiftCoverageResult{Warnings: make([]ShiftCoverageWarning, 0)}
 }
 
 func resolveShiftCoverageDates(
@@ -307,16 +330,16 @@ func resolveSeriesEffectiveCoverageDays(
 
 	allEffective := make([]int64, 0, len(staffIDs))
 	for _, date := range dates {
-		day, projectErr := projectSeriesCoverageDay(
-			coverageDays[date],
-			exceptionsByDate[date],
-			instances,
-			activityGroupID,
-			date,
-			candidatesByDate[date],
-			rowsByInstance,
-			staffIDs,
-		)
+		day, projectErr := projectSeriesCoverageDay(seriesCoverageProjection{
+			day:                 coverageDays[date],
+			exception:           exceptionsByDate[date],
+			instances:           instances,
+			activityGroupID:     activityGroupID,
+			date:                date,
+			deviationCandidates: candidatesByDate[date],
+			rowsByInstance:      rowsByInstance,
+			staffIDs:            staffIDs,
+		})
 		if projectErr != nil {
 			return nil, nil, projectErr
 		}
@@ -349,28 +372,30 @@ func loadSeriesCoverageStaffRows(
 	return rowsByInstance, nil
 }
 
-func projectSeriesCoverageDay(
-	day effectiveShiftCoverageDay,
-	exception *scheduleModel.ActivityException,
-	instances []*scheduleModel.ActivityInstance,
-	activityGroupID int64,
-	date timezone.Date,
-	deviationCandidates []*scheduleModel.ActivityInstance,
-	rowsByInstance map[int64][]*scheduleModel.InstanceStaff,
-	staffIDs []int64,
-) (effectiveShiftCoverageDay, error) {
-	day = applySeriesCoverageException(day, exception)
+type seriesCoverageProjection struct {
+	day                 effectiveShiftCoverageDay
+	exception           *scheduleModel.ActivityException
+	instances           []*scheduleModel.ActivityInstance
+	activityGroupID     int64
+	date                timezone.Date
+	deviationCandidates []*scheduleModel.ActivityInstance
+	rowsByInstance      map[int64][]*scheduleModel.InstanceStaff
+	staffIDs            []int64
+}
+
+func projectSeriesCoverageDay(projection seriesCoverageProjection) (effectiveShiftCoverageDay, error) {
+	day := applySeriesCoverageException(projection.day, projection.exception)
 	if !day.active {
 		return day, nil
 	}
 	if !timezone.WallClock(day.end).After(timezone.WallClock(day.start)) {
 		return day, invalidShiftCoverageQuery("effective exception end time must be after start time")
 	}
-	if survivingInstanceBlocksSeriesCandidate(instances, activityGroupID, date, day.start) {
+	if survivingInstanceBlocksSeriesCandidate(projection.instances, projection.activityGroupID, projection.date, day.start) {
 		return inactiveCoverageDay(day), nil
 	}
-	if source := selectPreservedDeviationSource(deviationCandidates, day.start); source != nil {
-		day.staffIDs = effectiveSeriesCoverageStaffIDs(staffIDs, rowsByInstance[source.ID])
+	if source := selectPreservedDeviationSource(projection.deviationCandidates, day.start); source != nil {
+		day.staffIDs = effectiveSeriesCoverageStaffIDs(projection.staffIDs, projection.rowsByInstance[source.ID])
 	}
 	return day, nil
 }
@@ -587,14 +612,18 @@ func containsCoverageDate(dates []timezone.Date, target timezone.Date) bool {
 	return false
 }
 
-func loadShiftCoverageRange(ctx context.Context, shifts StaffShiftRangeReader, dates []timezone.Date) ([]*scheduleModel.StaffShift, error) {
+func loadShiftCoverageData(ctx context.Context, shifts StaffShiftCoverageReader, dates []timezone.Date, staffIDs []int64) ([]*scheduleModel.StaffShift, map[timezone.Date]bool, error) {
 	firstWeekFrom, _ := containingCalendarWeek(dates[0])
 	_, lastWeekTo := containingCalendarWeek(dates[len(dates)-1])
-	rows, err := shifts.FindByDateRange(ctx, firstWeekFrom, lastWeekTo)
+	rows, err := shifts.FindByStaffIDsAndDates(ctx, staffIDs, dates)
 	if err != nil {
-		return nil, fmt.Errorf("load staff shifts for coverage: %w", err)
+		return nil, nil, fmt.Errorf("load staff shifts for coverage: %w", err)
 	}
-	return rows, nil
+	weeks, err := shifts.FindUsedCalendarWeeks(ctx, firstWeekFrom, lastWeekTo)
+	if err != nil {
+		return nil, nil, fmt.Errorf("load used staff-shift weeks for coverage: %w", err)
+	}
+	return rows, indexCalendarWeeks(weeks), nil
 }
 
 type pendingShiftCoverageWarning struct {
@@ -609,10 +638,11 @@ func collectPendingCoverageWarnings(
 	dates []timezone.Date,
 	coverageDays map[timezone.Date]effectiveShiftCoverageDay,
 	shifts []*scheduleModel.StaffShift,
-) []pendingShiftCoverageWarning {
+	usedWeeks map[timezone.Date]bool,
+) ([]pendingShiftCoverageWarning, int) {
 	shiftIndex := indexShifts(shifts)
-	usedWeeks := indexUsedCalendarWeeks(shifts)
-	pending := make([]pendingShiftCoverageWarning, 0)
+	pending := make([]pendingShiftCoverageWarning, 0, maxReturnedShiftCoverageWarnings)
+	total := 0
 	for _, date := range dates {
 		day := coverageDays[date]
 		if !day.active {
@@ -625,6 +655,10 @@ func collectPendingCoverageWarnings(
 		for _, staffID := range day.staffIDs {
 			gaps := uncoveredShiftIntervals(day.start, day.end, shiftIndex[staffDateKey{staffID: staffID, date: date}])
 			for _, gap := range gaps {
+				total++
+				if len(pending) >= maxReturnedShiftCoverageWarnings {
+					continue
+				}
 				pending = append(pending, pendingShiftCoverageWarning{
 					staffID: staffID,
 					date:    date,
@@ -635,7 +669,7 @@ func collectPendingCoverageWarnings(
 			}
 		}
 	}
-	return pending
+	return pending, total
 }
 
 func buildShiftCoverageWarnings(
@@ -798,18 +832,6 @@ func filterShiftCoverageDates(dates []timezone.Date, period *scheduleModel.Calen
 		}
 	}
 	return filtered
-}
-
-func indexUsedCalendarWeeks(shifts []*scheduleModel.StaffShift) map[timezone.Date]bool {
-	used := make(map[timezone.Date]bool)
-	for _, shift := range shifts {
-		if shift == nil {
-			continue
-		}
-		weekFrom, _ := containingCalendarWeek(shift.Date)
-		used[weekFrom] = true
-	}
-	return used
 }
 
 func effectiveCoverageStaffIDs(submitted []int64, prior []*scheduleModel.InstanceStaff) []int64 {

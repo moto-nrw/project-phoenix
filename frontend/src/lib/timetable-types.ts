@@ -761,9 +761,11 @@ export interface ShiftCoverageCheckParams {
 
 export interface ShiftCoverageCheckResult {
   coverageWarnings: ShiftCoverageWarningItem[];
+  coverageWarningCount: number;
 }
 
 export interface BackendShiftCoverageCheckResult {
+  coverage_warning_count?: number;
   coverage_warnings?: Array<{
     staff_id: number;
     staff_name: string;

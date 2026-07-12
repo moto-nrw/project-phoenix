@@ -129,6 +129,41 @@ func TestStaffShiftRepository_FindByStaffIDsAndDate(t *testing.T) {
 	assert.Empty(t, rows)
 }
 
+func TestStaffShiftRepository_CoverageReadsExactStaffDatesAndUsedWeeks(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).StaffShift
+	ctx := testpkg.TenantContext(1)
+	staffA := testpkg.CreateTestStaff(t, db, "CoverageA", "Batch")
+	staffB := testpkg.CreateTestStaff(t, db, "CoverageB", "Batch")
+	defer testpkg.CleanupActivityFixtures(t, db, staffA.PersonID, staffB.PersonID)
+
+	monday := timezone.NewDate(2026, time.July, 6)
+	saturday := monday.AddDays(5)
+	nextMonday := monday.AddDays(7)
+	rows := []*scheduleModels.StaffShift{
+		newShift(staffA.ID, monday, 8, 12, staffA.ID),
+		newShift(staffA.ID, saturday, 8, 12, staffA.ID),
+		newShift(staffA.ID, nextMonday, 8, 12, staffA.ID),
+		newShift(staffB.ID, monday, 8, 12, staffA.ID),
+	}
+	for _, shift := range rows {
+		require.NoError(t, repo.Create(ctx, shift))
+	}
+	defer cleanupShifts(t, repo, ctx, rows[0].ID, rows[1].ID, rows[2].ID, rows[3].ID)
+
+	shifts, err := repo.FindByStaffIDsAndDates(ctx, []int64{staffA.ID}, []timezone.Date{monday, nextMonday})
+	require.NoError(t, err)
+	require.Len(t, shifts, 2)
+	assert.Equal(t, monday, shifts[0].Date)
+	assert.Equal(t, nextMonday, shifts[1].Date)
+
+	weeks, err := repo.FindUsedCalendarWeeks(ctx, monday, nextMonday.AddDays(6))
+	require.NoError(t, err)
+	assert.Equal(t, []timezone.Date{monday, nextMonday}, weeks)
+}
+
 func TestStaffShiftRepository_DeleteUpcomingByStaffID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

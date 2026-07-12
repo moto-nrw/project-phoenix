@@ -437,6 +437,7 @@ describe("timetableService", () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({
         data: {
+          coverage_warning_count: 17,
           coverage_warnings: [
             {
               staff_id: 11,
@@ -453,17 +454,22 @@ describe("timetableService", () => {
       }),
     );
 
+    const controller = new AbortController();
     await expect(
-      timetableService.checkShiftCoverage({
-        dates: ["2026-05-04", "2026-05-06"],
-        startTime: "12:00",
-        endTime: "13:00",
-        staffIds: ["11", "12"],
-        replanActivityGroupId: "7",
-        calendarPeriodId: "5",
-        weekPattern: 2,
-      }),
+      timetableService.checkShiftCoverage(
+        {
+          dates: ["2026-05-04", "2026-05-06"],
+          startTime: "12:00",
+          endTime: "13:00",
+          staffIds: ["11", "12"],
+          replanActivityGroupId: "7",
+          calendarPeriodId: "5",
+          weekPattern: 2,
+        },
+        { signal: controller.signal },
+      ),
     ).resolves.toEqual({
+      coverageWarningCount: 17,
       coverageWarnings: [
         {
           staffId: "11",
@@ -482,6 +488,7 @@ describe("timetableService", () => {
       expect.objectContaining({
         method: "POST",
         credentials: "include",
+        signal: controller.signal,
         body: JSON.stringify({
           dates: ["2026-05-04", "2026-05-06"],
           start_time: "12:00",

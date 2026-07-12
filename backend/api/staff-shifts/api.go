@@ -51,6 +51,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(
 			authorize.RequiresPermission(permissions.TimeTrackingManage),
 			authorize.RequiresPermission(permissions.SchedulesRead),
+			authorize.RequiresPermission(permissions.UsersRead),
 			withTx,
 		).Get("/overview", rs.overview)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)

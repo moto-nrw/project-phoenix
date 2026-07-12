@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   useSession: vi.fn(),
   useSWRAuth: vi.fn(),
   isAdmin: vi.fn(),
+  hasPermission: vi.fn(),
   useBerlinToday: vi.fn(),
 }));
 
@@ -23,6 +24,7 @@ vi.mock("~/lib/tenant-router", () => ({
 
 vi.mock("~/lib/auth-utils", () => ({
   isAdmin: mocks.isAdmin,
+  hasPermission: mocks.hasPermission,
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -78,14 +80,15 @@ describe("DienstplanPage", () => {
       status: "authenticated",
     });
     mocks.isAdmin.mockReturnValue(true);
+    mocks.hasPermission.mockReturnValue(true);
     mocks.useBerlinToday.mockReturnValue("2026-07-05");
   });
 
   it("shows a blocking load error instead of the editable grid", () => {
     const mutateOverview = vi.fn();
     const mutateShiftTypes = vi.fn();
-    mocks.useSWRAuth.mockImplementation((key: string) => {
-      if (key.startsWith("dienstplan-overview-")) {
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key?.startsWith("dienstplan-overview-")) {
         return {
           data: undefined,
           error: new Error("server down"),
@@ -121,13 +124,13 @@ describe("DienstplanPage", () => {
     // Retrying reloads the batched overview and the independent shift types.
     fireEvent.click(screen.getByRole("button", { name: "Erneut laden" }));
     expect(mutateOverview).toHaveBeenCalledTimes(1);
-    expect(mutateShiftTypes).toHaveBeenCalledTimes(1);
+    expect(mutateShiftTypes).not.toHaveBeenCalled();
   });
 
   it("anchors the current week and today marker to the Berlin calendar date", () => {
     mocks.useBerlinToday.mockReturnValue("2026-07-06");
-    mocks.useSWRAuth.mockImplementation((key: string) => {
-      if (key.startsWith("dienstplan-overview-")) {
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key?.startsWith("dienstplan-overview-")) {
         return {
           data: {
             from: "2026-07-06",
@@ -183,5 +186,84 @@ describe("DienstplanPage", () => {
       "dienstplan-overview-2026-07-06-2026-07-10",
       expect.any(Function),
     );
+  });
+
+  it("keeps the legacy shift-only path when schedules:read is missing", () => {
+    const keys: Array<string | null> = [];
+    mocks.hasPermission.mockImplementation(
+      (_session: unknown, permission: string) =>
+        permission !== "schedules:read",
+    );
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      keys.push(key);
+      if (key === "dienstplan-staff") {
+        return {
+          data: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      return {
+        data: [],
+        error: undefined,
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    });
+
+    render(<DienstplanPage />);
+
+    expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
+    expect(keys).toContain("dienstplan-staff");
+    expect(keys).toContain("dienstplan-shifts-2026-06-29-2026-07-03");
+    expect(keys.some((key) => key?.startsWith("dienstplan-overview-"))).toBe(
+      false,
+    );
+  });
+
+  it("keeps the overview visible when only shift types fail", () => {
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key?.startsWith("dienstplan-overview-")) {
+        return {
+          data: {
+            from: "2026-06-29",
+            to: "2026-07-03",
+            dienstplanInUse: true,
+            dienstplanUsedWeeks: ["2026-06-29"],
+            staff: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+            shifts: [],
+            assignments: [],
+          },
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      if (key === "dienstplan-shift-types") {
+        return {
+          data: undefined,
+          error: new Error("types down"),
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      return {
+        data: undefined,
+        error: undefined,
+        isLoading: false,
+        mutate: vi.fn(),
+      };
+    });
+
+    render(<DienstplanPage />);
+
+    expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Schichtarten konnten nicht geladen werden/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Schichtarten verwalten" }),
+    ).toBeDisabled();
   });
 });
