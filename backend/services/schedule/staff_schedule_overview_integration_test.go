@@ -315,6 +315,60 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	assert.NotContains(t, foreignSummaries, scheduledStaff.ID, "local staff must not leak into the foreign tenant")
 }
 
+func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	tenantID := int64(1882001)
+	testpkg.EnsureTestTenant(t, db, tenantID)
+
+	monday := timezone.TodayDate().AddDays(15000 + int(time.Now().UnixNano()%1000))
+	for monday.Weekday() != time.Monday {
+		monday = monday.AddDays(1)
+	}
+	friday := monday.AddDays(4)
+	saturday := monday.AddDays(5)
+
+	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Summary", "Weekend")
+	weekdayShiftID := createOverviewShift(t, db, tenantID, staff.ID, friday, "08:00", "10:00", 0)
+	weekendShiftID := createOverviewShift(t, db, tenantID, staff.ID, saturday, "09:00", "12:00", 0)
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.staff_shifts", weekdayShiftID, weekendShiftID)
+		testpkg.CleanupStaffFixtures(t, db, staff.ID)
+	})
+
+	repos := repositories.NewFactory(db)
+	service := scheduleSvc.NewStaffScheduleOverviewService(scheduleSvc.StaffScheduleOverviewDependencies{
+		Shifts: repos.StaffShift, Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
+		Rooms: repos.Room, Staff: repos.Staff,
+		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel,
+	})
+
+	// The Dienstplan grid requests Mon-Fri, but the contractual week is
+	// Mon-Sun: the Saturday shift must count toward the weekly total while
+	// staying out of the viewport-scoped grid payload.
+	overview, err := service.GetOverview(testpkg.TenantContext(tenantID), monday, friday)
+	require.NoError(t, err)
+
+	var summary *scheduleSvc.StaffWeeklySummary
+	for index := range overview.WeeklySummaries {
+		if overview.WeeklySummaries[index].StaffID == staff.ID {
+			summary = &overview.WeeklySummaries[index]
+		}
+	}
+	require.NotNil(t, summary, "the staff member must produce a summary row")
+	assert.Equal(t, monday, summary.WeekStart)
+	assert.Equal(t, 300, summary.PlannedMinutes,
+		"the Saturday shift outside the Mon-Fri viewport must count toward the weekly total")
+
+	gridShiftIDs := make([]int64, 0, len(overview.Shifts))
+	for _, shift := range overview.Shifts {
+		gridShiftIDs = append(gridShiftIDs, shift.ID)
+	}
+	assert.Contains(t, gridShiftIDs, weekdayShiftID)
+	assert.NotContains(t, gridShiftIDs, weekendShiftID, "grid shifts must stay scoped to the requested range")
+}
+
 func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })

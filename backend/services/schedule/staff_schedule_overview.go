@@ -152,7 +152,13 @@ type staffDateKey struct {
 }
 
 type staffScheduleOverviewData struct {
+	// shifts is scoped to the requested from..to range and feeds the grid
+	// payload plus assignment coverage. weekShifts covers the full
+	// Monday–Sunday span of every summarized week so weekly planned minutes
+	// include shifts outside a partial viewport (e.g. weekend shifts on a
+	// Mon–Fri request).
 	shifts           []*scheduleModel.StaffShift
+	weekShifts       []*scheduleModel.StaffShift
 	usedWeeks        []timezone.Date
 	visibleInstances []*scheduleModel.ActivityInstance
 	assignmentRows   []*scheduleModel.InstanceStaff
@@ -202,12 +208,16 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 	if s.deps.ShiftWeeks == nil {
 		return nil, errors.New("staff-shift week usage reader is not wired")
 	}
-	shifts, err := s.deps.Shifts.FindByDateRange(ctx, from, to)
+	firstWeekFrom, _ := containingCalendarWeek(from)
+	_, lastWeekTo := containingCalendarWeek(to)
+	// Load the full summarized weeks in one query; the viewport subset for the
+	// grid is filtered locally so weekly summaries never undercount shifts
+	// outside a partial requested range.
+	weekShifts, err := s.deps.Shifts.FindByDateRange(ctx, firstWeekFrom, lastWeekTo)
 	if err != nil {
 		return nil, fmt.Errorf("load staff shifts: %w", err)
 	}
-	firstWeekFrom, _ := containingCalendarWeek(from)
-	_, lastWeekTo := containingCalendarWeek(to)
+	shifts := shiftsWithinRange(weekShifts, from, to)
 	usedWeeks, err := s.deps.ShiftWeeks.FindUsedCalendarWeeks(ctx, firstWeekFrom, lastWeekTo)
 	if err != nil {
 		return nil, fmt.Errorf("load used staff-shift weeks: %w", err)
@@ -249,6 +259,7 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 
 	return &staffScheduleOverviewData{
 		shifts:           shifts,
+		weekShifts:       weekShifts,
 		usedWeeks:        usedWeeks,
 		visibleInstances: visibleInstances,
 		assignmentRows:   assignmentRows,
@@ -398,6 +409,19 @@ func effectiveAssignmentRoomIDs(instances []*scheduleModel.ActivityInstance, row
 	return roomIDs
 }
 
+// shiftsWithinRange filters the full-week shift load back down to the
+// requested viewport for the grid payload and assignment coverage.
+func shiftsWithinRange(shifts []*scheduleModel.StaffShift, from, to timezone.Date) []*scheduleModel.StaffShift {
+	filtered := make([]*scheduleModel.StaffShift, 0, len(shifts))
+	for _, shift := range shifts {
+		if shift == nil || shift.Date.Before(from) || shift.Date.After(to) {
+			continue
+		}
+		filtered = append(filtered, shift)
+	}
+	return filtered
+}
+
 func indexShifts(shifts []*scheduleModel.StaffShift) map[staffDateKey][]*scheduleModel.StaffShift {
 	index := make(map[staffDateKey][]*scheduleModel.StaffShift)
 	for _, shift := range shifts {
@@ -510,7 +534,9 @@ func gapsBetweenShiftWindows(start, end time.Time, covered []shiftCoverageWindow
 }
 
 // buildWeeklySummaries derives per-staff weekly planned minutes from the
-// already-loaded shifts and pairs them with the contractual weekly target.
+// full-week shift load and pairs them with the contractual weekly target.
+// Planned minutes intentionally use weekShifts (full Monday–Sunday weeks), not
+// the viewport subset — a Mon–Fri request must still count weekend shifts.
 // A summary row exists only for calendar weeks that have at least one tenant
 // shift, and only for staff with either shift minutes or a resolved target in
 // that week (a contracted person without shifts surfaces as underplanned).
@@ -521,7 +547,7 @@ func (s *staffScheduleOverviewService) buildWeeklySummaries(ctx context.Context,
 		return summaries, nil
 	}
 
-	planned := plannedShiftMinutes(data.shifts)
+	planned := plannedShiftMinutes(data.weekShifts)
 	targets, err := s.resolveWeeklyTargets(ctx, data.staff, data.workSchedules, weekStarts)
 	if err != nil {
 		return nil, err
