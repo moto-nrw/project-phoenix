@@ -2681,6 +2681,47 @@ describe("TimetableEventModal", () => {
     ).toBeInTheDocument();
   });
 
+  it("preserves a manual Woche-A choice across repeat-mode switches", async () => {
+    const cyclePeriod: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      weekCycleLength: 2,
+      weekCycleAnchor: "2026-05-04",
+    };
+    renderModal({
+      calendarPeriods: [cyclePeriod],
+      defaultCalendarPeriodId: "9",
+      defaultDate: "2026-05-11",
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
+      button: 0,
+    });
+    // The selected 2026-05-11 week defaults to B; pick A manually.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Woche A" }), {
+      button: 0,
+    });
+
+    // Leaving biweekly mode and coming back must restore the manual pick,
+    // not re-derive the B default from the date parity.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    expect(screen.queryByRole("tab", { name: "Woche A" })).toBeNull();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
+      button: 0,
+    });
+
+    expect(screen.getByRole("tab", { name: "Woche A" })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    expect(
+      screen.getByText("Woche vom 11.05.2026 ist Woche B"),
+    ).toBeInTheDocument();
+  });
+
   it("shows a non-blocking warning when shift coverage cannot be checked", async () => {
     mockCheckShiftCoverage.mockRejectedValue(new Error("probe down"));
     renderModal();

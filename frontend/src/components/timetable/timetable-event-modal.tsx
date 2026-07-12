@@ -589,8 +589,10 @@ export function TimetableEventModal({
   // unrelated all/following edit can preserve the freshly fetched template.
   const requiredStaffTouched = useRef(false);
   // Once the user picks Woche A/B explicitly, date or period changes must not
-  // override that choice with the recomputed default parity.
-  const weekPatternTouched = useRef(false);
+  // override that choice with the recomputed default parity — and the pick
+  // survives switching the repeat mode away and back within the same modal
+  // session. null = no manual pick yet (defaults apply).
+  const manualWeekPattern = useRef<1 | 2 | null>(null);
 
   const isEditingInstance = initialInstance !== null;
   const isEditingSeries = initialSeries !== null;
@@ -628,7 +630,7 @@ export function TimetableEventModal({
   // has not picked one explicitly. Series edits keep their stored pattern.
   useEffect(() => {
     if (!isOpen || isEditingSeries || form.repeat !== "biweekly") return;
-    if (weekPatternTouched.current) return;
+    if (manualWeekPattern.current !== null) return;
     const parity = abWeekParity ?? 2;
     if (form.weekPattern !== parity) {
       setForm((prev) => ({ ...prev, weekPattern: parity }));
@@ -711,7 +713,7 @@ export function TimetableEventModal({
     setInitialStaffIDsSnapshot([...nextForm.staffIds]);
     setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
     requiredStaffTouched.current = false;
-    weekPatternTouched.current = false;
+    manualWeekPattern.current = null;
     setForm(nextForm);
     setValidationError(null);
     setFieldErrors({});
@@ -1114,17 +1116,21 @@ export function TimetableEventModal({
     setForm((prev) => {
       let weekPattern: 0 | 1 | 2 = 0;
       if (repeat === "biweekly") {
-        // Default to the parity of the currently selected week so the series
-        // runs in the week the user is looking at; B is the fallback when the
-        // period has no A/B cycle (previous hardcoded behavior).
+        // A manual Woche-A/B pick survives switching the repeat mode away and
+        // back; otherwise default to the parity of the currently selected
+        // week so the series runs in the week the user is looking at. B is
+        // the fallback when the period has no A/B cycle (previous hardcoded
+        // behavior).
         const period = calendarPeriods.find(
           (item) => item.id === prev.calendarPeriodId,
         );
-        weekPattern = weekPatternForDate(period, prev.date) ?? 2;
+        weekPattern =
+          manualWeekPattern.current ??
+          weekPatternForDate(period, prev.date) ??
+          2;
       }
       return { ...prev, repeat, weekPattern };
     });
-    weekPatternTouched.current = false;
     setValidationError(null);
     clearFieldError("repeat");
     clearFieldError("weekPattern");
@@ -2415,7 +2421,7 @@ export function TimetableEventModal({
                 <Tabs
                   value={form.weekPattern === 1 ? "A" : "B"}
                   onValueChange={(value) => {
-                    weekPatternTouched.current = true;
+                    manualWeekPattern.current = value === "A" ? 1 : 2;
                     update("weekPattern", value === "A" ? 1 : 2);
                   }}
                 >
