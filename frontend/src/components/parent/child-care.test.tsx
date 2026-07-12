@@ -1,17 +1,31 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PickupTimeModal,
   resolveTodayPickup,
   SickNoteModal,
   SickStatusSummary,
+  useChildCare,
 } from "./child-care";
 import type {
   CareException,
   ExcusedRequest,
   StatusDay,
 } from "~/lib/parent-api";
-import { parseISODate, todayISO, toISODate } from "~/lib/date-helpers";
+import * as parentApi from "~/lib/parent-api";
+import {
+  berlinTodayISO,
+  parseISODate,
+  todayISO,
+  toISODate,
+} from "~/lib/date-helpers";
 
 // de-locale (the test locale) renders YYYY-MM-DD as DD.MM.YYYY.
 function de(iso: string): string {
@@ -353,6 +367,24 @@ describe("resolveTodayPickup", () => {
     ).toEqual({ kind: "absent" });
   });
 
+  it("resolves a staff 'not coming today' pickup exception as absent", () => {
+    // A staff pickup row with no time (pickup_absent) is an absence marker that
+    // creates no status day, so today_absent is false. The tile must still show
+    // an absence, not fall back to the base-plan pickup (#1725 review).
+    expect(
+      resolveTodayPickup({
+        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekPlanLoaded: true,
+        todayAbsent: false,
+        careExceptions: [
+          makeException({ source: "staff", pickup_absent: true }),
+        ],
+        careExceptionsLoaded: true,
+        today: TODAY,
+      }),
+    ).toEqual({ kind: "absent" });
+  });
+
   it("returns 'none' on a care day with no pickup configured", () => {
     expect(
       resolveTodayPickup({
@@ -409,5 +441,70 @@ describe("resolveTodayPickup", () => {
         today: TODAY,
       }),
     ).toEqual({ kind: "time", time: "15:00", changed: false });
+  });
+});
+
+describe("useChildCare reportSick", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // A direct sick/excused report that includes today makes the child absent NOW.
+  // todayPickup reads todayAbsent exclusively, so the hook must flip it on the
+  // optimistic merge path — otherwise the "Heute → Abholung" tile keeps showing
+  // the normal pickup time next to the just-reported absence until an unrelated
+  // reload (#1725 review).
+  it("marks today absent after a same-day report without reloading", async () => {
+    const today = berlinTodayISO();
+    const todayWd = ((parseISODate(today).getDay() + 6) % 7) + 1;
+
+    vi.spyOn(parentApi, "listSickDays").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listExcusedRequests").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listCareExceptions").mockResolvedValue([]);
+    vi.spyOn(parentApi, "getChildCareSchedule").mockResolvedValue({
+      weekdays: [{ weekday: todayWd, pickup: "16:00", modes: [] }],
+      can_request: false,
+      today_absent: false,
+    });
+    // Reject features so the hook falls back to DEFAULT_FEATURES — avoids
+    // constructing the full flag object and is irrelevant to this path.
+    vi.spyOn(parentApi, "getChildFeatures").mockRejectedValue(
+      new Error("no features"),
+    );
+    const submitSickNote = vi
+      .spyOn(parentApi, "submitSickNote")
+      .mockResolvedValue({
+        status_days: [
+          {
+            id: "1",
+            student_id: "1",
+            date: today,
+            status: "sick",
+            reported_at: "2026-03-01T09:00:00Z",
+            source: "parent",
+          },
+        ],
+      });
+
+    const { result } = renderHook(() => useChildCare("1"));
+
+    // Baseline: the tile resolves the base-plan pickup before any report.
+    await waitFor(() =>
+      expect(result.current.todayPickup).toEqual({
+        kind: "time",
+        time: "16:00",
+        changed: false,
+      }),
+    );
+
+    await act(async () => {
+      await result.current.reportSick([today], "", "sick");
+    });
+
+    // No reload was needed (the direct-write path returns status days inline);
+    // the tile now shows an absence purely from the optimistic state update.
+    expect(submitSickNote).toHaveBeenCalledTimes(1);
+    expect(parentApi.getChildCareSchedule).toHaveBeenCalledTimes(1);
+    expect(result.current.todayPickup).toEqual({ kind: "absent" });
   });
 });

@@ -1011,6 +1011,10 @@ func mergeCareExceptions(pickups []*scheduleModels.StudentPickupException, arriv
 	for _, p := range pickups {
 		ce := get(p.ExceptionDate)
 		ce.PickupTime = p.PickupTime
+		// A pickup row with no time is an absence marker, not "no override". Carry
+		// that distinction to the parent UI so a staff-set "not coming today" row
+		// resolves to an absence rather than falling through to the base plan.
+		ce.PickupAbsent = p.PickupTime == nil
 		if p.UpdatedAt.After(ce.UpdatedAt) {
 			ce.UpdatedAt = p.UpdatedAt
 		}

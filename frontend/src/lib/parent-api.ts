@@ -174,6 +174,12 @@ export interface CareException {
   readonly arrival_time?: string;
   readonly source: string;
   readonly updated_at: string;
+  // True when a pickup-exception row exists for the day but carries no time —
+  // staff's "not coming today" absence marker (StudentPickupException.IsAbsent).
+  // Distinct from a missing pickup_time meaning "no pickup override this day":
+  // the tile resolves this to an absence, not the base-plan pickup. Absent (and
+  // thus undefined) for ordinary rows.
+  readonly pickup_absent?: boolean;
 }
 
 // A guardian linked to the child, with portal-access status.

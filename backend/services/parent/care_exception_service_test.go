@@ -603,6 +603,45 @@ func TestListCareExceptions_MergesBothLegsAndFlagsStaffSource(t *testing.T) {
 		"a staff arrival row must mark the day staff-owned")
 }
 
+// TestListCareExceptions_FlagsAbsentPickupRow proves a staff pickup exception
+// with NO time (StudentPickupException.IsAbsent — "not coming today") surfaces as
+// PickupAbsent so the parent tile resolves it as an absence rather than falling
+// back to the base-plan pickup. Such a row creates no status day, so the
+// care-schedule today_absent signal alone would miss it (#1725 review).
+func TestListCareExceptions_FlagsAbsentPickupRow(t *testing.T) {
+	svc, _, db := buildCareService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
+	ctx := context.Background()
+	repos := repositories.NewFactory(db)
+	defer func() {
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM schedule.student_pickup_exceptions WHERE student_id = ?`, chain.StudentID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.staff WHERE id = ?`, staff.ID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
+	}()
+
+	absentDay := timezone.TodayDate().AddDays(1)
+	// A staff pickup row with no time — the "child is absent today" marker.
+	absent := &scheduleModels.StudentPickupException{
+		StudentID:     chain.StudentID,
+		ExceptionDate: absentDay,
+		PickupTime:    nil,
+		CreatedBy:     staff.ID,
+	}
+	absent.SetTenantID(chain.TenantID)
+	require.NoError(t, repos.StudentPickupException.Create(ctx, absent))
+
+	list, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID,
+		timezone.TodayDate(), timezone.TodayDate().AddDays(30))
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	assert.Equal(t, absentDay, list[0].Date)
+	assert.Nil(t, list[0].PickupTime, "an absent pickup row carries no time")
+	assert.True(t, list[0].PickupAbsent, "a timeless pickup row must flag the day absent")
+	assert.Equal(t, scheduleModels.ExceptionSourceStaff, list[0].Source)
+}
+
 // TestDeleteCareException_RemovesBothLegs covers the arrival side of the delete
 // path (the pickup-only delete is covered by TestListAndDeleteCareException):
 // a day with both guardian legs must have both rows removed and broadcast once.

@@ -213,10 +213,15 @@ export function resolveTodayPickup(params: {
   // failed", so we can't safely assert a base-plan time or "none" (#1725 review).
   if (!careExceptionsLoaded) return { kind: "unknown" };
 
-  // A CareException overrides arrival and pickup independently, so an absent
-  // pickup_time means "pickup not changed" (fall back to the base plan), NOT
-  // "no pickup". Absence is expressed only through today_absent above.
+  // A CareException overrides arrival and pickup independently, so a missing
+  // pickup_time normally means "pickup not changed" (fall back to the base
+  // plan), NOT "no pickup". Absence is expressed through today_absent above —
+  // EXCEPT a staff "not coming today" pickup exception (a pickup row with no
+  // time, pickup_absent). It creates no status day, so today_absent misses it;
+  // resolve it as an absence here rather than showing the base-plan pickup
+  // (#1725 review).
   const override = careExceptions.find((entry) => entry.date === today);
+  if (override?.pickup_absent) return { kind: "absent" };
   if (override?.pickup_time) {
     // "changed" only when we can see a base plan to differ FROM and the times
     // actually differ; an override equal to the plan is no real change, and a
@@ -431,6 +436,17 @@ export function useChildCare(studentId: string): ChildCare {
             ...status_days,
           ].sort((a, b) => a.date.localeCompare(b.date));
         });
+        // If the report covers today, the child is absent NOW. todayPickup reads
+        // todayAbsent exclusively, so update it here too — otherwise the "Heute →
+        // Abholung" tile keeps showing the normal pickup time next to the
+        // just-reported absence until an unrelated reload. Both submittable
+        // statuses (sick/excused) count as an absence, so a today status day is
+        // sufficient; the authoritative server signal agrees on the next load
+        // (#1725 review). Only meaningful once the week plan loaded, but setting
+        // it early is harmless — the tile shows "unknown" until then.
+        if (status_days.some((d) => d.date === berlinTodayISO())) {
+          setTodayAbsent(true);
+        }
         return;
       }
       // Empty status days means the school gated this excused absence: the backend

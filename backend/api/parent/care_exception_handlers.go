@@ -62,15 +62,21 @@ type CareExceptionResponse struct {
 	ArrivalTime *string   `json:"arrival_time,omitempty"`
 	Source      string    `json:"source"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	// PickupAbsent marks a staff "not coming today" pickup exception (a pickup
+	// row with no time). The parent tile resolves it as an absence instead of
+	// falling back to the base-plan pickup. Omitted (false) for ordinary rows,
+	// so existing consumers are unaffected (#1725 review).
+	PickupAbsent bool `json:"pickup_absent,omitempty"`
 }
 
 func toCareExceptionResponse(c *parentService.CareException) CareExceptionResponse {
 	return CareExceptionResponse{
-		Date:        c.Date.String(),
-		PickupTime:  formatCareExceptionTime(c.PickupTime),
-		ArrivalTime: formatCareExceptionTime(c.ArrivalTime),
-		Source:      c.Source,
-		UpdatedAt:   c.UpdatedAt,
+		Date:         c.Date.String(),
+		PickupTime:   formatCareExceptionTime(c.PickupTime),
+		ArrivalTime:  formatCareExceptionTime(c.ArrivalTime),
+		Source:       c.Source,
+		UpdatedAt:    c.UpdatedAt,
+		PickupAbsent: c.PickupAbsent,
 	}
 }
 
