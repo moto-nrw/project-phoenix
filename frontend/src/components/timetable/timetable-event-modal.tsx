@@ -1553,18 +1553,18 @@ export function TimetableEventModal({
     // never creates occurrences on or after that date. All schedules of a
     // segment share the boundary; the latest one wins if they ever diverge,
     // and one open-ended schedule leaves the probe uncapped.
-    let scheduleValidUntil: string | undefined;
+    let latestValidUntil: string | undefined;
     for (const schedule of template.schedules) {
       if (!schedule.validUntil) {
-        scheduleValidUntil = undefined;
+        latestValidUntil = undefined;
         break;
       }
-      if (!scheduleValidUntil || schedule.validUntil > scheduleValidUntil) {
-        scheduleValidUntil = schedule.validUntil;
+      if (!latestValidUntil || schedule.validUntil > latestValidUntil) {
+        latestValidUntil = schedule.validUntil;
       }
     }
-    if (scheduleValidUntil) {
-      const boundary = scheduleValidUntil;
+    if (latestValidUntil) {
+      const boundary = latestValidUntil;
       dates = dates.filter((date) => date < boundary);
     }
     return {

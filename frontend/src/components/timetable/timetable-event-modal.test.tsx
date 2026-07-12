@@ -1613,6 +1613,59 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(mockSplitTemplate).toHaveBeenCalled());
   });
 
+  it("caps the coverage probe at the latest validUntil when schedules diverge", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date("2026-05-04T10:00:00"));
+    const shortPeriod: CalendarPeriod = {
+      ...periods[0]!,
+      startDate: "2026-05-04",
+      endDate: "2026-05-15",
+    };
+    mockGetTemplate.mockResolvedValue({
+      ...template,
+      schedules: [
+        { ...template.schedules[0]!, weekday: 1, validUntil: "2026-05-11" },
+        {
+          ...template.schedules[0]!,
+          id: "10",
+          weekday: 3,
+          validUntil: "2026-05-13",
+        },
+      ],
+    });
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+        staff: [
+          {
+            staffId: "11",
+            isPrimary: true,
+            isAbsent: false,
+            isSubstitute: false,
+          },
+        ],
+      },
+      calendarPeriods: [shortPeriod],
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    // The latest boundary (2026-05-13, exclusive) wins: Monday 2026-05-11
+    // stays in the probe even though the Monday schedule ends earlier.
+    await waitFor(() =>
+      expect(mockCheckShiftCoverage).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dates: ["2026-05-04", "2026-05-06", "2026-05-11"],
+        }),
+      ),
+    );
+    await waitFor(() => expect(mockSplitTemplate).toHaveBeenCalled());
+  });
+
   it("preserves a template-only period pin and its end for 'Ab jetzt dauerhaft'", async () => {
     mockGetTemplate.mockResolvedValue(templateWithTemplateOnlyPeriodPin);
     renderModal({
