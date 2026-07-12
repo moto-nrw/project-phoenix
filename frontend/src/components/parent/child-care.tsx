@@ -321,12 +321,6 @@ export function useChildCare(studentId: string): ChildCare {
 
   const load = useCallback(async (): Promise<{ requestsOk: boolean }> => {
     const seq = ++loadSeqRef.current;
-    // Capture the Berlin calendar day BEFORE the fetch: the backend resolves
-    // today_absent against the day it handles the request, so a response that
-    // crosses midnight must be bound to the day queried, not the (later) receipt
-    // day — otherwise the rollover effect advances `today` onto this stale
-    // boolean and yesterday's absence surfaces on today's tile (#1725 review).
-    const requestDate = berlinTodayISO();
     setLoading(true);
     // Track each fetch's success separately so a failed one PRESERVES the last
     // known list instead of wiping it to []. An empty list from a failed fetch
@@ -373,10 +367,15 @@ export function useChildCare(studentId: string): ChildCare {
       if (weekPlanOk && plan) {
         setWeekdays(plan.weekdays);
         setTodayAbsent(plan.today_absent);
-        // Stamp the day this signal describes (captured at request start, not
-        // receipt) so a midnight rollover invalidates it until the next reload
-        // (#1725 review).
-        setWeekPlanDate(requestDate);
+        // Stamp the day this signal describes with the SERVER-resolved date
+        // (the day the backend computed today_absent against), not a
+        // client-captured request-start day. If the request crosses Berlin
+        // midnight — start just before, handled just after — the two disagree
+        // and the client date would bind the new day's today_absent onto
+        // yesterday's tile until the rollover poll runs. Fall back to the local
+        // Berlin day only for an older backend that omits today_date (#1725
+        // review).
+        setWeekPlanDate(plan.today_date ?? berlinTodayISO());
       }
       setWeekPlanLoaded(weekPlanOk);
       setFeatures(flags);

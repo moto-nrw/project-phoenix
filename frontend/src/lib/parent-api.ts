@@ -901,6 +901,13 @@ export interface ChildCareSchedule {
   // staff-created excused/class-trip days, so the tile relies on this boolean to
   // avoid showing a pickup time for a child the school has recorded as off.
   readonly today_absent: boolean;
+  // The Berlin calendar day (YYYY-MM-DD) the backend resolved today_absent
+  // against — its "today" at request-handling time. The "Heute" tile binds its
+  // cached absence signal to THIS date rather than the browser's request-start
+  // day, so a response that crosses Berlin midnight can't stamp the new day's
+  // today_absent onto yesterday's pickup tile (#1725). Only the GET read view
+  // populates it; absent on the request-write responses.
+  readonly today_date?: string;
 }
 
 /**

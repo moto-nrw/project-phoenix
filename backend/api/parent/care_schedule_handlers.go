@@ -24,6 +24,13 @@ type CareScheduleResponse struct {
 	// "Heute → Abholung" tile uses it so it never shows a pickup time for a child
 	// the school has recorded as off today. Only populated by the GET read view.
 	TodayAbsent bool `json:"today_absent"`
+	// TodayDate is the Berlin calendar day (YYYY-MM-DD) TodayAbsent was resolved
+	// against — the server's "today" at request time. The client binds its
+	// cached absence signal to this date instead of the browser's request-start
+	// day so a response crossing Berlin midnight can't stamp the new day's
+	// today_absent onto yesterday's pickup tile (#1725 review). Empty on the
+	// write views (POST/withdraw), which don't populate TodayAbsent.
+	TodayDate string `json:"today_date,omitempty"`
 }
 
 // CareScheduleWeekdayResponse is one weekday (1=Mon..5=Fri) of the plan.
@@ -81,6 +88,12 @@ func toCareScheduleResponse(v *parentService.ChildCareSchedule) CareScheduleResp
 		Weekdays:    make([]CareScheduleWeekdayResponse, 0, len(v.Weekdays)),
 		CanRequest:  v.CanRequest,
 		TodayAbsent: v.TodayAbsent,
+	}
+	// Only the read view resolves today_absent, so only it carries a resolved
+	// date; leave the write views' today_date empty (omitempty) rather than
+	// emitting the zero Date's "0000-00-00" (#1725 review).
+	if !v.TodayDate.IsZero() {
+		resp.TodayDate = v.TodayDate.String()
 	}
 	for _, wd := range v.Weekdays {
 		resp.Weekdays = append(resp.Weekdays, CareScheduleWeekdayResponse{

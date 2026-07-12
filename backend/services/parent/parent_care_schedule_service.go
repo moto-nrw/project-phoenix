@@ -69,6 +69,12 @@ type ChildCareSchedule struct {
 	// child is off today" from that list alone. Only a boolean is exposed — no
 	// note, source, or status leaks to the guardian.
 	TodayAbsent bool
+	// TodayDate is the Berlin calendar day TodayAbsent was resolved against —
+	// the server's "today" at request-handling time. The client stamps its
+	// cached absence signal with THIS date (not the browser's request-start
+	// day) so a request that crosses Berlin midnight cannot bind the new day's
+	// today_absent to yesterday's pickup tile (#1725 review).
+	TodayDate timezone.Date
 }
 
 // GetChildCareSchedule returns the child's current weekly care plan with any
@@ -84,11 +90,15 @@ func (s *service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 		if err := s.buildCareScheduleView(txCtx, view, accountID, studentID); err != nil {
 			return err
 		}
-		absent, err := s.hasActiveAbsenceToday(txCtx, studentID)
+		// Resolve "today" once and carry it on the view so the wire response can
+		// report the exact day today_absent was computed against (#1725 review).
+		today := timezone.TodayDate()
+		absent, err := s.hasActiveAbsenceToday(txCtx, studentID, today)
 		if err != nil {
 			return err
 		}
 		view.TodayAbsent = absent
+		view.TodayDate = today
 		return nil
 	})
 	if txErr != nil {
@@ -242,11 +252,10 @@ func (s *service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 // notes/source), this returns only a boolean, so no hidden status detail
 // reaches the guardian. Must run inside the child's tenant transaction; a
 // missing repo (unwired) yields false rather than a panic.
-func (s *service) hasActiveAbsenceToday(ctx context.Context, studentID int64) (bool, error) {
+func (s *service) hasActiveAbsenceToday(ctx context.Context, studentID int64, today timezone.Date) (bool, error) {
 	if s.StatusDayRepo == nil {
 		return false, nil
 	}
-	today := timezone.TodayDate()
 	rows, err := s.StatusDayRepo.FindActiveByStudentAndDateRange(ctx, studentID, today, today)
 	if err != nil {
 		return false, err
