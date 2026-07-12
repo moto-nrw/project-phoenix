@@ -17,6 +17,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -63,7 +64,7 @@ func TestOverviewHandler_StableWireContract(t *testing.T) {
 			}},
 		}},
 		WeeklySummaries: []scheduleSvc.StaffWeeklySummary{
-			{StaffID: 7, WeekStart: from, PlannedMinutes: 210, TargetMinutes: intPointer(1215), DeltaMinutes: intPointer(-1005)},
+			{StaffID: 7, WeekStart: from, PlannedMinutes: 210, TargetMinutes: testpkg.IntPtr(1215), DeltaMinutes: testpkg.IntPtr(-1005)},
 			{StaffID: 11, WeekStart: from, PlannedMinutes: 180},
 		},
 	}}
@@ -113,10 +114,6 @@ func TestOverviewHandler_StableWireContract(t *testing.T) {
 	assert.Nil(t, withoutTarget["target_minutes"])
 	assert.Contains(t, withoutTarget, "delta_minutes")
 	assert.Nil(t, withoutTarget["delta_minutes"])
-}
-
-func intPointer(value int) *int {
-	return &value
 }
 
 func TestOverviewHandler_EmptyArraysStayNonNull(t *testing.T) {
