@@ -45,7 +45,8 @@ describe("BrandLink", () => {
   it("renders the brand link with logo", () => {
     render(<BrandLink />);
 
-    expect(screen.getByAltText("moto")).toBeInTheDocument();
+    const logo = document.querySelector("img");
+    expect(logo).toHaveAttribute("alt", "");
     expect(screen.getByText("moto")).toBeInTheDocument();
   });
 
@@ -56,6 +57,7 @@ describe("BrandLink", () => {
     expect(brandText).toHaveClass("font-semibold");
     expect(brandText).toHaveClass("text-gray-900");
     expect(brandText).toHaveClass("truncate");
+    expect(brandText.parentElement).toHaveClass("min-w-0");
     expect(screen.queryByText("moto")).not.toBeInTheDocument();
   });
 

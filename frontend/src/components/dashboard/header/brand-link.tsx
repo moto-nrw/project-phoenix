@@ -31,7 +31,7 @@ export function BrandLink({
       <div>
         <Image
           src="/images/moto_transparent.webp"
-          alt="moto"
+          alt=""
           width={44}
           height={32}
           className="h-6 w-9 object-contain sm:h-8 sm:w-11"
@@ -39,7 +39,7 @@ export function BrandLink({
         />
       </div>
 
-      <div className="flex items-center space-x-3">
+      <div className="flex min-w-0 items-center space-x-3">
         <span
           className={`truncate leading-none transition-all duration-150 ${
             usesTenantLabel
