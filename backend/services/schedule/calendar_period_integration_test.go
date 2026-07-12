@@ -269,6 +269,100 @@ func TestCalendarPeriodService_CreatePeriod(t *testing.T) {
 // UpdatePeriod Tests
 // =============================================================================
 
+func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	svc := setupCalendarPeriodService(t, db)
+	tenantID := int64(600000) + time.Now().UnixNano()%50000
+	testpkg.EnsureTestTenant(t, db, tenantID)
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().
+			Table("schedule.calendar_periods").
+			Where("tenant_id = ?", tenantID).
+			Exec(context.Background())
+	})
+	ctx := testpkg.TenantContext(tenantID)
+
+	makePeriod := func(name, periodType string, start, end timezone.Date, active bool) *scheduleModels.CalendarPeriod {
+		return &scheduleModels.CalendarPeriod{
+			Name:            fmt.Sprintf("%s-%d", name, time.Now().UnixNano()),
+			PeriodType:      periodType,
+			StartDate:       start,
+			EndDate:         end,
+			WeekCycleLength: 1,
+			IsActive:        active,
+		}
+	}
+
+	base := makePeriod("SameType-Basis", scheduleModels.PeriodTypeSemester,
+		timezone.NewDate(2035, 8, 1), timezone.NewDate(2036, 1, 31), true)
+	require.NoError(t, svc.CreatePeriod(ctx, base))
+
+	t.Run("create rejects an active same-type overlap", func(t *testing.T) {
+		overlapping := makePeriod("SameType-Kollision", scheduleModels.PeriodTypeSemester,
+			timezone.NewDate(2035, 10, 1), timezone.NewDate(2036, 3, 31), true)
+		err := svc.CreatePeriod(ctx, overlapping)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodOverlapConflict)
+	})
+
+	t.Run("create allows an inactive same-type overlap", func(t *testing.T) {
+		inactive := makePeriod("SameType-Inaktiv", scheduleModels.PeriodTypeSemester,
+			timezone.NewDate(2035, 10, 1), timezone.NewDate(2036, 3, 31), false)
+		require.NoError(t, svc.CreatePeriod(ctx, inactive))
+	})
+
+	t.Run("create allows an active cross-type overlap", func(t *testing.T) {
+		holiday := makePeriod("SameType-Ferien", scheduleModels.PeriodTypeHoliday,
+			timezone.NewDate(2035, 10, 1), timezone.NewDate(2035, 10, 14), true)
+		require.NoError(t, svc.CreatePeriod(ctx, holiday))
+	})
+
+	t.Run("create allows an adjacent same-type period", func(t *testing.T) {
+		adjacent := makePeriod("SameType-Angrenzend", scheduleModels.PeriodTypeSemester,
+			timezone.NewDate(2036, 2, 1), timezone.NewDate(2036, 7, 31), true)
+		require.NoError(t, svc.CreatePeriod(ctx, adjacent))
+	})
+
+	t.Run("update rejects a date change into a same-type overlap", func(t *testing.T) {
+		mover := makePeriod("SameType-Verschoben", scheduleModels.PeriodTypeSemester,
+			timezone.NewDate(2037, 8, 1), timezone.NewDate(2038, 1, 31), true)
+		require.NoError(t, svc.CreatePeriod(ctx, mover))
+
+		mover.StartDate = timezone.NewDate(2035, 12, 1)
+		mover.EndDate = timezone.NewDate(2036, 1, 15)
+		err := svc.UpdatePeriod(ctx, mover)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodOverlapConflict)
+	})
+
+	t.Run("update rejects activating an overlapping same-type period", func(t *testing.T) {
+		sleeper := makePeriod("SameType-Schlafend", scheduleModels.PeriodTypeSemester,
+			timezone.NewDate(2035, 9, 1), timezone.NewDate(2035, 12, 31), false)
+		require.NoError(t, svc.CreatePeriod(ctx, sleeper))
+
+		sleeper.IsActive = true
+		err := svc.UpdatePeriod(ctx, sleeper)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodOverlapConflict)
+	})
+
+	t.Run("rename-only update of a legacy overlapper stays allowed", func(t *testing.T) {
+		// Seed the overlap at the repository level, bypassing the service
+		// guard — this is the pre-rule legacy data shape.
+		repo := repositories.NewFactory(db).CalendarPeriod
+		legacy := makePeriod("SameType-Bestand", scheduleModels.PeriodTypeSemester,
+			timezone.NewDate(2035, 9, 1), timezone.NewDate(2035, 11, 30), true)
+		legacy.SetTenantID(tenantID)
+		require.NoError(t, repo.Create(ctx, legacy))
+
+		legacy.Name = fmt.Sprintf("SameType-Bestand-Umbenannt-%d", time.Now().UnixNano())
+		require.NoError(t, svc.UpdatePeriod(ctx, legacy),
+			"rename-only edits must not trip the overlap guard on pre-existing overlaps")
+	})
+}
+
 func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

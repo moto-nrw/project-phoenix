@@ -174,6 +174,10 @@ func (m *wsMockStaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context,
 	return nil
 }
 
+func (m *wsMockStaffWorkScheduleRepository) FindByStaffIDsValidInRange(context.Context, []int64, timezone.Date, timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
+	return nil, nil
+}
+
 type wsMockWorkTimeModelRepository struct {
 	findByIDFunc func(ctx context.Context, id int64) (*configModels.WorkTimeModel, error)
 }
@@ -187,6 +191,10 @@ func (m *wsMockWorkTimeModelRepository) FindByID(ctx context.Context, id int64) 
 		return m.findByIDFunc(ctx, id)
 	}
 	return nil, sql.ErrNoRows
+}
+
+func (m *wsMockWorkTimeModelRepository) FindByIDs(context.Context, []int64) ([]*configModels.WorkTimeModel, error) {
+	return nil, nil
 }
 
 func (m *wsMockWorkTimeModelRepository) Create(ctx context.Context, model *configModels.WorkTimeModel, entries []*configModels.WorkTimeModelEntry) error {

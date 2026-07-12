@@ -766,6 +766,28 @@ func TestCreatePeriod(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, w.Code)
 	})
 
+	t.Run("returns 409 with code for same-type overlap", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{
+			err: &scheduleSvcErr{op: "check same-type period overlap", inner: schedule.ErrCalendarPeriodOverlapConflict},
+		}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
+
+		body := CalendarPeriodRequest{
+			Name:       "Overlap",
+			PeriodType: "semester",
+			StartDate:  "2025-08-01",
+			EndDate:    "2026-01-31",
+			IsActive:   true,
+		}
+
+		w := executeRequest(router, http.MethodPost, "/", body)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), calendarPeriodOverlapConflictCode)
+		assert.Contains(t, w.Body.String(), "aktiver Zeitraum desselben Typs")
+	})
+
 	t.Run("returns 500 on service error", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{err: errors.New("create failed: duplicate detail from postgres")}
 		res := NewResource(Dependencies{CalendarPeriodService: mock})
@@ -990,6 +1012,32 @@ func TestUpdatePeriod(t *testing.T) {
 
 		assert.Equal(t, http.StatusOK, w.Code)
 		assert.Contains(t, w.Body.String(), "Updated Period")
+	})
+
+	t.Run("returns 409 with code for same-type overlap", func(t *testing.T) {
+		mock := &mockCalendarPeriodService{
+			period:    existingPeriod,
+			updateErr: &scheduleSvcErr{op: "check same-type period overlap", inner: schedule.ErrCalendarPeriodOverlapConflict},
+		}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+
+		r := chi.NewRouter()
+		r.Use(render.SetContentType(render.ContentTypeJSON))
+		r.Put("/{id}", res.updatePeriod)
+
+		body := CalendarPeriodRequest{
+			Name:       "Overlap Update",
+			PeriodType: "semester",
+			StartDate:  "2025-08-01",
+			EndDate:    "2026-01-31",
+			IsActive:   true,
+		}
+
+		w := executeRequest(r, http.MethodPut, "/42", body)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), calendarPeriodOverlapConflictCode)
+		assert.Contains(t, w.Body.String(), "aktiver Zeitraum desselben Typs")
 	})
 
 	t.Run("updates period with anchor", func(t *testing.T) {

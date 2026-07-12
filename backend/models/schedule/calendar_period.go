@@ -28,6 +28,12 @@ var (
 	// series. The caller must keep the period unchanged until the offering is
 	// relinked or removed.
 	ErrCalendarPeriodCareOfferingConflict = errors.New("calendar period is required by a linked care offering")
+	// ErrCalendarPeriodOverlapConflict is returned when creating or updating
+	// an active period would overlap an existing active period of the same
+	// period_type (#1837). Overlaps across different types (e.g. holidays
+	// inside a school year) stay legal and are only surfaced as advisory
+	// warnings.
+	ErrCalendarPeriodOverlapConflict = errors.New("calendar period overlaps an active period of the same type")
 )
 
 // CalendarPeriodNameMaxLength is the maximum length of the name field.
@@ -138,6 +144,11 @@ type CalendarPeriodRepository interface {
 	// whose [start_date, end_date] range overlaps [start, end] (inclusive on
 	// both ends), excluding the period with excludeID.
 	FindActiveOverlapping(ctx context.Context, start, end timezone.Date, excludeID int64) ([]*CalendarPeriod, error)
+
+	// FindActiveOverlappingByType behaves like FindActiveOverlapping but only
+	// considers active periods of the given period_type. It backs the hard
+	// same-type overlap rejection; the untyped variant stays advisory.
+	FindActiveOverlappingByType(ctx context.Context, periodType string, start, end timezone.Date, excludeID int64) ([]*CalendarPeriod, error)
 
 	// UsageCounts returns, per calendar period of the current tenant, how many
 	// rows reference it through nullable calendar_period_id FKs. Periods without

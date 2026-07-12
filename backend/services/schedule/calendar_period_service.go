@@ -143,6 +143,10 @@ func (s *calendarPeriodService) CreatePeriod(ctx context.Context, period *schedu
 		return &ScheduleError{Op: "create calendar period", Err: schedule.ErrCalendarPeriodNameConflict}
 	}
 
+	if err := s.ensureNoActiveSameTypeOverlap(ctx, period); err != nil {
+		return err
+	}
+
 	period.SetTenantID(tenant.FromContext(ctx))
 	if err := s.repo.Create(ctx, period); err != nil {
 		return &ScheduleError{Op: "create calendar period", Err: err}
@@ -173,11 +177,43 @@ func (s *calendarPeriodService) UpdatePeriod(ctx context.Context, period *schedu
 	}
 
 	return s.mutatePeriod(ctx, "update calendar period", period.ID, period, func(txCtx context.Context) error {
+		current, err := s.repo.FindByID(txCtx, period.ID)
+		if err != nil {
+			return &ScheduleError{Op: "update calendar period", Err: err}
+		}
+		// The hard overlap rule only guards changes to the scheduling-relevant
+		// fields. Rename-only edits of a period that already overlaps (legacy
+		// data from before the rule) stay possible; the advisory warning keeps
+		// surfacing those.
+		if current.StartDate != period.StartDate || current.EndDate != period.EndDate || current.IsActive != period.IsActive {
+			if err := s.ensureNoActiveSameTypeOverlap(txCtx, period); err != nil {
+				return err
+			}
+		}
 		if err := s.repo.Update(txCtx, period); err != nil {
 			return &ScheduleError{Op: "update calendar period", Err: err}
 		}
 		return nil
 	})
+}
+
+// ensureNoActiveSameTypeOverlap rejects a period whose resulting state would
+// be active and overlap another active period of the same period_type
+// (#1837). Inactive periods never conflict. Cross-type overlaps (holidays
+// inside a school year) stay legal — the advisory FindActiveOverlaps warning
+// covers those.
+func (s *calendarPeriodService) ensureNoActiveSameTypeOverlap(ctx context.Context, period *schedule.CalendarPeriod) error {
+	if period == nil || !period.IsActive {
+		return nil
+	}
+	overlaps, err := s.repo.FindActiveOverlappingByType(ctx, period.PeriodType, period.StartDate, period.EndDate, period.ID)
+	if err != nil {
+		return &ScheduleError{Op: "check same-type period overlap", Err: err}
+	}
+	if len(overlaps) > 0 {
+		return &ScheduleError{Op: "check same-type period overlap", Err: schedule.ErrCalendarPeriodOverlapConflict}
+	}
+	return nil
 }
 
 // GetUsageCounts reports per-period reference counts for the current tenant.

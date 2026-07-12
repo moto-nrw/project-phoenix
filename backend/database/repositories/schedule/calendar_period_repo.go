@@ -197,6 +197,34 @@ func (r *CalendarPeriodRepository) FindActiveOverlapping(ctx context.Context, st
 	return periods, nil
 }
 
+// FindActiveOverlappingByType behaves like FindActiveOverlapping but only
+// considers active periods of the given period_type. It backs the hard
+// same-type overlap rejection (#1837); the untyped variant stays advisory.
+func (r *CalendarPeriodRepository) FindActiveOverlappingByType(ctx context.Context, periodType string, start, end timezone.Date, excludeID int64) ([]*schedule.CalendarPeriod, error) {
+	var periods []*schedule.CalendarPeriod
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&periods).
+		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`).
+		Where(`"calendar_period".is_active = ?`, true).
+		Where(`"calendar_period".period_type = ?`, periodType).
+		Where(`"calendar_period".start_date <= ?`, end).
+		Where(`"calendar_period".end_date >= ?`, start).
+		Where(`"calendar_period".id != ?`, excludeID).
+		Order("start_date ASC")
+
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active overlapping by type",
+			Err: err,
+		}
+	}
+
+	return periods, nil
+}
+
 // UsageCounts returns, per calendar period of the current tenant, how many
 // rows reference it through nullable calendar_period_id FKs. Correlated
 // subqueries (pattern: facilities/room.go occupancyColumns) keep this a
