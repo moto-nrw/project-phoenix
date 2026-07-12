@@ -23,6 +23,7 @@ import (
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	feedbackSvc "github.com/moto-nrw/project-phoenix/services/feedback"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
@@ -41,6 +42,7 @@ func delegateHandler(router chi.Router) http.HandlerFunc {
 // ServiceDependencies groups all service dependencies for the IoT resource
 type ServiceDependencies struct {
 	IoTService            iotSvc.Service
+	CheckinService        *checkinSvc.CheckinService
 	UsersService          usersSvc.PersonService
 	ActiveService         activeSvc.Service
 	ActivitiesService     activitiesSvc.ActivityService
@@ -139,8 +141,7 @@ func (rs *Resource) Router() chi.Router {
 			rs.IoTService,
 			rs.UsersService,
 			rs.ActiveService,
-			rs.FacilityService,
-			rs.ActivitiesService,
+			rs.CheckinService,
 			rs.EducationService,
 			rs.PickupScheduleService,
 			rs.SettingsService,

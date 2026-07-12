@@ -169,6 +169,7 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"api/iot/api_test.go",                                    // Uses mock SchoolRepo for unit testing handler
 		"api/iot/checkin/capacity_errors_test.go",                // Pure JSON-marshal regression tests for capacity/conflict renderers (ex api/iot/common); int64 literals are throwaway IDs, not DB rows
 		"api/iot/checkin/wire_format_test.go",                    // Pure render-to-recorder wire goldens (issue #575 B0, ex api/iot/common); int64 literals are throwaway IDs, not DB rows
+		"services/iot/checkin/checkin_pure_test.go",              // Pure/stub CheckinService unit tests (issue #575 B8); int64 literals are throwaway IDs in stack-allocated structs, not DB rows
 		"api/iot/config_test.go",                                 // Uses mock settings service for unit testing config endpoint
 		"enrich_pickup_times_test.go",                            // Uses mock PickupScheduleService for unit testing enrichment
 		"api/timetable/api_test.go",                              // Uses mock CalendarPeriodService for unit testing handlers
@@ -301,6 +302,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"setupAutoApproveIntegrationEnv", // services/enrollment auto-approve integration tests — wraps setupRolloverTest
 		"setupGuardianInvitationTest",    // services/auth guardian invitation + related-accounts tests — wraps SetupTestDB
 		"makeScenario",                   // services/schedule materialization/split integration tests — wraps SetupTestDB
+		"setupCheckinServiceTest",        // services/iot/checkin CheckinService tests — wraps SetupAPITest (issue #575 B8)
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)

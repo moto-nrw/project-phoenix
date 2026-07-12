@@ -11,13 +11,13 @@ import (
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
-// schulhofSpace configures the shared system-space bootstrap for the
-// Schulhof area. Its case-insensitive repository lookup is validated before
-// any existing room can be adopted as reserved infrastructure.
+// schulhofSpace configures the shared system-space bootstrap for the Schulhof
+// area. Its case-insensitive repository lookup is validated before any existing
+// room can be adopted as reserved infrastructure.
 var schulhofSpace = systemSpace{
 	label: "Schulhof",
-	findRoom: func(ctx context.Context, rs *Resource) (*facilityModels.Room, error) {
-		room, err := facilitiesSvc.FindCanonicalSchulhofRoom(ctx, rs.FacilityService)
+	findRoom: func(ctx context.Context, s *CheckinService) (*facilityModels.Room, error) {
+		room, err := facilitiesSvc.FindCanonicalSchulhofRoom(ctx, s.facilities)
 		if errors.Is(err, facilitiesSvc.ErrRoomNotFound) {
 			return nil, nil
 		}
@@ -43,25 +43,25 @@ var schulhofSpace = systemSpace{
 	},
 }
 
-// ensureSchulhofRoom finds or creates the Schulhof room
-func (rs *Resource) ensureSchulhofRoom(ctx context.Context) (*facilityModels.Room, error) {
-	return rs.ensureSystemRoom(ctx, schulhofSpace)
+// ensureSchulhofRoom finds or creates the Schulhof room.
+func (s *CheckinService) ensureSchulhofRoom(ctx context.Context) (*facilityModels.Room, error) {
+	return s.ensureSystemRoom(ctx, schulhofSpace)
 }
 
-// ensureSchulhofCategory finds or creates the Schulhof activity category
-func (rs *Resource) ensureSchulhofCategory(ctx context.Context) (*activities.Category, error) {
-	return rs.ensureSystemCategory(ctx, schulhofSpace)
+// ensureSchulhofCategory finds or creates the Schulhof activity category.
+func (s *CheckinService) ensureSchulhofCategory(ctx context.Context) (*activities.Category, error) {
+	return s.ensureSystemCategory(ctx, schulhofSpace)
 }
 
-// schulhofActivityGroup finds or creates the permanent Schulhof activity
-// group, lazily auto-creating the Schulhof infrastructure (room, category,
-// activity) on first use.
-func (rs *Resource) schulhofActivityGroup(ctx context.Context) (*activities.Group, error) {
-	activityGroup, err := rs.systemActivityGroup(ctx, schulhofSpace)
+// schulhofActivityGroup finds or creates the permanent Schulhof activity group,
+// lazily auto-creating the Schulhof infrastructure (room, category, activity)
+// on first use.
+func (s *CheckinService) schulhofActivityGroup(ctx context.Context) (*activities.Group, error) {
+	activityGroup, err := s.systemActivityGroup(ctx, schulhofSpace)
 	if err != nil {
 		return nil, err
 	}
-	room, err := facilitiesSvc.FindCanonicalSchulhofRoom(ctx, rs.FacilityService)
+	room, err := facilitiesSvc.FindCanonicalSchulhofRoom(ctx, s.facilities)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate Schulhof room: %w", err)
 	}

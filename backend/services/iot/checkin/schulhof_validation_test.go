@@ -1,8 +1,11 @@
-package checkin
+package checkin_test
 
 import (
 	"context"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/constants"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
@@ -10,8 +13,7 @@ import (
 	facilityModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	activitySvc "github.com/moto-nrw/project-phoenix/services/activities"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	checkin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 )
 
 type nonCanonicalSchulhofFacilityService struct {
@@ -48,12 +50,12 @@ func TestSchulhofActivityGroupRejectsLegacyNonCanonicalRoomBeforeExistingActivit
 		room: &facilityModels.Room{Name: "schulhof", IsSystem: true},
 	}
 	activityService := &existingSchulhofActivityService{}
-	resource := &Resource{
-		FacilityService:   facilityService,
-		ActivitiesService: activityService,
-	}
+	svc := checkin.NewCheckinService(checkin.CheckinServiceDeps{
+		Facilities: facilityService,
+		Activities: activityService,
+	})
 
-	activityGroup, err := resource.schulhofActivityGroup(context.Background())
+	activityGroup, err := svc.SchulhofActivityGroupForTest(context.Background())
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "non-canonical room name")
@@ -83,14 +85,14 @@ func TestSchulhofActivityGroupSelectsDedicatedActivityAmongSameNameActivities(t 
 	activityService := &existingSchulhofActivityService{
 		groups: []*activityModels.Group{normalActivity, dedicatedActivity},
 	}
-	resource := &Resource{
-		FacilityService: &nonCanonicalSchulhofFacilityService{
+	svc := checkin.NewCheckinService(checkin.CheckinServiceDeps{
+		Facilities: &nonCanonicalSchulhofFacilityService{
 			room: room,
 		},
-		ActivitiesService: activityService,
-	}
+		Activities: activityService,
+	})
 
-	activityGroup, err := resource.schulhofActivityGroup(context.Background())
+	activityGroup, err := svc.SchulhofActivityGroupForTest(context.Background())
 
 	require.NoError(t, err)
 	assert.Same(t, dedicatedActivity, activityGroup)

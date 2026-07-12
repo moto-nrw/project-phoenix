@@ -60,8 +60,6 @@ var handlerComplexityAllowlist = map[string]int{
 	"api/iot/checkin/handlers.go:(*Resource).deviceCheckin":                                     33,
 	"api/iot/checkin/handlers.go:(*Resource).devicePickupQuery":                                 21,
 	"api/iot/checkin/helpers.go:(*Resource).isAfterCheckoutTimeGate":                            17,
-	"api/iot/checkin/system_space.go:(*Resource).systemActivityGroup":                           19,
-	"api/iot/checkin/workflow.go:(*Resource).handleSupervisorScan":                              16,
 	"api/operator/api.go:(*Resource).Router":                                                    20,
 	"api/operator/settings.go:(*SettingsResource).ResetSchoolSettingValue":                      17,
 	"api/operator/settings.go:(*SettingsResource).SetSchoolSettingValue":                        19,

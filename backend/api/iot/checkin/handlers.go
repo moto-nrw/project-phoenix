@@ -15,6 +15,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -119,7 +120,7 @@ func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	person, err := rs.resolvePersonByRFID(ctx, req.StudentRFID)
+	person, err := rs.Checkin.ResolvePersonByRFID(ctx, req.StudentRFID)
 	if err != nil {
 		if errors.Is(err, usersSvc.ErrPersonNotFound) {
 			shared.RecordUnregisteredTagScan(ctx, rs.UnregisteredTagScans, rs.getLogger(), req.StudentRFID)
@@ -145,7 +146,7 @@ func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	student, err := rs.resolveStudentFromPerson(ctx, person.ID)
+	student, err := rs.Checkin.ResolveStudentFromPerson(ctx, person.ID)
 	if err != nil {
 		rs.getLogger().ErrorContext(ctx, "failed to lookup student during pickup query",
 			slog.Int64("person_id", person.ID),
@@ -156,7 +157,7 @@ func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if student == nil {
-		staff, err := rs.resolveStaffFromPerson(ctx, person.ID)
+		staff, err := rs.Checkin.ResolveStaffFromPerson(ctx, person.ID)
 		if err != nil {
 			rs.getLogger().ErrorContext(ctx, "failed to lookup staff during pickup query",
 				slog.Int64("person_id", person.ID),
@@ -263,7 +264,7 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 5: Load current visit with room information
-	currentVisit := rs.loadCurrentVisitWithRoom(ctx, student.ID)
+	currentVisit := rs.Checkin.LoadCurrentVisitWithRoom(ctx, student.ID)
 
 	// Step 6: Process checkout if student has active visit
 	var checkoutVisitID *int64
@@ -276,15 +277,16 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	// when the student selects "nach Hause" on the device.
 	if currentVisit != nil {
 		var err error
-		checkoutVisitID, previousRoomName, err = rs.processCheckout(ctx, w, r, student, person, currentVisit)
+		checkoutVisitID, previousRoomName, err = rs.Checkin.ProcessCheckout(ctx, student, person, currentVisit)
 		if err != nil {
+			renderCheckinError(w, r, err)
 			return
 		}
 		checkedOut = true
 	}
 
 	// Step 7: Determine if checkin should be skipped (same room scenario)
-	skipCheckin := shouldSkipCheckin(req.RoomID, checkedOut, currentVisit)
+	skipCheckin := checkinSvc.ShouldSkipCheckin(req.RoomID, checkedOut, currentVisit)
 	if skipCheckin {
 		rs.getLogger().DebugContext(ctx, "skipping re-checkin to same room",
 			slog.Int64("room_id", *req.RoomID),
@@ -292,21 +294,22 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 8: Process checkin if room_id provided and not skipping
-	checkinResult := rs.processStudentCheckin(ctx, w, r, student, person, &checkinProcessingInput{
+	checkinResult, err := rs.Checkin.ProcessStudentCheckin(ctx, student, person, &checkinSvc.CheckinProcessingInput{
 		RoomID:       req.RoomID,
 		DeviceID:     deviceCtx.ID,
 		SkipCheckin:  skipCheckin,
 		CheckedOut:   checkedOut,
 		CurrentVisit: currentVisit,
 	})
-	if checkinResult.Error != nil {
+	if err != nil {
+		renderCheckinError(w, r, err)
 		return
 	}
 	newVisitID := checkinResult.NewVisitID
 	roomName := checkinResult.RoomName
 
 	// Step 9: Check for daily checkout scenario
-	result := buildCheckinResult(&checkinResultInput{
+	result := checkinSvc.BuildCheckinResult(&checkinSvc.CheckinResultInput{
 		Student:          student,
 		Person:           person,
 		CheckedOut:       checkedOut,
@@ -348,16 +351,16 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	if req.RoomID != nil {
 		switch {
 		case checkinResult.ActiveGroupID != nil && checkinResult.DeviceScopedRoom:
-			rs.updateSessionActivity(ctx, *checkinResult.ActiveGroupID)
-			result.ActiveStudents = rs.getActiveStudentCountForGroup(ctx, *checkinResult.ActiveGroupID)
+			rs.Checkin.UpdateSessionActivity(ctx, *checkinResult.ActiveGroupID)
+			result.ActiveStudents = rs.Checkin.GetActiveStudentCountForGroup(ctx, *checkinResult.ActiveGroupID)
 		default:
-			deviceGroup := rs.getDeviceActiveGroupInRoom(ctx, *req.RoomID, deviceCtx.ID)
+			deviceGroup := rs.Checkin.GetDeviceActiveGroupInRoom(ctx, *req.RoomID, deviceCtx.ID)
 			if deviceGroup != nil {
-				rs.updateSessionActivity(ctx, deviceGroup.ID)
-				result.ActiveStudents = rs.getActiveStudentCountForGroup(ctx, deviceGroup.ID)
+				rs.Checkin.UpdateSessionActivity(ctx, deviceGroup.ID)
+				result.ActiveStudents = rs.Checkin.GetActiveStudentCountForGroup(ctx, deviceGroup.ID)
 			} else {
 				// Preserve the legacy fallback for rooms without a device-linked active group.
-				result.ActiveStudents = rs.getActiveStudentCountForRoom(ctx, *req.RoomID)
+				result.ActiveStudents = rs.Checkin.GetActiveStudentCountForRoom(ctx, *req.RoomID)
 			}
 		}
 	}

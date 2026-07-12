@@ -19,8 +19,8 @@ import (
 var wcSpace = systemSpace{
 	label:       "WC",
 	logRoomName: true,
-	findRoom: func(ctx context.Context, rs *Resource) (*facilities.Room, error) {
-		room, err := rs.FacilityService.FindToiletRoom(ctx, 0)
+	findRoom: func(ctx context.Context, s *CheckinService) (*facilities.Room, error) {
+		room, err := s.facilities.FindToiletRoom(ctx, 0)
 		if err != nil {
 			if errors.Is(err, facilitiesSvc.ErrRoomNotFound) {
 				return nil, nil
@@ -38,19 +38,18 @@ var wcSpace = systemSpace{
 	maxParticipants: constants.WCMaxParticipants,
 }
 
-// ensureWCRoom finds or creates the WC room
-func (rs *Resource) ensureWCRoom(ctx context.Context) (*facilities.Room, error) {
-	return rs.ensureSystemRoom(ctx, wcSpace)
+// ensureWCRoom finds or creates the WC room.
+func (s *CheckinService) ensureWCRoom(ctx context.Context) (*facilities.Room, error) {
+	return s.ensureSystemRoom(ctx, wcSpace)
 }
 
-// ensureWCCategory finds or creates the WC activity category
-func (rs *Resource) ensureWCCategory(ctx context.Context) (*activities.Category, error) {
-	return rs.ensureSystemCategory(ctx, wcSpace)
+// ensureWCCategory finds or creates the WC activity category.
+func (s *CheckinService) ensureWCCategory(ctx context.Context) (*activities.Category, error) {
+	return s.ensureSystemCategory(ctx, wcSpace)
 }
 
-// wcActivityGroup finds or creates the permanent WC activity group,
-// lazily auto-creating the WC infrastructure (room, category, activity)
-// on first use.
-func (rs *Resource) wcActivityGroup(ctx context.Context) (*activities.Group, error) {
-	return rs.systemActivityGroup(ctx, wcSpace)
+// wcActivityGroup finds or creates the permanent WC activity group, lazily
+// auto-creating the WC infrastructure (room, category, activity) on first use.
+func (s *CheckinService) wcActivityGroup(ctx context.Context) (*activities.Group, error) {
+	return s.systemActivityGroup(ctx, wcSpace)
 }

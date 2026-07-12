@@ -7,12 +7,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
-	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
+	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
@@ -22,13 +21,13 @@ type Resource struct {
 	IoTService            iotSvc.Service
 	UsersService          usersSvc.PersonService
 	ActiveService         activeSvc.Service
-	FacilityService       facilitiesSvc.Service
-	ActivitiesService     activitiesSvc.ActivityService
 	EducationService      educationSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SettingsService       configSvc.SettingsService
 	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
-	logger                *slog.Logger
+	// Checkin holds the extracted RFID check-in business logic (issue #575 B8).
+	Checkin *checkinSvc.CheckinService
+	logger  *slog.Logger
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
@@ -41,8 +40,7 @@ func NewResource(
 	iotService iotSvc.Service,
 	usersService usersSvc.PersonService,
 	activeService activeSvc.Service,
-	facilityService facilitiesSvc.Service,
-	activitiesService activitiesSvc.ActivityService,
+	checkinService *checkinSvc.CheckinService,
 	educationService educationSvc.Service,
 	pickupScheduleService scheduleSvc.PickupScheduleService,
 	settingsService configSvc.SettingsService,
@@ -57,8 +55,7 @@ func NewResource(
 		IoTService:            iotService,
 		UsersService:          usersService,
 		ActiveService:         activeService,
-		FacilityService:       facilityService,
-		ActivitiesService:     activitiesService,
+		Checkin:               checkinService,
 		EducationService:      educationService,
 		PickupScheduleService: pickupScheduleService,
 		SettingsService:       settingsService,
