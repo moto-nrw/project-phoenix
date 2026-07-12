@@ -3,6 +3,7 @@ package students
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"strings"
 	"time"
 
@@ -567,4 +568,107 @@ func applyActualTimesFromSnapshot(response *StudentResponse, snapshot *common.St
 	}
 
 	applyActualTimesFromAttendance(response, status)
+}
+
+// getPersonForStudent fetches the person data for a student
+// Returns the person and true if successful, or renders an error and returns nil, false
+func (rs *Resource) getPersonForStudent(w http.ResponseWriter, r *http.Request, student *users.Student) (*users.Person, bool) {
+	person, err := rs.PersonService.Get(r.Context(), student.PersonID)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServerWrap("failed to get person data for student", err))
+		return nil, false
+	}
+	return person, true
+}
+
+// getStudentGroup fetches the group for a student if they have one assigned
+func (rs *Resource) getStudentGroup(ctx context.Context, student *users.Student) *education.Group {
+	if student.GroupID == nil {
+		return nil
+	}
+	group, err := rs.EducationService.GetGroup(ctx, *student.GroupID)
+	if err != nil {
+		return nil
+	}
+	return group
+}
+
+// fetchStudentGroup retrieves group data if the student has an assigned group
+func (rs *Resource) fetchStudentGroup(ctx context.Context, groupID *int64) *education.Group {
+	if groupID == nil {
+		return nil
+	}
+	group, err := rs.EducationService.GetGroup(ctx, *groupID)
+	if err != nil {
+		return nil
+	}
+	return group
+}
+
+func (rs *Resource) filterStudentIDsByGroup(ctx context.Context, studentIDs []int64, groupID int64) ([]int64, error) {
+	studentMap, err := rs.PersonService.GetStudentsByIDs(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]int64, 0, len(studentMap))
+	for _, sid := range studentIDs {
+		student, ok := studentMap[sid]
+		if !ok || student.GroupID == nil || *student.GroupID != groupID {
+			continue
+		}
+		filtered = append(filtered, sid)
+	}
+	return filtered, nil
+}
+
+// buildStudentResponses builds filtered student responses
+func (rs *Resource) buildStudentResponses(ctx context.Context, students []*users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot, photosEnabled bool) []StudentResponse {
+	responses := make([]StudentResponse, 0, len(students))
+
+	for _, student := range students {
+		response := rs.buildSingleStudentResponse(ctx, student, params, accessCtx, dataSnapshot, photosEnabled)
+		if response != nil {
+			responses = append(responses, *response)
+		}
+	}
+
+	return responses
+}
+
+// buildSingleStudentResponse builds a response for a single student, returning nil if filtered out
+func (rs *Resource) buildSingleStudentResponse(ctx context.Context, student *users.Student, params *studentListParams, accessCtx *studentAccessContext, dataSnapshot *common.StudentDataSnapshot, photosEnabled bool) *StudentResponse {
+	hasFullAccess := accessCtx.HasFullAccessToStudent(student)
+
+	// Get person data from snapshot
+	person := dataSnapshot.GetPerson(student.PersonID)
+	if person == nil {
+		return nil
+	}
+
+	// Apply filters
+	if !matchesSearchFilter(person, student.ID, params.search) {
+		return nil
+	}
+	if !matchesNameFilters(person, params.firstName, params.lastName) {
+		return nil
+	}
+	if !matchesGradeLevel(student.SchoolClass, params.gradeLevel) {
+		return nil
+	}
+
+	// Get group data from snapshot
+	var group *education.Group
+	if student.GroupID != nil {
+		group = dataSnapshot.GetGroup(*student.GroupID)
+	}
+
+	// Build response
+	studentResponse := newStudentResponseFromSnapshot(ctx, student, person, group, hasFullAccess, dataSnapshot, photosEnabled)
+
+	// Apply location filter
+	if !matchesLocationFilter(params.location, studentResponse.Location, hasFullAccess) {
+		return nil
+	}
+
+	return &studentResponse
 }

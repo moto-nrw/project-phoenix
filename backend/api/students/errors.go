@@ -4,8 +4,16 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 )
+
+// renderError writes an error response to the HTTP response writer.
+// Delegates to common.RenderError which logs 5xx root causes to slog
+// and captures them to Sentry.
+func renderError(w http.ResponseWriter, r *http.Request, errorResponse render.Renderer) {
+	common.RenderError(w, r, errorResponse)
+}
 
 // ErrInvalidRequest is returned by request Bind validation.
 var ErrInvalidRequest = errors.New("invalid request")
