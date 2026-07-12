@@ -12,6 +12,7 @@ import { LOCATION_COLORS } from "./location-helper";
 import type {
   ActivityType,
   BackendConflictCheckResult,
+  BackendShiftCoverageCheckResult,
   BackendCreateTemplateResult,
   BackendAttendanceResponse,
   BackendEndTemplateResult,
@@ -44,6 +45,7 @@ import type {
   InstanceStatusResult,
   MaterializeResult,
   ReplanWeekResult,
+  ShiftCoverageCheckResult,
   SplitTemplateResult,
   StartInstanceResult,
   SubstituteResponse,
@@ -166,6 +168,38 @@ export function chunkDateRange(
     chunks.push({ from: toISODate(chunkStart), to: toISODate(chunkEnd) });
   }
   return chunks;
+}
+
+/**
+ * Returns every concrete calendar date in an inclusive range whose ISO
+ * weekday is selected (Monday=1 … Sunday=7). This only expands weekdays;
+ * A/B-week eligibility stays in the backend's existing materialization
+ * predicate so the frontend never becomes a second recurrence engine.
+ */
+export function weekdayDatesInRange(
+  fromISO: string,
+  toISO: string,
+  weekdays: number[],
+): string[] {
+  const start = new Date(`${fromISO}T00:00:00`);
+  const end = new Date(`${toISO}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return [];
+  if (end < start) return [];
+
+  const selected = new Set(
+    weekdays.filter((weekday) => weekday >= 1 && weekday <= 7),
+  );
+  if (selected.size === 0) return [];
+
+  const dates: string[] = [];
+  for (let date = new Date(start); date <= end;) {
+    const weekday = date.getDay() === 0 ? 7 : date.getDay();
+    if (selected.has(weekday)) dates.push(toISODate(date));
+    const next = new Date(date);
+    next.setDate(next.getDate() + 1);
+    date = next;
+  }
+  return dates;
 }
 
 export { toISODate };
@@ -370,6 +404,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     presentStudentsCount: raw.present_students_count,
     requiredStaffCount: raw.required_staff_count,
     assignedStaffCount: raw.assigned_staff_count,
+    requiredStaffOverride: raw.required_staff_override ?? undefined,
     conflictWarnings: (raw.conflict_warnings ?? []).map((warning) => ({
       kind: warning.kind,
       resourceId: String(warning.resource_id),
@@ -625,6 +660,25 @@ export function mapConflictCheckResult(
   };
 }
 
+export function mapShiftCoverageCheckResult(
+  raw: BackendShiftCoverageCheckResult,
+): ShiftCoverageCheckResult {
+  return {
+    coverageWarnings: (raw.coverage_warnings ?? []).map((warning) => ({
+      staffId: String(warning.staff_id),
+      staffName: warning.staff_name,
+      date: warning.date,
+      startTime: warning.start_time,
+      endTime: warning.end_time,
+      uncoveredStartTime: warning.uncovered_start_time,
+      uncoveredEndTime: warning.uncovered_end_time,
+      message: warning.message,
+    })),
+    coverageWarningCount:
+      raw.coverage_warning_count ?? raw.coverage_warnings?.length ?? 0,
+  };
+}
+
 export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
   return {
     templates: (raw.templates ?? []).map((template) => ({
@@ -658,6 +712,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       supervisorCount: template.supervisor_count,
       requiredStaffCount: template.required_staff_count,
       assignedStaffCount: template.assigned_staff_count,
+      requiredStaffOverride: template.required_staff_override ?? undefined,
       studentIds: (template.student_ids ?? []).map(String),
       staffIds: (template.staff_ids ?? []).map(String),
       primaryStaffId:

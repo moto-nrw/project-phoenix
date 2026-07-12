@@ -40,11 +40,13 @@ import {
   mapSplitTemplateResult,
   mapStartInstanceResult,
   mapSubstitute,
+  mapShiftCoverageCheckResult,
   mapTemplates,
   mapWeeklyInstances,
   parseTimeToMinutes,
   resolveTemplateCalendarPeriodId,
   toISODate,
+  weekdayDatesInRange,
 } from "./timetable-helpers";
 import type { EnrichedInstance, TimetableTemplate } from "./timetable-types";
 
@@ -149,6 +151,20 @@ describe("date and range helpers", () => {
     ]);
     expect(chunkDateRange("bad", "2026-05-05", 2)).toEqual([]);
     expect(chunkDateRange("2026-05-06", "2026-05-05", 2)).toEqual([]);
+  });
+
+  it("expands selected weekdays across DST without implementing A/B rules", () => {
+    expect(weekdayDatesInRange("2026-03-23", "2026-04-08", [1, 3])).toEqual([
+      "2026-03-23",
+      "2026-03-25",
+      "2026-03-30",
+      "2026-04-01",
+      "2026-04-06",
+      "2026-04-08",
+    ]);
+    expect(weekdayDatesInRange("bad", "2026-04-08", [1])).toEqual([]);
+    expect(weekdayDatesInRange("2026-04-09", "2026-04-08", [1])).toEqual([]);
+    expect(weekdayDatesInRange("2026-04-06", "2026-04-08", [0, 8])).toEqual([]);
   });
 
   it("formats German labels", () => {
@@ -805,6 +821,92 @@ describe("backend mappers", () => {
   });
 });
 
+describe("required staff override mapping (#1839)", () => {
+  it("surfaces a manual instance override, leaving it undefined when derived", () => {
+    const withOverride = mapWeeklyInstances({
+      from: "2026-05-04",
+      to: "2026-05-08",
+      instances: [
+        {
+          id: 42,
+          date: "2026-05-04",
+          start_time: "14:00",
+          end_time: "15:00",
+          title: "Schulhof",
+          status: "planned",
+          is_spontaneous: false,
+          is_live: false,
+          activity_type: "care",
+          room_id: 3,
+          room_name: "Hof",
+          staff: [],
+          staff_count: 1,
+          absent_staff_count: 0,
+          expected_students_count: 20,
+          present_students_count: 20,
+          required_staff_count: 3,
+          assigned_staff_count: 1,
+          required_staff_override: 3,
+        },
+      ],
+    }).instances[0]!;
+    expect(withOverride.requiredStaffOverride).toBe(3);
+
+    const derived = mapWeeklyInstances({
+      from: "2026-05-04",
+      to: "2026-05-08",
+      instances: [
+        {
+          id: 43,
+          date: "2026-05-04",
+          start_time: "14:00",
+          end_time: "15:00",
+          title: "Lernzeit",
+          status: "planned",
+          is_spontaneous: false,
+          is_live: false,
+          activity_type: "care",
+          room_id: 3,
+          room_name: "Raum",
+          staff: [],
+          staff_count: 2,
+          absent_staff_count: 0,
+          expected_students_count: 10,
+          present_students_count: 10,
+          required_staff_count: 1,
+          assigned_staff_count: 2,
+        },
+      ],
+    }).instances[0]!;
+    expect(derived.requiredStaffOverride).toBeUndefined();
+  });
+
+  it("passes a template's manual override through mapTemplates", () => {
+    const template = mapTemplates({
+      templates: [
+        {
+          id: 7,
+          name: "Yoga",
+          type: "activity",
+          category_id: 2,
+          category_name: "AG",
+          is_open: true,
+          max_participants: 12,
+          target_group_type: "none",
+          enrollment_count: 8,
+          supervisor_count: 1,
+          required_staff_count: 4,
+          assigned_staff_count: 1,
+          required_staff_override: 4,
+          schedules: [],
+        },
+      ],
+    }).templates[0]!;
+    expect(template.requiredStaffOverride).toBe(4);
+    expect(template.requiredStaffCount).toBe(4);
+  });
+});
+
 describe("resolveTemplateCalendarPeriodId", () => {
   it("prefers the first schedule pin over the template-level pin", () => {
     const candidate = {
@@ -996,6 +1098,45 @@ describe("mapConflictCheckResult", () => {
       startTime: "12:00",
       endTime: "13:00",
       warnings: [],
+    });
+  });
+});
+
+describe("mapShiftCoverageCheckResult", () => {
+  it("maps exact gap warnings and keeps the array non-null", () => {
+    expect(
+      mapShiftCoverageCheckResult({
+        coverage_warnings: [
+          {
+            staff_id: 12,
+            staff_name: "Ada Lovelace",
+            date: "2026-05-06",
+            start_time: "12:00",
+            end_time: "13:00",
+            uncovered_start_time: "12:30",
+            uncovered_end_time: "13:00",
+            message: "Mittwoch ist nicht vollständig abgedeckt.",
+          },
+        ],
+      }),
+    ).toEqual({
+      coverageWarningCount: 1,
+      coverageWarnings: [
+        {
+          staffId: "12",
+          staffName: "Ada Lovelace",
+          date: "2026-05-06",
+          startTime: "12:00",
+          endTime: "13:00",
+          uncoveredStartTime: "12:30",
+          uncoveredEndTime: "13:00",
+          message: "Mittwoch ist nicht vollständig abgedeckt.",
+        },
+      ],
+    });
+    expect(mapShiftCoverageCheckResult({})).toEqual({
+      coverageWarnings: [],
+      coverageWarningCount: 0,
     });
   });
 });

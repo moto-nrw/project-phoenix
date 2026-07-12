@@ -301,3 +301,75 @@ func TestInstance_ReplanWeek_DoesNotMoveDeletedSlotDeviationToSurvivor(t *testin
 	}
 	assert.True(t, plannedPresent, "the surviving slot keeps its planned supervisor, un-deviated")
 }
+
+// TestInstance_ReplanWeek_PreservesRequiredStaffPin covers the #1839 follow-up
+// to the #1840 snapshot mechanism: a per-occurrence Personalbedarf pin must
+// survive a series edit's re-plan. The test also proves the inherit-at-read
+// contract materialization relies on: the template's own override is NOT
+// copied onto materialized rows, so template-level edits keep propagating
+// while a non-NULL instance value is always a deliberate pin.
+func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
+	date := timezone.NewDate(2026, time.April, 20) // Mon
+	s := makeScenario(t, activitiesModels.WeekdayMonday, date)
+	defer s.runCleanup(t)
+
+	// Give the template its own override so the copy-vs-inherit distinction
+	// is actually observable on the materialized row.
+	_, err := s.db.NewUpdate().
+		Model((*activitiesModels.Group)(nil)).
+		ModelTableExpr(`activities.groups AS "group"`).
+		Set("required_staff = ?", 3).
+		Where(`"group".id = ?`, s.template.ID).
+		Where("tenant_id = ?", s.tenantID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.factory.Materialization.MaterializeForTenant(s.ctx, date, date, scheduleSvc.MaterializationSourceManual)
+	require.NoError(t, err)
+	instances := listInstancesForDate(t, s.db, s.template.ID, date)
+	require.Len(t, instances, 1, "one occurrence materialized")
+	s.registerCleanup("schedule.activity_instances", instances[0].ID)
+	require.Nil(t, instances[0].RequiredStaff,
+		"materialized rows must NOT copy the template override (inherit-at-read)")
+
+	// Pin this single occurrence to 5 — the persisted state of a
+	// "Nur diesen Termin" edit of Benötigtes Personal.
+	_, err = s.db.NewUpdate().
+		Model((*scheduleModels.ActivityInstance)(nil)).
+		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
+		Set("required_staff = ?", 5).
+		Where(`"activity_instance".id = ?`, instances[0].ID).
+		Where("tenant_id = ?", s.tenantID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	// The series edit path: re-plan regenerates the occurrence from the template.
+	_, err = s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID)
+	require.NoError(t, err)
+
+	regen := listInstancesForDate(t, s.db, s.template.ID, date)
+	require.Len(t, regen, 1, "re-plan regenerated the occurrence")
+	s.registerCleanup("schedule.activity_instances", regen[0].ID)
+	require.NotNil(t, regen[0].RequiredStaff, "per-occurrence pin must survive the re-plan")
+	assert.Equal(t, 5, *regen[0].RequiredStaff)
+
+	// A second re-plan after clearing the pin must leave the row NULL again —
+	// nothing stale in the snapshot path re-pins it.
+	_, err = s.db.NewUpdate().
+		Model((*scheduleModels.ActivityInstance)(nil)).
+		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
+		Set("required_staff = NULL").
+		Where(`"activity_instance".id = ?`, regen[0].ID).
+		Where("tenant_id = ?", s.tenantID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	_, err = s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID)
+	require.NoError(t, err)
+
+	regen2 := listInstancesForDate(t, s.db, s.template.ID, date)
+	require.Len(t, regen2, 1)
+	s.registerCleanup("schedule.activity_instances", regen2[0].ID)
+	assert.Nil(t, regen2[0].RequiredStaff,
+		"an un-pinned occurrence stays NULL after re-plan so template edits keep propagating")
+}

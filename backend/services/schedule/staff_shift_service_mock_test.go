@@ -78,6 +78,14 @@ func (m *shiftMockRepo) FindByStaffIDsAndDate(_ context.Context, _ []int64, _ ti
 	return nil, nil
 }
 
+func (m *shiftMockRepo) FindByStaffIDsAndDates(_ context.Context, _ []int64, _ []timezone.Date) ([]*scheduleModels.StaffShift, error) {
+	return nil, nil
+}
+
+func (m *shiftMockRepo) FindUsedCalendarWeeks(_ context.Context, _, _ timezone.Date) ([]timezone.Date, error) {
+	return nil, nil
+}
+
 func (m *shiftMockRepo) DeleteUpcomingByStaffID(context.Context, int64, timezone.Date) (int64, error) {
 	return 0, nil
 }

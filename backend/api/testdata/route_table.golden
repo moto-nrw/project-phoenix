@@ -259,6 +259,7 @@ GET /api/settings/values/{key}/reveal
 GET /api/shift-types/
 GET /api/sse/events
 GET /api/staff-shifts/
+GET /api/staff-shifts/overview
 GET /api/staff/
 GET /api/staff/absences/pending
 GET /api/staff/available
@@ -582,6 +583,7 @@ POST /api/timetable/operations/instances/{id}/students/{student_id}/check-out
 POST /api/timetable/operations/spontaneous/start
 POST /api/timetable/periods/
 POST /api/timetable/periods/bootstrap
+POST /api/timetable/shift-coverage
 POST /api/timetable/substitute
 POST /api/timetable/templates
 POST /api/timetable/templates/{id}/end

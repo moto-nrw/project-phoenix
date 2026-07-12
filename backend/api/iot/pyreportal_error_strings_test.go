@@ -57,8 +57,10 @@ var pyreportalErrorStrings = []string{
 	// Capacity errors (POST /checkin)
 	"ROOM_CAPACITY_EXCEEDED",
 	"room capacity exceeded",
+	"Room capacity exceeded",
 	"ACTIVITY_CAPACITY_EXCEEDED",
 	"activity capacity exceeded",
+	"Activity capacity exceeded",
 
 	// Duplicate active visit (POST /checkin) — 409 Conflict. The canonical
 	// phrasing is services/active.ErrStudentAlreadyActive; the api/iot/common
@@ -103,6 +105,7 @@ var pyreportalErrorStrings = []string{
 
 	// Attendance (POST /attendance/toggle, GET /attendance/status/{rfid})
 	"RFID parameter is required",
+	"student has no attendance record for today",
 	"destination must be 'zuhause' or 'unterwegs'",
 	"destination is required for confirm_daily_checkout",
 

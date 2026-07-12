@@ -684,6 +684,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Titel` eintragen und `Raum` wählen. Der `Schulhof` kann hier als reiner Planungsort verwendet werden; die laufende Aufsicht wird später unabhängig davon über den separaten Schulhof-Tab geführt. Zugeordnete Kinder und Mitarbeitende werden nicht automatisch in die Schulhof-Aufsicht übernommen. `Datum`, `Start` und `Ende` sind aus der Zelle übernommen und lassen sich anpassen.",
           "Unter `Wiederholt sich` festlegen, wie oft das Angebot stattfindet: `Einmalig`, wöchentlich am gewählten Wochentag, `Jeden Wochentag (Mo–Fr)` oder `Benutzerdefiniert …` für eigene Rhythmen.",
           "Über `Weitere Optionen` `Personal` und `Kinder` zuordnen. Mit `Jahrgang/Klasse/Gruppe komplett hinzufügen …` kommt eine ganze Zielgruppe auf einmal in die Auswahl. Suche und Filter helfen bei langen Kinderlisten.",
+          "Unter `Weitere Optionen` legt `Benötigtes Personal` den Personalbedarf des Blocks fest. Bleibt das Feld leer, berechnet Phoenix den Bedarf automatisch aus der Kinderzahl und dem Betreuungsschlüssel; eine eingetragene Zahl überschreibt diese Berechnung und bestimmt die Besetzungsanzeige (z. B. `2/3`).",
           "Bei einem Regeltermin unter `Zielgruppe` festlegen, für wen der Block gedacht ist: `Jahrgang`, `Klasse`, `Gruppe` oder `Angebotsauswahl`. Die Zielgruppe beschreibt den Block; bei Jahrgang, Klasse oder Gruppe übernimmt die angebotene Schaltfläche die passenden Kinder zusätzlich in die Auswahl. Bereits ausgewählte Kinder bleiben erhalten, und die Liste lässt sich danach weiter anpassen. Bei `Angebotsauswahl` kommen Kinder automatisch über ein verknüpftes Betreuungsangebot hinzu.",
           "Speichern. Wiederholte Termine trägt Phoenix automatisch für das gesamte Schuljahr ein. Hinweise zu doppelt belegten Räumen, Personal oder Kindern können beim Ausfüllen erscheinen, verhindern das Speichern aber nicht.",
           "Neben Personal- und Kinderzahl zeigen Termine und Regeltermine eine kleine Besetzungsanzeige (z. B. `2/3`), die nach Betreuungsschlüssel färbt, wie gut der Block besetzt ist. Die Übersicht meldet auch unterbesetzte Termine, selbst wenn bereits Personal eingetragen ist.",
@@ -754,14 +755,19 @@ export const appChapters: readonly GuideChapter[] = [
         title: "Dienstplan",
         icon: CalendarRange,
         summary:
-          "Plant konkrete Schichten (Beginn, Ende, Pause) pro Mitarbeiter und Tag, mit farbigen Schichtarten (nur für Admins).",
+          "Plant konkrete Schichten pro Mitarbeiter und Tag und zeigt die zugehörigen Einsätze aus dem Betreuungsplan (nur für Admins).",
         steps: [
           "`Planung` -> `Dienstplan` in der Seitenleiste oder im mobilen `Mehr`-Menü öffnen.",
           "Mit den Pfeilen zwischen den Wochen wechseln, `Diese Woche` springt zurück zur aktuellen Woche.",
+          "Auf kleinen Bildschirmen die Wochenansicht horizontal wischen oder den beschrifteten Tabellenbereich fokussieren und mit der Tastatur scrollen, um weitere Wochentage zu sehen.",
           "Über `Schichtarten verwalten` (oben rechts) eigene Schichtarten pflegen: Name, Farbe, optionale Beschreibung und Aktiv-Status. `Beispiele hinzufügen` legt typische Schichtarten wie Betreuung, Vorbereitung, Vertretungsunterricht und Pause an, die anschließend frei anpassbar oder löschbar sind.",
           "In der Zeile eines Mitarbeiters auf eine leere Zelle klicken, um eine Schicht anzulegen: `Beginn`, `Ende` und `Pause (Minuten)` eintragen, optional eine `Schichtart` auswählen und speichern.",
           "Eine vorhandene Schicht anklicken, um sie zu bearbeiten oder über `Schicht löschen` zu entfernen.",
           "Mehrere Schichten pro Tag sind möglich (z. B. Vertretungsunterricht, Pause und Ganztagsbetreuung), solange sie sich nicht überschneiden; die Farbe der Schichtart macht die Aufgaben im Wochenplan sofort unterscheidbar.",
+          "Die Mitarbeiter-/Tag-Zellen zeigen außerdem die konkreten Einsätze aus dem Betreuungsplan mit Uhrzeit, Aktivität und Raum. Diese Einsätze sind im Dienstplan schreibgeschützt; Änderungen erfolgen im Betreuungsplan oder bei kurzfristigen Abweichungen im Vertretungsplan.",
+          "Für den gewählten Tag zeigt der Dienstplan abwesende geplante Personen als `Abwesend` und eingesetzte Ersatzpersonen als `Vertretung`.",
+          "Deckt eine Schicht einen Einsatz nicht vollständig ab, markiert der Dienstplan den Einsatz und nennt den nicht abgedeckten Zeitraum. Diese Warnung dient als Hinweis und verhindert das Speichern im Betreuungsplan nicht.",
+          "Sind in der gewählten Woche für die gesamte Einrichtung noch keine Schichten angelegt, gilt der Dienstplan als nicht genutzt und zeigt keine Abdeckungswarnungen.",
           "Mitarbeitende sehen ihre eigene geplante Schicht in der Zeiterfassung als Zeile `Geplant: 08:00–16:00` in der Stempeluhr.",
         ],
         callout: {
@@ -770,7 +776,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Dienstplan-Wochenansicht mit Schichten pro Mitarbeiter und Tag.",
+          "Dienstplan-Wochenansicht mit Schichten, Betreuungsplan-Einsätzen, Vertretungen und Abdeckungswarnungen pro Mitarbeiter und Tag.",
         image: "/help/screens/dienstplan.webp",
       },
       {

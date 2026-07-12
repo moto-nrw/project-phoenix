@@ -94,6 +94,21 @@ func TestActivityInstance_Validate(t *testing.T) {
 			mutate:  func(i *ActivityInstance) { i.Status = "unknown" },
 			wantErr: "invalid instance status",
 		},
+		{
+			name:    "negative required_staff override (#1839)",
+			mutate:  func(i *ActivityInstance) { rs := -1; i.RequiredStaff = &rs },
+			wantErr: "required_staff cannot be negative",
+		},
+		{
+			name:    "zero required_staff override is valid (#1839)",
+			mutate:  func(i *ActivityInstance) { rs := 0; i.RequiredStaff = &rs },
+			wantErr: "",
+		},
+		{
+			name:    "positive required_staff override is valid (#1839)",
+			mutate:  func(i *ActivityInstance) { rs := 3; i.RequiredStaff = &rs },
+			wantErr: "",
+		},
 	}
 
 	for _, tt := range tests {

@@ -16,6 +16,7 @@ const (
 	tableActivityExceptions   = "schedule.activity_exceptions"
 	aliasActivityException    = "activity_exception"
 	modelTblActivityException = `schedule.activity_exceptions AS "activity_exception"`
+	orderExceptionDateASC     = "exception_date ASC"
 )
 
 // ActivityExceptionRepository implements schedule.ActivityExceptionRepository.
@@ -66,7 +67,7 @@ func (r *ActivityExceptionRepository) FindByActivityGroupID(ctx context.Context,
 		Model(&rows).
 		ModelTableExpr(modelTblActivityException).
 		Where(`"activity_exception".activity_group_id = ?`, activityGroupID).
-		Order("exception_date ASC")
+		Order(orderExceptionDateASC)
 
 	query = base.WithTenantFilter(ctx, query, aliasActivityException)
 
@@ -105,6 +106,35 @@ func (r *ActivityExceptionRepository) FindByActivityGroupAndDate(ctx context.Con
 	return &row, nil
 }
 
+// FindByActivityGroupAndDateRange returns one template's exceptions within an
+// inclusive range. This custom read is necessary because the generic exact-
+// filter shape cannot express inclusive date bounds; both the group and tenant
+// predicates stay in SQL.
+func (r *ActivityExceptionRepository) FindByActivityGroupAndDateRange(
+	ctx context.Context,
+	activityGroupID int64,
+	from, to timezone.Date,
+) ([]*schedule.ActivityException, error) {
+	var rows []*schedule.ActivityException
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(modelTblActivityException).
+		Where(`"activity_exception".activity_group_id = ?`, activityGroupID).
+		Where(`"activity_exception".exception_date >= ?`, from).
+		Where(`"activity_exception".exception_date <= ?`, to).
+		Order(orderExceptionDateASC)
+
+	query = base.WithTenantFilter(ctx, query, aliasActivityException)
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by activity group and date range",
+			Err: err,
+		}
+	}
+	return rows, nil
+}
+
 // FindByDateRange returns all exceptions within an inclusive date range.
 func (r *ActivityExceptionRepository) FindByDateRange(ctx context.Context, from, to timezone.Date) ([]*schedule.ActivityException, error) {
 	var rows []*schedule.ActivityException
@@ -113,7 +143,7 @@ func (r *ActivityExceptionRepository) FindByDateRange(ctx context.Context, from,
 		ModelTableExpr(modelTblActivityException).
 		Where(`"activity_exception".exception_date >= ?`, from).
 		Where(`"activity_exception".exception_date <= ?`, to).
-		Order("exception_date ASC")
+		Order(orderExceptionDateASC)
 
 	query = base.WithTenantFilter(ctx, query, aliasActivityException)
 

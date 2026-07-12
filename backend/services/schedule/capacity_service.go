@@ -22,3 +22,19 @@ func RequiredStaffForChildren(childrenCount, ratio int) int {
 	}
 	return (childrenCount + ratio - 1) / ratio
 }
+
+// EffectiveRequiredStaff returns the required staffing level for a block: the
+// manual Personalbedarf override when one is set (issue #1839 — a set value
+// wins over the Betreuungsschlüssel-derived figure), otherwise the derived
+// RequiredStaffForChildren value. A NULL override (nil) means "derive"; a
+// negative override is defensively treated as 0 (Validate already rejects it
+// on write, so this only guards a corrupted stored value).
+func EffectiveRequiredStaff(override *int, childrenCount, ratio int) int {
+	if override != nil {
+		if *override < 0 {
+			return 0
+		}
+		return *override
+	}
+	return RequiredStaffForChildren(childrenCount, ratio)
+}

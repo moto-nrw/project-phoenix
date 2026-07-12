@@ -86,6 +86,10 @@ func (f *fakeInstanceRepo) FindByActivityGroupAndDate(context.Context, int64, ti
 	panic("unused")
 }
 
+func (f *fakeInstanceRepo) FindByActivityGroupAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+	panic("unused")
+}
+
 func (f *fakeInstanceRepo) MarkCompleted(context.Context, int64, time.Time) error {
 	panic("unused")
 }

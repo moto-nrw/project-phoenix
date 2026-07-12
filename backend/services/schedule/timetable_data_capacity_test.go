@@ -1,6 +1,7 @@
 package schedule
 
 import (
+	"database/sql"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -78,11 +79,55 @@ func TestWorstTemplateOccurrenceRanking(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, ok := worstTemplateOccurrence(tt.occurrences, 12)
+			// nil override => derived Betreuungsschlüssel scoring (unchanged
+			// behaviour these cases assert); the override path is covered
+			// separately in TestWorstTemplateOccurrence_WithOverride.
+			got, ok := worstTemplateOccurrence(tt.occurrences, nil, 12)
 			require.True(t, ok)
 			assert.Equal(t, tt.wantDate, got.OccurrenceDate)
 		})
 	}
+}
+
+func TestWorstTemplateOccurrence_WithOverride(t *testing.T) {
+	jan1 := timezone.NewDate(2026, 1, 1)
+	// A manual override of 3 applies uniformly to every occurrence. A
+	// fully-staffed 3/3 day must NOT hide a 0/3 day that only looks fine under
+	// the derived requirement (#1839).
+	occurrences := []activities.TemplateCapacityOccurrence{
+		capacityOccurrence(jan1, 30, 3),           // 3/3 under override -> fine
+		capacityOccurrence(jan1.AddDays(1), 0, 0), // 0/3 under override -> danger
+	}
+
+	// Derived scoring (ratio 10) scores the empty day as required 0 and skips
+	// it as zero-demand, so it wrongly reports the 3/3 day as the worst — the
+	// exact false "all good" state the reviewer flagged.
+	derived, ok := worstTemplateOccurrence(occurrences, nil, 10)
+	require.True(t, ok)
+	assert.Equal(t, jan1, derived.OccurrenceDate, "derived: empty day skipped, 3/3 day looks worst")
+
+	// With the override the empty 0/3 day is correctly the worst.
+	overridden, ok := worstTemplateOccurrence(occurrences, intPtr(3), 10)
+	require.True(t, ok)
+	assert.Equal(t, jan1.AddDays(1), overridden.OccurrenceDate, "override: 0/3 day is the worst")
+}
+
+func TestApplyWorstTemplateCapacity_OverrideParticipatesInScoring(t *testing.T) {
+	// Template 1 has a manual override of 3; its two occurrences are a
+	// fully-staffed 3/3 day and an empty 0/3 day. The override must steer the
+	// worst-occurrence pick to the 0/3 day so the list shows the true shortfall.
+	rows := []activities.TemplateListRow{
+		{TemplateID: 1, RequiredStaff: sql.NullInt64{Int64: 3, Valid: true}},
+	}
+	occurrences := []activities.TemplateCapacityOccurrence{
+		{TemplateID: 1, OccurrenceDate: timezone.NewDate(2026, 1, 1), EnrollmentCount: 30, SupervisorCount: 3},
+		{TemplateID: 1, OccurrenceDate: timezone.NewDate(2026, 1, 2), EnrollmentCount: 0, SupervisorCount: 0},
+	}
+
+	applyWorstTemplateCapacity(rows, []int64{1}, occurrences, 10)
+
+	assert.Equal(t, 0, rows[0].CapacityEnrollmentCount, "worst = the empty 0/3 day")
+	assert.Equal(t, 0, rows[0].CapacitySupervisorCount)
 }
 
 func TestApplyWorstTemplateCapacityClearsTemplatesWithoutOccurrences(t *testing.T) {
@@ -100,4 +145,23 @@ func TestApplyWorstTemplateCapacityClearsTemplatesWithoutOccurrences(t *testing.
 	assert.Equal(t, 1, rows[0].CapacitySupervisorCount)
 	assert.Zero(t, rows[1].CapacityEnrollmentCount)
 	assert.Zero(t, rows[1].CapacitySupervisorCount)
+}
+
+func TestApplyWorstTemplateCapacity_MarksOccurrenceFound(t *testing.T) {
+	// Template 1 has a real occurrence, template 2 has none (every date
+	// cancelled / AB-week-filtered / unmaterializable). The flag lets the
+	// handler suppress the manual required_staff override for template 2 so a
+	// never-occurring block cannot show a false 0/N understaffing indicator.
+	rows := []activities.TemplateListRow{
+		{TemplateID: 1, RequiredStaff: sql.NullInt64{Int64: 3, Valid: true}},
+		{TemplateID: 2, RequiredStaff: sql.NullInt64{Int64: 3, Valid: true}},
+	}
+	occurrences := []activities.TemplateCapacityOccurrence{
+		{TemplateID: 1, OccurrenceDate: timezone.NewDate(2026, 1, 5), EnrollmentCount: 4, SupervisorCount: 1},
+	}
+
+	applyWorstTemplateCapacity(rows, []int64{1, 2}, occurrences, 12)
+
+	assert.True(t, rows[0].CapacityOccurrenceFound)
+	assert.False(t, rows[1].CapacityOccurrenceFound)
 }

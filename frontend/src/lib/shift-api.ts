@@ -5,8 +5,11 @@
 
 import { sessionFetch } from "./session-cache";
 import {
+  mapStaffScheduleOverview,
   mapStaffShift,
+  type BackendStaffScheduleOverview,
   type BackendStaffShift,
+  type StaffScheduleOverview,
   type StaffShift,
 } from "./shift-helpers";
 
@@ -90,12 +93,34 @@ async function readShift(response: Response): Promise<StaffShift> {
   return mapStaffShift(json.data);
 }
 
+async function readOverview(
+  response: Response,
+): Promise<StaffScheduleOverview> {
+  if (!response.ok) {
+    throw await readShiftError(
+      response,
+      "Dienstplan konnte nicht geladen werden",
+    );
+  }
+  const json = (await response.json()) as {
+    data: BackendStaffScheduleOverview;
+  };
+  return mapStaffScheduleOverview(json.data);
+}
+
 class StaffShiftService {
   async getShifts(from: string, to: string): Promise<StaffShift[]> {
     const response = await sessionFetch(
       `/api/staff/shifts?from=${from}&to=${to}`,
     );
     return readShiftList(response);
+  }
+
+  async getOverview(from: string, to: string): Promise<StaffScheduleOverview> {
+    const response = await sessionFetch(
+      `/api/staff/shifts/overview?from=${from}&to=${to}`,
+    );
+    return readOverview(response);
   }
 
   async createShift(payload: ShiftPayload): Promise<StaffShift> {
