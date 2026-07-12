@@ -2498,6 +2498,63 @@ describe("TimetableEventModal", () => {
     ).toBeInTheDocument();
   });
 
+  it("rejects a new biweekly series started from a week beyond the A/B cycle", async () => {
+    const threeWeekCycle: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      weekCycleLength: 3,
+      weekCycleAnchor: "2026-05-04",
+    };
+    renderModal({
+      calendarPeriods: [threeWeekCycle],
+      defaultCalendarPeriodId: "9",
+      // 2026-05-18 is Woche C of the three-week cycle: neither pattern A
+      // nor B would materialize an occurrence in this week.
+      defaultDate: "2026-05-18",
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga" },
+    });
+    fireEvent.change(screen.getByLabelText("Raum*"), {
+      target: { value: "3" },
+    });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
+      button: 0,
+    });
+    fireEvent.change(screen.getByLabelText("Kategorie*"), {
+      target: { value: "2" },
+    });
+
+    expect(
+      screen.getByText(
+        "Woche vom 18.05.2026 ist Woche C und liegt außerhalb des A/B-Rhythmus. Ein 14-tägiger Termin findet in dieser Woche nicht statt.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(
+      await screen.findByText(
+        "Das gewählte Datum liegt außerhalb des A/B-Rhythmus (Woche C/D). Bitte ein Datum in einer A- oder B-Woche wählen oder die Wiederholung ändern.",
+      ),
+    ).toBeInTheDocument();
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
+
+    // Moving the date into an A week clears the error and updates the hint.
+    fireEvent.change(screen.getByLabelText(/Datum/), {
+      target: { value: "2026-05-25" },
+    });
+    expect(
+      screen.queryByText(
+        "Das gewählte Datum liegt außerhalb des A/B-Rhythmus (Woche C/D). Bitte ein Datum in einer A- oder B-Woche wählen oder die Wiederholung ändern.",
+      ),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText("Woche vom 25.05.2026 ist Woche A"),
+    ).toBeInTheDocument();
+  });
+
   it("keeps a manual Woche-A choice when the date moves to a B week", async () => {
     const cyclePeriod: CalendarPeriod = {
       ...periods[0]!,

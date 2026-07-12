@@ -23,7 +23,10 @@ import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
-import { weekPatternForDate } from "~/lib/calendar-period-helpers";
+import {
+  weekCycleSlotForDate,
+  weekPatternForDate,
+} from "~/lib/calendar-period-helpers";
 import {
   berlinTodayISO,
   formatDate,
@@ -595,16 +598,23 @@ export function TimetableEventModal({
   const isSeriesFlow = form.repeat !== "none" || isEditingSeries;
   const choiceDialogOpen = pendingSeriesEdit !== null;
   const canDeleteSeries = isEditingSeries && initialSeries && onDeleteSeries;
-  const abWeekParity = useMemo(
+  const abWeekCycleSlot = useMemo(
     () =>
-      weekPatternForDate(
+      weekCycleSlotForDate(
         calendarPeriods.find((item) => item.id === form.calendarPeriodId),
         form.date,
       ),
     [calendarPeriods, form.calendarPeriodId, form.date],
   );
-  const abWeekHint =
-    abWeekParity !== null
+  const abWeekParity: 1 | 2 | null =
+    abWeekCycleSlot === 1 || abWeekCycleSlot === 2 ? abWeekCycleSlot : null;
+  // In 3- or 4-week cycles the selected week can fall beyond B (Woche C/D).
+  // Neither pattern A nor B materializes there, so a biweekly series must
+  // not silently default to B — the save is rejected in validateForm.
+  const abWeekBeyondCycle = abWeekCycleSlot !== null && abWeekCycleSlot > 2;
+  const abWeekHint = abWeekBeyondCycle
+    ? `Woche vom ${formatDate(mondayOfWeekISO(form.date))} ist Woche ${String.fromCharCode(64 + abWeekCycleSlot)} und liegt außerhalb des A/B-Rhythmus. Ein 14-tägiger Termin findet in dieser Woche nicht statt.`
+    : abWeekParity !== null
       ? `Woche vom ${formatDate(mondayOfWeekISO(form.date))} ist Woche ${abWeekParity === 1 ? "A" : "B"}`
       : "Kein A/B-Zyklus im Planungszeitraum hinterlegt (Standard: Woche B)";
 
@@ -1089,6 +1099,10 @@ export function TimetableEventModal({
     // The end-before-start error is stored under endTime but depends on both
     // time fields, so correcting the start time must clear it too.
     if (key === "startTime") clearFieldError("endTime");
+    // The C/D-week error is stored under weekPattern but is resolved by
+    // moving the date (or changing the period) into an A/B week.
+    if (key === "date" || key === "calendarPeriodId")
+      clearFieldError("weekPattern");
   };
 
   const updateRepeat = (repeat: RepeatMode) => {
@@ -1108,6 +1122,7 @@ export function TimetableEventModal({
     weekPatternTouched.current = false;
     setValidationError(null);
     clearFieldError("repeat");
+    clearFieldError("weekPattern");
   };
 
   const toggleWeekday = (iso: number) => {
@@ -1175,6 +1190,14 @@ export function TimetableEventModal({
       if (form.weekdays.length === 0) {
         errors.weekdays = "Bitte mindestens einen Wochentag auswählen.";
       }
+      // A biweekly series started from a C/D week can never occur on the
+      // selected date — the backend only materializes patterns A and B.
+      // Series edits are exempt: their stored pattern stays valid no matter
+      // which week the user happened to open the editor from.
+      if (form.repeat === "biweekly" && !isEditingSeries && abWeekBeyondCycle) {
+        errors.weekPattern =
+          "Das gewählte Datum liegt außerhalb des A/B-Rhythmus (Woche C/D). Bitte ein Datum in einer A- oder B-Woche wählen oder die Wiederholung ändern.";
+      }
       if (form.targetGroupType === "jahrgang") {
         const gradeLevel = Number(form.targetGradeLevel);
         if (form.targetGradeLevel === "") {
@@ -1208,6 +1231,7 @@ export function TimetableEventModal({
         (errors.categoryId ??
           errors.calendarPeriodId ??
           errors.weekdays ??
+          errors.weekPattern ??
           errors.targetGradeLevel ??
           errors.targetSchoolClass ??
           errors.educationGroupId)
@@ -2387,6 +2411,11 @@ export function TimetableEventModal({
                   </TabsList>
                 </Tabs>
                 <p className="text-xs text-gray-500">{abWeekHint}</p>
+                {fieldErrors.weekPattern && (
+                  <p role="alert" className="mt-1 text-xs text-red-600">
+                    {fieldErrors.weekPattern}
+                  </p>
+                )}
               </div>
             )}
 
