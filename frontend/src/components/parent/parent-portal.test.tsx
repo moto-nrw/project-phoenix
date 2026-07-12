@@ -19,6 +19,14 @@ const mocks = vi.hoisted(() => ({
   listExcusedRequests: vi.fn().mockResolvedValue([]),
   withdrawExcusedRequest: vi.fn(),
   listCareExceptions: vi.fn().mockResolvedValue([]),
+  // The child-care hook now also loads the weekly care schedule (for the
+  // "Heute → Abholung" tile's base time + today_absent signal); stub it so the
+  // detail view settles cleanly instead of throwing on an undefined export.
+  getChildCareSchedule: vi.fn().mockResolvedValue({
+    weekdays: [],
+    can_request: false,
+    today_absent: false,
+  }),
   listChildThreads: vi.fn().mockResolvedValue([]),
   submitSickNote: vi.fn().mockResolvedValue({ status_days: [] }),
   submitCareException: vi.fn(),
@@ -66,6 +74,7 @@ vi.mock("~/lib/parent-api", () => ({
   listExcusedRequests: mocks.listExcusedRequests,
   withdrawExcusedRequest: mocks.withdrawExcusedRequest,
   listCareExceptions: mocks.listCareExceptions,
+  getChildCareSchedule: mocks.getChildCareSchedule,
   listChildThreads: mocks.listChildThreads,
   submitSickNote: mocks.submitSickNote,
   submitCareException: mocks.submitCareException,

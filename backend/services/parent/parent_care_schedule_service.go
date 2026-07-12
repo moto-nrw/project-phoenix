@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -60,6 +62,13 @@ type ChildCareSchedule struct {
 	// CanRequest gates the "Änderung anfragen" button: messaging enabled for
 	// the school AND the calling guardian holds parent_portal.request.submit.
 	CanRequest bool
+	// TodayAbsent is true when the child has any active scheduled absence today
+	// (sick, excused, or class trip — any source). It is the parent-safe absence
+	// signal the "Heute → Abholung" tile needs: ListSickDays deliberately hides
+	// staff-created excused and class-trip days, so the tile cannot infer "the
+	// child is off today" from that list alone. Only a boolean is exposed — no
+	// note, source, or status leaks to the guardian.
+	TodayAbsent bool
 }
 
 // GetChildCareSchedule returns the child's current weekly care plan with any
@@ -72,7 +81,15 @@ func (s *service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 	}
 	view := &ChildCareSchedule{}
 	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return s.buildCareScheduleView(txCtx, view, accountID, studentID)
+		if err := s.buildCareScheduleView(txCtx, view, accountID, studentID); err != nil {
+			return err
+		}
+		absent, err := s.hasActiveAbsenceToday(txCtx, studentID)
+		if err != nil {
+			return err
+		}
+		view.TodayAbsent = absent
+		return nil
 	})
 	if txErr != nil {
 		return nil, fmt.Errorf("parent: get child care schedule: %w", txErr)
@@ -215,6 +232,34 @@ func (s *service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 		}
 	}
 	return nil
+}
+
+// hasActiveAbsenceToday reports whether the child has any active scheduled
+// absence for today — sick, staff- or parent-excused, or a class trip — from
+// active.student_status_days. It is the authoritative, parent-safe absence
+// signal for the "Heute → Abholung" tile: unlike ListSickDays (which hides
+// staff-created excused and class-trip rows to avoid leaking internal
+// notes/source), this returns only a boolean, so no hidden status detail
+// reaches the guardian. Must run inside the child's tenant transaction; a
+// missing repo (unwired) yields false rather than a panic.
+func (s *service) hasActiveAbsenceToday(ctx context.Context, studentID int64) (bool, error) {
+	if s.StatusDayRepo == nil {
+		return false, nil
+	}
+	today := timezone.TodayDate()
+	rows, err := s.StatusDayRepo.FindActiveByStudentAndDateRange(ctx, studentID, today, today)
+	if err != nil {
+		return false, err
+	}
+	for _, r := range rows {
+		switch r.Status {
+		case activeModels.StudentStatusDaySick,
+			activeModels.StudentStatusDayExcused,
+			activeModels.StudentStatusDayClassTrip:
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // mapCareRequestError translates the schedule-domain sentinels into this

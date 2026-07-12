@@ -19,6 +19,11 @@ type CareScheduleResponse struct {
 	Weekdays       []CareScheduleWeekdayResponse `json:"weekdays"`
 	PendingRequest *PendingCareRequestResponse   `json:"pending_request,omitempty"`
 	CanRequest     bool                          `json:"can_request"`
+	// TodayAbsent is true when the child has any active scheduled absence today
+	// (sick / excused / class trip, any source). Parent-safe boolean only — the
+	// "Heute → Abholung" tile uses it so it never shows a pickup time for a child
+	// the school has recorded as off today. Only populated by the GET read view.
+	TodayAbsent bool `json:"today_absent"`
 }
 
 // CareScheduleWeekdayResponse is one weekday (1=Mon..5=Fri) of the plan.
@@ -73,8 +78,9 @@ func toCareRequestDiffResponses(entries []scheduleService.RequestDiffEntry) []Ca
 
 func toCareScheduleResponse(v *parentService.ChildCareSchedule) CareScheduleResponse {
 	resp := CareScheduleResponse{
-		Weekdays:   make([]CareScheduleWeekdayResponse, 0, len(v.Weekdays)),
-		CanRequest: v.CanRequest,
+		Weekdays:    make([]CareScheduleWeekdayResponse, 0, len(v.Weekdays)),
+		CanRequest:  v.CanRequest,
+		TodayAbsent: v.TodayAbsent,
 	}
 	for _, wd := range v.Weekdays {
 		resp.Weekdays = append(resp.Weekdays, CareScheduleWeekdayResponse{

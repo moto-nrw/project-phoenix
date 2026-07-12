@@ -31,7 +31,12 @@ import {
 } from "~/lib/parent-api";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { createLogger } from "~/lib/logger";
-import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  parseISODate,
+  toISODate,
+  todayISO,
+} from "~/lib/date-helpers";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 
 const logger = createLogger({ component: "ChildCare" });
@@ -145,11 +150,14 @@ const DEFAULT_FEATURES: ChildFeatures = {
 // "Heute → Abholung" tile renders this; every branch is a real state, never a
 // fabricated value (#1725):
 //   - "time":    a pickup time applies today (`changed` = a same-day override
-//                differs from the base plan)
-//   - "absent":  the child is reported sick/excused today, so no pickup
+//                differs from a KNOWN base-plan time; false when the times are
+//                equal or the base plan is unavailable — we never claim a
+//                difference we cannot verify)
+//   - "absent":  the child is off today (sick / excused / class trip, any
+//                source, per the backend today_absent signal), so no pickup
 //   - "none":    it's a care day (or weekend) with no pickup configured — bus,
 //                self-departure, or simply not set
-//   - "unknown": the weekly plan couldn't be loaded, so we assert nothing
+//   - "unknown": an authoritative input couldn't be loaded, so we assert nothing
 export type TodayPickup =
   | { readonly kind: "time"; readonly time: string; readonly changed: boolean }
   | { readonly kind: "absent" }
@@ -163,26 +171,61 @@ function isoWeekday(dateISO: string): number {
 }
 
 // Pure merge of base plan + override + absence into today's pickup state. Kept
-// separate from the hook so it stays trivially unit-testable. Order matters:
-// an absence wins over any configured time, and a same-day override with a
-// pickup time is authoritative even if the base plan never loaded.
+// separate from the hook so it stays trivially unit-testable.
+//
+// Correctness turns on which inputs actually LOADED, because a failed fetch is
+// an empty array/false — indistinguishable from "nothing here" — and silently
+// showing a base-plan time that a real (unloaded) override or absence would
+// contradict is the bug this guards (#1725 review):
+//   - `weekPlanLoaded` gates the base plan AND `todayAbsent` (both ride the
+//     care-schedule response). Without it we know neither the base time nor
+//     whether the child is off.
+//   - `careExceptionsLoaded` gates the override list. Without it we cannot rule
+//     out a same-day change, so we must not fall through to a base-plan time.
+//
+// Order matters: an absence (when known) wins over any configured time, and a
+// LOADED same-day override with a pickup time is authoritative even if the base
+// plan never loaded — we just can't call it "changed" without a base to compare.
 export function resolveTodayPickup(params: {
   readonly weekdays: ChildCareSchedule["weekdays"];
   readonly weekPlanLoaded: boolean;
+  // Authoritative all-source absence for today (sick / excused / class trip),
+  // computed server-side. Only meaningful when weekPlanLoaded (same response).
+  readonly todayAbsent: boolean;
   readonly careExceptions: readonly CareException[];
-  readonly sickDays: readonly StatusDay[];
+  readonly careExceptionsLoaded: boolean;
   readonly today: string;
 }): TodayPickup {
-  const { weekdays, weekPlanLoaded, careExceptions, sickDays, today } = params;
+  const {
+    weekdays,
+    weekPlanLoaded,
+    todayAbsent,
+    careExceptions,
+    careExceptionsLoaded,
+    today,
+  } = params;
 
-  if (sickDays.some((day) => day.date === today)) return { kind: "absent" };
+  // Absence wins over any configured time — but only when we actually loaded the
+  // signal (it rides the care-schedule response).
+  if (weekPlanLoaded && todayAbsent) return { kind: "absent" };
+
+  // Without the override list we can't distinguish "no override" from "fetch
+  // failed", so we can't safely assert a base-plan time or "none" (#1725 review).
+  if (!careExceptionsLoaded) return { kind: "unknown" };
 
   // A CareException overrides arrival and pickup independently, so an absent
   // pickup_time means "pickup not changed" (fall back to the base plan), NOT
-  // "no pickup". Absence is expressed only through sick/excused days above.
+  // "no pickup". Absence is expressed only through today_absent above.
   const override = careExceptions.find((entry) => entry.date === today);
   if (override?.pickup_time) {
-    return { kind: "time", time: override.pickup_time, changed: true };
+    // "changed" only when we can see a base plan to differ FROM and the times
+    // actually differ; an override equal to the plan is no real change, and a
+    // missing base plan means we can't claim a difference at all (#1725 review).
+    const base = weekdays.find(
+      (entry) => entry.weekday === isoWeekday(today),
+    )?.pickup;
+    const changed = base !== undefined && base !== override.pickup_time;
+    return { kind: "time", time: override.pickup_time, changed };
   }
 
   if (!weekPlanLoaded) return { kind: "unknown" };
@@ -232,8 +275,19 @@ export function useChildCare(studentId: string): ChildCare {
   // the tile shows a neutral state instead of falsely claiming "no pickup".
   const [weekdays, setWeekdays] = useState<ChildCareSchedule["weekdays"]>([]);
   const [weekPlanLoaded, setWeekPlanLoaded] = useState(false);
+  // The child's authoritative all-source absence for today (sick / excused /
+  // class trip), carried on the care-schedule response. Only trusted when
+  // weekPlanLoaded — it rides that same fetch.
+  const [todayAbsent, setTodayAbsent] = useState(false);
   const [features, setFeatures] = useState<ChildFeatures>(DEFAULT_FEATURES);
   const [loading, setLoading] = useState(true);
+  // Today's calendar day in the SCHOOL's timezone (Europe/Berlin) — the axis the
+  // backend resolves absences/overrides against. A guardian's browser may sit in
+  // another timezone, so deriving "today" from the local clock can land on the
+  // wrong weekday around midnight. Kept in state (not recomputed inline) so a tab
+  // left open across midnight advances instead of freezing on yesterday (#1725
+  // review) — see the rollover effect below.
+  const [today, setToday] = useState(() => berlinTodayISO());
   // Stale-response guard: load re-runs on every studentId change, and on a fast
   // child A→B switch (same hook instance reused) a late-resolving load(A) must
   // not overwrite B's data — one child's sick days / care exceptions / feature
@@ -294,7 +348,10 @@ export function useChildCare(studentId: string): ChildCare {
       if (requestsOk) setExcusedRequests(requests);
       if (exceptionsOk) setCareExceptions(exceptions);
       setCareExceptionsLoaded(exceptionsOk);
-      if (weekPlanOk && plan) setWeekdays(plan.weekdays);
+      if (weekPlanOk && plan) {
+        setWeekdays(plan.weekdays);
+        setTodayAbsent(plan.today_absent);
+      }
       setWeekPlanLoaded(weekPlanOk);
       setFeatures(flags);
       return { requestsOk };
@@ -311,9 +368,25 @@ export function useChildCare(studentId: string): ChildCare {
     }
   }, [studentId]);
 
+  // Reload on mount, on a studentId change (load identity), AND when the Berlin
+  // calendar day rolls over while the tab stays open — the windowed lists and
+  // today_absent are all resolved against a specific day, so a stale `today`
+  // would otherwise show yesterday's absence/override indefinitely (#1725 review).
   useEffect(() => {
     void load();
-  }, [load]);
+  }, [load, today]);
+
+  // Advance `today` at the Berlin midnight boundary. A 60s poll (rather than a
+  // single timeout to next midnight) keeps this correct regardless of the
+  // browser's own timezone and across DST shifts; the functional updater returns
+  // the previous value on an unchanged day so React bails out with no re-render.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const current = berlinTodayISO();
+      setToday((prev) => (prev === current ? prev : current));
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   // A parent write or a staff decision on an excused request flips the request's
   // state / writes status days server-side but emits only an SSE trigger — no
@@ -422,11 +495,19 @@ export function useChildCare(studentId: string): ChildCare {
       resolveTodayPickup({
         weekdays,
         weekPlanLoaded,
+        todayAbsent,
         careExceptions,
-        sickDays,
-        today: todayISO(),
+        careExceptionsLoaded,
+        today,
       }),
-    [weekdays, weekPlanLoaded, careExceptions, sickDays],
+    [
+      weekdays,
+      weekPlanLoaded,
+      todayAbsent,
+      careExceptions,
+      careExceptionsLoaded,
+      today,
+    ],
   );
 
   return {

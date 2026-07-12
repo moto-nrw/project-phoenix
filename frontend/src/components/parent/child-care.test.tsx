@@ -290,8 +290,9 @@ describe("resolveTodayPickup", () => {
       resolveTodayPickup({
         weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
         weekPlanLoaded: true,
+        todayAbsent: false,
         careExceptions: [],
-        sickDays: [],
+        careExceptionsLoaded: true,
         today: TODAY,
       }),
     ).toEqual({ kind: "time", time: "16:00", changed: false });
@@ -302,11 +303,28 @@ describe("resolveTodayPickup", () => {
       resolveTodayPickup({
         weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
         weekPlanLoaded: true,
+        todayAbsent: false,
         careExceptions: [makeException({ pickup_time: "15:00" })],
-        sickDays: [],
+        careExceptionsLoaded: true,
         today: TODAY,
       }),
     ).toEqual({ kind: "time", time: "15:00", changed: true });
+  });
+
+  it("does NOT mark an override changed when it equals the base plan", () => {
+    // The backend permits an exception equal to the normal pickup time; such a
+    // day has no effective change, so it must not render as "geändert" (#1725
+    // review).
+    expect(
+      resolveTodayPickup({
+        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekPlanLoaded: true,
+        todayAbsent: false,
+        careExceptions: [makeException({ pickup_time: "16:00" })],
+        careExceptionsLoaded: true,
+        today: TODAY,
+      }),
+    ).toEqual({ kind: "time", time: "16:00", changed: false });
   });
 
   it("falls back to the base plan when an override changes only arrival", () => {
@@ -314,8 +332,9 @@ describe("resolveTodayPickup", () => {
       resolveTodayPickup({
         weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
         weekPlanLoaded: true,
+        todayAbsent: false,
         careExceptions: [makeException({ arrival_time: "08:00" })],
-        sickDays: [],
+        careExceptionsLoaded: true,
         today: TODAY,
       }),
     ).toEqual({ kind: "time", time: "16:00", changed: false });
@@ -326,8 +345,9 @@ describe("resolveTodayPickup", () => {
       resolveTodayPickup({
         weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
         weekPlanLoaded: true,
+        todayAbsent: true,
         careExceptions: [makeException({ pickup_time: "15:00" })],
-        sickDays: [makeStatusDay({ date: TODAY, status: "sick" })],
+        careExceptionsLoaded: true,
         today: TODAY,
       }),
     ).toEqual({ kind: "absent" });
@@ -338,8 +358,9 @@ describe("resolveTodayPickup", () => {
       resolveTodayPickup({
         weekdays: [],
         weekPlanLoaded: true,
+        todayAbsent: false,
         careExceptions: [],
-        sickDays: [],
+        careExceptionsLoaded: true,
         today: TODAY,
       }),
     ).toEqual({ kind: "none" });
@@ -350,22 +371,43 @@ describe("resolveTodayPickup", () => {
       resolveTodayPickup({
         weekdays: [],
         weekPlanLoaded: false,
+        todayAbsent: false,
         careExceptions: [],
-        sickDays: [],
+        careExceptionsLoaded: true,
         today: TODAY,
       }),
     ).toEqual({ kind: "unknown" });
   });
 
-  it("still shows a same-day override even when the plan failed to load", () => {
+  it("returns 'unknown' when the override list failed to load", () => {
+    // A failed care-exception fetch is an empty array, indistinguishable from
+    // "no override" — we must not fall through to a base-plan time that a real,
+    // unloaded override could contradict (#1725 review).
+    expect(
+      resolveTodayPickup({
+        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekPlanLoaded: true,
+        todayAbsent: false,
+        careExceptions: [],
+        careExceptionsLoaded: false,
+        today: TODAY,
+      }),
+    ).toEqual({ kind: "unknown" });
+  });
+
+  it("shows a same-day override when the plan failed to load, but cannot call it changed", () => {
+    // The override list loaded (with the override); the base plan did not. The
+    // override is still authoritative, but with no base to compare against we
+    // must not claim a difference (#1725 review).
     expect(
       resolveTodayPickup({
         weekdays: [],
         weekPlanLoaded: false,
+        todayAbsent: false,
         careExceptions: [makeException({ pickup_time: "15:00" })],
-        sickDays: [],
+        careExceptionsLoaded: true,
         today: TODAY,
       }),
-    ).toEqual({ kind: "time", time: "15:00", changed: true });
+    ).toEqual({ kind: "time", time: "15:00", changed: false });
   });
 });
