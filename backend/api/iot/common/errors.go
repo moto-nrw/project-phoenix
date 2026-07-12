@@ -139,11 +139,12 @@ type StudentAlreadyActiveError struct {
 }
 
 // Error implements the error interface for StudentAlreadyActiveError.
-// The substring "student already has an active visit" is the canonical
-// active-service phrasing (see services/active/errors.go) and is what
-// PyrePortal substring-matches on for the German UI translation.
+// The canonical phrasing is the active-service sentinel — PyrePortal
+// substring-matches on it for the German UI translation, so both layers
+// must emit byte-identical text; referencing the sentinel makes that a
+// compile-time fact instead of comment discipline.
 func (e *StudentAlreadyActiveError) Error() string {
-	return "student already has an active visit"
+	return activeSvc.ErrStudentAlreadyActive.Error()
 }
 
 // StudentAlreadyActiveErrorResponse is the structured 409 body returned
@@ -172,7 +173,7 @@ func (e *StudentAlreadyActiveErrorResponse) Render(_ http.ResponseWriter, r *htt
 func ErrorStudentAlreadyActive(studentID, existingVisitID int64, entryTime *time.Time, roomID *int64, roomName string) render.Renderer {
 	return &StudentAlreadyActiveErrorResponse{
 		Status:  "error",
-		Message: "student already has an active visit",
+		Message: activeSvc.ErrStudentAlreadyActive.Error(),
 		Code:    "STUDENT_ALREADY_ACTIVE",
 		Details: &StudentAlreadyActiveError{
 			StudentID:       studentID,
