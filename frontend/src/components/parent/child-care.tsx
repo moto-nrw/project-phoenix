@@ -13,12 +13,14 @@ import { Modal } from "~/components/ui/modal";
 import { Button } from "~/components/ui/button";
 import {
   type CareException,
+  type ChildCareSchedule,
   type ChildFeatures,
   type ExcusedRequest,
   ParentApiError,
   type StatusDay,
   type StudentStatusKind,
   deleteCareException,
+  getChildCareSchedule,
   getChildFeatures,
   listCareExceptions,
   listExcusedRequests,
@@ -138,6 +140,58 @@ const DEFAULT_FEATURES: ChildFeatures = {
   parent_news_enabled: false,
 };
 
+// The child's effective pickup situation for TODAY, resolved from the weekly
+// base plan, any date-specific override, and today's absence status. The
+// "Heute → Abholung" tile renders this; every branch is a real state, never a
+// fabricated value (#1725):
+//   - "time":    a pickup time applies today (`changed` = a same-day override
+//                differs from the base plan)
+//   - "absent":  the child is reported sick/excused today, so no pickup
+//   - "none":    it's a care day (or weekend) with no pickup configured — bus,
+//                self-departure, or simply not set
+//   - "unknown": the weekly plan couldn't be loaded, so we assert nothing
+export type TodayPickup =
+  | { readonly kind: "time"; readonly time: string; readonly changed: boolean }
+  | { readonly kind: "absent" }
+  | { readonly kind: "none" }
+  | { readonly kind: "unknown" };
+
+// ISO weekday (Mon=1 .. Sun=7) of a YYYY-MM-DD date, matching the care-schedule
+// wire format where weekdays are 1..5.
+function isoWeekday(dateISO: string): number {
+  return ((parseISODate(dateISO).getDay() + 6) % 7) + 1;
+}
+
+// Pure merge of base plan + override + absence into today's pickup state. Kept
+// separate from the hook so it stays trivially unit-testable. Order matters:
+// an absence wins over any configured time, and a same-day override with a
+// pickup time is authoritative even if the base plan never loaded.
+export function resolveTodayPickup(params: {
+  readonly weekdays: ChildCareSchedule["weekdays"];
+  readonly weekPlanLoaded: boolean;
+  readonly careExceptions: readonly CareException[];
+  readonly sickDays: readonly StatusDay[];
+  readonly today: string;
+}): TodayPickup {
+  const { weekdays, weekPlanLoaded, careExceptions, sickDays, today } = params;
+
+  if (sickDays.some((day) => day.date === today)) return { kind: "absent" };
+
+  // A CareException overrides arrival and pickup independently, so an absent
+  // pickup_time means "pickup not changed" (fall back to the base plan), NOT
+  // "no pickup". Absence is expressed only through sick/excused days above.
+  const override = careExceptions.find((entry) => entry.date === today);
+  if (override?.pickup_time) {
+    return { kind: "time", time: override.pickup_time, changed: true };
+  }
+
+  if (!weekPlanLoaded) return { kind: "unknown" };
+
+  const base = weekdays.find((entry) => entry.weekday === isoWeekday(today));
+  if (base?.pickup) return { kind: "time", time: base.pickup, changed: false };
+  return { kind: "none" };
+}
+
 export interface ChildCare {
   readonly sickDays: StatusDay[];
   // Excused-absence requests that went through the OGS approval gate (pending +
@@ -150,6 +204,8 @@ export interface ChildCare {
   // The pickup modal must block saving while this is false so a parent can't
   // silently wipe an existing override the UI never managed to prefill.
   readonly careExceptionsLoaded: boolean;
+  // Today's resolved pickup state for the "Heute" tile (see TodayPickup).
+  readonly todayPickup: TodayPickup;
   readonly features: ChildFeatures;
   readonly loading: boolean;
   reportSick(
@@ -171,6 +227,11 @@ export function useChildCare(studentId: string): ChildCare {
   const [excusedRequests, setExcusedRequests] = useState<ExcusedRequest[]>([]);
   const [careExceptions, setCareExceptions] = useState<CareException[]>([]);
   const [careExceptionsLoaded, setCareExceptionsLoaded] = useState(false);
+  // The child's standard weekly plan, used only to resolve today's base pickup
+  // time for the "Heute" tile. weekPlanLoaded stays false on a failed fetch so
+  // the tile shows a neutral state instead of falsely claiming "no pickup".
+  const [weekdays, setWeekdays] = useState<ChildCareSchedule["weekdays"]>([]);
+  const [weekPlanLoaded, setWeekPlanLoaded] = useState(false);
   const [features, setFeatures] = useState<ChildFeatures>(DEFAULT_FEATURES);
   const [loading, setLoading] = useState(true);
   // Stale-response guard: load re-runs on every studentId change, and on a fast
@@ -201,8 +262,9 @@ export function useChildCare(studentId: string): ChildCare {
     let sickOk = true;
     let requestsOk = true;
     let exceptionsOk = true;
+    let weekPlanOk = true;
     try {
-      const [days, requests, exceptions, flags] = await Promise.all([
+      const [days, requests, exceptions, plan, flags] = await Promise.all([
         listSickDays(studentId).catch(() => {
           sickOk = false;
           return [] as StatusDay[];
@@ -218,6 +280,10 @@ export function useChildCare(studentId: string): ChildCare {
           exceptionsOk = false;
           return [] as CareException[];
         }),
+        getChildCareSchedule(studentId).catch(() => {
+          weekPlanOk = false;
+          return null;
+        }),
         getChildFeatures(studentId).catch(() => DEFAULT_FEATURES),
       ]);
       if (!mountedRef.current || seq !== loadSeqRef.current)
@@ -228,6 +294,8 @@ export function useChildCare(studentId: string): ChildCare {
       if (requestsOk) setExcusedRequests(requests);
       if (exceptionsOk) setCareExceptions(exceptions);
       setCareExceptionsLoaded(exceptionsOk);
+      if (weekPlanOk && plan) setWeekdays(plan.weekdays);
+      setWeekPlanLoaded(weekPlanOk);
       setFeatures(flags);
       return { requestsOk };
     } catch (err) {
@@ -349,11 +417,24 @@ export function useChildCare(studentId: string): ChildCare {
     [studentId],
   );
 
+  const todayPickup = useMemo(
+    () =>
+      resolveTodayPickup({
+        weekdays,
+        weekPlanLoaded,
+        careExceptions,
+        sickDays,
+        today: todayISO(),
+      }),
+    [weekdays, weekPlanLoaded, careExceptions, sickDays],
+  );
+
   return {
     sickDays,
     excusedRequests,
     careExceptions,
     careExceptionsLoaded,
+    todayPickup,
     features,
     loading,
     reportSick,

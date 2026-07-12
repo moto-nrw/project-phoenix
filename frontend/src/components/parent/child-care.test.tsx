@@ -2,6 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import {
   PickupTimeModal,
+  resolveTodayPickup,
   SickNoteModal,
   SickStatusSummary,
 } from "./child-care";
@@ -266,5 +267,105 @@ describe("SickStatusSummary — date rendering", () => {
     expect(excusedLines[0]!.textContent).not.toContain(de(today));
     // today is shown as sick instead.
     expect(screen.getByText(/^Krank:/).textContent).toContain(de(today));
+  });
+});
+
+describe("resolveTodayPickup", () => {
+  const TODAY = todayISO();
+  // Today's ISO weekday (Mon=1 .. Sun=7) so the base-plan cases work whatever
+  // day the suite runs on.
+  const TODAY_WD = ((parseISODate(TODAY).getDay() + 6) % 7) + 1;
+
+  function makeException(over: Partial<CareException>): CareException {
+    return {
+      date: TODAY,
+      source: "guardian",
+      updated_at: "2026-03-01T09:00:00Z",
+      ...over,
+    };
+  }
+
+  it("returns the base-plan pickup time for today (not marked changed)", () => {
+    expect(
+      resolveTodayPickup({
+        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekPlanLoaded: true,
+        careExceptions: [],
+        sickDays: [],
+        today: TODAY,
+      }),
+    ).toEqual({ kind: "time", time: "16:00", changed: false });
+  });
+
+  it("prefers a same-day override and marks it changed", () => {
+    expect(
+      resolveTodayPickup({
+        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekPlanLoaded: true,
+        careExceptions: [makeException({ pickup_time: "15:00" })],
+        sickDays: [],
+        today: TODAY,
+      }),
+    ).toEqual({ kind: "time", time: "15:00", changed: true });
+  });
+
+  it("falls back to the base plan when an override changes only arrival", () => {
+    expect(
+      resolveTodayPickup({
+        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekPlanLoaded: true,
+        careExceptions: [makeException({ arrival_time: "08:00" })],
+        sickDays: [],
+        today: TODAY,
+      }),
+    ).toEqual({ kind: "time", time: "16:00", changed: false });
+  });
+
+  it("reports an absence when the child is off today, over any configured time", () => {
+    expect(
+      resolveTodayPickup({
+        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekPlanLoaded: true,
+        careExceptions: [makeException({ pickup_time: "15:00" })],
+        sickDays: [makeStatusDay({ date: TODAY, status: "sick" })],
+        today: TODAY,
+      }),
+    ).toEqual({ kind: "absent" });
+  });
+
+  it("returns 'none' on a care day with no pickup configured", () => {
+    expect(
+      resolveTodayPickup({
+        weekdays: [],
+        weekPlanLoaded: true,
+        careExceptions: [],
+        sickDays: [],
+        today: TODAY,
+      }),
+    ).toEqual({ kind: "none" });
+  });
+
+  it("returns 'unknown' when the plan failed to load and there is no override", () => {
+    expect(
+      resolveTodayPickup({
+        weekdays: [],
+        weekPlanLoaded: false,
+        careExceptions: [],
+        sickDays: [],
+        today: TODAY,
+      }),
+    ).toEqual({ kind: "unknown" });
+  });
+
+  it("still shows a same-day override even when the plan failed to load", () => {
+    expect(
+      resolveTodayPickup({
+        weekdays: [],
+        weekPlanLoaded: false,
+        careExceptions: [makeException({ pickup_time: "15:00" })],
+        sickDays: [],
+        today: TODAY,
+      }),
+    ).toEqual({ kind: "time", time: "15:00", changed: true });
   });
 });
