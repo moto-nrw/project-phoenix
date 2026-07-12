@@ -588,6 +588,11 @@ export function TimetableEventModal({
   // template override it may inherit. Remember user intent separately so an
   // unrelated all/following edit can preserve the freshly fetched template.
   const requiredStaffTouched = useRef(false);
+  // An occurrence may carry substitute rows that do not belong to the series
+  // roster. Preserve the fetched template roster for all/following edits until
+  // the user explicitly changes Personal; otherwise a title-only split would
+  // promote a substitute to planned series staff and erase its deviation role.
+  const staffRosterTouched = useRef(false);
   // Once the user picks Woche A/B explicitly, date or period changes must not
   // override that choice with the recomputed default parity — and the pick
   // survives switching the repeat mode away and back within the same modal
@@ -713,6 +718,7 @@ export function TimetableEventModal({
     setInitialStaffIDsSnapshot([...nextForm.staffIds]);
     setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
     requiredStaffTouched.current = false;
+    staffRosterTouched.current = false;
     manualWeekPattern.current = null;
     setForm(nextForm);
     setValidationError(null);
@@ -1373,12 +1379,14 @@ export function TimetableEventModal({
     const templateStudentIDs = studentRosterEditable
       ? form.studentIds
       : template.studentIds;
-    const templateStaffIDs = staffRosterEditable
-      ? form.staffIds
-      : template.staffIds;
-    const primaryStaffId = staffRosterEditable
-      ? form.primaryStaffId || template.primaryStaffId
-      : template.primaryStaffId;
+    const templateStaffIDs =
+      staffRosterEditable && staffRosterTouched.current
+        ? form.staffIds
+        : template.staffIds;
+    const primaryStaffId =
+      staffRosterEditable && staffRosterTouched.current
+        ? form.primaryStaffId || template.primaryStaffId
+        : template.primaryStaffId;
     return {
       name: form.title.trim(),
       type: template.type,
@@ -2120,6 +2128,7 @@ export function TimetableEventModal({
           options={staff}
           value={form.staffIds}
           onChange={(ids) => {
+            staffRosterTouched.current = true;
             update("staffIds", ids);
             if (form.primaryStaffId && !ids.includes(form.primaryStaffId)) {
               update("primaryStaffId", "");
@@ -2133,7 +2142,10 @@ export function TimetableEventModal({
             <select
               id="event_primary_staff"
               value={form.primaryStaffId}
-              onChange={(event) => update("primaryStaffId", event.target.value)}
+              onChange={(event) => {
+                staffRosterTouched.current = true;
+                update("primaryStaffId", event.target.value);
+              }}
               className={FORM_SELECT_CLASS}
             >
               <option value="">Keine Auswahl</option>
