@@ -567,6 +567,10 @@ export function TimetableEventModal({
   // Monotonically increasing probe id so stale responses are dropped.
   const probeSeq = useRef(0);
   const coverageProbeSeq = useRef(0);
+  // A materialized occurrence only exposes its own staffing pin, not the
+  // template override it may inherit. Remember user intent separately so an
+  // unrelated all/following edit can preserve the freshly fetched template.
+  const requiredStaffTouched = useRef(false);
 
   const isEditingInstance = initialInstance !== null;
   const isEditingSeries = initialSeries !== null;
@@ -650,6 +654,7 @@ export function TimetableEventModal({
     setInitialStudentIDsSnapshot([...nextForm.studentIds]);
     setInitialStaffIDsSnapshot([...nextForm.staffIds]);
     setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
+    requiredStaffTouched.current = false;
     setForm(nextForm);
     setValidationError(null);
     setFieldErrors({});
@@ -1304,10 +1309,12 @@ export function TimetableEventModal({
       target_school_class: template.targetSchoolClass,
       max_participants:
         template.maxParticipants > 0 ? template.maxParticipants : undefined,
-      // Personalbedarf override (#1839) IS editable in this form (unlike
-      // max_participants), so an all/following save carries the form value
-      // onto the template.
-      required_staff: parseRequiredStaffOverride(form.requiredStaff),
+      // An occurrence form starts from the occurrence's own pin, which is
+      // blank when it inherits from the series. Preserve the fetched template
+      // override until the user explicitly edits this field.
+      required_staff: requiredStaffTouched.current
+        ? parseRequiredStaffOverride(form.requiredStaff)
+        : (template.requiredStaffOverride ?? null),
       week_pattern: firstSchedule?.weekPattern ?? 0,
       calendar_period_id: calendarPeriodId
         ? Number(calendarPeriodId)
@@ -1508,10 +1515,12 @@ export function TimetableEventModal({
         const created = await timetableService.createTemplate(
           seriesBody(parsed.roomId, parsed.categoryId),
         );
-        await timetableService.update(
-          convertInstance.id,
-          instanceBody(parsed.roomId, created.templateId),
-        );
+        await timetableService.update(convertInstance.id, {
+          ...instanceBody(parsed.roomId, created.templateId),
+          // The value entered during conversion belongs to the new series.
+          // Keep the seed occurrence unpinned so future series edits apply.
+          required_staff: null,
+        });
         if (await materializePeriodAfterConvert()) {
           toastSuccess("Termin wiederholt");
         } else {
@@ -2067,7 +2076,10 @@ export function TimetableEventModal({
           step={1}
           inputMode="numeric"
           value={form.requiredStaff}
-          onChange={(event) => update("requiredStaff", event.target.value)}
+          onChange={(event) => {
+            requiredStaffTouched.current = true;
+            update("requiredStaff", event.target.value);
+          }}
           placeholder="automatisch aus Betreuungsschlüssel"
           controlSize="compact"
         />
