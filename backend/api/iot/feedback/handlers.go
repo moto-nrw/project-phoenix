@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
+	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -52,7 +52,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 			slog.String("device_id", deviceCtx.DeviceID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -68,7 +68,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 			slog.Int64("student_id", req.StudentID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -76,7 +76,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 		slog.Default().WarnContext(r.Context(), "student not found",
 			slog.Int64("student_id", req.StudentID),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("student not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("student not found")))
 		return
 	}
 
@@ -99,7 +99,7 @@ func (rs *Resource) deviceSubmitFeedback(w http.ResponseWriter, r *http.Request)
 		slog.Default().ErrorContext(r.Context(), "failed to create feedback entry",
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 

@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
+	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -33,11 +33,11 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 	// Get RFID from URL parameter and normalize it
 	rfid := chi.URLParam(r, "rfid")
 	if rfid == "" {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New("RFID parameter is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("RFID parameter is required")))
 		return
 	}
 
-	normalizedRFID := iotCommon.NormalizeTagID(rfid)
+	normalizedRFID := users.NormalizeTagID(rfid)
 
 	// Find and validate student by RFID
 	student, person, ok := rs.findStudentByRFID(w, r, normalizedRFID)
@@ -48,7 +48,7 @@ func (rs *Resource) getAttendanceStatus(w http.ResponseWriter, r *http.Request) 
 	// Get attendance status from service
 	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -92,7 +92,7 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	req := &AttendanceToggleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -102,7 +102,7 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	normalizedRFID := iotCommon.NormalizeTagID(req.RFID)
+	normalizedRFID := users.NormalizeTagID(req.RFID)
 
 	// Handle "confirm_daily_checkout" action - process the deferred daily checkout
 	if req.Action == "confirm_daily_checkout" {
@@ -120,19 +120,19 @@ func (rs *Resource) toggleAttendance(w http.ResponseWriter, r *http.Request) {
 func (rs *Resource) findStudentByRFID(w http.ResponseWriter, r *http.Request, normalizedRFID string) (*users.Student, *users.Person, bool) {
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil {
-		iotCommon.RecordUnregisteredTagScan(r.Context(), rs.UnregisteredTagScans, slog.Default(), normalizedRFID)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
+		shared.RecordUnregisteredTagScan(r.Context(), rs.UnregisteredTagScans, slog.Default(), normalizedRFID)
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgRFIDTagNotFound)))
 		return nil, nil, false
 	}
 
 	if person == nil || person.TagID == nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to any person")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("RFID tag not assigned to any person")))
 		return nil, nil, false
 	}
 
 	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), person.ID)
 	if err != nil || student == nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgPersonNotStudent)))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgPersonNotStudent)))
 		return nil, nil, false
 	}
 
@@ -175,15 +175,15 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil || person == nil {
-		iotCommon.RecordUnregisteredTagScan(r.Context(), rs.UnregisteredTagScans, slog.Default(), normalizedRFID)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
+		shared.RecordUnregisteredTagScan(r.Context(), rs.UnregisteredTagScans, slog.Default(), normalizedRFID)
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgRFIDTagNotFound)))
 		return
 	}
 
 	// Get student from person
 	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), person.ID)
 	if err != nil || student == nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgPersonNotStudent)))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgPersonNotStudent)))
 		return
 	}
 
@@ -200,7 +200,7 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	if currentStatus.Status != "checked_in" && currentStatus.Status != "checked_out" {
@@ -208,7 +208,7 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 			slog.Int64("student_id", student.ID),
 			slog.String("status", currentStatus.Status),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(
+		common.RenderError(w, r, common.ErrorNotFound(
 			errors.New("student has no attendance record for today")))
 		return
 	}
@@ -233,7 +233,7 @@ func (rs *Resource) handleDailyCheckout(w http.ResponseWriter, r *http.Request, 
 					slog.Int64("student_id", student.ID),
 					slog.String("error", err.Error()),
 				)
-				iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+				common.RenderError(w, r, shared.ErrorRenderer(err))
 				return
 			}
 
@@ -282,13 +282,13 @@ func (rs *Resource) handleNormalToggle(w http.ResponseWriter, r *http.Request, n
 	// Find person by RFID tag
 	person, err := rs.UsersService.FindByTagID(r.Context(), normalizedRFID)
 	if err != nil {
-		iotCommon.RecordUnregisteredTagScan(r.Context(), rs.UnregisteredTagScans, slog.Default(), normalizedRFID)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
+		shared.RecordUnregisteredTagScan(r.Context(), rs.UnregisteredTagScans, slog.Default(), normalizedRFID)
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgRFIDTagNotFound)))
 		return
 	}
 
 	if person == nil || person.TagID == nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to any person")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("RFID tag not assigned to any person")))
 		return
 	}
 
@@ -309,7 +309,7 @@ func (rs *Resource) handleNormalToggle(w http.ResponseWriter, r *http.Request, n
 			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -321,11 +321,11 @@ func (rs *Resource) handleNormalToggle(w http.ResponseWriter, r *http.Request, n
 func (rs *Resource) lookupStudent(w http.ResponseWriter, r *http.Request, personID int64) *users.Student {
 	student, err := rs.UsersService.GetStudentByPersonID(r.Context(), personID)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgPersonNotStudent)))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgPersonNotStudent)))
 		return nil
 	}
 	if student == nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgPersonNotStudent)))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgPersonNotStudent)))
 		return nil
 	}
 	return student
@@ -344,7 +344,7 @@ func (rs *Resource) sendToggleResponse(w http.ResponseWriter, r *http.Request, s
 	// Get updated attendance status
 	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

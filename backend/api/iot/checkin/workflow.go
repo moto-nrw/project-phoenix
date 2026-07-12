@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
+	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/models/active"
@@ -60,7 +60,7 @@ type selectedActiveGroup struct {
 func validateDeviceContext(w http.ResponseWriter, r *http.Request) *iot.Device {
 	deviceCtx := device.DeviceFromCtx(r.Context())
 	if deviceCtx == nil {
-		iotCommon.RenderError(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey))
+		common.RenderError(w, r, device.ErrDeviceUnauthorized(device.ErrMissingAPIKey))
 		return nil
 	}
 	return deviceCtx
@@ -74,7 +74,7 @@ func parseCheckinRequest(ctx context.Context, w http.ResponseWriter, r *http.Req
 			slog.String("device_id", deviceID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return nil
 	}
 	return req
@@ -85,12 +85,12 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 	rs.getLogger().DebugContext(ctx, "looking up RFID tag", slog.String("rfid", rfid))
 	person, err := rs.resolvePersonByRFID(ctx, rfid)
 	if err != nil {
-		iotCommon.RecordUnregisteredTagScan(ctx, rs.UnregisteredTagScans, rs.getLogger(), rfid)
+		shared.RecordUnregisteredTagScan(ctx, rs.UnregisteredTagScans, rs.getLogger(), rfid)
 		rs.getLogger().WarnContext(ctx, "RFID tag not found",
 			slog.String("rfid", rfid),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgRFIDTagNotFound)))
 		return nil
 	}
 
@@ -98,7 +98,7 @@ func (rs *Resource) lookupPersonByRFID(ctx context.Context, w http.ResponseWrite
 		rs.getLogger().WarnContext(ctx, "RFID tag not assigned to any person",
 			slog.String("rfid", rfid),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to any person")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("RFID tag not assigned to any person")))
 		return nil
 	}
 
@@ -177,7 +177,7 @@ func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, devi
 			slog.Int64("person_id", person.ID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
 		return true
 	}
 
@@ -193,7 +193,7 @@ func (rs *Resource) handleStaffScan(w http.ResponseWriter, r *http.Request, devi
 	rs.getLogger().WarnContext(r.Context(), "person is neither student nor staff",
 		slog.Int64("person_id", person.ID),
 	)
-	iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
+	common.RenderError(w, r, common.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
 	return true
 }
 
@@ -210,7 +210,7 @@ func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request,
 			slog.String("device_id", deviceCtx.DeviceID),
 			slog.Int64("device_db_id", deviceCtx.ID),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(
+		common.RenderError(w, r, common.ErrorNotFound(
 			errors.New("no active session - please start an activity first")))
 		return
 	}
@@ -228,7 +228,7 @@ func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request,
 			slog.Int64("session_id", session.ID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServerWrap("failed to load session supervisors", err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to load session supervisors", err))
 		return
 	}
 
@@ -253,7 +253,7 @@ func (rs *Resource) handleSupervisorScan(w http.ResponseWriter, r *http.Request,
 				slog.Int64("session_id", session.ID),
 				slog.String("error", err.Error()),
 			)
-			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServerWrap("failed to update session supervisors", err))
+			common.RenderError(w, r, common.ErrorInternalServerWrap("failed to update session supervisors", err))
 			return
 		}
 		rs.getLogger().InfoContext(ctx, "added staff as supervisor to session",
@@ -324,7 +324,7 @@ func (rs *Resource) loadCurrentVisitWithRoom(ctx context.Context, studentID int6
 func (rs *Resource) buildStudentAlreadyActiveResponse(ctx context.Context, studentID int64) render.Renderer {
 	existing := rs.loadCurrentVisitWithRoom(ctx, studentID)
 	if existing == nil {
-		return iotCommon.ErrorStudentAlreadyActive(studentID, 0, nil, nil, "")
+		return ErrorStudentAlreadyActive(studentID, 0, nil, nil, "")
 	}
 
 	var roomID *int64
@@ -337,7 +337,7 @@ func (rs *Resource) buildStudentAlreadyActiveResponse(ctx context.Context, stude
 		}
 	}
 	entryTime := existing.EntryTime
-	return iotCommon.ErrorStudentAlreadyActive(studentID, existing.ID, &entryTime, roomID, roomName)
+	return ErrorStudentAlreadyActive(studentID, existing.ID, &entryTime, roomID, roomName)
 }
 
 // processCheckout handles the checkout logic for a student with an active visit
@@ -373,7 +373,7 @@ func (rs *Resource) processCheckout(ctx context.Context, w http.ResponseWriter, 
 			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to end visit record")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to end visit record")))
 		return nil, "", err
 	}
 
@@ -410,7 +410,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 			slog.Int64("room_id", roomID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get room information")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to get room information")))
 		return nil, nil, err
 	}
 
@@ -422,7 +422,7 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 				slog.Int64("room_id", roomID),
 				slog.String("error", countErr.Error()),
 			)
-			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to check room capacity")))
+			common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to check room capacity")))
 			return nil, nil, countErr
 		}
 
@@ -433,8 +433,8 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 				slog.Int("current_occupancy", currentOccupancy),
 				slog.Int("capacity", *room.Capacity),
 			)
-			iotCommon.RenderError(w, r, iotCommon.ErrorRoomCapacityExceeded(roomID, room.Name, currentOccupancy, *room.Capacity))
-			return nil, nil, iotCommon.ErrRoomCapacityExceeded
+			common.RenderError(w, r, ErrorRoomCapacityExceeded(roomID, room.Name, currentOccupancy, *room.Capacity))
+			return nil, nil, ErrRoomCapacityExceeded
 		}
 
 		rs.getLogger().DebugContext(ctx, "room capacity check passed",
@@ -479,14 +479,14 @@ func (rs *Resource) processCheckin(ctx context.Context, w http.ResponseWriter, r
 				slog.Int64("student_id", student.ID),
 				slog.String("error", err.Error()),
 			)
-			iotCommon.RenderError(w, r, rs.buildStudentAlreadyActiveResponse(ctx, student.ID))
+			common.RenderError(w, r, rs.buildStudentAlreadyActiveResponse(ctx, student.ID))
 			return nil, nil, err
 		}
 		rs.getLogger().ErrorContext(ctx, "failed to create visit",
 			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create visit record")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to create visit record")))
 		return nil, nil, err
 	}
 
@@ -526,7 +526,7 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 			rs.getLogger().ErrorContext(ctx, "spontaneous active group reached IoT capacity check — unsupported in this flow",
 				slog.Int64("active_group_id", activeGroup.ID),
 			)
-			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("spontaneous sessions are not supported on this check-in path")))
+			common.RenderError(w, r, common.ErrorInternalServer(errors.New("spontaneous sessions are not supported on this check-in path")))
 			return errors.New("spontaneous session in IoT capacity check")
 		}
 		var err error
@@ -536,7 +536,7 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 				slog.Int64("activity_group_id", templateID),
 				slog.String("error", err.Error()),
 			)
-			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to get activity information")))
+			common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to get activity information")))
 			return err
 		}
 	}
@@ -548,7 +548,7 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 			slog.Int64("active_group_id", activeGroup.ID),
 			slog.String("error", countErr.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to check activity capacity")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to check activity capacity")))
 		return countErr
 	}
 
@@ -559,8 +559,8 @@ func (rs *Resource) checkActivityCapacity(ctx context.Context, w http.ResponseWr
 			slog.Int("current_occupancy", currentOccupancy),
 			slog.Int("max_participants", activityGroup.MaxParticipants),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorActivityCapacityExceeded(activityGroup.ID, activityGroup.Name, currentOccupancy, activityGroup.MaxParticipants))
-		return iotCommon.ErrActivityCapacityExceeded
+		common.RenderError(w, r, ErrorActivityCapacityExceeded(activityGroup.ID, activityGroup.Name, currentOccupancy, activityGroup.MaxParticipants))
+		return ErrActivityCapacityExceeded
 	}
 
 	rs.getLogger().DebugContext(ctx, "activity capacity check passed",
@@ -587,7 +587,7 @@ func (rs *Resource) findOrCreateActiveGroupForRoom(ctx context.Context, w http.R
 			slog.Int64("room_id", room.ID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("error finding active groups in room")))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("error finding active groups in room")))
 		return nil, err
 	}
 
@@ -645,7 +645,7 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 			rs.getLogger().ErrorContext(ctx, "failed to find Schulhof activity",
 				slog.String("error", err.Error()),
 			)
-			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("schulhof activity not configured")))
+			common.RenderError(w, r, common.ErrorInternalServer(errors.New("schulhof activity not configured")))
 			return nil, err
 		}
 	case constants.IsWCRoomName(room.Name):
@@ -661,7 +661,7 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 			if strings.Contains(err.Error(), "staff context") {
 				errMsg = "WC activity auto-create requires staff context"
 			}
-			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New(errMsg)))
+			common.RenderError(w, r, common.ErrorInternalServer(errors.New(errMsg)))
 			return nil, err
 		}
 	default:
@@ -669,7 +669,7 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 			slog.Int64("room_id", room.ID),
 			slog.String("room_name", room.Name),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("no active groups in specified room")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("no active groups in specified room")))
 		return nil, errors.New("no active groups in specified room")
 	}
 
@@ -689,11 +689,11 @@ func (rs *Resource) createSpecialRoomActiveGroupIfNeeded(ctx context.Context, w 
 		)
 		switch {
 		case room.Name == constants.SchulhofRoomName:
-			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create Schulhof session")))
+			common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to create Schulhof session")))
 		case constants.IsWCRoomName(room.Name):
-			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create WC session")))
+			common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to create WC session")))
 		default:
-			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(errors.New("failed to create session")))
+			common.RenderError(w, r, common.ErrorInternalServer(errors.New("failed to create session")))
 		}
 		return nil, err
 	}
@@ -781,7 +781,7 @@ func (rs *Resource) processStudentCheckin(ctx context.Context, w http.ResponseWr
 	case !input.CheckedOut:
 		// No room_id provided and no previous checkout - error
 		rs.getLogger().ErrorContext(ctx, "room ID is required for check-in")
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New("room_id is required for check-in")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("room_id is required for check-in")))
 		result.Error = errors.New("room_id is required for check-in")
 	}
 

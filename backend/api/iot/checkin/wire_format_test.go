@@ -23,7 +23,7 @@
 //
 // Changing an expectation in this file requires proof that the wire format
 // change is intentional — not just "the refactor made the test fail."
-package common_test
+package checkin_test
 
 import (
 	"net/http/httptest"
@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
-	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
+	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/stretchr/testify/assert"
 )
 

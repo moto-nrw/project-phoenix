@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
+	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 )
 
@@ -56,7 +56,7 @@ func (rs *Resource) listDevices(w http.ResponseWriter, r *http.Request) {
 	// Get devices
 	devices, err := rs.IoTService.ListDevices(r.Context(), filters)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -71,14 +71,14 @@ func (rs *Resource) getDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(errMsgInvalidDeviceID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidDeviceID)))
 		return
 	}
 
 	// Get device
 	device, err := rs.IoTService.GetDeviceByID(r.Context(), id)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -90,14 +90,14 @@ func (rs *Resource) getDeviceByDeviceID(w http.ResponseWriter, r *http.Request) 
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(errMsgDeviceIDRequired)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgDeviceIDRequired)))
 		return
 	}
 
 	// Get device
 	device, err := rs.IoTService.GetDeviceByDeviceID(r.Context(), deviceID)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -109,7 +109,7 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	req := &DeviceRequest{}
 	if err := render.Bind(r, req); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -130,13 +130,13 @@ func (rs *Resource) createDevice(w http.ResponseWriter, r *http.Request) {
 
 	// Create device
 	if err := rs.IoTService.CreateDevice(r.Context(), device); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
 	createdDevice, err := rs.IoTService.GetDeviceByID(r.Context(), device.ID)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -148,21 +148,21 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(errMsgInvalidDeviceID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidDeviceID)))
 		return
 	}
 
 	// Parse request
 	req := &DeviceRequest{}
 	if err := render.Bind(r, req); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get existing device
 	device, err := rs.IoTService.GetDeviceByID(r.Context(), id)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -178,13 +178,13 @@ func (rs *Resource) updateDevice(w http.ResponseWriter, r *http.Request) {
 
 	// Update device
 	if err := rs.IoTService.UpdateDevice(r.Context(), device); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
 	updatedDevice, err := rs.IoTService.GetDeviceByID(r.Context(), device.ID)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -196,17 +196,17 @@ func (rs *Resource) deleteDevice(w http.ResponseWriter, r *http.Request) {
 	// Parse ID from URL
 	id, err := common.ParseID(r)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(errMsgInvalidDeviceID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidDeviceID)))
 		return
 	}
 
 	// Delete device
 	if err := rs.IoTService.DeleteDevice(r.Context(), id); err != nil {
 		if common.IsConstraintViolation(err) {
-			iotCommon.RenderError(w, r, common.ErrorConflictMessage("Gerät kann nicht gelöscht werden: Gerät wird aktuell von einer aktiven Gruppe verwendet"))
+			common.RenderError(w, r, common.ErrorConflictMessage("Gerät kann nicht gelöscht werden: Gerät wird aktuell von einer aktiven Gruppe verwendet"))
 			return
 		}
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -218,20 +218,20 @@ func (rs *Resource) updateDeviceStatus(w http.ResponseWriter, r *http.Request) {
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(errMsgDeviceIDRequired)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgDeviceIDRequired)))
 		return
 	}
 
 	// Parse request
 	req := &DeviceStatusRequest{}
 	if err := render.Bind(r, req); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Update device status
 	if err := rs.IoTService.UpdateDeviceStatus(r.Context(), deviceID, iot.DeviceStatus(req.Status)); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -243,13 +243,13 @@ func (rs *Resource) pingDevice(w http.ResponseWriter, r *http.Request) {
 	// Get device ID from URL
 	deviceID := chi.URLParam(r, "deviceId")
 	if deviceID == "" {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(errMsgDeviceIDRequired)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgDeviceIDRequired)))
 		return
 	}
 
 	// Ping device
 	if err := rs.IoTService.PingDevice(r.Context(), deviceID); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -261,14 +261,14 @@ func (rs *Resource) getDevicesByType(w http.ResponseWriter, r *http.Request) {
 	// Get type from URL
 	deviceType := chi.URLParam(r, "type")
 	if deviceType == "" {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(errMsgDeviceTypeRequired)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgDeviceTypeRequired)))
 		return
 	}
 
 	// Get devices by type
 	devices, err := rs.IoTService.GetDevicesByType(r.Context(), deviceType)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -283,21 +283,21 @@ func (rs *Resource) getDevicesByStatus(w http.ResponseWriter, r *http.Request) {
 	// Get status from URL
 	status := chi.URLParam(r, "status")
 	if status == "" {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(errMsgStatusRequired)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgStatusRequired)))
 		return
 	}
 
 	// Validate status
 	deviceStatus := iot.DeviceStatus(status)
 	if !isValidDeviceStatus(deviceStatus) {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(errMsgInvalidDeviceStatus)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidDeviceStatus)))
 		return
 	}
 
 	// Get devices by status
 	devices, err := rs.IoTService.GetDevicesByStatus(r.Context(), deviceStatus)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -312,14 +312,14 @@ func (rs *Resource) getDevicesByRegisteredBy(w http.ResponseWriter, r *http.Requ
 	// Parse person ID from URL
 	personID, err := common.ParseIDParam(r, "personId")
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(errMsgInvalidPersonID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errMsgInvalidPersonID)))
 		return
 	}
 
 	// Get devices
 	devices, err := rs.IoTService.GetDevicesByRegisteredBy(r.Context(), personID)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -334,7 +334,7 @@ func (rs *Resource) getActiveDevices(w http.ResponseWriter, r *http.Request) {
 	// Get active devices
 	devices, err := rs.IoTService.GetActiveDevices(r.Context())
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -349,7 +349,7 @@ func (rs *Resource) getDevicesRequiringMaintenance(w http.ResponseWriter, r *htt
 	// Get devices requiring maintenance
 	devices, err := rs.IoTService.GetDevicesRequiringMaintenance(r.Context())
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -374,7 +374,7 @@ func (rs *Resource) getOfflineDevices(w http.ResponseWriter, r *http.Request) {
 	// Get offline devices
 	devices, err := rs.IoTService.GetOfflineDevices(r.Context(), duration)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -389,14 +389,14 @@ func (rs *Resource) getDeviceStatistics(w http.ResponseWriter, r *http.Request) 
 	// Get device type statistics
 	typeStats, err := rs.IoTService.GetDeviceTypeStatistics(r.Context())
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
 	// Get active devices count
 	activeDevices, err := rs.IoTService.GetActiveDevices(r.Context())
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -404,7 +404,7 @@ func (rs *Resource) getDeviceStatistics(w http.ResponseWriter, r *http.Request) 
 	// used by per-device is_online responses.
 	offlineDevices, err := rs.IoTService.GetOfflineDevices(r.Context(), rs.IoTService.DeviceOnlineWindow(r.Context()))
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -431,7 +431,7 @@ func (rs *Resource) detectNewDevices(w http.ResponseWriter, r *http.Request) {
 	// Detect new devices
 	devices, err := rs.IoTService.DetectNewDevices(r.Context())
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -446,7 +446,7 @@ func (rs *Resource) scanNetwork(w http.ResponseWriter, r *http.Request) {
 	// Scan network
 	scanResults, err := rs.IoTService.ScanNetwork(r.Context())
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 

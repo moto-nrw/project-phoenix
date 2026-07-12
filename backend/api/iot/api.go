@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/iot/attendance"
 	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
-	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/iot/devices"
 	feedbackAPI "github.com/moto-nrw/project-phoenix/api/iot/feedback"
@@ -216,7 +215,7 @@ func (rs *Resource) getSchoolName(w http.ResponseWriter, r *http.Request) {
 
 	school, err := rs.SchoolService.GetSchoolByID(r.Context(), deviceCtx.TenantID)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 

@@ -7,7 +7,6 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -28,14 +27,14 @@ func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 	// Parse staff ID from URL
 	staffID, err := common.ParseIDParam(r, "staffId")
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
 		return
 	}
 
 	// Parse request
 	req := &RFIDAssignmentRequest{}
 	if err := render.Bind(r, req); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -53,7 +52,7 @@ func (rs *Resource) assignStaffRFIDTag(w http.ResponseWriter, r *http.Request) {
 
 	// Assign the RFID tag (this handles unlinking old assignments automatically)
 	if err := rs.UsersService.LinkToRFIDCard(r.Context(), person.ID, req.RFIDTag); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -98,7 +97,7 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 	// Parse staff ID from URL
 	staffID, err := common.ParseIDParam(r, "staffId")
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(common.MsgInvalidStaffID)))
 		return
 	}
 
@@ -110,7 +109,7 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 
 	// Check if staff has an RFID tag assigned
 	if person.TagID == nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("staff has no RFID tag assigned")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff has no RFID tag assigned")))
 		return
 	}
 
@@ -119,7 +118,7 @@ func (rs *Resource) unassignStaffRFIDTag(w http.ResponseWriter, r *http.Request)
 
 	// Unlink the RFID tag
 	if err := rs.UsersService.UnlinkFromRFIDCard(r.Context(), person.ID); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -150,14 +149,14 @@ func (rs *Resource) getStaffAndPerson(w http.ResponseWriter, r *http.Request, st
 	// Get the staff member
 	staff, err := rs.UsersService.GetStaffByID(r.Context(), staffID)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("staff not found")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return nil, nil, false
 	}
 
 	// Get person details for the staff member
 	person, err := rs.UsersService.Get(r.Context(), staff.PersonID)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServerWrap("failed to get person data for staff", err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("failed to get person data for staff", err))
 		return nil, nil, false
 	}
 

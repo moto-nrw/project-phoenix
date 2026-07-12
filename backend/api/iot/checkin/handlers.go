@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
+	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
@@ -37,7 +37,7 @@ func (rs *Resource) devicePing(w http.ResponseWriter, r *http.Request) {
 
 	// Update device last seen time (already done in middleware, but let's be explicit)
 	if err := rs.IoTService.PingDevice(r.Context(), deviceCtx.DeviceID); err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorRenderer(err))
+		common.RenderError(w, r, shared.ErrorRenderer(err))
 		return
 	}
 
@@ -115,25 +115,25 @@ func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 			slog.String("device_id", deviceCtx.DeviceID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	person, err := rs.resolvePersonByRFID(ctx, req.StudentRFID)
 	if err != nil {
 		if errors.Is(err, usersSvc.ErrPersonNotFound) {
-			iotCommon.RecordUnregisteredTagScan(ctx, rs.UnregisteredTagScans, rs.getLogger(), req.StudentRFID)
+			shared.RecordUnregisteredTagScan(ctx, rs.UnregisteredTagScans, rs.getLogger(), req.StudentRFID)
 			rs.getLogger().WarnContext(ctx, "RFID tag not found during pickup query",
 				slog.String("rfid", req.StudentRFID),
 			)
-			iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New(iotCommon.ErrMsgRFIDTagNotFound)))
+			common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgRFIDTagNotFound)))
 			return
 		}
 		rs.getLogger().ErrorContext(ctx, "failed to lookup RFID tag during pickup query",
 			slog.String("rfid", req.StudentRFID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -141,7 +141,7 @@ func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 		rs.getLogger().WarnContext(ctx, "RFID tag not assigned to any person during pickup query",
 			slog.String("rfid", req.StudentRFID),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to any person")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("RFID tag not assigned to any person")))
 		return
 	}
 
@@ -151,7 +151,7 @@ func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 			slog.Int64("person_id", person.ID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -162,14 +162,14 @@ func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 				slog.Int64("person_id", person.ID),
 				slog.String("error", err.Error()),
 			)
-			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 			return
 		}
 		if staff != nil {
-			iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New(errStudentRFIDRequiredForPickupQuery)))
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errStudentRFIDRequiredForPickupQuery)))
 			return
 		}
-		iotCommon.RenderError(w, r, iotCommon.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
 		return
 	}
 
@@ -188,7 +188,7 @@ func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 				slog.Int64("student_id", student.ID),
 				slog.String("error", err.Error()),
 			)
-			iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 			return
 		} else {
 			attachPickupInfoToResponse(response, effectivePickup)
@@ -420,7 +420,7 @@ func (rs *Resource) processBinaryModeCheckin(
 			slog.Int64("student_id", student.ID),
 			slog.Int64("device_id", deviceCtx.ID),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New("staff PIN required for binary-mode attendance toggle")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("staff PIN required for binary-mode attendance toggle")))
 		return
 	}
 
@@ -434,7 +434,7 @@ func (rs *Resource) processBinaryModeCheckin(
 			slog.Int64("staff_id", staffID),
 			slog.String("error", err.Error()),
 		)
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
