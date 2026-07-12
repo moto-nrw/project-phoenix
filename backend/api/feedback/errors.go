@@ -1,7 +1,6 @@
 package feedback
 
 import (
-	"errors"
 	"net/http"
 
 	"github.com/go-chi/render"
@@ -22,32 +21,20 @@ func newErrResponse(status int, statusText string, err error) *common.ErrRespons
 	}
 }
 
-// ErrorRenderer returns a render.Renderer for the given error
-func ErrorRenderer(err error) render.Renderer {
-	// Default to internal server error
-	renderer := newErrResponse(http.StatusInternalServerError, "Internal Server Error", err)
-
-	// Handle specific error types
-	switch {
-	case errors.Is(err, feedbackSvc.ErrEntryNotFound):
-		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.Status = "Resource Not Found"
-
-	case errors.Is(err, feedbackSvc.ErrInvalidEntryData):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.Status = "Invalid Feedback Data"
-
-	case errors.Is(err, feedbackSvc.ErrInvalidDateRange):
-		renderer.HTTPStatusCode = http.StatusBadRequest
-		renderer.Status = "Invalid Date Range"
-
-	case errors.Is(err, feedbackSvc.ErrStudentNotFound):
-		renderer.HTTPStatusCode = http.StatusNotFound
-		renderer.Status = "Student Not Found"
-	}
-
-	return renderer
+// statusText adapts newErrResponse to the ErrorRule.Render shape.
+func statusText(status int, text string) func(error) render.Renderer {
+	return func(err error) render.Renderer { return newErrResponse(status, text, err) }
 }
+
+var errorRules = []common.ErrorRule{
+	{Target: feedbackSvc.ErrEntryNotFound, Render: statusText(http.StatusNotFound, "Resource Not Found")},
+	{Target: feedbackSvc.ErrInvalidEntryData, Render: statusText(http.StatusBadRequest, "Invalid Feedback Data")},
+	{Target: feedbackSvc.ErrInvalidDateRange, Render: statusText(http.StatusBadRequest, "Invalid Date Range")},
+	{Target: feedbackSvc.ErrStudentNotFound, Render: statusText(http.StatusNotFound, "Student Not Found")},
+}
+
+// ErrorRenderer returns a render.Renderer for the given error
+var ErrorRenderer = common.RulesRenderer(errorRules, statusText(http.StatusInternalServerError, "Internal Server Error"))
 
 // ErrorInvalidRequest returns an error response for invalid requests
 func ErrorInvalidRequest(err error) render.Renderer {
