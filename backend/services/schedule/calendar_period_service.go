@@ -182,10 +182,13 @@ func (s *calendarPeriodService) UpdatePeriod(ctx context.Context, period *schedu
 			return &ScheduleError{Op: "update calendar period", Err: err}
 		}
 		// The hard overlap rule only guards changes to the scheduling-relevant
-		// fields. Rename-only edits of a period that already overlaps (legacy
-		// data from before the rule) stay possible; the advisory warning keeps
-		// surfacing those.
-		if current.StartDate != period.StartDate || current.EndDate != period.EndDate || current.IsActive != period.IsActive {
+		// fields (dates, active flag, and type — the check runs against the NEW
+		// type, so re-typing a period out of a conflict stays possible).
+		// Rename-only edits of a period that already overlaps (legacy data from
+		// before the rule) stay possible; the advisory warning keeps surfacing
+		// those.
+		if current.StartDate != period.StartDate || current.EndDate != period.EndDate ||
+			current.IsActive != period.IsActive || current.PeriodType != period.PeriodType {
 			if err := s.ensureNoActiveSameTypeOverlap(txCtx, period); err != nil {
 				return err
 			}

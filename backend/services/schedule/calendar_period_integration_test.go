@@ -361,6 +361,34 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 		require.NoError(t, svc.UpdatePeriod(ctx, legacy),
 			"rename-only edits must not trip the overlap guard on pre-existing overlaps")
 	})
+
+	t.Run("update rejects a type change into a same-type overlap", func(t *testing.T) {
+		// A holiday inside the base semester is a legal cross-type overlap …
+		retyped := makePeriod("SameType-Umgetypt", scheduleModels.PeriodTypeHoliday,
+			timezone.NewDate(2035, 11, 5), timezone.NewDate(2035, 11, 15), true)
+		require.NoError(t, svc.CreatePeriod(ctx, retyped))
+
+		// … but re-typing it to semester collides with the active base semester.
+		retyped.PeriodType = scheduleModels.PeriodTypeSemester
+		err := svc.UpdatePeriod(ctx, retyped)
+		require.Error(t, err)
+		assert.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodOverlapConflict)
+	})
+
+	t.Run("re-typing a legacy overlapper out of the conflict stays allowed", func(t *testing.T) {
+		// Repo-seed a pre-rule same-type overlap with the base semester, then
+		// resolve it by switching to a type with no active overlaps — the
+		// guard checks the NEW type, so this repair path must keep working.
+		repo := repositories.NewFactory(db).CalendarPeriod
+		legacy := makePeriod("SameType-Reparatur", scheduleModels.PeriodTypeSemester,
+			timezone.NewDate(2035, 12, 1), timezone.NewDate(2036, 1, 20), true)
+		legacy.SetTenantID(tenantID)
+		require.NoError(t, repo.Create(ctx, legacy))
+
+		legacy.PeriodType = scheduleModels.PeriodTypeSchoolYear
+		require.NoError(t, svc.UpdatePeriod(ctx, legacy),
+			"re-typing out of a same-type conflict must resolve, not trip, the overlap guard")
+	})
 }
 
 func TestCalendarPeriodService_UpdatePeriod(t *testing.T) {
