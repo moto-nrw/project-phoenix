@@ -162,7 +162,7 @@ func cleanupWorkSchedulesForStaff(t *testing.T, db *bun.DB, staffIDs ...int64) {
 	}
 	_, err := db.NewDelete().
 		Table("config.staff_work_schedules").
-		Where("staff_id IN (?)", bun.In(staffIDs)).
+		Where("staff_id IN (?)", bun.List(staffIDs)).
 		Exec(context.Background())
 	require.NoError(t, err)
 }
