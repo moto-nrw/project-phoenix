@@ -97,6 +97,26 @@ export interface StaffScheduleAssignment {
   uncoveredIntervals: UncoveredInterval[];
 }
 
+interface BackendStaffWeeklySummary {
+  staff_id: number;
+  week_start: string;
+  planned_minutes: number;
+  target_minutes: number | null;
+  delta_minutes: number | null;
+}
+
+export interface StaffWeeklySummary {
+  staffId: string;
+  /** Monday of the summarized calendar week as "YYYY-MM-DD". */
+  weekStart: string;
+  /** Net shift minutes (span minus break) planned in that week. */
+  plannedMinutes: number;
+  /** Contractual weekly minutes (Arbeitszeitmodell); null when none resolves. */
+  targetMinutes: number | null;
+  /** plannedMinutes - targetMinutes; null when targetMinutes is null. */
+  deltaMinutes: number | null;
+}
+
 export interface BackendStaffScheduleOverview {
   from: string;
   to: string;
@@ -105,6 +125,7 @@ export interface BackendStaffScheduleOverview {
   staff: BackendStaffScheduleStaff[];
   shifts: BackendStaffShift[];
   assignments: BackendStaffScheduleAssignment[];
+  weekly_summaries?: BackendStaffWeeklySummary[];
 }
 
 export interface StaffScheduleOverview {
@@ -117,6 +138,7 @@ export interface StaffScheduleOverview {
   staff: StaffScheduleStaff[];
   shifts: StaffShift[];
   assignments: StaffScheduleAssignment[];
+  weeklySummaries: StaffWeeklySummary[];
 }
 
 export function mapStaffShift(data: BackendStaffShift): StaffShift {
@@ -169,7 +191,30 @@ export function mapStaffScheduleOverview(
         endTime: interval.end_time.slice(0, 5),
       })),
     })),
+    weeklySummaries: (data.weekly_summaries ?? []).map((summary) => ({
+      staffId: summary.staff_id.toString(),
+      weekStart: summary.week_start.slice(0, 10),
+      plannedMinutes: summary.planned_minutes,
+      targetMinutes: summary.target_minutes,
+      deltaMinutes: summary.delta_minutes,
+    })),
   };
+}
+
+const HOURS_FORMAT = new Intl.NumberFormat("de-DE", {
+  maximumFractionDigits: 2,
+});
+
+/** 1215 → "20,25 h", 2400 → "40 h" */
+export function formatPlannedHours(minutes: number): string {
+  return `${HOURS_FORMAT.format(minutes / 60)} h`;
+}
+
+/** -300 → "−5 h", 90 → "+1,5 h", 0 → "±0 h" (U+2212 minus sign) */
+export function formatDeltaHours(minutes: number): string {
+  if (minutes === 0) return "±0 h";
+  const sign = minutes > 0 ? "+" : "−";
+  return `${sign}${HOURS_FORMAT.format(Math.abs(minutes) / 60)} h`;
 }
 
 /** "08:00–16:00" */

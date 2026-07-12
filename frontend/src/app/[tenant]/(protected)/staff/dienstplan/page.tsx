@@ -24,6 +24,7 @@ import {
   type StaffScheduleOverview,
   type StaffScheduleStaff,
   type StaffShift,
+  type StaffWeeklySummary,
 } from "~/lib/shift-helpers";
 import { shiftTypeService } from "~/lib/shift-type-api";
 import { indexShiftTypes, type ShiftType } from "~/lib/shift-type-helpers";
@@ -183,6 +184,18 @@ function DienstplanContent() {
     [overview?.assignments],
   );
 
+  // Weekly planned/target summaries for the displayed week (weekFrom is its
+  // Monday). Empty on the legacy no-overview path.
+  const summaryByStaff = useMemo(() => {
+    const byStaff = new Map<string, StaffWeeklySummary>();
+    for (const summary of overview?.weeklySummaries ?? []) {
+      if (summary.weekStart === weekFrom) {
+        byStaff.set(summary.staffId, summary);
+      }
+    }
+    return byStaff;
+  }, [overview?.weeklySummaries, weekFrom]);
+
   const isOnCurrentWeek =
     toISODate(startOfWeek(parseISODate(today))) === toISODate(weekAnchor);
 
@@ -339,6 +352,7 @@ function DienstplanContent() {
             staff={sortedStaff}
             shiftsByStaff={shiftsByStaff}
             assignmentsByStaff={assignmentsByStaff}
+            summaryByStaff={summaryByStaff}
             weekDays={weekDays}
             todayIso={today}
             typesById={typesById}

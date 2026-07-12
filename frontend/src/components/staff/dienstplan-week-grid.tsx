@@ -7,10 +7,13 @@ import { MapPin, Plus, TriangleAlert } from "lucide-react";
 import { Skeleton } from "~/components/ui/skeleton";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
+  formatDeltaHours,
+  formatPlannedHours,
   formatShiftLabel,
   type StaffScheduleAssignment,
   type StaffScheduleStaff,
   type StaffShift,
+  type StaffWeeklySummary,
 } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
 
@@ -31,6 +34,8 @@ interface DienstplanWeekGridProps {
     string,
     Map<string, StaffScheduleAssignment[]>
   >;
+  /** staffId -> weekly planned/target summary for the displayed week */
+  readonly summaryByStaff: Map<string, StaffWeeklySummary>;
   /** The five weekday dates as "YYYY-MM-DD" (Monday first) */
   readonly weekDays: readonly string[];
   /** Today as "YYYY-MM-DD" for the column tint */
@@ -57,6 +62,42 @@ function assignmentAccentColor(assignment: StaffScheduleAssignment): string {
   if (assignment.coverageStatus === "uncovered") return LOCATION_COLORS.SICK;
   if (assignment.isSubstitute) return LOCATION_COLORS.OTHER_ROOM;
   return LOCATION_COLORS.UNKNOWN;
+}
+
+// Under contract → red, over contract → amber, exact match → brand green.
+function summaryDeltaColor(deltaMinutes: number): string {
+  if (deltaMinutes < 0) return LOCATION_COLORS.HOME;
+  if (deltaMinutes > 0) return LOCATION_COLORS.SICK;
+  return LOCATION_COLORS.GROUP_ROOM;
+}
+
+function WeeklySummaryLine({
+  summary,
+}: {
+  readonly summary: StaffWeeklySummary;
+}) {
+  const hasTarget =
+    summary.targetMinutes !== null && summary.deltaMinutes !== null;
+  return (
+    <span
+      className="mt-0.5 block text-xs font-medium text-gray-600 tabular-nums"
+      title={
+        hasTarget
+          ? `Geplant ${formatPlannedHours(summary.plannedMinutes)} · Soll ${formatPlannedHours(summary.targetMinutes ?? 0)}`
+          : `Geplant ${formatPlannedHours(summary.plannedMinutes)} · kein Arbeitszeitmodell hinterlegt`
+      }
+    >
+      {formatPlannedHours(summary.plannedMinutes)}
+      {hasTarget && (
+        <span
+          className="ml-1 font-semibold"
+          style={{ color: summaryDeltaColor(summary.deltaMinutes ?? 0) }}
+        >
+          · {formatDeltaHours(summary.deltaMinutes ?? 0)}
+        </span>
+      )}
+    </span>
+  );
 }
 
 function AssignmentCard({
@@ -131,6 +172,7 @@ export function DienstplanWeekGrid({
   staff,
   shiftsByStaff,
   assignmentsByStaff,
+  summaryByStaff,
   weekDays,
   todayIso,
   typesById,
@@ -198,6 +240,7 @@ export function DienstplanWeekGrid({
             {staff.map((member) => {
               const byDate = shiftsByStaff.get(member.id);
               const assignmentsByDate = assignmentsByStaff.get(member.id);
+              const summary = summaryByStaff.get(member.id);
               return (
                 <tr key={member.id} className="bg-white">
                   <th
@@ -205,6 +248,7 @@ export function DienstplanWeekGrid({
                     className="sticky left-0 z-10 bg-white px-4 py-2 text-left font-medium whitespace-nowrap text-gray-900"
                   >
                     {member.lastName}, {member.firstName}
+                    {summary && <WeeklySummaryLine summary={summary} />}
                   </th>
                   {weekDays.map((date) => {
                     const shifts = byDate?.get(date) ?? [];
