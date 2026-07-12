@@ -412,7 +412,7 @@ func TestDispatchVerificationEmail_MessageContent(t *testing.T) {
 	assert.Equal(t, expectedVerifyURL, content["VerifyURL"])
 	assert.Equal(t, int(expiry.Minutes()), content["ExpiryMinutes"])
 
-	expectedLogoURL := frontendURL + "/images/moto_transparent.png"
+	expectedLogoURL := frontendURL + "/images/moto-logo-mit-schriftzug.png"
 	assert.Equal(t, expectedLogoURL, content["LogoURL"])
 }
 
@@ -457,7 +457,7 @@ func TestDispatchNotificationEmail_MessageContent(t *testing.T) {
 	assert.Equal(t, maskedNewEmail, content["MaskedNewEmail"])
 	assert.Equal(t, operator.DisplayName, content["DisplayName"])
 
-	expectedLogoURL := frontendURL + "/images/moto_transparent.png"
+	expectedLogoURL := frontendURL + "/images/moto-logo-mit-schriftzug.png"
 	assert.Equal(t, expectedLogoURL, content["LogoURL"])
 }
 
@@ -496,7 +496,7 @@ func TestDispatchChangeConfirmedEmail_MessageContent(t *testing.T) {
 	content, ok := captured.Content.(map[string]any)
 	require.True(t, ok, "content should be map[string]any")
 
-	expectedLogoURL := frontendURL + "/images/moto_transparent.png"
+	expectedLogoURL := frontendURL + "/images/moto-logo-mit-schriftzug.png"
 	assert.Equal(t, expectedLogoURL, content["LogoURL"])
 	assert.Equal(t, displayName, content["DisplayName"])
 }

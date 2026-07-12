@@ -348,7 +348,7 @@ func (s *operatorAuthService) dispatchVerificationEmail(ctx context.Context, tok
 	// token from the URL on mount via history.replaceState, so any Referer
 	// from subsequent navigations on this page carries no token.
 	verifyURL := fmt.Sprintf("%s/operator/email-confirm?token=%s", s.FrontendURL, token.Token)
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.FrontendURL)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL)
 
 	message := email.Message{
 		From:     s.DefaultFrom,
@@ -390,7 +390,7 @@ func (s *operatorAuthService) dispatchNotificationEmail(ctx context.Context, ope
 		return
 	}
 
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.FrontendURL)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL)
 
 	message := email.Message{
 		From:     s.DefaultFrom,
@@ -418,7 +418,7 @@ func (s *operatorAuthService) dispatchChangeConfirmedEmail(ctx context.Context, 
 		return
 	}
 
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.FrontendURL)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL)
 
 	message := email.Message{
 		From:     s.DefaultFrom,

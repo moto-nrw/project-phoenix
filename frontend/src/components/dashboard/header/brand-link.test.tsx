@@ -45,8 +45,20 @@ describe("BrandLink", () => {
   it("renders the brand link with logo", () => {
     render(<BrandLink />);
 
-    expect(screen.getByAltText("moto")).toBeInTheDocument();
+    const logo = document.querySelector("img");
+    expect(logo).toHaveAttribute("alt", "");
     expect(screen.getByText("moto")).toBeInTheDocument();
+  });
+
+  it("renders a tenant label instead of the moto wordmark", () => {
+    render(<BrandLink label="Demo School" />);
+
+    const brandText = screen.getByText("Demo School");
+    expect(brandText).toHaveClass("font-semibold");
+    expect(brandText).toHaveClass("text-gray-900");
+    expect(brandText).toHaveClass("truncate");
+    expect(brandText.parentElement).toHaveClass("min-w-0");
+    expect(screen.queryByText("moto")).not.toBeInTheDocument();
   });
 
   it("links to /dashboard", () => {
@@ -60,14 +72,24 @@ describe("BrandLink", () => {
     render(<BrandLink isScrolled={true} />);
 
     const brandText = screen.getByText("moto");
-    expect(brandText).toHaveClass("text-lg");
+    expect(brandText).toHaveClass("text-xl");
+    expect(brandText).toHaveClass("lg:text-[22px]");
   });
 
   it("applies normal text size when not scrolled", () => {
     render(<BrandLink isScrolled={false} />);
 
     const brandText = screen.getByText("moto");
-    expect(brandText).toHaveClass("text-xl");
+    expect(brandText).toHaveClass("text-[22px]");
+  });
+
+  it("uses compact UI font sizes for tenant labels", () => {
+    render(<BrandLink isScrolled={true} label="Demo School" />);
+
+    const brandText = screen.getByText("Demo School");
+    expect(brandText).toHaveClass("text-sm");
+    expect(brandText).toHaveClass("lg:text-base");
+    expect(brandText).not.toHaveClass("[font-family:var(--font-moto)]");
   });
 });
 

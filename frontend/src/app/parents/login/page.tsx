@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
 import {
   AuthShell,
+  MotoBrand,
   authInputClassName,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
@@ -119,6 +120,7 @@ export default function ParentLoginPage() {
         title={t("title")}
         subtitle={t("subtitle")}
         variant="parents"
+        brand={<MotoBrand />}
         footer={<LanguageSwitcher />}
         testimonialPanelCopy={testimonialPanelCopy}
       >

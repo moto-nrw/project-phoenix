@@ -370,7 +370,7 @@ func (s *operatorAuthService) dispatchOperatorInvitationEmail(ctx context.Contex
 	// (not /operator/invite) because the operator subdomain proxy rewrites
 	// /invite → /operator/invite internally.
 	invitationURL := fmt.Sprintf("%s/invite?token=%s", s.OperatorFrontendURL, token.Token)
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.FrontendURL)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL)
 
 	message := email.Message{
 		From:     s.DefaultFrom,

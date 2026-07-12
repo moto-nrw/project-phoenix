@@ -190,7 +190,7 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 
 	frontendURL := strings.TrimRight(baseURL, "/")
 	resetURL := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, resetToken.Token)
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontendURL)
 
 	message := email.Message{
 		From:     s.defaultFrom,

@@ -159,7 +159,7 @@ func TestInitiateParentPasswordResetSendsParentPortalLink(t *testing.T) {
 	require.Equal(t, "Passwort zurücksetzen", msg.Subject)
 	content := msg.Content.(map[string]any)
 	require.Equal(t, "http://parents.localhost:3000/reset-password?token="+token.Token, content["ResetURL"])
-	require.Equal(t, "http://parents.localhost:3000/images/moto_transparent.png", content["LogoURL"])
+	require.Equal(t, "http://parents.localhost:3000/images/moto-logo-mit-schriftzug.png", content["LogoURL"])
 
 	_, ok := tokens.tokens[token.Token]
 	require.True(t, ok, "token should be persisted")

@@ -829,7 +829,7 @@ func (s *invitationService) sendInvitationEmail(invitation *authModels.Invitatio
 	}
 
 	invitationURL := fmt.Sprintf("%s/invite?token=%s", frontend, invitation.Token)
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontend)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontend)
 	expiryHours := int(s.invitationExpiry / time.Hour)
 
 	subject := "Einladung zu moto"

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import Image from "next/image";
 import { Hammer, Quote, ShieldCheck, UsersRound } from "lucide-react";
 import { cn } from "~/lib/utils";
 
@@ -11,11 +12,7 @@ export const authPrimaryButtonClassName =
   "inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-4 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:bg-gray-400";
 
 type AuthShellVariant =
-  | "tenant"
-  | "parents"
-  | "tenant-select"
-  | "reset"
-  | "operator";
+  "tenant" | "parents" | "tenant-select" | "reset" | "operator";
 
 interface Testimonial {
   readonly quote: string;
@@ -141,6 +138,38 @@ interface AuthShellProps {
   readonly footer?: ReactNode;
   readonly formMaxWidth?: string;
   readonly testimonialPanelCopy?: AuthTestimonialPanelCopy;
+  readonly showMotoAttribution?: boolean;
+}
+
+export function MotoBrand() {
+  return (
+    <div className="flex items-center justify-center gap-3">
+      <Image
+        src="/images/moto_transparent.webp"
+        alt=""
+        width={44}
+        height={32}
+        className="h-8 w-11 object-contain"
+        priority
+      />
+      <span className="[font-family:var(--font-moto)] text-[2rem] leading-none font-bold text-gray-950">
+        moto
+      </span>
+    </div>
+  );
+}
+
+export function MotoIconBrand() {
+  return (
+    <Image
+      src="/images/moto_transparent.webp"
+      alt="moto"
+      width={44}
+      height={32}
+      className="h-10 w-14 object-contain"
+      priority
+    />
+  );
 }
 
 export function OperatorBrand() {
@@ -160,6 +189,24 @@ export function OperatorBrand() {
   );
 }
 
+function MotoAttribution() {
+  return (
+    <div className="mt-4 flex items-center justify-center gap-1.5 text-xs font-medium text-gray-500">
+      <span>Bereitgestellt von</span>
+      <Image
+        src="/images/moto_transparent.webp"
+        alt=""
+        width={18}
+        height={13}
+        className="h-3.5 w-5 object-contain"
+      />
+      <span className="[font-family:var(--font-moto)] text-sm leading-none font-bold text-gray-700">
+        moto
+      </span>
+    </div>
+  );
+}
+
 export function AuthShell({
   eyebrow,
   title,
@@ -172,6 +219,7 @@ export function AuthShell({
   footer,
   formMaxWidth = "max-w-[29rem]",
   testimonialPanelCopy,
+  showMotoAttribution = false,
 }: AuthShellProps) {
   return (
     <main className="moto-auth-shell-background grid min-h-screen lg:grid-cols-[minmax(0,0.9fr)_minmax(34rem,1.1fr)]">
@@ -200,6 +248,7 @@ export function AuthShell({
             </div>
             {children}
           </div>
+          {showMotoAttribution ? <MotoAttribution /> : null}
           {footer && <div className="mt-5 text-center">{footer}</div>}
         </div>
       </section>

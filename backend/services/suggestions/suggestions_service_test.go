@@ -214,7 +214,7 @@ func TestCreatePost_DispatchesNotificationToTrimmedRecipients(t *testing.T) {
 		assert.Equal(t, "new_post", content["Type"])
 		assert.Equal(t, "Alice Example", content["AuthorName"])
 		assert.Equal(t, "https://frontend.test/operator/suggestions?post=77", content["SuggestionURL"])
-		assert.Equal(t, "https://frontend.test/images/moto_transparent.png", content["LogoURL"])
+		assert.Equal(t, "https://frontend.test/images/moto-logo-mit-schriftzug.png", content["LogoURL"])
 		assert.Len(t, content["Description"], 503)
 		assert.True(t, strings.HasSuffix(content["Description"], "\u2026"))
 	}

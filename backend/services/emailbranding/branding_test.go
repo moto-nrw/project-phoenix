@@ -3,13 +3,13 @@ package emailbranding
 import "testing"
 
 func TestMotoLogoURL(t *testing.T) {
-	if got := MotoLogoURL("https://parents.localhost:3000"); got != "https://parents.localhost:3000/images/moto_transparent.png" {
+	if got := MotoLogoURL("https://parents.localhost:3000"); got != "https://parents.localhost:3000/images/moto-logo-mit-schriftzug.png" {
 		t.Fatalf("unexpected moto logo url: %q", got)
 	}
-	if got := MotoLogoURL("https://parents.localhost:3000/"); got != "https://parents.localhost:3000/images/moto_transparent.png" {
+	if got := MotoLogoURL("https://parents.localhost:3000/"); got != "https://parents.localhost:3000/images/moto-logo-mit-schriftzug.png" {
 		t.Fatalf("trailing slash not normalized: %q", got)
 	}
-	if got := MotoLogoURL(""); got != "/images/moto_transparent.png" {
+	if got := MotoLogoURL(""); got != "/images/moto-logo-mit-schriftzug.png" {
 		t.Fatalf("empty base should yield bare path, got %q", got)
 	}
 }
