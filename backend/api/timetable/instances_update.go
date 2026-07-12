@@ -20,6 +20,10 @@ type updateInstanceRequest struct {
 	ActivityGroupID *int64  `json:"activity_group_id,omitempty"`
 	StaffIDs        []int64 `json:"staff_ids,omitempty"`
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
+	// RequiredStaff is the optional per-occurrence Personalbedarf pin (#1839);
+	// omitted/null clears the pin (inherit the template override, else derive
+	// from the Betreuungsschlüssel), a value = pin for this occurrence.
+	RequiredStaff *int `json:"required_staff,omitempty"`
 }
 
 func (req *updateInstanceRequest) Bind(_ *http.Request) error {
@@ -87,13 +91,14 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		ActivityGroupID: req.ActivityGroupID,
 		StaffIDs:        req.StaffIDs,
 		StudentIDs:      req.StudentIDs,
+		RequiredStaff:   normalizeRequiredStaff(req.RequiredStaff),
 	})
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return
 	}
 	roomCache := make(map[int64]string)
-	typeCache := make(map[int64]string)
+	typeCache := make(map[int64]templateMeta)
 	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("enrich instance failed", err))

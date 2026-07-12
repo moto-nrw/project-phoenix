@@ -418,6 +418,7 @@ const templateListSelect = `
 				COALESCE(eg.name, '') AS education_group_name,
 				g.is_open,
 			g.max_participants,
+			g.required_staff,
 			g.calendar_period_id AS template_calendar_period_id,
 			g.target_group_type,
 			g.target_grade_level,
@@ -737,6 +738,7 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		Set("planned_room_id = ?", fields.RoomID).
 		Set("education_group_id = ?", fields.EducationGroupID).
 		Set("max_participants = ?", fields.MaxParticipants).
+		Set("required_staff = ?", fields.RequiredStaff).
 		Set("calendar_period_id = ?", fields.CalendarPeriodID).
 		Set("target_group_type = ?", targetGroupType).
 		Set("target_grade_level = ?", fields.TargetGradeLevel).

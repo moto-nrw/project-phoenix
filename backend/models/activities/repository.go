@@ -211,12 +211,15 @@ type StudentEnrollmentRepository interface {
 // count grew past what's readable positionally once Zielgruppe/calendar
 // period joined the original create-time fields.
 type TemplateFieldsUpdate struct {
-	Name              string
-	Type              string
-	CategoryID        int64
-	RoomID            int64
-	EducationGroupID  *int64
-	MaxParticipants   int
+	Name             string
+	Type             string
+	CategoryID       int64
+	RoomID           int64
+	EducationGroupID *int64
+	MaxParticipants  int
+	// RequiredStaff is the manual Personalbedarf override (#1839). nil ->
+	// clear the override (derive from the Betreuungsschlüssel).
+	RequiredStaff     *int
 	CalendarPeriodID  *int64
 	TargetGroupType   string
 	TargetGradeLevel  *int16
@@ -239,6 +242,9 @@ type TemplateListRow struct {
 	EducationGroupName sql.NullString `bun:"education_group_name"`
 	IsOpen             bool           `bun:"is_open"`
 	MaxParticipants    int            `bun:"max_participants"`
+	// RequiredStaff is the template's manual Personalbedarf override (#1839);
+	// NULL = derive from the Betreuungsschlüssel.
+	RequiredStaff sql.NullInt64 `bun:"required_staff"`
 	// TemplateCalendarPeriodID is the template's OWN period pin (Group.
 	// CalendarPeriodID), distinct from CalendarPeriodID below which is the
 	// per-schedule-row pin. See materialization_service.go's
@@ -252,8 +258,14 @@ type TemplateListRow struct {
 	// CapacityEnrollmentCount and CapacitySupervisorCount are the roster on
 	// the actual recurrence date selected as worst for the template. They
 	// intentionally differ from the period-tolerant display roster below.
-	CapacityEnrollmentCount int            `bun:"capacity_enrollment_count"`
-	CapacitySupervisorCount int            `bun:"capacity_supervisor_count"`
+	CapacityEnrollmentCount int `bun:"capacity_enrollment_count"`
+	CapacitySupervisorCount int `bun:"capacity_supervisor_count"`
+	// CapacityOccurrenceFound reports whether a real occurrence was selected
+	// for the capacity counts above. When false (every date cancelled,
+	// AB-week-filtered, or unmaterializable) the manual required_staff
+	// override must not create demand — otherwise the list shows a false 0/N
+	// understaffing indicator for a block that never occurs (#1839).
+	CapacityOccurrenceFound bool           `bun:"-"`
 	StudentIDs              []int64        `bun:"student_ids,array"`
 	StaffIDs                []int64        `bun:"staff_ids,array"`
 	PrimaryStaffID          sql.NullInt64  `bun:"primary_staff_id"`

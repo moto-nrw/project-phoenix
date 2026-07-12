@@ -93,19 +93,26 @@ func templateCareOfferingValidationError(ctx context.Context, op, action string,
 // provided StaffIDs roster; carried-over supervisors keep their own
 // is_primary flag.
 type TemplateSplitInput struct {
-	TemplateID       int64
-	EffectiveDate    timezone.Date
-	Name             string
-	Type             string // care | activity | external
-	Weekdays         []int  // ISO 8601, Mo=1 … Su=7
-	StartTime        time.Time
-	EndTime          time.Time
-	RoomID           int64
-	CategoryID       int64
-	MaxParticipants  *int
-	WeekPattern      *int // 0=every week, 1=A, 2=B; nil = 0
-	CalendarPeriodID *int64
-	EducationGroupID *int64
+	TemplateID      int64
+	EffectiveDate   timezone.Date
+	Name            string
+	Type            string // care | activity | external
+	Weekdays        []int  // ISO 8601, Mo=1 … Su=7
+	StartTime       time.Time
+	EndTime         time.Time
+	RoomID          int64
+	CategoryID      int64
+	MaxParticipants *int
+	// RequiredStaff is the manual Personalbedarf override (#1839) for the
+	// successor Group, already normalized (nil = clear/derive). It is only
+	// applied when RequiredStaffProvided is true; otherwise the successor
+	// inherits the source template's override. This omitted-vs-null split is
+	// what lets a "this and following" edit actually CLEAR an override.
+	RequiredStaff         *int
+	RequiredStaffProvided bool
+	WeekPattern           *int // 0=every week, 1=A, 2=B; nil = 0
+	CalendarPeriodID      *int64
+	EducationGroupID      *int64
 	// Zielgruppe (target-group) fields, carried onto the successor Group
 	// (see createSuccessorGroup). "gruppe" reuses EducationGroupID above.
 	TargetGroupType   string
@@ -831,6 +838,14 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	if in.MaxParticipants != nil && *in.MaxParticipants > 0 {
 		maxParticipants = *in.MaxParticipants
 	}
+	// Personalbedarf override (#1839): only touch the successor's override when
+	// the request actually carried the field. When provided, the (already
+	// normalized) value is authoritative — a null CLEARS it (derive). When
+	// omitted, inherit the source template's override.
+	requiredStaff := old.RequiredStaff
+	if in.RequiredStaffProvided {
+		requiredStaff = in.RequiredStaff
+	}
 	seriesRootID := old.ID
 	if old.SeriesRootID != nil {
 		seriesRootID = *old.SeriesRootID
@@ -839,6 +854,7 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	group := &activitiesModel.Group{
 		Name:              in.Name,
 		MaxParticipants:   maxParticipants,
+		RequiredStaff:     requiredStaff,
 		IsOpen:            old.IsOpen,
 		CategoryID:        in.CategoryID,
 		PlannedRoomID:     &roomID,

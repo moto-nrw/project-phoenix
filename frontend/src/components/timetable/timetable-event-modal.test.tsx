@@ -1231,6 +1231,32 @@ describe("TimetableEventModal", () => {
     });
   });
 
+  it("keeps the converted seed occurrence unpinned from the new series staffing override", async () => {
+    mockCreateTemplate.mockResolvedValue({ templateId: "8" });
+    renderModal({
+      convertInstance: { ...savedInstance, activityGroupId: undefined },
+    });
+
+    await screen.findByText("Termin wiederholen");
+    fireEvent.change(screen.getByLabelText("Benötigtes Personal"), {
+      target: { value: "4" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ required_staff: 4 }),
+      ),
+    );
+    expect(mockUpdate).toHaveBeenCalledWith(
+      "42",
+      expect.objectContaining({
+        activity_group_id: 8,
+        required_staff: null,
+      }),
+    );
+  });
+
   it("deletes an existing series from an editable effective date", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-05-06T10:00:00"));
@@ -1488,6 +1514,29 @@ describe("TimetableEventModal", () => {
       "7",
     );
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "12" });
+  });
+
+  it("preserves the fetched staffing override for an untouched following edit", async () => {
+    mockGetTemplate.mockResolvedValue({
+      ...template,
+      requiredStaffOverride: 3,
+    });
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    expect(screen.getByLabelText("Benötigtes Personal")).toHaveValue(null);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() =>
+      expect(mockSplitTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ required_staff: 3 }),
+      ),
+    );
   });
 
   it("checks all following occurrences and saves despite coverage warnings", async () => {
@@ -1812,6 +1861,62 @@ describe("TimetableEventModal", () => {
     );
     expect(mockSplitTemplate).not.toHaveBeenCalled();
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
+  });
+
+  it("preserves the fetched staffing override for an untouched all-series edit", async () => {
+    mockGetTemplate.mockResolvedValue({
+      ...template,
+      requiredStaffOverride: 3,
+    });
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    expect(screen.getByLabelText("Benötigtes Personal")).toHaveValue(null);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ required_staff: 3 }),
+      ),
+    );
+  });
+
+  it("clears the template staffing override when the occurrence field was explicitly cleared", async () => {
+    mockGetTemplate.mockResolvedValue({
+      ...template,
+      requiredStaffOverride: 3,
+    });
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+        requiredStaffOverride: 2,
+      },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    const requiredStaff = screen.getByLabelText("Benötigtes Personal");
+    expect(requiredStaff).toHaveValue(2);
+    fireEvent.change(requiredStaff, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ required_staff: null }),
+      ),
+    );
   });
 
   it("preserves a template-only period pin and its end for 'Alle Termine der Serie'", async () => {

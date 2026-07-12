@@ -141,6 +141,14 @@ interface EventFormState {
   staffIds: string[];
   primaryStaffId: string;
   /**
+   * Manual Personalbedarf override (issue #1839). Empty = automatic: a single
+   * occurrence inherits the series value, otherwise the Betreuungsschlüssel
+   * derivation applies. A non-negative integer overrides both (on a single
+   * occurrence it becomes a pin that survives series edits). Held as a string
+   * because it is an <input> value; parsed via parseRequiredStaffOverride.
+   */
+  requiredStaff: string;
+  /**
    * Zielgruppe (target group, issue #1838). "gruppe" reuses educationGroupId
    * above as its value rather than a separate field — switching away from
    * "gruppe" clears educationGroupId so the two never disagree.
@@ -271,6 +279,7 @@ function emptyForm(
     studentIds: [],
     staffIds: [],
     primaryStaffId: "",
+    requiredStaff: "",
     targetGroupType: "none",
     targetGradeLevel: "",
     targetSchoolClass: "",
@@ -301,6 +310,10 @@ function formFromInstance(
     staffIds: instance.staff.map((item) => item.staffId),
     primaryStaffId:
       instance.staff.find((item) => item.isPrimary)?.staffId ?? "",
+    requiredStaff:
+      instance.requiredStaffOverride !== undefined
+        ? String(instance.requiredStaffOverride)
+        : "",
     targetGroupType: "none",
     targetGradeLevel: "",
     targetSchoolClass: "",
@@ -337,6 +350,10 @@ function formFromSeries(
     studentIds: series.studentIds,
     staffIds: series.staffIds,
     primaryStaffId: series.primaryStaffId ?? "",
+    requiredStaff:
+      series.requiredStaffOverride !== undefined
+        ? String(series.requiredStaffOverride)
+        : "",
     targetGroupType: series.targetGroupType,
     targetGradeLevel:
       series.targetGradeLevel !== undefined && series.targetGradeLevel !== null
@@ -344,6 +361,18 @@ function formFromSeries(
         : "",
     targetSchoolClass: series.targetSchoolClass?.trim() ?? "",
   };
+}
+
+// parseRequiredStaffOverride maps the "Benötigtes Personal" input to the
+// override wire value (#1839): empty/invalid → null (clear the override, derive
+// from the Betreuungsschlüssel); a whole non-negative integer → manual
+// override. Only plain digit strings are accepted — Number.parseInt would
+// silently coerce "1e2" → 1 or "2.5" → 2 and persist the wrong requirement.
+function parseRequiredStaffOverride(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 function sortPeople<T extends PersonOption>(items: T[]): T[] {
@@ -538,6 +567,10 @@ export function TimetableEventModal({
   // Monotonically increasing probe id so stale responses are dropped.
   const probeSeq = useRef(0);
   const coverageProbeSeq = useRef(0);
+  // A materialized occurrence only exposes its own staffing pin, not the
+  // template override it may inherit. Remember user intent separately so an
+  // unrelated all/following edit can preserve the freshly fetched template.
+  const requiredStaffTouched = useRef(false);
 
   const isEditingInstance = initialInstance !== null;
   const isEditingSeries = initialSeries !== null;
@@ -621,6 +654,7 @@ export function TimetableEventModal({
     setInitialStudentIDsSnapshot([...nextForm.studentIds]);
     setInitialStaffIDsSnapshot([...nextForm.staffIds]);
     setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
+    requiredStaffTouched.current = false;
     setForm(nextForm);
     setValidationError(null);
     setFieldErrors({});
@@ -1190,6 +1224,7 @@ export function TimetableEventModal({
       activity_group_id: activityGroupId ? Number(activityGroupId) : undefined,
       staff_ids: staffIDsForSave.map(Number),
       student_ids: studentIDsForSave.map(Number),
+      required_staff: parseRequiredStaffOverride(form.requiredStaff),
     }) satisfies CreateInstanceBody;
 
   const seriesBody = (
@@ -1217,6 +1252,7 @@ export function TimetableEventModal({
         : undefined,
     calendar_period_id: Number(form.calendarPeriodId),
     week_pattern: form.weekPattern,
+    required_staff: parseRequiredStaffOverride(form.requiredStaff),
     student_ids: studentIDsForSave.map(Number),
     staff_ids: staffIDsForSave.map(Number),
     primary_staff_id: primaryStaffIDForSave
@@ -1273,6 +1309,12 @@ export function TimetableEventModal({
       target_school_class: template.targetSchoolClass,
       max_participants:
         template.maxParticipants > 0 ? template.maxParticipants : undefined,
+      // An occurrence form starts from the occurrence's own pin, which is
+      // blank when it inherits from the series. Preserve the fetched template
+      // override until the user explicitly edits this field.
+      required_staff: requiredStaffTouched.current
+        ? parseRequiredStaffOverride(form.requiredStaff)
+        : (template.requiredStaffOverride ?? null),
       week_pattern: firstSchedule?.weekPattern ?? 0,
       calendar_period_id: calendarPeriodId
         ? Number(calendarPeriodId)
@@ -1473,10 +1515,12 @@ export function TimetableEventModal({
         const created = await timetableService.createTemplate(
           seriesBody(parsed.roomId, parsed.categoryId),
         );
-        await timetableService.update(
-          convertInstance.id,
-          instanceBody(parsed.roomId, created.templateId),
-        );
+        await timetableService.update(convertInstance.id, {
+          ...instanceBody(parsed.roomId, created.templateId),
+          // The value entered during conversion belongs to the new series.
+          // Keep the seed occurrence unpinned so future series edits apply.
+          required_staff: null,
+        });
         if (await materializePeriodAfterConvert()) {
           toastSuccess("Termin wiederholt");
         } else {
@@ -2023,6 +2067,28 @@ export function TimetableEventModal({
   const peopleFields = (
     <>
       {staffRosterField}
+
+      <Field label="Benötigtes Personal" htmlFor="event_required_staff">
+        <Input
+          id="event_required_staff"
+          type="number"
+          min={0}
+          step={1}
+          inputMode="numeric"
+          value={form.requiredStaff}
+          onChange={(event) => {
+            requiredStaffTouched.current = true;
+            update("requiredStaff", event.target.value);
+          }}
+          placeholder="automatisch aus Betreuungsschlüssel"
+          controlSize="compact"
+        />
+        <p className="mt-1 text-xs text-gray-500">
+          Leer = automatisch: Es gilt der Wert der Terminreihe, sonst die
+          Berechnung aus dem Betreuungsschlüssel (Kinderzahl). Eine Zahl legt
+          den Bedarf fest und überschreibt beides.
+        </p>
+      </Field>
 
       {studentRosterField}
 

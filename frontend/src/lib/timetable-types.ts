@@ -93,6 +93,13 @@ export interface EnrichedInstance {
    */
   requiredStaffCount: number;
   assignedStaffCount: number;
+  /**
+   * Raw manual Personalbedarf override (issue #1839), undefined when the block
+   * derives its requirement from the Betreuungsschlüssel. requiredStaffCount
+   * above already folds the override in; this is the raw value the edit form
+   * needs to distinguish "derive" from a set number.
+   */
+  requiredStaffOverride?: number;
   conflictWarnings: ConflictWarning[];
 }
 
@@ -150,6 +157,7 @@ export interface BackendEnrichedInstance {
   present_students_count: number;
   required_staff_count: number;
   assigned_staff_count: number;
+  required_staff_override?: number | null;
   conflict_warnings?: Array<{
     kind: ConflictKind;
     resource_id: number;
@@ -296,6 +304,8 @@ export interface TimetableTemplate {
   /** Betreuungsplan capacity indicator (issue #1838) — see EnrichedInstance. */
   requiredStaffCount: number;
   assignedStaffCount: number;
+  /** Raw manual Personalbedarf override (issue #1839); undefined = derive. */
+  requiredStaffOverride?: number;
   studentIds: string[];
   staffIds: string[];
   primaryStaffId?: string;
@@ -336,6 +346,7 @@ export interface BackendTimetableTemplate {
   supervisor_count: number;
   required_staff_count: number;
   assigned_staff_count: number;
+  required_staff_override?: number | null;
   student_ids?: number[];
   staff_ids?: number[];
   primary_staff_id?: number;
@@ -591,6 +602,8 @@ export interface CreateInstanceBody {
   activity_group_id?: number;
   staff_ids?: number[];
   student_ids?: number[];
+  /** Manual Personalbedarf override (#1839); null/omitted = derive. */
+  required_staff?: number | null;
 }
 
 /**
@@ -611,6 +624,8 @@ export interface CreateTemplateBody {
   category_id: number;
   education_group_id?: number;
   max_participants?: number;
+  /** Manual Personalbedarf override (#1839); null/omitted = derive. */
+  required_staff?: number | null;
   week_pattern?: number;
   calendar_period_id?: number;
   target_group_type?: TargetGroupType;

@@ -153,6 +153,9 @@ type CreateInstanceInput struct {
 	StaffIDs         []int64
 	StudentIDs       []int64
 	CreatedByStaffID *int64
+	// RequiredStaff is the optional manual Personalbedarf override (#1839);
+	// nil = derive from the Betreuungsschlüssel.
+	RequiredStaff *int
 }
 
 type UpdateInstanceInput struct {
@@ -166,6 +169,9 @@ type UpdateInstanceInput struct {
 	ActivityGroupID *int64
 	StaffIDs        []int64
 	StudentIDs      []int64
+	// RequiredStaff is the optional manual Personalbedarf override (#1839);
+	// nil = derive from the Betreuungsschlüssel.
+	RequiredStaff *int
 }
 
 // StartInstanceResult bundles what the start endpoint returns. ActiveGroupID
@@ -666,6 +672,7 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		Notes:           req.Notes,
 		RoomID:          req.RoomID,
 		ActivityGroupID: req.ActivityGroupID,
+		RequiredStaff:   req.RequiredStaff,
 		Status:          scheduleModel.InstanceStatusPlanned,
 		IsSpontaneous:   isSpontaneous,
 		CreatedBy:       req.CreatedByStaffID,
@@ -782,6 +789,7 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	instance.Notes = req.Notes
 	instance.RoomID = req.RoomID
 	instance.ActivityGroupID = req.ActivityGroupID
+	instance.RequiredStaff = req.RequiredStaff
 	instance.IsSpontaneous = req.ActivityGroupID == nil
 
 	if err := s.updateLifecycleColumns(
@@ -795,6 +803,7 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 		"notes",
 		"room_id",
 		"activity_group_id",
+		"required_staff",
 		"is_spontaneous",
 	); err != nil {
 		return nil, &ScheduleError{Op: "update instance", Err: err}
@@ -1275,9 +1284,10 @@ func (s *instanceService) acquireSubstituteDayLockPair(ctx context.Context, tena
 	return repoBase.AcquireXactLock(ctx, s.deps.DB, substituteDayLockKey(tenantID, second))
 }
 
-// deviationSnapshot captures the Vertretungsplan overrides on one planned,
-// template-backed occurrence so ReplanWeek can regenerate it from the (edited)
-// template and then reapply the manual overrides (#1840). Keyed by
+// deviationSnapshot captures the Vertretungsplan overrides (#1840) and the
+// per-occurrence Personalbedarf pin (#1839) on one planned, template-backed
+// occurrence so ReplanWeek can regenerate it from the (edited) template and
+// then reapply the manual overrides. Keyed by
 // (activityGroupID, date, startTime) — the same slot key the materializer uses —
 // so the regenerated occurrence can be matched back.
 type deviationSnapshot struct {
@@ -1286,6 +1296,11 @@ type deviationSnapshot struct {
 	startTime        string // "15:04:05", for multi-slot disambiguation
 	understaffedAck  bool
 	understaffedNote *string
+	// requiredStaff preserves a per-occurrence Personalbedarf pin (#1839).
+	// Materialized rows leave the column NULL and inherit the template's
+	// override at read time, so a non-NULL value here is always a deliberate
+	// single-occurrence pin that must survive the re-plan.
+	requiredStaff *int
 	// absentPlanned: planned (non-substitute) rows that were marked absent.
 	absentPlanned []snapshotAbsence
 	// substitutes: extra substitute rows (is_substitute=true) to recreate.
@@ -1340,6 +1355,7 @@ func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timez
 			startTime:        formatTimeOfDay(inst.StartTime),
 			understaffedAck:  inst.UnderstaffedAck,
 			understaffedNote: inst.UnderstaffedNote,
+			requiredStaff:    inst.RequiredStaff,
 		}
 		for _, row := range rows {
 			switch {
@@ -1360,7 +1376,8 @@ func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timez
 		}
 		// Nothing overridden → nothing to reapply (but the occurrence was still
 		// counted above, which is what the sole-occurrence check needs).
-		if !snap.understaffedAck && len(snap.absentPlanned) == 0 && len(snap.substitutes) == 0 {
+		if !snap.understaffedAck && snap.requiredStaff == nil &&
+			len(snap.absentPlanned) == 0 && len(snap.substitutes) == 0 {
 			continue
 		}
 		snapshots = append(snapshots, snap)
@@ -1392,6 +1409,17 @@ func (s *instanceService) reapplyDeviations(ctx context.Context, snapshots []dev
 		if inst == nil {
 			continue
 		}
+
+		// Reapply a per-occurrence Personalbedarf pin (#1839). Column-scoped
+		// update: full-row Update does not round-trip SQL TIME columns safely
+		// through Bun (see ActivityInstanceRepository.MarkCompleted).
+		if snap.requiredStaff != nil {
+			inst.RequiredStaff = snap.requiredStaff
+			if _, err := s.deps.InstanceRepo.UpdateColumns(ctx, inst, "required_staff"); err != nil {
+				return reapplied, err
+			}
+		}
+
 		rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, inst.ID)
 		if err != nil {
 			return reapplied, err

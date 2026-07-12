@@ -470,6 +470,13 @@ func (s *materializationService) materializeTemplate(
 
 			periodID := period.ID
 			templateID := tmpl.ID
+			// RequiredStaff stays NULL on materialized rows: the template's
+			// Personalbedarf override is inherited at read time (#1839). Copying
+			// it here would make a template-level value indistinguishable from a
+			// deliberate per-occurrence pin, so a later series edit of the
+			// override could never propagate past ReplanWeek's deviation
+			// snapshot. A non-NULL instance value is therefore always a
+			// single-occurrence pin.
 			instance := &schedule.ActivityInstance{
 				Date:             date,
 				ActivityGroupID:  &templateID,

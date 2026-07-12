@@ -9,6 +9,7 @@ import (
 
 // int64Ptr returns a pointer to the given int64 value.
 func int64Ptr(v int64) *int64 { return &v }
+func intPtr(v int) *int       { return &v }
 
 func TestGroupValidate(t *testing.T) {
 	tests := []struct {
@@ -81,6 +82,42 @@ func TestGroupValidate(t *testing.T) {
 				CreatedBy:       int64Ptr(1),
 			},
 			wantErr: true,
+		},
+		{
+			name: "Negative required staff override (#1839)",
+			group: &Group{
+				Name:            "Test Group",
+				MaxParticipants: 10,
+				IsOpen:          true,
+				CategoryID:      1,
+				CreatedBy:       int64Ptr(1),
+				RequiredStaff:   intPtr(-1),
+			},
+			wantErr: true,
+		},
+		{
+			name: "Zero required staff override is valid (#1839)",
+			group: &Group{
+				Name:            "Test Group",
+				MaxParticipants: 10,
+				IsOpen:          true,
+				CategoryID:      1,
+				CreatedBy:       int64Ptr(1),
+				RequiredStaff:   intPtr(0),
+			},
+			wantErr: false,
+		},
+		{
+			name: "Nil required staff override is valid (derive) (#1839)",
+			group: &Group{
+				Name:            "Test Group",
+				MaxParticipants: 10,
+				IsOpen:          true,
+				CategoryID:      1,
+				CreatedBy:       int64Ptr(1),
+				RequiredStaff:   nil,
+			},
+			wantErr: false,
 		},
 		{
 			name: "Missing category ID",

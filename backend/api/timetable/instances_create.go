@@ -37,6 +37,21 @@ type createInstanceRequest struct {
 	ActivityGroupID *int64  `json:"activity_group_id,omitempty"`
 	StaffIDs        []int64 `json:"staff_ids,omitempty"`
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
+	// RequiredStaff is the optional per-occurrence Personalbedarf pin (#1839);
+	// omitted/null = no pin (inherit the template override, else derive from
+	// the Betreuungsschlüssel), a value = pin for this occurrence.
+	RequiredStaff *int `json:"required_staff,omitempty"`
+}
+
+// normalizeRequiredStaff cleans the optional required_staff override into a
+// pointer: nil or a negative value -> nil ("no override, derive from the
+// Betreuungsschlüssel"); a non-negative value is a manual override. Shared by
+// the instance + template create/update handlers (#1839).
+func normalizeRequiredStaff(v *int) *int {
+	if v == nil || *v < 0 {
+		return nil
+	}
+	return v
 }
 
 type parsedCreateInstanceRequest struct {
@@ -154,6 +169,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 		StaffIDs:         req.StaffIDs,
 		StudentIDs:       req.StudentIDs,
 		CreatedByStaffID: createdByPtr,
+		RequiredStaff:    normalizeRequiredStaff(req.RequiredStaff),
 	})
 	if err != nil {
 		renderCreateInstanceError(w, r, err)
@@ -163,7 +179,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	// Re-fetch as enriched payload so the frontend can drop the fresh row
 	// straight into its SWR cache without a round-trip refetch.
 	roomCache := make(map[int64]string)
-	typeCache := make(map[int64]string)
+	typeCache := make(map[int64]templateMeta)
 	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()))
 	if err != nil {
 		// Insert succeeded; enrichment is informational. Fall through with

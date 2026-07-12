@@ -404,6 +404,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     presentStudentsCount: raw.present_students_count,
     requiredStaffCount: raw.required_staff_count,
     assignedStaffCount: raw.assigned_staff_count,
+    requiredStaffOverride: raw.required_staff_override ?? undefined,
     conflictWarnings: (raw.conflict_warnings ?? []).map((warning) => ({
       kind: warning.kind,
       resourceId: String(warning.resource_id),
@@ -711,6 +712,7 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       supervisorCount: template.supervisor_count,
       requiredStaffCount: template.required_staff_count,
       assignedStaffCount: template.assigned_staff_count,
+      requiredStaffOverride: template.required_staff_override ?? undefined,
       studentIds: (template.student_ids ?? []).map(String),
       staffIds: (template.staff_ids ?? []).map(String),
       primaryStaffId:
