@@ -103,6 +103,9 @@ func ResolveWeekIndex(rotationLength int, anchor, date timezone.Date) int {
 type WorkTimeModelRepository interface {
 	List(ctx context.Context) ([]*WorkTimeModel, error)
 	FindByID(ctx context.Context, id int64) (*WorkTimeModel, error)
+	// FindByIDs resolves the given templates with their entries in one batched
+	// read (missing IDs are simply absent from the result).
+	FindByIDs(ctx context.Context, ids []int64) ([]*WorkTimeModel, error)
 	Create(ctx context.Context, model *WorkTimeModel, entries []*WorkTimeModelEntry) error
 	Update(ctx context.Context, model *WorkTimeModel, entries []*WorkTimeModelEntry) error
 	RefreshAssignedStaffSchedules(ctx context.Context, modelID int64) error

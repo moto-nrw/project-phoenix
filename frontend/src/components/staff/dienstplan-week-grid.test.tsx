@@ -5,6 +5,7 @@ import type {
   StaffScheduleAssignment,
   StaffScheduleStaff,
   StaffShift,
+  StaffWeeklySummary,
 } from "~/lib/shift-helpers";
 
 import { DienstplanWeekGrid } from "./dienstplan-week-grid";
@@ -49,7 +50,10 @@ function assignment(
   };
 }
 
-function renderGrid(assignments: StaffScheduleAssignment[]) {
+function renderGrid(
+  assignments: StaffScheduleAssignment[],
+  summary?: StaffWeeklySummary,
+) {
   const onCellClick = vi.fn();
   render(
     <DienstplanWeekGrid
@@ -58,6 +62,7 @@ function renderGrid(assignments: StaffScheduleAssignment[]) {
       assignmentsByStaff={
         new Map([[member.id, new Map([[shift.date, assignments]])]])
       }
+      summaryByStaff={summary ? new Map([[member.id, summary]]) : new Map()}
       weekDays={[
         "2026-07-06",
         "2026-07-07",
@@ -128,5 +133,56 @@ describe("DienstplanWeekGrid", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "08:00–12:30" }));
     expect(onCellClick).toHaveBeenCalledWith(member, shift.date, shift);
+  });
+
+  it("shows planned hours and the delta against the contract", () => {
+    renderGrid([], {
+      staffId: member.id,
+      weekStart: "2026-07-06",
+      plannedMinutes: 1080,
+      targetMinutes: 1215,
+      deltaMinutes: -135,
+    });
+
+    expect(screen.getByText("18 h")).toBeInTheDocument();
+    const delta = screen.getByText("· −2,25 h");
+    // Under contract renders in HOME red.
+    expect(delta).toHaveStyle({ color: "#FF3130" });
+
+    // The Geplant/Soll breakdown is a real tooltip (not a title attribute),
+    // reachable via keyboard focus and touch.
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Geplant 18 h · Soll 20,25 h",
+    );
+    expect(screen.getByText("18 h").closest("[tabindex]")).toHaveAttribute(
+      "tabindex",
+      "0",
+    );
+  });
+
+  it("shows planned hours without a badge when no contract resolves", () => {
+    renderGrid([], {
+      staffId: member.id,
+      weekStart: "2026-07-06",
+      plannedMinutes: 270,
+      targetMinutes: null,
+      deltaMinutes: null,
+    });
+
+    expect(screen.getByText("4,5 h")).toBeInTheDocument();
+    // No delta badge (the tooltip text legitimately contains "·" now).
+    expect(screen.queryByText(/^·/)).not.toBeInTheDocument();
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Geplant 4,5 h · kein Arbeitszeitmodell hinterlegt",
+    );
+  });
+
+  it("renders only the name without a summary", () => {
+    renderGrid([]);
+
+    expect(
+      screen.getByRole("rowheader", { name: "Lovelace, Ada" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/ h$/)).not.toBeInTheDocument();
   });
 });

@@ -159,6 +159,62 @@ export function mapPeriodWithWarnings(
   };
 }
 
+/**
+ * Raw 1-based slot of the week containing isoDate inside the period's week
+ * cycle (1=A, 2=B, 3=C, …). Mirrors the backend predicate
+ * ShouldMaterializeWeekPattern (calendar_period_service.go): floor the day
+ * difference to the cycle anchor by 7, then a 1-based modulo over the cycle
+ * length. Returns null when the period has no usable cycle (length <= 1 or no
+ * anchor — materialization is fail-open there) or the date is invalid.
+ * Slots beyond 2 exist for cycles longer than two weeks and can never be
+ * addressed by the biweekly A/B week_pattern — callers must distinguish
+ * "no cycle configured" (null) from "week beyond B" (slot > 2).
+ */
+export function weekCycleSlotForDate(
+  period: CalendarPeriod | null | undefined,
+  isoDate: string,
+): number | null {
+  if (!period || period.weekCycleLength <= 1 || !period.weekCycleAnchor) {
+    return null;
+  }
+  const toUTCDays = (iso: string): number => {
+    const [year, month, day] = iso.split("-").map(Number);
+    if (!year || !month || !day) return Number.NaN;
+    const utcMs = Date.UTC(year, month - 1, day);
+    // Date.UTC silently rolls invalid components over (2026-02-30 becomes
+    // March 2nd); only a lossless round-trip proves the date is real.
+    const roundTrip = new Date(utcMs);
+    if (
+      roundTrip.getUTCFullYear() !== year ||
+      roundTrip.getUTCMonth() !== month - 1 ||
+      roundTrip.getUTCDate() !== day
+    ) {
+      return Number.NaN;
+    }
+    return Math.floor(utcMs / 86_400_000);
+  };
+  const daysDiff = toUTCDays(isoDate) - toUTCDays(period.weekCycleAnchor);
+  if (Number.isNaN(daysDiff)) return null;
+  const cycle = period.weekCycleLength;
+  return (((Math.floor(daysDiff / 7) % cycle) + cycle) % cycle) + 1;
+}
+
+/**
+ * Resolves whether the week containing isoDate is Woche A (1) or Woche B (2)
+ * inside the period's A/B cycle. Returns null when the period has no usable
+ * cycle or when the resolved slot is beyond B (cycle length > 2) — use
+ * weekCycleSlotForDate to tell those cases apart.
+ */
+export function weekPatternForDate(
+  period: CalendarPeriod | null | undefined,
+  isoDate: string,
+): 1 | 2 | null {
+  const slot = weekCycleSlotForDate(period, isoDate);
+  if (slot === 1) return 1;
+  if (slot === 2) return 2;
+  return null;
+}
+
 export function findPeriodForDate(
   periods: CalendarPeriod[],
   isoDate: string,

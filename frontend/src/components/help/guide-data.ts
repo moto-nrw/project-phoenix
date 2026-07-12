@@ -664,6 +664,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Halbjahr anlegen` klicken: Name, Art und Start-/Enddatum des nächsten Halbjahres sind bereits vorausgefüllt und lassen sich anpassen.",
           "Für Ferien oder Sonderzeiträume `Zeitraum anlegen` nutzen und die Art entsprechend wählen.",
           "Nur aktive Zeiträume legen Termine aus Regelterminen des Betreuungsplans an.",
+          "Zwei aktive Zeiträume derselben Art dürfen sich nicht überschneiden; Phoenix lehnt das Speichern mit einer Fehlermeldung ab. Ferien innerhalb eines Schuljahres bleiben möglich, weil sie eine andere Art haben.",
           "Beim Anlegen einer `Anmeldephase` kann der Zeitraum ausgewählt werden; Beginn und Ende der Phase werden daraus übernommen.",
           "Die Verknüpfung geht auch andersherum: Beim Bearbeiten eines Zeitraums lassen sich unter `Verknüpfte Anmeldephasen` Phasen direkt an- und abwählen.",
           "Die Spalte `Verwendung` zeigt, welche Anmeldephasen und Regeltermine auf einen Zeitraum verweisen.",
@@ -682,7 +683,7 @@ export const appChapters: readonly GuideChapter[] = [
           "`Planung` -> `Betreuungsplan` öffnen.",
           "In der Wochenansicht eine freie Zelle am gewünschten Tag und zur gewünschten Uhrzeit anklicken (beim Überfahren erscheint `+ Termin`).",
           "`Titel` eintragen und `Raum` wählen. Der `Schulhof` kann hier als reiner Planungsort verwendet werden; die laufende Aufsicht wird später unabhängig davon über den separaten Schulhof-Tab geführt. Zugeordnete Kinder und Mitarbeitende werden nicht automatisch in die Schulhof-Aufsicht übernommen. `Datum`, `Start` und `Ende` sind aus der Zelle übernommen und lassen sich anpassen.",
-          "Unter `Wiederholt sich` festlegen, wie oft das Angebot stattfindet: `Einmalig`, wöchentlich am gewählten Wochentag, `Jeden Wochentag (Mo–Fr)` oder `Benutzerdefiniert …` für eigene Rhythmen.",
+          "Unter `Wiederholt sich` festlegen, wie oft das Angebot stattfindet: `Einmalig`, wöchentlich am gewählten Wochentag, `Jeden Wochentag (Mo–Fr)` oder `Benutzerdefiniert …` für eigene Rhythmen. Bei `Alle 2 Wochen` erscheint zusätzlich die Auswahl `Woche A` oder `Woche B`; vorausgewählt ist die Woche des angeklickten Datums, sofern der Kalenderzeitraum einen A/B-Zyklus hat.",
           "Über `Weitere Optionen` `Personal` und `Kinder` zuordnen. Mit `Jahrgang/Klasse/Gruppe komplett hinzufügen …` kommt eine ganze Zielgruppe auf einmal in die Auswahl. Suche und Filter helfen bei langen Kinderlisten.",
           "Unter `Weitere Optionen` legt `Benötigtes Personal` den Personalbedarf des Blocks fest. Bleibt das Feld leer, berechnet Phoenix den Bedarf automatisch aus der Kinderzahl und dem Betreuungsschlüssel; eine eingetragene Zahl überschreibt diese Berechnung und bestimmt die Besetzungsanzeige (z. B. `2/3`).",
           "Bei einem Regeltermin unter `Zielgruppe` festlegen, für wen der Block gedacht ist: `Jahrgang`, `Klasse`, `Gruppe` oder `Angebotsauswahl`. Die Zielgruppe beschreibt den Block; bei Jahrgang, Klasse oder Gruppe übernimmt die angebotene Schaltfläche die passenden Kinder zusätzlich in die Auswahl. Bereits ausgewählte Kinder bleiben erhalten, und die Liste lässt sich danach weiter anpassen. Bei `Angebotsauswahl` kommen Kinder automatisch über ein verknüpftes Betreuungsangebot hinzu.",
@@ -764,6 +765,7 @@ export const appChapters: readonly GuideChapter[] = [
           "In der Zeile eines Mitarbeiters auf eine leere Zelle klicken, um eine Schicht anzulegen: `Beginn`, `Ende` und `Pause (Minuten)` eintragen, optional eine `Schichtart` auswählen und speichern.",
           "Eine vorhandene Schicht anklicken, um sie zu bearbeiten oder über `Schicht löschen` zu entfernen.",
           "Mehrere Schichten pro Tag sind möglich (z. B. Vertretungsunterricht, Pause und Ganztagsbetreuung), solange sie sich nicht überschneiden; die Farbe der Schichtart macht die Aufgaben im Wochenplan sofort unterscheidbar.",
+          "Unter dem Namen jedes Mitarbeiters steht die geplante Wochenzeit aus den Schichten der angezeigten Woche (Schichtdauer abzüglich Pause). Ist ein Arbeitszeitmodell hinterlegt, zeigt eine farbige Abweichung daneben Über- oder Unterplanung gegenüber den vertraglichen Wochenstunden (z. B. `18 h · −2,25 h`); das ist ein Hinweis und blockiert nichts. In Wochen ohne angelegte Schichten erscheint keine Summe.",
           "Die Mitarbeiter-/Tag-Zellen zeigen außerdem die konkreten Einsätze aus dem Betreuungsplan mit Uhrzeit, Aktivität und Raum. Diese Einsätze sind im Dienstplan schreibgeschützt; Änderungen erfolgen im Betreuungsplan oder bei kurzfristigen Abweichungen im Vertretungsplan.",
           "Für den gewählten Tag zeigt der Dienstplan abwesende geplante Personen als `Abwesend` und eingesetzte Ersatzpersonen als `Vertretung`.",
           "Deckt eine Schicht einen Einsatz nicht vollständig ab, markiert der Dienstplan den Einsatz und nennt den nicht abgedeckten Zeitraum. Diese Warnung dient als Hinweis und verhindert das Speichern im Betreuungsplan nicht.",
@@ -772,7 +774,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Dienstplan und Arbeitszeitmodell nicht verwechseln",
-          body: "Das Arbeitszeitmodell auf der Mitarbeiter-Detailseite legt die vertraglichen Soll-Stunden pro Wochentag fest und steuert das Stundenkonto. Der Dienstplan plant konkrete Uhrzeiten pro Datum. Beide existieren nebeneinander: Das Soll bleibt die Basis für den Saldo, der Dienstplan bestimmt die geplanten Anwesenheitszeiten.",
+          body: "Das Arbeitszeitmodell auf der Mitarbeiter-Detailseite legt die vertraglichen Soll-Stunden pro Wochentag fest und steuert das Stundenkonto. Der Dienstplan plant konkrete Uhrzeiten pro Datum und vergleicht die geplante Wochenzeit nur sichtbar mit diesem Soll. Beide existieren nebeneinander: Das Soll bleibt die Basis für den Saldo, der Dienstplan bestimmt die geplanten Anwesenheitszeiten.",
           tone: "blue",
         },
         screenshot:

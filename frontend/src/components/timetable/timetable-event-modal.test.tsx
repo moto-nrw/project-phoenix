@@ -2449,6 +2449,279 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("reads an A-week series back as biweekly with Woche A selected", async () => {
+    const aWeekTemplate: TimetableTemplate = {
+      ...template,
+      schedules: template.schedules.map((schedule) => ({
+        ...schedule,
+        weekPattern: 1,
+      })),
+    };
+    renderModal({ initialSeries: aWeekTemplate });
+
+    await screen.findByText("Haus A - Mensa");
+    expect(screen.getByRole("tab", { name: "Alle 2 Wochen" })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    expect(screen.getByRole("tab", { name: "Woche A" })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+  });
+
+  it("defaults a new biweekly series to the parity of the selected week", async () => {
+    const cyclePeriod: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      weekCycleLength: 2,
+      weekCycleAnchor: "2026-05-04",
+    };
+    renderModal({
+      calendarPeriods: [cyclePeriod],
+      defaultCalendarPeriodId: "9",
+      defaultDate: "2026-05-11",
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    expect(screen.queryByRole("tab", { name: "Woche A" })).toBeNull();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
+      button: 0,
+    });
+
+    expect(screen.getByRole("tab", { name: "Woche B" })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    expect(
+      screen.getByText("Woche vom 11.05.2026 ist Woche B"),
+    ).toBeInTheDocument();
+  });
+
+  it.each([
+    {
+      name: "a one-week cycle",
+      weekCycleLength: 1,
+      weekCycleAnchor: "2026-05-04",
+    },
+    {
+      name: "a cycle longer than two weeks",
+      weekCycleLength: 3,
+      weekCycleAnchor: "2026-05-04",
+    },
+    {
+      name: "a two-week cycle without an anchor",
+      weekCycleLength: 2,
+      weekCycleAnchor: null,
+    },
+  ])(
+    "disables 'Alle 2 Wochen' for new series in $name",
+    async ({ weekCycleLength, weekCycleAnchor }) => {
+      const threeWeekCycle: CalendarPeriod = {
+        ...periods[0]!,
+        id: "9",
+        weekCycleLength,
+        weekCycleAnchor,
+      };
+      renderModal({
+        calendarPeriods: [threeWeekCycle],
+        defaultCalendarPeriodId: "9",
+        // 2026-05-04 is Woche A: the guard depends on the cycle length alone,
+        // not on which week the modal was opened from.
+        defaultDate: "2026-05-04",
+      });
+
+      await screen.findByText("Haus A - Mensa");
+      const biweeklyTab = screen.getByRole("tab", { name: "Alle 2 Wochen" });
+      expect(biweeklyTab).toBeDisabled();
+      fireEvent.mouseDown(biweeklyTab, { button: 0 });
+      expect(biweeklyTab).toHaveAttribute("data-state", "inactive");
+    },
+  );
+
+  it("keeps a stored biweekly series editable in cycles longer than two weeks", async () => {
+    const threeWeekCycle: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      weekCycleLength: 3,
+      weekCycleAnchor: "2026-05-04",
+    };
+    const aWeekTemplate: TimetableTemplate = {
+      ...template,
+      calendarPeriodId: "9",
+      schedules: template.schedules.map((schedule) => ({
+        ...schedule,
+        weekPattern: 1,
+        calendarPeriodId: "9",
+      })),
+    };
+    renderModal({
+      calendarPeriods: [threeWeekCycle],
+      defaultCalendarPeriodId: "9",
+      initialSeries: aWeekTemplate,
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    const biweeklyTab = screen.getByRole("tab", { name: "Alle 2 Wochen" });
+    expect(biweeklyTab).not.toBeDisabled();
+    expect(biweeklyTab).toHaveAttribute("data-state", "active");
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ week_pattern: 1 }),
+      ),
+    );
+  });
+
+  it("rejects saving a biweekly series after switching to a longer-cycle period", async () => {
+    const twoWeekCycle: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      name: "Zwei-Wochen-Zyklus",
+      weekCycleLength: 2,
+      weekCycleAnchor: "2026-05-04",
+    };
+    const threeWeekCycle: CalendarPeriod = {
+      ...periods[0]!,
+      id: "10",
+      name: "Drei-Wochen-Zyklus",
+      weekCycleLength: 3,
+      weekCycleAnchor: "2026-05-04",
+    };
+    renderModal({
+      calendarPeriods: [twoWeekCycle, threeWeekCycle],
+      defaultCalendarPeriodId: "9",
+      defaultDate: "2026-05-11",
+      showPeriodField: true,
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Yoga" },
+    });
+    fireEvent.change(screen.getByLabelText("Raum*"), {
+      target: { value: "3" },
+    });
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
+      button: 0,
+    });
+    fireEvent.change(screen.getByLabelText("Kategorie*"), {
+      target: { value: "2" },
+    });
+    // The tab was enabled under the two-week cycle; switching the period
+    // afterwards must still be caught by validation.
+    fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
+      target: { value: "10" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(
+      await screen.findByText(
+        'Der gewählte Planungszeitraum hat keinen verankerten Zwei-Wochen-Zyklus. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.',
+      ),
+    ).toBeInTheDocument();
+    expect(mockCreateTemplate).not.toHaveBeenCalled();
+
+    // Switching back to the two-week cycle clears the error and saves.
+    fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
+      target: { value: "9" },
+    });
+    expect(
+      screen.queryByText(
+        'Der gewählte Planungszeitraum hat keinen verankerten Zwei-Wochen-Zyklus. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.',
+      ),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ week_pattern: 2, calendar_period_id: 9 }),
+      ),
+    );
+  });
+
+  it("keeps a manual Woche-A choice when the date moves to a B week", async () => {
+    const cyclePeriod: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      weekCycleLength: 2,
+      weekCycleAnchor: "2026-05-04",
+    };
+    renderModal({
+      calendarPeriods: [cyclePeriod],
+      defaultCalendarPeriodId: "9",
+      defaultDate: "2026-05-11",
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
+      button: 0,
+    });
+    expect(screen.getByRole("tab", { name: "Woche B" })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+
+    // Explicit switch to A, then a date change into another B week: the
+    // choice must stick while the hint reflects the new week's parity.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Woche A" }), {
+      button: 0,
+    });
+    fireEvent.change(screen.getByLabelText(/Datum/), {
+      target: { value: "2026-05-25" },
+    });
+
+    expect(screen.getByRole("tab", { name: "Woche A" })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    expect(
+      screen.getByText("Woche vom 25.05.2026 ist Woche B"),
+    ).toBeInTheDocument();
+  });
+
+  it("preserves a manual Woche-A choice across repeat-mode switches", async () => {
+    const cyclePeriod: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      weekCycleLength: 2,
+      weekCycleAnchor: "2026-05-04",
+    };
+    renderModal({
+      calendarPeriods: [cyclePeriod],
+      defaultCalendarPeriodId: "9",
+      defaultDate: "2026-05-11",
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
+      button: 0,
+    });
+    // The selected 2026-05-11 week defaults to B; pick A manually.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Woche A" }), {
+      button: 0,
+    });
+
+    // Leaving biweekly mode and coming back must restore the manual pick,
+    // not re-derive the B default from the date parity.
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Jede Woche" }), {
+      button: 0,
+    });
+    expect(screen.queryByRole("tab", { name: "Woche A" })).toBeNull();
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Alle 2 Wochen" }), {
+      button: 0,
+    });
+
+    expect(screen.getByRole("tab", { name: "Woche A" })).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    expect(
+      screen.getByText("Woche vom 11.05.2026 ist Woche B"),
+    ).toBeInTheDocument();
+  });
+
   it("shows a non-blocking warning when shift coverage cannot be checked", async () => {
     mockCheckShiftCoverage.mockRejectedValue(new Error("probe down"));
     renderModal();
