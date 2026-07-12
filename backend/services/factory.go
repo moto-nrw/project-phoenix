@@ -524,6 +524,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InstanceStaff: repos.InstanceStaff,
 		Rooms:         repos.Room,
 		Staff:         repos.Staff,
+		WorkSchedules: repos.StaffWorkSchedule,
+		WorkModels:    repos.WorkTimeModel,
 	})
 
 	// Initialize pickup schedule service

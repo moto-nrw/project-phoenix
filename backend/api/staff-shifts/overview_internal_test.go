@@ -62,6 +62,10 @@ func TestOverviewHandler_StableWireContract(t *testing.T) {
 				StartTime: overviewClock(t, "10:30"), EndTime: overviewClock(t, "11:00"),
 			}},
 		}},
+		WeeklySummaries: []scheduleSvc.StaffWeeklySummary{
+			{StaffID: 7, WeekStart: from, PlannedMinutes: 210, TargetMinutes: intPointer(1215), DeltaMinutes: intPointer(-1005)},
+			{StaffID: 11, WeekStart: from, PlannedMinutes: 180},
+		},
 	}}
 	resource := &Resource{Overview: service}
 	request := httptest.NewRequest(http.MethodGet, "/overview?from=2026-07-06&to=2026-07-10", nil)
@@ -94,6 +98,25 @@ func TestOverviewHandler_StableWireContract(t *testing.T) {
 	require.Len(t, intervals, 1)
 	assert.Equal(t, "10:30", intervals[0].(map[string]any)["start_time"])
 	assert.Equal(t, "11:00", intervals[0].(map[string]any)["end_time"])
+
+	require.IsType(t, []any{}, envelope.Data["weekly_summaries"])
+	weeklySummaries := envelope.Data["weekly_summaries"].([]any)
+	require.Len(t, weeklySummaries, 2)
+	withTarget := weeklySummaries[0].(map[string]any)
+	assert.Equal(t, float64(7), withTarget["staff_id"])
+	assert.Equal(t, "2026-07-06", withTarget["week_start"])
+	assert.Equal(t, float64(210), withTarget["planned_minutes"])
+	assert.Equal(t, float64(1215), withTarget["target_minutes"])
+	assert.Equal(t, float64(-1005), withTarget["delta_minutes"])
+	withoutTarget := weeklySummaries[1].(map[string]any)
+	assert.Contains(t, withoutTarget, "target_minutes")
+	assert.Nil(t, withoutTarget["target_minutes"])
+	assert.Contains(t, withoutTarget, "delta_minutes")
+	assert.Nil(t, withoutTarget["delta_minutes"])
+}
+
+func intPointer(value int) *int {
+	return &value
 }
 
 func TestOverviewHandler_EmptyArraysStayNonNull(t *testing.T) {
@@ -110,6 +133,7 @@ func TestOverviewHandler_EmptyArraysStayNonNull(t *testing.T) {
 	assert.NotNil(t, envelope.Data.Staff)
 	assert.NotNil(t, envelope.Data.Shifts)
 	assert.NotNil(t, envelope.Data.Assignments)
+	assert.NotNil(t, envelope.Data.WeeklySummaries)
 }
 
 func TestOverviewHandler_RejectsBadRangeAndPropagatesServiceFailure(t *testing.T) {

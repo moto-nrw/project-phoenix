@@ -69,6 +69,33 @@ func (r *StaffWorkScheduleRepository) GetByStaffIDAndDate(ctx context.Context, s
 	return entries, nil
 }
 
+// FindByStaffIDsValidInRange returns every schedule entry for the given staff
+// members whose validity window intersects [from, to] (valid_until exclusive,
+// matching GetByStaffIDAndDate).
+func (r *StaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*config.StaffWorkSchedule, error) {
+	if len(staffIDs) == 0 {
+		return nil, nil
+	}
+	var entries []*config.StaffWorkSchedule
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&entries).
+		ModelTableExpr(tableStaffWorkSchedules+` AS "staff_work_schedule"`).
+		Where("staff_id IN (?)", bun.List(staffIDs)).
+		Where("valid_from <= ?", to).
+		Where("(valid_until IS NULL OR valid_until > ?)", from).
+		OrderExpr("staff_id ASC, day_of_week ASC")
+
+	tenantID := tenant.FromContext(ctx)
+	if tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to get schedules for staff range: %w", err)
+	}
+	return entries, nil
+}
+
 // ReplaceSchedule atomically replaces all current schedule entries for a staff member.
 // It sets valid_until on existing entries and inserts the new ones.
 func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*config.StaffWorkSchedule) error {

@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -119,6 +120,7 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 	service := scheduleSvc.NewStaffScheduleOverviewService(scheduleSvc.StaffScheduleOverviewDependencies{
 		Shifts: repos.StaffShift, Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
 		Rooms: repos.Room, Staff: repos.Staff,
+		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel,
 	})
 
 	localOverview, err := service.GetOverview(testpkg.TenantContext(1), date, date.AddDays(4))
@@ -142,12 +144,175 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 
 	foreignOverview, err := service.GetOverview(testpkg.TenantContext(foreignTenantID), date, date.AddDays(4))
 	require.NoError(t, err)
-	assert.Equal(t, int64(12), queryCounter.count.Load(), "each overview request must perform exactly six batched reads")
+	// 6 base reads for the shift-less local tenant plus 7 for the foreign
+	// tenant: a Dienstplan-active week adds exactly one batched
+	// staff-work-schedule read for the weekly Soll summaries (#1837).
+	assert.Equal(t, int64(13), queryCounter.count.Load(), "overview reads must stay fixed batches: 6 without shifts, 7 with an active Dienstplan week")
 	assert.True(t, foreignOverview.DienstplanInUse)
 	require.Len(t, foreignOverview.Assignments, 1)
 	assert.Equal(t, foreign.instanceID, foreignOverview.Assignments[0].InstanceID)
 	assert.Equal(t, foreign.roomID, foreignOverview.Assignments[0].RoomID)
 	assert.Equal(t, scheduleSvc.CoverageStatusCovered, foreignOverview.Assignments[0].CoverageStatus)
+}
+
+func cleanupWorkSchedulesForStaff(t *testing.T, db *bun.DB, staffIDs ...int64) {
+	t.Helper()
+	if len(staffIDs) == 0 {
+		return
+	}
+	_, err := db.NewDelete().
+		Table("config.staff_work_schedules").
+		Where("staff_id IN (?)", bun.In(staffIDs)).
+		Exec(context.Background())
+	require.NoError(t, err)
+}
+
+func insertWorkScheduleRow(t *testing.T, db *bun.DB, tenantID, staffID int64, day, targetMinutes int, validFrom timezone.Date) {
+	t.Helper()
+	row := &configModel.StaffWorkSchedule{
+		StaffID: staffID, WeekIndex: 0, RotationLength: 1,
+		DayOfWeek: day, TargetMinutes: targetMinutes, ValidFrom: validFrom,
+	}
+	row.SetTenantID(tenantID)
+	_, err := db.NewInsert().Model(row).ModelTableExpr("config.staff_work_schedules").Exec(testpkg.TenantContext(tenantID))
+	require.NoError(t, err)
+}
+
+func createOverviewShift(t *testing.T, db *bun.DB, tenantID, staffID int64, date timezone.Date, start, end string, breakMinutes int) int64 {
+	t.Helper()
+	shift := &scheduleModel.StaffShift{
+		StaffID: staffID, Date: date,
+		StartTime: integrationClock(t, start), EndTime: integrationClock(t, end),
+		BreakMinutes: breakMinutes, CreatedBy: staffID,
+	}
+	shift.SetTenantID(tenantID)
+	require.NoError(t, repositories.NewFactory(db).StaffShift.Create(testpkg.TenantContext(tenantID), shift))
+	return shift.ID
+}
+
+func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	tenantID := int64(1837003)
+	foreignTenantID := int64(1837004)
+
+	monday := timezone.TodayDate().AddDays(14000 + int(time.Now().UnixNano()%1000))
+	for monday.Weekday() != time.Monday {
+		monday = monday.AddDays(1)
+	}
+	friday := monday.AddDays(4)
+	validFrom := monday.AddDays(-30)
+
+	// Fixture staff: shift 08:00-11:00 (180 min), no contractual target.
+	local := createOverviewTenantFixture(t, db, tenantID, monday, true)
+	foreign := createOverviewTenantFixture(t, db, foreignTenantID, monday, true)
+	insertWorkScheduleRow(t, db, foreignTenantID, foreign.staffID, configModel.DayMonday, 480, validFrom)
+
+	scheduledStaff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Summary", "Scheduled")
+	scheduledShiftID := createOverviewShift(t, db, tenantID, scheduledStaff.ID, monday, "08:00", "12:30", 30)
+	insertWorkScheduleRow(t, db, tenantID, scheduledStaff.ID, configModel.DayMonday, 240, validFrom)
+	insertWorkScheduleRow(t, db, tenantID, scheduledStaff.ID, configModel.DayTuesday, 60, validFrom)
+
+	modelStaff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Summary", "ModelFallback")
+	modelShiftID := createOverviewShift(t, db, tenantID, modelStaff.ID, monday, "09:00", "10:00", 0)
+	modelRepo := repositories.NewFactory(db).WorkTimeModel
+	workModel := &configModel.WorkTimeModel{
+		Name:               fmt.Sprintf("Summary fallback %d", time.Now().UnixNano()),
+		RotationLength:     1,
+		RotationAnchorDate: monday,
+	}
+	require.NoError(t, modelRepo.Create(testpkg.TenantContext(tenantID), workModel, []*configModel.WorkTimeModelEntry{
+		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 120},
+	}))
+	_, err := db.NewUpdate().Table("users.staff").
+		Set("work_time_model_id = ?", workModel.ID).
+		Where("id = ?", modelStaff.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	contractedStaff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Summary", "Unplanned")
+	insertWorkScheduleRow(t, db, tenantID, contractedStaff.ID, configModel.DayMonday, 480, validFrom)
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.staff_shifts", scheduledShiftID, modelShiftID)
+		cleanupWorkSchedulesForStaff(t, db, scheduledStaff.ID, contractedStaff.ID, foreign.staffID)
+		_, _ = db.NewUpdate().Table("users.staff").
+			Set("work_time_model_id = NULL").
+			Where("id = ?", modelStaff.ID).
+			Exec(context.Background())
+		_ = modelRepo.Delete(testpkg.TenantContext(tenantID), workModel.ID)
+		testpkg.CleanupStaffFixtures(t, db, scheduledStaff.ID, modelStaff.ID, contractedStaff.ID)
+		cleanupOverviewTenantFixture(t, db, foreign)
+		cleanupOverviewTenantFixture(t, db, local)
+	})
+
+	queryCounter := &overviewQueryCounter{}
+	repos := repositories.NewFactory(db.WithQueryHook(queryCounter))
+	service := scheduleSvc.NewStaffScheduleOverviewService(scheduleSvc.StaffScheduleOverviewDependencies{
+		Shifts: repos.StaffShift, Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff,
+		Rooms: repos.Room, Staff: repos.Staff,
+		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel,
+	})
+
+	overview, err := service.GetOverview(testpkg.TenantContext(tenantID), monday, friday)
+	require.NoError(t, err)
+	// 6 base reads + 1 staff-work-schedule batch + 2 for the work-time-model
+	// fallback (models + entries). The fallback fires only because one staff
+	// member has a model and no schedule rows.
+	assert.Equal(t, int64(9), queryCounter.count.Load(), "summary reads must stay fixed batches regardless of staff volume")
+
+	summaries := make(map[int64]scheduleSvc.StaffWeeklySummary, len(overview.WeeklySummaries))
+	for _, summary := range overview.WeeklySummaries {
+		assert.Equal(t, monday, summary.WeekStart)
+		summaries[summary.StaffID] = summary
+	}
+	require.Len(t, summaries, 4, "exactly the four seeded staff must produce summary rows")
+
+	scheduled := summaries[scheduledStaff.ID]
+	assert.Equal(t, 240, scheduled.PlannedMinutes, "shift span minus break")
+	require.NotNil(t, scheduled.TargetMinutes)
+	assert.Equal(t, 300, *scheduled.TargetMinutes, "date-valid schedule target wins")
+	require.NotNil(t, scheduled.DeltaMinutes)
+	assert.Equal(t, -60, *scheduled.DeltaMinutes)
+
+	fallback := summaries[modelStaff.ID]
+	assert.Equal(t, 60, fallback.PlannedMinutes)
+	require.NotNil(t, fallback.TargetMinutes)
+	assert.Equal(t, 120, *fallback.TargetMinutes, "work-time model is the fallback without schedule rows")
+	require.NotNil(t, fallback.DeltaMinutes)
+	assert.Equal(t, -60, *fallback.DeltaMinutes)
+
+	contracted := summaries[contractedStaff.ID]
+	assert.Equal(t, 0, contracted.PlannedMinutes, "contracted staff without shifts surface as underplanned")
+	require.NotNil(t, contracted.TargetMinutes)
+	assert.Equal(t, 480, *contracted.TargetMinutes)
+	require.NotNil(t, contracted.DeltaMinutes)
+	assert.Equal(t, -480, *contracted.DeltaMinutes)
+
+	plannedOnly := summaries[local.staffID]
+	assert.Equal(t, 180, plannedOnly.PlannedMinutes)
+	assert.Nil(t, plannedOnly.TargetMinutes, "no schedule and no model leaves the target unset")
+	assert.Nil(t, plannedOnly.DeltaMinutes)
+
+	assert.NotContains(t, summaries, foreign.staffID, "foreign tenant staff must not appear in summaries")
+
+	// A week without any tenant shift yields no summaries at all (Dienstplan
+	// unused), even though contractual targets would resolve.
+	unusedWeek, err := service.GetOverview(testpkg.TenantContext(tenantID), monday.AddDays(14), monday.AddDays(18))
+	require.NoError(t, err)
+	assert.False(t, unusedWeek.DienstplanInUse)
+	assert.Empty(t, unusedWeek.WeeklySummaries)
+
+	foreignOverview, err := service.GetOverview(testpkg.TenantContext(foreignTenantID), monday, friday)
+	require.NoError(t, err)
+	foreignSummaries := make(map[int64]scheduleSvc.StaffWeeklySummary, len(foreignOverview.WeeklySummaries))
+	for _, summary := range foreignOverview.WeeklySummaries {
+		foreignSummaries[summary.StaffID] = summary
+	}
+	require.Contains(t, foreignSummaries, foreign.staffID)
+	require.NotNil(t, foreignSummaries[foreign.staffID].TargetMinutes)
+	assert.Equal(t, 480, *foreignSummaries[foreign.staffID].TargetMinutes)
+	assert.NotContains(t, foreignSummaries, scheduledStaff.ID, "local staff must not leak into the foreign tenant")
 }
 
 func TestShiftCoverageProjection_BatchesEffectiveSeriesReadsAndIsolatesTenant(t *testing.T) {

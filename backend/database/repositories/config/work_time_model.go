@@ -75,6 +75,28 @@ func (r *WorkTimeModelRepository) FindByID(ctx context.Context, id int64) (*conf
 	return enriched[0], nil
 }
 
+// FindByIDs resolves the given templates with their entries; IDs that do not
+// exist (or belong to another tenant) are absent from the result.
+func (r *WorkTimeModelRepository) FindByIDs(ctx context.Context, ids []int64) ([]*config.WorkTimeModel, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var models []*config.WorkTimeModel
+	query := repoBase.GetDB(ctx, r.db).NewSelect().
+		Model(&models).
+		ModelTableExpr(tableWorkTimeModels+` AS "work_time_model"`).
+		Where(`"work_time_model".id IN (?)`, bun.List(ids))
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where(`"work_time_model".tenant_id = ?`, tenantID)
+	}
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("find work-time models by ids: %w", err)
+	}
+	return r.attachEntries(ctx, models)
+}
+
 func (r *WorkTimeModelRepository) attachEntries(ctx context.Context, models []*config.WorkTimeModel) ([]*config.WorkTimeModel, error) {
 	if len(models) == 0 {
 		return models, nil

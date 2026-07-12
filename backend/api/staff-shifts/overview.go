@@ -40,6 +40,14 @@ type AssignmentResponse struct {
 	UncoveredIntervals []CoverageIntervalResponse `json:"uncovered_intervals"`
 }
 
+type WeeklySummaryResponse struct {
+	StaffID        int64  `json:"staff_id"`
+	WeekStart      string `json:"week_start"`
+	PlannedMinutes int    `json:"planned_minutes"`
+	TargetMinutes  *int   `json:"target_minutes"`
+	DeltaMinutes   *int   `json:"delta_minutes"`
+}
+
 type OverviewResponse struct {
 	From            string                  `json:"from"`
 	To              string                  `json:"to"`
@@ -48,6 +56,7 @@ type OverviewResponse struct {
 	Staff           []OverviewStaffResponse `json:"staff"`
 	Shifts          []ShiftResponse         `json:"shifts"`
 	Assignments     []AssignmentResponse    `json:"assignments"`
+	WeeklySummaries []WeeklySummaryResponse `json:"weekly_summaries"`
 }
 
 func toOverviewResponse(overview *scheduleSvc.StaffScheduleOverview) OverviewResponse {
@@ -95,6 +104,17 @@ func toOverviewResponse(overview *scheduleSvc.StaffScheduleOverview) OverviewRes
 		})
 	}
 
+	weeklySummaries := make([]WeeklySummaryResponse, 0, len(overview.WeeklySummaries))
+	for _, summary := range overview.WeeklySummaries {
+		weeklySummaries = append(weeklySummaries, WeeklySummaryResponse{
+			StaffID:        summary.StaffID,
+			WeekStart:      summary.WeekStart.String(),
+			PlannedMinutes: summary.PlannedMinutes,
+			TargetMinutes:  summary.TargetMinutes,
+			DeltaMinutes:   summary.DeltaMinutes,
+		})
+	}
+
 	return OverviewResponse{
 		From:            overview.From.String(),
 		To:              overview.To.String(),
@@ -103,6 +123,7 @@ func toOverviewResponse(overview *scheduleSvc.StaffScheduleOverview) OverviewRes
 		Staff:           staff,
 		Shifts:          ToShiftResponses(overview.Shifts),
 		Assignments:     assignments,
+		WeeklySummaries: weeklySummaries,
 	}
 }
 

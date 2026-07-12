@@ -114,6 +114,8 @@ func (r *StaffRepository) staffWithPersonQuery(ctx context.Context, results *[]s
 		ColumnExpr(`"staff".tenant_id AS "staff__tenant_id"`).
 		ColumnExpr(`"staff".person_id AS "staff__person_id"`).
 		ColumnExpr(`"staff".staff_notes AS "staff__staff_notes"`).
+		ColumnExpr(`"staff".work_time_model_id AS "staff__work_time_model_id"`).
+		ColumnExpr(`"staff".rotation_anchor_date AS "staff__rotation_anchor_date"`).
 		ColumnExpr(`"person".id AS "person__id"`).
 		ColumnExpr(`"person".created_at AS "person__created_at"`).
 		ColumnExpr(`"person".updated_at AS "person__updated_at"`).

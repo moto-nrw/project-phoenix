@@ -78,6 +78,13 @@ type StaffWorkScheduleRepository interface {
 	// GetByStaffIDAndDate returns schedule entries valid for a specific date
 	GetByStaffIDAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*StaffWorkSchedule, error)
 
+	// FindByStaffIDsValidInRange returns every schedule entry for the given
+	// staff members whose validity window intersects [from, to] (valid_until
+	// is exclusive). One batched read for cross-staff aggregations; the
+	// date-validity predicate is why this is not expressible via the generic
+	// filter-based List.
+	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*StaffWorkSchedule, error)
+
 	// ReplaceSchedule atomically replaces all current schedule entries for a staff member
 	ReplaceSchedule(ctx context.Context, staffID int64, entries []*StaffWorkSchedule) error
 }
