@@ -321,6 +321,12 @@ export function useChildCare(studentId: string): ChildCare {
 
   const load = useCallback(async (): Promise<{ requestsOk: boolean }> => {
     const seq = ++loadSeqRef.current;
+    // Capture the Berlin calendar day BEFORE the fetch: the backend resolves
+    // today_absent against the day it handles the request, so a response that
+    // crosses midnight must be bound to the day queried, not the (later) receipt
+    // day — otherwise the rollover effect advances `today` onto this stale
+    // boolean and yesterday's absence surfaces on today's tile (#1725 review).
+    const requestDate = berlinTodayISO();
     setLoading(true);
     // Track each fetch's success separately so a failed one PRESERVES the last
     // known list instead of wiping it to []. An empty list from a failed fetch
@@ -367,9 +373,10 @@ export function useChildCare(studentId: string): ChildCare {
       if (weekPlanOk && plan) {
         setWeekdays(plan.weekdays);
         setTodayAbsent(plan.today_absent);
-        // Stamp the day this signal describes so a midnight rollover invalidates
-        // it until the next reload (#1725 review).
-        setWeekPlanDate(berlinTodayISO());
+        // Stamp the day this signal describes (captured at request start, not
+        // receipt) so a midnight rollover invalidates it until the next reload
+        // (#1725 review).
+        setWeekPlanDate(requestDate);
       }
       setWeekPlanLoaded(weekPlanOk);
       setFeatures(flags);
