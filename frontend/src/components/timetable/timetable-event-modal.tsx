@@ -598,19 +598,24 @@ export function TimetableEventModal({
   const isSeriesFlow = form.repeat !== "none" || isEditingSeries;
   const choiceDialogOpen = pendingSeriesEdit !== null;
   const canDeleteSeries = isEditingSeries && initialSeries && onDeleteSeries;
+  const selectedCalendarPeriod = useMemo(
+    () => calendarPeriods.find((item) => item.id === form.calendarPeriodId),
+    [calendarPeriods, form.calendarPeriodId],
+  );
   const abWeekCycleSlot = useMemo(
-    () =>
-      weekCycleSlotForDate(
-        calendarPeriods.find((item) => item.id === form.calendarPeriodId),
-        form.date,
-      ),
-    [calendarPeriods, form.calendarPeriodId, form.date],
+    () => weekCycleSlotForDate(selectedCalendarPeriod, form.date),
+    [selectedCalendarPeriod, form.date],
   );
   const abWeekParity: 1 | 2 | null =
     abWeekCycleSlot === 1 || abWeekCycleSlot === 2 ? abWeekCycleSlot : null;
-  // In 3- or 4-week cycles the selected week can fall beyond B (Woche C/D).
-  // Neither pattern A nor B materializes there, so a biweekly series must
-  // not silently default to B — the save is rejected in validateForm.
+  // The backend materializes the A/B week_pattern by matching the period's
+  // cycle slot, so in a 3- or 4-week cycle a "biweekly" series would actually
+  // run every three/four weeks. New biweekly series are therefore disallowed
+  // for such periods (validateForm); stored series keep their pattern
+  // editable. Weeks beyond B (Woche C/D) only exist in those long cycles and
+  // are surfaced via the hint below.
+  const biweeklyUnavailable =
+    (selectedCalendarPeriod?.weekCycleLength ?? 0) > 2;
   const abWeekBeyondCycle = abWeekCycleSlot !== null && abWeekCycleSlot > 2;
   const abWeekHint = abWeekBeyondCycle
     ? `Woche vom ${formatDate(mondayOfWeekISO(form.date))} ist Woche ${String.fromCharCode(64 + abWeekCycleSlot)} und liegt außerhalb des A/B-Rhythmus. Ein 14-tägiger Termin findet in dieser Woche nicht statt.`
@@ -1099,10 +1104,9 @@ export function TimetableEventModal({
     // The end-before-start error is stored under endTime but depends on both
     // time fields, so correcting the start time must clear it too.
     if (key === "startTime") clearFieldError("endTime");
-    // The C/D-week error is stored under weekPattern but is resolved by
-    // moving the date (or changing the period) into an A/B week.
-    if (key === "date" || key === "calendarPeriodId")
-      clearFieldError("weekPattern");
+    // The cycle-length error is stored under weekPattern but is resolved by
+    // switching to a period with an A/B (or no) week cycle.
+    if (key === "calendarPeriodId") clearFieldError("weekPattern");
   };
 
   const updateRepeat = (repeat: RepeatMode) => {
@@ -1190,13 +1194,17 @@ export function TimetableEventModal({
       if (form.weekdays.length === 0) {
         errors.weekdays = "Bitte mindestens einen Wochentag auswählen.";
       }
-      // A biweekly series started from a C/D week can never occur on the
-      // selected date — the backend only materializes patterns A and B.
-      // Series edits are exempt: their stored pattern stays valid no matter
-      // which week the user happened to open the editor from.
-      if (form.repeat === "biweekly" && !isEditingSeries && abWeekBeyondCycle) {
+      // "Alle 2 Wochen" only genuinely repeats every two weeks when the
+      // period cycle is at most two weeks long; in a 3-/4-week cycle the
+      // A/B week_pattern fires once per cycle instead. Series edits are
+      // exempt: their stored pattern stays valid and editable.
+      if (
+        form.repeat === "biweekly" &&
+        !isEditingSeries &&
+        biweeklyUnavailable
+      ) {
         errors.weekPattern =
-          "Das gewählte Datum liegt außerhalb des A/B-Rhythmus (Woche C/D). Bitte ein Datum in einer A- oder B-Woche wählen oder die Wiederholung ändern.";
+          'Der gewählte Planungszeitraum nutzt einen Zyklus von mehr als zwei Wochen. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.';
       }
       if (form.targetGroupType === "jahrgang") {
         const gradeLevel = Number(form.targetGradeLevel);
@@ -2359,7 +2367,12 @@ export function TimetableEventModal({
                       <TabsTrigger
                         key={option.value}
                         value={option.value}
-                        disabled={isEditingSeries && option.value === "none"}
+                        disabled={
+                          (isEditingSeries && option.value === "none") ||
+                          (!isEditingSeries &&
+                            option.value === "biweekly" &&
+                            biweeklyUnavailable)
+                        }
                       >
                         {option.label}
                       </TabsTrigger>

@@ -2498,7 +2498,7 @@ describe("TimetableEventModal", () => {
     ).toBeInTheDocument();
   });
 
-  it("rejects a new biweekly series started from a week beyond the A/B cycle", async () => {
+  it("disables 'Alle 2 Wochen' for new series in cycles longer than two weeks", async () => {
     const threeWeekCycle: CalendarPeriod = {
       ...periods[0]!,
       id: "9",
@@ -2508,9 +2508,74 @@ describe("TimetableEventModal", () => {
     renderModal({
       calendarPeriods: [threeWeekCycle],
       defaultCalendarPeriodId: "9",
-      // 2026-05-18 is Woche C of the three-week cycle: neither pattern A
-      // nor B would materialize an occurrence in this week.
-      defaultDate: "2026-05-18",
+      // 2026-05-04 is Woche A: the guard depends on the cycle length alone,
+      // not on which week the modal was opened from.
+      defaultDate: "2026-05-04",
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    const biweeklyTab = screen.getByRole("tab", { name: "Alle 2 Wochen" });
+    expect(biweeklyTab).toBeDisabled();
+    fireEvent.mouseDown(biweeklyTab, { button: 0 });
+    expect(biweeklyTab).toHaveAttribute("data-state", "inactive");
+  });
+
+  it("keeps a stored biweekly series editable in cycles longer than two weeks", async () => {
+    const threeWeekCycle: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      weekCycleLength: 3,
+      weekCycleAnchor: "2026-05-04",
+    };
+    const aWeekTemplate: TimetableTemplate = {
+      ...template,
+      calendarPeriodId: "9",
+      schedules: template.schedules.map((schedule) => ({
+        ...schedule,
+        weekPattern: 1,
+        calendarPeriodId: "9",
+      })),
+    };
+    renderModal({
+      calendarPeriods: [threeWeekCycle],
+      defaultCalendarPeriodId: "9",
+      initialSeries: aWeekTemplate,
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    const biweeklyTab = screen.getByRole("tab", { name: "Alle 2 Wochen" });
+    expect(biweeklyTab).not.toBeDisabled();
+    expect(biweeklyTab).toHaveAttribute("data-state", "active");
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({ week_pattern: 1 }),
+      ),
+    );
+  });
+
+  it("rejects saving a biweekly series after switching to a longer-cycle period", async () => {
+    const twoWeekCycle: CalendarPeriod = {
+      ...periods[0]!,
+      id: "9",
+      name: "Zwei-Wochen-Zyklus",
+      weekCycleLength: 2,
+      weekCycleAnchor: "2026-05-04",
+    };
+    const threeWeekCycle: CalendarPeriod = {
+      ...periods[0]!,
+      id: "10",
+      name: "Drei-Wochen-Zyklus",
+      weekCycleLength: 3,
+      weekCycleAnchor: "2026-05-04",
+    };
+    renderModal({
+      calendarPeriods: [twoWeekCycle, threeWeekCycle],
+      defaultCalendarPeriodId: "9",
+      defaultDate: "2026-05-11",
+      showPeriodField: true,
     });
 
     await screen.findByText("Haus A - Mensa");
@@ -2526,33 +2591,35 @@ describe("TimetableEventModal", () => {
     fireEvent.change(screen.getByLabelText("Kategorie*"), {
       target: { value: "2" },
     });
-
-    expect(
-      screen.getByText(
-        "Woche vom 18.05.2026 ist Woche C und liegt außerhalb des A/B-Rhythmus. Ein 14-tägiger Termin findet in dieser Woche nicht statt.",
-      ),
-    ).toBeInTheDocument();
+    // The tab was enabled under the two-week cycle; switching the period
+    // afterwards must still be caught by validation.
+    fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
+      target: { value: "10" },
+    });
 
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     expect(
       await screen.findByText(
-        "Das gewählte Datum liegt außerhalb des A/B-Rhythmus (Woche C/D). Bitte ein Datum in einer A- oder B-Woche wählen oder die Wiederholung ändern.",
+        'Der gewählte Planungszeitraum nutzt einen Zyklus von mehr als zwei Wochen. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.',
       ),
     ).toBeInTheDocument();
     expect(mockCreateTemplate).not.toHaveBeenCalled();
 
-    // Moving the date into an A week clears the error and updates the hint.
-    fireEvent.change(screen.getByLabelText(/Datum/), {
-      target: { value: "2026-05-25" },
+    // Switching back to the two-week cycle clears the error and saves.
+    fireEvent.change(screen.getByLabelText("Planungszeitraum*"), {
+      target: { value: "9" },
     });
     expect(
       screen.queryByText(
-        "Das gewählte Datum liegt außerhalb des A/B-Rhythmus (Woche C/D). Bitte ein Datum in einer A- oder B-Woche wählen oder die Wiederholung ändern.",
+        'Der gewählte Planungszeitraum nutzt einen Zyklus von mehr als zwei Wochen. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.',
       ),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByText("Woche vom 25.05.2026 ist Woche A"),
-    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(mockCreateTemplate).toHaveBeenCalledWith(
+        expect.objectContaining({ week_pattern: 2, calendar_period_id: 9 }),
+      ),
+    );
   });
 
   it("keeps a manual Woche-A choice when the date moves to a B week", async () => {
