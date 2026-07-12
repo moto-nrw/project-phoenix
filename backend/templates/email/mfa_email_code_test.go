@@ -33,7 +33,7 @@ func TestMFAEmailCodeTemplate_Renders(t *testing.T) {
 		{
 			name: "code + validity + ip + trusted-device hint",
 			data: map[string]any{
-				"LogoURL":              "https://example.com/images/moto_transparent.png",
+				"LogoURL":              "https://example.com/images/moto-logo-mit-schriftzug.png",
 				"Code":                 "482157",
 				"ExpiryMinutes":        10,
 				"RequestIP":            "203.0.113.42",
@@ -50,7 +50,7 @@ func TestMFAEmailCodeTemplate_Renders(t *testing.T) {
 				"ignorieren Sie diese E-Mail",
 				"fragt Sie niemals",
 				// Branding
-				"moto Logo",
+				`alt="moto"`,
 				// Footer chrome
 				"Unterstützt von",
 			},

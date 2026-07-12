@@ -342,7 +342,7 @@ func (s *suggestionsService) notifyNewPost(post *suggestions.Post) {
 			Subject:  fmt.Sprintf("Neuer Vorschlag: %s", post.Title),
 			Template: "suggestion-notification.html",
 			Content: map[string]string{
-				"LogoURL":       fmt.Sprintf("%s/images/moto_transparent.png", s.FrontendURL),
+				"LogoURL":       fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL),
 				"Type":          "new_post",
 				"AuthorName":    post.AuthorName,
 				"Title":         post.Title,
@@ -385,7 +385,7 @@ func (s *suggestionsService) notifyNewComment(post *suggestions.Post, comment *s
 			Subject:  fmt.Sprintf("Neuer Kommentar: %s", post.Title),
 			Template: "suggestion-notification.html",
 			Content: map[string]string{
-				"LogoURL":        fmt.Sprintf("%s/images/moto_transparent.png", s.FrontendURL),
+				"LogoURL":        fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL),
 				"Type":           "new_comment",
 				"AuthorName":     comment.AuthorName,
 				"Title":          post.Title,

@@ -40,7 +40,7 @@ func TestSchoolBrandTemplate_Renders(t *testing.T) {
 				"SchoolName":        "OGS Musterschule",
 				"StatusURL":         "https://parents.example.com/status/abc",
 				"LogoURL":           "https://example.com/school-logo.png",
-				"MotoLogoURL":       "https://example.com/images/moto_transparent.png",
+				"MotoLogoURL":       "https://example.com/images/moto-logo-mit-schriftzug.png",
 				"ChildNames":        []string{"Max Mustermann"},
 			},
 			mustContain: []string{
@@ -56,7 +56,7 @@ func TestSchoolBrandTemplate_Renders(t *testing.T) {
 			},
 			mustNotHave: []string{
 				// must NOT fall back to the centered moto-brand logo block
-				`alt="moto Logo"`,
+				`class="brand"`,
 				// no fallback placeholder element when a logo exists
 				// (the .school-logo-fallback CSS rule always ships in <style>,
 				// so assert on the rendered markup element, not the bare class
@@ -84,7 +84,7 @@ func TestSchoolBrandTemplate_Renders(t *testing.T) {
 			mustNotHave: []string{
 				// no school-logo img element when there is no URL
 				`class="school-logo"`,
-				`alt="moto Logo"`,
+				`class="brand"`,
 			},
 		},
 	}

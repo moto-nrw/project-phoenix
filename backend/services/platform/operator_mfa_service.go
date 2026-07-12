@@ -465,7 +465,7 @@ func (s *operatorMFAService) dispatchChallengeEmail(ctx context.Context, op *pla
 		return
 	}
 	frontendURL := strings.TrimRight(s.FrontendURL, "/")
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontendURL)
 
 	requestIP := ""
 	if ip != nil && !ip.IsUnspecified() {
@@ -517,7 +517,7 @@ func (s *operatorMFAService) dispatchTrustedDeviceAddedEmail(ctx context.Context
 	}
 
 	frontendURL := strings.TrimRight(s.FrontendURL, "/")
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontendURL)
 
 	requestIP := ""
 	if ip != nil && !ip.IsUnspecified() {

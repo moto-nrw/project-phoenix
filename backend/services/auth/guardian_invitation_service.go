@@ -517,7 +517,7 @@ func (s *guardianInvitationService) enqueueViaOutbox(ctx context.Context, invita
 		frontend = "http://localhost:3000"
 	}
 	invitationURL := fmt.Sprintf("%s/accept-guardian-invite/%s", frontend, invitation.Token)
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontend)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontend)
 	expiryHours := int(time.Until(invitation.ExpiresAt) / time.Hour)
 	if expiryHours < 1 {
 		expiryHours = 1

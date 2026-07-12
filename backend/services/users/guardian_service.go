@@ -389,7 +389,7 @@ func (s *GuardianService) sendInvitationEmail(ctx context.Context, invitation *a
 			"LastName":      profile.LastName,
 			"InvitationURL": invitationURL,
 			"ExpiryHours":   expiryHours,
-			"LogoURL":       fmt.Sprintf("%s/logo.png", s.FrontendURL),
+			"LogoURL":       fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL),
 			"StudentNames":  studentNames,
 		},
 	}
