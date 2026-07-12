@@ -149,51 +149,6 @@ func updateGroupFields(group *activities.Group, req *ActivityRequest) {
 	group.PlannedRoomID = req.PlannedRoomID
 }
 
-// updateSupervisorsWithLogging updates group supervisors and logs any errors without failing.
-func (rs *Resource) updateSupervisorsWithLogging(ctx context.Context, groupID int64, supervisorIDs []int64) {
-	err := rs.ActivityService.UpdateGroupSupervisors(ctx, groupID, supervisorIDs)
-	if err != nil {
-		slog.Default().WarnContext(ctx, "Failed to update supervisors",
-			slog.Int64("activity_id", groupID),
-			slog.String("error", err.Error()),
-		)
-	}
-}
-
-// replaceGroupSchedules removes existing schedules and adds new ones.
-func (rs *Resource) replaceGroupSchedules(ctx context.Context, groupID int64, newSchedules []ScheduleRequest) {
-	// Delete existing schedules
-	existingSchedules, err := rs.ActivityService.GetGroupSchedules(ctx, groupID)
-	if err != nil {
-		slog.Default().WarnContext(ctx, "Failed to get existing schedules", slog.String("error", err.Error()))
-	} else {
-		for _, schedule := range existingSchedules {
-			err = rs.ActivityService.DeleteSchedule(ctx, schedule.ID)
-			if err != nil {
-				slog.Default().WarnContext(ctx, "Failed to delete schedule",
-					slog.Int64("schedule_id", schedule.ID),
-					slog.String("error", err.Error()),
-				)
-			}
-		}
-	}
-
-	// Add new schedules
-	for _, scheduleReq := range newSchedules {
-		schedule := &activities.Schedule{
-			Weekday:     scheduleReq.Weekday,
-			TimeframeID: scheduleReq.TimeframeID,
-		}
-		_, err = rs.ActivityService.AddSchedule(ctx, groupID, schedule)
-		if err != nil {
-			slog.Default().WarnContext(ctx, "Failed to add schedule",
-				slog.Int("weekday", scheduleReq.Weekday),
-				slog.String("error", err.Error()),
-			)
-		}
-	}
-}
-
 // fetchUpdatedGroupData retrieves the updated group with details and handles nil checks.
 func (rs *Resource) fetchUpdatedGroupData(ctx context.Context, updatedGroup *activities.Group) (*activities.Group, error) {
 	detailedGroup, _, updatedSchedules, err := rs.ActivityService.GetGroupWithDetails(ctx, updatedGroup.ID)
@@ -540,19 +495,25 @@ func (rs *Resource) updateActivity(w http.ResponseWriter, r *http.Request) {
 
 	updateGroupFields(existingGroup, req)
 
-	// Pass staff ID and permission flag for ownership check
+	// Convert schedule requests to model schedules for the service call.
+	newSchedules := make([]*activities.Schedule, 0, len(req.Schedules))
+	for _, scheduleReq := range req.Schedules {
+		newSchedules = append(newSchedules, &activities.Schedule{
+			Weekday:     scheduleReq.Weekday,
+			TimeframeID: scheduleReq.TimeframeID,
+		})
+	}
+
+	// Group fields + supervisors + schedules update as one unit: any failure
+	// rolls back the whole transaction and propagates (issue #575 B10 —
+	// previously supervisor/schedule failures were logged at Warn and the
+	// partial state committed with a 200).
 	var updatedGroup *activities.Group
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		updatedGroup, txErr = rs.ActivityService.UpdateGroup(ctx, existingGroup, staffID, hasManagePermission)
-		if txErr != nil {
-			return txErr
-		}
-		// Update supervisors and schedules
-		rs.updateSupervisorsWithLogging(ctx, updatedGroup.ID, req.SupervisorIDs)
-		rs.replaceGroupSchedules(ctx, updatedGroup.ID, req.Schedules)
-		return nil
+		updatedGroup, txErr = rs.ActivityService.UpdateGroupWithDetails(ctx, existingGroup, staffID, hasManagePermission, req.SupervisorIDs, newSchedules)
+		return txErr
 	}); err != nil {
 		// Check for ownership error
 		if errors.Is(err, activitiesSvc.ErrNotOwner) {

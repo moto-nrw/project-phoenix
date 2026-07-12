@@ -26,6 +26,10 @@ type ActivityService interface {
 	CreateGroup(ctx context.Context, group *activities.Group, supervisorIDs []int64, schedules []*activities.Schedule) (*activities.Group, error)
 	GetGroup(ctx context.Context, id int64) (*activities.Group, error)
 	UpdateGroup(ctx context.Context, group *activities.Group, requestingStaffID int64, hasManagePermission bool) (*activities.Group, error)
+	// UpdateGroupWithDetails updates group fields + supervisor set + schedule
+	// replacement as one failing-together unit; run inside a tenant tx so a
+	// partial failure rolls everything back (issue #575 B10).
+	UpdateGroupWithDetails(ctx context.Context, group *activities.Group, requestingStaffID int64, hasManagePermission bool, supervisorIDs []int64, schedules []*activities.Schedule) (*activities.Group, error)
 	DeleteGroup(ctx context.Context, id int64, requestingStaffID int64, hasManagePermission bool) error
 	ListGroups(ctx context.Context, queryOptions *base.QueryOptions) ([]*activities.Group, error)
 	GetGroupWithDetails(ctx context.Context, id int64) (*activities.Group, []*activities.SupervisorPlanned, []*activities.Schedule, error)
