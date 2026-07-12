@@ -36,6 +36,21 @@ var (
 	ErrCalendarPeriodOverlapConflict = errors.New("calendar period overlaps an active period of the same type")
 )
 
+// CalendarPeriodOverlapError wraps ErrCalendarPeriodOverlapConflict and
+// carries the conflicting periods so handlers can name them in the 409
+// response. errors.Is against the sentinel keeps matching through Unwrap.
+type CalendarPeriodOverlapError struct {
+	Overlaps []*CalendarPeriod
+}
+
+func (e *CalendarPeriodOverlapError) Error() string {
+	return ErrCalendarPeriodOverlapConflict.Error()
+}
+
+func (e *CalendarPeriodOverlapError) Unwrap() error {
+	return ErrCalendarPeriodOverlapConflict
+}
+
 // CalendarPeriodNameMaxLength is the maximum length of the name field.
 const CalendarPeriodNameMaxLength = 255
 

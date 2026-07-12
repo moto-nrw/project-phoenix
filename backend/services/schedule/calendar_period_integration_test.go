@@ -305,6 +305,14 @@ func TestCalendarPeriodService_SameTypeOverlapConflict(t *testing.T) {
 		err := svc.CreatePeriod(ctx, overlapping)
 		require.Error(t, err)
 		assert.ErrorIs(t, err, scheduleModels.ErrCalendarPeriodOverlapConflict)
+
+		// The typed error exposes the conflicting period so the handler can
+		// name it in the 409 message.
+		var overlapErr *scheduleModels.CalendarPeriodOverlapError
+		require.ErrorAs(t, err, &overlapErr)
+		require.Len(t, overlapErr.Overlaps, 1)
+		assert.Equal(t, base.ID, overlapErr.Overlaps[0].ID)
+		assert.Equal(t, base.Name, overlapErr.Overlaps[0].Name)
 	})
 
 	t.Run("create allows an inactive same-type overlap", func(t *testing.T) {

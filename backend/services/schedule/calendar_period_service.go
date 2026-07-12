@@ -220,7 +220,7 @@ func (s *calendarPeriodService) ensureNoActiveSameTypeOverlap(ctx context.Contex
 		return &ScheduleError{Op: "check same-type period overlap", Err: err}
 	}
 	if len(overlaps) > 0 {
-		return &ScheduleError{Op: "check same-type period overlap", Err: schedule.ErrCalendarPeriodOverlapConflict}
+		return &ScheduleError{Op: "check same-type period overlap", Err: &schedule.CalendarPeriodOverlapError{Overlaps: overlaps}}
 	}
 	return nil
 }

@@ -788,6 +788,37 @@ func TestCreatePeriod(t *testing.T) {
 		assert.Contains(t, w.Body.String(), "aktiver Zeitraum desselben Typs")
 	})
 
+	t.Run("names the conflicting period in the overlap 409", func(t *testing.T) {
+		conflicting := newTestPeriod()
+		conflicting.Name = "Schuljahr 2025/2026"
+		mock := &mockCalendarPeriodService{
+			err: &scheduleSvcErr{
+				op:    "check same-type period overlap",
+				inner: &schedule.CalendarPeriodOverlapError{Overlaps: []*schedule.CalendarPeriod{conflicting}},
+			},
+		}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+		router := setupTestRouter(res.createPeriod, http.MethodPost, false)
+
+		body := CalendarPeriodRequest{
+			Name:       "Overlap",
+			PeriodType: "school_year",
+			StartDate:  "2025-08-01",
+			EndDate:    "2026-01-31",
+			IsActive:   true,
+		}
+
+		w := executeRequest(router, http.MethodPost, "/", body)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), calendarPeriodOverlapConflictCode)
+		assert.Contains(t, w.Body.String(), "aktiver Zeitraum desselben Typs")
+		assert.Contains(t, w.Body.String(), "Schuljahr 2025/2026")
+		assert.Contains(t, w.Body.String(), "01.08.2025 – 31.07.2026")
+		assert.Contains(t, w.Body.String(), `"overlapping_period_ids":[42]`)
+		assert.Contains(t, w.Body.String(), `"overlapping_period_names":["Schuljahr 2025/2026"]`)
+	})
+
 	t.Run("returns 500 on service error", func(t *testing.T) {
 		mock := &mockCalendarPeriodService{err: errors.New("create failed: duplicate detail from postgres")}
 		res := NewResource(Dependencies{CalendarPeriodService: mock})
@@ -1038,6 +1069,38 @@ func TestUpdatePeriod(t *testing.T) {
 		assert.Equal(t, http.StatusConflict, w.Code)
 		assert.Contains(t, w.Body.String(), calendarPeriodOverlapConflictCode)
 		assert.Contains(t, w.Body.String(), "aktiver Zeitraum desselben Typs")
+	})
+
+	t.Run("names the conflicting period in the overlap 409", func(t *testing.T) {
+		conflicting := newTestPeriod()
+		conflicting.Name = "Schuljahr 2025/2026"
+		mock := &mockCalendarPeriodService{
+			period: existingPeriod,
+			updateErr: &scheduleSvcErr{
+				op:    "check same-type period overlap",
+				inner: &schedule.CalendarPeriodOverlapError{Overlaps: []*schedule.CalendarPeriod{conflicting}},
+			},
+		}
+		res := NewResource(Dependencies{CalendarPeriodService: mock})
+
+		r := chi.NewRouter()
+		r.Use(render.SetContentType(render.ContentTypeJSON))
+		r.Put("/{id}", res.updatePeriod)
+
+		body := CalendarPeriodRequest{
+			Name:       "Overlap Update",
+			PeriodType: "semester",
+			StartDate:  "2025-08-01",
+			EndDate:    "2026-01-31",
+			IsActive:   true,
+		}
+
+		w := executeRequest(r, http.MethodPut, "/42", body)
+
+		assert.Equal(t, http.StatusConflict, w.Code)
+		assert.Contains(t, w.Body.String(), calendarPeriodOverlapConflictCode)
+		assert.Contains(t, w.Body.String(), "Schuljahr 2025/2026")
+		assert.Contains(t, w.Body.String(), `"overlapping_period_names":["Schuljahr 2025/2026"]`)
 	})
 
 	t.Run("updates period with anchor", func(t *testing.T) {

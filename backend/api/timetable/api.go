@@ -52,6 +52,34 @@ var errCalendarPeriodOverlapConflict = errors.New(
 	"es besteht bereits ein aktiver Zeitraum desselben Typs im gewählten Zeitraum; bitte Datum, Typ oder Aktiv-Status anpassen",
 )
 
+// calendarPeriodOverlapRenderer builds the 409 payload for the hard same-type
+// overlap rule. When the service exposes the conflicting periods, the message
+// names the first one (mirroring the advisory warning wording) and the
+// details carry all IDs/names; a bare sentinel keeps the static text.
+func calendarPeriodOverlapRenderer(err error) render.Renderer {
+	var overlapErr *schedule.CalendarPeriodOverlapError
+	if !errors.As(err, &overlapErr) || len(overlapErr.Overlaps) == 0 {
+		return common.ErrorConflictWithCode(errCalendarPeriodOverlapConflict, calendarPeriodOverlapConflictCode)
+	}
+	first := overlapErr.Overlaps[0]
+	ids := make([]int64, 0, len(overlapErr.Overlaps))
+	names := make([]string, 0, len(overlapErr.Overlaps))
+	for _, o := range overlapErr.Overlaps {
+		ids = append(ids, o.ID)
+		names = append(names, o.Name)
+	}
+	message := fmt.Errorf(
+		"es besteht bereits ein aktiver Zeitraum desselben Typs: „%s“ (%s – %s); bitte Datum, Typ oder Aktiv-Status anpassen",
+		first.Name,
+		first.StartDate.Format(germanDateLayout),
+		first.EndDate.Format(germanDateLayout),
+	)
+	return common.ErrorConflictWithDetails(message, calendarPeriodOverlapConflictCode, map[string]any{
+		"overlapping_period_ids":   ids,
+		"overlapping_period_names": names,
+	})
+}
+
 // Resource defines the timetable API resource.
 //
 // Optional services may be nil in tests that only exercise a subset of routes
@@ -517,10 +545,7 @@ func (rs *Resource) createPeriod(w http.ResponseWriter, r *http.Request) {
 		case errors.Is(err, schedule.ErrCalendarPeriodNameConflict):
 			common.RenderError(w, r, common.ErrorConflict(schedule.ErrCalendarPeriodNameConflict))
 		case errors.Is(err, schedule.ErrCalendarPeriodOverlapConflict):
-			common.RenderError(w, r, common.ErrorConflictWithCode(
-				errCalendarPeriodOverlapConflict,
-				calendarPeriodOverlapConflictCode,
-			))
+			common.RenderError(w, r, calendarPeriodOverlapRenderer(err))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServerWrap(calendarPeriodCreateErrorMessage, err))
 		}
@@ -619,10 +644,7 @@ func (rs *Resource) updatePeriod(w http.ResponseWriter, r *http.Request) {
 			))
 		case errors.Is(err, schedule.ErrCalendarPeriodOverlapConflict):
 			tenant.MarkRollback(r.Context())
-			common.RenderError(w, r, common.ErrorConflictWithCode(
-				errCalendarPeriodOverlapConflict,
-				calendarPeriodOverlapConflictCode,
-			))
+			common.RenderError(w, r, calendarPeriodOverlapRenderer(err))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServerWrap("Kalenderzeitraum konnte nicht aktualisiert werden", err))
 		}
