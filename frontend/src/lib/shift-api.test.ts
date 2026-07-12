@@ -17,6 +17,33 @@ const backendShift = {
   break_minutes: 30,
 };
 
+const backendOverview = {
+  from: "2026-07-06",
+  to: "2026-07-10",
+  dienstplan_in_use: true,
+  staff: [{ id: 7, first_name: "Ada", last_name: "Lovelace" }],
+  shifts: [backendShift],
+  assignments: [
+    {
+      instance_id: 81,
+      staff_id: 7,
+      date: "2026-07-06",
+      start_time: "08:00",
+      end_time: "09:00",
+      activity_title: "Frühbetreuung",
+      room_id: 12,
+      room_name: "Sonnenraum",
+      status: "planned",
+      is_absent: false,
+      is_substitute: false,
+      absence_reason: null,
+      coverage_status: "covered",
+      coverage_reason: null,
+      uncovered_intervals: [],
+    },
+  ],
+};
+
 describe("staffShiftService errors", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -55,6 +82,22 @@ describe("staffShiftService errors", () => {
     ).rejects.toMatchObject({
       status: 500,
       detail: "database timeout",
+    });
+  });
+
+  it("preserves backend errors when the weekly overview fails", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      new Response(JSON.stringify({ error: "overview unavailable" }), {
+        status: 503,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+
+    await expect(
+      staffShiftService.getOverview("2026-07-06", "2026-07-10"),
+    ).rejects.toMatchObject({
+      status: 503,
+      detail: "overview unavailable",
     });
   });
 
@@ -132,6 +175,33 @@ describe("staffShiftService requests", () => {
     ]);
     expect(mockSessionFetch).toHaveBeenCalledWith(
       "/api/time-tracking/shifts?from=2026-07-06&to=2026-07-10",
+    );
+  });
+
+  it("loads and maps the weekly shift-assignment overview", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json({ data: backendOverview }, { status: 200 }),
+    );
+
+    await expect(
+      staffShiftService.getOverview("2026-07-06", "2026-07-10"),
+    ).resolves.toMatchObject({
+      from: "2026-07-06",
+      to: "2026-07-10",
+      dienstplanInUse: true,
+      staff: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+      shifts: [{ id: "42", staffId: "7" }],
+      assignments: [
+        {
+          instanceId: "81",
+          staffId: "7",
+          roomId: "12",
+          coverageStatus: "covered",
+        },
+      ],
+    });
+    expect(mockSessionFetch).toHaveBeenCalledWith(
+      "/api/staff/shifts/overview?from=2026-07-06&to=2026-07-10",
     );
   });
 

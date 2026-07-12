@@ -10,6 +10,7 @@ import (
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
@@ -29,6 +30,9 @@ func testTimetableDataWithCareValidator(
 		ActivityExceptionRepo:      scheduleRepo.NewActivityExceptionRepository(db),
 		ActivityScheduleRepo:       activitiesRepo.NewScheduleRepository(db),
 		InstanceStaffRepo:          scheduleRepo.NewInstanceStaffRepository(db),
+		StaffShiftRepo:             scheduleRepo.NewStaffShiftRepository(db),
+		StaffRepo:                  usersRepo.NewStaffRepository(db),
+		CalendarPeriodRepo:         scheduleRepo.NewCalendarPeriodRepository(db),
 		ActiveGroupRepo:            activeRepo.NewGroupRepository(db),
 		SupervisorRepo:             activeRepo.NewGroupSupervisorRepository(db),
 		ArrivalScheduleRepo:        scheduleRepo.NewStudentArrivalScheduleRepository(db),

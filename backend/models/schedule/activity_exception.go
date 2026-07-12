@@ -99,6 +99,10 @@ type ActivityExceptionRepository interface {
 	// (template, date) pair, or nil if none exists.
 	FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date timezone.Date) (*ActivityException, error)
 
+	// FindByActivityGroupAndDateRange returns one template's exceptions within
+	// an inclusive date range in a single tenant-scoped query.
+	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to timezone.Date) ([]*ActivityException, error)
+
 	// FindByDateRange returns all exceptions across all templates within the
 	// inclusive range. Used by the materialization service to apply exceptions
 	// efficiently for an entire week.

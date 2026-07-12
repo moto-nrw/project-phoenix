@@ -37,6 +37,7 @@ import { TimetableOverview } from "~/components/timetable/timetable-overview";
 import { TimetableSetupGuide } from "~/components/timetable/timetable-setup-guide";
 import { TemplateList } from "~/components/timetable/template-list";
 import { TimetableEventModal } from "~/components/timetable/timetable-event-modal";
+import { hasPermission } from "~/lib/auth-utils";
 import {
   DENSITY_TO_HOUR_HEIGHT_PX,
   TimetableToolbar,
@@ -291,7 +292,11 @@ function TimetableDisabledState() {
 
 function TimetablesContent() {
   const searchParams = useSearchParams();
-  const { status } = useSession({ required: true });
+  const { data: session, status } = useSession({ required: true });
+  const canCheckShiftCoverage =
+    hasPermission(session, "schedules:read") &&
+    hasPermission(session, "time_tracking:manage") &&
+    hasPermission(session, "users:read");
   const toast = useToast();
   const tenantMutate = useTenantMutate();
 
@@ -1611,6 +1616,7 @@ function TimetablesContent() {
       />
 
       <TimetableEventModal
+        canCheckShiftCoverage={canCheckShiftCoverage}
         isOpen={eventModalOpen}
         onClose={() => {
           setEventModalOpen(false);

@@ -202,6 +202,9 @@ func (f *fakeInstanceRepo) FindByTenantAndDateRange(_ context.Context, _, _ time
 func (f *fakeInstanceRepo) FindByActivityGroupAndDate(_ context.Context, _ int64, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
+func (f *fakeInstanceRepo) FindByActivityGroupAndDateRange(_ context.Context, _ int64, _, _ timezone.Date) ([]*scheduleModel.ActivityInstance, error) {
+	return nil, nil
+}
 func (f *fakeInstanceRepo) FindByActiveGroupID(_ context.Context, _ int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }

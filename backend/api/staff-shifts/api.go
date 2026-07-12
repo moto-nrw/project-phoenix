@@ -29,14 +29,15 @@ import (
 // Resource bundles the dependencies for the staff-shift HTTP handlers.
 type Resource struct {
 	Service       scheduleSvc.StaffShiftService
+	Overview      scheduleSvc.StaffScheduleOverviewGetter
 	PersonService usersSvc.PersonService
 	db            *bun.DB
 	logger        *slog.Logger
 }
 
 // NewResource wires the dependencies.
-func NewResource(service scheduleSvc.StaffShiftService, personService usersSvc.PersonService, db *bun.DB, logger *slog.Logger) *Resource {
-	return &Resource{Service: service, PersonService: personService, db: db, logger: logger}
+func NewResource(service scheduleSvc.StaffShiftService, overview scheduleSvc.StaffScheduleOverviewGetter, personService usersSvc.PersonService, db *bun.DB, logger *slog.Logger) *Resource {
+	return &Resource{Service: service, Overview: overview, PersonService: personService, db: db, logger: logger}
 }
 
 // Router returns the chi sub-router for /api/staff-shifts.
@@ -47,6 +48,12 @@ func (rs *Resource) Router() chi.Router {
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/", rs.list)
+		r.With(
+			authorize.RequiresPermission(permissions.TimeTrackingManage),
+			authorize.RequiresPermission(permissions.SchedulesRead),
+			authorize.RequiresPermission(permissions.UsersRead),
+			withTx,
+		).Get("/overview", rs.overview)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}", rs.update)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
