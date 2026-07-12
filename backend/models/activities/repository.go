@@ -19,6 +19,14 @@ type CategoryRepository interface {
 
 	// ListAll returns all categories
 	ListAll(ctx context.Context) ([]*Category, error)
+
+	// SetShiftTypeForCategories syncs the Kategorie↔Schichtart mapping for one
+	// shift type (#1837 follow-up): it sets shift_type_id = shiftTypeID for the
+	// given category IDs and clears it on any category that currently points at
+	// this shift type but is no longer in the list. A cross-row set/clear that
+	// isn't reducible to a single-entity filter, so it lives here rather than on
+	// the generic Repository[T].
+	SetShiftTypeForCategories(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error
 }
 
 // GroupRepository defines operations for managing activity groups
@@ -224,6 +232,8 @@ type TemplateFieldsUpdate struct {
 	TargetGroupType   string
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
+	// Notes is the durable Wochennotiz for the template; nil clears it.
+	Notes *string
 }
 
 // TemplateListRow is one row of the template list read model produced by
@@ -253,8 +263,14 @@ type TemplateListRow struct {
 	TargetGroupType          string         `bun:"target_group_type"`
 	TargetGradeLevel         sql.NullInt16  `bun:"target_grade_level"`
 	TargetSchoolClass        sql.NullString `bun:"target_school_class"`
-	EnrollmentCount          int            `bun:"enrollment_count"`
-	SupervisorCount          int            `bun:"supervisor_count"`
+	// Notes is the template's durable Wochennotiz (#1837 follow-up); NULL = none.
+	Notes sql.NullString `bun:"notes"`
+	// ShiftTypeName/ShiftTypeColor come from the category's optional
+	// Kategorie↔Schichtart mapping (#1836/#1837 follow-up); empty when unmapped.
+	ShiftTypeName   string `bun:"shift_type_name"`
+	ShiftTypeColor  string `bun:"shift_type_color"`
+	EnrollmentCount int    `bun:"enrollment_count"`
+	SupervisorCount int    `bun:"supervisor_count"`
 	// CapacityEnrollmentCount and CapacitySupervisorCount are the roster on
 	// the actual recurrence date selected as worst for the template. They
 	// intentionally differ from the period-tolerant display roster below.

@@ -32,9 +32,11 @@ type updateTemplateRequest struct {
 	TargetGroupType   string  `json:"target_group_type,omitempty"`
 	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string `json:"target_school_class,omitempty"`
-	StudentIDs        []int64 `json:"student_ids,omitempty"`
-	StaffIDs          []int64 `json:"staff_ids,omitempty"`
-	PrimaryStaffID    *int64  `json:"primary_staff_id,omitempty"`
+	// Notes is the durable Wochennotiz for the template; omitted/null clears it.
+	Notes          *string `json:"notes,omitempty"`
+	StudentIDs     []int64 `json:"student_ids,omitempty"`
+	StaffIDs       []int64 `json:"staff_ids,omitempty"`
+	PrimaryStaffID *int64  `json:"primary_staff_id,omitempty"`
 }
 
 func (req *updateTemplateRequest) Bind(_ *http.Request) error {
@@ -43,6 +45,9 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	}
 	if len(req.Name) > 255 {
 		return errors.New("name cannot exceed 255 characters")
+	}
+	if req.Notes != nil && len(*req.Notes) > 2000 {
+		return errors.New("notes cannot exceed 2000 characters")
 	}
 	if req.RoomID <= 0 {
 		return errors.New("room_id is required")
@@ -208,6 +213,7 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		TargetGroupType:   req.TargetGroupType,
 		TargetGradeLevel:  req.TargetGradeLevel,
 		TargetSchoolClass: req.TargetSchoolClass,
+		Notes:             normalizeNotes(req.Notes),
 	}
 	updateErr := rs.TimetableData.UpdateTemplate(ctx, scheduleSvc.TemplateUpdateInput{
 		TemplateID:       id,

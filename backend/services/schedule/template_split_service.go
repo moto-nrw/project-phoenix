@@ -118,11 +118,18 @@ type TemplateSplitInput struct {
 	TargetGroupType   string
 	TargetGradeLevel  *int16
 	TargetSchoolClass *string
-	StudentIDs        []int64
-	StaffIDs          []int64
-	PrimaryStaffID    *int64
-	MaterializeFrom   *timezone.Date
-	MaterializeTo     *timezone.Date
+	// Notes is the durable Wochennotiz (#1837 follow-up) for the successor
+	// Group, already normalized (nil = clear). Only applied when NotesProvided
+	// is true; otherwise the successor inherits the source template's note. Same
+	// omitted-vs-null split as RequiredStaff so a "this and following" edit can
+	// actually CLEAR the series note.
+	Notes           *string
+	NotesProvided   bool
+	StudentIDs      []int64
+	StaffIDs        []int64
+	PrimaryStaffID  *int64
+	MaterializeFrom *timezone.Date
+	MaterializeTo   *timezone.Date
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max. Missing or out-of-range values are rejected.
 	GradeLevelMax int
@@ -846,6 +853,13 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 	if in.RequiredStaffProvided {
 		requiredStaff = in.RequiredStaff
 	}
+	// Wochennotiz (#1837 follow-up): same omitted-vs-null carry-over as the
+	// Personalbedarf override — inherit the source note unless the request
+	// explicitly carried one (a null then clears it).
+	notes := old.Notes
+	if in.NotesProvided {
+		notes = in.Notes
+	}
 	seriesRootID := old.ID
 	if old.SeriesRootID != nil {
 		seriesRootID = *old.SeriesRootID
@@ -867,6 +881,7 @@ func (s *TemplateSplitService) createSuccessorGroup(ctx context.Context, old *ac
 		TargetGroupType:   in.TargetGroupType,
 		TargetGradeLevel:  in.TargetGradeLevel,
 		TargetSchoolClass: in.TargetSchoolClass,
+		Notes:             notes,
 	}
 	group.SetTenantID(tenantID)
 	if err := s.deps.GroupRepo.Create(ctx, group); err != nil {

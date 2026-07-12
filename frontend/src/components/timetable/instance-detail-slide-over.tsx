@@ -571,8 +571,18 @@ export function InstanceDetailSlideOver({
                     : ""}
                 </Row>
               ) : null}
+              {instance.seriesNotes && (
+                <Row icon={<Repeat className="h-4 w-4" />} label="Wochennotiz">
+                  <span className="whitespace-pre-line">
+                    {instance.seriesNotes}
+                  </span>
+                </Row>
+              )}
               {instance.notes && (
-                <Row icon={<StickyNote className="h-4 w-4" />} label="Notiz">
+                <Row
+                  icon={<StickyNote className="h-4 w-4" />}
+                  label={instance.seriesNotes ? "Tagesnotiz" : "Notiz"}
+                >
                   <span className="whitespace-pre-line">{instance.notes}</span>
                 </Row>
               )}
