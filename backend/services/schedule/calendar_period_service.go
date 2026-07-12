@@ -329,41 +329,60 @@ func defaultSchoolYearBounds(today timezone.Date) (name string, start, end timez
 // period (WP-B1). When periods already exist, it returns them unchanged with
 // created=false. Otherwise it inserts the current school year via the
 // race-safe CreateIfAbsent upsert, re-lists, and returns the fresh state.
-// Two concurrent calls therefore yield exactly one row and zero errors.
+// The read + insert run under the same tenant recurrence gate as CreatePeriod:
+// without it, a bootstrap racing a normal period create could list zero
+// periods, then insert the default school year next to a just-committed
+// overlapping active period of the same type, bypassing the hard overlap
+// invariant (#1837). Two concurrent calls yield exactly one row and no errors.
 func (s *calendarPeriodService) EnsureDefaultSchoolYear(ctx context.Context) ([]*schedule.CalendarPeriod, bool, error) {
-	periods, err := s.repo.FindByTenantID(ctx)
-	if err != nil {
-		return nil, false, &ScheduleError{Op: "ensure default school year", Err: err}
-	}
-	if len(periods) > 0 {
-		return periods, false, nil
-	}
+	const op = "ensure default school year"
+	var periods []*schedule.CalendarPeriod
+	var created bool
 
-	name, start, end := defaultSchoolYearBounds(timezone.TodayDate())
-	period := &schedule.CalendarPeriod{
-		Name:            name,
-		PeriodType:      schedule.PeriodTypeSchoolYear,
-		StartDate:       start,
-		EndDate:         end,
-		WeekCycleLength: 1,
-		IsActive:        true,
-	}
-	period.SetTenantID(tenant.FromContext(ctx))
+	err := s.withRecurrenceGate(ctx, op, func(txCtx context.Context) error {
+		var err error
+		periods, err = s.repo.FindByTenantID(txCtx)
+		if err != nil {
+			return &ScheduleError{Op: op, Err: err}
+		}
+		if len(periods) > 0 {
+			return nil
+		}
 
-	created, err := s.repo.CreateIfAbsent(ctx, period)
-	if err != nil {
-		return nil, false, &ScheduleError{Op: "ensure default school year", Err: err}
-	}
-	if created {
-		s.getLogger().Info("default school year period created",
-			slog.Int64("period_id", period.ID),
-			slog.String("name", period.Name),
-		)
-	}
+		name, start, end := defaultSchoolYearBounds(timezone.TodayDate())
+		period := &schedule.CalendarPeriod{
+			Name:            name,
+			PeriodType:      schedule.PeriodTypeSchoolYear,
+			StartDate:       start,
+			EndDate:         end,
+			WeekCycleLength: 1,
+			IsActive:        true,
+		}
+		period.SetTenantID(tenant.FromContext(txCtx))
 
-	periods, err = s.repo.FindByTenantID(ctx)
+		if err := s.ensureNoActiveSameTypeOverlap(txCtx, period); err != nil {
+			return err
+		}
+
+		created, err = s.repo.CreateIfAbsent(txCtx, period)
+		if err != nil {
+			return &ScheduleError{Op: op, Err: err}
+		}
+		if created {
+			s.getLogger().Info("default school year period created",
+				slog.Int64("period_id", period.ID),
+				slog.String("name", period.Name),
+			)
+		}
+
+		periods, err = s.repo.FindByTenantID(txCtx)
+		if err != nil {
+			return &ScheduleError{Op: op, Err: err}
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, false, &ScheduleError{Op: "ensure default school year", Err: err}
+		return nil, false, err
 	}
 	return periods, created, nil
 }

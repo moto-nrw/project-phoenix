@@ -710,6 +710,66 @@ func TestCalendarPeriodService_EnsureDefaultSchoolYear(t *testing.T) {
 	})
 }
 
+// Hermetic DB test (no hardcoded IDs) verifying the recurrence-gate
+// serialization of EnsureDefaultSchoolYear against CreatePeriod: a bootstrap
+// racing an explicit create of an overlapping active same-type period must
+// never insert the default school year next to it. Either the bootstrap sees
+// the committed period (created=false) or the explicit create loses with the
+// overlap conflict — exactly one row survives.
+func TestCalendarPeriodService_ConcurrentBootstrapVsCreate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	svc := setupCalendarPeriodService(t, db)
+	tenantID, ctx := newBootstrapTenant(t, db)
+
+	// Same bounds as the default school year so the two inserts overlap.
+	today := timezone.TodayDate()
+	startYear := today.Year
+	if today.Month < time.August {
+		startYear--
+	}
+	explicit := &scheduleModels.CalendarPeriod{
+		Name:            fmt.Sprintf("Eigenes-Schuljahr-%d", time.Now().UnixNano()),
+		PeriodType:      scheduleModels.PeriodTypeSchoolYear,
+		StartDate:       timezone.NewDate(startYear, time.August, 1),
+		EndDate:         timezone.NewDate(startYear+1, time.July, 31),
+		WeekCycleLength: 1,
+		IsActive:        true,
+	}
+
+	var wg sync.WaitGroup
+	var createErr error
+	var bootstrapCreated bool
+	var bootstrapErr error
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		createErr = svc.CreatePeriod(ctx, explicit)
+	}()
+	go func() {
+		defer wg.Done()
+		_, bootstrapCreated, bootstrapErr = svc.EnsureDefaultSchoolYear(ctx)
+	}()
+	wg.Wait()
+
+	require.NoError(t, bootstrapErr, "bootstrap must never fail in this race")
+	if createErr != nil {
+		require.ErrorIs(t, createErr, scheduleModels.ErrCalendarPeriodOverlapConflict)
+		assert.True(t, bootstrapCreated, "create can only lose against a bootstrap that inserted first")
+	} else {
+		assert.False(t, bootstrapCreated, "bootstrap must not insert next to the committed period")
+	}
+
+	var rowCount int
+	require.NoError(t, db.NewSelect().
+		TableExpr("schedule.calendar_periods").
+		ColumnExpr("COUNT(*)").
+		Where("tenant_id = ?", tenantID).
+		Scan(ctx, &rowCount))
+	assert.Equal(t, 1, rowCount, "the race must never leave two overlapping active school years")
+}
+
 // =============================================================================
 // FindActiveOverlaps Tests (WP-B2)
 // =============================================================================
