@@ -1539,6 +1539,57 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("does not promote an occurrence substitute during an untouched following roster edit", async () => {
+    mockGetAllStaff.mockResolvedValue([
+      { id: "11", name: "Ada Staff" },
+      { id: "31", name: "QA Substitute" },
+    ]);
+    mockGetTemplate.mockResolvedValue({
+      ...template,
+      staffIds: ["11"],
+      primaryStaffId: "11",
+    });
+    renderModal({
+      initialInstance: {
+        ...savedInstance,
+        activityGroupId: "7",
+        staff: [
+          {
+            staffId: "11",
+            isPrimary: true,
+            isAbsent: true,
+            isSubstitute: false,
+          },
+          {
+            staffId: "31",
+            isPrimary: false,
+            isAbsent: false,
+            isSubstitute: true,
+          },
+        ],
+      },
+    });
+
+    await screen.findByText("QA Substitute");
+    fireEvent.change(screen.getByLabelText("Titel*"), {
+      target: { value: "Mensa umbenannt" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    await waitFor(() =>
+      expect(mockSplitTemplate).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          name: "Mensa umbenannt",
+          staff_ids: [11],
+          primary_staff_id: 11,
+        }),
+      ),
+    );
+  });
+
   it("checks all following occurrences and saves despite coverage warnings", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     vi.setSystemTime(new Date("2026-05-04T10:00:00"));
