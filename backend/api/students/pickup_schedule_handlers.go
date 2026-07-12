@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -340,8 +338,7 @@ func (rs *Resource) requirePickupWriteAccess(w http.ResponseWriter, r *http.Requ
 // parseEntityID extracts a numeric ID from a URL parameter.
 // Returns 0 and writes an error response on failure.
 func parseEntityID(w http.ResponseWriter, r *http.Request, param string, label string) (int64, bool) {
-	idStr := chi.URLParam(r, param)
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := common.ParseIDParam(r, param)
 	if err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid %s ID", label)))
 		return 0, false

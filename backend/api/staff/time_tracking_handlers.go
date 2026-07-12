@@ -243,8 +243,7 @@ func (rs *Resource) setStaffVacationQuota(w http.ResponseWriter, r *http.Request
 }
 
 func parseInt64Param(r *http.Request, name string) (int64, error) {
-	str := chi.URLParam(r, name)
-	v, err := strconv.ParseInt(str, 10, 64)
+	v, err := common.ParseIDParam(r, name)
 	if err != nil {
 		return 0, errors.New("invalid " + name + " parameter")
 	}
