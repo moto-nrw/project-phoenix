@@ -5,6 +5,7 @@
 import { MapPin, Plus, TriangleAlert } from "lucide-react";
 
 import { Skeleton } from "~/components/ui/skeleton";
+import { Tooltip } from "~/components/ui/tooltip";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   formatDeltaHours,
@@ -79,24 +80,26 @@ function WeeklySummaryLine({
   const hasTarget =
     summary.targetMinutes !== null && summary.deltaMinutes !== null;
   return (
-    <span
-      className="mt-0.5 block text-xs font-medium text-gray-600 tabular-nums"
-      title={
+    <Tooltip
+      className="mt-0.5 block w-fit"
+      content={
         hasTarget
           ? `Geplant ${formatPlannedHours(summary.plannedMinutes)} · Soll ${formatPlannedHours(summary.targetMinutes ?? 0)}`
           : `Geplant ${formatPlannedHours(summary.plannedMinutes)} · kein Arbeitszeitmodell hinterlegt`
       }
     >
-      {formatPlannedHours(summary.plannedMinutes)}
-      {hasTarget && (
-        <span
-          className="ml-1 font-semibold"
-          style={{ color: summaryDeltaColor(summary.deltaMinutes ?? 0) }}
-        >
-          · {formatDeltaHours(summary.deltaMinutes ?? 0)}
-        </span>
-      )}
-    </span>
+      <span className="text-xs font-medium text-gray-600 tabular-nums">
+        {formatPlannedHours(summary.plannedMinutes)}
+        {hasTarget && (
+          <span
+            className="ml-1 font-semibold"
+            style={{ color: summaryDeltaColor(summary.deltaMinutes ?? 0) }}
+          >
+            · {formatDeltaHours(summary.deltaMinutes ?? 0)}
+          </span>
+        )}
+      </span>
+    </Tooltip>
   );
 }
 

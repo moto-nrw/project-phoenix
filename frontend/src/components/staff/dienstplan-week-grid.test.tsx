@@ -148,6 +148,16 @@ describe("DienstplanWeekGrid", () => {
     const delta = screen.getByText("· −2,25 h");
     // Under contract renders in HOME red.
     expect(delta).toHaveStyle({ color: "#FF3130" });
+
+    // The Geplant/Soll breakdown is a real tooltip (not a title attribute),
+    // reachable via keyboard focus and touch.
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Geplant 18 h · Soll 20,25 h",
+    );
+    expect(screen.getByText("18 h").closest("[tabindex]")).toHaveAttribute(
+      "tabindex",
+      "0",
+    );
   });
 
   it("shows planned hours without a badge when no contract resolves", () => {
@@ -160,7 +170,11 @@ describe("DienstplanWeekGrid", () => {
     });
 
     expect(screen.getByText("4,5 h")).toBeInTheDocument();
-    expect(screen.queryByText(/·/)).not.toBeInTheDocument();
+    // No delta badge (the tooltip text legitimately contains "·" now).
+    expect(screen.queryByText(/^·/)).not.toBeInTheDocument();
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      "Geplant 4,5 h · kein Arbeitszeitmodell hinterlegt",
+    );
   });
 
   it("renders only the name without a summary", () => {
