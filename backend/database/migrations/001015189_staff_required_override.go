@@ -52,8 +52,8 @@ func staffRequiredOverrideUp(ctx context.Context, db *bun.DB) error {
 		ALTER TABLE schedule.activity_instances
 		ADD CONSTRAINT chk_activity_instances_required_staff_nonneg CHECK (required_staff IS NULL OR required_staff >= 0);
 
-		COMMENT ON COLUMN activities.groups.required_staff IS 'Manual Personalbedarf override for this template; NULL = derive from Betreuungsschlüssel. Copied onto each materialized activity_instances row.';
-		COMMENT ON COLUMN schedule.activity_instances.required_staff IS 'Manual Personalbedarf override for this block; NULL = derive from Betreuungsschlüssel. Wins over the derived requirement when set.';
+		COMMENT ON COLUMN activities.groups.required_staff IS 'Manual Personalbedarf override for this template; NULL = derive from Betreuungsschlüssel. Inherited by materialized instances at read time.';
+		COMMENT ON COLUMN schedule.activity_instances.required_staff IS 'Per-occurrence Personalbedarf pin; NULL = inherit template override, then derive from Betreuungsschlüssel. Materialization leaves this NULL; a set value survives ReplanWeek.';
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed adding required_staff columns: %w", err)

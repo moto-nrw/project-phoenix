@@ -37,9 +37,12 @@ type ActivityInstance struct {
 	StartTime        time.Time     `bun:"start_time,notnull" json:"start_time"`
 	EndTime          time.Time     `bun:"end_time,notnull" json:"end_time"`
 	RoomID           int64         `bun:"room_id,notnull" json:"room_id"`
-	// RequiredStaff is the manual Personalbedarf override (issue #1839). NULL
-	// means "derive from the Betreuungsschlüssel" (issue #1869); a set value
-	// (>= 0) is a manual override that wins over the derived figure. See
+	// RequiredStaff is the per-occurrence Personalbedarf pin (issue #1839).
+	// NULL means "inherit": template-backed instances fall back to the
+	// template's override, then to the Betreuungsschlüssel (issue #1869).
+	// Materialization deliberately leaves this NULL; a set value (>= 0) is
+	// always a single-occurrence pin, which is what lets ReplanWeek preserve
+	// it while template edits still propagate. See
 	// services/schedule/capacity_service.go EffectiveRequiredStaff.
 	RequiredStaff *int   `bun:"required_staff" json:"required_staff,omitempty"`
 	Status        string `bun:"status,notnull,default:'planned'" json:"status"`

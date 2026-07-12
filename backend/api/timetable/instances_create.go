@@ -37,8 +37,9 @@ type createInstanceRequest struct {
 	ActivityGroupID *int64  `json:"activity_group_id,omitempty"`
 	StaffIDs        []int64 `json:"staff_ids,omitempty"`
 	StudentIDs      []int64 `json:"student_ids,omitempty"`
-	// RequiredStaff is the optional manual Personalbedarf override (#1839);
-	// omitted/null = derive from the Betreuungsschlüssel, a value = override.
+	// RequiredStaff is the optional per-occurrence Personalbedarf pin (#1839);
+	// omitted/null = no pin (inherit the template override, else derive from
+	// the Betreuungsschlüssel), a value = pin for this occurrence.
 	RequiredStaff *int `json:"required_staff,omitempty"`
 }
 
@@ -178,7 +179,7 @@ func (rs *Resource) createInstance(w http.ResponseWriter, r *http.Request) {
 	// Re-fetch as enriched payload so the frontend can drop the fresh row
 	// straight into its SWR cache without a round-trip refetch.
 	roomCache := make(map[int64]string)
-	typeCache := make(map[int64]string)
+	typeCache := make(map[int64]templateMeta)
 	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()))
 	if err != nil {
 		// Insert succeeded; enrichment is informational. Fall through with

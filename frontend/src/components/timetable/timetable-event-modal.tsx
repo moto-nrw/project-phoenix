@@ -141,8 +141,10 @@ interface EventFormState {
   staffIds: string[];
   primaryStaffId: string;
   /**
-   * Manual Personalbedarf override (issue #1839). Empty = derive from the
-   * Betreuungsschlüssel; a non-negative integer overrides it. Held as a string
+   * Manual Personalbedarf override (issue #1839). Empty = automatic: a single
+   * occurrence inherits the series value, otherwise the Betreuungsschlüssel
+   * derivation applies. A non-negative integer overrides both (on a single
+   * occurrence it becomes a pin that survives series edits). Held as a string
    * because it is an <input> value; parsed via parseRequiredStaffOverride.
    */
   requiredStaff: string;
@@ -2070,8 +2072,9 @@ export function TimetableEventModal({
           controlSize="compact"
         />
         <p className="mt-1 text-xs text-gray-500">
-          Leer = automatisch aus dem Betreuungsschlüssel (Kinderzahl) berechnet.
-          Eine Zahl legt den Bedarf fest und überschreibt die Berechnung.
+          Leer = automatisch: Es gilt der Wert der Terminreihe, sonst die
+          Berechnung aus dem Betreuungsschlüssel (Kinderzahl). Eine Zahl legt
+          den Bedarf fest und überschreibt beides.
         </p>
       </Field>
 

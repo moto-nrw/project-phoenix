@@ -38,8 +38,9 @@ type Group struct {
 	MaxParticipants int    `bun:"max_participants,notnull" json:"max_participants"`
 	// RequiredStaff is the manual Personalbedarf override for the template
 	// (issue #1839). NULL means "derive from the Betreuungsschlüssel" (#1869);
-	// a set value (>= 0) flows onto every materialized instance as its own
-	// override. Mirrors MaxParticipants plumbing.
+	// a set value (>= 0) is inherited by materialized instances at read time
+	// (their own column stays NULL unless individually pinned), so later
+	// template edits keep propagating. Mirrors MaxParticipants plumbing.
 	RequiredStaff    *int       `bun:"required_staff" json:"required_staff,omitempty"`
 	IsOpen           bool       `bun:"is_open,notnull,default:false" json:"is_open"`
 	CategoryID       int64      `bun:"category_id,notnull" json:"category_id"`

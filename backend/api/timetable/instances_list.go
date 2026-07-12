@@ -99,10 +99,11 @@ type enrichedInstance struct {
 	// services/schedule/capacity_service.go).
 	RequiredStaffCount int `json:"required_staff_count"`
 	AssignedStaffCount int `json:"assigned_staff_count"`
-	// RequiredStaffOverride is the raw manual Personalbedarf override (#1839),
-	// nil when the block derives its requirement from the Betreuungsschlüssel.
-	// The edit form needs the raw value to distinguish "derive" from a set
-	// number; RequiredStaffCount above already folds the override in.
+	// RequiredStaffOverride is the raw per-occurrence Personalbedarf pin
+	// (#1839), nil when the block inherits: template-backed instances fall
+	// back to the template's override, then to the Betreuungsschlüssel. The
+	// edit form needs the raw value to distinguish "inherit" from a pinned
+	// number; RequiredStaffCount above already folds the inheritance in.
 	RequiredStaffOverride *int                                  `json:"required_staff_override,omitempty"`
 	ConflictWarnings      []scheduleSvc.InstanceConflictWarning `json:"conflict_warnings"`
 }
@@ -167,7 +168,7 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	// Cache room and activity-group lookups for the request. ~5-8 unique
 	// rooms and templates per week — caching turns 30 lookups into ~10.
 	roomCache := make(map[int64]string)
-	typeCache := make(map[int64]string)
+	typeCache := make(map[int64]templateMeta)
 
 	// Resolved once per request (not per instance) — the Betreuungsschlüssel
 	// setting is tenant-wide, not per-block.
@@ -206,7 +207,7 @@ func (rs *Resource) enrichInstance(
 	ctx context.Context,
 	inst *scheduleModel.ActivityInstance,
 	roomCache map[int64]string,
-	typeCache map[int64]string,
+	metaCache map[int64]templateMeta,
 	childrenPerStaffRatio int,
 ) (enrichedInstance, error) {
 	if inst == nil {
@@ -214,7 +215,7 @@ func (rs *Resource) enrichInstance(
 	}
 
 	roomName := rs.lookupRoomName(ctx, inst.RoomID, roomCache)
-	activityType := rs.lookupActivityType(ctx, inst.ActivityGroupID, typeCache)
+	meta := rs.lookupTemplateMeta(ctx, inst.ActivityGroupID, metaCache)
 
 	staffRows, err := rs.TimetableData.GetInstanceStaff(ctx, inst.ID)
 	if err != nil {
@@ -280,7 +281,7 @@ func (rs *Resource) enrichInstance(
 		IsSpontaneous:         inst.IsSpontaneous,
 		IsLive:                inst.Status == scheduleModel.InstanceStatusActive && inst.ActiveGroupID != nil,
 		ActivityGroupID:       inst.ActivityGroupID,
-		ActivityType:          activityType,
+		ActivityType:          meta.activityType,
 		RoomID:                inst.RoomID,
 		RoomName:              roomName,
 		Staff:                 staff,
@@ -293,7 +294,7 @@ func (rs *Resource) enrichInstance(
 		CancelReason:          inst.CancelReason,
 		ExpectedStudentsCount: expected,
 		PresentStudentsCount:  present,
-		RequiredStaffCount:    scheduleSvc.EffectiveRequiredStaff(inst.RequiredStaff, childrenCount, childrenPerStaffRatio),
+		RequiredStaffCount:    scheduleSvc.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), childrenCount, childrenPerStaffRatio),
 		AssignedStaffCount:    assignedStaff,
 		RequiredStaffOverride: inst.RequiredStaff,
 		ConflictWarnings:      rs.instanceConflictWarnings(ctx, inst),
@@ -344,25 +345,45 @@ func (rs *Resource) lookupRoomName(ctx context.Context, roomID int64, cache map[
 // ("activity" | "care" | "external"). For spontaneous instances without an
 // activity-group reference, falls back to GroupTypeActivity so the frontend
 // always has a deterministic colour key.
-func (rs *Resource) lookupActivityType(ctx context.Context, activityGroupID *int64, cache map[int64]string) string {
+// templateMeta caches the per-template fields enrichInstance needs so many
+// instances sharing a template (e.g. the daily Mensa) cost one group lookup.
+type templateMeta struct {
+	activityType  string
+	requiredStaff *int
+}
+
+func (rs *Resource) lookupTemplateMeta(ctx context.Context, activityGroupID *int64, cache map[int64]templateMeta) templateMeta {
+	fallback := templateMeta{activityType: activitiesModel.GroupTypeActivity}
 	if activityGroupID == nil {
-		return activitiesModel.GroupTypeActivity
+		return fallback
 	}
-	if t, ok := cache[*activityGroupID]; ok {
-		return t
+	if meta, ok := cache[*activityGroupID]; ok {
+		return meta
 	}
 	if rs.TimetableData == nil {
-		cache[*activityGroupID] = activitiesModel.GroupTypeActivity
-		return activitiesModel.GroupTypeActivity
+		cache[*activityGroupID] = fallback
+		return fallback
 	}
 	group, err := rs.TimetableData.GetActivityGroup(ctx, *activityGroupID)
 	if err != nil || group == nil {
 		rs.getLogger().Debug("instance list: activity group lookup failed",
 			slog.Int64("activity_group_id", *activityGroupID),
 		)
-		cache[*activityGroupID] = activitiesModel.GroupTypeActivity
-		return activitiesModel.GroupTypeActivity
+		cache[*activityGroupID] = fallback
+		return fallback
 	}
-	cache[*activityGroupID] = group.Type
-	return group.Type
+	meta := templateMeta{activityType: group.Type, requiredStaff: group.RequiredStaff}
+	cache[*activityGroupID] = meta
+	return meta
+}
+
+// instanceRequiredStaffOverride resolves the override EffectiveRequiredStaff
+// should see for an instance: the per-occurrence pin when set, otherwise the
+// template's Personalbedarf override — materialized rows leave the column
+// NULL and inherit the template value at read time (#1839).
+func instanceRequiredStaffOverride(pin, templateOverride *int) *int {
+	if pin != nil {
+		return pin
+	}
+	return templateOverride
 }
