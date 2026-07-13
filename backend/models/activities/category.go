@@ -12,6 +12,12 @@ import (
 // no color set.
 const DefaultCategoryColor = "#CCCCCC"
 
+// ErrUnknownCategoryIDs is returned when a Kategorie↔Schichtart mapping write
+// references category IDs that do not all exist in the current tenant. It must
+// abort the write rather than silently clearing existing mappings (#1837
+// follow-up). Callers map it to a 400.
+var ErrUnknownCategoryIDs = errors.New("one or more category IDs do not exist in this tenant")
+
 // Category represents a category for activities
 type Category struct {
 	base.Model `bun:"schema:activities,table:categories"`

@@ -137,3 +137,30 @@ func TestShiftType_UpdateSyncsAndOmittedLeavesUntouched(t *testing.T) {
 	require.NotNil(t, s.shiftTypeIDOf(t, cat1.ID), "omitted category_ids must not clear the mapping")
 	assert.Equal(t, stID, *s.shiftTypeIDOf(t, cat1.ID))
 }
+
+func TestShiftType_UpdateRejectsUnknownCategoryIDs(t *testing.T) {
+	s := buildShiftTypeSetup(t)
+
+	cat1 := testpkg.CreateTestActivityCategory(t, s.db, "st-unknown-1")
+	defer testpkg.CleanupActivityFixtures(t, s.db, cat1.ID)
+
+	name := fmt.Sprintf("Betreuung-%d", time.Now().UnixNano())
+	cw := s.do(t, http.MethodPost, "/", ShiftTypeRequest{
+		Name: name, Color: "#83CD2D", CategoryIDs: []int64{cat1.ID},
+	})
+	require.Equal(t, http.StatusCreated, cw.Code, "body=%s", cw.Body.String())
+	stID := decodeShiftTypeID(t, cw)
+	t.Cleanup(func() { _ = repositories.NewFactory(s.db).ShiftType.Delete(s.ctx, stID) })
+	require.NotNil(t, s.shiftTypeIDOf(t, cat1.ID))
+
+	// An update carrying an unknown category id must be a 400 and must NOT clear
+	// the existing mapping (#1837 review: validate before the destructive clear).
+	active := true
+	uw := s.do(t, http.MethodPut, fmt.Sprintf("/%d", stID), ShiftTypeRequest{
+		Name: name, Color: "#83CD2D", IsActive: &active,
+		CategoryIDs: []int64{cat1.ID, int64(999999999)},
+	})
+	require.Equal(t, http.StatusBadRequest, uw.Code, "body=%s", uw.Body.String())
+	require.NotNil(t, s.shiftTypeIDOf(t, cat1.ID), "existing mapping must survive a rejected update")
+	assert.Equal(t, stID, *s.shiftTypeIDOf(t, cat1.ID))
+}

@@ -306,14 +306,50 @@ func TestCategoryRepository_SetShiftTypeForCategories_TenantScoped(t *testing.T)
 
 	cat2 := testpkg.CreateTestActivityCategoryForTenant(t, db, otherTenant, "OtherTenantCat")
 
-	// Tenant 1 syncing its own shift type must not touch a foreign-tenant category.
+	// Tenant 1 syncing its own shift type with a foreign-tenant id in the list
+	// is rejected outright (rather than silently ignored), so it can never
+	// trigger a destructive clear of the tenant's real mappings.
 	c1 := testpkg.CreateTestActivityCategory(t, db, "TenantScopedLink")
 	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, c1.ID, 0)
-	require.NoError(t, repo.SetShiftTypeForCategories(ctx1, st1.ID, []int64{c1.ID, cat2.ID}))
+
+	err := repo.SetShiftTypeForCategories(ctx1, st1.ID, []int64{c1.ID, cat2.ID})
+	require.ErrorIs(t, err, activities.ErrUnknownCategoryIDs)
 
 	other, err := repo.FindByID(ctx2, cat2.ID)
 	require.NoError(t, err)
-	assert.Nil(t, other.ShiftTypeID, "foreign-tenant category must be untouched by a cross-tenant id list")
+	assert.Nil(t, other.ShiftTypeID, "foreign-tenant category must be untouched")
+	c1Reloaded, err := repo.FindByID(ctx1, c1.ID)
+	require.NoError(t, err)
+	assert.Nil(t, c1Reloaded.ShiftTypeID, "the aborted write must not map the valid id either")
+}
+
+func TestCategoryRepository_SetShiftTypeForCategories_RejectsUnknownID(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActivityCategory
+	stRepo := repositories.NewFactory(db).ShiftType
+	ctx := testpkg.TenantContext(1)
+
+	st := &scheduleModels.ShiftType{Name: fmt.Sprintf("Unk-%d", time.Now().UnixNano()), Color: "#83CD2D", IsActive: true}
+	require.NoError(t, stRepo.Create(ctx, st))
+	t.Cleanup(func() { _ = stRepo.Delete(ctx, st.ID) })
+
+	c1 := testpkg.CreateTestActivityCategory(t, db, "UnknownIDGuard")
+	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, c1.ID, 0)
+
+	// Establish a real mapping first.
+	require.NoError(t, repo.SetShiftTypeForCategories(ctx, st.ID, []int64{c1.ID}))
+
+	// A list containing an unknown id must abort without clearing the existing
+	// mapping (the core #1837 data-loss guard).
+	err := repo.SetShiftTypeForCategories(ctx, st.ID, []int64{c1.ID, int64(999999999)})
+	require.ErrorIs(t, err, activities.ErrUnknownCategoryIDs)
+
+	got, err := repo.FindByID(ctx, c1.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.ShiftTypeID, "existing mapping must survive a rejected write")
+	assert.Equal(t, st.ID, *got.ShiftTypeID)
 }
 
 func TestCategoryRepository_SetShiftTypeForCategories_RequiresTenant(t *testing.T) {

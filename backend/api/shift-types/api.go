@@ -17,8 +17,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -148,7 +150,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := rs.syncCategoryLinks(r, saved.ID, req.CategoryIDs); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderSyncCategoryError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toShiftTypeResponse(saved), "Shift type created")
@@ -193,7 +195,7 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := rs.syncCategoryLinks(r, saved.ID, req.CategoryIDs); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderSyncCategoryError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toShiftTypeResponse(saved), "Shift type updated")
@@ -208,6 +210,19 @@ func (rs *Resource) syncCategoryLinks(r *http.Request, shiftTypeID int64, catego
 		return nil
 	}
 	return rs.CategoryLinker.SetCategoryShiftTypeLinks(r.Context(), shiftTypeID, categoryIDs)
+}
+
+// renderSyncCategoryError maps a category-link failure. Unknown/cross-tenant
+// category IDs are client input errors (400) and must roll back the whole
+// request so the shift-type write does not persist without its mapping; any
+// other error is a 500.
+func (rs *Resource) renderSyncCategoryError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, activitiesModels.ErrUnknownCategoryIDs) {
+		tenant.MarkRollback(r.Context())
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	common.RenderError(w, r, common.ErrorInternalServer(err))
 }
 
 func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {

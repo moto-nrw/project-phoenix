@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
@@ -71,31 +71,40 @@ export function ShiftTypeManageModal({
     setDeleteTarget(null);
   }, [isOpen]);
 
+  // Monotonic token so only the most recently started category load applies
+  // its result. Without it a slow initial load could resolve AFTER a post-save
+  // refresh and overwrite fresh mappings with a stale snapshot (#1837 review).
+  const loadTokenRef = useRef(0);
+
   // Load the Timetable-Kategorien so they can be mapped to a shift type. Each
   // category carries its current shift_type_id, which drives the form's
-  // preselection below (#1837 follow-up).
+  // preselection (#1837 follow-up). While loading (or after a failure) the
+  // list is cleared and categoriesReady is false, so the selector is disabled
+  // and category_ids is omitted from saves — never sending stale options.
+  const loadCategories = useCallback(async () => {
+    const token = loadTokenRef.current + 1;
+    loadTokenRef.current = token;
+    setCategoriesReady(false);
+    setCategories([]);
+    try {
+      const list = await getCategories();
+      if (loadTokenRef.current !== token) return; // superseded by a newer load
+      setCategories(list);
+      setCategoriesReady(true);
+    } catch (err: unknown) {
+      if (loadTokenRef.current !== token) return;
+      logger.error("shift_type_categories_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setCategories([]);
+      setCategoriesReady(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isOpen) return;
-    let cancelled = false;
-    setCategoriesReady(false);
-    void getCategories()
-      .then((list) => {
-        if (cancelled) return;
-        setCategories(list);
-        setCategoriesReady(true);
-      })
-      .catch((err: unknown) => {
-        logger.error("shift_type_categories_load_failed", {
-          error: err instanceof Error ? err.message : String(err),
-        });
-        if (cancelled) return;
-        setCategories([]);
-        setCategoriesReady(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isOpen]);
+    void loadCategories();
+  }, [isOpen, loadCategories]);
 
   // Preselect the categories currently mapped to the shift type being edited
   // (empty for a new shift type). Re-runs when categories finish loading so a
@@ -176,23 +185,12 @@ export function ShiftTypeManageModal({
       }
       onChanged();
       // The save rewrote category.shift_type_id server-side. Refresh the local
-      // categories so a subsequent edit in the same open modal preselects from
-      // fresh mappings — otherwise a follow-up save could send a stale/empty
-      // category_ids set and clear links that were just written (#1837).
-      try {
-        setCategories(await getCategories());
-        setCategoriesReady(true);
-      } catch (reloadErr: unknown) {
-        logger.error("shift_type_categories_reload_failed", {
-          error:
-            reloadErr instanceof Error ? reloadErr.message : String(reloadErr),
-        });
-        // The refresh failed, so `categories` still holds the pre-save
-        // snapshot. Mark it stale so a follow-up edit in the same open modal
-        // omits category_ids instead of preselecting from stale mappings and
-        // clearing links that were just written (#1837).
-        setCategoriesReady(false);
-      }
+      // categories through the same tokened loader so a subsequent edit in the
+      // same open modal preselects from fresh mappings. loadCategories clears
+      // categoriesReady until the reload succeeds, so a failed refresh leaves
+      // the mapping state stale-but-guarded (a later save omits category_ids
+      // rather than clearing links that were just written, #1837).
+      await loadCategories();
       setView("list");
     } catch (err: unknown) {
       logger.error("shift_type_save_failed", {
@@ -450,16 +448,24 @@ export function ShiftTypeManageModal({
                 ariaLabel="Timetable-Kategorien"
                 value={categoryIds}
                 onChange={setCategoryIds}
+                disabled={!categoriesReady}
                 options={categories.map((category) => ({
                   value: category.id,
                   label: category.name,
                 }))}
                 emptyLabel="Keine Kategorie zugeordnet"
-                unavailableLabel="Keine Kategorien vorhanden"
+                unavailableLabel="Kategorien werden geladen…"
                 multipleLabel={(count) => `${count} Kategorien`}
                 searchable
                 searchPlaceholder="Kategorie suchen…"
               />
+              {!categoriesReady && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Kategorien werden geladen … Namen, Farbe und Status lassen
+                  sich bereits speichern; die Kategorie-Zuordnung bleibt dabei
+                  unverändert.
+                </p>
+              )}
               <p className="mt-1 text-xs text-gray-500">
                 Ordnet Betreuungsblöcke dieser Kategorien im Stundenplan dieser
                 Schichtart zu. Eine Kategorie kann nur einer Schichtart

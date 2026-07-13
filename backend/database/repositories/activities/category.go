@@ -91,6 +91,30 @@ func (r *CategoryRepository) SetShiftTypeForCategories(ctx context.Context, shif
 	}
 	db := base.GetDB(ctx, r.db)
 
+	// Deduplicate so an id repeated in the request cannot make the existence
+	// check below undercount and falsely reject a valid list.
+	distinctIDs := dedupeInt64(categoryIDs)
+
+	// Validate that every submitted id is an existing category in THIS tenant
+	// before touching anything. Otherwise an unknown or cross-tenant id would
+	// pass through the clear step (which wipes every real mapping not in the
+	// list) while the set step silently matches nothing — clearing all links
+	// yet reporting success (#1837 review).
+	if len(distinctIDs) > 0 {
+		var found int
+		if err := db.NewSelect().
+			Table(tableActivitiesCategories).
+			ColumnExpr("count(*)").
+			Where("tenant_id = ?", tenantID).
+			Where("id IN (?)", bun.List(distinctIDs)).
+			Scan(ctx, &found); err != nil {
+			return &modelBase.DatabaseError{Op: "validate category ids", Err: err}
+		}
+		if found != len(distinctIDs) {
+			return activities.ErrUnknownCategoryIDs
+		}
+	}
+
 	// Clear the mapping on categories that used to point at this shift type but
 	// were de-selected. When categoryIDs is empty every link is cleared.
 	clear := db.NewUpdate().
@@ -98,14 +122,14 @@ func (r *CategoryRepository) SetShiftTypeForCategories(ctx context.Context, shif
 		Set("shift_type_id = NULL").
 		Where("tenant_id = ?", tenantID).
 		Where("shift_type_id = ?", shiftTypeID)
-	if len(categoryIDs) > 0 {
-		clear = clear.Where("id NOT IN (?)", bun.List(categoryIDs))
+	if len(distinctIDs) > 0 {
+		clear = clear.Where("id NOT IN (?)", bun.List(distinctIDs))
 	}
 	if _, err := clear.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "clear category shift type", Err: err}
 	}
 
-	if len(categoryIDs) == 0 {
+	if len(distinctIDs) == 0 {
 		return nil
 	}
 
@@ -113,12 +137,29 @@ func (r *CategoryRepository) SetShiftTypeForCategories(ctx context.Context, shif
 		Table(tableActivitiesCategories).
 		Set("shift_type_id = ?", shiftTypeID).
 		Where("tenant_id = ?", tenantID).
-		Where("id IN (?)", bun.List(categoryIDs)).
+		Where("id IN (?)", bun.List(distinctIDs)).
 		Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "set category shift type", Err: err}
 	}
 
 	return nil
+}
+
+// dedupeInt64 returns the input with duplicate ids removed, preserving order.
+func dedupeInt64(ids []int64) []int64 {
+	if len(ids) == 0 {
+		return ids
+	}
+	seen := make(map[int64]struct{}, len(ids))
+	out := make([]int64, 0, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		out = append(out, id)
+	}
+	return out
 }
 
 // Update overrides the base Update method to handle validation

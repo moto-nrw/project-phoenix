@@ -164,6 +164,87 @@ describe("ShiftTypeManageModal — category mapping safety (#1837)", () => {
     expect(payload.categoryIds).toBeUndefined();
   });
 
+  it("discards a slow initial load that resolves after the post-save refresh (#1837)", async () => {
+    // The initial (open) load is deferred and resolves LATE with a stale
+    // snapshot; the post-save refresh resolves first with fresh mappings. The
+    // stale late resolution must be ignored (token guard).
+    let resolveStaleInitial!: (v: ActivityCategory[]) => void;
+    const staleInitial = new Promise<ActivityCategory[]>((res) => {
+      resolveStaleInitial = res;
+    });
+    mockGetCategories
+      .mockReturnValueOnce(staleInitial) // open load — stale, pending
+      .mockResolvedValue([category("1", "99"), category("2")]); // fresh
+    mockUpdateShiftType.mockResolvedValue(shiftType("99", "Betreuung"));
+
+    renderModal([shiftType("99", "Betreuung")]);
+    await waitFor(() => expect(mockGetCategories).toHaveBeenCalledTimes(1));
+
+    // Edit + save while the initial load is still pending → post-save refresh
+    // (call 2) resolves fresh.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Betreuung bearbeiten" }),
+    );
+    fireEvent.change(screen.getByLabelText("Name*"), {
+      target: { value: "Betreuung A" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+    await waitFor(() => expect(mockGetCategories).toHaveBeenCalledTimes(2));
+
+    // The stale initial load finally resolves — must be discarded.
+    resolveStaleInitial([category("1"), category("2")]); // cat1 NOT mapped
+
+    // A follow-up edit must preselect from the FRESH snapshot (cat1 → 99).
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Betreuung bearbeiten" }),
+      ).toBeInTheDocument(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Betreuung bearbeiten" }),
+    );
+    fireEvent.change(screen.getByLabelText("Name*"), {
+      target: { value: "Betreuung B" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => expect(mockUpdateShiftType).toHaveBeenCalledTimes(2));
+    const [, payload] = mockUpdateShiftType.mock.calls[1] as [
+      string,
+      { categoryIds?: string[] },
+    ];
+    expect(payload.categoryIds).toEqual(["1"]);
+  });
+
+  it("disables the category selector until categories have loaded", async () => {
+    let resolveLoad!: (v: ActivityCategory[]) => void;
+    mockGetCategories.mockReturnValueOnce(
+      new Promise<ActivityCategory[]>((res) => {
+        resolveLoad = res;
+      }),
+    );
+
+    renderModal([shiftType("99", "Betreuung")]);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Betreuung bearbeiten" }),
+    );
+
+    const trigger = screen.getByRole("button", {
+      name: "Timetable-Kategorien",
+    });
+    expect(trigger).toBeDisabled();
+    expect(
+      screen.getAllByText(/Kategorien werden geladen/).length,
+    ).toBeGreaterThan(0);
+
+    resolveLoad([category("1", "99")]);
+    await waitFor(() => expect(trigger).toBeEnabled());
+  });
+
   it("refetches categories after a successful save so preselection is not stale", async () => {
     mockGetCategories
       .mockResolvedValueOnce([category("1"), category("2")])
