@@ -77,8 +77,11 @@ func staffShiftSeriesUp(ctx context.Context, db *bun.DB) error {
 			CONSTRAINT chk_staff_shift_series_weekdays
 				CHECK (cardinality(weekdays) > 0 AND weekdays <@ ARRAY[1,2,3,4,5,6,7]::smallint[]),
 			CONSTRAINT chk_staff_shift_series_week_pattern CHECK (week_pattern BETWEEN 0 AND 2),
+			-- >= not >: valid_until = valid_from is a deliberately emptied
+			-- segment (cap at or before the first occurrence, offboarding of
+			-- a future-dated series) that materializes nothing.
 			CONSTRAINT chk_staff_shift_series_validity
-				CHECK (valid_until IS NULL OR valid_until > valid_from),
+				CHECK (valid_until IS NULL OR valid_until >= valid_from),
 			CONSTRAINT fk_staff_shift_series_staff
 				FOREIGN KEY (tenant_id, staff_id)
 				REFERENCES users.staff(tenant_id, id) ON DELETE CASCADE,

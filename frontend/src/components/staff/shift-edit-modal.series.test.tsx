@@ -138,6 +138,30 @@ describe("ShiftEditModal series creation", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("sends the inclusive 'Gültig bis' date as the exclusive valid_until", async () => {
+    createSeries.mockResolvedValue({
+      seriesId: "5",
+      created: 20,
+      skippedDates: [],
+    });
+    renderModal({});
+
+    fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
+    await screen.findByText("1. Halbjahr 2026/27");
+    // The user picks the LAST day that should still have a shift (year
+    // boundary on purpose); the API's valid_until is exclusive → +1 day.
+    fireEvent.change(screen.getByLabelText("Gültig bis (optional)"), {
+      target: { value: "2026-12-31" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Serie anlegen" }));
+
+    await waitFor(() => {
+      expect(createSeries).toHaveBeenCalledWith(
+        expect.objectContaining({ validUntil: "2027-01-01" }),
+      );
+    });
+  });
+
   it("keeps the modal open and lists skipped days after a collision", async () => {
     createSeries.mockResolvedValue({
       seriesId: "5",

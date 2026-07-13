@@ -70,6 +70,23 @@ func TestStaffShiftSeriesSchema(t *testing.T) {
 		assert.ErrorContains(t, err, "chk_staff_shift_series_week_pattern")
 	})
 
+	t.Run("validity check allows empty segment", func(t *testing.T) {
+		insertWithValidUntil := func(validUntil string) error {
+			_, err := db.NewRaw(`
+				INSERT INTO schedule.staff_shift_series (
+					tenant_id, staff_id, weekdays, start_time, end_time,
+					break_minutes, calendar_period_id, week_pattern,
+					valid_from, valid_until, created_by
+				) VALUES (?, ?, '{1}'::smallint[], '09:00', '12:00', 0, ?, 0, '2026-09-01', ?, ?)
+			`, tenantID, staff.ID, periodID, validUntil, staff.ID).Exec(ctx)
+			return err
+		}
+		// valid_until = valid_from is a deliberately emptied segment (caps at
+		// or before the first occurrence, offboarding of future series).
+		require.NoError(t, insertWithValidUntil("2026-09-01"))
+		assert.ErrorContains(t, insertWithValidUntil("2026-08-31"), "chk_staff_shift_series_validity")
+	})
+
 	t.Run("exception unique per series and date", func(t *testing.T) {
 		insertException := func() error {
 			_, err := db.NewRaw(`

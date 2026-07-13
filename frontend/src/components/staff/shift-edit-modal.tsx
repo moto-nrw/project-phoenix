@@ -15,6 +15,7 @@ import {
   weekPatternForDate,
   type CalendarPeriod,
 } from "~/lib/calendar-period-helpers";
+import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   ShiftApiError,
@@ -302,7 +303,9 @@ export function ShiftEditModal({
         calendarPeriodId: periodId,
         weekPattern: biweekly ? abPattern : 0,
         validFrom: date,
-        validUntil: validUntil === "" ? null : validUntil,
+        // The picker is inclusive ("Gültig bis" = last day WITH a shift);
+        // the API's valid_until is exclusive — send the day after.
+        validUntil: validUntil === "" ? null : dayAfterISO(validUntil),
       });
       finishSeriesMutation(result);
     } catch (err: unknown) {
@@ -699,8 +702,9 @@ export function ShiftEditModal({
                     </div>
                     <p className="text-xs text-gray-500">
                       Ohne Enddatum läuft die Serie bis zum Ende des
-                      Kalenderzeitraums. Schichten werden ab morgen eingeplant;
-                      bestehende Schichten bleiben unverändert.
+                      Kalenderzeitraums; mit Enddatum bis einschließlich diesem
+                      Tag. Schichten werden ab morgen eingeplant; bestehende
+                      Schichten bleiben unverändert.
                     </p>
                   </div>
                 )}
@@ -847,6 +851,14 @@ function FieldGroup({
       {children}
     </div>
   );
+}
+
+// The "Gültig bis" picker is inclusive; the backend's valid_until is
+// exclusive (timetable split convention) — convert by adding one day.
+function dayAfterISO(isoDate: string): string {
+  const d = parseISODate(isoDate);
+  d.setDate(d.getDate() + 1);
+  return toISODate(d);
 }
 
 function isoWeekdayOf(isoDate: string): number {

@@ -554,3 +554,106 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	}
 	assert.True(t, overview.DienstplanInUse)
 }
+
+// Splitting a series at its very first occurrence must not violate the
+// validity constraint: the predecessor collapses to an empty segment
+// (valid_until = valid_from) and every occurrence moves to the successor.
+func TestStaffShiftSeries_SplitAtFirstOccurrence(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	periodEnd := today.AddDays(20)
+	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
+
+	validFrom := today.AddDays(7)
+	series := env.buildSeries(t, periodID, validFrom, nil, scheduleModels.WeekPatternEvery)
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, series)
+		return err
+	})
+
+	// "Ab jetzt dauerhaft" on the FIRST shift of the series: effective date
+	// equals valid_from.
+	var result *scheduleSvc.SeriesResult
+	env.inTx(t, func(ctx context.Context) error {
+		var err error
+		result, err = env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
+			SeriesID:      series.ID,
+			EffectiveDate: validFrom,
+			StartTime:     seriesClock(t, "12:00"),
+			EndTime:       seriesClock(t, "13:00"),
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+	successorID := result.Series.ID
+	require.NotEqual(t, series.ID, successorID)
+
+	// The predecessor is an empty segment: valid_until clamped to valid_from.
+	oldSeries, err := env.repos.StaffShiftSeries.FindByID(env.scope.Context(), series.ID)
+	require.NoError(t, err)
+	require.NotNil(t, oldSeries.ValidUntil)
+	assert.Equal(t, validFrom, *oldSeries.ValidUntil)
+
+	// Every occurrence belongs to the successor with the new time.
+	rows := env.shiftsInRange(t, validFrom, periodEnd)
+	require.Len(t, rows, validFrom.DaysUntil(periodEnd)+1)
+	for _, row := range rows {
+		require.NotNil(t, row.SeriesID)
+		assert.Equal(t, successorID, *row.SeriesID)
+		assert.Equal(t, "12:00", timezone.WallClock(row.StartTime).Format("15:04"))
+	}
+}
+
+// Ending a series at its very first occurrence must clamp valid_until to
+// valid_from (empty segment) instead of violating the validity constraint.
+func TestStaffShiftSeries_EndAtFirstOccurrence(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	periodEnd := today.AddDays(20)
+	periodID := env.createPeriod(t, today.AddDays(-7), periodEnd, 1, nil)
+
+	validFrom := today.AddDays(7)
+	series := env.buildSeries(t, periodID, validFrom, nil, scheduleModels.WeekPatternEvery)
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, series)
+		return err
+	})
+
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.EndSeries(ctx, series.ID, validFrom)
+		return err
+	})
+
+	ended, err := env.repos.StaffShiftSeries.FindByID(env.scope.Context(), series.ID)
+	require.NoError(t, err)
+	require.NotNil(t, ended.ValidUntil)
+	assert.Equal(t, validFrom, *ended.ValidUntil)
+	assert.Empty(t, env.shiftsInRange(t, validFrom, periodEnd))
+}
+
+// Offboarding caps every series of the staff member at today. A series that
+// only starts in the future must clamp to its own valid_from (empty segment),
+// not to today — otherwise the cap violates the validity constraint and the
+// whole offboarding aborts.
+func TestStaffShiftSeries_CapAllByStaffIDClampsFutureSeries(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
+
+	validFrom := today.AddDays(7)
+	series := env.buildSeries(t, periodID, validFrom, nil, scheduleModels.WeekPatternEvery)
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, series)
+		return err
+	})
+
+	capped, err := env.repos.StaffShiftSeries.CapAllByStaffID(env.scope.Context(), env.staff.ID, today)
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), capped)
+
+	reloaded, err := env.repos.StaffShiftSeries.FindByID(env.scope.Context(), series.ID)
+	require.NoError(t, err)
+	require.NotNil(t, reloaded.ValidUntil)
+	assert.Equal(t, validFrom, *reloaded.ValidUntil,
+		"a future-dated series must clamp to its valid_from, not to today")
+}
