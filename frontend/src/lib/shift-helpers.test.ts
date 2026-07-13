@@ -32,6 +32,8 @@ describe("mapStaffShift", () => {
       breakMinutes: 30,
       shiftTypeId: null,
       notes: "Frühdienst",
+      seriesId: null,
+      detached: false,
     });
   });
 
@@ -165,6 +167,8 @@ describe("mapStaffScheduleOverview", () => {
           breakMinutes: 30,
           shiftTypeId: "5",
           notes: "Frühdienst",
+          seriesId: null,
+          detached: false,
         },
       ],
       assignments: [

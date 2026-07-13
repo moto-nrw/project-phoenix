@@ -25,6 +25,8 @@ const shift: StaffShift = {
   breakMinutes: 0,
   shiftTypeId: null,
   notes: "",
+  seriesId: null,
+  detached: false,
 };
 
 function assignment(
