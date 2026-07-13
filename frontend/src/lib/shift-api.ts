@@ -26,7 +26,7 @@ interface ShiftPayload {
   shiftTypeId: string | null;
 }
 
-export interface SeriesPayload {
+interface SeriesPayload {
   staffId: string;
   /** ISO weekdays, 1 = Montag … 7 = Sonntag */
   weekdays: number[];
@@ -47,7 +47,7 @@ export interface SeriesPayload {
 
 /** Edited fields applied from the effective date on ("Ab jetzt dauerhaft").
  *  Rhythm fields stay with the series — the backend inherits them. */
-export interface SeriesSplitPayload {
+interface SeriesSplitPayload {
   /** "YYYY-MM-DD" */
   effectiveDate: string;
   startTime: string;
