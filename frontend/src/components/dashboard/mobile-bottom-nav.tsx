@@ -10,7 +10,6 @@ import React, {
   useMemo,
 } from "react";
 import Link from "next/link";
-import useSWR from "swr";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
@@ -28,10 +27,6 @@ import {
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import {
-  SETTINGS_SCHEMA_SWR_KEY,
-  fetchSettingsSchema,
-} from "~/lib/settings-api";
 import {
   Drawer,
   DrawerContent,
@@ -287,12 +282,6 @@ const additionalNavItems: AdditionalNavItem[] = [
     // Match the backend calendar:own gate on GET /api/calendar/my.
     requiresPermission: "calendar:own",
   },
-  {
-    href: "/staff/dienstplan",
-    label: "Dienstplan",
-    iconKey: "calendar",
-    requiresAdmin: true,
-  },
   { href: "/rooms", label: "Räume", iconKey: "rooms", alwaysShow: true },
   {
     href: "/substitutions",
@@ -301,14 +290,9 @@ const additionalNavItems: AdditionalNavItem[] = [
     requiresAdmin: true,
   },
   {
-    href: "/timetables",
-    label: "Betreuungsplan",
-    iconKey: "calendar",
-    requiresAdmin: true,
-  },
-  {
-    href: "/vertretungsplan",
-    label: "Vertretungsplan",
+    // Betreuungsplan + Dienstplan + Vertretung als EINE Seite (#1886).
+    href: "/planung",
+    label: "Planung",
     iconKey: "calendar",
     requiresAdmin: true,
   },
@@ -570,27 +554,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const showActivityNav = nfcEnabled && presenceMode !== "binary";
-  // Fetch the settings schema for anyone the backend lets read config, not just
-  // admins — the meal-plan GET route is guarded by config:read, so a non-admin
-  // config reader must also resolve the feature flags. Admins stay in.
-  const canReadConfig = userIsAdmin || hasPermission(session, "config:read");
-  const { data: settingsSchema } = useSWR(
-    canReadConfig && mode !== "operator" && mode !== "parent"
-      ? SETTINGS_SCHEMA_SWR_KEY
-      : null,
-    fetchSettingsSchema,
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-    },
-  );
-  const settingsItems =
-    settingsSchema?.tabs
-      .flatMap((tab) => tab.categories)
-      .flatMap((category) => category.items) ?? [];
-  const timetableEnabled =
-    settingsItems.find((item) => item.key === "timetable.enabled")?.value ===
-    true;
   // Only advertise Essensplan in the parents portal once a linked school runs
   // a meal plan; otherwise the overflow link leads to an empty page.
   const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
@@ -612,12 +575,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     }
     if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
     if (item.alwaysShow) return true;
-    if (
-      (item.href === "/timetables" || item.href === "/vertretungsplan") &&
-      !timetableEnabled
-    ) {
-      return false;
-    }
     if (item.requiresAdmin) return userIsAdmin;
     if (item.requiresPermission) {
       return userIsAdmin || hasPermission(session, item.requiresPermission);

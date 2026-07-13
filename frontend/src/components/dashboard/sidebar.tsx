@@ -287,9 +287,9 @@ const NFC_ONLY_HREFS = new Set<string>([
 // use-sidebar-accordion.ts.
 const PLANNING_SUB_PAGES = [
   { href: "/calendar-periods", label: "Kalenderzeiträume" },
-  { href: "/timetables", label: "Betreuungsplan" },
-  { href: "/vertretungsplan", label: "Vertretungsplan" },
-  { href: "/staff/dienstplan", label: "Dienstplan" },
+  // Betreuungsplan, Dienstplan und Vertretung sind Tabs EINER Seite (#1886);
+  // "Planungsübersicht" statt "Planung", weil das Accordion selbst schon so heißt.
+  { href: "/planung", label: "Planungsübersicht" },
 ];
 
 function getActivePlanningSubPageHref(pathname: string): string | null {
@@ -529,10 +529,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
     .flatMap((tab) => tab.categories)
     .flatMap((category) => category.items);
 
-  const timetableEnabled =
-    settingsItems?.find((item) => item.key === "timetable.enabled")?.value ===
-    true;
-
   const parentNewsEnabled =
     settingsItems?.find((item) => item.key === "operations.parent_news_enabled")
       ?.value === true;
@@ -558,17 +554,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
     [nfcEnabled],
   );
 
-  // Visible Planung sub-pages: Betreuungsplan only when the timetable
-  // feature is enabled for the tenant (same gate the flat nav item had).
-  const planningSubPages = useMemo(
-    () =>
-      PLANNING_SUB_PAGES.filter(
-        (page) =>
-          (page.href !== "/timetables" && page.href !== "/vertretungsplan") ||
-          timetableEnabled,
-      ),
-    [timetableEnabled],
-  );
+  // Alle Planung sub-pages sind sichtbar: /planung enthält auch den
+  // Dienstplan, der unabhängig vom timetable-Feature nutzbar ist (#1886);
+  // Betreuungsplan/Vertretung gaten sich innerhalb der Seite selbst.
+  const planningSubPages = PLANNING_SUB_PAGES;
 
   // Visible "Eltern" accordion sub-pages. Same per-item gating the flat
   // NAV_ITEMS carried before consolidation: overview + Nachrichten for all

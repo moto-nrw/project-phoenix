@@ -310,16 +310,18 @@ describe("Sidebar", () => {
       expect(activitiesLink).toHaveClass("bg-gray-100");
     });
 
-    it("highlights Dienstplan without also highlighting Mitarbeiter", () => {
-      mockUsePathname.mockReturnValue("/staff/dienstplan");
+    it("highlights Planung without also highlighting Mitarbeiter", () => {
+      // Dienstplan ist ein Tab von /planung (#1886); /staff/dienstplan ist
+      // nur noch ein Redirect und darf die Mitarbeiter-Sektion nicht färben.
+      mockUsePathname.mockReturnValue("/planung");
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
 
       render(<Sidebar />);
 
-      const dienstplanLink = screen.getByText("Dienstplan").closest("a");
+      const planungLink = screen.getByText("Planungsübersicht").closest("a");
       const staffLink = screen.getByText("Mitarbeiter").closest("a");
-      expect(dienstplanLink).toHaveClass("bg-gray-100");
+      expect(planungLink).toHaveClass("bg-gray-100");
       expect(staffLink).not.toHaveClass("bg-gray-100");
     });
 

@@ -353,13 +353,15 @@ describe("MobileBottomNav", () => {
       fireEvent.click(moreButton!);
 
       // Admin-only items should be visible in the drawer
-      expect(screen.getByText("Dienstplan")).toBeInTheDocument();
+      expect(screen.getByText("Planung")).toBeInTheDocument();
       expect(screen.getByText("Vertretungen")).toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     });
 
-    it("highlights Dienstplan without also highlighting Mitarbeiter in the overflow menu", () => {
-      mockUsePathname.mockReturnValue("/staff/dienstplan");
+    it("highlights Planung without also highlighting Mitarbeiter in the overflow menu", () => {
+      // Dienstplan ist ein Tab von /planung (#1886); die Alt-Route existiert
+      // nur noch als Redirect und gehört nicht mehr zur Mitarbeiter-Sektion.
+      mockUsePathname.mockReturnValue("/planung");
 
       render(<MobileBottomNav />);
 
@@ -370,9 +372,9 @@ describe("MobileBottomNav", () => {
       expect(moreButton).toBeDefined();
       fireEvent.click(moreButton!);
 
-      const dienstplanLink = screen.getByText("Dienstplan").closest("a");
+      const planungLink = screen.getByText("Planung").closest("a");
       const staffLink = screen.getByText("Mitarbeiter").closest("a");
-      expect(dienstplanLink).toHaveClass("bg-gray-900");
+      expect(planungLink).toHaveClass("bg-gray-900");
       expect(staffLink).not.toHaveClass("bg-gray-900");
     });
   });

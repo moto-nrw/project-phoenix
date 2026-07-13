@@ -28,6 +28,9 @@ function isEnrollmentPath(p: string): boolean {
 // PLANNING_SUB_PAGES in sidebar.tsx.
 const PLANNING_PATH_PREFIXES = [
   "/calendar-periods",
+  "/planung",
+  // Alt-Routen (redirecten auf /planung, #1886) — Accordion bleibt offen,
+  // solange der Redirect läuft.
   "/timetables",
   "/vertretungsplan",
   "/staff/dienstplan",
