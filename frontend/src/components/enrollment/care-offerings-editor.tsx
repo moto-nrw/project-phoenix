@@ -282,6 +282,33 @@ function linkedTemplateWeekdayError(
   return `Der Regeltermin deckt die ausgewählten Angebotstage ${labels} nicht ab. Entferne die Verknüpfung oder ergänze passende Slots.`;
 }
 
+const GERMAN_WEEKDAY_NAME_PATTERNS: ReadonlyArray<[string, RegExp]> = [
+  ["mon", /\bmontags?\b/i],
+  ["tue", /\bdienstags?\b/i],
+  ["wed", /\bmittwochs?\b/i],
+  ["thu", /\bdonnerstags?\b/i],
+  ["fri", /\bfreitags?\b/i],
+  ["sat", /\b(?:samstags?|sonnabends?)\b/i],
+  ["sun", /\bsonntags?\b/i],
+];
+
+// Soft warning only: the name heuristic has documented false positives
+// ("Fußball (startet am Montag, 1.9.)"), so it must never block saving.
+// The hard guard for template-linked offerings is linkedTemplateWeekdayError.
+function nameWeekdayMismatchWarning(draft: CareOfferingInput): string | null {
+  const matches = GERMAN_WEEKDAY_NAME_PATTERNS.filter(([, pattern]) =>
+    pattern.test(draft.name),
+  );
+  // Zero or several weekday words: the name makes no single-day claim.
+  if (matches.length !== 1) return null;
+  const namedDay = matches[0]?.[0];
+  if (!namedDay) return null;
+  const extraDays = draft.available_days.filter((day) => day !== namedDay);
+  if (extraDays.length === 0) return null;
+  const labels = extraDays.map((day) => DAY_LABELS[day] ?? day).join(", ");
+  return `Der Name nennt nur einen Wochentag, ausgewählt sind zusätzlich ${labels}. Bitte prüfen, ob das Angebot wirklich an diesen Tagen stattfindet.`;
+}
+
 function hasUnverifiableTemplateChange(
   draft: CareOfferingInput,
   originalActivityGroupID: string | null,
@@ -1459,6 +1486,7 @@ function CareOfferingWeekdayFields({
       available_days: WEEKDAY_KEYS.filter((dayKey) => nextDays.has(dayKey)),
     });
   };
+  const nameMismatch = nameWeekdayMismatchWarning(draft);
 
   return (
     <fieldset className="rounded-xl border border-gray-200 p-4">
@@ -1485,6 +1513,11 @@ function CareOfferingWeekdayFields({
           );
         })}
       </div>
+      {nameMismatch ? (
+        <p className="mt-3 rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-xs text-[#A66F00]">
+          {nameMismatch}
+        </p>
+      ) : null}
       <div className="mt-3">
         <CareOfferingCheckbox
           checked={draft.days_of_week_mode === "parent_choice"}
