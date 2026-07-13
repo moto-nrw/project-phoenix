@@ -112,17 +112,17 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	t.Logf("query-budget /gaps baseline: %d queries (PR #1303 target ≤ 2)", gapsQueryCount)
 
 	// --- Step 4: substitute S1 → S3 across both instances -----------------
+	// Konsolidierung (#1886): die Vertretung läuft über den atomaren
+	// Deviations-Save; die Zuweisung bleibt tagesweit über alle Blöcke.
 	subReq := map[string]any{
-		"absent_staff_id":     staff1.ID,
-		"substitute_staff_id": staff3.ID,
-		"date":                fromS,
+		"substitutions": []map[string]any{
+			{"absent_staff_id": staff1.ID, "substitute_staff_id": staff3.ID},
+		},
 	}
-	rr = s.do("POST", "/substitute", subReq, primaryAdminClaims())
+	rr = s.do("POST", fmt.Sprintf("/instances/%d/deviations", inst1.ID), subReq, primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "substitute body=%s", rr.Body.String())
 
 	var subResp struct {
-		AbsentStaffID     int64 `json:"absent_staff_id"`
-		SubstituteStaffID int64 `json:"substitute_staff_id"`
 		AffectedInstances []struct {
 			InstanceID int64  `json:"instance_id"`
 			Action     string `json:"action"`
@@ -178,11 +178,11 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	preconflictCount := len(preconflictStaffRows)
 
 	conflictReq := map[string]any{
-		"absent_staff_id":     staff1.ID,
-		"substitute_staff_id": staff4.ID,
-		"date":                fromS,
+		"substitutions": []map[string]any{
+			{"absent_staff_id": staff1.ID, "substitute_staff_id": staff4.ID},
+		},
 	}
-	rr = s.do("POST", "/substitute", conflictReq, primaryAdminClaims())
+	rr = s.do("POST", fmt.Sprintf("/instances/%d/deviations", inst1.ID), conflictReq, primaryAdminClaims())
 	require.Equal(t, http.StatusConflict, rr.Code,
 		"second substitute with different sub expected 409 (got %d: %s)", rr.Code, rr.Body.String())
 
