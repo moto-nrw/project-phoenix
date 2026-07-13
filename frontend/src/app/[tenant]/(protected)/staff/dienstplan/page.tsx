@@ -377,6 +377,7 @@ function DienstplanContent() {
           date={modal.date}
           shift={modal.shift}
           shiftTypes={shiftTypes ?? []}
+          staffOptions={sortedStaff}
           onClose={() => setModal(null)}
           onSaved={() => mutateScheduleData()}
         />

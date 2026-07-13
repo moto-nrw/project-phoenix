@@ -60,6 +60,10 @@ type StaffShiftUpdateOptions struct {
 	// consumer), so an unrelated edit does not silently clear the label. An
 	// explicit null in the payload still clears it.
 	PreserveExistingShiftType bool
+	// PreserveExistingChangeReason keeps the stored change reason when the
+	// update request omitted change_reason entirely, so an unrelated edit does
+	// not silently drop the recorded "why" (#1841). An explicit null clears it.
+	PreserveExistingChangeReason bool
 }
 
 type staffShiftService struct {
@@ -164,19 +168,49 @@ func (s *staffShiftService) ListShiftsForStaff(ctx context.Context, staffID int6
 }
 
 // checkOverlap rejects the shift when it intersects another shift of the
-// same staff member on the same date (excluding itself on update).
+// same staff member on the same date (excluding itself on update). A cancelled
+// shift does not take place, so it neither blocks other shifts nor is blocked
+// by them (#1841): a replacement or a shortened return can reuse the freed
+// window.
 func (s *staffShiftService) checkOverlap(ctx context.Context, shift *scheduleModels.StaffShift) error {
+	if shift.Cancelled {
+		return nil
+	}
 	existing, err := s.repo.FindByStaffAndDateRange(ctx, shift.StaffID, shift.Date, shift.Date)
 	if err != nil {
 		return err
 	}
 	for _, other := range existing {
-		if other.ID == shift.ID {
+		if other.ID == shift.ID || other.Cancelled {
 			continue
 		}
 		if shift.Overlaps(other) {
 			return ErrShiftOverlap
 		}
+	}
+	return nil
+}
+
+// validateOriginShift rejects a replacement whose origin shift does not exist
+// (FindByID is tenant-scoped, so a cross-tenant origin also reads as not found)
+// or falls on a different date. A replacement must cover a real gap on the same
+// day (#1841). A nil origin is a normal shift.
+func (s *staffShiftService) validateOriginShift(ctx context.Context, shift *scheduleModels.StaffShift) error {
+	if shift.OriginShiftID == nil {
+		return nil
+	}
+	origin, err := s.repo.FindByID(ctx, *shift.OriginShiftID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return fmt.Errorf("%w: origin shift not found", ErrShiftInvalid)
+		}
+		return fmt.Errorf("find origin shift: %w", err)
+	}
+	if origin == nil {
+		return fmt.Errorf("%w: origin shift not found", ErrShiftInvalid)
+	}
+	if origin.Date != shift.Date {
+		return fmt.Errorf("%w: replacement must be on the same date as the shift it covers", ErrShiftInvalid)
 	}
 	return nil
 }
@@ -197,6 +231,10 @@ func (s *staffShiftService) CreateShift(ctx context.Context, shift *scheduleMode
 	}
 	// A create always assigns the type fresh, so it must be active.
 	if err := s.ensureShiftTypeActive(ctx, shift.ShiftTypeID); err != nil {
+		return nil, err
+	}
+	// A replacement shift must point at a real gap on the same day (#1841).
+	if err := s.validateOriginShift(ctx, shift); err != nil {
 		return nil, err
 	}
 	if err := s.lockShiftWrites(ctx, shift.StaffID); err != nil {
@@ -238,11 +276,17 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	shift.StaffID = existing.StaffID
 	shift.CreatedBy = existing.CreatedBy
 	shift.TenantID = existing.TenantID
+	// A replacement stays a replacement of the same origin — the cover link is
+	// set at creation and never re-pointed by a plain edit (#1841).
+	shift.OriginShiftID = existing.OriginShiftID
 	if opts.PreserveExistingNotes {
 		shift.Notes = existing.Notes
 	}
 	if opts.PreserveExistingShiftType {
 		shift.ShiftTypeID = existing.ShiftTypeID
+	}
+	if opts.PreserveExistingChangeReason {
+		shift.ChangeReason = existing.ChangeReason
 	}
 	// The request model has a zero CreatedAt; the whole-model update would
 	// otherwise write created_at = DEFAULT and reset it to now().

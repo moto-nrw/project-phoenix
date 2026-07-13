@@ -17,6 +17,7 @@ import {
   type CalendarPeriod,
 } from "~/lib/calendar-period-helpers";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
+import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
   ShiftApiError,
@@ -24,11 +25,14 @@ import {
   staffShiftSeriesService,
   type SeriesResult,
 } from "~/lib/shift-api";
-import type { StaffShift } from "~/lib/shift-helpers";
+import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
 
 const logger = createLogger({ component: "ShiftEditModal" });
 const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
+// Stable empty default so the optional staffOptions prop does not create a new
+// array reference each render (oxlint react/no-object-type-as-default-prop).
+const EMPTY_STAFF_OPTIONS: readonly StaffScheduleStaff[] = [];
 
 const WEEKDAY_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
   { value: 1, label: "Mo" },
@@ -87,8 +91,20 @@ interface ShiftEditModalProps {
   /** All shift types (Schichtarten); the picker offers active ones plus the
    *  one currently attached to this shift (even if inactive). */
   readonly shiftTypes: readonly ShiftType[];
+  /** All staff, used to pick a replacement person when a shift is left open
+   *  (#1841). The edited shift's own staff member is excluded automatically.
+   *  Optional so callers that never left a gap open (and tests) can omit it. */
+  readonly staffOptions?: readonly StaffScheduleStaff[];
   readonly onClose: () => void;
   readonly onSaved: () => void;
+}
+
+/** One replacement (Vertretung) covering a cancelled shift. Several rows split
+ *  a single gap across people (#1841). */
+interface ReplacementRow {
+  staffId: string;
+  startTime: string;
+  endTime: string;
 }
 
 export function ShiftEditModal({
@@ -99,6 +115,7 @@ export function ShiftEditModal({
   date,
   shift,
   shiftTypes,
+  staffOptions = EMPTY_STAFF_OPTIONS,
   onClose,
   onSaved,
 }: ShiftEditModalProps) {
@@ -133,6 +150,14 @@ export function ShiftEditModal({
   const [isDeleting, setIsDeleting] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Flexible daily changes (#1841): optional reason, "Ausfall" (leave the gap
+  // open), and one or more replacements that split the gap across people.
+  const [changeReason, setChangeReason] = useState("");
+  const [cancelled, setCancelled] = useState(false);
+  const [replacements, setReplacements] = useState<ReplacementRow[]>([]);
+  // A replacement shift itself is never cancelled or re-covered from here.
+  const isReplacementRow = shift?.originShiftId != null;
 
   // Wiederholung (#1889): create-only series section.
   const [repeatEnabled, setRepeatEnabled] = useState(false);
@@ -170,7 +195,10 @@ export function ShiftEditModal({
     setValidUntil("");
     setSeriesNotice(null);
     setScopeQuestion(null);
-  }, [isOpen, initial, date]);
+    setChangeReason(shift?.changeReason ?? "");
+    setCancelled(shift?.cancelled ?? false);
+    setReplacements([]);
+  }, [isOpen, initial, date, shift]);
 
   // Calendar periods load once the series section is opened; the period is
   // required (it bounds the series and anchors Woche A/B).
@@ -247,6 +275,34 @@ export function ShiftEditModal({
     [periods],
   );
 
+  // Replacement candidates: everyone except the absent staff member.
+  const replacementStaffOptions = useMemo(
+    () => [
+      { value: "", label: "Person auswählen" },
+      ...staffOptions
+        .filter((member) => member.id !== staffId)
+        .map((member) => ({
+          value: member.id,
+          label: `${member.lastName}, ${member.firstName}`,
+        })),
+    ],
+    [staffOptions, staffId],
+  );
+
+  const addReplacement = () => {
+    setReplacements((rows) => [...rows, { staffId: "", startTime, endTime }]);
+  };
+
+  const updateReplacement = (index: number, patch: Partial<ReplacementRow>) => {
+    setReplacements((rows) =>
+      rows.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+    );
+  };
+
+  const removeReplacement = (index: number) => {
+    setReplacements((rows) => rows.filter((_, i) => i !== index));
+  };
+
   const toggleWeekday = (value: number) => {
     setWeekdays((current) =>
       current.includes(value)
@@ -288,6 +344,22 @@ export function ShiftEditModal({
       setError("Bitte einen Kalenderzeitraum auswählen.");
       return false;
     }
+    if (mode === "edit" && cancelled) {
+      for (const row of replacements) {
+        if (row.staffId === "") {
+          setError("Bitte für jede Vertretung eine Person auswählen.");
+          return false;
+        }
+        if (!(
+          row.startTime !== "" &&
+          row.endTime !== "" &&
+          row.startTime < row.endTime
+        )) {
+          setError("Vertretung: Ende muss nach Beginn liegen.");
+          return false;
+        }
+      }
+    }
     return true;
   };
 
@@ -326,18 +398,45 @@ export function ShiftEditModal({
   const saveSingleShift = async () => {
     setIsSaving(true);
     try {
-      const payload = {
-        staffId,
-        date,
-        startTime,
-        endTime,
-        breakMinutes: breakMinutes ?? 0,
-        shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
-      };
+      const resolvedShiftTypeId = shiftTypeId === "" ? null : shiftTypeId;
       if (mode === "edit" && shift) {
-        await staffShiftService.updateShift(shift.id, payload);
+        await staffShiftService.updateShift(shift.id, {
+          staffId,
+          date,
+          startTime,
+          endTime,
+          breakMinutes: breakMinutes ?? 0,
+          shiftTypeId: resolvedShiftTypeId,
+          cancelled,
+          changeReason,
+        });
+        // A left-open shift can be covered by one or more replacements; several
+        // rows split the gap across people (#1841). The absent shift is already
+        // marked cancelled above, so a failed replacement just leaves the gap
+        // open — a valid state, not a corrupt one.
+        if (cancelled) {
+          for (const row of replacements) {
+            await staffShiftService.createShift({
+              staffId: row.staffId,
+              date,
+              startTime: row.startTime,
+              endTime: row.endTime,
+              breakMinutes: 0,
+              shiftTypeId: resolvedShiftTypeId,
+              originShiftId: shift.id,
+              changeReason,
+            });
+          }
+        }
       } else {
-        await staffShiftService.createShift(payload);
+        await staffShiftService.createShift({
+          staffId,
+          date,
+          startTime,
+          endTime,
+          breakMinutes: breakMinutes ?? 0,
+          shiftTypeId: resolvedShiftTypeId,
+        });
       }
       onSaved();
       onClose();
@@ -386,7 +485,11 @@ export function ShiftEditModal({
       await createSeries();
       return;
     }
-    if (isSeriesRow) {
+    // A cancellation (or reactivation) is always a single-occurrence change:
+    // the backend detaches the series row, so the "Nur diese Woche / Ab jetzt"
+    // scope question does not apply. Plain time edits keep it.
+    const cancellationChanged = cancelled !== (shift?.cancelled ?? false);
+    if (isSeriesRow && !cancelled && !cancellationChanged) {
       setScopeQuestion("edit");
       return;
     }
@@ -573,6 +676,128 @@ export function ShiftEditModal({
                   placeholder="Keine Schichtart"
                 />
               </Field>
+            )}
+            {mode === "edit" && (
+              <Field label="Grund der Änderung (optional)">
+                <input
+                  type="text"
+                  value={changeReason}
+                  maxLength={200}
+                  onChange={(e) => setChangeReason(e.target.value)}
+                  placeholder="z. B. Krankheit, Fortbildung, Tausch"
+                  className="w-full rounded-md border border-gray-200 px-3 py-2 focus:border-[#83CD2D] focus:outline-none"
+                />
+              </Field>
+            )}
+            {isReplacementRow && (
+              <p
+                className="rounded-md px-3 py-2 text-xs"
+                style={{
+                  backgroundColor: `${LOCATION_COLORS.OTHER_ROOM}14`,
+                  color: LOCATION_COLORS.OTHER_ROOM,
+                }}
+              >
+                Diese Schicht ist eine Vertretung für eine ausgefallene Schicht.
+              </p>
+            )}
+            {mode === "edit" && shift && !isReplacementRow && (
+              <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                <label
+                  htmlFor="shift-cancel-toggle"
+                  className="flex items-center gap-2"
+                >
+                  <Checkbox
+                    id="shift-cancel-toggle"
+                    checked={cancelled}
+                    onChange={(e) => {
+                      setCancelled(e.target.checked);
+                      if (!e.target.checked) setReplacements([]);
+                    }}
+                  />
+                  <span className="text-sm font-medium text-gray-800">
+                    Diese Schicht fällt aus
+                  </span>
+                </label>
+                {cancelled && (
+                  <div className="space-y-3">
+                    <p className="text-xs text-gray-500">
+                      Die Schicht zählt nicht mehr zur geplanten Zeit. Ohne
+                      Vertretung bleibt die Lücke bewusst offen; sonst tragen
+                      Sie eine oder mehrere Ersatzpersonen ein.
+                    </p>
+                    {replacements.map((row, index) => (
+                      <div
+                        key={index}
+                        className="space-y-2 rounded-md border border-gray-100 bg-gray-50/60 p-2.5"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold tracking-wider text-gray-500 uppercase">
+                            Vertretung {index + 1}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="compact"
+                            onClick={() => removeReplacement(index)}
+                          >
+                            Entfernen
+                          </Button>
+                        </div>
+                        <CustomSelect
+                          value={row.staffId}
+                          options={replacementStaffOptions}
+                          onChange={(value) =>
+                            updateReplacement(index, { staffId: value })
+                          }
+                          ariaLabel={`Ersatzperson ${index + 1}`}
+                          placeholder="Person auswählen"
+                        />
+                        <div className="grid grid-cols-2 gap-2">
+                          <Field label="Beginn">
+                            <input
+                              type="time"
+                              value={row.startTime}
+                              onChange={(e) =>
+                                updateReplacement(index, {
+                                  startTime: e.target.value,
+                                })
+                              }
+                              className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                            />
+                          </Field>
+                          <Field label="Ende">
+                            <input
+                              type="time"
+                              value={row.endTime}
+                              onChange={(e) =>
+                                updateReplacement(index, {
+                                  endTime: e.target.value,
+                                })
+                              }
+                              className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                            />
+                          </Field>
+                        </div>
+                      </div>
+                    ))}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="md"
+                      onClick={addReplacement}
+                      disabled={replacementStaffOptions.length <= 1}
+                    >
+                      + Vertretung hinzufügen
+                    </Button>
+                    {replacementStaffOptions.length <= 1 && (
+                      <p className="text-xs text-gray-500">
+                        Keine andere Person verfügbar, um eine Vertretung
+                        einzutragen.
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
             )}
             {mode === "create" && (
               <div className="space-y-3 rounded-md border border-gray-200 p-3">

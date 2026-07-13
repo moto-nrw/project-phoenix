@@ -77,6 +77,15 @@ type ShiftRequest struct {
 	BreakMinutes int        `json:"break_minutes"`
 	ShiftTypeID  optionalID `json:"shift_type_id"`
 	Notes        *string    `json:"notes"`
+	// Cancelled marks a shift that does not take place (staff absent / gap left
+	// open, #1841). Defaults to false when omitted.
+	Cancelled bool `json:"cancelled"`
+	// ChangeReason is the optional "why" for a flexible daily change; omitted
+	// (nil) preserves the stored reason on update, explicit null clears it.
+	ChangeReason *string `json:"change_reason"`
+	// OriginShiftID marks this shift as a replacement covering another shift
+	// (#1841). Only honoured on create; a plain edit never re-points it.
+	OriginShiftID *int64 `json:"origin_shift_id"`
 }
 
 // optionalID captures whether a nullable ID field was present in the JSON
@@ -105,32 +114,38 @@ func (o *optionalID) UnmarshalJSON(data []byte) error {
 
 // ShiftResponse is the wire format returned to clients.
 type ShiftResponse struct {
-	ID           int64  `json:"id"`
-	StaffID      int64  `json:"staff_id"`
-	Date         string `json:"date"`
-	StartTime    string `json:"start_time"`
-	EndTime      string `json:"end_time"`
-	BreakMinutes int    `json:"break_minutes"`
-	ShiftTypeID  *int64 `json:"shift_type_id,omitempty"`
-	Notes        string `json:"notes,omitempty"`
-	SeriesID     *int64 `json:"series_id,omitempty"`
-	Detached     bool   `json:"detached"`
+	ID            int64   `json:"id"`
+	StaffID       int64   `json:"staff_id"`
+	Date          string  `json:"date"`
+	StartTime     string  `json:"start_time"`
+	EndTime       string  `json:"end_time"`
+	BreakMinutes  int     `json:"break_minutes"`
+	ShiftTypeID   *int64  `json:"shift_type_id,omitempty"`
+	Notes         string  `json:"notes,omitempty"`
+	SeriesID      *int64  `json:"series_id,omitempty"`
+	Detached      bool    `json:"detached"`
+	Cancelled     bool    `json:"cancelled"`
+	ChangeReason  *string `json:"change_reason,omitempty"`
+	OriginShiftID *int64  `json:"origin_shift_id,omitempty"`
 }
 
 // ToShiftResponse maps a shift onto the wire format. Exported for the
 // time-tracking self endpoint, which serves the same shape.
 func ToShiftResponse(s *scheduleModels.StaffShift) ShiftResponse {
 	return ShiftResponse{
-		ID:           s.ID,
-		StaffID:      s.StaffID,
-		Date:         s.Date.String(),
-		StartTime:    timezone.WallClock(s.StartTime).Format("15:04"),
-		EndTime:      timezone.WallClock(s.EndTime).Format("15:04"),
-		BreakMinutes: s.BreakMinutes,
-		ShiftTypeID:  s.ShiftTypeID,
-		Notes:        s.Notes,
-		SeriesID:     s.SeriesID,
-		Detached:     s.Detached,
+		ID:            s.ID,
+		StaffID:       s.StaffID,
+		Date:          s.Date.String(),
+		StartTime:     timezone.WallClock(s.StartTime).Format("15:04"),
+		EndTime:       timezone.WallClock(s.EndTime).Format("15:04"),
+		BreakMinutes:  s.BreakMinutes,
+		ShiftTypeID:   s.ShiftTypeID,
+		Notes:         s.Notes,
+		SeriesID:      s.SeriesID,
+		Detached:      s.Detached,
+		Cancelled:     s.Cancelled,
+		ChangeReason:  s.ChangeReason,
+		OriginShiftID: s.OriginShiftID,
 	}
 }
 
@@ -170,13 +185,16 @@ func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, er
 		notes = *req.Notes
 	}
 	return &scheduleModels.StaffShift{
-		StaffID:      req.StaffID,
-		Date:         date,
-		StartTime:    start,
-		EndTime:      end,
-		BreakMinutes: req.BreakMinutes,
-		ShiftTypeID:  req.ShiftTypeID.Value,
-		Notes:        notes,
+		StaffID:       req.StaffID,
+		Date:          date,
+		StartTime:     start,
+		EndTime:       end,
+		BreakMinutes:  req.BreakMinutes,
+		ShiftTypeID:   req.ShiftTypeID.Value,
+		Notes:         notes,
+		Cancelled:     req.Cancelled,
+		ChangeReason:  req.ChangeReason,
+		OriginShiftID: req.OriginShiftID,
 	}, nil
 }
 
@@ -297,8 +315,9 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	shift.UpdatedBy = &editorID
 
 	saved, err := rs.Service.UpdateShiftWithOptions(r.Context(), shift, scheduleSvc.StaffShiftUpdateOptions{
-		PreserveExistingNotes:     req.Notes == nil,
-		PreserveExistingShiftType: !req.ShiftTypeID.Present,
+		PreserveExistingNotes:        req.Notes == nil,
+		PreserveExistingShiftType:    !req.ShiftTypeID.Present,
+		PreserveExistingChangeReason: req.ChangeReason == nil,
 	})
 	if err != nil {
 		renderServiceError(w, r, err)

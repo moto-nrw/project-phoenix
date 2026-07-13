@@ -1374,6 +1374,12 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 		}
 		latest := make(map[int64]*scheduleModels.StaffShift, len(shifts))
 		for _, shift := range shifts {
+			// A cancelled shift does not take place (#1841): never close a
+			// session against the planned end of a shift the person is absent
+			// for. The nightly cleanup handles a still-open session instead.
+			if shift.Cancelled {
+				continue
+			}
 			current, ok := latest[shift.StaffID]
 			if !ok || shift.EndInstant().After(current.EndInstant()) {
 				latest[shift.StaffID] = shift

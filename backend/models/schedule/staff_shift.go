@@ -40,10 +40,21 @@ type StaffShift struct {
 	// SeriesID links a materialized row to its StaffShiftSeries (#1889).
 	// Detached marks a series row the user edited via "Nur diese Woche":
 	// re-plans delete and regenerate only non-detached rows.
-	SeriesID  *int64 `bun:"series_id" json:"series_id,omitempty"`
-	Detached  bool   `bun:"detached,notnull,default:false" json:"detached"`
-	CreatedBy int64  `bun:"created_by,notnull" json:"created_by"`
-	UpdatedBy *int64 `bun:"updated_by" json:"updated_by,omitempty"`
+	SeriesID *int64 `bun:"series_id" json:"series_id,omitempty"`
+	Detached bool   `bun:"detached,notnull,default:false" json:"detached"`
+	// Cancelled marks a shift that does not take place: the staff member is
+	// absent or the position is deliberately left open (#1841). The row is kept
+	// for the plan/history but excluded from planned minutes and auto-checkout.
+	Cancelled bool `bun:"cancelled,notnull,default:false" json:"cancelled"`
+	// ChangeReason carries the optional "why" for a flexible daily change
+	// (extended/shortened times, a cancellation, or a replacement, #1841).
+	ChangeReason *string `bun:"change_reason" json:"change_reason,omitempty"`
+	// OriginShiftID, when set, marks this shift as a replacement covering
+	// another (cancelled) shift. Several replacements sharing one origin split a
+	// single gap across multiple people (#1841).
+	OriginShiftID *int64 `bun:"origin_shift_id" json:"origin_shift_id,omitempty"`
+	CreatedBy     int64  `bun:"created_by,notnull" json:"created_by"`
+	UpdatedBy     *int64 `bun:"updated_by" json:"updated_by,omitempty"`
 
 	Staff *users.Staff `bun:"rel:belongs-to,join:tenant_id=tenant_id,join:staff_id=id" json:"staff,omitempty"`
 }

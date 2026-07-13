@@ -84,6 +84,9 @@ const seriesShift: StaffShift = {
   notes: "",
   seriesId: "5",
   detached: false,
+  cancelled: false,
+  changeReason: null,
+  originShiftId: null,
 };
 
 function renderModal(props: Partial<Parameters<typeof ShiftEditModal>[0]>) {

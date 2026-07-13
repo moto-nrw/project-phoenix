@@ -34,6 +34,9 @@ describe("mapStaffShift", () => {
       notes: "Frühdienst",
       seriesId: null,
       detached: false,
+      cancelled: false,
+      changeReason: null,
+      originShiftId: null,
     });
   });
 
@@ -184,6 +187,9 @@ describe("mapStaffScheduleOverview", () => {
           notes: "Frühdienst",
           seriesId: null,
           detached: false,
+          cancelled: false,
+          changeReason: null,
+          originShiftId: null,
         },
       ],
       assignments: [

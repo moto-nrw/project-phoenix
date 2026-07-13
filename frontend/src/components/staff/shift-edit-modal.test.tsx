@@ -38,6 +38,9 @@ const oneHourShift: StaffShift = {
   notes: "",
   seriesId: null,
   detached: false,
+  cancelled: false,
+  changeReason: null,
+  originShiftId: null,
 };
 
 describe("ShiftEditModal", () => {

@@ -7,6 +7,8 @@ interface UpdateShiftBody {
   start_time: string;
   end_time: string;
   break_minutes: number;
+  cancelled?: boolean;
+  change_reason?: string;
 }
 
 /**
