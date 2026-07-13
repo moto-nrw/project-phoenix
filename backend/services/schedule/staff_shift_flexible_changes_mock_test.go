@@ -621,3 +621,139 @@ func TestUncoveredShiftIntervals_CancelledShiftCoversNothing(t *testing.T) {
 	shift.Cancelled = false
 	assert.Empty(t, formattedGaps(uncoveredShiftIntervals(start, end, []*scheduleModels.StaffShift{shift})))
 }
+
+// Re-saving a cancelled origin rebuilds its cover set. An unchanged cover (same
+// staff + window) keeps its OWN stored change reason instead of being stamped
+// with the origin's reason, while a genuinely new cover takes the origin's
+// reason (#1841).
+func TestShiftService_ApplyCancellation_PreservesPerCoverChangeReason(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	origin := validShift(7)
+	origin.ID = 5
+	origin.Cancelled = true
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return origin, nil
+	}
+	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		origin.Cancelled = s.Cancelled
+		return nil
+	}
+	coverReason := "individueller grund"
+	existingCover := validShift(8)
+	existingCover.ID = 11
+	existingCover.StartTime = wall(8, 0)
+	existingCover.EndTime = wall(12, 0)
+	existingCover.OriginShiftID = int64Ptr(5)
+	existingCover.ChangeReason = &coverReason
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
+		return []*scheduleModels.StaffShift{existingCover}, nil
+	}
+	var created []*scheduleModels.StaffShift
+	repo.createFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		created = append(created, s)
+		return nil
+	}
+
+	originReason := "origin grund"
+	_, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
+		ShiftID:      5,
+		Cancelled:    true,
+		ChangeReason: &originReason,
+		ActorStaffID: 1,
+		Replacements: []ShiftReplacementInput{
+			// Unchanged cover — same staff + window as existingCover.
+			{StaffID: 8, StartTime: wall(8, 0), EndTime: wall(12, 0)},
+			// Brand-new cover.
+			{StaffID: 9, StartTime: wall(12, 0), EndTime: wall(16, 0)},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, created, 2)
+
+	require.NotNil(t, created[0].ChangeReason)
+	assert.Equal(t, "individueller grund", *created[0].ChangeReason,
+		"an unchanged cover must keep its own reason, not the origin's")
+	require.NotNil(t, created[1].ChangeReason)
+	assert.Equal(t, "origin grund", *created[1].ChangeReason,
+		"a genuinely new cover takes the origin's reason")
+}
+
+// The inactive-type grandfather is scoped to the staff member whose current
+// cover carries the type. Transferring that type to a different person on the
+// rebuild is rejected just like a brand-new cover would be (#1841).
+func TestShiftService_ApplyCancellation_RejectsInactiveTypeTransfer(t *testing.T) {
+	svc, repo, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{
+		4: {IsActive: false},
+	})
+
+	origin := validShift(7)
+	origin.ID = 5
+	origin.Cancelled = true
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return origin, nil
+	}
+	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		origin.Cancelled = s.Cancelled
+		return nil
+	}
+	// Staff 8 currently holds the inactive type.
+	existingCover := validShift(8)
+	existingCover.ID = 11
+	existingCover.OriginShiftID = int64Ptr(5)
+	existingCover.ShiftTypeID = int64Ptr(4)
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
+		return []*scheduleModels.StaffShift{existingCover}, nil
+	}
+
+	_, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
+		ShiftID:      5,
+		Cancelled:    true,
+		ActorStaffID: 1,
+		Replacements: []ShiftReplacementInput{
+			// Different staff (9) tries to inherit staff 8's inactive type.
+			{StaffID: 9, StartTime: wall(8, 0), EndTime: wall(16, 0), ShiftTypeID: int64Ptr(4)},
+		},
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftTypeInactive)
+}
+
+// existing is read before the advisory lock. If a concurrent edit commits while
+// this request waits for the lock, the cancellation must build from the freshly
+// re-read (locked) origin — preserving the newer window — not the stale pre-lock
+// snapshot (#1841).
+func TestShiftService_ApplyCancellation_ReloadsOriginAfterLock(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	stale := validShift(7) // pre-lock snapshot: 08:00–16:00
+	stale.ID = 5
+	fresh := validShift(7)
+	fresh.ID = 5
+	fresh.StartTime = wall(9, 0) // a concurrent edit shortened the window
+	fresh.EndTime = wall(15, 0)
+
+	calls := 0
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		calls++
+		if calls == 1 {
+			return stale, nil // the read used only to compute the lock set
+		}
+		return fresh, nil // re-read under the lock sees the committed edit
+	}
+	var saved *scheduleModels.StaffShift
+	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		saved = s
+		return nil
+	}
+
+	_, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
+		ShiftID:      5,
+		Cancelled:    true, // ApplyOriginEdits false: window is preserved, so it must be the FRESH one
+		ActorStaffID: 1,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, saved)
+	assert.Equal(t, wall(9, 0), saved.StartTime, "cancellation must preserve the re-read window, not the stale one")
+	assert.Equal(t, wall(15, 0), saved.EndTime)
+}

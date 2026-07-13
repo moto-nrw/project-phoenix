@@ -600,6 +600,23 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 		return nil, err
 	}
 
+	// existing was read before the advisory lock. A concurrent normal edit that
+	// committed while this request waited for the lock leaves that snapshot stale,
+	// so a cancellation that preserves the stored window (ApplyOriginEdits == false)
+	// would otherwise revert the newer date/window/type/break and create the covers
+	// on the stale date. Re-read the locked origin and build from that state (#1841).
+	// StaffID is immutable, so the lock set computed above is still correct.
+	existing, err = s.repo.FindByID(ctx, input.ShiftID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrShiftNotFound
+		}
+		return nil, fmt.Errorf("find staff shift: %w", err)
+	}
+	if existing == nil {
+		return nil, ErrShiftNotFound
+	}
+
 	// Remove the current cover set first so the origin's flag can flip without
 	// its old replacements interfering with the reactivation overlap check.
 	covers, err := s.repo.FindByOriginShiftID(ctx, existing.ID)
@@ -607,13 +624,22 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 		return nil, fmt.Errorf("load existing replacements: %w", err)
 	}
 	// The rebuilt cover set re-sends each existing cover's own shift type; a type
-	// deactivated after the cover was created must still be allowed to remain, so
-	// grandfather every type the current covers already carry (#1841).
-	grandfatheredTypes := make(map[int64]bool)
+	// deactivated after the cover was created must still be allowed to remain. Scope
+	// that allowance to the staff member whose current cover actually carries the
+	// type — otherwise a brand-new cover, or one transferring the inactive type to a
+	// different person, would pass validation merely because an unrelated old cover
+	// used the same id (#1841).
+	grandfatheredTypesByStaff := make(map[int64]map[int64]bool)
 	for _, cover := range covers {
-		if cover.ShiftTypeID != nil {
-			grandfatheredTypes[*cover.ShiftTypeID] = true
+		if cover.ShiftTypeID == nil {
+			continue
 		}
+		types := grandfatheredTypesByStaff[cover.StaffID]
+		if types == nil {
+			types = make(map[int64]bool)
+			grandfatheredTypesByStaff[cover.StaffID] = types
+		}
+		types[*cover.ShiftTypeID] = true
 	}
 	for _, cover := range covers {
 		if err := s.repo.Delete(ctx, cover.ID); err != nil {
@@ -669,8 +695,29 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 	// Recreate the cover set against the now-cancelled origin. Each create
 	// re-validates the origin (must be cancelled, same date, not self-covered) and
 	// overlap for its own staff member, and grandfathers a since-deactivated type
-	// a preserved cover already carried.
+	// only for the staff member whose preserved cover already carried it.
+	//
+	// A cover's change reason is set on the cover itself when it is edited directly
+	// (the ordinary PUT), and ReplacementRequest carries no per-cover reason, so
+	// blindly stamping the origin's reason onto every rebuilt cover would silently
+	// overwrite an unchanged cover's own reason. Match each rebuilt cover back to
+	// the existing cover it corresponds to (same staff + wall-clock window) and
+	// carry that reason across; a genuinely new cover takes the origin's reason.
+	// coverConsumed prevents two identical rows from both claiming one cover (#1841).
+	coverConsumed := make([]bool, len(covers))
 	for _, r := range input.Replacements {
+		reason := input.ChangeReason
+		for i, cover := range covers {
+			if coverConsumed[i] || cover.StaffID != r.StaffID {
+				continue
+			}
+			if timezone.SameClockTime(cover.StartTime, r.StartTime) &&
+				timezone.SameClockTime(cover.EndTime, r.EndTime) {
+				reason = cover.ChangeReason
+				coverConsumed[i] = true
+				break
+			}
+		}
 		replacement := &scheduleModels.StaffShift{
 			StaffID:       r.StaffID,
 			Date:          existing.Date,
@@ -679,10 +726,10 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 			BreakMinutes:  r.BreakMinutes,
 			ShiftTypeID:   r.ShiftTypeID,
 			OriginShiftID: &existing.ID,
-			ChangeReason:  input.ChangeReason,
+			ChangeReason:  reason,
 			CreatedBy:     input.ActorStaffID,
 		}
-		created, err := s.createShift(ctx, replacement, grandfatheredTypes)
+		created, err := s.createShift(ctx, replacement, grandfatheredTypesByStaff[r.StaffID])
 		if err != nil {
 			return nil, err
 		}
