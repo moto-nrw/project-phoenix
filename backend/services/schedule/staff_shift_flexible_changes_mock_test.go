@@ -127,6 +127,56 @@ func TestShiftService_CreateReplacementRejectsActiveOrigin(t *testing.T) {
 	assert.Contains(t, err.Error(), "cancelled shift")
 }
 
+// A replacement must fall entirely within the origin's window: it covers part
+// of the origin's gap, so a wider window (06:00-18:00 over an 08:00-16:00
+// origin) would inflate the covering employee's planned minutes and auto-
+// checkout beyond the actual gap (#1841).
+func TestShiftService_CreateReplacementRejectsWindowOutsideOrigin(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		origin := validShift(7) // same date, cancelled, 08:00–16:00
+		origin.ID = 5
+		origin.Cancelled = true
+		return origin, nil
+	}
+
+	replacement := validShift(8)
+	replacement.OriginShiftID = int64Ptr(5)
+	replacement.StartTime = wall(6, 0) // starts before the origin
+	replacement.EndTime = wall(18, 0)  // ends after the origin
+
+	_, err := svc.CreateShift(context.Background(), replacement)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftInvalid)
+	assert.Contains(t, err.Error(), "within the shift it covers")
+}
+
+// A replacement whose window sits exactly inside the origin's gap is accepted:
+// containment is inclusive of shared boundaries.
+func TestShiftService_CreateReplacementAcceptsWindowInsideOrigin(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	created := false
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		origin := validShift(7) // 08:00–16:00, cancelled
+		origin.ID = 5
+		origin.Cancelled = true
+		return origin, nil
+	}
+	repo.createFunc = func(_ context.Context, _ *scheduleModels.StaffShift) error {
+		created = true
+		return nil
+	}
+
+	replacement := validShift(8)
+	replacement.OriginShiftID = int64Ptr(5)
+	replacement.StartTime = wall(8, 0) // shares the origin's start boundary
+	replacement.EndTime = wall(12, 0)  // ends inside the origin
+
+	_, err := svc.CreateShift(context.Background(), replacement)
+	require.NoError(t, err)
+	assert.True(t, created)
+}
+
 // A plain edit that moves a replacement to a different day than its origin is
 // rejected: the create-time invariant (a cover shares its origin's cancelled
 // same-day gap) must hold after an update too (#1841).

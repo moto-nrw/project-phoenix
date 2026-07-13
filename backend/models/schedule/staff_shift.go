@@ -107,6 +107,16 @@ func (s *StaffShift) Overlaps(other *StaffShift) bool {
 	return aStart.Before(bEnd) && bStart.Before(aEnd)
 }
 
+// Contains reports whether other's wall-clock window lies entirely within s's
+// window, shared boundaries included. Callers must ensure both shifts belong to
+// the same date. Used to keep a replacement inside the gap of the cancelled
+// origin it covers (#1841).
+func (s *StaffShift) Contains(other *StaffShift) bool {
+	sStart, sEnd := timezone.WallClock(s.StartTime), timezone.WallClock(s.EndTime)
+	oStart, oEnd := timezone.WallClock(other.StartTime), timezone.WallClock(other.EndTime)
+	return !oStart.Before(sStart) && !oEnd.After(sEnd)
+}
+
 // EndInstant returns the shift's planned end as an absolute instant in
 // Berlin time (Date + wall-clock EndTime). time.Date normalizes values that
 // fall into a DST gap.

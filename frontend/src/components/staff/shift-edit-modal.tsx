@@ -324,7 +324,22 @@ export function ShiftEditModal({
 
   const updateReplacement = (index: number, patch: Partial<ReplacementRow>) => {
     setReplacements((rows) =>
-      rows.map((row, i) => (i === index ? { ...row, ...patch } : row)),
+      rows.map((row, i) => {
+        if (i !== index) return row;
+        const next = { ...row, ...patch };
+        // A cover edited directly in the grid may carry a nonzero break, but this
+        // row has no break field to correct it. Shortening the window below that
+        // hidden break would otherwise submit a break longer than the shift and
+        // the backend rejects the whole save. Clamp the preserved break to the
+        // edited duration so it can never exceed the window (#1841).
+        if (patch.startTime !== undefined || patch.endTime !== undefined) {
+          const maxBreak = shiftDurationMinutes(next.startTime, next.endTime);
+          if (maxBreak !== null && next.breakMinutes > maxBreak) {
+            next.breakMinutes = maxBreak;
+          }
+        }
+        return next;
+      }),
     );
   };
 
@@ -812,6 +827,7 @@ export function ShiftEditModal({
                           <Field label="Beginn">
                             <input
                               type="time"
+                              aria-label={`Vertretung ${index + 1} Beginn`}
                               value={row.startTime}
                               onChange={(e) =>
                                 updateReplacement(index, {
@@ -824,6 +840,7 @@ export function ShiftEditModal({
                           <Field label="Ende">
                             <input
                               type="time"
+                              aria-label={`Vertretung ${index + 1} Ende`}
                               value={row.endTime}
                               onChange={(e) =>
                                 updateReplacement(index, {

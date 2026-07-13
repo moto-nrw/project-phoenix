@@ -290,6 +290,16 @@ func (s *staffShiftService) validateOriginLink(ctx context.Context, shift *sched
 	if !origin.Cancelled {
 		return fmt.Errorf("%w: replacement origin must be a cancelled shift", ErrShiftInvalid)
 	}
+	// A replacement covers part of the origin's gap, so its window must fall
+	// entirely within the origin's window. Without this a 06:00-18:00 cover could
+	// attach to an 08:00-10:00 origin and inflate the covering employee's planned
+	// minutes and auto-checkout beyond the actual gap. The origin is re-read under
+	// lock above, so a same-save resize of the origin (ApplyCancellation applies
+	// the edited window before rebuilding covers) is validated against the new
+	// window, not the stale one (#1841).
+	if !origin.Contains(shift) {
+		return fmt.Errorf("%w: replacement must fall within the shift it covers", ErrShiftInvalid)
+	}
 	return nil
 }
 
