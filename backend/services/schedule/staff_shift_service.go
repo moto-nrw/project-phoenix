@@ -296,6 +296,13 @@ func (s *staffShiftService) DeleteShift(ctx context.Context, id int64) error {
 	if existing == nil {
 		return ErrShiftNotFound
 	}
+	// Deletes write series exceptions below, so they must serialize against
+	// concurrent series splits on the same staff member: without the lock a
+	// racing split could re-point the row while the exception lands on the
+	// old, capped series.
+	if err := s.lockShiftWrites(ctx, existing.StaffID); err != nil {
+		return err
+	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}

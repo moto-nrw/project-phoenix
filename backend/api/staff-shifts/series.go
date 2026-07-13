@@ -61,15 +61,20 @@ func toSeriesResponse(result *scheduleSvc.SeriesResult) SeriesResponse {
 	return resp
 }
 
-func toWeekdays(values []int) []int16 {
+func toWeekdays(values []int) ([]int16, error) {
 	if values == nil {
-		return nil // split: keep predecessor weekdays
+		return nil, nil // split: keep predecessor weekdays
 	}
 	out := make([]int16, 0, len(values))
 	for _, v := range values {
+		// Bounds check BEFORE the int16 conversion: without it an
+		// out-of-range value like 65538 silently wraps to a valid weekday.
+		if v < 1 || v > 7 {
+			return nil, errors.New("weekdays must be between 1 (Monday) and 7 (Sunday)")
+		}
 		out = append(out, int16(v))
 	}
-	return out
+	return out, nil
 }
 
 func renderSeriesServiceError(w http.ResponseWriter, r *http.Request, err error) {
@@ -108,9 +113,13 @@ func (rs *Resource) buildSeries(req SeriesRequest) (*scheduleModels.StaffShiftSe
 	if req.WeekPattern != nil {
 		weekPattern = *req.WeekPattern
 	}
+	weekdays, err := toWeekdays(req.Weekdays)
+	if err != nil {
+		return nil, err
+	}
 	return &scheduleModels.StaffShiftSeries{
 		StaffID:          req.StaffID,
-		Weekdays:         toWeekdays(req.Weekdays),
+		Weekdays:         weekdays,
 		StartTime:        start,
 		EndTime:          end,
 		BreakMinutes:     req.BreakMinutes,
@@ -170,6 +179,11 @@ func (rs *Resource) splitSeries(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	weekdays, err := toWeekdays(req.Weekdays)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	editorID, err := rs.editorStaffID(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
@@ -178,7 +192,7 @@ func (rs *Resource) splitSeries(w http.ResponseWriter, r *http.Request) {
 	result, err := rs.SeriesService.SplitSeries(r.Context(), scheduleSvc.SplitSeriesInput{
 		SeriesID:       id,
 		EffectiveDate:  effective,
-		Weekdays:       toWeekdays(req.Weekdays),
+		Weekdays:       weekdays,
 		StartTime:      start,
 		EndTime:        end,
 		BreakMinutes:   req.BreakMinutes,

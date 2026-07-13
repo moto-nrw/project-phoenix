@@ -285,3 +285,34 @@ func TestEndSeriesHandler(t *testing.T) {
 		assert.Equal(t, http.StatusNotFound, recorder.Code)
 	})
 }
+
+// Out-of-range weekdays must be a 400, not a silent int16 wrap: 65538 would
+// otherwise truncate to 2 and pass both model validation and the DB CHECK.
+func TestCreateSeriesHandler_RejectsOutOfRangeWeekdays(t *testing.T) {
+	resource := seriesTestResource(&fakeSeriesService{})
+	for name, weekdays := range map[string]string{
+		"zero":           "[0]",
+		"eight":          "[8]",
+		"int16 overflow": "[65538]",
+		"negative":       "[-1]",
+	} {
+		t.Run(name, func(t *testing.T) {
+			body := strings.Replace(validSeriesBody(), "[1, 3]", weekdays, 1)
+			recorder := httptest.NewRecorder()
+			request := seriesRequestCtx(httptest.NewRequest(http.MethodPost, "/series", strings.NewReader(body)))
+			resource.createSeries(recorder, request)
+			assert.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+			assert.Contains(t, recorder.Body.String(), "weekdays must be between 1 (Monday) and 7 (Sunday)")
+		})
+	}
+}
+
+func TestSplitSeriesHandler_RejectsOutOfRangeWeekdays(t *testing.T) {
+	router := splitTestRouter(seriesTestResource(&fakeSeriesService{}))
+	body := `{"effective_date": "2026-10-05", "weekdays": [65538], "start_time": "10:00", "end_time": "14:00", "break_minutes": 0}`
+	recorder := httptest.NewRecorder()
+	request := seriesRequestCtx(httptest.NewRequest(http.MethodPut, "/series/12/split", strings.NewReader(body)))
+	router.ServeHTTP(recorder, request)
+	assert.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	assert.Contains(t, recorder.Body.String(), "weekdays must be between 1 (Monday) and 7 (Sunday)")
+}
