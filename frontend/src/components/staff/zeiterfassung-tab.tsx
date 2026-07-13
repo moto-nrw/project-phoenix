@@ -28,10 +28,10 @@ import { StaffSessionTable } from "./staff-session-table";
 import { KpiCards, ViewToggle, type ViewMode } from "./staff-time-views";
 
 // Zeiterfassung tab. Day-row table comparing Soll vs Ist for each day in
-// the visible window (week or month). Click on a row opens a read-only
-// detail dialog. Inline corrections by the admin are blocked until the
-// time_tracking:manage endpoint ships in Tranche 1 (#1369); the dialog
-// surfaces this constraint instead of pretending to save.
+// the visible window (week or month). A row click expands the read-only
+// audit history; the pencil action opens admin-session-edit-modal, where
+// corrections and backfills go through the time_tracking:manage endpoints
+// with a mandatory audit reason.
 export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
   const today = useMemo(() => new Date(), []);
 

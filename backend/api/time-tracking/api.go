@@ -3,6 +3,7 @@ package timetracking
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -97,9 +98,18 @@ func (rs *Resource) Router() chi.Router {
 	return r
 }
 
-// CheckInRequest represents a check-in request
+// CheckInRequest represents a check-in request. Reason is the optional F9
+// deviation reason; it is only required when the backend answered a previous
+// attempt with the "deviation_reason_required" conflict.
 type CheckInRequest struct {
 	Status string `json:"status"` // "present" or "home_office"
+	Reason string `json:"reason"`
+}
+
+// CheckOutRequest is the optional check-out body. Existing clients send no
+// body at all; the handler treats an empty body as an empty request.
+type CheckOutRequest struct {
+	Reason string `json:"reason"`
 }
 
 type ConfigResponse struct {
@@ -181,7 +191,7 @@ func (rs *Resource) checkIn(w http.ResponseWriter, r *http.Request) {
 	var session *activeModels.WorkSession
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		session, txErr = rs.WorkSessionService.CheckIn(ctx, staffID, req.Status, activeModels.WorkSessionSourceApp)
+		session, txErr = rs.WorkSessionService.CheckIn(ctx, staffID, req.Status, activeModels.WorkSessionSourceApp, req.Reason)
 		return txErr
 	}); err != nil {
 		common.RenderError(w, r, classifyServiceError(err))
@@ -193,6 +203,14 @@ func (rs *Resource) checkIn(w http.ResponseWriter, r *http.Request) {
 
 // checkOut handles POST /api/time-tracking/check-out
 func (rs *Resource) checkOut(w http.ResponseWriter, r *http.Request) {
+	// The body is optional (legacy clients POST without one); an empty body
+	// is an empty request, anything else must be valid JSON.
+	req := &CheckOutRequest{}
+	if err := render.DecodeJSON(r.Body, req); err != nil && !errors.Is(err, io.EOF) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
 	// Get staff ID from JWT claims
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
@@ -206,7 +224,7 @@ func (rs *Resource) checkOut(w http.ResponseWriter, r *http.Request) {
 	var session *activeModels.WorkSession
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		session, txErr = rs.WorkSessionService.CheckOut(ctx, staffID)
+		session, txErr = rs.WorkSessionService.CheckOut(ctx, staffID, req.Reason)
 		return txErr
 	}); err != nil {
 		common.RenderError(w, r, classifyServiceError(err))
