@@ -208,6 +208,76 @@ func TestStaffShiftSeries_WeekPatternRequiresCycle(t *testing.T) {
 	require.ErrorIs(t, err, scheduleSvc.ErrSeriesInvalid)
 }
 
+func TestStaffShiftSeries_CreateRejectsBadReferences(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
+
+	t.Run("unknown calendar period", func(t *testing.T) {
+		series := env.buildSeries(t, periodID+999999, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
+		err := env.inTxExpectErr(t, func(ctx context.Context) error {
+			_, err := env.series.CreateSeries(ctx, series)
+			return err
+		})
+		require.ErrorIs(t, err, scheduleSvc.ErrSeriesInvalid)
+	})
+
+	t.Run("valid_from outside period", func(t *testing.T) {
+		series := env.buildSeries(t, periodID, today.AddDays(40), nil, scheduleModels.WeekPatternEvery)
+		err := env.inTxExpectErr(t, func(ctx context.Context) error {
+			_, err := env.series.CreateSeries(ctx, series)
+			return err
+		})
+		require.ErrorIs(t, err, scheduleSvc.ErrSeriesInvalid)
+	})
+
+	t.Run("unknown staff", func(t *testing.T) {
+		series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
+		series.StaffID = series.StaffID + 999999
+		err := env.inTxExpectErr(t, func(ctx context.Context) error {
+			_, err := env.series.CreateSeries(ctx, series)
+			return err
+		})
+		require.ErrorIs(t, err, scheduleSvc.ErrSeriesInvalid)
+	})
+}
+
+func TestStaffShiftSeries_SplitOutsideSegmentRejected(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	periodID := env.createPeriod(t, today.AddDays(-7), today.AddDays(20), 1, nil)
+
+	series := env.buildSeries(t, periodID, today.AddDays(-7), nil, scheduleModels.WeekPatternEvery)
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, series)
+		return err
+	})
+	// Cap the series first, then try to split at/after the cap: the
+	// effective date no longer lies inside the segment.
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.EndSeries(ctx, series.ID, today.AddDays(3))
+		return err
+	})
+	err := env.inTxExpectErr(t, func(ctx context.Context) error {
+		_, err := env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
+			SeriesID:      series.ID,
+			EffectiveDate: today.AddDays(5),
+			StartTime:     seriesClock(t, "12:00"),
+			EndTime:       seriesClock(t, "13:00"),
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+	require.ErrorIs(t, err, scheduleSvc.ErrSeriesInvalid)
+
+	// Unknown series id maps to not-found.
+	err = env.inTxExpectErr(t, func(ctx context.Context) error {
+		_, err := env.series.EndSeries(ctx, series.ID+999999, today.AddDays(3))
+		return err
+	})
+	require.ErrorIs(t, err, scheduleSvc.ErrSeriesNotFound)
+}
+
 func TestStaffShiftSeries_CollisionSkipsAndReports(t *testing.T) {
 	env := setupSeriesTest(t)
 	today := timezone.TodayDate()
