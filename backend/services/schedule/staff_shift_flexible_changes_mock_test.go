@@ -206,6 +206,109 @@ func TestShiftService_UpdateReplacementRejectsCrossDateMove(t *testing.T) {
 	assert.Contains(t, err.Error(), "same date")
 }
 
+// A same-day edit that resizes a replacement past its origin's window is
+// rejected: the create-time containment invariant (a cover stays within the
+// cancelled origin's gap) must survive a plain window edit, not only a date
+// move. Without re-validating on a window change a 08:00-18:00 cover could
+// attach to an 08:00-16:00 origin and inflate planned minutes / auto-checkout
+// beyond the actual gap (#1841).
+func TestShiftService_UpdateReplacementRejectsWindowOutsideOrigin(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	existing := validShift(8) // replacement on 2026-07-06, 08:00–16:00, inside origin
+	existing.ID = 3
+	existing.OriginShiftID = int64Ptr(5)
+	origin := validShift(7) // origin on 2026-07-06, cancelled, 08:00–16:00
+	origin.ID = 5
+	origin.Cancelled = true
+	repo.findByIDFunc = func(_ context.Context, id any) (*scheduleModels.StaffShift, error) {
+		if id == int64(5) {
+			return origin, nil
+		}
+		return existing, nil
+	}
+
+	edit := validShift(8)
+	edit.ID = 3
+	edit.EndTime = wall(18, 0) // same day, but now extends past the origin's 16:00 end
+
+	_, err := svc.UpdateShift(context.Background(), edit)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftInvalid)
+	assert.Contains(t, err.Error(), "within the shift it covers")
+}
+
+// A same-day edit that shrinks a cancelled ORIGIN around an existing
+// replacement is rejected: the ordinary update path must not strand a cover
+// outside the gap it fills. Rebuilding covers around a new window is the atomic
+// cancellation flow's job, so a plain resize that leaves a cover hanging out is
+// refused (#1841).
+func TestShiftService_UpdateOriginRejectsResizeStrandingCover(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	origin := validShift(7) // origin on 2026-07-06, cancelled, 08:00–16:00
+	origin.ID = 5
+	origin.Cancelled = true
+	cover := validShift(8) // replacement 10:00–16:00, inside the origin
+	cover.ID = 3
+	cover.StartTime = wall(10, 0)
+	cover.OriginShiftID = int64Ptr(5)
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return origin, nil
+	}
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
+		return []*scheduleModels.StaffShift{cover}, nil
+	}
+
+	edit := validShift(7)
+	edit.ID = 5
+	edit.EndTime = wall(12, 0) // shrinks the origin so the 10:00–16:00 cover no longer fits
+
+	_, err := svc.UpdateShift(context.Background(), edit)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftInvalid)
+	assert.Contains(t, err.Error(), "no longer fits")
+}
+
+// Resizing a covered origin so its replacements still fit is allowed: the
+// containment guard only blocks edits that would strand a cover, never a widen
+// that keeps every cover inside the gap (#1841).
+func TestShiftService_UpdateOriginResizeKeepingCoversSucceeds(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	origin := validShift(7) // origin on 2026-07-06, cancelled, 08:00–16:00
+	origin.ID = 5
+	origin.Cancelled = true
+	cover := validShift(8) // replacement 10:00–16:00, inside the origin
+	cover.ID = 3
+	cover.StartTime = wall(10, 0)
+	cover.OriginShiftID = int64Ptr(5)
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return origin, nil
+	}
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
+		return []*scheduleModels.StaffShift{cover}, nil
+	}
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+		return nil, nil
+	}
+	var saved *scheduleModels.StaffShift
+	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		saved = s
+		return nil
+	}
+
+	edit := validShift(7)
+	edit.ID = 5
+	edit.StartTime = wall(6, 0) // widens the origin; the 10:00–16:00 cover still fits
+	edit.EndTime = wall(18, 0)
+
+	_, err := svc.UpdateShift(context.Background(), edit)
+	require.NoError(t, err)
+	require.NotNil(t, saved)
+	assert.Equal(t, wall(6, 0).Hour(), saved.StartTime.Hour())
+}
+
 // A plain edit never re-points the cover link: it stays whatever it was at
 // creation, even when the request omits it.
 func TestShiftService_UpdateKeepsOriginShiftID(t *testing.T) {

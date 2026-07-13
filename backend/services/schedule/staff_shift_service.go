@@ -430,13 +430,20 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 			return nil, err
 		}
 	}
-	// A plain edit that moves a replacement to a different day would silently
-	// break the create-time invariant (a cover shares its origin's date and the
-	// origin is cancelled), so re-validate the preserved link against the new
-	// date. Only cross-date edits pay the extra origin read (#1841).
-	revalidateOrigin := shift.OriginShiftID != nil && shift.Date != existing.Date
+	// A plain edit that moves a replacement to a different day, or resizes its
+	// wall-clock window, would silently break the create-time invariants (a cover
+	// shares its origin's date AND stays within the cancelled origin's gap), so
+	// re-validate the preserved link whenever the date or the window changes.
+	// validateOriginLink re-reads the origin and re-checks origin.Contains(shift),
+	// so a same-day extension past the gap is now rejected too. A pure
+	// notes/type/break edit that leaves date and window untouched still skips the
+	// extra origin read (#1841).
+	revalidateOrigin := shift.OriginShiftID != nil &&
+		(shift.Date != existing.Date ||
+			!timezone.SameClockTime(shift.StartTime, existing.StartTime) ||
+			!timezone.SameClockTime(shift.EndTime, existing.EndTime))
 	// Lock every staff member this edit touches — the shift's own staff plus, for
-	// a cross-date replacement edit, the origin's staff — in a stable sorted order
+	// a replacement date/window edit, the origin's staff — in a stable sorted order
 	// so concurrent cross-covering edits never lock the same pair in opposite
 	// orders (#1841 deadlock). The origin is read first only to discover its lock.
 	lockIDs := []int64{shift.StaffID}
@@ -455,16 +462,28 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 			return nil, err
 		}
 	}
-	// Moving a covered ORIGIN (not a replacement) to another date would strand its
-	// replacements on the old date — they still reference it and must share its
-	// date — so reject a date change on an origin that already has covers (#1841).
-	if shift.OriginShiftID == nil && shift.Date != existing.Date {
+	// Editing a covered ORIGIN (not a replacement) through the ordinary path must
+	// not strand its replacements: moving it to another date leaves them
+	// referencing a date the origin no longer occupies, and shrinking its window
+	// leaves a replacement outside the gap it fills. Rebuilding covers around a new
+	// window is the atomic cancellation flow's job (it deletes the covers before
+	// touching the origin, so this check never fires there), so here reject any
+	// date or window change while covers still hang off this shift. The cover load
+	// is skipped entirely when neither the date nor the window moved (#1841).
+	originWindowChanged := !timezone.SameClockTime(shift.StartTime, existing.StartTime) ||
+		!timezone.SameClockTime(shift.EndTime, existing.EndTime)
+	if shift.OriginShiftID == nil && (shift.Date != existing.Date || originWindowChanged) {
 		covers, err := s.repo.FindByOriginShiftID(ctx, shift.ID)
 		if err != nil {
-			return nil, fmt.Errorf("check covers before origin date change: %w", err)
+			return nil, fmt.Errorf("check covers before origin edit: %w", err)
 		}
-		if len(covers) > 0 {
-			return nil, fmt.Errorf("%w: cannot move a shift that has replacements to another date", ErrShiftInvalid)
+		for _, cover := range covers {
+			if shift.Date != cover.Date {
+				return nil, fmt.Errorf("%w: cannot move a shift that has replacements to another date", ErrShiftInvalid)
+			}
+			if !shift.Contains(cover) {
+				return nil, fmt.Errorf("%w: cannot resize a shift so a replacement no longer fits within it", ErrShiftInvalid)
+			}
 		}
 	}
 	if err := s.checkOverlap(ctx, shift); err != nil {

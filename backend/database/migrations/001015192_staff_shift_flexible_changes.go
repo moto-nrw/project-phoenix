@@ -88,9 +88,34 @@ func init() {
 		},
 		func(ctx context.Context, db *bun.DB) error {
 			fmt.Println("Rolling back migration 1.15.192...")
-			// Restore the plain start-time uniqueness (best-effort; fails if
-			// cancellation reuse has produced duplicate active/cancelled start
-			// times, which only exists once this feature has run).
+			// The partial index this rollback replaces only forbade duplicate
+			// start_times among NON-cancelled rows, so normal feature use can leave
+			// a cancelled shift and an active shift (or several cancelled rows)
+			// sharing (tenant_id, staff_id, date, start_time). The plain UNIQUE
+			// constraint restored below counts every row, so those groups must be
+			// collapsed to one row first — otherwise the ADD CONSTRAINT fails and
+			// the rollback is impossible after the feature has run. Cancellation and
+			// the origin link are being dropped here anyway, so keep the row that
+			// actually takes place (prefer non-cancelled, then the lowest id) and
+			// delete the rest; the tenant-scoped FK's ON DELETE SET NULL clears any
+			// replacement pointer to a removed origin (also about to be dropped).
+			if _, err := db.NewRaw(`
+				DELETE FROM schedule.staff_shifts s
+				USING schedule.staff_shifts keep
+				WHERE s.tenant_id = keep.tenant_id
+					AND s.staff_id = keep.staff_id
+					AND s.date = keep.date
+					AND s.start_time = keep.start_time
+					AND s.id <> keep.id
+					AND (
+						(s.cancelled AND NOT keep.cancelled)
+						OR (s.cancelled = keep.cancelled AND s.id > keep.id)
+					);
+			`).Exec(ctx); err != nil {
+				return fmt.Errorf("failed collapsing duplicate start_times before restoring uniq_staff_shift_start: %w", err)
+			}
+			// Restore the plain start-time uniqueness now that every
+			// (tenant_id, staff_id, date, start_time) group holds a single row.
 			if _, err := db.NewRaw(`
 				DROP INDEX IF EXISTS schedule.uniq_staff_shift_start_active;
 				ALTER TABLE schedule.staff_shifts
