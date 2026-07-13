@@ -204,8 +204,8 @@ func (rs *Resource) Router() chi.Router {
 		// Änderungsprotokoll (#1886): append-only deviation history, read-only.
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/deviations/history", rs.getDeviationHistory)
-		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
-			Post("/substitute", rs.substitute)
+		// POST /substitute wurde konsolidiert (#1886): der einzige Caller
+		// (Betreuungsplan-Gap-Fill) nutzt jetzt POST /instances/{id}/deviations.
 
 		// WP-B13: exception-conflict warnings (planning-only, read-only).
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).

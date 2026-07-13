@@ -560,14 +560,6 @@ interface SubstituteAffectedInstance {
   action: SubstituteAction;
 }
 
-export interface SubstituteResponse {
-  absentStaffId: string;
-  substituteStaffId: string;
-  date: string;
-  affectedInstances: SubstituteAffectedInstance[];
-  warnings: SubstituteTimeConflict[];
-}
-
 interface BackendSubstituteTimeConflict {
   instance_id: number;
   title: string;
@@ -581,14 +573,6 @@ interface BackendSubstituteAffectedInstance {
   title: string;
   start_time: string;
   action: SubstituteAction;
-}
-
-export interface BackendSubstituteResponse {
-  absent_staff_id: number;
-  substitute_staff_id: number;
-  date: string;
-  affected_instances: BackendSubstituteAffectedInstance[];
-  warnings: BackendSubstituteTimeConflict[];
 }
 
 /** #1840: POST /instances/{id}/acknowledge-understaffed result. */

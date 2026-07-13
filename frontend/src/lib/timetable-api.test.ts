@@ -660,59 +660,6 @@ describe("timetableService", () => {
     );
   });
 
-  it("substitutes staff and patches attendance", async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse({
-          data: {
-            absent_staff_id: 11,
-            substitute_staff_id: 12,
-            date: "2026-05-04",
-            affected_instances: [
-              {
-                instance_id: 42,
-                title: "Mensa",
-                start_time: "12:00",
-                action: "updated",
-              },
-            ],
-            warnings: [],
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          data: {
-            id: 100,
-            instance_id: 42,
-            student_id: 21,
-            status: "absent",
-            substatus: "sick",
-            note: "krank",
-          },
-        }),
-      );
-
-    await expect(
-      timetableService.substitute("11", "12", "2026-05-04"),
-    ).resolves.toMatchObject({
-      absentStaffId: "11",
-      substituteStaffId: "12",
-      affectedInstances: [{ instanceId: "42" }],
-    });
-    await expect(
-      timetableService.patchAttendance("42", "21", {
-        status: "absent",
-        substatus: "sick",
-        note: "krank",
-      }),
-    ).resolves.toMatchObject({
-      id: "100",
-      instanceId: "42",
-      studentId: "21",
-    });
-  });
-
   it("uses backend error payloads and generic messages for failed responses", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
@@ -765,75 +712,6 @@ describe("timetableService", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({}),
-      }),
-    );
-  });
-
-  it("sends an optional reason with a substitute (#1840)", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        data: {
-          absent_staff_id: 11,
-          substitute_staff_id: 12,
-          date: "2026-05-04",
-          affected_instances: [],
-          warnings: [],
-        },
-      }),
-    );
-
-    await timetableService.substitute("11", "12", "2026-05-04", "krank");
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/timetable/substitute",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          absent_staff_id: 11,
-          substitute_staff_id: 12,
-          date: "2026-05-04",
-          reason: "krank",
-        }),
-      }),
-    );
-  });
-
-  it("marks a staff member absent for the day without a substitute (#1840)", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        data: {
-          absent_staff_id: 11,
-          substitute_staff_id: 0,
-          date: "2026-05-04",
-          affected_instances: [
-            {
-              instance_id: 42,
-              title: "Mensa",
-              start_time: "12:00",
-              action: "marked_absent",
-            },
-          ],
-          warnings: [],
-        },
-      }),
-    );
-
-    await expect(
-      timetableService.markAbsent("11", "2026-05-04", "krank"),
-    ).resolves.toMatchObject({
-      absentStaffId: "11",
-      affectedInstances: [{ instanceId: "42", action: "marked_absent" }],
-    });
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/timetable/substitute",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({
-          absent_staff_id: 11,
-          date: "2026-05-04",
-          reason: "krank",
-        }),
       }),
     );
   });
@@ -1004,29 +882,6 @@ describe("timetableService", () => {
       "/api/timetable/instances/42/deviations",
       expect.objectContaining({
         body: JSON.stringify({ understaffed_ack: false }),
-      }),
-    );
-  });
-
-  it("marks absent without a reason and omits it from the body (#1840)", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        data: {
-          absent_staff_id: 11,
-          substitute_staff_id: 0,
-          date: "2026-05-04",
-          affected_instances: [],
-          warnings: [],
-        },
-      }),
-    );
-
-    await timetableService.markAbsent("11", "2026-05-04");
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      "/api/timetable/substitute",
-      expect.objectContaining({
-        body: JSON.stringify({ absent_staff_id: 11, date: "2026-05-04" }),
       }),
     );
   });

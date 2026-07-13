@@ -7,8 +7,13 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
+	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -139,4 +144,81 @@ func TestApplyDeviations_IdempotentReplayWritesNoEvent(t *testing.T) {
 
 	events := loadEventsForInstance(t, s.db, s.ctx, inst.ID)
 	assert.Empty(t, events, "idempotent replay writes no protocol row")
+}
+
+// TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor: ported from the
+// removed POST /substitute endpoint tests (#1886) — the live-session supervisor
+// swap must keep working through the consolidated deviations path.
+func TestApplyDeviations_ActiveInstance_EndsAndCreatesSupervisor(t *testing.T) {
+	s := buildDevSetup(t)
+	router := devRouter(s.ctx, s.res)
+	_, date := futureSubDate(1)
+
+	activeGroupRepo := activeRepo.NewGroupRepository(s.db)
+	now := time.Now()
+	ag := &activeModel.Group{
+		StartTime:      now,
+		LastActivity:   now,
+		TimeoutMinutes: 30,
+		RoomID:         s.roomID,
+	}
+	require.NoError(t, activeGroupRepo.Create(s.ctx, ag))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.groups", ag.ID) })
+
+	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "14:00", EndHHMM: "15:00", Title: "Active-Inst",
+		Status:        scheduleModel.InstanceStatusActive,
+		ActiveGroupID: &ag.ID,
+	})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+	t.Cleanup(func() { cleanupEventsForInstances(t, s.db, inst.ID) })
+
+	rowAbsent := testpkg.CreateTestInstanceStaff(t, s.db, inst.ID, s.staffA, testpkg.InstanceStaffOpts{})
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, rowAbsent.ID) })
+
+	supervisorRepo := activeRepo.NewGroupSupervisorRepository(s.db)
+	absentSup := &activeModel.GroupSupervisor{
+		StaffID:   s.staffA,
+		GroupID:   ag.ID,
+		Role:      "supervisor",
+		StartDate: timezone.DateFromTime(now),
+	}
+	require.NoError(t, supervisorRepo.Create(s.ctx, absentSup))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", absentSup.ID) })
+
+	w := doDev(t, router, inst.ID, map[string]any{
+		"substitutions": []map[string]any{{"absent_staff_id": s.staffA, "substitute_staff_id": s.staffY}},
+	})
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	absentSupAfter, err := supervisorRepo.FindByID(s.ctx, absentSup.ID)
+	require.NoError(t, err)
+	assert.NotNil(t, absentSupAfter.EndDate, "absent supervisor must be ended")
+
+	subSups, err := supervisorRepo.FindActiveByStaffID(s.ctx, s.staffY)
+	require.NoError(t, err)
+	found := false
+	var newSupID int64
+	for _, sup := range subSups {
+		if sup.GroupID == ag.ID {
+			found = true
+			newSupID = sup.ID
+		}
+	}
+	assert.True(t, found, "substitute must have a new active supervisor row on this group")
+	t.Cleanup(func() {
+		if newSupID > 0 {
+			testpkg.CleanupTableRecords(t, s.db, "active.group_supervisors", newSupID)
+		}
+	})
+
+	rows := devInstanceStaff(t, s.db, s.ctx, inst.ID)
+	var newSubRowIDs []int64
+	for _, r := range rows {
+		if r.IsSubstitute && r.StaffID == s.staffY {
+			newSubRowIDs = append(newSubRowIDs, r.ID)
+		}
+	}
+	require.NotEmpty(t, newSubRowIDs, "substitute instance_staff row created")
+	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, newSubRowIDs...) })
 }

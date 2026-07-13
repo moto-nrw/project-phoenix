@@ -667,3 +667,21 @@ func TestAcknowledgeUnderstaffed_PastBlock_Rejected(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "past")
 	assert.Zero(t, s.mock.lastAckID, "service must not be reached for a past block")
 }
+
+// futureSubDate returns a YYYY-MM-DD in the future plus the matching
+// timezone.Date for fixture rows. (Moved from the removed substitute endpoint
+// tests, #1886.)
+func futureSubDate(offsetDays int) (string, timezone.Date) {
+	d := timezone.TodayDate().AddDays(offsetDays)
+	return d.String(), d
+}
+
+// readInstanceStaff pulls the row directly from the DB for atomicity
+// assertions. Uses the repo to honour tenant scoping.
+func readInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, id int64) *scheduleModel.InstanceStaff {
+	t.Helper()
+	repo := scheduleRepo.NewInstanceStaffRepository(db)
+	row, err := repo.FindByID(ctx, id)
+	require.NoError(t, err)
+	return row
+}

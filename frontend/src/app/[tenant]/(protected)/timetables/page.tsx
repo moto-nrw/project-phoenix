@@ -1020,13 +1020,19 @@ function TimetablesContent() {
   );
 
   const handleSubstitute = useCallback(
-    async (absentStaffId: string, substituteStaffId: string, date: string) => {
+    async (
+      instanceId: string,
+      absentStaffId: string,
+      substituteStaffId: string,
+      date: string,
+    ) => {
       try {
-        const result = await timetableService.substitute(
-          absentStaffId,
-          substituteStaffId,
-          date,
-        );
+        // Konsolidierung (#1886): der Gap-Fill nutzt denselben atomaren
+        // Deviations-Pfad wie der Vertretungs-Editor; die Zuweisung wirkt
+        // weiterhin tagesweit auf alle Blöcke der abwesenden Person.
+        const result = await timetableService.applyDeviations(instanceId, {
+          substitutions: [{ absentStaffId, substituteStaffId }],
+        });
         toast.success(
           `Ersatz eingetragen: ${result.affectedInstances.length} Termin(e) aktualisiert`,
         );
@@ -1040,6 +1046,7 @@ function TimetablesContent() {
         await tenantMutate(exceptionConflictsSWRKey);
       } catch (err) {
         logger.error("substitute_failed", {
+          instance_id: instanceId,
           absent_staff_id: absentStaffId,
           substitute_staff_id: substituteStaffId,
           date,

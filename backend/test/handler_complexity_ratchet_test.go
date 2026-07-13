@@ -102,7 +102,6 @@ var handlerComplexityAllowlist = map[string]int{
 	"api/timetable/student_day.go:(*Resource).preloadWeek":                                     28,
 	"api/timetable/student_day.go:buildStudentDayFromPreload":                                  19,
 	"api/timetable/substitute.go:(*Resource).buildSubstituteTimeConflicts":                     17,
-	"api/timetable/substitute.go:(*Resource).substitute":                                       54,
 	"api/timetable/templates_create.go:(*Resource).createTemplate":                             33,
 	"api/timetable/templates_update.go:(*Resource).updateTemplate":                             27,
 	"api/timetable/understaffed.go:(*Resource).acknowledgeUnderstaffed":                        37,

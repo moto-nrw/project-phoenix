@@ -29,7 +29,6 @@ import type {
   BackendSplitTemplateResult,
   BackendTemplatesResponse,
   BackendStartInstanceResult,
-  BackendSubstituteResponse,
   BackendWeeklyInstancesResponse,
   AttendanceResponse,
   ConflictCheckResult,
@@ -51,7 +50,6 @@ import type {
   ShiftCoverageCheckResult,
   SplitTemplateResult,
   StartInstanceResult,
-  SubstituteResponse,
   TemplatesResponse,
   TimetableTemplate,
   WeeklyInstancesResponse,
@@ -578,29 +576,6 @@ export function mapAttendance(
     substatus: raw.substatus,
     note: raw.note,
     checkedInAt: raw.checked_in_at,
-  };
-}
-
-export function mapSubstitute(
-  raw: BackendSubstituteResponse,
-): SubstituteResponse {
-  return {
-    absentStaffId: String(raw.absent_staff_id),
-    substituteStaffId: String(raw.substitute_staff_id),
-    date: raw.date,
-    affectedInstances: (raw.affected_instances ?? []).map((item) => ({
-      instanceId: String(item.instance_id),
-      title: item.title,
-      startTime: item.start_time,
-      action: item.action,
-    })),
-    warnings: (raw.warnings ?? []).map((warning) => ({
-      instanceId: String(warning.instance_id),
-      title: warning.title,
-      date: warning.date,
-      startTime: warning.start_time,
-      endTime: warning.end_time,
-    })),
   };
 }
 
