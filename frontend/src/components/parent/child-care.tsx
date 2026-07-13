@@ -317,6 +317,16 @@ export function useChildCare(studentId: string): ChildCare {
   // Mirrors OgsConversation.refresh. mountedRef additionally blocks post-unmount.
   const loadSeqRef = useRef(0);
   const mountedRef = useRef(true);
+  // The child this hook instance currently serves. A mutation (report sick,
+  // save/remove pickup override, withdraw request) captures the studentId in its
+  // closure at call time, then awaits a POST; if the guardian navigates A→B
+  // during that await the SAME hook instance is reused for B (only the prop
+  // changes — see ChildDetailContent). Applying A's result would setState on B —
+  // most damagingly mark B absent with A's just-submitted absence, which A's
+  // later SSE event (filtered by studentId) never corrects. This ref is bumped
+  // SYNCHRONOUSLY in the reset block below, so a resolving A-write reads the new
+  // identity and bails before touching B's state (#1725 review).
+  const currentStudentIdRef = useRef(studentId);
   useEffect(() => {
     mountedRef.current = true;
     return () => {
@@ -350,6 +360,11 @@ export function useChildCare(studentId: string): ChildCare {
     // bumps again — over-invalidating costs at most a refetch, never stale data
     // (#1725 review).
     loadSeqRef.current += 1;
+    // Re-point the identity guard at the new child SYNCHRONOUSLY (same reasoning
+    // as the loadSeqRef bump), so a still-in-flight mutation started for the
+    // previous child bails instead of applying its result to this one (#1725
+    // review).
+    currentStudentIdRef.current = studentId;
     setSickDays([]);
     setExcusedRequests([]);
     setCareExceptions([]);
@@ -487,6 +502,13 @@ export function useChildCare(studentId: string): ChildCare {
         reason,
         status,
       );
+      // If the guardian navigated to another child mid-submit, this hook now
+      // serves child B: applying A's status days (above all the optimistic
+      // setTodayAbsent below) would mark B absent, and A's own later SSE event
+      // is filtered out by studentId so B would stay absent indefinitely. The
+      // write already committed server-side for A; A's tab reflects it (#1725
+      // review). Bail before any setState.
+      if (currentStudentIdRef.current !== studentId) return;
       // A direct write (sick note, or an excused absence without the approval
       // gate) returns the just-recorded days. Merge them into the already-loaded
       // list (replacing any same-date entries) so previously reported absences
@@ -538,6 +560,9 @@ export function useChildCare(studentId: string): ChildCare {
   const withdrawExcused = useCallback(
     async (requestId: string) => {
       const updated = await withdrawExcusedRequest(studentId, requestId);
+      // Bail if we navigated to another child mid-request — this hook now serves
+      // B, and A's withdrawn request must not land in B's list (#1725 review).
+      if (currentStudentIdRef.current !== studentId) return;
       // Replace the request in place with its withdrawn form; the summary then
       // stops offering the withdraw action and drops it from the pending list.
       setExcusedRequests((prev) =>
@@ -554,6 +579,9 @@ export function useChildCare(studentId: string): ChildCare {
       arrivalTime?: string;
     }) => {
       const saved = await submitCareException(studentId, params);
+      // Bail if we navigated to another child mid-save — A's override must not
+      // land in B's exception list (#1725 review).
+      if (currentStudentIdRef.current !== studentId) return;
       // Replace any same-date entry with the just-saved one, keep sorted.
       setCareExceptions((prev) =>
         [...prev.filter((e) => e.date !== saved.date), saved].sort((a, b) =>
@@ -567,6 +595,9 @@ export function useChildCare(studentId: string): ChildCare {
   const removeCareException = useCallback(
     async (date: string) => {
       await deleteCareException(studentId, date);
+      // Bail if we navigated to another child mid-delete — the removal must not
+      // apply to B's exception list (#1725 review).
+      if (currentStudentIdRef.current !== studentId) return;
       setCareExceptions((prev) => prev.filter((e) => e.date !== date));
     },
     [studentId],

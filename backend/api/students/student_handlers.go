@@ -1037,8 +1037,18 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		// subscribers into refetching the still-pre-commit row.
 		studentID := student.ID
 		capturedTenantID := tenantID
+		// A sick/excused edit writes TODAY's status day (persistStudentStatusHistory
+		// above) — the exact signal the parent pickup tile resolves today_absent
+		// from. student_updated is tenant-wide STAFF SSE and never reaches the
+		// parents stream, so also wake the child's guardians, but only when a status
+		// field was actually supplied (a plain name/notes edit changes nothing
+		// parent-visible) (#1725).
+		statusChanged := req.Sick != nil || req.Excused != nil
 		tenant.RegisterAfterCommit(ctx, func() {
 			rs.broadcastStudentUpdated(capturedTenantID, studentID)
+			if statusChanged {
+				rs.wakeChildGuardians(capturedTenantID, studentID)
+			}
 		})
 		return nil
 	}); err != nil {

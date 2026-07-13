@@ -608,4 +608,99 @@ describe("useChildCare studentId switch", () => {
     });
     expect(result.current.todayPickup).toEqual({ kind: "unknown" });
   });
+
+  // A same-day sick report started for child A must NOT mark child B absent if
+  // the guardian navigates A→B (reusing the hook instance) before the POST
+  // resolves. The optimistic setTodayAbsent in reportSick is captured to A's
+  // studentId; without the identity guard it would apply to B's reused instance
+  // and — since A's own later SSE event is filtered by studentId — leave B
+  // wrongly absent indefinitely (#1725 review).
+  it("does not apply a resolving same-day report to a different child after a switch", async () => {
+    const today = berlinTodayISO();
+    const todayWd = ((parseISODate(today).getDay() + 6) % 7) + 1;
+
+    vi.spyOn(parentApi, "listSickDays").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listExcusedRequests").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listCareExceptions").mockResolvedValue(
+      [] as CareException[],
+    );
+    // Both children load a real (non-absent) pickup, so a stray setTodayAbsent
+    // would visibly flip the tile to "absent".
+    vi.spyOn(parentApi, "getChildCareSchedule").mockImplementation(
+      (id: string) =>
+        Promise.resolve({
+          weekdays: [
+            {
+              weekday: todayWd,
+              pickup: id === "1" ? "16:00" : "15:00",
+              modes: [],
+            },
+          ],
+          can_request: false,
+          today_absent: false,
+        }),
+    );
+    vi.spyOn(parentApi, "getChildFeatures").mockRejectedValue(
+      new Error("no features"),
+    );
+    // Defer the sick-note resolution so we can switch children mid-submit.
+    let resolveSubmit!: (v: { status_days: StatusDay[] }) => void;
+    vi.spyOn(parentApi, "submitSickNote").mockReturnValue(
+      new Promise((res) => {
+        resolveSubmit = res;
+      }),
+    );
+
+    const { result, rerender } = renderHook(({ id }) => useChildCare(id), {
+      initialProps: { id: "1" },
+    });
+
+    await waitFor(() =>
+      expect(result.current.todayPickup).toEqual({
+        kind: "time",
+        time: "16:00",
+        changed: false,
+      }),
+    );
+
+    // Start a same-day sick report for child A (submit is pending).
+    let reportPromise!: Promise<void>;
+    act(() => {
+      reportPromise = result.current.reportSick([today], "", "sick");
+    });
+
+    // Navigate to child B; B loads its own (non-absent) pickup.
+    rerender({ id: "2" });
+    await waitFor(() =>
+      expect(result.current.todayPickup).toEqual({
+        kind: "time",
+        time: "15:00",
+        changed: false,
+      }),
+    );
+
+    // A's report now resolves with a today absence. The guard must drop it so B
+    // keeps showing its own pickup rather than flipping to "absent".
+    await act(async () => {
+      resolveSubmit({
+        status_days: [
+          {
+            id: "1",
+            student_id: "1",
+            date: today,
+            status: "sick",
+            reported_at: "2026-03-01T09:00:00Z",
+            source: "parent",
+          },
+        ],
+      });
+      await reportPromise;
+    });
+
+    expect(result.current.todayPickup).toEqual({
+      kind: "time",
+      time: "15:00",
+      changed: false,
+    });
+  });
 });

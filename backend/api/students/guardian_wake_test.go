@@ -57,3 +57,50 @@ func TestStaffCareWrite_WakesChildGuardians(t *testing.T) {
 	assert.True(t, wokeGuardian,
 		"the child's own guardian account %d must be among the woken guardians", chain.AccountID)
 }
+
+// TestStaffStatusUpdate_WakesChildGuardians covers #1725: PUT /students/{id} with
+// a sick/excused field persists TODAY's status day — the exact signal the parent
+// pickup tile resolves today_absent from — but its after-commit hook otherwise
+// emits only the tenant-wide student_updated staff event, which never reaches the
+// parents SSE stream. The status write must ALSO wake the child's guardians; a
+// plain (non-status) edit must NOT, so a name/notes change never spams parent tabs.
+func TestStaffStatusUpdate_WakesChildGuardians(t *testing.T) {
+	tc := setupTestContext(t)
+
+	chain := testpkg.CreateTestParentGuardianChain(t, tc.db)
+	defer testpkg.CleanupParentGuardianChain(t, tc.db, chain)
+
+	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "StatusWake", "GuardianUpd")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
+
+	// A sick=true update writes today's status day → must wake guardians.
+	tc.broadcaster.Reset()
+	sick := true
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", chain.StudentID), map[string]any{"sick": sick})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+
+	wokeGuardian := false
+	for _, c := range tc.broadcaster.CallsByMethod("guardian") {
+		if c.GuardianID == chain.AccountID {
+			wokeGuardian = true
+			assert.Equal(t, realtime.EventParentChildUpdated, c.Event.Type,
+				"the guardian wake must carry a parent_child_updated invalidation")
+			assert.Equal(t, chain.TenantID, c.TenantID)
+		}
+	}
+	assert.True(t, wokeGuardian,
+		"a staff sick/excused update must wake the child's guardian account %d (#1725)", chain.AccountID)
+
+	// A non-status update (supervisor notes) touches nothing parent-visible → no wake.
+	tc.broadcaster.Reset()
+	notes := "Interner Vermerk"
+	req = testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", chain.StudentID), map[string]any{"supervisor_notes": notes})
+	rr = authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
+
+	for _, c := range tc.broadcaster.CallsByMethod("guardian") {
+		assert.NotEqualf(t, chain.AccountID, c.GuardianID,
+			"a non-status student update must not wake guardians (#1725)")
+	}
+}
