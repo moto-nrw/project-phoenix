@@ -200,6 +200,10 @@ func (rs *Resource) Router() chi.Router {
 		// (information view), substitute is SchedulesManage (mutation).
 		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 			Get("/gaps", rs.getGaps)
+
+		// Änderungsprotokoll (#1886): append-only deviation history, read-only.
+		r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+			Get("/deviations/history", rs.getDeviationHistory)
 		r.With(authorize.RequiresPermission(permissions.SchedulesManage), withTx).
 			Post("/substitute", rs.substitute)
 

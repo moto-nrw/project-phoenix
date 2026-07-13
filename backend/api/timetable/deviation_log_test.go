@@ -35,7 +35,7 @@ func cleanupEventsForInstances(t *testing.T, db *bun.DB, instanceIDs ...int64) {
 	_, err := db.NewDelete().
 		Model((*auditModels.DeviationEvent)(nil)).
 		ModelTableExpr(`audit.deviation_events AS "deviation_event"`).
-		Where(`"deviation_event".instance_id IN (?)`, bun.In(instanceIDs)).
+		Where(`"deviation_event".instance_id IN (?)`, bun.List(instanceIDs)).
 		Exec(context.Background())
 	require.NoError(t, err)
 }

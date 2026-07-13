@@ -652,6 +652,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.ActivityException,
 		repos.InstanceStudent,
 		repos.DataDeletion,
+		repos.DeviationEvent,
 		settingsService,
 		logger.With("service", "timetable-cleanup"),
 	)
@@ -1483,6 +1484,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			TimeframeRepo:              repos.Timeframe,
 			EducationGroupRepo:         repos.Group,
 			ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
+			DeviationEventRepo:         repos.DeviationEvent,
 			DB:                         db,
 		}),
 		OperatorSuggestions:  operatorSuggestionsService,

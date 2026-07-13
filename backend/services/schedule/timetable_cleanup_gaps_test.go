@@ -48,6 +48,7 @@ func buildSvc(db *bun.DB, settings configSvc.SettingsService) scheduleSvc.Timeta
 		scheduleRepoPkg.NewActivityExceptionRepository(db),
 		scheduleRepoPkg.NewInstanceStudentRepository(db),
 		auditRepoPkg.NewDataDeletionRepository(db),
+		auditRepoPkg.NewDeviationEventRepository(db),
 		settings,
 		slog.Default(),
 	)
@@ -241,6 +242,7 @@ func TestCleanup_NilAuditRepo_ReturnsError(t *testing.T) {
 		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
 		nil,
 		nil,
+		nil,
 		slog.Default(),
 	)
 
@@ -266,6 +268,7 @@ func TestNewTimetableCleanupService_NilLogger_FallsBackToDefault(t *testing.T) {
 		scheduleRepoPkg.NewActivityExceptionRepository(db),
 		scheduleRepoPkg.NewInstanceStudentRepository(db),
 		auditRepoPkg.NewDataDeletionRepository(db),
+		nil,
 		nil,
 		nil,
 	)

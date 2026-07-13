@@ -74,7 +74,7 @@ func buildDevSetup(t *testing.T) *devSetup {
 	mock := &mockInstanceService{real: serviceFactory.Instance}
 	res := NewResource(Dependencies{
 		TimetableData:   testTimetableData(db),
-		PersonService:   usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StaffRepo: usersRepo.NewStaffRepository(db)}),
+		PersonService:   usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{PersonRepo: usersRepo.NewPersonRepository(db), StaffRepo: usersRepo.NewStaffRepository(db)}),
 		InstanceService: mock,
 		DB:              db,
 	})

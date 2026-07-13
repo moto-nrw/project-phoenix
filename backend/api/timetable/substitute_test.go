@@ -65,7 +65,7 @@ func buildSubSetup(t *testing.T) *subSetup {
 	require.NoError(t, err)
 	res := NewResource(Dependencies{
 		TimetableData:   testTimetableData(db),
-		PersonService:   usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StaffRepo: usersRepo.NewStaffRepository(db)}),
+		PersonService:   usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{PersonRepo: usersRepo.NewPersonRepository(db), StaffRepo: usersRepo.NewStaffRepository(db)}),
 		InstanceService: serviceFactory.Instance,
 		DB:              db,
 		// Broadcaster intentionally nil: tests do not exercise SSE.
