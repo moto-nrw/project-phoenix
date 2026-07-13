@@ -120,6 +120,11 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		capturedTenantID := tenantID
 		tenant.RegisterAfterCommit(ctx, func() {
 			rs.broadcastStudentUpdated(capturedTenantID, studentID)
+			// Also wake the child's guardians so an open parents-app tab reflects
+			// the new/cleared absence (today_absent → the "Heute" pickup tile)
+			// live; the tenant-wide student_updated above never reaches the parent
+			// SSE stream (#1725).
+			rs.wakeChildGuardians(capturedTenantID, studentID)
 		})
 		return nil
 	}); err != nil {
@@ -210,6 +215,9 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 			capturedTenantID := tenantID
 			tenant.RegisterAfterCommit(ctx, func() {
 				rs.broadcastStudentUpdated(capturedTenantID, studentID)
+				// Also wake the child's guardians so an open parents-app tab
+				// reflects the new/cleared absence live (#1725).
+				rs.wakeChildGuardians(capturedTenantID, studentID)
 			})
 		}
 		return nil
@@ -284,6 +292,11 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 		capturedTenantID := tenantID
 		tenant.RegisterAfterCommit(ctx, func() {
 			rs.broadcastStudentUpdated(capturedTenantID, studentID)
+			// Also wake the child's guardians so an open parents-app tab reflects
+			// the new/cleared absence (today_absent → the "Heute" pickup tile)
+			// live; the tenant-wide student_updated above never reaches the parent
+			// SSE stream (#1725).
+			rs.wakeChildGuardians(capturedTenantID, studentID)
 		})
 		return nil
 	}); err != nil {

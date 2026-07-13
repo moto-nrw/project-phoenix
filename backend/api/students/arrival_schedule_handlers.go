@@ -409,6 +409,14 @@ func (rs *Resource) updateStudentArrivalSchedules(w http.ResponseWriter, r *http
 	}
 
 	rs.broadcastArrivalScheduleChanged(student.ID)
+	// Wake the child's guardians so an open parents-app tab refetches the arrival
+	// change live; the tenant-wide arrival_schedule_changed above never reaches
+	// the parent SSE stream (#1725). Defer to the OUTER request tx's commit — the
+	// handler WithTenantTx is a nested reuse of the TenantTxMiddleware tx and has
+	// NOT committed on return, so a woken client must not refetch yet (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
 	response := buildArrivalDataResponse(data)
 	common.Respond(w, r, http.StatusOK, response, "Arrival schedules updated successfully")
 }
@@ -508,6 +516,13 @@ func (rs *Resource) createStudentArrivalException(w http.ResponseWriter, r *http
 	}
 
 	rs.broadcastArrivalScheduleChanged(student.ID)
+	// Wake the child's guardians so the "Heute" tile reflects a staff arrival
+	// override (a no-show arrival_absent resolves the tile as absent) live; defer
+	// to the outer request tx's commit (nested handler WithTenantTx is not
+	// committed on return) (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
 	common.Respond(w, r, http.StatusCreated, mapArrivalExceptionToResponse(exception), "Arrival exception created successfully")
 }
 
@@ -606,6 +621,12 @@ func (rs *Resource) updateStudentArrivalException(w http.ResponseWriter, r *http
 	}
 
 	rs.broadcastArrivalScheduleChanged(student.ID)
+	// Wake the child's guardians so the edited arrival override refetches live;
+	// defer to the outer request tx's commit (nested handler WithTenantTx is not
+	// committed on return) (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
 	common.Respond(w, r, http.StatusOK, mapArrivalExceptionToResponse(exception), "Arrival exception updated successfully")
 }
 
@@ -648,6 +669,12 @@ func (rs *Resource) deleteStudentArrivalException(w http.ResponseWriter, r *http
 	}
 
 	rs.broadcastArrivalScheduleChanged(student.ID)
+	// Wake the child's guardians so the removed arrival override refetches live;
+	// defer to the outer request tx's commit (nested handler WithTenantTx is not
+	// committed on return) (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
 	common.Respond(w, r, http.StatusOK, nil, "Arrival exception deleted successfully")
 }
 
@@ -779,6 +806,7 @@ func (rs *Resource) bulkUpsertArrivalSchedules(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	tenantID := tenant.FromContext(r.Context())
 	result, err := rs.ArrivalScheduleService.BulkUpsertBySchoolClass(r.Context(), req.SchoolClass, req.Schedules, staffID)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
@@ -786,6 +814,18 @@ func (rs *Resource) bulkUpsertArrivalSchedules(w http.ResponseWriter, r *http.Re
 	}
 
 	rs.broadcastArrivalScheduleChanged(0)
+	// Wake each affected child's guardians so an open parents-app tab refetches
+	// the class-wide arrival change live; the tenant-wide arrival_schedule_changed
+	// above never reaches the parent SSE stream (#1725). Bounded to one class.
+	// Defer to the OUTER request tx's commit: BulkUpsertBySchoolClass runs inside
+	// the TenantTxMiddleware tx, which is still open here, so waking now would let
+	// a client refetch before the writes are visible (#1725 review).
+	affected := result.AffectedStudentIDs
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		for _, studentID := range affected {
+			rs.wakeChildGuardians(tenantID, studentID)
+		}
+	})
 	common.Respond(w, r, http.StatusOK, result, "Bulk arrival schedules upserted successfully")
 }
 

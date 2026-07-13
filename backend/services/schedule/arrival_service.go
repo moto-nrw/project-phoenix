@@ -95,6 +95,11 @@ type ArrivalScheduleInput struct {
 type BulkUpsertResult struct {
 	StudentsAffected    int                `json:"students_affected"`
 	OverwrittenStudents []OverwriteWarning `json:"overwritten_students,omitempty"`
+	// AffectedStudentIDs lists every student whose arrival schedule was written,
+	// so the handler can wake each child's guardians for a live parents-app
+	// refresh (#1725). Internal-only (json:"-") — not part of the staff response
+	// contract.
+	AffectedStudentIDs []int64 `json:"-"`
 }
 
 // OverwriteWarning warns that a student had an existing individual schedule that was overwritten
@@ -687,9 +692,15 @@ func (s *arrivalScheduleService) BulkUpsertBySchoolClass(ctx context.Context, sc
 		slog.Int("overwrites", len(warnings)),
 	)
 
+	affectedIDs := make([]int64, 0, len(students))
+	for _, student := range students {
+		affectedIDs = append(affectedIDs, student.ID)
+	}
+
 	return &BulkUpsertResult{
 		StudentsAffected:    len(students),
 		OverwrittenStudents: warnings,
+		AffectedStudentIDs:  affectedIDs,
 	}, nil
 }
 

@@ -174,6 +174,18 @@ export interface CareException {
   readonly arrival_time?: string;
   readonly source: string;
   readonly updated_at: string;
+  // True when a pickup-exception row exists for the day but carries no time —
+  // staff's "not coming today" absence marker (StudentPickupException.IsAbsent).
+  // Distinct from a missing pickup_time meaning "no pickup override this day":
+  // the tile resolves this to an absence, not the base-plan pickup. Absent (and
+  // thus undefined) for ordinary rows.
+  readonly pickup_absent?: boolean;
+  // The arrival-leg counterpart: an arrival-exception row with no expected time
+  // ("not coming today", StudentArrivalException.IsAbsent). Like pickup_absent it
+  // creates no status day, so today_absent misses it; either leg being absent
+  // resolves the tile to an absence rather than the base-plan pickup. Undefined
+  // for ordinary rows.
+  readonly arrival_absent?: boolean;
 }
 
 // A guardian linked to the child, with portal-access status.
@@ -883,6 +895,19 @@ export interface ChildCareSchedule {
   readonly weekdays: CareScheduleWeekday[];
   readonly pending_request?: PendingCareRequest;
   readonly can_request: boolean;
+  // True when the child has any active scheduled absence today (sick, excused,
+  // or class trip — any source). The parent-safe absence signal for the "Heute
+  // → Abholung" tile: the windowed sick-day list (listSickDays) hides
+  // staff-created excused/class-trip days, so the tile relies on this boolean to
+  // avoid showing a pickup time for a child the school has recorded as off.
+  readonly today_absent: boolean;
+  // The Berlin calendar day (YYYY-MM-DD) the backend resolved today_absent
+  // against — its "today" at request-handling time. The "Heute" tile binds its
+  // cached absence signal to THIS date rather than the browser's request-start
+  // day, so a response that crosses Berlin midnight can't stamp the new day's
+  // today_absent onto yesterday's pickup tile (#1725). Only the GET read view
+  // populates it; absent on the request-write responses.
+  readonly today_date?: string;
 }
 
 /**
