@@ -105,10 +105,38 @@ const NAV_ITEMS: NavItem[] = [
     requiresPermission: "calendar:own",
   },
   {
+    // Alt-Seite mit eigenem Datenmodell; "Übergaben" statt "Vertretungen",
+    // damit nur der neue Planungsbereich "Vertretung" heißt
+    // (docs/planung-redesign/docs/03, Synthese 1.2).
     href: "/substitutions",
-    label: "Vertretungen",
+    label: "Übergaben",
     icon: "M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15",
     activeColor: "text-pink-500",
+    requiresAdmin: true,
+  },
+  // Die drei Planungsbereiche (Planung-Redesign, docs/planung-redesign/
+  // docs/03 Abschnitt 2): flache Einträge statt des früheren
+  // Planung-Akkordeons, gerendert als eigene Gruppe zwischen
+  // Datenverwaltung und Anmeldungen (siehe planningItems unten).
+  {
+    href: "/betreuungsplan",
+    label: "Betreuungsplan",
+    icon: navigationIcons.betreuungsplan,
+    activeColor: "text-[#5080D8]",
+    requiresAdmin: true,
+  },
+  {
+    href: "/dienstplan",
+    label: "Dienstplan",
+    icon: navigationIcons.dienstplan,
+    activeColor: "text-[#5080D8]",
+    requiresAdmin: true,
+  },
+  {
+    href: "/vertretung",
+    label: "Vertretung",
+    icon: navigationIcons.vertretung,
+    activeColor: "text-[#5080D8]",
     requiresAdmin: true,
   },
   {
@@ -281,24 +309,14 @@ const NFC_ONLY_HREFS = new Set<string>([
   "/database/devices",
 ]);
 
-// Static sub-pages for the Planung accordion (admin only). Calendar
-// periods are the shared planning basis; Betreuungsplan and Dienstplan
-// hang off them. Keep in sync with PLANNING_PATH_PREFIXES in
-// use-sidebar-accordion.ts.
-const PLANNING_SUB_PAGES = [
-  { href: "/calendar-periods", label: "Kalenderzeiträume" },
-  // Betreuungsplan, Dienstplan und Vertretung sind Tabs EINER Seite (#1886);
-  // "Planungsübersicht" statt "Planung", weil das Accordion selbst schon so heißt.
-  { href: "/planung", label: "Planungsübersicht" },
-];
-
-function getActivePlanningSubPageHref(pathname: string): string | null {
-  return (
-    PLANNING_SUB_PAGES.filter(
-      (page) => pathname === page.href || pathname.startsWith(`${page.href}/`),
-    ).sort((a, b) => b.href.length - a.href.length)[0]?.href ?? null
-  );
-}
+// Hrefs der drei flachen Planungsbereich-Einträge. Aus middleItems
+// ausgenommen und als eigene Gruppe zwischen Datenverwaltung und
+// Anmeldungen gerendert (docs/planung-redesign/docs/03 Abschnitt 2).
+const PLANNING_ITEM_HREFS = new Set<string>([
+  "/betreuungsplan",
+  "/dienstplan",
+  "/vertretung",
+]);
 
 // Static sub-pages for Anmeldungen accordion (admin only).
 const ENROLLMENTS_SUB_PAGES = [
@@ -554,11 +572,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
     [nfcEnabled],
   );
 
-  // Alle Planung sub-pages sind sichtbar: /planung enthält auch den
-  // Dienstplan, der unabhängig vom timetable-Feature nutzbar ist (#1886);
-  // Betreuungsplan/Vertretung gaten sich innerhalb der Seite selbst.
-  const planningSubPages = PLANNING_SUB_PAGES;
-
   // Visible "Eltern" accordion sub-pages. Same per-item gating the flat
   // NAV_ITEMS carried before consolidation: overview + Nachrichten for all
   // staff, the rest per permission / feature flag.
@@ -680,6 +693,29 @@ function SidebarContent({ className = "" }: SidebarProps) {
       return (
         pathname.startsWith("/staff") &&
         !pathname.startsWith("/staff/dienstplan")
+      );
+    }
+    // /calendar-periods gehört zum Betreuungsplan, nicht zum Kalender —
+    // ohne Exakt-Match würde der /calendar-Eintrag per Präfix mitleuchten.
+    if (href === "/calendar") {
+      return pathname === "/calendar" || pathname.startsWith("/calendar/");
+    }
+    // Die Zeitraum-Verwaltung ist Unterfunktion des Betreuungsplans; der
+    // /timetables-Redirect-Frame leuchtet ebenfalls dort
+    // (docs/planung-redesign/docs/03 Abschnitt 2).
+    if (href === "/betreuungsplan") {
+      return (
+        pathname.startsWith("/betreuungsplan") ||
+        pathname.startsWith("/calendar-periods") ||
+        pathname.startsWith("/timetables")
+      );
+    }
+    // /staff/dienstplan ist der Redirect-Frame des Dienstplans; /vertretung
+    // deckt /vertretungsplan bereits per Präfix ab.
+    if (href === "/dienstplan") {
+      return (
+        pathname.startsWith("/dienstplan") ||
+        pathname.startsWith("/staff/dienstplan")
       );
     }
     if (href.startsWith("/parents/")) {
@@ -813,7 +849,14 @@ function SidebarContent({ className = "" }: SidebarProps) {
       !item.comingSoon &&
       item.href !== "/dashboard" &&
       item.href !== "/students/search" &&
-      item.href !== "/substitutions",
+      item.href !== "/substitutions" &&
+      !PLANNING_ITEM_HREFS.has(item.href),
+  );
+
+  // Betreuungsplan / Dienstplan / Vertretung (admin only, flat) — eigene
+  // Gruppe zwischen Datenverwaltung- und Anmeldungen-Akkordeon.
+  const planningItems = mainNavItems.filter((item) =>
+    PLANNING_ITEM_HREFS.has(item.href),
   );
 
   // Vertretungen (admin only, flat)
@@ -941,23 +984,6 @@ function SidebarContent({ className = "" }: SidebarProps) {
       toggle("enrollments");
     } else {
       router.push("/admin/enrollments");
-    }
-  }, [toggle, pathname, router]);
-
-  const activePlanningSubPageHref = getActivePlanningSubPageHref(pathname);
-  const isOnPlanningPage = activePlanningSubPageHref !== null;
-
-  const handlePlanningToggle = useCallback(() => {
-    // Hub = the calendar-periods page. Mirrors the other accordions'
-    // navigate-on-expand behavior so the section label lands on a real page.
-    const onSection = getActivePlanningSubPageHref(pathname) !== null;
-    if (!onSection) {
-      toggle("planning");
-      router.push("/calendar-periods");
-    } else if (pathname === "/calendar-periods") {
-      toggle("planning");
-    } else {
-      router.push("/calendar-periods");
     }
   }, [toggle, pathname, router]);
 
@@ -1407,29 +1433,10 @@ function SidebarContent({ className = "" }: SidebarProps) {
             </SidebarAccordionSection>
           )}
 
-          {/* Planung accordion (admin only). Bundles calendar periods,
-              Betreuungsplan and Dienstplan behind the shared planning basis. */}
-          {userIsAdmin && (
-            <SidebarAccordionSection
-              icon="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-              label="Planung"
-              activeColor="text-[#5080D8]"
-              isExpanded={expanded === "planning"}
-              onToggle={handlePlanningToggle}
-              isActive={isOnPlanningPage}
-              isIconActive={isOnPlanningPage}
-              hasChildren={planningSubPages.length > 0}
-            >
-              {planningSubPages.map((page) => (
-                <SidebarSubItem
-                  key={page.href}
-                  href={tenantPath(page.href)}
-                  label={page.label}
-                  isActive={activePlanningSubPageHref === page.href}
-                />
-              ))}
-            </SidebarAccordionSection>
-          )}
+          {/* Betreuungsplan / Dienstplan / Vertretung (admin, flat) —
+              die drei Planungsbereiche als eigene Gruppe
+              (docs/planung-redesign/docs/03 Abschnitt 2). */}
+          {planningItems.map(renderNavItem)}
 
           {/* Anmeldungen accordion (admin only). Bundles the setup hub,
               enrollment periods, offers and enrollment forms for admins. */}

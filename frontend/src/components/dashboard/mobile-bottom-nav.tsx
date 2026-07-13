@@ -284,16 +284,34 @@ const additionalNavItems: AdditionalNavItem[] = [
   },
   { href: "/rooms", label: "Räume", iconKey: "rooms", alwaysShow: true },
   {
+    // "Übergaben" statt "Vertretungen", damit nur der neue Planungsbereich
+    // "Vertretung" heißt (docs/planung-redesign/docs/03).
     href: "/substitutions",
-    label: "Vertretungen",
+    label: "Übergaben",
     iconKey: "substitutions",
     requiresAdmin: true,
   },
+  // Die drei Planungsbereiche als flache Einträge im "Mehr"-Drawer
+  // (Planung-Redesign, docs/planung-redesign/docs/03 Abschnitt 6).
   {
-    // Betreuungsplan + Dienstplan + Vertretung als EINE Seite (#1886).
-    href: "/planung",
-    label: "Planung",
-    iconKey: "calendar",
+    href: "/betreuungsplan",
+    label: "Betreuungsplan",
+    iconKey: "betreuungsplan",
+    requiresAdmin: true,
+    activePaths: ["/betreuungsplan", "/calendar-periods", "/timetables"],
+  },
+  {
+    href: "/dienstplan",
+    label: "Dienstplan",
+    iconKey: "dienstplan",
+    requiresAdmin: true,
+    activePaths: ["/dienstplan", "/staff/dienstplan"],
+  },
+  {
+    // /vertretungsplan matcht bereits per Präfix, kein activePaths nötig.
+    href: "/vertretung",
+    label: "Vertretung",
+    iconKey: "vertretung",
     requiresAdmin: true,
   },
   {
@@ -463,6 +481,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
           pathname.startsWith("/staff") &&
           !pathname.startsWith("/staff/dienstplan")
         );
+      }
+      // /calendar-periods gehört zum Betreuungsplan (activePaths), nicht zum
+      // Kalender — ohne Exakt-Match leuchtet /calendar per Präfix mit.
+      if (href === "/calendar") {
+        return pathname === "/calendar" || pathname.startsWith("/calendar/");
       }
       return pathname.startsWith(href);
     },

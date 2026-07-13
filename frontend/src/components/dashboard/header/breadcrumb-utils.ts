@@ -116,11 +116,17 @@ function getMainRouteTitle(pathname: string): string {
     "/rooms": "Räume",
     "/activities": "Aktivitäten",
     "/reminders": "Erinnerungen",
-    "/substitutions": "Vertretungen",
+    "/substitutions": "Übergaben",
     "/calendar-periods": "Kalenderzeiträume",
+    // Die drei Planungsbereiche (Planung-Redesign, docs/planung-redesign/
+    // docs/03 Abschnitt 5); die Redirect-Frames behalten Einträge, damit
+    // während des Client-Redirects kein falscher Titel aufblitzt.
+    "/betreuungsplan": "Betreuungsplan",
+    "/dienstplan": "Dienstplan",
+    "/vertretung": "Vertretung",
     "/planung": "Planung",
     "/timetables": "Betreuungsplan",
-    "/vertretungsplan": "Vertretungsplan",
+    "/vertretungsplan": "Vertretung",
     "/database": "Datenverwaltung",
     "/eltern": "Eltern",
     "/emergency": "Notfall",

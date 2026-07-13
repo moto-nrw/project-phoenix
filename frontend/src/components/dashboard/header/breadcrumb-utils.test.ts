@@ -113,8 +113,21 @@ describe("breadcrumb-utils", () => {
         expect(getPageTitle("/activities")).toBe("Aktivitäten");
       });
 
-      it("should return 'Vertretungen' for /substitutions", () => {
-        expect(getPageTitle("/substitutions")).toBe("Vertretungen");
+      it("should return 'Übergaben' for /substitutions", () => {
+        expect(getPageTitle("/substitutions")).toBe("Übergaben");
+      });
+
+      it("titles the three planning areas and their redirect frames", () => {
+        // Planung-Redesign (docs/planung-redesign/docs/03 Abschnitt 5): die
+        // Bereiche sind flache Hauptrouten; die Redirect-Frames behalten
+        // Titel, damit während des Client-Redirects nichts Falsches aufblitzt.
+        expect(getPageTitle("/betreuungsplan")).toBe("Betreuungsplan");
+        expect(getPageTitle("/dienstplan")).toBe("Dienstplan");
+        expect(getPageTitle("/vertretung")).toBe("Vertretung");
+        expect(getPageTitle("/planung")).toBe("Planung");
+        expect(getPageTitle("/timetables")).toBe("Betreuungsplan");
+        expect(getPageTitle("/vertretungsplan")).toBe("Vertretung");
+        expect(getPageTitle("/staff/dienstplan")).toBe("Dienstplan");
       });
 
       it("should return 'Kalenderzeiträume' for /calendar-periods", () => {

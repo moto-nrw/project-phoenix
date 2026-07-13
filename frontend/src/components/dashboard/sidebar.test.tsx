@@ -185,8 +185,17 @@ describe("Sidebar", () => {
 
       // Admin-only items
       expect(screen.getByText("Home")).toBeInTheDocument();
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+      expect(screen.getByText("Übergaben")).toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
+      // Die drei Planungsbereiche sind flache Einträge; das frühere
+      // Planung-Akkordeon existiert nicht mehr (Planung-Redesign,
+      // docs/planung-redesign/docs/03).
+      expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
+      expect(screen.getByText("Dienstplan")).toBeInTheDocument();
+      expect(screen.getByText("Vertretung")).toBeInTheDocument();
+      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Planungsübersicht")).not.toBeInTheDocument();
+      expect(screen.queryByText("Kalenderzeiträume")).not.toBeInTheDocument();
     });
 
     it("hides staff-only items for admins (hideForAdmin)", () => {
@@ -231,8 +240,11 @@ describe("Sidebar", () => {
       render(<Sidebar />);
 
       // Admin-only items should NOT be visible
-      expect(screen.queryByText("Vertretungen")).not.toBeInTheDocument();
+      expect(screen.queryByText("Übergaben")).not.toBeInTheDocument();
       expect(screen.queryByText("Datenverwaltung")).not.toBeInTheDocument();
+      expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
+      expect(screen.queryByText("Dienstplan")).not.toBeInTheDocument();
+      expect(screen.queryByText("Vertretung")).not.toBeInTheDocument();
     });
 
     it("shows student search when staff has groups", () => {
@@ -310,19 +322,37 @@ describe("Sidebar", () => {
       expect(activitiesLink).toHaveClass("bg-gray-100");
     });
 
-    it("highlights Planung without also highlighting Mitarbeiter", () => {
-      // Dienstplan ist ein Tab von /planung (#1886); /staff/dienstplan ist
-      // nur noch ein Redirect und darf die Mitarbeiter-Sektion nicht färben.
-      mockUsePathname.mockReturnValue("/planung");
+    it("highlights Dienstplan without also highlighting Mitarbeiter", () => {
+      // /staff/dienstplan ist nur noch der Redirect-Frame des Dienstplans
+      // (Planung-Redesign) und darf die Mitarbeiter-Sektion nicht färben.
+      mockUsePathname.mockReturnValue("/staff/dienstplan");
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
 
       render(<Sidebar />);
 
-      const planungLink = screen.getByText("Planungsübersicht").closest("a");
+      const dienstplanLink = screen.getByText("Dienstplan").closest("a");
       const staffLink = screen.getByText("Mitarbeiter").closest("a");
-      expect(planungLink).toHaveClass("bg-gray-100");
+      expect(dienstplanLink).toHaveClass("bg-gray-100");
       expect(staffLink).not.toHaveClass("bg-gray-100");
+    });
+
+    it("highlights Betreuungsplan on /calendar-periods", () => {
+      // Die Zeitraum-Verwaltung ist Unterfunktion des Betreuungsplans und
+      // hat keinen eigenen Sidebar-Eintrag mehr.
+      mockUsePathname.mockReturnValue("/calendar-periods");
+      mockIsAdmin.mockReturnValue(true);
+      mockUseSession.mockReturnValue(createMockSession(true));
+
+      render(<Sidebar />);
+
+      const betreuungsplanLink = screen
+        .getByText("Betreuungsplan")
+        .closest("a");
+      const kalenderLink = screen.getByText("Kalender").closest("a");
+      expect(betreuungsplanLink).toHaveClass("bg-gray-100");
+      // /calendar darf nicht per Präfix auf /calendar-periods mitleuchten.
+      expect(kalenderLink).not.toHaveClass("bg-gray-100");
     });
 
     it("does not highlight dashboard for non-dashboard paths", () => {

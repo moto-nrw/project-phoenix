@@ -64,4 +64,13 @@ export const navigationIcons = {
   // three-person `group` icon used for Meine Gruppen / Gruppen)
   parents:
     "M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z",
+  // Planungsbereiche (Planung-Redesign, docs/planung-redesign/docs/03).
+  // Path data from lucide calendar-days / clipboard-list / arrow-left-right;
+  // rects converted to path commands, relative moveto made absolute so the
+  // multi-part d-string renders correctly (same pattern as `emergency`).
+  betreuungsplan:
+    "M8 2v4 M16 2v4 M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z M3 10h18 M8 14h.01 M12 14h.01 M16 14h.01 M8 18h.01 M12 18h.01 M16 18h.01",
+  dienstplan:
+    "M9 2h6a1 1 0 0 1 1 1v2a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2 M12 11h4 M12 16h4 M8 11h.01 M8 16h.01",
+  vertretung: "M8 3 4 7l4 4 M4 7h16 M16 21l4-4-4-4 M20 17H4",
 } as const;
