@@ -25,32 +25,6 @@ func NewStaffShiftSeriesRepository(db *bun.DB) schedule.StaffShiftSeriesReposito
 	return &StaffShiftSeriesRepository{Repository: repo, db: db}
 }
 
-func normalizeSeriesWallClock(series []*schedule.StaffShiftSeries) {
-	for _, s := range series {
-		s.StartTime = timezone.WallClock(s.StartTime)
-		s.EndTime = timezone.WallClock(s.EndTime)
-	}
-}
-
-// FindByStaffID returns all series segments of one staff member, ordered by
-// valid_from.
-func (r *StaffShiftSeriesRepository) FindByStaffID(ctx context.Context, staffID int64) ([]*schedule.StaffShiftSeries, error) {
-	var series []*schedule.StaffShiftSeries
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&series).
-		ModelTableExpr(tableExprStaffShiftSeriesAsSeries).
-		Where(`"staff_shift_series".staff_id = ?`, staffID).
-		OrderExpr(`"staff_shift_series".valid_from ASC`)
-
-	query = base.WithTenantFilter(ctx, query, "staff_shift_series")
-
-	if err := query.Scan(ctx); err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find staff shift series by staff", Err: err}
-	}
-	normalizeSeriesWallClock(series)
-	return series, nil
-}
-
 // CapValidUntil bounds a series segment at the exclusive date (split / end /
 // offboarding). Already tighter bounds are kept.
 func (r *StaffShiftSeriesRepository) CapValidUntil(ctx context.Context, id int64, until timezone.Date) error {

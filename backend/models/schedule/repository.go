@@ -91,10 +91,6 @@ type StaffShiftSeriesRepository interface {
 	Update(ctx context.Context, series *StaffShiftSeries) error
 	Delete(ctx context.Context, id any) error
 
-	// FindByStaffID returns all series segments of one staff member, ordered
-	// by valid_from.
-	FindByStaffID(ctx context.Context, staffID int64) ([]*StaffShiftSeries, error)
-
 	// CapValidUntil bounds a series segment at the exclusive date (split /
 	// end / offboarding).
 	CapValidUntil(ctx context.Context, id int64, until timezone.Date) error
