@@ -162,6 +162,18 @@ export function ShiftTypeManageModal({
         await shiftTypeService.createShiftType(payload);
       }
       onChanged();
+      // The save rewrote category.shift_type_id server-side. Refresh the local
+      // categories so a subsequent edit in the same open modal preselects from
+      // fresh mappings — otherwise a follow-up save could send a stale/empty
+      // category_ids set and clear links that were just written (#1837).
+      try {
+        setCategories(await getCategories());
+      } catch (reloadErr: unknown) {
+        logger.error("shift_type_categories_reload_failed", {
+          error:
+            reloadErr instanceof Error ? reloadErr.message : String(reloadErr),
+        });
+      }
       setView("list");
     } catch (err: unknown) {
       logger.error("shift_type_save_failed", {

@@ -86,6 +86,12 @@ func (req *splitTemplateRequest) Bind(r *http.Request) error {
 	if req.EffectiveDate == "" {
 		return errors.New("effective_date is required (YYYY-MM-DD)")
 	}
+	// req.Notes (nullableStr) shadows the embedded updateTemplateRequest.Notes,
+	// so the create/update length guard in the embedded Bind never sees the
+	// split note. Enforce the same 2000-char limit here (#1837 follow-up).
+	if req.Notes.Set && req.Notes.Value != nil && len(*req.Notes.Value) > 2000 {
+		return errors.New("notes cannot exceed 2000 characters")
+	}
 	return nil
 }
 
