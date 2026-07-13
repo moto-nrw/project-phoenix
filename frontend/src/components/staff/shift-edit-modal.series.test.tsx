@@ -41,6 +41,16 @@ vi.mock("~/lib/calendar-period-api", () => ({
   },
 }));
 
+// The kit DatePicker opens a react-day-picker calendar overlay; drive its
+// onChange directly instead (same pattern as planned-status-days-modal.test).
+vi.mock("~/components/ui/date-picker", () => ({
+  DatePicker: ({ onChange }: { onChange: (date: Date | null) => void }) => (
+    <button type="button" onClick={() => onChange(new Date(2026, 11, 31))}>
+      DatePicker Auswahl
+    </button>
+  ),
+}));
+
 const halbjahr: CalendarPeriod = {
   id: "5",
   name: "1. Halbjahr 2026/27",
@@ -49,6 +59,17 @@ const halbjahr: CalendarPeriod = {
   endDate: "2027-01-31",
   weekCycleLength: 2,
   weekCycleAnchor: "2026-08-03",
+  isActive: true,
+} as CalendarPeriod;
+
+const ganzjahrOhneZyklus: CalendarPeriod = {
+  id: "6",
+  name: "Ganzjahr ohne Zyklus",
+  periodType: "school_year",
+  startDate: "2026-08-01",
+  endDate: "2027-07-31",
+  weekCycleLength: 1,
+  weekCycleAnchor: null,
   isActive: true,
 } as CalendarPeriod;
 
@@ -138,6 +159,34 @@ describe("ShiftEditModal series creation", () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it("drops a stale A/B pattern when switching to a period without a week cycle", async () => {
+    createSeries.mockResolvedValue({
+      seriesId: "5",
+      created: 20,
+      skippedDates: [],
+    });
+    listPeriods.mockResolvedValue([halbjahr, ganzjahrOhneZyklus]);
+    renderModal({});
+
+    fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
+    await screen.findByText("1. Halbjahr 2026/27");
+    // Enable A/B on the cycle period, then switch to a period without a
+    // cycle: the hidden biweekly flag must not leak into the payload.
+    fireEvent.click(screen.getByRole("button", { name: "Alle 2 Wochen" }));
+    fireEvent.click(screen.getByLabelText("Kalenderzeitraum"));
+    fireEvent.click(
+      screen.getByRole("option", { name: "Ganzjahr ohne Zyklus" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Serie anlegen" }));
+
+    await waitFor(() => {
+      expect(createSeries).toHaveBeenCalledWith(
+        expect.objectContaining({ calendarPeriodId: "6", weekPattern: 0 }),
+      );
+    });
+  });
+
   it("sends the inclusive 'Gültig bis' date as the exclusive valid_until", async () => {
     createSeries.mockResolvedValue({
       seriesId: "5",
@@ -149,10 +198,9 @@ describe("ShiftEditModal series creation", () => {
     fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
     await screen.findByText("1. Halbjahr 2026/27");
     // The user picks the LAST day that should still have a shift (year
-    // boundary on purpose); the API's valid_until is exclusive → +1 day.
-    fireEvent.change(screen.getByLabelText("Gültig bis (optional)"), {
-      target: { value: "2026-12-31" },
-    });
+    // boundary on purpose; the DatePicker mock selects 2026-12-31); the
+    // API's valid_until is exclusive → +1 day.
+    fireEvent.click(screen.getByRole("button", { name: "DatePicker Auswahl" }));
     fireEvent.click(screen.getByRole("button", { name: "Serie anlegen" }));
 
     await waitFor(() => {

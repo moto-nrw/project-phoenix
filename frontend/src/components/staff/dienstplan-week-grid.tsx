@@ -293,7 +293,7 @@ export function DienstplanWeekGrid({
                                       }
                                       className={`h-3 w-3 shrink-0 ${
                                         shift.detached
-                                          ? "text-amber-500"
+                                          ? "text-[#EAB308]"
                                           : "text-gray-400"
                                       }`}
                                     />

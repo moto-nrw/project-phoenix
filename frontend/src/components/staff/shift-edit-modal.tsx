@@ -7,6 +7,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { DatePicker } from "~/components/ui/date-picker";
 import { Modal } from "~/components/ui/modal";
 import { getApiErrorMessage } from "~/lib/api-error-message";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
@@ -301,7 +302,9 @@ export function ShiftEditModal({
         breakMinutes: breakMinutes ?? 0,
         shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
         calendarPeriodId: periodId,
-        weekPattern: biweekly ? abPattern : 0,
+        // Guard against stale biweekly state: switching to a period without
+        // a week cycle hides the A/B control but does not reset the flag.
+        weekPattern: biweekly && periodHasCycle ? abPattern : 0,
         validFrom: date,
         // The picker is inclusive ("Gültig bis" = last day WITH a shift);
         // the API's valid_until is exclusive — send the day after.
@@ -691,14 +694,21 @@ export function ShiftEditModal({
                           className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-500"
                         />
                       </Field>
-                      <Field label="Gültig bis (optional)">
-                        <input
-                          type="date"
-                          value={validUntil}
-                          onChange={(e) => setValidUntil(e.target.value)}
-                          className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                      {/* FieldGroup, not Field: the DatePicker trigger and
+                          calendar are buttons — inside Field's <label> a
+                          click would re-dispatch onto the first labelable
+                          child (see FieldGroup comment below). */}
+                      <FieldGroup label="Gültig bis (optional)">
+                        <DatePicker
+                          value={
+                            validUntil === "" ? null : parseISODate(validUntil)
+                          }
+                          onChange={(picked) =>
+                            setValidUntil(picked ? toISODate(picked) : "")
+                          }
+                          placeholder="Datum auswählen"
                         />
-                      </Field>
+                      </FieldGroup>
                     </div>
                     <p className="text-xs text-gray-500">
                       Ohne Enddatum läuft die Serie bis zum Ende des

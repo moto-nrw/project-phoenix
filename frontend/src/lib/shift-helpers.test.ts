@@ -60,6 +60,21 @@ describe("mapStaffShift", () => {
     expect(untyped.shiftTypeId).toBeNull();
   });
 
+  it("maps a series-backed shift to a string series id and keeps detached", () => {
+    const mapped = mapStaffShift({
+      id: 44,
+      staff_id: 7,
+      date: "2026-07-06",
+      start_time: "08:00",
+      end_time: "16:00",
+      break_minutes: 0,
+      series_id: 12,
+      detached: true,
+    });
+    expect(mapped.seriesId).toBe("12");
+    expect(mapped.detached).toBe(true);
+  });
+
   it("truncates HH:MM:SS times and defaults missing notes", () => {
     const backend: BackendStaffShift = {
       id: 1,
