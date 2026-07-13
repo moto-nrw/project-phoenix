@@ -492,3 +492,6 @@ node_modules/
 
 # Downloaded CI run logs dumped under docs/ for local debugging (never commit)
 docs/logs_*/
+
+# Local QA/review screenshots (kept on disk, never tracked)
+tmp-screens-1841/
