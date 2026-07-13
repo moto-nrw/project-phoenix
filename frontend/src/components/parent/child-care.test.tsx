@@ -461,6 +461,25 @@ describe("resolveTodayPickup", () => {
       }),
     ).toEqual({ kind: "time", time: "15:00", changed: false });
   });
+
+  it("never marks an override changed against a stale plan while weekPlanLoaded is false", () => {
+    // A failed or midnight-stale care-schedule refetch keeps the PREVIOUS
+    // weekdays array live (setWeekdays only runs on success) while
+    // weekPlanLoaded flips false. The override must still render, but comparing
+    // it against that stale base plan must NOT flag "changed" — we can't verify a
+    // difference we don't trust (#1725 review). `weekdays: []` doesn't exercise
+    // this; the base entry has to be present-but-untrusted.
+    expect(
+      resolveTodayPickup({
+        weekdays: [{ weekday: TODAY_WD, pickup: "16:00", modes: [] }],
+        weekPlanLoaded: false,
+        todayAbsent: false,
+        careExceptions: [makeException({ pickup_time: "15:00" })],
+        careExceptionsLoaded: true,
+        today: TODAY,
+      }),
+    ).toEqual({ kind: "time", time: "15:00", changed: false });
+  });
 });
 
 describe("useChildCare reportSick", () => {

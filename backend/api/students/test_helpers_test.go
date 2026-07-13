@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -34,6 +35,19 @@ func setupTestContext(t *testing.T) *testContext {
 	db, svc := testutil.SetupAPITest(t)
 	repoFactory := repositories.NewFactory(db)
 	broadcaster := testpkg.NewRecordingBroadcaster()
+
+	// Real emitter wired to the recording broadcaster so the staff-side guardian
+	// wake (parent_child_updated fan-out after a care write, #1725) is exercised
+	// and assertable via broadcaster.CallsByMethod("guardian"). Message-independent:
+	// it reads the guardian list and broadcasts regardless of the messaging setting.
+	parentEventEmitter := parentmessaging.NewEmitter(
+		db,
+		repoFactory.ParentMessageThread,
+		repoFactory.ParentMessage,
+		svc.Settings,
+		broadcaster,
+		slog.Default(),
+	)
 
 	studentPhotos := userService.NewStudentPhotoService(userService.StudentPhotoServiceDependencies{
 		StudentRepo: repoFactory.Student,
@@ -62,6 +76,7 @@ func setupTestContext(t *testing.T) *testContext {
 		StudentStatusDayService: activeSvc.NewStudentStatusDayService(repoFactory.StudentStatusDay),
 		ExcusedRequestService:   svc.ExcusedRequests,
 		Broadcaster:             broadcaster,
+		ParentEventEmitter:      parentEventEmitter,
 		StudentPhotos:           studentPhotos,
 		Logger:                  slog.Default(),
 		DB:                      db,

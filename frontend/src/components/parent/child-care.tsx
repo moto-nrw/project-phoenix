@@ -226,12 +226,17 @@ export function resolveTodayPickup(params: {
   if (override?.pickup_absent || override?.arrival_absent)
     return { kind: "absent" };
   if (override?.pickup_time) {
-    // "changed" only when we can see a base plan to differ FROM and the times
+    // "changed" only when a LOADED base plan exists to differ FROM and the times
     // actually differ; an override equal to the plan is no real change, and a
     // missing base plan means we can't claim a difference at all (#1725 review).
-    const base = weekdays.find(
-      (entry) => entry.weekday === isoWeekday(today),
-    )?.pickup;
+    // Gate on weekPlanLoaded, not merely `base !== undefined`: a failed or
+    // midnight-stale care-schedule fetch keeps the PREVIOUS weekdays array live
+    // (setWeekdays only runs on success), so comparing an override against that
+    // stale plan could wrongly flag "changed". When the plan isn't loaded we
+    // treat the base as unknown and never mark a difference (#1725 review).
+    const base = weekPlanLoaded
+      ? weekdays.find((entry) => entry.weekday === isoWeekday(today))?.pickup
+      : undefined;
     const changed = base !== undefined && base !== override.pickup_time;
     return { kind: "time", time: override.pickup_time, changed };
   }

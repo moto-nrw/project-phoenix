@@ -417,6 +417,11 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Wake the child's guardians: the weekly base plan feeds the "Heute" pickup
+	// tile's base time, so a changed schedule must refetch on an open parents-app
+	// tab live (#1725).
+	rs.wakeChildGuardians(tenantID, student.ID)
+
 	// Fetch updated data
 	data, err := rs.PickupScheduleService.GetStudentPickupData(r.Context(), student.ID)
 	if err != nil {
@@ -523,6 +528,12 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Wake the child's guardians so an open parents-app tab reflects the new
+	// pickup override on the "Heute" tile live. The transaction has committed
+	// (WithTenantTx returned nil), so a woken client's refetch reads the new row
+	// (#1725).
+	rs.wakeChildGuardians(tenantID, student.ID)
+
 	common.Respond(w, r, http.StatusCreated, mapExceptionToResponse(exception), "Pickup exception created successfully")
 }
 
@@ -620,6 +631,10 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Wake the child's guardians so the "Heute" pickup tile reflects the edited
+	// override live (#1725).
+	rs.wakeChildGuardians(tenantID, student.ID)
+
 	common.Respond(w, r, http.StatusOK, mapExceptionToResponse(exception), "Pickup exception updated successfully")
 }
 
@@ -660,6 +675,10 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 		renderExceptionWriteError(w, r, err)
 		return
 	}
+
+	// Wake the child's guardians so the "Heute" pickup tile drops the removed
+	// override live (#1725).
+	rs.wakeChildGuardians(tenantID, student.ID)
 
 	common.Respond(w, r, http.StatusOK, nil, "Pickup exception deleted successfully")
 }

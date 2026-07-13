@@ -158,6 +158,12 @@ type Factory struct {
 	// Messaging (staff-side parent-OGS inbox / threads)
 	Messaging *messaging.Service
 
+	// ParentEventEmitter is the chat-pill + guardian-wake emitter (#1803/#1845).
+	// Exposed so the API layer can wake a child's guardians (its message-
+	// independent parent_child_updated SSE fan-out) after staff-side care writes,
+	// so an open parents-app tab refetches the child's care state live (#1725).
+	ParentEventEmitter *parentmessaging.Emitter
+
 	// Calendar (staff and parent personal calendars)
 	Calendar calendarService.Service
 
@@ -1486,6 +1492,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Messaging:          messagingService,
 		Calendar:           calendarSvc,
 		ParentAnnouncement: parentAnnouncementService,
+		ParentEventEmitter: pillEmitter,
 	}
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()

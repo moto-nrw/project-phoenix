@@ -405,6 +405,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		EnrollmentDecision:      api.Services.EnrollmentDecision,
 		EnrollmentFormSchema:    api.Services.EnrollmentFormSchema,
 		Broadcaster:             api.Services.RealtimeHub,
+		ParentEventEmitter:      api.Services.ParentEventEmitter,
 		StudentPhotos:           api.Services.StudentPhotos,
 		ListExportService:       api.Services.ListExport,
 		Logger:                  logger.With("handler", "students"),
