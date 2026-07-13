@@ -14,7 +14,7 @@
  * their substitute.
  */
 
-import { Plus, RotateCcw, UserMinus } from "lucide-react";
+import { History, Plus, RotateCcw, UserMinus } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
@@ -82,6 +82,8 @@ interface SubstitutionSlideOverProps {
    * surfaces the error as a toast and returns false.
    */
   onApply: (input: ApplyDeviationsInput) => Promise<boolean>;
+  /** Öffnet den Verlauf (Änderungsprotokoll, #1886) für diesen Block. */
+  onShowHistory?: () => void;
 }
 
 // Per-planned-person edit state.
@@ -108,6 +110,7 @@ export function SubstitutionSlideOver({
   canManage,
   onClose,
   onApply,
+  onShowHistory,
 }: SubstitutionSlideOverProps) {
   // A materialized past occurrence can still carry status "planned"/"active",
   // but the backend rejects every deviation on a block whose date is before
@@ -389,7 +392,21 @@ export function SubstitutionSlideOver({
                   {instance.roomName || `Raum #${instance.roomId}`}
                 </SlideOverDescription>
               </div>
-              <SlideOverCloseButton />
+              <div className="flex shrink-0 items-center gap-1">
+                {onShowHistory ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="compact"
+                    onClick={onShowHistory}
+                    aria-label="Verlauf anzeigen"
+                  >
+                    <History className="h-4 w-4" aria-hidden />
+                    Verlauf
+                  </Button>
+                ) : null}
+                <SlideOverCloseButton />
+              </div>
             </div>
           </SlideOverHeader>
 

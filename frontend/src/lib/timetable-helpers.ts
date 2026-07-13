@@ -20,6 +20,7 @@ import type {
   BackendEnrichedInstance,
   BackendGapInstance,
   BackendGapsResponse,
+  BackendDeviationHistoryResponse,
   BackendAcknowledgeUnderstaffedResponse,
   BackendApplyDeviationsResponse,
   BackendInstanceStatusResult,
@@ -38,6 +39,8 @@ import type {
   ExceptionConflictsResponse,
   GapInstance,
   GapsResponse,
+  DeviationHistoryEvent,
+  DeviationHistoryResponse,
   AcknowledgeUnderstaffedResponse,
   ApplyDeviationsResponse,
   InstanceStaffSummary,
@@ -477,6 +480,49 @@ function mapGapInstance(gap: BackendGapInstance): GapInstance {
     plannedStaffCount: gap.planned_staff_count,
     understaffedNote: gap.understaffed_note ?? undefined,
   };
+}
+
+/** Deutsche Labels für die Ereignistypen des Änderungsprotokolls (#1886). */
+export const DEVIATION_EVENT_LABELS: Record<string, string> = {
+  absence: "Abwesenheit eingetragen",
+  return_to_presence: "Rückkehr eingetragen",
+  substitution: "Vertretung zugewiesen",
+  substitute_removed: "Vertretung entfernt",
+  cancellation: "Block abgesagt",
+  understaffed_ack: "Lücke bewusst offen gelassen",
+  understaffed_unack: "Lücke wieder als offen markiert",
+  deviation_dropped_by_replan: "Abweichung durch Neuplanung entfernt",
+  deviation_dropped_by_edit: "Abweichung durch Bearbeitung entfernt",
+};
+
+export function deviationEventLabel(eventType: string): string {
+  return DEVIATION_EVENT_LABELS[eventType] ?? eventType;
+}
+
+export function mapDeviationHistory(
+  raw: BackendDeviationHistoryResponse,
+): DeviationHistoryResponse {
+  const events: DeviationHistoryEvent[] = (raw.events ?? []).map((ev) => ({
+    id: String(ev.id),
+    activityGroupId:
+      ev.activity_group_id != null ? String(ev.activity_group_id) : undefined,
+    occurrenceDate: ev.occurrence_date,
+    startTime: ev.start_time,
+    instanceId: ev.instance_id != null ? String(ev.instance_id) : undefined,
+    eventType: ev.event_type,
+    subjectStaffId:
+      ev.subject_staff_id != null ? String(ev.subject_staff_id) : undefined,
+    subjectStaffName: ev.subject_staff_name ?? undefined,
+    relatedStaffId:
+      ev.related_staff_id != null ? String(ev.related_staff_id) : undefined,
+    relatedStaffName: ev.related_staff_name ?? undefined,
+    actorAccountId:
+      ev.actor_account_id != null ? String(ev.actor_account_id) : undefined,
+    actorName: ev.actor_name ?? undefined,
+    reason: ev.reason ?? undefined,
+    occurredAt: ev.occurred_at,
+  }));
+  return { events };
 }
 
 export function mapGaps(raw: BackendGapsResponse): GapsResponse {

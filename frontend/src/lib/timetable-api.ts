@@ -20,6 +20,7 @@ import type {
   BackendExceptionConflictsResponse,
   BackendEnrichedInstance,
   BackendGapsResponse,
+  BackendDeviationHistoryResponse,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
@@ -43,6 +44,7 @@ import type {
   EnrichedInstance,
   ExceptionConflictsResponse,
   GapsResponse,
+  DeviationHistoryResponse,
   InstanceStatusResult,
   MaterializeResult,
   ReplanWeekResult,
@@ -68,6 +70,7 @@ import {
   mapAttendance,
   mapExceptionConflicts,
   mapGaps,
+  mapDeviationHistory,
   mapAcknowledgeUnderstaffed,
   mapApplyDeviations,
   mapInstance,
@@ -560,6 +563,30 @@ class TimetableService {
 
     const raw = await unwrap<BackendGapsResponse>(response);
     return mapGaps(raw);
+  }
+
+  /** Änderungsprotokoll (#1886): Abweichungs-Verlauf im Datumsfenster,
+   * optional auf einen Slot (Serie + Startzeit) eingegrenzt. */
+  async getDeviationHistory(
+    from: string,
+    to: string,
+    activityGroupId?: string,
+    startTime?: string,
+  ): Promise<DeviationHistoryResponse> {
+    const params = new URLSearchParams({ date: from, date_to: to });
+    if (activityGroupId) params.set("activity_group_id", activityGroupId);
+    if (startTime) params.set("start_time", startTime);
+    const response = await fetch(
+      `/api/timetable/deviations/history?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+
+    const raw = await unwrap<BackendDeviationHistoryResponse>(response);
+    return mapDeviationHistory(raw);
   }
 
   async getExceptionConflicts(

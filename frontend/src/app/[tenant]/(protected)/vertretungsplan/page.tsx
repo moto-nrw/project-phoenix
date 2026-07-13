@@ -26,6 +26,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { PageHeader } from "~/components/ui/page-header/PageHeader";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { DeviationHistorySlideOver } from "~/components/timetable/deviation-history-slide-over";
 import { SubstitutionSlideOver } from "~/components/timetable/substitution-slide-over";
 import { TimetableStatCard } from "~/components/timetable/timetable-stat-card";
 import { timetableSurface } from "~/components/timetable/timetable-style";
@@ -99,6 +100,8 @@ function VertretungsplanContent() {
 
   const weekOffset = parseIntParam(searchParams.get("week"), 0);
   const selectedInstanceId = searchParams.get("instance");
+  // "?history=1": Verlauf (Änderungsprotokoll, #1886) for the selected block.
+  const historyOpen = searchParams.get("history") === "1";
   // "Woche oder einen Tag" (issue #1840): the day view narrows the grid to a
   // single day; both still fetch the surrounding week.
   const view = searchParams.get("view") === "day" ? "day" : "week";
@@ -299,7 +302,7 @@ function VertretungsplanContent() {
 
   const handleSelectInstance = useCallback(
     (instance: EnrichedInstance | null) => {
-      updateUrlParams({ instance: instance?.id ?? null });
+      updateUrlParams({ instance: instance?.id ?? null, history: null });
     },
     [updateUrlParams],
   );
@@ -527,6 +530,13 @@ function VertretungsplanContent() {
         canManage={canManageSchedules}
         onClose={() => handleSelectInstance(null)}
         onApply={handleApply}
+        onShowHistory={() => updateUrlParams({ history: "1" })}
+      />
+
+      <DeviationHistorySlideOver
+        instance={selectedInstance}
+        open={historyOpen && selectedInstance !== null}
+        onClose={() => updateUrlParams({ history: null })}
       />
     </div>
   );
