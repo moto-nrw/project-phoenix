@@ -78,6 +78,7 @@ type Factory struct {
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
+	StaffShiftSeries         schedule.StaffShiftSeriesService
 	StaffScheduleOverview    schedule.StaffScheduleOverviewGetter
 	ShiftTypes               schedule.ShiftTypeService
 	PickupSchedule           schedule.PickupScheduleService
@@ -517,6 +518,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		logger.With("service", "staff_shift"),
 	)
+	staffShiftService.SetSeriesExceptionRepo(repos.StaffShiftSeriesException)
+
+	// Recurring shift series (Dienstplan-Serien, #1889)
+	staffShiftSeriesService := schedule.NewStaffShiftSeriesService(
+		repos.StaffShiftSeries,
+		repos.StaffShiftSeriesException,
+		repos.StaffShift,
+		repos.Staff,
+		repos.CalendarPeriod,
+		shiftTypeService,
+		db,
+		logger.With("service", "staff_shift_series"),
+	)
 	staffScheduleOverviewService := schedule.NewStaffScheduleOverviewService(schedule.StaffScheduleOverviewDependencies{
 		Shifts:        repos.StaffShift,
 		ShiftWeeks:    repos.StaffShift,
@@ -868,6 +882,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActivitySupervisorRepo: repos.ActivitySupervisor,
 		InstanceStaffRepo:      repos.InstanceStaff,
 		StaffShiftRepo:         repos.StaffShift,
+		StaffShiftSeriesRepo:   repos.StaffShiftSeries,
 		StaffAbsenceRepo:       repos.StaffAbsence,
 		AccountTenantRepo:      repos.AccountTenant,
 		RoleRepo:               repos.Role,
@@ -1384,6 +1399,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		StaffShifts:              staffShiftService,
+		StaffShiftSeries:         staffShiftSeriesService,
 		StaffScheduleOverview:    staffScheduleOverviewService,
 		ShiftTypes:               shiftTypeService,
 		PickupSchedule:           pickupScheduleService,

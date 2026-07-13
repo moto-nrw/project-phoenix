@@ -29,6 +29,7 @@ import (
 // Resource bundles the dependencies for the staff-shift HTTP handlers.
 type Resource struct {
 	Service       scheduleSvc.StaffShiftService
+	SeriesService scheduleSvc.StaffShiftSeriesService
 	Overview      scheduleSvc.StaffScheduleOverviewGetter
 	PersonService usersSvc.PersonService
 	db            *bun.DB
@@ -36,8 +37,8 @@ type Resource struct {
 }
 
 // NewResource wires the dependencies.
-func NewResource(service scheduleSvc.StaffShiftService, overview scheduleSvc.StaffScheduleOverviewGetter, personService usersSvc.PersonService, db *bun.DB, logger *slog.Logger) *Resource {
-	return &Resource{Service: service, Overview: overview, PersonService: personService, db: db, logger: logger}
+func NewResource(service scheduleSvc.StaffShiftService, seriesService scheduleSvc.StaffShiftSeriesService, overview scheduleSvc.StaffScheduleOverviewGetter, personService usersSvc.PersonService, db *bun.DB, logger *slog.Logger) *Resource {
+	return &Resource{Service: service, SeriesService: seriesService, Overview: overview, PersonService: personService, db: db, logger: logger}
 }
 
 // Router returns the chi sub-router for /api/staff-shifts.
@@ -57,6 +58,9 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}", rs.update)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/series", rs.createSeries)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/series/{id}/split", rs.splitSeries)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/series/{id}", rs.endSeries)
 	})
 
 	return r
@@ -109,6 +113,8 @@ type ShiftResponse struct {
 	BreakMinutes int    `json:"break_minutes"`
 	ShiftTypeID  *int64 `json:"shift_type_id,omitempty"`
 	Notes        string `json:"notes,omitempty"`
+	SeriesID     *int64 `json:"series_id,omitempty"`
+	Detached     bool   `json:"detached"`
 }
 
 // ToShiftResponse maps a shift onto the wire format. Exported for the
@@ -123,6 +129,8 @@ func ToShiftResponse(s *scheduleModels.StaffShift) ShiftResponse {
 		BreakMinutes: s.BreakMinutes,
 		ShiftTypeID:  s.ShiftTypeID,
 		Notes:        s.Notes,
+		SeriesID:     s.SeriesID,
+		Detached:     s.Detached,
 	}
 }
 

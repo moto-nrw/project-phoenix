@@ -11,6 +11,8 @@ export interface BackendStaffShift {
   break_minutes: number;
   shift_type_id?: number | null;
   notes?: string;
+  series_id?: number | null;
+  detached?: boolean;
 }
 
 export interface StaffShift {
@@ -26,6 +28,12 @@ export interface StaffShift {
   /** Id of the linked shift type (Schichtart), or null if untyped */
   shiftTypeId: string | null;
   notes: string;
+  /** Id of the shift series this row was materialized from (#1889), or null
+   *  for a standalone shift. */
+  seriesId: string | null;
+  /** True when the row was edited via "Nur diese Woche" — series re-plans
+   *  leave it alone. */
+  detached: boolean;
 }
 
 type CoverageStatus = "covered" | "uncovered" | "not_applicable";
@@ -152,6 +160,8 @@ export function mapStaffShift(data: BackendStaffShift): StaffShift {
     shiftTypeId:
       data.shift_type_id != null ? data.shift_type_id.toString() : null,
     notes: data.notes ?? "",
+    seriesId: data.series_id != null ? data.series_id.toString() : null,
+    detached: data.detached ?? false,
   };
 }
 

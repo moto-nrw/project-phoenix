@@ -163,6 +163,12 @@ CLI commands (migrate, seed, cleanup) connect via `DB_DSN` as the `postgres` **s
 
 bun binds every `time.Time` as UTC, so DATE columns modeled as `time.Time` land one day behind around Berlin midnight. `TestDateColumnTypes` fails CI for violations. Full guide: `.claude/rules/calendar-dates.md`.
 
+### 11. Shifts vs. Timetable — One Recurrence Engine (#1888/#1889)
+
+A **shift** (`schedule.staff_shifts`) is the outer planned presence of a staff member; a **timetable block** (`activities.groups` template → `schedule.activity_instances`) is a task *within* that presence. Nothing is double-counted and neither side writes into the other (#1873).
+
+Shifts recur via `schedule.staff_shift_series` (weekdays + wall-clock window bound to a calendar period), which **materializes concrete `staff_shifts` rows upfront** — never a read-time projection, so every reader (time tracking, auto-checkout, coverage, weekly summaries) keeps seeing only concrete rows. The series REUSES the shared timetable primitives (`schedule.CalendarPeriod`, `week_pattern` 0/1/2, `ShouldMaterializeWeekPattern`, the cap-`valid_until`/successor/`series_root_id` split shape). **NEVER build a second recurrence engine or a parallel template model.** Deviations: a "Nur diese Woche" edit sets `staff_shifts.detached` (re-plans skip the row), a single-occurrence delete records a `staff_shift_series_exceptions` row; splits re-point both to the successor. Materialization and re-plans never touch rows with `date <= today`.
+
 ## Essential Commands
 
 **RULE: Always suggest Docker Compose commands** when advising how to run, build, test, or debug services. Never default to bare `go run` or `pnpm run dev` unless the user explicitly asks for it.

@@ -26,6 +26,49 @@ interface ShiftPayload {
   shiftTypeId: string | null;
 }
 
+interface SeriesPayload {
+  staffId: string;
+  /** ISO weekdays, 1 = Montag … 7 = Sonntag */
+  weekdays: number[];
+  /** "HH:MM" */
+  startTime: string;
+  /** "HH:MM" */
+  endTime: string;
+  breakMinutes: number;
+  shiftTypeId: string | null;
+  calendarPeriodId: string;
+  /** 0 = jede Woche, 1 = Woche A, 2 = Woche B */
+  weekPattern: number;
+  /** "YYYY-MM-DD" */
+  validFrom: string;
+  /** "YYYY-MM-DD", exclusive; null = bis Periodenende */
+  validUntil: string | null;
+}
+
+/** Edited fields applied from the effective date on ("Ab jetzt dauerhaft").
+ *  Rhythm fields stay with the series — the backend inherits them. */
+interface SeriesSplitPayload {
+  /** "YYYY-MM-DD" */
+  effectiveDate: string;
+  startTime: string;
+  endTime: string;
+  breakMinutes: number;
+  shiftTypeId: string | null;
+}
+
+export interface SeriesResult {
+  seriesId: string;
+  created: number;
+  /** Days skipped because an existing shift would overlap ("YYYY-MM-DD") */
+  skippedDates: string[];
+}
+
+interface BackendSeriesResult {
+  series_id: number;
+  created: number;
+  skipped_dates: string[] | null;
+}
+
 export class ShiftApiError extends Error {
   readonly status: number;
   readonly detail: string;
@@ -157,6 +200,83 @@ class StaffShiftService {
   }
 }
 
+async function readSeriesResult(response: Response): Promise<SeriesResult> {
+  if (!response.ok) {
+    throw await readShiftError(
+      response,
+      "Schicht-Serie konnte nicht gespeichert werden",
+    );
+  }
+  const json = (await response.json()) as { data: BackendSeriesResult };
+  return {
+    seriesId: json.data.series_id.toString(),
+    created: json.data.created,
+    skippedDates: json.data.skipped_dates ?? [],
+  };
+}
+
+class StaffShiftSeriesService {
+  async createSeries(payload: SeriesPayload): Promise<SeriesResult> {
+    const response = await sessionFetch("/api/staff/shifts/series", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        staff_id: Number.parseInt(payload.staffId, 10),
+        weekdays: payload.weekdays,
+        start_time: payload.startTime,
+        end_time: payload.endTime,
+        break_minutes: payload.breakMinutes,
+        shift_type_id:
+          payload.shiftTypeId != null
+            ? Number.parseInt(payload.shiftTypeId, 10)
+            : null,
+        calendar_period_id: Number.parseInt(payload.calendarPeriodId, 10),
+        week_pattern: payload.weekPattern,
+        valid_from: payload.validFrom,
+        valid_until: payload.validUntil,
+      }),
+    });
+    return readSeriesResult(response);
+  }
+
+  async splitSeries(
+    seriesId: string,
+    payload: SeriesSplitPayload,
+  ): Promise<SeriesResult> {
+    const response = await sessionFetch(
+      `/api/staff/shifts/series/${seriesId}/split`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          effective_date: payload.effectiveDate,
+          start_time: payload.startTime,
+          end_time: payload.endTime,
+          break_minutes: payload.breakMinutes,
+          shift_type_id:
+            payload.shiftTypeId != null
+              ? Number.parseInt(payload.shiftTypeId, 10)
+              : null,
+        }),
+      },
+    );
+    return readSeriesResult(response);
+  }
+
+  async endSeries(seriesId: string, from: string): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/shifts/series/${seriesId}?from=${from}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      throw await readShiftError(
+        response,
+        "Schicht-Serie konnte nicht beendet werden",
+      );
+    }
+  }
+}
+
 class OwnShiftService {
   async getOwnShifts(from: string, to: string): Promise<StaffShift[]> {
     const response = await sessionFetch(
@@ -167,4 +287,5 @@ class OwnShiftService {
 }
 
 export const staffShiftService = new StaffShiftService();
+export const staffShiftSeriesService = new StaffShiftSeriesService();
 export const ownShiftService = new OwnShiftService();

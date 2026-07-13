@@ -3,17 +3,42 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button } from "~/components/ui/button";
+import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
+import { DatePicker } from "~/components/ui/date-picker";
 import { Modal } from "~/components/ui/modal";
 import { getApiErrorMessage } from "~/lib/api-error-message";
+import { calendarPeriodService } from "~/lib/calendar-period-api";
+import {
+  findPeriodForDate,
+  weekPatternForDate,
+  type CalendarPeriod,
+} from "~/lib/calendar-period-helpers";
+import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { ShiftApiError, staffShiftService } from "~/lib/shift-api";
+import {
+  ShiftApiError,
+  staffShiftService,
+  staffShiftSeriesService,
+  type SeriesResult,
+} from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
 
 const logger = createLogger({ component: "ShiftEditModal" });
 const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
+
+const WEEKDAY_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
+  { value: 1, label: "Mo" },
+  { value: 2, label: "Di" },
+  { value: 3, label: "Mi" },
+  { value: 4, label: "Do" },
+  { value: 5, label: "Fr" },
+  { value: 6, label: "Sa" },
+  { value: 7, label: "So" },
+];
 
 function getShiftMutationErrorMessage(
   err: unknown,
@@ -109,6 +134,26 @@ export function ShiftEditModal({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Wiederholung (#1889): create-only series section.
+  const [repeatEnabled, setRepeatEnabled] = useState(false);
+  const [periods, setPeriods] = useState<CalendarPeriod[] | null>(null);
+  const [periodId, setPeriodId] = useState("");
+  const [weekdays, setWeekdays] = useState<number[]>([]);
+  const [biweekly, setBiweekly] = useState(false);
+  const [abPattern, setAbPattern] = useState<1 | 2>(1);
+  const [abTouched, setAbTouched] = useState(false);
+  const [validUntil, setValidUntil] = useState("");
+  // After a series create/split with skipped days the modal shows this
+  // notice instead of closing, so the admin sees which days were left out.
+  const [seriesNotice, setSeriesNotice] = useState<string | null>(null);
+  // Scope question ("Nur diese Woche" / "Ab jetzt dauerhaft") for edits and
+  // deletes of a series-backed row.
+  const [scopeQuestion, setScopeQuestion] = useState<"edit" | "delete" | null>(
+    null,
+  );
+
+  const isSeriesRow = mode === "edit" && shift?.seriesId != null;
+
   useEffect(() => {
     if (!isOpen) return;
     setStartTime(initial.startTime);
@@ -117,7 +162,54 @@ export function ShiftEditModal({
     setShiftTypeId(initial.shiftTypeId);
     setError(null);
     setConfirmDeleteOpen(false);
-  }, [isOpen, initial]);
+    setRepeatEnabled(false);
+    setWeekdays([isoWeekdayOf(date)]);
+    setBiweekly(false);
+    setAbPattern(1);
+    setAbTouched(false);
+    setValidUntil("");
+    setSeriesNotice(null);
+    setScopeQuestion(null);
+  }, [isOpen, initial, date]);
+
+  // Calendar periods load once the series section is opened; the period is
+  // required (it bounds the series and anchors Woche A/B).
+  useEffect(() => {
+    if (!repeatEnabled || periods !== null) return;
+    let cancelled = false;
+    calendarPeriodService
+      .list()
+      .then((loaded) => {
+        if (cancelled) return;
+        setPeriods(loaded);
+        const match = findPeriodForDate(loaded, date);
+        setPeriodId((current) => current || (match?.id ?? ""));
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        logger.error("shift_series_periods_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setPeriods([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [repeatEnabled, periods, date]);
+
+  const selectedPeriod = useMemo(
+    () => periods?.find((p) => p.id === periodId) ?? null,
+    [periods, periodId],
+  );
+  const periodHasCycle = (selectedPeriod?.weekCycleLength ?? 1) > 1;
+  const defaultAbPattern = weekPatternForDate(selectedPeriod, date);
+
+  // Default the A/B choice to the parity of the clicked week (mirrors the
+  // timetable Wochenrhythmus control from #1882); a manual choice sticks.
+  useEffect(() => {
+    if (!biweekly || abTouched) return;
+    if (defaultAbPattern !== null) setAbPattern(defaultAbPattern);
+  }, [biweekly, abTouched, defaultAbPattern]);
 
   const timesValid = startTime !== "" && endTime !== "" && startTime < endTime;
   const breakMaxMinutes = timesValid
@@ -129,6 +221,8 @@ export function ShiftEditModal({
     : STAFF_SHIFT_MAX_BREAK_MINUTES;
   const breakMinutes = parseBreakMinutes(breakMinutesStr, breakMaxMinutes);
   const breakValid = breakMinutes !== null;
+  const seriesValid =
+    !repeatEnabled || (weekdays.length > 0 && periodId !== "");
 
   const typeOptions = useMemo(() => {
     const opts: { value: string; label: string }[] = [
@@ -145,19 +239,91 @@ export function ShiftEditModal({
     return opts;
   }, [shiftTypes, shift]);
 
-  const handleSubmit = async () => {
+  const periodOptions = useMemo(
+    () =>
+      (periods ?? [])
+        .filter((p) => p.isActive)
+        .map((p) => ({ value: p.id, label: p.name })),
+    [periods],
+  );
+
+  const toggleWeekday = (value: number) => {
+    setWeekdays((current) =>
+      current.includes(value)
+        ? current.filter((v) => v !== value)
+        : [...current, value].sort((a, b) => a - b),
+    );
+  };
+
+  const finishSeriesMutation = (result: SeriesResult) => {
+    onSaved();
+    if (result.skippedDates.length > 0) {
+      setSeriesNotice(
+        `An folgenden Tagen besteht bereits eine Schicht, sie wurden übersprungen: ${result.skippedDates
+          .map(formatShortDate)
+          .join(", ")}.`,
+      );
+      return;
+    }
+    onClose();
+  };
+
+  const validateInputs = (): boolean => {
     setError(null);
     if (!timesValid) {
       setError("Ende muss nach Beginn liegen.");
-      return;
+      return false;
     }
     if (!breakValid || breakMinutes === null) {
       setError(
         `Pause muss eine ganze Zahl zwischen 0 und ${breakMaxMinutes} sein.`,
       );
-      return;
+      return false;
     }
+    if (repeatEnabled && weekdays.length === 0) {
+      setError("Bitte mindestens einen Wochentag auswählen.");
+      return false;
+    }
+    if (repeatEnabled && periodId === "") {
+      setError("Bitte einen Kalenderzeitraum auswählen.");
+      return false;
+    }
+    return true;
+  };
 
+  const createSeries = async () => {
+    setIsSaving(true);
+    try {
+      const result = await staffShiftSeriesService.createSeries({
+        staffId,
+        weekdays,
+        startTime,
+        endTime,
+        breakMinutes: breakMinutes ?? 0,
+        shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
+        calendarPeriodId: periodId,
+        // Guard against stale biweekly state: switching to a period without
+        // a week cycle hides the A/B control but does not reset the flag.
+        weekPattern: biweekly && periodHasCycle ? abPattern : 0,
+        validFrom: date,
+        // The picker is inclusive ("Gültig bis" = last day WITH a shift);
+        // the API's valid_until is exclusive — send the day after.
+        validUntil: validUntil === "" ? null : dayAfterISO(validUntil),
+      });
+      finishSeriesMutation(result);
+    } catch (err: unknown) {
+      logger.error("shift_series_create_failed", {
+        staff_id: staffId,
+        date,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setError(getShiftMutationErrorMessage(err, "speichern"));
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const saveSingleShift = async () => {
     setIsSaving(true);
     try {
       const payload = {
@@ -165,7 +331,7 @@ export function ShiftEditModal({
         date,
         startTime,
         endTime,
-        breakMinutes,
+        breakMinutes: breakMinutes ?? 0,
         shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
       };
       if (mode === "edit" && shift) {
@@ -185,10 +351,49 @@ export function ShiftEditModal({
       setError(getShiftMutationErrorMessage(err, "speichern"));
     } finally {
       setIsSaving(false);
+      setScopeQuestion(null);
     }
   };
 
-  const handleDelete = async () => {
+  const splitSeriesFromHere = async () => {
+    if (!shift?.seriesId) return;
+    setIsSaving(true);
+    try {
+      const result = await staffShiftSeriesService.splitSeries(shift.seriesId, {
+        effectiveDate: shift.date,
+        startTime,
+        endTime,
+        breakMinutes: breakMinutes ?? 0,
+        shiftTypeId: shiftTypeId === "" ? null : shiftTypeId,
+      });
+      finishSeriesMutation(result);
+    } catch (err: unknown) {
+      logger.error("shift_series_split_failed", {
+        series_id: shift.seriesId,
+        date: shift.date,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setError(getShiftMutationErrorMessage(err, "speichern"));
+    } finally {
+      setIsSaving(false);
+      setScopeQuestion(null);
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!validateInputs()) return;
+    if (mode === "create" && repeatEnabled) {
+      await createSeries();
+      return;
+    }
+    if (isSeriesRow) {
+      setScopeQuestion("edit");
+      return;
+    }
+    await saveSingleShift();
+  };
+
+  const deleteSingleShift = async () => {
     if (!shift) return;
     setIsDeleting(true);
     try {
@@ -205,6 +410,47 @@ export function ShiftEditModal({
       setConfirmDeleteOpen(false);
     } finally {
       setIsDeleting(false);
+      setScopeQuestion(null);
+    }
+  };
+
+  const endSeriesFromHere = async () => {
+    if (!shift?.seriesId) return;
+    setIsDeleting(true);
+    try {
+      await staffShiftSeriesService.endSeries(shift.seriesId, shift.date);
+      onSaved();
+      onClose();
+    } catch (err: unknown) {
+      logger.error("shift_series_end_failed", {
+        series_id: shift.seriesId,
+        date: shift.date,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setError(getShiftMutationErrorMessage(err, "löschen"));
+    } finally {
+      setIsDeleting(false);
+      setScopeQuestion(null);
+    }
+  };
+
+  const handleDeleteClick = () => {
+    if (isSeriesRow) {
+      setScopeQuestion("delete");
+      return;
+    }
+    setConfirmDeleteOpen(true);
+  };
+
+  const handleScopeSelect = (value: string) => {
+    if (scopeQuestion === "edit") {
+      if (value === "single") void saveSingleShift();
+      else void splitSeriesFromHere();
+      return;
+    }
+    if (scopeQuestion === "delete") {
+      if (value === "single") void deleteSingleShift();
+      else void endSeriesFromHere();
     }
   };
 
@@ -213,7 +459,11 @@ export function ShiftEditModal({
       ? `Schicht bearbeiten · ${formatLongDate(date)}`
       : `Schicht anlegen · ${formatLongDate(date)}`;
 
-  const footer = (
+  const footer = seriesNotice ? (
+    <Button type="button" variant="primary" size="md" onClick={onClose}>
+      Schließen
+    </Button>
+  ) : (
     <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center">
       {mode === "edit" && shift && (
         <Button
@@ -221,7 +471,7 @@ export function ShiftEditModal({
           variant="outline_danger"
           size="md"
           className="sm:mr-auto"
-          onClick={() => setConfirmDeleteOpen(true)}
+          onClick={handleDeleteClick}
           disabled={isSaving || isDeleting}
         >
           Schicht löschen
@@ -243,74 +493,240 @@ export function ShiftEditModal({
         onClick={handleSubmit}
         isLoading={isSaving}
         loadingText="Speichern…"
-        disabled={isSaving || isDeleting || !timesValid || !breakValid}
+        disabled={
+          isSaving || isDeleting || !timesValid || !breakValid || !seriesValid
+        }
       >
-        {mode === "edit" ? "Änderungen speichern" : "Schicht anlegen"}
+        {submitLabel(mode, repeatEnabled)}
       </Button>
     </div>
   );
 
+  const scopeOverlayOpen = scopeQuestion !== null;
+
   return (
     <>
-      {/* Hidden while the delete confirmation is open — both use the same
-          fixed z-index, so stacking them puts the confirm dialog's buttons
-          behind this modal's body. */}
+      {/* Hidden while the delete confirmation or the scope question is open —
+          all use the same fixed z-index, so stacking them puts the topmost
+          dialog's buttons behind this modal's body. */}
       <Modal
-        isOpen={isOpen && !confirmDeleteOpen}
+        isOpen={isOpen && !confirmDeleteOpen && !scopeOverlayOpen}
         onClose={onClose}
         title={title}
         footer={footer}
       >
-        <div className="space-y-4 text-sm">
-          <p className="text-sm text-gray-600">{staffName}</p>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Beginn">
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
-              />
-            </Field>
-            <Field label="Ende">
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
-              />
-            </Field>
-          </div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Field label="Pause (Minuten)">
-              <input
-                type="number"
-                min={0}
-                max={breakMaxMinutes}
-                inputMode="numeric"
-                value={breakMinutesStr}
-                onChange={(e) => setBreakMinutesStr(e.target.value)}
-                className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
-              />
-            </Field>
-          </div>
-          {typeOptions.length > 1 && (
-            <Field label="Schichtart">
-              <CustomSelect
-                value={shiftTypeId}
-                options={typeOptions}
-                onChange={setShiftTypeId}
-                ariaLabel="Schichtart"
-                placeholder="Keine Schichtart"
-              />
-            </Field>
-          )}
-          {error && (
-            <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
-              {error}
+        {seriesNotice ? (
+          <div className="space-y-3 text-sm">
+            <p className="text-gray-700">Die Serie wurde gespeichert.</p>
+            <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              {seriesNotice}
             </p>
-          )}
-        </div>
+          </div>
+        ) : (
+          <div className="space-y-4 text-sm">
+            <p className="text-sm text-gray-600">{staffName}</p>
+            {isSeriesRow && (
+              <p className="rounded-md bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                {shift?.detached
+                  ? "Diese Schicht gehört zu einer Serie und wurde für diese Woche angepasst."
+                  : "Diese Schicht ist Teil einer Serie."}
+              </p>
+            )}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Beginn">
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                />
+              </Field>
+              <Field label="Ende">
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                />
+              </Field>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Field label="Pause (Minuten)">
+                <input
+                  type="number"
+                  min={0}
+                  max={breakMaxMinutes}
+                  inputMode="numeric"
+                  value={breakMinutesStr}
+                  onChange={(e) => setBreakMinutesStr(e.target.value)}
+                  className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                />
+              </Field>
+            </div>
+            {typeOptions.length > 1 && (
+              <Field label="Schichtart">
+                <CustomSelect
+                  value={shiftTypeId}
+                  options={typeOptions}
+                  onChange={setShiftTypeId}
+                  ariaLabel="Schichtart"
+                  placeholder="Keine Schichtart"
+                />
+              </Field>
+            )}
+            {mode === "create" && (
+              <div className="space-y-3 rounded-md border border-gray-200 p-3">
+                <label
+                  htmlFor="shift-series-toggle"
+                  className="flex items-center gap-2"
+                >
+                  <Checkbox
+                    id="shift-series-toggle"
+                    checked={repeatEnabled}
+                    onChange={(e) => setRepeatEnabled(e.target.checked)}
+                  />
+                  <span className="text-sm font-medium text-gray-800">
+                    Als Serie wiederholen
+                  </span>
+                </label>
+                {repeatEnabled && (
+                  <div className="space-y-3">
+                    <FieldGroup label="Wochentage">
+                      <div className="flex flex-wrap gap-2">
+                        {WEEKDAY_OPTIONS.map((option) => (
+                          <label
+                            key={option.value}
+                            htmlFor={`shift-series-weekday-${option.value}`}
+                            className="flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1.5"
+                          >
+                            <Checkbox
+                              id={`shift-series-weekday-${option.value}`}
+                              checked={weekdays.includes(option.value)}
+                              onChange={() => toggleWeekday(option.value)}
+                            />
+                            <span className="text-xs font-medium text-gray-700">
+                              {option.label}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </FieldGroup>
+                    <Field label="Kalenderzeitraum">
+                      {periods !== null && periodOptions.length === 0 ? (
+                        <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                          Kein aktiver Kalenderzeitraum vorhanden. Bitte zuerst
+                          unter Planung → Kalenderzeiträume einen Zeitraum
+                          anlegen.
+                        </p>
+                      ) : (
+                        <CustomSelect
+                          value={periodId}
+                          options={periodOptions}
+                          onChange={setPeriodId}
+                          ariaLabel="Kalenderzeitraum"
+                          placeholder={
+                            periods === null ? "Lade Zeiträume…" : "Auswählen"
+                          }
+                        />
+                      )}
+                    </Field>
+                    <FieldGroup label="Wochenrhythmus">
+                      <div className="space-y-2">
+                        <div className="flex flex-wrap gap-2">
+                          <RhythmButton
+                            active={!biweekly}
+                            onClick={() => setBiweekly(false)}
+                          >
+                            Jede Woche
+                          </RhythmButton>
+                          <RhythmButton
+                            active={biweekly}
+                            onClick={() => setBiweekly(true)}
+                            disabled={!periodHasCycle}
+                          >
+                            Alle 2 Wochen
+                          </RhythmButton>
+                        </div>
+                        {!periodHasCycle && (
+                          <p className="text-xs text-gray-500">
+                            Woche A/B benötigt einen Kalenderzeitraum mit
+                            gepflegtem Wochenzyklus.
+                          </p>
+                        )}
+                        {biweekly && periodHasCycle && (
+                          <div className="space-y-1">
+                            <div className="flex flex-wrap gap-2">
+                              <RhythmButton
+                                active={abPattern === 1}
+                                onClick={() => {
+                                  setAbPattern(1);
+                                  setAbTouched(true);
+                                }}
+                              >
+                                Woche A
+                              </RhythmButton>
+                              <RhythmButton
+                                active={abPattern === 2}
+                                onClick={() => {
+                                  setAbPattern(2);
+                                  setAbTouched(true);
+                                }}
+                              >
+                                Woche B
+                              </RhythmButton>
+                            </div>
+                            {defaultAbPattern !== null && (
+                              <p className="text-xs text-gray-500">
+                                Die Woche vom {formatShortDate(date)} ist Woche{" "}
+                                {defaultAbPattern === 1 ? "A" : "B"}.
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </FieldGroup>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <Field label="Gültig ab">
+                        <input
+                          type="text"
+                          value={formatShortDate(date)}
+                          disabled
+                          className="w-full rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-gray-500"
+                        />
+                      </Field>
+                      {/* FieldGroup, not Field: the DatePicker trigger and
+                          calendar are buttons — inside Field's <label> a
+                          click would re-dispatch onto the first labelable
+                          child (see FieldGroup comment below). */}
+                      <FieldGroup label="Gültig bis (optional)">
+                        <DatePicker
+                          value={
+                            validUntil === "" ? null : parseISODate(validUntil)
+                          }
+                          onChange={(picked) =>
+                            setValidUntil(picked ? toISODate(picked) : "")
+                          }
+                          placeholder="Datum auswählen"
+                        />
+                      </FieldGroup>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      Ohne Enddatum läuft die Serie bis zum Ende des
+                      Kalenderzeitraums; mit Enddatum bis einschließlich diesem
+                      Tag. Schichten werden ab morgen eingeplant; bestehende
+                      Schichten bleiben unverändert.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+            {error && (
+              <p className="rounded-md bg-red-50 px-3 py-2 text-xs text-red-700">
+                {error}
+              </p>
+            )}
+          </div>
+        )}
       </Modal>
       <ConfirmDeleteModal
         isOpen={confirmDeleteOpen}
@@ -324,10 +740,87 @@ export function ShiftEditModal({
         gate={{ mode: "twoStep" }}
         loading={isDeleting}
         error=""
-        onConfirm={handleDelete}
+        onConfirm={deleteSingleShift}
         onClose={() => setConfirmDeleteOpen(false)}
       />
+      <ChoiceModal
+        isOpen={isOpen && scopeQuestion === "edit"}
+        onClose={() => setScopeQuestion(null)}
+        title="Änderung übernehmen"
+        description="Diese Schicht ist Teil einer Serie. Wofür soll die Änderung gelten?"
+        options={[
+          {
+            value: "single",
+            label: "Nur diese Woche",
+            description:
+              "Nur dieser Termin wird angepasst; die Serie bleibt unverändert.",
+          },
+          {
+            value: "following",
+            label: "Ab jetzt dauerhaft",
+            description:
+              "Die Serie wird ab diesem Datum geteilt und mit den neuen Zeiten fortgeführt.",
+          },
+        ]}
+        onSelect={handleScopeSelect}
+        isBusy={isSaving}
+      />
+      <ChoiceModal
+        isOpen={isOpen && scopeQuestion === "delete"}
+        onClose={() => setScopeQuestion(null)}
+        title="Schicht löschen"
+        description="Diese Schicht ist Teil einer Serie. Was soll gelöscht werden?"
+        options={[
+          {
+            value: "single",
+            label: "Nur diese Woche",
+            description:
+              "Nur dieser Termin entfällt; die Serie plant ihn nicht erneut ein.",
+          },
+          {
+            value: "following",
+            label: "Ab jetzt dauerhaft",
+            description:
+              "Die Serie endet ab diesem Datum; einzeln angepasste Termine bleiben bestehen.",
+          },
+        ]}
+        onSelect={handleScopeSelect}
+        isBusy={isDeleting}
+      />
     </>
+  );
+}
+
+function submitLabel(mode: ShiftEditMode, repeatEnabled: boolean): string {
+  if (mode === "edit") return "Änderungen speichern";
+  return repeatEnabled ? "Serie anlegen" : "Schicht anlegen";
+}
+
+function RhythmButton({
+  active,
+  onClick,
+  disabled,
+  children,
+}: {
+  readonly active: boolean;
+  readonly onClick: () => void;
+  readonly disabled?: boolean;
+  readonly children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-pressed={active}
+      className={
+        active
+          ? "rounded-md bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
+          : "rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 disabled:opacity-50"
+      }
+    >
+      {children}
+    </button>
   );
 }
 
@@ -346,6 +839,52 @@ function Field({
       {children}
     </label>
   );
+}
+
+// Field variant for control GROUPS (weekday checkboxes, rhythm buttons).
+// Deliberately a div: wrapping a group in a <label> makes clicks on any
+// child bubble into the label's activation behavior, which re-dispatches
+// the click onto the FIRST labelable descendant and silently toggles the
+// wrong control.
+function FieldGroup({
+  label,
+  children,
+}: {
+  readonly label: string;
+  readonly children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <span className="mb-1 block text-xs font-semibold tracking-wider text-gray-500 uppercase">
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+// The "Gültig bis" picker is inclusive; the backend's valid_until is
+// exclusive (timetable split convention) — convert by adding one day.
+function dayAfterISO(isoDate: string): string {
+  const d = parseISODate(isoDate);
+  d.setDate(d.getDate() + 1);
+  return toISODate(d);
+}
+
+function isoWeekdayOf(isoDate: string): number {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const day = new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1).getDay();
+  return day === 0 ? 7 : day;
+}
+
+function formatShortDate(isoDate: string): string {
+  const [y, m, d] = isoDate.split("-").map(Number);
+  const date = new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1);
+  return date.toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 function formatLongDate(isoDate: string): string {

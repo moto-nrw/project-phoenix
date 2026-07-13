@@ -152,6 +152,75 @@ func (r *StaffShiftRepository) FindUsedCalendarWeeks(ctx context.Context, start,
 	return weeks, nil
 }
 
+// BulkCreate inserts all shifts in one multi-row statement (series
+// materialization, #1889). Tenant IDs are populated from context like the
+// generic Create.
+func (r *StaffShiftRepository) BulkCreate(ctx context.Context, shifts []*schedule.StaffShift) error {
+	if len(shifts) == 0 {
+		return nil
+	}
+	for _, s := range shifts {
+		base.EnsureTenantID(ctx, s)
+	}
+	_, err := base.GetDB(ctx, r.db).NewInsert().
+		Model(&shifts).
+		ModelTableExpr("schedule.staff_shifts").
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "bulk create staff shifts", Err: err}
+	}
+	return nil
+}
+
+// DeleteNonDetachedBySeriesFrom removes a series' regenerable rows on or
+// after from. Detached rows ("Nur diese Woche" edits) survive re-plans.
+func (r *StaffShiftRepository) DeleteNonDetachedBySeriesFrom(ctx context.Context, seriesID int64, from timezone.Date) (int64, error) {
+	query := base.GetDB(ctx, r.db).NewDelete().
+		Table("schedule.staff_shifts").
+		Where("series_id = ?", seriesID).
+		Where("detached = FALSE").
+		Where("date >= ?", from)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete non-detached staff shifts by series", Err: err}
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "delete non-detached staff shifts by series", Err: err}
+	}
+	return rows, nil
+}
+
+// RepointDetachedSeriesFrom moves a series' detached rows on or after from to
+// the successor series created by a split, preserving the deviations.
+func (r *StaffShiftRepository) RepointDetachedSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from timezone.Date) (int64, error) {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Table("schedule.staff_shifts").
+		Set("series_id = ?", toSeriesID).
+		Where("series_id = ?", fromSeriesID).
+		Where("detached = TRUE").
+		Where("date >= ?", from)
+
+	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
+		query = query.Where("tenant_id = ?", tenantID)
+	}
+
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "repoint detached staff shifts to successor series", Err: err}
+	}
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "repoint detached staff shifts to successor series", Err: err}
+	}
+	return rows, nil
+}
+
 // DeleteUpcomingByStaffID removes planned shifts from the given date onwards.
 // Past Dienstplan rows stay as history after staff offboarding.
 func (r *StaffShiftRepository) DeleteUpcomingByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error) {

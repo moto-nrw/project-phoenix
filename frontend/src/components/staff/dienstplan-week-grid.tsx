@@ -2,7 +2,7 @@
 
 /* oxlint-disable jsx-a11y/no-noninteractive-tabindex -- the labeled horizontal scroll region must be keyboard-focusable */
 
-import { MapPin, Plus, TriangleAlert } from "lucide-react";
+import { MapPin, Plus, Repeat, TriangleAlert } from "lucide-react";
 
 import { Skeleton } from "~/components/ui/skeleton";
 import { Tooltip } from "~/components/ui/tooltip";
@@ -282,8 +282,22 @@ export function DienstplanWeekGrid({
                                 }}
                                 className="w-full rounded-md border border-l-2 border-gray-200 bg-white px-2 py-1 text-left transition-shadow hover:shadow-sm"
                               >
-                                <span className="font-semibold tabular-nums">
+                                <span className="flex items-center gap-1 font-semibold tabular-nums">
                                   {formatShiftLabel(shift)}
+                                  {shift.seriesId != null && (
+                                    <Repeat
+                                      aria-label={
+                                        shift.detached
+                                          ? "Serie, für diese Woche angepasst"
+                                          : "Teil einer Serie"
+                                      }
+                                      className={`h-3 w-3 shrink-0 ${
+                                        shift.detached
+                                          ? "text-[#EAB308]"
+                                          : "text-gray-400"
+                                      }`}
+                                    />
+                                  )}
                                 </span>
                                 {type && (
                                   <span className="block truncate text-xs text-gray-600">

@@ -25,6 +25,8 @@ const shift: StaffShift = {
   breakMinutes: 0,
   shiftTypeId: null,
   notes: "",
+  seriesId: null,
+  detached: false,
 };
 
 function assignment(
@@ -184,5 +186,49 @@ describe("DienstplanWeekGrid", () => {
       screen.getByRole("rowheader", { name: "Lovelace, Ada" }),
     ).toBeInTheDocument();
     expect(screen.queryByText(/ h$/)).not.toBeInTheDocument();
+  });
+});
+
+describe("DienstplanWeekGrid series indicator", () => {
+  function renderGridWithShift(overrides: Partial<StaffShift>) {
+    const seriesShift = { ...shift, ...overrides };
+    render(
+      <DienstplanWeekGrid
+        staff={[member]}
+        shiftsByStaff={
+          new Map([[member.id, new Map([[shift.date, [seriesShift]]])]])
+        }
+        assignmentsByStaff={new Map()}
+        summaryByStaff={new Map()}
+        weekDays={[shift.date]}
+        todayIso={shift.date}
+        typesById={new Map()}
+        isLoading={false}
+        onCellClick={vi.fn()}
+      />,
+    );
+  }
+
+  it("shows no series icon on a standalone shift", () => {
+    renderGridWithShift({ seriesId: null });
+
+    expect(screen.queryByLabelText("Teil einer Serie")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Serie, für diese Woche angepasst"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a neutral series icon on a series-backed shift", () => {
+    renderGridWithShift({ seriesId: "5" });
+
+    const icon = screen.getByLabelText("Teil einer Serie");
+    expect(icon).toHaveClass("text-gray-400");
+  });
+
+  it("shows the detached icon in the brand amber on a deviated shift", () => {
+    renderGridWithShift({ seriesId: "5", detached: true });
+
+    const icon = screen.getByLabelText("Serie, für diese Woche angepasst");
+    expect(icon).toHaveClass("text-[#EAB308]");
   });
 });

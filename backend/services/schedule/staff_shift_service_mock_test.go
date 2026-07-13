@@ -90,6 +90,18 @@ func (m *shiftMockRepo) DeleteUpcomingByStaffID(context.Context, int64, timezone
 	return 0, nil
 }
 
+func (m *shiftMockRepo) BulkCreate(context.Context, []*scheduleModels.StaffShift) error {
+	return nil
+}
+
+func (m *shiftMockRepo) DeleteNonDetachedBySeriesFrom(context.Context, int64, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
+func (m *shiftMockRepo) RepointDetachedSeriesFrom(context.Context, int64, int64, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
 type shiftMockStaffRepo struct {
 	findByIDFunc func(ctx context.Context, id interface{}) (*usersModels.Staff, error)
 }
