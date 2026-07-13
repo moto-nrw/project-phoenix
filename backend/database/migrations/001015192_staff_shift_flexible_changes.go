@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	staffShiftFlexibleChangesVersion     = "1.15.191"
+	staffShiftFlexibleChangesVersion     = "1.15.192"
 	staffShiftFlexibleChangesDescription = "Add flexible daily-change columns to schedule.staff_shifts (#1841): cancelled + change_reason so a shift can be left open with a 'why', and origin_shift_id so a replacement shift points at the shift it covers (1:1 substitution and split across several people)."
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.191: Adding flexible-change columns to schedule.staff_shifts...")
+			fmt.Println("Migration 1.15.192: Adding flexible-change columns to schedule.staff_shifts...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE schedule.staff_shifts
 				ADD COLUMN IF NOT EXISTS cancelled BOOLEAN NOT NULL DEFAULT FALSE,
@@ -87,7 +87,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.191...")
+			fmt.Println("Rolling back migration 1.15.192...")
 			// Restore the plain start-time uniqueness (best-effort; fails if
 			// cancellation reuse has produced duplicate active/cancelled start
 			// times, which only exists once this feature has run).
