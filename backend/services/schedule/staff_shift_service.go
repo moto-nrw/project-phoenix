@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -127,6 +128,16 @@ func (s *staffShiftService) getLogger() *slog.Logger {
 // keeps the shift's already-attached (possibly inactive) type. A nil
 // shiftTypes dependency (unit tests without a shift type) skips the lookup.
 func (s *staffShiftService) ensureShiftTypeActive(ctx context.Context, id *int64) error {
+	return s.ensureShiftTypeAssignable(ctx, id, nil)
+}
+
+// ensureShiftTypeAssignable is ensureShiftTypeActive with an allowlist of type
+// ids that may remain even when deactivated. Rebuilding an existing cover set
+// re-sends each cover's own (possibly since-deactivated) type; that type is
+// grandfathered in here, mirroring the ordinary-edit rule that lets a shift keep
+// its already-attached inactive type (#1841). A type still has to exist — an
+// unknown id maps to ErrShiftTypeNotFound regardless of the allowlist.
+func (s *staffShiftService) ensureShiftTypeAssignable(ctx context.Context, id *int64, allowedInactive map[int64]bool) error {
 	if id == nil || s.shiftTypes == nil {
 		return nil
 	}
@@ -134,7 +145,7 @@ func (s *staffShiftService) ensureShiftTypeActive(ctx context.Context, id *int64
 	if err != nil {
 		return err
 	}
-	if !shiftType.IsActive {
+	if !shiftType.IsActive && !allowedInactive[*id] {
 		return ErrShiftTypeInactive
 	}
 	return nil
@@ -220,34 +231,58 @@ func (s *staffShiftService) loadOriginShift(ctx context.Context, originID int64)
 	return origin, nil
 }
 
-// lockAndValidateOrigin validates a replacement's origin shift under the origin
-// staff member's write lock. A replacement only covers a real gap, and a gap
-// exists only when the origin was left cancelled — an active origin still
-// contributes its own planned minutes, so pointing a replacement at it would
-// double-count coverage (#1841). Reading the origin, locking its staff member,
-// and re-reading it must happen together: without the lock a concurrent
-// reactivation can flip the origin active between the check and the replacement
-// insert, leaving an active origin alongside its replacement. The lock order
-// (origin staff first, then the replacement's own staff in the caller) mirrors
-// ApplyCancellation so the two paths never lock in opposite orders. A nil origin
-// is a normal shift and needs neither lock nor check.
-func (s *staffShiftService) lockAndValidateOrigin(ctx context.Context, shift *scheduleModels.StaffShift) error {
+// lockStaffWritesOrdered takes the per-staff write lock for every given staff
+// member in a stable (sorted, de-duplicated) order. Any operation that touches
+// more than one staff member's shift rows in the same transaction — a
+// replacement covering another person, a cancellation with cross-staff covers —
+// MUST acquire its locks through here: taking two staff locks in an
+// operation-dependent order lets two cross-covering requests grab the same pair
+// in opposite orders, and PostgreSQL then aborts one on a deadlock (#1841). A
+// stable global order removes the cycle. Advisory xact locks are re-grantable
+// within a transaction, so re-locking an already-held staff member is a no-op.
+func (s *staffShiftService) lockStaffWritesOrdered(ctx context.Context, staffIDs []int64) error {
+	unique := make([]int64, 0, len(staffIDs))
+	seen := make(map[int64]bool, len(staffIDs))
+	for _, id := range staffIDs {
+		if id <= 0 || seen[id] {
+			continue
+		}
+		seen[id] = true
+		unique = append(unique, id)
+	}
+	slices.Sort(unique)
+	for _, id := range unique {
+		if err := s.lockShiftWrites(ctx, id); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// validateOriginLink re-reads a replacement's origin shift under the caller's
+// already-held locks and enforces the cover invariants. A replacement only
+// covers a real gap, and a gap exists only when the origin was left cancelled —
+// an active origin still contributes its own planned minutes, so pointing a
+// replacement at it would double-count coverage (#1841). The caller MUST have
+// locked both the replacement's own staff and the origin's staff (via
+// lockStaffWritesOrdered) before calling this: re-reading the origin under the
+// lock means a reactivation that committed before we acquired the lock is now
+// visible, so a stale "cancelled" read cannot slip through. A nil origin is a
+// normal shift and needs no check.
+func (s *staffShiftService) validateOriginLink(ctx context.Context, shift *scheduleModels.StaffShift) error {
 	if shift.OriginShiftID == nil {
 		return nil
 	}
-	// First read discovers the origin's staff member so we can lock it.
 	origin, err := s.loadOriginShift(ctx, *shift.OriginShiftID)
 	if err != nil {
 		return err
 	}
-	if err := s.lockShiftWrites(ctx, origin.StaffID); err != nil {
-		return err
-	}
-	// Re-read under the lock: a reactivation that committed before we acquired the
-	// lock is now visible, so a stale "cancelled" read cannot slip through.
-	origin, err = s.loadOriginShift(ctx, *shift.OriginShiftID)
-	if err != nil {
-		return err
+	// A person cannot cover their own cancelled shift: that would mark them absent
+	// (the cancelled origin) and simultaneously present (an active cover counting
+	// planned minutes and driving auto-checkout). Overlap checks ignore the
+	// cancelled origin, so this must be rejected explicitly (#1841).
+	if origin.StaffID == shift.StaffID {
+		return fmt.Errorf("%w: a shift cannot be its own replacement", ErrShiftInvalid)
 	}
 	if origin.Date != shift.Date {
 		return fmt.Errorf("%w: replacement must be on the same date as the shift it covers", ErrShiftInvalid)
@@ -259,6 +294,16 @@ func (s *staffShiftService) lockAndValidateOrigin(ctx context.Context, shift *sc
 }
 
 func (s *staffShiftService) CreateShift(ctx context.Context, shift *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error) {
+	// A create always assigns the type fresh, so no deactivated type is
+	// grandfathered in (nil allowlist).
+	return s.createShift(ctx, shift, nil)
+}
+
+// createShift is the shared create path. allowedInactiveTypes grandfathers a set
+// of deactivated shift-type ids (a rebuilt cover set re-sends each cover's own,
+// possibly since-deactivated, type — see ApplyCancellation); pass nil for an
+// ordinary create, where every assigned type must still be active (#1841).
+func (s *staffShiftService) createShift(ctx context.Context, shift *scheduleModels.StaffShift, allowedInactiveTypes map[int64]bool) (*scheduleModels.StaffShift, error) {
 	if err := shift.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrShiftInvalid, err.Error())
 	}
@@ -272,8 +317,7 @@ func (s *staffShiftService) CreateShift(ctx context.Context, shift *scheduleMode
 	if staff == nil {
 		return nil, fmt.Errorf("%w: staff member not found", ErrShiftInvalid)
 	}
-	// A create always assigns the type fresh, so it must be active.
-	if err := s.ensureShiftTypeActive(ctx, shift.ShiftTypeID); err != nil {
+	if err := s.ensureShiftTypeAssignable(ctx, shift.ShiftTypeID, allowedInactiveTypes); err != nil {
 		return nil, err
 	}
 	// A replacement covers a gap; it must never itself be a gap. Reject a create
@@ -283,13 +327,25 @@ func (s *staffShiftService) CreateShift(ctx context.Context, shift *scheduleMode
 	if shift.Cancelled && shift.OriginShiftID != nil {
 		return nil, fmt.Errorf("%w: a replacement shift cannot be cancelled", ErrShiftInvalid)
 	}
-	// A replacement shift must point at a real gap on the same day; the origin's
-	// staff member is locked here so a concurrent reactivation cannot flip it
-	// active before the replacement is inserted (#1841).
-	if err := s.lockAndValidateOrigin(ctx, shift); err != nil {
+	// Lock every staff member this create touches — the shift's own staff plus,
+	// for a replacement, the origin's staff — in a stable sorted order so two
+	// cross-covering creates never lock the same pair in opposite orders (#1841
+	// deadlock). The origin is read first only to discover whose lock to take.
+	lockIDs := []int64{shift.StaffID}
+	if shift.OriginShiftID != nil {
+		origin, err := s.loadOriginShift(ctx, *shift.OriginShiftID)
+		if err != nil {
+			return nil, err
+		}
+		lockIDs = append(lockIDs, origin.StaffID)
+	}
+	if err := s.lockStaffWritesOrdered(ctx, lockIDs); err != nil {
 		return nil, err
 	}
-	if err := s.lockShiftWrites(ctx, shift.StaffID); err != nil {
+	// A replacement shift must point at a real gap on the same day; re-read under
+	// the locks so a concurrent reactivation cannot flip the origin active before
+	// the replacement is inserted (#1841).
+	if err := s.validateOriginLink(ctx, shift); err != nil {
 		return nil, err
 	}
 	if err := s.checkOverlap(ctx, shift); err != nil {
@@ -331,16 +387,6 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	// A replacement stays a replacement of the same origin — the cover link is
 	// set at creation and never re-pointed by a plain edit (#1841).
 	shift.OriginShiftID = existing.OriginShiftID
-	// If a plain edit moves a replacement to a different day, the create-time
-	// invariant (a cover shares its origin's date and the origin is cancelled)
-	// would silently break — re-validate the preserved link against the new
-	// date (#1841). Same-date edits keep the guarantee they were created with,
-	// and skipping the origin read for them avoids an extra query on every edit.
-	if shift.OriginShiftID != nil && shift.Date != existing.Date {
-		if err := s.lockAndValidateOrigin(ctx, shift); err != nil {
-			return nil, err
-		}
-	}
 	if opts.PreserveExistingNotes {
 		shift.Notes = existing.Notes
 	}
@@ -374,8 +420,42 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 			return nil, err
 		}
 	}
-	if err := s.lockShiftWrites(ctx, shift.StaffID); err != nil {
+	// A plain edit that moves a replacement to a different day would silently
+	// break the create-time invariant (a cover shares its origin's date and the
+	// origin is cancelled), so re-validate the preserved link against the new
+	// date. Only cross-date edits pay the extra origin read (#1841).
+	revalidateOrigin := shift.OriginShiftID != nil && shift.Date != existing.Date
+	// Lock every staff member this edit touches — the shift's own staff plus, for
+	// a cross-date replacement edit, the origin's staff — in a stable sorted order
+	// so concurrent cross-covering edits never lock the same pair in opposite
+	// orders (#1841 deadlock). The origin is read first only to discover its lock.
+	lockIDs := []int64{shift.StaffID}
+	if revalidateOrigin {
+		origin, err := s.loadOriginShift(ctx, *shift.OriginShiftID)
+		if err != nil {
+			return nil, err
+		}
+		lockIDs = append(lockIDs, origin.StaffID)
+	}
+	if err := s.lockStaffWritesOrdered(ctx, lockIDs); err != nil {
 		return nil, err
+	}
+	if revalidateOrigin {
+		if err := s.validateOriginLink(ctx, shift); err != nil {
+			return nil, err
+		}
+	}
+	// Moving a covered ORIGIN (not a replacement) to another date would strand its
+	// replacements on the old date — they still reference it and must share its
+	// date — so reject a date change on an origin that already has covers (#1841).
+	if shift.OriginShiftID == nil && shift.Date != existing.Date {
+		covers, err := s.repo.FindByOriginShiftID(ctx, shift.ID)
+		if err != nil {
+			return nil, fmt.Errorf("check covers before origin date change: %w", err)
+		}
+		if len(covers) > 0 {
+			return nil, fmt.Errorf("%w: cannot move a shift that has replacements to another date", ErrShiftInvalid)
+		}
 	}
 	if err := s.checkOverlap(ctx, shift); err != nil {
 		return nil, err
@@ -507,9 +587,16 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 		return nil, fmt.Errorf("%w: a replacement shift cannot be cancelled", ErrShiftInvalid)
 	}
 
-	// Serialize on the origin's staff member for the whole operation; the
-	// per-replacement CreateShift calls below lock their own staff members too.
-	if err := s.lockShiftWrites(ctx, existing.StaffID); err != nil {
+	// Lock every staff member this operation touches — the origin's own staff plus
+	// each replacement's staff — up front in a stable sorted order, so two
+	// concurrent cross-covering cancellations never lock the same pair in opposite
+	// orders (#1841 deadlock). The per-replacement createShift calls below re-lock
+	// this same set; advisory xact locks are re-grantable, so those are no-ops.
+	lockIDs := []int64{existing.StaffID}
+	for _, r := range input.Replacements {
+		lockIDs = append(lockIDs, r.StaffID)
+	}
+	if err := s.lockStaffWritesOrdered(ctx, lockIDs); err != nil {
 		return nil, err
 	}
 
@@ -518,6 +605,15 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 	covers, err := s.repo.FindByOriginShiftID(ctx, existing.ID)
 	if err != nil {
 		return nil, fmt.Errorf("load existing replacements: %w", err)
+	}
+	// The rebuilt cover set re-sends each existing cover's own shift type; a type
+	// deactivated after the cover was created must still be allowed to remain, so
+	// grandfather every type the current covers already carry (#1841).
+	grandfatheredTypes := make(map[int64]bool)
+	for _, cover := range covers {
+		if cover.ShiftTypeID != nil {
+			grandfatheredTypes[*cover.ShiftTypeID] = true
+		}
 	}
 	for _, cover := range covers {
 		if err := s.repo.Delete(ctx, cover.ID); err != nil {
@@ -570,9 +666,10 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 		return result, nil
 	}
 
-	// Recreate the cover set against the now-cancelled origin. Each CreateShift
-	// re-validates the origin (must be cancelled, same date) and overlap for its
-	// own staff member.
+	// Recreate the cover set against the now-cancelled origin. Each create
+	// re-validates the origin (must be cancelled, same date, not self-covered) and
+	// overlap for its own staff member, and grandfathers a since-deactivated type
+	// a preserved cover already carried.
 	for _, r := range input.Replacements {
 		replacement := &scheduleModels.StaffShift{
 			StaffID:       r.StaffID,
@@ -585,7 +682,7 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 			ChangeReason:  input.ChangeReason,
 			CreatedBy:     input.ActorStaffID,
 		}
-		created, err := s.CreateShift(ctx, replacement)
+		created, err := s.createShift(ctx, replacement, grandfatheredTypes)
 		if err != nil {
 			return nil, err
 		}

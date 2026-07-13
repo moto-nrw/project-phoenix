@@ -762,10 +762,13 @@ export function ShiftEditModal({
                   <Checkbox
                     id="shift-cancel-toggle"
                     checked={cancelled}
-                    onChange={(e) => {
-                      setCancelled(e.target.checked);
-                      if (!e.target.checked) setReplacements([]);
-                    }}
+                    // Keep the replacement rows across an un-check/re-check: the
+                    // section is hidden while unchecked and the save only sends
+                    // replacements when `cancelled` is true, so clearing here
+                    // would erase the existing covers for a reactivation that was
+                    // never submitted — and re-checking must bring them back
+                    // rather than silently wiping every cover on save (#1841).
+                    onChange={(e) => setCancelled(e.target.checked)}
                   />
                   <span className="text-sm font-medium text-gray-800">
                     Diese Schicht fällt aus

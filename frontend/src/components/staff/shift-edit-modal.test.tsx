@@ -1,7 +1,8 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ShiftEditModal } from "./shift-edit-modal";
+import { staffShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
 
 vi.mock("~/lib/shift-api", () => ({
@@ -73,5 +74,73 @@ describe("ShiftEditModal", () => {
 
     fireEvent.change(breakInput, { target: { value: "60" } });
     expect(saveButton).toBeEnabled();
+  });
+
+  it("keeps existing covers when the cancel toggle is un- and re-checked (#1841)", async () => {
+    const applyCancellation = vi.mocked(staffShiftService.applyCancellation);
+    applyCancellation.mockClear();
+    applyCancellation.mockResolvedValue(undefined as never);
+
+    const cancelledShift: StaffShift = {
+      ...oneHourShift,
+      id: "5",
+      startTime: "08:00",
+      endTime: "16:00",
+      cancelled: true,
+    };
+    const existingCover: StaffShift = {
+      ...oneHourShift,
+      id: "11",
+      staffId: "9",
+      startTime: "08:00",
+      endTime: "12:00",
+      breakMinutes: 0,
+      originShiftId: "5",
+    };
+
+    render(
+      <ShiftEditModal
+        isOpen={true}
+        mode="edit"
+        staffId="7"
+        staffName="Ada Lovelace"
+        date="2026-07-06"
+        shift={cancelledShift}
+        shiftTypes={[]}
+        staffOptions={[{ id: "9", firstName: "Grace", lastName: "Hopper" }]}
+        existingReplacements={[existingCover]}
+        onClose={vi.fn()}
+        onSaved={vi.fn()}
+      />,
+    );
+
+    const toggle = screen.getByLabelText("Diese Schicht fällt aus");
+    expect(toggle).toBeChecked();
+
+    // Reactivate then cancel again before saving: the cover must survive the
+    // round-trip instead of being wiped locally.
+    fireEvent.click(toggle);
+    expect(toggle).not.toBeChecked();
+    fireEvent.click(toggle);
+    expect(toggle).toBeChecked();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => expect(applyCancellation).toHaveBeenCalledTimes(1));
+    expect(applyCancellation).toHaveBeenCalledWith(
+      "5",
+      expect.objectContaining({
+        cancelled: true,
+        replacements: [
+          expect.objectContaining({
+            staffId: "9",
+            startTime: "08:00",
+            endTime: "12:00",
+          }),
+        ],
+      }),
+    );
   });
 });

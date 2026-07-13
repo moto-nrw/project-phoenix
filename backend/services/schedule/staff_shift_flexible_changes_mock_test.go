@@ -183,6 +183,83 @@ func TestShiftService_UpdateKeepsOriginShiftID(t *testing.T) {
 	assert.Equal(t, int64(5), *saved.OriginShiftID)
 }
 
+// A person cannot be entered as the replacement for their own cancelled shift:
+// that marks them absent (the cancelled origin) and present (an active cover)
+// at once, and the cancelled origin is invisible to overlap checks (#1841).
+func TestShiftService_CreateReplacementRejectsSelfReplacement(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		origin := validShift(7) // same staff member as the replacement below
+		origin.ID = 5
+		origin.Cancelled = true
+		return origin, nil
+	}
+
+	replacement := validShift(7) // staff 7 covers staff 7's own cancelled shift
+	replacement.OriginShiftID = int64Ptr(5)
+
+	_, err := svc.CreateShift(context.Background(), replacement)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftInvalid)
+	assert.Contains(t, err.Error(), "its own replacement")
+}
+
+// Moving a covered ORIGIN to another date on a plain edit is rejected: its
+// covers would be stranded on the old date while still pointing at it (#1841).
+func TestShiftService_UpdateOriginRejectsDateMoveWithCovers(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	existing := validShift(7) // origin on 2026-07-06, cancelled, not a replacement
+	existing.ID = 5
+	existing.Cancelled = true
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+	cover := validShift(8)
+	cover.ID = 11
+	cover.OriginShiftID = int64Ptr(5)
+	repo.findByOriginShiftIDFunc = func(_ context.Context, originID int64) ([]*scheduleModels.StaffShift, error) {
+		assert.Equal(t, int64(5), originID)
+		return []*scheduleModels.StaffShift{cover}, nil
+	}
+
+	edit := validShift(7)
+	edit.ID = 5
+	edit.Cancelled = true
+	edit.Date = timezone.NewDate(2026, 7, 7) // moved a day off its covers
+
+	_, err := svc.UpdateShift(context.Background(), edit)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftInvalid)
+	assert.Contains(t, err.Error(), "another date")
+}
+
+// An origin with no covers may still change date on a plain edit: the guard only
+// fires when replacements actually reference the row.
+func TestShiftService_UpdateOriginAllowsDateMoveWithoutCovers(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	existing := validShift(7)
+	existing.ID = 5
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+	var saved *scheduleModels.StaffShift
+	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		saved = s
+		return nil
+	}
+
+	edit := validShift(7)
+	edit.ID = 5
+	edit.Date = timezone.NewDate(2026, 7, 8)
+
+	_, err := svc.UpdateShift(context.Background(), edit)
+	require.NoError(t, err)
+	require.NotNil(t, saved)
+	assert.Equal(t, timezone.NewDate(2026, 7, 8), saved.Date)
+}
+
 // Marking an existing shift cancelled records the absence and skips overlap.
 func TestShiftService_UpdateCanCancelShift(t *testing.T) {
 	svc, repo, _ := shiftServiceFixture()
@@ -349,6 +426,86 @@ func TestShiftService_ApplyCancellation_PreservesWindowWhenNotEditing(t *testing
 	require.NotNil(t, saved)
 	assert.Equal(t, wall(8, 0), saved.StartTime)
 	assert.Equal(t, wall(16, 0), saved.EndTime)
+}
+
+// When rebuilding an existing cover set, a shift type that was deactivated after
+// the cover was created is grandfathered in: re-saving the cancelled origin
+// re-sends that type and must not be rejected, mirroring the ordinary-edit rule
+// that lets a shift keep its already-attached inactive type (#1841).
+func TestShiftService_ApplyCancellation_PreservesInactiveCoverType(t *testing.T) {
+	svc, repo, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{
+		4: {IsActive: false}, // deactivated after the cover was first created
+	})
+
+	origin := validShift(7)
+	origin.ID = 5
+	origin.Cancelled = true
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return origin, nil
+	}
+	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		origin.Cancelled = s.Cancelled
+		return nil
+	}
+	existingCover := validShift(8)
+	existingCover.ID = 11
+	existingCover.OriginShiftID = int64Ptr(5)
+	existingCover.ShiftTypeID = int64Ptr(4) // the now-inactive type
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
+		return []*scheduleModels.StaffShift{existingCover}, nil
+	}
+	var created []*scheduleModels.StaffShift
+	repo.createFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		created = append(created, s)
+		return nil
+	}
+
+	_, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
+		ShiftID:      5,
+		Cancelled:    true,
+		ActorStaffID: 1,
+		Replacements: []ShiftReplacementInput{
+			{StaffID: 8, StartTime: wall(8, 0), EndTime: wall(16, 0), ShiftTypeID: int64Ptr(4)},
+		},
+	})
+	require.NoError(t, err, "an existing cover's since-deactivated type must survive a rebuild")
+	require.Len(t, created, 1)
+	require.NotNil(t, created[0].ShiftTypeID)
+	assert.Equal(t, int64(4), *created[0].ShiftTypeID)
+}
+
+// A brand-new cover (not in the existing set) with an inactive type is still
+// rejected — only types a current cover already carries are grandfathered.
+func TestShiftService_ApplyCancellation_RejectsNewInactiveCoverType(t *testing.T) {
+	svc, repo, _ := shiftServiceWithTypes(map[int64]*scheduleModels.ShiftType{
+		4: {IsActive: false},
+	})
+
+	origin := validShift(7)
+	origin.ID = 5
+	origin.Cancelled = true
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return origin, nil
+	}
+	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		origin.Cancelled = s.Cancelled
+		return nil
+	}
+	// No existing covers -> nothing grandfathered.
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
+		return nil, nil
+	}
+
+	_, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
+		ShiftID:      5,
+		Cancelled:    true,
+		ActorStaffID: 1,
+		Replacements: []ShiftReplacementInput{
+			{StaffID: 8, StartTime: wall(8, 0), EndTime: wall(16, 0), ShiftTypeID: int64Ptr(4)},
+		},
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftTypeInactive)
 }
 
 // Reactivating a cancelled shift removes every existing replacement and creates

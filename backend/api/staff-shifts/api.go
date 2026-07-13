@@ -129,6 +129,14 @@ type optionalBool struct {
 
 func (o *optionalBool) UnmarshalJSON(data []byte) error {
 	o.Present = true
+	// A JSON null must not be read as an explicit false: encoding/json leaves the
+	// bool at its zero value (false) for "null" and produces no error, which on
+	// the cancellation endpoint would reactivate a shift and delete every
+	// replacement for a request that only ever meant to omit the field. Reject it
+	// so a malformed/stale null is a 400, never a silent destructive reactivation.
+	if string(data) == "null" {
+		return errors.New("cancelled must be true or false, not null")
+	}
 	return json.Unmarshal(data, &o.Value)
 }
 
