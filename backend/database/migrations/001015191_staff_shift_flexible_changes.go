@@ -26,16 +26,38 @@ func init() {
 				ALTER TABLE schedule.staff_shifts
 				ADD COLUMN IF NOT EXISTS cancelled BOOLEAN NOT NULL DEFAULT FALSE,
 				ADD COLUMN IF NOT EXISTS change_reason TEXT,
-				ADD COLUMN IF NOT EXISTS origin_shift_id BIGINT
-					REFERENCES schedule.staff_shifts(id) ON DELETE SET NULL;
+				ADD COLUMN IF NOT EXISTS origin_shift_id BIGINT;
 				COMMENT ON COLUMN schedule.staff_shifts.cancelled IS
 					'Shift does not take place (staff absent / gap deliberately left open, #1841). Excluded from planned minutes and auto-checkout.';
 				COMMENT ON COLUMN schedule.staff_shifts.change_reason IS
 					'Optional reason for a flexible daily change: why the times moved, why it was cancelled, or why this replacement was entered (#1841).';
 				COMMENT ON COLUMN schedule.staff_shifts.origin_shift_id IS
-					'When set, this shift covers another (cancelled) shift as a replacement; several replacements pointing at the same origin split one gap across people (#1841). ON DELETE SET NULL keeps the cover if the origin is removed.';
+					'When set, this shift covers another (cancelled) shift as a replacement; several replacements pointing at the same origin split one gap across people (#1841). Tenant-scoped composite FK; ON DELETE SET NULL keeps the cover if the origin is removed.';
 			`).Exec(ctx); err != nil {
 				return fmt.Errorf("failed adding flexible-change columns to schedule.staff_shifts: %w", err)
+			}
+			// The origin link must be tenant-safe: schedule.staff_shifts is
+			// tenant-scoped, so a bare REFERENCES ...(id) would accept a cover
+			// whose tenant differs from its origin (and ON DELETE SET NULL could
+			// then null a row in another tenant). Mirror the shift-type / series
+			// pattern: a UNIQUE (tenant_id, id) backs a composite FK on
+			// (tenant_id, origin_shift_id), and SET NULL (origin_shift_id) clears
+			// ONLY the cover reference — a plain SET NULL would also null the
+			// shared NOT NULL tenant_id column and fail the delete.
+			if _, err := db.NewRaw(`
+				ALTER TABLE schedule.staff_shifts
+					DROP CONSTRAINT IF EXISTS uniq_staff_shifts_tenant_id;
+				ALTER TABLE schedule.staff_shifts
+					ADD CONSTRAINT uniq_staff_shifts_tenant_id UNIQUE (tenant_id, id);
+				ALTER TABLE schedule.staff_shifts
+					DROP CONSTRAINT IF EXISTS fk_staff_shifts_origin;
+				ALTER TABLE schedule.staff_shifts
+					ADD CONSTRAINT fk_staff_shifts_origin
+						FOREIGN KEY (tenant_id, origin_shift_id)
+						REFERENCES schedule.staff_shifts(tenant_id, id)
+						ON DELETE SET NULL (origin_shift_id);
+			`).Exec(ctx); err != nil {
+				return fmt.Errorf("failed adding tenant-scoped origin_shift_id foreign key: %w", err)
 			}
 			// Partial index: replacement lookups (all covers of a given gap) only
 			// ever query the small set of rows that actually carry an origin.
@@ -80,6 +102,17 @@ func init() {
 				DROP INDEX IF EXISTS schedule.idx_staff_shifts_origin_shift_id;
 			`).Exec(ctx); err != nil {
 				return fmt.Errorf("failed dropping origin_shift_id index: %w", err)
+			}
+			// Drop the tenant-scoped origin FK and its backing unique before the
+			// columns; DROP COLUMN would drop the FK anyway, but the UNIQUE
+			// (tenant_id, id) is independent and must be removed explicitly.
+			if _, err := db.NewRaw(`
+				ALTER TABLE schedule.staff_shifts
+					DROP CONSTRAINT IF EXISTS fk_staff_shifts_origin;
+				ALTER TABLE schedule.staff_shifts
+					DROP CONSTRAINT IF EXISTS uniq_staff_shifts_tenant_id;
+			`).Exec(ctx); err != nil {
+				return fmt.Errorf("failed dropping tenant-scoped origin_shift_id foreign key: %w", err)
 			}
 			if _, err := db.NewRaw(`
 				ALTER TABLE schedule.staff_shifts

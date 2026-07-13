@@ -80,9 +80,10 @@ type ShiftRequest struct {
 	ShiftTypeID  optionalID `json:"shift_type_id"`
 	Notes        *string    `json:"notes"`
 	// Cancelled marks a shift that does not take place (staff absent / gap left
-	// open, #1841). Presence-aware: an omitted key preserves the stored flag on
-	// update (a stale client must not silently reactivate a cancelled shift), an
-	// explicit true/false sets it; defaults to false on create.
+	// open, #1841). Honoured only on create (defaults to false). A plain update
+	// always preserves the stored flag and ignores this field — flipping the
+	// cancellation state must go through PUT /{id}/cancellation so the
+	// replacement set is maintained atomically.
 	Cancelled optionalBool `json:"cancelled"`
 	// ChangeReason is the optional "why" for a flexible daily change.
 	// Presence-aware: an omitted key preserves the stored reason on update, an
@@ -360,7 +361,14 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		PreserveExistingNotes:        req.Notes == nil,
 		PreserveExistingShiftType:    !req.ShiftTypeID.Present,
 		PreserveExistingChangeReason: !req.ChangeReason.Present,
-		PreserveExistingCancelled:    !req.Cancelled.Present,
+		// The ordinary update never flips the cancellation state: doing so would
+		// change the origin flag without maintaining its replacement set — a
+		// reactivation would leave other people's covers active (double-counting
+		// the plan) and a cancel could target a replacement row. Cancel /
+		// reactivate always goes through PUT /{id}/cancellation, which rebuilds
+		// the cover set atomically (#1841). Any cancelled key on a plain PUT is
+		// ignored here.
+		PreserveExistingCancelled: true,
 	})
 	if err != nil {
 		renderServiceError(w, r, err)
@@ -370,12 +378,24 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 }
 
 // CancellationRequest is the payload for PUT /{id}/cancellation: flip the
-// shift's cancelled flag, record a reason, and (when cancelling) declare the
-// full set of replacement covers. The backend applies all of it in one
-// transaction (#1841).
+// shift's cancelled flag, carry the origin shift's own (possibly edited) window
+// and type, record a reason, and (when cancelling) declare the full set of
+// replacement covers. The backend applies all of it in one transaction (#1841).
 type CancellationRequest struct {
-	Cancelled    bool                 `json:"cancelled"`
-	ChangeReason *string              `json:"change_reason"`
+	// Cancelled is presence-tracked: this endpoint is destructive (a
+	// reactivation deletes every replacement), so an omitted key is rejected
+	// rather than defaulting to false and silently reactivating a shift a stale
+	// or malformed client only meant to tweak.
+	Cancelled    optionalBool `json:"cancelled"`
+	ChangeReason *string      `json:"change_reason"`
+	// StartTime/EndTime/BreakMinutes/ShiftTypeID are the origin shift's own
+	// values as the admin sees them; when start/end are supplied they are applied
+	// to the origin so an edit made in the same save as the cancellation is not
+	// discarded (#1841). Omitting both preserves the stored window/type.
+	StartTime    string               `json:"start_time"`
+	EndTime      string               `json:"end_time"`
+	BreakMinutes int                  `json:"break_minutes"`
+	ShiftTypeID  *int64               `json:"shift_type_id"`
 	Replacements []ReplacementRequest `json:"replacements"`
 }
 
@@ -410,6 +430,13 @@ func (rs *Resource) cancellation(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	// The cancelled flag drives a destructive operation (a reactivation removes
+	// every replacement), so it must be explicit — never inferred as false from
+	// an omitted key.
+	if !req.Cancelled.Present {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("cancelled is required")))
+		return
+	}
 	editorID, err := rs.editorStaffID(r.Context())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
@@ -418,9 +445,24 @@ func (rs *Resource) cancellation(w http.ResponseWriter, r *http.Request) {
 
 	input := scheduleSvc.CancelShiftInput{
 		ShiftID:      id,
-		Cancelled:    req.Cancelled,
+		Cancelled:    req.Cancelled.Value,
 		ChangeReason: req.ChangeReason,
 		ActorStaffID: editorID,
+	}
+	// Apply the origin's own edited window/type when the client supplies it (the
+	// admin modal always does), so a time/type change made alongside the
+	// cancellation is not silently dropped (#1841).
+	if req.StartTime != "" || req.EndTime != "" {
+		start, end, err := ParseShiftTimes(req.StartTime, req.EndTime)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		input.ApplyOriginEdits = true
+		input.StartTime = start
+		input.EndTime = end
+		input.BreakMinutes = req.BreakMinutes
+		input.ShiftTypeID = req.ShiftTypeID
 	}
 	for _, rep := range req.Replacements {
 		start, end, err := ParseShiftTimes(rep.StartTime, rep.EndTime)

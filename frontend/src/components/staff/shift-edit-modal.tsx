@@ -33,6 +33,9 @@ const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
 // Stable empty default so the optional staffOptions prop does not create a new
 // array reference each render (oxlint react/no-object-type-as-default-prop).
 const EMPTY_STAFF_OPTIONS: readonly StaffScheduleStaff[] = [];
+// Stable empty default for the optional existingReplacements prop (same
+// rationale as EMPTY_STAFF_OPTIONS).
+const EMPTY_REPLACEMENTS: readonly StaffShift[] = [];
 
 const WEEKDAY_OPTIONS: ReadonlyArray<{ value: number; label: string }> = [
   { value: 1, label: "Mo" },
@@ -95,6 +98,13 @@ interface ShiftEditModalProps {
    *  (#1841). The edited shift's own staff member is excluded automatically.
    *  Optional so callers that never left a gap open (and tests) can omit it. */
   readonly staffOptions?: readonly StaffScheduleStaff[];
+  /** Replacement shifts already covering this (cancelled) shift — the rows whose
+   *  originShiftId is this shift's id (#1841). Passed in so reopening the modal
+   *  shows the existing covers instead of an empty set; without them, saving any
+   *  edit to an already-cancelled shift would send an empty replacement set and
+   *  the backend would delete every cover. Optional / empty for create and for
+   *  never-cancelled shifts. */
+  readonly existingReplacements?: readonly StaffShift[];
   readonly onClose: () => void;
   readonly onSaved: () => void;
 }
@@ -116,6 +126,7 @@ export function ShiftEditModal({
   shift,
   shiftTypes,
   staffOptions = EMPTY_STAFF_OPTIONS,
+  existingReplacements = EMPTY_REPLACEMENTS,
   onClose,
   onSaved,
 }: ShiftEditModalProps) {
@@ -197,8 +208,17 @@ export function ShiftEditModal({
     setScopeQuestion(null);
     setChangeReason(shift?.changeReason ?? "");
     setCancelled(shift?.cancelled ?? false);
-    setReplacements([]);
-  }, [isOpen, initial, date, shift]);
+    // Seed the replacement rows from the covers already attached to this shift
+    // so reopening a cancelled shift preserves them; saving would otherwise send
+    // an empty set and the backend would delete every existing cover (#1841).
+    setReplacements(
+      existingReplacements.map((cover) => ({
+        staffId: cover.staffId,
+        startTime: cover.startTime,
+        endTime: cover.endTime,
+      })),
+    );
+  }, [isOpen, initial, date, shift, existingReplacements]);
 
   // Calendar periods load once the series section is opened; the period is
   // required (it bounds the series and anchors Woche A/B).
@@ -412,6 +432,13 @@ export function ShiftEditModal({
           await staffShiftService.applyCancellation(shift.id, {
             cancelled,
             changeReason,
+            // Carry the shift's own edited window/type so a time change made in
+            // the same save is applied to the origin, not silently dropped, and
+            // a reactivation re-checks overlap against the edited window (#1841).
+            startTime,
+            endTime,
+            breakMinutes: breakMinutes ?? 0,
+            shiftTypeId: resolvedShiftTypeId,
             replacements: cancelled
               ? replacements.map((row) => ({
                   staffId: row.staffId,

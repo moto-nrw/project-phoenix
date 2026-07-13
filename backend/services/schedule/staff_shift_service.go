@@ -296,6 +296,16 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	// A replacement stays a replacement of the same origin — the cover link is
 	// set at creation and never re-pointed by a plain edit (#1841).
 	shift.OriginShiftID = existing.OriginShiftID
+	// If a plain edit moves a replacement to a different day, the create-time
+	// invariant (a cover shares its origin's date and the origin is cancelled)
+	// would silently break — re-validate the preserved link against the new
+	// date (#1841). Same-date edits keep the guarantee they were created with,
+	// and skipping the origin read for them avoids an extra query on every edit.
+	if shift.OriginShiftID != nil && shift.Date != existing.Date {
+		if err := s.validateOriginShift(ctx, shift); err != nil {
+			return nil, err
+		}
+	}
 	if opts.PreserveExistingNotes {
 		shift.Notes = existing.Notes
 	}
@@ -407,8 +417,20 @@ type CancelShiftInput struct {
 	ShiftID      int64
 	Cancelled    bool
 	ChangeReason *string
-	Replacements []ShiftReplacementInput
-	ActorStaffID int64
+	// ApplyOriginEdits, when true, applies the StartTime/EndTime/BreakMinutes/
+	// ShiftTypeID below to the origin shift instead of preserving its stored
+	// values (#1841). The admin modal edits the shift's own window in the same
+	// save as the cancellation/reactivation, so those edits must not be silently
+	// dropped — and a reactivation must re-check overlap against the edited
+	// window, not the obsolete stored one. Callers that only flip the flag leave
+	// this false and the stored window/type is kept.
+	ApplyOriginEdits bool
+	StartTime        time.Time
+	EndTime          time.Time
+	BreakMinutes     int
+	ShiftTypeID      *int64
+	Replacements     []ShiftReplacementInput
+	ActorStaffID     int64
 }
 
 // CancelShiftResult reports the updated origin and the freshly created covers.
@@ -469,15 +491,27 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 	}
 
 	// Flip the origin's cancellation via the normal update path so the
-	// series-detach and (on reactivation) overlap rules apply. Times/type/notes
-	// are preserved; only cancelled + reason change here.
+	// series-detach and (on reactivation) overlap rules apply. Notes are always
+	// preserved (the modal has no notes field); the window/type default to the
+	// stored values but are overwritten with the caller's edits when supplied,
+	// so an edit made in the same save is honoured and a reactivation's overlap
+	// check runs against the edited window (#1841).
 	originUpdate := &scheduleModels.StaffShift{
 		Date:         existing.Date,
 		StartTime:    existing.StartTime,
 		EndTime:      existing.EndTime,
 		BreakMinutes: existing.BreakMinutes,
+		ShiftTypeID:  existing.ShiftTypeID,
 		Cancelled:    input.Cancelled,
 		ChangeReason: input.ChangeReason,
+	}
+	preserveType := true
+	if input.ApplyOriginEdits {
+		originUpdate.StartTime = input.StartTime
+		originUpdate.EndTime = input.EndTime
+		originUpdate.BreakMinutes = input.BreakMinutes
+		originUpdate.ShiftTypeID = input.ShiftTypeID
+		preserveType = false
 	}
 	originUpdate.ID = existing.ID
 	if input.ActorStaffID > 0 {
@@ -485,7 +519,7 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 	}
 	updated, err := s.UpdateShiftWithOptions(ctx, originUpdate, StaffShiftUpdateOptions{
 		PreserveExistingNotes:     true,
-		PreserveExistingShiftType: true,
+		PreserveExistingShiftType: preserveType,
 	})
 	if err != nil {
 		return nil, err

@@ -127,6 +127,35 @@ func TestShiftService_CreateReplacementRejectsActiveOrigin(t *testing.T) {
 	assert.Contains(t, err.Error(), "cancelled shift")
 }
 
+// A plain edit that moves a replacement to a different day than its origin is
+// rejected: the create-time invariant (a cover shares its origin's cancelled
+// same-day gap) must hold after an update too (#1841).
+func TestShiftService_UpdateReplacementRejectsCrossDateMove(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	existing := validShift(8) // replacement on 2026-07-06
+	existing.ID = 3
+	existing.OriginShiftID = int64Ptr(5)
+	origin := validShift(7) // origin on 2026-07-06, cancelled
+	origin.ID = 5
+	origin.Cancelled = true
+	repo.findByIDFunc = func(_ context.Context, id any) (*scheduleModels.StaffShift, error) {
+		if id == int64(5) {
+			return origin, nil
+		}
+		return existing, nil
+	}
+
+	edit := validShift(8)
+	edit.ID = 3
+	edit.Date = timezone.NewDate(2026, 7, 7) // moved a day off its origin
+
+	_, err := svc.UpdateShift(context.Background(), edit)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftInvalid)
+	assert.Contains(t, err.Error(), "same date")
+}
+
 // A plain edit never re-points the cover link: it stays whatever it was at
 // creation, even when the request omits it.
 func TestShiftService_UpdateKeepsOriginShiftID(t *testing.T) {
@@ -254,6 +283,72 @@ func TestShiftService_ApplyCancellation_CancelsAndCreatesReplacements(t *testing
 		require.NotNil(t, cover.ChangeReason)
 		assert.Equal(t, "krank", *cover.ChangeReason)
 	}
+}
+
+// When the caller supplies the origin's own edited window/type (ApplyOriginEdits),
+// the cancellation applies them instead of preserving the stored values, so a
+// time change made in the same save is not silently dropped (#1841).
+func TestShiftService_ApplyCancellation_AppliesOriginEdits(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	origin := validShift(7) // stored 08:00–16:00
+	origin.ID = 5
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return origin, nil
+	}
+	var saved *scheduleModels.StaffShift
+	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		saved = s
+		origin.Cancelled = s.Cancelled
+		return nil
+	}
+
+	newType := int64(42)
+	_, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
+		ShiftID:          5,
+		Cancelled:        true,
+		ApplyOriginEdits: true,
+		StartTime:        wall(9, 0),
+		EndTime:          wall(14, 0),
+		BreakMinutes:     15,
+		ShiftTypeID:      &newType,
+		ActorStaffID:     1,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, saved)
+	assert.Equal(t, wall(9, 0), saved.StartTime)
+	assert.Equal(t, wall(14, 0), saved.EndTime)
+	assert.Equal(t, 15, saved.BreakMinutes)
+	require.NotNil(t, saved.ShiftTypeID)
+	assert.Equal(t, newType, *saved.ShiftTypeID)
+}
+
+// Without ApplyOriginEdits the stored window/type is preserved: a caller that
+// only flips the flag must not zero out the origin's times.
+func TestShiftService_ApplyCancellation_PreservesWindowWhenNotEditing(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	origin := validShift(7) // stored 08:00–16:00
+	origin.ID = 5
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return origin, nil
+	}
+	var saved *scheduleModels.StaffShift
+	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		saved = s
+		origin.Cancelled = s.Cancelled
+		return nil
+	}
+
+	_, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
+		ShiftID:      5,
+		Cancelled:    true,
+		ActorStaffID: 1,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, saved)
+	assert.Equal(t, wall(8, 0), saved.StartTime)
+	assert.Equal(t, wall(16, 0), saved.EndTime)
 }
 
 // Reactivating a cancelled shift removes every existing replacement and creates

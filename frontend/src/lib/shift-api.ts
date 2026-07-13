@@ -51,6 +51,14 @@ interface CancellationPayload {
   cancelled: boolean;
   /** Sent verbatim ("" clears the stored reason). */
   changeReason: string;
+  /** The origin shift's own window/type as edited in the modal. Sent alongside
+   *  the cancellation so a time/type change made in the same save is applied to
+   *  the origin instead of being discarded, and a reactivation re-checks overlap
+   *  against the edited window (#1841). "HH:MM". */
+  startTime: string;
+  endTime: string;
+  breakMinutes: number;
+  shiftTypeId: string | null;
   /** Only meaningful when cancelling; ignored (must be empty) on reactivation. */
   replacements: ReplacementPayload[];
 }
@@ -254,6 +262,13 @@ class StaffShiftService {
         body: JSON.stringify({
           cancelled: payload.cancelled,
           change_reason: payload.changeReason,
+          start_time: payload.startTime,
+          end_time: payload.endTime,
+          break_minutes: payload.breakMinutes,
+          shift_type_id:
+            payload.shiftTypeId != null
+              ? Number.parseInt(payload.shiftTypeId, 10)
+              : null,
           replacements: payload.replacements.map((r) => ({
             staff_id: Number.parseInt(r.staffId, 10),
             start_time: r.startTime,
