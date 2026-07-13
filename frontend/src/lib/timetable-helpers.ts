@@ -481,7 +481,7 @@ function mapGapInstance(gap: BackendGapInstance): GapInstance {
 }
 
 /** Deutsche Labels für die Ereignistypen des Änderungsprotokolls (#1886). */
-export const DEVIATION_EVENT_LABELS: Record<string, string> = {
+const DEVIATION_EVENT_LABELS: Record<string, string> = {
   absence: "Abwesenheit eingetragen",
   return_to_presence: "Rückkehr eingetragen",
   substitution: "Vertretung zugewiesen",

@@ -222,7 +222,7 @@ export interface BackendGapsResponse {
 
 /** Ereignistypen des Änderungsprotokolls (#1886) — offenes Vokabular, das
  * Backend darf jederzeit neue Typen liefern (Label-Fallback im Mapper). */
-export type DeviationEventType =
+type DeviationEventType =
   | "absence"
   | "return_to_presence"
   | "substitution"
@@ -256,7 +256,7 @@ export interface DeviationHistoryResponse {
   events: DeviationHistoryEvent[];
 }
 
-export interface BackendDeviationHistoryEvent {
+interface BackendDeviationHistoryEvent {
   id: number;
   activity_group_id?: number;
   occurrence_date: string;
