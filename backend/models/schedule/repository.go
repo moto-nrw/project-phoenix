@@ -68,6 +68,53 @@ type StaffShiftRepository interface {
 	// DeleteUpcomingByStaffID removes planned shifts on or after from. Past
 	// shifts stay as history. Used by staff offboarding.
 	DeleteUpcomingByStaffID(ctx context.Context, staffID int64, from timezone.Date) (int64, error)
+
+	// BulkCreate inserts all shifts in one multi-row statement (series
+	// materialization, #1889).
+	BulkCreate(ctx context.Context, shifts []*StaffShift) error
+
+	// DeleteNonDetachedBySeriesFrom removes a series' regenerable rows on or
+	// after from. Detached rows ("Nur diese Woche" edits) survive.
+	DeleteNonDetachedBySeriesFrom(ctx context.Context, seriesID int64, from timezone.Date) (int64, error)
+
+	// RepointDetachedSeriesFrom moves a series' detached rows on or after
+	// from to the successor series created by a split.
+	RepointDetachedSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from timezone.Date) (int64, error)
+}
+
+// StaffShiftSeriesRepository is the data-access boundary for recurring shift
+// series (#1889). CRUD comes from the generic repository (mirrors the
+// StaffShiftRepository shape).
+type StaffShiftSeriesRepository interface {
+	Create(ctx context.Context, series *StaffShiftSeries) error
+	FindByID(ctx context.Context, id any) (*StaffShiftSeries, error)
+	Update(ctx context.Context, series *StaffShiftSeries) error
+	Delete(ctx context.Context, id any) error
+
+	// FindByStaffID returns all series segments of one staff member, ordered
+	// by valid_from.
+	FindByStaffID(ctx context.Context, staffID int64) ([]*StaffShiftSeries, error)
+
+	// CapValidUntil bounds a series segment at the exclusive date (split /
+	// end / offboarding).
+	CapValidUntil(ctx context.Context, id int64, until timezone.Date) error
+
+	// CapAllByStaffID bounds every series segment of one staff member at the
+	// exclusive date (staff offboarding).
+	CapAllByStaffID(ctx context.Context, staffID int64, until timezone.Date) (int64, error)
+}
+
+// StaffShiftSeriesExceptionRepository stores deliberately removed single
+// occurrences of a series so re-plans never regenerate them.
+type StaffShiftSeriesExceptionRepository interface {
+	Create(ctx context.Context, exception *StaffShiftSeriesException) error
+
+	// FindDatesBySeriesID returns the excepted dates of one series.
+	FindDatesBySeriesID(ctx context.Context, seriesID int64) ([]timezone.Date, error)
+
+	// RepointToSeriesFrom moves exceptions on or after from to the successor
+	// series created by a split.
+	RepointToSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from timezone.Date) (int64, error)
 }
 
 // ShiftTypeRepository is the data-access boundary for tenant-defined shift

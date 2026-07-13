@@ -47,6 +47,10 @@ type StaffShiftService interface {
 	UpdateShiftWithOptions(ctx context.Context, shift *scheduleModels.StaffShift, opts StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error)
 	// DeleteShift removes a shift.
 	DeleteShift(ctx context.Context, id int64) error
+	// SetSeriesExceptionRepo injects the series exception repository (#1889);
+	// see the implementation comment. Same optional-injection pattern as
+	// WorkSessionService.SetStaffShiftRepo.
+	SetSeriesExceptionRepo(repo scheduleModels.StaffShiftSeriesExceptionRepository)
 }
 
 type StaffShiftUpdateOptions struct {
@@ -59,11 +63,12 @@ type StaffShiftUpdateOptions struct {
 }
 
 type staffShiftService struct {
-	repo       scheduleModels.StaffShiftRepository
-	staffRepo  usersModels.StaffRepository
-	shiftTypes ShiftTypeService
-	db         *bun.DB
-	logger     *slog.Logger
+	repo          scheduleModels.StaffShiftRepository
+	staffRepo     usersModels.StaffRepository
+	shiftTypes    ShiftTypeService
+	exceptionRepo scheduleModels.StaffShiftSeriesExceptionRepository
+	db            *bun.DB
+	logger        *slog.Logger
 }
 
 // NewStaffShiftService creates a new staff shift service. db is used for the
@@ -72,6 +77,15 @@ type staffShiftService struct {
 // nil in unit tests that never attach a shift type.
 func NewStaffShiftService(repo scheduleModels.StaffShiftRepository, staffRepo usersModels.StaffRepository, shiftTypes ShiftTypeService, db *bun.DB, logger *slog.Logger) StaffShiftService {
 	return &staffShiftService{repo: repo, staffRepo: staffRepo, shiftTypes: shiftTypes, db: db, logger: logger}
+}
+
+// SetSeriesExceptionRepo wires the series exception repository (#1889).
+// When set, deleting a series-backed shift records the date as a series
+// exception so re-plans never regenerate the removed occurrence. Optional so
+// unit tests without series stay unchanged (same pattern as the auto-checkout
+// shift repo injection).
+func (s *staffShiftService) SetSeriesExceptionRepo(repo scheduleModels.StaffShiftSeriesExceptionRepository) {
+	s.exceptionRepo = repo
 }
 
 // lockShiftWrites takes the per-staff advisory lock before the overlap
@@ -233,6 +247,14 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	// The request model has a zero CreatedAt; the whole-model update would
 	// otherwise write created_at = DEFAULT and reset it to now().
 	shift.CreatedAt = existing.CreatedAt
+	// Editing a series-backed row IS the "Nur diese Woche" deviation: the row
+	// keeps its series link but detaches, so re-plans and splits leave it
+	// alone (#1889). Standalone rows stay untouched by this.
+	shift.SeriesID = existing.SeriesID
+	shift.Detached = existing.Detached
+	if existing.SeriesID != nil {
+		shift.Detached = true
+	}
 	if err := shift.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrShiftInvalid, err.Error())
 	}
@@ -276,6 +298,19 @@ func (s *staffShiftService) DeleteShift(ctx context.Context, id int64) error {
 	}
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
+	}
+	// Deleting a series-backed row records the date as a series exception so
+	// re-plans and splits never regenerate the removed occurrence (#1889).
+	if existing.SeriesID != nil && s.exceptionRepo != nil {
+		exception := &scheduleModels.StaffShiftSeriesException{
+			SeriesID:  *existing.SeriesID,
+			Date:      existing.Date,
+			CreatedBy: existing.CreatedBy,
+		}
+		exception.TenantID = existing.TenantID
+		if err := s.exceptionRepo.Create(ctx, exception); err != nil {
+			return fmt.Errorf("record series exception for deleted shift: %w", err)
+		}
 	}
 	s.getLogger().Info("staff shift deleted",
 		"shift_id", id,

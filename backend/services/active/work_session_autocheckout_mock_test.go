@@ -69,6 +69,18 @@ func (m *wsMockStaffShiftRepository) DeleteUpcomingByStaffID(context.Context, in
 	return 0, nil
 }
 
+func (m *wsMockStaffShiftRepository) BulkCreate(context.Context, []*scheduleModels.StaffShift) error {
+	return nil
+}
+
+func (m *wsMockStaffShiftRepository) DeleteNonDetachedBySeriesFrom(context.Context, int64, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
+func (m *wsMockStaffShiftRepository) RepointDetachedSeriesFrom(context.Context, int64, int64, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
 // ============================================================================
 // Helpers
 // ============================================================================

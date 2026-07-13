@@ -37,8 +37,13 @@ type StaffShift struct {
 	// shift when its type is deleted.
 	ShiftTypeID *int64 `bun:"shift_type_id" json:"shift_type_id,omitempty"`
 	Notes       string `bun:"notes" json:"notes,omitempty"`
-	CreatedBy   int64  `bun:"created_by,notnull" json:"created_by"`
-	UpdatedBy   *int64 `bun:"updated_by" json:"updated_by,omitempty"`
+	// SeriesID links a materialized row to its StaffShiftSeries (#1889).
+	// Detached marks a series row the user edited via "Nur diese Woche":
+	// re-plans delete and regenerate only non-detached rows.
+	SeriesID  *int64 `bun:"series_id" json:"series_id,omitempty"`
+	Detached  bool   `bun:"detached,notnull,default:false" json:"detached"`
+	CreatedBy int64  `bun:"created_by,notnull" json:"created_by"`
+	UpdatedBy *int64 `bun:"updated_by" json:"updated_by,omitempty"`
 
 	Staff *users.Staff `bun:"rel:belongs-to,join:tenant_id=tenant_id,join:staff_id=id" json:"staff,omitempty"`
 }
@@ -51,23 +56,33 @@ func (s *StaffShift) Validate() error {
 	if s.Date.IsZero() {
 		return errors.New("date is required")
 	}
-	start := timezone.WallClock(s.StartTime)
-	end := timezone.WallClock(s.EndTime)
-	if !end.After(start) {
-		return errors.New("end time must be after start time")
-	}
-	if s.BreakMinutes < 0 {
-		return errors.New("break minutes must not be negative")
-	}
-	if s.BreakMinutes > MaxStaffShiftBreakMinutes {
-		return errors.New("break minutes must not exceed 300")
-	}
-	durationMinutes := int(end.Sub(start) / time.Minute)
-	if s.BreakMinutes > durationMinutes {
-		return errors.New("break minutes must not exceed shift duration")
+	if err := validateShiftWindow(s.StartTime, s.EndTime, s.BreakMinutes); err != nil {
+		return err
 	}
 	if s.CreatedBy <= 0 {
 		return errors.New("created by is required")
+	}
+	return nil
+}
+
+// validateShiftWindow holds the wall-clock rules shared by single shifts and
+// series: end after start, break within 0..MaxStaffShiftBreakMinutes and not
+// longer than the shift itself.
+func validateShiftWindow(startTime, endTime time.Time, breakMinutes int) error {
+	start := timezone.WallClock(startTime)
+	end := timezone.WallClock(endTime)
+	if !end.After(start) {
+		return errors.New("end time must be after start time")
+	}
+	if breakMinutes < 0 {
+		return errors.New("break minutes must not be negative")
+	}
+	if breakMinutes > MaxStaffShiftBreakMinutes {
+		return errors.New("break minutes must not exceed 300")
+	}
+	durationMinutes := int(end.Sub(start) / time.Minute)
+	if breakMinutes > durationMinutes {
+		return errors.New("break minutes must not exceed shift duration")
 	}
 	return nil
 }
