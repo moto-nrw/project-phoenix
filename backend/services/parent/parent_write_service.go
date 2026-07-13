@@ -303,6 +303,10 @@ func (s *service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		tenant.RegisterAfterCommit(txCtx, func() {
 			s.emitSelfServicePill(capturedTenant, studentID, accountID, "sick_note", pillBody, "active.student_status_days", pillRefID)
 			s.broadcastStudentUpdated(capturedTenant, studentID)
+			// broadcastStudentUpdated is staff-only and emitSelfServicePill wakes
+			// just the acting guardian's thread; fan out to EVERY guardian so a
+			// co-guardian's open tab drops the stale presence too (#1725 review).
+			s.wakeChildGuardians(capturedTenant, studentID)
 		})
 		return nil
 	})
@@ -710,6 +714,9 @@ func (s *service) SubmitCareException(ctx context.Context, accountID, studentID 
 		tenant.RegisterAfterCommit(txCtx, func() {
 			s.emitSelfServicePill(capturedTenant, studentID, accountID, "care_exception", pillBody, pillRefTable, pillRefID)
 			s.broadcastStudentUpdated(capturedTenant, studentID)
+			// Fan out to EVERY guardian so a co-guardian's open tab reflects the
+			// new override on the "Heute" tile live (#1725 review).
+			s.wakeChildGuardians(capturedTenant, studentID)
 		})
 		return nil
 	})
@@ -984,6 +991,9 @@ func (s *service) DeleteCareException(ctx context.Context, accountID, studentID 
 			tenant.RegisterAfterCommit(txCtx, func() {
 				s.emitSelfServicePill(capturedTenant, studentID, accountID, "care_exception_correction", pillBody, "", nil)
 				s.broadcastStudentUpdated(capturedTenant, studentID)
+				// Fan out to EVERY guardian so a co-guardian's open tab drops the
+				// removed override on the "Heute" tile live (#1725 review).
+				s.wakeChildGuardians(capturedTenant, studentID)
 			})
 		}
 		return nil

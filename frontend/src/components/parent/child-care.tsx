@@ -338,6 +338,18 @@ export function useChildCare(studentId: string): ChildCare {
   const [loadedStudentId, setLoadedStudentId] = useState(studentId);
   if (loadedStudentId !== studentId) {
     setLoadedStudentId(studentId);
+    // Invalidate any in-flight load(A) SYNCHRONOUSLY. Clearing the state above is
+    // not enough on its own: load()'s stale-response guard compares its captured
+    // seq against loadSeqRef.current, and the reset does not touch that ref — so a
+    // load(A) already awaiting its fetch still "owns" the current seq and would
+    // pass the guard and repopulate B's view with A's absence/pickup state before
+    // load(B) even starts (load(B) only runs in the post-paint effect). Bumping
+    // the ref here makes every in-flight load bail (its seq !== current). Safe to
+    // mutate during render: this branch runs at most once per studentId change
+    // (setLoadedStudentId flips the guard), and a discarded/replayed render only
+    // bumps again — over-invalidating costs at most a refetch, never stale data
+    // (#1725 review).
+    loadSeqRef.current += 1;
     setSickDays([]);
     setExcusedRequests([]);
     setCareExceptions([]);

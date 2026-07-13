@@ -419,8 +419,14 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 
 	// Wake the child's guardians: the weekly base plan feeds the "Heute" pickup
 	// tile's base time, so a changed schedule must refetch on an open parents-app
-	// tab live (#1725).
-	rs.wakeChildGuardians(tenantID, student.ID)
+	// tab live (#1725). Defer to the OUTER request transaction's commit — the
+	// handler WithTenantTx above only REUSES the tx opened by TenantTxMiddleware
+	// (nested), so it has NOT committed on return; waking now would let a client
+	// refetch before the write is visible or wake for a write a later 5xx rolls
+	// back (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
 
 	// Fetch updated data
 	data, err := rs.PickupScheduleService.GetStudentPickupData(r.Context(), student.ID)
@@ -529,10 +535,14 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 	}
 
 	// Wake the child's guardians so an open parents-app tab reflects the new
-	// pickup override on the "Heute" tile live. The transaction has committed
-	// (WithTenantTx returned nil), so a woken client's refetch reads the new row
-	// (#1725).
-	rs.wakeChildGuardians(tenantID, student.ID)
+	// pickup override on the "Heute" tile live. Defer to the OUTER request tx's
+	// commit: the handler WithTenantTx above only REUSES the tx opened by
+	// TenantTxMiddleware (nested) and has NOT committed on return, so a woken
+	// client would otherwise refetch the pre-commit snapshot — or be woken for a
+	// write a later 5xx rolls back (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
 
 	common.Respond(w, r, http.StatusCreated, mapExceptionToResponse(exception), "Pickup exception created successfully")
 }
@@ -632,8 +642,12 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 	}
 
 	// Wake the child's guardians so the "Heute" pickup tile reflects the edited
-	// override live (#1725).
-	rs.wakeChildGuardians(tenantID, student.ID)
+	// override live; defer to the outer request tx's commit (see the create path
+	// above — the handler WithTenantTx is a nested reuse, not committed on return)
+	// (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
 
 	common.Respond(w, r, http.StatusOK, mapExceptionToResponse(exception), "Pickup exception updated successfully")
 }
@@ -677,8 +691,11 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 	}
 
 	// Wake the child's guardians so the "Heute" pickup tile drops the removed
-	// override live (#1725).
-	rs.wakeChildGuardians(tenantID, student.ID)
+	// override live; defer to the outer request tx's commit (nested handler
+	// WithTenantTx is not committed on return) (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
 
 	common.Respond(w, r, http.StatusOK, nil, "Pickup exception deleted successfully")
 }
