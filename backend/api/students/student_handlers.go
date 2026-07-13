@@ -899,6 +899,25 @@ func (rs *Resource) wakeChildGuardians(tenantID, studentID int64) {
 	rs.ParentEventEmitter.BroadcastChildUpdateToGuardians(tenantID, studentID)
 }
 
+// scheduleStudentUpdateWakes registers the after-commit SSE fan-out for a
+// student update. It always broadcasts the tenant-wide student_updated staff
+// event; it additionally wakes the child's guardians when the request actually
+// touched a status field (sick/excused), because a sick/excused edit writes
+// TODAY's status day — the exact signal the parent pickup tile resolves
+// today_absent from — while student_updated never reaches the parents stream. A
+// plain name/notes edit changes nothing parent-visible, so it wakes no one
+// (#1725). Runs after the OUTER tx commits so a woken client never reads the
+// pre-commit snapshot; tenantID is captured before the hook fires.
+func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest) {
+	statusChanged := req.Sick != nil || req.Excused != nil
+	tenant.RegisterAfterCommit(ctx, func() {
+		rs.broadcastStudentUpdated(tenantID, studentID)
+		if statusChanged {
+			rs.wakeChildGuardians(tenantID, studentID)
+		}
+	})
+}
+
 // updateStudent handles updating an existing student
 func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse ID and get student
@@ -1035,21 +1054,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 
 		// Broadcast after the OUTER tx commits. Broadcasting now would race
 		// subscribers into refetching the still-pre-commit row.
-		studentID := student.ID
-		capturedTenantID := tenantID
-		// A sick/excused edit writes TODAY's status day (persistStudentStatusHistory
-		// above) — the exact signal the parent pickup tile resolves today_absent
-		// from. student_updated is tenant-wide STAFF SSE and never reaches the
-		// parents stream, so also wake the child's guardians, but only when a status
-		// field was actually supplied (a plain name/notes edit changes nothing
-		// parent-visible) (#1725).
-		statusChanged := req.Sick != nil || req.Excused != nil
-		tenant.RegisterAfterCommit(ctx, func() {
-			rs.broadcastStudentUpdated(capturedTenantID, studentID)
-			if statusChanged {
-				rs.wakeChildGuardians(capturedTenantID, studentID)
-			}
-		})
+		rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req)
 		return nil
 	}); err != nil {
 		if errors.Is(err, errSickExcusedConflict) {
