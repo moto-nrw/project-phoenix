@@ -140,6 +140,26 @@ func (o *optionalBool) UnmarshalJSON(data []byte) error {
 	return json.Unmarshal(data, &o.Value)
 }
 
+// optionalInt captures whether an int field was present in the JSON payload so an
+// omitted break_minutes is distinguishable from an explicit 0. The cancellation
+// endpoint refuses a partial origin edit rather than silently zeroing the stored
+// break, so it must know whether the client actually sent the field. Same presence
+// trick as optionalID: UnmarshalJSON only runs when the key is present.
+type optionalInt struct {
+	Present bool
+	Value   int
+}
+
+func (o *optionalInt) UnmarshalJSON(data []byte) error {
+	o.Present = true
+	// A JSON null is not a valid break length; reject it rather than reading it as
+	// an ambiguous 0 that a partial-payload guard could not distinguish from omitted.
+	if string(data) == "null" {
+		return errors.New("break_minutes must be a number, not null")
+	}
+	return json.Unmarshal(data, &o.Value)
+}
+
 // optionalString captures whether a nullable string field was present in the
 // JSON payload, distinguishing an omitted change_reason (preserve the stored
 // value) from an explicit null (clear it) from a string (replace it). A plain
@@ -396,14 +416,17 @@ type CancellationRequest struct {
 	// or malformed client only meant to tweak.
 	Cancelled    optionalBool `json:"cancelled"`
 	ChangeReason *string      `json:"change_reason"`
-	// StartTime/EndTime/BreakMinutes/ShiftTypeID are the origin shift's own
-	// values as the admin sees them; when start/end are supplied they are applied
-	// to the origin so an edit made in the same save as the cancellation is not
-	// discarded (#1841). Omitting both preserves the stored window/type.
+	// StartTime/EndTime/BreakMinutes/ShiftTypeID are the origin shift's own values
+	// as the admin sees them. An origin edit is all-or-nothing: applying it
+	// overwrites the stored window, break AND type, so a partial payload (window
+	// sent, break_minutes or shift_type_id omitted) would silently reset the missing
+	// fields to 0/null. break_minutes and shift_type_id are therefore presence-tracked
+	// and the handler requires the complete set whenever any origin field is present;
+	// omitting all four preserves the stored window/type/break (#1841).
 	StartTime    string               `json:"start_time"`
 	EndTime      string               `json:"end_time"`
-	BreakMinutes int                  `json:"break_minutes"`
-	ShiftTypeID  *int64               `json:"shift_type_id"`
+	BreakMinutes optionalInt          `json:"break_minutes"`
+	ShiftTypeID  optionalID           `json:"shift_type_id"`
 	Replacements []ReplacementRequest `json:"replacements"`
 }
 
@@ -458,9 +481,20 @@ func (rs *Resource) cancellation(w http.ResponseWriter, r *http.Request) {
 		ActorStaffID: editorID,
 	}
 	// Apply the origin's own edited window/type when the client supplies it (the
-	// admin modal always does), so a time/type change made alongside the
-	// cancellation is not silently dropped (#1841).
-	if req.StartTime != "" || req.EndTime != "" {
+	// admin modal always sends the full set), so a time/type change made alongside
+	// the cancellation is not silently dropped (#1841). The edit is all-or-nothing —
+	// applying it overwrites the stored window, break AND type — so a partial payload
+	// (e.g. a window change with break_minutes or shift_type_id omitted) would reset
+	// the omitted fields to 0/null. Require the complete set whenever any origin
+	// field is present; omitting all four preserves the stored origin values.
+	originEditIntended := req.StartTime != "" || req.EndTime != "" ||
+		req.BreakMinutes.Present || req.ShiftTypeID.Present
+	if originEditIntended {
+		if req.StartTime == "" || req.EndTime == "" || !req.BreakMinutes.Present || !req.ShiftTypeID.Present {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(
+				"origin shift edits require start_time, end_time, break_minutes and shift_type_id together")))
+			return
+		}
 		start, end, err := ParseShiftTimes(req.StartTime, req.EndTime)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -469,8 +503,8 @@ func (rs *Resource) cancellation(w http.ResponseWriter, r *http.Request) {
 		input.ApplyOriginEdits = true
 		input.StartTime = start
 		input.EndTime = end
-		input.BreakMinutes = req.BreakMinutes
-		input.ShiftTypeID = req.ShiftTypeID
+		input.BreakMinutes = req.BreakMinutes.Value
+		input.ShiftTypeID = req.ShiftTypeID.Value
 	}
 	for _, rep := range req.Replacements {
 		start, end, err := ParseShiftTimes(rep.StartTime, rep.EndTime)

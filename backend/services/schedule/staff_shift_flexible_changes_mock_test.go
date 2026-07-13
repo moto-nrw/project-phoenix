@@ -910,3 +910,52 @@ func TestShiftService_ApplyCancellation_ReloadsOriginAfterLock(t *testing.T) {
 	assert.Equal(t, wall(9, 0), saved.StartTime, "cancellation must preserve the re-read window, not the stale one")
 	assert.Equal(t, wall(15, 0), saved.EndTime)
 }
+
+// A cover this cancellation drops (its staff absent from the new replacement set)
+// must still be locked, so a concurrent edit/delete of it — which locks only that
+// cover's staff — serializes against the delete-and-rebuild instead of racing it
+// (#1841). The advisory lock is a no-op without a DB, so the lock set is observed
+// directly via the test seam.
+func TestShiftService_ApplyCancellation_LocksDroppedCoverStaff(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	origin := validShift(7) // origin owned by staff 7
+	origin.ID = 5
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return origin, nil
+	}
+	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		origin.Cancelled = s.Cancelled // the flip is visible to the cover creates
+		return nil
+	}
+	// The origin currently has one cover owned by staff 3, whom the new replacement
+	// set (staff 8) drops entirely.
+	droppedCover := validShift(3)
+	droppedCover.ID = 11
+	droppedCover.OriginShiftID = int64Ptr(5)
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
+		return []*scheduleModels.StaffShift{droppedCover}, nil
+	}
+	repo.createFunc = func(_ context.Context, _ *scheduleModels.StaffShift) error { return nil }
+
+	var lockSets [][]int64
+	svc.(*staffShiftService).lockObserver = func(ids []int64) {
+		lockSets = append(lockSets, append([]int64(nil), ids...))
+	}
+
+	_, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
+		ShiftID:      5,
+		Cancelled:    true,
+		ActorStaffID: 1,
+		Replacements: []ShiftReplacementInput{
+			{StaffID: 8, StartTime: wall(9, 0), EndTime: wall(12, 0)},
+		},
+	})
+	require.NoError(t, err)
+	require.NotEmpty(t, lockSets)
+	// The top-level cancellation lock set is the first acquisition; it must cover the
+	// origin's staff (7), the requested replacement's staff (8), AND the dropped
+	// cover's staff (3), taken in a single stable sorted order.
+	assert.Equal(t, []int64{3, 7, 8}, lockSets[0],
+		"the dropped cover's staff (3) must be folded into the cancellation lock set")
+}

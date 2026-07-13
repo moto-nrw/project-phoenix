@@ -86,6 +86,12 @@ type staffShiftService struct {
 	exceptionRepo scheduleModels.StaffShiftSeriesExceptionRepository
 	db            *bun.DB
 	logger        *slog.Logger
+	// lockObserver, when set, is invoked with the sorted, de-duplicated staff-id
+	// set of every lockStaffWritesOrdered acquisition. It is a test-only seam: the
+	// advisory lock is a no-op without a DB, so a unit test cannot otherwise assert
+	// which staff members an operation serializes on (e.g. that a dropped cover's
+	// staff is folded into the cancellation lock set, #1841). Nil in production.
+	lockObserver func(staffIDs []int64)
 }
 
 // NewStaffShiftService creates a new staff shift service. db is used for the
@@ -251,6 +257,9 @@ func (s *staffShiftService) lockStaffWritesOrdered(ctx context.Context, staffIDs
 		unique = append(unique, id)
 	}
 	slices.Sort(unique)
+	if s.lockObserver != nil {
+		s.lockObserver(unique)
+	}
 	for _, id := range unique {
 		if err := s.lockShiftWrites(ctx, id); err != nil {
 			return err
@@ -616,14 +625,32 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 		return nil, fmt.Errorf("%w: a replacement shift cannot be cancelled", ErrShiftInvalid)
 	}
 
-	// Lock every staff member this operation touches — the origin's own staff plus
-	// each replacement's staff — up front in a stable sorted order, so two
-	// concurrent cross-covering cancellations never lock the same pair in opposite
-	// orders (#1841 deadlock). The per-replacement createShift calls below re-lock
-	// this same set; advisory xact locks are re-grantable, so those are no-ops.
+	// Discover who already covers this origin BEFORE taking the lock set. Each
+	// existing cover is a shift owned by its own staff member and is editable or
+	// deletable through the ordinary path — which locks only that cover's staff. A
+	// cover this request drops (its staff absent from input.Replacements) would
+	// otherwise never enter the lock set at all, so a parallel edit or delete of it
+	// could interleave with the delete-and-rebuild below and be silently overwritten,
+	// deleted twice, or resurrected from this operation's snapshot. Fold every
+	// current cover's staff into the lock set so those rows serialize against us too
+	// (#1841). StaffID is immutable, so a cover discovered here stays lock-relevant.
+	discoveredCovers, err := s.repo.FindByOriginShiftID(ctx, existing.ID)
+	if err != nil {
+		return nil, fmt.Errorf("discover existing replacements: %w", err)
+	}
+
+	// Lock every staff member this operation touches — the origin's own staff, each
+	// requested replacement's staff, and each current cover's staff — up front in a
+	// single stable sorted order, so two concurrent cross-covering cancellations
+	// never lock the same pair in opposite orders (#1841 deadlock). The
+	// per-replacement createShift calls below re-lock a subset of this same set;
+	// advisory xact locks are re-grantable, so those are no-ops.
 	lockIDs := []int64{existing.StaffID}
 	for _, r := range input.Replacements {
 		lockIDs = append(lockIDs, r.StaffID)
+	}
+	for _, cover := range discoveredCovers {
+		lockIDs = append(lockIDs, cover.StaffID)
 	}
 	if err := s.lockStaffWritesOrdered(ctx, lockIDs); err != nil {
 		return nil, err
@@ -646,11 +673,14 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 		return nil, ErrShiftNotFound
 	}
 
-	// Remove the current cover set first so the origin's flag can flip without
-	// its old replacements interfering with the reactivation overlap check.
+	// Re-read the cover set under the lock — the pre-lock discovery read above only
+	// seeded the lock set and may be stale. This authoritative post-lock snapshot
+	// drives the delete-and-rebuild below (including the per-cover reason match), and
+	// removing the current covers first lets the origin's flag flip without its old
+	// replacements interfering with the reactivation overlap check.
 	covers, err := s.repo.FindByOriginShiftID(ctx, existing.ID)
 	if err != nil {
-		return nil, fmt.Errorf("load existing replacements: %w", err)
+		return nil, fmt.Errorf("reload existing replacements: %w", err)
 	}
 	// The rebuilt cover set re-sends each existing cover's own shift type; a type
 	// deactivated after the cover was created must still be allowed to remain. Scope
