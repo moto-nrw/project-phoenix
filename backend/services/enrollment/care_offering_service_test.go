@@ -596,6 +596,25 @@ func TestCareOfferingService_Update_RejectsPhaseOutsideTemplatePeriod(t *testing
 	assert.ErrorIs(t, err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch)
 }
 
+func TestCareOfferingService_Update_RejectsUnavailableOfferingWeekday(t *testing.T) {
+	db, svc, phase, cleanup := setupCareTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	period := createCareOfferingTestPeriod(t, db, "care-weekday-update-period",
+		timezone.NewDate(2026, 8, 1), timezone.NewDate(2027, 8, 31))
+	group := createCareOfferingTemplateGroup(t, db, "care-weekday-update-template")
+	createCareOfferingTemplateSchedule(t, db, group.ID, activitiesModels.WeekdayMonday, &period.ID)
+
+	created, err := svc.Create(ctx, baseLinkedOffering(phase.ID, group.ID))
+	require.NoError(t, err)
+
+	created.AvailableDays = []string{"mon", "tue"}
+	err = svc.Update(ctx, created)
+
+	require.ErrorIs(t, err, enrollmentService.ErrCareOfferingInvalid)
+	require.ErrorContains(t, err, "weekday")
+}
+
 func TestCareOfferingService_Clone_RepointsToTargetPhase(t *testing.T) {
 	db, svc, phase, cleanup := setupCareTest(t)
 	defer cleanup()
