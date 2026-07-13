@@ -743,4 +743,5 @@ PUT /operator/suggestions/{id}/status
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/contact
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup
 PUT /parent/me/profile
+QUERY /internal/metrics
 TRACE /internal/metrics
