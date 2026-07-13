@@ -90,6 +90,8 @@ const UNVERIFIABLE_TEMPLATE_CHANGE_MESSAGE =
   "Die neue Regeltermin-Verknüpfung kann derzeit nicht geprüft werden. Entferne die Verknüpfung oder lade Regeltermine und Planungsperioden erneut.";
 const INACTIVE_TEMPLATE_PERIOD_MESSAGE =
   "Ein aktives Betreuungsangebot braucht einen aktiven Planungszeitraum. Aktiviere den Zeitraum, wähle einen anderen Regeltermin oder deaktiviere das Angebot.";
+const CARE_OFFERING_DAYS_REQUIRED_MESSAGE =
+  "Bitte wähle mindestens einen Wochentag für das Angebot aus.";
 
 type PlannerMetadataStatus = "loading" | "ready" | "unavailable";
 type TemplateCompatibility = "compatible" | "incompatible" | "unknown";
@@ -101,7 +103,10 @@ function blankInput(phaseId: number): CareOfferingInput {
     name: "",
     description: "",
     days_of_week_mode: "fixed",
-    available_days: WEEKDAY_KEYS,
+    // Deliberately empty: pre-selecting Mo-Fr caused offerings whose name
+    // said "Montags" to silently accept all weekdays (#1885). Picking the
+    // days is a required, conscious input.
+    available_days: [],
     includes_holiday_care: false,
     includes_lunch: false,
     capacity: null,
@@ -457,6 +462,11 @@ export function CareOfferingsEditor() {
   const handleSave = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!draft) return;
+    if (draft.available_days.length === 0) {
+      setError(CARE_OFFERING_DAYS_REQUIRED_MESSAGE);
+      toast.error(CARE_OFFERING_DAYS_REQUIRED_MESSAGE);
+      return;
+    }
     const originalActivityGroupID =
       editingId && editingId !== "new"
         ? (offerings.find((offering) => offering.id === editingId)

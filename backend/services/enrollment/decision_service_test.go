@@ -2837,11 +2837,20 @@ func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *t
 		ActivityGroupID: &group.ID,
 		Name:            "Empty Template Days",
 		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
-		AvailableDays:   []string{},
+		AvailableDays:   []string{"tue"},
 		IsActive:        true,
 	}
 	offering.SetTenantID(1)
 	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	// Simulate a legacy row saved before #1885 made available_days
+	// mandatory: clear the days directly, bypassing Validate. Such rows
+	// still exist in production and Decide must keep rejecting them.
+	_, updErr := env.db.NewUpdate().
+		TableExpr("enrollment.care_offerings").
+		Set("available_days = '[]'::jsonb").
+		Where("id = ?", offering.ID).
+		Exec(ctx)
+	require.NoError(t, updErr)
 
 	submitted, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
 		TenantID:          1,
