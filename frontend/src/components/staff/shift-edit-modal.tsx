@@ -400,33 +400,38 @@ export function ShiftEditModal({
     try {
       const resolvedShiftTypeId = shiftTypeId === "" ? null : shiftTypeId;
       if (mode === "edit" && shift) {
-        await staffShiftService.updateShift(shift.id, {
-          staffId,
-          date,
-          startTime,
-          endTime,
-          breakMinutes: breakMinutes ?? 0,
-          shiftTypeId: resolvedShiftTypeId,
-          cancelled,
-          changeReason,
-        });
-        // A left-open shift can be covered by one or more replacements; several
-        // rows split the gap across people (#1841). The absent shift is already
-        // marked cancelled above, so a failed replacement just leaves the gap
-        // open — a valid state, not a corrupt one.
-        if (cancelled) {
-          for (const row of replacements) {
-            await staffShiftService.createShift({
-              staffId: row.staffId,
-              date,
-              startTime: row.startTime,
-              endTime: row.endTime,
-              breakMinutes: 0,
-              shiftTypeId: resolvedShiftTypeId,
-              originShiftId: shift.id,
-              changeReason,
-            });
-          }
+        // Anything that touches the cancellation state (cancelling, editing the
+        // replacement set, or reactivating) goes through one atomic endpoint so
+        // the origin flag and the whole replacement set change together (#1841).
+        // Reactivating removes the now-obsolete replacements server-side; a plain
+        // edit never carries `cancelled`, so the stored flag is preserved.
+        const wasCancelled = shift.cancelled ?? false;
+        const cancellationInvolved =
+          !isReplacementRow && (cancelled || wasCancelled);
+        if (cancellationInvolved) {
+          await staffShiftService.applyCancellation(shift.id, {
+            cancelled,
+            changeReason,
+            replacements: cancelled
+              ? replacements.map((row) => ({
+                  staffId: row.staffId,
+                  startTime: row.startTime,
+                  endTime: row.endTime,
+                  breakMinutes: 0,
+                  shiftTypeId: resolvedShiftTypeId,
+                }))
+              : [],
+          });
+        } else {
+          await staffShiftService.updateShift(shift.id, {
+            staffId,
+            date,
+            startTime,
+            endTime,
+            breakMinutes: breakMinutes ?? 0,
+            shiftTypeId: resolvedShiftTypeId,
+            changeReason,
+          });
         }
       } else {
         await staffShiftService.createShift({
@@ -687,6 +692,15 @@ export function ShiftEditModal({
                   placeholder="z. B. Krankheit, Fortbildung, Tausch"
                   className="w-full rounded-md border border-gray-200 px-3 py-2 focus:border-[#83CD2D] focus:outline-none"
                 />
+                {/* A permanent series change ("Ab jetzt dauerhaft") re-plans the
+                    series and carries no per-day reason, so be honest that the
+                    reason only sticks to a single-occurrence change. */}
+                {isSeriesRow && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    Der Grund wird nur bei „Nur diese Woche" gespeichert, nicht
+                    bei „Ab jetzt dauerhaft".
+                  </p>
+                )}
               </Field>
             )}
             {isReplacementRow && (

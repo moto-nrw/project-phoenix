@@ -27,6 +27,7 @@ vi.mock("~/lib/shift-api", () => ({
     createShift: vi.fn(),
     updateShift: (...args: unknown[]) => updateShift(...args) as unknown,
     deleteShift: (...args: unknown[]) => deleteShift(...args) as unknown,
+    applyCancellation: vi.fn(),
   },
   staffShiftSeriesService: {
     createSeries: (...args: unknown[]) => createSeries(...args) as unknown,

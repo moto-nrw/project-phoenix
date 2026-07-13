@@ -46,10 +46,36 @@ func init() {
 			`).Exec(ctx); err != nil {
 				return fmt.Errorf("failed creating origin_shift_id index: %w", err)
 			}
+			// A cancelled shift does not take place (#1841). The overlap check
+			// already lets a fresh 08:00 shift reuse the window of a cancelled
+			// 08:00 shift for the same staff/date, but the original
+			// uniq_staff_shift_start UNIQUE (tenant_id, staff_id, date, start_time)
+			// still counts the cancelled row and rejects the insert. Replace the
+			// table constraint with a partial UNIQUE index that ignores cancelled
+			// rows, so only shifts that actually happen contend for a start time.
+			if _, err := db.NewRaw(`
+				ALTER TABLE schedule.staff_shifts
+					DROP CONSTRAINT IF EXISTS uniq_staff_shift_start;
+				CREATE UNIQUE INDEX IF NOT EXISTS uniq_staff_shift_start_active
+					ON schedule.staff_shifts (tenant_id, staff_id, date, start_time)
+					WHERE NOT cancelled;
+			`).Exec(ctx); err != nil {
+				return fmt.Errorf("failed replacing uniq_staff_shift_start with a cancellation-aware index: %w", err)
+			}
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
 			fmt.Println("Rolling back migration 1.15.191...")
+			// Restore the plain start-time uniqueness (best-effort; fails if
+			// cancellation reuse has produced duplicate active/cancelled start
+			// times, which only exists once this feature has run).
+			if _, err := db.NewRaw(`
+				DROP INDEX IF EXISTS schedule.uniq_staff_shift_start_active;
+				ALTER TABLE schedule.staff_shifts
+					ADD CONSTRAINT uniq_staff_shift_start UNIQUE (tenant_id, staff_id, date, start_time);
+			`).Exec(ctx); err != nil {
+				return fmt.Errorf("failed restoring uniq_staff_shift_start: %w", err)
+			}
 			if _, err := db.NewRaw(`
 				DROP INDEX IF EXISTS schedule.idx_staff_shifts_origin_shift_id;
 			`).Exec(ctx); err != nil {

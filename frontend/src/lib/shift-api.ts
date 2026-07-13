@@ -33,6 +33,28 @@ interface ShiftPayload {
   originShiftId?: string | null;
 }
 
+/** One replacement (Vertretung) covering part of a cancelled shift's gap. */
+interface ReplacementPayload {
+  staffId: string;
+  /** "HH:MM" */
+  startTime: string;
+  /** "HH:MM" */
+  endTime: string;
+  breakMinutes: number;
+  shiftTypeId: string | null;
+}
+
+/** Atomic cancel/reactivate + replacement-set change for one shift (#1841).
+ *  The backend applies the origin flag flip and the whole replacement set in a
+ *  single transaction, so a partial failure never leaves a half-changed plan. */
+interface CancellationPayload {
+  cancelled: boolean;
+  /** Sent verbatim ("" clears the stored reason). */
+  changeReason: string;
+  /** Only meaningful when cancelling; ignored (must be empty) on reactivation. */
+  replacements: ReplacementPayload[];
+}
+
 interface SeriesPayload {
   staffId: string;
   /** ISO weekdays, 1 = Montag … 7 = Sonntag */
@@ -215,6 +237,38 @@ class StaffShiftService {
       throw await readShiftError(
         response,
         "Schicht konnte nicht gelöscht werden",
+      );
+    }
+  }
+
+  /** Atomically cancel/reactivate a shift and rebuild its replacement set. */
+  async applyCancellation(
+    shiftId: string,
+    payload: CancellationPayload,
+  ): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/shifts/${shiftId}/cancellation`,
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cancelled: payload.cancelled,
+          change_reason: payload.changeReason,
+          replacements: payload.replacements.map((r) => ({
+            staff_id: Number.parseInt(r.staffId, 10),
+            start_time: r.startTime,
+            end_time: r.endTime,
+            break_minutes: r.breakMinutes,
+            shift_type_id:
+              r.shiftTypeId != null ? Number.parseInt(r.shiftTypeId, 10) : null,
+          })),
+        }),
+      },
+    );
+    if (!response.ok) {
+      throw await readShiftError(
+        response,
+        "Änderung konnte nicht gespeichert werden",
       );
     }
   }

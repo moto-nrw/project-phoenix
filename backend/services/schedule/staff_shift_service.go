@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -47,6 +48,12 @@ type StaffShiftService interface {
 	UpdateShiftWithOptions(ctx context.Context, shift *scheduleModels.StaffShift, opts StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error)
 	// DeleteShift removes a shift.
 	DeleteShift(ctx context.Context, id int64) error
+	// ApplyCancellation atomically cancels (or reactivates) a shift and replaces
+	// its full set of replacement covers in one operation (#1841). Cancelling
+	// with N replacements, reactivating (which removes every replacement), and
+	// re-planning the covers all run as a single unit so a partial failure never
+	// leaves a half-changed schedule.
+	ApplyCancellation(ctx context.Context, input CancelShiftInput) (*CancelShiftResult, error)
 	// SetSeriesExceptionRepo injects the series exception repository (#1889);
 	// see the implementation comment. Same optional-injection pattern as
 	// WorkSessionService.SetStaffShiftRepo.
@@ -64,6 +71,11 @@ type StaffShiftUpdateOptions struct {
 	// update request omitted change_reason entirely, so an unrelated edit does
 	// not silently drop the recorded "why" (#1841). An explicit null clears it.
 	PreserveExistingChangeReason bool
+	// PreserveExistingCancelled keeps the stored cancelled flag when the update
+	// request omitted the cancelled key entirely, so a stale client or an
+	// unrelated field edit does not silently reactivate a cancelled shift
+	// (#1841). Cancellation/reactivation flows an explicit value through instead.
+	PreserveExistingCancelled bool
 }
 
 type staffShiftService struct {
@@ -192,9 +204,11 @@ func (s *staffShiftService) checkOverlap(ctx context.Context, shift *scheduleMod
 }
 
 // validateOriginShift rejects a replacement whose origin shift does not exist
-// (FindByID is tenant-scoped, so a cross-tenant origin also reads as not found)
-// or falls on a different date. A replacement must cover a real gap on the same
-// day (#1841). A nil origin is a normal shift.
+// (FindByID is tenant-scoped, so a cross-tenant origin also reads as not found),
+// falls on a different date, or is not cancelled. A replacement only covers a
+// real gap, and a gap exists only when the origin was left open — an active
+// origin still contributes its own planned minutes, so pointing a replacement at
+// it would double-count coverage (#1841). A nil origin is a normal shift.
 func (s *staffShiftService) validateOriginShift(ctx context.Context, shift *scheduleModels.StaffShift) error {
 	if shift.OriginShiftID == nil {
 		return nil
@@ -211,6 +225,9 @@ func (s *staffShiftService) validateOriginShift(ctx context.Context, shift *sche
 	}
 	if origin.Date != shift.Date {
 		return fmt.Errorf("%w: replacement must be on the same date as the shift it covers", ErrShiftInvalid)
+	}
+	if !origin.Cancelled {
+		return fmt.Errorf("%w: replacement origin must be a cancelled shift", ErrShiftInvalid)
 	}
 	return nil
 }
@@ -287,6 +304,9 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	}
 	if opts.PreserveExistingChangeReason {
 		shift.ChangeReason = existing.ChangeReason
+	}
+	if opts.PreserveExistingCancelled {
+		shift.Cancelled = existing.Cancelled
 	}
 	// The request model has a zero CreatedAt; the whole-model update would
 	// otherwise write created_at = DEFAULT and reset it to now().
@@ -368,4 +388,144 @@ func (s *staffShiftService) DeleteShift(ctx context.Context, id int64) error {
 		"staff_id", existing.StaffID,
 	)
 	return nil
+}
+
+// ShiftReplacementInput is one person covering part of a cancelled shift's gap.
+type ShiftReplacementInput struct {
+	StaffID      int64
+	StartTime    time.Time
+	EndTime      time.Time
+	BreakMinutes int
+	ShiftTypeID  *int64
+}
+
+// CancelShiftInput drives ApplyCancellation: set Cancelled on the origin shift,
+// record ChangeReason, and — when cancelling — recreate exactly the given set of
+// replacements. Reactivating (Cancelled == false) removes every replacement and
+// rejects any supplied cover.
+type CancelShiftInput struct {
+	ShiftID      int64
+	Cancelled    bool
+	ChangeReason *string
+	Replacements []ShiftReplacementInput
+	ActorStaffID int64
+}
+
+// CancelShiftResult reports the updated origin and the freshly created covers.
+type CancelShiftResult struct {
+	Shift        *scheduleModels.StaffShift
+	Replacements []*scheduleModels.StaffShift
+}
+
+// ApplyCancellation cancels/reactivates a shift and rebuilds its replacement set
+// as one atomic operation (#1841). It runs inside the request's tenant
+// transaction, so any error rolls back every write together — the handler must
+// mark the transaction for rollback on the non-5xx errors this returns (overlap,
+// invalid input) so a partially applied change never commits.
+//
+// Order matters: existing replacements are deleted first, then the origin flag
+// flips (so a reactivation's overlap check no longer sees the covers), then —
+// only when cancelling — the new covers are created (which re-validates that the
+// now-cancelled origin is a legal replacement target).
+func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelShiftInput) (*CancelShiftResult, error) {
+	if input.ShiftID <= 0 {
+		return nil, ErrShiftNotFound
+	}
+	if !input.Cancelled && len(input.Replacements) > 0 {
+		return nil, fmt.Errorf("%w: replacements are only valid when cancelling a shift", ErrShiftInvalid)
+	}
+	existing, err := s.repo.FindByID(ctx, input.ShiftID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrShiftNotFound
+		}
+		return nil, fmt.Errorf("find staff shift: %w", err)
+	}
+	if existing == nil {
+		return nil, ErrShiftNotFound
+	}
+	// A replacement is not itself a cancellable gap: it covers one. Cancelling a
+	// cover would orphan the notion of "who covers the origin".
+	if existing.OriginShiftID != nil {
+		return nil, fmt.Errorf("%w: a replacement shift cannot be cancelled", ErrShiftInvalid)
+	}
+
+	// Serialize on the origin's staff member for the whole operation; the
+	// per-replacement CreateShift calls below lock their own staff members too.
+	if err := s.lockShiftWrites(ctx, existing.StaffID); err != nil {
+		return nil, err
+	}
+
+	// Remove the current cover set first so the origin's flag can flip without
+	// its old replacements interfering with the reactivation overlap check.
+	covers, err := s.repo.FindByOriginShiftID(ctx, existing.ID)
+	if err != nil {
+		return nil, fmt.Errorf("load existing replacements: %w", err)
+	}
+	for _, cover := range covers {
+		if err := s.repo.Delete(ctx, cover.ID); err != nil {
+			return nil, fmt.Errorf("remove existing replacement: %w", err)
+		}
+	}
+
+	// Flip the origin's cancellation via the normal update path so the
+	// series-detach and (on reactivation) overlap rules apply. Times/type/notes
+	// are preserved; only cancelled + reason change here.
+	originUpdate := &scheduleModels.StaffShift{
+		Date:         existing.Date,
+		StartTime:    existing.StartTime,
+		EndTime:      existing.EndTime,
+		BreakMinutes: existing.BreakMinutes,
+		Cancelled:    input.Cancelled,
+		ChangeReason: input.ChangeReason,
+	}
+	originUpdate.ID = existing.ID
+	if input.ActorStaffID > 0 {
+		originUpdate.UpdatedBy = &input.ActorStaffID
+	}
+	updated, err := s.UpdateShiftWithOptions(ctx, originUpdate, StaffShiftUpdateOptions{
+		PreserveExistingNotes:     true,
+		PreserveExistingShiftType: true,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	result := &CancelShiftResult{Shift: updated}
+	if !input.Cancelled {
+		s.getLogger().Info("staff shift reactivated",
+			"shift_id", updated.ID,
+			"staff_id", updated.StaffID,
+			"removed_replacements", len(covers),
+		)
+		return result, nil
+	}
+
+	// Recreate the cover set against the now-cancelled origin. Each CreateShift
+	// re-validates the origin (must be cancelled, same date) and overlap for its
+	// own staff member.
+	for _, r := range input.Replacements {
+		replacement := &scheduleModels.StaffShift{
+			StaffID:       r.StaffID,
+			Date:          existing.Date,
+			StartTime:     r.StartTime,
+			EndTime:       r.EndTime,
+			BreakMinutes:  r.BreakMinutes,
+			ShiftTypeID:   r.ShiftTypeID,
+			OriginShiftID: &existing.ID,
+			ChangeReason:  input.ChangeReason,
+			CreatedBy:     input.ActorStaffID,
+		}
+		created, err := s.CreateShift(ctx, replacement)
+		if err != nil {
+			return nil, err
+		}
+		result.Replacements = append(result.Replacements, created)
+	}
+	s.getLogger().Info("staff shift cancelled",
+		"shift_id", updated.ID,
+		"staff_id", updated.StaffID,
+		"replacements", len(result.Replacements),
+	)
+	return result, nil
 }

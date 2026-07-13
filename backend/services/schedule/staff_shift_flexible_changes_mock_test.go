@@ -84,12 +84,13 @@ func TestShiftService_CreateReplacementRejectsCrossDateOrigin(t *testing.T) {
 	assert.Contains(t, err.Error(), "same date")
 }
 
-func TestShiftService_CreateReplacementAcceptsSameDayOrigin(t *testing.T) {
+func TestShiftService_CreateReplacementAcceptsSameDayCancelledOrigin(t *testing.T) {
 	svc, repo, _ := shiftServiceFixture()
 	created := false
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		origin := validShift(7) // same date as the replacement
 		origin.ID = 5
+		origin.Cancelled = true // a replacement only covers a gap the cancellation opened
 		return origin, nil
 	}
 	repo.createFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
@@ -105,6 +106,25 @@ func TestShiftService_CreateReplacementAcceptsSameDayOrigin(t *testing.T) {
 	_, err := svc.CreateShift(context.Background(), replacement)
 	require.NoError(t, err)
 	assert.True(t, created)
+}
+
+// A replacement may only cover a cancelled origin: an active origin still
+// contributes its own planned minutes, so covering it would double-count.
+func TestShiftService_CreateReplacementRejectsActiveOrigin(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		origin := validShift(7) // same date, but NOT cancelled
+		origin.ID = 5
+		return origin, nil
+	}
+
+	replacement := validShift(8)
+	replacement.OriginShiftID = int64Ptr(5)
+
+	_, err := svc.CreateShift(context.Background(), replacement)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftInvalid)
+	assert.Contains(t, err.Error(), "cancelled shift")
 }
 
 // A plain edit never re-points the cover link: it stays whatever it was at
@@ -191,6 +211,128 @@ func TestShiftService_UpdatePreservesChangeReasonWhenOmitted(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, saved.ChangeReason)
 	assert.Equal(t, "krank", *saved.ChangeReason)
+}
+
+// Cancelling a shift with replacements flips the origin and creates each cover
+// pointing at the (now cancelled) origin, in one call.
+func TestShiftService_ApplyCancellation_CancelsAndCreatesReplacements(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	origin := validShift(7)
+	origin.ID = 5
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return origin, nil
+	}
+	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		origin.Cancelled = s.Cancelled // the same-tx flip is visible to the cover creates
+		return nil
+	}
+	var created []*scheduleModels.StaffShift
+	repo.createFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		created = append(created, s)
+		return nil
+	}
+
+	reason := "krank"
+	result, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
+		ShiftID:      5,
+		Cancelled:    true,
+		ChangeReason: &reason,
+		ActorStaffID: 1,
+		Replacements: []ShiftReplacementInput{
+			{StaffID: 8, StartTime: wall(8, 0), EndTime: wall(12, 0)},
+			{StaffID: 9, StartTime: wall(12, 0), EndTime: wall(16, 0)},
+		},
+	})
+	require.NoError(t, err)
+	assert.True(t, result.Shift.Cancelled)
+	require.Len(t, created, 2)
+	require.Len(t, result.Replacements, 2)
+	for _, cover := range created {
+		require.NotNil(t, cover.OriginShiftID)
+		assert.Equal(t, int64(5), *cover.OriginShiftID)
+		require.NotNil(t, cover.ChangeReason)
+		assert.Equal(t, "krank", *cover.ChangeReason)
+	}
+}
+
+// Reactivating a cancelled shift removes every existing replacement and creates
+// none, so the plan never counts both the restored origin and its old covers.
+func TestShiftService_ApplyCancellation_ReactivationRemovesReplacements(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	origin := validShift(7)
+	origin.ID = 5
+	origin.Cancelled = true
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return origin, nil
+	}
+	repo.updateFunc = func(_ context.Context, s *scheduleModels.StaffShift) error {
+		origin.Cancelled = s.Cancelled
+		return nil
+	}
+	cover1 := validShift(8)
+	cover1.ID = 11
+	cover1.OriginShiftID = int64Ptr(5)
+	cover2 := validShift(9)
+	cover2.ID = 12
+	cover2.OriginShiftID = int64Ptr(5)
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
+		return []*scheduleModels.StaffShift{cover1, cover2}, nil
+	}
+	var deleted []any
+	repo.deleteFunc = func(_ context.Context, id any) error {
+		deleted = append(deleted, id)
+		return nil
+	}
+	createCalled := false
+	repo.createFunc = func(_ context.Context, _ *scheduleModels.StaffShift) error {
+		createCalled = true
+		return nil
+	}
+
+	result, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
+		ShiftID:      5,
+		Cancelled:    false,
+		ActorStaffID: 1,
+	})
+	require.NoError(t, err)
+	assert.False(t, result.Shift.Cancelled)
+	assert.ElementsMatch(t, []any{int64(11), int64(12)}, deleted)
+	assert.False(t, createCalled, "reactivation must not create any replacement")
+}
+
+// Replacements only make sense while cancelling; supplying them on a
+// reactivation is rejected before any write happens.
+func TestShiftService_ApplyCancellation_RejectsReplacementsWhenNotCancelled(t *testing.T) {
+	svc, _, _ := shiftServiceFixture()
+
+	_, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
+		ShiftID:      5,
+		Cancelled:    false,
+		Replacements: []ShiftReplacementInput{{StaffID: 8, StartTime: wall(8, 0), EndTime: wall(12, 0)}},
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftInvalid)
+}
+
+// A replacement shift covers a gap; it is not itself a cancellable gap.
+func TestShiftService_ApplyCancellation_RejectsCancellingAReplacement(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	existing := validShift(8)
+	existing.ID = 11
+	existing.OriginShiftID = int64Ptr(5)
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+
+	_, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
+		ShiftID:      11,
+		Cancelled:    true,
+		ActorStaffID: 1,
+	})
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftInvalid)
 }
 
 // Cancelled shifts contribute zero planned minutes so the weekly Sollzeit delta

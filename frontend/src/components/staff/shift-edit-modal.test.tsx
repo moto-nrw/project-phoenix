@@ -19,6 +19,7 @@ vi.mock("~/lib/shift-api", () => ({
     createShift: vi.fn(),
     updateShift: vi.fn(),
     deleteShift: vi.fn(),
+    applyCancellation: vi.fn(),
   },
   staffShiftSeriesService: {
     createSeries: vi.fn(),

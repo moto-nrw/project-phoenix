@@ -23,6 +23,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -57,6 +58,7 @@ func (rs *Resource) Router() chi.Router {
 		).Get("/overview", rs.overview)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}", rs.update)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/cancellation", rs.cancellation)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/series", rs.createSeries)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/series/{id}/split", rs.splitSeries)
@@ -78,11 +80,14 @@ type ShiftRequest struct {
 	ShiftTypeID  optionalID `json:"shift_type_id"`
 	Notes        *string    `json:"notes"`
 	// Cancelled marks a shift that does not take place (staff absent / gap left
-	// open, #1841). Defaults to false when omitted.
-	Cancelled bool `json:"cancelled"`
-	// ChangeReason is the optional "why" for a flexible daily change; omitted
-	// (nil) preserves the stored reason on update, explicit null clears it.
-	ChangeReason *string `json:"change_reason"`
+	// open, #1841). Presence-aware: an omitted key preserves the stored flag on
+	// update (a stale client must not silently reactivate a cancelled shift), an
+	// explicit true/false sets it; defaults to false on create.
+	Cancelled optionalBool `json:"cancelled"`
+	// ChangeReason is the optional "why" for a flexible daily change.
+	// Presence-aware: an omitted key preserves the stored reason on update, an
+	// explicit null clears it, a string replaces it.
+	ChangeReason optionalString `json:"change_reason"`
 	// OriginShiftID marks this shift as a replacement covering another shift
 	// (#1841). Only honoured on create; a plain edit never re-points it.
 	OriginShiftID *int64 `json:"origin_shift_id"`
@@ -105,6 +110,43 @@ func (o *optionalID) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	var v int64
+	if err := json.Unmarshal(data, &v); err != nil {
+		return err
+	}
+	o.Value = &v
+	return nil
+}
+
+// optionalBool captures whether a bool field was present in the JSON payload so
+// an omitted cancelled key (preserve the stored flag on update) is
+// distinguishable from an explicit false (reactivate). Same presence trick as
+// optionalID: UnmarshalJSON only runs when the key is present.
+type optionalBool struct {
+	Present bool
+	Value   bool
+}
+
+func (o *optionalBool) UnmarshalJSON(data []byte) error {
+	o.Present = true
+	return json.Unmarshal(data, &o.Value)
+}
+
+// optionalString captures whether a nullable string field was present in the
+// JSON payload, distinguishing an omitted change_reason (preserve the stored
+// value) from an explicit null (clear it) from a string (replace it). A plain
+// *string cannot: encoding/json leaves it nil for both omitted and null.
+type optionalString struct {
+	Present bool
+	Value   *string
+}
+
+func (o *optionalString) UnmarshalJSON(data []byte) error {
+	o.Present = true
+	if string(data) == "null" {
+		o.Value = nil
+		return nil
+	}
+	var v string
 	if err := json.Unmarshal(data, &v); err != nil {
 		return err
 	}
@@ -192,8 +234,8 @@ func (rs *Resource) buildShift(req ShiftRequest) (*scheduleModels.StaffShift, er
 		BreakMinutes:  req.BreakMinutes,
 		ShiftTypeID:   req.ShiftTypeID.Value,
 		Notes:         notes,
-		Cancelled:     req.Cancelled,
-		ChangeReason:  req.ChangeReason,
+		Cancelled:     req.Cancelled.Value,
+		ChangeReason:  req.ChangeReason.Value,
 		OriginShiftID: req.OriginShiftID,
 	}, nil
 }
@@ -317,13 +359,96 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	saved, err := rs.Service.UpdateShiftWithOptions(r.Context(), shift, scheduleSvc.StaffShiftUpdateOptions{
 		PreserveExistingNotes:        req.Notes == nil,
 		PreserveExistingShiftType:    !req.ShiftTypeID.Present,
-		PreserveExistingChangeReason: req.ChangeReason == nil,
+		PreserveExistingChangeReason: !req.ChangeReason.Present,
+		PreserveExistingCancelled:    !req.Cancelled.Present,
 	})
 	if err != nil {
 		renderServiceError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, ToShiftResponse(saved), "Staff shift updated")
+}
+
+// CancellationRequest is the payload for PUT /{id}/cancellation: flip the
+// shift's cancelled flag, record a reason, and (when cancelling) declare the
+// full set of replacement covers. The backend applies all of it in one
+// transaction (#1841).
+type CancellationRequest struct {
+	Cancelled    bool                 `json:"cancelled"`
+	ChangeReason *string              `json:"change_reason"`
+	Replacements []ReplacementRequest `json:"replacements"`
+}
+
+// ReplacementRequest is one person covering part of a cancelled shift's gap.
+type ReplacementRequest struct {
+	StaffID      int64  `json:"staff_id"`
+	StartTime    string `json:"start_time"`
+	EndTime      string `json:"end_time"`
+	BreakMinutes int    `json:"break_minutes"`
+	ShiftTypeID  *int64 `json:"shift_type_id"`
+}
+
+// CancellationResponse returns the updated origin plus the created covers.
+type CancellationResponse struct {
+	Shift        ShiftResponse   `json:"shift"`
+	Replacements []ShiftResponse `json:"replacements"`
+}
+
+// cancellation handles PUT /{id}/cancellation — the atomic cancel/reactivate +
+// replacement-set operation. The whole request already runs in one tenant
+// transaction; on any service error we explicitly mark it for rollback so a
+// non-5xx result (overlap conflict, invalid input) still discards the partial
+// writes instead of committing a half-applied change.
+func (rs *Resource) cancellation(w http.ResponseWriter, r *http.Request) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	var req CancellationRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	editorID, err := rs.editorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	input := scheduleSvc.CancelShiftInput{
+		ShiftID:      id,
+		Cancelled:    req.Cancelled,
+		ChangeReason: req.ChangeReason,
+		ActorStaffID: editorID,
+	}
+	for _, rep := range req.Replacements {
+		start, end, err := ParseShiftTimes(rep.StartTime, rep.EndTime)
+		if err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		input.Replacements = append(input.Replacements, scheduleSvc.ShiftReplacementInput{
+			StaffID:      rep.StaffID,
+			StartTime:    start,
+			EndTime:      end,
+			BreakMinutes: rep.BreakMinutes,
+			ShiftTypeID:  rep.ShiftTypeID,
+		})
+	}
+
+	result, err := rs.Service.ApplyCancellation(r.Context(), input)
+	if err != nil {
+		// Roll back the enclosing tenant transaction so an overlap/invalid error
+		// mid-operation does not commit the writes that already succeeded.
+		tenant.MarkRollback(r.Context())
+		renderServiceError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, CancellationResponse{
+		Shift:        ToShiftResponse(result.Shift),
+		Replacements: ToShiftResponses(result.Replacements),
+	}, "Staff shift cancellation applied")
 }
 
 func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
