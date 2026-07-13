@@ -527,3 +527,66 @@ describe("useChildCare reportSick", () => {
     expect(result.current.todayPickup).toEqual({ kind: "absent" });
   });
 });
+
+describe("useChildCare studentId switch", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // Navigating from child A to child B reuses the hook instance (only the prop
+  // changes). The loadSeqRef guard stops a late load(A) from overwriting B, but
+  // it does nothing about the window before B's fetch lands — so A's resolved
+  // pickup must not linger under B's name. The hook resets per-child state
+  // synchronously on the studentId change, dropping the loaded flags so the tile
+  // reverts to the neutral "unknown" state instead of showing A's time (#1725).
+  it("drops the previous child's pickup synchronously when studentId changes", async () => {
+    const today = berlinTodayISO();
+    const todayWd = ((parseISODate(today).getDay() + 6) % 7) + 1;
+
+    vi.spyOn(parentApi, "listSickDays").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listExcusedRequests").mockResolvedValue([]);
+    vi.spyOn(parentApi, "listCareExceptions").mockImplementation((id: string) =>
+      // Child A resolves; child B hangs so we observe the pre-fetch window.
+      id === "1"
+        ? Promise.resolve([] as CareException[])
+        : new Promise<CareException[]>(() => {
+            /* never resolves */
+          }),
+    );
+    vi.spyOn(parentApi, "getChildCareSchedule").mockImplementation(
+      (id: string) =>
+        id === "1"
+          ? Promise.resolve({
+              weekdays: [{ weekday: todayWd, pickup: "16:00", modes: [] }],
+              can_request: false,
+              today_absent: false,
+            })
+          : new Promise(() => {
+              /* never resolves */
+            }),
+    );
+    vi.spyOn(parentApi, "getChildFeatures").mockRejectedValue(
+      new Error("no features"),
+    );
+
+    const { result, rerender } = renderHook(({ id }) => useChildCare(id), {
+      initialProps: { id: "1" },
+    });
+
+    // Child A's base-plan pickup is resolved.
+    await waitFor(() =>
+      expect(result.current.todayPickup).toEqual({
+        kind: "time",
+        time: "16:00",
+        changed: false,
+      }),
+    );
+
+    // Switch to child B, whose fetches never resolve. The tile must NOT still
+    // show A's 16:00 — the reset drops the loaded flags to "unknown".
+    act(() => {
+      rerender({ id: "2" });
+    });
+    expect(result.current.todayPickup).toEqual({ kind: "unknown" });
+  });
+});

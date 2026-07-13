@@ -319,6 +319,32 @@ export function useChildCare(studentId: string): ChildCare {
     };
   }, []);
 
+  // Reset all per-child state SYNCHRONOUSLY when studentId changes. Navigating
+  // between children reuses this hook instance (only the prop changes — see
+  // ChildDetailContent), so without this the previous child's weekdays, absence
+  // signal, care exceptions, and loaded flags stay live until B's fetch lands.
+  // The loadSeqRef guard blocks a late load(A) from overwriting B, but it does
+  // nothing about that pre-fetch window: `today` is still current, so the "Heute
+  // → Abholung" tile would resolve against A's data and render under B's name.
+  // Clearing here (React's "reset state on prop change" pattern — set functions
+  // during render, applied before paint) drops the loaded flags so todayPickup
+  // shows the neutral "unknown"/loading state for B instead of A's pickup, and
+  // the load effect below immediately refetches (#1725 review).
+  const [loadedStudentId, setLoadedStudentId] = useState(studentId);
+  if (loadedStudentId !== studentId) {
+    setLoadedStudentId(studentId);
+    setSickDays([]);
+    setExcusedRequests([]);
+    setCareExceptions([]);
+    setCareExceptionsLoaded(false);
+    setWeekdays([]);
+    setWeekPlanLoaded(false);
+    setTodayAbsent(false);
+    setWeekPlanDate(null);
+    setFeatures(DEFAULT_FEATURES);
+    setLoading(true);
+  }
+
   const load = useCallback(async (): Promise<{ requestsOk: boolean }> => {
     const seq = ++loadSeqRef.current;
     setLoading(true);
