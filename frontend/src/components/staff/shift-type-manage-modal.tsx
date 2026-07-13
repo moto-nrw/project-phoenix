@@ -187,6 +187,11 @@ export function ShiftTypeManageModal({
           error:
             reloadErr instanceof Error ? reloadErr.message : String(reloadErr),
         });
+        // The refresh failed, so `categories` still holds the pre-save
+        // snapshot. Mark it stale so a follow-up edit in the same open modal
+        // omits category_ids instead of preselecting from stale mappings and
+        // clearing links that were just written (#1837).
+        setCategoriesReady(false);
       }
       setView("list");
     } catch (err: unknown) {

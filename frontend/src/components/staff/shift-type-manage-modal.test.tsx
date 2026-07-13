@@ -115,6 +115,55 @@ describe("ShiftTypeManageModal — category mapping safety (#1837)", () => {
     expect(payload.categoryIds).toBeUndefined();
   });
 
+  it("omits category_ids on a follow-up edit when the post-save reload failed", async () => {
+    // Open load succeeds; the post-save refresh then fails, so the local
+    // category snapshot is stale. A subsequent edit must not resubmit mappings
+    // from that stale snapshot.
+    mockGetCategories
+      .mockResolvedValueOnce([category("1", "99"), category("2")])
+      .mockRejectedValue(new Error("reload failed"));
+    mockUpdateShiftType.mockResolvedValue(shiftType("99", "Betreuung"));
+
+    renderModal([shiftType("99", "Betreuung")]);
+    await waitFor(() => expect(mockGetCategories).toHaveBeenCalledTimes(1));
+
+    // First edit + save → triggers the post-save reload, which rejects.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Betreuung bearbeiten" }),
+    );
+    fireEvent.change(screen.getByLabelText("Name*"), {
+      target: { value: "Betreuung A" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+    await waitFor(() => expect(mockUpdateShiftType).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mockGetCategories).toHaveBeenCalledTimes(2));
+
+    // Second edit in the same open modal + save.
+    await waitFor(() =>
+      expect(
+        screen.getByRole("button", { name: "Betreuung bearbeiten" }),
+      ).toBeInTheDocument(),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Betreuung bearbeiten" }),
+    );
+    fireEvent.change(screen.getByLabelText("Name*"), {
+      target: { value: "Betreuung B" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() => expect(mockUpdateShiftType).toHaveBeenCalledTimes(2));
+    const [, payload] = mockUpdateShiftType.mock.calls[1] as [
+      string,
+      { categoryIds?: string[] },
+    ];
+    expect(payload.categoryIds).toBeUndefined();
+  });
+
   it("refetches categories after a successful save so preselection is not stale", async () => {
     mockGetCategories
       .mockResolvedValueOnce([category("1"), category("2")])
