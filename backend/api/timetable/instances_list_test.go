@@ -464,3 +464,92 @@ func TestListInstances_CapacityFields(t *testing.T) {
 	assert.Equal(t, 3, item.RequiredStaffCount, "ceil(5 children / ratio 2) = 3")
 	assert.Equal(t, 1, item.AssignedStaffCount, "1 non-absent staff assigned")
 }
+
+// TestListInstances_SeriesNotesJoinedFromTemplate verifies the durable
+// Wochennotiz on a template is joined onto every instance at read time
+// (series_notes), independently of the per-occurrence Tagesnotiz (notes).
+func TestListInstances_SeriesNotesJoinedFromTemplate(t *testing.T) {
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(1)
+	to, _ := listFutureDate(7)
+
+	suffix := time.Now().UnixNano()
+	category := testpkg.CreateTestActivityCategory(t, s.db, fmt.Sprintf("SeriesNote-Cat-%d", suffix))
+	staff := testpkg.CreateTestStaff(t, s.db, "SeriesNote", fmt.Sprintf("Creator-%d", suffix))
+	seriesNote := "Raum erst ab 14 Uhr offen"
+	group := &activitiesModels.Group{
+		Name:            fmt.Sprintf("SeriesNote-Template-%d", suffix),
+		MaxParticipants: 20,
+		IsOpen:          true,
+		CategoryID:      category.ID,
+		CreatedBy:       &staff.ID,
+		IsTemplate:      true,
+		Notes:           &seriesNote,
+	}
+	group.SetTenantID(1)
+	_, err := s.db.NewInsert().Model(group).ModelTableExpr(`activities.groups AS "group"`).Exec(s.ctx)
+	require.NoError(t, err)
+
+	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		ActivityGroupID: &group.ID,
+		StartHHMM:       "14:00",
+		EndHHMM:         "15:00",
+		Title:           "Betreuungsblock",
+	})
+
+	// Give the occurrence its own one-off Tagesnotiz to prove independence.
+	dayNote := "Heute ohne Herrn Müller"
+	_, err = s.db.NewUpdate().
+		Model((*schedule.ActivityInstance)(nil)).
+		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
+		Set("notes = ?", dayNote).
+		Where(`"activity_instance".id = ?`, inst.ID).
+		Where(`"activity_instance".tenant_id = ?`, 1).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
+		testpkg.CleanupTableRecords(t, s.db, "activities.groups", group.ID)
+		testpkg.CleanupTableRecords(t, s.db, "activities.categories", category.ID)
+		testpkg.CleanupTableRecords(t, s.db, "users.staff", staff.ID)
+		testpkg.CleanupTableRecords(t, s.db, "users.persons", staff.PersonID)
+	})
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 1)
+	item := got.Instances[0]
+	require.NotNil(t, item.SeriesNotes, "series note must be joined from the template")
+	assert.Equal(t, seriesNote, *item.SeriesNotes)
+	require.NotNil(t, item.Notes, "per-occurrence Tagesnotiz must remain independent")
+	assert.Equal(t, dayNote, *item.Notes)
+}
+
+// TestListInstances_NoSeriesNotesWhenTemplateHasNone confirms an instance whose
+// template carries no Wochennotiz omits series_notes.
+func TestListInstances_NoSeriesNotesWhenTemplateHasNone(t *testing.T) {
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(1)
+	to, _ := listFutureDate(7)
+
+	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		StartHHMM: "12:00", EndHHMM: "12:50", Title: "Spontan",
+	})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 1)
+	assert.Nil(t, got.Instances[0].SeriesNotes)
+}

@@ -316,6 +316,19 @@ describe("mapActivityCategoryResponse", () => {
     expect(result.color).toBe("#0000FF");
     expect(result.created_at).toBeInstanceOf(Date);
     expect(result.updated_at).toBeInstanceOf(Date);
+    expect(result.shiftTypeId).toBeUndefined();
+  });
+
+  it("maps the optional shift_type_id to a string (#1837 follow-up)", () => {
+    const result = mapActivityCategoryResponse({
+      id: 7,
+      name: "Betreuung",
+      created_at: "2024-01-01T00:00:00Z",
+      updated_at: "2024-01-15T12:00:00Z",
+      shift_type_id: 42,
+    });
+
+    expect(result.shiftTypeId).toBe("42");
   });
 });
 

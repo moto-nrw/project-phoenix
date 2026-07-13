@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -2961,4 +2962,50 @@ func TestActivityService_DeleteGroup_OwnershipEnforced(t *testing.T) {
 
 	// Cleanup: Delete with admin permission
 	cleanupGroup(service, ctx, created.ID)
+}
+
+// =============================================================================
+// Kategorie↔Schichtart mapping (#1837 follow-up)
+// =============================================================================
+
+func TestActivityService_SetCategoryShiftTypeLinks(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActivityService(t, db)
+	catRepo := repositories.NewFactory(db).ActivityCategory
+	stRepo := repositories.NewFactory(db).ShiftType
+	ctx := testpkg.TenantContext(1)
+
+	st := &scheduleModels.ShiftType{Name: fmt.Sprintf("SvcLink-%d", time.Now().UnixNano()), Color: "#83CD2D", IsActive: true}
+	require.NoError(t, stRepo.Create(ctx, st))
+	t.Cleanup(func() { _ = stRepo.Delete(ctx, st.ID) })
+
+	cat1 := testpkg.CreateTestActivityCategory(t, db, "svc-link-1")
+	cat2 := testpkg.CreateTestActivityCategory(t, db, "svc-link-2")
+	defer testpkg.CleanupActivityFixtures(t, db, cat1.ID, cat2.ID)
+
+	// ACT: link both categories
+	require.NoError(t, service.SetCategoryShiftTypeLinks(ctx, st.ID, []int64{cat1.ID, cat2.ID}))
+
+	// ASSERT: ListCategories surfaces shift_type_id on the mapped categories.
+	cats, err := service.ListCategories(ctx)
+	require.NoError(t, err)
+	byID := map[int64]*activitiesModels.Category{}
+	for _, c := range cats {
+		byID[c.ID] = c
+	}
+	require.NotNil(t, byID[cat1.ID].ShiftTypeID)
+	assert.Equal(t, st.ID, *byID[cat1.ID].ShiftTypeID)
+	require.NotNil(t, byID[cat2.ID].ShiftTypeID)
+
+	// ACT: reduce the set to cat2 only -> cat1 is cleared.
+	require.NoError(t, service.SetCategoryShiftTypeLinks(ctx, st.ID, []int64{cat2.ID}))
+	c1, err := catRepo.FindByID(ctx, cat1.ID)
+	require.NoError(t, err)
+	assert.Nil(t, c1.ShiftTypeID, "de-selected category is unlinked via the service")
+	c2, err := catRepo.FindByID(ctx, cat2.ID)
+	require.NoError(t, err)
+	require.NotNil(t, c2.ShiftTypeID)
+	assert.Equal(t, st.ID, *c2.ShiftTypeID)
 }

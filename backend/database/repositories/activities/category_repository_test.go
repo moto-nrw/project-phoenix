@@ -1,12 +1,15 @@
 package activities_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -212,4 +215,115 @@ func TestCategoryRepository_Delete_NonExistent(t *testing.T) {
 		err := repo.Delete(ctx, int64(999999))
 		require.NoError(t, err)
 	})
+}
+
+// ============================================================================
+// Kategorie↔Schichtart mapping (#1837 follow-up)
+// ============================================================================
+
+func TestCategoryRepository_SetShiftTypeForCategories(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActivityCategory
+	stRepo := repositories.NewFactory(db).ShiftType
+	ctx := testpkg.TenantContext(1)
+
+	suffix := time.Now().UnixNano()
+	st := &scheduleModels.ShiftType{Name: fmt.Sprintf("Betreuung-%d", suffix), Color: "#83CD2D", IsActive: true}
+	require.NoError(t, stRepo.Create(ctx, st))
+	t.Cleanup(func() { _ = stRepo.Delete(ctx, st.ID) })
+
+	c1 := testpkg.CreateTestActivityCategory(t, db, "Link1")
+	c2 := testpkg.CreateTestActivityCategory(t, db, "Link2")
+	c3 := testpkg.CreateTestActivityCategory(t, db, "Link3")
+	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, c1.ID, 0)
+	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, c2.ID, 0)
+	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, c3.ID, 0)
+
+	shiftTypeIDOf := func(id int64) *int64 {
+		found, err := repo.FindByID(ctx, id)
+		require.NoError(t, err)
+		return found.ShiftTypeID
+	}
+
+	t.Run("sets the mapping for the given categories only", func(t *testing.T) {
+		require.NoError(t, repo.SetShiftTypeForCategories(ctx, st.ID, []int64{c1.ID, c2.ID}))
+		require.NotNil(t, shiftTypeIDOf(c1.ID))
+		assert.Equal(t, st.ID, *shiftTypeIDOf(c1.ID))
+		require.NotNil(t, shiftTypeIDOf(c2.ID))
+		assert.Equal(t, st.ID, *shiftTypeIDOf(c2.ID))
+		assert.Nil(t, shiftTypeIDOf(c3.ID), "unlisted category stays unmapped")
+	})
+
+	t.Run("clears de-selected categories and keeps/adds the new set", func(t *testing.T) {
+		// c1 was linked, now drop it; keep c2; add c3.
+		require.NoError(t, repo.SetShiftTypeForCategories(ctx, st.ID, []int64{c2.ID, c3.ID}))
+		assert.Nil(t, shiftTypeIDOf(c1.ID), "de-selected category is cleared")
+		require.NotNil(t, shiftTypeIDOf(c2.ID))
+		assert.Equal(t, st.ID, *shiftTypeIDOf(c2.ID))
+		require.NotNil(t, shiftTypeIDOf(c3.ID))
+		assert.Equal(t, st.ID, *shiftTypeIDOf(c3.ID))
+	})
+
+	t.Run("empty list clears every mapping for this shift type", func(t *testing.T) {
+		require.NoError(t, repo.SetShiftTypeForCategories(ctx, st.ID, nil))
+		assert.Nil(t, shiftTypeIDOf(c2.ID))
+		assert.Nil(t, shiftTypeIDOf(c3.ID))
+	})
+
+	t.Run("reassigns a category already linked to another shift type", func(t *testing.T) {
+		other := &scheduleModels.ShiftType{Name: fmt.Sprintf("Vorbereitung-%d", suffix), Color: "#5080D8", IsActive: true}
+		require.NoError(t, stRepo.Create(ctx, other))
+		t.Cleanup(func() { _ = stRepo.Delete(ctx, other.ID) })
+
+		require.NoError(t, repo.SetShiftTypeForCategories(ctx, st.ID, []int64{c1.ID}))
+		require.NoError(t, repo.SetShiftTypeForCategories(ctx, other.ID, []int64{c1.ID}))
+		require.NotNil(t, shiftTypeIDOf(c1.ID))
+		assert.Equal(t, other.ID, *shiftTypeIDOf(c1.ID), "category is reassigned to the newest shift type")
+
+		require.NoError(t, repo.SetShiftTypeForCategories(ctx, other.ID, nil))
+		assert.Nil(t, shiftTypeIDOf(c1.ID))
+	})
+}
+
+func TestCategoryRepository_SetShiftTypeForCategories_TenantScoped(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActivityCategory
+	stRepo := repositories.NewFactory(db).ShiftType
+
+	ctx1 := testpkg.TenantContext(1)
+	otherTenant := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenant)
+	t.Cleanup(func() { testpkg.CleanupTenantTestData(t, db, otherTenant) })
+	ctx2 := tenant.WithTenantID(context.Background(), otherTenant)
+
+	st1 := &scheduleModels.ShiftType{Name: fmt.Sprintf("T1-%d", time.Now().UnixNano()), Color: "#83CD2D", IsActive: true}
+	require.NoError(t, stRepo.Create(ctx1, st1))
+	t.Cleanup(func() { _ = stRepo.Delete(ctx1, st1.ID) })
+
+	cat2 := testpkg.CreateTestActivityCategoryForTenant(t, db, otherTenant, "OtherTenantCat")
+
+	// Tenant 1 syncing its own shift type must not touch a foreign-tenant category.
+	c1 := testpkg.CreateTestActivityCategory(t, db, "TenantScopedLink")
+	defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, c1.ID, 0)
+	require.NoError(t, repo.SetShiftTypeForCategories(ctx1, st1.ID, []int64{c1.ID, cat2.ID}))
+
+	other, err := repo.FindByID(ctx2, cat2.ID)
+	require.NoError(t, err)
+	assert.Nil(t, other.ShiftTypeID, "foreign-tenant category must be untouched by a cross-tenant id list")
+}
+
+func TestCategoryRepository_SetShiftTypeForCategories_RequiresTenant(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActivityCategory
+	// A context without a tenant id must be rejected rather than running an
+	// unscoped cross-tenant UPDATE.
+	err := repo.SetShiftTypeForCategories(context.Background(), 1, []int64{1})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "tenant")
 }

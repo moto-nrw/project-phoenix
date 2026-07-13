@@ -169,6 +169,10 @@ func (m *mockCategoryRepo) ListAll(context.Context) ([]*activityModels.Category,
 	return nil, nil
 }
 
+func (m *mockCategoryRepo) SetShiftTypeForCategories(context.Context, int64, []int64) error {
+	return nil
+}
+
 func (m *mockRoleRepo) Create(context.Context, *authModels.Role) error { return nil }
 func (m *mockRoleRepo) FindByID(ctx context.Context, id interface{}) (*authModels.Role, error) {
 	if m.findByIDFn != nil {

@@ -185,6 +185,10 @@ func (s *internalCategoryRepoStub) ListAll(context.Context) ([]*activityModels.C
 	return nil, nil
 }
 
+func (s *internalCategoryRepoStub) SetShiftTypeForCategories(context.Context, int64, []int64) error {
+	return nil
+}
+
 type internalAuditLogRepoStub struct {
 	createFn func(context.Context, *platformModels.OperatorAuditLog) error
 }

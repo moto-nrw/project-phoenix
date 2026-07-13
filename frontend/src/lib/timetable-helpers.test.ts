@@ -686,6 +686,42 @@ describe("backend mappers", () => {
     });
   });
 
+  it("maps the Wochennotiz (series_notes) and Tagesnotiz (notes) independently (#1837)", () => {
+    const base = {
+      id: 42,
+      date: "2026-05-04",
+      start_time: "14:00",
+      end_time: "15:00",
+      title: "Betreuung",
+      status: "planned" as const,
+      is_spontaneous: false,
+      is_live: false,
+      activity_type: "care" as const,
+      room_id: 3,
+      room_name: "Aula",
+      staff: [],
+      students: [],
+      staff_count: 0,
+      absent_staff_count: 0,
+      understaffed_ack: false,
+      expected_students_count: 0,
+      present_students_count: 0,
+      required_staff_count: 0,
+      assigned_staff_count: 0,
+    };
+
+    const withBoth = mapInstance({
+      ...base,
+      notes: "Heute ohne Herrn Müller",
+      series_notes: "Raum erst ab 14 Uhr offen",
+    });
+    expect(withBoth.notes).toBe("Heute ohne Herrn Müller");
+    expect(withBoth.seriesNotes).toBe("Raum erst ab 14 Uhr offen");
+
+    const withNeither = mapInstance(base);
+    expect(withNeither.seriesNotes).toBeUndefined();
+  });
+
   it("maps substitutes and templates", () => {
     expect(
       mapSubstitute({
@@ -760,6 +796,35 @@ describe("backend mappers", () => {
       primaryStaffId: "11",
       schedules: [{ id: "9", calendarPeriodId: "5", validUntil: "2026-06-01" }],
     });
+  });
+
+  it("maps the Wochennotiz and mapped shift type onto a template (#1837)", () => {
+    const tpl = mapTemplates({
+      templates: [
+        {
+          id: 7,
+          name: "Betreuung Mo",
+          type: "care",
+          category_id: 2,
+          category_name: "Betreuung",
+          is_open: true,
+          max_participants: 20,
+          target_group_type: "none",
+          enrollment_count: 0,
+          supervisor_count: 0,
+          required_staff_count: 0,
+          assigned_staff_count: 0,
+          notes: "Raum erst ab 14 Uhr offen",
+          shift_type_name: "Betreuung / Zeit am Kind",
+          shift_type_color: "#83CD2D",
+          schedules: [],
+        },
+      ],
+    }).templates[0];
+
+    expect(tpl?.notes).toBe("Raum erst ab 14 Uhr offen");
+    expect(tpl?.shiftTypeName).toBe("Betreuung / Zeit am Kind");
+    expect(tpl?.shiftTypeColor).toBe("#83CD2D");
   });
 
   it("maps optional substitute/template fields without fallback ids", () => {
