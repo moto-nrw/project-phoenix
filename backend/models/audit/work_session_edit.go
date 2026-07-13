@@ -37,6 +37,11 @@ const (
 	FieldBreakDuration = "break_duration"
 	FieldStatus        = "status"
 	FieldNotes         = "notes"
+	// FieldDeviationReason records the mandatory reason for stamping outside
+	// the tolerance window around the planned shift window (F9). OldValue
+	// holds the planned wall-clock time, NewValue the actual one, Notes the
+	// reason given by the staff member.
+	FieldDeviationReason = "deviation_reason"
 )
 
 // Validate ensures the edit record is valid
@@ -56,7 +61,7 @@ func (e *WorkSessionEdit) Validate() error {
 	}
 
 	switch e.FieldName {
-	case FieldDate, FieldCheckInTime, FieldCheckOutTime, FieldBreakMinutes, FieldBreakDuration, FieldStatus, FieldNotes:
+	case FieldDate, FieldCheckInTime, FieldCheckOutTime, FieldBreakMinutes, FieldBreakDuration, FieldStatus, FieldNotes, FieldDeviationReason:
 		// Valid field names
 	default:
 		return errors.New("invalid field name")

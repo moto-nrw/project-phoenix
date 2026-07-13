@@ -32,8 +32,8 @@ import (
 // --- Mock WorkSessionService ---
 
 type mockWorkSessionService struct {
-	checkInFn            func(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error)
-	checkOutFn           func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	checkInFn            func(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error)
+	checkOutFn           func(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error)
 	startBreakFn         func(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
 	endBreakFn           func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	getSessionBreaksFn   func(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
@@ -46,15 +46,15 @@ type mockWorkSessionService struct {
 	autoEndExpiredBreaks func(ctx context.Context) (int, error)
 }
 
-func (m *mockWorkSessionService) CheckIn(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error) {
+func (m *mockWorkSessionService) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error) {
 	if m.checkInFn != nil {
-		return m.checkInFn(ctx, staffID, status, source)
+		return m.checkInFn(ctx, staffID, status, source, reason)
 	}
 	return &activeModels.WorkSession{}, nil
 }
-func (m *mockWorkSessionService) CheckOut(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+func (m *mockWorkSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error) {
 	if m.checkOutFn != nil {
-		return m.checkOutFn(ctx, staffID)
+		return m.checkOutFn(ctx, staffID, reason)
 	}
 	return &activeModels.WorkSession{}, nil
 }
@@ -417,7 +417,7 @@ func TestCheckIn_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkInFn: func(_ context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error) {
+		checkInFn: func(_ context.Context, staffID int64, status, source, _ string) (*activeModels.WorkSession, error) {
 			assert.Equal(t, int64(100), staffID)
 			assert.Equal(t, "present", status)
 			assert.Equal(t, activeModels.WorkSessionSourceApp, source)
@@ -476,7 +476,7 @@ func TestCheckIn_ServiceConflict(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkInFn: func(_ context.Context, _ int64, _, _ string) (*activeModels.WorkSession, error) {
+		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
 			return nil, errors.New("already checked in")
 		},
 	}
@@ -504,7 +504,7 @@ func TestCheckIn_ReopenStatusConflict(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkInFn: func(_ context.Context, _ int64, _, _ string) (*activeModels.WorkSession, error) {
+		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
 			return nil, &activeSvc.ReopenStatusConflictError{
 				SessionID:       42,
 				ExistingStatus:  activeModels.WorkSessionStatusPresent,
@@ -550,7 +550,7 @@ func TestCheckIn_PlannedStartNotReached(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkInFn: func(_ context.Context, _ int64, _, _ string) (*activeModels.WorkSession, error) {
+		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
 			return nil, &activeSvc.PlannedStartNotReachedError{
 				PlannedStartTime: "09:00",
 				CurrentTime:      "08:45",
@@ -589,7 +589,7 @@ func TestCheckOut_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkOutFn: func(_ context.Context, staffID int64) (*activeModels.WorkSession, error) {
+		checkOutFn: func(_ context.Context, staffID int64, _ string) (*activeModels.WorkSession, error) {
 			assert.Equal(t, int64(100), staffID)
 			ws := &activeModels.WorkSession{}
 			ws.ID = 1
@@ -611,7 +611,7 @@ func TestCheckOut_NoActiveSession(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkOutFn: func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		checkOutFn: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
 			return nil, errors.New("no active session found")
 		},
 	}
@@ -1586,4 +1586,157 @@ func TestParseDateRange_BothMissing(t *testing.T) {
 	_, _, ok := parseDateRange(w, r)
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// --- F9 deviation-reason wire format ---
+
+// The frontend branches on this code via DEVIATION_REASON_REQUIRED_CODE and
+// drives the reason dialog from the details payload; both are wire contracts.
+func TestCheckIn_DeviationReasonRequired(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	wsSvc := &mockWorkSessionService{
+		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
+			return nil, &activeSvc.DeviationReasonRequiredError{
+				Action:           "check_in",
+				PlannedTime:      "08:00",
+				ActualTime:       "07:30",
+				DeviationMinutes: 30,
+			}
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"status":"present"}`)
+	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.checkIn(w, r)
+	require.Equal(t, http.StatusConflict, w.Code)
+
+	var resp struct {
+		Status  string         `json:"status"`
+		Code    string         `json:"code"`
+		Details map[string]any `json:"details"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "error", resp.Status)
+	assert.Equal(t, "deviation_reason_required", resp.Code)
+	require.NotNil(t, resp.Details)
+	assert.Equal(t, "check_in", resp.Details["action"])
+	assert.Equal(t, "08:00", resp.Details["planned_time"])
+	assert.Equal(t, "07:30", resp.Details["actual_time"])
+	assert.Equal(t, "30", resp.Details["deviation_minutes"],
+		"minutes are serialized as string, consistent with the reopen-conflict details")
+}
+
+func TestCheckOut_DeviationReasonRequired(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	wsSvc := &mockWorkSessionService{
+		checkOutFn: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
+			return nil, &activeSvc.DeviationReasonRequiredError{
+				Action:           "check_out",
+				PlannedTime:      "16:00",
+				ActualTime:       "16:30",
+				DeviationMinutes: 30,
+			}
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	r := httptest.NewRequest(http.MethodPost, "/check-out", nil)
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.checkOut(w, r)
+	require.Equal(t, http.StatusConflict, w.Code)
+
+	var resp struct {
+		Code    string         `json:"code"`
+		Details map[string]any `json:"details"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "deviation_reason_required", resp.Code)
+	require.NotNil(t, resp.Details)
+	assert.Equal(t, "check_out", resp.Details["action"])
+	assert.Equal(t, "16:00", resp.Details["planned_time"])
+	assert.Equal(t, "16:30", resp.Details["actual_time"])
+	assert.Equal(t, "30", resp.Details["deviation_minutes"])
+}
+
+func TestCheckIn_ForwardsReason(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	var gotReason string
+	wsSvc := &mockWorkSessionService{
+		checkInFn: func(_ context.Context, _ int64, _, _, reason string) (*activeModels.WorkSession, error) {
+			gotReason = reason
+			return &activeModels.WorkSession{}, nil
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"status":"present","reason":"Frühdienst übernommen"}`)
+	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.checkIn(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "Frühdienst übernommen", gotReason)
+}
+
+func TestCheckOut_ForwardsReason(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	var gotReason string
+	wsSvc := &mockWorkSessionService{
+		checkOutFn: func(_ context.Context, _ int64, reason string) (*activeModels.WorkSession, error) {
+			gotReason = reason
+			return &activeModels.WorkSession{}, nil
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"reason":"Elterngespräch lief länger"}`)
+	r := httptest.NewRequest(http.MethodPost, "/check-out", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.checkOut(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "Elterngespräch lief länger", gotReason)
+}
+
+func TestCheckOut_MalformedBodyRejected(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	called := false
+	wsSvc := &mockWorkSessionService{
+		checkOutFn: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
+			called = true
+			return &activeModels.WorkSession{}, nil
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"reason":`)
+	r := httptest.NewRequest(http.MethodPost, "/check-out", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.checkOut(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.False(t, called, "a malformed body must not reach the service")
 }

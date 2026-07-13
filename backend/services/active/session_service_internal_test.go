@@ -96,10 +96,10 @@ type workSessionServiceForSessionUnitTest struct {
 	ensureCheckedInFunc func(ctx context.Context, staffID int64, source string) (*activeModels.WorkSession, error)
 }
 
-func (w *workSessionServiceForSessionUnitTest) CheckIn(context.Context, int64, string, string) (*activeModels.WorkSession, error) {
+func (w *workSessionServiceForSessionUnitTest) CheckIn(context.Context, int64, string, string, string) (*activeModels.WorkSession, error) {
 	return nil, nil
 }
-func (w *workSessionServiceForSessionUnitTest) CheckOut(context.Context, int64) (*activeModels.WorkSession, error) {
+func (w *workSessionServiceForSessionUnitTest) CheckOut(context.Context, int64, string) (*activeModels.WorkSession, error) {
 	return nil, nil
 }
 func (w *workSessionServiceForSessionUnitTest) StartBreak(context.Context, int64, *int) (*activeModels.WorkSessionBreak, error) {

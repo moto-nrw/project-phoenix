@@ -145,8 +145,30 @@ func (e *PlannedStartNotReachedError) Error() string {
 	return "planned start not reached"
 }
 
+// DeviationReasonRequiredError is returned by CheckIn/CheckOut when the
+// tenant requires a reason for stamping outside the tolerance window around
+// the planned shift window (F9) and the request carried none. The API layer
+// renders it as HTTP 409 with the stable code "deviation_reason_required"
+// produced by api/time-tracking/errors.go.
+type DeviationReasonRequiredError struct {
+	Action           string // deviationActionCheckIn or deviationActionCheckOut
+	PlannedTime      string // planned reference as Berlin wall clock, "15:04"
+	ActualTime       string // actual stamp time as Berlin wall clock, "15:04"
+	DeviationMinutes int
+}
+
+func (e *DeviationReasonRequiredError) Error() string {
+	return "deviation reason required"
+}
+
+const (
+	deviationActionCheckIn  = "check_in"
+	deviationActionCheckOut = "check_out"
+)
+
 type settingsResolver interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
 }
 
 // WorkSessionService defines operations for staff time tracking
@@ -162,8 +184,15 @@ type WorkSessionService interface {
 	// UpdateSession (which gates on a notes reason). If `status` differs
 	// from the existing session's status, CheckIn returns
 	// *ReopenStatusConflictError instead of silently overwriting.
-	CheckIn(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error)
-	CheckOut(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	//
+	// `reason` is the F9 deviation reason. It is only consulted when the
+	// tenant setting operations.time_tracking_require_deviation_reason is
+	// active AND the stamp falls outside the tolerance window around the
+	// planned shift window of the day; an empty reason then yields
+	// *DeviationReasonRequiredError, a non-empty one is written to
+	// audit.work_session_edits. Same contract on CheckOut.
+	CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error)
+	CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error)
 	StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
 	EndBreak(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
@@ -272,7 +301,17 @@ func (s *workSessionService) now() time.Time {
 // CheckIn creates a new work session for the staff member.
 // Status must be explicitly chosen. Empty values are rejected so the caller
 // (HTTP handler or internal worker) cannot accidentally fall back to "present".
-func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error) {
+func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error) {
+	return s.checkIn(ctx, staffID, status, source, reason, true)
+}
+
+// checkIn is the shared body behind CheckIn and EnsureCheckedIn.
+// enforceDeviationGate switches the F9 reason requirement: deliberate
+// stamping (the time-tracking page) enforces it, auto-stamps triggered by
+// starting a supervision (EnsureCheckedIn) bypass it — those flows have no
+// way to collect a reason, and refusing the stamp would leave a supervisor
+// row without a matching work session.
+func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status, source, reason string, enforceDeviationGate bool) (*activeModels.WorkSession, error) {
 	if status != activeModels.WorkSessionStatusPresent && status != activeModels.WorkSessionStatusHomeOffice {
 		return nil, fmt.Errorf("status must be 'present' or 'home_office'")
 	}
@@ -317,6 +356,21 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 		return nil, err
 	}
 
+	// F9: checking in more than the tolerance before the planned shift start
+	// needs a reason ("früher kommen"). The reopen path above is exempt —
+	// resuming after an accidental checkout is not a new arrival.
+	var deviation *plannedDeviation
+	if enforceDeviationGate {
+		var err error
+		deviation, err = s.detectPlannedDeviation(ctx, staffID, today, now, deviationActionCheckIn)
+		if err != nil {
+			return nil, err
+		}
+		if deviation != nil && strings.TrimSpace(reason) == "" {
+			return nil, deviation.requiredError()
+		}
+	}
+
 	// Create new session
 	session := &activeModels.WorkSession{
 		StaffID:      staffID,
@@ -336,6 +390,12 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 	session.SetTenantID(tenant.FromContext(ctx))
 	if err := s.repo.Create(ctx, session); err != nil {
 		return nil, fmt.Errorf("failed to create work session: %w", err)
+	}
+
+	if deviation != nil {
+		if err := s.recordDeviationReason(ctx, session, deviation, reason, now); err != nil {
+			return nil, err
+		}
 	}
 
 	return session, nil
@@ -415,7 +475,7 @@ func (s *workSessionService) reopenSession(ctx context.Context, session *activeM
 }
 
 // CheckOut ends the current work session for the staff member
-func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error) {
 	// Get current active session
 	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
 	if err != nil {
@@ -429,8 +489,21 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 		return nil, errors.New(errNoActiveSession)
 	}
 
+	now := s.now()
+
+	// F9: checking out more than the tolerance after the planned shift end
+	// needs a reason ("später gehen"). Referenced against the session's own
+	// date so a forgotten session from yesterday is measured against
+	// yesterday's plan.
+	deviation, err := s.detectPlannedDeviation(ctx, staffID, session.Date, now, deviationActionCheckOut)
+	if err != nil {
+		return nil, err
+	}
+	if deviation != nil && strings.TrimSpace(reason) == "" {
+		return nil, deviation.requiredError()
+	}
+
 	// End any active break before checkout
-	now := time.Now()
 	if err := s.endActiveBreakIfExists(ctx, session.ID, now); err != nil {
 		return nil, err
 	}
@@ -444,6 +517,12 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 		return nil, errors.New(errNoActiveSession)
 	}
 
+	if deviation != nil {
+		if err := s.recordDeviationReason(ctx, session, deviation, reason, now); err != nil {
+			return nil, err
+		}
+	}
+
 	// End all active supervisions for this staff member (fire-and-forget)
 	s.endActiveSupervisionsOnCheckout(ctx, staffID)
 
@@ -454,6 +533,118 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64) (*acti
 	}
 
 	return updatedSession, nil
+}
+
+// plannedDeviation describes a stamp that falls outside the tolerance window
+// around the planned shift window of the day (F9).
+type plannedDeviation struct {
+	action  string
+	planned time.Time
+	actual  time.Time
+	minutes int
+}
+
+func (d *plannedDeviation) requiredError() *DeviationReasonRequiredError {
+	return &DeviationReasonRequiredError{
+		Action:           d.action,
+		PlannedTime:      d.planned.In(timezone.Berlin).Format("15:04"),
+		ActualTime:       d.actual.In(timezone.Berlin).Format("15:04"),
+		DeviationMinutes: d.minutes,
+	}
+}
+
+// detectPlannedDeviation implements the F9 rule: with the tenant setting
+// active, a check-in earlier than the earliest planned shift start minus the
+// tolerance, or a check-out later than the latest planned shift end plus the
+// tolerance, is a deviation that needs a reason. The plan source is
+// schedule.staff_shifts (real start AND end times); days without a shift
+// never deviate ("kein Plan, keine Abweichung"). Late arrivals and early
+// leaves are deliberately not gated — F9 targets unnoticed extra hours
+// ("früher kommen oder später gehen"), and missing time is already visible
+// in the saldo.
+func (s *workSessionService) detectPlannedDeviation(ctx context.Context, staffID int64, day timezone.Date, now time.Time, action string) (*plannedDeviation, error) {
+	if s.settings == nil || s.staffShiftRepo == nil {
+		return nil, nil
+	}
+	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyTimeTrackingRequireDeviationReason)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve deviation-reason setting: %w", err)
+	}
+	if !enabled {
+		return nil, nil
+	}
+
+	shifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, []int64{staffID}, day)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load planned shifts: %w", err)
+	}
+	if len(shifts) == 0 {
+		return nil, nil
+	}
+
+	toleranceMinutes, err := s.settings.ResolveInt(ctx, configModels.KeyTimeTrackingDeviationToleranceMinutes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve deviation-tolerance setting: %w", err)
+	}
+
+	var planned time.Time
+	var delta time.Duration
+	switch action {
+	case deviationActionCheckIn:
+		planned = shifts[0].StartInstant()
+		for _, shift := range shifts[1:] {
+			if start := shift.StartInstant(); start.Before(planned) {
+				planned = start
+			}
+		}
+		delta = planned.Sub(now) // positive when arriving early
+	case deviationActionCheckOut:
+		planned = shifts[0].EndInstant()
+		for _, shift := range shifts[1:] {
+			if end := shift.EndInstant(); end.After(planned) {
+				planned = end
+			}
+		}
+		delta = now.Sub(planned) // positive when leaving late
+	default:
+		return nil, fmt.Errorf("unknown deviation action %q", action)
+	}
+
+	if delta <= time.Duration(toleranceMinutes)*time.Minute {
+		return nil, nil
+	}
+
+	return &plannedDeviation{
+		action:  action,
+		planned: planned,
+		actual:  now,
+		minutes: int(math.Round(delta.Minutes())),
+	}, nil
+}
+
+// recordDeviationReason persists the F9 reason as an audit edit on the
+// session: old value = planned wall clock, new value = actual wall clock,
+// notes = the reason. The stamp and its audit row share the handler's tenant
+// transaction, so a failed audit write rolls the stamp back.
+func (s *workSessionService) recordDeviationReason(ctx context.Context, session *activeModels.WorkSession, dev *plannedDeviation, reason string, now time.Time) error {
+	planned := dev.planned.In(timezone.Berlin).Format("15:04")
+	actual := dev.actual.In(timezone.Berlin).Format("15:04")
+	trimmed := strings.TrimSpace(reason)
+	edit := &auditModels.WorkSessionEdit{
+		SessionID: session.ID,
+		StaffID:   session.StaffID,
+		EditedBy:  session.StaffID,
+		FieldName: auditModels.FieldDeviationReason,
+		OldValue:  &planned,
+		NewValue:  &actual,
+		Notes:     &trimmed,
+		CreatedAt: now,
+	}
+	edit.SetTenantID(tenant.FromContext(ctx))
+	if err := s.auditRepo.CreateBatch(ctx, []*auditModels.WorkSessionEdit{edit}); err != nil {
+		return fmt.Errorf("failed to record deviation reason: %w", err)
+	}
+	return nil
 }
 
 // endActiveBreakIfExists ends any active break for a session at endAt and
@@ -685,7 +876,55 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 		}
 	}
 
+	// F8: with the deviation-reason setting active, self-edits of the
+	// recorded times (check-in, check-out, break minutes — including
+	// per-break duration edits, which are break-minute changes) need notes
+	// too, not only status changes. For the scalar fields the change
+	// detection mirrors applyTimeFieldUpdates/applyBreakUpdates, so an
+	// unchanged resend never trips the gate; a non-empty per-break list
+	// always counts as an edit intent (comparing it against stored rows
+	// would need an extra query before the ownership checks ran).
+	if s.selfEditChangesRecordedTimes(session, updates) {
+		if updates.Notes == nil || strings.TrimSpace(*updates.Notes) == "" {
+			required, err := s.deviationReasonRequired(ctx)
+			if err != nil {
+				return nil, err
+			}
+			if required {
+				return nil, fmt.Errorf("notes required when changing recorded times")
+			}
+		}
+	}
+
 	return s.applySessionUpdate(ctx, staffID, session, updates)
+}
+
+// deviationReasonRequired resolves the F8/F9 tenant setting; nil settings
+// (tests, minimal wiring) mean the gate is off.
+func (s *workSessionService) deviationReasonRequired(ctx context.Context) (bool, error) {
+	if s.settings == nil {
+		return false, nil
+	}
+	enabled, err := s.settings.ResolveBool(ctx, configModels.KeyTimeTrackingRequireDeviationReason)
+	if err != nil {
+		return false, fmt.Errorf("failed to resolve deviation-reason setting: %w", err)
+	}
+	return enabled, nil
+}
+
+// selfEditChangesRecordedTimes reports whether the update would change
+// check_in_time, check_out_time, or break minutes on the session.
+func (s *workSessionService) selfEditChangesRecordedTimes(session *activeModels.WorkSession, updates SessionUpdateRequest) bool {
+	if updates.CheckInTime != nil && !session.CheckInTime.Equal(*updates.CheckInTime) {
+		return true
+	}
+	if updates.CheckOutTime != nil && (session.CheckOutTime == nil || !session.CheckOutTime.Equal(*updates.CheckOutTime)) {
+		return true
+	}
+	if updates.BreakMinutes != nil && *updates.BreakMinutes != session.BreakMinutes {
+		return true
+	}
+	return len(updates.Breaks) > 0
 }
 
 // UpdateSessionAsAdmin applies an admin correction. editorStaffID is the
@@ -1557,7 +1796,10 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 	}
 
 	// No session today, create one with the channel the caller passed in.
-	return s.CheckIn(ctx, staffID, activeModels.WorkSessionStatusPresent, source)
+	// The F9 deviation gate is bypassed: this auto-stamp fires because the
+	// staff member started a supervision, and that flow cannot collect a
+	// reason (see checkIn).
+	return s.checkIn(ctx, staffID, activeModels.WorkSessionStatusPresent, source, "", false)
 }
 
 // German weekday names for export
