@@ -54,6 +54,10 @@ var validSelectionRules = map[string]bool{
 // failure (HTTP 500) without introducing a service-package import cycle.
 var ErrCareOfferingInvalid = errors.New("invalid care offering configuration")
 
+// ErrCareOfferingDaysRequired marks the missing-weekday validation so the
+// HTTP layer can attach a stable error code for the admin editor (#1885).
+var ErrCareOfferingDaysRequired = errors.New("available_days must contain at least one day")
+
 // CareOffering is a row in enrollment.care_offerings - one care option
 // in the tenant's catalog. Admins build the catalog per calendar period
 // (typically a school year, occasionally a holiday); parents pick from
@@ -109,6 +113,13 @@ func (c *CareOffering) Validate() error {
 	}
 	if !validDaysOfWeekModes[c.DaysOfWeekMode] {
 		return fmt.Errorf("days_of_week_mode must be 'fixed' or 'parent_choice', got %q", c.DaysOfWeekMode)
+	}
+	// The weekday selection is a deliberate input: an offering that was
+	// silently saved with all (or no) days caused wrong enrollments in
+	// production (#1885). Existing rows are untouched — this runs only on
+	// admin create/update.
+	if len(c.AvailableDays) == 0 {
+		return ErrCareOfferingDaysRequired
 	}
 	for _, d := range c.AvailableDays {
 		if !canonicalDaySet[strings.ToLower(d)] {

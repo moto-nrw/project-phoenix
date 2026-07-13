@@ -52,10 +52,16 @@ const ErrCodeCareOfferingTemplatePeriodMismatch = "enrollment.care_offering_temp
 // selections without exposing PostgreSQL constraint names to the client.
 const ErrCodeCareOfferingInUse = "enrollment.care_offering_in_use"
 
+// ErrCodeCareOfferingDaysRequired identifies a save without any weekday so
+// the admin editor can show a localized message (#1885).
+const ErrCodeCareOfferingDaysRequired = "enrollment.care_offering_days_required"
+
 func careOfferingWriteErrorRenderer(err error) render.Renderer {
 	switch {
 	case errors.Is(err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch):
 		return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingTemplatePeriodMismatch)
+	case errors.Is(err, enrollmentModels.ErrCareOfferingDaysRequired):
+		return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingDaysRequired)
 	case errors.Is(err, enrollmentService.ErrCareOfferingInvalid),
 		errors.Is(err, enrollmentService.ErrCareOfferingGroupRuleConflict):
 		return common.ErrorInvalidRequest(err)

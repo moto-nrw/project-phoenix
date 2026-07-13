@@ -458,11 +458,20 @@ func TestRolloverService_AutoApprove_ValidationFailureRollsBackStudentUpdate(t *
 		ActivityGroupID: &group.ID,
 		Name:            "Invalid empty-day rollover offering",
 		DaysOfWeekMode:  enrollmentModels.DaysOfWeekModeFixed,
-		AvailableDays:   []string{},
+		AvailableDays:   []string{"tue"},
 		IsActive:        true,
 	}
 	offering.SetTenantID(1)
 	require.NoError(t, env.repos.CareOffering.Create(ctx, offering))
+	// Simulate a legacy row saved before #1885 made available_days
+	// mandatory: clear the days directly, bypassing Validate. The rollback
+	// behavior under test targets exactly such legacy-invalid rows.
+	_, updErr := env.db.NewUpdate().
+		TableExpr("enrollment.care_offerings").
+		Set("available_days = '[]'::jsonb").
+		Where("id = ?", offering.ID).
+		Exec(ctx)
+	require.NoError(t, updErr)
 	link := &enrollmentModels.RequestChildOffering{
 		RequestChildID: source.ID,
 		CareOfferingID: offering.ID,

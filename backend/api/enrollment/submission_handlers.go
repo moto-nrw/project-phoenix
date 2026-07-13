@@ -261,8 +261,8 @@ func int64PtrValue(v *int64) int64 {
 
 // Stable error codes returned in the JSON envelope so the frontend can
 // map to localized German messages without parsing free-form text. Keep
-// in sync with SUBMISSION_ERROR_MESSAGES in
-// frontend/src/lib/enrollment-submission-api.ts.
+// in sync with ENROLLMENT_CODE_MESSAGES in
+// frontend/src/lib/enrollment-error-messages.ts.
 const (
 	ErrCodeEnrollmentCareOfferingMissing         = "enrollment.care_offering_missing"
 	ErrCodeEnrollmentCareOfferingExactlyOne      = "enrollment.care_offering_exactly_one"
@@ -273,6 +273,9 @@ const (
 	ErrCodeEnrollmentInvalidEmail                = "enrollment.invalid_email"
 	ErrCodeEnrollmentPickupTimeNotAllowed        = "enrollment.pickup_time_not_allowed"
 	ErrCodeEnrollmentLateInviteInvalid           = "enrollment.late_invite_invalid"
+	ErrCodeEnrollmentSelectedDayNotAvailable     = "enrollment.selected_day_not_available"
+	ErrCodeEnrollmentDaySelectionRequired        = "enrollment.day_selection_required"
+	ErrCodeEnrollmentDaySelectionNotAllowed      = "enrollment.day_selection_not_allowed"
 )
 
 // MapSubmitError translates service-layer sentinel errors into HTTP
@@ -302,6 +305,14 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	// error wraps ErrInvalidSubmission, so the specific match has to win.
 	case errors.Is(err, enrollmentService.ErrPickupTimeNotAllowed):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentPickupTimeNotAllowed))
+	// The three offering-day errors (#1885) also wrap ErrInvalidSubmission,
+	// so their specific matches must precede the generic case below.
+	case errors.Is(err, enrollmentService.ErrSelectedDayNotAvailable):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentSelectedDayNotAvailable))
+	case errors.Is(err, enrollmentService.ErrDaySelectionRequired):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentDaySelectionRequired))
+	case errors.Is(err, enrollmentService.ErrDaySelectionNotAllowed):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentDaySelectionNotAllowed))
 	case errors.Is(err, enrollmentService.ErrCareOfferingClosed),
 		errors.Is(err, enrollmentService.ErrInvalidSubmission):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
