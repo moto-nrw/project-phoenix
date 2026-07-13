@@ -37,6 +37,7 @@ type StaffOffboardingServiceDependencies struct {
 	ActivitySupervisorRepo activitiesModels.SupervisorPlannedRepository
 	InstanceStaffRepo      scheduleModels.InstanceStaffRepository
 	StaffShiftRepo         scheduleModels.StaffShiftRepository
+	StaffShiftSeriesRepo   scheduleModels.StaffShiftSeriesRepository
 	StaffAbsenceRepo       activeModels.StaffAbsenceRepository
 	AccountTenantRepo      authModels.AccountTenantRepository
 	RoleRepo               authModels.RoleRepository
@@ -178,6 +179,17 @@ func (s *staffOffboardingService) cleanupAssignments(ctx context.Context, staffI
 			return nil, &UsersError{Op: opOffboardStaff, Err: err}
 		}
 		counts["staff_shifts"] = staffShifts
+	}
+
+	// Cap shift series (#1889) so a later admin split cannot materialize new
+	// rows for the offboarded staff member; staff rows are soft-deleted, so
+	// the FK cascade never fires.
+	if s.StaffShiftSeriesRepo != nil {
+		cappedSeries, err := s.StaffShiftSeriesRepo.CapAllByStaffID(ctx, staffID, today)
+		if err != nil {
+			return nil, &UsersError{Op: opOffboardStaff, Err: err}
+		}
+		counts["staff_shift_series"] = cappedSeries
 	}
 
 	absences, err := s.StaffAbsenceRepo.DeleteNonHistoricalByStaffID(ctx, staffID, today)

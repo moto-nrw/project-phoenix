@@ -23,7 +23,16 @@ import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
-import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import {
+  weekCycleSlotForDate,
+  weekPatternForDate,
+} from "~/lib/calendar-period-helpers";
+import {
+  berlinTodayISO,
+  formatDate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { fetchStudents } from "~/lib/student-api";
 import { getSchoolYear } from "~/lib/student-helpers";
@@ -260,6 +269,12 @@ function isoWeekday(dateISO: string): number {
   return day;
 }
 
+function mondayOfWeekISO(dateISO: string): string {
+  const date = parseISODate(dateISO);
+  date.setDate(date.getDate() - (isoWeekday(dateISO) - 1));
+  return toISODate(date);
+}
+
 function weekdayLabel(iso: number): string {
   const ref = new Date(2024, 0, 1);
   ref.setDate(ref.getDate() + (iso - 1));
@@ -347,7 +362,9 @@ function formFromSeries(
     firstSchedule?.weekPattern === 1 || firstSchedule?.weekPattern === 2
       ? firstSchedule.weekPattern
       : 0;
-  const repeat = weekPattern === 2 ? "biweekly" : "weekly";
+  // Both A (1) and B (2) are biweekly series. Mapping A to "weekly" here used
+  // to hide the A-ness and silently reset it on the next repeat-tab touch.
+  const repeat: RepeatMode = weekPattern === 0 ? "weekly" : "biweekly";
   return {
     title: series.name,
     date: defaultDate,
@@ -588,6 +605,16 @@ export function TimetableEventModal({
   // template override it may inherit. Remember user intent separately so an
   // unrelated all/following edit can preserve the freshly fetched template.
   const requiredStaffTouched = useRef(false);
+  // An occurrence may carry substitute rows that do not belong to the series
+  // roster. Preserve the fetched template roster for all/following edits until
+  // the user explicitly changes Personal; otherwise a title-only split would
+  // promote a substitute to planned series staff and erase its deviation role.
+  const staffRosterTouched = useRef(false);
+  // Once the user picks Woche A/B explicitly, date or period changes must not
+  // override that choice with the recomputed default parity — and the pick
+  // survives switching the repeat mode away and back within the same modal
+  // session. null = no manual pick yet (defaults apply).
+  const manualWeekPattern = useRef<1 | 2 | null>(null);
 
   const isEditingInstance = initialInstance !== null;
   const isEditingSeries = initialSeries !== null;
@@ -595,6 +622,42 @@ export function TimetableEventModal({
   const isSeriesFlow = form.repeat !== "none" || isEditingSeries;
   const choiceDialogOpen = pendingSeriesEdit !== null;
   const canDeleteSeries = isEditingSeries && initialSeries && onDeleteSeries;
+  const selectedCalendarPeriod = useMemo(
+    () => calendarPeriods.find((item) => item.id === form.calendarPeriodId),
+    [calendarPeriods, form.calendarPeriodId],
+  );
+  const abWeekCycleSlot = useMemo(
+    () => weekCycleSlotForDate(selectedCalendarPeriod, form.date),
+    [selectedCalendarPeriod, form.date],
+  );
+  const abWeekParity: 1 | 2 | null =
+    abWeekCycleSlot === 1 || abWeekCycleSlot === 2 ? abWeekCycleSlot : null;
+  // The backend materializes the A/B week_pattern by matching the period's
+  // cycle slot. It only represents a fortnightly schedule when the period has
+  // an anchored two-week cycle. New biweekly series are therefore disallowed
+  // for every other period (validateForm); stored series keep their pattern
+  // editable. Weeks beyond B (Woche C/D) only exist in longer cycles and are
+  // surfaced via the hint below.
+  const biweeklyUnavailable =
+    selectedCalendarPeriod?.weekCycleLength !== 2 ||
+    !selectedCalendarPeriod.weekCycleAnchor;
+  const abWeekBeyondCycle = abWeekCycleSlot !== null && abWeekCycleSlot > 2;
+  const abWeekHint = abWeekBeyondCycle
+    ? `Woche vom ${formatDate(mondayOfWeekISO(form.date))} ist Woche ${String.fromCharCode(64 + abWeekCycleSlot)} und liegt außerhalb des A/B-Rhythmus. Ein 14-tägiger Termin findet in dieser Woche nicht statt.`
+    : abWeekParity !== null
+      ? `Woche vom ${formatDate(mondayOfWeekISO(form.date))} ist Woche ${abWeekParity === 1 ? "A" : "B"}`
+      : "Kein A/B-Zyklus im Planungszeitraum hinterlegt (Standard: Woche B)";
+
+  // Keep the default A/B choice in sync with the selected week while the user
+  // has not picked one explicitly. Series edits keep their stored pattern.
+  useEffect(() => {
+    if (!isOpen || isEditingSeries || form.repeat !== "biweekly") return;
+    if (manualWeekPattern.current !== null) return;
+    const parity = abWeekParity ?? 2;
+    if (form.weekPattern !== parity) {
+      setForm((prev) => ({ ...prev, weekPattern: parity }));
+    }
+  }, [isOpen, isEditingSeries, form.repeat, form.weekPattern, abWeekParity]);
   const gradeLevelMax = tenant?.gradeLevelMax;
   const targetGradeOptions = useMemo(() => {
     if (gradeLevelMax === undefined) return [];
@@ -672,6 +735,8 @@ export function TimetableEventModal({
     setInitialStaffIDsSnapshot([...nextForm.staffIds]);
     setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
     requiredStaffTouched.current = false;
+    staffRosterTouched.current = false;
+    manualWeekPattern.current = null;
     setForm(nextForm);
     setValidationError(null);
     setFieldErrors({});
@@ -1065,16 +1130,33 @@ export function TimetableEventModal({
     // The end-before-start error is stored under endTime but depends on both
     // time fields, so correcting the start time must clear it too.
     if (key === "startTime") clearFieldError("endTime");
+    // The cycle-length error is stored under weekPattern but is resolved by
+    // switching to a period with an A/B (or no) week cycle.
+    if (key === "calendarPeriodId") clearFieldError("weekPattern");
   };
 
   const updateRepeat = (repeat: RepeatMode) => {
-    setForm((prev) => ({
-      ...prev,
-      repeat,
-      weekPattern: repeat === "biweekly" ? 2 : 0,
-    }));
+    setForm((prev) => {
+      let weekPattern: 0 | 1 | 2 = 0;
+      if (repeat === "biweekly") {
+        // A manual Woche-A/B pick survives switching the repeat mode away and
+        // back; otherwise default to the parity of the currently selected
+        // week so the series runs in the week the user is looking at. B is
+        // the fallback when the period has no A/B cycle (previous hardcoded
+        // behavior).
+        const period = calendarPeriods.find(
+          (item) => item.id === prev.calendarPeriodId,
+        );
+        weekPattern =
+          manualWeekPattern.current ??
+          weekPatternForDate(period, prev.date) ??
+          2;
+      }
+      return { ...prev, repeat, weekPattern };
+    });
     setValidationError(null);
     clearFieldError("repeat");
+    clearFieldError("weekPattern");
   };
 
   const toggleWeekday = (iso: number) => {
@@ -1142,6 +1224,18 @@ export function TimetableEventModal({
       if (form.weekdays.length === 0) {
         errors.weekdays = "Bitte mindestens einen Wochentag auswählen.";
       }
+      // "Alle 2 Wochen" only genuinely repeats every two weeks in an anchored
+      // two-week period. Otherwise the A/B week_pattern either fires weekly or
+      // once per longer cycle. Series edits are exempt so their stored pattern
+      // stays editable.
+      if (
+        form.repeat === "biweekly" &&
+        !isEditingSeries &&
+        biweeklyUnavailable
+      ) {
+        errors.weekPattern =
+          'Der gewählte Planungszeitraum hat keinen verankerten Zwei-Wochen-Zyklus. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.';
+      }
       if (form.targetGroupType === "jahrgang") {
         const gradeLevel = Number(form.targetGradeLevel);
         if (form.targetGradeLevel === "") {
@@ -1175,6 +1269,7 @@ export function TimetableEventModal({
         (errors.categoryId ??
           errors.calendarPeriodId ??
           errors.weekdays ??
+          errors.weekPattern ??
           errors.targetGradeLevel ??
           errors.targetSchoolClass ??
           errors.educationGroupId)
@@ -1302,12 +1397,14 @@ export function TimetableEventModal({
     const templateStudentIDs = studentRosterEditable
       ? form.studentIds
       : template.studentIds;
-    const templateStaffIDs = staffRosterEditable
-      ? form.staffIds
-      : template.staffIds;
-    const primaryStaffId = staffRosterEditable
-      ? form.primaryStaffId || template.primaryStaffId
-      : template.primaryStaffId;
+    const templateStaffIDs =
+      staffRosterEditable && staffRosterTouched.current
+        ? form.staffIds
+        : template.staffIds;
+    const primaryStaffId =
+      staffRosterEditable && staffRosterTouched.current
+        ? form.primaryStaffId || template.primaryStaffId
+        : template.primaryStaffId;
     return {
       name: form.title.trim(),
       type: template.type,
@@ -2053,6 +2150,7 @@ export function TimetableEventModal({
           options={staff}
           value={form.staffIds}
           onChange={(ids) => {
+            staffRosterTouched.current = true;
             update("staffIds", ids);
             if (form.primaryStaffId && !ids.includes(form.primaryStaffId)) {
               update("primaryStaffId", "");
@@ -2066,7 +2164,10 @@ export function TimetableEventModal({
             <select
               id="event_primary_staff"
               value={form.primaryStaffId}
-              onChange={(event) => update("primaryStaffId", event.target.value)}
+              onChange={(event) => {
+                staffRosterTouched.current = true;
+                update("primaryStaffId", event.target.value);
+              }}
               className={FORM_SELECT_CLASS}
             >
               <option value="">Keine Auswahl</option>
@@ -2339,7 +2440,12 @@ export function TimetableEventModal({
                       <TabsTrigger
                         key={option.value}
                         value={option.value}
-                        disabled={isEditingSeries && option.value === "none"}
+                        disabled={
+                          (isEditingSeries && option.value === "none") ||
+                          (!isEditingSeries &&
+                            option.value === "biweekly" &&
+                            biweeklyUnavailable)
+                        }
                       >
                         {option.label}
                       </TabsTrigger>
@@ -2371,6 +2477,32 @@ export function TimetableEventModal({
                   <option value="benutzerdefiniert">Benutzerdefiniert …</option>
                 </select>
               </Field>
+            )}
+
+            {expanded && form.repeat === "biweekly" && (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-semibold text-gray-700">
+                  Wochenrhythmus
+                </span>
+                <Tabs
+                  value={form.weekPattern === 1 ? "A" : "B"}
+                  onValueChange={(value) => {
+                    manualWeekPattern.current = value === "A" ? 1 : 2;
+                    update("weekPattern", value === "A" ? 1 : 2);
+                  }}
+                >
+                  <TabsList aria-label="A/B-Woche" className="w-fit">
+                    <TabsTrigger value="A">Woche A</TabsTrigger>
+                    <TabsTrigger value="B">Woche B</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <p className="text-xs text-gray-500">{abWeekHint}</p>
+                {fieldErrors.weekPattern && (
+                  <p role="alert" className="mt-1 text-xs text-red-600">
+                    {fieldErrors.weekPattern}
+                  </p>
+                )}
+              </div>
             )}
 
             {expanded && isSeriesFlow && (

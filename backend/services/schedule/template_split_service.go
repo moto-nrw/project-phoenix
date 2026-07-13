@@ -172,6 +172,9 @@ type TemplateSplitDependencies struct {
 	InstanceRepo    scheduleModel.ActivityInstanceRepository
 	TimeframeRepo   scheduleModel.TimeframeRepository
 	Materialization MaterializationService
+	// InstanceService supplies the existing deviation snapshot/reapply machinery.
+	// The constructor narrows it to the package-private capability used by Split.
+	InstanceService InstanceService
 	// ValidateCareOfferingSeries runs after the successor and its schedules are
 	// visible inside the split transaction. It rejects a split that would make
 	// an existing care-offering link impossible to materialize later.
@@ -183,8 +186,18 @@ type TemplateSplitDependencies struct {
 // TemplateSplitService performs recurring-template scope operations.
 type TemplateSplitService struct {
 	deps                 TemplateSplitDependencies
+	deviations           splitDeviationPreserver
 	lockTenantRecurrence func(context.Context) error
 	runInTx              func(context.Context, func(context.Context) error) error
+}
+
+// splitDeviationPreserver is the existing instance-service machinery the split
+// needs around its delete/materialize cycle. Keeping this capability private
+// avoids adding snapshot types or split-only methods to the public service API.
+type splitDeviationPreserver interface {
+	acquireSubstituteDayLocks(context.Context, int64, timezone.Date, timezone.Date) error
+	snapshotDeviations(context.Context, timezone.Date, timezone.Date, *int64) ([]deviationSnapshot, map[groupDay]int, error)
+	reapplyDeviations(context.Context, []deviationSnapshot, map[groupDay]int, *int64) (int, error)
 }
 
 // NewTemplateSplitService constructs a TemplateSplitService. Panics if a
@@ -193,11 +206,17 @@ type TemplateSplitService struct {
 func NewTemplateSplitService(deps TemplateSplitDependencies) *TemplateSplitService {
 	if deps.GroupRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil ||
 		deps.SupervisorRepo == nil || deps.InstanceRepo == nil || deps.TimeframeRepo == nil ||
-		deps.Materialization == nil || deps.ValidateCareOfferingSeries == nil || deps.DB == nil {
+		deps.Materialization == nil || deps.InstanceService == nil ||
+		deps.ValidateCareOfferingSeries == nil || deps.DB == nil {
 		panic("schedule.NewTemplateSplitService: required dependency is nil")
 	}
+	deviations, ok := deps.InstanceService.(splitDeviationPreserver)
+	if !ok {
+		panic("schedule.NewTemplateSplitService: instance service does not support deviation preservation")
+	}
 	return &TemplateSplitService{
-		deps: deps,
+		deps:       deps,
+		deviations: deviations,
 		lockTenantRecurrence: func(ctx context.Context) error {
 			return lockTenantRecurrenceWrites(ctx, deps.DB)
 		},
@@ -279,6 +298,23 @@ func (s *TemplateSplitService) splitInTransaction(
 		)
 	}
 
+	var snapshots []deviationSnapshot
+	var occurrences map[groupDay]int
+	deviationFrom, deviationTo, preserveDeviations := splitMaterializationWindow(in)
+	if preserveDeviations {
+		if s.deviations == nil {
+			return nil, &ScheduleError{Op: "split template: preserve deviations", Err: errors.New("deviation preservation is not configured")}
+		}
+		if err := s.deviations.acquireSubstituteDayLocks(ctx, tenantID, deviationFrom, deviationTo); err != nil {
+			return nil, &ScheduleError{Op: "split template: lock deviation days", Err: err}
+		}
+		oldID := old.ID
+		snapshots, occurrences, err = s.deviations.snapshotDeviations(ctx, deviationFrom, deviationTo, &oldID)
+		if err != nil {
+			return nil, &ScheduleError{Op: "split template: snapshot deviations", Err: err}
+		}
+	}
+
 	// Remove ALL of the old template's still-planned future instances from
 	// the effective date onward — deliberately open-ended (nil `to`), NOT
 	// tied to the materialization window: the split must guarantee that no
@@ -300,6 +336,15 @@ func (s *TemplateSplitService) splitInTransaction(
 		return nil, err
 	}
 
+	reapplied := 0
+	if preserveDeviations {
+		newID := newGroup.ID
+		reapplied, err = s.deviations.reapplyDeviations(ctx, snapshots, occurrences, &newID)
+		if err != nil {
+			return nil, &ScheduleError{Op: "split template: reapply deviations", Err: err}
+		}
+	}
+
 	s.getLogger().Info("template split completed",
 		slog.Int64("tenant_id", tenantID),
 		slog.Int64("old_template_id", old.ID),
@@ -307,6 +352,8 @@ func (s *TemplateSplitService) splitInTransaction(
 		slog.String("effective_date", in.EffectiveDate.String()),
 		slog.Int("schedule_count", len(scheduleIDs)),
 		slog.Int64("deleted_instances", deleted),
+		slog.Int("deviations_snapshotted", len(snapshots)),
+		slog.Int("deviations_reapplied", reapplied),
 	)
 
 	return &TemplateSplitResult{
@@ -1260,25 +1307,33 @@ func unionSelectedWeekdays(rows []*activitiesModel.StudentEnrollment, preferred 
 // starts before the effective date. Requires both bounds; an inverted clamped
 // window is a silent no-op (nothing to materialize before the split point).
 func (s *TemplateSplitService) materializeWindow(ctx context.Context, in TemplateSplitInput) (*MaterializationResult, error) {
-	if in.MaterializeFrom == nil || in.MaterializeTo == nil {
+	from, to, ok := splitMaterializationWindow(in)
+	if !ok {
 		return nil, nil
+	}
+	mat, err := s.deps.Materialization.MaterializeForTenant(ctx, from, to, MaterializationSourceManual)
+	if err != nil {
+		return nil, &ScheduleError{Op: "split template: materialize", Err: err}
+	}
+	return mat, nil
+}
+
+// splitMaterializationWindow returns the exact inclusive window shared by
+// deviation preservation and materialization. It clamps the lower bound to the
+// split date because the predecessor remains authoritative before that date.
+func splitMaterializationWindow(in TemplateSplitInput) (timezone.Date, timezone.Date, bool) {
+	if in.MaterializeFrom == nil || in.MaterializeTo == nil {
+		return timezone.Date{}, timezone.Date{}, false
 	}
 	from := *in.MaterializeFrom
 	if from.Before(in.EffectiveDate) {
 		from = in.EffectiveDate
 	}
-	if from.After(*in.MaterializeTo) {
-		s.getLogger().Debug("template split: materialization window empty after clamping to effective date",
-			slog.String("from", from.String()),
-			slog.String("to", in.MaterializeTo.String()),
-		)
-		return nil, nil
+	to := *in.MaterializeTo
+	if from.After(to) {
+		return timezone.Date{}, timezone.Date{}, false
 	}
-	mat, err := s.deps.Materialization.MaterializeForTenant(ctx, from, *in.MaterializeTo, MaterializationSourceManual)
-	if err != nil {
-		return nil, &ScheduleError{Op: "split template: materialize", Err: err}
-	}
-	return mat, nil
+	return from, to, true
 }
 
 // FindOrCreateTimeframe returns the id of an existing schedule.timeframes row

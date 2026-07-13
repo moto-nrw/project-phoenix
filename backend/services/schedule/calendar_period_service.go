@@ -128,33 +128,43 @@ func (s *calendarPeriodService) GetPeriodByID(ctx context.Context, id int64) (*s
 	return period, nil
 }
 
-// CreatePeriod creates a new calendar period
+// CreatePeriod creates a new calendar period. The duplicate-name and
+// same-type overlap checks run under the tenant recurrence gate: without it,
+// two concurrent creates could both pass the overlap check before either
+// insert commits, violating the hard active/same-type invariant (#1837).
 func (s *calendarPeriodService) CreatePeriod(ctx context.Context, period *schedule.CalendarPeriod) error {
+	const op = "create calendar period"
 	if err := period.Validate(); err != nil {
-		return &ScheduleError{Op: "create calendar period", Err: err}
+		return &ScheduleError{Op: op, Err: err}
 	}
 
-	// Check for duplicate name
-	existing, err := s.repo.FindByName(ctx, period.Name)
-	if err != nil {
-		return &ScheduleError{Op: "create calendar period", Err: err}
-	}
-	if existing != nil {
-		return &ScheduleError{Op: "create calendar period", Err: schedule.ErrCalendarPeriodNameConflict}
-	}
+	return s.withRecurrenceGate(ctx, op, func(txCtx context.Context) error {
+		// Check for duplicate name
+		existing, err := s.repo.FindByName(txCtx, period.Name)
+		if err != nil {
+			return &ScheduleError{Op: op, Err: err}
+		}
+		if existing != nil {
+			return &ScheduleError{Op: op, Err: schedule.ErrCalendarPeriodNameConflict}
+		}
 
-	period.SetTenantID(tenant.FromContext(ctx))
-	if err := s.repo.Create(ctx, period); err != nil {
-		return &ScheduleError{Op: "create calendar period", Err: err}
-	}
+		if err := s.ensureNoActiveSameTypeOverlap(txCtx, period); err != nil {
+			return err
+		}
 
-	s.getLogger().Info("calendar period created",
-		slog.Int64("period_id", period.ID),
-		slog.String("name", period.Name),
-		slog.String("period_type", period.PeriodType),
-	)
+		period.SetTenantID(tenant.FromContext(txCtx))
+		if err := s.repo.Create(txCtx, period); err != nil {
+			return &ScheduleError{Op: op, Err: err}
+		}
 
-	return nil
+		s.getLogger().Info("calendar period created",
+			slog.Int64("period_id", period.ID),
+			slog.String("name", period.Name),
+			slog.String("period_type", period.PeriodType),
+		)
+
+		return nil
+	})
 }
 
 // UpdatePeriod updates an existing calendar period
@@ -173,11 +183,46 @@ func (s *calendarPeriodService) UpdatePeriod(ctx context.Context, period *schedu
 	}
 
 	return s.mutatePeriod(ctx, "update calendar period", period.ID, period, func(txCtx context.Context) error {
+		current, err := s.repo.FindByID(txCtx, period.ID)
+		if err != nil {
+			return &ScheduleError{Op: "update calendar period", Err: err}
+		}
+		// The hard overlap rule only guards changes to the scheduling-relevant
+		// fields (dates, active flag, and type — the check runs against the NEW
+		// type, so re-typing a period out of a conflict stays possible).
+		// Rename-only edits of a period that already overlaps (legacy data from
+		// before the rule) stay possible; the advisory warning keeps surfacing
+		// those.
+		if current.StartDate != period.StartDate || current.EndDate != period.EndDate ||
+			current.IsActive != period.IsActive || current.PeriodType != period.PeriodType {
+			if err := s.ensureNoActiveSameTypeOverlap(txCtx, period); err != nil {
+				return err
+			}
+		}
 		if err := s.repo.Update(txCtx, period); err != nil {
 			return &ScheduleError{Op: "update calendar period", Err: err}
 		}
 		return nil
 	})
+}
+
+// ensureNoActiveSameTypeOverlap rejects a period whose resulting state would
+// be active and overlap another active period of the same period_type
+// (#1837). Inactive periods never conflict. Cross-type overlaps (holidays
+// inside a school year) stay legal — the advisory FindActiveOverlaps warning
+// covers those.
+func (s *calendarPeriodService) ensureNoActiveSameTypeOverlap(ctx context.Context, period *schedule.CalendarPeriod) error {
+	if period == nil || !period.IsActive {
+		return nil
+	}
+	overlaps, err := s.repo.FindActiveOverlappingByType(ctx, period.PeriodType, period.StartDate, period.EndDate, period.ID)
+	if err != nil {
+		return &ScheduleError{Op: "check same-type period overlap", Err: err}
+	}
+	if len(overlaps) > 0 {
+		return &ScheduleError{Op: "check same-type period overlap", Err: &schedule.CalendarPeriodOverlapError{Overlaps: overlaps}}
+	}
+	return nil
 }
 
 // GetUsageCounts reports per-period reference counts for the current tenant.
@@ -213,14 +258,36 @@ func (s *calendarPeriodService) mutatePeriod(
 	replacement *schedule.CalendarPeriod,
 	mutate func(context.Context) error,
 ) error {
+	if s.db != nil && s.validateCareOfferingChange == nil {
+		return &ScheduleError{Op: op, Err: errors.New("calendar period care-offering validation is not configured")}
+	}
+	return s.withRecurrenceGate(ctx, op, func(txCtx context.Context) error {
+		// nil only on the legacy DB-less unit-test path, where the gate above
+		// already guarantees no care-offering dependency was wired.
+		if s.validateCareOfferingChange != nil {
+			if err := s.validateCareOfferingChange(txCtx, periodID, replacement); err != nil {
+				return &ScheduleError{Op: op + ": validate linked care offerings", Err: err}
+			}
+		}
+		return mutate(txCtx)
+	})
+}
+
+// withRecurrenceGate runs mutate inside a tenant transaction while holding the
+// tenant-wide recurrence advisory lock, serializing the change against every
+// other recurrence-derived write (creates, updates, deletes, re-planning,
+// materialization). Without a configured DB (legacy unit-test constructor)
+// mutate runs directly, provided no gate dependency was wired.
+func (s *calendarPeriodService) withRecurrenceGate(
+	ctx context.Context,
+	op string,
+	mutate func(context.Context) error,
+) error {
 	if s.db == nil {
 		if s.validateCareOfferingChange != nil || s.lockTenantRecurrenceMutation != nil {
 			return &ScheduleError{Op: op, Err: errors.New("calendar period mutation database is not configured")}
 		}
 		return mutate(ctx)
-	}
-	if s.validateCareOfferingChange == nil {
-		return &ScheduleError{Op: op, Err: errors.New("calendar period care-offering validation is not configured")}
 	}
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
@@ -232,9 +299,6 @@ func (s *calendarPeriodService) mutatePeriod(
 		}
 		if err := s.lockTenantRecurrenceMutation(txCtx); err != nil {
 			return &ScheduleError{Op: op + ": lock recurrence", Err: err}
-		}
-		if err := s.validateCareOfferingChange(txCtx, periodID, replacement); err != nil {
-			return &ScheduleError{Op: op + ": validate linked care offerings", Err: err}
 		}
 		return mutate(txCtx)
 	})
@@ -265,41 +329,60 @@ func defaultSchoolYearBounds(today timezone.Date) (name string, start, end timez
 // period (WP-B1). When periods already exist, it returns them unchanged with
 // created=false. Otherwise it inserts the current school year via the
 // race-safe CreateIfAbsent upsert, re-lists, and returns the fresh state.
-// Two concurrent calls therefore yield exactly one row and zero errors.
+// The read + insert run under the same tenant recurrence gate as CreatePeriod:
+// without it, a bootstrap racing a normal period create could list zero
+// periods, then insert the default school year next to a just-committed
+// overlapping active period of the same type, bypassing the hard overlap
+// invariant (#1837). Two concurrent calls yield exactly one row and no errors.
 func (s *calendarPeriodService) EnsureDefaultSchoolYear(ctx context.Context) ([]*schedule.CalendarPeriod, bool, error) {
-	periods, err := s.repo.FindByTenantID(ctx)
-	if err != nil {
-		return nil, false, &ScheduleError{Op: "ensure default school year", Err: err}
-	}
-	if len(periods) > 0 {
-		return periods, false, nil
-	}
+	const op = "ensure default school year"
+	var periods []*schedule.CalendarPeriod
+	var created bool
 
-	name, start, end := defaultSchoolYearBounds(timezone.TodayDate())
-	period := &schedule.CalendarPeriod{
-		Name:            name,
-		PeriodType:      schedule.PeriodTypeSchoolYear,
-		StartDate:       start,
-		EndDate:         end,
-		WeekCycleLength: 1,
-		IsActive:        true,
-	}
-	period.SetTenantID(tenant.FromContext(ctx))
+	err := s.withRecurrenceGate(ctx, op, func(txCtx context.Context) error {
+		var err error
+		periods, err = s.repo.FindByTenantID(txCtx)
+		if err != nil {
+			return &ScheduleError{Op: op, Err: err}
+		}
+		if len(periods) > 0 {
+			return nil
+		}
 
-	created, err := s.repo.CreateIfAbsent(ctx, period)
-	if err != nil {
-		return nil, false, &ScheduleError{Op: "ensure default school year", Err: err}
-	}
-	if created {
-		s.getLogger().Info("default school year period created",
-			slog.Int64("period_id", period.ID),
-			slog.String("name", period.Name),
-		)
-	}
+		name, start, end := defaultSchoolYearBounds(timezone.TodayDate())
+		period := &schedule.CalendarPeriod{
+			Name:            name,
+			PeriodType:      schedule.PeriodTypeSchoolYear,
+			StartDate:       start,
+			EndDate:         end,
+			WeekCycleLength: 1,
+			IsActive:        true,
+		}
+		period.SetTenantID(tenant.FromContext(txCtx))
 
-	periods, err = s.repo.FindByTenantID(ctx)
+		if err := s.ensureNoActiveSameTypeOverlap(txCtx, period); err != nil {
+			return err
+		}
+
+		created, err = s.repo.CreateIfAbsent(txCtx, period)
+		if err != nil {
+			return &ScheduleError{Op: op, Err: err}
+		}
+		if created {
+			s.getLogger().Info("default school year period created",
+				slog.Int64("period_id", period.ID),
+				slog.String("name", period.Name),
+			)
+		}
+
+		periods, err = s.repo.FindByTenantID(txCtx)
+		if err != nil {
+			return &ScheduleError{Op: op, Err: err}
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, false, &ScheduleError{Op: "ensure default school year", Err: err}
+		return nil, false, err
 	}
 	return periods, created, nil
 }

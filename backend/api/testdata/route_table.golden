@@ -32,6 +32,7 @@ DELETE /api/settings/enrollment/legal-agb-document
 DELETE /api/settings/login-image
 DELETE /api/settings/values/{key}
 DELETE /api/shift-types/{id}
+DELETE /api/staff-shifts/series/{id}
 DELETE /api/staff-shifts/{id}
 DELETE /api/staff/{id}
 DELETE /api/students/{id}
@@ -535,6 +536,7 @@ POST /api/settings/login-image
 POST /api/shift-types/
 POST /api/shift-types/defaults
 POST /api/staff-shifts/
+POST /api/staff-shifts/series
 POST /api/staff/
 POST /api/staff/absences/{absenceId}/approve
 POST /api/staff/absences/{absenceId}/deny
@@ -698,6 +700,7 @@ PUT /api/schedules/recurrence-rules/{id}
 PUT /api/schedules/timeframes/{id}
 PUT /api/settings/values/{key}
 PUT /api/shift-types/{id}
+PUT /api/staff-shifts/series/{id}/split
 PUT /api/staff-shifts/{id}
 PUT /api/staff/pin
 PUT /api/staff/{id}
@@ -743,4 +746,5 @@ PUT /operator/suggestions/{id}/status
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/contact
 PUT /parent/me/children/{studentId}/guardians/{guardianProfileId}/pickup
 PUT /parent/me/profile
+QUERY /internal/metrics
 TRACE /internal/metrics

@@ -19,6 +19,7 @@ import (
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
 	userContextService "github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -56,11 +57,17 @@ type ResourceConfig struct {
 	EnrollmentDecision      enrollmentService.DecisionService
 	EnrollmentFormSchema    enrollmentService.FormSchemaService
 	Broadcaster             realtime.Broadcaster
-	StudentPhotos           userService.StudentPhotoService
-	ListExportService       *listexport.RendererService
-	Logger                  *slog.Logger
-	Now                     func() time.Time
-	DB                      *bun.DB
+	// ParentEventEmitter wakes a child's guardians (message-independent
+	// parent_child_updated SSE fan-out) after staff-side care writes, so an open
+	// parents-app tab refetches the child's care state live (#1725). Optional —
+	// nil is a no-op (the guardian helper guards on it), so tests that build a
+	// bare Resource keep working.
+	ParentEventEmitter *parentmessaging.Emitter
+	StudentPhotos      userService.StudentPhotoService
+	ListExportService  *listexport.RendererService
+	Logger             *slog.Logger
+	Now                func() time.Time
+	DB                 *bun.DB
 }
 
 // NewResource creates a new students resource from the provided configuration.

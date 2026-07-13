@@ -51,6 +51,7 @@ func attachSplitServiceWithValidator(
 		InstanceRepo:               scheduleRepo.NewActivityInstanceRepository(s.db),
 		TimeframeRepo:              scheduleRepo.NewTimeframeRepository(s.db),
 		Materialization:            mat,
+		InstanceService:            s.res.InstanceService,
 		ValidateCareOfferingSeries: validate,
 		DB:                         s.db,
 	})

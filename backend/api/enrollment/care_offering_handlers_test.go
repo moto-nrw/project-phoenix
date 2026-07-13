@@ -270,6 +270,20 @@ func TestCreateCareOfferingHandler_TemplatePeriodMismatchReturnsStableCode(t *te
 	assert.JSONEq(t, `{"status":"error","error":"validate linked template: care offering phase must be within the linked timetable template period","code":"enrollment.care_offering_template_period_mismatch"}`, w.Body.String())
 }
 
+func TestCreateCareOfferingHandler_MissingDaysReturnsStableCode(t *testing.T) {
+	// The service wraps the model validation via wrapCareOfferingInvalid;
+	// the renderer must still resolve the specific sentinel so the admin
+	// editor can show the localized "pick at least one day" message (#1885).
+	mock := &mockCareOfferingService{createErr: fmt.Errorf("%w: validate care offering: %w",
+		enrollmentService.ErrCareOfferingInvalid, enrollmentModels.ErrCareOfferingDaysRequired)}
+	router := buildCareOfferingRouter(mock)
+	w := executeCareJSON(t, router, http.MethodPost, "/enrollment/care-offerings",
+		validOfferingBody(5678, "OGS"))
+
+	require.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeCareOfferingDaysRequired)
+}
+
 // --- updateCareOffering ---------------------------------------------
 
 func TestUpdateCareOfferingHandler_NilServiceReturns500(t *testing.T) {

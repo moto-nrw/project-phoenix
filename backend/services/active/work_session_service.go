@@ -365,12 +365,12 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 	}
 
 	staff := s.resolveStaffForTargets(ctx, staffID)
-	anchor := resolveScheduleAnchorFromStaff(staff, entries)
+	anchor := configModels.ResolveScheduleAnchor(staffAnchorOf(staff), entries)
 	if anchor.IsZero() {
 		return nil
 	}
-	rotationWeek := configModels.ResolveWeekIndex(scheduleRotationLength(entries), isoWeekStart(anchor), isoWeekStart(today))
-	dayIndex := isoDayIndex(today)
+	rotationWeek := configModels.ResolveWeekIndex(configModels.ScheduleRotationLength(entries), configModels.MondayOf(anchor), configModels.MondayOf(today))
+	dayIndex := configModels.ISODayIndex(today)
 	for _, entry := range entries {
 		if entry.WeekIndex != rotationWeek || entry.DayOfWeek != dayIndex || entry.StartTime == nil {
 			continue
@@ -1114,7 +1114,7 @@ func (s *workSessionService) getWeeklyTargetsForSummaries(ctx context.Context, s
 		if staff.RotationAnchorDate != nil {
 			anchor = *staff.RotationAnchorDate
 		}
-		return weeklyTargetsFromModel(model, anchor, sessions)
+		return summaryKeysOf(configModels.WeeklyTargetsFromModel(model, anchor, sessionWeekStarts(sessions)))
 	}
 	return nil
 }
@@ -1130,24 +1130,38 @@ func (s *workSessionService) resolveStaffForTargets(ctx context.Context, staffID
 	return staff
 }
 
+// weeklyTargetsFromDateValidSchedule resolves the weekly Soll from date-valid
+// staff_work_schedules rows via the shared models/config helpers: one batched
+// read over the span of all session weeks, then per-week in-memory resolution
+// (validity windows, rotation weeks) through config.WeeklyTargetFromSchedule —
+// the same helper the Dienstplan weekly summaries use.
 func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
 	ctx context.Context,
 	staffID int64,
 	staff *userModels.Staff,
 	sessions []*SessionResponse,
 ) map[summaryWeekKey]int {
-	targetsByWeek := make(map[summaryWeekKey]int)
-	seen := make(map[summaryWeekKey]bool)
-	for _, session := range sessions {
-		year, week := session.Date.UTCMidnight().ISOWeek()
-		key := summaryWeekKey{Year: year, Week: week}
-		if seen[key] {
-			continue
+	weekStarts := sessionWeekStarts(sessions)
+	if len(weekStarts) == 0 {
+		return nil
+	}
+	from, to := weekStarts[0], weekStarts[0]
+	for _, weekStart := range weekStarts[1:] {
+		if weekStart.Before(from) {
+			from = weekStart
 		}
-		seen[key] = true
-		target, ok := s.weeklyTargetFromDateValidSchedule(ctx, staffID, staff, isoWeekStart(session.Date))
-		if ok {
-			targetsByWeek[key] = target
+		if weekStart.After(to) {
+			to = weekStart
+		}
+	}
+	entries, err := s.scheduleRepo.FindByStaffIDsValidInRange(ctx, []int64{staffID}, from, to.AddDays(6))
+	if err != nil || len(entries) == 0 {
+		return nil
+	}
+	targetsByWeek := make(map[summaryWeekKey]int)
+	for _, weekStart := range weekStarts {
+		if target, ok := configModels.WeeklyTargetFromSchedule(entries, staffAnchorOf(staff), weekStart); ok {
+			targetsByWeek[summaryKeyOf(weekStart)] = target
 		}
 	}
 	if len(targetsByWeek) == 0 {
@@ -1156,108 +1170,48 @@ func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
 	return targetsByWeek
 }
 
-func (s *workSessionService) weeklyTargetFromDateValidSchedule(
-	ctx context.Context,
-	staffID int64,
-	staff *userModels.Staff,
-	weekStart timezone.Date,
-) (int, bool) {
-	total := 0
-	found := false
-	for offset := 0; offset < 7; offset++ {
-		date := weekStart.AddDays(offset)
-		entries, err := s.scheduleRepo.GetByStaffIDAndDate(ctx, staffID, date)
-		if err != nil || len(entries) == 0 {
-			continue
-		}
-		anchor := resolveScheduleAnchorFromStaff(staff, entries)
-		rotationWeek := configModels.ResolveWeekIndex(scheduleRotationLength(entries), isoWeekStart(anchor), isoWeekStart(date))
-		dayIndex := isoDayIndex(date)
-		for _, entry := range entries {
-			if entry.WeekIndex == rotationWeek && entry.DayOfWeek == dayIndex {
-				total += entry.TargetMinutes
-				found = true
-			}
-		}
-	}
-	return total, found
-}
-
-func weeklyTargetsFromModel(model *configModels.WorkTimeModel, anchor timezone.Date, sessions []*SessionResponse) map[summaryWeekKey]int {
-	if model == nil || len(model.Entries) == 0 || len(sessions) == 0 {
+// staffAnchorOf returns the staff-level rotation anchor when one is set.
+func staffAnchorOf(staff *userModels.Staff) *timezone.Date {
+	if staff == nil {
 		return nil
 	}
-	rotation := model.RotationLength
-	if rotation < 1 {
-		rotation = 1
-	}
-	targetsByRotationWeek := make(map[int]int, rotation)
-	for _, e := range model.Entries {
-		targetsByRotationWeek[e.WeekIndex] += e.TargetMinutes
-	}
-	return weeklyTargetsFromRotationTargets(targetsByRotationWeek, rotation, anchor, sessions)
+	return staff.RotationAnchorDate
 }
 
-func weeklyTargetsFromRotationTargets(targetsByRotationWeek map[int]int, rotation int, anchor timezone.Date, sessions []*SessionResponse) map[summaryWeekKey]int {
-	if len(targetsByRotationWeek) == 0 {
-		return nil
-	}
-	targetsByWeek := make(map[summaryWeekKey]int)
+// sessionWeekStarts returns the deduplicated Monday week starts of the given
+// sessions in first-seen order.
+func sessionWeekStarts(sessions []*SessionResponse) []timezone.Date {
+	weekStarts := make([]timezone.Date, 0)
+	seen := make(map[timezone.Date]struct{})
 	for _, session := range sessions {
-		year, week := session.Date.UTCMidnight().ISOWeek()
-		key := summaryWeekKey{Year: year, Week: week}
-		if _, ok := targetsByWeek[key]; ok {
+		weekStart := configModels.MondayOf(session.Date)
+		if _, ok := seen[weekStart]; ok {
 			continue
 		}
-		weekStart := isoWeekStart(session.Date)
-		rotationWeek := configModels.ResolveWeekIndex(rotation, isoWeekStart(anchor), weekStart)
-		if target, ok := targetsByRotationWeek[rotationWeek]; ok {
-			targetsByWeek[key] = target
-		}
+		seen[weekStart] = struct{}{}
+		weekStarts = append(weekStarts, weekStart)
+	}
+	return weekStarts
+}
+
+// summaryKeyOf maps a Monday week start onto the ISO year/week summary key
+// (a Monday uniquely determines its ISO week, so the mapping is loss-free).
+func summaryKeyOf(weekStart timezone.Date) summaryWeekKey {
+	year, week := weekStart.UTCMidnight().ISOWeek()
+	return summaryWeekKey{Year: year, Week: week}
+}
+
+// summaryKeysOf rekeys the Monday-date targets of the shared model resolver
+// onto summary week keys.
+func summaryKeysOf(targets map[timezone.Date]int) map[summaryWeekKey]int {
+	if len(targets) == 0 {
+		return nil
+	}
+	targetsByWeek := make(map[summaryWeekKey]int, len(targets))
+	for weekStart, target := range targets {
+		targetsByWeek[summaryKeyOf(weekStart)] = target
 	}
 	return targetsByWeek
-}
-
-func resolveScheduleAnchorFromStaff(staff *userModels.Staff, entries []*configModels.StaffWorkSchedule) timezone.Date {
-	if staff != nil && staff.RotationAnchorDate != nil {
-		return *staff.RotationAnchorDate
-	}
-	var earliest timezone.Date
-	for _, e := range entries {
-		if earliest.IsZero() || e.ValidFrom.Before(earliest) {
-			earliest = e.ValidFrom
-		}
-	}
-	return earliest
-}
-
-func scheduleRotationLength(entries []*configModels.StaffWorkSchedule) int {
-	rotation := 1
-	for _, e := range entries {
-		if e.RotationLength > rotation {
-			rotation = e.RotationLength
-		}
-	}
-	if rotation < 1 {
-		return 1
-	}
-	return rotation
-}
-
-func isoWeekStart(date timezone.Date) timezone.Date {
-	weekday := int(date.Weekday())
-	if weekday == 0 {
-		weekday = 7
-	}
-	return date.AddDays(1 - weekday)
-}
-
-func isoDayIndex(date timezone.Date) int {
-	weekday := int(date.Weekday())
-	if weekday == 0 {
-		return configModels.DaySunday
-	}
-	return weekday - 1
 }
 
 // GetSessionEdits returns the audit trail for a work session

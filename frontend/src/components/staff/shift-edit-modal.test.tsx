@@ -20,6 +20,11 @@ vi.mock("~/lib/shift-api", () => ({
     updateShift: vi.fn(),
     deleteShift: vi.fn(),
   },
+  staffShiftSeriesService: {
+    createSeries: vi.fn(),
+    splitSeries: vi.fn(),
+    endSeries: vi.fn(),
+  },
 }));
 
 const oneHourShift: StaffShift = {
@@ -31,6 +36,8 @@ const oneHourShift: StaffShift = {
   breakMinutes: 30,
   shiftTypeId: null,
   notes: "",
+  seriesId: null,
+  detached: false,
 };
 
 describe("ShiftEditModal", () => {

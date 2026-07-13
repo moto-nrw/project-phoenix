@@ -30,6 +30,24 @@ func (s *service) emitSelfServicePill(tenantID, studentID, accountID int64, even
 	})
 }
 
+// wakeChildGuardians fans a message-INDEPENDENT parent_child_updated SSE event
+// to EVERY guardian of the child, so a SECOND guardian's already-open parents-
+// app tab refetches the child's care state after THIS guardian's self-service
+// write (sick note, care exception). emitSelfServicePill only appends a pill to
+// the ACTING guardian's own thread and wakes that guardian; a co-guardian would
+// otherwise keep showing a stale "Heute" pickup time or presence until they
+// refocus or reload (#1725 review). Like emitSelfServicePill it MUST be
+// scheduled from a tenant.RegisterAfterCommit callback: BroadcastChildUpdate-
+// ToGuardians opens its own detached tenant transaction to read the guardian
+// list, so a woken client never reads the pre-commit snapshot. A nil emitter is
+// a safe no-op.
+func (s *service) wakeChildGuardians(tenantID, studentID int64) {
+	if s.Emitter == nil {
+		return
+	}
+	s.Emitter.BroadcastChildUpdateToGuardians(tenantID, studentID)
+}
+
 func firstStatusID(rows []*activeModels.StudentStatusDay) *int64 {
 	for _, row := range rows {
 		if row != nil && row.ID > 0 {

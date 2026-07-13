@@ -1229,7 +1229,7 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		return nil, &ScheduleError{Op: "replan week: materialize", Err: err}
 	}
 
-	reapplied, err := s.reapplyDeviations(ctx, snapshots, occurrences)
+	reapplied, err := s.reapplyDeviations(ctx, snapshots, occurrences, nil)
 	if err != nil {
 		return nil, &ScheduleError{Op: "replan week: reapply deviations", Err: err}
 	}
@@ -1389,7 +1389,12 @@ func (s *instanceService) snapshotDeviations(ctx context.Context, from, to timez
 // materialized occurrence, returning how many snapshots were reapplied. A
 // snapshot whose occurrence no longer materializes (template weekday/period
 // changed) is silently dropped — there is nothing to attach it to.
-func (s *instanceService) reapplyDeviations(ctx context.Context, snapshots []deviationSnapshot, occurrences map[groupDay]int) (int, error) {
+func (s *instanceService) reapplyDeviations(
+	ctx context.Context,
+	snapshots []deviationSnapshot,
+	occurrences map[groupDay]int,
+	targetActivityGroupID *int64,
+) (int, error) {
 	reapplied := 0
 	for _, snap := range snapshots {
 		// sole is true only when the group had exactly ONE planned occurrence on
@@ -1402,7 +1407,7 @@ func (s *instanceService) reapplyDeviations(ctx context.Context, snapshots []dev
 		// start_time match whenever the day had more than one slot, so a deleted
 		// slot's overrides are dropped rather than misattributed (#1840).
 		sole := occurrences[groupDay{snap.activityGroupID, snap.date}] == 1
-		inst, err := s.matchRegeneratedInstance(ctx, snap, sole)
+		inst, err := s.matchRegeneratedInstance(ctx, snap, sole, targetActivityGroupID)
 		if err != nil {
 			return reapplied, err
 		}
@@ -1536,8 +1541,17 @@ type groupDay struct {
 // none matches, so overrides from a deleted slot are never merged onto a
 // surviving block (a slot whose time changed cannot be mapped safely either)
 // (#1840).
-func (s *instanceService) matchRegeneratedInstance(ctx context.Context, snap deviationSnapshot, sole bool) (*scheduleModel.ActivityInstance, error) {
-	candidates, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, snap.activityGroupID, snap.date)
+func (s *instanceService) matchRegeneratedInstance(
+	ctx context.Context,
+	snap deviationSnapshot,
+	sole bool,
+	targetActivityGroupID *int64,
+) (*scheduleModel.ActivityInstance, error) {
+	activityGroupID := snap.activityGroupID
+	if targetActivityGroupID != nil {
+		activityGroupID = *targetActivityGroupID
+	}
+	candidates, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, activityGroupID, snap.date)
 	if err != nil {
 		return nil, err
 	}

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatDeltaHours,
+  formatPlannedHours,
   formatShiftLabel,
   groupShiftsByStaffAndDate,
   mapStaffScheduleOverview,
@@ -30,6 +32,8 @@ describe("mapStaffShift", () => {
       breakMinutes: 30,
       shiftTypeId: null,
       notes: "Frühdienst",
+      seriesId: null,
+      detached: false,
     });
   });
 
@@ -56,6 +60,21 @@ describe("mapStaffShift", () => {
     expect(untyped.shiftTypeId).toBeNull();
   });
 
+  it("maps a series-backed shift to a string series id and keeps detached", () => {
+    const mapped = mapStaffShift({
+      id: 44,
+      staff_id: 7,
+      date: "2026-07-06",
+      start_time: "08:00",
+      end_time: "16:00",
+      break_minutes: 0,
+      series_id: 12,
+      detached: true,
+    });
+    expect(mapped.seriesId).toBe("12");
+    expect(mapped.detached).toBe(true);
+  });
+
   it("truncates HH:MM:SS times and defaults missing notes", () => {
     const backend: BackendStaffShift = {
       id: 1,
@@ -79,6 +98,22 @@ describe("mapStaffScheduleOverview", () => {
       from: "2026-07-06",
       to: "2026-07-10",
       dienstplan_in_use: true,
+      weekly_summaries: [
+        {
+          staff_id: 7,
+          week_start: "2026-07-06",
+          planned_minutes: 1080,
+          target_minutes: 1215,
+          delta_minutes: -135,
+        },
+        {
+          staff_id: 8,
+          week_start: "2026-07-06",
+          planned_minutes: 270,
+          target_minutes: null,
+          delta_minutes: null,
+        },
+      ],
       staff: [{ id: 7, first_name: "Ada", last_name: "Lovelace" }],
       shifts: [
         {
@@ -120,6 +155,22 @@ describe("mapStaffScheduleOverview", () => {
       to: "2026-07-10",
       dienstplanInUse: true,
       dienstplanUsedWeeks: [],
+      weeklySummaries: [
+        {
+          staffId: "7",
+          weekStart: "2026-07-06",
+          plannedMinutes: 1080,
+          targetMinutes: 1215,
+          deltaMinutes: -135,
+        },
+        {
+          staffId: "8",
+          weekStart: "2026-07-06",
+          plannedMinutes: 270,
+          targetMinutes: null,
+          deltaMinutes: null,
+        },
+      ],
       staff: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
       shifts: [
         {
@@ -131,6 +182,8 @@ describe("mapStaffScheduleOverview", () => {
           breakMinutes: 30,
           shiftTypeId: "5",
           notes: "Frühdienst",
+          seriesId: null,
+          detached: false,
         },
       ],
       assignments: [
@@ -216,6 +269,25 @@ describe("mapStaffScheduleOverview", () => {
       coverageReason: "dienstplan_not_used",
       uncoveredIntervals: [],
     });
+    // Older backends without the field still map to an empty list.
+    expect(mapped.weeklySummaries).toEqual([]);
+  });
+});
+
+describe("formatPlannedHours", () => {
+  it("formats minutes as German decimal hours", () => {
+    expect(formatPlannedHours(1215)).toBe("20,25 h");
+    expect(formatPlannedHours(2400)).toBe("40 h");
+    expect(formatPlannedHours(0)).toBe("0 h");
+  });
+});
+
+describe("formatDeltaHours", () => {
+  it("formats signed deltas with a real minus sign", () => {
+    expect(formatDeltaHours(-300)).toBe("−5 h");
+    expect(formatDeltaHours(-135)).toBe("−2,25 h");
+    expect(formatDeltaHours(90)).toBe("+1,5 h");
+    expect(formatDeltaHours(0)).toBe("±0 h");
   });
 });
 

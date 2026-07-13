@@ -870,6 +870,54 @@ func (rs *Resource) broadcastStudentUpdated(tenantID, studentID int64) {
 	}
 }
 
+// wakeChildGuardians fans a message-INDEPENDENT parent_child_updated SSE event
+// out to every guardian of the child, so an open parents-app tab refetches the
+// child's care state live after a STAFF-side write (status day, pickup/arrival
+// override, or weekly-plan change). Without it the parents portal — which only
+// receives guardian-targeted events on its own SSE stream, never the tenant-wide
+// student_updated / arrival_schedule_changed staff broadcasts — keeps showing a
+// stale pickup time or presence until the parent refocuses or reloads (#1725).
+//
+// Schedule this from an after-commit hook (or otherwise only after the write has
+// committed) so a woken client never reads the pre-commit snapshot. tenantID must
+// come from tenant.FromContext (captured before the hook runs); a nil emitter or a
+// non-positive tenant/student id is a safe no-op — the fan-out is best-effort,
+// mirroring the existing broadcastStudentUpdated / excused-request pattern.
+func (rs *Resource) wakeChildGuardians(tenantID, studentID int64) {
+	if rs.ParentEventEmitter == nil {
+		return
+	}
+	if tenantID <= 0 {
+		if rs.Logger != nil {
+			rs.Logger.Warn(
+				"skipping guardian child-update wake, no tenant context",
+				"student_id", studentID,
+			)
+		}
+		return
+	}
+	rs.ParentEventEmitter.BroadcastChildUpdateToGuardians(tenantID, studentID)
+}
+
+// scheduleStudentUpdateWakes registers the after-commit SSE fan-out for a
+// student update. It always broadcasts the tenant-wide student_updated staff
+// event; it additionally wakes the child's guardians when the request actually
+// touched a status field (sick/excused), because a sick/excused edit writes
+// TODAY's status day — the exact signal the parent pickup tile resolves
+// today_absent from — while student_updated never reaches the parents stream. A
+// plain name/notes edit changes nothing parent-visible, so it wakes no one
+// (#1725). Runs after the OUTER tx commits so a woken client never reads the
+// pre-commit snapshot; tenantID is captured before the hook fires.
+func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest) {
+	statusChanged := req.Sick != nil || req.Excused != nil
+	tenant.RegisterAfterCommit(ctx, func() {
+		rs.broadcastStudentUpdated(tenantID, studentID)
+		if statusChanged {
+			rs.wakeChildGuardians(tenantID, studentID)
+		}
+	})
+}
+
 // updateStudent handles updating an existing student
 func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse ID and get student
@@ -1006,11 +1054,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 
 		// Broadcast after the OUTER tx commits. Broadcasting now would race
 		// subscribers into refetching the still-pre-commit row.
-		studentID := student.ID
-		capturedTenantID := tenantID
-		tenant.RegisterAfterCommit(ctx, func() {
-			rs.broadcastStudentUpdated(capturedTenantID, studentID)
-		})
+		rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req)
 		return nil
 	}); err != nil {
 		if errors.Is(err, errSickExcusedConflict) {

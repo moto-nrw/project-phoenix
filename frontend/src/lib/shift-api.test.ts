@@ -171,6 +171,8 @@ describe("staffShiftService requests", () => {
         breakMinutes: 30,
         shiftTypeId: null,
         notes: "",
+        seriesId: null,
+        detached: false,
       },
     ]);
     expect(mockSessionFetch).toHaveBeenCalledWith(

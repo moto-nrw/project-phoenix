@@ -78,6 +78,7 @@ type Factory struct {
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
+	StaffShiftSeries         schedule.StaffShiftSeriesService
 	StaffScheduleOverview    schedule.StaffScheduleOverviewGetter
 	ShiftTypes               schedule.ShiftTypeService
 	PickupSchedule           schedule.PickupScheduleService
@@ -157,6 +158,12 @@ type Factory struct {
 
 	// Messaging (staff-side parent-OGS inbox / threads)
 	Messaging *messaging.Service
+
+	// ParentEventEmitter is the chat-pill + guardian-wake emitter (#1803/#1845).
+	// Exposed so the API layer can wake a child's guardians (its message-
+	// independent parent_child_updated SSE fan-out) after staff-side care writes,
+	// so an open parents-app tab refetches the child's care state live (#1725).
+	ParentEventEmitter *parentmessaging.Emitter
 
 	// Calendar (staff and parent personal calendars)
 	Calendar calendarService.Service
@@ -517,6 +524,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		logger.With("service", "staff_shift"),
 	)
+	staffShiftService.SetSeriesExceptionRepo(repos.StaffShiftSeriesException)
+
+	// Recurring shift series (Dienstplan-Serien, #1889)
+	staffShiftSeriesService := schedule.NewStaffShiftSeriesService(
+		repos.StaffShiftSeries,
+		repos.StaffShiftSeriesException,
+		repos.StaffShift,
+		repos.Staff,
+		repos.CalendarPeriod,
+		shiftTypeService,
+		db,
+		logger.With("service", "staff_shift_series"),
+	)
 	staffScheduleOverviewService := schedule.NewStaffScheduleOverviewService(schedule.StaffScheduleOverviewDependencies{
 		Shifts:        repos.StaffShift,
 		ShiftWeeks:    repos.StaffShift,
@@ -524,6 +544,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InstanceStaff: repos.InstanceStaff,
 		Rooms:         repos.Room,
 		Staff:         repos.Staff,
+		WorkSchedules: repos.StaffWorkSchedule,
+		WorkModels:    repos.WorkTimeModel,
 	})
 
 	// Initialize pickup schedule service
@@ -581,6 +603,27 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "materialization"),
 	)
 
+	// Initialize instance lifecycle before template split: the split reuses its
+	// deviation snapshot/reapply machinery when replacing future occurrences.
+	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
+		InstanceRepo:      repos.ActivityInstance,
+		InstanceStaffRepo: repos.InstanceStaff,
+		InstanceStudents:  repos.InstanceStudent,
+		ExceptionRepo:     repos.ActivityException,
+		ActiveGroupRepo:   repos.ActiveGroup,
+		SupervisorRepo:    repos.GroupSupervisor,
+		VisitRepo:         repos.ActiveVisit,
+		RoomRepo:          repos.Room,
+		ActivityGroupRepo: repos.ActivityGroup,
+		StaffRepo:         repos.Staff,
+		StudentRepo:       repos.Student,
+		ActiveService:     activeService,
+		Materialization:   materializationService,
+		Broadcaster:       realtimeHub,
+		DB:                db,
+		Logger:            logger.With("service", "instance-lifecycle"),
+	})
+
 	// Initialize template split service (WP-B3). "Dieser und alle folgenden":
 	// caps the old template's schedules + rosters at an effective date,
 	// creates a successor template and re-plans the affected window via the
@@ -593,6 +636,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		InstanceRepo:               repos.ActivityInstance,
 		TimeframeRepo:              repos.Timeframe,
 		Materialization:            materializationService,
+		InstanceService:            instanceService,
 		ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
 		Logger:                     logger.With("service", "template-split"),
 		DB:                         db,
@@ -623,30 +667,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		settingsService,
 		logger.With("service", "time-tracking-cleanup"),
 	)
-
-	// Initialize instance lifecycle service (WP-B9). Drives the state machine
-	// on schedule.activity_instances and its bridge to active.groups. Takes
-	// the active service as a dependency (for EndActivitySession) - when the
-	// bridge closes, visits + supervisors close and per-student checkout SSE
-	// events fire, matching today's observable behavior for a session ending.
-	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
-		InstanceRepo:      repos.ActivityInstance,
-		InstanceStaffRepo: repos.InstanceStaff,
-		InstanceStudents:  repos.InstanceStudent,
-		ExceptionRepo:     repos.ActivityException,
-		ActiveGroupRepo:   repos.ActiveGroup,
-		SupervisorRepo:    repos.GroupSupervisor,
-		VisitRepo:         repos.ActiveVisit,
-		RoomRepo:          repos.Room,
-		ActivityGroupRepo: repos.ActivityGroup,
-		StaffRepo:         repos.Staff,
-		StudentRepo:       repos.Student,
-		ActiveService:     activeService,
-		Materialization:   materializationService,
-		Broadcaster:       realtimeHub,
-		DB:                db,
-		Logger:            logger.With("service", "instance-lifecycle"),
-	})
 
 	autoStartService := schedule.NewAutoStartService(schedule.AutoStartDependencies{
 		InstanceRepo:      repos.ActivityInstance,
@@ -868,6 +888,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActivitySupervisorRepo: repos.ActivitySupervisor,
 		InstanceStaffRepo:      repos.InstanceStaff,
 		StaffShiftRepo:         repos.StaffShift,
+		StaffShiftSeriesRepo:   repos.StaffShiftSeries,
 		StaffAbsenceRepo:       repos.StaffAbsence,
 		AccountTenantRepo:      repos.AccountTenant,
 		RoleRepo:               repos.Role,
@@ -1384,6 +1405,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		StaffShifts:              staffShiftService,
+		StaffShiftSeries:         staffShiftSeriesService,
 		StaffScheduleOverview:    staffScheduleOverviewService,
 		ShiftTypes:               shiftTypeService,
 		PickupSchedule:           pickupScheduleService,
@@ -1486,6 +1508,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Messaging:          messagingService,
 		Calendar:           calendarSvc,
 		ParentAnnouncement: parentAnnouncementService,
+		ParentEventEmitter: pillEmitter,
 	}
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()

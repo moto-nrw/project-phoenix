@@ -107,6 +107,22 @@ func TestResolveSelectedDays_ParentInputErrorsWrapInvalidSubmission(t *testing.T
 	}
 }
 
+// The three parent-input errors additionally carry their own sentinel so
+// the HTTP layer can attach stable codes for localized messages (#1885).
+func TestResolveSelectedDays_ParentInputErrorsCarrySpecificSentinels(t *testing.T) {
+	_, err := resolveManualSelectedDays(parentChoiceOffering("mon", "tue"), []string{"sat"})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrSelectedDayNotAvailable),
+		"subset violation must wrap ErrSelectedDayNotAvailable, got %q", err)
+
+	assert.True(t, errors.Is(errParentChoiceOfferingMissingDays, ErrDaySelectionRequired))
+
+	_, err = resolveManualSelectedDays(fixedOffering("mon"), []string{"mon"})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, ErrDaySelectionNotAllowed),
+		"fixed-mode picks must wrap ErrDaySelectionNotAllowed, got %q", err)
+}
+
 func TestResolveSelectedDays_RejectsUnknownMode(t *testing.T) {
 	bogus := &enrollmentModels.CareOffering{
 		DaysOfWeekMode: "weird",
