@@ -203,25 +203,51 @@ func (s *staffShiftService) checkOverlap(ctx context.Context, shift *scheduleMod
 	return nil
 }
 
-// validateOriginShift rejects a replacement whose origin shift does not exist
-// (FindByID is tenant-scoped, so a cross-tenant origin also reads as not found),
-// falls on a different date, or is not cancelled. A replacement only covers a
-// real gap, and a gap exists only when the origin was left open — an active
-// origin still contributes its own planned minutes, so pointing a replacement at
-// it would double-count coverage (#1841). A nil origin is a normal shift.
-func (s *staffShiftService) validateOriginShift(ctx context.Context, shift *scheduleModels.StaffShift) error {
+// loadOriginShift reads a replacement's origin shift, mapping a missing row
+// (FindByID is tenant-scoped, so a cross-tenant origin also reads as not found)
+// to ErrShiftInvalid.
+func (s *staffShiftService) loadOriginShift(ctx context.Context, originID int64) (*scheduleModels.StaffShift, error) {
+	origin, err := s.repo.FindByID(ctx, originID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("%w: origin shift not found", ErrShiftInvalid)
+		}
+		return nil, fmt.Errorf("find origin shift: %w", err)
+	}
+	if origin == nil {
+		return nil, fmt.Errorf("%w: origin shift not found", ErrShiftInvalid)
+	}
+	return origin, nil
+}
+
+// lockAndValidateOrigin validates a replacement's origin shift under the origin
+// staff member's write lock. A replacement only covers a real gap, and a gap
+// exists only when the origin was left cancelled — an active origin still
+// contributes its own planned minutes, so pointing a replacement at it would
+// double-count coverage (#1841). Reading the origin, locking its staff member,
+// and re-reading it must happen together: without the lock a concurrent
+// reactivation can flip the origin active between the check and the replacement
+// insert, leaving an active origin alongside its replacement. The lock order
+// (origin staff first, then the replacement's own staff in the caller) mirrors
+// ApplyCancellation so the two paths never lock in opposite orders. A nil origin
+// is a normal shift and needs neither lock nor check.
+func (s *staffShiftService) lockAndValidateOrigin(ctx context.Context, shift *scheduleModels.StaffShift) error {
 	if shift.OriginShiftID == nil {
 		return nil
 	}
-	origin, err := s.repo.FindByID(ctx, *shift.OriginShiftID)
+	// First read discovers the origin's staff member so we can lock it.
+	origin, err := s.loadOriginShift(ctx, *shift.OriginShiftID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return fmt.Errorf("%w: origin shift not found", ErrShiftInvalid)
-		}
-		return fmt.Errorf("find origin shift: %w", err)
+		return err
 	}
-	if origin == nil {
-		return fmt.Errorf("%w: origin shift not found", ErrShiftInvalid)
+	if err := s.lockShiftWrites(ctx, origin.StaffID); err != nil {
+		return err
+	}
+	// Re-read under the lock: a reactivation that committed before we acquired the
+	// lock is now visible, so a stale "cancelled" read cannot slip through.
+	origin, err = s.loadOriginShift(ctx, *shift.OriginShiftID)
+	if err != nil {
+		return err
 	}
 	if origin.Date != shift.Date {
 		return fmt.Errorf("%w: replacement must be on the same date as the shift it covers", ErrShiftInvalid)
@@ -250,8 +276,17 @@ func (s *staffShiftService) CreateShift(ctx context.Context, shift *scheduleMode
 	if err := s.ensureShiftTypeActive(ctx, shift.ShiftTypeID); err != nil {
 		return nil, err
 	}
-	// A replacement shift must point at a real gap on the same day (#1841).
-	if err := s.validateOriginShift(ctx, shift); err != nil {
+	// A replacement covers a gap; it must never itself be a gap. Reject a create
+	// that is both cancelled and a replacement — it would be inserted as a
+	// cancelled cover that contributes no planned time and that ApplyCancellation
+	// (which rejects replacement rows) could never repair (#1841).
+	if shift.Cancelled && shift.OriginShiftID != nil {
+		return nil, fmt.Errorf("%w: a replacement shift cannot be cancelled", ErrShiftInvalid)
+	}
+	// A replacement shift must point at a real gap on the same day; the origin's
+	// staff member is locked here so a concurrent reactivation cannot flip it
+	// active before the replacement is inserted (#1841).
+	if err := s.lockAndValidateOrigin(ctx, shift); err != nil {
 		return nil, err
 	}
 	if err := s.lockShiftWrites(ctx, shift.StaffID); err != nil {
@@ -302,7 +337,7 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	// date (#1841). Same-date edits keep the guarantee they were created with,
 	// and skipping the origin read for them avoids an extra query on every edit.
 	if shift.OriginShiftID != nil && shift.Date != existing.Date {
-		if err := s.validateOriginShift(ctx, shift); err != nil {
+		if err := s.lockAndValidateOrigin(ctx, shift); err != nil {
 			return nil, err
 		}
 	}

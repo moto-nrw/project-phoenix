@@ -110,11 +110,15 @@ interface ShiftEditModalProps {
 }
 
 /** One replacement (Vertretung) covering a cancelled shift. Several rows split
- *  a single gap across people (#1841). */
+ *  a single gap across people (#1841). breakMinutes/shiftTypeId are carried
+ *  per row (not editable in this modal) so re-saving the origin preserves each
+ *  cover's own values instead of clobbering them with 0 / the origin's type. */
 interface ReplacementRow {
   staffId: string;
   startTime: string;
   endTime: string;
+  breakMinutes: number;
+  shiftTypeId: string;
 }
 
 export function ShiftEditModal({
@@ -216,6 +220,8 @@ export function ShiftEditModal({
         staffId: cover.staffId,
         startTime: cover.startTime,
         endTime: cover.endTime,
+        breakMinutes: cover.breakMinutes,
+        shiftTypeId: cover.shiftTypeId ?? "",
       })),
     );
   }, [isOpen, initial, date, shift, existingReplacements]);
@@ -310,7 +316,10 @@ export function ShiftEditModal({
   );
 
   const addReplacement = () => {
-    setReplacements((rows) => [...rows, { staffId: "", startTime, endTime }]);
+    setReplacements((rows) => [
+      ...rows,
+      { staffId: "", startTime, endTime, breakMinutes: 0, shiftTypeId: "" },
+    ]);
   };
 
   const updateReplacement = (index: number, patch: Partial<ReplacementRow>) => {
@@ -439,13 +448,16 @@ export function ShiftEditModal({
             endTime,
             breakMinutes: breakMinutes ?? 0,
             shiftTypeId: resolvedShiftTypeId,
+            // Each cover keeps its own break and shift type — a replacement may
+            // have been edited directly in the grid to differ from the origin,
+            // so re-saving the origin must not reset them (#1841).
             replacements: cancelled
               ? replacements.map((row) => ({
                   staffId: row.staffId,
                   startTime: row.startTime,
                   endTime: row.endTime,
-                  breakMinutes: 0,
-                  shiftTypeId: resolvedShiftTypeId,
+                  breakMinutes: row.breakMinutes,
+                  shiftTypeId: row.shiftTypeId === "" ? null : row.shiftTypeId,
                 }))
               : [],
           });
