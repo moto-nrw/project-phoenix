@@ -37,6 +37,14 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
   "enrollment.invalid_email": "Bitte gib eine gültige E-Mail-Adresse ein.",
   "enrollment.pickup_time_not_allowed":
     "Bitte wähle bei den Abholzeiten nur Uhrzeiten aus der vorgegebenen Liste. Die markierte Zeit ist nicht mehr verfügbar.",
+  "enrollment.selected_day_not_available":
+    "Der gewählte Wochentag ist für dieses Angebot nicht verfügbar. Bitte wähle nur die angezeigten Tage aus.",
+  "enrollment.day_selection_required":
+    "Bitte wähle für dieses Angebot mindestens einen Wochentag aus.",
+  "enrollment.day_selection_not_allowed":
+    "Für dieses Angebot sind die Betreuungstage fest vorgegeben und können nicht ausgewählt werden.",
+  "enrollment.care_offering_days_required":
+    "Bitte wähle mindestens einen Wochentag für das Angebot aus.",
   "enrollment.late_invite_invalid":
     "Dieser Nachzügler-Link ist ungültig, abgelaufen oder wurde bereits verwendet. Bitte wende dich an die Schule.",
   "enrollment.schema_has_phases":

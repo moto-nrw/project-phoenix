@@ -394,11 +394,11 @@ describe("CareOfferingsEditor", () => {
     );
     expect(screen.getByText("Betreuungstage & Mitbuchung")).toBeVisible();
     expect(screen.getByText("Als Betreuungstage zählen")).toBeVisible();
+    // Weekdays start unselected (#1885): picking a day is a deliberate input.
     const mondayToggle = screen.getByRole("button", { name: "Mo" });
-    expect(mondayToggle).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(mondayToggle);
     expect(mondayToggle).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(mondayToggle);
+    expect(mondayToggle).toHaveAttribute("aria-pressed", "true");
     fireEvent.change(await waitForInputByName("name"), {
       target: { value: "Frühbetreuung" },
     });
@@ -468,6 +468,8 @@ describe("CareOfferingsEditor", () => {
       target: { value: "Randstunde" },
     });
     fireEvent.click(screen.getByRole("checkbox", { name: /Ganztag/ }));
+    // Weekdays start unselected (#1885); save requires at least one day.
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
     fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
 
     await waitFor(() => {
@@ -552,6 +554,8 @@ describe("CareOfferingsEditor", () => {
     fireEvent.click(screen.getByText("Pflicht"));
     expect(inputByName("capacity")).toBeDisabled();
 
+    // Weekdays start unselected (#1885); save requires at least one day.
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
     fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
     await waitFor(() => {
       expect(mocks.createCareOffering).toHaveBeenCalledWith(
@@ -613,6 +617,11 @@ describe("CareOfferingsEditor", () => {
     fireEvent.change(await waitForInputByName("name"), {
       target: { value: "Lernzeitangebot" },
     });
+    // Weekdays start unselected (#1885); pick Mo-Fr explicitly so the
+    // template (Mon + Sat) misses the selected Tue-Fri as before.
+    for (const day of ["Mo", "Di", "Mi", "Do", "Fr"]) {
+      fireEvent.click(screen.getByRole("button", { name: day }));
+    }
     await chooseOption("Regeltermin", /Lernzeit/);
 
     expect(
