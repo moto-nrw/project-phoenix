@@ -44,6 +44,7 @@ var modelGetterAllowlist = map[string]int{
 	"models/audit/auth_event.go":                     3,
 	"models/audit/data_access_log.go":                3,
 	"models/audit/data_deletion.go":                  3,
+	"models/audit/deviation_event.go":                3,
 	"models/audit/enrollment_offering_adjustment.go": 3,
 	"models/audit/guardian_change.go":                3,
 	"models/auth/passkey.go":                         3,
