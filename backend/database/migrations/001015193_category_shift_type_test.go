@@ -94,9 +94,9 @@ func TestCategoryShiftTypeFKEnforcesTenantIsolation(t *testing.T) {
 	t.Cleanup(func() {
 		testpkg.CleanupTenantTestData(t, db, tenantA)
 		testpkg.CleanupTenantTestData(t, db, tenantB)
-		_, _ = db.NewDelete().TableExpr("schedule.shift_types").Where("tenant_id IN (?)", bun.In([]int64{tenantA, tenantB})).Exec(ctx)
-		_, _ = db.NewDelete().TableExpr("platform.schools").Where("id IN (?)", bun.In([]int64{tenantA, tenantB})).Exec(ctx)
-		_, _ = db.NewDelete().TableExpr("platform.organizations").Where("id IN (?)", bun.In([]int64{tenantA, tenantB})).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("schedule.shift_types").Where("tenant_id IN (?)", bun.List([]int64{tenantA, tenantB})).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("platform.schools").Where("id IN (?)", bun.List([]int64{tenantA, tenantB})).Exec(ctx)
+		_, _ = db.NewDelete().TableExpr("platform.organizations").Where("id IN (?)", bun.List([]int64{tenantA, tenantB})).Exec(ctx)
 	})
 
 	stA := insertShiftTypeRaw(t, db, tenantA, fmt.Sprintf("A-%d", tenantA))

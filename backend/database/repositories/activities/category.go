@@ -99,7 +99,7 @@ func (r *CategoryRepository) SetShiftTypeForCategories(ctx context.Context, shif
 		Where("tenant_id = ?", tenantID).
 		Where("shift_type_id = ?", shiftTypeID)
 	if len(categoryIDs) > 0 {
-		clear = clear.Where("id NOT IN (?)", bun.In(categoryIDs))
+		clear = clear.Where("id NOT IN (?)", bun.List(categoryIDs))
 	}
 	if _, err := clear.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "clear category shift type", Err: err}
@@ -113,7 +113,7 @@ func (r *CategoryRepository) SetShiftTypeForCategories(ctx context.Context, shif
 		Table(tableActivitiesCategories).
 		Set("shift_type_id = ?", shiftTypeID).
 		Where("tenant_id = ?", tenantID).
-		Where("id IN (?)", bun.In(categoryIDs)).
+		Where("id IN (?)", bun.List(categoryIDs)).
 		Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "set category shift type", Err: err}
 	}
