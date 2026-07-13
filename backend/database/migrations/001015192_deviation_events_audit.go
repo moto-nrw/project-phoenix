@@ -34,7 +34,9 @@ func init() {
 					-- start_time) is the same slot key snapshotDeviations/
 					-- matchRegeneratedInstance use to re-attach deviations after a
 					-- re-plan. A deleted activity group legitimately voids its history.
-					activity_group_id BIGINT NOT NULL REFERENCES activities.groups(id) ON DELETE CASCADE,
+					-- NULL for spontaneous instances (no template) — those are never
+					-- deleted by a re-plan, so their instance_id pointer stays stable.
+					activity_group_id BIGINT REFERENCES activities.groups(id) ON DELETE CASCADE,
 					occurrence_date DATE NOT NULL,
 					start_time TIME NOT NULL,
 

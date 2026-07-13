@@ -61,6 +61,9 @@ type mockInstanceService struct {
 	lastReplanGID    *int64
 	lastCreate       *scheduleSvc.CreateInstanceInput
 	lastUpdate       *scheduleSvc.UpdateInstanceInput
+	// real, when set, receives the deviation writes (#1886) so DB-backed
+	// handler tests keep asserting real row effects.
+	real scheduleSvc.InstanceService
 }
 
 func (m *mockInstanceService) GetPlannedStudentIDsByDate(_ context.Context, _ []int64, _ timezone.Date) ([]int64, error) {
@@ -83,7 +86,7 @@ func (m *mockInstanceService) Complete(_ context.Context, _ int64) (*scheduleMod
 	return m.completeRes, nil
 }
 
-func (m *mockInstanceService) Cancel(_ context.Context, _ int64, reason *string) (*scheduleModel.ActivityInstance, error) {
+func (m *mockInstanceService) Cancel(_ context.Context, _ int64, reason *string, _ *int64) (*scheduleModel.ActivityInstance, error) {
 	m.lastCancelReason = reason
 	if m.cancelErr != nil {
 		return nil, m.cancelErr
@@ -95,7 +98,7 @@ func (m *mockInstanceService) DeleteCancelled(_ context.Context, _ int64) error 
 	return m.deleteErr
 }
 
-func (m *mockInstanceService) SetUnderstaffedAck(_ context.Context, instanceID int64, ack bool, note *string) (*scheduleModel.ActivityInstance, error) {
+func (m *mockInstanceService) SetUnderstaffedAck(_ context.Context, instanceID int64, ack bool, note *string, _ *int64) (*scheduleModel.ActivityInstance, error) {
 	m.lastAckID = instanceID
 	m.lastAckValue = ack
 	m.lastAckNote = note
@@ -105,12 +108,12 @@ func (m *mockInstanceService) SetUnderstaffedAck(_ context.Context, instanceID i
 	return m.ackRes, nil
 }
 
-func (m *mockInstanceService) ClearUnderstaffedAckIfStaffed(_ context.Context, instanceID int64) error {
+func (m *mockInstanceService) ClearUnderstaffedAckIfStaffed(_ context.Context, instanceID int64, _ *int64) error {
 	m.lastClearAckID = instanceID
 	return m.clearAckErr
 }
 
-func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Date, activityGroupID *int64) (*scheduleSvc.ReplanWeekResult, error) {
+func (m *mockInstanceService) ReplanWeek(_ context.Context, from, to timezone.Date, activityGroupID *int64, _ *int64) (*scheduleSvc.ReplanWeekResult, error) {
 	m.lastFrom = from
 	m.lastTo = to
 	m.lastReplanGID = activityGroupID
@@ -129,7 +132,7 @@ func (m *mockInstanceService) Create(_ context.Context, req scheduleSvc.CreateIn
 	return m.createRes, nil
 }
 
-func (m *mockInstanceService) UpdatePlanned(_ context.Context, _ int64, req scheduleSvc.UpdateInstanceInput) (*scheduleModel.ActivityInstance, error) {
+func (m *mockInstanceService) UpdatePlanned(_ context.Context, _ int64, req scheduleSvc.UpdateInstanceInput, _ *int64) (*scheduleModel.ActivityInstance, error) {
 	reqCopy := req
 	m.lastUpdate = &reqCopy
 	if m.updateErr != nil {
@@ -984,4 +987,28 @@ func TestReplanWeek_ActivityGroupIDPassThrough(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, w.Code, "body: %s", w.Body.String())
 	assert.Nil(t, mock.lastReplanGID)
+}
+
+// Deviation writes (#1886): the DB-backed deviations tests assert real row
+// effects, so these delegate to a real InstanceService when `real` is wired
+// (buildDevSetup); the pure mock-backed routes leave it nil (no-op).
+func (m *mockInstanceService) ApplyAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, reason *string, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
+	if m.real != nil {
+		return m.real.ApplyAbsence(ctx, row, instance, reason, actor, touched)
+	}
+	return nil
+}
+
+func (m *mockInstanceService) ApplyPresence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
+	if m.real != nil {
+		return m.real.ApplyPresence(ctx, row, instance, actor, touched)
+	}
+	return nil
+}
+
+func (m *mockInstanceService) ApplySubstitute(ctx context.Context, op scheduleSvc.SubstituteWriteOp, subID int64, reason *string, now time.Time, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
+	if m.real != nil {
+		return m.real.ApplySubstitute(ctx, op, subID, reason, now, actor, touched)
+	}
+	return nil
 }

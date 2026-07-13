@@ -35,6 +35,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -106,30 +107,38 @@ type InstanceService interface {
 	Complete(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	// Cancel transitions planned|active → cancelled. reason is an optional
 	// short "why" stored on the instance (Vertretungsplan, #1840); pass nil for
-	// a plain cancel.
-	Cancel(ctx context.Context, instanceID int64, reason *string) (*scheduleModel.ActivityInstance, error)
+	// a plain cancel. actorAccountID stamps the Änderungsprotokoll entry
+	// (#1886); nil records an actor-less event.
+	Cancel(ctx context.Context, instanceID int64, reason *string, actorAccountID *int64) (*scheduleModel.ActivityInstance, error)
 	DeleteCancelled(ctx context.Context, instanceID int64) error
 	// SetUnderstaffedAck flips the "deliberately unstaffed" acknowledgement on a
 	// planned or active instance (Vertretungsplan, issue #1840). It only
 	// annotates the block — no lifecycle transition, no active-state change — so
 	// gap detection stops reporting an intentionally-open position. Rejected on
 	// completed/cancelled instances with ErrInvalidInstanceTransition.
-	SetUnderstaffedAck(ctx context.Context, instanceID int64, ack bool, note *string) (*scheduleModel.ActivityInstance, error)
+	SetUnderstaffedAck(ctx context.Context, instanceID int64, ack bool, note *string, actorAccountID *int64) (*scheduleModel.ActivityInstance, error)
 	// ClearUnderstaffedAckIfStaffed clears a lingering "deliberately unstaffed"
 	// acknowledgement only when the instance's current staff rows leave it fully
 	// staffed (present >= planned). Used by the /substitute flow after adding
 	// coverage so partial coverage never reopens an acknowledged gap (#1840).
-	ClearUnderstaffedAckIfStaffed(ctx context.Context, instanceID int64) error
+	ClearUnderstaffedAckIfStaffed(ctx context.Context, instanceID int64, actorAccountID *int64) error
 	// ReplanWeek deletes planned non-spontaneous instances in [from, to] and
 	// re-materializes. A non-nil activityGroupID restricts the delete to one
 	// template's instances; nil re-plans the whole grid.
-	ReplanWeek(ctx context.Context, from, to timezone.Date, activityGroupID *int64) (*ReplanWeekResult, error)
+	ReplanWeek(ctx context.Context, from, to timezone.Date, activityGroupID *int64, actorAccountID *int64) (*ReplanWeekResult, error)
 	// GetPlannedStudentIDsByDate returns the unique student IDs (of the given
 	// candidates) that have a planned instance on the date (issue #584
 	// lookup; repository result returned verbatim).
 	GetPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]int64, error)
 	Create(ctx context.Context, req CreateInstanceInput) (*scheduleModel.ActivityInstance, error)
-	UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput) (*scheduleModel.ActivityInstance, error)
+	UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput, actorAccountID *int64) (*scheduleModel.ActivityInstance, error)
+
+	// Day-wide deviation writes (#1840/#1886) — the ONLY write path for
+	// absence/presence/substitution deviations; each appends its
+	// Änderungsprotokoll entry in the same tx. See deviation_service.go.
+	ApplyAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, reason *string, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
+	ApplyPresence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
+	ApplySubstitute(ctx context.Context, op SubstituteWriteOp, subID int64, reason *string, now time.Time, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
 }
 
 // CreateInstanceInput bundles the fields needed to insert a fresh instance
@@ -207,9 +216,11 @@ type InstanceServiceDependencies struct {
 	StudentRepo       usersModel.StudentRepository
 	ActiveService     ActiveSessionEnder
 	Materialization   MaterializationService
-	Broadcaster       realtime.Broadcaster
-	DB                *bun.DB
-	Logger            *slog.Logger
+	// DeviationEventRepo appends the Änderungsprotokoll (#1886) — required.
+	DeviationEventRepo auditModel.DeviationEventRepository
+	Broadcaster        realtime.Broadcaster
+	DB                 *bun.DB
+	Logger             *slog.Logger
 }
 
 type instanceService struct {
@@ -225,7 +236,7 @@ func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 		deps.ActiveGroupRepo == nil || deps.SupervisorRepo == nil || deps.VisitRepo == nil ||
 		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
 		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil ||
-		deps.DB == nil {
+		deps.DeviationEventRepo == nil || deps.DB == nil {
 		panic("schedule.NewInstanceService: required dependency is nil")
 	}
 	return &instanceService{deps: deps}
@@ -471,7 +482,7 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 // Cancel implements planned|active → cancelled. From active, the bridge is
 // ended the same way Complete does (visits + supervisors close, checkout
 // events fire). From planned there is no bridge yet; just stamp the status.
-func (s *instanceService) Cancel(ctx context.Context, instanceID int64, reason *string) (*scheduleModel.ActivityInstance, error) {
+func (s *instanceService) Cancel(ctx context.Context, instanceID int64, reason *string, actorAccountID *int64) (*scheduleModel.ActivityInstance, error) {
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err
@@ -528,12 +539,23 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64, reason *
 		}
 	}
 
+	previousStatus := instance.Status
 	now := time.Now()
 	instance.Status = scheduleModel.InstanceStatusCancelled
 	instance.CompletedAt = &now
 	instance.CancelReason = reason
 	if err := s.updateLifecycleColumns(ctx, instance, "status", "completed_at", "cancel_reason"); err != nil {
 		return nil, &ScheduleError{Op: "cancel instance: update", Err: err}
+	}
+	if err := s.logDeviationEvent(ctx, deviationEventInput{
+		instance:       instance,
+		eventType:      auditModel.DeviationEventCancellation,
+		oldValue:       map[string]any{"status": previousStatus},
+		newValue:       map[string]any{"status": scheduleModel.InstanceStatusCancelled},
+		reason:         reason,
+		actorAccountID: actorAccountID,
+	}); err != nil {
+		return nil, err
 	}
 
 	s.broadcastInstanceEvent(ctx, realtime.EventInstanceCancelled, instance, nil, nil)
@@ -546,7 +568,14 @@ func (s *instanceService) Cancel(ctx context.Context, instanceID int64, reason *
 // carry the flag — acknowledging a completed or cancelled block is meaningless
 // and returns ErrInvalidInstanceTransition (→ 409). Clearing the flag (ack=
 // false) also clears the note so a stale reason cannot linger.
-func (s *instanceService) SetUnderstaffedAck(ctx context.Context, instanceID int64, ack bool, note *string) (*scheduleModel.ActivityInstance, error) {
+func (s *instanceService) SetUnderstaffedAck(ctx context.Context, instanceID int64, ack bool, note *string, actorAccountID *int64) (*scheduleModel.ActivityInstance, error) {
+	return s.setUnderstaffedAck(ctx, instanceID, ack, note, actorAccountID, true)
+}
+
+// setUnderstaffedAck implements SetUnderstaffedAck. logEvent=false is the
+// re-plan reapply path: reattaching a surviving acknowledgement is not a state
+// change, so it writes no protocol entry (#1886, "log only losses").
+func (s *instanceService) setUnderstaffedAck(ctx context.Context, instanceID int64, ack bool, note *string, actorAccountID *int64, logEvent bool) (*scheduleModel.ActivityInstance, error) {
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err
@@ -574,6 +603,8 @@ func (s *instanceService) SetUnderstaffedAck(ctx context.Context, instanceID int
 		}
 	}
 
+	previousAck := instance.UnderstaffedAck
+	previousNote := instance.UnderstaffedNote
 	instance.UnderstaffedAck = ack
 	if ack {
 		instance.UnderstaffedNote = note
@@ -583,7 +614,43 @@ func (s *instanceService) SetUnderstaffedAck(ctx context.Context, instanceID int
 	if err := s.updateLifecycleColumns(ctx, instance, "understaffed_ack", "understaffed_note"); err != nil {
 		return nil, &ScheduleError{Op: "set understaffed ack: update", Err: err}
 	}
+	// Protocol the flag change (#1886); an idempotent replay (same ack, same
+	// note) still wrote the columns above but records no event to keep the
+	// Verlauf free of no-op noise.
+	if logEvent && (previousAck != ack || !equalOptionalString(previousNote, instance.UnderstaffedNote)) {
+		eventType := auditModel.DeviationEventUnderstaffedAck
+		if !ack {
+			eventType = auditModel.DeviationEventUnderstaffedUnack
+		}
+		if err := s.logDeviationEvent(ctx, deviationEventInput{
+			instance:       instance,
+			eventType:      eventType,
+			oldValue:       understaffedAckValue(previousAck, previousNote),
+			newValue:       understaffedAckValue(ack, instance.UnderstaffedNote),
+			reason:         instance.UnderstaffedNote,
+			actorAccountID: actorAccountID,
+		}); err != nil {
+			return nil, err
+		}
+	}
 	return instance, nil
+}
+
+// understaffedAckValue builds the old/new JSONB shape for ack events.
+func understaffedAckValue(ack bool, note *string) map[string]any {
+	v := map[string]any{"understaffed_ack": ack}
+	if note != nil {
+		v["note"] = *note
+	}
+	return v
+}
+
+// equalOptionalString compares two optional strings by value.
+func equalOptionalString(a, b *string) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	return *a == *b
 }
 
 // DeleteCancelled permanently removes a planned or cancelled instance.
@@ -724,7 +791,7 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 	return inst, nil
 }
 
-func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput) (*scheduleModel.ActivityInstance, error) {
+func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, req UpdateInstanceInput, actorAccountID *int64) (*scheduleModel.ActivityInstance, error) {
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return nil, err
@@ -811,7 +878,7 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	if err := s.consumeMovedSlot(ctx, origSlot, req); err != nil {
 		return nil, err
 	}
-	if err := s.replaceInstanceAssignments(ctx, instance.ID, req.StaffIDs, req.StudentIDs); err != nil {
+	if err := s.replaceInstanceAssignments(ctx, instance, req.StaffIDs, req.StudentIDs, actorAccountID); err != nil {
 		return nil, err
 	}
 
@@ -821,7 +888,7 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 	// absent) stays understaffed and must keep its acknowledgement, or an
 	// unrelated title/room edit would silently reopen an intentionally
 	// acknowledged gap.
-	if err := s.clearStaleAckIfStaffed(ctx, instance); err != nil {
+	if err := s.clearStaleAckIfStaffed(ctx, instance, actorAccountID); err != nil {
 		return nil, err
 	}
 
@@ -835,7 +902,7 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 // intentionally acknowledged gap, and the amber card would otherwise contradict
 // /gaps (#1840). This is the same IsUnderstaffed rule SetUnderstaffedAck
 // enforces at set time; it writes only when it actually clears the flag.
-func (s *instanceService) clearStaleAckIfStaffed(ctx context.Context, instance *scheduleModel.ActivityInstance) error {
+func (s *instanceService) clearStaleAckIfStaffed(ctx context.Context, instance *scheduleModel.ActivityInstance, actorAccountID *int64) error {
 	if !instance.UnderstaffedAck {
 		return nil
 	}
@@ -846,12 +913,19 @@ func (s *instanceService) clearStaleAckIfStaffed(ctx context.Context, instance *
 	if IsUnderstaffed(rows) {
 		return nil // still short-staffed → keep the acknowledgement
 	}
+	previousNote := instance.UnderstaffedNote
 	instance.UnderstaffedAck = false
 	instance.UnderstaffedNote = nil
 	if err := s.updateLifecycleColumns(ctx, instance, "understaffed_ack", "understaffed_note"); err != nil {
 		return &ScheduleError{Op: "clear stale ack: update", Err: err}
 	}
-	return nil
+	return s.logDeviationEvent(ctx, deviationEventInput{
+		instance:       instance,
+		eventType:      auditModel.DeviationEventUnderstaffedUnack,
+		oldValue:       understaffedAckValue(true, previousNote),
+		newValue:       understaffedAckValue(false, nil),
+		actorAccountID: actorAccountID,
+	})
 }
 
 // ClearUnderstaffedAckIfStaffed loads the instance and clears a lingering
@@ -859,12 +933,12 @@ func (s *instanceService) clearStaleAckIfStaffed(ctx context.Context, instance *
 // staffed. The /substitute flow calls this after adding coverage: a single
 // replacement on a block with several open positions must not reopen an
 // acknowledged gap (#1840).
-func (s *instanceService) ClearUnderstaffedAckIfStaffed(ctx context.Context, instanceID int64) error {
+func (s *instanceService) ClearUnderstaffedAckIfStaffed(ctx context.Context, instanceID int64, actorAccountID *int64) error {
 	instance, err := s.loadForTransition(ctx, instanceID)
 	if err != nil {
 		return err
 	}
-	return s.clearStaleAckIfStaffed(ctx, instance)
+	return s.clearStaleAckIfStaffed(ctx, instance, actorAccountID)
 }
 
 // replaceInstanceAssignments wipes and re-creates the instance's staff and
@@ -890,7 +964,8 @@ func (s *instanceService) ClearUnderstaffedAckIfStaffed(ctx context.Context, ins
 //     impossible to promote a former substitute back to planned staff through
 //     this editor — so the deviation flags are dropped and every row is
 //     recreated as plain planned staff (#1840, review follow-up).
-func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instanceID int64, staffIDs, studentIDs []int64) error {
+func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instance *scheduleModel.ActivityInstance, staffIDs, studentIDs []int64, actorAccountID *int64) error {
+	instanceID := instance.ID
 	prior, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
 	if err != nil {
 		return &ScheduleError{Op: "update instance: load existing staff", Err: err}
@@ -909,6 +984,34 @@ func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instan
 			if _, ok := priorByStaff[staffID]; !ok {
 				rosterUnchanged = false
 				break
+			}
+		}
+	}
+
+	// Änderungsprotokoll (#1886): a roster change deliberately drops the prior
+	// deviation state (see doc comment above). Record what is being discarded —
+	// one event per prior row that carried a deviation — so "warum ist die
+	// Vertretung weg?" stays answerable after a roster edit.
+	if !rosterUnchanged {
+		for _, row := range prior {
+			if !row.IsSubstitute && !row.IsAbsent {
+				continue
+			}
+			dropped := map[string]any{
+				"is_substitute": row.IsSubstitute,
+				"is_absent":     row.IsAbsent,
+			}
+			if row.AbsenceReason != nil {
+				dropped["reason"] = *row.AbsenceReason
+			}
+			if err := s.logDeviationEvent(ctx, deviationEventInput{
+				instance:       instance,
+				eventType:      auditModel.DeviationEventDroppedByEdit,
+				subjectStaffID: &row.StaffID,
+				oldValue:       dropped,
+				actorAccountID: actorAccountID,
+			}); err != nil {
+				return err
 			}
 		}
 	}
@@ -1163,7 +1266,7 @@ func (s *instanceService) updateLifecycleColumns(ctx context.Context, instance *
 // existing). The DELETE is one raw statement so the predicate stays explicit
 // and readable; the cascade on instance_staff / instance_students is declared
 // at the DDL level (ON DELETE CASCADE).
-func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date, activityGroupID *int64) (*ReplanWeekResult, error) {
+func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date, activityGroupID *int64, actorAccountID *int64) (*ReplanWeekResult, error) {
 	if to.Before(from) {
 		return nil, &ScheduleError{Op: "replan week: validate window", Err: errors.New("to_date must not be before from_date")}
 	}
@@ -1180,7 +1283,7 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		var result *ReplanWeekResult
 		err := tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 			var err error
-			result, err = s.ReplanWeek(txCtx, from, to, activityGroupID)
+			result, err = s.ReplanWeek(txCtx, from, to, activityGroupID, actorAccountID)
 			return err
 		})
 		return result, err
@@ -1229,7 +1332,7 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		return nil, &ScheduleError{Op: "replan week: materialize", Err: err}
 	}
 
-	reapplied, err := s.reapplyDeviations(ctx, snapshots, occurrences, nil)
+	reapplied, err := s.reapplyDeviations(ctx, snapshots, occurrences, nil, actorAccountID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "replan week: reapply deviations", Err: err}
 	}
@@ -1394,6 +1497,7 @@ func (s *instanceService) reapplyDeviations(
 	snapshots []deviationSnapshot,
 	occurrences map[groupDay]int,
 	targetActivityGroupID *int64,
+	actorAccountID *int64,
 ) (int, error) {
 	reapplied := 0
 	for _, snap := range snapshots {
@@ -1412,6 +1516,13 @@ func (s *instanceService) reapplyDeviations(
 			return reapplied, err
 		}
 		if inst == nil {
+			// The slot no longer regenerates (weekday/period/time changed): the
+			// snapshotted deviation is dropped. Record the loss in the
+			// Änderungsprotokoll (#1886) — successful reapplies are NOT logged,
+			// only losses, per the owner's decision.
+			if err := s.logSnapshotDropped(ctx, snap, targetActivityGroupID, actorAccountID); err != nil {
+				return reapplied, err
+			}
 			continue
 		}
 
@@ -1514,7 +1625,7 @@ func (s *instanceService) reapplyDeviations(
 		// is fully staffed after reapply — in which case the now-stale ack is
 		// dropped, matching the endpoints' reconciliation.
 		if snap.understaffedAck {
-			if _, err := s.SetUnderstaffedAck(ctx, inst.ID, true, snap.understaffedNote); err != nil {
+			if _, err := s.setUnderstaffedAck(ctx, inst.ID, true, snap.understaffedNote, nil, false); err != nil {
 				if !errors.Is(err, ErrUnderstaffedAckStillStaffed) {
 					return reapplied, err
 				}

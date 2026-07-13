@@ -45,12 +45,13 @@ func TestClearUnderstaffedAckIfStaffed_NoAckIsNoop(t *testing.T) {
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst}
 	staffRepo := &ackUnitStaffRepo{}
 	svc := &instanceService{deps: InstanceServiceDependencies{
-		InstanceRepo:      instanceRepo,
-		InstanceStaffRepo: staffRepo,
-		Logger:            slog.New(slog.DiscardHandler),
+		InstanceRepo:       instanceRepo,
+		InstanceStaffRepo:  staffRepo,
+		DeviationEventRepo: &recordingDeviationEventRepo{},
+		Logger:             slog.New(slog.DiscardHandler),
 	}}
 
-	require.NoError(t, svc.ClearUnderstaffedAckIfStaffed(context.Background(), inst.ID))
+	require.NoError(t, svc.ClearUnderstaffedAckIfStaffed(context.Background(), inst.ID, nil))
 	assert.Empty(t, instanceRepo.updatedColumns, "must not touch the ack when it was never set")
 }
 
@@ -63,12 +64,13 @@ func TestClearUnderstaffedAckIfStaffed_StillShortStaffedKeepsAck(t *testing.T) {
 		{StaffID: 12, IsAbsent: true, IsSubstitute: false},
 	}}
 	svc := &instanceService{deps: InstanceServiceDependencies{
-		InstanceRepo:      instanceRepo,
-		InstanceStaffRepo: staffRepo,
-		Logger:            slog.New(slog.DiscardHandler),
+		InstanceRepo:       instanceRepo,
+		InstanceStaffRepo:  staffRepo,
+		DeviationEventRepo: &recordingDeviationEventRepo{},
+		Logger:             slog.New(slog.DiscardHandler),
 	}}
 
-	require.NoError(t, svc.ClearUnderstaffedAckIfStaffed(context.Background(), inst.ID))
+	require.NoError(t, svc.ClearUnderstaffedAckIfStaffed(context.Background(), inst.ID, nil))
 	assert.Empty(t, instanceRepo.updatedColumns, "a partially covered block keeps its acknowledgement")
 	assert.True(t, inst.UnderstaffedAck)
 }
@@ -82,12 +84,13 @@ func TestClearUnderstaffedAckIfStaffed_FullyStaffedClearsAck(t *testing.T) {
 		{StaffID: 12, IsAbsent: false, IsSubstitute: true},
 	}}
 	svc := &instanceService{deps: InstanceServiceDependencies{
-		InstanceRepo:      instanceRepo,
-		InstanceStaffRepo: staffRepo,
-		Logger:            slog.New(slog.DiscardHandler),
+		InstanceRepo:       instanceRepo,
+		InstanceStaffRepo:  staffRepo,
+		DeviationEventRepo: &recordingDeviationEventRepo{},
+		Logger:             slog.New(slog.DiscardHandler),
 	}}
 
-	require.NoError(t, svc.ClearUnderstaffedAckIfStaffed(context.Background(), inst.ID))
+	require.NoError(t, svc.ClearUnderstaffedAckIfStaffed(context.Background(), inst.ID, nil))
 
 	require.Len(t, instanceRepo.updatedColumns, 1)
 	assert.ElementsMatch(t, []string{"understaffed_ack", "understaffed_note"}, instanceRepo.updatedColumns[0])
@@ -100,12 +103,13 @@ func TestClearUnderstaffedAckIfStaffed_LoadStaffError(t *testing.T) {
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst}
 	staffRepo := &ackUnitStaffRepo{err: errors.New("staff load failed")}
 	svc := &instanceService{deps: InstanceServiceDependencies{
-		InstanceRepo:      instanceRepo,
-		InstanceStaffRepo: staffRepo,
-		Logger:            slog.New(slog.DiscardHandler),
+		InstanceRepo:       instanceRepo,
+		InstanceStaffRepo:  staffRepo,
+		DeviationEventRepo: &recordingDeviationEventRepo{},
+		Logger:             slog.New(slog.DiscardHandler),
 	}}
 
-	err := svc.ClearUnderstaffedAckIfStaffed(context.Background(), inst.ID)
+	err := svc.ClearUnderstaffedAckIfStaffed(context.Background(), inst.ID, nil)
 	var scheduleErr *ScheduleError
 	require.ErrorAs(t, err, &scheduleErr)
 	assert.Equal(t, "clear stale ack: load staff", scheduleErr.Op)
@@ -119,7 +123,7 @@ func TestClearUnderstaffedAckIfStaffed_LoadInstanceError(t *testing.T) {
 		Logger:            slog.New(slog.DiscardHandler),
 	}}
 
-	err := svc.ClearUnderstaffedAckIfStaffed(context.Background(), int64(700))
+	err := svc.ClearUnderstaffedAckIfStaffed(context.Background(), int64(700), nil)
 	var scheduleErr *ScheduleError
 	require.ErrorAs(t, err, &scheduleErr)
 	assert.Equal(t, "load instance", scheduleErr.Op)
@@ -132,12 +136,13 @@ func TestClearUnderstaffedAckIfStaffed_UpdatePersistError(t *testing.T) {
 		{StaffID: 11, IsAbsent: false, IsSubstitute: false},
 	}}
 	svc := &instanceService{deps: InstanceServiceDependencies{
-		InstanceRepo:      instanceRepo,
-		InstanceStaffRepo: staffRepo,
-		Logger:            slog.New(slog.DiscardHandler),
+		InstanceRepo:       instanceRepo,
+		InstanceStaffRepo:  staffRepo,
+		DeviationEventRepo: &recordingDeviationEventRepo{},
+		Logger:             slog.New(slog.DiscardHandler),
 	}}
 
-	err := svc.ClearUnderstaffedAckIfStaffed(context.Background(), inst.ID)
+	err := svc.ClearUnderstaffedAckIfStaffed(context.Background(), inst.ID, nil)
 	var scheduleErr *ScheduleError
 	require.ErrorAs(t, err, &scheduleErr)
 	assert.Equal(t, "clear stale ack: update", scheduleErr.Op)

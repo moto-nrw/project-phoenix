@@ -101,22 +101,23 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 
 func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broadcaster) scheduleSvc.InstanceService {
 	return scheduleSvc.NewInstanceService(scheduleSvc.InstanceServiceDependencies{
-		InstanceRepo:      s.repos.ActivityInstance,
-		InstanceStaffRepo: s.repos.InstanceStaff,
-		InstanceStudents:  s.repos.InstanceStudent,
-		ExceptionRepo:     s.repos.ActivityException,
-		ActiveGroupRepo:   s.repos.ActiveGroup,
-		SupervisorRepo:    s.repos.GroupSupervisor,
-		VisitRepo:         s.repos.ActiveVisit,
-		RoomRepo:          s.repos.Room,
-		ActivityGroupRepo: s.repos.ActivityGroup,
-		StaffRepo:         s.repos.Staff,
-		StudentRepo:       s.repos.Student,
-		ActiveService:     s.factory.Active,
-		Materialization:   s.factory.Materialization,
-		Broadcaster:       broadcaster,
-		DB:                s.db,
-		Logger:            slog.Default(),
+		InstanceRepo:       s.repos.ActivityInstance,
+		InstanceStaffRepo:  s.repos.InstanceStaff,
+		InstanceStudents:   s.repos.InstanceStudent,
+		ExceptionRepo:      s.repos.ActivityException,
+		ActiveGroupRepo:    s.repos.ActiveGroup,
+		SupervisorRepo:     s.repos.GroupSupervisor,
+		VisitRepo:          s.repos.ActiveVisit,
+		RoomRepo:           s.repos.Room,
+		ActivityGroupRepo:  s.repos.ActivityGroup,
+		StaffRepo:          s.repos.Staff,
+		StudentRepo:        s.repos.Student,
+		ActiveService:      s.factory.Active,
+		Materialization:    s.factory.Materialization,
+		DeviationEventRepo: s.repos.DeviationEvent,
+		Broadcaster:        broadcaster,
+		DB:                 s.db,
+		Logger:             slog.Default(),
 	})
 }
 
@@ -181,7 +182,7 @@ func TestInstance_SetUnderstaffedAck_HappyPath(t *testing.T) {
 	ai := seedInstance(t, s, false, false)
 
 	note := "keine Vertretung verfügbar"
-	got, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, &note)
+	got, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, &note, nil)
 	require.NoError(t, err)
 	assert.True(t, got.UnderstaffedAck)
 	require.NotNil(t, got.UnderstaffedNote)
@@ -194,7 +195,7 @@ func TestInstance_SetUnderstaffedAck_HappyPath(t *testing.T) {
 	assert.Equal(t, note, *reloaded.UnderstaffedNote)
 
 	// Clearing the flag also clears the note so a stale reason cannot linger.
-	cleared, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, false, nil)
+	cleared, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, false, nil, nil)
 	require.NoError(t, err)
 	assert.False(t, cleared.UnderstaffedAck)
 	assert.Nil(t, cleared.UnderstaffedNote)
@@ -211,7 +212,7 @@ func TestInstance_SetUnderstaffedAck_CompletedRejected(t *testing.T) {
 	ai := seedInstance(t, s, false, false)
 	forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCompleted)
 
-	_, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, nil)
+	_, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, nil, nil)
 	assert.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
 }
 
@@ -223,7 +224,7 @@ func TestInstance_SetUnderstaffedAck_RejectedWhileStaffed(t *testing.T) {
 	svc := instanceServiceWithBroadcaster(s, nil)
 	ai := seedInstance(t, s, true, false) // one non-absent primary staff row
 
-	_, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, nil)
+	_, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, nil, nil)
 	assert.ErrorIs(t, err, scheduleSvc.ErrUnderstaffedAckStillStaffed)
 
 	// The flag never flipped in the DB.
@@ -232,7 +233,7 @@ func TestInstance_SetUnderstaffedAck_RejectedWhileStaffed(t *testing.T) {
 	assert.False(t, reloaded.UnderstaffedAck)
 
 	// Clearing the flag stays allowed even while staffed.
-	cleared, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, false, nil)
+	cleared, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, false, nil, nil)
 	require.NoError(t, err)
 	assert.False(t, cleared.UnderstaffedAck)
 }
@@ -255,7 +256,7 @@ func TestInstance_SetUnderstaffedAck_AllowedWhilePartiallyStaffed(t *testing.T) 
 	t.Cleanup(func() { testpkg.CleanupInstanceStaffFixtures(t, s.db, present.ID, absent.ID) })
 
 	note := "keine Vertretung für die zweite Position"
-	got, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, &note)
+	got, err := svc.SetUnderstaffedAck(s.ctx, ai.ID, true, &note, nil)
 	require.NoError(t, err)
 	assert.True(t, got.UnderstaffedAck)
 	require.NotNil(t, got.UnderstaffedNote)
@@ -266,7 +267,7 @@ func TestInstance_SetUnderstaffedAck_NotFound(t *testing.T) {
 	s := buildLifecycle(t)
 	svc := instanceServiceWithBroadcaster(s, nil)
 
-	_, err := svc.SetUnderstaffedAck(s.ctx, 99999999, true, nil)
+	_, err := svc.SetUnderstaffedAck(s.ctx, 99999999, true, nil, nil)
 	assert.ErrorIs(t, err, scheduleSvc.ErrInstanceNotFound)
 }
 
@@ -277,7 +278,7 @@ func TestInstance_Cancel_WithReason_Persists(t *testing.T) {
 	ai := seedInstance(t, s, false, false)
 
 	reason := "Ausflug"
-	cancelled, err := svc.Cancel(s.ctx, ai.ID, &reason)
+	cancelled, err := svc.Cancel(s.ctx, ai.ID, &reason, nil)
 	require.NoError(t, err)
 	require.NotNil(t, cancelled.CancelReason)
 	assert.Equal(t, "Ausflug", *cancelled.CancelReason)
@@ -427,7 +428,7 @@ func TestInstance_Cancel_FromPlanned_LeavesNoActiveGroup(t *testing.T) {
 
 	ai := seedInstance(t, s, true, false)
 
-	cancelled, err := s.svc.Cancel(s.ctx, ai.ID, nil)
+	cancelled, err := s.svc.Cancel(s.ctx, ai.ID, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.InstanceStatusCancelled, cancelled.Status)
 	require.NotNil(t, cancelled.CompletedAt)
@@ -449,7 +450,7 @@ func TestInstance_Cancel_FromActive_EndsBridge(t *testing.T) {
 		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
 	})
 
-	cancelled, err := s.svc.Cancel(s.ctx, ai.ID, nil)
+	cancelled, err := s.svc.Cancel(s.ctx, ai.ID, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.InstanceStatusCancelled, cancelled.Status)
 
@@ -502,7 +503,7 @@ func TestInstance_Cancel_Rejects_Completed(t *testing.T) {
 	ai := seedInstance(t, s, false, false)
 	forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCompleted)
 
-	_, err := s.svc.Cancel(s.ctx, ai.ID, nil)
+	_, err := s.svc.Cancel(s.ctx, ai.ID, nil, nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
 }
@@ -512,7 +513,7 @@ func TestInstance_Cancel_Rejects_AlreadyCancelled(t *testing.T) {
 	ai := seedInstance(t, s, false, false)
 	forceSetInstanceStatus(t, s, ai.ID, scheduleModels.InstanceStatusCancelled)
 
-	_, err := s.svc.Cancel(s.ctx, ai.ID, nil)
+	_, err := s.svc.Cancel(s.ctx, ai.ID, nil, nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
 }
@@ -695,7 +696,7 @@ func TestInstance_ReplanWeek_OnlyDeletesPlannedNonSpontaneous(t *testing.T) {
 			plannedNormal, plannedSpont, active, completed, cancelled)
 	})
 
-	_, err := s.svc.ReplanWeek(s.ctx, from, to, nil)
+	_, err := s.svc.ReplanWeek(s.ctx, from, to, nil, nil)
 	require.NoError(t, err)
 
 	assert.False(t, instanceExists(t, s, plannedNormal), "planned non-spontaneous must be deleted")
@@ -737,7 +738,7 @@ func TestInstance_ReplanWeek_ScopedToActivityGroup(t *testing.T) {
 		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", mine, other.ID)
 	})
 
-	result, err := s.svc.ReplanWeek(s.ctx, from, to, &s.tmplID)
+	result, err := s.svc.ReplanWeek(s.ctx, from, to, &s.tmplID, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, result.DeletedInstances, "only the scoped template's planned instance is deleted")
@@ -750,11 +751,11 @@ func TestInstance_ReplanWeek_RejectsInvalidWindowAndMissingTenant(t *testing.T) 
 	from := timezone.NewDate(2026, 4, 27)
 	to := timezone.NewDate(2026, 4, 20)
 
-	_, err := s.svc.ReplanWeek(s.ctx, from, to, nil)
+	_, err := s.svc.ReplanWeek(s.ctx, from, to, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "to_date")
 
-	_, err = s.svc.ReplanWeek(context.Background(), to, from, nil)
+	_, err = s.svc.ReplanWeek(context.Background(), to, from, nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no tenant")
 }
@@ -892,7 +893,7 @@ func TestInstance_UpdatePlanned_ReplacesAssignmentsAndFields(t *testing.T) {
 		RoomID:     s.roomID,
 		StaffIDs:   []int64{s.staffID, s.staffID},
 		StudentIDs: []int64{s.student2},
-	})
+	}, nil)
 	require.NoError(t, err)
 
 	assert.Equal(t, "Updated planned instance", updated.Title)
@@ -944,7 +945,7 @@ func TestInstance_UpdatePlanned_RejectsCrossTenantReferencesBeforeMutation(t *te
 			req := valid
 			tc.mutate(&req)
 
-			updated, err := s.svc.UpdatePlanned(s.ctx, ai.ID, req)
+			updated, err := s.svc.UpdatePlanned(s.ctx, ai.ID, req, nil)
 
 			require.Error(t, err)
 			assert.Nil(t, updated)
@@ -972,7 +973,7 @@ func TestInstance_UpdatePlanned_RejectsNonPlanned(t *testing.T) {
 				EndTime:   time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
 				Title:     "Should fail",
 				RoomID:    s.roomID,
-			})
+			}, nil)
 			require.Error(t, err)
 			assert.ErrorIs(t, err, scheduleSvc.ErrInvalidInstanceTransition)
 		})
@@ -1176,7 +1177,7 @@ func TestInstance_Cancel_FromPlanned_DoesNotTouchAttendance(t *testing.T) {
 
 	ai := seedInstance(t, s, false, true)
 
-	cancelled, err := s.svc.Cancel(s.ctx, ai.ID, nil)
+	cancelled, err := s.svc.Cancel(s.ctx, ai.ID, nil, nil)
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.InstanceStatusCancelled, cancelled.Status)
 
@@ -1206,7 +1207,7 @@ func TestInstance_Cancel_FromActive_DoesNotTouchAttendance(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = s.svc.Cancel(s.ctx, ai.ID, nil)
+	_, err = s.svc.Cancel(s.ctx, ai.ID, nil, nil)
 	require.NoError(t, err)
 
 	got1 := fetchAttendance(t, s, ai.ID, s.student1)

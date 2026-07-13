@@ -54,16 +54,18 @@ type substituteRequest struct {
 
 // substituteActionType is the stable per-instance action string returned in
 // the response. Callers switch on it rather than parsing messages.
+// The action vocabulary lives in services/schedule (single source, #1886);
+// these aliases keep the handler code and wire format unchanged.
 const (
-	substituteActionSubstituted       = "substituted"
-	substituteActionAlreadySubstitute = "already_substituted"
-	substituteActionAlreadyOnInstance = "already_on_instance"
+	substituteActionSubstituted       = scheduleSvc.SubstituteActionSubstituted
+	substituteActionAlreadySubstitute = scheduleSvc.SubstituteActionAlreadySubstitute
+	substituteActionAlreadyOnInstance = scheduleSvc.SubstituteActionAlreadyOnInstance
 	// Absent-only mode (#1840): substitute_staff_id omitted. The absent staff
 	// is marked absent and the position is left open.
-	substituteActionMarkedAbsent  = "marked_absent"
-	substituteActionAlreadyAbsent = "already_absent"
+	substituteActionMarkedAbsent  = scheduleSvc.SubstituteActionMarkedAbsent
+	substituteActionAlreadyAbsent = scheduleSvc.SubstituteActionAlreadyAbsent
 	// Present mode (#1840): a persisted day-wide absence was cleared.
-	substituteActionMarkedPresent = "marked_present"
+	substituteActionMarkedPresent = scheduleSvc.SubstituteActionMarkedPresent
 )
 
 // AffectedInstance is one row in the affected_instances list of the response.
@@ -91,6 +93,15 @@ type plannedOp struct {
 	instance *scheduleModel.ActivityInstance
 	origRow  *scheduleModel.InstanceStaff
 	action   string
+}
+
+// writeOp maps the handler-side classification onto the service write input.
+func (op plannedOp) writeOp() scheduleSvc.SubstituteWriteOp {
+	return scheduleSvc.SubstituteWriteOp{
+		Instance: op.instance,
+		OrigRow:  op.origRow,
+		Action:   op.action,
+	}
 }
 
 // substitute handles POST /api/timetable/substitute.
@@ -299,6 +310,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	// middleware rolls the tx back. No 4xx path writes anything.
 	// ======================================================================
 	now := time.Now()
+	actor := resolveActorAccountID(ctx)
 	affected := make([]AffectedInstance, 0, len(plan))
 	// Collect active-group IDs we touched to fire SSE updates at the end.
 	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
@@ -309,7 +321,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	reason := trimReason(req.Reason)
 
 	for _, op := range plan {
-		if err := rs.applySubstituteWrite(ctx, op, req.SubstituteStaffID, reason, now, activeTouched); err != nil {
+		if err := rs.InstanceService.ApplySubstitute(ctx, op.writeOp(), req.SubstituteStaffID, reason, now, actor, activeTouched); err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("apply substitute failed", err))
 			return
 		}
@@ -335,7 +347,7 @@ func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
 	// an intentionally acknowledged gap (#1840). Runs in this same tenant tx.
 	if rs.InstanceService != nil {
 		for instanceID := range clearAck {
-			if err := rs.InstanceService.ClearUnderstaffedAckIfStaffed(ctx, instanceID); err != nil {
+			if err := rs.InstanceService.ClearUnderstaffedAckIfStaffed(ctx, instanceID, actor); err != nil {
 				common.RenderError(w, r, common.ErrorInternalServerWrap("clear stale understaffed ack failed", err))
 				return
 			}
@@ -416,6 +428,7 @@ func (rs *Resource) markAbsentOnly(w http.ResponseWriter, r *http.Request, req s
 
 	affected := make([]AffectedInstance, 0, len(origRows))
 	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
+	actor := resolveActorAccountID(ctx)
 
 	for _, orig := range origRows {
 		instance, err := rs.TimetableData.GetActivityInstance(ctx, orig.InstanceID)
@@ -438,22 +451,11 @@ func (rs *Resource) markAbsentOnly(w http.ResponseWriter, r *http.Request, req s
 
 		action := substituteActionMarkedAbsent
 		if orig.IsAbsent {
-			// Already absent — idempotent replay, no write.
+			// Already absent — idempotent replay, no write, no protocol entry.
 			action = substituteActionAlreadyAbsent
-		} else {
-			orig.IsAbsent = true
-			orig.AbsenceReason = trimReason(req.Reason)
-			if err := rs.TimetableData.UpdateInstanceStaff(ctx, orig); err != nil {
-				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
-				return
-			}
-			if instance.Status == scheduleModel.InstanceStatusActive && instance.ActiveGroupID != nil {
-				if _, err := rs.TimetableData.EndGroupSupervisor(ctx, *instance.ActiveGroupID, req.AbsentStaffID); err != nil {
-					common.RenderError(w, r, common.ErrorInternalServerWrap("end absent supervisor failed", err))
-					return
-				}
-				activeTouched[*instance.ActiveGroupID] = instance
-			}
+		} else if err := rs.InstanceService.ApplyAbsence(ctx, orig, instance, trimReason(req.Reason), actor, activeTouched); err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
+			return
 		}
 
 		affected = append(affected, AffectedInstance{

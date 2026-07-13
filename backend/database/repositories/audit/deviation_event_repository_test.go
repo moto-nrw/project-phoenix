@@ -20,7 +20,7 @@ func createTestDeviationEvent(t *testing.T, db *bun.DB, scope testpkg.TenantScop
 	start := timezone.WallClock(parsed)
 
 	event := &auditModels.DeviationEvent{
-		ActivityGroupID: activityGroupID,
+		ActivityGroupID: &activityGroupID,
 		OccurrenceDate:  date,
 		StartTime:       start,
 		EventType:       eventType,

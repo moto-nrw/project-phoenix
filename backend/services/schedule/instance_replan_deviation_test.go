@@ -99,7 +99,7 @@ func TestInstance_ReplanWeek_DropsOrphanedSubstituteWhenAbsentStaffRemoved(t *te
 	// occurrence WITHOUT their planned position.
 	testpkg.CleanupTableRecords(t, s.db, "activities.supervisors", s.supervisorIDs...)
 
-	_, err := s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID)
+	_, err := s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
 	require.NoError(t, err)
 
 	regen := listInstancesForDate(t, s.db, s.template.ID, date)
@@ -126,7 +126,7 @@ func TestInstance_ReplanWeek_ReapplySubstituteWhenAbsenceRestored(t *testing.T) 
 	subStaffID := seedDeviatedOccurrence(t, s, date)
 
 	// Template unchanged: the absent employee is still planned.
-	_, err := s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID)
+	_, err := s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
 	require.NoError(t, err)
 
 	regen := listInstancesForDate(t, s.db, s.template.ID, date)
@@ -192,7 +192,7 @@ func TestInstance_ReplanWeek_CapsRecreatedSubstitutesToSurvivingAbsences(t *test
 		Where("id = ?", supB.ID).Where("tenant_id = ?", s.tenantID).Exec(s.ctx)
 	require.NoError(t, err)
 
-	_, err = s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID)
+	_, err = s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
 	require.NoError(t, err)
 
 	regen := listInstancesForDate(t, s.db, s.template.ID, date)
@@ -280,7 +280,7 @@ func TestInstance_ReplanWeek_DoesNotMoveDeletedSlotDeviationToSurvivor(t *testin
 		Where("id = ?", sched2.ID).Where("tenant_id = ?", s.tenantID).Exec(s.ctx)
 	require.NoError(t, err)
 
-	_, err = s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID)
+	_, err = s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
 	require.NoError(t, err)
 
 	regen := listInstancesForDate(t, s.db, s.template.ID, date)
@@ -344,7 +344,7 @@ func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
 	require.NoError(t, err)
 
 	// The series edit path: re-plan regenerates the occurrence from the template.
-	_, err = s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID)
+	_, err = s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
 	require.NoError(t, err)
 
 	regen := listInstancesForDate(t, s.db, s.template.ID, date)
@@ -364,7 +364,7 @@ func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
 		Exec(s.ctx)
 	require.NoError(t, err)
 
-	_, err = s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID)
+	_, err = s.factory.Instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
 	require.NoError(t, err)
 
 	regen2 := listInstancesForDate(t, s.db, s.template.ID, date)

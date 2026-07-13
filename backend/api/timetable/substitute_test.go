@@ -13,12 +13,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/services"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 
 	"github.com/go-chi/chi/v5"
@@ -57,10 +60,14 @@ func buildSubSetup(t *testing.T) *subSetup {
 	absent := testpkg.CreateTestStaff(t, db, "Absent", fmt.Sprintf("%d", suffix))
 	substitu := testpkg.CreateTestStaff(t, db, "Sub", fmt.Sprintf("%d", suffix+1))
 
+	repoFactory := repositories.NewFactory(db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	require.NoError(t, err)
 	res := NewResource(Dependencies{
-		TimetableData: testTimetableData(db),
-		PersonService: usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StaffRepo: usersRepo.NewStaffRepository(db)}),
-		DB:            db,
+		TimetableData:   testTimetableData(db),
+		PersonService:   usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StaffRepo: usersRepo.NewStaffRepository(db)}),
+		InstanceService: serviceFactory.Instance,
+		DB:              db,
 		// Broadcaster intentionally nil: tests do not exercise SSE.
 	})
 

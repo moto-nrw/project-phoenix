@@ -39,7 +39,9 @@ type DeviationEvent struct {
 	ID               int64 `bun:"id,pk,autoincrement" json:"id"`
 	base.TenantModel `bun:"schema:audit,table:deviation_events"`
 
-	ActivityGroupID int64         `bun:"activity_group_id,notnull" json:"activity_group_id"`
+	// ActivityGroupID is nil for spontaneous instances (no template); those
+	// anchor via InstanceID, which re-plans never delete.
+	ActivityGroupID *int64        `bun:"activity_group_id" json:"activity_group_id,omitempty"`
 	OccurrenceDate  timezone.Date `bun:"occurrence_date,notnull,type:date" json:"occurrence_date"`
 	// StartTime maps a TIME column; only the wall-clock portion is meaningful
 	// (same convention as schedule.activity_instances.start_time).
@@ -76,8 +78,8 @@ func (e *DeviationEvent) GetUpdatedAt() time.Time {
 
 // Validate checks the minimal invariants before an insert.
 func (e *DeviationEvent) Validate() error {
-	if e.ActivityGroupID <= 0 {
-		return errors.New("activity_group_id is required")
+	if (e.ActivityGroupID == nil || *e.ActivityGroupID <= 0) && (e.InstanceID == nil || *e.InstanceID <= 0) {
+		return errors.New("activity_group_id or instance_id is required")
 	}
 	if e.OccurrenceDate.IsZero() {
 		return errors.New("occurrence_date is required")
