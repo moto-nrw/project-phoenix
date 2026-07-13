@@ -29,6 +29,7 @@ import {
   ChartTooltipContent,
 } from "~/components/ui/chart";
 import { Modal } from "~/components/ui/modal";
+import { OriginChip } from "~/components/ui/origin-chip";
 import {
   formatSignedDuration,
   ViewToggle,
@@ -1068,6 +1069,15 @@ function ClockInCard({
         {metrics ? (
           <div className="mt-5 border-t border-gray-100 pt-4">
             <ClockInStatsStrip metrics={metrics} />
+            {/* Herkunfts-Chip am Soll-Wert (Planung-Redesign, docs/04 6.2):
+                genau einer pro Oberfläche, solange die Soll-Quellen-Frage
+                offen ist. */}
+            <div className="mt-3 flex justify-end">
+              <OriginChip
+                label="Soll aus Arbeitszeitmodell"
+                title="Wochensaldo und Stundenkonto rechnen gegen das im Arbeitszeitmodell hinterlegte Soll."
+              />
+            </div>
           </div>
         ) : (
           <div className="mt-4 flex flex-col gap-y-1 text-xs text-gray-400 sm:flex-row sm:flex-wrap sm:gap-x-6">
