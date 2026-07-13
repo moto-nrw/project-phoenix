@@ -54,6 +54,10 @@ export function ShiftTypeManageModal({
   const [isActive, setIsActive] = useState(true);
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  // Whether the category list has loaded successfully. Until it has, the
+  // category_ids payload is omitted so a pending/failed load can never send an
+  // empty array that clears existing mappings (#1837 follow-up).
+  const [categoriesReady, setCategoriesReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -73,15 +77,20 @@ export function ShiftTypeManageModal({
   useEffect(() => {
     if (!isOpen) return;
     let cancelled = false;
+    setCategoriesReady(false);
     void getCategories()
       .then((list) => {
-        if (!cancelled) setCategories(list);
+        if (cancelled) return;
+        setCategories(list);
+        setCategoriesReady(true);
       })
       .catch((err: unknown) => {
         logger.error("shift_type_categories_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        if (!cancelled) setCategories([]);
+        if (cancelled) return;
+        setCategories([]);
+        setCategoriesReady(false);
       });
     return () => {
       cancelled = true;
@@ -154,7 +163,11 @@ export function ShiftTypeManageModal({
         color: color ?? DEFAULT_NEW_COLOR,
         description: description.trim(),
         isActive,
-        categoryIds,
+        // Only manage the mapping when the category list is known. If it is
+        // still loading or failed to load, omit category_ids entirely so the
+        // backend leaves existing links untouched (never send an empty array
+        // that would clear them).
+        categoryIds: categoriesReady ? categoryIds : undefined,
       };
       if (editing) {
         await shiftTypeService.updateShiftType(editing.id, payload);
@@ -168,6 +181,7 @@ export function ShiftTypeManageModal({
       // category_ids set and clear links that were just written (#1837).
       try {
         setCategories(await getCategories());
+        setCategoriesReady(true);
       } catch (reloadErr: unknown) {
         logger.error("shift_type_categories_reload_failed", {
           error:
