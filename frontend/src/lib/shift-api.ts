@@ -212,6 +212,19 @@ class StaffShiftService {
     return readShiftList(response);
   }
 
+  /** One staff member's planned shifts in the range — backs the admin
+   *  Plan|Ist|Grund detail view (#1844). Uses the backend staff_id filter. */
+  async getShiftsForStaff(
+    staffId: string,
+    from: string,
+    to: string,
+  ): Promise<StaffShift[]> {
+    const response = await sessionFetch(
+      `/api/staff/shifts?staff_id=${staffId}&from=${from}&to=${to}`,
+    );
+    return readShiftList(response);
+  }
+
   async getOverview(from: string, to: string): Promise<StaffScheduleOverview> {
     const response = await sessionFetch(
       `/api/staff/shifts/overview?from=${from}&to=${to}`,

@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 
 import { Loading } from "~/components/ui/loading";
+import { staffShiftService } from "~/lib/shift-api";
+import type { StaffShift } from "~/lib/shift-helpers";
 import {
   staffAbsenceService,
   staffHistoryService,
@@ -111,6 +113,18 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     () =>
       staffAbsenceService.getAbsences(staffId, visibleFromKey, visibleToKey),
   );
+  // Planned Dienstplan shifts for the visible range feed the table's Plan
+  // column (#1844) — plan next to Ist, with the deviation reason in the audit
+  // expand. Does not touch the Soll/Saldo math (Arbeitszeitmodell, #1842).
+  const { data: visibleShifts } = useSWRAuth<StaffShift[]>(
+    `staff-shifts-visible-${staffId}-${visibleFromKey}-${visibleToKey}`,
+    () =>
+      staffShiftService.getShiftsForStaff(
+        staffId,
+        visibleFromKey,
+        visibleToKey,
+      ),
+  );
 
   if (scheduleLoading) {
     return <Loading fullPage={false} />;
@@ -191,6 +205,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               schedule={schedule ?? null}
               today={today}
               isAdminView
+              plannedShifts={visibleShifts ?? []}
             />
           </div>
         )}
