@@ -3,11 +3,14 @@ package active
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -40,6 +43,24 @@ func NewStaffAbsenceRepository(db *bun.DB) active.StaffAbsenceRepository {
 // List overrides base List to use QueryOptions
 func (r *StaffAbsenceRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.StaffAbsence, error) {
 	return r.ListWithOptions(ctx, options)
+}
+
+// LockStaffAbsenceWrites serializes overlap-sensitive absence writes for one
+// tenant/staff pair. The transaction-scoped lock stays held through any sick
+// plan cascade or reversal performed by the service.
+func (r *StaffAbsenceRepository) LockStaffAbsenceWrites(ctx context.Context, staffID int64) error {
+	if staffID <= 0 {
+		return errors.New("staff id is required")
+	}
+	tenantID := tenant.FromContext(ctx)
+	if tenantID <= 0 {
+		return errors.New("tenant id is required")
+	}
+	key := fmt.Sprintf("staff-absence:%d:%d", tenantID, staffID)
+	if err := base.AcquireXactLock(ctx, r.db, key); err != nil {
+		return fmt.Errorf("lock staff absence writes: %w", err)
+	}
+	return nil
 }
 
 // GetByStaffAndDateRange returns absences for a staff member overlapping the given date range

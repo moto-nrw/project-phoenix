@@ -151,6 +151,39 @@ describe("SickReportModal", () => {
     expect(end).toHaveValue("2026-07-20");
   });
 
+  it("limits half-day reports to one date and explains that plans stay unchanged", async () => {
+    mocks.createAbsence.mockResolvedValue({
+      ...createdRow,
+      date_end: "2026-07-20",
+      half_day: true,
+    });
+    renderModal();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: "Halber Tag" }));
+    const [date] = screen.getAllByLabelText("Datum auswählen");
+    expect(screen.getAllByLabelText("Datum auswählen")).toHaveLength(1);
+    fireEvent.change(date!, { target: { value: "2026-07-20" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "Krank melden" }));
+
+    await waitFor(() =>
+      expect(mocks.createAbsence).toHaveBeenCalledWith(
+        "7",
+        expect.objectContaining({
+          absence_type: "sick",
+          date_start: "2026-07-20",
+          date_end: "2026-07-20",
+          half_day: true,
+        }),
+      ),
+    );
+    expect(
+      await screen.findByText(
+        /Dienst- und Betreuungsplan wurden nicht automatisch geändert/,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("shows the backend error and does not report success", async () => {
     mocks.createAbsence.mockRejectedValue(new Error("overlapping absence"));
     const { onCreated } = renderModal();

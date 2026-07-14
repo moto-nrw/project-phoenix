@@ -173,6 +173,9 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 	if err := validateSickAbsenceRange(req.AbsenceType, dateStart, dateEnd); err != nil {
 		return nil, err
 	}
+	if err := s.lockStaffAbsenceWrites(ctx, subjectStaffID); err != nil {
+		return nil, err
+	}
 
 	// Check for overlapping absences, merge if same type, reject if different type.
 	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, subjectStaffID, dateStart, dateEnd)
@@ -184,6 +187,9 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 	if blocking := filterBlockingAbsences(existing); len(blocking) > 0 {
 		resp, err = s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, req)
 	} else {
+		if err := validateSingleDayHalfDaySick(req.AbsenceType, req.HalfDay, dateStart, dateEnd); err != nil {
+			return nil, err
+		}
 		s.warnIfWorkSessionsExist(ctx, subjectStaffID, dateStart, dateEnd)
 		resp, err = s.createNewAbsence(ctx, subjectStaffID, createdByStaffID, dateStart, dateEnd, req)
 	}
@@ -252,6 +258,9 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	if err := validateSickAbsenceRange(req.AbsenceType, mergedStart, mergedEnd); err != nil {
 		return nil, err
 	}
+	if err := validateSingleDayHalfDaySick(req.AbsenceType, req.HalfDay, mergedStart, mergedEnd); err != nil {
+		return nil, err
+	}
 
 	// Update the primary absence with merged range
 	primary := existing[0]
@@ -304,6 +313,20 @@ func validateSickAbsenceRange(absenceType string, start, end timezone.Date) erro
 	}
 	if start.DaysUntil(end)+1 > maxSickAbsenceRangeDays {
 		return fmt.Errorf("invalid sick absence: date range exceeds %d days", maxSickAbsenceRangeDays)
+	}
+	return nil
+}
+
+func validateSingleDayHalfDaySick(absenceType string, halfDay bool, start, end timezone.Date) error {
+	if absenceType == activeModels.AbsenceTypeSick && halfDay && start != end {
+		return fmt.Errorf("invalid sick absence: half-day reports must cover exactly one date")
+	}
+	return nil
+}
+
+func (s *staffAbsenceService) lockStaffAbsenceWrites(ctx context.Context, staffID int64) error {
+	if err := s.absenceRepo.LockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return fmt.Errorf("failed to lock staff absence writes: %w", err)
 	}
 	return nil
 }
@@ -391,6 +414,9 @@ func (s *staffAbsenceService) createNewAbsence(
 
 // UpdateAbsence updates an existing absence record
 func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsenceResponse, error) {
+	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
 		return nil, fmt.Errorf("absence not found")
@@ -410,6 +436,9 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		return nil, err
 	}
 	if err := validateSickAbsenceRange(absence.AbsenceType, absence.DateStart, absence.DateEnd); err != nil {
+		return nil, err
+	}
+	if err := validateSingleDayHalfDaySick(absence.AbsenceType, absence.HalfDay, absence.DateStart, absence.DateEnd); err != nil {
 		return nil, err
 	}
 
@@ -544,6 +573,9 @@ func (s *staffAbsenceService) DeleteAbsence(ctx context.Context, staffID int64, 
 // the delete. CancelAbsence needs no such hook: it only accepts
 // requested/approved vacation-flow rows, never a reported sick absence.
 func (s *staffAbsenceService) DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error {
+	if err := s.lockStaffAbsenceWrites(ctx, subjectStaffID); err != nil {
+		return err
+	}
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
 		return fmt.Errorf("absence not found")
@@ -702,6 +734,9 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 	if isBeforeLocalToday(dateStart, time.Now()) {
 		return nil, fmt.Errorf("vacation request must start today or in the future")
 	}
+	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
 
 	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, dateStart, dateEnd)
 	if err != nil {
@@ -754,6 +789,13 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 	if err != nil {
 		return nil, fmt.Errorf("absence not found")
 	}
+	if err := s.lockStaffAbsenceWrites(ctx, absence.StaffID); err != nil {
+		return nil, err
+	}
+	absence, err = s.absenceRepo.FindByID(ctx, absenceID)
+	if err != nil {
+		return nil, fmt.Errorf("absence not found")
+	}
 	if absence.Status != activeModels.AbsenceStatusRequested {
 		return nil, fmt.Errorf("only requested absences can be approved")
 	}
@@ -782,6 +824,13 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 	if err != nil {
 		return nil, fmt.Errorf("absence not found")
 	}
+	if err := s.lockStaffAbsenceWrites(ctx, absence.StaffID); err != nil {
+		return nil, err
+	}
+	absence, err = s.absenceRepo.FindByID(ctx, absenceID)
+	if err != nil {
+		return nil, fmt.Errorf("absence not found")
+	}
 	if absence.Status != activeModels.AbsenceStatusRequested {
 		return nil, fmt.Errorf("only requested absences can be declined")
 	}
@@ -803,6 +852,9 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 }
 
 func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64) error {
+	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return err
+	}
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
 		return fmt.Errorf("absence not found")

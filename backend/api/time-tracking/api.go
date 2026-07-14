@@ -539,6 +539,7 @@ func (rs *Resource) createAbsence(w http.ResponseWriter, r *http.Request) {
 		absence, txErr = rs.StaffAbsenceService.CreateAbsenceFor(ctx, staffID, staffID, &actorAccountID, req)
 		return txErr
 	}); err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return
 	}
@@ -574,6 +575,7 @@ func (rs *Resource) updateAbsence(w http.ResponseWriter, r *http.Request) {
 		absence, txErr = rs.StaffAbsenceService.UpdateAbsence(ctx, staffID, &actorAccountID, absenceID, req)
 		return txErr
 	}); err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return
 	}
@@ -602,6 +604,7 @@ func (rs *Resource) deleteAbsence(w http.ResponseWriter, r *http.Request) {
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.StaffAbsenceService.DeleteAbsenceFor(ctx, staffID, staffID, &actorAccountID, absenceID)
 	}); err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return
 	}

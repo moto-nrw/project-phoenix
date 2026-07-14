@@ -307,6 +307,57 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 	assert.Len(t, events, 1, "idempotent re-run must not duplicate events")
 }
 
+func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *testing.T) {
+	e := buildSickCascadeEnv(t)
+	day := timezone.TodayDate().AddDays(1)
+
+	lockHeld := make(chan struct{})
+	releaseLock := make(chan struct{})
+	lockerDone := make(chan error, 1)
+	go func() {
+		lockerDone <- tenant.WithTenantTx(context.Background(), e.db, 1, func(ctx context.Context, _ bun.Tx) error {
+			if err := e.repos.StaffAbsence.LockStaffAbsenceWrites(ctx, e.subject.ID); err != nil {
+				return err
+			}
+			close(lockHeld)
+			<-releaseLock
+			_, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, activeSvc.CreateAbsenceRequest{
+				AbsenceType: "sick",
+				DateStart:   day.String(),
+				DateEnd:     day.String(),
+			})
+			return err
+		})
+	}()
+	<-lockHeld
+
+	creatorDone := make(chan error, 1)
+	go func() {
+		creatorDone <- tenant.WithTenantTx(context.Background(), e.db, 1, func(ctx context.Context, _ bun.Tx) error {
+			_, err := e.factory.StaffAbsence.CreateAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, activeSvc.CreateAbsenceRequest{
+				AbsenceType: "sick",
+				DateStart:   day.String(),
+				DateEnd:     day.String(),
+			})
+			return err
+		})
+	}()
+
+	select {
+	case err := <-creatorDone:
+		require.Failf(t, "concurrent create bypassed staff absence lock", "returned early: %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+	close(releaseLock)
+	require.NoError(t, <-lockerDone)
+	require.NoError(t, <-creatorDone)
+
+	rows, err := e.repos.StaffAbsence.GetByStaffAndDateRange(e.ctx, e.subject.ID, day, day)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "serialized overlapping reports must merge into one absence")
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, e.db, "active.staff_absences", rows[0].ID) })
+}
+
 func TestSickCascade_HalfDayRules(t *testing.T) {
 	e := buildSickCascadeEnv(t)
 	today := timezone.TodayDate()
@@ -722,6 +773,42 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 	require.Len(t, cleared, 1, "exactly the restored block logs sick_cleared")
 	reported := e.eventsByType(t, tomorrow, tomorrow, auditModels.DeviationEventSickReported)
 	assert.Len(t, reported, 2, "both blocks were marked by the create cascade")
+}
+
+func TestSickCascade_DeleteDoesNotReactivateManuallyRetainedCancellation(t *testing.T) {
+	e := buildSickCascadeEnv(t)
+	day := timezone.TodayDate().AddDays(1)
+	shift := e.createShift(t, e.subject.ID, day, "08:00", "12:00", nil)
+	absenceID := e.createSickAbsence(t, day, day)
+
+	stamped := e.reloadShift(t, shift.ID)
+	require.NotNil(t, stamped.SickAbsenceID)
+	assert.Equal(t, absenceID, *stamped.SickAbsenceID)
+
+	manualReason := "Teamtag"
+	e.inTx(t, func(ctx context.Context) error {
+		_, err := e.factory.StaffShifts.ApplyCancellation(ctx, scheduleSvc.CancelShiftInput{
+			ShiftID:      shift.ID,
+			Cancelled:    true,
+			ChangeReason: &manualReason,
+			ActorStaffID: e.admin.ID,
+		})
+		return err
+	})
+
+	manuallyRetained := e.reloadShift(t, shift.ID)
+	assert.True(t, manuallyRetained.Cancelled)
+	assert.Nil(t, manuallyRetained.SickAbsenceID)
+
+	e.inTx(t, func(ctx context.Context) error {
+		return e.factory.StaffAbsence.DeleteAbsenceFor(ctx, e.subject.ID, e.admin.ID, nil, absenceID)
+	})
+
+	stored := e.reloadShift(t, shift.ID)
+	assert.True(t, stored.Cancelled)
+	assert.Nil(t, stored.SickAbsenceID)
+	require.NotNil(t, stored.ChangeReason)
+	assert.Equal(t, manualReason, *stored.ChangeReason)
 }
 
 func TestSickCascade_ReassignSickStamps(t *testing.T) {

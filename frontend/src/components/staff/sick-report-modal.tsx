@@ -69,14 +69,22 @@ export function SickReportModal({
     }
   }, [isOpen]);
 
-  // Keep the end date at or after the start date.
-  useEffect(() => {
-    if (dateStart && dateEnd && dateEnd < dateStart) {
+  const staffName = `${staff.firstName} ${staff.lastName}`;
+
+  const handleStartDateChange = (picked: Date | null) => {
+    const nextStart = picked ? toISODate(picked) : "";
+    setDateStart(nextStart);
+    if (nextStart && (halfDay || !dateEnd || dateEnd < nextStart)) {
+      setDateEnd(nextStart);
+    }
+  };
+
+  const handleHalfDayChange = (checked: boolean) => {
+    setHalfDay(checked);
+    if (checked && dateStart) {
       setDateEnd(dateStart);
     }
-  }, [dateStart, dateEnd]);
-
-  const staffName = `${staff.firstName} ${staff.lastName}`;
+  };
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -85,7 +93,7 @@ export function SickReportModal({
       const created = await staffAbsenceService.createAbsence(staff.id, {
         absence_type: "sick",
         date_start: dateStart,
-        date_end: dateEnd,
+        date_end: halfDay ? dateStart : dateEnd,
         half_day: halfDay || undefined,
         note: note.trim() || undefined,
       });
@@ -146,7 +154,7 @@ export function SickReportModal({
         onClick={handleSubmit}
         isLoading={submitting}
         loadingText="Wird gemeldet…"
-        disabled={submitting || !dateStart || !dateEnd}
+        disabled={submitting || !dateStart || (!halfDay && !dateEnd)}
       >
         Krank melden
       </Button>
@@ -165,7 +173,11 @@ export function SickReportModal({
         <div className="space-y-3 text-sm">
           <Alert
             type="success"
-            message={`${staffName} ist ab dem ${formatDate(createdStart)} als krank gemeldet. Geplante Schichten wurden storniert und Betreuungsblöcke als abwesend markiert.`}
+            message={
+              halfDay
+                ? `${staffName} ist am ${formatDate(createdStart)} für einen halben Tag krank gemeldet. Dienst- und Betreuungsplan wurden nicht automatisch geändert.`
+                : `${staffName} ist ab dem ${formatDate(createdStart)} als krank gemeldet. Reguläre Schichten wurden storniert und Betreuungsblöcke als abwesend markiert.`
+            }
           />
           <p className="text-gray-600">
             Öffne die Vertretung, um offene Betreuungsblöcke neu zu besetzen.
@@ -176,36 +188,37 @@ export function SickReportModal({
           <p className="text-sm text-gray-600">
             Die Krankmeldung storniert die geplanten Schichten von {staffName}{" "}
             im gewählten Zeitraum und markiert betroffene Betreuungsblöcke als
-            abwesend.
+            abwesend. Bereits eingetragene Vertretungsschichten müssen manuell
+            geprüft werden.
           </p>
 
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
+            <div className={halfDay ? "sm:col-span-2" : undefined}>
               <span className="mb-2 block text-sm font-medium text-gray-700">
-                Von
+                {halfDay ? "Datum" : "Von"}
               </span>
               <DatePicker
                 value={dateStart ? parseISODate(dateStart) : null}
-                onChange={(picked) =>
-                  setDateStart(picked ? toISODate(picked) : "")
-                }
+                onChange={handleStartDateChange}
                 dropdownPlacement="down"
                 placeholder="Datum auswählen"
               />
             </div>
-            <div>
-              <span className="mb-2 block text-sm font-medium text-gray-700">
-                Bis
-              </span>
-              <DatePicker
-                value={dateEnd ? parseISODate(dateEnd) : null}
-                onChange={(picked) =>
-                  setDateEnd(picked ? toISODate(picked) : "")
-                }
-                dropdownPlacement="down"
-                placeholder="Datum auswählen"
-              />
-            </div>
+            {!halfDay && (
+              <div>
+                <span className="mb-2 block text-sm font-medium text-gray-700">
+                  Bis
+                </span>
+                <DatePicker
+                  value={dateEnd ? parseISODate(dateEnd) : null}
+                  onChange={(picked) =>
+                    setDateEnd(picked ? toISODate(picked) : "")
+                  }
+                  dropdownPlacement="down"
+                  placeholder="Datum auswählen"
+                />
+              </div>
+            )}
           </div>
 
           {/* FieldGroup, not <label>: wrapping the Checkbox row in a label
@@ -220,15 +233,15 @@ export function SickReportModal({
               <Checkbox
                 id="sick-report-half-day"
                 checked={halfDay}
-                onChange={(e) => setHalfDay(e.target.checked)}
+                onChange={(e) => handleHalfDayChange(e.target.checked)}
               />
               <span className="text-sm font-medium text-gray-800">
                 Halber Tag
               </span>
             </label>
             <p className="mt-1 text-xs text-gray-500">
-              Halbe Tage ändern den Dienst- und Betreuungsplan nicht
-              automatisch.
+              Halbe Tage gelten für ein einzelnes Datum und ändern den Dienst-
+              und Betreuungsplan nicht automatisch.
             </p>
           </div>
 

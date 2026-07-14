@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
@@ -19,6 +21,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -1449,6 +1452,93 @@ func TestDeleteAbsence_Forbidden(t *testing.T) {
 
 	rs.deleteAbsence(w, r)
 	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestAbsenceMutations_RollBackWritesOnConflictResponses(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	scope := testpkg.NewTenantScope(t, db)
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("platform.schools").Where("id = ?", scope.TenantID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", scope.TenantID).Exec(context.Background())
+	})
+
+	profileRepo := repositories.NewFactory(db).GuardianProfile
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{name: "create", method: http.MethodPost, path: "/absences", body: `{"absence_type":"sick","date_start":"2026-07-20","date_end":"2026-07-20"}`},
+		{name: "update", method: http.MethodPut, path: "/absences/77", body: `{"date_end":"2026-07-21"}`},
+		{name: "delete", method: http.MethodDelete, path: "/absences/77"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			email := fmt.Sprintf("absence-rollback-%s-%d@test.local", tc.name, time.Now().UnixNano())
+			probe := &userModels.GuardianProfile{
+				FirstName:              "Absence",
+				LastName:               "Rollback",
+				Email:                  &email,
+				PreferredContactMethod: "email",
+				LanguagePreference:     "de",
+			}
+			writeThenConflict := func(ctx context.Context) error {
+				require.NoError(t, profileRepo.Create(ctx, probe))
+				require.Positive(t, probe.ID)
+				return fmt.Errorf("sick cascade conflict: %w", scheduleSvc.ErrShiftOverlap)
+			}
+
+			absSvc := &mockStaffAbsenceService{}
+			switch tc.method {
+			case http.MethodPost:
+				absSvc.createAbsenceFn = func(ctx context.Context, _ int64, _ activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
+					return nil, writeThenConflict(ctx)
+				}
+			case http.MethodPut:
+				absSvc.updateAbsenceFn = func(ctx context.Context, _ int64, _ *int64, _ int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
+					return nil, writeThenConflict(ctx)
+				}
+			case http.MethodDelete:
+				absSvc.deleteAbsenceFn = func(ctx context.Context, _ int64, _ int64) error {
+					return writeThenConflict(ctx)
+				}
+			}
+
+			rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
+			router := chi.NewRouter()
+			router.Use(render.SetContentType(render.ContentTypeJSON))
+			router.Use(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					claims := jwt.AppClaims{ID: 101, TenantID: scope.TenantID}
+					ctx := context.WithValue(r.Context(), jwt.CtxClaims, claims)
+					ctx = tenant.WithTenantID(ctx, scope.TenantID)
+					next.ServeHTTP(w, r.WithContext(ctx))
+				})
+			})
+			router.Use(tenant.TenantTxMiddleware(db))
+			switch tc.method {
+			case http.MethodPost:
+				router.Post("/absences", rs.createAbsence)
+			case http.MethodPut:
+				router.Put("/absences/{id}", rs.updateAbsence)
+			case http.MethodDelete:
+				router.Delete("/absences/{id}", rs.deleteAbsence)
+			}
+
+			req := httptest.NewRequest(tc.method, tc.path, bytes.NewBufferString(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusConflict, w.Code)
+			_, err := profileRepo.FindByID(scope.Context(), probe.ID)
+			assert.ErrorIs(t, err, userModels.ErrGuardianProfileNotFound,
+				"conflict responses must roll back writes from the failed absence mutation")
+		})
+	}
 }
 
 // --- getPresenceMap handler ---

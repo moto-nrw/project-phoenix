@@ -324,6 +324,11 @@ type WorkSessionRepository interface {
 type StaffAbsenceRepository interface {
 	base.Repository[*StaffAbsence]
 
+	// LockStaffAbsenceWrites serializes absence lifecycle writes for one staff
+	// member inside the ambient tenant transaction. Callers must acquire it
+	// before any overlap read-check-write sequence.
+	LockStaffAbsenceWrites(ctx context.Context, staffID int64) error
+
 	// GetByStaffAndDateRange returns absences for a staff member overlapping the given date range
 	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsence, error)
 

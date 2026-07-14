@@ -29,6 +29,10 @@ type absStaffAbsenceRepoMock struct {
 	getTodayAbsenceMapFunc     func(ctx context.Context) (map[int64]string, error)
 }
 
+func (m *absStaffAbsenceRepoMock) LockStaffAbsenceWrites(context.Context, int64) error {
+	return nil
+}
+
 func (m *absStaffAbsenceRepoMock) Create(ctx context.Context, entity *activeModels.StaffAbsence) error {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, entity)
@@ -1362,6 +1366,53 @@ func TestAbsCreateAbsenceFor_HalfDayAndNonSickSkipCascade(t *testing.T) {
 			assert.Empty(t, syncer.markCalls, "cascade must not fire")
 		})
 	}
+}
+
+func TestAbsCreateAbsenceFor_RejectsMultiDayHalfDaySickReport(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	createCalled := false
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		createCalled = true
+		return nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   "2026-02-10",
+		DateEnd:     "2026-02-11",
+		HalfDay:     true,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "half-day reports must cover exactly one date")
+	assert.False(t, createCalled)
+	assert.Empty(t, syncer.markCalls)
+}
+
+func TestAbsUpdateAbsence_RejectsMultiDayHalfDaySickReport(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	existing := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 10),
+		HalfDay:     true,
+		Status:      activeModels.AbsenceStatusReported,
+		CreatedBy:   100,
+	}
+	existing.ID = 501
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return existing, nil
+	}
+
+	dateEnd := "2026-02-11"
+	_, err := svc.UpdateAbsence(context.Background(), existing.StaffID, nil, existing.ID, UpdateAbsenceRequest{
+		DateEnd: &dateEnd,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "half-day reports must cover exactly one date")
+	assert.Empty(t, syncer.reconcileCalls)
 }
 
 func TestAbsCreateAbsenceFor_CascadeErrorAbortsCreate(t *testing.T) {

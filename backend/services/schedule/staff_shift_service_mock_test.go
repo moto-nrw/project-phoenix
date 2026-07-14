@@ -409,6 +409,34 @@ func TestShiftService_UpdateKeepsStaffAssignment(t *testing.T) {
 	assert.Equal(t, int64(3), saved.CreatedBy, "original creator must be preserved")
 }
 
+func TestShiftService_UpdateClearsSickProvenanceWhenAdminKeepsCancellation(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	absenceID := int64(91)
+	existingReason := "Krankheit"
+	existing := validShift(7)
+	existing.ID = 5
+	existing.Cancelled = true
+	existing.ChangeReason = &existingReason
+	existing.SickAbsenceID = &absenceID
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+
+	manualReason := "Manuell abgesagt"
+	update := validShift(7)
+	update.ID = existing.ID
+	update.Cancelled = true
+	update.ChangeReason = &manualReason
+
+	saved, err := svc.UpdateShift(context.Background(), update)
+
+	require.NoError(t, err)
+	assert.True(t, saved.Cancelled)
+	assert.Nil(t, saved.SickAbsenceID)
+	require.NotNil(t, saved.ChangeReason)
+	assert.Equal(t, manualReason, *saved.ChangeReason)
+}
+
 func TestShiftService_UpdatePreservesCreatedAt(t *testing.T) {
 	svc, repo, _ := shiftServiceFixture()
 

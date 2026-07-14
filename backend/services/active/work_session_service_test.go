@@ -389,6 +389,10 @@ type wsMockStaffAbsenceRepository struct {
 	getTodayAbsenceMapFunc     func(ctx context.Context) (map[int64]string, error)
 }
 
+func (m *wsMockStaffAbsenceRepository) LockStaffAbsenceWrites(context.Context, int64) error {
+	return nil
+}
+
 func (m *wsMockStaffAbsenceRepository) Create(ctx context.Context, entity *activeModels.StaffAbsence) error {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, entity)
