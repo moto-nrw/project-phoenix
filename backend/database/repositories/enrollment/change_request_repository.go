@@ -91,6 +91,25 @@ func (r *ChangeRequestRepository) ListByRequestID(ctx context.Context, requestID
 	return rows, nil
 }
 
+func (r *ChangeRequestRepository) ListOpenByRequestIDForUpdate(ctx context.Context, requestID int64) ([]*enrollment.ChangeRequest, error) {
+	var rows []*enrollment.ChangeRequest
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(changeRequestTableExpr).
+		Where(`"change_request".request_id = ?`, requestID).
+		Where(`"change_request".status IN (?, ?)`,
+			enrollment.ChangeRequestStatusPendingReview,
+			enrollment.ChangeRequestStatusNeedsParentResponse,
+		).
+		OrderExpr(`"change_request".created_at ASC, "change_request".id ASC`).
+		For("UPDATE").
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lock open enrollment change requests by request: %w", err)
+	}
+	return rows, nil
+}
+
 func (r *ChangeRequestRepository) ListAdmin(ctx context.Context, filters enrollment.ChangeRequestListFilters) ([]*enrollment.ChangeRequest, error) {
 	var rows []*enrollment.ChangeRequest
 	q := base.GetDB(ctx, r.db).NewSelect().

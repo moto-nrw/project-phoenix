@@ -328,6 +328,9 @@ func (s *changeRequestService) CorrectApprovedChildData(ctx context.Context, inp
 	if err != nil {
 		return nil, err
 	}
+	if err := s.rejectOpenChangeRequestsForAdminCorrection(ctx, req, reason, input.ActorAccountID); err != nil {
+		return nil, err
+	}
 	child.FirstName = corrected.FirstName
 	child.LastName = corrected.LastName
 	child.DateOfBirth = corrected.DateOfBirth
@@ -366,6 +369,53 @@ func (s *changeRequestService) CorrectApprovedChildData(ctx context.Context, inp
 		return nil, fmt.Errorf("admin data correction: create audit entry: %w", err)
 	}
 	return s.aggregateFromRow(ctx, row, true)
+}
+
+func (s *changeRequestService) rejectOpenChangeRequestsForAdminCorrection(
+	ctx context.Context,
+	req *enrollmentModels.Request,
+	reason string,
+	actorAccountID int64,
+) error {
+	rows, err := s.ChangeRequestRepo.ListOpenByRequestIDForUpdate(ctx, req.ID)
+	if err != nil {
+		return fmt.Errorf("admin data correction: lock open change requests: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+
+	note := "Diese Änderungsanfrage wurde durch eine direkte Korrektur der OGS ersetzt. Grund: " + reason
+	now := time.Now()
+	for _, row := range rows {
+		if err := s.ChangeRequestRepo.MarkReviewed(
+			ctx,
+			row.ID,
+			enrollmentModels.ChangeRequestStatusRejected,
+			&note,
+			actorAccountID,
+			now,
+		); err != nil {
+			return fmt.Errorf("admin data correction: reject open change request %d: %w", row.ID, err)
+		}
+		actorID := actorAccountID
+		if err := s.MessageRepo.Create(ctx, &enrollmentModels.ChangeRequestMessage{
+			ChangeRequestID: row.ID,
+			AuthorType:      enrollmentModels.ChangeRequestMessageAuthorStaff,
+			AuthorAccountID: &actorID,
+			Body:            note,
+		}); err != nil {
+			return fmt.Errorf("admin data correction: record rejection message for change request %d: %w", row.ID, err)
+		}
+		s.enqueueReviewed(
+			ctx,
+			req.GetTenantID(),
+			req,
+			row.ID,
+			platformModels.EmailKindEnrollmentChangeRequestRejected,
+		)
+	}
+	return nil
 }
 
 func validateAdminCorrectionInput(input CorrectApprovedChildDataInput) (string, string, string, error) {

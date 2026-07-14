@@ -49,8 +49,17 @@ func newChangeRequestServiceForTest(env *requestTestEnv) enrollmentService.Chang
 
 func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestEnv) enrollmentService.ChangeRequestService {
 	t.Helper()
+	return newChangeRequestServiceWithDecisionAndRepoForTest(t, env, env.repos.ChangeRequest)
+}
+
+func newChangeRequestServiceWithDecisionAndRepoForTest(
+	t *testing.T,
+	env *decisionTestEnv,
+	changeRequestRepo enrollmentModels.ChangeRequestRepository,
+) enrollmentService.ChangeRequestService {
+	t.Helper()
 	return enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
-		ChangeRequestRepo:        env.repos.ChangeRequest,
+		ChangeRequestRepo:        changeRequestRepo,
 		MessageRepo:              env.repos.ChangeRequestMessage,
 		RequestRepo:              env.repos.Request,
 		RequestChildRepo:         env.repos.RequestChild,
@@ -70,6 +79,17 @@ func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestE
 		DB:                       env.db,
 		Logger:                   slog.Default(),
 	})
+}
+
+type failAdminAuditChangeRequestRepo struct {
+	enrollmentModels.ChangeRequestRepository
+}
+
+func (r failAdminAuditChangeRequestRepo) Create(ctx context.Context, row *enrollmentModels.ChangeRequest) error {
+	if row.Origin == enrollmentModels.ChangeRequestOriginAdmin {
+		return errors.New("forced admin correction audit failure")
+	}
+	return r.ChangeRequestRepository.Create(ctx, row)
 }
 
 func TestNewChangeRequestService_ParentsURLRequired(t *testing.T) {
@@ -812,6 +832,248 @@ func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentA
 	assert.Equal(t, "Richtig", person.LastName)
 	require.NotNil(t, person.Birthday)
 	assert.Equal(t, correctedDOB, *person.Birthday)
+}
+
+func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRequest(t *testing.T) {
+	for _, openStatus := range []string{
+		enrollmentModels.ChangeRequestStatusPendingReview,
+		enrollmentModels.ChangeRequestStatusNeedsParentResponse,
+	} {
+		t.Run(openStatus, func(t *testing.T) {
+			env, cleanup := setupDecisionTest(t)
+			defer cleanup()
+			ctx := testpkg.TenantContext(1)
+			env.settings.boolValues[configModel.KeyEnrollmentChangeRequestEmailNotificationsEnabled] = true
+
+			submission, result := createApprovedAdminCorrectionFixture(t, env, "open-correction-"+openStatus+"@example.com")
+			svc := newChangeRequestServiceWithDecisionForTest(t, env)
+			proposed := submission
+			proposed.Children = append([]enrollmentService.SubmitChild(nil), submission.Children...)
+			proposed.Children[0].ID = result.Children[0].ID
+			proposed.Children[0].FirstName = "Lina-Marie"
+			created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
+				Submission: proposed,
+				ParentNote: "Bitte den Vornamen ändern.",
+			})
+			require.NoError(t, err)
+			if openStatus == enrollmentModels.ChangeRequestStatusNeedsParentResponse {
+				_, err = svc.AskQuestion(ctx, created.ChangeRequest.ID, enrollmentService.ChangeRequestMessageInput{
+					Body:           "Bitte bestätigen Sie die Schreibweise.",
+					ActorAccountID: env.creatorID,
+				})
+				require.NoError(t, err)
+			}
+
+			reason := "Nachname anhand der Geburtsurkunde berichtigt"
+			expectedNote := "Diese Änderungsanfrage wurde durch eine direkte Korrektur der OGS ersetzt. Grund: " + reason
+			var audit *enrollmentService.ChangeRequestAggregate
+			err = tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+				var correctionErr error
+				audit, correctionErr = svc.CorrectApprovedChildData(txCtx, enrollmentService.CorrectApprovedChildDataInput{
+					RequestID:        result.Request.ID,
+					ChildID:          result.Children[0].ID,
+					FirstName:        submission.Children[0].FirstName,
+					LastName:         "Richtig",
+					DateOfBirth:      submission.Children[0].DateOfBirth,
+					TargetGradeLevel: submission.Children[0].TargetGradeLevel,
+					Reason:           reason,
+					ActorAccountID:   env.creatorID,
+				})
+				return correctionErr
+			})
+			require.NoError(t, err)
+			require.NotNil(t, audit)
+			assert.Equal(t, enrollmentModels.ChangeRequestOriginAdmin, audit.ChangeRequest.Origin)
+
+			rejected, err := env.repos.ChangeRequest.FindByID(ctx, created.ChangeRequest.ID)
+			require.NoError(t, err)
+			assert.Equal(t, enrollmentModels.ChangeRequestStatusRejected, rejected.Status)
+			require.NotNil(t, rejected.AdminDecisionNote)
+			assert.Equal(t, expectedNote, *rejected.AdminDecisionNote)
+			require.NotNil(t, rejected.ReviewedByAccountID)
+			assert.Equal(t, env.creatorID, *rejected.ReviewedByAccountID)
+			assert.NotNil(t, rejected.ReviewedAt)
+
+			messages, err := env.repos.ChangeRequestMessage.ListByChangeRequestID(ctx, rejected.ID, true)
+			require.NoError(t, err)
+			assert.Condition(t, func() bool {
+				for _, message := range messages {
+					if message.AuthorType == enrollmentModels.ChangeRequestMessageAuthorStaff && message.Body == expectedNote {
+						return true
+					}
+				}
+				return false
+			}, "the rejected request must explain that the direct correction replaced it")
+
+			rejectionEmails := env.outbox.ByKind(platformModels.EmailKindEnrollmentChangeRequestRejected)
+			require.Len(t, rejectionEmails, 1)
+			assert.Equal(t, result.Request.ID, rejectionEmails[0].RelatedEntityID)
+
+			_, err = svc.Approve(ctx, rejected.ID, enrollmentService.ReviewChangeRequestInput{
+				Note:           "Darf nicht mehr freigegeben werden.",
+				ActorAccountID: env.creatorID,
+				ActorRole:      "admin",
+			})
+			require.ErrorIs(t, err, enrollmentService.ErrChangeRequestInvalidStatus)
+		})
+	}
+}
+
+func TestChangeRequestService_CorrectApprovedChildData_PreservesTerminalParentChangeRequest(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	submission, result := createApprovedAdminCorrectionFixture(t, env, "terminal-correction@example.com")
+	svc := newChangeRequestServiceWithDecisionForTest(t, env)
+	proposed := submission
+	proposed.Children = append([]enrollmentService.SubmitChild(nil), submission.Children...)
+	proposed.Children[0].ID = result.Children[0].ID
+	proposed.Children[0].FirstName = "Lina-Marie"
+	created, err := svc.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
+		Submission: proposed,
+		ParentNote: "Bitte den Vornamen ändern.",
+	})
+	require.NoError(t, err)
+	_, err = svc.Reject(ctx, created.ChangeRequest.ID, enrollmentService.ReviewChangeRequestInput{
+		Note:           "Die Schreibweise ist bereits korrekt.",
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+	})
+	require.NoError(t, err)
+	before, err := env.repos.ChangeRequest.FindByID(ctx, created.ChangeRequest.ID)
+	require.NoError(t, err)
+
+	err = tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		_, correctionErr := svc.CorrectApprovedChildData(txCtx, enrollmentService.CorrectApprovedChildDataInput{
+			RequestID:        result.Request.ID,
+			ChildID:          result.Children[0].ID,
+			FirstName:        submission.Children[0].FirstName,
+			LastName:         "Richtig",
+			DateOfBirth:      submission.Children[0].DateOfBirth,
+			TargetGradeLevel: submission.Children[0].TargetGradeLevel,
+			Reason:           "Nachname berichtigt",
+			ActorAccountID:   env.creatorID,
+		})
+		return correctionErr
+	})
+	require.NoError(t, err)
+
+	after, err := env.repos.ChangeRequest.FindByID(ctx, created.ChangeRequest.ID)
+	require.NoError(t, err)
+	assert.Equal(t, before.Status, after.Status)
+	assert.Equal(t, before.AdminDecisionNote, after.AdminDecisionNote)
+	assert.Equal(t, before.ReviewedByAccountID, after.ReviewedByAccountID)
+	assert.Equal(t, before.ReviewedAt, after.ReviewedAt)
+}
+
+func TestChangeRequestService_CorrectApprovedChildData_RollsBackRejectedRequestWhenAuditFails(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	submission, result := createApprovedAdminCorrectionFixture(t, env, "rollback-correction@example.com")
+	regularService := newChangeRequestServiceWithDecisionForTest(t, env)
+	proposed := submission
+	proposed.Children = append([]enrollmentService.SubmitChild(nil), submission.Children...)
+	proposed.Children[0].ID = result.Children[0].ID
+	proposed.Children[0].FirstName = "Lina-Marie"
+	created, err := regularService.Create(ctx, result.Request.StatusToken, enrollmentService.CreateChangeRequestInput{
+		Submission: proposed,
+		ParentNote: "Bitte den Vornamen ändern.",
+	})
+	require.NoError(t, err)
+
+	storedChild, err := env.repos.RequestChild.FindByID(ctx, result.Children[0].ID)
+	require.NoError(t, err)
+	require.NotNil(t, storedChild.CreatedStudentID)
+	student, err := env.repos.Student.FindByID(ctx, *storedChild.CreatedStudentID)
+	require.NoError(t, err)
+	personBefore, err := env.repos.Person.FindByID(ctx, student.PersonID)
+	require.NoError(t, err)
+
+	failingService := newChangeRequestServiceWithDecisionAndRepoForTest(t, env, failAdminAuditChangeRequestRepo{
+		ChangeRequestRepository: env.repos.ChangeRequest,
+	})
+	err = tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		_, correctionErr := failingService.CorrectApprovedChildData(txCtx, enrollmentService.CorrectApprovedChildDataInput{
+			RequestID:        result.Request.ID,
+			ChildID:          result.Children[0].ID,
+			FirstName:        submission.Children[0].FirstName,
+			LastName:         "Richtig",
+			DateOfBirth:      submission.Children[0].DateOfBirth,
+			TargetGradeLevel: submission.Children[0].TargetGradeLevel,
+			Reason:           "Nachname berichtigt",
+			ActorAccountID:   env.creatorID,
+		})
+		return correctionErr
+	})
+	require.ErrorContains(t, err, "forced admin correction audit failure")
+
+	openRequest, err := env.repos.ChangeRequest.FindByID(ctx, created.ChangeRequest.ID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentModels.ChangeRequestStatusPendingReview, openRequest.Status)
+	assert.Nil(t, openRequest.AdminDecisionNote)
+	assert.Nil(t, openRequest.ReviewedByAccountID)
+	assert.Nil(t, openRequest.ReviewedAt)
+
+	childAfter, err := env.repos.RequestChild.FindByID(ctx, result.Children[0].ID)
+	require.NoError(t, err)
+	assert.Equal(t, submission.Children[0].LastName, childAfter.LastName)
+	personAfter, err := env.repos.Person.FindByID(ctx, student.PersonID)
+	require.NoError(t, err)
+	assert.Equal(t, personBefore.LastName, personAfter.LastName)
+
+	messages, err := env.repos.ChangeRequestMessage.ListByChangeRequestID(ctx, openRequest.ID, true)
+	require.NoError(t, err)
+	require.Len(t, messages, 1)
+	assert.Equal(t, "Bitte den Vornamen ändern.", messages[0].Body)
+	rows, err := env.repos.ChangeRequest.ListByRequestID(ctx, result.Request.ID)
+	require.NoError(t, err)
+	for _, row := range rows {
+		assert.NotEqual(t, enrollmentModels.ChangeRequestOriginAdmin, row.Origin)
+	}
+}
+
+func createApprovedAdminCorrectionFixture(
+	t *testing.T,
+	env *decisionTestEnv,
+	guardianEmail string,
+) (enrollmentService.SubmitRequest, *enrollmentService.SubmitResult) {
+	t.Helper()
+	ctx := testpkg.TenantContext(1)
+	grade := int16(1)
+	submission := enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Mara",
+		GuardianLastName:  "Beispiel",
+		GuardianEmail:     guardianEmail,
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        "Lina",
+			LastName:         "Falsch",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+		}},
+	}
+	result, err := env.requestSvc.Submit(ctx, submission)
+	require.NoError(t, err)
+	require.Len(t, result.Children, 1)
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  result.Request.ID,
+		ChildID:    result.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	return submission, result
 }
 
 func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTargetsWhenCollectionIsDisabled(t *testing.T) {
