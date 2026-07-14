@@ -64,9 +64,11 @@ func (rs *Resource) Router() chi.Router {
 	// Protected routes that require authentication and permissions
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
-		// Read operations only require users:read permission
+		// Staff profile reads are also needed by the absence-management view.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStaff)
+		r.With(authorize.RequiresAnyPermission(permissions.UsersRead, permissions.TimeTrackingManage), withTx).Get("/{id}", rs.getStaff)
+
+		// Other staff reads require users:read permission.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/avatar", rs.serveStaffAvatar)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/groups", rs.getStaffGroups)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/substitutions", rs.getStaffSubstitutions)

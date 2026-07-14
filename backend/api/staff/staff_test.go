@@ -283,6 +283,36 @@ func TestGetStaff_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
+func TestGetStaff_AllowsTimeTrackingManage(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "TimeTrackingManager", "Profile")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d", staff.ID), nil,
+		testutil.WithJWTBearer(authToken(t, "time_tracking:manage")))
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
+}
+
+func TestGetStaff_RejectsUnrelatedPermission(t *testing.T) {
+	ctx := setupTestContext(t)
+	defer func() { _ = ctx.db.Close() }()
+
+	staff := testpkg.CreateTestStaff(t, ctx.db, "UnrelatedPermission", "Profile")
+	defer testpkg.CleanupStaffFixtures(t, ctx.db, staff.ID)
+
+	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/staff/%d", staff.ID), nil,
+		testutil.WithJWTBearer(authToken(t, "rooms:read")))
+
+	rr := testutil.ExecuteRequest(ctx.router, req)
+
+	testutil.AssertErrorResponse(t, rr, http.StatusForbidden)
+}
+
 func TestGetStaff_NotFound(t *testing.T) {
 	ctx := setupTestContext(t)
 	defer func() { _ = ctx.db.Close() }()
