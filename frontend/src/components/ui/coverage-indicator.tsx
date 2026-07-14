@@ -12,7 +12,7 @@
  */
 
 export type CoverageState = "covered" | "gap" | "acknowledged";
-export type CoverageIndicatorSize = "sm" | "md";
+type CoverageIndicatorSize = "sm" | "md";
 
 interface CoverageIndicatorProps {
   /** Deckungszustand, vom Aufrufer aus Fachdaten abgeleitet. */

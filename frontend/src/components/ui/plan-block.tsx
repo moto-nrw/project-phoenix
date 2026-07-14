@@ -12,8 +12,8 @@ import type { MouseEventHandler, ReactNode } from "react";
  * `repeating-linear-gradient` hatch below — see plan-design-guards.test.ts.
  */
 
-export type PlanBlockSize = "default" | "compact";
-export type PlanBlockStatus = "default" | "hatched" | "cancelled";
+type PlanBlockSize = "default" | "compact";
+type PlanBlockStatus = "default" | "hatched" | "cancelled";
 
 interface PlanBlockProps {
   /** Zeitspanne, z. B. "12:00–14:00". */
