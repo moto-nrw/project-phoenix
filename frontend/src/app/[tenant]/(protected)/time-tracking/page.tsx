@@ -217,6 +217,88 @@ function extractTimeFromISO(isoString: string): string {
 
 // ─── ClockInCard ──────────────────────────────────────────────────────────────
 
+// Schichtart chip: a color dot + label driven by the tenant-defined Schichtart
+// color the backend embeds (#1844). The color is data, not a brand hue, so the
+// inline style is intentional; falls back to neutral gray when absent.
+function ShiftTypeChip({
+  name,
+  color,
+}: {
+  readonly name: string;
+  readonly color: string | null;
+}) {
+  const dot = color ?? "#6B7280";
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+      <span
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ backgroundColor: dot }}
+      />
+      {name}
+    </span>
+  );
+}
+
+// Renders today's planned Dienstplan shifts under the Stempeluhr title: each
+// active shift with its Schichtart chip, a "Vertretung" tag for replacement
+// shifts, plus a muted line for shifts that do not take place ("entfällt"),
+// so Dienstplan-level changes are visible to the staff member (#1844).
+function PlannedShiftsInfo({
+  plannedShifts,
+  cancelledShifts,
+}: {
+  readonly plannedShifts?: readonly StaffShift[];
+  readonly cancelledShifts?: readonly StaffShift[];
+}) {
+  const active = plannedShifts ?? [];
+  const cancelled = cancelledShifts ?? [];
+  if (active.length === 0 && cancelled.length === 0) return null;
+  return (
+    <div className="-mt-3 mb-5 space-y-1 text-sm text-gray-500">
+      {active.map((shift) => (
+        <div key={shift.id} className="flex flex-wrap items-center gap-1.5">
+          <span className="text-gray-400">Geplant:</span>
+          {shift.shiftTypeName && (
+            <ShiftTypeChip
+              name={shift.shiftTypeName}
+              color={shift.shiftTypeColor}
+            />
+          )}
+          <span className="tabular-nums">
+            {shift.startTime}–{shift.endTime}
+          </span>
+          {shift.originShiftId && (
+            <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
+              Vertretung
+            </span>
+          )}
+          {shift.breakMinutes > 0 && (
+            <span className="text-gray-400">
+              · Pause {shift.breakMinutes} min
+            </span>
+          )}
+        </div>
+      ))}
+      {cancelled.map((shift) => (
+        <div
+          key={shift.id}
+          className="flex flex-wrap items-center gap-1.5 text-gray-400"
+        >
+          <span className="tabular-nums line-through">
+            {shift.startTime}–{shift.endTime}
+          </span>
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+            Entfällt
+          </span>
+          {shift.changeReason && (
+            <span className="italic">{shift.changeReason}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function formatTimeFromDate(date: Date): string {
   return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
 }
@@ -496,6 +578,7 @@ function ClockInCard({
   onAddAbsence,
   metrics,
   plannedShifts,
+  cancelledShifts,
 }: {
   readonly currentSession: WorkSession | null;
   readonly breaks: WorkSessionBreak[];
@@ -507,6 +590,7 @@ function ClockInCard({
   readonly onAddAbsence: () => void;
   readonly metrics?: ReturnType<typeof computeStaffMetrics> | null;
   readonly plannedShifts?: readonly StaffShift[];
+  readonly cancelledShifts?: readonly StaffShift[];
 }) {
   // Null until the staff member explicitly picks Vor Ort / Homeoffice / Abwesend.
   // No pre-selection per Issue #1368 — silent defaults are unacceptable for an
@@ -787,18 +871,13 @@ function ClockInCard({
           )}
         </div>
 
-        {/* Heute geplante Schichten (Dienstplan) — dezente Zeile unter dem
-            Titel. Geteilte Dienste zeigen alle Zeitbereiche des Tages. */}
-        {plannedShifts && plannedShifts.length > 0 && (
-          <p className="-mt-3 mb-5 text-sm text-gray-500 tabular-nums">
-            Geplant:{" "}
-            {plannedShifts
-              .map((s) => `${s.startTime}–${s.endTime}`)
-              .join(" · ")}
-            {plannedShifts.reduce((sum, s) => sum + s.breakMinutes, 0) > 0 &&
-              ` · Pause ${plannedShifts.reduce((sum, s) => sum + s.breakMinutes, 0)} min`}
-          </p>
-        )}
+        {/* Heute geplante Schichten (Dienstplan) — dezente Zeilen unter dem
+            Titel: Schichtart als farbiger Chip, Vertretungen und entfallene
+            Schichten sichtbar (#1844). Geteilte Dienste zeigen jede Schicht. */}
+        <PlannedShiftsInfo
+          plannedShifts={plannedShifts}
+          cancelledShifts={cancelledShifts}
+        />
 
         {/* ── Not checked in: start controls ── */}
         {!isCheckedIn && !isCheckedOut && (
@@ -3024,10 +3103,20 @@ function TimeTrackingContent() {
     () =>
       (ownTodayShifts ?? [])
         // A cancelled shift does not take place (#1841): the person is absent
-        // or the gap is left open, so it must not appear as a planned shift in
+        // or the gap is left open, so it must not appear as a *planned* shift in
         // the Stempeluhr. A replacement is the covering person's own shift and
-        // shows for them normally.
+        // shows for them normally (tagged "Vertretung", #1844).
         .filter((s) => s.date === todayISO && !s.cancelled)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [ownTodayShifts, todayISO],
+  );
+  // Cancelled shifts are shown separately as "entfällt" so Dienstplan-level
+  // changes stay visible to the staff member instead of silently vanishing
+  // (#1844, AC 2).
+  const todayCancelledShifts = useMemo(
+    () =>
+      (ownTodayShifts ?? [])
+        .filter((s) => s.date === todayISO && s.cancelled)
         .sort((a, b) => a.startTime.localeCompare(b.startTime)),
     [ownTodayShifts, todayISO],
   );
@@ -3615,6 +3704,7 @@ function TimeTrackingContent() {
           onAddAbsence={() => setAbsenceModalOpen(true)}
           metrics={ownMetrics ?? null}
           plannedShifts={todayShifts}
+          cancelledShifts={todayCancelledShifts}
         />
         <WeekChart
           history={history}

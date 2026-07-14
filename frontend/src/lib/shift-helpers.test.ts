@@ -31,6 +31,8 @@ describe("mapStaffShift", () => {
       endTime: "16:00",
       breakMinutes: 30,
       shiftTypeId: null,
+      shiftTypeName: null,
+      shiftTypeColor: null,
       notes: "Frühdienst",
       seriesId: null,
       detached: false,
@@ -38,6 +40,22 @@ describe("mapStaffShift", () => {
       changeReason: null,
       originShiftId: null,
     });
+  });
+
+  it("maps the embedded Schichtart name and color (#1844)", () => {
+    const mapped = mapStaffShift({
+      id: 42,
+      staff_id: 7,
+      date: "2026-07-06",
+      start_time: "08:00",
+      end_time: "16:00",
+      break_minutes: 0,
+      shift_type_id: 5,
+      shift_type_name: "Betreuung",
+      shift_type_color: "#83CD2D",
+    });
+    expect(mapped.shiftTypeName).toBe("Betreuung");
+    expect(mapped.shiftTypeColor).toBe("#83CD2D");
   });
 
   it("maps shift_type_id to a string id and defaults it to null", () => {
@@ -184,6 +202,8 @@ describe("mapStaffScheduleOverview", () => {
           endTime: "16:00",
           breakMinutes: 30,
           shiftTypeId: "5",
+          shiftTypeName: null,
+          shiftTypeColor: null,
           notes: "Frühdienst",
           seriesId: null,
           detached: false,
