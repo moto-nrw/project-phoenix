@@ -574,9 +574,18 @@ func (s *workSessionService) detectPlannedDeviation(ctx context.Context, staffID
 		return nil, nil
 	}
 
-	shifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, []int64{staffID}, day)
+	allShifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, []int64{staffID}, day)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load planned shifts: %w", err)
+	}
+	// A cancelled shift does not take place (#1841), so it must not widen the
+	// planned window: with an active 08:00–12:00 shift and a cancelled
+	// 12:00–16:00 shift, a 15:00 checkout IS a deviation.
+	shifts := make([]*scheduleModels.StaffShift, 0, len(allShifts))
+	for _, shift := range allShifts {
+		if !shift.Cancelled {
+			shifts = append(shifts, shift)
+		}
 	}
 	if len(shifts) == 0 {
 		return nil, nil

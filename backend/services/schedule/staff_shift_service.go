@@ -187,7 +187,9 @@ func (s *staffShiftService) ListShifts(ctx context.Context, start, end timezone.
 	if err != nil {
 		return nil, err
 	}
-	s.attachShiftTypes(ctx, shifts)
+	if err := s.attachShiftTypes(ctx, shifts); err != nil {
+		return nil, err
+	}
 	return shifts, nil
 }
 
@@ -202,7 +204,9 @@ func (s *staffShiftService) ListShiftsForStaff(ctx context.Context, staffID int6
 	if err != nil {
 		return nil, err
 	}
-	s.attachShiftTypes(ctx, shifts)
+	if err := s.attachShiftTypes(ctx, shifts); err != nil {
+		return nil, err
+	}
 	return shifts, nil
 }
 
@@ -210,12 +214,13 @@ func (s *staffShiftService) ListShiftsForStaff(ctx context.Context, staffID int6
 // color) and sets StaffShift.ShiftType, so a reader who cannot call the
 // admin-only /api/shift-types endpoint still gets the label (#1844). One tenant
 // has a handful of shift types, so a single ListShiftTypes call is cheaper than
-// per-shift lookups. Best-effort: a nil shiftTypes dependency (unit tests) or a
-// lookup error leaves ShiftType nil — the shift still renders with just its
-// times, never fails the list.
-func (s *staffShiftService) attachShiftTypes(ctx context.Context, shifts []*scheduleModels.StaffShift) {
+// per-shift lookups. A nil shiftTypes dependency (unit tests) is a no-op; a
+// lookup error propagates — these reads run inside TenantTxMiddleware, where a
+// failed statement can abort the transaction, so swallowing it would return a
+// 200 whose commit then fails after the response was written.
+func (s *staffShiftService) attachShiftTypes(ctx context.Context, shifts []*scheduleModels.StaffShift) error {
 	if s.shiftTypes == nil || len(shifts) == 0 {
-		return
+		return nil
 	}
 	needsType := false
 	for _, sh := range shifts {
@@ -225,14 +230,11 @@ func (s *staffShiftService) attachShiftTypes(ctx context.Context, shifts []*sche
 		}
 	}
 	if !needsType {
-		return
+		return nil
 	}
 	types, err := s.shiftTypes.ListShiftTypes(ctx)
 	if err != nil {
-		s.getLogger().WarnContext(ctx, "could not resolve shift types for shift list, labels omitted",
-			slog.String("error", err.Error()),
-		)
-		return
+		return fmt.Errorf("failed to resolve shift types: %w", err)
 	}
 	byID := make(map[int64]*scheduleModels.ShiftType, len(types))
 	for _, t := range types {
@@ -243,6 +245,7 @@ func (s *staffShiftService) attachShiftTypes(ctx context.Context, shifts []*sche
 			sh.ShiftType = byID[*sh.ShiftTypeID]
 		}
 	}
+	return nil
 }
 
 // checkOverlap rejects the shift when it intersects another shift of the

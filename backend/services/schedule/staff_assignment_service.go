@@ -3,6 +3,8 @@ package schedule
 import (
 	"cmp"
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -119,8 +121,14 @@ func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, st
 		return []*StaffAssignment{}, nil
 	}
 
-	roomNames := s.resolveRoomNames(ctx, mine, instanceByID)
-	groupNames := s.groupNameResolver(ctx)
+	roomNames, err := s.resolveRoomNames(ctx, mine, instanceByID)
+	if err != nil {
+		return nil, err
+	}
+	groupNames, err := s.resolveGroupNames(ctx, mine, instanceByID)
+	if err != nil {
+		return nil, err
+	}
 
 	assignments := make([]*StaffAssignment, 0, len(mine))
 	for _, row := range mine {
@@ -135,7 +143,7 @@ func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, st
 		a := &StaffAssignment{
 			InstanceID:      inst.ID,
 			Title:           inst.Title,
-			GroupName:       groupNames(inst.ActivityGroupID),
+			GroupName:       groupNameFor(inst.ActivityGroupID, groupNames),
 			RoomName:        roomNames[roomID],
 			Date:            inst.Date,
 			StartTime:       timezone.WallClock(inst.StartTime),
@@ -163,8 +171,10 @@ func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, st
 
 // resolveRoomNames batch-loads the rooms referenced by the assignments (either
 // the instance's primary room or a per-row override) into an id→name map. A
-// lookup failure logs and yields an empty name rather than failing the list.
-func (s *staffAssignmentService) resolveRoomNames(ctx context.Context, rows []*scheduleModels.InstanceStaff, instanceByID map[int64]*scheduleModels.ActivityInstance) map[int64]string {
+// lookup failure propagates: the room is the "Ort" this feature exists to show,
+// and these reads run inside TenantTxMiddleware, where a failed statement can
+// abort the transaction and make the commit fail after a 200 was written.
+func (s *staffAssignmentService) resolveRoomNames(ctx context.Context, rows []*scheduleModels.InstanceStaff, instanceByID map[int64]*scheduleModels.ActivityInstance) (map[int64]string, error) {
 	idSet := make(map[int64]struct{})
 	for _, row := range rows {
 		if inst := instanceByID[row.InstanceID]; inst != nil {
@@ -180,44 +190,57 @@ func (s *staffAssignmentService) resolveRoomNames(ctx context.Context, rows []*s
 	}
 	names := make(map[int64]string, len(ids))
 	if len(ids) == 0 {
-		return names
+		return names, nil
 	}
 	rooms, err := s.deps.RoomRepo.FindByIDs(ctx, ids)
 	if err != nil {
-		s.getLogger().WarnContext(ctx, "could not resolve room names for staff assignments, names omitted",
-			slog.String("error", err.Error()),
-		)
-		return names
+		return nil, fmt.Errorf("failed to resolve room names for staff assignments: %w", err)
 	}
 	for _, room := range rooms {
 		names[room.ID] = room.Name
 	}
-	return names
+	return names, nil
 }
 
-// groupNameResolver returns a memoized lookup from an optional activity-group id
-// to its name. Spontaneous instances (nil group) return nil. A lookup error is
-// logged once per id and treated as "no name".
-func (s *staffAssignmentService) groupNameResolver(ctx context.Context) func(*int64) *string {
-	cache := make(map[int64]*string)
-	return func(groupID *int64) *string {
-		if groupID == nil {
-			return nil
+// resolveGroupNames loads the activity-group name for every group referenced by
+// the assignments into an id→name map. A row that is genuinely gone (archived/
+// deleted group) is tolerated as "no name"; any other lookup failure propagates
+// for the same transaction-abort reason as resolveRoomNames.
+func (s *staffAssignmentService) resolveGroupNames(ctx context.Context, rows []*scheduleModels.InstanceStaff, instanceByID map[int64]*scheduleModels.ActivityInstance) (map[int64]string, error) {
+	names := make(map[int64]string)
+	for _, row := range rows {
+		inst := instanceByID[row.InstanceID]
+		if inst == nil || inst.ActivityGroupID == nil {
+			continue
 		}
-		if name, ok := cache[*groupID]; ok {
-			return name
+		groupID := *inst.ActivityGroupID
+		if _, ok := names[groupID]; ok {
+			continue
 		}
-		group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *groupID)
+		group, err := s.deps.ActivityGroupRepo.FindByID(ctx, groupID)
 		if err != nil {
-			s.getLogger().WarnContext(ctx, "could not resolve activity group name for staff assignment",
-				slog.Int64("activity_group_id", *groupID),
-				slog.String("error", err.Error()),
-			)
-			cache[*groupID] = nil
-			return nil
+			if errors.Is(err, sql.ErrNoRows) {
+				s.getLogger().WarnContext(ctx, "activity group referenced by staff assignment no longer exists, name omitted",
+					slog.Int64("activity_group_id", groupID),
+				)
+				continue
+			}
+			return nil, fmt.Errorf("failed to resolve activity group name for staff assignment: %w", err)
 		}
-		name := group.Name
-		cache[*groupID] = &name
-		return &name
+		names[groupID] = group.Name
 	}
+	return names, nil
+}
+
+// groupNameFor maps an optional activity-group id through the resolved name
+// map; spontaneous instances (nil group) and vanished groups yield nil.
+func groupNameFor(groupID *int64, names map[int64]string) *string {
+	if groupID == nil {
+		return nil
+	}
+	name, ok := names[*groupID]
+	if !ok {
+		return nil
+	}
+	return &name
 }

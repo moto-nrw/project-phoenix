@@ -255,6 +255,11 @@ export function useGlobalSSE(): SSEHookState {
         (key) =>
           typeof key === "string" &&
           (key.includes("timetable-") ||
+            // "Heute geplant" card on the Zeiterfassung page (#1844): its
+            // assignments come from activity instances, so a same-day cancel/
+            // start/complete must refetch it — the card disables focus
+            // revalidation, making this its only live update path.
+            key.includes("time-tracking-own-assignments-") ||
             key.includes("database-calendar-periods-list")),
       ).catch((err) => {
         logger.debug("swr_revalidation_failed", {

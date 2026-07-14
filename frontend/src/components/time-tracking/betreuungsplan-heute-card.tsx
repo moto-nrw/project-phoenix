@@ -3,7 +3,7 @@
 import { CalendarClock, MapPin } from "lucide-react";
 
 import { InfoCard } from "~/components/ui/info-card";
-import { todayISO } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { ownShiftService } from "~/lib/shift-api";
 import type { OwnAssignment } from "~/lib/shift-helpers";
 import { useSWRAuth } from "~/lib/swr";
@@ -14,7 +14,10 @@ import { useSWRAuth } from "~/lib/swr";
 // Kindernamen (GDPR). Rendert nichts, wenn die Schule keinen Betreuungsplan
 // pflegt (leere Liste), damit die Seite nicht mit einer leeren Karte zusteht.
 export function BetreuungsplanHeuteCard() {
-  const today = todayISO();
+  // Berlin, not browser-local: the backend defines "today" in Europe/Berlin,
+  // and a browser in another timezone around midnight would otherwise fetch
+  // yesterday's/tomorrow's assignments and label them "Heute geplant".
+  const today = useBerlinToday();
   const { data: assignments } = useSWRAuth<OwnAssignment[]>(
     `time-tracking-own-assignments-today-${today}`,
     () => ownShiftService.getOwnAssignments(today, today),
