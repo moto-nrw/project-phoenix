@@ -805,6 +805,7 @@
     "changeRequestsDescription": "Këtu shihni kërkesat që janë ende në shqyrtim, pyetjet nga OGS dhe vendimet e përfunduara.",
     "changeRequestsEmpty": "Ende nuk është dërguar asnjë kërkesë për ndryshim.",
     "changeRequestCreated": "Dërguar më {date}",
+    "changeRequestAdminCorrection": "Korrigjuar nga OGS më {date}",
     "changeRequestDiffTitle": "Ndryshimet e kërkuara",
     "changeRequestDiffEmpty": "Nuk ka ndryshime të dallueshme në fusha.",
     "changeRequestBefore": "Më parë",

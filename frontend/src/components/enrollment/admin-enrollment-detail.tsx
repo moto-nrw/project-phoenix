@@ -36,6 +36,7 @@ import {
 import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
 import { availableCareOfferings } from "~/lib/care-offering-availability";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
+import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { createLogger } from "~/lib/logger";
 import {
@@ -123,6 +124,24 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
       setLoading(false);
     }
   }, [requestId]);
+
+  const handleDataCorrected = useCallback(
+    (correctedChild: AdminRequestChild) => {
+      setData((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          children: current.children.map((existingChild) =>
+            existingChild.id === correctedChild.id
+              ? { ...existingChild, ...correctedChild }
+              : existingChild,
+          ),
+        };
+      });
+      void load();
+    },
+    [load],
+  );
 
   useEffect(() => {
     void load();
@@ -250,6 +269,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   }
                   onDecide={(status) => void handleDecide(child.id, status)}
                   onOfferingsChanged={() => void load()}
+                  onDataCorrected={handleDataCorrected}
                 />
               ))}
             </section>
@@ -388,6 +408,7 @@ function ChildInformationCard({
   busy,
   child,
   onDecide,
+  onDataCorrected,
   onOfferingsChanged,
   onReasonChange,
   phaseId,
@@ -401,6 +422,7 @@ function ChildInformationCard({
   requestId: string;
   phaseId: string;
   onDecide: (status: DecisionStatus) => void;
+  onDataCorrected: (correctedChild: AdminRequestChild) => void;
   onOfferingsChanged: () => void;
   onReasonChange: (value: string) => void;
   reason: string;
@@ -452,13 +474,20 @@ function ChildInformationCard({
           </p>
         ) : null}
         {child.status === "approved" && child.created_student_id ? (
-          <Link
-            href={studentHref}
-            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            Kind &amp; Einladung verwalten
-            <ExternalLink className="h-4 w-4" aria-hidden="true" />
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={studentHref}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            >
+              Kind &amp; Einladung verwalten
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <AdminChildDataCorrection
+              requestId={requestId}
+              child={child}
+              onSaved={onDataCorrected}
+            />
+          </div>
         ) : null}
         <ChildOfferings offerings={child.offerings} />
         {child.status === "approved" ? (
@@ -472,7 +501,8 @@ function ChildInformationCard({
         <ChildExtraFields child={child} schemaFields={schemaFields} />
         {terminal ? (
           <div className="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
-            Diese Entscheidung ist final.
+            Die Entscheidung ist final. Bei bestätigten Kindern können falsche
+            Anmeldedaten weiterhin gezielt korrigiert werden.
           </div>
         ) : (
           <DecisionPanel

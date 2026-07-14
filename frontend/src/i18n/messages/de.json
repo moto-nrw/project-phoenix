@@ -805,6 +805,7 @@
     "changeRequestsDescription": "Hier sehen Sie Anfragen, die noch geprüft werden, Rückfragen der OGS und abgeschlossene Entscheidungen.",
     "changeRequestsEmpty": "Noch keine Änderungsanfrage gesendet.",
     "changeRequestCreated": "Gesendet am {date}",
+    "changeRequestAdminCorrection": "Von der OGS korrigiert am {date}",
     "changeRequestDiffTitle": "Angefragte Änderungen",
     "changeRequestDiffEmpty": "Keine erkennbaren Feldänderungen.",
     "changeRequestBefore": "Bisher",

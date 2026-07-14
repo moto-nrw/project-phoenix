@@ -11,6 +11,8 @@ import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { useCareOfferingsEnabled } from "~/lib/tenant-context";
 
 const mocks = vi.hoisted(() => ({
+  getAdminRequest: vi.fn(),
+  correctAdminChildData: vi.fn(),
   listCareOfferings: vi.fn(),
   listAdminChildOfferingAdjustments: vi.fn(),
   updateAdminChildOfferings: vi.fn(),
@@ -24,12 +26,15 @@ vi.mock("~/lib/enrollment-admin-api", async (importOriginal) => {
   const actual = (await importOriginal()) as Record<string, unknown>;
   return {
     ...actual,
+    getAdminRequest: mocks.getAdminRequest,
+    correctAdminChildData: mocks.correctAdminChildData,
     listAdminChildOfferingAdjustments: mocks.listAdminChildOfferingAdjustments,
     updateAdminChildOfferings: mocks.updateAdminChildOfferings,
   };
 });
 
 import {
+  AdminEnrollmentDetail,
   ChildOfferingAdjustment,
   ChildOfferings,
 } from "./admin-enrollment-detail";
@@ -91,11 +96,67 @@ function renderAdjustment(child: AdminRequestChild = adjustmentChild()) {
 }
 
 beforeEach(() => {
+  mocks.getAdminRequest.mockReset();
+  mocks.correctAdminChildData.mockReset();
   mocks.listCareOfferings.mockReset();
   mocks.listAdminChildOfferingAdjustments.mockReset();
   mocks.updateAdminChildOfferings.mockReset();
   mocks.listAdminChildOfferingAdjustments.mockResolvedValue([]);
   vi.mocked(useCareOfferingsEnabled).mockReturnValue(true);
+});
+
+describe("AdminEnrollmentDetail data correction", () => {
+  it("keeps the corrected child in local state when the follow-up reload fails", async () => {
+    const child: AdminRequestChild = {
+      id: "child-1",
+      first_name: "Lina",
+      last_name: "Falsch",
+      date_of_birth: "2018-04-15",
+      target_grade_level: 2,
+      target_school_class: "2a",
+      status: "approved",
+      activation_mode: "scheduled",
+      created_student_id: "student-1",
+    };
+    const request = {
+      id: "request-1",
+      phase_id: "phase-1",
+      phase_name: "2026/27",
+      guardian_first_name: "Mara",
+      guardian_last_name: "Beispiel",
+      guardian_email: "mara@example.com",
+      submitted_at: "2026-07-14T10:00:00Z",
+      status_token: "status-token",
+      children: [child],
+    };
+    const correctedChild = { ...child, last_name: "Richtig" };
+    mocks.getAdminRequest
+      .mockResolvedValueOnce(request)
+      .mockRejectedValueOnce(new Error("Refetch fehlgeschlagen"));
+    mocks.correctAdminChildData.mockResolvedValue({
+      request: { ...request, children: [correctedChild] },
+    });
+    vi.mocked(useCareOfferingsEnabled).mockReturnValue(false);
+
+    render(<AdminEnrollmentDetail requestId="request-1" />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Anmeldedaten korrigieren" }),
+    );
+    fireEvent.change(screen.getByLabelText("Nachname"), {
+      target: { value: "Richtig" },
+    });
+    fireEvent.change(screen.getByLabelText("Grund der Korrektur"), {
+      target: { value: "Nach Rücksprache berichtigt" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Korrektur speichern" }),
+    );
+
+    expect(
+      await screen.findAllByRole("heading", { name: "Lina Richtig" }),
+    ).not.toHaveLength(0);
+    expect(screen.getByText("Refetch fehlgeschlagen")).toBeInTheDocument();
+  });
 });
 
 describe("formatCustomValue", () => {
