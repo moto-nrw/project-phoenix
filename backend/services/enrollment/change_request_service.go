@@ -778,10 +778,6 @@ func (s *changeRequestService) prepareProposed(
 			editReq.Children[i].OfferingDays = nil
 		}
 	}
-	if err := normalizeSubmissionForCapabilities(&editReq, capabilities); err != nil {
-		return editReq, nil, nil, nil, err
-	}
-
 	phase, err := s.PhaseRepo.FindByID(ctx, req.PhaseID)
 	if err != nil || phase == nil || !phase.IsActive {
 		return editReq, nil, nil, nil, ErrEnrollmentDisabled
@@ -798,13 +794,24 @@ func (s *changeRequestService) prepareProposed(
 		openByID[offering.ID] = offering
 	}
 	changeRequestByID := map[int64]*enrollmentModels.CareOffering{}
-	var materializedSelections [][]materializedOfferingSelection
+	var offeringCatalogs []map[int64]*enrollmentModels.CareOffering
 	if capabilities.CareOfferingsEnabled {
-		offeringCatalogs, catalogByID, catalogErr := s.changeRequestOfferingCatalogs(ctx, children, openByID)
+		var catalogErr error
+		offeringCatalogs, changeRequestByID, catalogErr = s.changeRequestOfferingCatalogs(ctx, children, openByID)
 		if catalogErr != nil {
 			return editReq, nil, nil, nil, catalogErr
 		}
-		changeRequestByID = catalogByID
+	}
+	capabilityOfferings := openOfferings
+	if len(changeRequestByID) > 0 {
+		capabilityOfferings = slices.Collect(maps.Values(changeRequestByID))
+	}
+	capabilities = EffectiveFormCapabilities(capabilities, capabilityOfferings)
+	if err := normalizeSubmissionForCapabilities(&editReq, capabilities); err != nil {
+		return editReq, nil, nil, nil, err
+	}
+	var materializedSelections [][]materializedOfferingSelection
+	if capabilities.CareOfferingsEnabled {
 		materializedSelections, err = materializeAndValidateChangeRequestChildrenOfferingSelections(
 			editReq.Children,
 			children,
@@ -838,7 +845,7 @@ func (s *changeRequestService) prepareProposed(
 	if err := normalizeAdditionalGuardians(&editReq); err != nil {
 		return editReq, nil, nil, nil, err
 	}
-	if err := rs.validateSubmission(ctx, editReq, legalBlocks); err != nil {
+	if err := rs.validateSubmission(ctx, editReq, legalBlocks, capabilities); err != nil {
 		return editReq, nil, nil, nil, err
 	}
 	// Concrete-class rules (#1833) hang off the tenant setting + phase, so
@@ -978,9 +985,18 @@ func materializeAndValidateChangeRequestChildrenOfferingSelections(
 		if i < len(catalogs) && catalogs[i] != nil {
 			catalog = catalogs[i]
 		}
+		catalogHadEntries := len(catalog) > 0
 		if err := validateOfferingSelections([]SubmitChild{children[i]}, catalog); err != nil {
 			return nil, fmt.Errorf("child %d: %w", i, err)
 		}
+		availableCatalog, err := availableCareOfferingsForGrade(catalog, children[i].TargetGradeLevel)
+		if err != nil {
+			return nil, fmt.Errorf("child %d: %w", i, err)
+		}
+		if err := validateOfferingSelectionsForChild(children[i], catalog, availableCatalog); err != nil {
+			return nil, fmt.Errorf("child %d: %w", i, err)
+		}
+		catalog = availableCatalog
 		manualChild := cloneSubmitChildrenOfferingSelections([]SubmitChild{children[i]})[0]
 		selections, err := materializeOfferingSelections(children[i], catalog)
 		if err != nil {
@@ -993,8 +1009,10 @@ func materializeAndValidateChangeRequestChildrenOfferingSelections(
 		if err := validateRequiredOfferings([]SubmitChild{children[i]}, catalog); err != nil {
 			return nil, err
 		}
-		if err := validateCareOfferingSelectionMode([]SubmitChild{manualChild}, catalog, selectionMode); err != nil {
-			return nil, err
+		if !catalogHadEntries || hasChoosableCareOffering(catalog) {
+			if err := validateCareOfferingSelectionMode([]SubmitChild{manualChild}, catalog, selectionMode); err != nil {
+				return nil, err
+			}
 		}
 		if i < len(existingChildren) && existingChildren[i] == nil {
 			return nil, fmt.Errorf("%w: child %d missing existing row", ErrChangeRequestInvalidData, i)

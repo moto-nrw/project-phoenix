@@ -17,6 +17,7 @@ import {
 import {
   type CareOffering,
   type CareOfferingInput,
+  type CareOfferingAvailabilityCondition,
   type CareSelectionRule,
   type DaysOfWeekMode,
   SELECTION_RULE_LABELS,
@@ -26,6 +27,7 @@ import {
   listCareOfferings,
   updateCareOffering,
 } from "~/lib/care-offering-api";
+import { careOfferingAvailabilityRuleError } from "~/lib/care-offering-availability";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
@@ -115,6 +117,7 @@ function blankInput(phaseId: number): CareOfferingInput {
     is_required: false,
     counts_as_care: true,
     auto_add_grade_levels: [],
+    availability_rule: null,
     auto_add_trigger_offering_ids: [],
     sort_order: 0,
     selection_group: "",
@@ -140,6 +143,7 @@ function offeringToInput(offering: CareOffering): CareOfferingInput {
     is_required: offering.is_required,
     counts_as_care: offering.counts_as_care ?? true,
     auto_add_grade_levels: offering.auto_add_grade_levels ?? [],
+    availability_rule: offering.availability_rule ?? null,
     auto_add_trigger_offering_ids: [
       ...(offering.auto_add_trigger_offering_ids ?? []),
     ],
@@ -1657,6 +1661,255 @@ function CareOfferingAutomationFields({
   );
 }
 
+function CareOfferingAvailabilityFields({
+  draft,
+  gradeLevelMax,
+  onChange,
+}: Readonly<{
+  draft: CareOfferingInput;
+  gradeLevelMax: number | null;
+  onChange: (patch: Partial<CareOfferingInput>) => void;
+}>) {
+  const rule = draft.availability_rule;
+  const max = gradeLevelMax ?? 0;
+  const gradeOptions = Array.from({ length: max }, (_, index) => index + 1);
+  const updateCondition = (
+    index: number,
+    patch: Partial<CareOfferingAvailabilityCondition>,
+  ) => {
+    if (!rule) return;
+    onChange({
+      availability_rule: {
+        ...rule,
+        conditions: rule.conditions.map((condition, conditionIndex) =>
+          conditionIndex === index ? { ...condition, ...patch } : condition,
+        ),
+      },
+    });
+  };
+  const moveCondition = (index: number, offset: -1 | 1) => {
+    if (!rule) return;
+    const target = index + offset;
+    if (target < 0 || target >= rule.conditions.length) return;
+    const conditions = [...rule.conditions];
+    [conditions[index], conditions[target]] = [
+      conditions[target]!,
+      conditions[index]!,
+    ];
+    onChange({ availability_rule: { ...rule, conditions } });
+  };
+  const error = careOfferingAvailabilityRuleError(rule, gradeLevelMax);
+
+  return (
+    <fieldset className="rounded-xl border border-gray-200 p-4">
+      <legend className="px-1 text-xs font-medium text-gray-700">
+        Bedingungen für die Verfügbarkeit
+      </legend>
+      <CareOfferingCheckbox
+        checked={rule !== null}
+        onChange={(checked) =>
+          onChange({
+            availability_rule: checked
+              ? {
+                  match: "all",
+                  conditions: [
+                    { source: "grade_level", operator: "in", value: [] },
+                  ],
+                }
+              : null,
+          })
+        }
+        label={
+          rule
+            ? "Nur unter Bedingungen anbieten"
+            : "Für alle Klassenstufen / ohne Bedingungen"
+        }
+        hint="Ohne Bedingungen ist dieses Angebot für jedes Kind verfügbar."
+      />
+      {rule ? (
+        <div className="mt-4 space-y-3">
+          {rule.conditions.length > 1 ? (
+            <label className="block" htmlFor="care-offering-availability-match">
+              <span className="text-xs font-medium text-gray-700">
+                Mehrere Bedingungen
+              </span>
+              <CustomSelect
+                id="care-offering-availability-match"
+                value={rule.match}
+                onChange={(value) =>
+                  onChange({
+                    availability_rule: {
+                      ...rule,
+                      match: value as "all" | "any",
+                    },
+                  })
+                }
+                className="mt-1"
+                options={[
+                  {
+                    value: "all",
+                    label: "Alle Bedingungen müssen erfüllt sein",
+                  },
+                  {
+                    value: "any",
+                    label: "Mindestens eine Bedingung muss erfüllt sein",
+                  },
+                ]}
+              />
+            </label>
+          ) : null}
+          {rule.conditions.map((condition, index) => (
+            <div
+              key={`${condition.source}-${index}`}
+              className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-gray-800">
+                  Bedingung {index + 1}
+                </p>
+                <div className="flex gap-1">
+                  <button
+                    type="button"
+                    disabled={index === 0}
+                    onClick={() => moveCondition(index, -1)}
+                    className="rounded border border-gray-200 bg-white px-2 py-1 text-xs disabled:opacity-40"
+                    aria-label={`Bedingung ${index + 1} nach oben`}
+                  >
+                    ↑
+                  </button>
+                  <button
+                    type="button"
+                    disabled={index === rule.conditions.length - 1}
+                    onClick={() => moveCondition(index, 1)}
+                    className="rounded border border-gray-200 bg-white px-2 py-1 text-xs disabled:opacity-40"
+                    aria-label={`Bedingung ${index + 1} nach unten`}
+                  >
+                    ↓
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onChange({
+                        availability_rule: {
+                          ...rule,
+                          conditions: rule.conditions.filter(
+                            (_, i) => i !== index,
+                          ),
+                        },
+                      })
+                    }
+                    className="rounded border border-[#FF3130]/30 bg-white px-2 py-1 text-xs text-[#CC2626]"
+                    aria-label={`Bedingung ${index + 1} löschen`}
+                  >
+                    Löschen
+                  </button>
+                </div>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label
+                  className="block"
+                  htmlFor={`availability-source-${index}`}
+                >
+                  <span className="text-xs font-medium text-gray-700">
+                    Bedingungsquelle
+                  </span>
+                  <CustomSelect
+                    id={`availability-source-${index}`}
+                    value="grade_level"
+                    onChange={() => undefined}
+                    options={[
+                      {
+                        value: "grade_level",
+                        label: "Klassenstufe des Kindes",
+                      },
+                    ]}
+                    className="mt-1"
+                  />
+                </label>
+                <label
+                  className="block"
+                  htmlFor={`availability-operator-${index}`}
+                >
+                  <span className="text-xs font-medium text-gray-700">
+                    Operator
+                  </span>
+                  <CustomSelect
+                    id={`availability-operator-${index}`}
+                    value={condition.operator}
+                    onChange={(value) =>
+                      updateCondition(index, {
+                        operator: value as "in" | "not_in",
+                      })
+                    }
+                    options={[
+                      { value: "in", label: "ist eine von" },
+                      { value: "not_in", label: "ist keine von" },
+                    ]}
+                    className="mt-1"
+                  />
+                </label>
+              </div>
+              <div className="mt-3">
+                <p className="text-xs font-medium text-gray-700">
+                  Klassenstufen
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {gradeOptions.map((grade) => {
+                    const active = condition.value.includes(grade);
+                    return (
+                      <button
+                        key={grade}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() =>
+                          updateCondition(index, {
+                            value: [
+                              ...toggleSetValue(condition.value, grade),
+                            ].sort((a, b) => a - b),
+                          })
+                        }
+                        className={`h-8 rounded-lg border px-3 text-xs font-medium ${active ? "border-gray-900 bg-gray-900 text-white" : "border-gray-200 bg-white text-gray-700"}`}
+                      >
+                        Klasse {grade}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ))}
+          <button
+            type="button"
+            onClick={() =>
+              onChange({
+                availability_rule: {
+                  ...rule,
+                  conditions: [
+                    ...rule.conditions,
+                    { source: "grade_level", operator: "in", value: [] },
+                  ],
+                },
+              })
+            }
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700"
+          >
+            <Plus className="h-4 w-4" />
+            Bedingung hinzufügen
+          </button>
+          {error ? (
+            <p
+              role="alert"
+              className="rounded-lg border border-[#FF3130]/30 bg-[#FF3130]/10 px-3 py-2 text-xs text-[#CC2626]"
+            >
+              {error}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </fieldset>
+  );
+}
+
 function nullableNumber(value: string): number | null {
   return value === "" ? null : Number(value);
 }
@@ -1999,6 +2252,12 @@ function CareOfferingForm({
 
       <CareOfferingWeekdayFields draft={draft} onChange={update} />
 
+      <CareOfferingAvailabilityFields
+        draft={draft}
+        gradeLevelMax={gradeLevelMax}
+        onChange={update}
+      />
+
       <CareOfferingAutomationFields
         draft={draft}
         offerings={offerings}
@@ -2020,7 +2279,11 @@ function CareOfferingForm({
           !draft.name.trim() ||
           linkedTemplatePeriodMismatch ||
           linkedTemplateWeekdayMismatch ||
-          unverifiableTemplateChange
+          unverifiableTemplateChange ||
+          careOfferingAvailabilityRuleError(
+            draft.availability_rule,
+            gradeLevelMax,
+          ) !== null
         }
         onCancel={onCancel}
       />

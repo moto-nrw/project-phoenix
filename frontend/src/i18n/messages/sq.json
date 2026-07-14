@@ -645,7 +645,8 @@
       "lunch": "përfshin drekën",
       "ruleExactlyOne": "Ju lutemi zgjidhni saktësisht një",
       "ruleAtLeastOne": "Ju lutemi zgjidhni të paktën një",
-      "ruleAtMostOne": "Më së shumti një"
+      "ruleAtMostOne": "Më së shumti një",
+      "availabilitySelectionRemoved": "Disa oferta kujdesi nuk janë më të disponueshme për klasën e zgjedhur. Zgjedhjet, ditët dhe shtesat automatike u hoqën."
     },
     "captchaMisconfigured": "Regjistrimi aktualisht nuk është i mundur: konfigurimi i mbrojtjes kundër botëve është i paplotë. Ju lutemi kontaktoni drejtimin e OGS-së.",
     "structured": {

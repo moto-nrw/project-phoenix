@@ -632,7 +632,8 @@
       "lunch": "incl. lunch",
       "ruleExactlyOne": "Please choose exactly one",
       "ruleAtLeastOne": "Please choose at least one",
-      "ruleAtMostOne": "At most one"
+      "ruleAtMostOne": "At most one",
+      "availabilitySelectionRemoved": "Some care offerings are no longer available for the selected grade. Their selections, days, and automatic additions were removed."
     },
     "consent": {
       "agb": "I accept the school's terms and conditions.",

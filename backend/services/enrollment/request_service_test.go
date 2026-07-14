@@ -1125,6 +1125,34 @@ func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOfferin
 	assert.False(t, inactiveCurrent.IsActive)
 }
 
+func TestRequestService_GetEditDraft_PreservesGradeCapabilityForInactiveConditionalOffering(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
+	offering := setupCareOfferingForCapacity(t, env, 10)
+	offering.AvailabilityRule = requestTestGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1)
+	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
+
+	req := validSubmission(env.phaseID)
+	req.GuardianEmail = "draft-inactive-conditional@example.com"
+	req.Children[0].TargetGradeLevel = testpkg.Int16Ptr(1)
+	req.Children[0].OfferingIDs = []int64{offering.ID}
+	submitted, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	enableChangeRequestMode(t, env, submitted.Children[0].ID)
+
+	offering.IsActive = false
+	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
+
+	draft, err := env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
+	require.NoError(t, err)
+	assert.True(t, draft.CollectGradeLevel)
+	require.NotNil(t, draft.Children[0].TargetGradeLevel)
+	assert.Equal(t, int16(1), *draft.Children[0].TargetGradeLevel)
+}
+
 func TestRequestService_GetEditDraft_RejectsInvalidGradeLevelSetting(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
@@ -1836,6 +1864,17 @@ func setupCareOfferingForCapacity(t *testing.T, env *requestTestEnv, capacity in
 	offering.SetTenantID(1)
 	require.NoError(t, repoFactory.CareOffering.Create(ctx, offering))
 	return offering
+}
+
+func requestTestGradeAvailabilityRule(operator string, values ...int) *enrollmentModels.CareOfferingAvailabilityRule {
+	return &enrollmentModels.CareOfferingAvailabilityRule{
+		Match: enrollmentModels.AvailabilityMatchAll,
+		Conditions: []enrollmentModels.CareOfferingAvailabilityCondition{{
+			Source:   enrollmentModels.AvailabilitySourceGradeLevel,
+			Operator: operator,
+			Value:    values,
+		}},
+	}
 }
 
 // setPhaseOverflowMode is the phase-model replacement for the old

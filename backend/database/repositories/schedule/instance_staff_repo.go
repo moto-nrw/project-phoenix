@@ -132,6 +132,35 @@ func (r *InstanceStaffRepository) FindByStaffAndDate(ctx context.Context, staffI
 	return rows, nil
 }
 
+// FindByStaffAndDateRange returns the staff member's assignments across all
+// instances dated within [from, to] inclusive, ordered by instance date then
+// start time. Custom method (backend-conventions Rule 2): the date predicate
+// lives on the joined activity_instances table, which the generic filter
+// shape cannot express. Keeps the self-service assignment read (#1844)
+// proportional to one staff member's plan instead of the whole tenant window.
+func (r *InstanceStaffRepository) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*schedule.InstanceStaff, error) {
+	var rows []*schedule.InstanceStaff
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(modelTblInstanceStaff).
+		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_staff".instance_id`).
+		Where(`"instance_staff".staff_id = ?`, staffID).
+		Where(`"activity_instance".date >= ?`, from).
+		Where(`"activity_instance".date <= ?`, to).
+		OrderExpr(`"activity_instance".date ASC, "activity_instance".start_time ASC, "instance_staff".id ASC`)
+
+	query = base.WithTenantFilter(ctx, query, aliasInstanceStaff)
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by staff and date range",
+			Err: err,
+		}
+	}
+	return rows, nil
+}
+
 // DeleteUpcomingByStaffID removes the staff member's assignments on instances
 // dated strictly after the given date, plus same-day instances that are still
 // 'planned' — those would otherwise be copied into active.group_supervisors

@@ -303,6 +303,7 @@ GET /api/suggestions/unread-count
 GET /api/suggestions/{id}
 GET /api/suggestions/{id}/comments/
 GET /api/time-tracking/absences
+GET /api/time-tracking/assignments
 GET /api/time-tracking/breaks/{sessionId}
 GET /api/time-tracking/config
 GET /api/time-tracking/current

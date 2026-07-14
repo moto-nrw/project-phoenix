@@ -208,6 +208,9 @@ func (f *fakeInstanceRepo) FindByActivityGroupAndDateRange(_ context.Context, _ 
 func (f *fakeInstanceRepo) FindByActiveGroupID(_ context.Context, _ int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
+func (f *fakeInstanceRepo) FindByIDs(_ context.Context, _ []int64) ([]*scheduleModel.ActivityInstance, error) {
+	return nil, nil
+}
 func (f *fakeInstanceRepo) MarkCompleted(_ context.Context, _ int64, _ time.Time) error {
 	return nil
 }

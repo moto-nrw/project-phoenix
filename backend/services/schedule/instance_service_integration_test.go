@@ -402,6 +402,59 @@ func TestInstance_Start_BroadcastsGroupAndTenantTimetableEvent(t *testing.T) {
 	assert.Equal(t, groupCalls[0].Event.ActiveGroupID, tenantCalls[1].Event.ActiveGroupID)
 }
 
+// TestInstance_PlannedCRUD_BroadcastsStaffingDeviationChanged pins the SSE
+// invalidation for ordinary planned-instance CRUD (#1844): create, edit and
+// delete trigger no lifecycle transition, so no instance_* event fires — the
+// tenant-wide staffing_deviation_changed signal is the only thing keeping an
+// open "Heute geplant" card (focus revalidation disabled) or planner from
+// staying stale until reload.
+func TestInstance_PlannedCRUD_BroadcastsStaffingDeviationChanged(t *testing.T) {
+	s := buildLifecycle(t)
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	svc := instanceServiceWithBroadcaster(s, broadcaster)
+
+	deviationSources := func() []string {
+		sources := []string{}
+		for _, call := range broadcaster.CallsByMethod("tenant") {
+			if call.Event.Type == realtime.EventStaffingDeviationChanged {
+				require.NotNil(t, call.Event.Data.Source)
+				sources = append(sources, *call.Event.Data.Source)
+			}
+		}
+		return sources
+	}
+
+	inst, err := svc.Create(s.ctx, scheduleSvc.CreateInstanceInput{
+		Date:      timezone.NewDate(2026, 4, 21),
+		StartTime: time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC),
+		Title:     "CRUD-Broadcast-Test",
+		RoomID:    s.roomID,
+		StaffIDs:  []int64{s.staffID},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID)
+	})
+	assert.Equal(t, []string{"instance_create"}, deviationSources())
+
+	_, err = svc.UpdatePlanned(s.ctx, inst.ID, scheduleSvc.UpdateInstanceInput{
+		Date:      inst.Date,
+		StartTime: inst.StartTime,
+		EndTime:   inst.EndTime,
+		Title:     "CRUD-Broadcast-Test (edited)",
+		RoomID:    s.roomID,
+		StaffIDs:  []int64{s.staffID},
+	}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"instance_create", "instance_update"}, deviationSources())
+
+	require.NoError(t, svc.DeleteCancelled(s.ctx, inst.ID))
+	assert.Equal(t,
+		[]string{"instance_create", "instance_update", "instance_delete"},
+		deviationSources())
+}
+
 func TestInstance_Complete_HappyPath(t *testing.T) {
 	s := buildLifecycle(t)
 

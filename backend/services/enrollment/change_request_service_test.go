@@ -540,6 +540,45 @@ func TestChangeRequestService_Create_AllowsKeepingInactiveCurrentOffering(t *tes
 	require.NotNil(t, created.ChangeRequest)
 }
 
+func TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditionalOffering(t *testing.T) {
+	env, cleanup := setupRequestTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	repoFactory := repositories.NewFactory(env.db)
+	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
+	offering := setupCareOfferingForCapacity(t, env, 10)
+	offering.AvailabilityRule = requestTestGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1)
+	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
+
+	req := validSubmission(env.phaseID)
+	req.GuardianEmail = "inactive-conditional-change-request@example.com"
+	req.Children[0].TargetGradeLevel = testpkg.Int16Ptr(1)
+	req.Children[0].OfferingIDs = []int64{offering.ID}
+	result, err := env.svc.Submit(ctx, req)
+	require.NoError(t, err)
+	enableChangeRequestMode(t, env, result.Children[0].ID)
+
+	offering.IsActive = false
+	require.NoError(t, repoFactory.CareOffering.Update(ctx, offering))
+
+	phone := "+49 221 222334"
+	proposed := proposedChangeSubmission(t, env, result)
+	proposed.Children[0].TargetGradeLevel = testpkg.Int16Ptr(1)
+	proposed.Children[0].OfferingIDs = []int64{offering.ID}
+	proposed.GuardianPhone = &phone
+	created, err := newChangeRequestServiceForTest(env).Create(
+		ctx,
+		result.Request.StatusToken,
+		enrollmentService.CreateChangeRequestInput{
+			Submission: proposed,
+			ParentNote: "Telefon korrigieren.",
+		},
+	)
+
+	require.NoError(t, err)
+	require.NotNil(t, created.ChangeRequest)
+}
+
 func TestChangeRequestService_Approve_PreservesHiddenOfferingsAcrossDisabledToEnabledToggle(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()

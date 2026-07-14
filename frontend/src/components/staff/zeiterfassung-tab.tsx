@@ -2,7 +2,10 @@
 
 import { useMemo, useState } from "react";
 
+import { Alert } from "~/components/ui/alert";
 import { Loading } from "~/components/ui/loading";
+import { staffShiftService } from "~/lib/shift-api";
+import type { StaffShift } from "~/lib/shift-helpers";
 import {
   staffAbsenceService,
   staffHistoryService,
@@ -111,6 +114,25 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     () =>
       staffAbsenceService.getAbsences(staffId, visibleFromKey, visibleToKey),
   );
+  // Planned Dienstplan shifts for the visible range feed the table's Plan
+  // column (#1844) — plan next to Ist, with the deviation reason in the audit
+  // expand. Does not touch the Soll/Saldo math (Arbeitszeitmodell, #1842).
+  // Loading and error state are surfaced explicitly: rendering an unresolved
+  // or failed request as [] would show "–" in every Plan cell, presenting a
+  // fetch failure to admins as proof that no shifts were planned.
+  const {
+    data: visibleShifts,
+    isLoading: shiftsLoading,
+    error: shiftsError,
+  } = useSWRAuth<StaffShift[]>(
+    `staff-shifts-visible-${staffId}-${visibleFromKey}-${visibleToKey}`,
+    () =>
+      staffShiftService.getShiftsForStaff(
+        staffId,
+        visibleFromKey,
+        visibleToKey,
+      ),
+  );
 
   if (scheduleLoading) {
     return <Loading fullPage={false} />;
@@ -176,12 +198,20 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
           todayLabel={viewMode === "month" ? "Diesen Monat" : "Diese Woche"}
         />
 
-        {visibleLoading ? (
+        {visibleLoading || shiftsLoading ? (
           <div className="py-10">
             <Loading fullPage={false} />
           </div>
         ) : (
           <div className="mt-4">
+            {shiftsError ? (
+              <div className="mb-4">
+                <Alert
+                  type="error"
+                  message="Der Dienstplan konnte nicht geladen werden. Die Plan-Spalte ist deshalb unvollständig; bitte die Seite neu laden."
+                />
+              </div>
+            ) : null}
             <StaffSessionTable
               staffId={staffId}
               from={visibleFrom}
@@ -191,6 +221,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               schedule={schedule ?? null}
               today={today}
               isAdminView
+              plannedShifts={visibleShifts ?? []}
             />
           </div>
         )}

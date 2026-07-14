@@ -181,6 +181,14 @@ func TestMapSubmitError_CareOfferingMissing400WithCode(t *testing.T) {
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentCareOfferingMissing)
 }
 
+func TestMapSubmitError_CareOfferingUnavailable400WithStableCode(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	MapSubmitError(w, r, fmt.Errorf("child 1: %w", enrollmentService.ErrCareOfferingUnavailable))
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentCareOfferingUnavailable)
+}
+
 func TestMapSubmitError_InvalidGuardianPhone400WithCode(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)

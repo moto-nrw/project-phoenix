@@ -5,8 +5,10 @@ import {
   formatPlannedHours,
   formatShiftLabel,
   groupShiftsByStaffAndDate,
+  mapOwnAssignment,
   mapStaffScheduleOverview,
   mapStaffShift,
+  type BackendOwnAssignment,
   type BackendStaffScheduleOverview,
   type BackendStaffShift,
 } from "./shift-helpers";
@@ -31,6 +33,8 @@ describe("mapStaffShift", () => {
       endTime: "16:00",
       breakMinutes: 30,
       shiftTypeId: null,
+      shiftTypeName: null,
+      shiftTypeColor: null,
       notes: "Frühdienst",
       seriesId: null,
       detached: false,
@@ -38,6 +42,22 @@ describe("mapStaffShift", () => {
       changeReason: null,
       originShiftId: null,
     });
+  });
+
+  it("maps the embedded Schichtart name and color (#1844)", () => {
+    const mapped = mapStaffShift({
+      id: 42,
+      staff_id: 7,
+      date: "2026-07-06",
+      start_time: "08:00",
+      end_time: "16:00",
+      break_minutes: 0,
+      shift_type_id: 5,
+      shift_type_name: "Betreuung",
+      shift_type_color: "#83CD2D",
+    });
+    expect(mapped.shiftTypeName).toBe("Betreuung");
+    expect(mapped.shiftTypeColor).toBe("#83CD2D");
   });
 
   it("maps shift_type_id to a string id and defaults it to null", () => {
@@ -184,6 +204,8 @@ describe("mapStaffScheduleOverview", () => {
           endTime: "16:00",
           breakMinutes: 30,
           shiftTypeId: "5",
+          shiftTypeName: null,
+          shiftTypeColor: null,
           notes: "Frühdienst",
           seriesId: null,
           detached: false,
@@ -277,6 +299,71 @@ describe("mapStaffScheduleOverview", () => {
     });
     // Older backends without the field still map to an empty list.
     expect(mapped.weeklySummaries).toEqual([]);
+  });
+});
+
+describe("mapOwnAssignment", () => {
+  it("maps the full snake_case shape to camelCase with a string id (#1844)", () => {
+    const backend: BackendOwnAssignment = {
+      instance_id: 81,
+      title: "Fußball-AG",
+      group_name: "Sport",
+      room_name: "Turnhalle",
+      date: "2026-07-06",
+      start_time: "14:00:00",
+      end_time: "15:30:00",
+      status: "cancelled",
+      cancelled: true,
+      is_primary: false,
+      is_substitute: true,
+      is_absent: true,
+      absence_reason: "Krank",
+      cancel_reason: "Ausflug",
+      understaffed_ack: true,
+    };
+
+    expect(mapOwnAssignment(backend)).toEqual({
+      instanceId: "81",
+      title: "Fußball-AG",
+      groupName: "Sport",
+      roomName: "Turnhalle",
+      date: "2026-07-06",
+      startTime: "14:00",
+      endTime: "15:30",
+      status: "cancelled",
+      cancelled: true,
+      isPrimary: false,
+      isSubstitute: true,
+      isAbsent: true,
+      absenceReason: "Krank",
+      cancelReason: "Ausflug",
+      understaffedAck: true,
+    });
+  });
+
+  it("defaults the optional group/room/reason fields to null or empty", () => {
+    const backend: BackendOwnAssignment = {
+      instance_id: 82,
+      title: "Spontan",
+      date: "2026-07-06",
+      start_time: "08:00",
+      end_time: "09:00",
+      status: "planned",
+      cancelled: false,
+      is_primary: true,
+      is_substitute: false,
+      is_absent: false,
+      understaffed_ack: false,
+    };
+
+    const mapped = mapOwnAssignment(backend);
+    expect(mapped.groupName).toBeNull();
+    expect(mapped.roomName).toBe("");
+    expect(mapped.absenceReason).toBeNull();
+    expect(mapped.cancelReason).toBeNull();
+    // Times already in HH:MM are left intact by the slice.
+    expect(mapped.startTime).toBe("08:00");
+    expect(mapped.endTime).toBe("09:00");
   });
 });
 

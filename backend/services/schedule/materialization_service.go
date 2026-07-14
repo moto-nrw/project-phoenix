@@ -47,6 +47,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -145,6 +146,7 @@ type materializationService struct {
 	timeframeRepo   schedule.TimeframeRepository
 	calendarService CalendarPeriodService
 	db              *bun.DB
+	broadcaster     realtime.Broadcaster
 	logger          *slog.Logger
 }
 
@@ -153,7 +155,9 @@ type materializationService struct {
 // reconstructed) so the shared A/B week algorithm stays the single source of
 // truth for the DST-safe math. Production wiring must provide db so direct
 // calls get an RLS-aware transaction and recurrence gate; nil is reserved for
-// pure repository-double unit tests.
+// pure repository-double unit tests. broadcaster is optional (nil → no SSE);
+// production wiring must provide it so runs that create instances invalidate
+// the staffing caches (#1844).
 func NewMaterializationService(
 	groupRepo activities.GroupRepository,
 	scheduleRepo activities.ScheduleRepository,
@@ -167,6 +171,7 @@ func NewMaterializationService(
 	timeframeRepo schedule.TimeframeRepository,
 	calendarService CalendarPeriodService,
 	db *bun.DB,
+	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) MaterializationService {
 	return &materializationService{
@@ -182,6 +187,7 @@ func NewMaterializationService(
 		timeframeRepo:   timeframeRepo,
 		calendarService: calendarService,
 		db:              db,
+		broadcaster:     broadcaster,
 		logger:          logger,
 	}
 }
@@ -338,6 +344,14 @@ func (s *materializationService) materializeForTenantLocked(
 		if err := s.materializeTemplate(ctx, tmpl, from, to, periods, existingIdx, exceptionIdx, timeframeByID, result); err != nil {
 			return result, err
 		}
+	}
+
+	// Materialization is not one of the instance CRUD paths, so nothing else
+	// tells the staffing caches (planner, "Heute geplant" card) that new
+	// assignments exist. Skip pure no-op re-runs — the scheduler sweeps the
+	// same window nightly.
+	if result.InstancesCreated > 0 || result.InstanceStaffCreated > 0 {
+		broadcastStaffingChanged(ctx, s.broadcaster, s.getLogger(), "materialization")
 	}
 
 	s.finishLog(tenantID, source, result, start)
