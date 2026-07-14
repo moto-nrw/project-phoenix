@@ -1697,7 +1697,6 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 			}
 		}
 		openOfferings = list
-		capabilities = EffectiveFormCapabilities(capabilities, openOfferings)
 		openByID := make(map[int64]*enrollmentModels.CareOffering, len(openOfferings))
 		for _, offering := range openOfferings {
 			openByID[offering.ID] = offering
@@ -1733,6 +1732,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 				return ErrEditNotAllowed
 			}
 		}
+		capabilities = EffectiveFormCapabilities(capabilities, openOfferings)
 		texts, err := s.legalTextsForEditableRequest(txCtx, schema)
 		if err != nil {
 			return err

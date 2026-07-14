@@ -491,22 +491,29 @@ func (s *changeRequestService) prepareProposed(
 			return editReq, nil, nil, nil, fmt.Errorf("change request: load phase offerings: %w", err)
 		}
 	}
-	capabilities = EffectiveFormCapabilities(capabilities, openOfferings)
-	if err := normalizeSubmissionForCapabilities(&editReq, capabilities); err != nil {
-		return editReq, nil, nil, nil, err
-	}
 	openByID := make(map[int64]*enrollmentModels.CareOffering, len(openOfferings))
 	for _, offering := range openOfferings {
 		openByID[offering.ID] = offering
 	}
 	changeRequestByID := map[int64]*enrollmentModels.CareOffering{}
-	var materializedSelections [][]materializedOfferingSelection
+	var offeringCatalogs []map[int64]*enrollmentModels.CareOffering
 	if capabilities.CareOfferingsEnabled {
-		offeringCatalogs, catalogByID, catalogErr := s.changeRequestOfferingCatalogs(ctx, children, openByID)
+		var catalogErr error
+		offeringCatalogs, changeRequestByID, catalogErr = s.changeRequestOfferingCatalogs(ctx, children, openByID)
 		if catalogErr != nil {
 			return editReq, nil, nil, nil, catalogErr
 		}
-		changeRequestByID = catalogByID
+	}
+	capabilityOfferings := openOfferings
+	if len(changeRequestByID) > 0 {
+		capabilityOfferings = slices.Collect(maps.Values(changeRequestByID))
+	}
+	capabilities = EffectiveFormCapabilities(capabilities, capabilityOfferings)
+	if err := normalizeSubmissionForCapabilities(&editReq, capabilities); err != nil {
+		return editReq, nil, nil, nil, err
+	}
+	var materializedSelections [][]materializedOfferingSelection
+	if capabilities.CareOfferingsEnabled {
 		materializedSelections, err = materializeAndValidateChangeRequestChildrenOfferingSelections(
 			editReq.Children,
 			children,

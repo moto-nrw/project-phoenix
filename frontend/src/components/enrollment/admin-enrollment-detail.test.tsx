@@ -5,6 +5,7 @@ import {
   type AdminRequestChild,
   type AdminRequestSchemaField,
 } from "~/lib/enrollment-admin-api";
+import type { CareOffering } from "~/lib/care-offering-api";
 import { ChildExtraFields } from "./admin-enrollment-detail";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { useCareOfferingsEnabled } from "~/lib/tenant-context";
@@ -44,6 +45,49 @@ function field(
     applies_to_child: true,
     ...overrides,
   };
+}
+
+function catalogOffering(overrides: Partial<CareOffering> = {}): CareOffering {
+  return {
+    id: "offering-1",
+    phase_id: "phase-1",
+    name: "Ganztag",
+    days_of_week_mode: "fixed",
+    available_days: ["mon"],
+    includes_holiday_care: false,
+    includes_lunch: false,
+    is_active: true,
+    is_required: false,
+    sort_order: 1,
+    created_at: "2026-06-18T11:15:00Z",
+    updated_at: "2026-06-18T11:15:00Z",
+    ...overrides,
+  };
+}
+
+function adjustmentChild(
+  overrides: Partial<AdminRequestChild> = {},
+): AdminRequestChild {
+  return {
+    id: "child-1",
+    first_name: "Lina",
+    last_name: "Kind",
+    date_of_birth: "2018-01-01",
+    status: "approved",
+    activation_mode: "scheduled",
+    ...overrides,
+  };
+}
+
+function renderAdjustment(child: AdminRequestChild = adjustmentChild()) {
+  return render(
+    <ChildOfferingAdjustment
+      requestId="request-1"
+      phaseId="phase-1"
+      onSaved={vi.fn()}
+      child={child}
+    />,
+  );
 }
 
 beforeEach(() => {
@@ -371,6 +415,124 @@ describe("ChildOfferingAdjustment", () => {
         expect.objectContaining({ offerings: [] }),
       );
     });
+  });
+
+  it("keeps a selected unavailable offering removed after reopening the cached catalog", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({
+        id: "grade-1-only",
+        name: "Randstunde",
+        availability_rule: {
+          match: "all",
+          conditions: [{ source: "grade_level", operator: "in", value: [1] }],
+        },
+      }),
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({});
+    renderAdjustment(
+      adjustmentChild({
+        target_grade_level: 3,
+        offerings: [
+          {
+            offering_id: "grade-1-only",
+            offering_name: "Randstunde",
+            days_of_week_mode: "fixed",
+            selected_days: ["mon"],
+            manual_selected_days: ["mon"],
+            available_days: ["mon"],
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    await waitFor(() => expect(mocks.listCareOfferings).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Nicht mehr verfügbar" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        expect.objectContaining({ offerings: [] }),
+      );
+    });
+    expect(mocks.listCareOfferings).toHaveBeenCalledOnce();
+  });
+
+  it("reseeds an active required offering after reopening the cached catalog", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({ name: "Verpflichtender Ganztag", is_required: true }),
+    ]);
+    renderAdjustment();
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    const checkbox = await screen.findByRole("checkbox", {
+      name: /Verpflichtender Ganztag/,
+    });
+    expect(checkbox).toBeChecked();
+    fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+
+    expect(
+      screen.getByRole("checkbox", { name: /Verpflichtender Ganztag/ }),
+    ).toBeChecked();
+    expect(mocks.listCareOfferings).toHaveBeenCalledOnce();
+  });
+
+  it("does not newly select an inactive required offering", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({
+        name: "Inaktiver Pflichtplatz",
+        is_active: false,
+        is_required: true,
+      }),
+    ]);
+    renderAdjustment();
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    const checkbox = await screen.findByRole("checkbox", {
+      name: /Inaktiver Pflichtplatz/,
+    });
+
+    expect(checkbox).toBeDisabled();
+    expect(checkbox).not.toBeChecked();
+  });
+
+  it("retains an inactive required offering that was already selected", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      catalogOffering({
+        name: "Bestehender Pflichtplatz",
+        is_active: false,
+        is_required: true,
+      }),
+    ]);
+    renderAdjustment(
+      adjustmentChild({
+        offerings: [
+          {
+            offering_id: "offering-1",
+            offering_name: "Bestehender Pflichtplatz",
+            days_of_week_mode: "fixed",
+            selected_days: ["mon"],
+            manual_selected_days: ["mon"],
+            available_days: ["mon"],
+          },
+        ],
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    const checkbox = await screen.findByRole("checkbox", {
+      name: /Bestehender Pflichtplatz/,
+    });
+
+    expect(checkbox).toBeDisabled();
+    expect(checkbox).toBeChecked();
   });
 
   it("blocks saving when the care-offering catalog failed to load", async () => {

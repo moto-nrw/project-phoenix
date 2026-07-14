@@ -872,6 +872,7 @@ export function ChildOfferingAdjustment({
   const careOfferingsEnabled = useCareOfferingsEnabled();
   const [open, setOpen] = useState(false);
   const [catalog, setCatalog] = useState<CareOffering[]>([]);
+  const [rawCatalog, setRawCatalog] = useState<CareOffering[]>([]);
   const [history, setHistory] = useState<AdminOfferingAdjustment[]>([]);
   const [selected, setSelected] = useState<Set<string>>(() =>
     initialManualOfferingIDs(child.offerings),
@@ -910,32 +911,41 @@ export function ChildOfferingAdjustment({
     void loadHistory();
   }, [loadHistory]);
 
+  const resetEditorSelection = (offerings: CareOffering[]) => {
+    const available = availableCareOfferings(
+      offerings,
+      child.target_grade_level,
+    );
+    const fetchedIDs = new Set(offerings.map((offering) => offering.id));
+    const availableIDs = new Set(available.map((offering) => offering.id));
+    const nextSelected = new Set(
+      [...initialManualOfferingIDs(child.offerings)].filter(
+        (id) => !fetchedIDs.has(id) || availableIDs.has(id),
+      ),
+    );
+    for (const offering of available) {
+      if (offering.is_active && offering.is_required) {
+        nextSelected.add(offering.id);
+      }
+    }
+    setCatalog(available);
+    setSelected(nextSelected);
+  };
+
   const openEditor = async () => {
     if (!careOfferingsEnabled) return;
     setOpen(true);
     setError(null);
-    setSelected(initialManualOfferingIDs(child.offerings));
     setDays(initialManualOfferingDays(child.offerings));
-    if (catalogLoaded) return;
+    if (catalogLoaded) {
+      resetEditorSelection(rawCatalog);
+      return;
+    }
     setLoading(true);
     try {
       const offerings = await listCareOfferings(phaseId);
-      const available = availableCareOfferings(
-        offerings,
-        child.target_grade_level,
-      );
-      const fetchedIDs = new Set(offerings.map((offering) => offering.id));
-      const availableIDs = new Set(available.map((offering) => offering.id));
-      const nextSelected = new Set(
-        [...initialManualOfferingIDs(child.offerings)].filter(
-          (id) => !fetchedIDs.has(id) || availableIDs.has(id),
-        ),
-      );
-      for (const offering of available) {
-        if (offering.is_required) nextSelected.add(offering.id);
-      }
-      setCatalog(available);
-      setSelected(nextSelected);
+      setRawCatalog(offerings);
+      resetEditorSelection(offerings);
       setCatalogLoaded(true);
     } catch (err) {
       const message =
@@ -944,6 +954,7 @@ export function ChildOfferingAdjustment({
           : "Betreuungsangebote konnten nicht geladen werden";
       setError(message);
       setCatalog([]);
+      setRawCatalog([]);
       setCatalogLoaded(false);
     } finally {
       setLoading(false);
