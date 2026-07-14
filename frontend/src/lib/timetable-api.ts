@@ -24,6 +24,7 @@ import type {
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
+  BackendEditedInWindowResult,
   BackendSplitTemplateResult,
   BackendStartInstanceResult,
   BackendAcknowledgeUnderstaffedResponse,
@@ -47,6 +48,7 @@ import type {
   InstanceStatusResult,
   MaterializeResult,
   ReplanWeekResult,
+  EditedInWindowResult,
   ShiftCoverageCheckParams,
   ShiftCoverageCheckResult,
   SplitTemplateBody,
@@ -75,6 +77,7 @@ import {
   mapInstanceStatusResult,
   mapMaterializeResult,
   mapReplanWeekResult,
+  mapEditedInWindowResult,
   mapSplitTemplateResult,
   mapStartInstanceResult,
   mapTemplates,
@@ -548,6 +551,40 @@ class TimetableService {
       created: raw.instances_created,
     });
     return mapReplanWeekResult(raw);
+  }
+
+  /**
+   * GET /api/timetable/instances/edited-in-window (#1875).
+   * Which planned occurrences of one template were individually edited ("Nur
+   * diesen Termin") in [from, to] — the changes a series re-plan would discard.
+   * The planner calls this before an "Alle Termine" / "Dieser und folgende"
+   * edit to warn and list the affected dates. Pass includeDeletions on the
+   * "following" split path: a split resurrects individually-deleted occurrences
+   * under the successor template (same-template re-plans preserve them).
+   */
+  async countEditedInWindow(
+    activityGroupId: string,
+    from: string,
+    to: string,
+    includeDeletions = false,
+  ): Promise<EditedInWindowResult> {
+    const params = new URLSearchParams({
+      activity_group_id: activityGroupId,
+      from,
+      to,
+    });
+    if (includeDeletions) params.set("include_deletions", "true");
+    const response = await fetch(
+      `/api/timetable/instances/edited-in-window?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+
+    const raw = await unwrap<BackendEditedInWindowResult>(response);
+    return mapEditedInWindowResult(raw);
   }
 
   async getGaps(from: string, to: string): Promise<GapsResponse> {

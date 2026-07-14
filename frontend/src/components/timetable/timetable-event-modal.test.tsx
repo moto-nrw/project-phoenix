@@ -21,6 +21,7 @@ const {
   mockGetTemplate,
   mockSplitTemplate,
   mockReplanWeek,
+  mockCountEditedInWindow,
   mockCheckConflicts,
   mockCheckShiftCoverage,
   mockFetchStudents,
@@ -37,6 +38,7 @@ const {
   mockGetTemplate: vi.fn(),
   mockSplitTemplate: vi.fn(),
   mockReplanWeek: vi.fn(),
+  mockCountEditedInWindow: vi.fn(),
   mockCheckConflicts: vi.fn(),
   mockCheckShiftCoverage: vi.fn(),
   mockFetchStudents: vi.fn(),
@@ -75,6 +77,7 @@ vi.mock("~/lib/timetable-api", () => ({
     getTemplate: mockGetTemplate,
     splitTemplate: mockSplitTemplate,
     replanWeek: mockReplanWeek,
+    countEditedInWindow: mockCountEditedInWindow,
     checkConflicts: mockCheckConflicts,
     checkShiftCoverage: (probe: unknown) => mockCheckShiftCoverage(probe),
   },
@@ -312,6 +315,9 @@ describe("TimetableEventModal", () => {
       warnings: [],
       durationMs: 1,
     });
+    // #1875: default to "no single-occurrence edits" so series-edit tests keep
+    // the pre-warning flow; the warning tests override this per-case.
+    mockCountEditedInWindow.mockResolvedValue({ count: 0, occurrences: [] });
     mockCheckConflicts.mockResolvedValue({
       date: "2026-05-04",
       startTime: "12:00",
@@ -1166,6 +1172,85 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("warns before a direct Regeltermin edit when single-occurrence edits exist (#1875)", async () => {
+    mockCountEditedInWindow.mockResolvedValue({
+      count: 2,
+      occurrences: [
+        {
+          instanceId: "101",
+          date: "2026-05-11",
+          startTime: "15:00:00",
+          title: "Yoga",
+          changes: ["room"],
+        },
+        {
+          instanceId: "102",
+          date: "2026-05-18",
+          startTime: "15:00:00",
+          title: "Yoga",
+          changes: ["staff", "title"],
+        },
+      ],
+    });
+
+    renderModal({ initialSeries: template, defaultDate: "2026-05-04" });
+
+    await screen.findByText("Regeltermin bearbeiten");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    // The destructive re-plan is deferred behind the warning, listing the dates.
+    expect(
+      await screen.findByText("Einzelanpassungen gehen verloren"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("11.05.2026")).toBeInTheDocument();
+    expect(screen.getByText("18.05.2026")).toBeInTheDocument();
+    expect(mockUpdateTemplate).not.toHaveBeenCalled();
+
+    // Confirm → the direct series edit proceeds.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trotzdem fortfahren" }),
+    );
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith("7", expect.anything()),
+    );
+  });
+
+  it("cancels a direct Regeltermin edit and writes nothing (#1875)", async () => {
+    mockCountEditedInWindow.mockResolvedValue({
+      count: 1,
+      occurrences: [
+        {
+          instanceId: "101",
+          date: "2026-05-11",
+          startTime: "15:00:00",
+          title: "Yoga",
+          changes: ["room"],
+        },
+      ],
+    });
+
+    renderModal({ initialSeries: template, defaultDate: "2026-05-04" });
+
+    await screen.findByText("Regeltermin bearbeiten");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Einzelanpassungen gehen verloren");
+
+    const warningDialog = screen.getByRole("dialog", {
+      name: "Einzelanpassungen gehen verloren",
+    });
+    fireEvent.click(
+      within(warningDialog).getByRole("button", { name: "Abbrechen" }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Einzelanpassungen gehen verloren"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(mockUpdateTemplate).not.toHaveBeenCalled();
+    expect(mockReplanWeek).not.toHaveBeenCalled();
+  });
+
   it("updates an existing series and converts an instance to a series", async () => {
     // Freeze the calendar day so the "replan from today" window is stable.
     vi.useFakeTimers({ toFake: ["Date"] });
@@ -1514,6 +1599,208 @@ describe("TimetableEventModal", () => {
       "7",
     );
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "12" });
+  });
+
+  it("warns before 'Alle Termine' when single-occurrence edits would be lost (#1875)", async () => {
+    mockCountEditedInWindow.mockResolvedValue({
+      count: 2,
+      occurrences: [
+        {
+          instanceId: "101",
+          date: "2026-05-11",
+          startTime: "12:00:00",
+          title: "Mensa",
+          changes: ["room", "title"],
+        },
+        {
+          instanceId: "102",
+          date: "2026-05-18",
+          startTime: "12:00:00",
+          title: "Mensa",
+          changes: ["staff"],
+        },
+      ],
+    });
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    // Warning lists the concrete affected dates; the series is NOT written yet.
+    expect(
+      await screen.findByText("Einzelanpassungen gehen verloren"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("11.05.2026")).toBeInTheDocument();
+    expect(screen.getByText("18.05.2026")).toBeInTheDocument();
+    expect(mockUpdateTemplate).not.toHaveBeenCalled();
+
+    // Confirm → the series edit proceeds.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trotzdem fortfahren" }),
+    );
+    await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+  });
+
+  it("warns before 'Ab jetzt dauerhaft' and proceeds on confirm (#1875)", async () => {
+    mockCountEditedInWindow.mockResolvedValue({
+      count: 1,
+      occurrences: [
+        {
+          instanceId: "101",
+          date: "2026-05-11",
+          startTime: "12:00:00",
+          title: "Mensa",
+          changes: ["time"],
+        },
+      ],
+    });
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    expect(
+      await screen.findByText("Einzelanpassungen gehen verloren"),
+    ).toBeInTheDocument();
+    expect(mockSplitTemplate).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trotzdem fortfahren" }),
+    );
+    await waitFor(() => expect(mockSplitTemplate).toHaveBeenCalled());
+  });
+
+  it("probes deletions and warns for a resurrected occurrence on 'Ab jetzt dauerhaft' (#1907)", async () => {
+    mockCountEditedInWindow.mockResolvedValue({
+      count: 1,
+      occurrences: [
+        {
+          instanceId: "0",
+          date: "2026-05-11",
+          startTime: "",
+          title: "Mensa",
+          changes: ["deleted"],
+        },
+      ],
+    });
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    // The split path must probe WITH deletions and surface the deleted date.
+    await waitFor(() =>
+      expect(mockCountEditedInWindow).toHaveBeenCalledWith(
+        "7",
+        expect.any(String),
+        expect.any(String),
+        true,
+      ),
+    );
+    expect(
+      await screen.findByText("Einzelanpassungen gehen verloren"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("11.05.2026")).toBeInTheDocument();
+    expect(screen.getByText("Gelöschter Termin")).toBeInTheDocument();
+  });
+
+  it("does not probe deletions on the 'Alle Termine' path (#1907)", async () => {
+    mockCountEditedInWindow.mockResolvedValue({ count: 0, occurrences: [] });
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockCountEditedInWindow).toHaveBeenCalledWith(
+        "7",
+        expect.any(String),
+        expect.any(String),
+        false,
+      ),
+    );
+  });
+
+  it("cancels the series edit and keeps the single-occurrence edits (#1875)", async () => {
+    mockCountEditedInWindow.mockResolvedValue({
+      count: 1,
+      occurrences: [
+        {
+          instanceId: "101",
+          date: "2026-05-11",
+          startTime: "12:00:00",
+          title: "Mensa",
+          changes: ["room"],
+        },
+      ],
+    });
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+    await screen.findByText("Einzelanpassungen gehen verloren");
+
+    // The slide-over footer also has an "Abbrechen"; scope to the warning dialog.
+    const warningDialog = screen.getByRole("dialog", {
+      name: "Einzelanpassungen gehen verloren",
+    });
+    fireEvent.click(
+      within(warningDialog).getByRole("button", { name: "Abbrechen" }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Einzelanpassungen gehen verloren"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(mockUpdateTemplate).not.toHaveBeenCalled();
+    expect(mockSplitTemplate).not.toHaveBeenCalled();
+  });
+
+  it("skips the warning when no single-occurrence edits exist (#1875)", async () => {
+    mockCountEditedInWindow.mockResolvedValue({ count: 0, occurrences: [] });
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    // No warning modal; the edit goes straight through.
+    await waitFor(() => expect(mockUpdateTemplate).toHaveBeenCalled());
+    expect(
+      screen.queryByText("Einzelanpassungen gehen verloren"),
+    ).not.toBeInTheDocument();
   });
 
   it("preserves the fetched staffing override for an untouched following edit", async () => {

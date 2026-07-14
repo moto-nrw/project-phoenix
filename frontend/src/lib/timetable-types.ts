@@ -491,6 +491,48 @@ export interface BackendReplanWeekResult {
 }
 
 /**
+ * #1875: field categories a single-occurrence ("Nur diesen Termin") edit can
+ * touch that a series re-plan does NOT preserve. Stable machine-readable
+ * strings from the backend; mapped to German labels in the UI.
+ */
+export type EditedChange =
+  | "title"
+  | "description"
+  | "notes"
+  | "room"
+  | "time"
+  | "staff"
+  | "students"
+  | "deleted";
+
+/** One planned occurrence that was individually adjusted vs its template.
+ * Referenced only via EditedInWindowResult below (not exported on its own). */
+interface EditedOccurrence {
+  instanceId: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM:SS
+  title: string;
+  changes: EditedChange[];
+}
+
+/** Result of the edited-in-window probe: total count + the concrete dates. */
+export interface EditedInWindowResult {
+  count: number;
+  occurrences: EditedOccurrence[];
+}
+
+export interface BackendEditedInWindowResult {
+  count: number;
+  occurrences: {
+    instance_id: number;
+    date: string;
+    start_time: string;
+    title: string;
+    changes: string[];
+  }[];
+}
+
+/**
  * Result of the lifecycle endpoints. Start returns warnings; complete and
  * cancel return only the new status.
  */

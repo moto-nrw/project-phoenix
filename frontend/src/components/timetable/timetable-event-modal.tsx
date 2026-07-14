@@ -61,6 +61,8 @@ import type {
   ConflictWarningItem,
   CreateInstanceBody,
   CreateTemplateBody,
+  EditedChange,
+  EditedInWindowResult,
   EnrichedInstance,
   ShiftCoverageCheckParams,
   ShiftCoverageWarningItem,
@@ -97,6 +99,19 @@ const STAFF_LOAD_ERROR =
 const COVERAGE_CHECK_ERROR =
   "Die Dienstplan-Abdeckung konnte nicht geprüft werden. Speichern ist weiterhin möglich.";
 const COVERAGE_CHECK_TIMEOUT_MS = 5_000;
+
+// #1875: German labels for the field categories a single-occurrence edit can
+// change (backend EditedChange strings). Shown in the lost-edits warning.
+const EDIT_CHANGE_LABELS: Record<EditedChange, string> = {
+  title: "Titel",
+  description: "Beschreibung",
+  notes: "Notiz",
+  room: "Raum",
+  time: "Zeit/Datum",
+  staff: "Personal",
+  students: "Kinder",
+  deleted: "Gelöschter Termin",
+};
 
 function checkShiftCoverageWithSignal(
   probe: ShiftCoverageCheckParams,
@@ -576,6 +591,16 @@ export function TimetableEventModal({
   const [pendingSeriesEdit, setPendingSeriesEdit] = useState<{
     roomId: number;
   } | null>(null);
+  // #1875: a series edit that would discard single-occurrence changes is
+  // deferred here until the user confirms the loss (with the concrete dates).
+  // `onConfirm` runs the actual destructive edit — shared by the occurrence
+  // scope picker (handleScopeSelect) and the direct Regeltermin edit
+  // (handleSubmit); `scope` only drives the warning wording.
+  const [lostEdits, setLostEdits] = useState<{
+    scope: "all" | "following";
+    result: EditedInWindowResult;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
   const [conflictWarnings, setConflictWarnings] = useState<
     ConflictWarningItem[]
   >([]);
@@ -747,6 +772,7 @@ export function TimetableEventModal({
     setExpanded(variant === "full");
     setMoreOpen(false);
     setPendingSeriesEdit(null);
+    setLostEdits(null);
     setConflictWarnings([]);
     setCoverageWarnings([]);
     setCoverageWarningCount(0);
@@ -1615,16 +1641,49 @@ export function TimetableEventModal({
       }
 
       if (initialSeries) {
-        await timetableService.updateTemplate(
-          initialSeries.id,
-          seriesBody(parsed.roomId, parsed.categoryId),
-        );
-        if (await replanTemplateFuture(initialSeries.id)) {
-          toastSuccess("Regeltermin gespeichert");
-        } else {
-          toastWarning(FOLLOW_UP_WARNING);
+        const seriesId = initialSeries.id;
+        const categoryId = parsed.categoryId;
+        const runSeriesEdit = async () => {
+          await timetableService.updateTemplate(
+            seriesId,
+            seriesBody(parsed.roomId, categoryId),
+          );
+          if (await replanTemplateFuture(seriesId)) {
+            toastSuccess("Regeltermin gespeichert");
+          } else {
+            toastWarning(FOLLOW_UP_WARNING);
+          }
+          onSaved({ kind: "series", seriesId });
+        };
+
+        // #1875: a direct Regeltermin edit runs the same destructive re-plan as
+        // the "Alle Termine" scope, so it needs the same lost-edits warning.
+        // replanTemplateFuture re-plans [today, period end]; probe that window.
+        const editsTo =
+          findPeriod(form.calendarPeriodId)?.endDate ??
+          weekTo ??
+          berlinTodayISO();
+        let lost: EditedInWindowResult | null = null;
+        try {
+          const probe = await timetableService.countEditedInWindow(
+            seriesId,
+            berlinTodayISO(),
+            editsTo,
+          );
+          if (probe.count > 0) lost = probe;
+        } catch (probeErr) {
+          logger.warn("edited_in_window_probe_failed", {
+            error:
+              probeErr instanceof Error ? probeErr.message : String(probeErr),
+          });
         }
-        onSaved({ kind: "series", seriesId: initialSeries.id });
+        if (lost) {
+          setLostEdits({ scope: "all", result: lost, onConfirm: runSeriesEdit });
+          setSubmitting(false);
+          return;
+        }
+
+        await runSeriesEdit();
         onClose();
         return;
       }
@@ -1740,14 +1799,115 @@ export function TimetableEventModal({
     };
   };
 
+  const handleScopeError = (scope: string, err: unknown) => {
+    logger.error("series_scope_save_failed", {
+      scope,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    const raw =
+      err instanceof Error
+        ? err.message
+        : "Termin konnte nicht gespeichert werden";
+    // Backend rejects splits whose effective date already passed; the
+    // raw English message is meaningless to school staff.
+    const msg = raw.includes("effective_date must not be in the past")
+      ? "Der Stichtag liegt in der Vergangenheit. Bitte einen künftigen Termin der Serie wählen."
+      : raw;
+    setPendingSeriesEdit(null);
+    setLostEdits(null);
+    setValidationError(msg);
+    toastError(msg);
+  };
+
+  /**
+   * Applies a series-wide edit ("all" or "following") against a pre-loaded
+   * template. Split out of handleScopeSelect so the #1875 lost-edits warning
+   * can defer it until the user confirms.
+   */
+  const performSeriesEdit = async (
+    typedScope: "all" | "following",
+    roomId: number,
+    template: TimetableTemplate,
+    periodEnd: string | undefined,
+    groupId: string,
+  ) => {
+    if (!initialInstance) return;
+    const body = templateBodyFromForm(template, roomId);
+    const scopeProbe = seriesCoverageProbe(
+      template,
+      body,
+      typedScope === "following" ? initialInstance.date : berlinTodayISO(),
+      typedScope === "all" ? groupId : undefined,
+    );
+    await checkCoverageBeforeSave(scopeProbe);
+    if (typedScope === "following") {
+      const effectiveDate = initialInstance.date;
+      const chunks = chunkDateRange(
+        effectiveDate,
+        periodEnd ?? weekTo ?? effectiveDate,
+        MATERIALIZE_CHUNK_DAYS,
+      );
+      const split = await timetableService.splitTemplate(groupId, {
+        ...body,
+        effective_date: effectiveDate,
+        materialize_from: effectiveDate,
+        materialize_to: chunks[0]?.to ?? effectiveDate,
+      });
+      // Beyond the first 56-day window the split leaves the old
+      // template's stale planned rows in place; a scoped re-plan per
+      // chunk clears them and materializes the successor template.
+      // Chunk failures are follow-up only — the split already
+      // succeeded, so warn and close instead of re-opening the form.
+      let followUpOk = true;
+      for (const chunk of chunks.slice(1)) {
+        try {
+          const result = await timetableService.replanWeek(
+            chunk.from,
+            chunk.to,
+            groupId,
+          );
+          if (result.warnings.some((w) => w.code === "no_active_period")) {
+            break;
+          }
+        } catch (chunkErr) {
+          logger.error("series_replan_chunk_failed", {
+            template_id: groupId,
+            from: chunk.from,
+            to: chunk.to,
+            error:
+              chunkErr instanceof Error ? chunkErr.message : String(chunkErr),
+          });
+          followUpOk = false;
+          break;
+        }
+      }
+      if (followUpOk) {
+        toastSuccess(`Regeltermin ab ${formatDate(effectiveDate)} geändert`);
+      } else {
+        toastWarning(FOLLOW_UP_WARNING);
+      }
+      onSaved({ kind: "series", seriesId: split.newTemplateId });
+    } else {
+      await timetableService.updateTemplate(groupId, body);
+      if (await replanTemplateFuture(groupId, periodEnd)) {
+        toastSuccess("Regeltermin gespeichert");
+      } else {
+        toastWarning(FOLLOW_UP_WARNING);
+      }
+      onSaved({ kind: "series", seriesId: groupId });
+    }
+  };
+
   const handleScopeSelect = async (scope: string) => {
     if (submitting) return;
     const pending = pendingSeriesEdit;
     const groupId = initialInstance?.activityGroupId;
     if (!pending || !initialInstance || !groupId) return;
-    setSubmitting(true);
-    try {
-      if (scope === "single") {
+
+    // Single-occurrence edit ("Nur diese Woche"): unchanged plain instance PUT.
+    if (scope === "single") {
+      setSubmitting(true);
+      try {
         await checkCoverageBeforeSave(coverageProbe);
         const saved = await timetableService.update(
           initialInstance.id,
@@ -1755,102 +1915,99 @@ export function TimetableEventModal({
         );
         toastSuccess("Termin gespeichert");
         onSaved({ kind: "instance", instance: saved });
-      } else {
-        const template = await timetableService.getTemplate(groupId);
-        const templateCalendarPeriodId =
-          resolveTemplateCalendarPeriodId(template);
-        const periodEnd =
-          findPeriod(templateCalendarPeriodId)?.endDate ??
-          findPeriod(form.calendarPeriodId)?.endDate;
-        const body = templateBodyFromForm(template, pending.roomId);
-        const typedScope = scope === "following" ? "following" : "all";
-        const scopeProbe = seriesCoverageProbe(
-          template,
-          body,
-          typedScope === "following" ? initialInstance.date : berlinTodayISO(),
-          typedScope === "all" ? groupId : undefined,
-        );
-        await checkCoverageBeforeSave(scopeProbe);
-        if (scope === "following") {
-          const effectiveDate = initialInstance.date;
-          const chunks = chunkDateRange(
-            effectiveDate,
-            periodEnd ?? weekTo ?? effectiveDate,
-            MATERIALIZE_CHUNK_DAYS,
-          );
-          const split = await timetableService.splitTemplate(groupId, {
-            ...body,
-            effective_date: effectiveDate,
-            materialize_from: effectiveDate,
-            materialize_to: chunks[0]?.to ?? effectiveDate,
-          });
-          // Beyond the first 56-day window the split leaves the old
-          // template's stale planned rows in place; a scoped re-plan per
-          // chunk clears them and materializes the successor template.
-          // Chunk failures are follow-up only — the split already
-          // succeeded, so warn and close instead of re-opening the form.
-          let followUpOk = true;
-          for (const chunk of chunks.slice(1)) {
-            try {
-              const result = await timetableService.replanWeek(
-                chunk.from,
-                chunk.to,
-                groupId,
-              );
-              if (result.warnings.some((w) => w.code === "no_active_period")) {
-                break;
-              }
-            } catch (chunkErr) {
-              logger.error("series_replan_chunk_failed", {
-                template_id: groupId,
-                from: chunk.from,
-                to: chunk.to,
-                error:
-                  chunkErr instanceof Error
-                    ? chunkErr.message
-                    : String(chunkErr),
-              });
-              followUpOk = false;
-              break;
-            }
-          }
-          if (followUpOk) {
-            toastSuccess(
-              `Regeltermin ab ${formatDate(effectiveDate)} geändert`,
-            );
-          } else {
-            toastWarning(FOLLOW_UP_WARNING);
-          }
-          onSaved({ kind: "series", seriesId: split.newTemplateId });
-        } else {
-          await timetableService.updateTemplate(groupId, body);
-          if (await replanTemplateFuture(groupId, periodEnd)) {
-            toastSuccess("Regeltermin gespeichert");
-          } else {
-            toastWarning(FOLLOW_UP_WARNING);
-          }
-          onSaved({ kind: "series", seriesId: groupId });
-        }
+        setPendingSeriesEdit(null);
+        onClose();
+      } catch (err) {
+        handleScopeError(scope, err);
+      } finally {
+        setSubmitting(false);
       }
+      return;
+    }
+
+    const typedScope = scope === "following" ? "following" : "all";
+    setSubmitting(true);
+    try {
+      const template = await timetableService.getTemplate(groupId);
+      const templateCalendarPeriodId =
+        resolveTemplateCalendarPeriodId(template);
+      const periodEnd =
+        findPeriod(templateCalendarPeriodId)?.endDate ??
+        findPeriod(form.calendarPeriodId)?.endDate;
+
+      // #1875: before rebuilding the series, check whether single-occurrence
+      // edits in the affected window would be discarded, and warn with the
+      // concrete dates. The probe is advisory — a failure must never block the
+      // edit, so on error we proceed silently (mirrors the coverage check).
+      // "following" splits into a successor template that rematerializes
+      // individually-deleted occurrences, so include deletions on that path;
+      // "all" re-plans the same template and preserves them.
+      const editsFrom =
+        typedScope === "following" ? initialInstance.date : berlinTodayISO();
+      const editsTo = periodEnd ?? weekTo ?? editsFrom;
+      let lost: EditedInWindowResult | null = null;
+      try {
+        const probe = await timetableService.countEditedInWindow(
+          groupId,
+          editsFrom,
+          editsTo,
+          typedScope === "following",
+        );
+        if (probe.count > 0) lost = probe;
+      } catch (probeErr) {
+        logger.warn("edited_in_window_probe_failed", {
+          error:
+            probeErr instanceof Error ? probeErr.message : String(probeErr),
+        });
+      }
+
+      if (lost) {
+        // Defer the edit: close the scope picker and ask the user to confirm
+        // the loss, listing the affected dates so they can re-edit afterwards.
+        setPendingSeriesEdit(null);
+        setLostEdits({
+          scope: typedScope,
+          result: lost,
+          onConfirm: () =>
+            performSeriesEdit(
+              typedScope,
+              pending.roomId,
+              template,
+              periodEnd,
+              groupId,
+            ),
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      await performSeriesEdit(
+        typedScope,
+        pending.roomId,
+        template,
+        periodEnd,
+        groupId,
+      );
       setPendingSeriesEdit(null);
       onClose();
     } catch (err) {
-      logger.error("series_scope_save_failed", {
-        scope,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      const raw =
-        err instanceof Error
-          ? err.message
-          : "Termin konnte nicht gespeichert werden";
-      // Backend rejects splits whose effective date already passed; the
-      // raw English message is meaningless to school staff.
-      const msg = raw.includes("effective_date must not be in the past")
-        ? "Der Stichtag liegt in der Vergangenheit. Bitte einen künftigen Termin der Serie wählen."
-        : raw;
-      setPendingSeriesEdit(null);
-      setValidationError(msg);
-      toastError(msg);
+      handleScopeError(scope, err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const confirmLostEdits = async () => {
+    if (submitting) return;
+    const pending = lostEdits;
+    if (!pending) return;
+    setSubmitting(true);
+    try {
+      await pending.onConfirm();
+      setLostEdits(null);
+      onClose();
+    } catch (err) {
+      handleScopeError(pending.scope, err);
     } finally {
       setSubmitting(false);
     }
@@ -3067,6 +3224,56 @@ export function TimetableEventModal({
             isBusy={submitting}
           />
         )}
+
+        {/* #1875: warn before a series edit discards single-occurrence edits. */}
+        <ConfirmationModal
+          isOpen={lostEdits !== null}
+          onClose={() => {
+            if (!submitting) setLostEdits(null);
+          }}
+          onConfirm={() => void confirmLostEdits()}
+          title="Einzelanpassungen gehen verloren"
+          confirmText="Trotzdem fortfahren"
+          cancelText="Abbrechen"
+          isConfirmLoading={submitting}
+          confirmButtonClass="bg-[#F78C10] hover:bg-[#d97908]"
+        >
+          {lostEdits && (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm leading-relaxed text-gray-600">
+                {lostEdits.result.count === 1
+                  ? "1 Termin dieser Serie wurde einzeln angepasst. "
+                  : `${lostEdits.result.count} Termine dieser Serie wurden einzeln angepasst. `}
+                {lostEdits.scope === "following"
+                  ? "Wenn du diesen und alle folgenden Termine bearbeitest, gehen diese Anpassungen verloren:"
+                  : "Wenn du alle Termine der Serie bearbeitest, gehen diese Anpassungen verloren:"}
+              </p>
+              <ul className="max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 text-sm">
+                {lostEdits.result.occurrences.map((occ) => (
+                  <li
+                    // Deleted occurrences share instanceId "0"; date+start keeps
+                    // the key unique (one deletion per date, one slot per start).
+                    key={`${occ.instanceId}-${occ.date}-${occ.startTime}`}
+                    className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-1 py-1"
+                  >
+                    <span className="font-semibold text-gray-800">
+                      {formatDate(occ.date)}
+                    </span>
+                    <span className="text-gray-500">
+                      {occ.changes
+                        .map((c) => EDIT_CHANGE_LABELS[c] ?? c)
+                        .join(", ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs leading-relaxed text-gray-500">
+                Notiere dir diese Termine, um sie anschließend erneut
+                anzupassen.
+              </p>
+            </div>
+          )}
+        </ConfirmationModal>
       </SlideOverContent>
     </SlideOver>
   );

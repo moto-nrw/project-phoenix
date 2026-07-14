@@ -130,6 +130,18 @@ type MaterializationService interface {
 	// forward to the following Monday — we never plan the current partial
 	// week); `to` is `from + weeksAhead*7 − 1` days.
 	ResolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Date)
+
+	// DetectEditedInWindow returns the planned, template-backed occurrences of
+	// one template in [from, to] whose content diverges from what the current
+	// template would materialize — the single-occurrence edits a series re-plan
+	// (#1875) would silently discard. Read-only; runs under the caller's
+	// ambient tenant (RLS) transaction. Deviation-only rows (absences,
+	// substitutes, understaffed ack, required_staff pin) are NOT reported —
+	// ReplanWeek preserves those. When includeDeletions is set, individually
+	// deleted occurrences (cancelled exceptions) are ALSO reported — a
+	// following-series split resurrects them under the successor template; a
+	// same-template re-plan preserves them, so callers on that path pass false.
+	DetectEditedInWindow(ctx context.Context, activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]EditedOccurrence, error)
 }
 
 // materializationService is the concrete implementation.
