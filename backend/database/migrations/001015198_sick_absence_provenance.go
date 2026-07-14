@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	sickAbsenceProvenanceVersion     = "1.15.197"
+	sickAbsenceProvenanceVersion     = "1.15.198"
 	sickAbsenceProvenanceDescription = "Add sick_absence_id provenance columns to schedule.staff_shifts and schedule.instance_staff (#1843): a sick report cascades into shift cancellations and block absences, and deleting the sick report must reverse exactly the rows it created — change_reason is free text and cannot carry that link."
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.197: Adding sick_absence_id provenance columns (#1843)...")
+			fmt.Println("Migration 1.15.198: Adding sick_absence_id provenance columns (#1843)...")
 			// No FK to active.staff_absences: the reversal runs BEFORE the
 			// absence row is deleted (same tx), and a cross-schema FK would
 			// couple schedule writes to the active schema for no integrity
@@ -51,7 +51,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.197...")
+			fmt.Println("Rolling back migration 1.15.198...")
 			if _, err := db.NewRaw(`
 				DROP INDEX IF EXISTS schedule.idx_instance_staff_sick_absence_id;
 				ALTER TABLE schedule.instance_staff
