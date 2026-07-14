@@ -48,6 +48,11 @@ type ShiftPlanSyncer interface {
 	// that received substitutes are skipped (never destroy admin work); their
 	// stamps are released so the deleted report stops owning them.
 	ClearSickForRange(ctx context.Context, in SickCascadeInput) error
+	// ReconcileSickRange applies only the calendar-day difference between an
+	// existing full-day sick report and its edited range. Days that remain sick
+	// are not cleared/re-applied, so their provenance and audit history stay
+	// stable. Both inputs refer to the same absence and subject.
+	ReconcileSickRange(ctx context.Context, before, after SickCascadeInput) error
 	// ReassignSickStamps re-points every provenance stamp from one absence id
 	// to another. Needed by the overlap-merge path: merging sick reports
 	// deletes the secondary absence rows, and their stamps must transfer to
@@ -64,6 +69,10 @@ func (noopShiftPlanSyncer) MarkSickForRange(context.Context, SickCascadeInput) e
 }
 
 func (noopShiftPlanSyncer) ClearSickForRange(context.Context, SickCascadeInput) error {
+	return nil
+}
+
+func (noopShiftPlanSyncer) ReconcileSickRange(context.Context, SickCascadeInput, SickCascadeInput) error {
 	return nil
 }
 

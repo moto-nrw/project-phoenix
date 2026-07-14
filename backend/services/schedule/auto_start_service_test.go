@@ -368,6 +368,8 @@ func (s *autoStartInstanceStarter) ApplySickAbsence(context.Context, *scheduleMo
 func (s *autoStartInstanceStarter) ClearSickAbsence(context.Context, *scheduleModel.InstanceStaff, *scheduleModel.ActivityInstance, int64, *int64, map[int64]*scheduleModel.ActivityInstance) error {
 	return nil
 }
+func (s *autoStartInstanceStarter) QueueActivityUpdates(context.Context, map[int64]*scheduleModel.ActivityInstance) {
+}
 
 // Stubs for the issue #585 cleanup refactor interface additions — unused by
 // the auto-start tests.

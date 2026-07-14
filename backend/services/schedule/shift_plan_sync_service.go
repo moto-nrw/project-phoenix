@@ -20,6 +20,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/active"
+	"github.com/uptrace/bun"
 )
 
 // sickShiftChangeReason / sickBlockAbsenceReason are the neutral machine
@@ -37,6 +38,7 @@ type shiftPlanSyncService struct {
 	timetableData     *TimetableDataService
 	shiftRepo         scheduleModel.StaffShiftRepository
 	instanceStaffRepo scheduleModel.InstanceStaffRepository
+	db                *bun.DB
 	logger            *slog.Logger
 }
 
@@ -49,6 +51,7 @@ func NewShiftPlanSyncService(
 	timetableData *TimetableDataService,
 	shiftRepo scheduleModel.StaffShiftRepository,
 	instanceStaffRepo scheduleModel.InstanceStaffRepository,
+	db *bun.DB,
 	logger *slog.Logger,
 ) active.ShiftPlanSyncer {
 	return &shiftPlanSyncService{
@@ -57,12 +60,23 @@ func NewShiftPlanSyncService(
 		timetableData:     timetableData,
 		shiftRepo:         shiftRepo,
 		instanceStaffRepo: instanceStaffRepo,
+		db:                db,
 		logger:            logger,
 	}
 }
 
 func (s *shiftPlanSyncService) getLogger() *slog.Logger {
 	return cmp.Or(s.logger, slog.Default())
+}
+
+func (s *shiftPlanSyncService) lockStaffWrites(ctx context.Context, staffID int64) error {
+	if s.db == nil {
+		return fmt.Errorf("sick cascade: staff lock database is not configured")
+	}
+	if err := LockStaffShiftWrites(ctx, s.db, staffID); err != nil {
+		return fmt.Errorf("sick cascade: lock staff %d: %w", staffID, err)
+	}
+	return nil
 }
 
 // MarkSickForRange cancels the subject's shifts and marks their care-block
@@ -75,13 +89,18 @@ func (s *shiftPlanSyncService) MarkSickForRange(ctx context.Context, in active.S
 	if len(days) == 0 {
 		return nil
 	}
+	if err := s.lockStaffWrites(ctx, in.SubjectStaffID); err != nil {
+		return err
+	}
 
 	if err := s.cancelShiftsForSickDays(ctx, in, days); err != nil {
 		return err
 	}
-	if err := s.markBlocksForSickDays(ctx, in, days); err != nil {
+	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
+	if err := s.markBlocksForSickDays(ctx, in, days, activeTouched); err != nil {
 		return err
 	}
+	s.instances.QueueActivityUpdates(ctx, activeTouched)
 	s.getLogger().Info("sick cascade applied",
 		"staff_id", in.SubjectStaffID,
 		"absence_id", in.AbsenceID,
@@ -136,37 +155,43 @@ func (s *shiftPlanSyncService) cancelShiftsForSickDays(ctx context.Context, in a
 	return nil
 }
 
-func (s *shiftPlanSyncService) markBlocksForSickDays(ctx context.Context, in active.SickCascadeInput, days []timezone.Date) error {
+func (s *shiftPlanSyncService) markBlocksForSickDays(ctx context.Context, in active.SickCascadeInput, days []timezone.Date, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
 	// Past days are never touched: a completed/historical instance records
 	// what actually happened (mirrors the deviations endpoints' past guard).
 	today := timezone.TodayDate()
 	reason := sickBlockAbsenceReason
-	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
 	for _, d := range days {
 		if d.Before(today) {
 			continue
 		}
-		if err := s.timetableData.AcquireSubstituteDayLock(ctx, d); err != nil {
-			return fmt.Errorf("sick cascade: day lock %s: %w", d.String(), err)
+		if err := s.markBlocksForSickDay(ctx, in, d, &reason, activeTouched); err != nil {
+			return err
 		}
-		rows, err := s.timetableData.GetInstanceStaffByStaffAndDate(ctx, in.SubjectStaffID, d)
+	}
+	return nil
+}
+
+func (s *shiftPlanSyncService) markBlocksForSickDay(ctx context.Context, in active.SickCascadeInput, day timezone.Date, reason *string, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+	if err := s.timetableData.AcquireSubstituteDayLock(ctx, day); err != nil {
+		return fmt.Errorf("sick cascade: day lock %s: %w", day.String(), err)
+	}
+	rows, err := s.timetableData.GetInstanceStaffByStaffAndDate(ctx, in.SubjectStaffID, day)
+	if err != nil {
+		return fmt.Errorf("sick cascade: load assignments %s: %w", day.String(), err)
+	}
+	for _, row := range rows {
+		if row.IsAbsent {
+			continue // already absent (manual deviation or overlapping report)
+		}
+		instance, err := s.timetableData.GetActivityInstance(ctx, row.InstanceID)
 		if err != nil {
-			return fmt.Errorf("sick cascade: load assignments %s: %w", d.String(), err)
+			return fmt.Errorf("sick cascade: load instance %d: %w", row.InstanceID, err)
 		}
-		for _, row := range rows {
-			if row.IsAbsent {
-				continue // already absent (manual deviation or overlapping report)
-			}
-			instance, err := s.timetableData.GetActivityInstance(ctx, row.InstanceID)
-			if err != nil {
-				return fmt.Errorf("sick cascade: load instance %d: %w", row.InstanceID, err)
-			}
-			if instance == nil || !sickCascadePlannable(instance) {
-				continue
-			}
-			if err := s.instances.ApplySickAbsence(ctx, row, instance, &reason, in.AbsenceID, in.ActorAccountID, activeTouched); err != nil {
-				return fmt.Errorf("sick cascade: mark block %d: %w", row.InstanceID, err)
-			}
+		if instance == nil || !sickCascadePlannable(instance) {
+			continue
+		}
+		if err := s.instances.ApplySickAbsence(ctx, row, instance, reason, in.AbsenceID, in.ActorAccountID, activeTouched); err != nil {
+			return fmt.Errorf("sick cascade: mark block %d: %w", row.InstanceID, err)
 		}
 	}
 	return nil
@@ -178,12 +203,17 @@ func (s *shiftPlanSyncService) markBlocksForSickDays(ctx context.Context, in act
 // absent — in both cases only the provenance stamp is cleared so the deleted
 // report stops owning them, and the admin resolves the rest manually.
 func (s *shiftPlanSyncService) ClearSickForRange(ctx context.Context, in active.SickCascadeInput) error {
-	if err := s.reactivateStampedShifts(ctx, in); err != nil {
+	if err := s.lockStaffWrites(ctx, in.SubjectStaffID); err != nil {
 		return err
 	}
-	if err := s.clearStampedBlocks(ctx, in); err != nil {
+	if err := s.reactivateStampedShifts(ctx, in, nil); err != nil {
 		return err
 	}
+	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
+	if err := s.clearStampedBlocks(ctx, in, nil, activeTouched); err != nil {
+		return err
+	}
+	s.instances.QueueActivityUpdates(ctx, activeTouched)
 	s.getLogger().Info("sick cascade cleared",
 		"staff_id", in.SubjectStaffID,
 		"absence_id", in.AbsenceID,
@@ -191,66 +221,164 @@ func (s *shiftPlanSyncService) ClearSickForRange(ctx context.Context, in active.
 	return nil
 }
 
-func (s *shiftPlanSyncService) reactivateStampedShifts(ctx context.Context, in active.SickCascadeInput) error {
-	shifts, err := s.shiftRepo.List(ctx, map[string]any{"sick_absence_id": in.AbsenceID})
-	if err != nil {
-		return fmt.Errorf("sick clear: load stamped shifts: %w", err)
+// ReconcileSickRange applies only the days removed from or added to an edited
+// full-day sick report. The staff lock is acquired before either side reads
+// shifts, and every affected future day lock is acquired in ascending order
+// before block writes, so the two directions cannot deadlock each other.
+func (s *shiftPlanSyncService) ReconcileSickRange(ctx context.Context, before, after active.SickCascadeInput) error {
+	if before.SubjectStaffID != after.SubjectStaffID || before.AbsenceID != after.AbsenceID {
+		return fmt.Errorf("sick reconcile: before and after must identify the same absence")
 	}
-	for _, shift := range shifts {
-		covers, err := s.shiftRepo.FindByOriginShiftID(ctx, shift.ID)
-		if err != nil {
-			return fmt.Errorf("sick clear: load covers of shift %d: %w", shift.ID, err)
-		}
-		if !shift.Cancelled || len(covers) > 0 {
-			// Not cancelled: nothing to reactivate. Covered: reactivating
-			// would delete the admin's replacements. Release the stamp only.
-			shift.SickAbsenceID = nil
-			if _, err := s.shiftRepo.UpdateColumns(ctx, shift, "sick_absence_id"); err != nil {
-				return fmt.Errorf("sick clear: release shift %d: %w", shift.ID, err)
-			}
-			if len(covers) > 0 {
-				s.getLogger().Info("sick clear kept a replaced shift cancelled",
-					"shift_id", shift.ID,
-					"staff_id", shift.StaffID,
-					"replacements", len(covers),
-				)
-			}
+	removed, added := sickCascadeDayDifference(before, after)
+	if len(removed) == 0 && len(added) == 0 {
+		return nil
+	}
+	if err := s.lockStaffWrites(ctx, after.SubjectStaffID); err != nil {
+		return err
+	}
+	if err := s.acquireCascadeDayLocks(ctx, unionDateSets(removed, added)); err != nil {
+		return err
+	}
+	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
+	if err := s.reconcileRemovedSickDays(ctx, before, removed, activeTouched); err != nil {
+		return err
+	}
+	if err := s.reconcileAddedSickDays(ctx, after, added, activeTouched); err != nil {
+		return err
+	}
+	s.instances.QueueActivityUpdates(ctx, activeTouched)
+	return nil
+}
+
+func (s *shiftPlanSyncService) reconcileRemovedSickDays(ctx context.Context, before active.SickCascadeInput, removed map[timezone.Date]bool, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+	if len(removed) == 0 {
+		return nil
+	}
+	if err := s.reactivateStampedShifts(ctx, before, removed); err != nil {
+		return err
+	}
+	return s.clearStampedBlocks(ctx, before, removed, activeTouched)
+}
+
+func (s *shiftPlanSyncService) reconcileAddedSickDays(ctx context.Context, after active.SickCascadeInput, added map[timezone.Date]bool, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+	if len(added) == 0 {
+		return nil
+	}
+	days := sortedDateSet(added)
+	if err := s.cancelShiftsForSickDays(ctx, after, days); err != nil {
+		return err
+	}
+	return s.markBlocksForSickDays(ctx, after, days, activeTouched)
+}
+
+func (s *shiftPlanSyncService) acquireCascadeDayLocks(ctx context.Context, days map[timezone.Date]bool) error {
+	today := timezone.TodayDate()
+	for _, day := range sortedDateSet(days) {
+		if day.Before(today) {
 			continue
 		}
-		// Reactivation clears sick_absence_id and change_reason via the
-		// ordinary update path and re-checks overlap against the freed window.
-		if _, err := s.shifts.ApplyCancellation(ctx, CancelShiftInput{
-			ShiftID:      shift.ID,
-			Cancelled:    false,
-			ActorStaffID: in.ActorStaffID,
-		}); err != nil {
-			return fmt.Errorf("sick clear: reactivate shift %d: %w", shift.ID, err)
+		if err := s.timetableData.AcquireSubstituteDayLock(ctx, day); err != nil {
+			return fmt.Errorf("sick reconcile: day lock %s: %w", day.String(), err)
 		}
 	}
 	return nil
 }
 
-func (s *shiftPlanSyncService) clearStampedBlocks(ctx context.Context, in active.SickCascadeInput) error {
+func (s *shiftPlanSyncService) reactivateStampedShifts(ctx context.Context, in active.SickCascadeInput, onlyDays map[timezone.Date]bool) error {
+	shifts, err := s.shiftRepo.List(ctx, map[string]any{"sick_absence_id": in.AbsenceID})
+	if err != nil {
+		return fmt.Errorf("sick clear: load stamped shifts: %w", err)
+	}
+	for _, shift := range shifts {
+		if onlyDays != nil && !onlyDays[shift.Date] {
+			continue
+		}
+		if err := s.reactivateStampedShift(ctx, in, shift); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *shiftPlanSyncService) reactivateStampedShift(ctx context.Context, in active.SickCascadeInput, shift *scheduleModel.StaffShift) error {
+	covers, err := s.shiftRepo.FindByOriginShiftID(ctx, shift.ID)
+	if err != nil {
+		return fmt.Errorf("sick clear: load covers of shift %d: %w", shift.ID, err)
+	}
+	if !shift.Cancelled || len(covers) > 0 {
+		return s.releaseStampedShift(ctx, shift, len(covers))
+	}
+	// Reactivation clears sick_absence_id and change_reason via the ordinary
+	// update path and re-checks overlap against the freed window.
+	if _, err := s.shifts.ApplyCancellation(ctx, CancelShiftInput{
+		ShiftID: shift.ID, Cancelled: false, ActorStaffID: in.ActorStaffID,
+	}); err != nil {
+		return fmt.Errorf("sick clear: reactivate shift %d: %w", shift.ID, err)
+	}
+	return nil
+}
+
+func (s *shiftPlanSyncService) releaseStampedShift(ctx context.Context, shift *scheduleModel.StaffShift, replacementCount int) error {
+	shift.SickAbsenceID = nil
+	if _, err := s.shiftRepo.UpdateColumns(ctx, shift, "sick_absence_id"); err != nil {
+		return fmt.Errorf("sick clear: release shift %d: %w", shift.ID, err)
+	}
+	if replacementCount > 0 {
+		s.getLogger().Info("sick clear kept a replaced shift cancelled",
+			"shift_id", shift.ID,
+			"staff_id", shift.StaffID,
+			"replacements", replacementCount,
+		)
+	}
+	return nil
+}
+
+func (s *shiftPlanSyncService) clearStampedBlocks(ctx context.Context, in active.SickCascadeInput, onlyDays map[timezone.Date]bool, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+	rows, err := s.loadStampedBlockRows(ctx, in.AbsenceID)
+	if err != nil || len(rows) == 0 {
+		return err
+	}
+	byDay, releaseOnly, err := s.classifyStampedBlockRows(ctx, rows, onlyDays)
+	if err != nil {
+		return err
+	}
+	if err := s.releaseSickBlockStamps(ctx, releaseOnly); err != nil {
+		return err
+	}
+	for _, day := range sortedStampedBlockDays(byDay) {
+		if err := s.clearStampedBlocksForDay(ctx, in, day, byDay[day], activeTouched); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type stampedSickBlockRow struct {
+	row      *scheduleModel.InstanceStaff
+	instance *scheduleModel.ActivityInstance
+}
+
+func (s *shiftPlanSyncService) loadStampedBlockRows(ctx context.Context, absenceID int64) ([]*scheduleModel.InstanceStaff, error) {
 	listOptions := modelBase.NewQueryOptions()
-	listOptions.Filter.Equal("sick_absence_id", in.AbsenceID)
+	listOptions.Filter.Equal("sick_absence_id", absenceID)
 	rows, err := s.instanceStaffRepo.List(ctx, listOptions)
 	if err != nil {
-		return fmt.Errorf("sick clear: load stamped rows: %w", err)
+		return nil, fmt.Errorf("sick clear: load stamped rows: %w", err)
 	}
-	if len(rows) == 0 {
-		return nil
-	}
-	type stampedRow struct {
-		row      *scheduleModel.InstanceStaff
-		instance *scheduleModel.ActivityInstance
-	}
+	return rows, nil
+}
+
+func (s *shiftPlanSyncService) classifyStampedBlockRows(ctx context.Context, rows []*scheduleModel.InstanceStaff, onlyDays map[timezone.Date]bool) (map[timezone.Date][]stampedSickBlockRow, []*scheduleModel.InstanceStaff, error) {
 	today := timezone.TodayDate()
-	byDay := make(map[timezone.Date][]stampedRow)
+	byDay := make(map[timezone.Date][]stampedSickBlockRow)
 	var releaseOnly []*scheduleModel.InstanceStaff
 	for _, row := range rows {
 		instance, err := s.timetableData.GetActivityInstance(ctx, row.InstanceID)
 		if err != nil {
-			return fmt.Errorf("sick clear: load instance %d: %w", row.InstanceID, err)
+			return nil, nil, fmt.Errorf("sick clear: load instance %d: %w", row.InstanceID, err)
+		}
+		if instance != nil && onlyDays != nil && !onlyDays[instance.Date] {
+			continue
 		}
 		// Past days stay as recorded history; rows a manual edit already
 		// restored, and terminal instances, only shed their stamp.
@@ -258,46 +386,58 @@ func (s *shiftPlanSyncService) clearStampedBlocks(ctx context.Context, in active
 			releaseOnly = append(releaseOnly, row)
 			continue
 		}
-		byDay[instance.Date] = append(byDay[instance.Date], stampedRow{row: row, instance: instance})
+		byDay[instance.Date] = append(byDay[instance.Date], stampedSickBlockRow{row: row, instance: instance})
 	}
-	for _, row := range releaseOnly {
+	return byDay, releaseOnly, nil
+}
+
+func (s *shiftPlanSyncService) releaseSickBlockStamps(ctx context.Context, rows []*scheduleModel.InstanceStaff) error {
+	for _, row := range rows {
 		row.SickAbsenceID = nil
 		if _, err := s.instanceStaffRepo.UpdateColumns(ctx, row, "sick_absence_id"); err != nil {
 			return fmt.Errorf("sick clear: release row %d: %w", row.ID, err)
 		}
 	}
+	return nil
+}
+
+func sortedStampedBlockDays(byDay map[timezone.Date][]stampedSickBlockRow) []timezone.Date {
 	dates := make([]timezone.Date, 0, len(byDay))
 	for d := range byDay {
 		dates = append(dates, d)
 	}
 	sort.Slice(dates, func(i, j int) bool { return dates[i].Before(dates[j]) })
-	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
-	for _, d := range dates {
-		if err := s.timetableData.AcquireSubstituteDayLock(ctx, d); err != nil {
-			return fmt.Errorf("sick clear: day lock %s: %w", d.String(), err)
+	return dates
+}
+
+func (s *shiftPlanSyncService) clearStampedBlocksForDay(ctx context.Context, in active.SickCascadeInput, day timezone.Date, entries []stampedSickBlockRow, activeTouched map[int64]*scheduleModel.ActivityInstance) error {
+	if err := s.timetableData.AcquireSubstituteDayLock(ctx, day); err != nil {
+		return fmt.Errorf("sick clear: day lock %s: %w", day.String(), err)
+	}
+	for _, entry := range entries {
+		hasSubstitute, err := s.instanceHasActiveSubstitute(ctx, entry.row.InstanceID)
+		if err != nil {
+			return err
 		}
-		for _, entry := range byDay[d] {
-			hasSubstitute, err := s.instanceHasActiveSubstitute(ctx, entry.row.InstanceID)
-			if err != nil {
-				return err
+		if hasSubstitute {
+			// An admin covered this block for the sick person; restoring
+			// presence would silently overstaff it. Release the stamp and
+			// keep the absence for the admin to resolve.
+			entry.row.SickAbsenceID = nil
+			if _, err := s.instanceStaffRepo.UpdateColumns(ctx, entry.row, "sick_absence_id"); err != nil {
+				return fmt.Errorf("sick clear: release row %d: %w", entry.row.ID, err)
 			}
-			if hasSubstitute {
-				// An admin covered this block for the sick person; restoring
-				// presence would silently overstaff it. Release the stamp and
-				// keep the absence for the admin to resolve.
-				entry.row.SickAbsenceID = nil
-				if _, err := s.instanceStaffRepo.UpdateColumns(ctx, entry.row, "sick_absence_id"); err != nil {
-					return fmt.Errorf("sick clear: release row %d: %w", entry.row.ID, err)
-				}
-				s.getLogger().Info("sick clear kept a substituted block absent",
-					"instance_id", entry.row.InstanceID,
-					"staff_id", entry.row.StaffID,
-				)
-				continue
-			}
-			if err := s.instances.ClearSickAbsence(ctx, entry.row, entry.instance, in.AbsenceID, in.ActorAccountID, activeTouched); err != nil {
-				return fmt.Errorf("sick clear: clear block %d: %w", entry.row.InstanceID, err)
-			}
+			s.getLogger().Info("sick clear kept a substituted block absent",
+				"instance_id", entry.row.InstanceID,
+				"staff_id", entry.row.StaffID,
+			)
+			continue
+		}
+		if err := s.instances.ClearSickAbsence(ctx, entry.row, entry.instance, in.AbsenceID, in.ActorAccountID, activeTouched); err != nil {
+			return fmt.Errorf("sick clear: clear block %d: %w", entry.row.InstanceID, err)
+		}
+		if err := s.instances.ClearUnderstaffedAckIfStaffed(ctx, entry.row.InstanceID, in.ActorAccountID); err != nil {
+			return fmt.Errorf("sick clear: reconcile understaffed acknowledgement for block %d: %w", entry.row.InstanceID, err)
 		}
 	}
 	return nil
@@ -358,6 +498,52 @@ func sickCascadeDays(in active.SickCascadeInput) []timezone.Date {
 		}
 		days = append(days, d)
 	}
+	return days
+}
+
+func sickCascadeDayDifference(before, after active.SickCascadeInput) (removed, added map[timezone.Date]bool) {
+	beforeDays := dateSet(sickCascadeDays(before))
+	afterDays := dateSet(sickCascadeDays(after))
+	removed = make(map[timezone.Date]bool)
+	added = make(map[timezone.Date]bool)
+	for day := range beforeDays {
+		if !afterDays[day] {
+			removed[day] = true
+		}
+	}
+	for day := range afterDays {
+		if !beforeDays[day] {
+			added[day] = true
+		}
+	}
+	return removed, added
+}
+
+func dateSet(days []timezone.Date) map[timezone.Date]bool {
+	set := make(map[timezone.Date]bool, len(days))
+	for _, day := range days {
+		set[day] = true
+	}
+	return set
+}
+
+func unionDateSets(left, right map[timezone.Date]bool) map[timezone.Date]bool {
+	union := make(map[timezone.Date]bool, len(left)+len(right))
+	for day := range left {
+		union[day] = true
+	}
+	for day := range right {
+		union[day] = true
+	}
+	return union
+}
+
+func sortedDateSet(set map[timezone.Date]bool) []timezone.Date {
+	days := make([]timezone.Date, 0, len(set))
+	for day := range set {
+		days = append(days, day)
+	}
+	sort.Slice(days, func(i, j int) bool { return days[i].Before(days[j]) })
 	return days
 }
 

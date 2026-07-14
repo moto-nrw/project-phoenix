@@ -349,115 +349,13 @@ export function AbwesenheitenTab({
         </span>
       </div>
 
-      {/* Pending requests, Inbox-Zero pattern: always shows the slot. With
-          items it surfaces as an amber action card; empty it collapses to a
-          subtle "alles bearbeitet" confirmation so the layout anchor stays. */}
-      {pending.length === 0 ? (
-        <div className="flex items-center gap-3 rounded-3xl border border-gray-100/80 bg-white/60 px-5 py-4 text-sm text-gray-500">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#83CD2D]/15 text-[#4a7a15]">
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          </span>
-          <div>
-            <p className="text-sm font-medium text-gray-700">
-              Keine offenen Anfragen
-            </p>
-            <p className="text-xs text-gray-400">Alles bearbeitet.</p>
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-3xl border-2 border-amber-200 bg-amber-50/40 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
-              {pending.length}
-            </span>
-            <h3 className="text-sm font-bold tracking-wide text-amber-900 uppercase">
-              Eingehende Anfragen
-            </h3>
-          </div>
-          <ul className="space-y-2">
-            {pending.map((row) => {
-              const isBusy = pendingActionId === row.id;
-              return (
-                <li
-                  key={row.id}
-                  className="rounded-2xl border border-amber-100 bg-white p-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ABSENCE_TYPE_COLOR[row.absence_type] ?? "bg-gray-100 text-gray-600"}`}
-                        >
-                          {ABSENCE_TYPE_LABEL[row.absence_type] ??
-                            row.absence_type}
-                        </span>
-                        <p className="text-sm font-medium text-gray-800">
-                          {formatRange(row.date_start, row.date_end)}
-                          {row.half_day && (
-                            <span className="ml-2 text-xs text-gray-500">
-                              (halber Tag)
-                            </span>
-                          )}
-                          {row.working_days != null && (
-                            <span className="ml-2 text-xs text-gray-500">
-                              · {row.working_days}{" "}
-                              {row.working_days === 1 ? "Tag" : "Tage"}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      {row.note && (
-                        <p className="mt-2 text-xs text-gray-600">
-                          <span className="font-medium">Notiz:</span> {row.note}
-                        </p>
-                      )}
-                      {row.requested_at && (
-                        <p className="mt-1 text-[11px] text-gray-400">
-                          Eingegangen {formatDate(row.requested_at)}
-                        </p>
-                      )}
-                    </div>
-                    {canEdit && (
-                      <div className="flex w-full flex-col gap-2 min-[420px]:w-auto min-[420px]:flex-row">
-                        <button
-                          type="button"
-                          onClick={() => setDenyModal(row)}
-                          disabled={isBusy}
-                          className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
-                        >
-                          Ablehnen
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleApprove(row);
-                          }}
-                          disabled={isBusy}
-                          className="rounded-lg bg-[#83CD2D] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#74b827] disabled:opacity-50"
-                        >
-                          {isBusy ? "…" : "Genehmigen"}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+      <PendingAbsences
+        rows={pending}
+        canEdit={canEdit}
+        pendingActionId={pendingActionId}
+        onApprove={handleApprove}
+        onDeny={setDenyModal}
+      />
 
       {/* Upcoming approved absences */}
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
@@ -568,6 +466,146 @@ export function AbwesenheitenTab({
         />
       )}
     </div>
+  );
+}
+
+function PendingAbsences({
+  rows,
+  canEdit,
+  pendingActionId,
+  onApprove,
+  onDeny,
+}: {
+  readonly rows: StaffAbsenceRow[];
+  readonly canEdit: boolean;
+  readonly pendingActionId: number | null;
+  readonly onApprove: (row: StaffAbsenceRow) => Promise<void>;
+  readonly onDeny: (row: StaffAbsenceRow) => void;
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="flex items-center gap-3 rounded-3xl border border-gray-100/80 bg-white/60 px-5 py-4 text-sm text-gray-500">
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#83CD2D]/15 text-[#4a7a15]">
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+        </span>
+        <div>
+          <p className="text-sm font-medium text-gray-700">
+            Keine offenen Anfragen
+          </p>
+          <p className="text-xs text-gray-400">Alles bearbeitet.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-3xl border-2 border-amber-200 bg-amber-50/40 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
+          {rows.length}
+        </span>
+        <h3 className="text-sm font-bold tracking-wide text-amber-900 uppercase">
+          Eingehende Anfragen
+        </h3>
+      </div>
+      <ul className="space-y-2">
+        {rows.map((row) => (
+          <PendingAbsenceRow
+            key={row.id}
+            row={row}
+            canEdit={canEdit}
+            isBusy={pendingActionId === row.id}
+            onApprove={onApprove}
+            onDeny={onDeny}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function PendingAbsenceRow({
+  row,
+  canEdit,
+  isBusy,
+  onApprove,
+  onDeny,
+}: {
+  readonly row: StaffAbsenceRow;
+  readonly canEdit: boolean;
+  readonly isBusy: boolean;
+  readonly onApprove: (row: StaffAbsenceRow) => Promise<void>;
+  readonly onDeny: (row: StaffAbsenceRow) => void;
+}) {
+  return (
+    <li className="rounded-2xl border border-amber-100 bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ABSENCE_TYPE_COLOR[row.absence_type] ?? "bg-gray-100 text-gray-600"}`}
+            >
+              {ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
+            </span>
+            <p className="text-sm font-medium text-gray-800">
+              {formatRange(row.date_start, row.date_end)}
+              {row.half_day && (
+                <span className="ml-2 text-xs text-gray-500">(halber Tag)</span>
+              )}
+              {row.working_days != null && (
+                <span className="ml-2 text-xs text-gray-500">
+                  · {row.working_days} {row.working_days === 1 ? "Tag" : "Tage"}
+                </span>
+              )}
+            </p>
+          </div>
+          {row.note && (
+            <p className="mt-2 text-xs text-gray-600">
+              <span className="font-medium">Notiz:</span> {row.note}
+            </p>
+          )}
+          {row.requested_at && (
+            <p className="mt-1 text-[11px] text-gray-400">
+              Eingegangen {formatDate(row.requested_at)}
+            </p>
+          )}
+        </div>
+        {canEdit && (
+          <div className="flex w-full flex-col gap-2 min-[420px]:w-auto min-[420px]:flex-row">
+            <button
+              type="button"
+              onClick={() => onDeny(row)}
+              disabled={isBusy}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+            >
+              Ablehnen
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onApprove(row);
+              }}
+              disabled={isBusy}
+              className="rounded-lg bg-[#83CD2D] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#74b827] disabled:opacity-50"
+            >
+              {isBusy ? "…" : "Genehmigen"}
+            </button>
+          </div>
+        )}
+      </div>
+    </li>
   );
 }
 

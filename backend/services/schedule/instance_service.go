@@ -144,6 +144,9 @@ type InstanceService interface {
 	// but with provenance stamping and the sick_reported/sick_cleared events.
 	ApplySickAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, reason *string, sickAbsenceID int64, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
 	ClearSickAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, sickAbsenceID int64, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
+	// QueueActivityUpdates emits one activity_update per touched active group
+	// after the surrounding tenant transaction commits. Rollbacks emit nothing.
+	QueueActivityUpdates(ctx context.Context, touched map[int64]*scheduleModel.ActivityInstance)
 }
 
 // CreateInstanceInput bundles the fields needed to insert a fresh instance

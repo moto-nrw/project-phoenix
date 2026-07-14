@@ -250,6 +250,8 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	// newly reported full days (#1843).
 	if !req.HalfDay {
 		primary.HalfDay = false
+		primary.StartHalfDay = false
+		primary.EndHalfDay = false
 	}
 	primary.UpdatedAt = time.Now()
 
@@ -268,8 +270,11 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 		}
 	}
 
-	// Delete remaining overlapping absences
-	s.deleteRemainingAbsences(ctx, existing[1:])
+	// Delete remaining overlapping absences. The reassigned provenance and the
+	// primary update must roll back if even one secondary cannot be removed.
+	if err := s.deleteRemainingAbsences(ctx, existing[1:]); err != nil {
+		return nil, err
+	}
 
 	return toAbsenceResponse(primary), nil
 }
@@ -303,14 +308,13 @@ func calculateMergedDateRange(existing []*activeModels.StaffAbsence, dateStart, 
 }
 
 // deleteRemainingAbsences deletes absences that were merged into the primary.
-func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absences []*activeModels.StaffAbsence) {
+func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absences []*activeModels.StaffAbsence) error {
 	for _, e := range absences {
 		if err := s.absenceRepo.Delete(ctx, e.ID); err != nil {
-			slog.Default().WarnContext(ctx, "failed to delete merged absence",
-				slog.Int64("absence_id", e.ID),
-				slog.String("error", err.Error()))
+			return fmt.Errorf("failed to delete merged absence %d: %w", e.ID, err)
 		}
 	}
+	return nil
 }
 
 // warnIfWorkSessionsExist logs a warning if work sessions exist in the date range.
@@ -367,6 +371,7 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	if absence.StaffID != staffID {
 		return nil, fmt.Errorf("can only update own absences")
 	}
+	before := *absence
 	if isVacationWorkflowAbsence(absence) {
 		return nil, fmt.Errorf("vacation workflow absences must be changed through the vacation flow")
 	}
@@ -376,9 +381,8 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	// A type change into or out of "sick" would desync the #1843 plan cascade:
 	// sick→other keeps the cancellations/marks but skips the reversal on
 	// delete forever; other→sick pretends a cascade that never ran. Delete
-	// and re-create instead. (Date changes stay allowed — the reversal works
-	// off provenance stamps, not dates; stale marks on shortened ranges are a
-	// documented v1 limitation.)
+	// and re-create instead. Date edits remain supported and reconcile their
+	// plan-day difference below.
 	if req.AbsenceType != nil && *req.AbsenceType != absence.AbsenceType &&
 		(absence.AbsenceType == activeModels.AbsenceTypeSick || *req.AbsenceType == activeModels.AbsenceTypeSick) {
 		return nil, fmt.Errorf("invalid absence type change: sick absences must be deleted and re-created, not converted")
@@ -410,7 +414,31 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		return nil, fmt.Errorf("failed to update absence: %w", err)
 	}
 
+	if before.AbsenceType == activeModels.AbsenceTypeSick && !before.HalfDay &&
+		(before.DateStart != absence.DateStart || before.DateEnd != absence.DateEnd) {
+		if err := s.planSyncer().ReconcileSickRange(
+			ctx,
+			sickCascadeInput(&before, staffID, nil),
+			sickCascadeInput(absence, staffID, nil),
+		); err != nil {
+			return nil, fmt.Errorf("absence update saved nothing — plan cascade reconciliation failed: %w", err)
+		}
+	}
+
 	return toAbsenceResponse(absence), nil
+}
+
+func sickCascadeInput(absence *activeModels.StaffAbsence, actorStaffID int64, actorAccountID *int64) SickCascadeInput {
+	return SickCascadeInput{
+		SubjectStaffID: absence.StaffID,
+		DateStart:      absence.DateStart,
+		DateEnd:        absence.DateEnd,
+		SkipStartDay:   absence.StartHalfDay,
+		SkipEndDay:     absence.EndHalfDay,
+		AbsenceID:      absence.ID,
+		ActorStaffID:   actorStaffID,
+		ActorAccountID: actorAccountID,
+	}
 }
 
 // applyAbsenceUpdates applies partial updates from the request to the absence.

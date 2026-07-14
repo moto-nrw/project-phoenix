@@ -1015,6 +1015,12 @@ func (m *mockInstanceService) ClearSickAbsence(ctx context.Context, row *schedul
 	return nil
 }
 
+func (m *mockInstanceService) QueueActivityUpdates(ctx context.Context, touched map[int64]*scheduleModel.ActivityInstance) {
+	if m.real != nil {
+		m.real.QueueActivityUpdates(ctx, touched)
+	}
+}
+
 func (m *mockInstanceService) ApplyPresence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
 	if m.real != nil {
 		return m.real.ApplyPresence(ctx, row, instance, actor, touched)

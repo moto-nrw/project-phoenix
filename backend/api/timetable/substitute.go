@@ -5,23 +5,19 @@
 // Betreuungsplan gap-fill quick action) now sends the same day-wide
 // substitution through the atomic deviations save. What remains here is the
 // pure classification logic (classifySubstitute), the shared response row
-// (AffectedInstance), the time-conflict advisory builder, and the SSE
-// broadcast helper — all consumed by deviations.go. The write path lives in
-// services/schedule (ApplyAbsence/ApplySubstitute, #1886).
+// (AffectedInstance), and the time-conflict advisory builder — all consumed by
+// deviations.go. The write path lives in services/schedule
+// (ApplyAbsence/ApplySubstitute, #1886).
 package timetable
 
 import (
 	"context"
-	"fmt"
-	"log/slog"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // substituteActionType is the stable per-instance action string returned in
@@ -251,37 +247,5 @@ func toConflictInstance(inst *scheduleModel.ActivityInstance) scheduleSvc.Substi
 		StartMin:  scheduleSvc.MinutesOfTime(inst.StartTime.Hour(), inst.StartTime.Minute()),
 		EndMin:    scheduleSvc.MinutesOfTime(inst.EndTime.Hour(), inst.EndTime.Minute()),
 		StartHHMM: inst.StartTime.Format("15:04"),
-	}
-}
-
-// broadcastSubstituteEvents queues one activity_update per affected active
-// group after the surrounding tenant transaction commits.
-func (rs *Resource) broadcastSubstituteEvents(
-	ctx context.Context,
-	touched map[int64]*scheduleModel.ActivityInstance,
-) {
-	if rs.Broadcaster == nil || len(touched) == 0 {
-		return
-	}
-	tenantID := tenant.FromContext(ctx)
-	for activeGroupID, inst := range touched {
-		activeGroupIDStr := fmt.Sprintf("%d", activeGroupID)
-		instanceIDStr := fmt.Sprintf("%d", inst.ID)
-		instanceDate := inst.Date.Format(dateLayout)
-		instanceStart := inst.StartTime.Format("15:04:05")
-		data := realtime.EventData{
-			InstanceID:        &instanceIDStr,
-			InstanceDate:      &instanceDate,
-			InstanceStartTime: &instanceStart,
-		}
-		event := realtime.NewEvent(realtime.EventActivityUpdate, activeGroupIDStr, data)
-		tenant.RegisterAfterCommit(ctx, func() {
-			if err := rs.Broadcaster.BroadcastToGroup(tenantID, activeGroupIDStr, event); err != nil {
-				rs.getLogger().Warn("SSE substitute broadcast failed",
-					slog.String("active_group_id", activeGroupIDStr),
-					slog.String("error", err.Error()),
-				)
-			}
-		})
 	}
 }
