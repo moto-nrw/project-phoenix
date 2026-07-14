@@ -292,6 +292,7 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 	for _, o := range offerings {
 		items = append(items, toCareOfferingResponse(o))
 	}
+	capabilities = enrollmentService.EffectiveFormCapabilities(capabilities, offerings)
 	common.Respond(w, r, http.StatusOK, PublicEnrollmentFormBootstrapResponse{
 		Phase:                     toPublicPhase(phase),
 		Schema:                    toPublicFormSchemaResponse(schema),
