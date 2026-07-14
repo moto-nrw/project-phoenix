@@ -1680,6 +1680,67 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(mockSplitTemplate).toHaveBeenCalled());
   });
 
+  it("probes deletions and warns for a resurrected occurrence on 'Ab jetzt dauerhaft' (#1907)", async () => {
+    mockCountEditedInWindow.mockResolvedValue({
+      count: 1,
+      occurrences: [
+        {
+          instanceId: "0",
+          date: "2026-05-11",
+          startTime: "",
+          title: "Mensa",
+          changes: ["deleted"],
+        },
+      ],
+    });
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(screen.getByRole("button", { name: /Ab jetzt dauerhaft/ }));
+
+    // The split path must probe WITH deletions and surface the deleted date.
+    await waitFor(() =>
+      expect(mockCountEditedInWindow).toHaveBeenCalledWith(
+        "7",
+        expect.any(String),
+        expect.any(String),
+        true,
+      ),
+    );
+    expect(
+      await screen.findByText("Einzelanpassungen gehen verloren"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("11.05.2026")).toBeInTheDocument();
+    expect(screen.getByText("Gelöschter Termin")).toBeInTheDocument();
+  });
+
+  it("does not probe deletions on the 'Alle Termine' path (#1907)", async () => {
+    mockCountEditedInWindow.mockResolvedValue({ count: 0, occurrences: [] });
+    renderModal({
+      initialInstance: { ...savedInstance, activityGroupId: "7" },
+    });
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Wiederholenden Termin ändern");
+    fireEvent.click(
+      screen.getByRole("button", { name: /Alle Termine der Serie/ }),
+    );
+
+    await waitFor(() =>
+      expect(mockCountEditedInWindow).toHaveBeenCalledWith(
+        "7",
+        expect.any(String),
+        expect.any(String),
+        false,
+      ),
+    );
+  });
+
   it("cancels the series edit and keeps the single-occurrence edits (#1875)", async () => {
     mockCountEditedInWindow.mockResolvedValue({
       count: 1,

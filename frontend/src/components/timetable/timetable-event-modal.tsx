@@ -110,6 +110,7 @@ const EDIT_CHANGE_LABELS: Record<EditedChange, string> = {
   time: "Zeit/Datum",
   staff: "Personal",
   students: "Kinder",
+  deleted: "Gelöschter Termin",
 };
 
 function checkShiftCoverageWithSignal(
@@ -1938,6 +1939,9 @@ export function TimetableEventModal({
       // edits in the affected window would be discarded, and warn with the
       // concrete dates. The probe is advisory — a failure must never block the
       // edit, so on error we proceed silently (mirrors the coverage check).
+      // "following" splits into a successor template that rematerializes
+      // individually-deleted occurrences, so include deletions on that path;
+      // "all" re-plans the same template and preserves them.
       const editsFrom =
         typedScope === "following" ? initialInstance.date : berlinTodayISO();
       const editsTo = periodEnd ?? weekTo ?? editsFrom;
@@ -1947,6 +1951,7 @@ export function TimetableEventModal({
           groupId,
           editsFrom,
           editsTo,
+          typedScope === "following",
         );
         if (probe.count > 0) lost = probe;
       } catch (probeErr) {
@@ -3246,7 +3251,9 @@ export function TimetableEventModal({
               <ul className="max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 text-sm">
                 {lostEdits.result.occurrences.map((occ) => (
                   <li
-                    key={occ.instanceId}
+                    // Deleted occurrences share instanceId "0"; date+start keeps
+                    // the key unique (one deletion per date, one slot per start).
+                    key={`${occ.instanceId}-${occ.date}-${occ.startTime}`}
                     className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-1 py-1"
                   >
                     <span className="font-semibold text-gray-800">

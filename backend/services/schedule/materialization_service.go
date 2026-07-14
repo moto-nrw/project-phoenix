@@ -136,8 +136,11 @@ type MaterializationService interface {
 	// (#1875) would silently discard. Read-only; runs under the caller's
 	// ambient tenant (RLS) transaction. Deviation-only rows (absences,
 	// substitutes, understaffed ack, required_staff pin) are NOT reported —
-	// ReplanWeek preserves those.
-	DetectEditedInWindow(ctx context.Context, activityGroupID int64, from, to timezone.Date) ([]EditedOccurrence, error)
+	// ReplanWeek preserves those. When includeDeletions is set, individually
+	// deleted occurrences (cancelled exceptions) are ALSO reported — a
+	// following-series split resurrects them under the successor template; a
+	// same-template re-plan preserves them, so callers on that path pass false.
+	DetectEditedInWindow(ctx context.Context, activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]EditedOccurrence, error)
 }
 
 // materializationService is the concrete implementation.

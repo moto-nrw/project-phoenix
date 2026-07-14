@@ -27,6 +27,11 @@ const (
 	EditedChangeTime        = "time"
 	EditedChangeStaff       = "staff"
 	EditedChangeStudents    = "students"
+	// EditedChangeDeleted marks a date whose occurrence was individually deleted
+	// (a cancelled exception). A same-template re-plan preserves it, but a
+	// following-series split rematerializes it under the successor template, so
+	// it is only reported when the caller asks for deletions (#1875 review).
+	EditedChangeDeleted = "deleted"
 )
 
 // EditedOccurrence describes one planned, template-backed occurrence that was
@@ -52,6 +57,7 @@ func (s *materializationService) DetectEditedInWindow(
 	ctx context.Context,
 	activityGroupID int64,
 	from, to timezone.Date,
+	includeDeletions bool,
 ) ([]EditedOccurrence, error) {
 	if to.Before(from) {
 		return nil, &ScheduleError{Op: "detect edited: validate window", Err: errors.New("to must not be before from")}
@@ -88,85 +94,108 @@ func (s *materializationService) DetectEditedInWindow(
 		planned = append(planned, inst)
 		ids = append(ids, inst.ID)
 	}
-	if len(planned) == 0 {
+	// No surviving instances to diff and (for a same-template re-plan) no
+	// deletions to report either — short-circuit before the heavier loads.
+	if len(planned) == 0 && !includeDeletions {
 		return nil, nil
 	}
 
-	// Load everything the materializer's per-date rules need. The expected
-	// start/end/room for an occurrence depend on the date (schedule validity,
-	// A/B week pattern, active period, and any modified/cancelled exception), so
-	// a date-agnostic (weekday, start) lookup is wrong — see expectedSlotsOn.
-	schedules, err := s.scheduleRepo.FindByGroupID(ctx, activityGroupID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "detect edited: load schedules", Err: err}
-	}
-	timeframes, err := s.timeframeRepo.List(ctx, nil)
-	if err != nil {
-		return nil, &ScheduleError{Op: "detect edited: load timeframes", Err: err}
-	}
-	timeframeByID := make(map[int64]*schedule.Timeframe, len(timeframes))
-	for _, tf := range timeframes {
-		timeframeByID[tf.ID] = tf
-	}
-	periods, err := s.periodRepo.FindActiveByTenantID(ctx)
-	if err != nil {
-		return nil, &ScheduleError{Op: "detect edited: load periods", Err: err}
-	}
-
+	// Exceptions in the window: modified ones shape expectedSlotsOn; cancelled
+	// ones are individually-deleted occurrences that a following-series split
+	// would rematerialize under the successor template — reported only when the
+	// caller asks for deletions (#1875 review).
 	exceptions, err := s.exceptionRepo.FindByActivityGroupAndDateRange(ctx, activityGroupID, from, to)
 	if err != nil {
 		return nil, &ScheduleError{Op: "detect edited: load exceptions", Err: err}
 	}
 	exceptionIdx := buildExceptionIndex(exceptions)
 
-	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, activityGroupID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "detect edited: load enrollments", Err: err}
-	}
-	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, activityGroupID)
-	if err != nil {
-		return nil, &ScheduleError{Op: "detect edited: load supervisors", Err: err}
-	}
-
-	staffByInstance, err := s.staffRosterByInstance(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	studentsByInstance, err := s.studentRosterByInstance(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-
 	edited := make([]EditedOccurrence, 0)
-	for _, inst := range planned {
-		expected := s.expectedSlotsOn(
-			tmpl,
-			schedules,
-			timeframeByID,
-			periods,
-			exceptionIdx[exceptionKey{tmpl.ID, inst.Date}],
-			inst.Date,
-		)
-		changes := diffOccurrence(
-			inst,
-			tmpl.Name,
-			enrollments,
-			supervisors,
-			staffByInstance[inst.ID],
-			studentsByInstance[inst.ID],
-			expected,
-		)
-		if len(changes) == 0 {
-			continue
+
+	if len(planned) > 0 {
+		// Load everything the materializer's per-date rules need. Expected
+		// start/end/room depend on the date (schedule validity, A/B week pattern,
+		// active period, modified/cancelled exception) — see expectedSlotsOn.
+		schedules, err := s.scheduleRepo.FindByGroupID(ctx, activityGroupID)
+		if err != nil {
+			return nil, &ScheduleError{Op: "detect edited: load schedules", Err: err}
 		}
-		edited = append(edited, EditedOccurrence{
-			InstanceID: inst.ID,
-			Date:       inst.Date,
-			StartTime:  formatTimeOfDay(inst.StartTime),
-			Title:      inst.Title,
-			Changes:    changes,
-		})
+		timeframes, err := s.timeframeRepo.List(ctx, nil)
+		if err != nil {
+			return nil, &ScheduleError{Op: "detect edited: load timeframes", Err: err}
+		}
+		timeframeByID := make(map[int64]*schedule.Timeframe, len(timeframes))
+		for _, tf := range timeframes {
+			timeframeByID[tf.ID] = tf
+		}
+		periods, err := s.periodRepo.FindActiveByTenantID(ctx)
+		if err != nil {
+			return nil, &ScheduleError{Op: "detect edited: load periods", Err: err}
+		}
+		enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, activityGroupID)
+		if err != nil {
+			return nil, &ScheduleError{Op: "detect edited: load enrollments", Err: err}
+		}
+		supervisors, err := s.supervisorRepo.FindByGroupID(ctx, activityGroupID)
+		if err != nil {
+			return nil, &ScheduleError{Op: "detect edited: load supervisors", Err: err}
+		}
+		staffByInstance, err := s.staffRosterByInstance(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+		studentsByInstance, err := s.studentRosterByInstance(ctx, ids)
+		if err != nil {
+			return nil, err
+		}
+
+		for _, inst := range planned {
+			expected := s.expectedSlotsOn(
+				tmpl,
+				schedules,
+				timeframeByID,
+				periods,
+				exceptionIdx[exceptionKey{tmpl.ID, inst.Date}],
+				inst.Date,
+			)
+			changes := diffOccurrence(
+				inst,
+				tmpl.Name,
+				enrollments,
+				supervisors,
+				staffByInstance[inst.ID],
+				studentsByInstance[inst.ID],
+				expected,
+			)
+			if len(changes) == 0 {
+				continue
+			}
+			edited = append(edited, EditedOccurrence{
+				InstanceID: inst.ID,
+				Date:       inst.Date,
+				StartTime:  formatTimeOfDay(inst.StartTime),
+				Title:      inst.Title,
+				Changes:    changes,
+			})
+		}
 	}
+
+	if includeDeletions {
+		for _, exc := range exceptions {
+			if exc == nil || exc.ExceptionType != schedule.ActivityExceptionCancelled {
+				continue
+			}
+			// No instance row (it was deleted); InstanceID 0 signals a deletion.
+			edited = append(edited, EditedOccurrence{
+				InstanceID: 0,
+				Date:       exc.ExceptionDate,
+				StartTime:  "",
+				Title:      tmpl.Name,
+				Changes:    []string{EditedChangeDeleted},
+			})
+		}
+	}
+
 	sort.Slice(edited, func(i, j int) bool {
 		if edited[i].Date != edited[j].Date {
 			return edited[i].Date.Before(edited[j].Date)

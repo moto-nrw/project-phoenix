@@ -48,8 +48,14 @@ func setInstanceColumn(t *testing.T, s *scenarioSetup, instanceID int64, col str
 }
 
 func detect(t *testing.T, s *scenarioSetup) []scheduleSvc.EditedOccurrence {
+	return detectWindow(t, s, false)
+}
+
+func detectWindow(t *testing.T, s *scenarioSetup, includeDeletions bool) []scheduleSvc.EditedOccurrence {
 	t.Helper()
-	edited, err := s.svc.DetectEditedInWindow(s.ctx, s.template.ID, editWindowStart, editWindowStart.AddDays(6))
+	edited, err := s.svc.DetectEditedInWindow(
+		s.ctx, s.template.ID, editWindowStart, editWindowStart.AddDays(6), includeDeletions,
+	)
 	require.NoError(t, err)
 	return edited
 }
@@ -197,6 +203,47 @@ func TestDetectEditedInWindow_SubstituteDeviationNotFlagged(t *testing.T) {
 	assert.Empty(t, detect(t, s), "absence + substitute is a preserved deviation, not a lost edit")
 }
 
+// TestDetectEditedInWindow_DeletedOccurrence covers the #1907 review critical:
+// an individually-deleted future occurrence (a cancelled exception) is
+// resurrected by a following-series split, so it must be reported — but only
+// when the caller asks for deletions (a same-template re-plan preserves it).
+func TestDetectEditedInWindow_DeletedOccurrence(t *testing.T) {
+	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
+	defer s.runCleanup(t)
+	inst := materializeSingleInstance(t, s)
+
+	// Delete the occurrence: a cancelled exception is written and the row removed
+	// (mirrors DeleteCancelled). Materialization then skips the date.
+	reason := "Einzeltermin gelöscht"
+	exc := &scheduleModels.ActivityException{
+		ActivityGroupID: s.template.ID,
+		ExceptionDate:   editWindowStart,
+		ExceptionType:   scheduleModels.ActivityExceptionCancelled,
+		Reason:          &reason,
+	}
+	exc.SetTenantID(s.tenantID)
+	_, err := s.db.NewInsert().Model(exc).ModelTableExpr(`schedule.activity_exceptions`).Exec(s.ctx)
+	require.NoError(t, err)
+	s.registerCleanup("schedule.activity_exceptions", exc.ID)
+	_, err = s.db.NewDelete().
+		Model((*scheduleModels.ActivityInstance)(nil)).
+		ModelTableExpr(`schedule.activity_instances AS "activity_instance"`).
+		Where(`"activity_instance".id = ?`, inst.ID).
+		Where("tenant_id = ?", s.tenantID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+
+	// Same-template re-plan ("Alle Termine"): deletion preserved → not reported.
+	assert.Empty(t, detectWindow(t, s, false),
+		"deletions are preserved by a same-template re-plan")
+
+	// Following-series split: successor resurrects it → reported as deleted.
+	edited := detectWindow(t, s, true)
+	require.Len(t, edited, 1)
+	assert.Equal(t, editWindowStart, edited[0].Date)
+	assert.Equal(t, []string{scheduleSvc.EditedChangeDeleted}, edited[0].Changes)
+}
+
 func TestDetectEditedInWindow_TenantIsolation(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, editWindowStart)
 	defer s.runCleanup(t)
@@ -207,7 +254,7 @@ func TestDetectEditedInWindow_TenantIsolation(t *testing.T) {
 	otherTenant := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, s.db, otherTenant)
 	otherCtx := testpkg.TenantContext(otherTenant)
-	edited, err := s.svc.DetectEditedInWindow(otherCtx, s.template.ID, editWindowStart, editWindowStart.AddDays(6))
+	edited, err := s.svc.DetectEditedInWindow(otherCtx, s.template.ID, editWindowStart, editWindowStart.AddDays(6), false)
 	require.NoError(t, err)
 	assert.Empty(t, edited, "detection is tenant-scoped")
 }

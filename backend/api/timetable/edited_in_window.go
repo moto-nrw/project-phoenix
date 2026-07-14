@@ -88,7 +88,14 @@ func (rs *Resource) editedInWindow(w http.ResponseWriter, r *http.Request) {
 	// scan is one template's instances via an indexed date-range query and is
 	// bounded by the rows that actually exist, so a wide window stays cheap.
 
-	occurrences, err := rs.MaterializationService.DetectEditedInWindow(r.Context(), activityGroupID, from, to)
+	// include_deletions=true additionally reports individually-deleted
+	// occurrences (cancelled exceptions). The "following" split path sets it,
+	// since a split resurrects those under the successor template; same-template
+	// re-plans ("Alle Termine", direct Regeltermin edit) preserve them, so they
+	// leave it off to avoid false warnings.
+	includeDeletions := q.Get("include_deletions") == "true"
+
+	occurrences, err := rs.MaterializationService.DetectEditedInWindow(r.Context(), activityGroupID, from, to, includeDeletions)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("detect edited occurrences failed", err))
 		return

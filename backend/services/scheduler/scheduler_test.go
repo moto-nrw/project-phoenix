@@ -2568,7 +2568,7 @@ func (f *fakeMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int)
 	return from, to
 }
 
-func (f *fakeMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ timezone.Date) ([]scheduleSvc.EditedOccurrence, error) {
+func (f *fakeMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ timezone.Date, _ bool) ([]scheduleSvc.EditedOccurrence, error) {
 	return nil, nil
 }
 

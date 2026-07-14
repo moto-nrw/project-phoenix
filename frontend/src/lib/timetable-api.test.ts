@@ -1087,4 +1087,27 @@ describe("timetableService", () => {
       timetableService.countEditedInWindow("7", "2026-05-04", "2026-05-10"),
     ).resolves.toEqual({ count: 0, occurrences: [] });
   });
+
+  it("adds include_deletions only on the split path (#1875)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse({ data: { count: 0, occurrences: [] } }),
+    );
+
+    await timetableService.countEditedInWindow("7", "2026-05-04", "2026-05-10");
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/timetable/instances/edited-in-window?activity_group_id=7&from=2026-05-04&to=2026-05-10",
+      expect.objectContaining({ method: "GET" }),
+    );
+
+    await timetableService.countEditedInWindow(
+      "7",
+      "2026-05-04",
+      "2026-05-10",
+      true,
+    );
+    expect(fetchMock).toHaveBeenLastCalledWith(
+      "/api/timetable/instances/edited-in-window?activity_group_id=7&from=2026-05-04&to=2026-05-10&include_deletions=true",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
 });

@@ -558,18 +558,22 @@ class TimetableService {
    * Which planned occurrences of one template were individually edited ("Nur
    * diesen Termin") in [from, to] — the changes a series re-plan would discard.
    * The planner calls this before an "Alle Termine" / "Dieser und folgende"
-   * edit to warn and list the affected dates.
+   * edit to warn and list the affected dates. Pass includeDeletions on the
+   * "following" split path: a split resurrects individually-deleted occurrences
+   * under the successor template (same-template re-plans preserve them).
    */
   async countEditedInWindow(
     activityGroupId: string,
     from: string,
     to: string,
+    includeDeletions = false,
   ): Promise<EditedInWindowResult> {
     const params = new URLSearchParams({
       activity_group_id: activityGroupId,
       from,
       to,
     });
+    if (includeDeletions) params.set("include_deletions", "true");
     const response = await fetch(
       `/api/timetable/instances/edited-in-window?${params}`,
       {

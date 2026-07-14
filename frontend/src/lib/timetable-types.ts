@@ -500,7 +500,8 @@ export type EditedChange =
   | "room"
   | "time"
   | "staff"
-  | "students";
+  | "students"
+  | "deleted";
 
 /** One planned occurrence that was individually adjusted vs its template.
  * Referenced only via EditedInWindowResult below (not exported on its own). */

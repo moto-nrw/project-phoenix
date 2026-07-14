@@ -25,9 +25,10 @@ func setupEditedInWindowRouter(rs *Resource) chi.Router {
 func TestEditedInWindow_Success(t *testing.T) {
 	var gotGroup int64
 	var gotFrom, gotTo timezone.Date
+	var gotInclude bool
 	mat := &mockMaterializationService{
-		detectFn: func(activityGroupID int64, from, to timezone.Date) ([]scheduleSvc.EditedOccurrence, error) {
-			gotGroup, gotFrom, gotTo = activityGroupID, from, to
+		detectFn: func(activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]scheduleSvc.EditedOccurrence, error) {
+			gotGroup, gotFrom, gotTo, gotInclude = activityGroupID, from, to, includeDeletions
 			return []scheduleSvc.EditedOccurrence{
 				{
 					InstanceID: 101,
@@ -55,6 +56,7 @@ func TestEditedInWindow_Success(t *testing.T) {
 	assert.Equal(t, int64(77), gotGroup)
 	assert.Equal(t, timezone.NewDate(2026, 4, 20), gotFrom)
 	assert.Equal(t, timezone.NewDate(2026, 5, 3), gotTo)
+	assert.False(t, gotInclude, "include_deletions defaults to false")
 
 	var resp map[string]any
 	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
@@ -77,9 +79,25 @@ func TestEditedInWindow_Success(t *testing.T) {
 	assert.Equal(t, []any{"room", "title"}, changes)
 }
 
+func TestEditedInWindow_IncludeDeletionsForwarded(t *testing.T) {
+	var gotInclude bool
+	mat := &mockMaterializationService{
+		detectFn: func(_ int64, _, _ timezone.Date, includeDeletions bool) ([]scheduleSvc.EditedOccurrence, error) {
+			gotInclude = includeDeletions
+			return nil, nil
+		},
+	}
+	rs := NewResource(Dependencies{MaterializationService: mat})
+	router := setupEditedInWindowRouter(rs)
+
+	w := doGet(t, router, "/instances/edited-in-window?activity_group_id=7&from=2026-04-20&to=2026-04-26&include_deletions=true")
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.True(t, gotInclude, "include_deletions=true must reach the service")
+}
+
 func TestEditedInWindow_EmptyResultIsArray(t *testing.T) {
 	mat := &mockMaterializationService{
-		detectFn: func(_ int64, _, _ timezone.Date) ([]scheduleSvc.EditedOccurrence, error) {
+		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]scheduleSvc.EditedOccurrence, error) {
 			return nil, nil
 		},
 	}
@@ -144,7 +162,7 @@ func TestEditedInWindow_InvalidDates(t *testing.T) {
 // be accepted (200), never rejected, so it always covers the full re-plan range.
 func TestEditedInWindow_LongWindowNotCapped(t *testing.T) {
 	mat := &mockMaterializationService{
-		detectFn: func(_ int64, _, _ timezone.Date) ([]scheduleSvc.EditedOccurrence, error) {
+		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]scheduleSvc.EditedOccurrence, error) {
 			return nil, nil
 		},
 	}
@@ -158,7 +176,7 @@ func TestEditedInWindow_LongWindowNotCapped(t *testing.T) {
 
 func TestEditedInWindow_ServiceError(t *testing.T) {
 	mat := &mockMaterializationService{
-		detectFn: func(_ int64, _, _ timezone.Date) ([]scheduleSvc.EditedOccurrence, error) {
+		detectFn: func(_ int64, _, _ timezone.Date, _ bool) ([]scheduleSvc.EditedOccurrence, error) {
 			return nil, errors.New("boom")
 		},
 	}

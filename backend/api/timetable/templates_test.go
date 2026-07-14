@@ -54,7 +54,7 @@ type mockMaterializationService struct {
 	to     timezone.Date
 	source scheduleSvc.MaterializationSource
 	// detectFn drives DetectEditedInWindow; nil returns (nil, nil).
-	detectFn func(activityGroupID int64, from, to timezone.Date) ([]scheduleSvc.EditedOccurrence, error)
+	detectFn func(activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]scheduleSvc.EditedOccurrence, error)
 }
 
 func (m *mockMaterializationService) MaterializeForTenant(_ context.Context, from, to timezone.Date, source scheduleSvc.MaterializationSource) (*scheduleSvc.MaterializationResult, error) {
@@ -71,9 +71,9 @@ func (m *mockMaterializationService) ResolveWindow(baseDate timezone.Date, weeks
 	return baseDate, baseDate.AddDays(weeksAhead*7 - 1)
 }
 
-func (m *mockMaterializationService) DetectEditedInWindow(_ context.Context, activityGroupID int64, from, to timezone.Date) ([]scheduleSvc.EditedOccurrence, error) {
+func (m *mockMaterializationService) DetectEditedInWindow(_ context.Context, activityGroupID int64, from, to timezone.Date, includeDeletions bool) ([]scheduleSvc.EditedOccurrence, error) {
 	if m.detectFn != nil {
-		return m.detectFn(activityGroupID, from, to)
+		return m.detectFn(activityGroupID, from, to, includeDeletions)
 	}
 	return nil, nil
 }
