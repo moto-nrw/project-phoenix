@@ -47,42 +47,59 @@ function formatOccurredAt(occurredAt: string): string {
   })} Uhr`;
 }
 
+type EventDescription = (
+  subject: string | null,
+  related: string | null,
+) => string;
+
+const EVENT_DESCRIPTIONS: Readonly<Record<string, EventDescription>> = {
+  absence: (subject) =>
+    subject
+      ? `${subject} wurde als abwesend eingetragen.`
+      : "Eine Abwesenheit wurde eingetragen.",
+  return_to_presence: (subject) =>
+    subject
+      ? `${subject} wurde wieder als anwesend eingetragen.`
+      : "Eine Abwesenheit wurde zurückgenommen.",
+  substitution: (subject, related) =>
+    subject && related
+      ? `${related} vertritt ${subject}.`
+      : "Eine Vertretung wurde zugewiesen.",
+  substitute_removed: (subject) =>
+    subject
+      ? `Die Vertretung durch ${subject} wurde entfernt.`
+      : "Eine Vertretung wurde entfernt.",
+  cancellation: () => "Der Block wurde abgesagt.",
+  understaffed_ack: () => "Die offene Besetzung wurde bewusst akzeptiert.",
+  understaffed_unack: () =>
+    "Die Kennzeichnung als bewusst unbesetzt wurde aufgehoben.",
+  deviation_dropped_by_replan: () =>
+    "Eine Neuplanung hat die eingetragenen Abweichungen dieses Termins verworfen.",
+  deviation_dropped_by_edit: (subject) =>
+    subject
+      ? `Eine Bearbeitung des Termins hat die Abweichung von ${subject} verworfen.`
+      : "Eine Bearbeitung des Termins hat eingetragene Abweichungen verworfen.",
+  sick_reported: (subject) =>
+    subject
+      ? `${subject} wurde krank gemeldet.`
+      : "Eine Krankmeldung wurde eingetragen.",
+  sick_cleared: (subject) =>
+    subject
+      ? `Die Krankmeldung von ${subject} wurde zurückgenommen.`
+      : "Eine Krankmeldung wurde zurückgenommen.",
+};
+
+function staffName(name?: string, id?: string): string | null {
+  return name ?? (id ? "Unbekannte Person" : null);
+}
+
 function eventDescription(ev: DeviationHistoryEvent): string {
-  const subject =
-    ev.subjectStaffName ?? (ev.subjectStaffId ? "Unbekannte Person" : null);
-  const related =
-    ev.relatedStaffName ?? (ev.relatedStaffId ? "Unbekannte Person" : null);
-  switch (ev.eventType) {
-    case "absence":
-      return subject
-        ? `${subject} wurde als abwesend eingetragen.`
-        : "Eine Abwesenheit wurde eingetragen.";
-    case "return_to_presence":
-      return subject
-        ? `${subject} wurde wieder als anwesend eingetragen.`
-        : "Eine Abwesenheit wurde zurückgenommen.";
-    case "substitution":
-      if (subject && related) return `${related} vertritt ${subject}.`;
-      return "Eine Vertretung wurde zugewiesen.";
-    case "substitute_removed":
-      return subject
-        ? `Die Vertretung durch ${subject} wurde entfernt.`
-        : "Eine Vertretung wurde entfernt.";
-    case "cancellation":
-      return "Der Block wurde abgesagt.";
-    case "understaffed_ack":
-      return "Die offene Besetzung wurde bewusst akzeptiert.";
-    case "understaffed_unack":
-      return "Die Kennzeichnung als bewusst unbesetzt wurde aufgehoben.";
-    case "deviation_dropped_by_replan":
-      return "Eine Neuplanung hat die eingetragenen Abweichungen dieses Termins verworfen.";
-    case "deviation_dropped_by_edit":
-      return subject
-        ? `Eine Bearbeitung des Termins hat die Abweichung von ${subject} verworfen.`
-        : "Eine Bearbeitung des Termins hat eingetragene Abweichungen verworfen.";
-    default:
-      return deviationEventLabel(ev.eventType);
-  }
+  const describe = EVENT_DESCRIPTIONS[ev.eventType];
+  if (!describe) return deviationEventLabel(ev.eventType);
+  return describe(
+    staffName(ev.subjectStaffName, ev.subjectStaffId),
+    staffName(ev.relatedStaffName, ev.relatedStaffId),
+  );
 }
 
 export function DeviationHistorySlideOver({

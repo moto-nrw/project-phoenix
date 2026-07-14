@@ -29,6 +29,10 @@ type absStaffAbsenceRepoMock struct {
 	getTodayAbsenceMapFunc     func(ctx context.Context) (map[int64]string, error)
 }
 
+func (m *absStaffAbsenceRepoMock) LockStaffAbsenceWrites(context.Context, int64) error {
+	return nil
+}
+
 func (m *absStaffAbsenceRepoMock) Create(ctx context.Context, entity *activeModels.StaffAbsence) error {
 	if m.createFunc != nil {
 		return m.createFunc(ctx, entity)
@@ -575,7 +579,7 @@ func TestAbsUpdateAbsence_Success(t *testing.T) {
 		Note: &newNote,
 	}
 
-	result, err := svc.UpdateAbsence(ctx, staffID, absenceID, req)
+	result, err := svc.UpdateAbsence(ctx, staffID, nil, absenceID, req)
 	require.NoError(t, err)
 	require.NotNil(t, result)
 }
@@ -599,7 +603,7 @@ func TestAbsUpdateAbsence_BlocksVacationType(t *testing.T) {
 	}
 
 	newType := activeModels.AbsenceTypeVacation
-	result, err := svc.UpdateAbsence(context.Background(), staffID, absenceID, UpdateAbsenceRequest{AbsenceType: &newType})
+	result, err := svc.UpdateAbsence(context.Background(), staffID, nil, absenceID, UpdateAbsenceRequest{AbsenceType: &newType})
 
 	require.Error(t, err)
 	assert.Nil(t, result)
@@ -613,7 +617,7 @@ func TestAbsUpdateAbsence_NotFound(t *testing.T) {
 		return nil, errors.New("not found")
 	}
 
-	result, err := svc.UpdateAbsence(context.Background(), 1, 999, UpdateAbsenceRequest{})
+	result, err := svc.UpdateAbsence(context.Background(), 1, nil, 999, UpdateAbsenceRequest{})
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "absence not found")
@@ -629,7 +633,7 @@ func TestAbsUpdateAbsence_OwnershipFails(t *testing.T) {
 		}, nil
 	}
 
-	result, err := svc.UpdateAbsence(context.Background(), 1, 100, UpdateAbsenceRequest{})
+	result, err := svc.UpdateAbsence(context.Background(), 1, nil, 100, UpdateAbsenceRequest{})
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "can only update own absences")
@@ -651,7 +655,7 @@ func TestAbsUpdateAbsence_InvalidDateStart(t *testing.T) {
 	bad := "not-a-date"
 	req := UpdateAbsenceRequest{DateStart: &bad}
 
-	result, err := svc.UpdateAbsence(context.Background(), staffID, 100, req)
+	result, err := svc.UpdateAbsence(context.Background(), staffID, nil, 100, req)
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "invalid date_start format")
@@ -673,7 +677,7 @@ func TestAbsUpdateAbsence_InvalidDateEnd(t *testing.T) {
 	bad := "not-a-date"
 	req := UpdateAbsenceRequest{DateEnd: &bad}
 
-	result, err := svc.UpdateAbsence(context.Background(), staffID, 100, req)
+	result, err := svc.UpdateAbsence(context.Background(), staffID, nil, 100, req)
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "invalid date_end format")
@@ -713,7 +717,7 @@ func TestAbsUpdateAbsence_OverlapAfterUpdate(t *testing.T) {
 	newEnd := "2026-02-16"
 	req := UpdateAbsenceRequest{DateEnd: &newEnd}
 
-	result, err := svc.UpdateAbsence(context.Background(), staffID, absenceID, req)
+	result, err := svc.UpdateAbsence(context.Background(), staffID, nil, absenceID, req)
 	require.Error(t, err)
 	assert.Nil(t, result)
 	assert.Contains(t, err.Error(), "overlap")
@@ -745,7 +749,7 @@ func TestAbsUpdateAbsence_BlocksVacationWorkflowRows(t *testing.T) {
 			}
 
 			note := "changed"
-			result, err := svc.UpdateAbsence(context.Background(), staffID, absenceID, UpdateAbsenceRequest{Note: &note})
+			result, err := svc.UpdateAbsence(context.Background(), staffID, nil, absenceID, UpdateAbsenceRequest{Note: &note})
 
 			require.Error(t, err)
 			assert.Nil(t, result)
@@ -1270,4 +1274,538 @@ func (m *absWorkSessionRepoMock) OldestBefore(context.Context, string, *timezone
 
 func (m *absWorkSessionRepoMock) DeleteOlderThan(context.Context, string, timezone.Date) (int64, error) {
 	return 0, nil
+}
+
+// ============================================================================
+// #1843 sick cascade wiring (stub syncer — the real cascade is covered by the
+// hermetic tests in services/schedule/shift_plan_sync_service_test.go)
+// ============================================================================
+
+type absShiftPlanSyncerMock struct {
+	markCalls      []SickCascadeInput
+	clearCalls     []SickCascadeInput
+	reconcileCalls [][2]SickCascadeInput
+	reassignCalls  [][2]int64
+	markErr        error
+	clearErr       error
+	reconcileErr   error
+	reassignErr    error
+}
+
+func (m *absShiftPlanSyncerMock) MarkSickForRange(_ context.Context, in SickCascadeInput) error {
+	m.markCalls = append(m.markCalls, in)
+	return m.markErr
+}
+
+func (m *absShiftPlanSyncerMock) ClearSickForRange(_ context.Context, in SickCascadeInput) error {
+	m.clearCalls = append(m.clearCalls, in)
+	return m.clearErr
+}
+
+func (m *absShiftPlanSyncerMock) ReconcileSickRange(_ context.Context, before, after SickCascadeInput) error {
+	m.reconcileCalls = append(m.reconcileCalls, [2]SickCascadeInput{before, after})
+	return m.reconcileErr
+}
+
+func absSetupServiceWithSyncer() (*staffAbsenceService, *absStaffAbsenceRepoMock, *absShiftPlanSyncerMock) {
+	svc, absRepo, workRepo := absSetupService()
+	workRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return nil, nil
+	}
+	syncer := &absShiftPlanSyncerMock{}
+	svc.SetShiftPlanSyncer(syncer)
+	return svc, absRepo, syncer
+}
+
+func TestAbsCreateAbsenceFor_SickCascadesWithActor(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	subjectID, creatorID, accountID := int64(100), int64(200), int64(77)
+
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return nil, nil
+	}
+	absRepo.createFunc = func(_ context.Context, entity *activeModels.StaffAbsence) error {
+		assert.Equal(t, subjectID, entity.StaffID)
+		assert.Equal(t, creatorID, entity.CreatedBy, "creator must be the admin, not the subject")
+		entity.ID = 555
+		return nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), subjectID, creatorID, &accountID, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   "2026-02-10",
+		DateEnd:     "2026-02-12",
+	})
+	require.NoError(t, err)
+	require.Len(t, syncer.markCalls, 1)
+	call := syncer.markCalls[0]
+	assert.Equal(t, subjectID, call.SubjectStaffID)
+	assert.Equal(t, int64(555), call.AbsenceID)
+	assert.Equal(t, creatorID, call.ActorStaffID)
+	require.NotNil(t, call.ActorAccountID)
+	assert.Equal(t, accountID, *call.ActorAccountID)
+	assert.Equal(t, "2026-02-10", call.DateStart.String())
+	assert.Equal(t, "2026-02-12", call.DateEnd.String())
+}
+
+func TestAbsCreateAbsenceFor_HalfDayAndNonSickSkipCascade(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		req  CreateAbsenceRequest
+	}{
+		{name: "half day sick", req: CreateAbsenceRequest{AbsenceType: activeModels.AbsenceTypeSick, DateStart: "2026-02-10", DateEnd: "2026-02-10", HalfDay: true}},
+		{name: "training", req: CreateAbsenceRequest{AbsenceType: activeModels.AbsenceTypeTraining, DateStart: "2026-02-10", DateEnd: "2026-02-12"}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, absRepo, syncer := absSetupServiceWithSyncer()
+			absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+				return nil, nil
+			}
+			_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, tc.req)
+			require.NoError(t, err)
+			assert.Empty(t, syncer.markCalls, "cascade must not fire")
+		})
+	}
+}
+
+func TestAbsCreateAbsenceFor_RejectsMultiDayHalfDaySickReport(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	createCalled := false
+	absRepo.createFunc = func(_ context.Context, _ *activeModels.StaffAbsence) error {
+		createCalled = true
+		return nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   "2026-02-10",
+		DateEnd:     "2026-02-11",
+		HalfDay:     true,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "half-day reports must cover exactly one date")
+	assert.False(t, createCalled)
+	assert.Empty(t, syncer.markCalls)
+}
+
+func TestAbsUpdateAbsence_RejectsMultiDayHalfDaySickReport(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	existing := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 10),
+		HalfDay:     true,
+		Status:      activeModels.AbsenceStatusReported,
+		CreatedBy:   100,
+	}
+	existing.ID = 501
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return existing, nil
+	}
+
+	dateEnd := "2026-02-11"
+	_, err := svc.UpdateAbsence(context.Background(), existing.StaffID, nil, existing.ID, UpdateAbsenceRequest{
+		DateEnd: &dateEnd,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "half-day reports must cover exactly one date")
+	assert.Empty(t, syncer.reconcileCalls)
+}
+
+func TestAbsCreateAbsenceFor_CascadeErrorAbortsCreate(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	syncer.markErr = errors.New("boom")
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return nil, nil
+	}
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   "2026-02-10",
+		DateEnd:     "2026-02-10",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "plan cascade failed")
+}
+
+func TestAbsCreateAbsenceFor_MergeCascadesMergedRange(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	existing := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 12),
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	existing.ID = 42
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{existing}, nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   "2026-02-12",
+		DateEnd:     "2026-02-14",
+	})
+	require.NoError(t, err)
+	require.Len(t, syncer.markCalls, 1)
+	call := syncer.markCalls[0]
+	assert.Equal(t, int64(42), call.AbsenceID, "cascade must target the merged primary")
+	assert.Equal(t, "2026-02-10", call.DateStart.String(), "cascade must cover the merged range")
+	assert.Equal(t, "2026-02-14", call.DateEnd.String())
+}
+
+func TestAbsDeleteAbsenceFor_SickReversesCascadeBeforeDelete(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	sick := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 11),
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	sick.ID = 42
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return sick, nil
+	}
+	deleted := false
+	absRepo.deleteFunc = func(_ context.Context, _ any) error {
+		deleted = true
+		return nil
+	}
+
+	accountID := int64(77)
+	require.NoError(t, svc.DeleteAbsenceFor(context.Background(), 100, 200, &accountID, 42))
+	require.Len(t, syncer.clearCalls, 1)
+	assert.Equal(t, int64(42), syncer.clearCalls[0].AbsenceID)
+	assert.Equal(t, int64(200), syncer.clearCalls[0].ActorStaffID)
+	assert.True(t, deleted)
+}
+
+func TestAbsDeleteAbsenceFor_ReversalErrorKeepsAbsence(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	syncer.clearErr = errors.New("boom")
+	sick := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 11),
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	sick.ID = 42
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return sick, nil
+	}
+	deleted := false
+	absRepo.deleteFunc = func(_ context.Context, _ any) error {
+		deleted = true
+		return nil
+	}
+
+	err := svc.DeleteAbsenceFor(context.Background(), 100, 100, nil, 42)
+	require.Error(t, err)
+	assert.False(t, deleted, "a failed reversal must abort the delete")
+}
+
+func TestAbsDeleteAbsence_ReversalRunsUnconditionally(t *testing.T) {
+	// The reversal is keyed by provenance stamps, so it must run for EVERY
+	// delete: a non-sick or half-day row that never cascaded is a no-op, but
+	// a mutated row must still release whatever it stamped (#1843 review).
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	other := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeOther,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 10),
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	other.ID = 42
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return other, nil
+	}
+
+	require.NoError(t, svc.DeleteAbsence(context.Background(), 100, 42))
+	require.Len(t, syncer.clearCalls, 1)
+	assert.Equal(t, int64(42), syncer.clearCalls[0].AbsenceID)
+}
+
+func TestAbsUpdateAbsence_RejectsSickHalfDayFlip(t *testing.T) {
+	svc, absRepo, _ := absSetupServiceWithSyncer()
+	sick := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 10),
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	sick.ID = 42
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return sick, nil
+	}
+	half := true
+	_, err := svc.UpdateAbsence(context.Background(), 100, nil, 42, UpdateAbsenceRequest{HalfDay: &half})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "half and full days")
+}
+
+func (m *absShiftPlanSyncerMock) ReassignSickStamps(_ context.Context, fromAbsenceID, toAbsenceID int64) error {
+	m.reassignCalls = append(m.reassignCalls, [2]int64{fromAbsenceID, toAbsenceID})
+	return m.reassignErr
+}
+
+func TestAbsUpdateAbsence_RejectsSickTypeChange(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		current string
+		newType string
+	}{
+		{name: "sick to other", current: activeModels.AbsenceTypeSick, newType: activeModels.AbsenceTypeOther},
+		{name: "other to sick", current: activeModels.AbsenceTypeOther, newType: activeModels.AbsenceTypeSick},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, absRepo, _ := absSetupServiceWithSyncer()
+			existing := &activeModels.StaffAbsence{
+				StaffID:     100,
+				AbsenceType: tc.current,
+				DateStart:   timezone.NewDate(2026, 2, 10),
+				DateEnd:     timezone.NewDate(2026, 2, 11),
+				Status:      activeModels.AbsenceStatusReported,
+			}
+			existing.ID = 42
+			absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+				return existing, nil
+			}
+			_, err := svc.UpdateAbsence(context.Background(), 100, nil, 42, UpdateAbsenceRequest{
+				AbsenceType: &tc.newType,
+			})
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), "invalid absence type change")
+		})
+	}
+}
+
+func TestAbsUpdateAbsence_ReconcilesSickDateDifference(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	existing := &activeModels.StaffAbsence{
+		StaffID:     100,
+		CreatedBy:   200,
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 11),
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	existing.ID = 42
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) {
+		return existing, nil
+	}
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{existing}, nil
+	}
+
+	newEnd := "2026-02-13"
+	actorAccountID := int64(77)
+	_, err := svc.UpdateAbsence(context.Background(), 100, &actorAccountID, 42, UpdateAbsenceRequest{DateEnd: &newEnd})
+	require.NoError(t, err)
+	require.Len(t, syncer.reconcileCalls, 1)
+	assert.Equal(t, "2026-02-11", syncer.reconcileCalls[0][0].DateEnd.String())
+	assert.Equal(t, "2026-02-13", syncer.reconcileCalls[0][1].DateEnd.String())
+	assert.Equal(t, int64(42), syncer.reconcileCalls[0][1].AbsenceID)
+	require.NotNil(t, syncer.reconcileCalls[0][0].ActorAccountID)
+	assert.Equal(t, actorAccountID, *syncer.reconcileCalls[0][0].ActorAccountID)
+	require.NotNil(t, syncer.reconcileCalls[0][1].ActorAccountID)
+	assert.Equal(t, actorAccountID, *syncer.reconcileCalls[0][1].ActorAccountID)
+}
+
+func TestAbsUpdateAbsence_ReconcileFailurePropagates(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	syncer.reconcileErr = errors.New("plan write failed")
+	existing := &activeModels.StaffAbsence{
+		StaffID:     100,
+		CreatedBy:   200,
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 11),
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	existing.ID = 42
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) { return existing, nil }
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{existing}, nil
+	}
+	newEnd := "2026-02-13"
+
+	result, err := svc.UpdateAbsence(context.Background(), 100, nil, 42, UpdateAbsenceRequest{DateEnd: &newEnd})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "plan cascade reconciliation failed")
+}
+
+func TestAbsCreateAbsenceFor_MergeReassignsSecondaryStamps(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	primaryRow := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 11),
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	primaryRow.ID = 42
+	secondary := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   timezone.NewDate(2026, 2, 13),
+		DateEnd:     timezone.NewDate(2026, 2, 14),
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	secondary.ID = 43
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{primaryRow, secondary}, nil
+	}
+
+	// New report bridges both existing sick absences into one range.
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   "2026-02-11",
+		DateEnd:     "2026-02-13",
+	})
+	require.NoError(t, err)
+	require.Len(t, syncer.reassignCalls, 1, "the deleted secondary's stamps must move to the primary")
+	assert.Equal(t, [2]int64{43, 42}, syncer.reassignCalls[0])
+	require.Len(t, syncer.markCalls, 1)
+	assert.Equal(t, "2026-02-10", syncer.markCalls[0].DateStart.String())
+	assert.Equal(t, "2026-02-14", syncer.markCalls[0].DateEnd.String())
+}
+
+func TestAbsCreateAbsenceFor_RejectsMixedDurationSickMerge(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	halfDayExisting := &activeModels.StaffAbsence{
+		StaffID:      100,
+		AbsenceType:  activeModels.AbsenceTypeSick,
+		DateStart:    timezone.NewDate(2026, 2, 10),
+		DateEnd:      timezone.NewDate(2026, 2, 10),
+		HalfDay:      true,
+		StartHalfDay: true,
+		EndHalfDay:   true,
+		Status:       activeModels.AbsenceStatusReported,
+	}
+	halfDayExisting.ID = 42
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{halfDayExisting}, nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   "2026-02-10",
+		DateEnd:     "2026-02-12",
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "half-day and full-day reports cannot be merged")
+	assert.True(t, halfDayExisting.HalfDay, "a rejected merge must not mutate the stored report")
+	assert.Empty(t, syncer.markCalls)
+}
+
+func TestAbsCreateAbsenceFor_RejectsHalfDayExtensionOfFullDaySickReport(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	fullDayExisting := &activeModels.StaffAbsence{
+		StaffID:     100,
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   timezone.NewDate(2026, 2, 10),
+		DateEnd:     timezone.NewDate(2026, 2, 10),
+		Status:      activeModels.AbsenceStatusReported,
+	}
+	fullDayExisting.ID = 42
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{fullDayExisting}, nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   "2026-02-10",
+		DateEnd:     "2026-02-12",
+		HalfDay:     true,
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "half-day and full-day reports cannot be merged")
+	assert.Equal(t, "2026-02-10", fullDayExisting.DateEnd.String(), "a rejected merge must not widen the stored report")
+	assert.Empty(t, syncer.markCalls, "half-day dates must not inherit the full-day cascade")
+}
+
+func TestAbsCreateAbsenceFor_RejectsOversizedSickRange(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	checkedOverlap := false
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		checkedOverlap = true
+		return nil, nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   "2026-01-01",
+		DateEnd:     "2027-01-02",
+	})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "date range exceeds 366 days")
+	assert.False(t, checkedOverlap, "invalid range must fail before database work")
+	assert.Empty(t, syncer.markCalls)
+}
+
+func TestAbsUpdateAbsence_RejectsOversizedSickRange(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	existing := &activeModels.StaffAbsence{
+		StaffID: 100, CreatedBy: 100,
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   timezone.NewDate(2026, 1, 1), DateEnd: timezone.NewDate(2026, 1, 2),
+		Status: activeModels.AbsenceStatusReported,
+	}
+	existing.ID = 42
+	absRepo.findByIDFunc = func(_ context.Context, _ any) (*activeModels.StaffAbsence, error) { return existing, nil }
+	newEnd := "2027-01-02"
+
+	_, err := svc.UpdateAbsence(context.Background(), 100, nil, 42, UpdateAbsenceRequest{DateEnd: &newEnd})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "date range exceeds 366 days")
+	assert.Empty(t, syncer.reconcileCalls)
+}
+
+func TestAbsCreateAbsenceFor_MergeDeleteFailureAborts(t *testing.T) {
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	primary := &activeModels.StaffAbsence{
+		StaffID: 100, AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart: timezone.NewDate(2026, 2, 10), DateEnd: timezone.NewDate(2026, 2, 11),
+		Status: activeModels.AbsenceStatusReported,
+	}
+	primary.ID = 42
+	secondary := &activeModels.StaffAbsence{
+		StaffID: 100, AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart: timezone.NewDate(2026, 2, 12), DateEnd: timezone.NewDate(2026, 2, 13),
+		Status: activeModels.AbsenceStatusReported,
+	}
+	secondary.ID = 43
+	absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.StaffAbsence, error) {
+		return []*activeModels.StaffAbsence{primary, secondary}, nil
+	}
+	absRepo.deleteFunc = func(_ context.Context, id any) error {
+		if id == secondary.ID {
+			return errors.New("delete failed")
+		}
+		return nil
+	}
+
+	result, err := svc.CreateAbsenceFor(context.Background(), 100, 100, nil, CreateAbsenceRequest{
+		AbsenceType: activeModels.AbsenceTypeSick,
+		DateStart:   "2026-02-11",
+		DateEnd:     "2026-02-12",
+	})
+
+	require.Error(t, err)
+	assert.Nil(t, result)
+	assert.Contains(t, err.Error(), "failed to delete merged absence")
+	require.Len(t, syncer.reassignCalls, 1)
+	assert.Empty(t, syncer.markCalls, "a failed merge must not continue into the cascade")
 }

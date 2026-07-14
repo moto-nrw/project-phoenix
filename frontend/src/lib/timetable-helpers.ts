@@ -492,6 +492,8 @@ const DEVIATION_EVENT_LABELS: Record<string, string> = {
   understaffed_unack: "Lücke wieder als offen markiert",
   deviation_dropped_by_replan: "Abweichung durch Neuplanung entfernt",
   deviation_dropped_by_edit: "Abweichung durch Bearbeitung entfernt",
+  sick_reported: "Krankmeldung",
+  sick_cleared: "Krankmeldung zurückgenommen",
 };
 
 export function deviationEventLabel(eventType: string): string {

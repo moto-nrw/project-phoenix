@@ -12,11 +12,13 @@ import {
   type ShiftEditMode,
 } from "~/components/staff/shift-edit-modal";
 import { ShiftTypeManageModal } from "~/components/staff/shift-type-manage-modal";
+import { SickReportModal } from "~/components/staff/sick-report-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { createLogger } from "~/lib/logger";
 import { staffShiftService } from "~/lib/shift-api";
 import {
   groupShiftsByStaffAndDate,
@@ -29,11 +31,13 @@ import {
 import { shiftTypeService } from "~/lib/shift-type-api";
 import { indexShiftTypes, type ShiftType } from "~/lib/shift-type-helpers";
 import { staffService, type Staff } from "~/lib/staff-api";
-import { useSWRAuth } from "~/lib/swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
 
 import { DienstplanPageSkeleton } from "./dienstplan-skeleton";
+
+const logger = createLogger({ component: "DienstplanView" });
 
 // Admin week view for planned staff shifts (Dienstplan, #1376 core slice).
 // One row per staff member, Mo–Fr columns, click-to-edit per cell. The
@@ -88,17 +92,34 @@ function DienstplanContent() {
   });
   const router = useTenantRouter();
   const canEdit = isAdmin(session);
+  const canManageAbsences = hasPermission(session, "time_tracking:manage");
   const canUseAssignmentOverview =
-    hasPermission(session, "time_tracking:manage") &&
+    canManageAbsences &&
     hasPermission(session, "schedules:read") &&
     hasPermission(session, "users:read");
   const today = useBerlinToday();
+
+  // A sick report cancels shifts (Dienstplan) and marks Betreuungsblöcke
+  // absent (Vertretungsplan) server-side, so revalidate every cache that
+  // renders those rows plus the absence lists on the staff detail /
+  // self-service surfaces (#1843).
+  const refreshPlanCaches = useTenantMutateMatching([
+    "dienstplan-overview-",
+    "dienstplan-shifts-",
+    "vertretungsplan-week-",
+    "vertretungsplan-gaps-",
+    "staff-pending-absences-",
+    "time-tracking-absences-",
+    "time-tracking-table-absences-",
+    "time-tracking-own-absences-",
+  ]);
 
   const [weekAnchor, setWeekAnchor] = useState<Date>(() =>
     startOfWeek(parseISODate(today)),
   );
   const [modal, setModal] = useState<ModalState | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
+  const [sickModal, setSickModal] = useState<StaffScheduleStaff | null>(null);
 
   const weekDays = useMemo(() => {
     return Array.from({ length: 5 }, (_, i) => {
@@ -375,6 +396,9 @@ function DienstplanContent() {
                   : [],
               })
             }
+            onSickReport={
+              canManageAbsences ? (member) => setSickModal(member) : undefined
+            }
           />
         )}
       </div>
@@ -404,6 +428,22 @@ function DienstplanContent() {
           mutateScheduleData();
         }}
       />
+      {sickModal && (
+        <SickReportModal
+          isOpen
+          staff={sickModal}
+          onClose={() => setSickModal(null)}
+          onCreated={() => {
+            Promise.all([refreshPlanCaches(), mutateOverview()]).catch(
+              (err: unknown) => {
+                logger.error("post_sick_report_refresh_failed", {
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              },
+            );
+          }}
+        />
+      )}
     </div>
   );
 }

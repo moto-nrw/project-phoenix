@@ -240,6 +240,8 @@ type DeviationEventType =
   | "understaffed_unack"
   | "deviation_dropped_by_replan"
   | "deviation_dropped_by_edit"
+  | "sick_reported"
+  | "sick_cleared"
   | (string & {});
 
 /** Ein Eintrag im Änderungsprotokoll (#1886), aufgelöst für die Anzeige. */

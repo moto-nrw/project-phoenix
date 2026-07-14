@@ -21,6 +21,12 @@ const (
 	DeviationEventCancellation      = "cancellation"
 	DeviationEventUnderstaffedAck   = "understaffed_ack"
 	DeviationEventUnderstaffedUnack = "understaffed_unack"
+	// A sick report (#1843) marked this staff row absent / cleared that mark
+	// again when the report was deleted. Distinct from the manual "absence" so
+	// history separates Krankmeldung from an ordinary Vertretungsplan edit;
+	// new_value carries {"cause":"sick","absence_id":<id>}.
+	DeviationEventSickReported = "sick_reported"
+	DeviationEventSickCleared  = "sick_cleared"
 	// A re-plan or template split could not re-attach a snapshotted deviation
 	// because its slot no longer regenerates.
 	DeviationEventDroppedByReplan = "deviation_dropped_by_replan"

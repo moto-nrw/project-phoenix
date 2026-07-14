@@ -5,14 +5,13 @@
 // Betreuungsplan gap-fill quick action) now sends the same day-wide
 // substitution through the atomic deviations save. What remains here is the
 // pure classification logic (classifySubstitute), the shared response row
-// (AffectedInstance), the time-conflict advisory builder, and the SSE
-// broadcast helper — all consumed by deviations.go. The write path lives in
-// services/schedule (ApplyAbsence/ApplySubstitute, #1886).
+// (AffectedInstance), and the time-conflict advisory builder — all consumed by
+// deviations.go. The write path lives in services/schedule
+// (ApplyAbsence/ApplySubstitute, #1886).
 package timetable
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"strings"
 	"unicode/utf8"
@@ -267,7 +266,7 @@ func (rs *Resource) broadcastDeviationSaveEvents(
 	ackChanged bool,
 	clearedAcks int,
 ) {
-	rs.broadcastSubstituteEvents(ctx, touched)
+	rs.InstanceService.QueueActivityUpdates(ctx, touched)
 	if appliedWrites > 0 || ackChanged || clearedAcks > 0 {
 		rs.broadcastStaffingDeviationChanged(ctx, "deviations")
 	}
@@ -295,36 +294,4 @@ func (rs *Resource) broadcastStaffingDeviationChanged(ctx context.Context, sourc
 			)
 		}
 	})
-}
-
-// broadcastSubstituteEvents queues one activity_update per affected active
-// group after the surrounding tenant transaction commits.
-func (rs *Resource) broadcastSubstituteEvents(
-	ctx context.Context,
-	touched map[int64]*scheduleModel.ActivityInstance,
-) {
-	if rs.Broadcaster == nil || len(touched) == 0 {
-		return
-	}
-	tenantID := tenant.FromContext(ctx)
-	for activeGroupID, inst := range touched {
-		activeGroupIDStr := fmt.Sprintf("%d", activeGroupID)
-		instanceIDStr := fmt.Sprintf("%d", inst.ID)
-		instanceDate := inst.Date.Format(dateLayout)
-		instanceStart := inst.StartTime.Format("15:04:05")
-		data := realtime.EventData{
-			InstanceID:        &instanceIDStr,
-			InstanceDate:      &instanceDate,
-			InstanceStartTime: &instanceStart,
-		}
-		event := realtime.NewEvent(realtime.EventActivityUpdate, activeGroupIDStr, data)
-		tenant.RegisterAfterCommit(ctx, func() {
-			if err := rs.Broadcaster.BroadcastToGroup(tenantID, activeGroupIDStr, event); err != nil {
-				rs.getLogger().Warn("SSE substitute broadcast failed",
-					slog.String("active_group_id", activeGroupIDStr),
-					slog.String("error", err.Error()),
-				)
-			}
-		})
-	}
 }

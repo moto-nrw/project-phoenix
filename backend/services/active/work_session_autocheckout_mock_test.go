@@ -65,6 +65,16 @@ func (m *wsMockStaffShiftRepository) FindByOriginShiftID(_ context.Context, _ in
 	return nil, nil
 }
 
+// Interface-compile stubs for the generic methods surfaced for the #1843 sick
+// cascade; auto-checkout never exercises them.
+func (m *wsMockStaffShiftRepository) List(_ context.Context, _ map[string]any) ([]*scheduleModels.StaffShift, error) {
+	return nil, nil
+}
+
+func (m *wsMockStaffShiftRepository) UpdateColumns(_ context.Context, _ *scheduleModels.StaffShift, _ ...string) (int64, error) {
+	return 0, nil
+}
+
 func (m *wsMockStaffShiftRepository) FindUsedCalendarWeeks(_ context.Context, _, _ timezone.Date) ([]timezone.Date, error) {
 	return nil, nil
 }

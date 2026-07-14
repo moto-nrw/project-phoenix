@@ -1530,6 +1530,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
 	facilities.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
+
+	// #1843 sick cascade: setter-injected after assembly because the syncer
+	// (services/schedule) needs the schedule services while the absence
+	// service (services/active) is constructed long before them.
+	staffAbsenceService.SetShiftPlanSyncer(schedule.NewShiftPlanSyncService(
+		staffShiftService,
+		instanceService,
+		factory.TimetableData,
+		repos.StaffShift,
+		repos.InstanceStaff,
+		factory.RealtimeHub,
+		db,
+		logger.With("service", "shift_plan_sync"),
+	))
 	return factory, nil
 }
 

@@ -53,8 +53,51 @@ func (s *instanceService) ApplyAbsence(
 	actorAccountID *int64,
 	activeTouched map[int64]*scheduleModel.ActivityInstance,
 ) error {
+	return s.applyAbsenceMark(ctx, row, instance, reason, actorAccountID, activeTouched, absenceMarkOptions{
+		eventType: auditModel.DeviationEventAbsence,
+	})
+}
+
+// ApplySickAbsence is the #1843 sick-cascade variant of ApplyAbsence: same
+// write semantics, but stamps the provenance id (so deleting the sick report
+// can clear exactly these rows) and logs "sick_reported" instead of the
+// manual "absence" event.
+func (s *instanceService) ApplySickAbsence(
+	ctx context.Context,
+	row *scheduleModel.InstanceStaff,
+	instance *scheduleModel.ActivityInstance,
+	reason *string,
+	sickAbsenceID int64,
+	actorAccountID *int64,
+	activeTouched map[int64]*scheduleModel.ActivityInstance,
+) error {
+	return s.applyAbsenceMark(ctx, row, instance, reason, actorAccountID, activeTouched, absenceMarkOptions{
+		eventType:     auditModel.DeviationEventSickReported,
+		sickAbsenceID: &sickAbsenceID,
+	})
+}
+
+// absenceMarkOptions distinguishes the manual absence write from the #1843
+// sick cascade (event type + provenance stamp).
+type absenceMarkOptions struct {
+	eventType     string
+	sickAbsenceID *int64
+}
+
+func (s *instanceService) applyAbsenceMark(
+	ctx context.Context,
+	row *scheduleModel.InstanceStaff,
+	instance *scheduleModel.ActivityInstance,
+	reason *string,
+	actorAccountID *int64,
+	activeTouched map[int64]*scheduleModel.ActivityInstance,
+	opts absenceMarkOptions,
+) error {
 	row.IsAbsent = true
 	row.AbsenceReason = reason
+	if opts.sickAbsenceID != nil {
+		row.SickAbsenceID = opts.sickAbsenceID
+	}
 	if err := s.deps.InstanceStaffRepo.Update(ctx, row); err != nil {
 		return err
 	}
@@ -64,12 +107,17 @@ func (s *instanceService) ApplyAbsence(
 		}
 		activeTouched[*instance.ActiveGroupID] = instance
 	}
+	newValue := map[string]any{"is_absent": true}
+	if opts.sickAbsenceID != nil {
+		newValue["cause"] = "sick"
+		newValue["absence_id"] = *opts.sickAbsenceID
+	}
 	return s.logDeviationEvent(ctx, deviationEventInput{
 		instance:       instance,
-		eventType:      auditModel.DeviationEventAbsence,
+		eventType:      opts.eventType,
 		subjectStaffID: &row.StaffID,
 		oldValue:       map[string]any{"is_absent": false},
-		newValue:       map[string]any{"is_absent": true},
+		newValue:       newValue,
 		reason:         reason,
 		actorAccountID: actorAccountID,
 	})
@@ -89,6 +137,10 @@ func (s *instanceService) ApplyPresence(
 	previousReason := row.AbsenceReason
 	row.IsAbsent = false
 	row.AbsenceReason = nil
+	// A manual restore also releases any #1843 sick provenance: the row is no
+	// longer owed to the sick report, and a later manual re-absence must not
+	// be cleared by deleting that report.
+	row.SickAbsenceID = nil
 	if err := s.deps.InstanceStaffRepo.Update(ctx, row); err != nil {
 		return err
 	}
@@ -102,6 +154,43 @@ func (s *instanceService) ApplyPresence(
 	return s.logDeviationEvent(ctx, deviationEventInput{
 		instance:       instance,
 		eventType:      auditModel.DeviationEventReturnToPresence,
+		subjectStaffID: &row.StaffID,
+		oldValue:       oldValue,
+		newValue:       map[string]any{"is_absent": false},
+		actorAccountID: actorAccountID,
+	})
+}
+
+// ClearSickAbsence clears one sickness-marked row when its sick report is
+// deleted (#1843). Same write semantics as ApplyPresence, but scoped to the
+// cascade: clears the provenance stamp and logs "sick_cleared". Live
+// supervision on an already-active block is restored via the live-session
+// tools, not here (mirrors ApplyPresence).
+func (s *instanceService) ClearSickAbsence(
+	ctx context.Context,
+	row *scheduleModel.InstanceStaff,
+	instance *scheduleModel.ActivityInstance,
+	sickAbsenceID int64,
+	actorAccountID *int64,
+	activeTouched map[int64]*scheduleModel.ActivityInstance,
+) error {
+	previousReason := row.AbsenceReason
+	row.IsAbsent = false
+	row.AbsenceReason = nil
+	row.SickAbsenceID = nil
+	if err := s.deps.InstanceStaffRepo.Update(ctx, row); err != nil {
+		return err
+	}
+	if instance.Status == scheduleModel.InstanceStatusActive && instance.ActiveGroupID != nil {
+		activeTouched[*instance.ActiveGroupID] = instance
+	}
+	oldValue := map[string]any{"is_absent": true, "cause": "sick", "absence_id": sickAbsenceID}
+	if previousReason != nil {
+		oldValue["reason"] = *previousReason
+	}
+	return s.logDeviationEvent(ctx, deviationEventInput{
+		instance:       instance,
+		eventType:      auditModel.DeviationEventSickCleared,
 		subjectStaffID: &row.StaffID,
 		oldValue:       oldValue,
 		newValue:       map[string]any{"is_absent": false},

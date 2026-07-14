@@ -535,13 +535,17 @@ func (rs *Resource) createAbsence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Self-service passes the caller as subject AND creator; the account id
+	// makes the #1843 sick-cascade protocol entries carry a real actor.
+	actorAccountID := int64(userClaims.ID)
 	tenantID := tenant.FromContext(r.Context())
 	var absence *activeSvc.StaffAbsenceResponse
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		absence, txErr = rs.StaffAbsenceService.CreateAbsence(ctx, staffID, req)
+		absence, txErr = rs.StaffAbsenceService.CreateAbsenceFor(ctx, staffID, staffID, &actorAccountID, req)
 		return txErr
 	}); err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return
 	}
@@ -570,12 +574,14 @@ func (rs *Resource) updateAbsence(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenantID := tenant.FromContext(r.Context())
+	actorAccountID := int64(userClaims.ID)
 	var absence *activeSvc.StaffAbsenceResponse
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		absence, txErr = rs.StaffAbsenceService.UpdateAbsence(ctx, staffID, absenceID, req)
+		absence, txErr = rs.StaffAbsenceService.UpdateAbsence(ctx, staffID, &actorAccountID, absenceID, req)
 		return txErr
 	}); err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return
 	}
@@ -597,10 +603,14 @@ func (rs *Resource) deleteAbsence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Deleting one's own sick report reverses its plan cascade (#1843); the
+	// account id stamps the sick_cleared protocol entries.
+	actorAccountID := int64(userClaims.ID)
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.StaffAbsenceService.DeleteAbsence(ctx, staffID, absenceID)
+		return rs.StaffAbsenceService.DeleteAbsenceFor(ctx, staffID, staffID, &actorAccountID, absenceID)
 	}); err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return
 	}

@@ -31,6 +31,8 @@ type shiftMockRepo struct {
 	findByDateRangeFunc         func(ctx context.Context, start, end timezone.Date) ([]*scheduleModels.StaffShift, error)
 	findByStaffAndDateRangeFunc func(ctx context.Context, staffID int64, start, end timezone.Date) ([]*scheduleModels.StaffShift, error)
 	findByOriginShiftIDFunc     func(ctx context.Context, originShiftID int64) ([]*scheduleModels.StaffShift, error)
+	listFunc                    func(ctx context.Context, filters map[string]any) ([]*scheduleModels.StaffShift, error)
+	updateColumnsFunc           func(ctx context.Context, shift *scheduleModels.StaffShift, columns ...string) (int64, error)
 }
 
 func (m *shiftMockRepo) Create(ctx context.Context, shift *scheduleModels.StaffShift) error {
@@ -88,6 +90,22 @@ func (m *shiftMockRepo) FindByOriginShiftID(ctx context.Context, originShiftID i
 
 func (m *shiftMockRepo) FindByStaffIDsAndDates(_ context.Context, _ []int64, _ []timezone.Date) ([]*scheduleModels.StaffShift, error) {
 	return nil, nil
+}
+
+// List and UpdateColumns satisfy the generic methods surfaced for the #1843
+// sick cascade; the func fields follow the mock convention (nil = zero value).
+func (m *shiftMockRepo) List(ctx context.Context, filters map[string]any) ([]*scheduleModels.StaffShift, error) {
+	if m.listFunc != nil {
+		return m.listFunc(ctx, filters)
+	}
+	return nil, nil
+}
+
+func (m *shiftMockRepo) UpdateColumns(ctx context.Context, shift *scheduleModels.StaffShift, columns ...string) (int64, error) {
+	if m.updateColumnsFunc != nil {
+		return m.updateColumnsFunc(ctx, shift, columns...)
+	}
+	return 0, nil
 }
 
 func (m *shiftMockRepo) FindUsedCalendarWeeks(_ context.Context, _, _ timezone.Date) ([]timezone.Date, error) {
@@ -404,6 +422,34 @@ func TestShiftService_UpdateKeepsStaffAssignment(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(7), saved.StaffID, "staff assignment must be immutable on update")
 	assert.Equal(t, int64(3), saved.CreatedBy, "original creator must be preserved")
+}
+
+func TestShiftService_UpdateClearsSickProvenanceWhenAdminKeepsCancellation(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	absenceID := int64(91)
+	existingReason := "Krankheit"
+	existing := validShift(7)
+	existing.ID = 5
+	existing.Cancelled = true
+	existing.ChangeReason = &existingReason
+	existing.SickAbsenceID = &absenceID
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+
+	manualReason := "Manuell abgesagt"
+	update := validShift(7)
+	update.ID = existing.ID
+	update.Cancelled = true
+	update.ChangeReason = &manualReason
+
+	saved, err := svc.UpdateShift(context.Background(), update)
+
+	require.NoError(t, err)
+	assert.True(t, saved.Cancelled)
+	assert.Nil(t, saved.SickAbsenceID)
+	require.NotNil(t, saved.ChangeReason)
+	assert.Equal(t, manualReason, *saved.ChangeReason)
 }
 
 func TestShiftService_UpdatePreservesCreatedAt(t *testing.T) {

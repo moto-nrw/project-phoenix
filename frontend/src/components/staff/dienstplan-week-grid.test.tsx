@@ -270,3 +270,40 @@ describe("DienstplanWeekGrid flexible changes", () => {
     expect(screen.getByText("Vertretung · Tausch")).toBeInTheDocument();
   });
 });
+
+describe("DienstplanWeekGrid sick report (#1843)", () => {
+  function renderWithSick(onSickReport?: (staff: StaffScheduleStaff) => void) {
+    render(
+      <DienstplanWeekGrid
+        staff={[member]}
+        shiftsByStaff={new Map()}
+        assignmentsByStaff={new Map()}
+        summaryByStaff={new Map()}
+        weekDays={["2026-07-06"]}
+        todayIso="2026-07-06"
+        typesById={new Map()}
+        isLoading={false}
+        onCellClick={vi.fn()}
+        onSickReport={onSickReport}
+      />,
+    );
+  }
+
+  it("renders no sick-report action without the callback", () => {
+    renderWithSick();
+
+    expect(
+      screen.queryByRole("button", { name: "Krank melden für Ada Lovelace" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("fires onSickReport with the row's member", () => {
+    const onSickReport = vi.fn();
+    renderWithSick(onSickReport);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Krank melden für Ada Lovelace" }),
+    );
+    expect(onSickReport).toHaveBeenCalledWith(member);
+  });
+});

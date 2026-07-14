@@ -29,6 +29,10 @@ vi.mock("~/lib/auth-utils", () => ({
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: mocks.useSWRAuth,
+  // #1843: the view now revalidates plan caches after a sick report. The hook
+  // is only invoked from the sick modal (never opened in these tests), so a
+  // no-op stand-in keeps the render working without new assertions.
+  useTenantMutateMatching: () => () => Promise.resolve(undefined),
 }));
 
 vi.mock("~/lib/hooks/use-berlin-today", () => ({

@@ -64,9 +64,11 @@ func (rs *Resource) Router() chi.Router {
 	// Protected routes that require authentication and permissions
 	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
-		// Read operations only require users:read permission
+		// Staff profile reads are also needed by the absence-management view.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/", rs.listStaff)
-		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}", rs.getStaff)
+		r.With(authorize.RequiresAnyPermission(permissions.UsersRead, permissions.TimeTrackingManage), withTx).Get("/{id}", rs.getStaff)
+
+		// Other staff reads require users:read permission.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/avatar", rs.serveStaffAvatar)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/groups", rs.getStaffGroups)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/substitutions", rs.getStaffSubstitutions)
@@ -91,7 +93,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/absences/pending", rs.listPendingAbsenceRequests)
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/approve", rs.approveAbsence)
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Post("/absences/{absenceId}/deny", rs.denyAbsence)
-		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/{id}/vacation/quota", rs.getStaffVacationQuota)
+		r.With(authorize.RequiresAnyPermission(permissions.VacationApprove, permissions.TimeTrackingManage), withTx).Get("/{id}/vacation/quota", rs.getStaffVacationQuota)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/vacation/quota", rs.setStaffVacationQuota)
 		// Audit trail of a single work session, admin-facing. The MA-side
 		// /api/time-tracking/{id}/edits enforces session-staff ownership
@@ -103,10 +105,16 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/time-tracking/sessions/{sessionId}", rs.adminUpdateStaffSession)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/time-tracking/sessions", rs.adminCreateStaffSession)
 
-		// Absences for a specific staff member (admin read). The MA-Sicht uses
+		// Absences for a specific staff member (manager read). The MA-Sicht uses
 		// /api/time-tracking/absences which is scoped to the caller; this route
-		// lets an admin see Krank/Urlaub for any staff in the same tenant.
-		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/{id}/absences", rs.getStaffAbsences)
+		// lets vacation and time-tracking managers see any staff member in the
+		// same tenant.
+		r.With(authorize.RequiresAnyPermission(permissions.VacationApprove, permissions.TimeTrackingManage), withTx).Get("/{id}/absences", rs.getStaffAbsences)
+
+		// Admin absence writes (#1843): file or delete an absence on a staff
+		// member's behalf; sick reports cascade into the plans in the same tx.
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/absences", rs.adminCreateStaffAbsence)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}/absences/{absenceId}", rs.adminDeleteStaffAbsence)
 
 		// PIN management endpoints - staff can manage their own PIN
 		r.With(withTx).Get("/pin", rs.getPINStatus)

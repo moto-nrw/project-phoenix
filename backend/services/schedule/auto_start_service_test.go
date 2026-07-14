@@ -278,6 +278,9 @@ func (r *autoStartStaffRepo) FindByID(context.Context, any) (*scheduleModel.Inst
 func (r *autoStartStaffRepo) Update(context.Context, *scheduleModel.InstanceStaff) error {
 	return nil
 }
+func (r *autoStartStaffRepo) UpdateColumns(context.Context, *scheduleModel.InstanceStaff, ...string) (int64, error) {
+	return 0, nil
+}
 func (r *autoStartStaffRepo) Delete(context.Context, any) error {
 	return nil
 }
@@ -361,6 +364,17 @@ func (s *autoStartInstanceStarter) ApplyPresence(context.Context, *scheduleModel
 }
 func (s *autoStartInstanceStarter) ApplySubstitute(context.Context, SubstituteWriteOp, int64, *string, time.Time, *int64, map[int64]*scheduleModel.ActivityInstance) error {
 	return nil
+}
+
+// Interface-compile stubs for the #1843 sick-cascade methods; auto-start
+// never exercises them.
+func (s *autoStartInstanceStarter) ApplySickAbsence(context.Context, *scheduleModel.InstanceStaff, *scheduleModel.ActivityInstance, *string, int64, *int64, map[int64]*scheduleModel.ActivityInstance) error {
+	return nil
+}
+func (s *autoStartInstanceStarter) ClearSickAbsence(context.Context, *scheduleModel.InstanceStaff, *scheduleModel.ActivityInstance, int64, *int64, map[int64]*scheduleModel.ActivityInstance) error {
+	return nil
+}
+func (s *autoStartInstanceStarter) QueueActivityUpdates(context.Context, map[int64]*scheduleModel.ActivityInstance) {
 }
 
 // Stubs for the issue #585 cleanup refactor interface additions — unused by
