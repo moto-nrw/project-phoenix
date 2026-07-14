@@ -804,6 +804,7 @@
     "changeRequestsDescription": "Here you can see requests that are still being reviewed, questions from the OGS and completed decisions.",
     "changeRequestsEmpty": "No change request sent yet.",
     "changeRequestCreated": "Sent on {date}",
+    "changeRequestAdminCorrection": "Corrected by the OGS on {date}",
     "changeRequestDiffTitle": "Requested changes",
     "changeRequestDiffEmpty": "No recognizable field changes.",
     "changeRequestBefore": "Before",

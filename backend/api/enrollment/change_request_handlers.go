@@ -19,6 +19,7 @@ import (
 type ChangeRequestResponse struct {
 	ID                string                         `json:"id"`
 	RequestID         string                         `json:"request_id"`
+	Origin            string                         `json:"origin"`
 	Status            string                         `json:"status"`
 	ParentNote        *string                        `json:"parent_note,omitempty"`
 	AdminDecisionNote *string                        `json:"admin_decision_note,omitempty"`
@@ -273,6 +274,7 @@ func toChangeRequestResponse(agg *enrollmentService.ChangeRequestAggregate, incl
 	resp := ChangeRequestResponse{
 		ID:                strconv.FormatInt(row.ID, 10),
 		RequestID:         strconv.FormatInt(row.RequestID, 10),
+		Origin:            row.Origin,
 		Status:            row.Status,
 		ParentNote:        row.ParentNote,
 		AdminDecisionNote: row.AdminDecisionNote,

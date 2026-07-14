@@ -804,6 +804,7 @@
     "changeRequestsDescription": "Здесь отображаются запросы на проверке, вопросы от OGS и завершенные решения.",
     "changeRequestsEmpty": "Запросы на изменение еще не отправлялись.",
     "changeRequestCreated": "Отправлено {date}",
+    "changeRequestAdminCorrection": "Исправлено OGS {date}",
     "changeRequestDiffTitle": "Запрошенные изменения",
     "changeRequestDiffEmpty": "Распознаваемых изменений полей нет.",
     "changeRequestBefore": "Было",

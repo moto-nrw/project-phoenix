@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   approveEnrollmentChangeRequest,
   askEnrollmentChangeRequestQuestion,
+  correctAdminChildData,
   decideAdminChild,
   exportStudentEnrollmentRequests,
   getAdminEnrollmentChangeRequest,
@@ -103,6 +104,7 @@ function changeRequest(
   return {
     id: "change-1",
     request_id: "request-1",
+    origin: "parent",
     status: "pending_review",
     parent_note: "Bitte prüfen",
     base_snapshot: {},
@@ -317,6 +319,39 @@ describe("enrollment-admin-api", () => {
     await expect(
       listAdminChildOfferingAdjustments("request-1", "child-1"),
     ).resolves.toEqual([]);
+  });
+
+  it("corrects approved child data through the flattened admin route", async () => {
+    const audit = changeRequest({ origin: "admin", status: "approved" });
+    mockFetch.mockResolvedValueOnce(jsonResponse({ data: audit }));
+
+    await expect(
+      correctAdminChildData("request-1", "child-1", {
+        first_name: "Lina",
+        last_name: "Richtig",
+        date_of_birth: "2018-05-16",
+        target_grade_level: 2,
+        target_school_class: "2a",
+        reason: "Nach Rücksprache korrigiert",
+      }),
+    ).resolves.toEqual(audit);
+    expect(mockFetch).toHaveBeenLastCalledWith(
+      "/api/enrollment/admin/data-correction",
+      {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          request_id: "request-1",
+          child_id: "child-1",
+          first_name: "Lina",
+          last_name: "Richtig",
+          date_of_birth: "2018-05-16",
+          target_grade_level: 2,
+          target_school_class: "2a",
+          reason: "Nach Rücksprache korrigiert",
+        }),
+      },
+    );
   });
 
   it("lists and loads admin enrollment change requests", async () => {

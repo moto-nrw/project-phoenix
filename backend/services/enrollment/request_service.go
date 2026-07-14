@@ -2860,8 +2860,18 @@ func filterConsentFlags(flags map[string]any, blocks []LegalBlock) map[string]an
 // CollectsSchoolClass resolves the effective school-class capability for
 // public form-load endpoints.
 func (s *requestService) CollectsSchoolClass(ctx context.Context) (bool, error) {
-	capabilities, err := s.FormCapabilities(ctx)
-	return capabilities.CollectSchoolClass, err
+	if s.Settings == nil {
+		return false, errors.New("enrollment settings resolver is not configured")
+	}
+	collectGrade, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+	if err != nil {
+		return false, fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentCollectGradeLevel, err)
+	}
+	collectClass, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)
+	if err != nil {
+		return false, fmt.Errorf("resolve %s: %w", configModel.KeyEnrollmentCollectSchoolClass, err)
+	}
+	return collectGrade && collectClass, nil
 }
 
 // FormCapabilities resolves the three settings that govern the enrollment

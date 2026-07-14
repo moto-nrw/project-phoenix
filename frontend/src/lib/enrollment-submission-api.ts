@@ -183,6 +183,7 @@ interface EnrollmentChangeRequestMessage {
 export interface EnrollmentChangeRequest {
   id: string;
   request_id: string;
+  origin: "parent" | "admin";
   status: EnrollmentChangeRequestStatus;
   parent_note?: string | null;
   admin_decision_note?: string | null;

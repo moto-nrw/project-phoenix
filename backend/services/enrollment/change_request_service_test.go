@@ -1,6 +1,7 @@
 package enrollment_test
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"testing"
@@ -15,6 +16,9 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // These tests use setupRequestTest from request_service_test.go; that helper
@@ -74,6 +78,21 @@ func TestNewChangeRequestService_ParentsURLRequired(t *testing.T) {
 			FrontendURL: "http://localhost:3000",
 		})
 	})
+}
+
+func TestChangeRequestService_CorrectApprovedChildData_RequiresReason(t *testing.T) {
+	svc := enrollmentService.NewChangeRequestService(enrollmentService.ChangeRequestServiceConfig{
+		ParentsURL: "http://parents.localhost:3000",
+	})
+	_, err := svc.CorrectApprovedChildData(context.Background(), enrollmentService.CorrectApprovedChildDataInput{
+		RequestID:      11,
+		ChildID:        12,
+		FirstName:      "Lina",
+		LastName:       "Muster",
+		DateOfBirth:    timezone.NewDate(2018, 4, 15),
+		ActorAccountID: 13,
+	})
+	require.ErrorIs(t, err, enrollmentService.ErrChangeRequestInvalidData)
 }
 
 func makeLegacyNoSchemaRequest(t *testing.T, env *requestTestEnv, childStatus string) *enrollmentService.SubmitResult {
@@ -709,6 +728,86 @@ func TestChangeRequestService_Approve_ReplacesOffenPlaceholderWithNewGrade(t *te
 	student, err = env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
 	require.NoError(t, err)
 	assert.Equal(t, "3", student.SchoolClass)
+}
+
+func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentAndAudit(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+	gradeOne := int16(1)
+	submission := enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Mara",
+		GuardianLastName:  "Beispiel",
+		GuardianEmail:     "admin-correction@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:        "Lina",
+			LastName:         "Falsch",
+			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel: &gradeOne,
+			CustomData:       map[string]any{"allergies": "keine"},
+		}},
+	}
+	result, err := env.requestSvc.Submit(ctx, submission)
+	require.NoError(t, err)
+	require.Len(t, result.Children, 1)
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  result.Request.ID,
+		ChildID:    result.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	gradeTwo := int16(2)
+	correctedDOB := timezone.NewDate(2018, 5, 16)
+	svc := newChangeRequestServiceWithDecisionForTest(t, env)
+	var audit *enrollmentService.ChangeRequestAggregate
+	err = tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+		var correctionErr error
+		audit, correctionErr = svc.CorrectApprovedChildData(txCtx, enrollmentService.CorrectApprovedChildDataInput{
+			RequestID:        result.Request.ID,
+			ChildID:          result.Children[0].ID,
+			FirstName:        "Lina",
+			LastName:         "Richtig",
+			DateOfBirth:      correctedDOB,
+			TargetGradeLevel: &gradeTwo,
+			Reason:           "Angaben nach Rücksprache berichtigt",
+			ActorAccountID:   env.creatorID,
+		})
+		return correctionErr
+	})
+	require.NoError(t, err)
+	require.NotNil(t, audit)
+	assert.Equal(t, enrollmentModels.ChangeRequestOriginAdmin, audit.ChangeRequest.Origin)
+	assert.Equal(t, enrollmentModels.ChangeRequestStatusApproved, audit.ChangeRequest.Status)
+	assert.Equal(t, result.Children[0].ID, *audit.ChangeRequest.RequestChildID)
+	assert.Contains(t, audit.ChangeRequest.Diff["changed"], "children")
+
+	child, err := env.repos.RequestChild.FindByID(ctx, result.Children[0].ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Richtig", child.LastName)
+	assert.Equal(t, correctedDOB, child.DateOfBirth)
+	require.NotNil(t, child.TargetGradeLevel)
+	assert.Equal(t, gradeTwo, *child.TargetGradeLevel)
+	assert.Equal(t, map[string]any{"allergies": "keine"}, child.CustomData)
+
+	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	assert.Equal(t, "2", student.SchoolClass)
+	person, err := env.repos.Person.FindByID(ctx, student.PersonID)
+	require.NoError(t, err)
+	assert.Equal(t, "Richtig", person.LastName)
+	require.NotNil(t, person.Birthday)
+	assert.Equal(t, correctedDOB, *person.Birthday)
 }
 
 func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnotherChild(t *testing.T) {

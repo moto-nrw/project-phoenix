@@ -61,6 +61,7 @@ function changeRequest(
   return {
     id: "42",
     request_id: "99",
+    origin: "parent",
     status: "pending_review",
     parent_note: "Name korrigieren",
     admin_decision_note: null,
@@ -211,6 +212,19 @@ describe("EnrollmentStatusView", () => {
     expect(
       screen.queryByRole("link", { name: "Änderung anfragen" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("labels completed staff corrections separately from parent requests", async () => {
+    mockFetchStatus.mockResolvedValueOnce(status());
+    mockListEnrollmentChangeRequests.mockResolvedValueOnce([
+      changeRequest({ origin: "admin", status: "approved" }),
+    ]);
+
+    render(<EnrollmentStatusView token="tok" />);
+
+    expect(
+      await screen.findByText(/Von der OGS korrigiert am/),
+    ).toBeInTheDocument();
   });
 
   it("hides edit and change-request CTAs when backend reports no edit mode", async () => {

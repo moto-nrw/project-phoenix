@@ -27,6 +27,9 @@ func (r *ChangeRequestRepository) Create(ctx context.Context, row *enrollment.Ch
 	if row.Status == "" {
 		row.Status = enrollment.ChangeRequestStatusPendingReview
 	}
+	if row.Origin == "" {
+		row.Origin = enrollment.ChangeRequestOriginParent
+	}
 	if row.BaseSnapshot == nil {
 		row.BaseSnapshot = map[string]any{}
 	}

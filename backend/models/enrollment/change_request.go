@@ -15,6 +15,11 @@ const (
 )
 
 const (
+	ChangeRequestOriginParent = "parent"
+	ChangeRequestOriginAdmin  = "admin"
+)
+
+const (
 	ChangeRequestMessageAuthorParent = "parent"
 	ChangeRequestMessageAuthorStaff  = "staff"
 )
@@ -27,6 +32,7 @@ type ChangeRequest struct {
 
 	RequestID         int64          `bun:"request_id,notnull" json:"request_id"`
 	RequestChildID    *int64         `bun:"request_child_id" json:"request_child_id,omitempty"`
+	Origin            string         `bun:"origin,notnull,default:'parent'" json:"origin"`
 	Status            string         `bun:"status,notnull,default:'pending_review'" json:"status"`
 	ParentNote        *string        `bun:"parent_note" json:"parent_note,omitempty"`
 	AdminDecisionNote *string        `bun:"admin_decision_note" json:"admin_decision_note,omitempty"`

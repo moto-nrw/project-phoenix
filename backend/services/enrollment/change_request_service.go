@@ -48,6 +48,18 @@ type ReviewChangeRequestInput struct {
 	ActorRole      string
 }
 
+type CorrectApprovedChildDataInput struct {
+	RequestID         int64
+	ChildID           int64
+	FirstName         string
+	LastName          string
+	DateOfBirth       timezone.Date
+	TargetGradeLevel  *int16
+	TargetSchoolClass *string
+	Reason            string
+	ActorAccountID    int64
+}
+
 type ChangeRequestDecisionApplier interface {
 	applyApprovedChangeRequestOfferings(ctx context.Context, input UpdateChildOfferingsInput) (*enrollmentModels.RequestChild, error)
 	SyncApprovedChildData(ctx context.Context, input SyncApprovedChildDataInput) (*enrollmentModels.RequestChild, error)
@@ -76,6 +88,7 @@ type ChangeRequestService interface {
 	AskQuestion(ctx context.Context, changeRequestID int64, input ChangeRequestMessageInput) (*ChangeRequestAggregate, error)
 	Reject(ctx context.Context, changeRequestID int64, input ReviewChangeRequestInput) (*ChangeRequestAggregate, error)
 	Approve(ctx context.Context, changeRequestID int64, input ReviewChangeRequestInput) (*ChangeRequestAggregate, error)
+	CorrectApprovedChildData(ctx context.Context, input CorrectApprovedChildDataInput) (*ChangeRequestAggregate, error)
 }
 
 type ChangeRequestServiceConfig struct {
@@ -270,6 +283,119 @@ func (s *changeRequestService) ListAdmin(ctx context.Context, filters ChangeRequ
 
 func (s *changeRequestService) GetAdmin(ctx context.Context, changeRequestID int64) (*ChangeRequestAggregate, error) {
 	return s.loadAggregate(ctx, changeRequestID, true)
+}
+
+// CorrectApprovedChildData fixes the authoritative enrollment record and then
+// applies the existing enrollment-to-student projection. Offerings, consents,
+// guardians, and all other submission data deliberately remain untouched.
+func (s *changeRequestService) CorrectApprovedChildData(ctx context.Context, input CorrectApprovedChildDataInput) (*ChangeRequestAggregate, error) {
+	firstName := strings.TrimSpace(input.FirstName)
+	lastName := strings.TrimSpace(input.LastName)
+	reason := strings.TrimSpace(input.Reason)
+	if input.RequestID <= 0 || input.ChildID <= 0 || input.ActorAccountID <= 0 || firstName == "" || lastName == "" || input.DateOfBirth.IsZero() || reason == "" {
+		return nil, fmt.Errorf("%w: request, child, actor, child data, and reason are required", ErrChangeRequestInvalidData)
+	}
+
+	req, err := s.RequestRepo.FindByIDForUpdate(ctx, input.RequestID)
+	if err != nil || req == nil {
+		return nil, ErrRequestNotFound
+	}
+	children, err := s.RequestChildRepo.ListByRequestIDForUpdate(ctx, req.ID)
+	if err != nil {
+		return nil, fmt.Errorf("admin data correction: lock children: %w", err)
+	}
+	var child *enrollmentModels.RequestChild
+	for _, candidate := range children {
+		if candidate != nil && candidate.ID == input.ChildID {
+			child = candidate
+			break
+		}
+	}
+	if child == nil {
+		return nil, ErrChangeRequestNotFound
+	}
+	if child.Status != enrollmentModels.ChildStatusApproved || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 || s.DecisionService == nil {
+		return nil, fmt.Errorf("%w: only approved children with a linked student can be corrected", ErrChangeRequestNotAllowed)
+	}
+
+	phase, err := s.PhaseRepo.FindByID(ctx, req.PhaseID)
+	if err != nil || phase == nil {
+		return nil, fmt.Errorf("admin data correction: load phase: %w", err)
+	}
+	rs := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}
+	gradeMax, err := rs.resolveGradeMax(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if s.Settings == nil {
+		return nil, errors.New("admin data correction: enrollment settings resolver is not configured")
+	}
+	collectGradeLevel, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+	if err != nil {
+		return nil, fmt.Errorf("admin data correction: resolve %s: %w", configModel.KeyEnrollmentCollectGradeLevel, err)
+	}
+	if collectGradeLevel && input.TargetGradeLevel == nil {
+		return nil, fmt.Errorf("%w: target_grade_level is required", ErrChangeRequestInvalidData)
+	}
+	if input.TargetGradeLevel != nil && (*input.TargetGradeLevel < 1 || int(*input.TargetGradeLevel) > gradeMax) {
+		return nil, fmt.Errorf("%w: target_grade_level must be between 1 and %d", ErrChangeRequestInvalidData, gradeMax)
+	}
+	corrected := SubmitChild{
+		ID:                child.ID,
+		FirstName:         firstName,
+		LastName:          lastName,
+		DateOfBirth:       input.DateOfBirth,
+		TargetGradeLevel:  input.TargetGradeLevel,
+		TargetSchoolClass: input.TargetSchoolClass,
+	}
+	correctedChildren := []SubmitChild{corrected}
+	if err := rs.validateAndNormalizeSchoolClasses(ctx, phase, correctedChildren); err != nil {
+		return nil, err
+	}
+	corrected = correctedChildren[0]
+
+	baseSnapshot, err := s.currentSnapshot(ctx, req, children)
+	if err != nil {
+		return nil, err
+	}
+	child.FirstName = corrected.FirstName
+	child.LastName = corrected.LastName
+	child.DateOfBirth = corrected.DateOfBirth
+	child.TargetGradeLevel = corrected.TargetGradeLevel
+	child.TargetSchoolClass = corrected.TargetSchoolClass
+	if err := s.RequestChildRepo.UpdateData(ctx, child); err != nil {
+		return nil, fmt.Errorf("admin data correction: update enrollment child: %w", err)
+	}
+	if _, err := s.DecisionService.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:           req.ID,
+		ChildID:             child.ID,
+		ActorAccountID:      input.ActorAccountID,
+		ReplaceTargetedData: false,
+	}); err != nil {
+		return nil, fmt.Errorf("admin data correction: sync student: %w", err)
+	}
+	proposedSnapshot, err := s.currentSnapshot(ctx, req, children)
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	row := &enrollmentModels.ChangeRequest{
+		RequestID:           req.ID,
+		RequestChildID:      &child.ID,
+		Origin:              enrollmentModels.ChangeRequestOriginAdmin,
+		Status:              enrollmentModels.ChangeRequestStatusApproved,
+		AdminDecisionNote:   &reason,
+		BaseSnapshot:        baseSnapshot,
+		ProposedSnapshot:    proposedSnapshot,
+		Diff:                snapshotDiff(baseSnapshot, proposedSnapshot),
+		CreatedByAccountID:  &input.ActorAccountID,
+		ReviewedByAccountID: &input.ActorAccountID,
+		ReviewedAt:          &now,
+	}
+	if err := s.ChangeRequestRepo.Create(ctx, row); err != nil {
+		return nil, fmt.Errorf("admin data correction: create audit entry: %w", err)
+	}
+	return s.aggregateFromRow(ctx, row, true)
 }
 
 func (s *changeRequestService) AskQuestion(ctx context.Context, changeRequestID int64, input ChangeRequestMessageInput) (*ChangeRequestAggregate, error) {
