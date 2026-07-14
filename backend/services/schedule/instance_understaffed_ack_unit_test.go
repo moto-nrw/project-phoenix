@@ -78,6 +78,7 @@ func TestClearUnderstaffedAckIfStaffed_StillShortStaffedKeepsAck(t *testing.T) {
 func TestClearUnderstaffedAckIfStaffed_FullyStaffedClearsAck(t *testing.T) {
 	inst := ackUnitInstance(true)
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst}
+	events := &recordingDeviationEventRepo{}
 	// Planned person absent but a substitute covers → fully staffed again.
 	staffRepo := &ackUnitStaffRepo{rows: []*scheduleModel.InstanceStaff{
 		{StaffID: 11, IsAbsent: true, IsSubstitute: false},
@@ -86,7 +87,7 @@ func TestClearUnderstaffedAckIfStaffed_FullyStaffedClearsAck(t *testing.T) {
 	svc := &instanceService{deps: InstanceServiceDependencies{
 		InstanceRepo:       instanceRepo,
 		InstanceStaffRepo:  staffRepo,
-		DeviationEventRepo: &recordingDeviationEventRepo{},
+		DeviationEventRepo: events,
 		Logger:             slog.New(slog.DiscardHandler),
 	}}
 
@@ -96,6 +97,10 @@ func TestClearUnderstaffedAckIfStaffed_FullyStaffedClearsAck(t *testing.T) {
 	assert.ElementsMatch(t, []string{"understaffed_ack", "understaffed_note"}, instanceRepo.updatedColumns[0])
 	assert.False(t, inst.UnderstaffedAck)
 	assert.Nil(t, inst.UnderstaffedNote)
+	require.Len(t, events.events, 1)
+	assert.Equal(t, "understaffed_unack", events.events[0].EventType)
+	assert.JSONEq(t, `{"understaffed_ack":true,"note":"keine Vertretung"}`, string(events.events[0].OldValue))
+	assert.JSONEq(t, `{"understaffed_ack":false}`, string(events.events[0].NewValue))
 }
 
 func TestClearUnderstaffedAckIfStaffed_LoadStaffError(t *testing.T) {
