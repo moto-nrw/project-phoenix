@@ -180,6 +180,33 @@ func (r *ActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Contex
 	return instances, nil
 }
 
+// FindByIDs returns the instances matching ids in one tenant-scoped IN query.
+// Custom method (backend-conventions Rule 2): bulk IN lookup with the
+// empty-slice short-circuit callers rely on to skip the round trip entirely,
+// mirroring InstanceStaffRepository.FindByInstanceIDs.
+func (r *ActivityInstanceRepository) FindByIDs(ctx context.Context, ids []int64) ([]*schedule.ActivityInstance, error) {
+	instances := make([]*schedule.ActivityInstance, 0, len(ids))
+	if len(ids) == 0 {
+		return instances, nil
+	}
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&instances).
+		ModelTableExpr(modelTblActivityInstance).
+		Where(`"activity_instance".id IN (?)`, bun.List(ids)).
+		Order("date ASC", "start_time ASC")
+
+	query = base.WithTenantFilter(ctx, query, aliasActivityInstance)
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find by ids",
+			Err: err,
+		}
+	}
+	return instances, nil
+}
+
 // FindByActivityGroupAndDate returns instances for a template on a given date.
 func (r *ActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date timezone.Date) ([]*schedule.ActivityInstance, error) {
 	var instances []*schedule.ActivityInstance

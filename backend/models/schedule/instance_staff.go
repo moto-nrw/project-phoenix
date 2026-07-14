@@ -62,6 +62,13 @@ type InstanceStaffRepository interface {
 	// substitute flow (E6) and gap detection.
 	FindByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*InstanceStaff, error)
 
+	// FindByStaffAndDateRange returns the staff member's assignments across
+	// all instances dated within [from, to] inclusive, ordered by instance
+	// date then start time. Used by the self-service assignment read (#1844)
+	// so its cost stays proportional to one staff member's plan, never the
+	// whole tenant window.
+	FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*InstanceStaff, error)
+
 	// CountNonAbsentByInstanceIDs returns, for each instance id, the number of
 	// instance_staff rows with is_absent=false. Single GROUP BY query; callers
 	// must treat absent instance ids in the returned map as zero. Empty input

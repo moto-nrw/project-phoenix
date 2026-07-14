@@ -509,3 +509,7 @@ func (f *fakeInstanceRepo) DeletePlannedNonSpontaneousInWindow(context.Context, 
 func (f *fakeInstanceRepo) UpdateColumns(context.Context, *scheduleModel.ActivityInstance, ...string) (int64, error) {
 	return 0, nil
 }
+
+func (f *fakeInstanceRepo) FindByIDs(context.Context, []int64) ([]*scheduleModel.ActivityInstance, error) {
+	return nil, nil
+}

@@ -36,6 +36,12 @@ type GroupRepository interface {
 	// FindByName finds a non-archived activity group by its name.
 	FindByName(ctx context.Context, name string) (*Group, error)
 
+	// FindByIDs returns the groups matching the given IDs in one
+	// tenant-scoped IN query. Archived groups are included — callers resolve
+	// display names for historical references (matching FindByID). Empty
+	// input returns an empty slice without hitting the DB.
+	FindByIDs(ctx context.Context, ids []int64) ([]*Group, error)
+
 	// ListTemplateRows returns the template list read model (template +
 	// schedule + aggregate people counts), optionally filtered to one
 	// template. Issue #584: the aggregation query moved verbatim out of

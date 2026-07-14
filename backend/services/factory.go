@@ -610,6 +610,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Timeframe,
 		calendarPeriodService,
 		db,
+		realtimeHub,
 		logger.With("service", "materialization"),
 	)
 
@@ -649,6 +650,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Materialization:            materializationService,
 		InstanceService:            instanceService,
 		ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
+		Broadcaster:                realtimeHub,
 		Logger:                     logger.With("service", "template-split"),
 		DB:                         db,
 	})

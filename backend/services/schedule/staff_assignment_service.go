@@ -3,8 +3,6 @@ package schedule
 import (
 	"cmp"
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -89,36 +87,32 @@ func (s *staffAssignmentService) ListAssignmentsForStaff(ctx context.Context, st
 		return nil, err
 	}
 
-	// One tenant-scoped query for every instance in the window, mapped by ID.
-	// The staff view fetches a single day, so this is a handful of rows; the
-	// 62-day cap in validateShiftRange bounds the worst case.
-	instances, err := s.deps.ActivityInstanceRepo.FindByTenantAndDateRange(ctx, from, to)
+	// Both reads are scoped to the requested staff member: the join query
+	// returns only their instance_staff rows in the window, and only the
+	// instances those rows reference are loaded. Any time_tracking:own user
+	// can request the full 62-day range, so the cost must stay proportional
+	// to one person's plan — never the whole tenant timetable.
+	mine, err := s.deps.InstanceStaffRepo.FindByStaffAndDateRange(ctx, staffID, from, to)
 	if err != nil {
 		return nil, err
-	}
-	if len(instances) == 0 {
-		return []*StaffAssignment{}, nil
-	}
-	instanceByID := make(map[int64]*scheduleModels.ActivityInstance, len(instances))
-	instanceIDs := make([]int64, 0, len(instances))
-	for _, inst := range instances {
-		instanceByID[inst.ID] = inst
-		instanceIDs = append(instanceIDs, inst.ID)
-	}
-
-	// All staff rows for those instances in one IN query, then keep only ours.
-	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, instanceIDs)
-	if err != nil {
-		return nil, err
-	}
-	mine := make([]*scheduleModels.InstanceStaff, 0, len(staffRows))
-	for _, row := range staffRows {
-		if row.StaffID == staffID {
-			mine = append(mine, row)
-		}
 	}
 	if len(mine) == 0 {
 		return []*StaffAssignment{}, nil
+	}
+
+	// unique_instance_staff (instance_id, staff_id) guarantees one row per
+	// instance for this staff member, so the IDs are already distinct.
+	instanceIDs := make([]int64, 0, len(mine))
+	for _, row := range mine {
+		instanceIDs = append(instanceIDs, row.InstanceID)
+	}
+	instances, err := s.deps.ActivityInstanceRepo.FindByIDs(ctx, instanceIDs)
+	if err != nil {
+		return nil, err
+	}
+	instanceByID := make(map[int64]*scheduleModels.ActivityInstance, len(instances))
+	for _, inst := range instances {
+		instanceByID[inst.ID] = inst
 	}
 
 	roomNames, err := s.resolveRoomNames(ctx, mine, instanceByID)
@@ -202,32 +196,41 @@ func (s *staffAssignmentService) resolveRoomNames(ctx context.Context, rows []*s
 	return names, nil
 }
 
-// resolveGroupNames loads the activity-group name for every group referenced by
-// the assignments into an id→name map. A row that is genuinely gone (archived/
-// deleted group) is tolerated as "no name"; any other lookup failure propagates
-// for the same transaction-abort reason as resolveRoomNames.
+// resolveGroupNames batch-loads the activity-group name for every group
+// referenced by the assignments into an id→name map with one bulk query,
+// mirroring resolveRoomNames. A row that is genuinely gone (deleted group) is
+// tolerated as "no name"; a lookup failure propagates for the same
+// transaction-abort reason as resolveRoomNames.
 func (s *staffAssignmentService) resolveGroupNames(ctx context.Context, rows []*scheduleModels.InstanceStaff, instanceByID map[int64]*scheduleModels.ActivityInstance) (map[int64]string, error) {
-	names := make(map[int64]string)
+	idSet := make(map[int64]struct{})
 	for _, row := range rows {
 		inst := instanceByID[row.InstanceID]
 		if inst == nil || inst.ActivityGroupID == nil {
 			continue
 		}
-		groupID := *inst.ActivityGroupID
-		if _, ok := names[groupID]; ok {
-			continue
+		idSet[*inst.ActivityGroupID] = struct{}{}
+	}
+	names := make(map[int64]string, len(idSet))
+	if len(idSet) == 0 {
+		return names, nil
+	}
+	ids := make([]int64, 0, len(idSet))
+	for id := range idSet {
+		ids = append(ids, id)
+	}
+	groups, err := s.deps.ActivityGroupRepo.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve activity group names for staff assignments: %w", err)
+	}
+	for _, group := range groups {
+		names[group.ID] = group.Name
+	}
+	for id := range idSet {
+		if _, ok := names[id]; !ok {
+			s.getLogger().WarnContext(ctx, "activity group referenced by staff assignment no longer exists, name omitted",
+				slog.Int64("activity_group_id", id),
+			)
 		}
-		group, err := s.deps.ActivityGroupRepo.FindByID(ctx, groupID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				s.getLogger().WarnContext(ctx, "activity group referenced by staff assignment no longer exists, name omitted",
-					slog.Int64("activity_group_id", groupID),
-				)
-				continue
-			}
-			return nil, fmt.Errorf("failed to resolve activity group name for staff assignment: %w", err)
-		}
-		names[groupID] = group.Name
 	}
 	return names, nil
 }

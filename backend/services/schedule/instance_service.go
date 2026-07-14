@@ -1340,6 +1340,14 @@ func (s *instanceService) ReplanWeek(ctx context.Context, from, to timezone.Date
 		return nil, &ScheduleError{Op: "replan week: reapply deviations", Err: err}
 	}
 
+	// Deletions bypass the CRUD broadcast paths, so the caches watching
+	// staffing_deviation_changed would keep serving removed blocks. The
+	// materializer broadcasts its own event when it recreated rows; a second
+	// event for the delete side is harmless (subscribers refetch).
+	if deleted > 0 {
+		s.broadcastPlannedInstanceChanged(ctx, "replan_week")
+	}
+
 	s.getLogger().Info("replan week completed",
 		slog.Int64("tenant_id", tenantID),
 		slog.String("from", from.String()),
@@ -1714,14 +1722,25 @@ func (s *instanceService) loadForTransition(ctx context.Context, instanceID int6
 // caches (planner, "Heute geplant" card) go stale until reload (#1844).
 // source names the emitting flow for log review.
 func (s *instanceService) broadcastPlannedInstanceChanged(ctx context.Context, source string) {
-	if s.deps.Broadcaster == nil {
+	broadcastStaffingChanged(ctx, s.deps.Broadcaster, s.getLogger(), source)
+}
+
+// broadcastStaffingChanged queues one tenant-wide staffing_deviation_changed
+// event after the surrounding tenant transaction commits (outside a tx it
+// fires immediately). Shared by the instance CRUD paths, ReplanWeek, the
+// materializer, and the template split/end flows — every write that changes
+// who is planned where must emit it, or the planner and "Heute geplant" card
+// (which disables focus revalidation) go stale until reload (#1844). A nil
+// broadcaster is a no-op (unit tests, CLI wiring).
+func broadcastStaffingChanged(ctx context.Context, broadcaster realtime.Broadcaster, logger *slog.Logger, source string) {
+	if broadcaster == nil {
 		return
 	}
 	tenantID := tenant.FromContext(ctx)
 	event := realtime.NewEvent(realtime.EventStaffingDeviationChanged, "", realtime.EventData{Source: &source})
 	tenant.RegisterAfterCommit(ctx, func() {
-		if err := s.deps.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
-			s.getLogger().Warn("SSE planned instance broadcast failed",
+		if err := broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+			logger.Warn("SSE planned instance broadcast failed",
 				slog.String("source", source),
 				slog.Int64("tenant_id", tenantID),
 				slog.String("error", err.Error()),

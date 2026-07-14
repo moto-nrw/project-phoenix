@@ -131,6 +131,13 @@ type ActivityInstanceRepository interface {
 	// FindByTenantAndDateRange returns all instances within an inclusive date range.
 	FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*ActivityInstance, error)
 
+	// FindByIDs returns the instances matching the given IDs in one
+	// tenant-scoped IN query, ordered by date then start time. Empty input
+	// returns an empty slice without hitting the DB, matching the sibling
+	// bulk helpers. Used by the self-service assignment read (#1844) to load
+	// only the instances a staff member is actually assigned to.
+	FindByIDs(ctx context.Context, ids []int64) ([]*ActivityInstance, error)
+
 	// FindByActivityGroupAndDate returns instances for a specific template on a date.
 	// There can be multiple rows when a template schedule defines several start
 	// times on the same weekday.
