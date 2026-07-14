@@ -743,6 +743,169 @@ describe("backend mappers", () => {
       cancelReason: "Ausflug",
     });
   });
+
+  it("maps the Wochennotiz (series_notes) and Tagesnotiz (notes) independently (#1837)", () => {
+    const base = {
+      id: 42,
+      date: "2026-05-04",
+      start_time: "14:00",
+      end_time: "15:00",
+      title: "Betreuung",
+      status: "planned" as const,
+      is_spontaneous: false,
+      is_live: false,
+      activity_type: "care" as const,
+      room_id: 3,
+      room_name: "Aula",
+      staff: [],
+      students: [],
+      staff_count: 0,
+      absent_staff_count: 0,
+      understaffed_ack: false,
+      expected_students_count: 0,
+      present_students_count: 0,
+      required_staff_count: 0,
+      assigned_staff_count: 0,
+    };
+
+    const withBoth = mapInstance({
+      ...base,
+      notes: "Heute ohne Herrn Müller",
+      series_notes: "Raum erst ab 14 Uhr offen",
+    });
+    expect(withBoth.notes).toBe("Heute ohne Herrn Müller");
+    expect(withBoth.seriesNotes).toBe("Raum erst ab 14 Uhr offen");
+
+    const withNeither = mapInstance(base);
+    expect(withNeither.seriesNotes).toBeUndefined();
+  });
+
+  it("maps templates", () => {
+    expect(
+      mapTemplates({
+        templates: [
+          {
+            id: 7,
+            name: "Yoga",
+            type: "activity",
+            category_id: 2,
+            category_name: "AG",
+            room_id: 3,
+            room_name: "Turnhalle",
+            is_open: true,
+            max_participants: 12,
+            target_group_type: "none",
+            enrollment_count: 8,
+            supervisor_count: 1,
+            required_staff_count: 1,
+            assigned_staff_count: 1,
+            student_ids: [21],
+            staff_ids: [11],
+            primary_staff_id: 11,
+            schedules: [
+              {
+                id: 9,
+                weekday: 1,
+                start_time: "14:00",
+                end_time: "15:00",
+                week_pattern: 2,
+                calendar_period_id: 5,
+                valid_until: "2026-06-01",
+              },
+            ],
+          },
+        ],
+      }).templates[0],
+    ).toMatchObject({
+      id: "7",
+      roomId: "3",
+      studentIds: ["21"],
+      staffIds: ["11"],
+      primaryStaffId: "11",
+      schedules: [{ id: "9", calendarPeriodId: "5", validUntil: "2026-06-01" }],
+    });
+  });
+
+  it("maps the Wochennotiz and mapped shift type onto a template (#1837)", () => {
+    const tpl = mapTemplates({
+      templates: [
+        {
+          id: 7,
+          name: "Betreuung Mo",
+          type: "care",
+          category_id: 2,
+          category_name: "Betreuung",
+          is_open: true,
+          max_participants: 20,
+          target_group_type: "none",
+          enrollment_count: 0,
+          supervisor_count: 0,
+          required_staff_count: 0,
+          assigned_staff_count: 0,
+          notes: "Raum erst ab 14 Uhr offen",
+          shift_type_name: "Betreuung / Zeit am Kind",
+          shift_type_color: "#83CD2D",
+          schedules: [],
+        },
+      ],
+    }).templates[0];
+
+    expect(tpl?.notes).toBe("Raum erst ab 14 Uhr offen");
+    expect(tpl?.shiftTypeName).toBe("Betreuung / Zeit am Kind");
+    expect(tpl?.shiftTypeColor).toBe("#83CD2D");
+  });
+
+  it("maps optional template fields without fallback ids", () => {
+    expect(
+      mapTemplates({
+        templates: [
+          {
+            id: 8,
+            name: "Offene Betreuung",
+            type: "care",
+            category_id: 3,
+            category_name: "Betreuung",
+            is_open: false,
+            max_participants: undefined as never,
+            target_group_type: "none",
+            enrollment_count: undefined as never,
+            supervisor_count: 0,
+            required_staff_count: 0,
+            assigned_staff_count: 0,
+            schedules: undefined as never,
+          },
+        ],
+      }).templates[0],
+    ).toEqual({
+      id: "8",
+      name: "Offene Betreuung",
+      type: "care",
+      categoryId: "3",
+      categoryName: "Betreuung",
+      roomId: undefined,
+      roomName: undefined,
+      educationGroupId: undefined,
+      educationGroupName: undefined,
+      isOpen: false,
+      maxParticipants: undefined,
+      notes: undefined,
+      shiftTypeName: undefined,
+      shiftTypeColor: undefined,
+      calendarPeriodId: undefined,
+      targetGroupType: "none",
+      targetGradeLevel: undefined,
+      targetSchoolClass: undefined,
+      enrollmentCount: undefined,
+      supervisorCount: 0,
+      requiredStaffCount: 0,
+      assignedStaffCount: 0,
+      requiredStaffOverride: undefined,
+      studentIds: [],
+      staffIds: [],
+      primaryStaffId: undefined,
+      schedules: [],
+    });
+  });
 });
 
 describe("required staff override mapping (#1839)", () => {

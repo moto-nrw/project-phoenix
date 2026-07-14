@@ -87,6 +87,25 @@ export function TemplateCard({
               {TYPE_LABELS[template.type]}
               {template.categoryName ? ` · ${template.categoryName}` : ""}
             </p>
+            {template.shiftTypeName ? (
+              <span
+                className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                style={{
+                  backgroundColor: `${template.shiftTypeColor || "#6B7280"}1A`,
+                  color: template.shiftTypeColor || "#6B7280",
+                }}
+                title={`Schichtart: ${template.shiftTypeName}`}
+              >
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{
+                    backgroundColor: template.shiftTypeColor || "#6B7280",
+                  }}
+                  aria-hidden
+                />
+                {template.shiftTypeName}
+              </span>
+            ) : null}
           </div>
         </div>
 

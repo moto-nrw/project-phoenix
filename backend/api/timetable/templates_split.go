@@ -38,6 +38,25 @@ func (n *nullableInt) UnmarshalJSON(b []byte) error {
 	return json.Unmarshal(b, &n.Value)
 }
 
+// nullableStr is the string analogue of nullableInt: it tells an omitted note
+// ("inherit the source Wochennotiz") apart from an explicit null ("clear the
+// series note") for the split flow (#1837 follow-up). (Named nullableStr to
+// avoid colliding with the RawMessage-based nullableString in
+// instance_students.go, which is a different tri-state mechanism.)
+type nullableStr struct {
+	Set   bool
+	Value *string
+}
+
+func (n *nullableStr) UnmarshalJSON(b []byte) error {
+	n.Set = true
+	if string(b) == "null" {
+		n.Value = nil
+		return nil
+	}
+	return json.Unmarshal(b, &n.Value)
+}
+
 // splitTemplateRequest is the update-template body plus the split controls.
 // effective_date is required (YYYY-MM-DD); materialize_from/materialize_to
 // are optional and mirror the create-template materialization window.
@@ -48,7 +67,11 @@ func (n *nullableInt) UnmarshalJSON(b []byte) error {
 // omitted-vs-null distinction the presence-aware type provides.
 type splitTemplateRequest struct {
 	updateTemplateRequest
-	RequiredStaff   nullableInt `json:"required_staff"`
+	RequiredStaff nullableInt `json:"required_staff"`
+	// Notes shadows updateTemplateRequest's `*string` for the same reason as
+	// RequiredStaff: the split must tell "inherit the source note" (omitted)
+	// from "clear the series note" (null).
+	Notes           nullableStr `json:"notes"`
 	EffectiveDate   string      `json:"effective_date"`
 	MaterializeFrom *string     `json:"materialize_from,omitempty"` // YYYY-MM-DD
 	MaterializeTo   *string     `json:"materialize_to,omitempty"`   // YYYY-MM-DD
@@ -62,6 +85,12 @@ func (req *splitTemplateRequest) Bind(r *http.Request) error {
 	}
 	if req.EffectiveDate == "" {
 		return errors.New("effective_date is required (YYYY-MM-DD)")
+	}
+	// req.Notes (nullableStr) shadows the embedded updateTemplateRequest.Notes,
+	// so the create/update length guard in the embedded Bind never sees the
+	// split note. Enforce the same 2000-char limit here (#1837 follow-up).
+	if req.Notes.Set && req.Notes.Value != nil && len(*req.Notes.Value) > 2000 {
+		return errors.New("notes cannot exceed 2000 characters")
 	}
 	return nil
 }
@@ -206,17 +235,21 @@ func buildTemplateSplitInput(id int64, req *splitTemplateRequest) (scheduleSvc.T
 		// omitted field inherits the source template's value.
 		RequiredStaff:         normalizeRequiredStaff(req.RequiredStaff.Value),
 		RequiredStaffProvided: req.RequiredStaff.Set,
-		WeekPattern:           req.WeekPattern,
-		CalendarPeriodID:      req.CalendarPeriodID,
-		EducationGroupID:      req.EducationGroupID,
-		TargetGroupType:       req.TargetGroupType,
-		TargetGradeLevel:      req.TargetGradeLevel,
-		TargetSchoolClass:     req.TargetSchoolClass,
-		StudentIDs:            req.StudentIDs,
-		StaffIDs:              req.StaffIDs,
-		PrimaryStaffID:        req.PrimaryStaffID,
-		MaterializeFrom:       materializeFrom,
-		MaterializeTo:         materializeTo,
+		// Same three-state contract for the Wochennotiz: present -> set/clear,
+		// omitted -> inherit the source template's note.
+		Notes:             normalizeNotes(req.Notes.Value),
+		NotesProvided:     req.Notes.Set,
+		WeekPattern:       req.WeekPattern,
+		CalendarPeriodID:  req.CalendarPeriodID,
+		EducationGroupID:  req.EducationGroupID,
+		TargetGroupType:   req.TargetGroupType,
+		TargetGradeLevel:  req.TargetGradeLevel,
+		TargetSchoolClass: req.TargetSchoolClass,
+		StudentIDs:        req.StudentIDs,
+		StaffIDs:          req.StaffIDs,
+		PrimaryStaffID:    req.PrimaryStaffID,
+		MaterializeFrom:   materializeFrom,
+		MaterializeTo:     materializeTo,
 	}, nil
 }
 

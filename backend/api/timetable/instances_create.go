@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/render"
@@ -52,6 +53,20 @@ func normalizeRequiredStaff(v *int) *int {
 		return nil
 	}
 	return v
+}
+
+// normalizeNotes trims an optional note into a pointer: nil or a
+// whitespace-only value becomes nil (no note); otherwise the trimmed text is
+// returned. Shared by the timetable note fields (Tagesnotiz + Wochennotiz).
+func normalizeNotes(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*v)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 type parsedCreateInstanceRequest struct {

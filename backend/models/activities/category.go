@@ -12,6 +12,12 @@ import (
 // no color set.
 const DefaultCategoryColor = "#CCCCCC"
 
+// ErrUnknownCategoryIDs is returned when a Kategorie↔Schichtart mapping write
+// references category IDs that do not all exist in the current tenant. It must
+// abort the write rather than silently clearing existing mappings (#1837
+// follow-up). Callers map it to a 400.
+var ErrUnknownCategoryIDs = errors.New("one or more category IDs do not exist in this tenant")
+
 // Category represents a category for activities
 type Category struct {
 	base.Model `bun:"schema:activities,table:categories"`
@@ -20,6 +26,10 @@ type Category struct {
 	Description string `bun:"description" json:"description,omitempty"`
 	Color       string `bun:"color" json:"color,omitempty"`
 	IsSystem    bool   `bun:"is_system,notnull,default:false" json:"is_system"`
+	// ShiftTypeID optionally maps this Timetable-Kategorie to a Dienstplan
+	// Schichtart (schedule.shift_types, #1836). NULL = no mapping. Managed from
+	// the "Schichtarten verwalten" modal; see #1837 follow-up.
+	ShiftTypeID *int64 `bun:"shift_type_id" json:"shift_type_id,omitempty"`
 }
 
 // Validate ensures category data is valid

@@ -423,6 +423,9 @@ const templateListSelect = `
 			g.target_group_type,
 			g.target_grade_level,
 			g.target_school_class,
+			g.notes,
+			COALESCE(st.name, '') AS shift_type_name,
+			COALESCE(st.color, '') AS shift_type_color,
 			COALESCE(enrollments.count, 0) AS enrollment_count,
 			COALESCE(supervisors.count, 0) AS supervisor_count,
 			COALESCE(enrollments.student_ids, ARRAY[]::BIGINT[]) AS student_ids,
@@ -442,6 +445,8 @@ const templateListSelect = `
 			ON tf.id = s.timeframe_id AND tf.tenant_id = g.tenant_id
 		LEFT JOIN activities.categories AS c
 			ON c.id = g.category_id AND c.tenant_id = g.tenant_id
+			LEFT JOIN schedule.shift_types AS st
+				ON st.id = c.shift_type_id AND st.tenant_id = g.tenant_id
 			LEFT JOIN facilities.rooms AS r
 				ON r.id = g.planned_room_id AND r.tenant_id = g.tenant_id
 			LEFT JOIN education.groups AS eg
@@ -743,6 +748,7 @@ func (r *GroupRepository) UpdateTemplateFields(ctx context.Context, id int64, fi
 		Set("target_group_type = ?", targetGroupType).
 		Set("target_grade_level = ?", fields.TargetGradeLevel).
 		Set("target_school_class = ?", fields.TargetSchoolClass).
+		Set("notes = ?", fields.Notes).
 		Set("updated_at = ?", time.Now()).
 		Where("tenant_id = ?", tenantID).
 		Where("id = ?", id).

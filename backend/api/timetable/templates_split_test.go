@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -183,6 +184,28 @@ func TestTemplateSplitHandler_HappyPath(t *testing.T) {
 	assert.Equal(t, 0, resp.DeletedInstances, "no planned instances existed")
 	assert.Equal(t, 5, resp.InstancesCreated, "materialization count surfaces on the wire")
 	assert.Equal(t, scheduleSvc.MaterializationSourceManual, mat.source)
+}
+
+// TestTemplateSplitHandler_RejectsOverlongNotes guards the #1837 follow-up:
+// the split note (nullableStr) shadows the embedded updateTemplateRequest.Notes,
+// so the split Bind must enforce the same 2000-char limit as create/update.
+func TestTemplateSplitHandler_RejectsOverlongNotes(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	attachSplitService(s, mat)
+	router := splitRouter(s.ctx, s.res, []string{permissions.SchedulesManage})
+
+	created := createSourceTemplate(t, router, s, "Tpl-Split-LongNote-Quelle")
+
+	effective := timezone.TodayDate().AddDays(7)
+	body := splitBody(s, "Tpl-Split-LongNote", effective)
+	body["notes"] = strings.Repeat("x", 2001)
+
+	w := doTemplateJSON(t, router, http.MethodPost,
+		fmt.Sprintf("/templates/%d/split", created.TemplateID), body)
+	assert.Equal(t, http.StatusBadRequest, w.Code,
+		"split must reject notes over 2000 chars like create/update; body=%s", w.Body.String())
 }
 
 func TestTemplateUpdateHandler_EnforcesTenantGradeLevelMax(t *testing.T) {

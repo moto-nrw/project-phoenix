@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, Search, Trash2 } from "lucide-react";
+import { ChevronDown, Repeat, Search, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useModal } from "~/components/dashboard/modal-context";
@@ -141,7 +141,19 @@ interface EventFormState {
   type: ActivityType;
   categoryId: string;
   educationGroupId: string;
+  /**
+   * Tagesnotiz — the one-off note on a single occurrence
+   * (schedule.activity_instances.notes). Editable only in the single-instance
+   * scope; series-wide scopes never write it.
+   */
   notes: string;
+  /**
+   * Wochennotiz — the durable series note on the Regeltermin
+   * (activities.groups.notes, #1837 follow-up). Shows on every occurrence and
+   * survives Re-Plan/Split. Editable in the series-create/edit flow; shown
+   * read-only on a single occurrence that belongs to a series.
+   */
+  seriesNotes: string;
   repeat: RepeatMode;
   weekPattern: 0 | 1 | 2;
   weekdays: number[];
@@ -287,6 +299,7 @@ function emptyForm(
     categoryId: "",
     educationGroupId: "",
     notes: "",
+    seriesNotes: "",
     repeat: defaultRepeat,
     weekPattern: defaultRepeat === "biweekly" ? 2 : 0,
     weekdays: weekday >= 1 && weekday <= 5 ? [weekday] : [1],
@@ -317,6 +330,9 @@ function formFromInstance(
     categoryId: "",
     educationGroupId: "",
     notes: instance.notes ?? "",
+    // Read-only on a single occurrence: the series note is edited via the
+    // Regeltermin, not here. Prefilled so it can be shown as a fixed hint.
+    seriesNotes: instance.seriesNotes ?? "",
     repeat,
     weekPattern: repeat === "biweekly" ? 2 : 0,
     weekdays: weekday >= 1 && weekday <= 5 ? [weekday] : [1],
@@ -359,6 +375,7 @@ function formFromSeries(
     categoryId: series.categoryId,
     educationGroupId: series.educationGroupId ?? "",
     notes: "",
+    seriesNotes: series.notes ?? "",
     repeat,
     weekPattern,
     weekdays: weekdays.length > 0 ? weekdays : [1],
@@ -1333,6 +1350,7 @@ export function TimetableEventModal({
     end_time: form.endTime,
     room_id: roomId,
     category_id: categoryId,
+    notes: form.seriesNotes.trim() || undefined,
     education_group_id: form.educationGroupId
       ? Number(form.educationGroupId)
       : undefined,
@@ -1395,6 +1413,9 @@ export function TimetableEventModal({
       end_time: form.endTime,
       room_id: roomId,
       category_id: Number(template.categoryId),
+      // Preserve the series' own Wochennotiz verbatim — an instance-scope edit
+      // (all/following) must never wipe it. It is read-only in this flow.
+      notes: template.notes ?? undefined,
       education_group_id: template.educationGroupId
         ? Number(template.educationGroupId)
         : undefined,
@@ -2046,8 +2067,9 @@ export function TimetableEventModal({
     }
   };
 
-  // Datum and Notiz only apply to the single-instance scope — series-wide
-  // scopes write the template, which carries neither field.
+  // Datum and Tagesnotiz only apply to the single-instance scope — series-wide
+  // scopes write the template, which carries the Wochennotiz instead of the
+  // per-occurrence Tagesnotiz.
   const dateChanged =
     initialInstance !== null && form.date !== initialInstance.date;
   const notesChanged =
@@ -2193,16 +2215,48 @@ export function TimetableEventModal({
 
       {studentRosterField}
 
-      {!isSeriesFlow && (
-        <Field label="Notiz" htmlFor="event_notes">
+      {isSeriesFlow ? (
+        <Field label="Wochennotiz" htmlFor="event_series_notes">
           <textarea
-            id="event_notes"
-            value={form.notes}
-            onChange={(event) => update("notes", event.target.value)}
+            id="event_series_notes"
+            value={form.seriesNotes}
+            onChange={(event) => update("seriesNotes", event.target.value)}
             rows={3}
             className={timetableTextAreaClass}
+            placeholder="z. B. Raum erst ab 14 Uhr offen"
           />
+          <p className="mt-1 text-xs text-gray-500">
+            Gilt dauerhaft für die ganze Terminreihe und erscheint an jedem
+            Termin. Bleibt bei Re-Plan und Serienänderungen erhalten.
+          </p>
         </Field>
+      ) : (
+        <>
+          {form.seriesNotes.trim() !== "" && (
+            <div className="rounded-lg border border-[#5080D8]/30 bg-[#5080D8]/10 p-3">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-[#5080D8]">
+                <Repeat className="h-3.5 w-3.5" aria-hidden="true" />
+                Wochennotiz der Terminreihe
+              </div>
+              <p className="mt-1 text-sm whitespace-pre-wrap text-gray-700">
+                {form.seriesNotes}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                Wird über den Regeltermin gepflegt und gilt für alle Termine.
+              </p>
+            </div>
+          )}
+          <Field label="Tagesnotiz" htmlFor="event_notes">
+            <textarea
+              id="event_notes"
+              value={form.notes}
+              onChange={(event) => update("notes", event.target.value)}
+              rows={3}
+              className={timetableTextAreaClass}
+              placeholder="Nur für diesen einen Termin"
+            />
+          </Field>
+        </>
       )}
     </>
   );
@@ -2988,7 +3042,7 @@ export function TimetableEventModal({
             description={
               `Der Termin am ${formatDate(initialInstance.date)} gehört zu einem Regeltermin.` +
               (dateChanged || notesChanged
-                ? " Geändertes Datum und Notiz gelten nur bei „Nur diese Woche“."
+                ? " Geändertes Datum und Tagesnotiz gelten nur bei „Nur diese Woche“; die Wochennotiz der Terminreihe bleibt bei allen Optionen erhalten."
                 : "")
             }
             options={[

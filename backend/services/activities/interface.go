@@ -21,6 +21,9 @@ type ActivityService interface {
 	CreateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error)
 	GetCategory(ctx context.Context, id int64) (*activities.Category, error)
 	ListCategories(ctx context.Context) ([]*activities.Category, error)
+	// SetCategoryShiftTypeLinks maps categories to a Dienstplan shift type and
+	// clears the mapping on de-selected ones (#1837 follow-up).
+	SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error
 
 	// Activity Group operations
 	CreateGroup(ctx context.Context, group *activities.Group, supervisorIDs []int64, schedules []*activities.Schedule) (*activities.Group, error)

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -1461,4 +1462,103 @@ func TestTemplatePeopleHelpersDeduplicateAndNoopWithoutTenant(t *testing.T) {
 	validFrom := timezone.NewDate(2026, time.January, 1)
 	assert.NoError(t, s.res.replaceTemplateStudents(context.Background(), 12345, []int64{s.studentA}, nil, validFrom))
 	assert.NoError(t, s.res.replaceTemplateStaff(context.Background(), 12345, []int64{s.staffA}, &s.staffA, nil, validFrom))
+}
+
+// TestTemplate_WochennotizRoundTrip covers the durable series note through
+// create -> list/get -> update -> clear, plus the create-time length guard
+// (#1837 follow-up).
+func TestTemplate_WochennotizRoundTrip(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	notesOf := func(templateID int64) *string {
+		listW := doTemplateJSON(t, router, http.MethodGet, "/templates", nil)
+		require.Equal(t, http.StatusOK, listW.Code, "body=%s", listW.Body.String())
+		list := decodeTemplateData[listTemplatesResponse](t, listW)
+		for _, c := range list.Templates {
+			if c.ID == templateID {
+				return c.Notes
+			}
+		}
+		t.Fatalf("template %d not found in list", templateID)
+		return nil
+	}
+
+	// Create with a Wochennotiz.
+	body := createTemplateBody(s, "Tpl-Wochennotiz")
+	body["notes"] = "Raum erst ab 14 Uhr offen"
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, w)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "activities.groups", created.TemplateID) })
+
+	got := notesOf(created.TemplateID)
+	require.NotNil(t, got, "series note must round-trip onto the template response")
+	assert.Equal(t, "Raum erst ab 14 Uhr offen", *got)
+
+	// Update the note.
+	upd := createTemplateBody(s, "Tpl-Wochennotiz")
+	upd["notes"] = "Neuer Hinweis"
+	uw := doTemplateJSON(t, router, http.MethodPut, fmt.Sprintf("/templates/%d", created.TemplateID), upd)
+	require.Equal(t, http.StatusOK, uw.Code, "body=%s", uw.Body.String())
+	got = notesOf(created.TemplateID)
+	require.NotNil(t, got)
+	assert.Equal(t, "Neuer Hinweis", *got)
+
+	// Update omitting notes clears the series note.
+	clear := createTemplateBody(s, "Tpl-Wochennotiz")
+	cw := doTemplateJSON(t, router, http.MethodPut, fmt.Sprintf("/templates/%d", created.TemplateID), clear)
+	require.Equal(t, http.StatusOK, cw.Code, "body=%s", cw.Body.String())
+	assert.Nil(t, notesOf(created.TemplateID), "omitted note clears the series note")
+}
+
+func TestTemplate_CreateRejectsOverlongNotes(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	body := createTemplateBody(s, "Tpl-LongNote")
+	body["notes"] = strings.Repeat("x", 2001)
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	assert.Equal(t, http.StatusBadRequest, w.Code, "notes over 2000 chars must be rejected; body=%s", w.Body.String())
+}
+
+// TestTemplateList_IncludesShiftTypeBadge verifies a template whose category is
+// mapped to a Dienstplan shift type exposes shift_type_name/shift_type_color on
+// the list response (#1837 follow-up, timetable-view visibility).
+func TestTemplateList_IncludesShiftTypeBadge(t *testing.T) {
+	mat := &mockMaterializationService{result: &scheduleSvc.MaterializationResult{}}
+	s := buildTemplateSetup(t, mat)
+	defer s.cleanupFn()
+	router := templateRouter(s.ctx, s.res)
+
+	stRepo := repositories.NewFactory(s.db).ShiftType
+	catRepo := repositories.NewFactory(s.db).ActivityCategory
+	st := &scheduleModel.ShiftType{Name: fmt.Sprintf("Betreuung-%d", time.Now().UnixNano()), Color: "#83CD2D", IsActive: true}
+	require.NoError(t, stRepo.Create(s.ctx, st))
+	t.Cleanup(func() { _ = stRepo.Delete(s.ctx, st.ID) })
+	require.NoError(t, catRepo.SetShiftTypeForCategories(s.ctx, st.ID, []int64{s.category.ID}))
+
+	body := createTemplateBody(s, "Tpl-ShiftBadge")
+	w := doTemplateJSON(t, router, http.MethodPost, "/templates", body)
+	require.Equal(t, http.StatusCreated, w.Code, "body=%s", w.Body.String())
+	created := decodeTemplateData[createTemplateResponse](t, w)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "activities.groups", created.TemplateID) })
+
+	listW := doTemplateJSON(t, router, http.MethodGet, "/templates", nil)
+	require.Equal(t, http.StatusOK, listW.Code, "body=%s", listW.Body.String())
+	list := decodeTemplateData[listTemplatesResponse](t, listW)
+	var tpl templateResponse
+	for _, c := range list.Templates {
+		if c.ID == created.TemplateID {
+			tpl = c
+			break
+		}
+	}
+	require.Equal(t, created.TemplateID, tpl.ID)
+	assert.Equal(t, st.Name, tpl.ShiftTypeName, "template list must expose the mapped shift type name")
+	assert.Equal(t, "#83CD2D", tpl.ShiftTypeColor)
 }

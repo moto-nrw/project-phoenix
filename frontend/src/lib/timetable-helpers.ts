@@ -383,6 +383,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     title: raw.title,
     description: raw.description,
     notes: raw.notes,
+    seriesNotes: raw.series_notes,
     status: raw.status,
     isSpontaneous: raw.is_spontaneous,
     isLive: raw.is_live,
@@ -721,6 +722,9 @@ export function mapTemplates(raw: BackendTemplatesResponse): TemplatesResponse {
       educationGroupName: template.education_group_name,
       isOpen: template.is_open,
       maxParticipants: template.max_participants,
+      notes: template.notes,
+      shiftTypeName: template.shift_type_name,
+      shiftTypeColor: template.shift_type_color,
       calendarPeriodId:
         template.calendar_period_id !== undefined &&
         template.calendar_period_id !== null

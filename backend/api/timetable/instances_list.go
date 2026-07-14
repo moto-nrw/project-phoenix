@@ -72,6 +72,7 @@ type enrichedInstance struct {
 	Title                 string                   `json:"title"`
 	Description           *string                  `json:"description,omitempty"`
 	Notes                 *string                  `json:"notes,omitempty"`
+	SeriesNotes           *string                  `json:"series_notes,omitempty"`
 	Status                string                   `json:"status"`
 	IsSpontaneous         bool                     `json:"is_spontaneous"`
 	IsLive                bool                     `json:"is_live"`
@@ -277,6 +278,7 @@ func (rs *Resource) enrichInstance(
 		Title:                 inst.Title,
 		Description:           inst.Description,
 		Notes:                 inst.Notes,
+		SeriesNotes:           meta.seriesNotes,
 		Status:                inst.Status,
 		IsSpontaneous:         inst.IsSpontaneous,
 		IsLive:                inst.Status == scheduleModel.InstanceStatusActive && inst.ActiveGroupID != nil,
@@ -350,6 +352,10 @@ func (rs *Resource) lookupRoomName(ctx context.Context, roomID int64, cache map[
 type templateMeta struct {
 	activityType  string
 	requiredStaff *int
+	// seriesNotes is the template's durable Wochennotiz (#1837 follow-up),
+	// joined onto each materialized instance at read time so it shows on every
+	// occurrence and survives Re-Plan/Split without an instance column.
+	seriesNotes *string
 }
 
 func (rs *Resource) lookupTemplateMeta(ctx context.Context, activityGroupID *int64, cache map[int64]templateMeta) templateMeta {
@@ -372,7 +378,7 @@ func (rs *Resource) lookupTemplateMeta(ctx context.Context, activityGroupID *int
 		cache[*activityGroupID] = fallback
 		return fallback
 	}
-	meta := templateMeta{activityType: group.Type, requiredStaff: group.RequiredStaff}
+	meta := templateMeta{activityType: group.Type, requiredStaff: group.RequiredStaff, seriesNotes: group.Notes}
 	cache[*activityGroupID] = meta
 	return meta
 }

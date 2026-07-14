@@ -337,7 +337,7 @@ describe("TimetableEventModal", () => {
     });
     fireEvent.click(screen.getByRole("checkbox", { name: /Max Kind/ }));
     fireEvent.click(screen.getByRole("checkbox", { name: /Ada Staff/ }));
-    fireEvent.change(screen.getByLabelText("Notiz"), {
+    fireEvent.change(screen.getByLabelText("Tagesnotiz"), {
       target: { value: "ohne Nuesse" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -1353,7 +1353,7 @@ describe("TimetableEventModal", () => {
     fireEvent.click(screen.getByRole("button", { name: /Weitere Optionen/ }));
     expect(screen.getByText("Personal")).toBeInTheDocument();
     expect(screen.getByText("Kinder")).toBeInTheDocument();
-    expect(screen.getByLabelText("Notiz")).toBeInTheDocument();
+    expect(screen.getByLabelText("Tagesnotiz")).toBeInTheDocument();
   });
 
   it("quick preset 'Jeden Wochentag' creates a Mo-Fr weekly series", async () => {
@@ -3004,7 +3004,7 @@ describe("TimetableEventModal", () => {
     });
 
     await screen.findByText("Haus A - Mensa");
-    fireEvent.change(screen.getByLabelText("Notiz"), {
+    fireEvent.change(screen.getByLabelText("Tagesnotiz"), {
       target: { value: "neuer Hinweis" },
     });
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
@@ -3012,7 +3012,7 @@ describe("TimetableEventModal", () => {
     await screen.findByText("Wiederholenden Termin ändern");
     expect(
       screen.getByText(
-        /Geändertes Datum und Notiz gelten nur bei „Nur diese Woche“\./,
+        /Geändertes Datum und Tagesnotiz gelten nur bei .*die Wochennotiz der Terminreihe bleibt/,
       ),
     ).toBeInTheDocument();
   });

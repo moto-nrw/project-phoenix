@@ -75,6 +75,14 @@ type Group struct {
 	TargetGradeLevel  *int16  `bun:"target_grade_level" json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string `bun:"target_school_class" json:"target_school_class,omitempty"`
 
+	// Notes is the durable Wochennotiz for a recurring template (issue #1837
+	// follow-up). NULL means no series note. It is joined onto every
+	// materialized instance at read time (the instance table has no such
+	// column), so it survives ReplanWeek and series splits and keeps
+	// propagating on later edits. The per-occurrence Tagesnotiz stays on
+	// schedule.activity_instances.notes.
+	Notes *string `bun:"notes" json:"notes,omitempty"`
+
 	// Relations - populated when using the ORM's relations
 	Category       *Category            `bun:"rel:belongs-to,join:category_id=id" json:"category,omitempty"`
 	CreatedByStaff *users.Staff         `bun:"rel:belongs-to,join:created_by=id" json:"created_by_staff,omitempty"`

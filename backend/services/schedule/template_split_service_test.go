@@ -2053,3 +2053,75 @@ func TestTemplateSplit_ValidationErrors_RejectsInvalidTargetGroup(t *testing.T) 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, scheduleSvc.ErrSplitInvalidInput)
 }
+
+// setSourceTemplateNotes sets the Wochennotiz on the scenario's source template
+// so split carry-over behavior can be asserted (#1837 follow-up).
+func setSourceTemplateNotes(t *testing.T, s *scenarioSetup, notes string) {
+	t.Helper()
+	_, err := s.db.NewUpdate().
+		Model((*activitiesModels.Group)(nil)).
+		ModelTableExpr(`activities.groups AS "group"`).
+		Set("notes = ?", notes).
+		Where(`"group".id = ?`, s.template.ID).
+		Where(`"group".tenant_id = ?`, s.tenantID).
+		Exec(s.ctx)
+	require.NoError(t, err)
+}
+
+// TestTemplateSplit_CarriesWochennotiz verifies the durable series note is
+// inherited by the successor when omitted, overwritten when provided, and
+// cleared when explicitly nulled (#1837 follow-up).
+func TestTemplateSplit_CarriesWochennotiz(t *testing.T) {
+	t.Run("omitted note inherits the source template's Wochennotiz", func(t *testing.T) {
+		effective := futureMonday(1)
+		s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+		defer s.runCleanup(t)
+		setSourceTemplateNotes(t, s, "Raum erst ab 14 Uhr offen")
+
+		in := baseSplitInput(s, effective, fmt.Sprintf("Split-InheritNote-%d", time.Now().UnixNano()))
+		// NotesProvided stays false → inherit.
+		res, err := s.factory.TemplateSplit.Split(s.ctx, in)
+		require.NoError(t, err)
+		registerSuccessorCleanup(t, s, res.NewTemplateID)
+
+		successor := reloadSplitGroup(t, s, res.NewTemplateID)
+		require.NotNil(t, successor.Notes, "successor must inherit the source note")
+		assert.Equal(t, "Raum erst ab 14 Uhr offen", *successor.Notes)
+	})
+
+	t.Run("provided note overwrites on the successor", func(t *testing.T) {
+		effective := futureMonday(1)
+		s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+		defer s.runCleanup(t)
+		setSourceTemplateNotes(t, s, "Alt")
+
+		newNote := "Ab jetzt: Turnhalle"
+		in := baseSplitInput(s, effective, fmt.Sprintf("Split-SetNote-%d", time.Now().UnixNano()))
+		in.Notes = &newNote
+		in.NotesProvided = true
+		res, err := s.factory.TemplateSplit.Split(s.ctx, in)
+		require.NoError(t, err)
+		registerSuccessorCleanup(t, s, res.NewTemplateID)
+
+		successor := reloadSplitGroup(t, s, res.NewTemplateID)
+		require.NotNil(t, successor.Notes)
+		assert.Equal(t, newNote, *successor.Notes)
+	})
+
+	t.Run("explicit null clears the note on the successor", func(t *testing.T) {
+		effective := futureMonday(1)
+		s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
+		defer s.runCleanup(t)
+		setSourceTemplateNotes(t, s, "Alt")
+
+		in := baseSplitInput(s, effective, fmt.Sprintf("Split-ClearNote-%d", time.Now().UnixNano()))
+		in.Notes = nil
+		in.NotesProvided = true
+		res, err := s.factory.TemplateSplit.Split(s.ctx, in)
+		require.NoError(t, err)
+		registerSuccessorCleanup(t, s, res.NewTemplateID)
+
+		successor := reloadSplitGroup(t, s, res.NewTemplateID)
+		assert.Nil(t, successor.Notes, "explicit null must clear the successor note")
+	})
+}

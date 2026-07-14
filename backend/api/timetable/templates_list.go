@@ -79,6 +79,9 @@ func templateResponseFromRow(row templateRow, childrenPerStaffRatio int) templat
 		TargetGroupType:       row.TargetGroupType,
 		TargetGradeLevel:      nullableTemplateInt16(row.TargetGradeLevel.Valid, row.TargetGradeLevel.Int16),
 		TargetSchoolClass:     nullableTemplateString(row.TargetSchoolClass.Valid, row.TargetSchoolClass.String),
+		Notes:                 nullableTemplateString(row.Notes.Valid, row.Notes.String),
+		ShiftTypeName:         row.ShiftTypeName,
+		ShiftTypeColor:        row.ShiftTypeColor,
 		EnrollmentCount:       row.EnrollmentCount,
 		SupervisorCount:       row.SupervisorCount,
 		RequiredStaffCount:    templateRequiredStaffCount(row, childrenPerStaffRatio),
@@ -177,8 +180,15 @@ type templateResponse struct {
 	TargetGroupType   string  `json:"target_group_type"`
 	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string `json:"target_school_class,omitempty"`
-	EnrollmentCount   int     `json:"enrollment_count"`
-	SupervisorCount   int     `json:"supervisor_count"`
+	// Notes is the template's durable Wochennotiz (#1837 follow-up), nil when
+	// no series note is set. Lets the planner prefill the field on a series edit.
+	Notes *string `json:"notes,omitempty"`
+	// ShiftTypeName/ShiftTypeColor reflect the category's optional
+	// Kategorie↔Schichtart mapping (#1836/#1837 follow-up); empty when unmapped.
+	ShiftTypeName   string `json:"shift_type_name,omitempty"`
+	ShiftTypeColor  string `json:"shift_type_color,omitempty"`
+	EnrollmentCount int    `json:"enrollment_count"`
+	SupervisorCount int    `json:"supervisor_count"`
 	// RequiredStaffCount/AssignedStaffCount drive the Betreuungsplan capacity
 	// indicator (issue #1838) — see services/schedule/capacity_service.go.
 	RequiredStaffCount int `json:"required_staff_count"`

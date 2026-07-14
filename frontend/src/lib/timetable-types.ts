@@ -62,7 +62,14 @@ export interface EnrichedInstance {
   endTime: string; // HH:MM
   title: string;
   description?: string;
+  /** Per-occurrence Tagesnotiz (schedule.activity_instances.notes). */
   notes?: string;
+  /**
+   * Durable Wochennotiz inherited from the series template
+   * (activities.groups.notes). Read-only on the occurrence; edited via the
+   * Regeltermin. Shown on every occurrence, survives Re-Plan/Split.
+   */
+  seriesNotes?: string;
   status: InstanceStatus;
   isSpontaneous: boolean;
   isLive: boolean;
@@ -138,6 +145,7 @@ export interface BackendEnrichedInstance {
   title: string;
   description?: string;
   notes?: string;
+  series_notes?: string;
   status: InstanceStatus;
   is_spontaneous: boolean;
   is_live: boolean;
@@ -351,6 +359,11 @@ export interface TimetableTemplate {
   educationGroupName?: string;
   isOpen: boolean;
   maxParticipants: number;
+  /** Durable Wochennotiz for the series (activities.groups.notes, #1837). */
+  notes?: string;
+  /** Category's mapped Dienstplan-Schichtart (#1836/#1837); empty = unmapped. */
+  shiftTypeName?: string;
+  shiftTypeColor?: string;
   /** The template's own calendar-period pin (distinct from each schedule's). */
   calendarPeriodId?: string;
   targetGroupType: TargetGroupType;
@@ -395,6 +408,9 @@ export interface BackendTimetableTemplate {
   education_group_name?: string;
   is_open: boolean;
   max_participants: number;
+  notes?: string;
+  shift_type_name?: string;
+  shift_type_color?: string;
   calendar_period_id?: number;
   target_group_type: TargetGroupType;
   target_grade_level?: number;
@@ -663,6 +679,8 @@ export interface CreateTemplateBody {
   end_time: string; // HH:MM
   room_id: number;
   category_id: number;
+  /** Durable Wochennotiz for the series (#1837 follow-up); omitted = none. */
+  notes?: string;
   education_group_id?: number;
   max_participants?: number;
   /** Manual Personalbedarf override (#1839); null/omitted = derive. */

@@ -6,6 +6,7 @@
 package shifttypes
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -16,21 +17,32 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
+// CategoryLinker syncs the optional Kategorie↔Schichtart mapping (#1837
+// follow-up). The FK lives on activities.categories, so the write is owned by
+// the activities service; this consumer-defined interface avoids importing that
+// package's concrete type. Runs inside the request's tenant transaction.
+type CategoryLinker interface {
+	SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error
+}
+
 // Resource bundles the dependencies for the shift-type HTTP handlers.
 type Resource struct {
-	Service scheduleSvc.ShiftTypeService
-	db      *bun.DB
-	logger  *slog.Logger
+	Service        scheduleSvc.ShiftTypeService
+	CategoryLinker CategoryLinker
+	db             *bun.DB
+	logger         *slog.Logger
 }
 
 // NewResource wires the dependencies.
-func NewResource(service scheduleSvc.ShiftTypeService, db *bun.DB, logger *slog.Logger) *Resource {
-	return &Resource{Service: service, db: db, logger: logger}
+func NewResource(service scheduleSvc.ShiftTypeService, categoryLinker CategoryLinker, db *bun.DB, logger *slog.Logger) *Resource {
+	return &Resource{Service: service, CategoryLinker: categoryLinker, db: db, logger: logger}
 }
 
 // Router returns the chi sub-router for /api/shift-types.
@@ -57,6 +69,11 @@ type ShiftTypeRequest struct {
 	Color       string `json:"color"`
 	Description string `json:"description"`
 	IsActive    *bool  `json:"is_active"`
+	// CategoryIDs is the optional set of Timetable-Kategorien mapped to this
+	// shift type (#1837 follow-up). When present (including an empty array) it
+	// replaces the current mapping for this shift type; omitted (nil) leaves it
+	// untouched.
+	CategoryIDs []int64 `json:"category_ids"`
 }
 
 // ShiftTypeResponse is the wire format returned to clients.
@@ -132,6 +149,10 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 		renderServiceError(w, r, err)
 		return
 	}
+	if err := rs.syncCategoryLinks(r, saved.ID, req.CategoryIDs); err != nil {
+		rs.renderSyncCategoryError(w, r, err)
+		return
+	}
 	common.Respond(w, r, http.StatusCreated, toShiftTypeResponse(saved), "Shift type created")
 }
 
@@ -173,7 +194,35 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		renderServiceError(w, r, err)
 		return
 	}
+	if err := rs.syncCategoryLinks(r, saved.ID, req.CategoryIDs); err != nil {
+		rs.renderSyncCategoryError(w, r, err)
+		return
+	}
 	common.Respond(w, r, http.StatusOK, toShiftTypeResponse(saved), "Shift type updated")
+}
+
+// syncCategoryLinks applies the optional Kategorie↔Schichtart mapping after a
+// shift type is created/updated. A nil categoryIDs (field omitted) leaves the
+// mapping untouched; a present slice (including empty) replaces it. Runs in the
+// same tenant transaction as the shift-type write.
+func (rs *Resource) syncCategoryLinks(r *http.Request, shiftTypeID int64, categoryIDs []int64) error {
+	if categoryIDs == nil || rs.CategoryLinker == nil {
+		return nil
+	}
+	return rs.CategoryLinker.SetCategoryShiftTypeLinks(r.Context(), shiftTypeID, categoryIDs)
+}
+
+// renderSyncCategoryError maps a category-link failure. Unknown/cross-tenant
+// category IDs are client input errors (400) and must roll back the whole
+// request so the shift-type write does not persist without its mapping; any
+// other error is a 500.
+func (rs *Resource) renderSyncCategoryError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, activitiesModels.ErrUnknownCategoryIDs) {
+		tenant.MarkRollback(r.Context())
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	common.RenderError(w, r, common.ErrorInternalServer(err))
 }
 
 func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
