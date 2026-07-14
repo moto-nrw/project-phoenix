@@ -13,6 +13,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // getStaffHistory handles GET /api/staff/{id}/time-tracking/history?from=YYYY-MM-DD&to=YYYY-MM-DD
@@ -444,4 +446,103 @@ func (rs *Resource) getStaffAbsences(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, absences, "Staff absences retrieved successfully")
+}
+
+// adminAbsenceErrorRules classifies StaffAbsenceService errors for the admin
+// absence endpoints (#1843). The absence service raises message-shaped errors
+// (no sentinels), so most rules match on the message; the sick cascade wraps
+// schedule sentinels, matched via errors.Is.
+var adminAbsenceErrorRules = []common.ErrorRule{
+	{Match: absenceMsgIs("absence not found"), Render: common.ErrorNotFound},
+	{Match: absenceMsgIs("can only delete own absences"), Render: common.ErrorForbidden},
+	{Match: absenceMsgPrefix("absence overlaps"), Render: common.ErrorConflict},
+	{Target: scheduleSvc.ErrShiftOverlap, Render: common.ErrorConflict},
+	{Match: absenceMsgPrefix("invalid"), Render: common.ErrorInvalidRequest},
+	{Match: absenceMsgPrefix("vacation"), Render: common.ErrorInvalidRequest},
+}
+
+func absenceMsgIs(msg string) func(error) bool {
+	return func(err error) bool { return err.Error() == msg }
+}
+
+func absenceMsgPrefix(prefix string) func(error) bool {
+	return func(err error) bool { return strings.HasPrefix(err.Error(), prefix) }
+}
+
+// adminCreateStaffAbsence handles POST /api/staff/{id}/absences (#1843).
+// Files an absence on the staff member's behalf ("Kollegin ruft morgens an,
+// Leitung trägt ein"); a full-day sick absence cascades into Dienstplan and
+// Betreuungsplan inside this request's tenant tx. Service errors mark the tx
+// for rollback (they render as non-5xx, which would otherwise commit the
+// partially applied cascade).
+func (rs *Resource) adminCreateStaffAbsence(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if _, err := rs.PersonService.GetStaffByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+	editorStaffID, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token")))
+		return
+	}
+	var req activeSvc.CreateAbsenceRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	actorAccountID := int64(claims.ID)
+	resp, err := rs.StaffAbsenceService.CreateAbsenceFor(r.Context(), staffID, editorStaffID, &actorAccountID, req)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		common.RenderError(w, r, common.RenderWithRules(err, adminAbsenceErrorRules, common.ErrorInternalServer))
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, resp, "Absence created successfully")
+}
+
+// adminDeleteStaffAbsence handles DELETE /api/staff/{id}/absences/{absenceId}
+// (#1843). Deleting a sick report reverses its plan cascade first (same tx) —
+// without this endpoint an admin could not undo their own mis-entry.
+func (rs *Resource) adminDeleteStaffAbsence(w http.ResponseWriter, r *http.Request) {
+	staffID, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	absenceID, err := parseInt64Param(r, "absenceId")
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if _, err := rs.PersonService.GetStaffByID(r.Context(), staffID); err != nil {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
+		return
+	}
+	editorStaffID, err := rs.resolveEditorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+	claims := jwt.ClaimsFromCtx(r.Context())
+	if claims.ID == 0 {
+		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token")))
+		return
+	}
+	actorAccountID := int64(claims.ID)
+	if err := rs.StaffAbsenceService.DeleteAbsenceFor(r.Context(), staffID, editorStaffID, &actorAccountID, absenceID); err != nil {
+		tenant.MarkRollback(r.Context())
+		common.RenderError(w, r, common.RenderWithRules(err, adminAbsenceErrorRules, common.ErrorInternalServer))
+		return
+	}
+	common.RespondNoContent(w, r)
 }

@@ -46,6 +46,12 @@ type StaffShiftRepository interface {
 	Update(ctx context.Context, shift *StaffShift) error
 	Delete(ctx context.Context, id any) error
 
+	// List and UpdateColumns surface the embedded generic repository: the
+	// #1843 sick cascade filters by sick_absence_id and stamps/clears that
+	// single column without whole-model writes.
+	List(ctx context.Context, filters map[string]any) ([]*StaffShift, error)
+	UpdateColumns(ctx context.Context, shift *StaffShift, columns ...string) (int64, error)
+
 	// FindByDateRange returns all shifts with start <= date <= end for the
 	// current tenant, ordered by date, staff, start time.
 	FindByDateRange(ctx context.Context, start, end timezone.Date) ([]*StaffShift, error)

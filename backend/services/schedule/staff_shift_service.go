@@ -406,6 +406,14 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	// A replacement stays a replacement of the same origin — the cover link is
 	// set at creation and never re-pointed by a plain edit (#1841).
 	shift.OriginShiftID = existing.OriginShiftID
+	// Sick provenance is written only by the #1843 cascade (via the repo, after
+	// ApplyCancellation), never through an edit. Any reactivation clears it: an
+	// active shift is no longer owed to the sick report, and a later manual
+	// re-cancellation must not be undone by deleting that report.
+	shift.SickAbsenceID = existing.SickAbsenceID
+	if existing.Cancelled && !shift.Cancelled {
+		shift.SickAbsenceID = nil
+	}
 	if opts.PreserveExistingNotes {
 		shift.Notes = existing.Notes
 	}

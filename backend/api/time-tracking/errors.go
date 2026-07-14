@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // classifyServiceError maps known business errors to appropriate HTTP status codes
@@ -107,6 +108,11 @@ func classifyAbsenceError(err error) render.Renderer {
 		msg == "invalid absence type",
 		msg == "invalid absence status":
 		return common.ErrorInvalidRequest(err)
+
+	// The #1843 sick cascade wraps schedule-layer errors: reactivating a
+	// shift whose freed window was re-planned collides as an overlap.
+	case errors.Is(err, scheduleSvc.ErrShiftOverlap):
+		return common.ErrorConflict(err)
 
 	default:
 		return common.ErrorInternalServer(err)

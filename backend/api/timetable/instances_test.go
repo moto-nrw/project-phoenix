@@ -999,6 +999,22 @@ func (m *mockInstanceService) ApplyAbsence(ctx context.Context, row *scheduleMod
 	return nil
 }
 
+// Interface-compile stubs for the #1843 sick-cascade methods; the timetable
+// endpoints under test never call them.
+func (m *mockInstanceService) ApplySickAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, reason *string, sickAbsenceID int64, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
+	if m.real != nil {
+		return m.real.ApplySickAbsence(ctx, row, instance, reason, sickAbsenceID, actor, touched)
+	}
+	return nil
+}
+
+func (m *mockInstanceService) ClearSickAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, sickAbsenceID int64, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
+	if m.real != nil {
+		return m.real.ClearSickAbsence(ctx, row, instance, sickAbsenceID, actor, touched)
+	}
+	return nil
+}
+
 func (m *mockInstanceService) ApplyPresence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, actor *int64, touched map[int64]*scheduleModel.ActivityInstance) error {
 	if m.real != nil {
 		return m.real.ApplyPresence(ctx, row, instance, actor, touched)

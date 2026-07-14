@@ -53,6 +53,10 @@ type StaffShift struct {
 	// another (cancelled) shift. Several replacements sharing one origin split a
 	// single gap across multiple people (#1841).
 	OriginShiftID *int64 `bun:"origin_shift_id" json:"origin_shift_id,omitempty"`
+	// SickAbsenceID identifies the active.staff_absences row whose #1843 sick
+	// cascade cancelled this shift. NULL for manual cancellations; deleting the
+	// sick report reactivates only shifts carrying its id.
+	SickAbsenceID *int64 `bun:"sick_absence_id" json:"sick_absence_id,omitempty"`
 	CreatedBy     int64  `bun:"created_by,notnull" json:"created_by"`
 	UpdatedBy     *int64 `bun:"updated_by" json:"updated_by,omitempty"`
 

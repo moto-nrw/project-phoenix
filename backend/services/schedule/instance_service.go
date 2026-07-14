@@ -139,6 +139,11 @@ type InstanceService interface {
 	ApplyAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, reason *string, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
 	ApplyPresence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
 	ApplySubstitute(ctx context.Context, op SubstituteWriteOp, subID int64, reason *string, now time.Time, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
+
+	// #1843 sick-cascade variants: same writes as ApplyAbsence/ApplyPresence
+	// but with provenance stamping and the sick_reported/sick_cleared events.
+	ApplySickAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, reason *string, sickAbsenceID int64, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
+	ClearSickAbsence(ctx context.Context, row *scheduleModel.InstanceStaff, instance *scheduleModel.ActivityInstance, sickAbsenceID int64, actorAccountID *int64, activeTouched map[int64]*scheduleModel.ActivityInstance) error
 }
 
 // CreateInstanceInput bundles the fields needed to insert a fresh instance

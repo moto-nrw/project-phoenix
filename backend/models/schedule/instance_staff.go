@@ -25,6 +25,10 @@ type InstanceStaff struct {
 	// AbsenceReason is an optional short "why" captured when the staff member
 	// is marked absent (Vertretungsplan, issue #1840).
 	AbsenceReason *string `bun:"absence_reason" json:"absence_reason,omitempty"`
+	// SickAbsenceID identifies the active.staff_absences row whose #1843 sick
+	// cascade marked this row absent. NULL for manual Vertretungsplan absences;
+	// deleting the sick report clears only rows carrying its id.
+	SickAbsenceID *int64 `bun:"sick_absence_id" json:"sick_absence_id,omitempty"`
 }
 
 // Validate ensures the staff assignment is well-formed.
@@ -45,6 +49,11 @@ func (s *InstanceStaff) Validate() error {
 // materialized activity instances.
 type InstanceStaffRepository interface {
 	base.Repository[*InstanceStaff]
+
+	// UpdateColumns surfaces the embedded generic repository's single-column
+	// update: the #1843 sick cascade stamps/releases sick_absence_id without
+	// whole-model writes.
+	UpdateColumns(ctx context.Context, row *InstanceStaff, columns ...string) (int64, error)
 
 	// FindByInstanceID returns all staff assignments for an instance.
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*InstanceStaff, error)

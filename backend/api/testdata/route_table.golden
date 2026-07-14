@@ -35,6 +35,7 @@ DELETE /api/shift-types/{id}
 DELETE /api/staff-shifts/series/{id}
 DELETE /api/staff-shifts/{id}
 DELETE /api/staff/{id}
+DELETE /api/staff/{id}/absences/{absenceId}
 DELETE /api/students/{id}
 DELETE /api/students/{id}/arrival-exceptions/{exceptionId}
 DELETE /api/students/{id}/arrival-notes/{noteId}
@@ -541,6 +542,7 @@ POST /api/staff-shifts/series
 POST /api/staff/
 POST /api/staff/absences/{absenceId}/approve
 POST /api/staff/absences/{absenceId}/deny
+POST /api/staff/{id}/absences
 POST /api/staff/{id}/time-tracking/sessions
 POST /api/students/
 POST /api/students/arrival-schedules/bulk

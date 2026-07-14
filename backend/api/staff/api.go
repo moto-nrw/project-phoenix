@@ -108,6 +108,11 @@ func (rs *Resource) Router() chi.Router {
 		// lets an admin see Krank/Urlaub for any staff in the same tenant.
 		r.With(authorize.RequiresPermission(permissions.VacationApprove), withTx).Get("/{id}/absences", rs.getStaffAbsences)
 
+		// Admin absence writes (#1843): file or delete an absence on a staff
+		// member's behalf; sick reports cascade into the plans in the same tx.
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/{id}/absences", rs.adminCreateStaffAbsence)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}/absences/{absenceId}", rs.adminDeleteStaffAbsence)
+
 		// PIN management endpoints - staff can manage their own PIN
 		r.With(withTx).Get("/pin", rs.getPINStatus)
 		r.With(withTx).Put("/pin", rs.updatePIN)

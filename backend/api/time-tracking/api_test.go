@@ -195,6 +195,18 @@ func (m *mockStaffAbsenceService) DeleteAbsence(ctx context.Context, staffID int
 	}
 	return nil
 }
+
+// The #1843 *For variants delegate to the existing fn fields so the tests
+// written against CreateAbsence/DeleteAbsence keep exercising their hooks.
+func (m *mockStaffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaffID, _ int64, _ *int64, req activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
+	return m.CreateAbsence(ctx, subjectStaffID, req)
+}
+
+func (m *mockStaffAbsenceService) DeleteAbsenceFor(ctx context.Context, subjectStaffID, _ int64, _ *int64, absenceID int64) error {
+	return m.DeleteAbsence(ctx, subjectStaffID, absenceID)
+}
+
+func (m *mockStaffAbsenceService) SetShiftPlanSyncer(activeSvc.ShiftPlanSyncer) {}
 func (m *mockStaffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error) {
 	if m.getAbsencesForRange != nil {
 		return m.getAbsencesForRange(ctx, staffID, from, to)
