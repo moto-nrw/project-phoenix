@@ -2,7 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSWRConfig } from "swr";
+import { Thermometer, Trash2 } from "lucide-react";
 
+import {
+  SickReportModal,
+  type SickReportStaff,
+} from "~/components/staff/sick-report-modal";
+import { Button } from "~/components/ui/button";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -13,6 +20,7 @@ import {
   type StaffAbsenceRow,
   type StaffVacationQuotaSummary,
 } from "~/lib/staff-api";
+import { useTenantMutateMatching } from "~/lib/swr";
 
 const logger = createLogger({ component: "AbwesenheitenTab" });
 
@@ -22,6 +30,15 @@ const ABSENCE_TYPE_LABEL: Record<string, string> = {
   training: "Fortbildung",
   other: "Sonstige",
 };
+
+// Noun form for the delete action ("Krankmeldung löschen", not "Krank
+// löschen"); unknown types fall back to the generic noun.
+function absenceTypeLabel(absenceType: string): string {
+  if (absenceType === "sick") return "Krankmeldung";
+  if (absenceType === "vacation") return "Urlaub";
+  if (absenceType === "training") return "Fortbildung";
+  return "Abwesenheit";
+}
 
 const ABSENCE_TYPE_COLOR: Record<string, string> = {
   vacation: "bg-[#5080D8]/15 text-[#5080D8]",
@@ -131,9 +148,14 @@ function statusMeta(status: string): StatusMeta {
 export function AbwesenheitenTab({
   staffId,
   canEdit,
+  staff,
 }: {
   readonly staffId: string;
   readonly canEdit: boolean;
+  // Passed in from the staff detail page so the "Krank melden" modal has the
+  // person's name. Optional so the tab still renders (without the action)
+  // where the staff object is not available (#1843).
+  readonly staff?: SickReportStaff;
 }) {
   const toast = useToast();
   const year = useMemo(() => new Date().getFullYear(), []);
@@ -143,40 +165,67 @@ export function AbwesenheitenTab({
   const [pendingActionId, setPendingActionId] = useState<number | null>(null);
   const [denyModal, setDenyModal] = useState<StaffAbsenceRow | null>(null);
   const [quotaModal, setQuotaModal] = useState(false);
+  // Snapshot of the staff identity taken when the modal opens: the live
+  // `staff` prop can flip to undefined while onCreated's cache invalidation
+  // refetches the page data, and a conditional `{staff && <Modal/>}` render
+  // would then unmount the modal mid-success-state (#1843).
+  const [sickStaff, setSickStaff] = useState<SickReportStaff | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<StaffAbsenceRow | null>(
+    null,
+  );
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const { mutate: swrMutate } = useSWRConfig();
 
-  const reload = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [q, abs] = await Promise.all([
-        staffAbsenceService.getVacationQuota(staffId, year),
-        staffAbsenceService.getAbsences(
-          staffId,
-          `${year}-01-01`,
-          `${year}-12-31`,
-        ),
-      ]);
-      setQuota(q);
-      setAbsences(abs);
-      // Page-level tab badge SWR (staff-pending-absences-${staffId}) lives
-      // outside this component and otherwise stays stale after approvals,
-      // denials and stornos. useSWRAuth prefixes every key with the tenant
-      // slug ("phoenix:staff-pending-absences-…"), so a plain startsWith
-      // never matches, we use includes for the cache hit.
-      swrMutate(
-        (key) =>
-          typeof key === "string" && key.includes("staff-pending-absences-"),
-      );
-    } catch (err) {
-      logger.error("load_failed", {
-        staff_id: staffId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      toast.error("Daten konnten nicht geladen werden.");
-    } finally {
-      setLoading(false);
-    }
-  }, [staffId, year, swrMutate, toast]);
+  // A sick report / its deletion cascades into the Dienst- and
+  // Vertretungsplan, so revalidate those caches alongside the local reload.
+  const refreshPlanCaches = useTenantMutateMatching([
+    "dienstplan-overview-",
+    "dienstplan-shifts-",
+    "vertretungsplan-week-",
+    "vertretungsplan-gaps-",
+  ]);
+
+  // silent skips the loading flag: the loading early-return unmounts the
+  // whole tab subtree including any open modal, which would wipe the
+  // SickReportModal's success state right after a report (#1843).
+  const reload = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) {
+        setLoading(true);
+      }
+      try {
+        const [q, abs] = await Promise.all([
+          staffAbsenceService.getVacationQuota(staffId, year),
+          staffAbsenceService.getAbsences(
+            staffId,
+            `${year}-01-01`,
+            `${year}-12-31`,
+          ),
+        ]);
+        setQuota(q);
+        setAbsences(abs);
+        // Page-level tab badge SWR (staff-pending-absences-${staffId}) lives
+        // outside this component and otherwise stays stale after approvals,
+        // denials and stornos. useSWRAuth prefixes every key with the tenant
+        // slug ("phoenix:staff-pending-absences-…"), so a plain startsWith
+        // never matches, we use includes for the cache hit.
+        swrMutate(
+          (key) =>
+            typeof key === "string" && key.includes("staff-pending-absences-"),
+        );
+      } catch (err) {
+        logger.error("load_failed", {
+          staff_id: staffId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        toast.error("Daten konnten nicht geladen werden.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [staffId, year, swrMutate, toast],
+  );
 
   useEffect(() => {
     reload();
@@ -223,6 +272,25 @@ export function AbwesenheitenTab({
     }
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    setDeleteError("");
+    try {
+      await staffAbsenceService.deleteAbsence(staffId, deleteTarget.id);
+      toast.success("Krankmeldung gelöscht.");
+      setDeleteTarget(null);
+      void refreshPlanCaches();
+      await reload();
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : "Löschen fehlgeschlagen.",
+      );
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   if (loading) {
     return <Loading fullPage={false} />;
   }
@@ -262,7 +330,20 @@ export function AbwesenheitenTab({
         />
       </div>
 
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-3">
+        {canEdit && staff ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => setSickStaff(staff ?? null)}
+          >
+            <Thermometer className="mr-1.5 h-4 w-4" aria-hidden />
+            Krank melden
+          </Button>
+        ) : (
+          <span />
+        )}
         <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
           Jahr {year}
         </span>
@@ -390,7 +471,11 @@ export function AbwesenheitenTab({
         ) : (
           <ul className="space-y-2">
             {upcoming.map((row) => (
-              <AbsenceRow key={row.id} row={row} />
+              <AbsenceRow
+                key={row.id}
+                row={row}
+                onDelete={canEdit ? () => setDeleteTarget(row) : undefined}
+              />
             ))}
           </ul>
         )}
@@ -408,13 +493,58 @@ export function AbwesenheitenTab({
         ) : (
           <ul className="space-y-2">
             {history.slice(0, 20).map((row) => (
-              <AbsenceRow key={row.id} row={row} />
+              <AbsenceRow
+                key={row.id}
+                row={row}
+                onDelete={canEdit ? () => setDeleteTarget(row) : undefined}
+              />
             ))}
           </ul>
         )}
       </div>
 
       {/* Modals */}
+      {sickStaff && (
+        <SickReportModal
+          isOpen
+          staff={sickStaff}
+          onClose={() => setSickStaff(null)}
+          onCreated={() => {
+            void refreshPlanCaches();
+            void reload({ silent: true });
+          }}
+        />
+      )}
+      <ConfirmDeleteModal
+        isOpen={deleteTarget !== null}
+        title={`${deleteTarget ? absenceTypeLabel(deleteTarget.absence_type) : "Abwesenheit"} löschen`}
+        description={
+          <>
+            Die Abwesenheit{" "}
+            <strong>
+              {deleteTarget
+                ? formatRange(deleteTarget.date_start, deleteTarget.date_end)
+                : ""}
+            </strong>{" "}
+            wird gelöscht.
+            {deleteTarget?.absence_type === "sick" && (
+              <>
+                {" "}
+                Stornierte Schichten und als abwesend markierte Betreuungsblöcke
+                werden wiederhergestellt, sofern noch kein Ersatz eingetragen
+                wurde.
+              </>
+            )}
+          </>
+        }
+        gate={{ mode: "twoStep" }}
+        loading={deleteLoading}
+        error={deleteError}
+        confirmLabel="Löschen"
+        loadingLabel="Wird gelöscht…"
+        onConfirm={handleDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
       {denyModal && (
         <DenyAbsenceModal
           absence={denyModal}
@@ -514,9 +644,18 @@ function isRedundantNote(absenceType: string, note: string): boolean {
   return (REDUNDANT_NOTES[absenceType] ?? []).includes(normalized);
 }
 
-function AbsenceRow({ row }: { readonly row: StaffAbsenceRow }) {
+function AbsenceRow({
+  row,
+  onDelete,
+}: {
+  readonly row: StaffAbsenceRow;
+  // Delete action for admin-entered absences (status "reported"), e.g. a sick
+  // report whose plan cascade can be undone. Omitted for read-only rows.
+  readonly onDelete?: () => void;
+}) {
   const meta = statusMeta(row.status);
   const showNote = row.note && !isRedundantNote(row.absence_type, row.note);
+  const canDelete = onDelete && row.status === "reported";
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3">
       <div className="min-w-0 flex-1">
@@ -543,11 +682,24 @@ function AbsenceRow({ row }: { readonly row: StaffAbsenceRow }) {
           </p>
         )}
       </div>
-      <span
-        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${meta.className}`}
-      >
-        {meta.label}
-      </span>
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${meta.className}`}
+        >
+          {meta.label}
+        </span>
+        {canDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label={`${absenceTypeLabel(row.absence_type)} ${formatRange(row.date_start, row.date_end)} löschen`}
+            title={`${absenceTypeLabel(row.absence_type)} löschen`}
+            className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden />
+          </button>
+        )}
+      </div>
     </li>
   );
 }

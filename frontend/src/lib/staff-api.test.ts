@@ -1661,6 +1661,82 @@ describe("staff-api", () => {
         "Missing reason",
       );
     });
+
+    it("creates a sick absence and returns the created row (#1843)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      const createdRow = {
+        id: 42,
+        staff_id: 1,
+        absence_type: "sick",
+        date_start: "2026-07-14",
+        date_end: "2026-07-16",
+        half_day: false,
+        note: "Grippe",
+        status: "reported",
+      };
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ data: createdRow }),
+      } as Response);
+
+      const body = {
+        absence_type: "sick",
+        date_start: "2026-07-14",
+        date_end: "2026-07-16",
+        note: "Grippe",
+      };
+      const result = await staffAbsenceService.createAbsence("1", body);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1/absences",
+        expect.objectContaining({
+          method: "POST",
+          body: JSON.stringify(body),
+        }),
+      );
+      expect(result.id).toBe(42);
+      expect(result.status).toBe("reported");
+    });
+
+    it("uses response text when creating an absence fails (#1843)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        text: () => Promise.resolve("overlapping absence"),
+      } as Response);
+
+      await expect(
+        staffAbsenceService.createAbsence("1", {
+          absence_type: "sick",
+          date_start: "2026-07-14",
+          date_end: "2026-07-14",
+        }),
+      ).rejects.toThrow("overlapping absence");
+    });
+
+    it("deletes an absence (#1843)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({ ok: true } as Response);
+
+      await staffAbsenceService.deleteAbsence("1", 42);
+
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/staff/1/absences/42",
+        expect.objectContaining({ method: "DELETE" }),
+      );
+    });
+
+    it("uses response text when deleting an absence fails (#1843)", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        text: () => Promise.resolve("Nicht gefunden"),
+      } as Response);
+
+      await expect(staffAbsenceService.deleteAbsence("1", 99)).rejects.toThrow(
+        "Nicht gefunden",
+      );
+    });
   });
 
   describe("staffSessionEditsService", () => {

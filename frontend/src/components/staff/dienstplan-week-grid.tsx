@@ -2,7 +2,7 @@
 
 /* oxlint-disable jsx-a11y/no-noninteractive-tabindex -- the labeled horizontal scroll region must be keyboard-focusable */
 
-import { MapPin, Plus, Repeat, TriangleAlert } from "lucide-react";
+import { MapPin, Plus, Repeat, Thermometer, TriangleAlert } from "lucide-react";
 
 import { Skeleton } from "~/components/ui/skeleton";
 import { Tooltip } from "~/components/ui/tooltip";
@@ -49,6 +49,9 @@ interface DienstplanWeekGridProps {
     date: string,
     shift: StaffShift | null,
   ) => void;
+  /** Opens the "Krank melden" flow for a staff member. When omitted (e.g. the
+   *  caller lacks time_tracking:manage), the row-header action is not rendered. */
+  readonly onSickReport?: (staff: StaffScheduleStaff) => void;
 }
 
 const DAY_LABELS = ["Mo", "Di", "Mi", "Do", "Fr"] as const;
@@ -181,6 +184,7 @@ export function DienstplanWeekGrid({
   typesById,
   isLoading,
   onCellClick,
+  onSickReport,
 }: DienstplanWeekGridProps) {
   if (isLoading) {
     return (
@@ -248,10 +252,24 @@ export function DienstplanWeekGrid({
                 <tr key={member.id} className="bg-white">
                   <th
                     scope="row"
-                    className="sticky left-0 z-10 bg-white px-4 py-2 text-left font-medium whitespace-nowrap text-gray-900"
+                    className="group sticky left-0 z-10 bg-white px-4 py-2 text-left font-medium whitespace-nowrap text-gray-900"
                   >
-                    {member.lastName}, {member.firstName}
-                    {summary && <WeeklySummaryLine summary={summary} />}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        {member.lastName}, {member.firstName}
+                        {summary && <WeeklySummaryLine summary={summary} />}
+                      </div>
+                      {onSickReport && (
+                        <button
+                          type="button"
+                          onClick={() => onSickReport(member)}
+                          aria-label={`Krank melden für ${member.firstName} ${member.lastName}`}
+                          className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-gray-400 opacity-100 transition-opacity hover:bg-gray-100 hover:text-[#EAB308] focus:opacity-100 [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100"
+                        >
+                          <Thermometer className="h-4 w-4" aria-hidden />
+                        </button>
+                      )}
+                    </div>
                   </th>
                   {weekDays.map((date) => {
                     const shifts = byDate?.get(date) ?? [];

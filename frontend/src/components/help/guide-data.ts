@@ -615,6 +615,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei einem Arbeitstag das Stift-Symbol nutzen, um Zeiten nachzutragen oder zu korrigieren. Eine Begründung ist erforderlich und landet im Audit-Log.",
           "Im Reiter `Arbeitszeitmodell` eine Vorlage zuweisen oder ein eigenes Modell mit 1 bis 4 Wochen Rotation pflegen. Pro Arbeitstag kann optional eine Startzeit hinterlegt werden.",
           "Im Reiter `Abwesenheiten` Urlaubsanspruch und offene Anträge prüfen, genehmigen oder mit Begründung ablehnen.",
+          "Über `Krank melden` im Reiter `Abwesenheiten` eine Krankmeldung für die Person eintragen; sie storniert geplante Schichten und markiert Betreuungsblöcke als abwesend. Eingetragene Krankmeldungen lassen sich über das Papierkorb-Symbol wieder löschen, wodurch stornierte Schichten und Blöcke wiederhergestellt werden, sofern noch kein Ersatz gesetzt wurde.",
         ],
         callout: {
           title: "Änderungen bleiben nachvollziehbar",
@@ -715,6 +716,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Im Überblick `Vertretungsplan im Blick` zeigen `Offene Lücken` und `Bewusst unbesetzt`, wie viele Blöcke ohne Personal sind bzw. bewusst offen gelassen wurden.",
           "Einen Termin anklicken, um die Vertretungsansicht des Blocks zu öffnen. `Geplantes Personal` zeigt die Besetzung aus dem Betreuungsplan.",
           "Über `Abwesend melden` eine Person für den ganzen Tag als abwesend markieren, optional mit einem `Grund` (zum Beispiel `krank`). Anschließend unter `Ersatz eintragen` eine Ersatzperson wählen.",
+          "Meldet die Leitung im Dienstplan oder im Mitarbeiterprofil eine Person krank, erscheinen die betroffenen Blöcke hier direkt als abwesend und lassen sich mit `Ersatz eintragen` neu besetzen.",
           "Ist keine Ersatzperson verfügbar, den Block unter `Bewusst unbesetzt` mit optionalem Grund markieren; er zählt dann nicht mehr als offene Lücke.",
           "Einen Termin über `Block absagen` streichen, optional mit einem `Grund`. Der Regeltermin im Betreuungsplan bleibt dabei unverändert.",
           "Über `Verlauf` in der Vertretungsansicht das Änderungsprotokoll öffnen: Es zeigt für den Block oder den ganzen Tag, wer wann Abwesenheiten, Vertretungen, Absagen oder bewusst offene Lücken eingetragen oder geändert hat, samt Begründung.",
@@ -772,6 +774,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Fällt eine Schicht aus, `Diese Schicht fällt aus` anhaken. Die Schicht zählt dann nicht mehr zur geplanten Zeit. Ohne Ersatzeintrag bleibt die Lücke bewusst offen.",
           "Für eine Vertretung stattdessen `+ Vertretung hinzufügen` wählen und eine Ersatzperson mit `Beginn` und `Ende` eintragen. Über mehrere Einträge lässt sich die Lücke auf mehrere Personen aufteilen; jede Vertretung erscheint am gewählten Tag als eigene Schicht der Ersatzperson (`Vertretung`), die ausgefallene Person als `Abwesend`.",
           "Ausfall, Grund und Vertretungen werden zusammen gespeichert: Wird eine ausgefallene Schicht wieder aktiviert (Haken entfernen), entfernt die App die zugehörigen Vertretungen automatisch.",
+          "Fällt eine Person ganztägig aus, über das Thermometer-Symbol am Namen `Krank melden` öffnen und Zeitraum sowie optional eine Notiz erfassen. Die Krankmeldung storniert alle geplanten Schichten im Zeitraum (Grund `Krankheit`) und markiert betroffene Betreuungsblöcke als abwesend. `Zur Vertretung` führt anschließend direkt in die Tagesansicht des Vertretungsplans, um offene Blöcke neu zu besetzen. Ein halber Tag ändert Dienst- und Betreuungsplan nicht automatisch.",
           "Mehrere Schichten pro Tag sind möglich (z. B. Vertretungsunterricht, Pause und Ganztagsbetreuung), solange sie sich nicht überschneiden; die Farbe der Schichtart macht die Aufgaben im Wochenplan sofort unterscheidbar.",
           "Unter dem Namen jedes Mitarbeiters steht die geplante Wochenzeit aus den Schichten der angezeigten Woche (Schichtdauer abzüglich Pause). Ist ein Arbeitszeitmodell hinterlegt, zeigt eine farbige Abweichung daneben Über- oder Unterplanung gegenüber den vertraglichen Wochenstunden (z. B. `18 h · −2,25 h`); das ist ein Hinweis und blockiert nichts. In Wochen ohne angelegte Schichten erscheint keine Summe.",
           "Die Mitarbeiter-/Tag-Zellen zeigen außerdem die konkreten Einsätze aus dem Betreuungsplan mit Uhrzeit, Aktivität und Raum. Diese Einsätze sind im Dienstplan schreibgeschützt; Änderungen erfolgen im Betreuungsplan oder bei kurzfristigen Abweichungen im Vertretungsplan.",

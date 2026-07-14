@@ -80,6 +80,14 @@ function eventDescription(ev: DeviationHistoryEvent): string {
       return subject
         ? `Eine Bearbeitung des Termins hat die Abweichung von ${subject} verworfen.`
         : "Eine Bearbeitung des Termins hat eingetragene Abweichungen verworfen.";
+    case "sick_reported":
+      return subject
+        ? `${subject} wurde krank gemeldet.`
+        : "Eine Krankmeldung wurde eingetragen.";
+    case "sick_cleared":
+      return subject
+        ? `Die Krankmeldung von ${subject} wurde zurückgenommen.`
+        : "Eine Krankmeldung wurde zurückgenommen.";
     default:
       return deviationEventLabel(ev.eventType);
   }

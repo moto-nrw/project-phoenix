@@ -377,7 +377,7 @@ export default function StaffDetailContent() {
         </TabsPrimitive.Content>
 
         <TabsPrimitive.Content value="abwesenheiten">
-          <AbwesenheitenTab staffId={staffId} canEdit={canEdit} />
+          <AbwesenheitenTab staffId={staffId} canEdit={canEdit} staff={staff} />
         </TabsPrimitive.Content>
 
         <TabsPrimitive.Content value="stammdaten">
