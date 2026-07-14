@@ -1250,8 +1250,9 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 		sessionIDs[i] = session.ID
 	}
 
-	// Batch fetch manual edit counts. System-authored edits (auto-checkout)
-	// are excluded so they don't surface as "Manuell korrigiert".
+	// Batch fetch manual edit counts. System-authored edits (auto-checkout) and
+	// stamp-time deviation reasons (#1844) are excluded so they don't surface
+	// as "Manuell korrigiert".
 	editCounts, err := s.auditRepo.CountManualBySessionIDs(ctx, sessionIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get edit counts: %w", err)

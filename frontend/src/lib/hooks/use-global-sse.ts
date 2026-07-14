@@ -257,8 +257,10 @@ export function useGlobalSSE(): SSEHookState {
           (key.includes("timetable-") ||
             // "Heute geplant" card on the Zeiterfassung page (#1844): its
             // assignments come from activity instances, so a same-day cancel/
-            // start/complete must refetch it — the card disables focus
-            // revalidation, making this its only live update path.
+            // start/complete — and staffing deviations (absence, substitute,
+            // understaffed-ack via staffing_deviation_changed) — must refetch
+            // it. The card disables focus revalidation, making this its only
+            // live update path.
             key.includes("time-tracking-own-assignments-") ||
             key.includes("database-calendar-periods-list")),
       ).catch((err) => {
@@ -443,7 +445,11 @@ export function useGlobalSSE(): SSEHookState {
         case "instance_started":
         case "instance_completed":
         case "instance_cancelled":
-        case "instance_overdue": {
+        case "instance_overdue":
+        // Staffing deviations (absence/substitute/understaffed-ack, #1844)
+        // change is_absent/is_substitute/understaffed_ack without any
+        // lifecycle transition — same caches go stale, same invalidation.
+        case "staffing_deviation_changed": {
           hasPendingTimetableEvent.current = true;
           scheduleFlush();
           break;

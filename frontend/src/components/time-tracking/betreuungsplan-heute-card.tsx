@@ -2,6 +2,7 @@
 
 import { CalendarClock, MapPin } from "lucide-react";
 
+import { Alert } from "~/components/ui/alert";
 import { InfoCard } from "~/components/ui/info-card";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { ownShiftService } from "~/lib/shift-api";
@@ -13,16 +14,35 @@ import { useSWRAuth } from "~/lib/swr";
 // Zustände (Vertretung, entfällt, du fehlst, unterbesetzt). Bewusst ohne
 // Kindernamen (GDPR). Rendert nichts, wenn die Schule keinen Betreuungsplan
 // pflegt (leere Liste), damit die Seite nicht mit einer leeren Karte zusteht.
+// Ein Ladefehler zeigt dagegen eine Fehlerkarte, damit er nicht wie "keine
+// Einsätze" aussieht.
 export function BetreuungsplanHeuteCard() {
   // Berlin, not browser-local: the backend defines "today" in Europe/Berlin,
   // and a browser in another timezone around midnight would otherwise fetch
   // yesterday's/tomorrow's assignments and label them "Heute geplant".
   const today = useBerlinToday();
-  const { data: assignments } = useSWRAuth<OwnAssignment[]>(
+  const { data: assignments, error } = useSWRAuth<OwnAssignment[]>(
     `time-tracking-own-assignments-today-${today}`,
     () => ownShiftService.getOwnAssignments(today, today),
     { revalidateOnFocus: false, errorRetryCount: 1 },
   );
+
+  // A fetch failure must stay distinguishable from "keine Einsätze geplant":
+  // with only one retry and focus revalidation off, silently rendering the
+  // empty-state (null) would hide the employee's schedule until a reload.
+  if (error) {
+    return (
+      <InfoCard
+        title="Heute geplant"
+        icon={<CalendarClock className="h-5 w-5" />}
+      >
+        <Alert
+          type="error"
+          message="Die heutigen Einsätze konnten nicht geladen werden. Bitte die Seite neu laden."
+        />
+      </InfoCard>
+    );
+  }
 
   const blocks = (assignments ?? [])
     .filter((a) => a.date === today)
@@ -79,7 +99,13 @@ function AssignmentRow({ block }: { readonly block: OwnAssignment }) {
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         {block.isSubstitute && <Badge tone="blue">Vertretung</Badge>}
-        {block.cancelled && <Badge tone="red">Entfällt</Badge>}
+        {block.cancelled && (
+          <Badge tone="red">
+            {block.cancelReason
+              ? `Entfällt · ${block.cancelReason}`
+              : "Entfällt"}
+          </Badge>
+        )}
         {block.isAbsent && (
           <Badge tone="amber">
             {block.absenceReason
