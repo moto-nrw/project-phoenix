@@ -129,6 +129,13 @@ jobs:
     env:
       NEXT_PUBLIC_API_URL: "http://localhost:8080" # Default API URL for linting
       SKIP_ENV_VALIDATION: "true" # Skip validation during linting
+      # knip loads playwright.config.ts, which fail-fasts on its required E2E
+      # env vars at import time. Provide placeholders so static analysis can
+      # load the config (these are never used to run a real browser here).
+      API_URL: "http://localhost:8080"
+      NEXT_PUBLIC_OPERATOR_HOSTNAME: "operator.localhost:3000"
+      NEXT_PUBLIC_PARENTS_HOSTNAME: "parents.localhost:3000"
+      TENANT_DOMAIN: "localhost"
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 

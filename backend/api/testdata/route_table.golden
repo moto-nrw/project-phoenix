@@ -317,6 +317,7 @@ GET /api/timetable/deviations/history
 GET /api/timetable/exception-conflicts
 GET /api/timetable/gaps
 GET /api/timetable/instances/
+GET /api/timetable/instances/edited-in-window
 GET /api/timetable/operations/active-groups/{id}/roster
 GET /api/timetable/operations/capabilities
 GET /api/timetable/operations/instances/{id}/roster

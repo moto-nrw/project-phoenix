@@ -150,6 +150,11 @@ func (rs *Resource) Router() chi.Router {
 			// without being able to mutate it.
 			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
 				Get("/", rs.listInstances)
+			// #1875: probe which planned occurrences were individually edited
+			// in a window, so the planner can warn before a series re-plan
+			// discards them. Read-only, SchedulesRead like the list endpoint.
+			r.With(authorize.RequiresPermission(permissions.SchedulesRead), withTx).
+				Get("/edited-in-window", rs.editedInWindow)
 			// Spontaneous (and template-bound out-of-cycle) create. Returns
 			// the same enriched shape as the list endpoint so the frontend
 			// can splice the fresh row into its SWR cache.

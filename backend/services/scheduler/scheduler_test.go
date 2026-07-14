@@ -2568,6 +2568,10 @@ func (f *fakeMaterializer) ResolveWindow(baseDate timezone.Date, weeksAhead int)
 	return from, to
 }
 
+func (f *fakeMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ timezone.Date) ([]scheduleSvc.EditedOccurrence, error) {
+	return nil, nil
+}
+
 // fakeSettingsResolver implements SettingsResolver for deterministic tests.
 // Tests populate boolValues/intValues/stringValues with the keys they care
 // about; anything else returns the zero value with HasTenantOverride=false so

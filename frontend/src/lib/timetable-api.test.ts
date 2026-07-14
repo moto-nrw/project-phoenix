@@ -1024,4 +1024,67 @@ describe("timetableService", () => {
       }),
     );
   });
+
+  it("probes edited occurrences in a window (#1875)", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          count: 2,
+          occurrences: [
+            {
+              instance_id: 101,
+              date: "2026-05-04",
+              start_time: "15:00:00",
+              title: "Fußball AG",
+              changes: ["room", "title"],
+            },
+            {
+              instance_id: 102,
+              date: "2026-05-11",
+              start_time: "15:00:00",
+              title: "Fußball AG",
+              changes: ["staff"],
+            },
+          ],
+        },
+      }),
+    );
+
+    await expect(
+      timetableService.countEditedInWindow("7", "2026-05-04", "2026-05-15"),
+    ).resolves.toEqual({
+      count: 2,
+      occurrences: [
+        {
+          instanceId: "101",
+          date: "2026-05-04",
+          startTime: "15:00:00",
+          title: "Fußball AG",
+          changes: ["room", "title"],
+        },
+        {
+          instanceId: "102",
+          date: "2026-05-11",
+          startTime: "15:00:00",
+          title: "Fußball AG",
+          changes: ["staff"],
+        },
+      ],
+    });
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/timetable/instances/edited-in-window?activity_group_id=7&from=2026-05-04&to=2026-05-15",
+      expect.objectContaining({ method: "GET" }),
+    );
+  });
+
+  it("maps an empty edited-window probe to zero", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({ data: { count: 0, occurrences: [] } }),
+    );
+
+    await expect(
+      timetableService.countEditedInWindow("7", "2026-05-04", "2026-05-10"),
+    ).resolves.toEqual({ count: 0, occurrences: [] });
+  });
 });

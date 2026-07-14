@@ -26,6 +26,8 @@ import type {
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
+  BackendEditedInWindowResult,
+  EditedInWindowResult,
   BackendSplitTemplateResult,
   BackendTemplatesResponse,
   BackendStartInstanceResult,
@@ -461,6 +463,22 @@ export function mapReplanWeekResult(
       message: w.message,
     })),
     durationMs: raw.duration_ms,
+  };
+}
+
+export function mapEditedInWindowResult(
+  raw: BackendEditedInWindowResult,
+): EditedInWindowResult {
+  return {
+    count: raw.count,
+    occurrences: (raw.occurrences ?? []).map((o) => ({
+      instanceId: String(o.instance_id),
+      date: o.date,
+      startTime: o.start_time,
+      title: o.title,
+      changes:
+        o.changes as EditedInWindowResult["occurrences"][number]["changes"],
+    })),
   };
 }
 
