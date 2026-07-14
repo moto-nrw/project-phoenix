@@ -330,6 +330,30 @@ describe("VertretungView", () => {
     expect(urlKeys()).toEqual(["d"]);
   });
 
+  it("räumt verlauf ab, wenn ein Block per Klick geöffnet wird", () => {
+    mockSearch.value = "d=2026-07-15&block=42";
+    window.history.replaceState(
+      null,
+      "",
+      "/acme/vertretung?d=2026-07-15&block=42",
+    );
+    render(<VertretungView />);
+
+    fireEvent.click(screen.getByText("editor-history"));
+    expect(new URLSearchParams(window.location.search).get("verlauf")).toBe(
+      "1",
+    );
+
+    // Block-Klick bei offenem Verlaufs-Reiter: verlauf darf nicht in der URL
+    // kleben, sonst startet der nächste geöffnete Block im Verlauf statt im
+    // Bearbeiten-Formular (Muster der alten handleSelectInstance).
+    fireEvent.click(screen.getByText("grid-click"));
+    expect(new URLSearchParams(window.location.search).get("block")).toBe("42");
+    expect(new URLSearchParams(window.location.search).has("verlauf")).toBe(
+      false,
+    );
+  });
+
   it("shows placeholders (never a fabricated 0) for a fully past day", () => {
     mockSearch.value = "d=2026-06-15"; // Woche komplett in der Vergangenheit
     render(<VertretungView />);

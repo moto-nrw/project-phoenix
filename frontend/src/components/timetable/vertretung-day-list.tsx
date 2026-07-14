@@ -22,6 +22,7 @@ import {
   CoverageIndicator,
   type CoverageState,
 } from "~/components/ui/coverage-indicator";
+import { staffLabel } from "~/lib/timetable-helpers";
 import type {
   EnrichedInstance,
   GapInstance,
@@ -161,12 +162,13 @@ function classify(
  * Position "??" (WebUntis-Konvention).
  */
 function substituteForAbsent(
-  instance: EnrichedInstance,
+  staff: InstanceStaffSummary[],
+  // Die bereits in classify() berechneten abwesenden geplanten Zeilen — hier
+  // bewusst durchgereicht statt erneut gefiltert, damit das
+  // "abwesende geplante Position"-Prädikat nur an einer Stelle lebt.
+  plannedAbsent: InstanceStaffSummary[],
 ): Map<string, string | null> {
-  const plannedAbsent = instance.staff.filter(
-    (row) => !row.isSubstitute && row.isAbsent,
-  );
-  const activeSubstitutes = instance.staff.filter(
+  const activeSubstitutes = staff.filter(
     (row) => row.isSubstitute && !row.isAbsent,
   );
   const result = new Map<string, string | null>();
@@ -264,7 +266,9 @@ function VertretungDayListRow({
   // ohnehin aus, weil ihre Bedingungen für eine ungestörte Zeile nie zutreffen.
   const titleClass = isDisturbed ? "text-gray-900" : "text-gray-400";
   const timeClass = isDisturbed ? "text-gray-500" : "text-gray-400";
-  const substituteMap = hasAbsence ? substituteForAbsent(instance) : null;
+  const substituteMap = hasAbsence
+    ? substituteForAbsent(instance.staff, absentPlannedRows)
+    : null;
 
   return (
     <li
@@ -280,16 +284,18 @@ function VertretungDayListRow({
             {instance.title}
           </span>
         </div>
-        {canManage && (
-          <Button
-            type="button"
-            variant="ghost"
-            size="compact"
-            onClick={() => onEdit(instance.id)}
-          >
-            Bearbeiten
-          </Button>
-        )}
+        {/* Auch Lesenutzer brauchen ein Klickziel: unterhalb lg gibt es keine
+            Kalenderspalte, und der Verlauf muss ohne schedules:manage lesbar
+            bleiben (Kriterium 8). Der Editor selbst rendert ohne canManage
+            nur Lese-Inhalte. */}
+        <Button
+          type="button"
+          variant="ghost"
+          size="compact"
+          onClick={() => onEdit(instance.id)}
+        >
+          {canManage ? "Bearbeiten" : "Details"}
+        </Button>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -310,10 +316,10 @@ function VertretungDayListRow({
       {hasAbsence && (
         <ul className="flex flex-col gap-1">
           {absentPlannedRows.map((staffRow) => {
-            const name = staffNames.get(staffRow.staffId) ?? staffRow.staffId;
+            const name = staffLabel(staffNames, staffRow.staffId);
             const substituteId = substituteMap?.get(staffRow.staffId) ?? null;
             const substituteName = substituteId
-              ? (staffNames.get(substituteId) ?? substituteId)
+              ? staffLabel(staffNames, substituteId)
               : null;
             return (
               <li key={staffRow.staffId} className="text-[11px] text-gray-600">

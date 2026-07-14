@@ -709,7 +709,7 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "vertretungsplan",
-        title: "Vertretungsplan",
+        title: "Vertretung",
         icon: Users,
         summary:
           "Zeigt für den heutigen Tag alle gestörten Positionen des Betreuungsplans und öffnet für jeden Block einen Editor für Abwesenheit, Ersatz, bewusst unbesetzte Blöcke oder eine Absage (nur für Admins).",
@@ -724,7 +724,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Abweichung statt neue Vorlage",
-          body: "Änderungen im Vertretungsplan gelten nur für den bearbeiteten Tag und überschreiben den Betreuungsplan nicht. Wer dauerhaft etwas ändern will, passt den Regeltermin im Betreuungsplan an.",
+          body: "Änderungen in der Vertretung gelten nur für den bearbeiteten Tag und überschreiben den Betreuungsplan nicht. Wer dauerhaft etwas ändern will, passt den Regeltermin im Betreuungsplan an.",
           tone: "blue",
         },
         screenshot:

@@ -35,6 +35,7 @@ import { useModal } from "~/components/dashboard/modal-context";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
@@ -362,6 +363,9 @@ export function InstanceDetailSlideOver({
   const attendanceWebEnabled = useAttendanceWebEnabled();
   const showTimetableCounts = useShowTimetableCounts();
   const { isModalOpen } = useModal();
+  // Tenant-bewusster Pfad: im Path-Routing-Modus muss /vertretung den
+  // /{slug}-Präfix tragen, sonst führt der Link ins Leere.
+  const tenantPath = useTenantAwarePath();
   const [pendingAction, setPendingAction] = useState<LifecycleAction | null>(
     null,
   );
@@ -616,7 +620,9 @@ export function InstanceDetailSlideOver({
                     instance.assignedStaffCount <
                       instance.requiredStaffCount)) && (
                   <Link
-                    href={`/vertretung?d=${instance.date}&block=${instance.id}`}
+                    href={tenantPath(
+                      `/vertretung?d=${instance.date}&block=${instance.id}`,
+                    )}
                     className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
                     <UserCog className="h-4 w-4" />

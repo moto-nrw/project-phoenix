@@ -290,7 +290,7 @@ describe("VertretungDayList", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("löst onEdit mit der Instanz-ID aus und blendet 'Bearbeiten' ohne canManage aus", () => {
+  it("löst onEdit mit der Instanz-ID aus und zeigt ohne canManage 'Details' statt 'Bearbeiten'", () => {
     const onEdit = vi.fn();
     const { rerender } = render(
       <VertretungDayList
@@ -320,8 +320,16 @@ describe("VertretungDayList", () => {
       />,
     );
 
+    // Lesenutzer behalten ein Klickziel (unterhalb lg gibt es keine
+    // Kalenderspalte; der Verlauf muss ohne schedules:manage lesbar bleiben) —
+    // aber nicht unter dem irreführenden Label "Bearbeiten".
     expect(
       screen.queryByRole("button", { name: "Bearbeiten" }),
     ).not.toBeInTheDocument();
+    const readOnlyRow = screen.getByTestId("vertretung-day-list-row-10");
+    fireEvent.click(
+      within(readOnlyRow).getByRole("button", { name: "Details" }),
+    );
+    expect(onEdit).toHaveBeenLastCalledWith("10");
   });
 });

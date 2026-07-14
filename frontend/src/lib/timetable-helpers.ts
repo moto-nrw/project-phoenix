@@ -553,6 +553,18 @@ export function mapGaps(raw: BackendGapsResponse): GapsResponse {
   };
 }
 
+/**
+ * Anzeigename einer Personalzeile mit einheitlichem Fallback, wenn die Person
+ * nicht (mehr) in der Namensauflösung steht — Liste und Editor des
+ * Vertretungsbereichs zeigen denselben Text für denselben Fehlfall.
+ */
+export function staffLabel(
+  staffNames: Map<string, string>,
+  staffId: string,
+): string {
+  return staffNames.get(staffId) ?? `Personal #${staffId}`;
+}
+
 export function mapExceptionConflicts(
   raw: BackendExceptionConflictsResponse,
 ): ExceptionConflictsResponse {

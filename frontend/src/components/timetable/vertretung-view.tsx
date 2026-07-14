@@ -261,15 +261,11 @@ function VertretungContent() {
   // heute geklemmt ist) hat keine geladenen Lücken — Zähler zeigen einen
   // Strichplatzhalter statt einer erfundenen Null; ebenso bei Fehler oder
   // solange die Lücken noch laden.
-  const gapsUnavailable =
-    !loadGaps ||
-    gapsErrorMessage !== null ||
-    dayISO < today ||
-    gapsData === undefined;
-  // Für die Chips heutiger/zukünftiger Tage nur eine echte Zahl zeigen, wenn
-  // die Lücken tatsächlich geladen wurden (nie eine erfundene 0).
-  const gapsLoadedForFuture =
+  // Eine gemeinsame Basis für Zähler UND Chips, damit ein künftiger weiterer
+  // "nicht verfügbar"-Grund nicht nur in einem der beiden Ausdrücke landet.
+  const gapsLoaded =
     loadGaps && gapsErrorMessage === null && gapsData !== undefined;
+  const gapsUnavailable = !gapsLoaded || dayISO < today;
 
   const openCount = dayGaps.length;
   const ackCount = dayAcknowledged.length;
@@ -282,8 +278,13 @@ function VertretungContent() {
     (iso: string) => updateUrlParams({ d: iso, block: null, verlauf: null }),
     [updateUrlParams],
   );
+  // `verlauf` wird bei jeder Blockauswahl explizit abgeräumt (Muster der alten
+  // handleSelectInstance): sonst klebt ein früher geöffneter Verlaufs-Reiter an
+  // der URL und der nächste per Klick geöffnete Block startet im Verlauf statt
+  // im Formular. Deep-Links mit verlauf=1 laufen nicht über diesen Pfad.
   const openEditor = useCallback(
-    (instanceId: string) => updateUrlParams({ block: instanceId }),
+    (instanceId: string) =>
+      updateUrlParams({ block: instanceId, verlauf: null }),
     [updateUrlParams],
   );
   const closeEditor = useCallback(
@@ -381,7 +382,7 @@ function VertretungContent() {
               // Vergangene Tage und ein fehlgeschlagener/übersprungener/noch
               // ladender Gaps-Abruf zeigen einen Platzhalter, nie eine
               // erfundene 0 (Akzeptanzkriterium 5).
-              const showPlaceholder = isPast || !gapsLoadedForFuture;
+              const showPlaceholder = isPast || !gapsLoaded;
               return (
                 <PlanningDayChip
                   key={iso}

@@ -27,6 +27,7 @@ import {
   getActivityTypeBadge,
   getGermanWeekdayLong,
   getStatusLabel,
+  staffLabel,
 } from "~/lib/timetable-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
@@ -121,10 +122,6 @@ interface PersonForm {
   reason: string;
   substituteId: string;
   showReason: boolean;
-}
-
-function staffLabel(staffNames: Map<string, string>, id: string): string {
-  return staffNames.get(id) ?? `Personal #${id}`;
 }
 
 const FORM_ID = "vertretung-form";
@@ -980,7 +977,15 @@ export function SubstitutionSlideOver({
               value="verlauf"
               className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden focus-visible:ring-0"
             >
-              <HistoryTab instance={instance} staffNames={staffNames} />
+              {/* key: erzwingt einen frischen Scope-State, wenn dieselbe
+                  gemountete Editor-Instanz auf einen anderen Block wechselt —
+                  der useState-Initializer von HistoryTab liefe sonst mit dem
+                  hasSlot der vorherigen Instanz weiter. */}
+              <HistoryTab
+                key={instance.id}
+                instance={instance}
+                staffNames={staffNames}
+              />
             </TabsContent>
           </Tabs>
         </SlideOverContent>

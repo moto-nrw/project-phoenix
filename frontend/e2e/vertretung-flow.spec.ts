@@ -2,6 +2,8 @@ import { expect, type Page, test } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { berlinTodayISO } from "../src/lib/date-helpers";
+
 // Chunk 8 des Planung-Redesigns Inkrement 2
 // (docs/planung-redesign/docs/07-vertretung.md Abschnitt 12/13): der Zweiteiler
 // /vertretung. Diese Spec testet AUSSCHLIESSLICH die UI-Verdrahtung, nicht die
@@ -87,16 +89,6 @@ function assertUrlVocabulary(page: Page, context: string) {
     unexpected,
     `${context}: unerwartete URL-Parameter ${unexpected.join(",")} in ${page.url()}`,
   ).toEqual([]);
-}
-
-/** Berlin-Kalendertag als "YYYY-MM-DD" (gleiche Basis wie berlinTodayISO). */
-function berlinTodayISO(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Europe/Berlin",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
 }
 
 async function login(page: Page, email: string, password: string) {
