@@ -17,6 +17,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -24,10 +25,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/services"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -62,10 +65,16 @@ func buildDevSetup(t *testing.T) *devSetup {
 	y := testpkg.CreateTestStaff(t, db, "Replacement", fmt.Sprintf("%d", suffix+2))
 	b := testpkg.CreateTestStaff(t, db, "Planned2", fmt.Sprintf("%d", suffix+3))
 
-	mock := &mockInstanceService{}
+	// The mock records lifecycle calls (ack/cancel assertions) and delegates
+	// the deviation writes (#1886) to the real service so the DB-effect
+	// assertions keep exercising real rows.
+	repoFactory := repositories.NewFactory(db)
+	serviceFactory, err := services.NewFactory(repoFactory, db, slog.Default())
+	require.NoError(t, err)
+	mock := &mockInstanceService{real: serviceFactory.Instance}
 	res := NewResource(Dependencies{
 		TimetableData:   testTimetableData(db),
-		PersonService:   usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StaffRepo: usersRepo.NewStaffRepository(db)}),
+		PersonService:   usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{PersonRepo: usersRepo.NewPersonRepository(db), StaffRepo: usersRepo.NewStaffRepository(db)}),
 		InstanceService: mock,
 		DB:              db,
 	})
@@ -657,4 +666,22 @@ func TestAcknowledgeUnderstaffed_PastBlock_Rejected(t *testing.T) {
 	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 	assert.Contains(t, w.Body.String(), "past")
 	assert.Zero(t, s.mock.lastAckID, "service must not be reached for a past block")
+}
+
+// futureSubDate returns a YYYY-MM-DD in the future plus the matching
+// timezone.Date for fixture rows. (Moved from the removed substitute endpoint
+// tests, #1886.)
+func futureSubDate(offsetDays int) (string, timezone.Date) {
+	d := timezone.TodayDate().AddDays(offsetDays)
+	return d.String(), d
+}
+
+// readInstanceStaff pulls the row directly from the DB for atomicity
+// assertions. Uses the repo to honour tenant scoping.
+func readInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, id int64) *scheduleModel.InstanceStaff {
+	t.Helper()
+	repo := scheduleRepo.NewInstanceStaffRepository(db)
+	row, err := repo.FindByID(ctx, id)
+	require.NoError(t, err)
+	return row
 }

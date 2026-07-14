@@ -326,26 +326,35 @@ func (s *autoStartInstanceStarter) Start(_ context.Context, instanceID, startedB
 func (s *autoStartInstanceStarter) Complete(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (s *autoStartInstanceStarter) Cancel(context.Context, int64, *string) (*scheduleModel.ActivityInstance, error) {
+func (s *autoStartInstanceStarter) Cancel(context.Context, int64, *string, *int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
 func (s *autoStartInstanceStarter) DeleteCancelled(context.Context, int64) error {
 	return nil
 }
-func (s *autoStartInstanceStarter) SetUnderstaffedAck(context.Context, int64, bool, *string) (*scheduleModel.ActivityInstance, error) {
+func (s *autoStartInstanceStarter) SetUnderstaffedAck(context.Context, int64, bool, *string, *int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (s *autoStartInstanceStarter) ClearUnderstaffedAckIfStaffed(context.Context, int64) error {
+func (s *autoStartInstanceStarter) ClearUnderstaffedAckIfStaffed(context.Context, int64, *int64) error {
 	return nil
 }
-func (s *autoStartInstanceStarter) ReplanWeek(context.Context, timezone.Date, timezone.Date, *int64) (*ReplanWeekResult, error) {
+func (s *autoStartInstanceStarter) ReplanWeek(context.Context, timezone.Date, timezone.Date, *int64, *int64) (*ReplanWeekResult, error) {
 	return nil, nil
 }
 func (s *autoStartInstanceStarter) Create(context.Context, CreateInstanceInput) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
-func (s *autoStartInstanceStarter) UpdatePlanned(context.Context, int64, UpdateInstanceInput) (*scheduleModel.ActivityInstance, error) {
+func (s *autoStartInstanceStarter) UpdatePlanned(context.Context, int64, UpdateInstanceInput, *int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
+}
+func (s *autoStartInstanceStarter) ApplyAbsence(context.Context, *scheduleModel.InstanceStaff, *scheduleModel.ActivityInstance, *string, *int64, map[int64]*scheduleModel.ActivityInstance) error {
+	return nil
+}
+func (s *autoStartInstanceStarter) ApplyPresence(context.Context, *scheduleModel.InstanceStaff, *scheduleModel.ActivityInstance, *int64, map[int64]*scheduleModel.ActivityInstance) error {
+	return nil
+}
+func (s *autoStartInstanceStarter) ApplySubstitute(context.Context, SubstituteWriteOp, int64, *string, time.Time, *int64, map[int64]*scheduleModel.ActivityInstance) error {
+	return nil
 }
 
 // Stubs for the issue #585 cleanup refactor interface additions — unused by

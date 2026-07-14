@@ -20,12 +20,12 @@ import type {
   BackendExceptionConflictsResponse,
   BackendEnrichedInstance,
   BackendGapsResponse,
+  BackendDeviationHistoryResponse,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
   BackendSplitTemplateResult,
   BackendStartInstanceResult,
-  BackendSubstituteResponse,
   BackendAcknowledgeUnderstaffedResponse,
   BackendApplyDeviationsResponse,
   BackendTimetableTemplate,
@@ -43,6 +43,7 @@ import type {
   EnrichedInstance,
   ExceptionConflictsResponse,
   GapsResponse,
+  DeviationHistoryResponse,
   InstanceStatusResult,
   MaterializeResult,
   ReplanWeekResult,
@@ -51,7 +52,6 @@ import type {
   SplitTemplateBody,
   SplitTemplateResult,
   StartInstanceResult,
-  SubstituteResponse,
   AcknowledgeUnderstaffedResponse,
   ApplyDeviationsInput,
   ApplyDeviationsResponse,
@@ -68,6 +68,7 @@ import {
   mapAttendance,
   mapExceptionConflicts,
   mapGaps,
+  mapDeviationHistory,
   mapAcknowledgeUnderstaffed,
   mapApplyDeviations,
   mapInstance,
@@ -76,7 +77,6 @@ import {
   mapReplanWeekResult,
   mapSplitTemplateResult,
   mapStartInstanceResult,
-  mapSubstitute,
   mapTemplates,
   mapWeeklyInstances,
 } from "./timetable-helpers";
@@ -562,6 +562,30 @@ class TimetableService {
     return mapGaps(raw);
   }
 
+  /** Änderungsprotokoll (#1886): Abweichungs-Verlauf im Datumsfenster,
+   * optional auf einen Slot (Serie + Startzeit) eingegrenzt. */
+  async getDeviationHistory(
+    from: string,
+    to: string,
+    activityGroupId?: string,
+    startTime?: string,
+  ): Promise<DeviationHistoryResponse> {
+    const params = new URLSearchParams({ date: from, date_to: to });
+    if (activityGroupId) params.set("activity_group_id", activityGroupId);
+    if (startTime) params.set("start_time", startTime);
+    const response = await fetch(
+      `/api/timetable/deviations/history?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+
+    const raw = await unwrap<BackendDeviationHistoryResponse>(response);
+    return mapDeviationHistory(raw);
+  }
+
   async getExceptionConflicts(
     from: string,
     to: string,
@@ -578,60 +602,6 @@ class TimetableService {
 
     const raw = await unwrap<BackendExceptionConflictsResponse>(response);
     return mapExceptionConflicts(raw);
-  }
-
-  async substitute(
-    absentStaffId: string,
-    substituteStaffId: string,
-    date: string,
-    reason?: string,
-  ): Promise<SubstituteResponse> {
-    const response = await fetch("/api/timetable/substitute", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        absent_staff_id: Number(absentStaffId),
-        substitute_staff_id: Number(substituteStaffId),
-        date,
-        reason: reason ?? undefined,
-      }),
-    });
-
-    const raw = await unwrap<BackendSubstituteResponse>(response);
-    return mapSubstitute(raw);
-  }
-
-  /**
-   * Mark a staff member absent across their whole day without assigning a
-   * substitute (#1840 absent-only mode). The position is left open. Same
-   * endpoint as substitute — the backend branches on the omitted
-   * substitute_staff_id.
-   */
-  async markAbsent(
-    absentStaffId: string,
-    date: string,
-    reason?: string,
-  ): Promise<SubstituteResponse> {
-    const response = await fetch("/api/timetable/substitute", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        absent_staff_id: Number(absentStaffId),
-        date,
-        reason: reason ?? undefined,
-      }),
-    });
-
-    const raw = await unwrap<BackendSubstituteResponse>(response);
-    return mapSubstitute(raw);
   }
 
   /**

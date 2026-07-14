@@ -7,6 +7,7 @@ import (
 
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	activitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/activities"
+	auditRepo "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	educationRepo "github.com/moto-nrw/project-phoenix/database/repositories/education"
 	facilitiesRepo "github.com/moto-nrw/project-phoenix/database/repositories/facilities"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
@@ -48,6 +49,7 @@ func testTimetableDataWithCareValidator(
 		TimeframeRepo:              scheduleRepo.NewTimeframeRepository(db),
 		EducationGroupRepo:         educationRepo.NewGroupRepository(db),
 		ValidateCareOfferingSeries: validateCareOfferingSeries,
+		DeviationEventRepo:         auditRepo.NewDeviationEventRepository(db),
 		DB:                         db,
 	}
 	return scheduleSvc.NewTimetableDataService(deps)

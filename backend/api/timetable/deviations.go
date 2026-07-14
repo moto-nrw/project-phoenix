@@ -35,7 +35,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -175,7 +174,7 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("block date is in the past")))
 			return
 		}
-		cancelled, err := rs.InstanceService.Cancel(ctx, id, trimReason(req.CancelReason))
+		cancelled, err := rs.InstanceService.Cancel(ctx, id, trimReason(req.CancelReason), resolveActorAccountID(ctx))
 		if err != nil {
 			renderInstanceLifecycleError(w, r, err)
 			return
@@ -391,27 +390,28 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 		ackChanged = true
 	}
 
-	// ==== PHASE B — apply writes ====
+	// ==== PHASE B — apply writes (service layer, protokolliert, #1886) ====
 	now := time.Now()
+	actor := resolveActorAccountID(ctx)
 	affected := make([]AffectedInstance, 0, len(absencePlan)+len(subPlan)+len(presencePlan))
 	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
 
 	for _, op := range presencePlan {
-		if err := rs.applyPresenceWrite(ctx, op.row, op.instance, activeTouched); err != nil {
+		if err := rs.InstanceService.ApplyPresence(ctx, op.row, op.instance, actor, activeTouched); err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("clear absence failed", err))
 			return
 		}
 		affected = append(affected, affectedInstanceOf(op.instance, substituteActionMarkedPresent))
 	}
 	for _, op := range absencePlan {
-		if err := rs.applyAbsenceWrite(ctx, op.row, op.instance, absenceReason[op.row.StaffID], activeTouched); err != nil {
+		if err := rs.InstanceService.ApplyAbsence(ctx, op.row, op.instance, absenceReason[op.row.StaffID], actor, activeTouched); err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("mark absent failed", err))
 			return
 		}
 		affected = append(affected, affectedInstanceOf(op.instance, substituteActionMarkedAbsent))
 	}
 	for _, op := range subPlan {
-		if err := rs.applySubstituteWrite(ctx, op.op, op.subID, op.reason, now, activeTouched); err != nil {
+		if err := rs.InstanceService.ApplySubstitute(ctx, op.op.writeOp(), op.subID, op.reason, now, actor, activeTouched); err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("assign substitute failed", err))
 			return
 		}
@@ -423,7 +423,7 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 		if finalAck {
 			note = trimReason(req.UnderstaffedNote)
 		}
-		if _, err := rs.InstanceService.SetUnderstaffedAck(ctx, id, finalAck, note); err != nil {
+		if _, err := rs.InstanceService.SetUnderstaffedAck(ctx, id, finalAck, note, actor); err != nil {
 			// A concurrent cancel or full-staffing of THIS instance between Phase A
 			// and here makes SetUnderstaffedAck return a 4xx after the absence and
 			// substitute writes above already succeeded. TenantTxMiddleware commits
@@ -466,7 +466,7 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	for instanceID := range clearAck {
-		if err := rs.InstanceService.ClearUnderstaffedAckIfStaffed(ctx, instanceID); err != nil {
+		if err := rs.InstanceService.ClearUnderstaffedAckIfStaffed(ctx, instanceID, actor); err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap("clear stale understaffed ack failed", err))
 			return
 		}
@@ -845,127 +845,6 @@ func (rs *Resource) collectDeviationWarnings(
 		}
 	}
 	return warnings
-}
-
-// applyAbsenceWrite marks one staff row absent (day-wide semantics; the caller
-// loops over all same-day rows) and, for an active instance, ends the absent
-// supervisor. Shared by /substitute's absent-only path and /deviations.
-func (rs *Resource) applyAbsenceWrite(
-	ctx context.Context,
-	row *scheduleModel.InstanceStaff,
-	instance *scheduleModel.ActivityInstance,
-	reason *string,
-	activeTouched map[int64]*scheduleModel.ActivityInstance,
-) error {
-	row.IsAbsent = true
-	row.AbsenceReason = reason
-	if err := rs.TimetableData.UpdateInstanceStaff(ctx, row); err != nil {
-		return err
-	}
-	if instance.Status == scheduleModel.InstanceStatusActive && instance.ActiveGroupID != nil {
-		if _, err := rs.TimetableData.EndGroupSupervisor(ctx, *instance.ActiveGroupID, row.StaffID); err != nil {
-			return err
-		}
-		activeTouched[*instance.ActiveGroupID] = instance
-	}
-	return nil
-}
-
-// applyPresenceWrite clears a persisted absence on one planned row (day-wide
-// semantics; the caller loops over all same-day rows). Inverse of
-// applyAbsenceWrite (#1840). Live supervision on an already-active block is
-// restored via the live-session tools, not the planner — clearing the plan
-// absence must not silently re-inject a supervisor into a running session — so
-// this only flags the active group so its clients refetch.
-func (rs *Resource) applyPresenceWrite(
-	ctx context.Context,
-	row *scheduleModel.InstanceStaff,
-	instance *scheduleModel.ActivityInstance,
-	activeTouched map[int64]*scheduleModel.ActivityInstance,
-) error {
-	row.IsAbsent = false
-	row.AbsenceReason = nil
-	if err := rs.TimetableData.UpdateInstanceStaff(ctx, row); err != nil {
-		return err
-	}
-	if instance.Status == scheduleModel.InstanceStatusActive && instance.ActiveGroupID != nil {
-		activeTouched[*instance.ActiveGroupID] = instance
-	}
-	return nil
-}
-
-// applySubstituteWrite performs the Phase-B write for one classified substitution
-// op. Shared by /substitute and /deviations so the two paths cannot diverge.
-func (rs *Resource) applySubstituteWrite(
-	ctx context.Context,
-	op plannedOp,
-	subID int64,
-	reason *string,
-	now time.Time,
-	activeTouched map[int64]*scheduleModel.ActivityInstance,
-) error {
-	switch op.action {
-	case substituteActionAlreadySubstitute:
-		// No writes: the substitute already covers this instance.
-		return nil
-
-	case substituteActionAlreadyOnInstance:
-		// Mark only the absent's original row; the substitute is already a
-		// (planned, non-substitute) co-supervisor and is left untouched so
-		// reports keep planned co-cover distinct from a Vertretung.
-		op.origRow.IsAbsent = true
-		if reason != nil {
-			op.origRow.AbsenceReason = reason
-		}
-		if err := rs.TimetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
-			return err
-		}
-		if op.instance.Status == scheduleModel.InstanceStatusActive && op.instance.ActiveGroupID != nil {
-			if _, err := rs.TimetableData.EndGroupSupervisor(ctx, *op.instance.ActiveGroupID, op.origRow.StaffID); err != nil {
-				return err
-			}
-			activeTouched[*op.instance.ActiveGroupID] = op.instance
-		}
-		return nil
-
-	case substituteActionSubstituted:
-		op.origRow.IsAbsent = true
-		if reason != nil {
-			op.origRow.AbsenceReason = reason
-		}
-		if err := rs.TimetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
-			return err
-		}
-		newRow := &scheduleModel.InstanceStaff{
-			InstanceID:   op.instance.ID,
-			StaffID:      subID,
-			RoomID:       op.origRow.RoomID, // inherit room split, if any
-			IsPrimary:    false,
-			IsSubstitute: true,
-			IsAbsent:     false,
-		}
-		if err := rs.TimetableData.CreateInstanceStaff(ctx, newRow); err != nil {
-			return err
-		}
-		if op.instance.Status == scheduleModel.InstanceStatusActive && op.instance.ActiveGroupID != nil {
-			if _, err := rs.TimetableData.EndGroupSupervisor(ctx, *op.instance.ActiveGroupID, op.origRow.StaffID); err != nil {
-				return err
-			}
-			newSup := &activeModel.GroupSupervisor{
-				StaffID:   subID,
-				GroupID:   *op.instance.ActiveGroupID,
-				Role:      "supervisor",
-				StartDate: timezone.DateFromTime(now),
-			}
-			newSup.SetTenantID(tenant.FromContext(ctx))
-			if err := rs.TimetableData.CreateGroupSupervisor(ctx, newSup); err != nil {
-				return err
-			}
-			activeTouched[*op.instance.ActiveGroupID] = op.instance
-		}
-		return nil
-	}
-	return nil
 }
 
 // affectedInstanceOf builds an AffectedInstance response row.

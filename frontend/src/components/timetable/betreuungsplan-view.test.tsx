@@ -14,7 +14,7 @@ const {
   mockStart,
   mockComplete,
   mockCancel,
-  mockSubstitute,
+  mockApplyDeviations,
   mockPatchAttendance,
   mockDeleteCancelled,
   mockEndTemplate,
@@ -37,7 +37,7 @@ const {
   mockStart: vi.fn(),
   mockComplete: vi.fn(),
   mockCancel: vi.fn(),
-  mockSubstitute: vi.fn(),
+  mockApplyDeviations: vi.fn(),
   mockPatchAttendance: vi.fn(),
   mockDeleteCancelled: vi.fn(),
   mockEndTemplate: vi.fn(),
@@ -94,7 +94,7 @@ vi.mock("~/lib/timetable-api", () => ({
     start: mockStart,
     complete: mockComplete,
     cancel: mockCancel,
-    substitute: mockSubstitute,
+    applyDeviations: mockApplyDeviations,
     patchAttendance: mockPatchAttendance,
     deleteCancelled: mockDeleteCancelled,
     endTemplate: mockEndTemplate,
@@ -370,6 +370,7 @@ vi.mock("~/components/timetable/plan-quality-panel", () => ({
     onSelectInstance: (id: string) => void;
     onEditInstance: (id: string) => void;
     onSubstitute: (
+      instanceId: string,
       absent: string,
       substitute: string,
       date: string,
@@ -384,7 +385,7 @@ vi.mock("~/components/timetable/plan-quality-panel", () => ({
       </button>
       <button
         type="button"
-        onClick={() => void onSubstitute("11", "12", "2026-05-04")}
+        onClick={() => void onSubstitute("42", "11", "12", "2026-05-04")}
       >
         quality-substitute
       </button>
@@ -596,7 +597,10 @@ vi.mock("~/components/timetable/calendar-period-modal", () => ({
     ) : null,
 }));
 
-import TimetablesPage, { loadCareOfferingLinkSummary } from "./page";
+import {
+  BetreuungsplanView,
+  loadCareOfferingLinkSummary,
+} from "./betreuungsplan-view";
 
 const instance = {
   id: "42",
@@ -761,7 +765,7 @@ function setupSWR({
   });
 }
 
-describe("TimetablesPage", () => {
+describe("BetreuungsplanView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.setSystemTime(new Date("2026-05-06T12:00:00"));
@@ -776,7 +780,10 @@ describe("TimetablesPage", () => {
     mockStart.mockResolvedValue({ warnings: [] });
     mockComplete.mockResolvedValue({});
     mockCancel.mockResolvedValue({});
-    mockSubstitute.mockResolvedValue({
+    mockApplyDeviations.mockResolvedValue({
+      instanceId: "42",
+      cancelled: false,
+      understaffedAck: false,
       affectedInstances: [{ instanceId: "42" }],
       warnings: [],
     });
@@ -798,7 +805,7 @@ describe("TimetablesPage", () => {
   });
 
   it("renders month view by default and opens create/edit period flows", async () => {
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     expect(
       screen.getByRole("heading", { name: "Betreuungsplan" }),
@@ -841,7 +848,7 @@ describe("TimetablesPage", () => {
   });
 
   it("uses staffing ratios for the overview in every planner view", () => {
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     const expectUnderstaffed = () => {
       const label = screen.getByText("Unterbesetzt");
@@ -861,7 +868,7 @@ describe("TimetablesPage", () => {
 
   it("navigates views and runs week actions", async () => {
     mockSearch.value = "view=week&instance=42";
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     fireEvent.click(screen.getByText("week-view"));
     await waitFor(() => expect(screen.getByText("week-grid")).toBeVisible());
@@ -880,7 +887,9 @@ describe("TimetablesPage", () => {
     );
     fireEvent.click(screen.getByText("quality-substitute"));
     await waitFor(() =>
-      expect(mockSubstitute).toHaveBeenCalledWith("11", "12", "2026-05-04"),
+      expect(mockApplyDeviations).toHaveBeenCalledWith("42", {
+        substitutions: [{ absentStaffId: "11", substituteStaffId: "12" }],
+      }),
     );
 
     fireEvent.click(screen.getByText("quality-edit"));
@@ -911,7 +920,7 @@ describe("TimetablesPage", () => {
 
   it("handles series, month and year navigation callbacks", async () => {
     mockSearch.value = "view=series&period=5";
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     expect(screen.getByText(/series:/)).toBeInTheDocument();
     fireEvent.click(screen.getByText("create-template"));
@@ -977,7 +986,7 @@ describe("TimetablesPage", () => {
   it("keeps archive confirmation open and reports errors", async () => {
     mockSearch.value = "view=series&period=5";
     mockArchiveTemplate.mockRejectedValueOnce(new Error("Archivierung kaputt"));
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     fireEvent.click(screen.getByText("archive-template"));
     fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
@@ -993,7 +1002,7 @@ describe("TimetablesPage", () => {
   it("shows loading state while the session loads", () => {
     mockUseSession.mockReturnValue({ status: "loading" });
 
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     expect(screen.getByTestId("timetable-page-skeleton")).toBeVisible();
     expect(screen.getByTestId("timetable-toolbar-skeleton")).toBeVisible();
@@ -1013,7 +1022,7 @@ describe("TimetablesPage", () => {
       return {};
     });
 
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     expect(screen.getByTestId("timetable-content-skeleton")).toBeVisible();
     expect(screen.getByLabelText("Monatsplan wird geladen")).toBeVisible();
@@ -1024,7 +1033,7 @@ describe("TimetablesPage", () => {
     setupSWR({ periods: [] });
     mockBootstrap.mockResolvedValue({ periods: [period], created: true });
 
-    const { rerender } = render(<TimetablesPage />);
+    const { rerender } = render(<BetreuungsplanView />);
 
     await waitFor(() => expect(mockBootstrap).toHaveBeenCalledTimes(1));
     await waitFor(() =>
@@ -1033,12 +1042,12 @@ describe("TimetablesPage", () => {
       ),
     );
 
-    rerender(<TimetablesPage />);
+    rerender(<BetreuungsplanView />);
     expect(mockBootstrap).toHaveBeenCalledTimes(1);
   });
 
   it("does not bootstrap when periods already exist", () => {
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     expect(mockBootstrap).not.toHaveBeenCalled();
   });
@@ -1048,7 +1057,7 @@ describe("TimetablesPage", () => {
   it("keeps the enrollment setup step open while no care offering is linked", () => {
     setupSWR({ careOfferingLink: { total: 3, linked: 0 } });
 
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     const step = screen.getByRole("link", {
       name: /Mit der Anmeldung verknüpfen/,
@@ -1060,7 +1069,7 @@ describe("TimetablesPage", () => {
   it("marks the enrollment setup step done once a care offering is linked", () => {
     setupSWR({ careOfferingLink: { total: 3, linked: 2 } });
 
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     const step = screen.getByRole("link", {
       name: /Mit der Anmeldung verknüpfen/,
@@ -1072,7 +1081,7 @@ describe("TimetablesPage", () => {
   it("hides the enrollment setup step when the linkage cannot be read", () => {
     setupSWR({ careOfferingLink: null });
 
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     expect(
       screen.queryByText("Mit der Anmeldung verknüpfen"),
@@ -1138,7 +1147,7 @@ describe("TimetablesPage", () => {
   it("shows a plain hint instead of a 0-of-0 ratio when no offerings exist", () => {
     setupSWR({ careOfferingLink: { total: 0, linked: 0 } });
 
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     const step = screen.getByRole("link", {
       name: /Mit der Anmeldung verknüpfen/,
@@ -1153,7 +1162,7 @@ describe("TimetablesPage", () => {
       Object.assign(new Error("permission denied"), { httpStatus: 403 }),
     );
 
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     await waitFor(() =>
       expect(mockLoggerWarn).toHaveBeenCalledWith("periods_bootstrap_failed", {
@@ -1171,7 +1180,7 @@ describe("TimetablesPage", () => {
     setupSWR({ periods: [] });
     mockBootstrap.mockRejectedValue(new Error("backend down"));
 
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     await waitFor(() =>
       expect(mockLoggerError).toHaveBeenCalledWith("periods_bootstrap_failed", {
@@ -1186,7 +1195,7 @@ describe("TimetablesPage", () => {
 
   it("opens the quick-create modal from an empty week slot", () => {
     mockSearch.value = "view=week";
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     fireEvent.click(screen.getByText("slot-click"));
 
@@ -1217,7 +1226,7 @@ describe("TimetablesPage", () => {
   it("passes the series list period to the event modal", () => {
     setupSWR({ periods: [period, laterPeriod] });
     mockSearch.value = "view=series&period=6";
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     fireEvent.click(screen.getByText("create-template"));
 
@@ -1247,7 +1256,7 @@ describe("TimetablesPage", () => {
       ],
     });
     mockSearch.value = "view=series&period=5";
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     fireEvent.click(screen.getByText("apply-template"));
 
@@ -1262,7 +1271,7 @@ describe("TimetablesPage", () => {
 
   it("hides the period pill for a fully covered week and reveals it via Verwaltung", () => {
     mockSearch.value = "view=week";
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     expect(screen.queryByTestId("period-switcher")).not.toBeInTheDocument();
 
@@ -1272,7 +1281,7 @@ describe("TimetablesPage", () => {
 
   it("renders no period UI when no periods exist and Verwaltung opens create", () => {
     setupSWR({ periods: [] });
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     expect(screen.queryByTestId("period-switcher")).not.toBeInTheDocument();
 
@@ -1298,7 +1307,7 @@ describe("TimetablesPage", () => {
         ],
       },
     });
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     expect(screen.getByTestId("timetable-disabled-state")).toBeVisible();
     expect(screen.getByText("Betreuungsplan ist deaktiviert")).toBeVisible();
@@ -1308,7 +1317,7 @@ describe("TimetablesPage", () => {
 
   it("shows the skeleton while the settings schema loads", () => {
     setupSWR({ settingsSchemaLoading: true });
-    render(<TimetablesPage />);
+    render(<BetreuungsplanView />);
 
     expect(screen.getByTestId("timetable-page-skeleton")).toBeVisible();
     expect(screen.queryByTestId("toolbar")).not.toBeInTheDocument();

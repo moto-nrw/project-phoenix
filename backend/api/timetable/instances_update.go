@@ -92,7 +92,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 		StaffIDs:        req.StaffIDs,
 		StudentIDs:      req.StudentIDs,
 		RequiredStaff:   normalizeRequiredStaff(req.RequiredStaff),
-	})
+	}, resolveActorAccountID(r.Context()))
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return

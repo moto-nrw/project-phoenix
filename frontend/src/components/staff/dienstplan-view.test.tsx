@@ -70,9 +70,9 @@ vi.mock("~/components/ui/loading", () => ({
   Loading: () => <div data-testid="loading" />,
 }));
 
-import DienstplanPage from "./page";
+import { DienstplanView } from "./dienstplan-view";
 
-describe("DienstplanPage", () => {
+describe("DienstplanView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.useSession.mockReturnValue({
@@ -112,7 +112,7 @@ describe("DienstplanPage", () => {
       };
     });
 
-    render(<DienstplanPage />);
+    render(<DienstplanView />);
 
     expect(
       screen.getByText(
@@ -171,7 +171,7 @@ describe("DienstplanPage", () => {
       };
     });
 
-    render(<DienstplanPage />);
+    render(<DienstplanView />);
 
     expect(screen.getByTestId("dienstplan-week-days")).toHaveTextContent(
       "2026-07-06,2026-07-07,2026-07-08,2026-07-09,2026-07-10",
@@ -212,7 +212,7 @@ describe("DienstplanPage", () => {
       };
     });
 
-    render(<DienstplanPage />);
+    render(<DienstplanView />);
 
     expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
     expect(keys).toContain("dienstplan-staff");
@@ -256,7 +256,7 @@ describe("DienstplanPage", () => {
       };
     });
 
-    render(<DienstplanPage />);
+    render(<DienstplanView />);
 
     expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
     expect(

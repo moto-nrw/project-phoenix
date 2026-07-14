@@ -7,6 +7,7 @@ import {
   countPlanned,
   countUnderstaffedInstances,
   countUnderstaffedTemplates,
+  deviationEventLabel,
   formatDayHeader,
   formatMonthLabel,
   formatWeekLabel,
@@ -30,6 +31,7 @@ import {
   mapApplyDeviations,
   mapAttendance,
   mapConflictCheckResult,
+  mapDeviationHistory,
   mapCreateTemplateResult,
   mapExceptionConflicts,
   mapGaps,
@@ -39,7 +41,6 @@ import {
   mapReplanWeekResult,
   mapSplitTemplateResult,
   mapStartInstanceResult,
-  mapSubstitute,
   mapShiftCoverageCheckResult,
   mapTemplates,
   mapWeeklyInstances,
@@ -213,6 +214,63 @@ describe("activity/status helpers", () => {
 });
 
 describe("backend mappers", () => {
+  it("maps deviation history identifiers and nullable display fields", () => {
+    expect(deviationEventLabel("cancellation")).toBe("Block abgesagt");
+    expect(deviationEventLabel("future_event")).toBe("future_event");
+
+    expect(
+      mapDeviationHistory({
+        events: [
+          {
+            id: 42,
+            activity_group_id: 7,
+            occurrence_date: "2026-05-04",
+            start_time: "12:00:00",
+            instance_id: 9,
+            event_type: "substitution",
+            subject_staff_id: 11,
+            subject_staff_name: "Ada",
+            related_staff_id: 12,
+            related_staff_name: "Berta",
+            actor_account_id: 13,
+            actor_name: "Planung",
+            reason: "Krankheit",
+            occurred_at: "2026-05-03T12:00:00Z",
+          },
+          {
+            id: 43,
+            occurrence_date: "2026-05-05",
+            start_time: "13:00:00",
+            event_type: "deviation_dropped_by_replan",
+            occurred_at: "2026-05-03T13:00:00Z",
+          },
+        ],
+      }),
+    ).toEqual({
+      events: [
+        expect.objectContaining({
+          id: "42",
+          activityGroupId: "7",
+          instanceId: "9",
+          subjectStaffId: "11",
+          relatedStaffId: "12",
+          actorAccountId: "13",
+          reason: "Krankheit",
+        }),
+        expect.objectContaining({
+          id: "43",
+          activityGroupId: undefined,
+          instanceId: undefined,
+          subjectStaffId: undefined,
+          relatedStaffId: undefined,
+          actorAccountId: undefined,
+          reason: undefined,
+        }),
+      ],
+    });
+    expect(mapDeviationHistory({ events: null }).events).toEqual([]);
+  });
+
   it("maps weekly instances, preferring detailed student rows over id fallback", () => {
     const result = mapWeeklyInstances({
       from: "2026-05-04",
@@ -683,140 +741,6 @@ describe("backend mappers", () => {
       understaffedAck: true,
       understaffedNote: "keine Vertretung",
       cancelReason: "Ausflug",
-    });
-  });
-
-  it("maps substitutes and templates", () => {
-    expect(
-      mapSubstitute({
-        absent_staff_id: 11,
-        substitute_staff_id: 12,
-        date: "2026-05-04",
-        affected_instances: [
-          {
-            instance_id: 42,
-            title: "Mensa",
-            start_time: "12:00",
-            action: "substituted",
-          },
-        ],
-        warnings: [
-          {
-            instance_id: 43,
-            title: "Yoga",
-            date: "2026-05-04",
-            start_time: "14:00",
-            end_time: "15:00",
-          },
-        ],
-      }),
-    ).toMatchObject({
-      absentStaffId: "11",
-      substituteStaffId: "12",
-      affectedInstances: [{ instanceId: "42" }],
-      warnings: [{ instanceId: "43" }],
-    });
-
-    expect(
-      mapTemplates({
-        templates: [
-          {
-            id: 7,
-            name: "Yoga",
-            type: "activity",
-            category_id: 2,
-            category_name: "AG",
-            room_id: 3,
-            room_name: "Turnhalle",
-            is_open: true,
-            max_participants: 12,
-            target_group_type: "none",
-            enrollment_count: 8,
-            supervisor_count: 1,
-            required_staff_count: 1,
-            assigned_staff_count: 1,
-            student_ids: [21],
-            staff_ids: [11],
-            primary_staff_id: 11,
-            schedules: [
-              {
-                id: 9,
-                weekday: 1,
-                start_time: "14:00",
-                end_time: "15:00",
-                week_pattern: 2,
-                calendar_period_id: 5,
-                valid_until: "2026-06-01",
-              },
-            ],
-          },
-        ],
-      }).templates[0],
-    ).toMatchObject({
-      id: "7",
-      roomId: "3",
-      studentIds: ["21"],
-      staffIds: ["11"],
-      primaryStaffId: "11",
-      schedules: [{ id: "9", calendarPeriodId: "5", validUntil: "2026-06-01" }],
-    });
-  });
-
-  it("maps optional substitute/template fields without fallback ids", () => {
-    expect(
-      mapSubstitute({
-        absent_staff_id: 11,
-        substitute_staff_id: 12,
-        date: "2026-05-04",
-        affected_instances: undefined as never,
-        warnings: undefined as never,
-      }),
-    ).toMatchObject({ affectedInstances: [], warnings: [] });
-
-    expect(
-      mapTemplates({
-        templates: [
-          {
-            id: 8,
-            name: "Offene Betreuung",
-            type: "care",
-            category_id: 3,
-            category_name: "Betreuung",
-            is_open: false,
-            max_participants: undefined as never,
-            target_group_type: "none",
-            enrollment_count: undefined as never,
-            supervisor_count: 0,
-            required_staff_count: 0,
-            assigned_staff_count: 0,
-            schedules: undefined as never,
-          },
-        ],
-      }).templates[0],
-    ).toEqual({
-      id: "8",
-      name: "Offene Betreuung",
-      type: "care",
-      categoryId: "3",
-      categoryName: "Betreuung",
-      roomId: undefined,
-      roomName: undefined,
-      educationGroupId: undefined,
-      educationGroupName: undefined,
-      isOpen: false,
-      maxParticipants: undefined,
-      calendarPeriodId: undefined,
-      targetGroupType: "none",
-      targetGradeLevel: undefined,
-      targetSchoolClass: undefined,
-      enrollmentCount: undefined,
-      supervisorCount: 0,
-      requiredStaffCount: 0,
-      assignedStaffCount: 0,
-      studentIds: [],
-      staffIds: [],
-      primaryStaffId: undefined,
-      schedules: [],
     });
   });
 });

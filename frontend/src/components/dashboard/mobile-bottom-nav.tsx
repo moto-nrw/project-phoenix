@@ -10,7 +10,6 @@ import React, {
   useMemo,
 } from "react";
 import Link from "next/link";
-import useSWR from "swr";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
@@ -28,10 +27,6 @@ import {
   useTenantSlugSafe,
 } from "~/lib/tenant-context";
 import { useTenantAwarePath } from "~/lib/tenant-path";
-import {
-  SETTINGS_SCHEMA_SWR_KEY,
-  fetchSettingsSchema,
-} from "~/lib/settings-api";
 import {
   Drawer,
   DrawerContent,
@@ -287,29 +282,36 @@ const additionalNavItems: AdditionalNavItem[] = [
     // Match the backend calendar:own gate on GET /api/calendar/my.
     requiresPermission: "calendar:own",
   },
-  {
-    href: "/staff/dienstplan",
-    label: "Dienstplan",
-    iconKey: "calendar",
-    requiresAdmin: true,
-  },
   { href: "/rooms", label: "Räume", iconKey: "rooms", alwaysShow: true },
   {
+    // "Übergaben" statt "Vertretungen", damit nur der neue Planungsbereich
+    // "Vertretung" heißt (docs/planung-redesign/docs/03).
     href: "/substitutions",
-    label: "Vertretungen",
+    label: "Übergaben",
     iconKey: "substitutions",
     requiresAdmin: true,
   },
+  // Die drei Planungsbereiche als flache Einträge im "Mehr"-Drawer
+  // (Planung-Redesign, docs/planung-redesign/docs/03 Abschnitt 6).
   {
-    href: "/timetables",
+    href: "/betreuungsplan",
     label: "Betreuungsplan",
-    iconKey: "calendar",
+    iconKey: "betreuungsplan",
     requiresAdmin: true,
+    activePaths: ["/betreuungsplan", "/calendar-periods", "/timetables"],
   },
   {
-    href: "/vertretungsplan",
-    label: "Vertretungsplan",
-    iconKey: "calendar",
+    href: "/dienstplan",
+    label: "Dienstplan",
+    iconKey: "dienstplan",
+    requiresAdmin: true,
+    activePaths: ["/dienstplan", "/staff/dienstplan"],
+  },
+  {
+    // /vertretungsplan matcht bereits per Präfix, kein activePaths nötig.
+    href: "/vertretung",
+    label: "Vertretung",
+    iconKey: "vertretung",
     requiresAdmin: true,
   },
   {
@@ -480,6 +482,11 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
           !pathname.startsWith("/staff/dienstplan")
         );
       }
+      // /calendar-periods gehört zum Betreuungsplan (activePaths), nicht zum
+      // Kalender — ohne Exakt-Match leuchtet /calendar per Präfix mit.
+      if (href === "/calendar") {
+        return pathname === "/calendar" || pathname.startsWith("/calendar/");
+      }
       return pathname.startsWith(href);
     },
     [pathname, searchParams],
@@ -570,27 +577,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const showActivityNav = nfcEnabled && presenceMode !== "binary";
-  // Fetch the settings schema for anyone the backend lets read config, not just
-  // admins — the meal-plan GET route is guarded by config:read, so a non-admin
-  // config reader must also resolve the feature flags. Admins stay in.
-  const canReadConfig = userIsAdmin || hasPermission(session, "config:read");
-  const { data: settingsSchema } = useSWR(
-    canReadConfig && mode !== "operator" && mode !== "parent"
-      ? SETTINGS_SCHEMA_SWR_KEY
-      : null,
-    fetchSettingsSchema,
-    {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-    },
-  );
-  const settingsItems =
-    settingsSchema?.tabs
-      .flatMap((tab) => tab.categories)
-      .flatMap((category) => category.items) ?? [];
-  const timetableEnabled =
-    settingsItems.find((item) => item.key === "timetable.enabled")?.value ===
-    true;
   // Only advertise Essensplan in the parents portal once a linked school runs
   // a meal plan; otherwise the overflow link leads to an empty page.
   const parentMealPlanEnabled = useParentMealPlanEnabled(mode === "parent");
@@ -612,12 +598,6 @@ export function MobileBottomNav({ className = "" }: MobileBottomNavProps) {
     }
     if (!showActivityNav && NFC_ONLY_HREFS.has(item.href)) return false;
     if (item.alwaysShow) return true;
-    if (
-      (item.href === "/timetables" || item.href === "/vertretungsplan") &&
-      !timetableEnabled
-    ) {
-      return false;
-    }
     if (item.requiresAdmin) return userIsAdmin;
     if (item.requiresPermission) {
       return userIsAdmin || hasPermission(session, item.requiresPermission);

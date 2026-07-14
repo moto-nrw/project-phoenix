@@ -1442,6 +1442,7 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 		s.ctx,
 		single.ID,
 		moveInput(s, single, singleDate, 1),
+		nil,
 	)
 	require.NoError(t, err)
 	assert.Equal(t, single.ID, updatedSingle.ID)
@@ -1492,7 +1493,7 @@ func TestTemplateSplit_SingleEditThenSuccessorUpdateDoesNotDuplicate(t *testing.
 	// The frontend follows a full-series PUT with a successor-scoped re-plan.
 	// Materialization still examines every template, making this the exact
 	// point where an erased valid_from used to create the duplicate.
-	result, err := s.factory.Instance.ReplanWeek(s.ctx, singleDate, effective, &res.NewTemplateID)
+	result, err := s.factory.Instance.ReplanWeek(s.ctx, singleDate, effective, &res.NewTemplateID, nil)
 	require.NoError(t, err)
 	require.NotNil(t, result.Materialization)
 	registerSplitInstancesForCleanup(t, s,

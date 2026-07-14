@@ -72,7 +72,7 @@ func (rs *Resource) replanWeek(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := rs.InstanceService.ReplanWeek(r.Context(), from, to, req.ActivityGroupID)
+	result, err := rs.InstanceService.ReplanWeek(r.Context(), from, to, req.ActivityGroupID, resolveActorAccountID(r.Context()))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("replan week failed", err))
 		return

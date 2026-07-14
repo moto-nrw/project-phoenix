@@ -660,7 +660,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Legt Halbjahre, Ferien und Sonderzeiträume als gemeinsame Basis für Anmeldung und Betreuungsplan an (nur für Admins).",
         steps: [
-          "`Planung` -> `Kalenderzeiträume` öffnen.",
+          "`Betreuungsplan` in der Seitenleiste öffnen und oben den Zeitraum-Chip anklicken; `Zeiträume verwalten` führt zur Verwaltungsseite.",
           "`Halbjahr anlegen` klicken: Name, Art und Start-/Enddatum des nächsten Halbjahres sind bereits vorausgefüllt und lassen sich anpassen.",
           "Für Ferien oder Sonderzeiträume `Zeitraum anlegen` nutzen und die Art entsprechend wählen.",
           "Nur aktive Zeiträume legen Termine aus Regelterminen des Betreuungsplans an.",
@@ -680,7 +680,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Plant Termine, Regeltermine, Räume, Personal und erwartete Kinder im Voraus (nur für Admins).",
         steps: [
-          "`Planung` -> `Betreuungsplan` öffnen.",
+          "`Betreuungsplan` in der Seitenleiste öffnen.",
           "In der Wochenansicht eine freie Zelle am gewünschten Tag und zur gewünschten Uhrzeit anklicken (beim Überfahren erscheint `+ Termin`).",
           "`Titel` eintragen und `Raum` wählen. Der `Schulhof` kann hier als reiner Planungsort verwendet werden; die laufende Aufsicht wird später unabhängig davon über den separaten Schulhof-Tab geführt. Zugeordnete Kinder und Mitarbeitende werden nicht automatisch in die Schulhof-Aufsicht übernommen. `Datum`, `Start` und `Ende` sind aus der Zelle übernommen und lassen sich anpassen.",
           "Unter `Wiederholt sich` festlegen, wie oft das Angebot stattfindet: `Einmalig`, wöchentlich am gewählten Wochentag, `Jeden Wochentag (Mo–Fr)` oder `Benutzerdefiniert …` für eigene Rhythmen. Bei `Alle 2 Wochen` erscheint zusätzlich die Auswahl `Woche A` oder `Woche B`; vorausgewählt ist die Woche des angeklickten Datums, sofern der Kalenderzeitraum einen A/B-Zyklus hat.",
@@ -696,7 +696,7 @@ export const appChapters: readonly GuideChapter[] = [
         ],
         callout: {
           title: "Betreuungsplan bei Bedarf abschalten",
-          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; danach verschwindet er aus der Seitenleiste.",
+          body: "Der Betreuungsplan ist standardmäßig sichtbar. Einrichtungen, die ihn nicht nutzen, schalten ihn unter `Einstellungen` -> `Betrieb` mit `Betreuungsplan aktivieren` aus; die Seiten Betreuungsplan und Vertretung zeigen danach einen Hinweis, dass die Funktion deaktiviert ist.",
           tone: "blue",
         },
         screenshot:
@@ -710,12 +710,13 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Führt kurzfristige Abweichungen vom Betreuungsplan für eine Woche oder einen Tag: Abwesenheiten, Ersatz sowie ausfallende oder bewusst unbesetzte Blöcke (nur für Admins).",
         steps: [
-          "`Planung` -> `Vertretungsplan` öffnen. Die Ansicht zeigt dieselben Termine wie der Betreuungsplan, hier jedoch zum Anpassen kurzfristiger Vertretungen. Oben zwischen `Woche` und `Tag` wechseln und mit den Pfeilen oder `Heute` zum passenden Zeitraum springen.",
+          "`Vertretung` in der Seitenleiste öffnen. Die Ansicht zeigt dieselben Termine wie der Betreuungsplan, hier jedoch zum Anpassen kurzfristiger Vertretungen. Darunter zwischen `Woche` und `Tag` wechseln und mit den Pfeilen oder `Heute` zum passenden Zeitraum springen.",
           "Im Überblick `Vertretungsplan im Blick` zeigen `Offene Lücken` und `Bewusst unbesetzt`, wie viele Blöcke ohne Personal sind bzw. bewusst offen gelassen wurden.",
           "Einen Termin anklicken, um die Vertretungsansicht des Blocks zu öffnen. `Geplantes Personal` zeigt die Besetzung aus dem Betreuungsplan.",
           "Über `Abwesend melden` eine Person für den ganzen Tag als abwesend markieren, optional mit einem `Grund` (zum Beispiel `krank`). Anschließend unter `Ersatz eintragen` eine Ersatzperson wählen.",
           "Ist keine Ersatzperson verfügbar, den Block unter `Bewusst unbesetzt` mit optionalem Grund markieren; er zählt dann nicht mehr als offene Lücke.",
           "Einen Termin über `Block absagen` streichen, optional mit einem `Grund`. Der Regeltermin im Betreuungsplan bleibt dabei unverändert.",
+          "Über `Verlauf` in der Vertretungsansicht das Änderungsprotokoll öffnen: Es zeigt für den Block oder den ganzen Tag, wer wann Abwesenheiten, Vertretungen, Absagen oder bewusst offene Lücken eingetragen oder geändert hat, samt Begründung.",
         ],
         callout: {
           title: "Abweichung statt neue Vorlage",
@@ -758,7 +759,7 @@ export const appChapters: readonly GuideChapter[] = [
         summary:
           "Plant konkrete Schichten pro Mitarbeiter und Tag und zeigt die zugehörigen Einsätze aus dem Betreuungsplan (nur für Admins).",
         steps: [
-          "`Planung` -> `Dienstplan` in der Seitenleiste oder im mobilen `Mehr`-Menü öffnen.",
+          "`Dienstplan` in der Seitenleiste (oder im mobilen `Mehr`-Menü) öffnen.",
           "Mit den Pfeilen zwischen den Wochen wechseln, `Diese Woche` springt zurück zur aktuellen Woche.",
           "Auf kleinen Bildschirmen die Wochenansicht horizontal wischen oder den beschrifteten Tabellenbereich fokussieren und mit der Tastatur scrollen, um weitere Wochentage zu sehen.",
           "Über `Schichtarten verwalten` (oben rechts) eigene Schichtarten pflegen: Name, Farbe, optionale Beschreibung und Aktiv-Status. `Beispiele hinzufügen` legt typische Schichtarten wie Betreuung, Vorbereitung, Vertretungsunterricht und Pause an, die anschließend frei anpassbar oder löschbar sind.",
