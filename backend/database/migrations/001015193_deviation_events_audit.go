@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	deviationEventsAuditVersion     = "1.15.192"
+	deviationEventsAuditVersion     = "1.15.193"
 	deviationEventsAuditDescription = "Create audit.deviation_events: append-only Änderungsprotokoll for planning deviations (#1886)."
 )
 
@@ -16,12 +16,12 @@ func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     deviationEventsAuditVersion,
 		Description: deviationEventsAuditDescription,
-		DependsOn:   []string{dropCareOfferingAvailableDaysDefaultVersion},
+		DependsOn:   []string{staffShiftFlexibleChangesVersion},
 	})
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.192: Creating audit.deviation_events...")
+			fmt.Println("Migration 1.15.193: Creating audit.deviation_events...")
 			if _, err := db.NewRaw(`
 				CREATE TABLE IF NOT EXISTS audit.deviation_events (
 					id BIGSERIAL PRIMARY KEY,
@@ -105,7 +105,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.192: Dropping audit.deviation_events...")
+			fmt.Println("Rolling back migration 1.15.193: Dropping audit.deviation_events...")
 			if _, err := db.NewRaw(`
 				DROP TABLE IF EXISTS audit.deviation_events CASCADE;
 			`).Exec(ctx); err != nil {
