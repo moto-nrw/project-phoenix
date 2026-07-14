@@ -21,27 +21,28 @@ import (
 // CareOfferingResponse is the wire shape for a single offering. IDs
 // stringified so the frontend keeps its int64-as-string convention.
 type CareOfferingResponse struct {
-	ID                  string    `json:"id"`
-	PhaseID             string    `json:"phase_id"`
-	ActivityGroupID     *string   `json:"activity_group_id,omitempty"`
-	Name                string    `json:"name"`
-	Description         *string   `json:"description,omitempty"`
-	DaysOfWeekMode      string    `json:"days_of_week_mode"`
-	AvailableDays       []string  `json:"available_days"`
-	IncludesHolidayCare bool      `json:"includes_holiday_care"`
-	IncludesLunch       bool      `json:"includes_lunch"`
-	Capacity            *int      `json:"capacity,omitempty"`
-	PriceCents          *int      `json:"price_cents,omitempty"`
-	IsActive            bool      `json:"is_active"`
-	IsRequired          bool      `json:"is_required"`
-	CountsAsCare        bool      `json:"counts_as_care"`
-	AutoAddGradeLevels  []int     `json:"auto_add_grade_levels"`
-	AutoAddTriggerIDs   []string  `json:"auto_add_trigger_offering_ids"`
-	SortOrder           int       `json:"sort_order"`
-	SelectionGroup      string    `json:"selection_group,omitempty"`
-	SelectionRule       string    `json:"selection_rule"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
+	ID                  string                                         `json:"id"`
+	PhaseID             string                                         `json:"phase_id"`
+	ActivityGroupID     *string                                        `json:"activity_group_id,omitempty"`
+	Name                string                                         `json:"name"`
+	Description         *string                                        `json:"description,omitempty"`
+	DaysOfWeekMode      string                                         `json:"days_of_week_mode"`
+	AvailableDays       []string                                       `json:"available_days"`
+	IncludesHolidayCare bool                                           `json:"includes_holiday_care"`
+	IncludesLunch       bool                                           `json:"includes_lunch"`
+	Capacity            *int                                           `json:"capacity,omitempty"`
+	PriceCents          *int                                           `json:"price_cents,omitempty"`
+	IsActive            bool                                           `json:"is_active"`
+	IsRequired          bool                                           `json:"is_required"`
+	CountsAsCare        bool                                           `json:"counts_as_care"`
+	AutoAddGradeLevels  []int                                          `json:"auto_add_grade_levels"`
+	AvailabilityRule    *enrollmentModels.CareOfferingAvailabilityRule `json:"availability_rule,omitempty"`
+	AutoAddTriggerIDs   []string                                       `json:"auto_add_trigger_offering_ids"`
+	SortOrder           int                                            `json:"sort_order"`
+	SelectionGroup      string                                         `json:"selection_group,omitempty"`
+	SelectionRule       string                                         `json:"selection_rule"`
+	CreatedAt           time.Time                                      `json:"created_at"`
+	UpdatedAt           time.Time                                      `json:"updated_at"`
 }
 
 // ErrCodeCareOfferingTemplatePeriodMismatch lets the admin frontend map the
@@ -86,6 +87,7 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 		IsRequired:          o.IsRequired,
 		CountsAsCare:        o.CountsAsCare,
 		AutoAddGradeLevels:  o.AutoAddGradeLevels,
+		AvailabilityRule:    o.AvailabilityRule,
 		AutoAddTriggerIDs:   make([]string, 0, len(o.AutoAddTriggerOfferingIDs)),
 		SortOrder:           o.SortOrder,
 		SelectionGroup:      o.SelectionGroup,
@@ -105,24 +107,25 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 
 // CareOfferingRequest is the wire shape POST + PUT accept.
 type CareOfferingRequest struct {
-	PhaseID             int64    `json:"phase_id"`
-	ActivityGroupID     *int64   `json:"activity_group_id,omitempty"`
-	Name                string   `json:"name"`
-	Description         *string  `json:"description,omitempty"`
-	DaysOfWeekMode      string   `json:"days_of_week_mode"`
-	AvailableDays       []string `json:"available_days"`
-	IncludesHolidayCare bool     `json:"includes_holiday_care"`
-	IncludesLunch       bool     `json:"includes_lunch"`
-	Capacity            *int     `json:"capacity,omitempty"`
-	PriceCents          *int     `json:"price_cents,omitempty"`
-	IsActive            bool     `json:"is_active"`
-	IsRequired          bool     `json:"is_required"`
-	CountsAsCare        *bool    `json:"counts_as_care"`
-	AutoAddGradeLevels  []int    `json:"auto_add_grade_levels"`
-	AutoAddTriggerIDs   []string `json:"auto_add_trigger_offering_ids"`
-	SortOrder           int      `json:"sort_order"`
-	SelectionGroup      string   `json:"selection_group,omitempty"`
-	SelectionRule       string   `json:"selection_rule,omitempty"`
+	PhaseID             int64                                          `json:"phase_id"`
+	ActivityGroupID     *int64                                         `json:"activity_group_id,omitempty"`
+	Name                string                                         `json:"name"`
+	Description         *string                                        `json:"description,omitempty"`
+	DaysOfWeekMode      string                                         `json:"days_of_week_mode"`
+	AvailableDays       []string                                       `json:"available_days"`
+	IncludesHolidayCare bool                                           `json:"includes_holiday_care"`
+	IncludesLunch       bool                                           `json:"includes_lunch"`
+	Capacity            *int                                           `json:"capacity,omitempty"`
+	PriceCents          *int                                           `json:"price_cents,omitempty"`
+	IsActive            bool                                           `json:"is_active"`
+	IsRequired          bool                                           `json:"is_required"`
+	CountsAsCare        *bool                                          `json:"counts_as_care"`
+	AutoAddGradeLevels  []int                                          `json:"auto_add_grade_levels"`
+	AvailabilityRule    *enrollmentModels.CareOfferingAvailabilityRule `json:"availability_rule,omitempty"`
+	AutoAddTriggerIDs   []string                                       `json:"auto_add_trigger_offering_ids"`
+	SortOrder           int                                            `json:"sort_order"`
+	SelectionGroup      string                                         `json:"selection_group,omitempty"`
+	SelectionRule       string                                         `json:"selection_rule,omitempty"`
 }
 
 // Bind satisfies render.Binder. Field-level validation runs in the
@@ -165,6 +168,7 @@ func (req *CareOfferingRequest) toModel(existingID int64) (*enrollmentModels.Car
 		CountsAsCare:              countsAsCare,
 		CountsAsCareSet:           true,
 		AutoAddGradeLevels:        req.AutoAddGradeLevels,
+		AvailabilityRule:          req.AvailabilityRule,
 		SortOrder:                 req.SortOrder,
 		SelectionGroup:            req.SelectionGroup,
 		SelectionRule:             req.SelectionRule,
@@ -448,6 +452,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 	for _, o := range offerings {
 		items = append(items, toCareOfferingResponse(o))
 	}
+	capabilities = enrollmentService.EffectiveFormCapabilities(capabilities, offerings)
 	common.Respond(w, r, http.StatusOK, PublicCareOfferingsResponse{
 		Offerings:                 items,
 		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(selectionMode, capabilities.CareOfferingsEnabled),
@@ -705,6 +710,7 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 	for _, o := range offerings {
 		items = append(items, toCareOfferingResponse(o))
 	}
+	capabilities = enrollmentService.EffectiveFormCapabilities(capabilities, offerings)
 	common.Respond(w, r, http.StatusOK, PublicEnrollmentFormBootstrapResponse{
 		Phase:                     toPublicPhase(phase),
 		Schema:                    toPublicFormSchemaResponse(schema),

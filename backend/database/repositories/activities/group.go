@@ -59,6 +59,32 @@ func (r *GroupRepository) FindByName(ctx context.Context, name string) (*activit
 	return group, nil
 }
 
+// FindByIDs returns the groups matching ids in one tenant-scoped IN query.
+// Archived rows are included so display names for historical references
+// still resolve (same behavior as the generic FindByID). Custom method
+// (backend-conventions Rule 2): bulk IN lookup with the empty-slice
+// short-circuit, mirroring facilities.RoomRepository.FindByIDs.
+func (r *GroupRepository) FindByIDs(ctx context.Context, ids []int64) ([]*activities.Group, error) {
+	groups := make([]*activities.Group, 0, len(ids))
+	if len(ids) == 0 {
+		return groups, nil
+	}
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&groups).
+		ModelTableExpr(tableExprActivitiesGroupsAsGrp).
+		Where(`"group".id IN (?)`, bun.List(ids))
+
+	query = base.WithTenantFilter(ctx, query, "group")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find groups by ids",
+			Err: err,
+		}
+	}
+	return groups, nil
+}
+
 // FindTemplateSeries resolves groupID to its stable split-series root and
 // returns every live segment in that lineage. Tenant predicates are explicit
 // defense-in-depth alongside RLS.

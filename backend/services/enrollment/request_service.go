@@ -35,13 +35,14 @@ import (
 // RequestService sentinel errors. The HTTP layer maps these to status
 // codes; tests assert on them via errors.Is.
 var (
-	ErrEnrollmentDisabled     = errors.New("enrollment is not enabled for this tenant")
-	ErrEnrollmentWindowClosed = errors.New("enrollment window is closed")
-	ErrLateInviteInvalid      = errors.New("late invite is invalid")
-	ErrInvalidSubmission      = errors.New("invalid submission")
-	ErrCareOfferingClosed     = errors.New("one or more selected care offerings are not currently accepting applications")
-	ErrCareOfferingFull       = errors.New("one or more selected care offerings are at capacity")
-	ErrCareOfferingsDisabled  = errors.New("care offerings are disabled for this tenant")
+	ErrEnrollmentDisabled      = errors.New("enrollment is not enabled for this tenant")
+	ErrEnrollmentWindowClosed  = errors.New("enrollment window is closed")
+	ErrLateInviteInvalid       = errors.New("late invite is invalid")
+	ErrInvalidSubmission       = errors.New("invalid submission")
+	ErrCareOfferingClosed      = errors.New("one or more selected care offerings are not currently accepting applications")
+	ErrCareOfferingUnavailable = errors.New("one or more selected care offerings are not available for this child")
+	ErrCareOfferingFull        = errors.New("one or more selected care offerings are at capacity")
+	ErrCareOfferingsDisabled   = errors.New("care offerings are disabled for this tenant")
 	// ErrCareOfferingMissing is returned when a phase requires at least
 	// one care offering per child but a child has no offering selected.
 	// Mapped to 400 with a stable code so the parent form can highlight
@@ -457,9 +458,6 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err != nil {
 		return nil, fmt.Errorf("submit: resolve form capabilities: %w", err)
 	}
-	if err := normalizeSubmissionForCapabilities(&req, capabilities); err != nil {
-		return nil, err
-	}
 	duplicatePolicy, err := s.Settings.ResolveString(ctx, configModel.KeyEnrollmentDuplicateHandling)
 	if err != nil {
 		return nil, fmt.Errorf("submit: resolve duplicate handling: %w", err)
@@ -482,6 +480,10 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 		if err != nil {
 			return nil, fmt.Errorf("submit: load phase offerings: %w", err)
 		}
+	}
+	capabilities = EffectiveFormCapabilities(capabilities, openOfferings)
+	if err := normalizeSubmissionForCapabilities(&req, capabilities); err != nil {
+		return nil, err
 	}
 	openByID := make(map[int64]*enrollmentModels.CareOffering, len(openOfferings))
 	for _, o := range openOfferings {
@@ -533,7 +535,7 @@ func (s *requestService) Submit(ctx context.Context, req SubmitRequest) (*Submit
 	if err := normalizeAdditionalGuardians(&req); err != nil {
 		return nil, err
 	}
-	if err := s.validateSubmission(ctx, req, legalBlocks); err != nil {
+	if err := s.validateSubmission(ctx, req, legalBlocks, capabilities); err != nil {
 		return nil, err
 	}
 	// Concrete-class rules need the phase (pick list + require flag) and
@@ -839,7 +841,7 @@ func (s *requestService) findLateInviteForSubmit(ctx context.Context, token stri
 	return invite, nil
 }
 
-func (s *requestService) validateSubmission(ctx context.Context, req SubmitRequest, legalBlocks []LegalBlock) error {
+func (s *requestService) validateSubmission(ctx context.Context, req SubmitRequest, legalBlocks []LegalBlock, capabilities FormCapabilities) error {
 	if !s.isEnrollmentEnabled(ctx) {
 		return ErrEnrollmentDisabled
 	}
@@ -883,10 +885,6 @@ func (s *requestService) validateSubmission(ctx context.Context, req SubmitReque
 	}
 	if len(req.Children) == 0 {
 		return fmt.Errorf("%w: at least one child is required", ErrInvalidSubmission)
-	}
-	capabilities, err := s.FormCapabilities(ctx)
-	if err != nil {
-		return fmt.Errorf("resolve enrollment form capabilities: %w", err)
 	}
 	gradeMax, err := s.resolveGradeMax(ctx)
 	if err != nil {
@@ -1015,42 +1013,77 @@ func validateOfferingSelections(children []SubmitChild, openByID map[int64]*enro
 	return nil
 }
 
-func materializeChildrenOfferingSelections(children []SubmitChild, openByID map[int64]*enrollmentModels.CareOffering) ([][]materializedOfferingSelection, error) {
-	out := make([][]materializedOfferingSelection, len(children))
-	for i := range children {
-		selections, err := materializeOfferingSelections(children[i], openByID)
-		if err != nil {
-			return nil, fmt.Errorf("child %d: %w", i, err)
-		}
-		out[i] = selections
-		children[i].OfferingIDs, children[i].OfferingDays = selectionPayload(selections, openByID)
-	}
-	return out, nil
-}
-
 func materializeAndValidateChildrenOfferingSelections(
 	children []SubmitChild,
 	openByID map[int64]*enrollmentModels.CareOffering,
 	selectionMode string,
 ) ([][]materializedOfferingSelection, error) {
-	if err := validateOfferingSelections(children, openByID); err != nil {
-		return nil, err
+	out := make([][]materializedOfferingSelection, len(children))
+	for i := range children {
+		availableByID, err := availableCareOfferingsForGrade(openByID, children[i].TargetGradeLevel)
+		if err != nil {
+			return nil, fmt.Errorf("child %d: %w", i, err)
+		}
+		if err := validateOfferingSelectionsForChild(children[i], openByID, availableByID); err != nil {
+			return nil, fmt.Errorf("child %d: %w", i, err)
+		}
+		manualChild := cloneSubmitChildrenOfferingSelections([]SubmitChild{children[i]})[0]
+		selections, err := materializeOfferingSelections(children[i], availableByID)
+		if err != nil {
+			return nil, fmt.Errorf("child %d: %w", i, err)
+		}
+		children[i].OfferingIDs, children[i].OfferingDays = selectionPayload(selections, availableByID)
+		if err := validateOfferingGroupRules([]SubmitChild{children[i]}, availableByID); err != nil {
+			return nil, err
+		}
+		if err := validateRequiredOfferings([]SubmitChild{children[i]}, availableByID); err != nil {
+			return nil, err
+		}
+		if len(openByID) == 0 || hasChoosableCareOffering(availableByID) {
+			if err := validateCareOfferingSelectionMode([]SubmitChild{manualChild}, availableByID, selectionMode); err != nil {
+				return nil, err
+			}
+		}
+		out[i] = selections
 	}
-	manualChildren := cloneSubmitChildrenOfferingSelections(children)
-	selections, err := materializeChildrenOfferingSelections(children, openByID)
-	if err != nil {
-		return nil, err
+	return out, nil
+}
+
+func availableCareOfferingsForGrade(catalog map[int64]*enrollmentModels.CareOffering, grade *int16) (map[int64]*enrollmentModels.CareOffering, error) {
+	available := make(map[int64]*enrollmentModels.CareOffering, len(catalog))
+	for id, offering := range catalog {
+		matches, err := offering.AvailabilityRule.MatchesGradeLevel(grade)
+		if err != nil {
+			return nil, fmt.Errorf("offering %d has invalid availability rule: %w", id, err)
+		}
+		if matches {
+			available[id] = offering
+		}
 	}
-	if err := validateOfferingGroupRules(children, openByID); err != nil {
-		return nil, err
+	return available, nil
+}
+
+func validateOfferingSelectionsForChild(child SubmitChild, catalog, available map[int64]*enrollmentModels.CareOffering) error {
+	check := func(id int64) error {
+		if _, ok := catalog[id]; !ok {
+			return ErrCareOfferingClosed
+		}
+		if _, ok := available[id]; !ok {
+			return ErrCareOfferingUnavailable
+		}
+		return nil
 	}
-	if err := validateRequiredOfferings(children, openByID); err != nil {
-		return nil, err
+	for _, id := range child.OfferingIDs {
+		if err := check(id); err != nil {
+			return err
+		}
 	}
-	if err := validateCareOfferingSelectionMode(manualChildren, openByID, selectionMode); err != nil {
-		return nil, err
+	for _, row := range child.OfferingDays {
+		if err := check(row.OfferingID); err != nil {
+			return err
+		}
 	}
-	return selections, nil
+	return nil
 }
 
 func cloneSubmitChildrenOfferingSelections(children []SubmitChild) []SubmitChild {
@@ -1424,6 +1457,15 @@ func validateCareOfferingSelectionMode(children []SubmitChild, openByID map[int6
 	return nil
 }
 
+func hasChoosableCareOffering(catalog map[int64]*enrollmentModels.CareOffering) bool {
+	for _, offering := range catalog {
+		if !offering.IsRequired {
+			return true
+		}
+	}
+	return false
+}
+
 // GetByStatusToken loads a request + its children for the public
 // status page. Caller is responsible for setting an admin-tx context
 // (token-only auth - RLS would block unprivileged SELECTs).
@@ -1690,6 +1732,7 @@ func (s *requestService) GetEditDraft(ctx context.Context, token string) (*EditD
 				return ErrEditNotAllowed
 			}
 		}
+		capabilities = EffectiveFormCapabilities(capabilities, openOfferings)
 		texts, err := s.legalTextsForEditableRequest(txCtx, schema)
 		if err != nil {
 			return err
@@ -1790,15 +1833,16 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		if err != nil {
 			return fmt.Errorf("edit replace: resolve form capabilities: %w", err)
 		}
-		if err := normalizeSubmissionForCapabilities(&editReq, capabilities); err != nil {
-			return err
-		}
 		openOfferings := []*enrollmentModels.CareOffering{}
 		if capabilities.CareOfferingsEnabled {
 			openOfferings, err = s.CareOfferingRepo.ListActiveByPhase(txCtx, phase.ID)
 			if err != nil {
 				return fmt.Errorf("edit replace: load phase offerings: %w", err)
 			}
+		}
+		capabilities = EffectiveFormCapabilities(capabilities, openOfferings)
+		if err := normalizeSubmissionForCapabilities(&editReq, capabilities); err != nil {
+			return err
 		}
 		openByID := make(map[int64]*enrollmentModels.CareOffering, len(openOfferings))
 		for _, o := range openOfferings {
@@ -1824,7 +1868,7 @@ func (s *requestService) ReplaceEditable(ctx context.Context, token string, inco
 		if err := normalizeAdditionalGuardians(&editReq); err != nil {
 			return err
 		}
-		if err := s.validateSubmission(txCtx, editReq, legalBlocks); err != nil {
+		if err := s.validateSubmission(txCtx, editReq, legalBlocks, capabilities); err != nil {
 			return err
 		}
 		if err := s.validateAndNormalizeSchoolClasses(txCtx, phase, editReq.Children); err != nil {
@@ -2907,6 +2951,19 @@ func normalizeSubmissionForCapabilities(req *SubmitRequest, capabilities FormCap
 		}
 	}
 	return nil
+}
+
+func EffectiveFormCapabilities(capabilities FormCapabilities, offerings []*enrollmentModels.CareOffering) FormCapabilities {
+	if capabilities.CareOfferingsEnabled {
+		for _, offering := range offerings {
+			if offering != nil && offering.AvailabilityRule.RequiresGradeLevel() {
+				capabilities.CollectGradeLevel = true
+				break
+			}
+		}
+	}
+	capabilities.CollectSchoolClass = capabilities.CollectGradeLevel && capabilities.CollectSchoolClass
+	return capabilities
 }
 
 // validateAndNormalizeSchoolClasses enforces the concrete-class rules

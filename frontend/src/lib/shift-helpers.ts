@@ -10,6 +10,10 @@ export interface BackendStaffShift {
   end_time: string;
   break_minutes: number;
   shift_type_id?: number | null;
+  /** Resolved Schichtart, embedded so staff (who cannot read /shift-types) still
+   *  see the label and color (#1844). Present only when the shift has a type. */
+  shift_type_name?: string | null;
+  shift_type_color?: string | null;
   notes?: string;
   series_id?: number | null;
   detached?: boolean;
@@ -30,6 +34,10 @@ export interface StaffShift {
   breakMinutes: number;
   /** Id of the linked shift type (Schichtart), or null if untyped */
   shiftTypeId: string | null;
+  /** Resolved Schichtart label (#1844), or null when untyped. */
+  shiftTypeName: string | null;
+  /** Resolved Schichtart color as "#RRGGBB" (#1844), or null when untyped. */
+  shiftTypeColor: string | null;
   notes: string;
   /** Id of the shift series this row was materialized from (#1889), or null
    *  for a standalone shift. */
@@ -171,6 +179,8 @@ export function mapStaffShift(data: BackendStaffShift): StaffShift {
     breakMinutes: data.break_minutes,
     shiftTypeId:
       data.shift_type_id != null ? data.shift_type_id.toString() : null,
+    shiftTypeName: data.shift_type_name ?? null,
+    shiftTypeColor: data.shift_type_color ?? null,
     notes: data.notes ?? "",
     seriesId: data.series_id != null ? data.series_id.toString() : null,
     detached: data.detached ?? false,
@@ -224,6 +234,78 @@ export function mapStaffScheduleOverview(
       targetMinutes: summary.target_minutes,
       deltaMinutes: summary.delta_minutes,
     })),
+  };
+}
+
+// ─── Own Betreuungsplan assignments ("Mein Tag", #1844) ─────────────────────
+// The self-scoped GET /api/time-tracking/assignments shape. Distinct from the
+// admin StaffScheduleAssignment above (that one carries coverage math against
+// the Dienstplan; this one carries the block-level Vertretungsplan state a
+// staff member sees for their own day).
+
+export interface BackendOwnAssignment {
+  instance_id: number;
+  title: string;
+  group_name?: string | null;
+  room_name?: string;
+  date: string;
+  start_time: string;
+  end_time: string;
+  status: string;
+  cancelled: boolean;
+  is_primary: boolean;
+  is_substitute: boolean;
+  is_absent: boolean;
+  absence_reason?: string | null;
+  cancel_reason?: string | null;
+  understaffed_ack: boolean;
+}
+
+export interface OwnAssignment {
+  instanceId: string;
+  /** Block title (activity instance title). */
+  title: string;
+  /** Activity/Betreuungsgruppe name, or null for a spontaneous block. */
+  groupName: string | null;
+  /** Effective room name for this block, or "" when unresolved. */
+  roomName: string;
+  /** Calendar day as "YYYY-MM-DD". */
+  date: string;
+  /** Wall-clock "HH:MM". */
+  startTime: string;
+  /** Wall-clock "HH:MM". */
+  endTime: string;
+  status: string;
+  /** The block does not take place ("fällt aus"). */
+  cancelled: boolean;
+  isPrimary: boolean;
+  /** This staff member stands in for the block (Vertretung, #1840). */
+  isSubstitute: boolean;
+  /** This staff member was pulled from the block (Vertretungsplan, #1840). */
+  isAbsent: boolean;
+  absenceReason: string | null;
+  cancelReason: string | null;
+  /** Admin acknowledged the block running understaffed (#1840). */
+  understaffedAck: boolean;
+}
+
+export function mapOwnAssignment(data: BackendOwnAssignment): OwnAssignment {
+  return {
+    instanceId: data.instance_id.toString(),
+    title: data.title,
+    groupName: data.group_name ?? null,
+    roomName: data.room_name ?? "",
+    date: data.date.slice(0, 10),
+    startTime: data.start_time.slice(0, 5),
+    endTime: data.end_time.slice(0, 5),
+    status: data.status,
+    cancelled: data.cancelled,
+    isPrimary: data.is_primary,
+    isSubstitute: data.is_substitute,
+    isAbsent: data.is_absent,
+    absenceReason: data.absence_reason ?? null,
+    cancelReason: data.cancel_reason ?? null,
+    understaffedAck: data.understaffed_ack,
   };
 }
 

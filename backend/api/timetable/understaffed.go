@@ -160,6 +160,10 @@ func (rs *Resource) acknowledgeUnderstaffed(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Understaffed toggles fire no instance_* lifecycle event; without this
+	// tenant-wide signal an open staff page keeps the stale flag (#1844).
+	rs.broadcastStaffingDeviationChanged(r.Context(), "understaffed_ack")
+
 	common.Respond(w, r, http.StatusOK, UnderstaffedAckResponse{
 		InstanceID:       instance.ID,
 		Status:           instance.Status,

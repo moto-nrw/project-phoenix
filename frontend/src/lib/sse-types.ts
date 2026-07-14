@@ -28,6 +28,13 @@ type SSEEventType =
   | "instance_completed"
   | "instance_cancelled"
   | "instance_overdue"
+  // Tenant-wide signal that Vertretungsplan staffing state changed on an
+  // instance — absence set/cleared, substitute assigned, understaffed
+  // acknowledgement toggled. These writes emit no instance_* lifecycle event
+  // (planned blocks change no status; active blocks only get a group-scoped
+  // activity_update), so timetable + own-assignment caches refetch on this
+  // instead. See backend/realtime/events.go EventStaffingDeviationChanged.
+  | "staffing_deviation_changed"
   // Parent-OGS messaging: a parent sent a message or staff replied. A trigger
   // for the staff inbox / child thread / parent thread to refetch and update
   // the unread badge. See backend/realtime/events.go EventParentMessage.

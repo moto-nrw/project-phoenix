@@ -42,6 +42,20 @@ const (
 	EventInstanceCancelled EventType = "instance_cancelled"
 	EventInstanceOverdue   EventType = "instance_overdue"
 
+	// EventStaffingDeviationChanged is a tenant-wide signal that planned
+	// staffing state changed on an instance — an absence was set or cleared, a
+	// substitute assigned, the deliberately-unstaffed acknowledgement toggled,
+	// or a still-planned instance was created, edited (title/time/room/staff,
+	// incl. a date move), or deleted (#1840/#1844). The instance_* lifecycle
+	// events do NOT cover these writes: they change no lifecycle status, and on
+	// an active block only a group-scoped activity_update fires, which the
+	// affected staff member may not be subscribed to. Clients treat it like an
+	// instance lifecycle trigger and refetch timetable + own-assignment caches.
+	// The Source field names the emitting flow (e.g. "deviations",
+	// "understaffed_ack", "instance_create", "instance_update",
+	// "instance_delete").
+	EventStaffingDeviationChanged EventType = "staffing_deviation_changed"
+
 	// Global refresh event — tells all clients to re-fetch dashboard counts
 	EventDashboardCountsChanged EventType = "dashboard_counts_changed"
 

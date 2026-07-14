@@ -474,7 +474,7 @@ func (rs *Resource) applyDeviations(w http.ResponseWriter, r *http.Request) {
 
 	warnings := rs.collectDeviationWarnings(ctx, req.Substitutions, subPlan, date)
 
-	rs.InstanceService.QueueActivityUpdates(ctx, activeTouched)
+	rs.broadcastDeviationSaveEvents(ctx, activeTouched, len(affected), ackChanged, len(clearAck))
 
 	rs.getLogger().Info("deviations applied",
 		slog.Int64("instance_id", id),

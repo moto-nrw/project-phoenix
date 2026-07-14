@@ -269,6 +269,7 @@ const (
 	ErrCodeEnrollmentRequiredCareOfferingMissing = "enrollment.required_care_offering_missing"
 	ErrCodeEnrollmentCareOfferingFull            = "enrollment.care_offering_full"
 	ErrCodeEnrollmentCareOfferingsDisabled       = "enrollment.care_offerings_disabled"
+	ErrCodeEnrollmentCareOfferingUnavailable     = "enrollment.care_offering_unavailable"
 	ErrCodeEnrollmentInvalidPhone                = "enrollment.invalid_phone"
 	ErrCodeEnrollmentInvalidEmail                = "enrollment.invalid_email"
 	ErrCodeEnrollmentPickupTimeNotAllowed        = "enrollment.pickup_time_not_allowed"
@@ -287,6 +288,8 @@ func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, enrollmentService.ErrLateInviteInvalid):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentLateInviteInvalid))
+	case errors.Is(err, enrollmentService.ErrCareOfferingUnavailable):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingUnavailable))
 	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingMissing))
 	case errors.Is(err, enrollmentService.ErrCareOfferingExactlyOneRequired):

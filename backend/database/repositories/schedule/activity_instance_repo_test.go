@@ -736,3 +736,44 @@ func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_HardDele
 	assert.True(t, modelBase.IsNoRows(err),
 		"deviated instance must be deleted by the destructive series operation")
 }
+
+func TestActivityInstanceRepository_FindByIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	t.Run("empty input short-circuits without hitting the DB", func(t *testing.T) {
+		instances, err := repo.FindByIDs(ctx, nil)
+		require.NoError(t, err)
+		assert.Empty(t, instances)
+	})
+
+	t.Run("returns matching instances ordered by date then start time", func(t *testing.T) {
+		fx := newActivityInstanceFixtures(t, db, "findbyids")
+		defer fx.cleanup()
+
+		later := buildInstance(1, fx.roomID, &fx.activityID,
+			timezone.NewDate(2026, 9, 20),
+			time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
+			time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+			"Later")
+		require.NoError(t, repo.Create(ctx, later))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", later.ID)
+
+		earlier := buildInstance(1, fx.roomID, &fx.activityID,
+			timezone.NewDate(2026, 9, 18),
+			time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
+			time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
+			"Earlier")
+		require.NoError(t, repo.Create(ctx, earlier))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", earlier.ID)
+
+		instances, err := repo.FindByIDs(ctx, []int64{later.ID, earlier.ID, 9_999_999})
+		require.NoError(t, err)
+		require.Len(t, instances, 2, "the non-existent id is silently absent")
+		assert.Equal(t, earlier.ID, instances[0].ID, "ordered by date ascending")
+		assert.Equal(t, later.ID, instances[1].ID)
+	})
+}

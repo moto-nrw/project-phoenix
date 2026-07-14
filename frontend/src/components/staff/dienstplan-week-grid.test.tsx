@@ -24,6 +24,8 @@ const shift: StaffShift = {
   endTime: "12:30",
   breakMinutes: 0,
   shiftTypeId: null,
+  shiftTypeName: null,
+  shiftTypeColor: null,
   notes: "",
   seriesId: null,
   detached: false,

@@ -12,12 +12,15 @@ package timetable
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // substituteActionType is the stable per-instance action string returned in
@@ -248,4 +251,47 @@ func toConflictInstance(inst *scheduleModel.ActivityInstance) scheduleSvc.Substi
 		EndMin:    scheduleSvc.MinutesOfTime(inst.EndTime.Hour(), inst.EndTime.Minute()),
 		StartHHMM: inst.StartTime.Format("15:04"),
 	}
+}
+
+// broadcastDeviationSaveEvents fires the SSE signals after a /deviations save:
+// the group-scoped activity_update per touched active group, plus — when the
+// save actually changed staffing state (any applied write, an acknowledgement
+// change, or a cleared stale ack) — the tenant-wide staffing_deviation_changed
+// invalidation (#1844). Kept out of applyDeviations so the handler's gocognit
+// score stays within its ratchet allowance.
+func (rs *Resource) broadcastDeviationSaveEvents(
+	ctx context.Context,
+	touched map[int64]*scheduleModel.ActivityInstance,
+	appliedWrites int,
+	ackChanged bool,
+	clearedAcks int,
+) {
+	rs.InstanceService.QueueActivityUpdates(ctx, touched)
+	if appliedWrites > 0 || ackChanged || clearedAcks > 0 {
+		rs.broadcastStaffingDeviationChanged(ctx, "deviations")
+	}
+}
+
+// broadcastStaffingDeviationChanged queues one tenant-wide
+// staffing_deviation_changed event after the surrounding tenant transaction
+// commits. Deviation writes on still-planned blocks emit no instance_*
+// lifecycle event, and the group-scoped activity_update below only reaches
+// clients subscribed to the active group — so without this signal an open
+// staff page (Betreuungsplan card, planner) stays stale until reload (#1844).
+// source names the emitting flow for log review.
+func (rs *Resource) broadcastStaffingDeviationChanged(ctx context.Context, source string) {
+	if rs.Broadcaster == nil {
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	event := realtime.NewEvent(realtime.EventStaffingDeviationChanged, "", realtime.EventData{Source: &source})
+	tenant.RegisterAfterCommit(ctx, func() {
+		if err := rs.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+			rs.getLogger().Warn("SSE staffing deviation broadcast failed",
+				slog.String("source", source),
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+		}
+	})
 }

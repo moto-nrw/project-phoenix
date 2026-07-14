@@ -39,6 +39,7 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModel "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -182,8 +183,12 @@ type TemplateSplitDependencies struct {
 	// visible inside the split transaction. It rejects a split that would make
 	// an existing care-offering link impossible to materialize later.
 	ValidateCareOfferingSeries func(context.Context, int64) error
-	Logger                     *slog.Logger
-	DB                         *bun.DB
+	// Broadcaster is optional (nil → no SSE). Split/end delete planned
+	// instances outside the CRUD broadcast paths, so they must invalidate the
+	// staffing caches themselves (#1844).
+	Broadcaster realtime.Broadcaster
+	Logger      *slog.Logger
+	DB          *bun.DB
 }
 
 // TemplateSplitService performs recurring-template scope operations.
@@ -346,6 +351,12 @@ func (s *TemplateSplitService) splitInTransaction(
 		if err != nil {
 			return nil, &ScheduleError{Op: "split template: reapply deviations", Err: err}
 		}
+	}
+
+	// The delete side bypasses the CRUD broadcast paths; the materializer
+	// broadcasts separately for the successor rows it created.
+	if deleted > 0 {
+		broadcastStaffingChanged(ctx, s.deps.Broadcaster, s.getLogger(), "template_split")
 	}
 
 	s.getLogger().Info("template split completed",
@@ -559,6 +570,12 @@ func (s *TemplateSplitService) endFromDateInTransaction(
 	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, in.EffectiveDate, nil, &templateID, false)
 	if err != nil {
 		return nil, &ScheduleError{Op: "end template: delete planned instances", Err: err}
+	}
+
+	// Ending a series deletes planned instances outside the CRUD broadcast
+	// paths — invalidate the staffing caches (#1844).
+	if deleted > 0 {
+		broadcastStaffingChanged(ctx, s.deps.Broadcaster, s.getLogger(), "template_end")
 	}
 
 	s.getLogger().Info("template ended from date",

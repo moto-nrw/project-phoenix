@@ -23,6 +23,8 @@ const ENROLLMENT_CODE_MESSAGES: Record<string, string> = {
     "Bitte wähle für jedes Kind mindestens ein Betreuungsangebot aus.",
   "enrollment.care_offering_exactly_one":
     "Bitte wähle für jedes Kind genau ein Betreuungsangebot aus.",
+  "enrollment.care_offering_unavailable":
+    "Ein ausgewähltes Betreuungsangebot ist für die Klassenstufe dieses Kindes nicht verfügbar. Bitte prüfe die Klassenstufe und die Auswahl.",
   "enrollment.required_care_offering_missing":
     "Für jedes Kind muss ein verpflichtendes Betreuungsangebot ausgewählt sein.",
   "enrollment.care_offering_full":

@@ -91,6 +91,7 @@ func (r *CareOfferingRepository) Update(ctx context.Context, offering *enrollmen
 		Set("is_required = ?", offering.IsRequired).
 		Set("counts_as_care = ?", offering.CountsAsCare).
 		Set("auto_add_grade_levels = ?", offering.AutoAddGradeLevels).
+		Set("availability_rule = ?", offering.AvailabilityRule).
 		Set("selection_group = ?", offering.SelectionGroup).
 		Set("selection_rule = ?", offering.SelectionRule).
 		Set("sort_order = ?", offering.SortOrder).

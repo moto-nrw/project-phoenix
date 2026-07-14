@@ -37,18 +37,22 @@ type Resource struct {
 	PersonService       usersSvc.PersonService
 	SettingsService     configSvc.SettingsService
 	StaffShiftService   scheduleSvc.StaffShiftService
-	db                  *bun.DB
+	// StaffAssignmentService backs GET /assignments — the staff member's own
+	// Betreuungsplan blocks (Ort/Aufgabe) for a day (#1844).
+	StaffAssignmentService scheduleSvc.StaffAssignmentService
+	db                     *bun.DB
 }
 
 // NewResource creates a new time-tracking resource
-func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService, settingsService configSvc.SettingsService, staffShiftService scheduleSvc.StaffShiftService, db *bun.DB) *Resource {
+func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService, settingsService configSvc.SettingsService, staffShiftService scheduleSvc.StaffShiftService, staffAssignmentService scheduleSvc.StaffAssignmentService, db *bun.DB) *Resource {
 	return &Resource{
-		WorkSessionService:  workSessionService,
-		StaffAbsenceService: staffAbsenceService,
-		PersonService:       personService,
-		SettingsService:     settingsService,
-		StaffShiftService:   staffShiftService,
-		db:                  db,
+		WorkSessionService:     workSessionService,
+		StaffAbsenceService:    staffAbsenceService,
+		PersonService:          personService,
+		SettingsService:        settingsService,
+		StaffShiftService:      staffShiftService,
+		StaffAssignmentService: staffAssignmentService,
+		db:                     db,
 	}
 }
 
@@ -79,6 +83,8 @@ func (rs *Resource) Router() chi.Router {
 
 		// Own planned shifts (Dienstplan, #1376/#1798)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/shifts", rs.getOwnShifts)
+		// Own Betreuungsplan blocks for the day (Ort/Aufgabe + Vertretungen, #1844)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/assignments", rs.getOwnAssignments)
 
 		// Absence management
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/absences", rs.listAbsences)
@@ -734,4 +740,79 @@ func (rs *Resource) getOwnShifts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, staffshifts.ToShiftResponses(shifts), "Shifts retrieved successfully")
+}
+
+// assignmentResponse is the wire format for one Betreuungsplan block a staff
+// member is planned into (#1844). It deliberately carries no student data
+// (GDPR: no child names in time-tracking lists).
+type assignmentResponse struct {
+	InstanceID      int64   `json:"instance_id"`
+	Title           string  `json:"title"`
+	GroupName       *string `json:"group_name,omitempty"`
+	RoomName        string  `json:"room_name,omitempty"`
+	Date            string  `json:"date"`
+	StartTime       string  `json:"start_time"`
+	EndTime         string  `json:"end_time"`
+	Status          string  `json:"status"`
+	Cancelled       bool    `json:"cancelled"`
+	IsPrimary       bool    `json:"is_primary"`
+	IsSubstitute    bool    `json:"is_substitute"`
+	IsAbsent        bool    `json:"is_absent"`
+	AbsenceReason   *string `json:"absence_reason,omitempty"`
+	CancelReason    *string `json:"cancel_reason,omitempty"`
+	UnderstaffedAck bool    `json:"understaffed_ack"`
+}
+
+func toAssignmentResponses(assignments []*scheduleSvc.StaffAssignment) []assignmentResponse {
+	out := make([]assignmentResponse, 0, len(assignments))
+	for _, a := range assignments {
+		out = append(out, assignmentResponse{
+			InstanceID:      a.InstanceID,
+			Title:           a.Title,
+			GroupName:       a.GroupName,
+			RoomName:        a.RoomName,
+			Date:            a.Date.String(),
+			StartTime:       timezone.WallClock(a.StartTime).Format("15:04"),
+			EndTime:         timezone.WallClock(a.EndTime).Format("15:04"),
+			Status:          a.Status,
+			Cancelled:       a.Cancelled,
+			IsPrimary:       a.IsPrimary,
+			IsSubstitute:    a.IsSubstitute,
+			IsAbsent:        a.IsAbsent,
+			AbsenceReason:   a.AbsenceReason,
+			CancelReason:    a.CancelReason,
+			UnderstaffedAck: a.UnderstaffedAck,
+		})
+	}
+	return out
+}
+
+// getOwnAssignments handles GET /api/time-tracking/assignments — the staff
+// member's own Betreuungsplan blocks (room + activity + Vertretungsplan state)
+// in a from/to date range. Self-scoped: the staff id comes from the caller's
+// JWT, never a parameter, so no one reads another person's plan (#1844).
+func (rs *Resource) getOwnAssignments(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
+		return
+	}
+
+	assignments, err := rs.StaffAssignmentService.ListAssignmentsForStaff(r.Context(), staffID, from, to)
+	if err != nil {
+		if errors.Is(err, scheduleSvc.ErrShiftInvalid) || errors.Is(err, scheduleSvc.ErrShiftRangeTooLarge) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, toAssignmentResponses(assignments), "Assignments retrieved successfully")
 }

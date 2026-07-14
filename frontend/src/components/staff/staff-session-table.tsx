@@ -12,6 +12,7 @@ import type {
   StaffSchedule,
 } from "~/lib/staff-api";
 import { staffSessionEditsService } from "~/lib/staff-api";
+import type { StaffShift } from "~/lib/shift-helpers";
 import {
   resolveTargetForDate,
   toIsoDayOfWeek,
@@ -55,6 +56,7 @@ export function StaffSessionTable({
   schedule,
   today,
   isAdminView,
+  plannedShifts,
   onEditDay,
 }: {
   readonly staffId: string;
@@ -65,6 +67,12 @@ export function StaffSessionTable({
   readonly schedule: StaffSchedule | null;
   readonly today: Date;
   readonly isAdminView: boolean;
+  // Planned Dienstplan shifts for the visible range. When provided (admin
+  // detail view, #1844), a "Plan" column shows the geplante Schicht next to the
+  // Ist times so plan, actual and — via the audit expand — the deviation reason
+  // read together. Omitted on the staff self-view. Does NOT feed the Soll/Saldo
+  // math (that stays the Arbeitszeitmodell, #1842).
+  readonly plannedShifts?: readonly StaffShift[];
   // Optional external edit handler. When provided, the SquarePen click
   // delegates to the caller instead of opening the bundled
   // AdminSessionEditModal. Used by /time-tracking where the MA-side modal
@@ -84,6 +92,23 @@ export function StaffSessionTable({
     }
     return map;
   }, [sessions]);
+
+  // Planned Dienstplan shifts per day for the "Plan" column (#1844). Absent
+  // unless the caller passes plannedShifts (admin detail view).
+  const showPlan = plannedShifts != null;
+  const shiftsByDate = useMemo(() => {
+    const map = new Map<string, StaffShift[]>();
+    for (const shift of plannedShifts ?? []) {
+      const list = map.get(shift.date);
+      if (list) list.push(shift);
+      else map.set(shift.date, [shift]);
+    }
+    for (const list of map.values()) {
+      list.sort((a, b) => a.startTime.localeCompare(b.startTime));
+    }
+    return map;
+  }, [plannedShifts]);
+  const columnCount = COLUMN_COUNT + (showPlan ? 1 : 0);
 
   // Absences arrive as date ranges; expand to a per-day lookup so each row in
   // the table can ask "is this date covered by Krank/Urlaub/etc?". Mirrors the
@@ -161,6 +186,9 @@ export function StaffSessionTable({
           <tr>
             <th className="px-4 py-3">Datum</th>
             <th className="px-4 py-3">Tag</th>
+            {showPlan && (
+              <th className="px-4 py-3 tabular-nums">Plan (Schicht)</th>
+            )}
             <th className="px-4 py-3 tabular-nums">Check-in</th>
             <th className="px-4 py-3 tabular-nums">Check-out</th>
             <th className="px-4 py-3 text-right tabular-nums">Pause</th>
@@ -224,6 +252,11 @@ export function StaffSessionTable({
                     </div>
                   </td>
                   <td className="px-4 py-3 text-gray-500">{dayLabels[dow]}</td>
+                  {showPlan && (
+                    <td className="px-4 py-3 text-gray-500 tabular-nums">
+                      <PlannedShiftCell shifts={shiftsByDate.get(key)} />
+                    </td>
+                  )}
                   <td className="px-4 py-3 text-gray-700 tabular-nums">
                     {session?.check_in_time
                       ? formatTimeOnly(session.check_in_time)
@@ -303,7 +336,7 @@ export function StaffSessionTable({
                 </tr>
                 {isExpanded && session && (
                   <tr className="border-b border-gray-100 bg-gray-50/50">
-                    <td colSpan={COLUMN_COUNT} className="px-4 py-3">
+                    <td colSpan={columnCount} className="px-4 py-3">
                       <SessionEditHistory
                         staffId={staffId}
                         sessionId={session.id}
@@ -409,6 +442,37 @@ type RowStatus =
   | { kind: "home-office" }
   | { kind: "absence"; absenceType: string }
   | { kind: "missing" };
+
+// Renders the planned Dienstplan window(s) for one day: each active shift as
+// "HH:MM–HH:MM", cancelled shifts struck through as "entfällt". Split shifts
+// stack. "–" when nothing is planned (#1844).
+function PlannedShiftCell({
+  shifts,
+}: {
+  readonly shifts: readonly StaffShift[] | undefined;
+}) {
+  if (!shifts || shifts.length === 0) {
+    return <span className="text-gray-300">–</span>;
+  }
+  return (
+    <div className="space-y-0.5">
+      {shifts.map((shift) =>
+        shift.cancelled ? (
+          <div key={shift.id} className="text-gray-400">
+            <span className="line-through">
+              {shift.startTime}–{shift.endTime}
+            </span>{" "}
+            <span className="text-[11px]">entfällt</span>
+          </div>
+        ) : (
+          <div key={shift.id} className="text-gray-600">
+            {shift.startTime}–{shift.endTime}
+          </div>
+        ),
+      )}
+    </div>
+  );
+}
 
 function computeRowStatus(
   session: StaffHistorySession | undefined,

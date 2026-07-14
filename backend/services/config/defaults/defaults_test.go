@@ -326,7 +326,7 @@ func TestTimeTrackingRequireDeviationReasonSetting(t *testing.T) {
 	def := config.GetDefinition(config.KeyTimeTrackingRequireDeviationReason)
 	require.NotNil(t, def, "operations.time_tracking_require_deviation_reason should be registered")
 	assert.Equal(t, config.FieldBoolean, def.Type)
-	assert.Equal(t, false, def.Default, "deviation-reason gate must be opt-in")
+	assert.Equal(t, true, def.Default, "deviation-reason gate is on by default (#1844); schools can opt out per tenant")
 	assert.Equal(t, config.AccessShared, def.AccessPolicy)
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "zeiterfassung", def.Category)

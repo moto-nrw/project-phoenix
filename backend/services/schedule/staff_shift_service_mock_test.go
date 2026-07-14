@@ -176,6 +176,12 @@ func (m *shiftMockStaffRepo) ListStaffByRoles(context.Context, []string) ([]*use
 // unknown id maps to ErrShiftTypeNotFound, mirroring the real GetShiftType.
 type stubShiftTypeService struct {
 	types map[int64]*scheduleModels.ShiftType
+	// listErr, when set, is returned by ListShiftTypes so attachShiftTypes'
+	// error propagation can be exercised (#1844).
+	listErr error
+	// listCalls counts ListShiftTypes invocations so a test can assert the
+	// resolve is skipped entirely when no shift carries a type.
+	listCalls int
 }
 
 func (s *stubShiftTypeService) GetShiftType(_ context.Context, id int64) (*scheduleModels.ShiftType, error) {
@@ -186,7 +192,16 @@ func (s *stubShiftTypeService) GetShiftType(_ context.Context, id int64) (*sched
 }
 
 func (s *stubShiftTypeService) ListShiftTypes(context.Context) ([]*scheduleModels.ShiftType, error) {
-	return nil, nil
+	s.listCalls++
+	if s.listErr != nil {
+		return nil, s.listErr
+	}
+	out := make([]*scheduleModels.ShiftType, 0, len(s.types))
+	for id, t := range s.types {
+		t.ID = id // keep ID consistent with the map key so byID lookups resolve
+		out = append(out, t)
+	}
+	return out, nil
 }
 
 func (s *stubShiftTypeService) CreateShiftType(_ context.Context, t *scheduleModels.ShiftType) (*scheduleModels.ShiftType, error) {
@@ -912,4 +927,103 @@ func TestShiftService_UpdateAllowsSwitchToActiveType(t *testing.T) {
 
 	_, err := svc.UpdateShift(context.Background(), update)
 	require.NoError(t, err)
+}
+
+// ============================================================================
+// Schichtart enrichment on reads — attachShiftTypes (#1844)
+// ============================================================================
+
+// shiftServiceWithStub wires a stub ShiftTypeService the caller controls so the
+// read-time Schichtart enrichment (name + color) can be exercised end to end.
+func shiftServiceWithStub(stub *stubShiftTypeService) (StaffShiftService, *shiftMockRepo) {
+	repo := &shiftMockRepo{}
+	svc := NewStaffShiftService(repo, &shiftMockStaffRepo{}, stub, nil, nil)
+	return svc, repo
+}
+
+func TestShiftService_ListAttachesShiftTypes(t *testing.T) {
+	stub := &stubShiftTypeService{types: map[int64]*scheduleModels.ShiftType{
+		4: {Name: "Betreuung", Color: "#83CD2D", IsActive: true},
+	}}
+	svc, repo := shiftServiceWithStub(stub)
+
+	typed := validShift(7)
+	typed.ID = 1
+	typed.ShiftTypeID = int64Ptr(4)
+	untyped := validShift(8)
+	untyped.ID = 2
+	repo.findByDateRangeFunc = func(_ context.Context, _, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+		return []*scheduleModels.StaffShift{typed, untyped}, nil
+	}
+
+	start := timezone.NewDate(2026, time.July, 6)
+	shifts, err := svc.ListShifts(context.Background(), start, start.AddDays(4))
+	require.NoError(t, err)
+	require.Len(t, shifts, 2)
+	require.NotNil(t, shifts[0].ShiftType)
+	assert.Equal(t, "Betreuung", shifts[0].ShiftType.Name)
+	assert.Equal(t, "#83CD2D", shifts[0].ShiftType.Color)
+	assert.Nil(t, shifts[1].ShiftType, "untyped shift keeps a nil Schichtart")
+}
+
+func TestShiftService_ListForStaffAttachesShiftTypes(t *testing.T) {
+	stub := &stubShiftTypeService{types: map[int64]*scheduleModels.ShiftType{
+		4: {Name: "Frühdienst", Color: "#5080D8", IsActive: true},
+	}}
+	svc, repo := shiftServiceWithStub(stub)
+
+	typed := validShift(7)
+	typed.ID = 1
+	typed.ShiftTypeID = int64Ptr(4)
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+		return []*scheduleModels.StaffShift{typed}, nil
+	}
+
+	start := timezone.NewDate(2026, time.July, 6)
+	shifts, err := svc.ListShiftsForStaff(context.Background(), 7, start, start)
+	require.NoError(t, err)
+	require.Len(t, shifts, 1)
+	require.NotNil(t, shifts[0].ShiftType)
+	assert.Equal(t, "Frühdienst", shifts[0].ShiftType.Name)
+}
+
+// When no shift in the range carries a type, the (potentially expensive)
+// ListShiftTypes call is skipped entirely — proven by a stub whose list call
+// would error if reached.
+func TestShiftService_ListSkipsShiftTypeResolveWithoutTypedShifts(t *testing.T) {
+	stub := &stubShiftTypeService{listErr: errors.New("must not be called")}
+	svc, repo := shiftServiceWithStub(stub)
+
+	untyped := validShift(7)
+	untyped.ID = 1
+	repo.findByDateRangeFunc = func(_ context.Context, _, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+		return []*scheduleModels.StaffShift{untyped}, nil
+	}
+
+	start := timezone.NewDate(2026, time.July, 6)
+	shifts, err := svc.ListShifts(context.Background(), start, start.AddDays(4))
+	require.NoError(t, err)
+	require.Len(t, shifts, 1)
+	assert.Zero(t, stub.listCalls, "no typed shift means no shift-type resolve")
+}
+
+func TestShiftService_ListPropagatesShiftTypeResolveError(t *testing.T) {
+	stub := &stubShiftTypeService{
+		types:   map[int64]*scheduleModels.ShiftType{4: {IsActive: true}},
+		listErr: errors.New("shift types unavailable"),
+	}
+	svc, repo := shiftServiceWithStub(stub)
+
+	typed := validShift(7)
+	typed.ID = 1
+	typed.ShiftTypeID = int64Ptr(4)
+	repo.findByDateRangeFunc = func(_ context.Context, _, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+		return []*scheduleModels.StaffShift{typed}, nil
+	}
+
+	start := timezone.NewDate(2026, time.July, 6)
+	_, err := svc.ListShifts(context.Background(), start, start.AddDays(4))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to resolve shift types")
+	assert.Contains(t, err.Error(), "shift types unavailable")
 }

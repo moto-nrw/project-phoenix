@@ -79,6 +79,7 @@ type Factory struct {
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
 	StaffShiftSeries         schedule.StaffShiftSeriesService
+	StaffAssignments         schedule.StaffAssignmentService
 	StaffScheduleOverview    schedule.StaffScheduleOverviewGetter
 	ShiftTypes               schedule.ShiftTypeService
 	PickupSchedule           schedule.PickupScheduleService
@@ -440,6 +441,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		TimeframeRepo:            repos.Timeframe,
 		ActivityExceptionRepo:    repos.ActivityException,
 		PhaseRepo:                repos.Phase,
+		Settings:                 settingsService,
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
@@ -537,6 +539,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		logger.With("service", "staff_shift_series"),
 	)
+	// Self-service Betreuungsplan assignments for a staff member ("Mein Tag",
+	// #1844) — the "Ort/Aufgabe" the Dienstplan shift alone cannot express.
+	staffAssignmentService := schedule.NewStaffAssignmentService(schedule.StaffAssignmentDependencies{
+		InstanceStaffRepo:    repos.InstanceStaff,
+		ActivityInstanceRepo: repos.ActivityInstance,
+		RoomRepo:             repos.Room,
+		ActivityGroupRepo:    repos.ActivityGroup,
+	}, logger.With("service", "staff_assignment"))
+
 	staffScheduleOverviewService := schedule.NewStaffScheduleOverviewService(schedule.StaffScheduleOverviewDependencies{
 		Shifts:        repos.StaffShift,
 		ShiftWeeks:    repos.StaffShift,
@@ -600,6 +611,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.Timeframe,
 		calendarPeriodService,
 		db,
+		realtimeHub,
 		logger.With("service", "materialization"),
 	)
 
@@ -639,6 +651,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Materialization:            materializationService,
 		InstanceService:            instanceService,
 		ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
+		Broadcaster:                realtimeHub,
 		Logger:                     logger.With("service", "template-split"),
 		DB:                         db,
 	})
@@ -1408,6 +1421,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Schedule:                 scheduleService,
 		StaffShifts:              staffShiftService,
 		StaffShiftSeries:         staffShiftSeriesService,
+		StaffAssignments:         staffAssignmentService,
 		StaffScheduleOverview:    staffScheduleOverviewService,
 		ShiftTypes:               shiftTypeService,
 		PickupSchedule:           pickupScheduleService,
