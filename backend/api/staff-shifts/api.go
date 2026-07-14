@@ -8,8 +8,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -340,12 +342,28 @@ func (rs *Resource) list(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	shifts, err := rs.Service.ListShifts(r.Context(), from, to)
+	// Optional staff_id narrows the week grid to one staff member — the admin
+	// staff-detail Plan|Ist view needs exactly that person's planned shifts
+	// (#1844) rather than the whole tenant's. A filter param, not a second route.
+	shifts, err := rs.listShifts(r, from, to)
 	if err != nil {
 		renderServiceError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, ToShiftResponses(shifts), "Staff shifts retrieved")
+}
+
+// listShifts dispatches to the per-staff or all-staff service read depending on
+// the optional staff_id query parameter.
+func (rs *Resource) listShifts(r *http.Request, from, to timezone.Date) ([]*scheduleModels.StaffShift, error) {
+	if staffStr := r.URL.Query().Get("staff_id"); staffStr != "" {
+		staffID, err := strconv.ParseInt(staffStr, 10, 64)
+		if err != nil || staffID <= 0 {
+			return nil, fmt.Errorf("%w: staff_id must be a positive integer", scheduleSvc.ErrShiftInvalid)
+		}
+		return rs.Service.ListShiftsForStaff(r.Context(), staffID, from, to)
+	}
+	return rs.Service.ListShifts(r.Context(), from, to)
 }
 
 func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
