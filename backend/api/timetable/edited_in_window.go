@@ -13,20 +13,12 @@ package timetable
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
-
-// maxEditedWindowRangeDays caps the probe window. Unlike the weekly list
-// endpoint (56 days), a series edit spans today → calendar-period end (up to a
-// school year), so the planner probes that whole future window in one call.
-// The scan is one template's instances — ~50 rows even across a year — so a
-// generous cap stays cheap while covering any real period.
-const maxEditedWindowRangeDays = 400
 
 // editedOccurrenceItem is one individually-adjusted occurrence.
 type editedOccurrenceItem struct {
@@ -89,11 +81,12 @@ func (rs *Resource) editedInWindow(w http.ResponseWriter, r *http.Request) {
 			errors.New("'to' must be on or after 'from'")))
 		return
 	}
-	if inclusiveDayCount(from, to) > maxEditedWindowRangeDays {
-		common.RenderError(w, r, common.ErrorInvalidRequest(
-			fmt.Errorf("date range exceeds maximum of %d days", maxEditedWindowRangeDays)))
-		return
-	}
+	// No upper cap on the window: a series re-plan spans today → calendar-period
+	// end, and custom periods have no maximum duration. Capping here (returning
+	// 400) would make the advisory frontend probe fail-open and re-plan without
+	// a warning for long periods — silently discarding edits past the cap. The
+	// scan is one template's instances via an indexed date-range query and is
+	// bounded by the rows that actually exist, so a wide window stays cheap.
 
 	occurrences, err := rs.MaterializationService.DetectEditedInWindow(r.Context(), activityGroupID, from, to)
 	if err != nil {

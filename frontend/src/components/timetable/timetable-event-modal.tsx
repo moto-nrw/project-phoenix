@@ -104,6 +104,7 @@ const COVERAGE_CHECK_TIMEOUT_MS = 5_000;
 // change (backend EditedChange strings). Shown in the lost-edits warning.
 const EDIT_CHANGE_LABELS: Record<EditedChange, string> = {
   title: "Titel",
+  description: "Beschreibung",
   notes: "Notiz",
   room: "Raum",
   time: "Zeit/Datum",

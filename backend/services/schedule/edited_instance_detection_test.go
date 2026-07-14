@@ -136,6 +136,22 @@ func TestDiffOccurrence_BlankNotesIgnored(t *testing.T) {
 	assert.Empty(t, changes, "whitespace-only notes are not a real edit")
 }
 
+func TestDiffOccurrence_Description(t *testing.T) {
+	inst := edPristineInstance()
+	desc := "Bitte Sportkleidung mitbringen"
+	inst.Description = &desc
+	changes := edDiff(inst, edPristineStaff(), edPristineStudents(), edExpected())
+	assert.Equal(t, []string{EditedChangeDescription}, changes)
+}
+
+func TestDiffOccurrence_BlankDescriptionIgnored(t *testing.T) {
+	inst := edPristineInstance()
+	blank := "  "
+	inst.Description = &blank
+	changes := edDiff(inst, edPristineStaff(), edPristineStudents(), edExpected())
+	assert.Empty(t, changes, "whitespace-only description is not a real edit")
+}
+
 func TestDiffOccurrence_Room(t *testing.T) {
 	inst := edPristineInstance()
 	inst.RoomID = edRoomB

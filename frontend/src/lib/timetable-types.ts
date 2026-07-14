@@ -494,7 +494,13 @@ export interface BackendReplanWeekResult {
  * strings from the backend; mapped to German labels in the UI.
  */
 export type EditedChange =
-  "title" | "notes" | "room" | "time" | "staff" | "students";
+  | "title"
+  | "description"
+  | "notes"
+  | "room"
+  | "time"
+  | "staff"
+  | "students";
 
 /** One planned occurrence that was individually adjusted vs its template.
  * Referenced only via EditedInWindowResult below (not exported on its own). */

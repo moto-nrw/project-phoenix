@@ -131,12 +131,29 @@ func TestEditedInWindow_InvalidDates(t *testing.T) {
 		"activity_group_id=7&from=notadate&to=2026-04-26",   // bad from
 		"activity_group_id=7&from=2026-04-20&to=notadate",   // bad to
 		"activity_group_id=7&from=2026-04-26&to=2026-04-20", // to before from
-		"activity_group_id=7&from=2026-01-01&to=2027-12-31", // > 400 days
 	}
 	for _, q := range cases {
 		w := doGet(t, router, "/instances/edited-in-window?"+q)
 		assert.Equal(t, http.StatusBadRequest, w.Code, "query %s should 400", q)
 	}
+}
+
+// TestEditedInWindow_LongWindowNotCapped guards the #1907 critical: a series
+// re-plan spans the whole calendar period (custom periods have no maximum), and
+// the advisory frontend probe fail-opens on error. A wide window must therefore
+// be accepted (200), never rejected, so it always covers the full re-plan range.
+func TestEditedInWindow_LongWindowNotCapped(t *testing.T) {
+	mat := &mockMaterializationService{
+		detectFn: func(_ int64, _, _ timezone.Date) ([]scheduleSvc.EditedOccurrence, error) {
+			return nil, nil
+		},
+	}
+	rs := NewResource(Dependencies{MaterializationService: mat})
+	router := setupEditedInWindowRouter(rs)
+
+	// ~3 years — well beyond any previous cap.
+	w := doGet(t, router, "/instances/edited-in-window?activity_group_id=7&from=2026-01-01&to=2028-12-31")
+	assert.Equal(t, http.StatusOK, w.Code, "a wide window must be accepted, body: %s", w.Body.String())
 }
 
 func TestEditedInWindow_ServiceError(t *testing.T) {

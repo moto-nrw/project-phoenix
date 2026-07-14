@@ -20,12 +20,13 @@ import (
 // when the series is edited (#1875). Stable machine-readable strings — the
 // frontend maps them to German labels.
 const (
-	EditedChangeTitle    = "title"
-	EditedChangeNotes    = "notes"
-	EditedChangeRoom     = "room"
-	EditedChangeTime     = "time"
-	EditedChangeStaff    = "staff"
-	EditedChangeStudents = "students"
+	EditedChangeTitle       = "title"
+	EditedChangeDescription = "description"
+	EditedChangeNotes       = "notes"
+	EditedChangeRoom        = "room"
+	EditedChangeTime        = "time"
+	EditedChangeStaff       = "staff"
+	EditedChangeStudents    = "students"
 )
 
 // EditedOccurrence describes one planned, template-backed occurrence that was
@@ -288,8 +289,12 @@ func diffOccurrence(
 	if inst.Title != templateTitle {
 		changes = append(changes, EditedChangeTitle)
 	}
-	// Notes — materialization never writes notes, so any non-empty note is a
-	// deliberate per-occurrence annotation.
+	// Description & notes — materialization writes neither, so any non-empty
+	// value is a deliberate per-occurrence edit (description is settable via the
+	// instance PUT and would otherwise be discarded silently on re-plan).
+	if inst.Description != nil && strings.TrimSpace(*inst.Description) != "" {
+		changes = append(changes, EditedChangeDescription)
+	}
 	if inst.Notes != nil && strings.TrimSpace(*inst.Notes) != "" {
 		changes = append(changes, EditedChangeNotes)
 	}
