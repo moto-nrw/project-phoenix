@@ -30,6 +30,7 @@ type shiftMockRepo struct {
 	deleteFunc                  func(ctx context.Context, id any) error
 	findByDateRangeFunc         func(ctx context.Context, start, end timezone.Date) ([]*scheduleModels.StaffShift, error)
 	findByStaffAndDateRangeFunc func(ctx context.Context, staffID int64, start, end timezone.Date) ([]*scheduleModels.StaffShift, error)
+	findByOriginShiftIDFunc     func(ctx context.Context, originShiftID int64) ([]*scheduleModels.StaffShift, error)
 }
 
 func (m *shiftMockRepo) Create(ctx context.Context, shift *scheduleModels.StaffShift) error {
@@ -75,6 +76,13 @@ func (m *shiftMockRepo) FindByStaffAndDateRange(ctx context.Context, staffID int
 }
 
 func (m *shiftMockRepo) FindByStaffIDsAndDate(_ context.Context, _ []int64, _ timezone.Date) ([]*scheduleModels.StaffShift, error) {
+	return nil, nil
+}
+
+func (m *shiftMockRepo) FindByOriginShiftID(ctx context.Context, originShiftID int64) ([]*scheduleModels.StaffShift, error) {
+	if m.findByOriginShiftIDFunc != nil {
+		return m.findByOriginShiftIDFunc(ctx, originShiftID)
+	}
 	return nil, nil
 }
 

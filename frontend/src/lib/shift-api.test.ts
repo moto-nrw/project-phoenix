@@ -173,6 +173,9 @@ describe("staffShiftService requests", () => {
         notes: "",
         seriesId: null,
         detached: false,
+        cancelled: false,
+        changeReason: null,
+        originShiftId: null,
       },
     ]);
     expect(mockSessionFetch).toHaveBeenCalledWith(

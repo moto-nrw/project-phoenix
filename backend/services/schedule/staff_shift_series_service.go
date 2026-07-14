@@ -220,6 +220,15 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 		}
 		overlaps := false
 		for _, other := range existingByDate[d] {
+			// A cancelled shift does not take place, so it neither blocks nor is
+			// blocked by the materialized candidate — the freed window is available.
+			// This matches the single-shift overlap rule (checkOverlap) and the
+			// partial unique index, both of which treat a cancelled row as a free
+			// window (#1841). Own detached cancellations are handled earlier via
+			// ownedDates, which skips the date outright.
+			if other.Cancelled {
+				continue
+			}
 			if candidate.Overlaps(other) {
 				overlaps = true
 				break

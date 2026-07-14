@@ -493,7 +493,9 @@ func coveredShiftWindows(start, end time.Time, shifts []*scheduleModel.StaffShif
 }
 
 func clipShiftCoverageWindow(start, end time.Time, shift *scheduleModel.StaffShift) (shiftCoverageWindow, bool) {
-	if shift == nil {
+	if shift == nil || shift.Cancelled {
+		// A cancelled shift does not take place (#1841), so it covers nothing;
+		// the assignment reads as uncovered until a replacement is entered.
 		return shiftCoverageWindow{}, false
 	}
 	shiftStart := timezone.WallClock(shift.StartTime)
@@ -657,7 +659,10 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 func plannedShiftMinutes(shifts []*scheduleModel.StaffShift) map[staffDateKey]int {
 	planned := make(map[staffDateKey]int)
 	for _, shift := range shifts {
-		if shift == nil {
+		if shift == nil || shift.Cancelled {
+			// A cancelled shift does not take place (#1841): it contributes no
+			// planned minutes, so the weekly delta reflects the real gap and a
+			// replacement's minutes land on the covering person instead.
 			continue
 		}
 		weekFrom, _ := containingCalendarWeek(shift.Date)

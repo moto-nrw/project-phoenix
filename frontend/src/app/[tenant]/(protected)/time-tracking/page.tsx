@@ -3023,7 +3023,11 @@ function TimeTrackingContent() {
   const todayShifts = useMemo(
     () =>
       (ownTodayShifts ?? [])
-        .filter((s) => s.date === todayISO)
+        // A cancelled shift does not take place (#1841): the person is absent
+        // or the gap is left open, so it must not appear as a planned shift in
+        // the Stempeluhr. A replacement is the covering person's own shift and
+        // shows for them normally.
+        .filter((s) => s.date === todayISO && !s.cancelled)
         .sort((a, b) => a.startTime.localeCompare(b.startTime)),
     [ownTodayShifts, todayISO],
   );

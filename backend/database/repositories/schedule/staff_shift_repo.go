@@ -102,6 +102,25 @@ func (r *StaffShiftRepository) FindByStaffIDsAndDate(ctx context.Context, staffI
 	return shifts, nil
 }
 
+// FindByOriginShiftID returns every replacement shift covering the given
+// origin (the cover set of one gap, #1841), ordered by start time.
+func (r *StaffShiftRepository) FindByOriginShiftID(ctx context.Context, originShiftID int64) ([]*schedule.StaffShift, error) {
+	var shifts []*schedule.StaffShift
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&shifts).
+		ModelTableExpr(tableExprStaffShiftsAsShift).
+		Where(`"staff_shift".origin_shift_id = ?`, originShiftID).
+		OrderExpr(`"staff_shift".start_time ASC`)
+
+	query = base.WithTenantFilter(ctx, query, "staff_shift")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find staff shifts by origin shift id", Err: err}
+	}
+	normalizeShiftWallClock(shifts)
+	return shifts, nil
+}
+
 // FindByStaffIDsAndDates returns only shifts that can affect the supplied
 // staff/date coverage comparisons. This avoids scanning every tenant shift in
 // the continuous span between sparse candidate dates.
