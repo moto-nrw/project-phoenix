@@ -50,7 +50,7 @@ func insertShiftTypeRaw(t *testing.T, db *bun.DB, tenantID int64, name string) i
 	return id
 }
 
-// TestCategoryShiftTypeMigration verifies migration 1.15.191: Up adds the
+// TestCategoryShiftTypeMigration verifies migration 1.15.195: Up adds the
 // activities.categories.shift_type_id column + cross-schema tenant FK, Down
 // removes them, and the round-trip is idempotent (#1837 follow-up / #1836).
 func TestCategoryShiftTypeMigration(t *testing.T) {

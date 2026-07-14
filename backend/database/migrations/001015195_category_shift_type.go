@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	categoryShiftTypeVersion     = "1.15.193"
+	categoryShiftTypeVersion     = "1.15.195"
 	categoryShiftTypeDescription = "Link activities.categories to schedule.shift_types via optional shift_type_id (#1837 follow-up, #1836)"
 )
 
@@ -33,7 +33,7 @@ func init() {
 }
 
 func categoryShiftTypeUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.193: Linking activities.categories to schedule.shift_types...")
+	fmt.Println("Migration 1.15.195: Linking activities.categories to schedule.shift_types...")
 
 	// Optional cross-schema tenant-safe FK: a Timetable-Kategorie may map to at
 	// most one Dienstplan-Schichtart. NULL = no mapping (existing data unchanged).
@@ -66,7 +66,7 @@ func categoryShiftTypeUp(ctx context.Context, db *bun.DB) error {
 }
 
 func categoryShiftTypeDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.193: Removing category shift_type_id link...")
+	fmt.Println("Rolling back migration 1.15.195: Removing category shift_type_id link...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE activities.categories DROP CONSTRAINT IF EXISTS fk_activities_categories_shift_type;

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	groupNotesVersion     = "1.15.192"
+	groupNotesVersion     = "1.15.194"
 	groupNotesDescription = "Add durable Wochennotiz (notes) to activities.groups (recurring-template series note, issue #1837 follow-up)"
 )
 
@@ -32,7 +32,7 @@ func init() {
 }
 
 func groupNotesUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.192: Adding notes (Wochennotiz) column to activities.groups...")
+	fmt.Println("Migration 1.15.194: Adding notes (Wochennotiz) column to activities.groups...")
 
 	// Durable series note lives ONLY on the template. It is joined onto every
 	// materialized instance at read time, so it survives ReplanWeek and the
@@ -51,7 +51,7 @@ func groupNotesUp(ctx context.Context, db *bun.DB) error {
 }
 
 func groupNotesDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.192: Removing notes column from activities.groups...")
+	fmt.Println("Rolling back migration 1.15.194: Removing notes column from activities.groups...")
 
 	_, err := db.NewRaw(`
 		ALTER TABLE activities.groups DROP COLUMN IF EXISTS notes;

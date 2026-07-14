@@ -23,7 +23,7 @@ func groupNotesColumnExists(t *testing.T, db *bun.DB) bool {
 	return exists
 }
 
-// TestGroupNotesMigration verifies migration 1.15.190: Up adds the
+// TestGroupNotesMigration verifies migration 1.15.194: Up adds the
 // activities.groups.notes column (Wochennotiz), Down removes it, and the
 // round-trip is idempotent (#1837 follow-up).
 func TestGroupNotesMigration(t *testing.T) {
