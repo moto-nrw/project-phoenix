@@ -758,6 +758,10 @@ func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentA
 	result, err := env.requestSvc.Submit(ctx, submission)
 	require.NoError(t, err)
 	require.Len(t, result.Children, 1)
+	storedChild, err := env.repos.RequestChild.FindByID(ctx, result.Children[0].ID)
+	require.NoError(t, err)
+	storedChild.CustomData = map[string]any{"allergies": "keine"}
+	require.NoError(t, env.repos.RequestChild.UpdateData(ctx, storedChild))
 	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
 		RequestID:  result.Request.ID,
 		ChildID:    result.Children[0].ID,

@@ -680,6 +680,7 @@ PUT /api/activities/{id}/schedules/{scheduleId}
 PUT /api/activities/{id}/students
 PUT /api/activities/{id}/supervisors/{supervisorId}
 PUT /api/admin/grade-transitions/{id}/
+PUT /api/enrollment/admin/requests/{id}/children/{childId}/data-correction
 PUT /api/enrollment/admin/requests/{id}/children/{childId}/offerings
 PUT /api/enrollment/care-offerings/{id}/
 PUT /api/enrollment/phases/{id}/
