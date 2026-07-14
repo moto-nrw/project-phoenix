@@ -204,11 +204,14 @@ func init() {
 	})
 
 	config.Register(config.Definition{
-		Key:             config.KeyTimeTrackingRequireDeviationReason,
-		Label:           "Begründung bei Abweichung vom Dienstplan",
-		Description:     "Wenn aktiviert, verlangt das Ein- und Ausstempeln außerhalb des Toleranzfensters um die geplante Schichtzeit eine Begründung. Gilt auch für nachträgliche Änderungen eigener Zeiten. Tage ohne geplante Schicht bleiben unverändert.",
-		Type:            config.FieldBoolean,
-		Default:         false,
+		Key:         config.KeyTimeTrackingRequireDeviationReason,
+		Label:       "Begründung bei Abweichung vom Dienstplan",
+		Description: "Wenn aktiviert, verlangt das Ein- und Ausstempeln außerhalb des Toleranzfensters um die geplante Schichtzeit eine Begründung. Gilt auch für nachträgliche Änderungen eigener Zeiten. Tage ohne geplante Schicht bleiben unverändert.",
+		Type:        config.FieldBoolean,
+		// Default on (#1844): Planabweichungen sollen standardmäßig begründet
+		// werden, damit spätere Zeiten (später Bus, längerer Einsatz) im Audit-Log
+		// nachvollziehbar sind. Schulen können es pro Mandant abschalten.
+		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:update",
 		Tab:             "operations",

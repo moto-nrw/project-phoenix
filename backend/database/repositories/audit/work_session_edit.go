@@ -133,9 +133,13 @@ func (r *WorkSessionEditRepository) CountBySessionIDs(ctx context.Context, sessi
 }
 
 // CountManualBySessionIDs returns a map of session ID → edit count for multiple
-// sessions, excluding system-authored edits (edited_by = SystemEditorID). Used
-// wherever an edit count means "manually corrected", so auto-checkout audit
-// rows don't mislabel sessions.
+// sessions, excluding system-authored edits (edited_by = SystemEditorID) and
+// deviation-reason rows (field_name = FieldDeviationReason). Used wherever an
+// edit count means "manually corrected": auto-checkout audit rows and the
+// mandatory reason recorded on an ordinary out-of-tolerance stamp (#1844) are
+// audit trail, not corrections — counting them would label a normal check-in
+// "Manuell korrigiert". A deviation reason attached to a genuine backdated
+// edit is still counted through its accompanying time-field rows.
 func (r *WorkSessionEditRepository) CountManualBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]int, error) {
 	if len(sessionIDs) == 0 {
 		return make(map[int64]int), nil
@@ -153,6 +157,7 @@ func (r *WorkSessionEditRepository) CountManualBySessionIDs(ctx context.Context,
 		ColumnExpr("COUNT(*) AS count").
 		Where("session_id IN (?)", bun.List(sessionIDs)).
 		Where("edited_by <> ?", audit.SystemEditorID).
+		Where("field_name <> ?", audit.FieldDeviationReason).
 		GroupExpr("session_id").
 		Scan(ctx, &results)
 	if err != nil {

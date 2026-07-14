@@ -598,6 +598,63 @@ func TestWorkSessionEditRepository_CountManualBySessionIDs(t *testing.T) {
 		assert.False(t, exists, "auto-checkout-only session must not appear as manually corrected")
 	})
 
+	t.Run("excludes deviation-reason rows", func(t *testing.T) {
+		today := timezone.TodayDate()
+		session := &active.WorkSession{
+			StaffID:     staff.ID,
+			Date:        today.AddDays(2),
+			Status:      active.WorkSessionStatusPresent,
+			CheckInTime: time.Now(),
+			CreatedBy:   staff.ID,
+		}
+		err := sessionRepo.Create(ctx, session)
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "active.work_sessions", session.ID)
+
+		// An ordinary early/late stamp records only a deviation reason (#1844),
+		// authored by the staff member themselves — not a correction.
+		reason := "Bus verspätet"
+		deviationEdit := &audit.WorkSessionEdit{
+			SessionID: session.ID,
+			StaffID:   staff.ID,
+			EditedBy:  staff.ID,
+			FieldName: audit.FieldDeviationReason,
+			Notes:     &reason,
+		}
+		err = repo.CreateBatch(ctx, []*audit.WorkSessionEdit{deviationEdit})
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "audit.work_session_edits", deviationEdit.ID)
+
+		counts, err := repo.CountManualBySessionIDs(ctx, []int64{session.ID})
+		require.NoError(t, err)
+		_, exists := counts[session.ID]
+		assert.False(t, exists, "a stamp-time deviation reason must not count as a manual correction")
+
+		allCounts, err := repo.CountBySessionIDs(ctx, []int64{session.ID})
+		require.NoError(t, err)
+		assert.Equal(t, 1, allCounts[session.ID],
+			"total count still includes deviation-reason rows for the edit history")
+
+		// A backdated time edit that ALSO records a deviation reason stays
+		// classified as manually corrected via its time-field row.
+		newValue := "16:30"
+		timeEdit := &audit.WorkSessionEdit{
+			SessionID: session.ID,
+			StaffID:   staff.ID,
+			EditedBy:  staff.ID,
+			FieldName: audit.FieldCheckOutTime,
+			NewValue:  &newValue,
+		}
+		err = repo.CreateBatch(ctx, []*audit.WorkSessionEdit{timeEdit})
+		require.NoError(t, err)
+		defer testpkg.CleanupTableRecords(t, db, "audit.work_session_edits", timeEdit.ID)
+
+		counts, err = repo.CountManualBySessionIDs(ctx, []int64{session.ID})
+		require.NoError(t, err)
+		assert.Equal(t, 1, counts[session.ID],
+			"the accompanying time-field row keeps a real edit counted")
+	})
+
 	t.Run("returns empty map for empty input", func(t *testing.T) {
 		counts, err := repo.CountManualBySessionIDs(ctx, []int64{})
 		require.NoError(t, err)

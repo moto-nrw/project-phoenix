@@ -5,10 +5,13 @@
 
 import { sessionFetch } from "./session-cache";
 import {
+  mapOwnAssignment,
   mapStaffScheduleOverview,
   mapStaffShift,
+  type BackendOwnAssignment,
   type BackendStaffScheduleOverview,
   type BackendStaffShift,
+  type OwnAssignment,
   type StaffScheduleOverview,
   type StaffShift,
 } from "./shift-helpers";
@@ -209,6 +212,19 @@ class StaffShiftService {
     return readShiftList(response);
   }
 
+  /** One staff member's planned shifts in the range — backs the admin
+   *  Plan|Ist|Grund detail view (#1844). Uses the backend staff_id filter. */
+  async getShiftsForStaff(
+    staffId: string,
+    from: string,
+    to: string,
+  ): Promise<StaffShift[]> {
+    const response = await sessionFetch(
+      `/api/staff/shifts?staff_id=${staffId}&from=${from}&to=${to}`,
+    );
+    return readShiftList(response);
+  }
+
   async getOverview(from: string, to: string): Promise<StaffScheduleOverview> {
     const response = await sessionFetch(
       `/api/staff/shifts/overview?from=${from}&to=${to}`,
@@ -366,12 +382,36 @@ class StaffShiftSeriesService {
   }
 }
 
+async function readAssignmentList(
+  response: Response,
+): Promise<OwnAssignment[]> {
+  if (!response.ok) {
+    throw await readShiftError(
+      response,
+      "Einsätze konnten nicht geladen werden",
+    );
+  }
+  const json = (await response.json()) as {
+    data: BackendOwnAssignment[] | null;
+  };
+  return (json.data ?? []).map(mapOwnAssignment);
+}
+
 class OwnShiftService {
   async getOwnShifts(from: string, to: string): Promise<StaffShift[]> {
     const response = await sessionFetch(
       `/api/time-tracking/shifts?from=${from}&to=${to}`,
     );
     return readShiftList(response);
+  }
+
+  /** The staff member's own Betreuungsplan blocks (Ort/Aufgabe + Vertretungen)
+   *  for the range — "Mein Tag" (#1844). */
+  async getOwnAssignments(from: string, to: string): Promise<OwnAssignment[]> {
+    const response = await sessionFetch(
+      `/api/time-tracking/assignments?from=${from}&to=${to}`,
+    );
+    return readAssignmentList(response);
   }
 }
 

@@ -981,6 +981,37 @@ describe("useGlobalSSE", () => {
       expect(matcher("tenant:supervision-visits-1")).toBe(false);
     });
 
+    it("invalidates timetable + own-assignment caches on staffing_deviation_changed", () => {
+      renderHook(() => useGlobalSSE());
+
+      const onMessage = vi.mocked(useSSE).mock.calls[0]?.[1]?.onMessage;
+
+      onMessage?.({
+        type: "staffing_deviation_changed",
+        active_group_id: "",
+        data: { source: "deviations" },
+        timestamp: new Date().toISOString(),
+      });
+
+      vi.advanceTimersByTime(500);
+
+      const mutateCalls = vi.mocked(mutate).mock.calls;
+      const timetableCall = mutateCalls.find((call) => {
+        const matcher = call[0];
+        return (
+          typeof matcher === "function" &&
+          (matcher as (key: string) => boolean)("tenant:timetable-week")
+        );
+      });
+      expect(timetableCall).toBeDefined();
+
+      const matcher = timetableCall![0] as (key: string) => boolean;
+      expect(
+        matcher("tenant:time-tracking-own-assignments-today-2026-07-14"),
+      ).toBe(true);
+      expect(matcher("tenant:supervision-visits-1")).toBe(false);
+    });
+
     it("handles mutate rejection in timetable scope gracefully", async () => {
       vi.mocked(mutate).mockRejectedValue(new Error("SWR error"));
       const consoleSpy = vi

@@ -257,6 +257,9 @@ func (r *autoStartInstanceRepo) FindByActivityGroupAndDateRange(context.Context,
 func (r *autoStartInstanceRepo) FindByActiveGroupID(context.Context, int64) (*scheduleModel.ActivityInstance, error) {
 	return nil, nil
 }
+func (r *autoStartInstanceRepo) FindByIDs(context.Context, []int64) ([]*scheduleModel.ActivityInstance, error) {
+	return nil, nil
+}
 func (r *autoStartInstanceRepo) MarkCompleted(context.Context, int64, time.Time) error {
 	return nil
 }
@@ -285,6 +288,9 @@ func (r *autoStartStaffRepo) FindByInstanceID(context.Context, int64) ([]*schedu
 	return nil, nil
 }
 func (r *autoStartStaffRepo) FindByStaffAndDate(context.Context, int64, timezone.Date) ([]*scheduleModel.InstanceStaff, error) {
+	return nil, nil
+}
+func (r *autoStartStaffRepo) FindByStaffAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*scheduleModel.InstanceStaff, error) {
 	return nil, nil
 }
 func (r *autoStartStaffRepo) FindByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStaff, error) {
