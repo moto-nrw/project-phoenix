@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useSWRConfig } from "swr";
 import { Thermometer, Trash2 } from "lucide-react";
 
@@ -171,6 +177,17 @@ function historicalAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
     .sort((left, right) => (left.date_start < right.date_start ? 1 : -1));
 }
 
+function TabLoadingBoundary({
+  loading,
+  children,
+}: {
+  readonly loading: boolean;
+  readonly children: ReactNode;
+}) {
+  if (loading) return <Loading fullPage={false} />;
+  return children;
+}
+
 export function AbwesenheitenTab({
   staffId,
   canEdit,
@@ -214,7 +231,7 @@ export function AbwesenheitenTab({
     "vertretungsplan-gaps-",
   ]);
 
-  // silent skips the loading flag: the loading early-return unmounts the
+  // silent skips the loading flag: the loading boundary unmounts the
   // whole tab subtree including any open modal, which would wipe the
   // SickReportModal's success state right after a report (#1843).
   const reload = useCallback(
@@ -296,11 +313,7 @@ export function AbwesenheitenTab({
     }
   };
 
-  if (loading) {
-    return <Loading fullPage={false} />;
-  }
-
-  return (
+  const content = (
     <div className="space-y-5">
       {/* Quota KPI cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -482,6 +495,8 @@ export function AbwesenheitenTab({
       )}
     </div>
   );
+
+  return <TabLoadingBoundary loading={loading}>{content}</TabLoadingBoundary>;
 }
 
 function PendingAbsences({
