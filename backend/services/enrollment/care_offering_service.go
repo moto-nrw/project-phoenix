@@ -7,9 +7,11 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleService "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -94,6 +96,9 @@ type CareOfferingServiceConfig struct {
 	TimeframeRepo            scheduleModels.TimeframeRepository
 	ActivityExceptionRepo    scheduleModels.ActivityExceptionRepository
 	PhaseRepo                enrollmentModels.PhaseRepository
+	Settings                 interface {
+		ResolveInt(context.Context, string) (int, error)
+	}
 	// LockTemplateRecurrence serializes link validation/writes with template
 	// split/end. Production wires the schedule service's transaction-scoped
 	// tenant recurrence gate; focused service tests may leave it nil.
@@ -114,21 +119,24 @@ func NewCareOfferingService(cfg CareOfferingServiceConfig) CareOfferingService {
 }
 
 func (s *careOfferingService) List(ctx context.Context) ([]*enrollmentModels.CareOffering, error) {
-	return s.Repo.ListByTenant(ctx)
+	offerings, err := s.Repo.ListByTenant(ctx)
+	return s.validateLoadedAvailabilityRules(offerings, err)
 }
 
 func (s *careOfferingService) ListByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
 	if phaseID <= 0 {
 		return nil, careOfferingInvalidf("phase_id must be positive")
 	}
-	return s.Repo.ListByPhase(ctx, phaseID)
+	offerings, err := s.Repo.ListByPhase(ctx, phaseID)
+	return s.validateLoadedAvailabilityRules(offerings, err)
 }
 
 func (s *careOfferingService) ListActiveByPhase(ctx context.Context, phaseID int64) ([]*enrollmentModels.CareOffering, error) {
 	if phaseID <= 0 {
 		return nil, careOfferingInvalidf("phase_id must be positive")
 	}
-	return s.Repo.ListActiveByPhase(ctx, phaseID)
+	offerings, err := s.Repo.ListActiveByPhase(ctx, phaseID)
+	return s.validateLoadedAvailabilityRules(offerings, err)
 }
 
 func (s *careOfferingService) GetByID(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {
@@ -142,7 +150,50 @@ func (s *careOfferingService) GetByID(ctx context.Context, id int64) (*enrollmen
 		}
 		return nil, fmt.Errorf("load care offering: %w", err)
 	}
+	if offering.AvailabilityRule != nil {
+		if err := offering.AvailabilityRule.NormalizeAndValidate(); err != nil {
+			return nil, fmt.Errorf("care offering %d has an invalid persisted availability rule: %w", offering.ID, err)
+		}
+	}
 	return offering, nil
+}
+
+func (s *careOfferingService) validateLoadedAvailabilityRules(offerings []*enrollmentModels.CareOffering, loadErr error) ([]*enrollmentModels.CareOffering, error) {
+	if loadErr != nil {
+		return nil, loadErr
+	}
+	for _, offering := range offerings {
+		if offering.AvailabilityRule != nil {
+			if err := offering.AvailabilityRule.NormalizeAndValidate(); err != nil {
+				return nil, fmt.Errorf("care offering %d has an invalid persisted availability rule: %w", offering.ID, err)
+			}
+		}
+	}
+	return offerings, nil
+}
+
+func (s *careOfferingService) validateAvailabilityRule(ctx context.Context, offering *enrollmentModels.CareOffering) error {
+	if offering.AvailabilityRule == nil || len(offering.AvailabilityRule.Conditions) == 0 {
+		return nil
+	}
+	if s.Settings == nil {
+		return fmt.Errorf("care offering availability validation requires settings service")
+	}
+	gradeMax, err := s.Settings.ResolveInt(ctx, configModels.KeyEnrollmentGradeLevelMax)
+	if err != nil {
+		return fmt.Errorf("resolve tenant grade range: %w", err)
+	}
+	if gradeMax < schoolclass.MinGradeLevel || gradeMax > schoolclass.MaxGradeLevel {
+		return fmt.Errorf("tenant grade range is invalid: maximum %d", gradeMax)
+	}
+	for i, condition := range offering.AvailabilityRule.Conditions {
+		for _, grade := range condition.Value {
+			if grade > gradeMax {
+				return careOfferingInvalidf("availability_rule condition %d contains grade %d outside tenant range 1-%d", i+1, grade, gradeMax)
+			}
+		}
+	}
+	return nil
 }
 
 func careOfferingInvalidf(format string, args ...any) error {
@@ -821,6 +872,9 @@ func (s *careOfferingService) Create(ctx context.Context, offering *enrollmentMo
 	if err := offering.Validate(); err != nil {
 		return nil, wrapCareOfferingInvalid(err, "validate care offering")
 	}
+	if err := s.validateAvailabilityRule(ctx, offering); err != nil {
+		return nil, err
+	}
 	if err := s.lockTemplateRecurrence(ctx); err != nil {
 		return nil, err
 	}
@@ -851,6 +905,9 @@ func (s *careOfferingService) Update(ctx context.Context, offering *enrollmentMo
 	}
 	if err := offering.Validate(); err != nil {
 		return wrapCareOfferingInvalid(err, "validate care offering")
+	}
+	if err := s.validateAvailabilityRule(ctx, offering); err != nil {
+		return err
 	}
 	if err := s.lockTemplateRecurrence(ctx); err != nil {
 		return err
@@ -915,6 +972,9 @@ func (s *careOfferingService) Clone(ctx context.Context, sourceID int64, targetP
 		clone.ActivityGroupID = nil
 	}
 	clone.AutoAddTriggerOfferingIDs = nil
+	if err := s.validateAvailabilityRule(ctx, &clone); err != nil {
+		return nil, fmt.Errorf("clone: validate availability rule: %w", err)
+	}
 	if err := s.validateLinkedTemplate(ctx, &clone); err != nil {
 		return nil, fmt.Errorf("clone: validate linked template: %w", err)
 	}

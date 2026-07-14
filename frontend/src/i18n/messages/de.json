@@ -635,7 +635,8 @@
       "lunch": "inkl. Mittagessen",
       "ruleExactlyOne": "Bitte genau eines wählen",
       "ruleAtLeastOne": "Bitte mindestens eines wählen",
-      "ruleAtMostOne": "Höchstens eines"
+      "ruleAtMostOne": "Höchstens eines",
+      "availabilitySelectionRemoved": "Durch die geänderte Klassenstufe sind Betreuungsangebote nicht mehr verfügbar. Die zugehörige Auswahl, Betreuungstage und automatische Mitbuchungen wurden entfernt."
     },
     "consent": {
       "agb": "Ich akzeptiere die AGB der Schule.",

@@ -5,6 +5,7 @@ import type {
   PublicFormSchema,
   PublicLegalTexts,
 } from "~/lib/enrollment-form-schema-api";
+import type { CareOfferingAvailabilityRule } from "~/lib/care-offering-api";
 
 const logger = createLogger({ component: "EnrollmentSubmissionAPI" });
 
@@ -26,6 +27,7 @@ export interface PublicCareOffering {
   is_required: boolean;
   counts_as_care?: boolean;
   auto_add_grade_levels?: number[];
+  availability_rule?: CareOfferingAvailabilityRule | null;
   auto_add_trigger_offering_ids?: string[];
   /**
    * Offerings sharing a non-empty selection_group are constrained

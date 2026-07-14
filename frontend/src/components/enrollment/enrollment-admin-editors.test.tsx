@@ -428,6 +428,70 @@ describe("CareOfferingsEditor", () => {
     });
   });
 
+  it("edits availability rules without JSON and blocks incomplete rules", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([]);
+    mocks.createCareOffering.mockResolvedValue(
+      offering({ id: "new", name: "Randstunde" }),
+    );
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Erstes Betreuungsangebot anlegen",
+      }),
+    );
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+      }),
+    ).not.toBeChecked();
+    fireEvent.change(await waitForInputByName("name"), {
+      target: { value: "Randstunde" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+      }),
+    );
+
+    expect(
+      screen.getByText("Bedingung 1: Wähle mindestens eine Klassenstufe."),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Erstellen" })).toBeDisabled();
+    const availabilityFields = within(
+      screen.getByRole("group", {
+        name: "Bedingungen für die Verfügbarkeit",
+      }),
+    );
+    fireEvent.click(
+      availabilityFields.getByRole("button", { name: "Klasse 1" }),
+    );
+    fireEvent.click(
+      availabilityFields.getByRole("button", { name: "Klasse 2" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    await waitFor(() => {
+      expect(mocks.createCareOffering).toHaveBeenCalledWith(
+        expect.objectContaining({
+          availability_rule: {
+            match: "all",
+            conditions: [
+              {
+                source: "grade_level",
+                operator: "in",
+                value: [1, 2],
+              },
+            ],
+          },
+        }),
+      );
+    });
+  });
+
   it("shows care-day counting and booking behavior in the offerings list", async () => {
     mocks.listPhases.mockResolvedValue([phase()]);
     mocks.listCareOfferings.mockResolvedValue([

@@ -440,6 +440,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		TimeframeRepo:            repos.Timeframe,
 		ActivityExceptionRepo:    repos.ActivityException,
 		PhaseRepo:                repos.Phase,
+		Settings:                 settingsService,
 		LockTemplateRecurrence: func(ctx context.Context) error {
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},

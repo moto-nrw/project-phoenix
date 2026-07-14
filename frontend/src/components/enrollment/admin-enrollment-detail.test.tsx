@@ -306,6 +306,73 @@ describe("ChildOfferingAdjustment", () => {
     });
   });
 
+  it("removes a selected offering that is unavailable for the child's grade", async () => {
+    mocks.listCareOfferings.mockResolvedValue([
+      {
+        id: "grade-1-only",
+        phase_id: "phase-1",
+        name: "Randstunde",
+        days_of_week_mode: "fixed",
+        available_days: ["mon"],
+        includes_holiday_care: false,
+        includes_lunch: false,
+        is_active: true,
+        is_required: false,
+        sort_order: 1,
+        availability_rule: {
+          match: "all",
+          conditions: [{ source: "grade_level", operator: "in", value: [1] }],
+        },
+        created_at: "2026-06-18T11:15:00Z",
+        updated_at: "2026-06-18T11:15:00Z",
+      },
+    ]);
+    mocks.updateAdminChildOfferings.mockResolvedValue({});
+
+    render(
+      <ChildOfferingAdjustment
+        requestId="request-1"
+        phaseId="phase-1"
+        onSaved={vi.fn()}
+        child={{
+          id: "child-1",
+          first_name: "Lina",
+          last_name: "Kind",
+          date_of_birth: "2018-01-01",
+          target_grade_level: 3,
+          status: "approved",
+          activation_mode: "scheduled",
+          offerings: [
+            {
+              offering_id: "grade-1-only",
+              offering_name: "Randstunde",
+              days_of_week_mode: "fixed",
+              selected_days: ["mon"],
+              manual_selected_days: ["mon"],
+              available_days: ["mon"],
+            },
+          ],
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bearbeiten" }));
+    await waitFor(() => expect(mocks.listCareOfferings).toHaveBeenCalled());
+    expect(screen.queryByText("Randstunde")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Nicht für Klassenstufe 3 verfügbar" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() => {
+      expect(mocks.updateAdminChildOfferings).toHaveBeenCalledWith(
+        "request-1",
+        "child-1",
+        expect.objectContaining({ offerings: [] }),
+      );
+    });
+  });
+
   it("blocks saving when the care-offering catalog failed to load", async () => {
     mocks.listCareOfferings.mockRejectedValue(new Error("Katalog kaputt"));
 

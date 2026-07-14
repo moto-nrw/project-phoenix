@@ -461,6 +461,48 @@ describe("EnrollmentForm", () => {
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 
+  it("shows offerings per child grade and clears an invalid selection after a grade change", async () => {
+    const conditional: PublicCareOffering = {
+      ...offerings()[1]!,
+      id: "99",
+      name: "Randstunde Klasse 1 und 2",
+      availability_rule: {
+        match: "all",
+        conditions: [{ source: "grade_level", operator: "in", value: [1, 2] }],
+      },
+    };
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [offerings()[0]!, conditional],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm();
+    await waitForLoaded();
+
+    expect(
+      screen.queryByText("Randstunde Klasse 1 und 2"),
+    ).not.toBeInTheDocument();
+    await chooseOption("Klassenstufe *", "2. Klasse");
+    expect(screen.getByText("Randstunde Klasse 1 und 2")).toBeInTheDocument();
+
+    fireEvent.click(
+      document.querySelector('input[name="children_0_offering_99"]')!,
+    );
+    await chooseOption("Klassenstufe *", "3. Klasse");
+
+    expect(
+      screen.queryByText("Randstunde Klasse 1 und 2"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /zugehörige Auswahl, Betreuungstage und automatische Mitbuchungen wurden entfernt/,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("hides grade and care offerings when the tenant disables both", async () => {
     mockFetchPublicCareOfferings.mockResolvedValue({
       offerings: offerings(),
@@ -1756,6 +1798,50 @@ describe("EnrollmentForm", () => {
     expect((lastNames[1] as HTMLInputElement).value).toBe("Alster");
     expect((firstNames[2] as HTMLInputElement).value).toBe("Berta");
     expect((lastNames[2] as HTMLInputElement).value).toBe("Bach");
+  });
+
+  it("adds a conditional required offering when hydrating an edit draft", async () => {
+    const submitter = vi.fn().mockResolvedValue({ status_url: "/status/edit" });
+    const noFieldSchema = schema();
+    noFieldSchema.fields = [];
+    const conditionalRequired: PublicCareOffering = {
+      ...offerings()[0]!,
+      id: "99",
+      name: "Pflicht-Randstunde",
+      days_of_week_mode: "fixed",
+      available_days: ["mon"],
+      is_required: true,
+      availability_rule: {
+        match: "all",
+        conditions: [{ source: "grade_level", operator: "in", value: [1, 2] }],
+      },
+    };
+    mockFetchPublicActiveSchema.mockResolvedValueOnce(noFieldSchema);
+    mockFetchPublicLegalTexts.mockResolvedValueOnce(legalTexts([]));
+    mockFetchPublicCareOfferings.mockResolvedValueOnce({
+      offerings: [offerings()[1]!, conditionalRequired],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+
+    renderForm({
+      submitter,
+      skipCaptcha: true,
+      initialDraft: editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      ]),
+    });
+    await waitForLoaded();
+
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+
+    await waitFor(() => expect(submitter).toHaveBeenCalledOnce());
+    const payload = submitter.mock.calls[0]![0] as SubmitEnrollmentPayload;
+    expect(payload.children[0]!.offering_ids).toEqual(
+      expect.arrayContaining([12, 99]),
+    );
   });
 
   it("does not turn automatic-only edit-draft offerings into manual selections", async () => {

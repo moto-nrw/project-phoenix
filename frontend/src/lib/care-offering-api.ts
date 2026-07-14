@@ -5,15 +5,24 @@ const logger = createLogger({ component: "CareOfferingAPI" });
 
 export type DaysOfWeekMode = "fixed" | "parent_choice";
 
+type CareOfferingAvailabilityMatch = "all" | "any";
+type CareOfferingAvailabilityOperator = "in" | "not_in";
+export interface CareOfferingAvailabilityCondition {
+  source: "grade_level";
+  operator: CareOfferingAvailabilityOperator;
+  value: number[];
+}
+export interface CareOfferingAvailabilityRule {
+  match: CareOfferingAvailabilityMatch;
+  conditions: CareOfferingAvailabilityCondition[];
+}
+
 /**
  * How many offerings within the same selection_group a parent must pick.
  * Mirrors the backend SelectionRule* constants.
  */
 export type CareSelectionRule =
-  | "optional"
-  | "exactly_one"
-  | "at_least_one"
-  | "at_most_one";
+  "optional" | "exactly_one" | "at_least_one" | "at_most_one";
 
 /** German labels for the selection-rule dropdown in the admin editor. */
 export const SELECTION_RULE_LABELS: Record<CareSelectionRule, string> = {
@@ -39,6 +48,7 @@ export interface CareOffering {
   is_required: boolean;
   counts_as_care?: boolean;
   auto_add_grade_levels?: number[];
+  availability_rule?: CareOfferingAvailabilityRule | null;
   auto_add_trigger_offering_ids?: string[];
   sort_order: number;
   selection_group?: string | null;
@@ -64,6 +74,7 @@ export interface CareOfferingInput {
   is_required: boolean;
   counts_as_care: boolean;
   auto_add_grade_levels: number[];
+  availability_rule?: CareOfferingAvailabilityRule | null;
   auto_add_trigger_offering_ids: string[];
   sort_order: number;
   selection_group?: string | null;
