@@ -17,7 +17,7 @@ export function AdminChildDataCorrection({
 }: Readonly<{
   child: AdminRequestChild;
   requestId: string;
-  onSaved: () => void;
+  onSaved: (correctedChild: AdminRequestChild) => void;
 }>) {
   const [open, setOpen] = useState(false);
   const [firstName, setFirstName] = useState(child.first_name);
@@ -37,6 +37,17 @@ export function AdminChildDataCorrection({
     if (!saving) setOpen(false);
   };
 
+  const openCorrection = () => {
+    setFirstName(child.first_name);
+    setLastName(child.last_name);
+    setDateOfBirth(child.date_of_birth);
+    setGrade(child.target_grade_level?.toString() ?? "");
+    setSchoolClass(child.target_school_class ?? "");
+    setReason("");
+    setError(null);
+    setOpen(true);
+  };
+
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     const parsedGrade = grade === "" ? undefined : Number(grade);
@@ -51,16 +62,31 @@ export function AdminChildDataCorrection({
     setSaving(true);
     setError(null);
     try {
-      await correctAdminChildData(requestId, child.id, {
+      const correction = {
         first_name: firstName.trim(),
         last_name: lastName.trim(),
         date_of_birth: dateOfBirth,
         target_grade_level: parsedGrade,
         target_school_class: schoolClass.trim() || undefined,
         reason: reason.trim(),
-      });
+      };
+      const result = await correctAdminChildData(
+        requestId,
+        child.id,
+        correction,
+      );
+      const correctedChild = result.request.children.find(
+        (candidate) => candidate.id === child.id,
+      ) ?? {
+        ...child,
+        first_name: correction.first_name,
+        last_name: correction.last_name,
+        date_of_birth: correction.date_of_birth,
+        target_grade_level: correction.target_grade_level,
+        target_school_class: correction.target_school_class,
+      };
       setOpen(false);
-      onSaved();
+      onSaved(correctedChild);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unbekannter Fehler");
     } finally {
@@ -74,7 +100,7 @@ export function AdminChildDataCorrection({
         type="button"
         variant="outline"
         size="md"
-        onClick={() => setOpen(true)}
+        onClick={openCorrection}
       >
         <Pencil className="mr-2 h-4 w-4" aria-hidden="true" />
         Anmeldedaten korrigieren

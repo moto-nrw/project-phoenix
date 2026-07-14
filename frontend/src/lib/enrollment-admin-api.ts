@@ -100,6 +100,10 @@ export interface AdminEnrollmentChangeRequest {
   messages?: AdminEnrollmentChangeRequestMessage[];
 }
 
+export interface AdminChildDataCorrectionResult extends AdminEnrollmentChangeRequest {
+  request: AdminRequestSummary;
+}
+
 export interface UpdateAdminChildOfferingsInput {
   offerings: Array<{ offering_id: string; selected_days?: string[] }>;
   reason: string;
@@ -446,7 +450,7 @@ export async function correctAdminChildData(
   requestId: string,
   childId: string,
   input: CorrectAdminChildDataInput,
-): Promise<AdminEnrollmentChangeRequest> {
+): Promise<AdminChildDataCorrectionResult> {
   const response = await fetch(`/api/enrollment/admin/data-correction`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
@@ -462,7 +466,7 @@ export async function correctAdminChildData(
       "Anmeldedaten konnten nicht korrigiert werden",
     );
   }
-  return readJSON<AdminEnrollmentChangeRequest>(response);
+  return readJSON<AdminChildDataCorrectionResult>(response);
 }
 
 export async function listAdminChildOfferingAdjustments(

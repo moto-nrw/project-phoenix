@@ -124,6 +124,24 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     }
   }, [requestId]);
 
+  const handleDataCorrected = useCallback(
+    (correctedChild: AdminRequestChild) => {
+      setData((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          children: current.children.map((existingChild) =>
+            existingChild.id === correctedChild.id
+              ? { ...existingChild, ...correctedChild }
+              : existingChild,
+          ),
+        };
+      });
+      void load();
+    },
+    [load],
+  );
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -250,7 +268,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   }
                   onDecide={(status) => void handleDecide(child.id, status)}
                   onOfferingsChanged={() => void load()}
-                  onDataCorrected={() => void load()}
+                  onDataCorrected={handleDataCorrected}
                 />
               ))}
             </section>
@@ -403,7 +421,7 @@ function ChildInformationCard({
   requestId: string;
   phaseId: string;
   onDecide: (status: DecisionStatus) => void;
-  onDataCorrected: () => void;
+  onDataCorrected: (correctedChild: AdminRequestChild) => void;
   onOfferingsChanged: () => void;
   onReasonChange: (value: string) => void;
   reason: string;

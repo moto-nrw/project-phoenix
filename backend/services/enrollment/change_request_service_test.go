@@ -814,6 +814,114 @@ func TestChangeRequestService_CorrectApprovedChildData_UpdatesEnrollmentStudentA
 	assert.Equal(t, correctedDOB, *person.Birthday)
 }
 
+func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTargetsWhenCollectionIsDisabled(t *testing.T) {
+	env, cleanup := setupDecisionTest(t)
+	defer cleanup()
+	ctx := testpkg.TenantContext(1)
+
+	env.settings.boolValues[configModel.KeyEnrollmentCollectSchoolClass] = true
+	env.sourcePhase.AvailableSchoolClasses = []string{"2a", "2b", "3a"}
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+
+	gradeTwo := int16(2)
+	targetClass := "2a"
+	result, err := env.requestSvc.Submit(ctx, enrollmentService.SubmitRequest{
+		TenantID:          1,
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Mara",
+		GuardianLastName:  "Historie",
+		GuardianEmail:     "admin-historical-correction@example.com",
+		ConsentFlags: map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		},
+		Children: []enrollmentService.SubmitChild{{
+			FirstName:         "Lina",
+			LastName:          "Alt",
+			DateOfBirth:       timezone.NewDate(2018, 4, 15),
+			TargetGradeLevel:  &gradeTwo,
+			TargetSchoolClass: &targetClass,
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Children, 1)
+	outcome, err := env.decision.Decide(ctx, enrollmentService.DecideInput{
+		RequestID:  result.Request.ID,
+		ChildID:    result.Children[0].ID,
+		Status:     enrollmentService.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	// These current rules no longer describe the historical submission. An
+	// unrelated correction must neither revalidate nor erase its target data.
+	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
+	env.settings.boolValues[configModel.KeyEnrollmentCollectSchoolClass] = false
+	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 1
+	env.sourcePhase.AvailableSchoolClasses = []string{"3a"}
+	require.NoError(t, env.repos.Phase.Update(ctx, env.sourcePhase))
+
+	svc := newChangeRequestServiceWithDecisionForTest(t, env)
+	correct := func(input enrollmentService.CorrectApprovedChildDataInput) error {
+		return tenant.WithTenantTx(ctx, env.db, 1, func(txCtx context.Context, _ bun.Tx) error {
+			_, correctionErr := svc.CorrectApprovedChildData(txCtx, input)
+			return correctionErr
+		})
+	}
+	baseInput := enrollmentService.CorrectApprovedChildDataInput{
+		RequestID:         result.Request.ID,
+		ChildID:           result.Children[0].ID,
+		FirstName:         "Lina",
+		LastName:          "Richtig",
+		DateOfBirth:       timezone.NewDate(2018, 4, 15),
+		TargetGradeLevel:  &gradeTwo,
+		TargetSchoolClass: &targetClass,
+		Reason:            "Nachname berichtigt",
+		ActorAccountID:    env.creatorID,
+	}
+	require.NoError(t, correct(baseInput))
+
+	gradeThree := int16(3)
+	changedGrade := baseInput
+	changedGrade.TargetGradeLevel = &gradeThree
+	changedGrade.Reason = "Klassenstufe ändern"
+	require.ErrorIs(t, correct(changedGrade), enrollmentService.ErrChangeRequestInvalidData)
+
+	changedClassValue := "2b"
+	changedClass := baseInput
+	changedClass.TargetSchoolClass = &changedClassValue
+	changedClass.Reason = "Zielklasse ändern"
+	require.ErrorIs(t, correct(changedClass), enrollmentService.ErrChangeRequestInvalidData)
+
+	child, err := env.repos.RequestChild.FindByID(ctx, result.Children[0].ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Richtig", child.LastName)
+	require.NotNil(t, child.TargetGradeLevel)
+	assert.Equal(t, gradeTwo, *child.TargetGradeLevel)
+	require.NotNil(t, child.TargetSchoolClass)
+	assert.Equal(t, targetClass, *child.TargetSchoolClass)
+
+	student, err := env.repos.Student.FindByID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	assert.Equal(t, targetClass, student.SchoolClass)
+	person, err := env.repos.Person.FindByID(ctx, student.PersonID)
+	require.NoError(t, err)
+	assert.Equal(t, "Richtig", person.LastName)
+
+	changeRequests, err := env.repos.ChangeRequest.ListByRequestID(ctx, result.Request.ID)
+	require.NoError(t, err)
+	adminAudits := 0
+	for _, changeRequest := range changeRequests {
+		if changeRequest.Origin == enrollmentModels.ChangeRequestOriginAdmin {
+			adminAudits++
+		}
+	}
+	assert.Equal(t, 1, adminAudits, "rejected corrections must not create audit rows")
+}
+
 func TestChangeRequestService_Create_RejectsInactiveOfferingOnlyCurrentForAnotherChild(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()

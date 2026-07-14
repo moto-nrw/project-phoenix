@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -289,11 +290,9 @@ func (s *changeRequestService) GetAdmin(ctx context.Context, changeRequestID int
 // applies the existing enrollment-to-student projection. Offerings, consents,
 // guardians, and all other submission data deliberately remain untouched.
 func (s *changeRequestService) CorrectApprovedChildData(ctx context.Context, input CorrectApprovedChildDataInput) (*ChangeRequestAggregate, error) {
-	firstName := strings.TrimSpace(input.FirstName)
-	lastName := strings.TrimSpace(input.LastName)
-	reason := strings.TrimSpace(input.Reason)
-	if input.RequestID <= 0 || input.ChildID <= 0 || input.ActorAccountID <= 0 || firstName == "" || lastName == "" || input.DateOfBirth.IsZero() || reason == "" {
-		return nil, fmt.Errorf("%w: request, child, actor, child data, and reason are required", ErrChangeRequestInvalidData)
+	firstName, lastName, reason, err := validateAdminCorrectionInput(input)
+	if err != nil {
+		return nil, err
 	}
 
 	req, err := s.RequestRepo.FindByIDForUpdate(ctx, input.RequestID)
@@ -304,55 +303,26 @@ func (s *changeRequestService) CorrectApprovedChildData(ctx context.Context, inp
 	if err != nil {
 		return nil, fmt.Errorf("admin data correction: lock children: %w", err)
 	}
-	var child *enrollmentModels.RequestChild
-	for _, candidate := range children {
-		if candidate != nil && candidate.ID == input.ChildID {
-			child = candidate
-			break
-		}
-	}
+	child := requestChildByID(children, input.ChildID)
 	if child == nil {
 		return nil, ErrChangeRequestNotFound
 	}
-	if child.Status != enrollmentModels.ChildStatusApproved || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 || s.DecisionService == nil {
-		return nil, fmt.Errorf("%w: only approved children with a linked student can be corrected", ErrChangeRequestNotAllowed)
-	}
-
-	phase, err := s.PhaseRepo.FindByID(ctx, req.PhaseID)
-	if err != nil || phase == nil {
-		return nil, fmt.Errorf("admin data correction: load phase: %w", err)
-	}
-	rs := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}
-	gradeMax, err := rs.resolveGradeMax(ctx)
-	if err != nil {
+	if err := validateAdminCorrectionChild(child, s.DecisionService); err != nil {
 		return nil, err
 	}
-	if s.Settings == nil {
-		return nil, errors.New("admin data correction: enrollment settings resolver is not configured")
-	}
-	collectGradeLevel, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+
+	targetGradeLevel, targetSchoolClass, err := s.prepareAdminCorrectionTargets(ctx, req, child, input)
 	if err != nil {
-		return nil, fmt.Errorf("admin data correction: resolve %s: %w", configModel.KeyEnrollmentCollectGradeLevel, err)
-	}
-	if collectGradeLevel && input.TargetGradeLevel == nil {
-		return nil, fmt.Errorf("%w: target_grade_level is required", ErrChangeRequestInvalidData)
-	}
-	if input.TargetGradeLevel != nil && (*input.TargetGradeLevel < 1 || int(*input.TargetGradeLevel) > gradeMax) {
-		return nil, fmt.Errorf("%w: target_grade_level must be between 1 and %d", ErrChangeRequestInvalidData, gradeMax)
+		return nil, err
 	}
 	corrected := SubmitChild{
 		ID:                child.ID,
 		FirstName:         firstName,
 		LastName:          lastName,
 		DateOfBirth:       input.DateOfBirth,
-		TargetGradeLevel:  input.TargetGradeLevel,
-		TargetSchoolClass: input.TargetSchoolClass,
+		TargetGradeLevel:  targetGradeLevel,
+		TargetSchoolClass: targetSchoolClass,
 	}
-	correctedChildren := []SubmitChild{corrected}
-	if err := rs.validateAndNormalizeSchoolClasses(ctx, phase, correctedChildren); err != nil {
-		return nil, err
-	}
-	corrected = correctedChildren[0]
 
 	baseSnapshot, err := s.currentSnapshot(ctx, req, children)
 	if err != nil {
@@ -396,6 +366,158 @@ func (s *changeRequestService) CorrectApprovedChildData(ctx context.Context, inp
 		return nil, fmt.Errorf("admin data correction: create audit entry: %w", err)
 	}
 	return s.aggregateFromRow(ctx, row, true)
+}
+
+func validateAdminCorrectionInput(input CorrectApprovedChildDataInput) (string, string, string, error) {
+	firstName := strings.TrimSpace(input.FirstName)
+	lastName := strings.TrimSpace(input.LastName)
+	reason := strings.TrimSpace(input.Reason)
+	if input.RequestID <= 0 || input.ChildID <= 0 || input.ActorAccountID <= 0 || firstName == "" || lastName == "" || input.DateOfBirth.IsZero() || reason == "" {
+		return "", "", "", fmt.Errorf("%w: request, child, actor, child data, and reason are required", ErrChangeRequestInvalidData)
+	}
+	return firstName, lastName, reason, nil
+}
+
+func requestChildByID(children []*enrollmentModels.RequestChild, childID int64) *enrollmentModels.RequestChild {
+	for _, child := range children {
+		if child != nil && child.ID == childID {
+			return child
+		}
+	}
+	return nil
+}
+
+func validateAdminCorrectionChild(child *enrollmentModels.RequestChild, decisionService ChangeRequestDecisionApplier) error {
+	if child.Status != enrollmentModels.ChildStatusApproved || child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 || decisionService == nil {
+		return fmt.Errorf("%w: only approved children with a linked student can be corrected", ErrChangeRequestNotAllowed)
+	}
+	return nil
+}
+
+func (s *changeRequestService) prepareAdminCorrectionTargets(
+	ctx context.Context,
+	req *enrollmentModels.Request,
+	child *enrollmentModels.RequestChild,
+	input CorrectApprovedChildDataInput,
+) (*int16, *string, error) {
+	normalizedSchoolClass := normalizedOptionalString(input.TargetSchoolClass)
+	gradeChanged := !sameOptionalInt16(child.TargetGradeLevel, input.TargetGradeLevel)
+	classChanged := !sameOptionalString(child.TargetSchoolClass, normalizedSchoolClass)
+	if !gradeChanged && !classChanged {
+		return child.TargetGradeLevel, child.TargetSchoolClass, nil
+	}
+
+	collectGradeLevel, collectSchoolClass, err := s.adminCorrectionCapabilities(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	if err := validateAdminCorrectionTargetPermissions(gradeChanged, classChanged, collectGradeLevel, collectSchoolClass); err != nil {
+		return nil, nil, err
+	}
+
+	targetGradeLevel, targetSchoolClass, err := s.changedAdminCorrectionTargets(ctx, child, input, normalizedSchoolClass, gradeChanged, classChanged)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	corrected := SubmitChild{TargetGradeLevel: targetGradeLevel, TargetSchoolClass: targetSchoolClass}
+	if collectGradeLevel && collectSchoolClass {
+		return s.validateAdminCorrectionSchoolClass(ctx, req.PhaseID, corrected)
+	}
+	if err := validatePreservedSchoolClassGrade(gradeChanged, targetGradeLevel, targetSchoolClass); err != nil {
+		return nil, nil, err
+	}
+	return targetGradeLevel, targetSchoolClass, nil
+}
+
+func validateAdminCorrectionTargetPermissions(gradeChanged, classChanged, collectGradeLevel, collectSchoolClass bool) error {
+	if gradeChanged && !collectGradeLevel {
+		return fmt.Errorf("%w: target_grade_level cannot be changed while grade collection is disabled", ErrChangeRequestInvalidData)
+	}
+	if classChanged && (!collectGradeLevel || !collectSchoolClass) {
+		return fmt.Errorf("%w: target_school_class cannot be changed while school-class collection is disabled", ErrChangeRequestInvalidData)
+	}
+	return nil
+}
+
+func (s *changeRequestService) changedAdminCorrectionTargets(
+	ctx context.Context,
+	child *enrollmentModels.RequestChild,
+	input CorrectApprovedChildDataInput,
+	normalizedSchoolClass *string,
+	gradeChanged, classChanged bool,
+) (*int16, *string, error) {
+	targetGradeLevel := child.TargetGradeLevel
+	var err error
+	if gradeChanged {
+		targetGradeLevel, err = s.validateAdminCorrectionGrade(ctx, input.TargetGradeLevel)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+	targetSchoolClass := child.TargetSchoolClass
+	if classChanged {
+		targetSchoolClass = normalizedSchoolClass
+	}
+	return targetGradeLevel, targetSchoolClass, nil
+}
+
+func validatePreservedSchoolClassGrade(gradeChanged bool, targetGradeLevel *int16, targetSchoolClass *string) error {
+	if !gradeChanged {
+		return nil
+	}
+	class := trimmedOptionalString(targetSchoolClass)
+	grade := strconv.Itoa(int(*targetGradeLevel))
+	if prefix := schoolclass.GradePrefix(class); prefix != "" && prefix != grade {
+		return fmt.Errorf("%w: existing target_school_class %q does not match target grade %s", ErrChangeRequestInvalidData, class, grade)
+	}
+	return nil
+}
+
+func (s *changeRequestService) adminCorrectionCapabilities(ctx context.Context) (bool, bool, error) {
+	if s.Settings == nil {
+		return false, false, errors.New("admin data correction: enrollment settings resolver is not configured")
+	}
+	collectGradeLevel, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+	if err != nil {
+		return false, false, fmt.Errorf("admin data correction: resolve %s: %w", configModel.KeyEnrollmentCollectGradeLevel, err)
+	}
+	collectSchoolClass, err := s.Settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)
+	if err != nil {
+		return false, false, fmt.Errorf("admin data correction: resolve %s: %w", configModel.KeyEnrollmentCollectSchoolClass, err)
+	}
+	return collectGradeLevel, collectSchoolClass, nil
+}
+
+func (s *changeRequestService) validateAdminCorrectionGrade(ctx context.Context, grade *int16) (*int16, error) {
+	if grade == nil {
+		return nil, fmt.Errorf("%w: target_grade_level is required", ErrChangeRequestInvalidData)
+	}
+	rs := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}
+	gradeMax, err := rs.resolveGradeMax(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if *grade < 1 || int(*grade) > gradeMax {
+		return nil, fmt.Errorf("%w: target_grade_level must be between 1 and %d", ErrChangeRequestInvalidData, gradeMax)
+	}
+	return grade, nil
+}
+
+func (s *changeRequestService) validateAdminCorrectionSchoolClass(ctx context.Context, phaseID int64, child SubmitChild) (*int16, *string, error) {
+	phase, err := s.PhaseRepo.FindByID(ctx, phaseID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("admin data correction: load phase: %w", err)
+	}
+	if phase == nil {
+		return nil, nil, errors.New("admin data correction: phase not found")
+	}
+	children := []SubmitChild{child}
+	rs := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: s.Settings}}
+	if err := rs.validateAndNormalizeSchoolClasses(ctx, phase, children); err != nil {
+		return nil, nil, err
+	}
+	return children[0].TargetGradeLevel, children[0].TargetSchoolClass, nil
 }
 
 func (s *changeRequestService) AskQuestion(ctx context.Context, changeRequestID int64, input ChangeRequestMessageInput) (*ChangeRequestAggregate, error) {
@@ -1411,6 +1533,21 @@ func sameTrimmedString(left, right string) bool {
 
 func sameOptionalString(left, right *string) bool {
 	return trimmedOptionalString(left) == trimmedOptionalString(right)
+}
+
+func sameOptionalInt16(left, right *int16) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
+func normalizedOptionalString(value *string) *string {
+	trimmed := trimmedOptionalString(value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 func trimmedOptionalString(value *string) string {

@@ -18,22 +18,31 @@ describe("AdminChildDataCorrection", () => {
   });
 
   it("marks the reason as required and submits corrected enrollment data", async () => {
-    mocks.correctAdminChildData.mockResolvedValue({});
+    const initialChild = {
+      id: "child-1",
+      first_name: "Lina",
+      last_name: "Falsch",
+      date_of_birth: "2018-04-15",
+      target_grade_level: 1,
+      status: "approved" as const,
+      activation_mode: "scheduled",
+      created_student_id: "student-1",
+    };
+    const correctedChild = {
+      ...initialChild,
+      last_name: "Richtig",
+      date_of_birth: "2018-05-16",
+      target_grade_level: 2,
+    };
+    mocks.correctAdminChildData.mockResolvedValue({
+      request: { children: [correctedChild] },
+    });
     const onSaved = vi.fn();
-    render(
+    const { rerender } = render(
       <AdminChildDataCorrection
         requestId="request-1"
         onSaved={onSaved}
-        child={{
-          id: "child-1",
-          first_name: "Lina",
-          last_name: "Falsch",
-          date_of_birth: "2018-04-15",
-          target_grade_level: 1,
-          status: "approved",
-          activation_mode: "scheduled",
-          created_student_id: "student-1",
-        }}
+        child={initialChild}
       />,
     );
 
@@ -71,7 +80,23 @@ describe("AdminChildDataCorrection", () => {
           reason: "Nach Rücksprache korrigiert",
         },
       );
-      expect(onSaved).toHaveBeenCalledOnce();
+      expect(onSaved).toHaveBeenCalledWith(correctedChild);
     });
+
+    rerender(
+      <AdminChildDataCorrection
+        requestId="request-1"
+        onSaved={onSaved}
+        child={correctedChild}
+      />,
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anmeldedaten korrigieren" }),
+    );
+
+    expect(screen.getByLabelText("Nachname")).toHaveValue("Richtig");
+    expect(screen.getByLabelText("Geburtsdatum")).toHaveValue("2018-05-16");
+    expect(screen.getByLabelText("Ziel-Klassenstufe")).toHaveValue(2);
+    expect(screen.getByLabelText("Grund der Korrektur")).toHaveValue("");
   });
 });
