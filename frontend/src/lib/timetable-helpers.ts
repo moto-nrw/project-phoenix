@@ -21,7 +21,6 @@ import type {
   BackendGapInstance,
   BackendGapsResponse,
   BackendDeviationHistoryResponse,
-  BackendAcknowledgeUnderstaffedResponse,
   BackendApplyDeviationsResponse,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
@@ -42,7 +41,6 @@ import type {
   GapsResponse,
   DeviationHistoryEvent,
   DeviationHistoryResponse,
-  AcknowledgeUnderstaffedResponse,
   ApplyDeviationsResponse,
   InstanceStaffSummary,
   InstanceStudentSummary,
@@ -552,17 +550,6 @@ export function mapGaps(raw: BackendGapsResponse): GapsResponse {
     to: raw.to,
     gaps: (raw.gaps ?? []).map(mapGapInstance),
     acknowledged: (raw.acknowledged ?? []).map(mapGapInstance),
-  };
-}
-
-export function mapAcknowledgeUnderstaffed(
-  raw: BackendAcknowledgeUnderstaffedResponse,
-): AcknowledgeUnderstaffedResponse {
-  return {
-    instanceId: String(raw.instance_id),
-    status: raw.status,
-    understaffedAck: raw.understaffed_ack,
-    understaffedNote: raw.understaffed_note ?? undefined,
   };
 }
 

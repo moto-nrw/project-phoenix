@@ -642,21 +642,6 @@ interface BackendSubstituteAffectedInstance {
   action: SubstituteAction;
 }
 
-/** #1840: POST /instances/{id}/acknowledge-understaffed result. */
-export interface AcknowledgeUnderstaffedResponse {
-  instanceId: string;
-  status: InstanceStatus;
-  understaffedAck: boolean;
-  understaffedNote?: string;
-}
-
-export interface BackendAcknowledgeUnderstaffedResponse {
-  instance_id: number;
-  status: InstanceStatus;
-  understaffed_ack: boolean;
-  understaffed_note?: string | null;
-}
-
 /**
  * #1840: the whole Vertretungsplan slide-over save applied atomically via
  * POST /instances/{id}/deviations. `cancel` is exclusive (other fields are

@@ -27,7 +27,6 @@ import {
   getYearMonths,
   getYearRange,
   groupInstancesByDate,
-  mapAcknowledgeUnderstaffed,
   mapApplyDeviations,
   mapAttendance,
   mapConflictCheckResult,
@@ -655,36 +654,6 @@ describe("backend mappers", () => {
         acknowledged: undefined,
       }),
     ).toMatchObject({ gaps: [], acknowledged: [] });
-  });
-
-  it("maps the acknowledge-understaffed result, with and without a note (#1840)", () => {
-    expect(
-      mapAcknowledgeUnderstaffed({
-        instance_id: 42,
-        status: "planned",
-        understaffed_ack: true,
-        understaffed_note: "keine Vertretung",
-      }),
-    ).toEqual({
-      instanceId: "42",
-      status: "planned",
-      understaffedAck: true,
-      understaffedNote: "keine Vertretung",
-    });
-
-    expect(
-      mapAcknowledgeUnderstaffed({
-        instance_id: 42,
-        status: "planned",
-        understaffed_ack: false,
-        understaffed_note: null,
-      }),
-    ).toEqual({
-      instanceId: "42",
-      status: "planned",
-      understaffedAck: false,
-      understaffedNote: undefined,
-    });
   });
 
   it("maps an applied-deviations result with affected instances and warnings (#1840)", () => {

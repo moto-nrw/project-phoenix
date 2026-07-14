@@ -27,7 +27,6 @@ import type {
   BackendEditedInWindowResult,
   BackendSplitTemplateResult,
   BackendStartInstanceResult,
-  BackendAcknowledgeUnderstaffedResponse,
   BackendApplyDeviationsResponse,
   BackendTimetableTemplate,
   BackendTemplatesResponse,
@@ -54,7 +53,6 @@ import type {
   SplitTemplateBody,
   SplitTemplateResult,
   StartInstanceResult,
-  AcknowledgeUnderstaffedResponse,
   ApplyDeviationsInput,
   ApplyDeviationsResponse,
   TemplatesResponse,
@@ -71,7 +69,6 @@ import {
   mapExceptionConflicts,
   mapGaps,
   mapDeviationHistory,
-  mapAcknowledgeUnderstaffed,
   mapApplyDeviations,
   mapInstance,
   mapInstanceStatusResult,
@@ -639,32 +636,6 @@ class TimetableService {
 
     const raw = await unwrap<BackendExceptionConflictsResponse>(response);
     return mapExceptionConflicts(raw);
-  }
-
-  /**
-   * Flip the "deliberately left unstaffed" acknowledgement on a block
-   * (#1840). ack=false clears the flag and any note.
-   */
-  async acknowledgeUnderstaffed(
-    instanceId: string,
-    ack: boolean,
-    note?: string,
-  ): Promise<AcknowledgeUnderstaffedResponse> {
-    const response = await fetch(
-      `/api/timetable/instances/${instanceId}/acknowledge-understaffed`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ ack, note: note ?? undefined }),
-      },
-    );
-
-    const raw = await unwrap<BackendAcknowledgeUnderstaffedResponse>(response);
-    return mapAcknowledgeUnderstaffed(raw);
   }
 
   /**
