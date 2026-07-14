@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	enrollmentChangeRequestOriginVersion     = "1.15.196"
+	enrollmentChangeRequestOriginVersion     = "1.15.197"
 	enrollmentChangeRequestOriginDescription = "Distinguish parent proposals from admin enrollment data corrections"
 )
 
@@ -17,7 +17,7 @@ func init() {
 		Version:     enrollmentChangeRequestOriginVersion,
 		Description: enrollmentChangeRequestOriginDescription,
 		DependsOn: []string{
-			categoryShiftTypeVersion,
+			careOfferingAvailabilityRulesVersion,
 			changeRequestCareOfferingCapabilityVersion,
 		},
 	})
@@ -26,7 +26,7 @@ func init() {
 }
 
 func enrollmentChangeRequestOriginUp(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Migration 1.15.196: Adding enrollment change request origin...")
+	fmt.Println("Migration 1.15.197: Adding enrollment change request origin...")
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.change_requests
 			ADD COLUMN IF NOT EXISTS origin TEXT NOT NULL DEFAULT 'parent';
@@ -43,7 +43,7 @@ func enrollmentChangeRequestOriginUp(ctx context.Context, db *bun.DB) error {
 }
 
 func enrollmentChangeRequestOriginDown(ctx context.Context, db *bun.DB) error {
-	fmt.Println("Rolling back migration 1.15.196: Removing enrollment change request origin...")
+	fmt.Println("Rolling back migration 1.15.197: Removing enrollment change request origin...")
 	_, err := db.NewRaw(`
 		ALTER TABLE enrollment.change_requests
 			DROP CONSTRAINT IF EXISTS chk_enrollment_change_requests_origin,
