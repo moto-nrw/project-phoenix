@@ -1540,6 +1540,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		factory.TimetableData,
 		repos.StaffShift,
 		repos.InstanceStaff,
+		factory.RealtimeHub,
 		db,
 		logger.With("service", "shift_plan_sync"),
 	))

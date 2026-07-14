@@ -29,6 +29,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -85,6 +86,7 @@ func buildSickCascadeEnv(t *testing.T) *sickCascadeEnv {
 		serviceFactory.TimetableData,
 		repoFactory.StaffShift,
 		repoFactory.InstanceStaff,
+		nil,
 		db,
 		slog.Default(),
 	)
@@ -305,6 +307,98 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 	})
 	events = e.eventsByType(t, yesterday, tomorrow, auditModels.DeviationEventSickReported)
 	assert.Len(t, events, 1, "idempotent re-run must not duplicate events")
+}
+
+func TestSickCascade_PastShiftsRemainHistoricalDuringMarkAndReconcile(t *testing.T) {
+	e := buildSickCascadeEnv(t)
+	yesterday := timezone.TodayDate().AddDays(-1)
+	tomorrow := timezone.TodayDate().AddDays(1)
+	past := e.createShift(t, e.subject.ID, yesterday, "08:00", "12:00", nil)
+
+	e.inTx(t, func(ctx context.Context) error {
+		return e.syncer.MarkSickForRange(ctx, activeSvc.SickCascadeInput{
+			SubjectStaffID: e.subject.ID,
+			ActorStaffID:   e.admin.ID,
+			AbsenceID:      time.Now().UnixNano(),
+			DateStart:      yesterday,
+			DateEnd:        yesterday,
+		})
+	})
+	stored := e.reloadShift(t, past.ID)
+	assert.False(t, stored.Cancelled)
+	assert.Nil(t, stored.SickAbsenceID)
+
+	absenceID := e.createSickAbsence(t, tomorrow, tomorrow)
+	reason := "Krankheit"
+	stored.Cancelled = true
+	stored.ChangeReason = &reason
+	stored.SickAbsenceID = &absenceID
+	_, err := e.repos.StaffShift.UpdateColumns(e.ctx, stored, "cancelled", "change_reason", "sick_absence_id")
+	require.NoError(t, err)
+
+	before := activeSvc.SickCascadeInput{
+		SubjectStaffID: e.subject.ID,
+		ActorStaffID:   e.admin.ID,
+		AbsenceID:      absenceID,
+		DateStart:      yesterday,
+		DateEnd:        yesterday,
+	}
+	after := before
+	after.DateStart = tomorrow
+	after.DateEnd = tomorrow
+	e.inTx(t, func(ctx context.Context) error {
+		return e.syncer.ReconcileSickRange(ctx, before, after)
+	})
+
+	stored = e.reloadShift(t, past.ID)
+	assert.True(t, stored.Cancelled, "reconcile must not reactivate a historical shift")
+	require.NotNil(t, stored.ChangeReason)
+	assert.Equal(t, reason, *stored.ChangeReason)
+	assert.Nil(t, stored.SickAbsenceID, "reconcile should release obsolete provenance")
+}
+
+func TestSickCascade_ShiftOnlyChangesBroadcastTenantInvalidation(t *testing.T) {
+	e := buildSickCascadeEnv(t)
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	syncer := scheduleSvc.NewShiftPlanSyncService(
+		e.factory.StaffShifts,
+		e.factory.Instance,
+		e.factory.TimetableData,
+		e.repos.StaffShift,
+		e.repos.InstanceStaff,
+		broadcaster,
+		e.db,
+		slog.Default(),
+	)
+	dayOne := timezone.TodayDate().AddDays(1)
+	dayTwo := dayOne.AddDays(1)
+	e.createShift(t, e.subject.ID, dayOne, "08:00", "09:00", nil)
+	e.createShift(t, e.subject.ID, dayTwo, "08:00", "09:00", nil)
+	input := activeSvc.SickCascadeInput{
+		SubjectStaffID: e.subject.ID,
+		ActorStaffID:   e.admin.ID,
+		AbsenceID:      time.Now().UnixNano(),
+		DateStart:      dayOne,
+		DateEnd:        dayOne,
+	}
+
+	e.inTx(t, func(ctx context.Context) error { return syncer.MarkSickForRange(ctx, input) })
+	after := input
+	after.DateStart = dayTwo
+	after.DateEnd = dayTwo
+	e.inTx(t, func(ctx context.Context) error { return syncer.ReconcileSickRange(ctx, input, after) })
+	e.inTx(t, func(ctx context.Context) error { return syncer.ClearSickForRange(ctx, after) })
+
+	calls := broadcaster.CallsByMethod("tenant")
+	require.Len(t, calls, 3)
+	expectedSources := []string{"sick_cascade_mark", "sick_cascade_reconcile", "sick_cascade_clear"}
+	expectedTenantID := tenant.FromContext(e.ctx)
+	for i, call := range calls {
+		assert.Equal(t, expectedTenantID, call.TenantID)
+		assert.Equal(t, realtime.EventStaffingDeviationChanged, call.Event.Type)
+		require.NotNil(t, call.Event.Data.Source)
+		assert.Equal(t, expectedSources[i], *call.Event.Data.Source)
+	}
 }
 
 func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *testing.T) {

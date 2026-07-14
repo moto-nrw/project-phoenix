@@ -280,7 +280,7 @@ export default function StaffDetailContent() {
     return <StaffDetailSkeleton />;
   }
 
-  if (!canEdit) {
+  if (!canEdit && !canManageSickReports) {
     router.replace("/staff");
     return <StaffDetailSkeleton />;
   }
@@ -339,14 +339,23 @@ export default function StaffDetailContent() {
       />
 
       {/* Tabs */}
-      <Tabs defaultValue="uebersicht" className="w-full">
+      <Tabs
+        defaultValue={canEdit ? "uebersicht" : "abwesenheiten"}
+        className="w-full"
+      >
         <TabsList
           variant="line"
           className="mb-6 w-full [scrollbar-width:none] justify-start overflow-x-auto pb-px [&::-webkit-scrollbar]:hidden"
         >
-          <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
-          <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
-          <TabsTrigger value="arbeitszeitmodell">Arbeitszeitmodell</TabsTrigger>
+          {canEdit ? (
+            <>
+              <TabsTrigger value="uebersicht">Übersicht</TabsTrigger>
+              <TabsTrigger value="zeiterfassung">Zeiterfassung</TabsTrigger>
+              <TabsTrigger value="arbeitszeitmodell">
+                Arbeitszeitmodell
+              </TabsTrigger>
+            </>
+          ) : null}
           <TabsTrigger value="abwesenheiten">
             <span className="inline-flex items-center gap-1.5">
               Abwesenheiten
@@ -357,25 +366,33 @@ export default function StaffDetailContent() {
               )}
             </span>
           </TabsTrigger>
-          <TabsTrigger value="stammdaten" disabled>
-            Stammdaten
-          </TabsTrigger>
-          <TabsTrigger value="dokumente" disabled>
-            Dokumente
-          </TabsTrigger>
+          {canEdit ? (
+            <>
+              <TabsTrigger value="stammdaten" disabled>
+                Stammdaten
+              </TabsTrigger>
+              <TabsTrigger value="dokumente" disabled>
+                Dokumente
+              </TabsTrigger>
+            </>
+          ) : null}
         </TabsList>
 
-        <TabsPrimitive.Content value="uebersicht">
-          <UebersichtTab staffId={staffId} />
-        </TabsPrimitive.Content>
+        {canEdit ? (
+          <>
+            <TabsPrimitive.Content value="uebersicht">
+              <UebersichtTab staffId={staffId} />
+            </TabsPrimitive.Content>
 
-        <TabsPrimitive.Content value="zeiterfassung">
-          <ZeiterfassungTab staffId={staffId} />
-        </TabsPrimitive.Content>
+            <TabsPrimitive.Content value="zeiterfassung">
+              <ZeiterfassungTab staffId={staffId} />
+            </TabsPrimitive.Content>
 
-        <TabsPrimitive.Content value="arbeitszeitmodell">
-          <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
-        </TabsPrimitive.Content>
+            <TabsPrimitive.Content value="arbeitszeitmodell">
+              <ArbeitszeitmodellTab staffId={staffId} canEdit={canEdit} />
+            </TabsPrimitive.Content>
+          </>
+        ) : null}
 
         <TabsPrimitive.Content value="abwesenheiten">
           <AbwesenheitenTab
@@ -386,13 +403,17 @@ export default function StaffDetailContent() {
           />
         </TabsPrimitive.Content>
 
-        <TabsPrimitive.Content value="stammdaten">
-          <PlaceholderTab title="Stammdaten" />
-        </TabsPrimitive.Content>
+        {canEdit ? (
+          <>
+            <TabsPrimitive.Content value="stammdaten">
+              <PlaceholderTab title="Stammdaten" />
+            </TabsPrimitive.Content>
 
-        <TabsPrimitive.Content value="dokumente">
-          <PlaceholderTab title="Dokumente" />
-        </TabsPrimitive.Content>
+            <TabsPrimitive.Content value="dokumente">
+              <PlaceholderTab title="Dokumente" />
+            </TabsPrimitive.Content>
+          </>
+        ) : null}
       </Tabs>
     </div>
   );

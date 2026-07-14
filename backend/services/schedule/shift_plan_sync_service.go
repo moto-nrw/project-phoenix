@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/uptrace/bun"
 )
@@ -38,6 +39,7 @@ type shiftPlanSyncService struct {
 	timetableData     *TimetableDataService
 	shiftRepo         scheduleModel.StaffShiftRepository
 	instanceStaffRepo scheduleModel.InstanceStaffRepository
+	broadcaster       realtime.Broadcaster
 	db                *bun.DB
 	logger            *slog.Logger
 }
@@ -51,6 +53,7 @@ func NewShiftPlanSyncService(
 	timetableData *TimetableDataService,
 	shiftRepo scheduleModel.StaffShiftRepository,
 	instanceStaffRepo scheduleModel.InstanceStaffRepository,
+	broadcaster realtime.Broadcaster,
 	db *bun.DB,
 	logger *slog.Logger,
 ) active.ShiftPlanSyncer {
@@ -60,6 +63,7 @@ func NewShiftPlanSyncService(
 		timetableData:     timetableData,
 		shiftRepo:         shiftRepo,
 		instanceStaffRepo: instanceStaffRepo,
+		broadcaster:       broadcaster,
 		db:                db,
 		logger:            logger,
 	}
@@ -101,6 +105,7 @@ func (s *shiftPlanSyncService) MarkSickForRange(ctx context.Context, in active.S
 		return err
 	}
 	s.instances.QueueActivityUpdates(ctx, activeTouched)
+	s.broadcastStaffingChanged(ctx, "sick_cascade_mark")
 	s.getLogger().Info("sick cascade applied",
 		"staff_id", in.SubjectStaffID,
 		"absence_id", in.AbsenceID,
@@ -120,9 +125,13 @@ func (s *shiftPlanSyncService) cancelShiftsForSickDays(ctx context.Context, in a
 		daySet[d] = true
 	}
 	reason := sickShiftChangeReason
+	today := timezone.TodayDate()
 	for _, shift := range shifts {
 		if !daySet[shift.Date] {
 			continue // boundary half days never cascade
+		}
+		if shift.Date.Before(today) {
+			continue // completed planning and time-tracking history is immutable
 		}
 		if shift.Cancelled {
 			continue // an admin already cancelled it — keep that reason and its covers
@@ -214,6 +223,7 @@ func (s *shiftPlanSyncService) ClearSickForRange(ctx context.Context, in active.
 		return err
 	}
 	s.instances.QueueActivityUpdates(ctx, activeTouched)
+	s.broadcastStaffingChanged(ctx, "sick_cascade_clear")
 	s.getLogger().Info("sick cascade cleared",
 		"staff_id", in.SubjectStaffID,
 		"absence_id", in.AbsenceID,
@@ -247,7 +257,12 @@ func (s *shiftPlanSyncService) ReconcileSickRange(ctx context.Context, before, a
 		return err
 	}
 	s.instances.QueueActivityUpdates(ctx, activeTouched)
+	s.broadcastStaffingChanged(ctx, "sick_cascade_reconcile")
 	return nil
+}
+
+func (s *shiftPlanSyncService) broadcastStaffingChanged(ctx context.Context, source string) {
+	broadcastStaffingChanged(ctx, s.broadcaster, s.getLogger(), source)
 }
 
 // lockSickReversalStaffWrites discovers every replacement owner attached to a
@@ -323,8 +338,17 @@ func (s *shiftPlanSyncService) reactivateStampedShifts(ctx context.Context, in a
 	if err != nil {
 		return fmt.Errorf("sick clear: load stamped shifts: %w", err)
 	}
+	today := timezone.TodayDate()
 	for _, shift := range shifts {
 		if onlyDays != nil && !onlyDays[shift.Date] {
+			continue
+		}
+		if shift.Date.Before(today) {
+			// Keep the historical cancellation intact, but release the deleted
+			// or edited report's provenance stamp just as past block rows do.
+			if err := s.releaseStampedShift(ctx, shift, 0); err != nil {
+				return err
+			}
 			continue
 		}
 		if err := s.reactivateStampedShift(ctx, in, shift); err != nil {

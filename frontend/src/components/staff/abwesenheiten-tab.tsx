@@ -53,6 +53,13 @@ const ABSENCE_TYPE_COLOR: Record<string, string> = {
   other: "bg-gray-100 text-gray-600",
 };
 
+const VACATION_WORKFLOW_STATUSES = new Set([
+  "requested",
+  "approved",
+  "declined",
+  "canceled",
+]);
+
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("de-DE", {
     day: "2-digit",
@@ -175,6 +182,13 @@ function historicalAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
           absence.date_end < today),
     )
     .sort((left, right) => (left.date_start < right.date_start ? 1 : -1));
+}
+
+export function isVacationWorkflowAbsence(row: StaffAbsenceRow): boolean {
+  return (
+    row.absence_type === "vacation" &&
+    VACATION_WORKFLOW_STATUSES.has(row.status)
+  );
 }
 
 function TabLoadingBoundary({
@@ -391,7 +405,9 @@ export function AbwesenheitenTab({
                 key={row.id}
                 row={row}
                 onDelete={
-                  canManageSickReports ? () => setDeleteTarget(row) : undefined
+                  canManageSickReports && !isVacationWorkflowAbsence(row)
+                    ? () => setDeleteTarget(row)
+                    : undefined
                 }
               />
             ))}
@@ -415,7 +431,9 @@ export function AbwesenheitenTab({
                 key={row.id}
                 row={row}
                 onDelete={
-                  canManageSickReports ? () => setDeleteTarget(row) : undefined
+                  canManageSickReports && !isVacationWorkflowAbsence(row)
+                    ? () => setDeleteTarget(row)
+                    : undefined
                 }
               />
             ))}

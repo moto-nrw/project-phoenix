@@ -134,6 +134,26 @@ func TestAdminCreateStaffAbsence_RequiresPermission(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rec.Code)
 }
 
+func TestStaffAbsenceReads_AllowTimeTrackingManage(t *testing.T) {
+	tc := setupTestContext(t)
+	staff := testpkg.CreateTestStaff(t, tc.db, "Absence", fmt.Sprintf("Reader-%d", time.Now().UnixNano()))
+	t.Cleanup(func() { testpkg.CleanupStaffFixtures(t, tc.db, staff.ID) })
+	token := authToken(t, "time_tracking:manage")
+	year := timezone.TodayDate().Year
+
+	paths := []string{
+		fmt.Sprintf("/staff/%d/absences?from=%d-01-01&to=%d-12-31", staff.ID, year, year),
+		fmt.Sprintf("/staff/%d/vacation/quota?year=%d", staff.ID, year),
+	}
+	for _, path := range paths {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		tc.router.ServeHTTP(rec, req)
+		assert.Equal(t, http.StatusOK, rec.Code, "%s: %s", path, rec.Body.String())
+	}
+}
+
 func TestAdminCreateStaffAbsence_UnknownStaff(t *testing.T) {
 	tc, token, _, _ := setupAbsenceAdminTest(t)
 	tomorrow := timezone.TodayDate().AddDays(1)
