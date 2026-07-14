@@ -185,25 +185,31 @@ func (o *optionalString) UnmarshalJSON(data []byte) error {
 
 // ShiftResponse is the wire format returned to clients.
 type ShiftResponse struct {
-	ID            int64   `json:"id"`
-	StaffID       int64   `json:"staff_id"`
-	Date          string  `json:"date"`
-	StartTime     string  `json:"start_time"`
-	EndTime       string  `json:"end_time"`
-	BreakMinutes  int     `json:"break_minutes"`
-	ShiftTypeID   *int64  `json:"shift_type_id,omitempty"`
-	Notes         string  `json:"notes,omitempty"`
-	SeriesID      *int64  `json:"series_id,omitempty"`
-	Detached      bool    `json:"detached"`
-	Cancelled     bool    `json:"cancelled"`
-	ChangeReason  *string `json:"change_reason,omitempty"`
-	OriginShiftID *int64  `json:"origin_shift_id,omitempty"`
+	ID           int64  `json:"id"`
+	StaffID      int64  `json:"staff_id"`
+	Date         string `json:"date"`
+	StartTime    string `json:"start_time"`
+	EndTime      string `json:"end_time"`
+	BreakMinutes int    `json:"break_minutes"`
+	ShiftTypeID  *int64 `json:"shift_type_id,omitempty"`
+	// ShiftTypeName/ShiftTypeColor carry the resolved Schichtart so a staff
+	// member who cannot read the admin-only /api/shift-types endpoint still sees
+	// the label and color on their own shifts (#1844). Present only when the
+	// shift has a type and the service resolved it.
+	ShiftTypeName  *string `json:"shift_type_name,omitempty"`
+	ShiftTypeColor *string `json:"shift_type_color,omitempty"`
+	Notes          string  `json:"notes,omitempty"`
+	SeriesID       *int64  `json:"series_id,omitempty"`
+	Detached       bool    `json:"detached"`
+	Cancelled      bool    `json:"cancelled"`
+	ChangeReason   *string `json:"change_reason,omitempty"`
+	OriginShiftID  *int64  `json:"origin_shift_id,omitempty"`
 }
 
 // ToShiftResponse maps a shift onto the wire format. Exported for the
 // time-tracking self endpoint, which serves the same shape.
 func ToShiftResponse(s *scheduleModels.StaffShift) ShiftResponse {
-	return ShiftResponse{
+	resp := ShiftResponse{
 		ID:            s.ID,
 		StaffID:       s.StaffID,
 		Date:          s.Date.String(),
@@ -218,6 +224,13 @@ func ToShiftResponse(s *scheduleModels.StaffShift) ShiftResponse {
 		ChangeReason:  s.ChangeReason,
 		OriginShiftID: s.OriginShiftID,
 	}
+	if s.ShiftType != nil {
+		name := s.ShiftType.Name
+		color := s.ShiftType.Color
+		resp.ShiftTypeName = &name
+		resp.ShiftTypeColor = &color
+	}
+	return resp
 }
 
 // ToShiftResponses maps a slice of shifts onto the wire format.
