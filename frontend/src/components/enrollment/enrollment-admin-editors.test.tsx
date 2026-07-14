@@ -394,11 +394,11 @@ describe("CareOfferingsEditor", () => {
     );
     expect(screen.getByText("Betreuungstage & Mitbuchung")).toBeVisible();
     expect(screen.getByText("Als Betreuungstage zählen")).toBeVisible();
+    // Weekdays start unselected (#1885): picking a day is a deliberate input.
     const mondayToggle = screen.getByRole("button", { name: "Mo" });
-    expect(mondayToggle).toHaveAttribute("aria-pressed", "true");
-    fireEvent.click(mondayToggle);
     expect(mondayToggle).toHaveAttribute("aria-pressed", "false");
     fireEvent.click(mondayToggle);
+    expect(mondayToggle).toHaveAttribute("aria-pressed", "true");
     fireEvent.change(await waitForInputByName("name"), {
       target: { value: "Frühbetreuung" },
     });
@@ -468,6 +468,8 @@ describe("CareOfferingsEditor", () => {
       target: { value: "Randstunde" },
     });
     fireEvent.click(screen.getByRole("checkbox", { name: /Ganztag/ }));
+    // Weekdays start unselected (#1885); save requires at least one day.
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
     fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
 
     await waitFor(() => {
@@ -552,6 +554,8 @@ describe("CareOfferingsEditor", () => {
     fireEvent.click(screen.getByText("Pflicht"));
     expect(inputByName("capacity")).toBeDisabled();
 
+    // Weekdays start unselected (#1885); save requires at least one day.
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
     fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
     await waitFor(() => {
       expect(mocks.createCareOffering).toHaveBeenCalledWith(
@@ -613,6 +617,11 @@ describe("CareOfferingsEditor", () => {
     fireEvent.change(await waitForInputByName("name"), {
       target: { value: "Lernzeitangebot" },
     });
+    // Weekdays start unselected (#1885); pick Mo-Fr explicitly so the
+    // template (Mon + Sat) misses the selected Tue-Fri as before.
+    for (const day of ["Mo", "Di", "Mi", "Do", "Fr"]) {
+      fireEvent.click(screen.getByRole("button", { name: day }));
+    }
     await chooseOption("Regeltermin", /Lernzeit/);
 
     expect(
@@ -635,6 +644,109 @@ describe("CareOfferingsEditor", () => {
       screen.queryByText(/Regeltermin deckt die ausgewählten Angebotstage/),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Erstellen" })).toBeEnabled();
+  });
+
+  it("warns when the offering name says one weekday but more days are selected", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    );
+    fireEvent.change(await waitForInputByName("name"), {
+      target: {
+        value:
+          "Montags: Betreuung bis zum Beginn des privaten Musikunterrichts",
+      },
+    });
+    for (const day of ["Mo", "Di", "Mi", "Do", "Fr"]) {
+      fireEvent.click(screen.getByRole("button", { name: day }));
+    }
+
+    const warning = screen.getByText(
+      /Der Name nennt nur einen Wochentag, ausgewählt sind zusätzlich Di, Mi, Do, Fr\./,
+    );
+    expect(warning).toBeVisible();
+    // Soft hint, not an error: saving stays possible.
+    expect(warning).not.toHaveAttribute("role", "alert");
+    expect(screen.getByRole("button", { name: "Erstellen" })).toBeEnabled();
+
+    // Deselecting the extra days resolves the mismatch.
+    for (const day of ["Di", "Mi", "Do", "Fr"]) {
+      fireEvent.click(screen.getByRole("button", { name: day }));
+    }
+    expect(
+      screen.queryByText(/Der Name nennt nur einen Wochentag/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not warn for names without a single-weekday claim", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    );
+    const nameInput = await waitForInputByName("name");
+    for (const day of ["Mo", "Mi", "Fr"]) {
+      fireEvent.click(screen.getByRole("button", { name: day }));
+    }
+
+    // Two weekday words: the name makes no single-day claim.
+    fireEvent.change(nameInput, {
+      target: { value: "Montag und Mittwoch AG" },
+    });
+    expect(
+      screen.queryByText(/Der Name nennt nur einen Wochentag/),
+    ).not.toBeInTheDocument();
+
+    // No weekday word at all.
+    fireEvent.change(nameInput, { target: { value: "Fußball AG" } });
+    expect(
+      screen.queryByText(/Der Name nennt nur einen Wochentag/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not block saving while the name-weekday warning shows", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+    mocks.createCareOffering.mockResolvedValue(
+      offering({ id: "new", name: "Montags-Club" }),
+    );
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    );
+    fireEvent.change(await waitForInputByName("name"), {
+      target: { value: "Montags-Club" },
+    });
+    for (const day of ["Mo", "Di"]) {
+      fireEvent.click(screen.getByRole("button", { name: day }));
+    }
+    expect(
+      screen.getByText(/Der Name nennt nur einen Wochentag/),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    await waitFor(() => {
+      expect(mocks.createCareOffering).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Montags-Club",
+          available_days: ["mon", "tue"],
+        }),
+      );
+    });
+    expect(mocks.toast.error).not.toHaveBeenCalled();
   });
 
   it("offers Regeltermine whose resolved period contains the phase", async () => {

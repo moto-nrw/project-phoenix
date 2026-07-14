@@ -35,6 +35,12 @@ interface ApiResponse<T> {
  */
 export const REOPEN_STATUS_CONFLICT_CODE = "reopen_status_conflict";
 export const PLANNED_START_NOT_REACHED_CODE = "planned_start_not_reached";
+/**
+ * Stable error code surfaced when a check-in/check-out deviates from the
+ * planned shift window by more than the configured tolerance (F9). The page
+ * prompts for a reason and retries the same stamp with `reason` set.
+ */
+export const DEVIATION_REASON_REQUIRED_CODE = "deviation_reason_required";
 
 /**
  * Update session request body
@@ -136,21 +142,25 @@ class TimeTrackingService {
     }
   }
 
-  async checkIn(status: "present" | "home_office"): Promise<WorkSession> {
+  async checkIn(
+    status: "present" | "home_office",
+    reason?: string,
+  ): Promise<WorkSession> {
     const result = await this.request<WorkSession>(
       "/check-in",
       "POST",
       "Failed to check in",
-      { status },
+      reason ? { status, reason } : { status },
     );
     return mapWorkSessionResponse(result.data as never);
   }
 
-  async checkOut(): Promise<WorkSession> {
+  async checkOut(reason?: string): Promise<WorkSession> {
     const result = await this.request<WorkSession>(
       "/check-out",
       "POST",
       "Failed to check out",
+      reason ? { reason } : undefined,
     );
     return mapWorkSessionResponse(result.data as never);
   }

@@ -92,12 +92,16 @@ func TestCareOffering_Validate_AvailableDaysIsCaseInsensitive(t *testing.T) {
 	assert.NoError(t, c.Validate())
 }
 
-func TestCareOffering_Validate_EmptyAvailableDaysOK(t *testing.T) {
-	// No days = no care days configured yet; admin can save and add
-	// later. The submission service enforces availability separately.
+func TestCareOffering_Validate_EmptyAvailableDaysRejected(t *testing.T) {
+	// Business rule changed with #1885: the weekday selection is a
+	// deliberate, required input. An offering without days silently
+	// hid the misconfiguration that produced wrong enrollments in
+	// production (Mo-Fr default vs. "Montags" offering).
 	c := validCareOffering()
 	c.AvailableDays = nil
-	assert.NoError(t, c.Validate())
+	err := c.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "available_days")
 }
 
 func TestCareOffering_Validate_RejectsNegativeCapacity(t *testing.T) {

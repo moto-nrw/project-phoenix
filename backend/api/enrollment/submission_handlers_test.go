@@ -224,6 +224,45 @@ func TestMapSubmitError_WrappedPickupTimeNotAllowed400WithCode(t *testing.T) {
 	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentPickupTimeNotAllowed)
 }
 
+func TestMapSubmitError_SelectedDayNotAvailable400WithCode(t *testing.T) {
+	// ErrSelectedDayNotAvailable wraps ErrInvalidSubmission, so its case
+	// must win over the generic branch to attach the stable code the
+	// enrollment form reads to localize the off-days message (#1885).
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	MapSubmitError(w, r, enrollmentService.ErrSelectedDayNotAvailable)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentSelectedDayNotAvailable)
+}
+
+func TestMapSubmitError_WrappedSelectedDayNotAvailable400WithCode(t *testing.T) {
+	// The service wraps the sentinel with the offending day; the mapper
+	// must still resolve the code via errors.Is traversal.
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	wrapped := fmt.Errorf("%w: day %q is not in the offering's available_days",
+		enrollmentService.ErrSelectedDayNotAvailable, "tue")
+	MapSubmitError(w, r, wrapped)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentSelectedDayNotAvailable)
+}
+
+func TestMapSubmitError_DaySelectionRequired400WithCode(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	MapSubmitError(w, r, enrollmentService.ErrDaySelectionRequired)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentDaySelectionRequired)
+}
+
+func TestMapSubmitError_DaySelectionNotAllowed400WithCode(t *testing.T) {
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest(http.MethodPost, "/x", nil)
+	MapSubmitError(w, r, enrollmentService.ErrDaySelectionNotAllowed)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.Contains(t, w.Body.String(), ErrCodeEnrollmentDaySelectionNotAllowed)
+}
+
 func TestMapSubmitError_CareOfferingClosed400(t *testing.T) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/x", nil)

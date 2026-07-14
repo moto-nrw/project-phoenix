@@ -61,6 +61,7 @@ vi.mock("~/contexts/ToastContext", () => ({
 }));
 
 vi.mock("~/lib/time-tracking-api", () => ({
+  DEVIATION_REASON_REQUIRED_CODE: "deviation_reason_required",
   PLANNED_START_NOT_REACHED_CODE: "planned_start_not_reached",
   REOPEN_STATUS_CONFLICT_CODE: "reopen_status_conflict",
   timeTrackingService: mockTimeTrackingService,
@@ -4597,5 +4598,163 @@ describe("TimeTrackingPage", () => {
       // Should not show check-in button at all when session is active
       expect(screen.queryByLabelText("Einstempeln")).not.toBeInTheDocument();
     });
+  });
+});
+
+// F9: the backend rejects stamps outside the tolerance window around the
+// planned shift window with code "deviation_reason_required". The page must
+// prompt for a reason and retry the SAME stamp with the reason attached
+// (see api/time-tracking/errors.go and work_session_service.go).
+describe("deviation-reason gate (F9)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  function makeDeviationError(action: "check_in" | "check_out"): Error & {
+    code?: string;
+    status?: number;
+    details?: Record<string, unknown>;
+  } {
+    const err = new Error("deviation reason required") as Error & {
+      code?: string;
+      status?: number;
+      details?: Record<string, unknown>;
+    };
+    err.code = "deviation_reason_required";
+    err.status = 409;
+    err.details =
+      action === "check_in"
+        ? {
+            action,
+            planned_time: "08:00",
+            actual_time: "07:30",
+            deviation_minutes: "30",
+          }
+        : {
+            action,
+            planned_time: "16:00",
+            actual_time: "16:30",
+            deviation_minutes: "30",
+          };
+    return err;
+  }
+
+  it("opens the reason dialog when check-out deviates from the plan", async () => {
+    setupDefaultMocks({ currentSession: mockActiveSession });
+    vi.mocked(timeTrackingService.checkOut).mockRejectedValueOnce(
+      makeDeviationError("check_out"),
+    );
+    render(<TimeTrackingPage />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Ausstempeln"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Abweichung vom Dienstplan")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/30 Minuten/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/nach deinem geplanten Dienstende/),
+    ).toBeInTheDocument();
+    // Confirm stays disabled until a reason is entered.
+    expect(screen.getByText("Mit Begründung ausstempeln")).toBeDisabled();
+  });
+
+  it("retries the check-out with the entered reason", async () => {
+    setupDefaultMocks({ currentSession: mockActiveSession });
+    vi.mocked(timeTrackingService.checkOut)
+      .mockRejectedValueOnce(makeDeviationError("check_out"))
+      .mockResolvedValueOnce(mockCheckedOutSession);
+    render(<TimeTrackingPage />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Ausstempeln"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Abweichung vom Dienstplan")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Grund"), {
+      target: { value: "Elterngespräch lief länger" },
+    });
+    const confirmBtn = screen.getByText("Mit Begründung ausstempeln");
+    expect(confirmBtn).not.toBeDisabled();
+
+    await act(async () => {
+      fireEvent.click(confirmBtn);
+    });
+
+    await waitFor(() => {
+      expect(timeTrackingService.checkOut).toHaveBeenLastCalledWith(
+        "Elterngespräch lief länger",
+      );
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByText("Abweichung vom Dienstplan"),
+      ).not.toBeInTheDocument();
+    });
+  });
+
+  it("retries the check-in with status and reason", async () => {
+    setupDefaultMocks();
+    vi.mocked(timeTrackingService.checkIn)
+      .mockRejectedValueOnce(makeDeviationError("check_in"))
+      .mockResolvedValueOnce(mockActiveSession);
+    render(<TimeTrackingPage />);
+
+    fireEvent.click(screen.getByText("In der OGS"));
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Einstempeln"));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Abweichung vom Dienstplan")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText(/vor deinem geplanten Dienstbeginn/),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Grund"), {
+      target: { value: "Frühdienst übernommen" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Mit Begründung einstempeln"));
+    });
+
+    await waitFor(() => {
+      expect(timeTrackingService.checkIn).toHaveBeenLastCalledWith(
+        "present",
+        "Frühdienst übernommen",
+      );
+    });
+  });
+
+  it("keeps the dialog open when the retry fails", async () => {
+    setupDefaultMocks({ currentSession: mockActiveSession });
+    vi.mocked(timeTrackingService.checkOut)
+      .mockRejectedValueOnce(makeDeviationError("check_out"))
+      .mockRejectedValueOnce(new Error("network down"));
+    render(<TimeTrackingPage />);
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText("Ausstempeln"));
+    });
+    await waitFor(() => {
+      expect(screen.getByText("Abweichung vom Dienstplan")).toBeInTheDocument();
+    });
+
+    fireEvent.change(screen.getByLabelText("Grund"), {
+      target: { value: "Elterngespräch" },
+    });
+    await act(async () => {
+      fireEvent.click(screen.getByText("Mit Begründung ausstempeln"));
+    });
+
+    await waitFor(() => {
+      expect(timeTrackingService.checkOut).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByText("Abweichung vom Dienstplan")).toBeInTheDocument();
   });
 });

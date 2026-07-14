@@ -29,6 +29,7 @@ import {
   PickupTimeModal,
   SickNoteModal,
   SickStatusSummary,
+  type TodayPickup,
   useChildCare,
 } from "~/components/parent/child-care";
 import RelatedAccountsPanel from "~/components/parent/related-accounts-panel";
@@ -579,6 +580,35 @@ function DesktopQuickAction({
   );
 }
 
+// Renders today's real pickup state (never a fabricated value, #1725): the
+// effective time (with a "geändert" marker when a same-day override differs
+// from the base plan), "Heute abgemeldet" on an absence, "Keine Abholung heute"
+// when nothing is configured, and a neutral dash when the plan couldn't load.
+function TodayPickupValue({
+  pickup,
+  t,
+}: Readonly<{ pickup: TodayPickup; t: ChildDetailTranslator }>) {
+  switch (pickup.kind) {
+    case "time":
+      return (
+        <>
+          {t("today.pickupTime", { time: pickup.time })}
+          {pickup.changed && (
+            <span className="ml-1 font-medium text-gray-500">
+              · {t("today.pickupChanged")}
+            </span>
+          )}
+        </>
+      );
+    case "absent":
+      return <>{t("today.pickupAbsent")}</>;
+    case "none":
+      return <>{t("today.pickupNone")}</>;
+    default:
+      return <>—</>;
+  }
+}
+
 function TodayPanel({
   care,
   threads,
@@ -622,7 +652,7 @@ function TodayPanel({
               {t("today.pickupLabel")}
             </p>
             <p className="mt-0.5 text-sm font-semibold text-gray-900">
-              {t("today.regularPickup")}
+              <TodayPickupValue pickup={care.todayPickup} t={t} />
             </p>
           </div>
         </div>

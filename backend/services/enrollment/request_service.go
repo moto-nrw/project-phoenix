@@ -76,9 +76,15 @@ var (
 	// (enrollment.pickup_time_not_allowed) so the parent form can localize the
 	// message and highlight the offending schedule field.
 	ErrPickupTimeNotAllowed = fmt.Errorf("%w: pickup time not allowed", ErrInvalidSubmission)
-	ErrEditNotAllowed       = errors.New("request can no longer be edited")
-	ErrWithdrawNotAllowed   = errors.New("child cannot be withdrawn in its current state")
-	ErrDuplicateEnrollment  = errors.New("an active enrollment already exists for this parent and child in this phase")
+	// The three parent-input day errors (#1846/#1885) wrap
+	// ErrInvalidSubmission (HTTP 400) and carry their own identity so the
+	// handler can attach stable codes for localized form messages.
+	ErrSelectedDayNotAvailable = fmt.Errorf("%w: selected day is not available for this offering", ErrInvalidSubmission)
+	ErrDaySelectionRequired    = fmt.Errorf("%w: offering requires the parent to pick at least one day", ErrInvalidSubmission)
+	ErrDaySelectionNotAllowed  = fmt.Errorf("%w: offering does not allow parent day selection (days_of_week_mode=fixed)", ErrInvalidSubmission)
+	ErrEditNotAllowed          = errors.New("request can no longer be edited")
+	ErrWithdrawNotAllowed      = errors.New("child cannot be withdrawn in its current state")
+	ErrDuplicateEnrollment     = errors.New("an active enrollment already exists for this parent and child in this phase")
 )
 
 // Rate-limit thresholds. Hardcoded for now - if individual schools
@@ -3252,13 +3258,15 @@ func (s *requestService) enforceRateLimitBuckets(ctx context.Context, req Submit
 	return nil
 }
 
-var errParentChoiceOfferingMissingDays = fmt.Errorf("%w: offering requires the parent to pick at least one day", ErrInvalidSubmission)
+// errParentChoiceOfferingMissingDays aliases ErrDaySelectionRequired; the
+// sentinel became exported for the HTTP error-code mapping (#1885).
+var errParentChoiceOfferingMissingDays = ErrDaySelectionRequired
 
 func resolveManualSelectedDays(offering *enrollmentModels.CareOffering, picks []string) ([]string, error) {
 	switch offering.DaysOfWeekMode {
 	case enrollmentModels.DaysOfWeekModeFixed:
 		if len(picks) > 0 {
-			return nil, fmt.Errorf("%w: offering does not allow parent day selection (days_of_week_mode=fixed)", ErrInvalidSubmission)
+			return nil, ErrDaySelectionNotAllowed
 		}
 		return nil, nil
 	case enrollmentModels.DaysOfWeekModeParentChoice:
@@ -3270,7 +3278,7 @@ func resolveManualSelectedDays(offering *enrollmentModels.CareOffering, picks []
 		dedup := make([]string, 0, len(picks))
 		for _, d := range picks {
 			if !allowed[d] {
-				return nil, fmt.Errorf("%w: day %q is not in the offering's available_days", ErrInvalidSubmission, d)
+				return nil, fmt.Errorf("%w: day %q is not in the offering's available_days", ErrSelectedDayNotAvailable, d)
 			}
 			if seen[d] {
 				continue

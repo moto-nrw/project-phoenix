@@ -149,7 +149,11 @@ const (
 	KeyParentNewsEnabled               = "operations.parent_news_enabled"
 	KeyTimeTrackingAccountStartDate    = "operations.time_tracking_account_start_date"
 	KeyTimeTrackingEnforcePlannedStart = "operations.time_tracking_enforce_planned_start"
-	KeyMealPlanEnabled                 = "operations.meal_plan_enabled"
+	// F9: stamping outside the tolerance window around the planned shift
+	// window requires a reason; the tolerance is configurable per school.
+	KeyTimeTrackingRequireDeviationReason    = "operations.time_tracking_require_deviation_reason"
+	KeyTimeTrackingDeviationToleranceMinutes = "operations.time_tracking_deviation_tolerance_minutes"
+	KeyMealPlanEnabled                       = "operations.meal_plan_enabled"
 )
 
 // PresenceMode option values for KeyPresenceMode.

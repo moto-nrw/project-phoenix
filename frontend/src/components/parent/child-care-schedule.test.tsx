@@ -58,6 +58,7 @@ function schedule(
       { weekday: 5, arrival: "08:00", pickup: "15:00", modes: ["bus"] },
     ],
     can_request: true,
+    today_absent: false,
     ...overrides,
   };
 }

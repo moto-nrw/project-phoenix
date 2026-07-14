@@ -203,6 +203,34 @@ func init() {
 		SortOrder:       2,
 	})
 
+	config.Register(config.Definition{
+		Key:             config.KeyTimeTrackingRequireDeviationReason,
+		Label:           "Begründung bei Abweichung vom Dienstplan",
+		Description:     "Wenn aktiviert, verlangt das Ein- und Ausstempeln außerhalb des Toleranzfensters um die geplante Schichtzeit eine Begründung. Gilt auch für nachträgliche Änderungen eigener Zeiten. Tage ohne geplante Schicht bleiben unverändert.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       3,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyTimeTrackingDeviationToleranceMinutes,
+		Label:           "Toleranzfenster für Abweichungen (Minuten)",
+		Description:     "So viele Minuten darf die Ist-Zeit von der geplanten Schichtzeit abweichen, bevor eine Begründung verlangt wird.",
+		Type:            config.FieldNumber,
+		Default:         15,
+		Validation:      config.Range(0, 120),
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       4,
+		DependsOn:       config.DependsOnEq(config.KeyTimeTrackingRequireDeviationReason, true),
+	})
+
 	// Break auto-end interval is NOT registered here. It controls a global ticker
 	// and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
 

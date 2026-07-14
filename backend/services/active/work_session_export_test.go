@@ -1156,7 +1156,7 @@ func TestWSCheckOut_BreakCheckError(t *testing.T) {
 		return nil, errors.New("break check error")
 	}
 
-	session, err := svc.CheckOut(context.Background(), 100)
+	session, err := svc.CheckOut(context.Background(), 100, "")
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "failed to check active break")
@@ -1181,7 +1181,7 @@ func TestWSCheckOut_CloseSessionError(t *testing.T) {
 		return false, errors.New("close error")
 	}
 
-	session, err := svc.CheckOut(context.Background(), 100)
+	session, err := svc.CheckOut(context.Background(), 100, "")
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "failed to close session")
@@ -1214,7 +1214,7 @@ func TestWSCheckOut_FindByIDError(t *testing.T) {
 		return nil, errors.New("find error")
 	}
 
-	session, err := svc.CheckOut(context.Background(), 100)
+	session, err := svc.CheckOut(context.Background(), 100, "")
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "failed to retrieve updated session")
@@ -1347,7 +1347,7 @@ func TestWSCheckIn_CreateError(t *testing.T) {
 		return errors.New("create error")
 	}
 
-	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp)
+	session, err := svc.CheckIn(context.Background(), 100, activeModels.WorkSessionStatusPresent, activeModels.WorkSessionSourceApp, "")
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "failed to create work session")
