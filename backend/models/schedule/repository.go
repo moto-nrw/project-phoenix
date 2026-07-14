@@ -57,6 +57,11 @@ type StaffShiftRepository interface {
 	// one date (batch lookup for the auto-checkout job).
 	FindByStaffIDsAndDate(ctx context.Context, staffIDs []int64, date timezone.Date) ([]*StaffShift, error)
 
+	// FindByOriginShiftID returns every replacement shift covering the given
+	// origin (its cover set). Used when re-planning or reactivating a cancelled
+	// shift so its replacements can be resolved atomically (#1841).
+	FindByOriginShiftID(ctx context.Context, originShiftID int64) ([]*StaffShift, error)
+
 	// FindByStaffIDsAndDates returns only the shifts relevant to a batched
 	// hypothetical coverage probe.
 	FindByStaffIDsAndDates(ctx context.Context, staffIDs []int64, dates []timezone.Date) ([]*StaffShift, error)

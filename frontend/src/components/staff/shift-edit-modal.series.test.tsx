@@ -27,6 +27,7 @@ vi.mock("~/lib/shift-api", () => ({
     createShift: vi.fn(),
     updateShift: (...args: unknown[]) => updateShift(...args) as unknown,
     deleteShift: (...args: unknown[]) => deleteShift(...args) as unknown,
+    applyCancellation: vi.fn(),
   },
   staffShiftSeriesService: {
     createSeries: (...args: unknown[]) => createSeries(...args) as unknown,
@@ -84,6 +85,9 @@ const seriesShift: StaffShift = {
   notes: "",
   seriesId: "5",
   detached: false,
+  cancelled: false,
+  changeReason: null,
+  originShiftId: null,
 };
 
 function renderModal(props: Partial<Parameters<typeof ShiftEditModal>[0]>) {

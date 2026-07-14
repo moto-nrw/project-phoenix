@@ -53,6 +53,10 @@ interface ModalState {
   staff: StaffScheduleStaff;
   date: string;
   shift: StaffShift | null;
+  // The covers attached to `shift` (rows whose originShiftId is shift.id),
+  // captured at open time so a background SWR revalidation cannot swap them out
+  // from under an in-progress edit — same freeze as `shift` itself (#1841).
+  replacements: readonly StaffShift[];
 }
 
 function groupAssignmentsByStaffAndDate(
@@ -169,14 +173,17 @@ function DienstplanContent() {
     );
   }, [canUseAssignmentOverview, legacyStaff, overview?.staff]);
 
-  const shiftsByStaff = useMemo(
+  const allShifts = useMemo(
     () =>
-      groupShiftsByStaffAndDate(
-        canUseAssignmentOverview
-          ? (overview?.shifts ?? [])
-          : (legacyShifts ?? []),
-      ),
+      canUseAssignmentOverview
+        ? (overview?.shifts ?? [])
+        : (legacyShifts ?? []),
     [canUseAssignmentOverview, legacyShifts, overview?.shifts],
+  );
+
+  const shiftsByStaff = useMemo(
+    () => groupShiftsByStaffAndDate(allShifts),
+    [allShifts],
   );
 
   const assignmentsByStaff = useMemo(
@@ -363,6 +370,9 @@ function DienstplanContent() {
                 staff: member,
                 date,
                 shift,
+                replacements: shift
+                  ? allShifts.filter((s) => s.originShiftId === shift.id)
+                  : [],
               })
             }
           />
@@ -377,6 +387,8 @@ function DienstplanContent() {
           date={modal.date}
           shift={modal.shift}
           shiftTypes={shiftTypes ?? []}
+          staffOptions={sortedStaff}
+          existingReplacements={modal.replacements}
           onClose={() => setModal(null)}
           onSaved={() => mutateScheduleData()}
         />

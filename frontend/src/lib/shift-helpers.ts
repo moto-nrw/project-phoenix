@@ -13,6 +13,9 @@ export interface BackendStaffShift {
   notes?: string;
   series_id?: number | null;
   detached?: boolean;
+  cancelled?: boolean;
+  change_reason?: string | null;
+  origin_shift_id?: number | null;
 }
 
 export interface StaffShift {
@@ -34,6 +37,15 @@ export interface StaffShift {
   /** True when the row was edited via "Nur diese Woche" — series re-plans
    *  leave it alone. */
   detached: boolean;
+  /** True when the shift does not take place: the staff member is absent or
+   *  the gap is deliberately left open (#1841). Excluded from planned minutes. */
+  cancelled: boolean;
+  /** Optional "why" for a flexible daily change (moved times, cancellation, or
+   *  replacement, #1841). */
+  changeReason: string | null;
+  /** When set, this shift covers another (cancelled) shift as a replacement;
+   *  several replacements sharing one origin split a gap across people (#1841). */
+  originShiftId: string | null;
 }
 
 type CoverageStatus = "covered" | "uncovered" | "not_applicable";
@@ -162,6 +174,10 @@ export function mapStaffShift(data: BackendStaffShift): StaffShift {
     notes: data.notes ?? "",
     seriesId: data.series_id != null ? data.series_id.toString() : null,
     detached: data.detached ?? false,
+    cancelled: data.cancelled ?? false,
+    changeReason: data.change_reason ?? null,
+    originShiftId:
+      data.origin_shift_id != null ? data.origin_shift_id.toString() : null,
   };
 }
 
