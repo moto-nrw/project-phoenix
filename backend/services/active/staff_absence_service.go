@@ -401,26 +401,8 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		return nil, fmt.Errorf("can only update own absences")
 	}
 	before := *absence
-	if isVacationWorkflowAbsence(absence) {
-		return nil, fmt.Errorf("vacation workflow absences must be changed through the vacation flow")
-	}
-	if req.AbsenceType != nil && *req.AbsenceType == activeModels.AbsenceTypeVacation {
-		return nil, fmt.Errorf("vacation absences must be requested through the vacation flow")
-	}
-	// A type change into or out of "sick" would desync the #1843 plan cascade:
-	// sick→other keeps the cancellations/marks but skips the reversal on
-	// delete forever; other→sick pretends a cascade that never ran. Delete
-	// and re-create instead. Date edits remain supported and reconcile their
-	// plan-day difference below.
-	if req.AbsenceType != nil && *req.AbsenceType != absence.AbsenceType &&
-		(absence.AbsenceType == activeModels.AbsenceTypeSick || *req.AbsenceType == activeModels.AbsenceTypeSick) {
-		return nil, fmt.Errorf("invalid absence type change: sick absences must be deleted and re-created, not converted")
-	}
-	// Same reasoning for the half-day flag: flipping it would desync the
-	// already-applied (or deliberately skipped) cascade from the record.
-	if absence.AbsenceType == activeModels.AbsenceTypeSick &&
-		req.HalfDay != nil && *req.HalfDay != absence.HalfDay {
-		return nil, fmt.Errorf("invalid absence change: sick absences cannot switch between half and full days — delete and re-create the report")
+	if err := validateAbsenceUpdate(absence, req); err != nil {
+		return nil, err
 	}
 
 	// Apply updates from request
@@ -446,18 +428,50 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		return nil, fmt.Errorf("failed to update absence: %w", err)
 	}
 
-	if before.AbsenceType == activeModels.AbsenceTypeSick && !before.HalfDay &&
-		(before.DateStart != absence.DateStart || before.DateEnd != absence.DateEnd) {
-		if err := s.planSyncer().ReconcileSickRange(
-			ctx,
-			sickCascadeInput(&before, staffID, actorAccountID),
-			sickCascadeInput(absence, staffID, actorAccountID),
-		); err != nil {
-			return nil, fmt.Errorf("absence update saved nothing — plan cascade reconciliation failed: %w", err)
-		}
+	if err := s.reconcileUpdatedSickAbsence(ctx, &before, absence, staffID, actorAccountID); err != nil {
+		return nil, err
 	}
 
 	return toAbsenceResponse(absence), nil
+}
+
+func validateAbsenceUpdate(absence *activeModels.StaffAbsence, req UpdateAbsenceRequest) error {
+	if isVacationWorkflowAbsence(absence) {
+		return fmt.Errorf("vacation workflow absences must be changed through the vacation flow")
+	}
+	if req.AbsenceType != nil && *req.AbsenceType == activeModels.AbsenceTypeVacation {
+		return fmt.Errorf("vacation absences must be requested through the vacation flow")
+	}
+	// A type change into or out of "sick" would desync the #1843 plan cascade:
+	// sick→other keeps the cancellations/marks but skips the reversal on
+	// delete forever; other→sick pretends a cascade that never ran. Delete
+	// and re-create instead. Date edits remain supported and reconcile their
+	// plan-day difference below.
+	if req.AbsenceType != nil && *req.AbsenceType != absence.AbsenceType &&
+		(absence.AbsenceType == activeModels.AbsenceTypeSick || *req.AbsenceType == activeModels.AbsenceTypeSick) {
+		return fmt.Errorf("invalid absence type change: sick absences must be deleted and re-created, not converted")
+	}
+	// Same reasoning for the half-day flag: flipping it would desync the
+	// already-applied (or deliberately skipped) cascade from the record.
+	if absence.AbsenceType == activeModels.AbsenceTypeSick &&
+		req.HalfDay != nil && *req.HalfDay != absence.HalfDay {
+		return fmt.Errorf("invalid absence change: sick absences cannot switch between half and full days — delete and re-create the report")
+	}
+	return nil
+}
+
+func (s *staffAbsenceService) reconcileUpdatedSickAbsence(ctx context.Context, before, after *activeModels.StaffAbsence, actorStaffID int64, actorAccountID *int64) error {
+	if before.AbsenceType == activeModels.AbsenceTypeSick && !before.HalfDay &&
+		(before.DateStart != after.DateStart || before.DateEnd != after.DateEnd) {
+		if err := s.planSyncer().ReconcileSickRange(
+			ctx,
+			sickCascadeInput(before, actorStaffID, actorAccountID),
+			sickCascadeInput(after, actorStaffID, actorAccountID),
+		); err != nil {
+			return fmt.Errorf("absence update saved nothing — plan cascade reconciliation failed: %w", err)
+		}
+	}
+	return nil
 }
 
 func sickCascadeInput(absence *activeModels.StaffAbsence, actorStaffID int64, actorAccountID *int64) SickCascadeInput {

@@ -145,6 +145,32 @@ function statusMeta(status: string): StatusMeta {
   }
 }
 
+function pendingAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
+  return absences.filter((absence) => absence.status === "requested");
+}
+
+function upcomingAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
+  const today = todayISO();
+  return absences.filter(
+    (absence) =>
+      (absence.status === "approved" || absence.status === "reported") &&
+      absence.date_end >= today,
+  );
+}
+
+function historicalAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
+  const today = todayISO();
+  return absences
+    .filter(
+      (absence) =>
+        absence.status === "declined" ||
+        absence.status === "canceled" ||
+        ((absence.status === "approved" || absence.status === "reported") &&
+          absence.date_end < today),
+    )
+    .sort((left, right) => (left.date_start < right.date_start ? 1 : -1));
+}
+
 export function AbwesenheitenTab({
   staffId,
   canEdit,
@@ -233,31 +259,9 @@ export function AbwesenheitenTab({
     reload();
   }, [reload]);
 
-  const pending = useMemo(
-    () => absences.filter((a) => a.status === "requested"),
-    [absences],
-  );
-  const upcoming = useMemo(() => {
-    const today = todayISO();
-    return absences.filter(
-      (a) =>
-        (a.status === "approved" || a.status === "reported") &&
-        a.date_end >= today,
-    );
-  }, [absences]);
-  const history = useMemo(
-    () =>
-      absences
-        .filter(
-          (a) =>
-            a.status === "declined" ||
-            a.status === "canceled" ||
-            ((a.status === "approved" || a.status === "reported") &&
-              a.date_end < todayISO()),
-        )
-        .sort((a, b) => (a.date_start < b.date_start ? 1 : -1)),
-    [absences],
-  );
+  const pending = useMemo(() => pendingAbsences(absences), [absences]);
+  const upcoming = useMemo(() => upcomingAbsences(absences), [absences]);
+  const history = useMemo(() => historicalAbsences(absences), [absences]);
 
   const handleApprove = async (row: StaffAbsenceRow) => {
     setPendingActionId(row.id);
@@ -282,8 +286,7 @@ export function AbwesenheitenTab({
       await staffAbsenceService.deleteAbsence(staffId, deleteTarget.id);
       toast.success("Krankmeldung gelöscht.");
       setDeleteTarget(null);
-      void refreshPlanCaches();
-      await reload();
+      await Promise.all([refreshPlanCaches(), reload()]);
     } catch (err) {
       setDeleteError(
         err instanceof Error ? err.message : "Löschen fehlgeschlagen.",
@@ -414,8 +417,14 @@ export function AbwesenheitenTab({
           staff={sickStaff}
           onClose={() => setSickStaff(null)}
           onCreated={() => {
-            void refreshPlanCaches();
-            void reload({ silent: true });
+            Promise.all([refreshPlanCaches(), reload({ silent: true })]).catch(
+              (err: unknown) => {
+                logger.error("post_create_refresh_failed", {
+                  staff_id: staffId,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              },
+            );
           }}
         />
       )}

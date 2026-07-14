@@ -18,6 +18,7 @@ import { Button } from "~/components/ui/button";
 import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { createLogger } from "~/lib/logger";
 import { staffShiftService } from "~/lib/shift-api";
 import {
   groupShiftsByStaffAndDate,
@@ -35,6 +36,8 @@ import { useTenantRouter } from "~/lib/tenant-router";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
 
 import { DienstplanPageSkeleton } from "./dienstplan-skeleton";
+
+const logger = createLogger({ component: "DienstplanView" });
 
 // Admin week view for planned staff shifts (Dienstplan, #1376 core slice).
 // One row per staff member, Mo–Fr columns, click-to-edit per cell. The
@@ -431,8 +434,13 @@ function DienstplanContent() {
           staff={sickModal}
           onClose={() => setSickModal(null)}
           onCreated={() => {
-            void refreshPlanCaches();
-            void mutateOverview();
+            Promise.all([refreshPlanCaches(), mutateOverview()]).catch(
+              (err: unknown) => {
+                logger.error("post_sick_report_refresh_failed", {
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              },
+            );
           }}
         />
       )}
