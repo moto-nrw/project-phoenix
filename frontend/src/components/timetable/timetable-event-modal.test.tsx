@@ -1172,6 +1172,85 @@ describe("TimetableEventModal", () => {
     );
   });
 
+  it("warns before a direct Regeltermin edit when single-occurrence edits exist (#1875)", async () => {
+    mockCountEditedInWindow.mockResolvedValue({
+      count: 2,
+      occurrences: [
+        {
+          instanceId: "101",
+          date: "2026-05-11",
+          startTime: "15:00:00",
+          title: "Yoga",
+          changes: ["room"],
+        },
+        {
+          instanceId: "102",
+          date: "2026-05-18",
+          startTime: "15:00:00",
+          title: "Yoga",
+          changes: ["staff", "title"],
+        },
+      ],
+    });
+
+    renderModal({ initialSeries: template, defaultDate: "2026-05-04" });
+
+    await screen.findByText("Regeltermin bearbeiten");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    // The destructive re-plan is deferred behind the warning, listing the dates.
+    expect(
+      await screen.findByText("Einzelanpassungen gehen verloren"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("11.05.2026")).toBeInTheDocument();
+    expect(screen.getByText("18.05.2026")).toBeInTheDocument();
+    expect(mockUpdateTemplate).not.toHaveBeenCalled();
+
+    // Confirm → the direct series edit proceeds.
+    fireEvent.click(
+      screen.getByRole("button", { name: "Trotzdem fortfahren" }),
+    );
+    await waitFor(() =>
+      expect(mockUpdateTemplate).toHaveBeenCalledWith("7", expect.anything()),
+    );
+  });
+
+  it("cancels a direct Regeltermin edit and writes nothing (#1875)", async () => {
+    mockCountEditedInWindow.mockResolvedValue({
+      count: 1,
+      occurrences: [
+        {
+          instanceId: "101",
+          date: "2026-05-11",
+          startTime: "15:00:00",
+          title: "Yoga",
+          changes: ["room"],
+        },
+      ],
+    });
+
+    renderModal({ initialSeries: template, defaultDate: "2026-05-04" });
+
+    await screen.findByText("Regeltermin bearbeiten");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await screen.findByText("Einzelanpassungen gehen verloren");
+
+    const warningDialog = screen.getByRole("dialog", {
+      name: "Einzelanpassungen gehen verloren",
+    });
+    fireEvent.click(
+      within(warningDialog).getByRole("button", { name: "Abbrechen" }),
+    );
+
+    await waitFor(() =>
+      expect(
+        screen.queryByText("Einzelanpassungen gehen verloren"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(mockUpdateTemplate).not.toHaveBeenCalled();
+    expect(mockReplanWeek).not.toHaveBeenCalled();
+  });
+
   it("updates an existing series and converts an instance to a series", async () => {
     // Freeze the calendar day so the "replan from today" window is stable.
     vi.useFakeTimers({ toFake: ["Date"] });

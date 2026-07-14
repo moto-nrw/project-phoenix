@@ -591,13 +591,13 @@ export function TimetableEventModal({
   } | null>(null);
   // #1875: a series edit that would discard single-occurrence changes is
   // deferred here until the user confirms the loss (with the concrete dates).
+  // `onConfirm` runs the actual destructive edit — shared by the occurrence
+  // scope picker (handleScopeSelect) and the direct Regeltermin edit
+  // (handleSubmit); `scope` only drives the warning wording.
   const [lostEdits, setLostEdits] = useState<{
     scope: "all" | "following";
-    roomId: number;
-    template: TimetableTemplate;
-    periodEnd: string | undefined;
-    groupId: string;
     result: EditedInWindowResult;
+    onConfirm: () => Promise<void>;
   } | null>(null);
   const [conflictWarnings, setConflictWarnings] = useState<
     ConflictWarningItem[]
@@ -1639,16 +1639,49 @@ export function TimetableEventModal({
       }
 
       if (initialSeries) {
-        await timetableService.updateTemplate(
-          initialSeries.id,
-          seriesBody(parsed.roomId, parsed.categoryId),
-        );
-        if (await replanTemplateFuture(initialSeries.id)) {
-          toastSuccess("Regeltermin gespeichert");
-        } else {
-          toastWarning(FOLLOW_UP_WARNING);
+        const seriesId = initialSeries.id;
+        const categoryId = parsed.categoryId;
+        const runSeriesEdit = async () => {
+          await timetableService.updateTemplate(
+            seriesId,
+            seriesBody(parsed.roomId, categoryId),
+          );
+          if (await replanTemplateFuture(seriesId)) {
+            toastSuccess("Regeltermin gespeichert");
+          } else {
+            toastWarning(FOLLOW_UP_WARNING);
+          }
+          onSaved({ kind: "series", seriesId });
+        };
+
+        // #1875: a direct Regeltermin edit runs the same destructive re-plan as
+        // the "Alle Termine" scope, so it needs the same lost-edits warning.
+        // replanTemplateFuture re-plans [today, period end]; probe that window.
+        const editsTo =
+          findPeriod(form.calendarPeriodId)?.endDate ??
+          weekTo ??
+          berlinTodayISO();
+        let lost: EditedInWindowResult | null = null;
+        try {
+          const probe = await timetableService.countEditedInWindow(
+            seriesId,
+            berlinTodayISO(),
+            editsTo,
+          );
+          if (probe.count > 0) lost = probe;
+        } catch (probeErr) {
+          logger.warn("edited_in_window_probe_failed", {
+            error:
+              probeErr instanceof Error ? probeErr.message : String(probeErr),
+          });
         }
-        onSaved({ kind: "series", seriesId: initialSeries.id });
+        if (lost) {
+          setLostEdits({ scope: "all", result: lost, onConfirm: runSeriesEdit });
+          setSubmitting(false);
+          return;
+        }
+
+        await runSeriesEdit();
         onClose();
         return;
       }
@@ -1928,11 +1961,15 @@ export function TimetableEventModal({
         setPendingSeriesEdit(null);
         setLostEdits({
           scope: typedScope,
-          roomId: pending.roomId,
-          template,
-          periodEnd,
-          groupId,
           result: lost,
+          onConfirm: () =>
+            performSeriesEdit(
+              typedScope,
+              pending.roomId,
+              template,
+              periodEnd,
+              groupId,
+            ),
         });
         setSubmitting(false);
         return;
@@ -1960,13 +1997,7 @@ export function TimetableEventModal({
     if (!pending) return;
     setSubmitting(true);
     try {
-      await performSeriesEdit(
-        pending.scope,
-        pending.roomId,
-        pending.template,
-        pending.periodEnd,
-        pending.groupId,
-      );
+      await pending.onConfirm();
       setLostEdits(null);
       onClose();
     } catch (err) {
