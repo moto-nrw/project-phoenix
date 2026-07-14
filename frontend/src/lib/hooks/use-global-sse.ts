@@ -257,10 +257,11 @@ export function useGlobalSSE(): SSEHookState {
           (key.includes("timetable-") ||
             // "Heute geplant" card on the Zeiterfassung page (#1844): its
             // assignments come from activity instances, so a same-day cancel/
-            // start/complete — and staffing deviations (absence, substitute,
-            // understaffed-ack via staffing_deviation_changed) — must refetch
-            // it. The card disables focus revalidation, making this its only
-            // live update path.
+            // start/complete — and staffing_deviation_changed, which covers
+            // deviations (absence, substitute, understaffed-ack) plus ordinary
+            // create/edit/delete of still-planned instances — must refetch it.
+            // The card disables focus revalidation, making this its only live
+            // update path.
             key.includes("time-tracking-own-assignments-") ||
             key.includes("database-calendar-periods-list")),
       ).catch((err) => {

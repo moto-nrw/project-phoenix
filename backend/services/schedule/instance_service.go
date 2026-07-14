@@ -689,6 +689,7 @@ func (s *instanceService) DeleteCancelled(ctx context.Context, instanceID int64)
 		slog.String("date", instance.Date.String()),
 		slog.String("status", instance.Status),
 	)
+	s.broadcastPlannedInstanceChanged(ctx, "instance_delete")
 	return nil
 }
 
@@ -787,6 +788,7 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 		slog.Bool("spontaneous", inst.IsSpontaneous),
 		slog.Int("staff_assigned", len(req.StaffIDs)),
 	)
+	s.broadcastPlannedInstanceChanged(ctx, "instance_create")
 
 	return inst, nil
 }
@@ -892,6 +894,7 @@ func (s *instanceService) UpdatePlanned(ctx context.Context, instanceID int64, r
 		return nil, err
 	}
 
+	s.broadcastPlannedInstanceChanged(ctx, "instance_update")
 	return instance, nil
 }
 
@@ -1701,6 +1704,30 @@ func (s *instanceService) loadForTransition(ctx context.Context, instanceID int6
 		return nil, ErrInstanceNotFound
 	}
 	return instance, nil
+}
+
+// broadcastPlannedInstanceChanged queues one tenant-wide
+// staffing_deviation_changed event after the surrounding tenant transaction
+// commits. Ordinary CRUD on still-planned instances (create, edit incl.
+// staff_ids/date moves, delete) triggers no lifecycle transition, so no
+// instance_* event fires — yet it changes who is planned where, and the same
+// caches (planner, "Heute geplant" card) go stale until reload (#1844).
+// source names the emitting flow for log review.
+func (s *instanceService) broadcastPlannedInstanceChanged(ctx context.Context, source string) {
+	if s.deps.Broadcaster == nil {
+		return
+	}
+	tenantID := tenant.FromContext(ctx)
+	event := realtime.NewEvent(realtime.EventStaffingDeviationChanged, "", realtime.EventData{Source: &source})
+	tenant.RegisterAfterCommit(ctx, func() {
+		if err := s.deps.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+			s.getLogger().Warn("SSE planned instance broadcast failed",
+				slog.String("source", source),
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
+		}
+	})
 }
 
 // broadcastInstanceEvent is a nil-safe fire-and-forget SSE wrapper. Events
