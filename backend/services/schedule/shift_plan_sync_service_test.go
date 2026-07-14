@@ -423,7 +423,7 @@ func TestSickCascade_UpdateRangeRollsBackWhenRemovedShiftCannotReactivate(t *tes
 	newStart := newDay.String()
 	newEnd := newDay.String()
 	err := tenant.WithTenantTx(context.Background(), e.db, 1, func(ctx context.Context, _ bun.Tx) error {
-		_, updateErr := e.factory.StaffAbsence.UpdateAbsence(ctx, e.subject.ID, absenceID, activeSvc.UpdateAbsenceRequest{
+		_, updateErr := e.factory.StaffAbsence.UpdateAbsence(ctx, e.subject.ID, nil, absenceID, activeSvc.UpdateAbsenceRequest{
 			DateStart: &newStart,
 			DateEnd:   &newEnd,
 		})
@@ -556,6 +556,59 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 	assert.Nil(t, stored.SickAbsenceID, "deleted report must release ownership")
 	_, err := e.repos.StaffShift.FindByID(e.ctx, cover.ID)
 	require.NoError(t, err, "concurrent replacement must survive the clear")
+}
+
+func TestSickCascade_ClearLocksCommittedReplacementStaffBeforeReversal(t *testing.T) {
+	e := buildSickCascadeEnv(t)
+	day := timezone.TodayDate().AddDays(1)
+	origin := e.createShift(t, e.subject.ID, day, "08:00", "10:00", nil)
+	absenceID := e.createSickAbsence(t, day, day)
+	cover := e.createShift(t, e.sub.ID, day, "08:00", "10:00", func(shift *scheduleModels.StaffShift) {
+		shift.OriginShiftID = &origin.ID
+	})
+	input := activeSvc.SickCascadeInput{
+		AbsenceID:      absenceID,
+		SubjectStaffID: e.subject.ID,
+		ActorStaffID:   e.admin.ID,
+		DateStart:      day,
+		DateEnd:        day,
+	}
+
+	locked := make(chan struct{})
+	release := make(chan struct{})
+	lockerDone := make(chan error, 1)
+	go func() {
+		lockerDone <- tenant.WithTenantTx(context.Background(), e.db, 1, func(ctx context.Context, _ bun.Tx) error {
+			if err := scheduleSvc.LockStaffShiftWrites(ctx, e.db, cover.StaffID); err != nil {
+				return err
+			}
+			close(locked)
+			<-release
+			return nil
+		})
+	}()
+	<-locked
+
+	clearDone := make(chan error, 1)
+	go func() {
+		clearDone <- tenant.WithTenantTx(context.Background(), e.db, 1, func(ctx context.Context, _ bun.Tx) error {
+			return e.syncer.ClearSickForRange(ctx, input)
+		})
+	}()
+	select {
+	case err := <-clearDone:
+		require.Failf(t, "clear did not lock replacement staff", "returned early: %v", err)
+	case <-time.After(150 * time.Millisecond):
+	}
+	close(release)
+	require.NoError(t, <-lockerDone)
+	require.NoError(t, <-clearDone)
+
+	stored := e.reloadShift(t, origin.ID)
+	assert.True(t, stored.Cancelled, "replacement must keep its origin cancelled")
+	assert.Nil(t, stored.SickAbsenceID, "reversal must release the sick-report stamp")
+	_, err := e.repos.StaffShift.FindByID(e.ctx, cover.ID)
+	require.NoError(t, err, "replacement must survive the reversal")
 }
 
 func (e *sickCascadeEnv) createSickAbsence(t *testing.T, start, end timezone.Date) int64 {

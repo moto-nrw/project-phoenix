@@ -148,10 +148,12 @@ function statusMeta(status: string): StatusMeta {
 export function AbwesenheitenTab({
   staffId,
   canEdit,
+  canManageSickReports,
   staff,
 }: {
   readonly staffId: string;
   readonly canEdit: boolean;
+  readonly canManageSickReports: boolean;
   // Passed in from the staff detail page so the "Krank melden" modal has the
   // person's name. Optional so the tab still renders (without the action)
   // where the staff object is not available (#1843).
@@ -331,7 +333,7 @@ export function AbwesenheitenTab({
       </div>
 
       <div className="flex items-center justify-between gap-3">
-        {canEdit && staff ? (
+        {canManageSickReports && staff ? (
           <Button
             type="button"
             variant="outline"
@@ -372,7 +374,9 @@ export function AbwesenheitenTab({
               <AbsenceRow
                 key={row.id}
                 row={row}
-                onDelete={canEdit ? () => setDeleteTarget(row) : undefined}
+                onDelete={
+                  canManageSickReports ? () => setDeleteTarget(row) : undefined
+                }
               />
             ))}
           </ul>
@@ -394,7 +398,9 @@ export function AbwesenheitenTab({
               <AbsenceRow
                 key={row.id}
                 row={row}
-                onDelete={canEdit ? () => setDeleteTarget(row) : undefined}
+                onDelete={
+                  canManageSickReports ? () => setDeleteTarget(row) : undefined
+                }
               />
             ))}
           </ul>

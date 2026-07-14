@@ -171,7 +171,7 @@ func (m *mockWorkSessionService) CreateSessionAsAdmin(_ context.Context, _, _ in
 
 type mockStaffAbsenceService struct {
 	createAbsenceFn     func(ctx context.Context, staffID int64, req activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error)
-	updateAbsenceFn     func(ctx context.Context, staffID int64, absenceID int64, req activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error)
+	updateAbsenceFn     func(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error)
 	deleteAbsenceFn     func(ctx context.Context, staffID int64, absenceID int64) error
 	getAbsencesForRange func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error)
 	hasAbsenceOnDateFn  func(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error)
@@ -183,9 +183,9 @@ func (m *mockStaffAbsenceService) CreateAbsence(ctx context.Context, staffID int
 	}
 	return &activeSvc.StaffAbsenceResponse{}, nil
 }
-func (m *mockStaffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, absenceID int64, req activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
+func (m *mockStaffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
 	if m.updateAbsenceFn != nil {
-		return m.updateAbsenceFn(ctx, staffID, absenceID, req)
+		return m.updateAbsenceFn(ctx, staffID, actorAccountID, absenceID, req)
 	}
 	return &activeSvc.StaffAbsenceResponse{}, nil
 }
@@ -1318,8 +1318,10 @@ func TestUpdateAbsence_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
-		updateAbsenceFn: func(_ context.Context, staffID int64, absenceID int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
+		updateAbsenceFn: func(_ context.Context, staffID int64, actorAccountID *int64, absenceID int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
 			assert.Equal(t, int64(100), staffID)
+			require.NotNil(t, actorAccountID)
+			assert.Equal(t, int64(validClaims().ID), *actorAccountID)
 			assert.Equal(t, int64(77), absenceID)
 			return &activeSvc.StaffAbsenceResponse{}, nil
 		},
@@ -1356,7 +1358,7 @@ func TestUpdateAbsence_Forbidden(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
-		updateAbsenceFn: func(_ context.Context, _ int64, _ int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
+		updateAbsenceFn: func(_ context.Context, _ int64, _ *int64, _ int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
 			return nil, errors.New("can only update own absences")
 		},
 	}

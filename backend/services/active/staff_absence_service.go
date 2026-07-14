@@ -29,6 +29,12 @@ type UpdateAbsenceRequest struct {
 	Note        *string `json:"note"`
 }
 
+// maxSickAbsenceRangeDays bounds the synchronous plan cascade. Sick reports
+// legitimately span longer than the week-sized plan views, but allowing an
+// arbitrary multi-year range would hold the tenant transaction while the
+// cascade expands and locks every civil day.
+const maxSickAbsenceRangeDays = 366
+
 // StaffAbsenceResponse wraps an absence with calculated fields
 type StaffAbsenceResponse struct {
 	*activeModels.StaffAbsence
@@ -71,7 +77,7 @@ type StaffAbsenceService interface {
 	// full-day absence cascades into the plans via the ShiftPlanSyncer inside
 	// the caller's tenant tx; a cascade error aborts the whole create.
 	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error)
-	UpdateAbsence(ctx context.Context, staffID int64, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsenceResponse, error)
+	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsenceResponse, error)
 	DeleteAbsence(ctx context.Context, staffID int64, absenceID int64) error
 	// DeleteAbsenceFor is DeleteAbsence with an explicit actor (admin delete,
 	// #1843): deleting a sick report reverses its plan cascade first.
@@ -164,6 +170,9 @@ func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaff
 	if err != nil {
 		return nil, err
 	}
+	if err := validateSickAbsenceRange(req.AbsenceType, dateStart, dateEnd); err != nil {
+		return nil, err
+	}
 
 	// Check for overlapping absences, merge if same type, reject if different type.
 	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, subjectStaffID, dateStart, dateEnd)
@@ -234,9 +243,15 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	if err := validateSameAbsenceType(existing, req.AbsenceType); err != nil {
 		return nil, err
 	}
+	if err := validateSameSickDuration(existing, req); err != nil {
+		return nil, err
+	}
 
 	// Calculate merged date range
 	mergedStart, mergedEnd := calculateMergedDateRange(existing, dateStart, dateEnd)
+	if err := validateSickAbsenceRange(req.AbsenceType, mergedStart, mergedEnd); err != nil {
+		return nil, err
+	}
 
 	// Update the primary absence with merged range
 	primary := existing[0]
@@ -244,14 +259,6 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	primary.DateEnd = mergedEnd
 	if req.Note != "" && primary.Note == "" {
 		primary.Note = req.Note
-	}
-	// A full-day report widens the merged absence to full days: keeping the
-	// primary's HalfDay flag would silently skip the sick cascade for the
-	// newly reported full days (#1843).
-	if !req.HalfDay {
-		primary.HalfDay = false
-		primary.StartHalfDay = false
-		primary.EndHalfDay = false
 	}
 	primary.UpdatedAt = time.Now()
 
@@ -277,6 +284,28 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	}
 
 	return toAbsenceResponse(primary), nil
+}
+
+func validateSameSickDuration(existing []*activeModels.StaffAbsence, req CreateAbsenceRequest) error {
+	if req.AbsenceType != activeModels.AbsenceTypeSick {
+		return nil
+	}
+	for _, absence := range existing {
+		if absence.HalfDay != req.HalfDay {
+			return fmt.Errorf("invalid sick absence: half-day and full-day reports cannot be merged")
+		}
+	}
+	return nil
+}
+
+func validateSickAbsenceRange(absenceType string, start, end timezone.Date) error {
+	if absenceType != activeModels.AbsenceTypeSick || start.IsZero() || end.IsZero() || end.Before(start) {
+		return nil
+	}
+	if start.DaysUntil(end)+1 > maxSickAbsenceRangeDays {
+		return fmt.Errorf("invalid sick absence: date range exceeds %d days", maxSickAbsenceRangeDays)
+	}
+	return nil
 }
 
 // validateSameAbsenceType checks that all existing absences match the requested type.
@@ -361,7 +390,7 @@ func (s *staffAbsenceService) createNewAbsence(
 }
 
 // UpdateAbsence updates an existing absence record
-func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsenceResponse, error) {
+func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsenceResponse, error) {
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
 		return nil, fmt.Errorf("absence not found")
@@ -398,6 +427,9 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	if err := applyAbsenceUpdates(absence, req); err != nil {
 		return nil, err
 	}
+	if err := validateSickAbsenceRange(absence.AbsenceType, absence.DateStart, absence.DateEnd); err != nil {
+		return nil, err
+	}
 
 	// Check for overlapping absences (excluding self)
 	if err := s.checkOverlapExcludingSelf(ctx, staffID, absenceID, absence.DateStart, absence.DateEnd); err != nil {
@@ -418,8 +450,8 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		(before.DateStart != absence.DateStart || before.DateEnd != absence.DateEnd) {
 		if err := s.planSyncer().ReconcileSickRange(
 			ctx,
-			sickCascadeInput(&before, staffID, nil),
-			sickCascadeInput(absence, staffID, nil),
+			sickCascadeInput(&before, staffID, actorAccountID),
+			sickCascadeInput(absence, staffID, actorAccountID),
 		); err != nil {
 			return nil, fmt.Errorf("absence update saved nothing — plan cascade reconciliation failed: %w", err)
 		}

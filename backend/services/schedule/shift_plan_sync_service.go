@@ -203,7 +203,7 @@ func (s *shiftPlanSyncService) markBlocksForSickDay(ctx context.Context, in acti
 // absent — in both cases only the provenance stamp is cleared so the deleted
 // report stops owning them, and the admin resolves the rest manually.
 func (s *shiftPlanSyncService) ClearSickForRange(ctx context.Context, in active.SickCascadeInput) error {
-	if err := s.lockStaffWrites(ctx, in.SubjectStaffID); err != nil {
+	if err := s.lockSickReversalStaffWrites(ctx, in); err != nil {
 		return err
 	}
 	if err := s.reactivateStampedShifts(ctx, in, nil); err != nil {
@@ -233,7 +233,7 @@ func (s *shiftPlanSyncService) ReconcileSickRange(ctx context.Context, before, a
 	if len(removed) == 0 && len(added) == 0 {
 		return nil
 	}
-	if err := s.lockStaffWrites(ctx, after.SubjectStaffID); err != nil {
+	if err := s.lockSickReversalStaffWrites(ctx, before); err != nil {
 		return err
 	}
 	if err := s.acquireCascadeDayLocks(ctx, unionDateSets(removed, added)); err != nil {
@@ -247,6 +247,40 @@ func (s *shiftPlanSyncService) ReconcileSickRange(ctx context.Context, before, a
 		return err
 	}
 	s.instances.QueueActivityUpdates(ctx, activeTouched)
+	return nil
+}
+
+// lockSickReversalStaffWrites discovers every replacement owner attached to a
+// shift stamped by this sick report, then acquires the complete staff lock set
+// in the same global order used by ApplyCancellation. Taking the subject lock
+// first and discovering a lower-ID replacement later creates the inverse lock
+// order and can deadlock against a concurrent replacement edit.
+func (s *shiftPlanSyncService) lockSickReversalStaffWrites(ctx context.Context, in active.SickCascadeInput) error {
+	shifts, err := s.shiftRepo.List(ctx, map[string]any{"sick_absence_id": in.AbsenceID})
+	if err != nil {
+		return fmt.Errorf("sick clear: discover stamped shifts: %w", err)
+	}
+	staffIDs := []int64{in.SubjectStaffID}
+	for _, shift := range shifts {
+		covers, err := s.shiftRepo.FindByOriginShiftID(ctx, shift.ID)
+		if err != nil {
+			return fmt.Errorf("sick clear: discover covers of shift %d: %w", shift.ID, err)
+		}
+		for _, cover := range covers {
+			staffIDs = append(staffIDs, cover.StaffID)
+		}
+	}
+	sort.Slice(staffIDs, func(i, j int) bool { return staffIDs[i] < staffIDs[j] })
+	var previous int64
+	for _, staffID := range staffIDs {
+		if staffID <= 0 || staffID == previous {
+			continue
+		}
+		if err := s.lockStaffWrites(ctx, staffID); err != nil {
+			return err
+		}
+		previous = staffID
+	}
 	return nil
 }
 

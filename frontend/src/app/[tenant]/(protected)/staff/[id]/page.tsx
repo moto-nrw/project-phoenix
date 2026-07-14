@@ -14,7 +14,7 @@ import {
 } from "~/lib/staff-helpers";
 import { getInitials } from "~/lib/format-utils";
 import { useSWRAuth } from "~/lib/swr";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { AbwesenheitenTab } from "~/components/staff/abwesenheiten-tab";
 import { ArbeitszeitmodellTab } from "~/components/staff/arbeitszeitmodell-tab";
@@ -224,6 +224,7 @@ export default function StaffDetailContent() {
   const params = useParams();
   const staffId = params.id as string;
   const canEdit = isAdmin(session);
+  const canManageSickReports = hasPermission(session, "time_tracking:manage");
 
   const {
     data: staff,
@@ -377,7 +378,12 @@ export default function StaffDetailContent() {
         </TabsPrimitive.Content>
 
         <TabsPrimitive.Content value="abwesenheiten">
-          <AbwesenheitenTab staffId={staffId} canEdit={canEdit} staff={staff} />
+          <AbwesenheitenTab
+            staffId={staffId}
+            canEdit={canEdit}
+            canManageSickReports={canManageSickReports}
+            staff={staff}
+          />
         </TabsPrimitive.Content>
 
         <TabsPrimitive.Content value="stammdaten">
