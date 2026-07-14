@@ -26,7 +26,6 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { PageHeader } from "~/components/ui/page-header/PageHeader";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { DeviationHistorySlideOver } from "~/components/timetable/deviation-history-slide-over";
 import { SubstitutionSlideOver } from "~/components/timetable/substitution-slide-over";
 import { TimetableStatCard } from "~/components/timetable/timetable-stat-card";
 import { timetableSurface } from "~/components/timetable/timetable-style";
@@ -530,13 +529,13 @@ function VertretungsplanContent() {
         canManage={canManageSchedules}
         onClose={() => handleSelectInstance(null)}
         onApply={handleApply}
-        onShowHistory={() => updateUrlParams({ history: "1" })}
-      />
-
-      <DeviationHistorySlideOver
-        instance={selectedInstance}
-        open={historyOpen && selectedInstance !== null}
-        onClose={() => updateUrlParams({ history: null })}
+        // Verlauf ist jetzt ein Reiter im Editor (#1886). Alt-Deep-Links
+        // `?instance=X&history=1` öffnen ihn übergangsweise weiter über den
+        // vorgewählten Reiter.
+        initialTab={historyOpen ? "verlauf" : "bearbeiten"}
+        onTabChange={(tab) =>
+          updateUrlParams({ history: tab === "verlauf" ? "1" : null })
+        }
       />
     </div>
   );
