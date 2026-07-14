@@ -154,7 +154,7 @@ func (rs *Resource) acknowledgeUnderstaffed(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	instance, err := rs.InstanceService.SetUnderstaffedAck(r.Context(), id, *req.Ack, req.Note)
+	instance, err := rs.InstanceService.SetUnderstaffedAck(r.Context(), id, *req.Ack, req.Note, resolveActorAccountID(r.Context()))
 	if err != nil {
 		renderInstanceLifecycleError(w, r, err)
 		return

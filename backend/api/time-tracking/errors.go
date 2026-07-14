@@ -37,6 +37,19 @@ func classifyServiceError(err error) render.Renderer {
 		})
 	}
 
+	// Typed F9 deviation gate: 409 with a stable code plus the deviation
+	// facts, so the frontend can prompt "Du stempelst N Minuten nach
+	// Planende aus" and retry the same stamp with a reason.
+	var deviation *activeSvc.DeviationReasonRequiredError
+	if errors.As(err, &deviation) {
+		return common.ErrorConflictWithDetails(err, "deviation_reason_required", map[string]any{
+			"action":            deviation.Action,
+			"planned_time":      deviation.PlannedTime,
+			"actual_time":       deviation.ActualTime,
+			"deviation_minutes": strconv.Itoa(deviation.DeviationMinutes),
+		})
+	}
+
 	msg := err.Error()
 
 	switch {
@@ -58,6 +71,7 @@ func classifyServiceError(err error) render.Renderer {
 	case strings.HasPrefix(msg, "status must be"),
 		strings.HasPrefix(msg, "source must be"),
 		msg == "notes required when changing status",
+		msg == "notes required when changing recorded times",
 		msg == "break minutes cannot be negative",
 		msg == "break duration cannot be negative",
 		msg == "invalid session data: check-in time must be before check-out time",

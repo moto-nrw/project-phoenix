@@ -76,6 +76,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.care_concept",
 		"operations.time_tracking_account_start_date",
 		"operations.time_tracking_enforce_planned_start",
+		// F9 deviation-reason gate (Planung redesign, Inkrement 6A).
+		"operations.time_tracking_require_deviation_reason",
+		"operations.time_tracking_deviation_tolerance_minutes",
 		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
 		"operations.student_photos_enabled",
 		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair.
@@ -317,6 +320,38 @@ func TestTimeTrackingEnforcePlannedStartSetting(t *testing.T) {
 	assert.Equal(t, "operations", def.Tab)
 	assert.Equal(t, "zeiterfassung", def.Category)
 	assert.Equal(t, "config:update", def.WritePermission)
+}
+
+func TestTimeTrackingRequireDeviationReasonSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyTimeTrackingRequireDeviationReason)
+	require.NotNil(t, def, "operations.time_tracking_require_deviation_reason should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, false, def.Default, "deviation-reason gate must be opt-in")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "zeiterfassung", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Nil(t, def.DependsOn)
+}
+
+func TestTimeTrackingDeviationToleranceSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyTimeTrackingDeviationToleranceMinutes)
+	require.NotNil(t, def, "operations.time_tracking_deviation_tolerance_minutes should be registered")
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 15, def.Default, "default mirrors the fixed 15-minute frontend tolerance of getDeltaStatus")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "zeiterfassung", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	assert.Equal(t, float64(0), *def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(120), *def.Validation.Max)
+	require.NotNil(t, def.DependsOn, "tolerance is only visible while the gate is active")
+	assert.Equal(t, config.KeyTimeTrackingRequireDeviationReason, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
 }
 
 func TestTimetableSettings_Types(t *testing.T) {

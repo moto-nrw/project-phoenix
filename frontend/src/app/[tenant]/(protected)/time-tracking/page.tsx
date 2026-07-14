@@ -29,6 +29,7 @@ import {
   ChartTooltipContent,
 } from "~/components/ui/chart";
 import { Modal } from "~/components/ui/modal";
+import { OriginChip } from "~/components/ui/origin-chip";
 import {
   formatSignedDuration,
   ViewToggle,
@@ -53,6 +54,7 @@ import {
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
 import {
+  DEVIATION_REASON_REQUIRED_CODE,
   PLANNED_START_NOT_REACHED_CODE,
   REOPEN_STATUS_CONFLICT_CODE,
   timeTrackingService,
@@ -1067,6 +1069,15 @@ function ClockInCard({
         {metrics ? (
           <div className="mt-5 border-t border-gray-100 pt-4">
             <ClockInStatsStrip metrics={metrics} />
+            {/* Herkunfts-Chip am Soll-Wert (Planung-Redesign, docs/04 6.2):
+                genau einer pro Oberfläche, solange die Soll-Quellen-Frage
+                offen ist. */}
+            <div className="mt-3 flex justify-end">
+              <OriginChip
+                label="Soll aus Arbeitszeitmodell"
+                title="Wochensaldo und Stundenkonto rechnen gegen das im Arbeitszeitmodell hinterlegte Soll."
+              />
+            </div>
           </div>
         ) : (
           <div className="mt-4 flex flex-col gap-y-1 text-xs text-gray-400 sm:flex-row sm:flex-wrap sm:gap-x-6">
@@ -2905,6 +2916,24 @@ function TimeTrackingContent() {
     setReopenStatusChangeReason("");
   }, []);
 
+  // F9 deviation-reason prompt. Set when the backend rejects a stamp with
+  // DEVIATION_REASON_REQUIRED_CODE because it falls outside the tolerance
+  // window around the planned shift window. The modal collects the reason
+  // and retries the same stamp; the backend stores it in the audit log.
+  const [pendingDeviation, setPendingDeviation] = useState<{
+    action: "check_in" | "check_out";
+    status?: SessionStatus;
+    plannedTime?: string;
+    actualTime?: string;
+    deviationMinutes?: string;
+  } | null>(null);
+  const [deviationReason, setDeviationReason] = useState("");
+  const [deviationSubmitting, setDeviationSubmitting] = useState(false);
+  const handleClosePendingDeviation = useCallback(() => {
+    setPendingDeviation(null);
+    setDeviationReason("");
+  }, []);
+
   // Calculate date range for data fetching
   // - Chart shows trailing 10 workdays ending at reference date
   // - WeekView shows calendar week containing reference date, so the
@@ -2994,7 +3023,11 @@ function TimeTrackingContent() {
   const todayShifts = useMemo(
     () =>
       (ownTodayShifts ?? [])
-        .filter((s) => s.date === todayISO)
+        // A cancelled shift does not take place (#1841): the person is absent
+        // or the gap is left open, so it must not appear as a planned shift in
+        // the Stempeluhr. A replacement is the covering person's own shift and
+        // shows for them normally.
+        .filter((s) => s.date === todayISO && !s.cancelled)
         .sort((a, b) => a.startTime.localeCompare(b.startTime)),
     [ownTodayShifts, todayISO],
   );
@@ -3145,6 +3178,27 @@ function TimeTrackingContent() {
         toast.success("Erfolgreich eingestempelt");
       } catch (err) {
         const apiErr = err as ApiError;
+        if (apiErr.code === DEVIATION_REASON_REQUIRED_CODE) {
+          const details = apiErr.details;
+          setDeviationReason("");
+          setPendingDeviation({
+            action: "check_in",
+            status,
+            plannedTime:
+              typeof details?.planned_time === "string"
+                ? details.planned_time
+                : undefined,
+            actualTime:
+              typeof details?.actual_time === "string"
+                ? details.actual_time
+                : undefined,
+            deviationMinutes:
+              typeof details?.deviation_minutes === "string"
+                ? details.deviation_minutes
+                : undefined,
+          });
+          return;
+        }
         if (apiErr.code === REOPEN_STATUS_CONFLICT_CODE) {
           // Audit-trail gate: silent status change on reopen is forbidden.
           // Surface the prompt; the user supplies a reason and we route
@@ -3312,12 +3366,76 @@ function TimeTrackingContent() {
       ]);
       toast.success("Erfolgreich ausgestempelt");
     } catch (err) {
+      const apiErr = err as ApiError;
+      if (apiErr.code === DEVIATION_REASON_REQUIRED_CODE) {
+        const details = apiErr.details;
+        setDeviationReason("");
+        setPendingDeviation({
+          action: "check_out",
+          plannedTime:
+            typeof details?.planned_time === "string"
+              ? details.planned_time
+              : undefined,
+          actualTime:
+            typeof details?.actual_time === "string"
+              ? details.actual_time
+              : undefined,
+          deviationMinutes:
+            typeof details?.deviation_minutes === "string"
+              ? details.deviation_minutes
+              : undefined,
+        });
+        return;
+      }
       logger.error("check_out_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       toast.error(friendlyError(err, "Fehler beim Ausstempeln"));
     }
   }, [mutateCurrentSession, mutateHistory, refreshTableData, toast]);
+
+  // Retry the rejected stamp with the collected reason. The modal stays open
+  // when the retry fails so the reason isn't lost.
+  const confirmDeviationReason = useCallback(async () => {
+    const pending = pendingDeviation;
+    if (!pending) return;
+    const reason = deviationReason.trim();
+    if (!reason) return;
+
+    setDeviationSubmitting(true);
+    try {
+      if (pending.action === "check_in" && pending.status) {
+        await timeTrackingService.checkIn(pending.status, reason);
+        toast.success("Erfolgreich eingestempelt");
+      } else {
+        await timeTrackingService.checkOut(reason);
+        setCurrentBreaks([]);
+        toast.success("Erfolgreich ausgestempelt");
+      }
+      await Promise.all([
+        mutateCurrentSession(),
+        mutateHistory(),
+        refreshTableData(),
+      ]);
+      setPendingDeviation(null);
+      setDeviationReason("");
+    } catch (err) {
+      logger.error("deviation_reason_submit_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        action: pending.action,
+      });
+      toast.error(friendlyError(err, "Fehler beim Stempeln"));
+    } finally {
+      setDeviationSubmitting(false);
+    }
+  }, [
+    pendingDeviation,
+    deviationReason,
+    mutateCurrentSession,
+    mutateHistory,
+    refreshTableData,
+    toast,
+  ]);
 
   const handleStartBreak = useCallback(
     async (durationMinutes: number) => {
@@ -3708,6 +3826,91 @@ function TimeTrackingContent() {
             onChange={(e) => setReopenStatusChangeReason(e.target.value)}
             disabled={reopenStatusChangeSubmitting}
             placeholder="z. B. Mittags ins Homeoffice gewechselt"
+            rows={3}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:ring-1 focus:ring-gray-500 focus:outline-none disabled:opacity-50"
+          />
+        </div>
+      </Modal>
+
+      {/* F9: stamping outside the tolerance window around the planned shift
+          needs a reason that lands in the audit trail. */}
+      <Modal
+        isOpen={pendingDeviation !== null}
+        onClose={handleClosePendingDeviation}
+        title="Abweichung vom Dienstplan"
+        footer={
+          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
+            <button
+              onClick={handleClosePendingDeviation}
+              disabled={deviationSubmitting}
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={confirmDeviationReason}
+              disabled={deviationSubmitting || deviationReason.trim() === ""}
+              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {pendingDeviation?.action === "check_in"
+                ? "Mit Begründung einstempeln"
+                : "Mit Begründung ausstempeln"}
+            </button>
+          </div>
+        }
+      >
+        <div className="py-2">
+          <p className="text-sm text-gray-600">
+            {pendingDeviation?.action === "check_in" ? (
+              <>
+                Du stempelst
+                {pendingDeviation?.deviationMinutes ? (
+                  <span className="font-medium text-gray-900">
+                    {" "}
+                    {pendingDeviation.deviationMinutes} Minuten
+                  </span>
+                ) : (
+                  " deutlich"
+                )}{" "}
+                vor deinem geplanten Dienstbeginn
+                {pendingDeviation?.plannedTime
+                  ? ` (${pendingDeviation.plannedTime} Uhr)`
+                  : ""}{" "}
+                ein.
+              </>
+            ) : (
+              <>
+                Du stempelst
+                {pendingDeviation?.deviationMinutes ? (
+                  <span className="font-medium text-gray-900">
+                    {" "}
+                    {pendingDeviation.deviationMinutes} Minuten
+                  </span>
+                ) : (
+                  " deutlich"
+                )}{" "}
+                nach deinem geplanten Dienstende
+                {pendingDeviation?.plannedTime
+                  ? ` (${pendingDeviation.plannedTime} Uhr)`
+                  : ""}{" "}
+                aus.
+              </>
+            )}{" "}
+            Bitte gib einen kurzen Grund an. Er wird im Audit-Trail der Sitzung
+            gespeichert.
+          </p>
+          <label
+            htmlFor="deviation-reason"
+            className="mt-4 block text-xs font-medium text-gray-700"
+          >
+            Grund
+          </label>
+          <textarea
+            id="deviation-reason"
+            value={deviationReason}
+            onChange={(e) => setDeviationReason(e.target.value)}
+            disabled={deviationSubmitting}
+            placeholder="z. B. Elterngespräch lief länger"
             rows={3}
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:ring-1 focus:ring-gray-500 focus:outline-none disabled:opacity-50"
           />

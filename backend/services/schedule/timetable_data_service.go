@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -50,7 +51,9 @@ type TimetableDataDependencies struct {
 	// depends on the template being live. Production always wires it; partial
 	// read-only test facades may leave it nil.
 	ValidateCareOfferingSeries func(context.Context, int64) error
-	DB                         *bun.DB
+	// DeviationEventRepo serves the Änderungsprotokoll read path (#1886).
+	DeviationEventRepo auditModel.DeviationEventRepository
+	DB                 *bun.DB
 }
 
 // TimetableDataService is the service boundary behind api/timetable (issue
@@ -64,6 +67,13 @@ type TimetableDataService struct {
 // NewTimetableDataService creates the data facade behind api/timetable.
 func NewTimetableDataService(deps TimetableDataDependencies) *TimetableDataService {
 	return &TimetableDataService{deps: deps}
+}
+
+// ListDeviationEvents returns the Änderungsprotokoll rows in [from, to],
+// optionally narrowed to one slot (#1886). Raw IDs — display names resolve in
+// the read path (handler), never in storage.
+func (s *TimetableDataService) ListDeviationEvents(ctx context.Context, from, to timezone.Date, activityGroupID *int64, startTime *string) ([]*auditModel.DeviationEvent, error) {
+	return s.deps.DeviationEventRepo.ListByRange(ctx, from, to, activityGroupID, startTime)
 }
 
 func (s *TimetableDataService) GetInstanceStudents(ctx context.Context, instanceID int64) ([]*scheduleModel.InstanceStudent, error) {

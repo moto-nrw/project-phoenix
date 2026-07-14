@@ -18,7 +18,8 @@
  */
 
 import { useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import Link from "next/link";
+import { Check, ChevronDown, Plus, SlidersHorizontal } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -294,6 +295,17 @@ export function PeriodSwitcherDropdown({
           >
             <Plus className="h-4 w-4" aria-hidden /> Neuen Zeitraum anlegen
           </Button>
+          {/* Verwaltungslink: /calendar-periods hat keinen Sidebar-Eintrag
+              mehr, die Seite ist über diesen Chip erreichbar
+              (Planung-Redesign, Synthese 1.1). */}
+          <Link
+            href="/calendar-periods"
+            onClick={() => setOpen(false)}
+            className="flex h-8 w-full items-center gap-1 border-t border-gray-100 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+          >
+            <SlidersHorizontal className="h-4 w-4" aria-hidden /> Zeiträume
+            verwalten
+          </Link>
         </div>
       )}
     </div>

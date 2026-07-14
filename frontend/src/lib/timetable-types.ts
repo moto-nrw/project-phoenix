@@ -228,6 +228,63 @@ export interface BackendGapsResponse {
   acknowledged?: BackendGapInstance[];
 }
 
+/** Ereignistypen des Änderungsprotokolls (#1886) — offenes Vokabular, das
+ * Backend darf jederzeit neue Typen liefern (Label-Fallback im Mapper). */
+type DeviationEventType =
+  | "absence"
+  | "return_to_presence"
+  | "substitution"
+  | "substitute_removed"
+  | "cancellation"
+  | "understaffed_ack"
+  | "understaffed_unack"
+  | "deviation_dropped_by_replan"
+  | "deviation_dropped_by_edit"
+  | (string & {});
+
+/** Ein Eintrag im Änderungsprotokoll (#1886), aufgelöst für die Anzeige. */
+export interface DeviationHistoryEvent {
+  id: string;
+  activityGroupId?: string;
+  occurrenceDate: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  instanceId?: string;
+  eventType: DeviationEventType;
+  subjectStaffId?: string;
+  subjectStaffName?: string;
+  relatedStaffId?: string;
+  relatedStaffName?: string;
+  actorAccountId?: string;
+  actorName?: string;
+  reason?: string;
+  occurredAt: string; // RFC3339
+}
+
+export interface DeviationHistoryResponse {
+  events: DeviationHistoryEvent[];
+}
+
+interface BackendDeviationHistoryEvent {
+  id: number;
+  activity_group_id?: number;
+  occurrence_date: string;
+  start_time: string;
+  instance_id?: number;
+  event_type: string;
+  subject_staff_id?: number;
+  subject_staff_name?: string;
+  related_staff_id?: number;
+  related_staff_name?: string;
+  actor_account_id?: number;
+  actor_name?: string;
+  reason?: string;
+  occurred_at: string;
+}
+
+export interface BackendDeviationHistoryResponse {
+  events: BackendDeviationHistoryEvent[] | null;
+}
+
 type ExceptionConflictKind =
   | "cancelled_instance_with_scheduled_arrivals"
   | "modified_instance_time_mismatch";
@@ -519,14 +576,6 @@ interface SubstituteAffectedInstance {
   action: SubstituteAction;
 }
 
-export interface SubstituteResponse {
-  absentStaffId: string;
-  substituteStaffId: string;
-  date: string;
-  affectedInstances: SubstituteAffectedInstance[];
-  warnings: SubstituteTimeConflict[];
-}
-
 interface BackendSubstituteTimeConflict {
   instance_id: number;
   title: string;
@@ -540,14 +589,6 @@ interface BackendSubstituteAffectedInstance {
   title: string;
   start_time: string;
   action: SubstituteAction;
-}
-
-export interface BackendSubstituteResponse {
-  absent_staff_id: number;
-  substitute_staff_id: number;
-  date: string;
-  affected_instances: BackendSubstituteAffectedInstance[];
-  warnings: BackendSubstituteTimeConflict[];
 }
 
 /** #1840: POST /instances/{id}/acknowledge-understaffed result. */

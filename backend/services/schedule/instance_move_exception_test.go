@@ -79,7 +79,7 @@ func TestUpdatePlanned_DateMove_WritesExceptionAndBlocksRematerialization(t *tes
 
 	// Move the occurrence to Tuesday, keeping times and template binding.
 	newDate := origDate.AddDays(1)
-	_, err = s.factory.Instance.UpdatePlanned(s.ctx, inst.ID, moveInput(s, inst, newDate, 0))
+	_, err = s.factory.Instance.UpdatePlanned(s.ctx, inst.ID, moveInput(s, inst, newDate, 0), nil)
 	require.NoError(t, err)
 
 	excs := loadExceptions(t, s, s.template.ID)
@@ -138,7 +138,7 @@ func TestUpdatePlanned_StartTimeOnlyMove_WritesException(t *testing.T) {
 	s.registerCleanup("schedule.activity_instances", inst.ID)
 
 	// Same date, start shifted by one hour.
-	_, err = s.factory.Instance.UpdatePlanned(s.ctx, inst.ID, moveInput(s, inst, origDate, 1))
+	_, err = s.factory.Instance.UpdatePlanned(s.ctx, inst.ID, moveInput(s, inst, origDate, 1), nil)
 	require.NoError(t, err)
 
 	excs := loadExceptions(t, s, s.template.ID)
@@ -174,7 +174,7 @@ func TestUpdatePlanned_NoDateOrTimeChange_WritesNothing(t *testing.T) {
 	in := moveInput(s, inst, origDate, 0)
 	in.Title = fmt.Sprintf("Umbenannt-%d", time.Now().UnixNano())
 	in.EndTime = clockInput(inst.EndTime, 1)
-	_, err = s.factory.Instance.UpdatePlanned(s.ctx, inst.ID, in)
+	_, err = s.factory.Instance.UpdatePlanned(s.ctx, inst.ID, in, nil)
 	require.NoError(t, err)
 
 	assert.Empty(t, loadExceptions(t, s, s.template.ID),
@@ -195,7 +195,7 @@ func TestUpdatePlanned_SpontaneousMove_WritesNothing(t *testing.T) {
 		Scan(s.ctx)
 	require.NoError(t, err)
 
-	_, err = s.factory.Instance.UpdatePlanned(s.ctx, spontaneousID, moveInput(s, inst, origDate.AddDays(1), 0))
+	_, err = s.factory.Instance.UpdatePlanned(s.ctx, spontaneousID, moveInput(s, inst, origDate.AddDays(1), 0), nil)
 	require.NoError(t, err)
 
 	var count int

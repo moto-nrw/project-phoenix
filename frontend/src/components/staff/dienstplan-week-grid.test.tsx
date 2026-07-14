@@ -27,6 +27,9 @@ const shift: StaffShift = {
   notes: "",
   seriesId: null,
   detached: false,
+  cancelled: false,
+  changeReason: null,
+  originShiftId: null,
 };
 
 function assignment(
@@ -230,5 +233,38 @@ describe("DienstplanWeekGrid series indicator", () => {
 
     const icon = screen.getByLabelText("Serie, für diese Woche angepasst");
     expect(icon).toHaveClass("text-[#EAB308]");
+  });
+});
+
+describe("DienstplanWeekGrid flexible changes", () => {
+  function renderGridWithShift(overrides: Partial<StaffShift>) {
+    const flexShift = { ...shift, ...overrides };
+    render(
+      <DienstplanWeekGrid
+        staff={[member]}
+        shiftsByStaff={
+          new Map([[member.id, new Map([[shift.date, [flexShift]]])]])
+        }
+        assignmentsByStaff={new Map()}
+        summaryByStaff={new Map()}
+        weekDays={[shift.date]}
+        todayIso={shift.date}
+        typesById={new Map()}
+        isLoading={false}
+        onCellClick={vi.fn()}
+      />,
+    );
+  }
+
+  it("marks a cancelled shift as 'Fällt aus' with its reason (#1841)", () => {
+    renderGridWithShift({ cancelled: true, changeReason: "Krankheit" });
+
+    expect(screen.getByText("Fällt aus · Krankheit")).toBeInTheDocument();
+  });
+
+  it("labels a replacement shift as 'Vertretung' (#1841)", () => {
+    renderGridWithShift({ originShiftId: "9", changeReason: "Tausch" });
+
+    expect(screen.getByText("Vertretung · Tausch")).toBeInTheDocument();
   });
 });

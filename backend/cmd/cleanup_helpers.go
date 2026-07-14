@@ -120,6 +120,7 @@ func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
 		ctx.RepoFactory.ActivityException,
 		ctx.RepoFactory.InstanceStudent,
 		auditRepo.NewDataDeletionRepository(ctx.DB),
+		ctx.RepoFactory.DeviationEvent,
 		ctx.ServiceFactory.Settings,
 		slog.Default().With("service", "timetable-cleanup-cli"),
 	)

@@ -150,12 +150,13 @@ func TestFlowH_ReplanReappliesSubstitute(t *testing.T) {
 	inst := fetchOneInstance(t, s, tmpl.group.ID, target)
 	s.registerCleanup("schedule.activity_instances", inst.ID)
 
+	// Konsolidierung (#1886): Vertretung über den atomaren Deviations-Save.
 	subReq := map[string]any{
-		"absent_staff_id":     staffA.ID,
-		"substitute_staff_id": subC.ID,
-		"date":                dateS,
+		"substitutions": []map[string]any{
+			{"absent_staff_id": staffA.ID, "substitute_staff_id": subC.ID},
+		},
 	}
-	rr = s.do("POST", "/substitute", subReq, primaryAdminClaims())
+	rr = s.do("POST", fmt.Sprintf("/instances/%d/deviations", inst.ID), subReq, primaryAdminClaims())
 	require.Equal(t, http.StatusOK, rr.Code, "substitute body=%s", rr.Body.String())
 
 	rr = s.do("POST", "/instances/re-plan-week", matReq, primaryAdminClaims())

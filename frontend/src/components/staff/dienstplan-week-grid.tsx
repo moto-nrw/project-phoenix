@@ -266,23 +266,40 @@ export function DienstplanWeekGrid({
                             const type = shift.shiftTypeId
                               ? typesById.get(shift.shiftTypeId)
                               : undefined;
+                            const isReplacement = shift.originShiftId != null;
+                            const accentColor = shift.cancelled
+                              ? UNTYPED_SHIFT_COLOR
+                              : isReplacement
+                                ? LOCATION_COLORS.OTHER_ROOM
+                                : (type?.color ?? UNTYPED_SHIFT_COLOR);
                             return (
                               <button
                                 key={shift.id}
                                 type="button"
                                 onClick={() => onCellClick(member, date, shift)}
                                 style={{
-                                  borderLeftColor:
-                                    type?.color ?? UNTYPED_SHIFT_COLOR,
-                                  // Light tint of the shift-type color as the slot
+                                  borderLeftColor: accentColor,
+                                  // Light tint of the accent color as the slot
                                   // background (~10% opacity via 8-digit hex).
-                                  backgroundColor: type
-                                    ? `${type.color}1A`
-                                    : undefined,
+                                  backgroundColor: shift.cancelled
+                                    ? undefined
+                                    : isReplacement
+                                      ? `${LOCATION_COLORS.OTHER_ROOM}14`
+                                      : type
+                                        ? `${type.color}1A`
+                                        : undefined,
                                 }}
-                                className="w-full rounded-md border border-l-2 border-gray-200 bg-white px-2 py-1 text-left transition-shadow hover:shadow-sm"
+                                className={`w-full rounded-md border border-l-2 border-gray-200 px-2 py-1 text-left transition-shadow hover:shadow-sm ${
+                                  shift.cancelled ? "bg-gray-50" : "bg-white"
+                                }`}
                               >
-                                <span className="flex items-center gap-1 font-semibold tabular-nums">
+                                <span
+                                  className={`flex items-center gap-1 font-semibold tabular-nums ${
+                                    shift.cancelled
+                                      ? "text-gray-400 line-through"
+                                      : ""
+                                  }`}
+                                >
                                   {formatShiftLabel(shift)}
                                   {shift.seriesId != null && (
                                     <Repeat
@@ -299,12 +316,35 @@ export function DienstplanWeekGrid({
                                     />
                                   )}
                                 </span>
-                                {type && (
+                                {shift.cancelled ? (
+                                  <span
+                                    className="block text-xs font-semibold"
+                                    style={{ color: LOCATION_COLORS.HOME }}
+                                  >
+                                    Fällt aus
+                                    {shift.changeReason
+                                      ? ` · ${shift.changeReason}`
+                                      : ""}
+                                  </span>
+                                ) : isReplacement ? (
+                                  <span
+                                    className="block text-xs font-semibold"
+                                    style={{
+                                      color: LOCATION_COLORS.OTHER_ROOM,
+                                    }}
+                                  >
+                                    Vertretung
+                                    {shift.changeReason
+                                      ? ` · ${shift.changeReason}`
+                                      : ""}
+                                  </span>
+                                ) : null}
+                                {!shift.cancelled && type && (
                                   <span className="block truncate text-xs text-gray-600">
                                     {type.name}
                                   </span>
                                 )}
-                                {shift.breakMinutes > 0 && (
+                                {!shift.cancelled && shift.breakMinutes > 0 && (
                                   <span className="block text-xs text-gray-500">
                                     Pause {shift.breakMinutes} min
                                   </span>

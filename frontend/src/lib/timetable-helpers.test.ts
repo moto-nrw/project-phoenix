@@ -7,6 +7,7 @@ import {
   countPlanned,
   countUnderstaffedInstances,
   countUnderstaffedTemplates,
+  deviationEventLabel,
   formatDayHeader,
   formatMonthLabel,
   formatWeekLabel,
@@ -30,6 +31,7 @@ import {
   mapApplyDeviations,
   mapAttendance,
   mapConflictCheckResult,
+  mapDeviationHistory,
   mapCreateTemplateResult,
   mapExceptionConflicts,
   mapGaps,
@@ -39,7 +41,6 @@ import {
   mapReplanWeekResult,
   mapSplitTemplateResult,
   mapStartInstanceResult,
-  mapSubstitute,
   mapShiftCoverageCheckResult,
   mapTemplates,
   mapWeeklyInstances,
@@ -213,6 +214,63 @@ describe("activity/status helpers", () => {
 });
 
 describe("backend mappers", () => {
+  it("maps deviation history identifiers and nullable display fields", () => {
+    expect(deviationEventLabel("cancellation")).toBe("Block abgesagt");
+    expect(deviationEventLabel("future_event")).toBe("future_event");
+
+    expect(
+      mapDeviationHistory({
+        events: [
+          {
+            id: 42,
+            activity_group_id: 7,
+            occurrence_date: "2026-05-04",
+            start_time: "12:00:00",
+            instance_id: 9,
+            event_type: "substitution",
+            subject_staff_id: 11,
+            subject_staff_name: "Ada",
+            related_staff_id: 12,
+            related_staff_name: "Berta",
+            actor_account_id: 13,
+            actor_name: "Planung",
+            reason: "Krankheit",
+            occurred_at: "2026-05-03T12:00:00Z",
+          },
+          {
+            id: 43,
+            occurrence_date: "2026-05-05",
+            start_time: "13:00:00",
+            event_type: "deviation_dropped_by_replan",
+            occurred_at: "2026-05-03T13:00:00Z",
+          },
+        ],
+      }),
+    ).toEqual({
+      events: [
+        expect.objectContaining({
+          id: "42",
+          activityGroupId: "7",
+          instanceId: "9",
+          subjectStaffId: "11",
+          relatedStaffId: "12",
+          actorAccountId: "13",
+          reason: "Krankheit",
+        }),
+        expect.objectContaining({
+          id: "43",
+          activityGroupId: undefined,
+          instanceId: undefined,
+          subjectStaffId: undefined,
+          relatedStaffId: undefined,
+          actorAccountId: undefined,
+          reason: undefined,
+        }),
+      ],
+    });
+    expect(mapDeviationHistory({ events: null }).events).toEqual([]);
+  });
+
   it("maps weekly instances, preferring detailed student rows over id fallback", () => {
     const result = mapWeeklyInstances({
       from: "2026-05-04",
@@ -722,37 +780,7 @@ describe("backend mappers", () => {
     expect(withNeither.seriesNotes).toBeUndefined();
   });
 
-  it("maps substitutes and templates", () => {
-    expect(
-      mapSubstitute({
-        absent_staff_id: 11,
-        substitute_staff_id: 12,
-        date: "2026-05-04",
-        affected_instances: [
-          {
-            instance_id: 42,
-            title: "Mensa",
-            start_time: "12:00",
-            action: "substituted",
-          },
-        ],
-        warnings: [
-          {
-            instance_id: 43,
-            title: "Yoga",
-            date: "2026-05-04",
-            start_time: "14:00",
-            end_time: "15:00",
-          },
-        ],
-      }),
-    ).toMatchObject({
-      absentStaffId: "11",
-      substituteStaffId: "12",
-      affectedInstances: [{ instanceId: "42" }],
-      warnings: [{ instanceId: "43" }],
-    });
-
+  it("maps templates", () => {
     expect(
       mapTemplates({
         templates: [
@@ -827,17 +855,7 @@ describe("backend mappers", () => {
     expect(tpl?.shiftTypeColor).toBe("#83CD2D");
   });
 
-  it("maps optional substitute/template fields without fallback ids", () => {
-    expect(
-      mapSubstitute({
-        absent_staff_id: 11,
-        substitute_staff_id: 12,
-        date: "2026-05-04",
-        affected_instances: undefined as never,
-        warnings: undefined as never,
-      }),
-    ).toMatchObject({ affectedInstances: [], warnings: [] });
-
+  it("maps optional template fields without fallback ids", () => {
     expect(
       mapTemplates({
         templates: [
@@ -870,6 +888,9 @@ describe("backend mappers", () => {
       educationGroupName: undefined,
       isOpen: false,
       maxParticipants: undefined,
+      notes: undefined,
+      shiftTypeName: undefined,
+      shiftTypeColor: undefined,
       calendarPeriodId: undefined,
       targetGroupType: "none",
       targetGradeLevel: undefined,
@@ -878,6 +899,7 @@ describe("backend mappers", () => {
       supervisorCount: 0,
       requiredStaffCount: 0,
       assignedStaffCount: 0,
+      requiredStaffOverride: undefined,
       studentIds: [],
       staffIds: [],
       primaryStaffId: undefined,

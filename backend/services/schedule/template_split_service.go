@@ -133,6 +133,9 @@ type TemplateSplitInput struct {
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max. Missing or out-of-range values are rejected.
 	GradeLevelMax int
+	// ActorAccountID stamps Änderungsprotokoll entries for deviations the
+	// split drops (#1886); nil records actor-less events.
+	ActorAccountID *int64
 }
 
 // TemplateSplitResult summarises one Split call.
@@ -197,7 +200,7 @@ type TemplateSplitService struct {
 type splitDeviationPreserver interface {
 	acquireSubstituteDayLocks(context.Context, int64, timezone.Date, timezone.Date) error
 	snapshotDeviations(context.Context, timezone.Date, timezone.Date, *int64) ([]deviationSnapshot, map[groupDay]int, error)
-	reapplyDeviations(context.Context, []deviationSnapshot, map[groupDay]int, *int64) (int, error)
+	reapplyDeviations(context.Context, []deviationSnapshot, map[groupDay]int, *int64, *int64) (int, error)
 }
 
 // NewTemplateSplitService constructs a TemplateSplitService. Panics if a
@@ -339,7 +342,7 @@ func (s *TemplateSplitService) splitInTransaction(
 	reapplied := 0
 	if preserveDeviations {
 		newID := newGroup.ID
-		reapplied, err = s.deviations.reapplyDeviations(ctx, snapshots, occurrences, &newID)
+		reapplied, err = s.deviations.reapplyDeviations(ctx, snapshots, occurrences, &newID, in.ActorAccountID)
 		if err != nil {
 			return nil, &ScheduleError{Op: "split template: reapply deviations", Err: err}
 		}

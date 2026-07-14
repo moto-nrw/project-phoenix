@@ -164,6 +164,7 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	in.GradeLevelMax = gradeLevelMax
+	in.ActorAccountID = resolveActorAccountID(r.Context())
 	// Same tenant-scoped period check the create/update handlers run; the
 	// returned roster start date is unused — the split anchors rosters on
 	// the effective date instead.

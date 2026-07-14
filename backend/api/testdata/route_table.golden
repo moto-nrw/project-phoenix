@@ -313,6 +313,7 @@ GET /api/time-tracking/shifts
 GET /api/time-tracking/vacation/quota
 GET /api/time-tracking/{id}/edits
 GET /api/timetable/conflicts
+GET /api/timetable/deviations/history
 GET /api/timetable/exception-conflicts
 GET /api/timetable/gaps
 GET /api/timetable/instances/
@@ -586,7 +587,6 @@ POST /api/timetable/operations/spontaneous/start
 POST /api/timetable/periods/
 POST /api/timetable/periods/bootstrap
 POST /api/timetable/shift-coverage
-POST /api/timetable/substitute
 POST /api/timetable/templates
 POST /api/timetable/templates/{id}/end
 POST /api/timetable/templates/{id}/split
@@ -702,6 +702,7 @@ PUT /api/settings/values/{key}
 PUT /api/shift-types/{id}
 PUT /api/staff-shifts/series/{id}/split
 PUT /api/staff-shifts/{id}
+PUT /api/staff-shifts/{id}/cancellation
 PUT /api/staff/pin
 PUT /api/staff/{id}
 PUT /api/staff/{id}/schedule

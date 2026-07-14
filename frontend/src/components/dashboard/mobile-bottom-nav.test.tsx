@@ -353,12 +353,17 @@ describe("MobileBottomNav", () => {
       fireEvent.click(moreButton!);
 
       // Admin-only items should be visible in the drawer
+      expect(screen.getByText("Betreuungsplan")).toBeInTheDocument();
       expect(screen.getByText("Dienstplan")).toBeInTheDocument();
-      expect(screen.getByText("Vertretungen")).toBeInTheDocument();
+      expect(screen.getByText("Vertretung")).toBeInTheDocument();
+      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
+      expect(screen.getByText("Übergaben")).toBeInTheDocument();
       expect(screen.getByText("Datenverwaltung")).toBeInTheDocument();
     });
 
     it("highlights Dienstplan without also highlighting Mitarbeiter in the overflow menu", () => {
+      // /staff/dienstplan ist nur noch der Redirect-Frame des Dienstplans
+      // (Planung-Redesign) und gehört nicht mehr zur Mitarbeiter-Sektion.
       mockUsePathname.mockReturnValue("/staff/dienstplan");
 
       render(<MobileBottomNav />);
@@ -374,6 +379,25 @@ describe("MobileBottomNav", () => {
       const staffLink = screen.getByText("Mitarbeiter").closest("a");
       expect(dienstplanLink).toHaveClass("bg-gray-900");
       expect(staffLink).not.toHaveClass("bg-gray-900");
+    });
+
+    it("highlights Betreuungsplan on /calendar-periods in the overflow menu", () => {
+      // /calendar-periods gehört zu den activePaths des Betreuungsplans.
+      mockUsePathname.mockReturnValue("/calendar-periods");
+
+      render(<MobileBottomNav />);
+
+      const navButtons = screen.getAllByRole("button");
+      const moreButton = navButtons.find(
+        (btn) => !btn.hasAttribute("data-testid"),
+      );
+      expect(moreButton).toBeDefined();
+      fireEvent.click(moreButton!);
+
+      const betreuungsplanLink = screen
+        .getByText("Betreuungsplan")
+        .closest("a");
+      expect(betreuungsplanLink).toHaveClass("bg-gray-900");
     });
   });
 
