@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type React from "react";
+import Link from "next/link";
 import {
   Check,
   CheckCircle2,
@@ -24,6 +25,7 @@ import {
   Trash2,
   TriangleAlert,
   UserCheck,
+  UserCog,
   Users,
   X,
 } from "lucide-react";
@@ -603,6 +605,24 @@ export function InstanceDetailSlideOver({
 
           <SlideOverFooter>
             <div className="flex flex-wrap items-center gap-2">
+              {/* Sprung in den Vertretungs-Bereich bei einer Störung des Blocks
+                  (offene Lücke oder eingetragene Abwesenheit) —
+                  docs/planung-redesign/docs/07-vertretung.md Abschnitt 6. Nutzt
+                  nur bereits geladene Instanzdaten, kein zusätzlicher Abruf. */}
+              {(instance.status === "planned" ||
+                instance.status === "active") &&
+                (instance.staff.some((row) => row.isAbsent) ||
+                  (instance.requiredStaffCount > 0 &&
+                    instance.assignedStaffCount <
+                      instance.requiredStaffCount)) && (
+                  <Link
+                    href={`/vertretung?d=${instance.date}&block=${instance.id}`}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  >
+                    <UserCog className="h-4 w-4" />
+                    Vertretung regeln
+                  </Link>
+                )}
               {instance.status === "planned" && !editDeferred && onEdit && (
                 <Button
                   variant="outline"

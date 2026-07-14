@@ -15,7 +15,8 @@
 import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 
-import { parseISODate, toISODate, todayISO } from "~/lib/date-helpers";
+import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
+import { getWeekRange } from "~/lib/timetable-helpers";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 export type PlanungRedirectTarget =
@@ -49,9 +50,12 @@ function resolveAnchorDate(
   if (week !== null) {
     const offset = Number.parseInt(week, 10);
     if (Number.isFinite(offset)) {
-      const anchor = parseISODate(today);
-      anchor.setDate(anchor.getDate() + offset * 7);
-      return toISODate(anchor);
+      // `?week=N` -> `d` = Montag der Zielwoche, invers zu weekOffsetForISO in
+      // vertretungsplan-view.tsx (docs/07 §1). Erst auf den Montag der Woche um
+      // `today` snappen, dann den Offset addieren — sonst würde N*7 Tage auf
+      // einen beliebigen Wochentag addiert und ein nicht-montäglicher Tag
+      // herauskommen. getWeekRange ankert intern auf den Montag.
+      return toISODate(getWeekRange(parseISODate(today), offset).from);
     }
   }
 
@@ -135,7 +139,9 @@ export function PlanungRedirect({
 
   useEffect(() => {
     const params = new URLSearchParams(searchParams.toString());
-    router.replace(resolvePlanungRedirect(params, todayISO(), target));
+    // Berlin-Kalendertag (docs/07 §1), damit der `d`-Anker mit dem
+    // serverseitigen timezone.TodayDate() übereinstimmt.
+    router.replace(resolvePlanungRedirect(params, berlinTodayISO(), target));
   }, [router, searchParams, target]);
 
   return null;

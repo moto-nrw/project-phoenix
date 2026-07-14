@@ -1,17 +1,17 @@
 "use client";
 
 // Eigenständiger Vertretungs-Bereich (Planung-Redesign, docs/planung-
-// redesign/docs/03). Rendert übergangsweise die unveränderte Bestands-View;
-// der Zweiteiler-Umbau (d/block/verlauf-Schema) folgt mit docs/07.
+// redesign/docs/07). Der heute-zentrierte Zweiteiler mit dem
+// d/block/verlauf-URL-Schema.
 
 import { Suspense } from "react";
 
-import { VertretungsplanView } from "~/components/timetable/vertretungsplan-view";
+import { VertretungView } from "~/components/timetable/vertretung-view";
 
 export default function VertretungPage() {
   return (
     <Suspense fallback={null}>
-      <VertretungsplanView />
+      <VertretungView />
     </Suspense>
   );
 }
