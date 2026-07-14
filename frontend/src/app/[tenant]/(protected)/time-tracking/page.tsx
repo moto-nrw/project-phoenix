@@ -37,6 +37,7 @@ import {
 } from "~/components/staff/staff-time-views";
 import { StaffSessionTable } from "~/components/staff/staff-session-table";
 import { StaffExportButton } from "~/components/staff/staff-export-button";
+import { BetreuungsplanHeuteCard } from "~/components/time-tracking/betreuungsplan-heute-card";
 import { LeaveRequestsCard } from "~/components/time-tracking/leave-requests-card";
 import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
 import { ownShiftService } from "~/lib/shift-api";
@@ -3711,6 +3712,12 @@ function TimeTrackingContent() {
           currentSession={currentSession ?? null}
           weekOffset={weekOffset}
         />
+      </div>
+
+      {/* Heute geplante Betreuungsplan-Einsätze (Ort/Aufgabe + Vertretungen,
+          #1844). Rendert nichts, wenn die Schule keinen Betreuungsplan pflegt. */}
+      <div className="mb-4 md:mb-6">
+        <BetreuungsplanHeuteCard />
       </div>
 
       <div className="mb-4 md:mb-6">
