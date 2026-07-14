@@ -1089,9 +1089,15 @@ describe("timetableService", () => {
   });
 
   it("adds include_deletions only on the split path (#1875)", async () => {
-    fetchMock.mockResolvedValue(
-      jsonResponse({ data: { count: 0, occurrences: [] } }),
-    );
+    // A fresh Response per call — a single shared one has its body consumed
+    // after the first read and throws on the second.
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { count: 0, occurrences: [] } }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({ data: { count: 0, occurrences: [] } }),
+      );
 
     await timetableService.countEditedInWindow("7", "2026-05-04", "2026-05-10");
     expect(fetchMock).toHaveBeenLastCalledWith(
