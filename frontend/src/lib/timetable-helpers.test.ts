@@ -271,6 +271,57 @@ describe("backend mappers", () => {
     expect(mapDeviationHistory({ events: null }).events).toEqual([]);
   });
 
+  it("maps deviation history old_value/new_value when the backend sends them", () => {
+    expect(
+      mapDeviationHistory({
+        events: [
+          {
+            id: 44,
+            activity_group_id: 7,
+            occurrence_date: "2026-05-04",
+            start_time: "12:00:00",
+            event_type: "substitution",
+            old_value: { is_absent: false },
+            new_value: { is_absent: true, substitute_staff_id: 12 },
+            occurred_at: "2026-05-03T12:00:00Z",
+          },
+        ],
+      }),
+    ).toEqual({
+      events: [
+        expect.objectContaining({
+          id: "44",
+          oldValue: { is_absent: false },
+          newValue: { is_absent: true, substitute_staff_id: 12 },
+        }),
+      ],
+    });
+  });
+
+  it("maps deviation history events without old_value/new_value to undefined", () => {
+    expect(
+      mapDeviationHistory({
+        events: [
+          {
+            id: 45,
+            occurrence_date: "2026-05-05",
+            start_time: "13:00:00",
+            event_type: "deviation_dropped_by_replan",
+            occurred_at: "2026-05-03T13:00:00Z",
+          },
+        ],
+      }),
+    ).toEqual({
+      events: [
+        expect.objectContaining({
+          id: "45",
+          oldValue: undefined,
+          newValue: undefined,
+        }),
+      ],
+    });
+  });
+
   it("maps weekly instances, preferring detailed student rows over id fallback", () => {
     const result = mapWeeklyInstances({
       from: "2026-05-04",

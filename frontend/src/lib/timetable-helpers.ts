@@ -538,6 +538,8 @@ export function mapDeviationHistory(
     actorAccountId:
       ev.actor_account_id != null ? String(ev.actor_account_id) : undefined,
     actorName: ev.actor_name ?? undefined,
+    oldValue: ev.old_value ?? undefined,
+    newValue: ev.new_value ?? undefined,
     reason: ev.reason ?? undefined,
     occurredAt: ev.occurred_at,
   }));
