@@ -524,3 +524,34 @@ func TestActivityGroupRepository_Delete_NonExistent(t *testing.T) {
 		require.NoError(t, err)
 	})
 }
+
+func TestActivityGroupRepository_FindByIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActivityGroup
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("empty input short-circuits without hitting the DB", func(t *testing.T) {
+		groups, err := repo.FindByIDs(ctx, nil)
+		require.NoError(t, err)
+		assert.Empty(t, groups)
+	})
+
+	t.Run("returns the groups matching the ids", func(t *testing.T) {
+		a := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("FindByIDs-A-%d", time.Now().UnixNano()))
+		b := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("FindByIDs-B-%d", time.Now().UnixNano()))
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", a.ID, b.ID)
+
+		groups, err := repo.FindByIDs(ctx, []int64{a.ID, b.ID, 9_999_999})
+		require.NoError(t, err)
+		require.Len(t, groups, 2, "the non-existent id is silently absent")
+
+		names := map[int64]string{}
+		for _, g := range groups {
+			names[g.ID] = g.Name
+		}
+		assert.Equal(t, a.Name, names[a.ID])
+		assert.Equal(t, b.Name, names[b.ID])
+	})
+}
