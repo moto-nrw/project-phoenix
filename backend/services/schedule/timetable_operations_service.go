@@ -555,6 +555,19 @@ func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *sche
 		Status:           scheduleModel.AttendanceStatusPresent,
 		Warnings:         warnings,
 	}
+	applyPlannedRosterAttendance(&row, planned)
+
+	if visit != nil {
+		id := visit.ID
+		row.VisitID = &id
+		v := visit.EntryTime.UTC().Format(time.RFC3339)
+		row.VisitEntryTime = &v
+	}
+	applyRosterStudentIdentity(&row, studentID, students, persons, groups)
+	return row
+}
+
+func applyPlannedRosterAttendance(row *OperationRosterRow, planned *scheduleModel.InstanceStudent) {
 	if planned != nil {
 		row.Status = planned.Status
 		row.Substatus = planned.Substatus
@@ -571,12 +584,9 @@ func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *sche
 			row.CurrentlyPresent = true
 		}
 	}
-	if visit != nil {
-		id := visit.ID
-		row.VisitID = &id
-		v := visit.EntryTime.UTC().Format(time.RFC3339)
-		row.VisitEntryTime = &v
-	}
+}
+
+func applyRosterStudentIdentity(row *OperationRosterRow, studentID int64, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group) {
 	if st := students[studentID]; st != nil {
 		row.SchoolClass = st.SchoolClass
 		if st.GroupID != nil {
@@ -588,7 +598,6 @@ func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *sche
 			row.StudentName = p.GetFullName()
 		}
 	}
-	return row
 }
 
 func (s *timetableOperationsService) loadRosterTemplateGroup(ctx context.Context, activityGroupID *int64) (*activitiesModel.Group, error) {

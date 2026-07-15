@@ -11,6 +11,8 @@ export interface BackendAttendanceHistoryResponse {
   caps: { attendance_days: number; room_detail_days: number };
 }
 
+export type AttendanceSlotStatus = "expected" | "present" | "absent";
+
 interface BackendAttendanceHistoryDay {
   date: string;
   attendance: BackendAttendanceRecord | null;
@@ -41,7 +43,7 @@ interface BackendAttendanceSlot {
   title: string;
   start_time: string;
   end_time: string;
-  status: "expected" | "present" | "absent";
+  status: AttendanceSlotStatus;
   substatus?: string | null;
   checked_in_at?: string | null;
   checked_out_at?: string | null;
@@ -103,7 +105,7 @@ interface AttendanceSlot {
   title: string;
   startTime: string;
   endTime: string;
-  status: "expected" | "present" | "absent";
+  status: AttendanceSlotStatus;
   substatus: string | null;
   checkedInAt: Date | null;
   checkedOutAt: Date | null;
@@ -213,6 +215,16 @@ function mapAttendanceStatusEntry(
 
 export function formatTime(d: Date): string {
   return d.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+}
+
+export function formatAttendanceSlotStatus(
+  status: AttendanceSlotStatus,
+  substatus?: string | null,
+): string {
+  if (status === "present") return "Anwesend";
+  if (substatus === "sick") return "Krank";
+  if (status === "absent") return "Abwesend";
+  return "Erwartet";
 }
 
 export function formatDate(dateKey: string): string {

@@ -3,6 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import { CalendarDays, Loader2 } from "lucide-react";
 import { getSession } from "next-auth/react";
+import {
+  formatAttendanceSlotStatus,
+  type AttendanceSlotStatus,
+} from "~/lib/attendance-history-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentHistorieTab" });
@@ -35,7 +39,7 @@ interface AttendanceHistoryDay {
     title: string;
     start_time: string;
     end_time: string;
-    status: "expected" | "present" | "absent";
+    status: AttendanceSlotStatus;
     substatus?: string | null;
     is_unplanned: boolean;
   }>;
@@ -241,13 +245,10 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
                       </span>
                       <span>
                         {slot.start_time}–{slot.end_time} ·{" "}
-                        {slot.status === "present"
-                          ? "anwesend"
-                          : slot.substatus === "sick"
-                            ? "krank"
-                            : slot.status === "absent"
-                              ? "abwesend"
-                              : "erwartet"}
+                        {formatAttendanceSlotStatus(
+                          slot.status,
+                          slot.substatus,
+                        ).toLocaleLowerCase("de-DE")}
                       </span>
                     </li>
                   ))}

@@ -587,21 +587,9 @@ func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
 		return &ActiveError{Op: "UpdateVisit", Err: ErrVisitNotFound}
 	}
 
-	isActiveGroupMove := existing.ExitTime == nil && existing.ActiveGroupID != visit.ActiveGroupID
-	if isActiveGroupMove {
-		targetGroup, err := s.GroupRepo.FindByID(ctx, visit.ActiveGroupID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
-			}
-			return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
-		}
-		if targetGroup == nil {
-			return &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
-		}
-		if !targetGroup.IsActive() {
-			return &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
-		}
+	isActiveGroupMove, transferAt, err := s.prepareVisitTransfer(ctx, existing, visit)
+	if err != nil {
+		return err
 	}
 
 	if s.VisitRepo.Update(ctx, visit) != nil {
@@ -609,11 +597,71 @@ func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
 	}
 
 	if isActiveGroupMove {
-		s.broadcastVisitMoved(ctx, existing, visit)
+		sourceSnapshot, targetSnapshot := s.syncMovedVisitAttendance(ctx, existing, visit, transferAt)
+		s.broadcastVisitMoved(ctx, existing, visit, sourceSnapshot, targetSnapshot)
 		s.trackProductEvent(ctx, "room_transfer", nil)
 	}
 
 	return nil
+}
+
+func (s *service) prepareVisitTransfer(
+	ctx context.Context,
+	existing, updated *active.Visit,
+) (bool, time.Time, error) {
+	if existing.ExitTime != nil || existing.ActiveGroupID == updated.ActiveGroupID {
+		return false, time.Time{}, nil
+	}
+
+	targetGroup, err := s.GroupRepo.FindByID(ctx, updated.ActiveGroupID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
+		}
+		return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+	}
+	if targetGroup == nil || !targetGroup.IsActive() {
+		return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
+	}
+
+	transferAt := time.Now()
+	if updated.ExitTime != nil {
+		// A combined transfer/checkout has no separate transfer timestamp in the
+		// request. Use checkout as the boundary so target check-in precedes close.
+		transferAt = *updated.ExitTime
+	}
+	return true, transferAt, nil
+}
+
+// syncMovedVisitAttendance mirrors a transfer independently of SSE. The
+// pre-update visit identifies the source slot; a transfer-time copy identifies
+// the target slot. This avoids resolving checkout against the already-mutated
+// target group.
+func (s *service) syncMovedVisitAttendance(
+	ctx context.Context,
+	previousVisit, movedVisit *active.Visit,
+	transferAt time.Time,
+) (sourceSnapshot, targetSnapshot *AttendanceSnapshot) {
+	if s.AttendanceSyncer == nil || previousVisit == nil || movedVisit == nil {
+		return nil, nil
+	}
+
+	source := *previousVisit
+	source.ExitTime = &transferAt
+	sourceSnapshot = s.AttendanceSyncer.LoadAttendanceForVisit(ctx, &source)
+
+	target := *movedVisit
+	target.EntryTime = transferAt
+	target.ExitTime = nil
+	targetSnapshot = s.AttendanceSyncer.MirrorCheckInForVisit(ctx, &target)
+
+	if movedVisit.ExitTime != nil {
+		target.ExitTime = movedVisit.ExitTime
+		if closedSnapshot := s.AttendanceSyncer.LoadAttendanceForVisit(ctx, &target); closedSnapshot != nil {
+			targetSnapshot = closedSnapshot
+		}
+	}
+	return sourceSnapshot, targetSnapshot
 }
 
 func (s *service) DeleteVisit(ctx context.Context, id int64) error {
@@ -739,22 +787,20 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, studentID, activeSupervisionReasonStudentMoved)
 }
 
-// broadcastVisitMoved mirrors a room/session transfer as a checkout from the
-// source active group and a checkin into the target active group. Attendance is
-// not mutated here; the snapshot only enriches SSE payloads for clients that
-// display timetable attendance state alongside visit rows.
-func (s *service) broadcastVisitMoved(ctx context.Context, previousVisit, movedVisit *active.Visit) {
+// broadcastVisitMoved publishes a checkout from the source active group and a
+// checkin into the target active group. Attendance mutation happens before this
+// helper so synchronization does not depend on a broadcaster being configured.
+func (s *service) broadcastVisitMoved(
+	ctx context.Context,
+	previousVisit, movedVisit *active.Visit,
+	sourceSnapshot, targetSnapshot *AttendanceSnapshot,
+) {
 	if s.Broadcaster == nil || previousVisit == nil || movedVisit == nil {
 		return
 	}
 
-	var snapshot *AttendanceSnapshot
-	if s.AttendanceSyncer != nil {
-		snapshot = s.AttendanceSyncer.LoadAttendanceForVisit(ctx, movedVisit)
-	}
-
-	s.broadcastVisitCheckout(ctx, previousVisit, snapshot)
-	s.broadcastVisitCreated(ctx, movedVisit, snapshot)
+	s.broadcastVisitCheckout(ctx, previousVisit, sourceSnapshot)
+	s.broadcastVisitCreated(ctx, movedVisit, targetSnapshot)
 }
 
 // broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic

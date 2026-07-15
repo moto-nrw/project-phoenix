@@ -126,22 +126,7 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 		return nil
 	}
 	if row == nil {
-		row, err = s.instanceStudentRepo.CreateUnplannedPresentIfAbsent(
-			ctx, instance.ID, visit.StudentID, visit.EntryTime,
-		)
-		if err != nil {
-			s.getLogger().Error("attendance mirror: persist unplanned slot attendance failed",
-				slog.Int64("instance_id", instance.ID),
-				slog.Int64("student_id", visit.StudentID),
-				slog.String("error", err.Error()),
-			)
-			return nil
-		}
-		s.getLogger().Info("attendance mirror: persisted unplanned slot attendance",
-			slog.Int64("instance_id", instance.ID),
-			slog.Int64("student_id", visit.StudentID),
-		)
-		return snapshotFromRow(row)
+		return s.createUnplannedAttendance(ctx, instance.ID, visit)
 	}
 
 	// B6: row is no longer 'expected' — respect existing state. This covers:
@@ -208,6 +193,29 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 	if row.CheckedInAt == nil {
 		row.CheckedInAt = &visit.EntryTime
 	}
+	return snapshotFromRow(row)
+}
+
+func (s *AttendanceSyncService) createUnplannedAttendance(
+	ctx context.Context,
+	instanceID int64,
+	visit *activeModel.Visit,
+) *activeSvc.AttendanceSnapshot {
+	row, err := s.instanceStudentRepo.CreateUnplannedPresentIfAbsent(
+		ctx, instanceID, visit.StudentID, visit.EntryTime,
+	)
+	if err != nil {
+		s.getLogger().Error("attendance mirror: persist unplanned slot attendance failed",
+			slog.Int64("instance_id", instanceID),
+			slog.Int64("student_id", visit.StudentID),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	s.getLogger().Info("attendance mirror: persisted unplanned slot attendance",
+		slog.Int64("instance_id", instanceID),
+		slog.Int64("student_id", visit.StudentID),
+	)
 	return snapshotFromRow(row)
 }
 
@@ -315,7 +323,10 @@ func (s *AttendanceSyncService) LoadAttendanceForVisit(
 	if row == nil {
 		return nil
 	}
-	if visit.ExitTime != nil {
+	if visit.ExitTime != nil &&
+		row.Status == scheduleModel.AttendanceStatusPresent &&
+		row.CheckedInAt != nil &&
+		!visit.ExitTime.Before(*row.CheckedInAt) {
 		if err := s.instanceStudentRepo.UpdateAttendanceCheckout(
 			ctx, instance.ID, visit.StudentID, *visit.ExitTime,
 		); err != nil {

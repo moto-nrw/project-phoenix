@@ -588,6 +588,9 @@ func TestLoadAttendance_RecordsCheckout(t *testing.T) {
 	visit := validVisit()
 	visit.ExitTime = &exit
 	row := expectedRow(6)
+	checkedIn := exit.Add(-time.Hour)
+	row.Status = scheduleModel.AttendanceStatusPresent
+	row.CheckedInAt = &checkedIn
 	isRepo := &fakeInstanceStudentRepo{findRow: row}
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo)
 
@@ -597,11 +600,48 @@ func TestLoadAttendance_RecordsCheckout(t *testing.T) {
 	assert.Equal(t, int64(7), isRepo.checkoutID)
 }
 
+func TestLoadAttendance_DoesNotCheckoutUnmirroredRow(t *testing.T) {
+	exit := time.Date(2026, 4, 20, 15, 0, 0, 0, time.UTC)
+	visit := validVisit()
+	visit.ExitTime = &exit
+
+	tests := map[string]*scheduleModel.InstanceStudent{
+		"expected": expectedRow(7),
+		"present without checkin": func() *scheduleModel.InstanceStudent {
+			row := expectedRow(8)
+			row.Status = scheduleModel.AttendanceStatusPresent
+			return row
+		}(),
+		"checkout before checkin": func() *scheduleModel.InstanceStudent {
+			row := expectedRow(9)
+			checkedIn := exit.Add(time.Minute)
+			row.Status = scheduleModel.AttendanceStatusPresent
+			row.CheckedInAt = &checkedIn
+			return row
+		}(),
+	}
+
+	for name, row := range tests {
+		t.Run(name, func(t *testing.T) {
+			isRepo := &fakeInstanceStudentRepo{findRow: row}
+			snapshot := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
+				LoadAttendanceForVisit(context.Background(), visit)
+
+			require.NotNil(t, snapshot)
+			assert.Zero(t, isRepo.checkoutCalls)
+		})
+	}
+}
+
 func TestLoadAttendance_CheckoutError(t *testing.T) {
 	exit := time.Date(2026, 4, 20, 15, 0, 0, 0, time.UTC)
 	visit := validVisit()
 	visit.ExitTime = &exit
-	isRepo := &fakeInstanceStudentRepo{findRow: expectedRow(6), checkoutErr: errors.New("update failed")}
+	row := expectedRow(10)
+	checkedIn := exit.Add(-time.Hour)
+	row.Status = scheduleModel.AttendanceStatusPresent
+	row.CheckedInAt = &checkedIn
+	isRepo := &fakeInstanceStudentRepo{findRow: row, checkoutErr: errors.New("update failed")}
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo)
 
 	assert.Nil(t, syncer.LoadAttendanceForVisit(context.Background(), visit))

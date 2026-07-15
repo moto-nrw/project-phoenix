@@ -152,6 +152,67 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusPresent, updated.Status)
 	require.NotNil(t, updated.CheckedInAt, "checked_in_at must be stamped by the mirror write")
+
+	// Create a second bridged care slot, then move the same visit. The source
+	// slot must close at the transfer boundary and the target must open at that
+	// exact boundary, even though broadcasting is not responsible for syncing.
+	targetActivity := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("E2E-Target-Act-%d", suffix))
+	targetRoom := testpkg.CreateTestRoom(t, db, fmt.Sprintf("E2E-Target-Room-%d", suffix))
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, targetActivity.ID, targetRoom.ID)
+	t.Cleanup(func() {
+		testpkg.CleanupActivityFixtures(t, db, targetActivity.ID, targetRoom.ID, targetGroup.ID)
+	})
+
+	targetInstance := &scheduleModels.ActivityInstance{
+		Date:            timezone.NewDate(2026, 4, 21),
+		ActivityGroupID: &targetActivity.ID,
+		Title:           fmt.Sprintf("E2E-Target-Inst-%d", suffix),
+		StartTime:       time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
+		EndTime:         time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+		RoomID:          targetRoom.ID,
+		Status:          scheduleModels.InstanceStatusActive,
+		ActiveGroupID:   &targetGroup.ID,
+	}
+	targetInstance.SetTenantID(1)
+	_, err = db.NewInsert().Model(targetInstance).ModelTableExpr(`schedule.activity_instances`).Exec(ctx)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", targetInstance.ID)
+	})
+
+	targetRow := &scheduleModels.InstanceStudent{
+		InstanceID: targetInstance.ID,
+		StudentID:  student.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	targetRow.SetTenantID(1)
+	require.NoError(t, isRepo.Create(ctx, targetRow))
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, db, "schedule.instance_students", targetRow.ID) })
+
+	visit.ActiveGroupID = targetGroup.ID
+	require.NoError(t, svc.UpdateVisit(deviceCtx, visit))
+
+	sourceAfterTransfer, err := isRepo.FindByID(ctx, row.ID)
+	require.NoError(t, err)
+	require.NotNil(t, sourceAfterTransfer.CheckedOutAt, "transfer must close the source slot")
+	require.NotNil(t, sourceAfterTransfer.CheckedInAt)
+	assert.False(t, sourceAfterTransfer.CheckedOutAt.Before(*sourceAfterTransfer.CheckedInAt))
+
+	targetAfterTransfer, err := isRepo.FindByID(ctx, targetRow.ID)
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.AttendanceStatusPresent, targetAfterTransfer.Status)
+	require.NotNil(t, targetAfterTransfer.CheckedInAt, "transfer must open the target slot")
+	assert.Nil(t, targetAfterTransfer.CheckedOutAt, "transfer must not immediately close the target slot")
+	assert.WithinDuration(t, *sourceAfterTransfer.CheckedOutAt, *targetAfterTransfer.CheckedInAt, time.Millisecond)
+
+	// A detailed-mode daily checkout ends the visit through attendance_service,
+	// not EndVisit. It must still close the exact bridged care slot.
+	_, err = svc.CheckOutStudent(deviceCtx, student.ID, staff.ID, true)
+	require.NoError(t, err)
+	updated, err = isRepo.FindByID(ctx, targetRow.ID)
+	require.NoError(t, err)
+	require.NotNil(t, updated.CheckedOutAt, "daily checkout must stamp the bridged care slot")
+	assert.False(t, updated.CheckedOutAt.Before(*updated.CheckedInAt))
 }
 
 // TestCreateVisit_WalkInLeavesAttendanceFieldsUnset is the negative case

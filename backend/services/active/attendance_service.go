@@ -340,26 +340,32 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 }
 
 // endOpenVisitForStudent enforces the invariant "attendance checked_out =>
-// no open visit" (issue #895). Returns nil when no open visit exists or a
-// concurrent caller already ended it; every other failure propagates so the
-// surrounding request transaction rolls back instead of committing a
-// checked-out attendance row alongside an orphaned open visit.
-func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64) error {
+// no open visit" (issue #895). It returns the ended row so callers can mirror
+// the same checkout into slot attendance. A missing visit returns nil; every
+// other failure propagates so the request transaction rolls back.
+func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64) (*active.Visit, error) {
 	visit, err := s.GetStudentCurrentVisit(ctx, studentID)
 	if err != nil {
 		if errors.Is(err, ErrVisitNotFound) {
-			return nil
+			return nil, nil
 		}
-		return err
+		return nil, err
 	}
 	if err := s.VisitRepo.EndVisit(ctx, visit.ID); err != nil {
 		latest, findErr := s.VisitRepo.FindByID(ctx, visit.ID)
 		if findErr == nil && latest != nil && latest.ExitTime != nil {
-			return nil
+			return latest, nil
 		}
-		return err
+		return nil, err
 	}
-	return nil
+	ended, err := s.VisitRepo.FindByID(ctx, visit.ID)
+	if err != nil || ended == nil || ended.ExitTime == nil {
+		if err != nil {
+			return nil, err
+		}
+		return nil, ErrVisitNotFound
+	}
+	return ended, nil
 }
 
 // performCheckOut closes the open attendance row for the student via a
@@ -380,8 +386,21 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("database error during state-checked checkout: %w", err)}
 	}
 
-	if err := s.endOpenVisitForStudent(ctx, studentID); err != nil {
+	endedVisit, err := s.endOpenVisitForStudent(ctx, studentID)
+	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("end open visit during checkout: %w", err)}
+	}
+
+	if s.AttendanceSyncer != nil {
+		if s.GetPresenceMode(ctx) == "binary" {
+			// Binary mode has no visit provenance, so close the latest mirrored
+			// open slot. Run this even for idempotent attendance checkout to heal
+			// slot rows left open by older code.
+			s.AttendanceSyncer.MirrorCheckOutAt(ctx, studentID, now)
+		} else if endedVisit != nil {
+			// Detailed mode has exact source provenance through the ended visit.
+			s.AttendanceSyncer.LoadAttendanceForVisit(ctx, endedVisit)
+		}
 	}
 
 	if closed == nil {
@@ -394,10 +413,6 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 			Timestamp: now,
 		}, nil
 	}
-	if s.GetPresenceMode(ctx) == "binary" && s.AttendanceSyncer != nil {
-		s.AttendanceSyncer.MirrorCheckOutAt(ctx, studentID, now)
-	}
-
 	s.trackProductEvent(ctx, "student_checked_out", map[string]any{
 		"method":        attendanceMethod(ctx),
 		"checkout_type": checkoutType,

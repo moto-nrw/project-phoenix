@@ -261,7 +261,10 @@ func (r *InstanceStudentRepository) UpdateAttendanceCheckout(
 			ELSE "instance_student".checked_out_at END`, checkedOutAt, checkedOutAt).
 		Set(`updated_at = ?`, time.Now().UTC()).
 		Where(`"instance_student".instance_id = ?`, instanceID).
-		Where(`"instance_student".student_id = ?`, studentID)
+		Where(`"instance_student".student_id = ?`, studentID).
+		Where(`"instance_student".status = ?`, schedule.AttendanceStatusPresent).
+		Where(`"instance_student".checked_in_at IS NOT NULL`).
+		Where(`"instance_student".checked_in_at <= ?`, checkedOutAt)
 	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 	if _, err := q.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "update slot attendance checkout", Err: err}

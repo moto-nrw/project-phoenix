@@ -444,6 +444,57 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 	})
 }
 
+func TestInstanceStudentRepository_UpdateAttendanceCheckout_GuardsMirroredPresence(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	inst, cleanupInst := createInstanceFixture(t, db, "checkout-guard", timezone.NewDate(2026, 10, 12))
+	defer cleanupInst()
+
+	checkedIn := time.Date(2026, 10, 12, 13, 0, 0, 0, time.UTC)
+	checkedOut := checkedIn.Add(time.Hour)
+	tests := []struct {
+		name       string
+		status     string
+		checkIn    *time.Time
+		checkoutAt time.Time
+		wantWrite  bool
+	}{
+		{name: "mirrored present row", status: scheduleModels.AttendanceStatusPresent, checkIn: &checkedIn, checkoutAt: checkedOut, wantWrite: true},
+		{name: "expected row", status: scheduleModels.AttendanceStatusExpected, checkoutAt: checkedOut},
+		{name: "absent row with timestamp", status: scheduleModels.AttendanceStatusAbsent, checkIn: &checkedIn, checkoutAt: checkedOut},
+		{name: "checkout before checkin", status: scheduleModels.AttendanceStatusPresent, checkIn: &checkedIn, checkoutAt: checkedIn.Add(-time.Minute)},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			student := testpkg.CreateTestStudent(t, db, "Checkout", fmt.Sprintf("Guard-%d", time.Now().UnixNano()), "3a")
+			defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+			row := &scheduleModels.InstanceStudent{
+				InstanceID:  inst.ID,
+				StudentID:   student.ID,
+				Status:      tt.status,
+				CheckedInAt: tt.checkIn,
+			}
+			row.SetTenantID(1)
+			require.NoError(t, repo.Create(ctx, row))
+			defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+
+			require.NoError(t, repo.UpdateAttendanceCheckout(ctx, inst.ID, student.ID, tt.checkoutAt))
+			got, err := repo.FindByID(ctx, row.ID)
+			require.NoError(t, err)
+			if tt.wantWrite {
+				require.NotNil(t, got.CheckedOutAt)
+				assert.WithinDuration(t, tt.checkoutAt, *got.CheckedOutAt, time.Second)
+			} else {
+				assert.Nil(t, got.CheckedOutAt)
+			}
+		})
+	}
+}
+
 func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

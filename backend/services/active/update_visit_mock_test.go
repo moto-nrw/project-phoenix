@@ -13,6 +13,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+type recordingAttendanceSyncer struct {
+	loaded   []*activeModels.Visit
+	mirrored []*activeModels.Visit
+}
+
+func (r *recordingAttendanceSyncer) MirrorCheckInForVisit(_ context.Context, visit *activeModels.Visit) *AttendanceSnapshot {
+	copy := *visit
+	r.mirrored = append(r.mirrored, &copy)
+	return &AttendanceSnapshot{Status: "present", InstanceID: 2}
+}
+
+func (r *recordingAttendanceSyncer) MirrorCheckInAt(context.Context, int64, time.Time) *AttendanceSnapshot {
+	return nil
+}
+
+func (r *recordingAttendanceSyncer) LoadAttendanceForVisit(_ context.Context, visit *activeModels.Visit) *AttendanceSnapshot {
+	copy := *visit
+	r.loaded = append(r.loaded, &copy)
+	return &AttendanceSnapshot{Status: "present", InstanceID: 1}
+}
+
+func (r *recordingAttendanceSyncer) MirrorCheckOutAt(context.Context, int64, time.Time) {}
+
 func TestGetVisitLookupErrorClassification(t *testing.T) {
 	ctx := context.Background()
 
@@ -211,4 +234,45 @@ func TestUpdateVisitPreloadAndTargetLookupErrors(t *testing.T) {
 		require.NoError(t, err)
 		assert.True(t, updateCalled, "expected visit update")
 	})
+}
+
+func TestUpdateVisitMoveSynchronizesSourceAndTargetWithoutBroadcaster(t *testing.T) {
+	ctx := context.Background()
+	entryTime := time.Now().Add(-time.Hour)
+	existingVisit := &activeModels.Visit{
+		Model:         base.Model{ID: 100},
+		StudentID:     200,
+		ActiveGroupID: 300,
+		EntryTime:     entryTime,
+	}
+	updatedVisit := &activeModels.Visit{
+		Model:         base.Model{ID: existingVisit.ID},
+		StudentID:     existingVisit.StudentID,
+		ActiveGroupID: 400,
+		EntryTime:     entryTime,
+	}
+	syncer := &recordingAttendanceSyncer{}
+	svc := &service{ServiceDependencies: ServiceDependencies{
+		VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return existingVisit, nil
+			},
+			updateFunc: func(context.Context, *activeModels.Visit) error { return nil },
+		},
+		GroupRepo: &mockGroupRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
+				return &activeModels.Group{Model: base.Model{ID: updatedVisit.ActiveGroupID}}, nil
+			},
+		},
+		AttendanceSyncer: syncer,
+	}}
+
+	require.NoError(t, svc.UpdateVisit(ctx, updatedVisit))
+	require.Len(t, syncer.loaded, 1)
+	assert.Equal(t, existingVisit.ActiveGroupID, syncer.loaded[0].ActiveGroupID)
+	require.NotNil(t, syncer.loaded[0].ExitTime)
+	require.Len(t, syncer.mirrored, 1)
+	assert.Equal(t, updatedVisit.ActiveGroupID, syncer.mirrored[0].ActiveGroupID)
+	assert.Nil(t, syncer.mirrored[0].ExitTime)
+	assert.WithinDuration(t, *syncer.loaded[0].ExitTime, syncer.mirrored[0].EntryTime, time.Millisecond)
 }

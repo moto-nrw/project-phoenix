@@ -3,6 +3,7 @@ import {
   mapAttendanceHistoryResponse,
   formatTime,
   formatDate,
+  formatAttendanceSlotStatus,
   formatDuration,
   type BackendAttendanceHistoryResponse,
 } from "./attendance-history-helpers";
@@ -192,5 +193,16 @@ describe("formatTime", () => {
     const result = formatTime(d);
     // Should be "HH:MM" format (exact value depends on test runner TZ)
     expect(result).toMatch(/^\d{2}:\d{2}$/);
+  });
+});
+
+describe("formatAttendanceSlotStatus", () => {
+  it.each([
+    ["present", null, "Anwesend"],
+    ["absent", "sick", "Krank"],
+    ["absent", null, "Abwesend"],
+    ["expected", null, "Erwartet"],
+  ] as const)("formats %s/%s", (status, substatus, expected) => {
+    expect(formatAttendanceSlotStatus(status, substatus)).toBe(expected);
   });
 });

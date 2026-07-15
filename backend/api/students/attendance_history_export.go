@@ -26,6 +26,7 @@ type attendanceExportOptions struct {
 }
 
 const (
+	attendanceExportDateLayout                     = "02.01.2006"
 	attendanceColumnDate       listexport.ColumnID = "date"
 	attendanceColumnOffering   listexport.ColumnID = "care_offering"
 	attendanceColumnWindow     listexport.ColumnID = "time_window"
@@ -133,7 +134,7 @@ func (rs *Resource) buildAttendanceExportDocument(
 	}
 	return listexport.Document{
 		Title:       "Anwesenheit je Betreuungsangebot",
-		Subtitle:    fmt.Sprintf("Kind-ID %d · %s bis %s", studentID, from.Format("02.01.2006"), to.Format("02.01.2006")),
+		Subtitle:    fmt.Sprintf("Kind-ID %d · %s bis %s", studentID, from.Format(attendanceExportDateLayout), to.Format(attendanceExportDateLayout)),
 		GeneratedAt: time.Now(), Columns: attendanceExportColumns(),
 		Rows: attendanceExportRows(slots, attendance), Footer: "Vertrauliche Anwesenheitsdaten",
 	}, nil
@@ -174,7 +175,7 @@ func slotExportRow(row *scheduleModel.ScheduledInstanceRow) listexport.Row {
 		assignment = "Ungeplant, ohne Buchung"
 	}
 	return listexport.Row{Values: map[listexport.ColumnID]string{
-		attendanceColumnDate: row.Instance.Date.Format("02.01.2006"), attendanceColumnOffering: row.Instance.Title,
+		attendanceColumnDate: row.Instance.Date.Format(attendanceExportDateLayout), attendanceColumnOffering: row.Instance.Title,
 		attendanceColumnWindow:  row.Instance.StartTime.Format("15:04") + "–" + row.Instance.EndTime.Format("15:04"),
 		attendanceColumnStatus:  attendanceSlotStatusLabel(row.Attendance.Status, row.Attendance.Substatus),
 		attendanceColumnCheckIn: exportOptionalTime(row.Attendance.CheckedInAt), attendanceColumnCheckOut: exportOptionalTime(row.Attendance.CheckedOutAt),
@@ -184,7 +185,7 @@ func slotExportRow(row *scheduleModel.ScheduledInstanceRow) listexport.Row {
 
 func unassignedExportRow(attendance *activeModel.Attendance) listexport.Row {
 	return listexport.Row{Values: map[listexport.ColumnID]string{
-		attendanceColumnDate: attendance.Date.Format("02.01.2006"), attendanceColumnOffering: "Ohne Zuordnung",
+		attendanceColumnDate: attendance.Date.Format(attendanceExportDateLayout), attendanceColumnOffering: "Ohne Zuordnung",
 		attendanceColumnWindow: exportOptionalTime(&attendance.CheckInTime) + "–" + exportOptionalTime(attendance.CheckOutTime),
 		attendanceColumnStatus: "Anwesend", attendanceColumnCheckIn: exportOptionalTime(&attendance.CheckInTime),
 		attendanceColumnCheckOut: exportOptionalTime(attendance.CheckOutTime), attendanceColumnAssignment: "Ungeplant, ohne Buchung",

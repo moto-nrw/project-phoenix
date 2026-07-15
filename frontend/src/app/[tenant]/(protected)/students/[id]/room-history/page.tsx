@@ -24,6 +24,7 @@ import {
   type AttendanceHistoryDay,
   type BackendAttendanceHistoryResponse,
   formatDate,
+  formatAttendanceSlotStatus,
   formatDuration,
   formatTime,
   mapAttendanceHistoryResponse,
@@ -386,13 +387,7 @@ function DayCard({
                     )}
                   </div>
                   <span className="font-medium text-gray-600">
-                    {slot.status === "present"
-                      ? "Anwesend"
-                      : slot.substatus === "sick"
-                        ? "Krank"
-                        : slot.status === "absent"
-                          ? "Abwesend"
-                          : "Erwartet"}
+                    {formatAttendanceSlotStatus(slot.status, slot.substatus)}
                   </span>
                 </div>
               ))}
