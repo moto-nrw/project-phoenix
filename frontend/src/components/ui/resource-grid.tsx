@@ -1,5 +1,7 @@
 "use client";
 
+/* oxlint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-static-element-interactions -- the labeled horizontal scroll region must be keyboard-focusable and arrow keys scroll it */
+
 import { Plus } from "lucide-react";
 import type { ReactNode } from "react";
 
@@ -58,6 +60,12 @@ interface ResourceGridProps<TRow> {
   readonly footer?: ReactNode;
   /** Accessible label for the scroll region. */
   readonly ariaLabel?: string;
+  /**
+   * Id of an external hint element (e.g. a "swipe horizontally" note the
+   * consumer renders above the grid) linked to the keyboard-focusable scroll
+   * region via aria-describedby. Arrow keys scroll the region regardless.
+   */
+  readonly scrollHintId?: string;
   readonly className?: string;
 }
 
@@ -79,6 +87,7 @@ export function ResourceGrid<TRow>({
   onEmptyCellClick,
   footer,
   ariaLabel,
+  scrollHintId,
   className,
 }: ResourceGridProps<TRow>) {
   const columnMinWidth = COLUMN_MIN_WIDTH_CLASS[columnMode];
@@ -87,7 +96,17 @@ export function ResourceGrid<TRow>({
     <div
       role={ariaLabel ? "region" : undefined}
       aria-label={ariaLabel}
-      className={`max-w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-gray-200 ${className ?? ""}`}
+      aria-describedby={scrollHintId}
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+        event.preventDefault();
+        event.currentTarget.scrollBy({
+          left: event.key === "ArrowLeft" ? -240 : 240,
+          behavior: "smooth",
+        });
+      }}
+      className={`max-w-full overflow-x-auto overscroll-x-contain rounded-2xl border border-gray-200 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none ${className ?? ""}`}
     >
       <table className="w-full border-collapse text-sm">
         <thead>

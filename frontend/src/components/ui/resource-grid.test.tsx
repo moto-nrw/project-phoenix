@@ -143,4 +143,37 @@ describe("ResourceGrid", () => {
     const corner = screen.getByText("Person").closest("th");
     expect(corner).toHaveClass("sticky", "left-0");
   });
+
+  it("exposes the scroll region as keyboard-focusable and links an optional hint", () => {
+    renderGrid({ scrollHintId: "scroll-hint-x" });
+
+    const region = screen.getByRole("region", { name: "Testraster" });
+    expect(region).toHaveAttribute("tabindex", "0");
+    expect(region).toHaveAttribute("aria-describedby", "scroll-hint-x");
+  });
+
+  it("scrolls the region horizontally with the arrow keys", () => {
+    renderGrid();
+
+    const region = screen.getByRole("region", { name: "Testraster" });
+    const scrollBy = vi.fn();
+    region.scrollBy = scrollBy as unknown as HTMLElement["scrollBy"];
+
+    fireEvent.keyDown(region, { key: "ArrowRight" });
+    expect(scrollBy).toHaveBeenCalledWith({ left: 240, behavior: "smooth" });
+
+    fireEvent.keyDown(region, { key: "ArrowLeft" });
+    expect(scrollBy).toHaveBeenCalledWith({ left: -240, behavior: "smooth" });
+  });
+
+  it("ignores non-arrow keys on the scroll region", () => {
+    renderGrid();
+
+    const region = screen.getByRole("region", { name: "Testraster" });
+    const scrollBy = vi.fn();
+    region.scrollBy = scrollBy as unknown as HTMLElement["scrollBy"];
+
+    fireEvent.keyDown(region, { key: "Enter" });
+    expect(scrollBy).not.toHaveBeenCalled();
+  });
 });
