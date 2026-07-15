@@ -26,7 +26,7 @@ func init() {
 				ALTER TABLE config.staff_work_schedules
 					ADD COLUMN IF NOT EXISTS rotation_anchor_date DATE;
 				COMMENT ON COLUMN config.staff_work_schedules.rotation_anchor_date IS
-					'Rotation anchor this schedule version was written with (#1842). Immutable: later schedule changes write a new version with its own anchor instead of moving this one, so historical A/B weeks keep the parity they were computed with. NULL only for rows predating 1.15.199 that had no staff-level anchor to backfill from; readers then fall back to users.staff.rotation_anchor_date and finally to the earliest valid_from.';
+					'Rotation anchor this schedule version was written with (#1842). Immutable: later schedule changes write a new version with its own anchor instead of moving this one, so historical A/B weeks keep the parity they were computed with. NULL only for single-week versions (rotation_length = 1), which have no A/B parity an anchor could shift; readers then fall back to users.staff.rotation_anchor_date and finally to the earliest valid_from.';
 			`).Exec(ctx); err != nil {
 				return fmt.Errorf("failed adding rotation_anchor_date to config.staff_work_schedules: %w", err)
 			}
@@ -44,6 +44,34 @@ func init() {
 					AND sws.rotation_anchor_date IS NULL;
 			`).Exec(ctx); err != nil {
 				return fmt.Errorf("failed backfilling rotation_anchor_date from users.staff: %w", err)
+			}
+
+			// Rotational versions whose staff row has no anchor at all (the
+			// schedule request has always allowed omitting it) are still NULL
+			// here and would keep falling back to users.staff at read time —
+			// so the next template assignment, which always writes a
+			// staff-level anchor, would re-parity their A/B weeks and move an
+			// already-closed Saldo. That is exactly what this migration
+			// exists to prevent, so pin their pre-migration anchor now:
+			// ResolveScheduleAnchor's last fallback was the earliest
+			// valid_from of the version, and ReplaceSchedule stamps one
+			// valid_from across every row of a version, so the row's own
+			// valid_from IS that version start. Single-week versions are left
+			// NULL on purpose: with rotation_length = 1 the week index is
+			// always 0, so they have no parity an anchor could shift.
+			if _, err := db.NewRaw(`
+				UPDATE config.staff_work_schedules AS sws
+				SET rotation_anchor_date = sws.valid_from
+				WHERE sws.rotation_anchor_date IS NULL
+					AND EXISTS (
+						SELECT 1
+						FROM config.staff_work_schedules AS peer
+						WHERE peer.staff_id = sws.staff_id
+							AND peer.valid_from = sws.valid_from
+							AND peer.rotation_length > 1
+					);
+			`).Exec(ctx); err != nil {
+				return fmt.Errorf("failed backfilling rotation_anchor_date from version valid_from: %w", err)
 			}
 			return nil
 		},

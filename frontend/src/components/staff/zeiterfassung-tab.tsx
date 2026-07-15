@@ -144,7 +144,9 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
   // Monatskarte is computed from. Without it the table applies the CURRENT
   // schedule to historical dates, so card and rows disagree the moment a
   // staff member's contracted hours change.
-  const { data: dailyTargets } = useSWRAuth<ReadonlyMap<string, number>>(
+  const { data: dailyTargets, error: dailyTargetsError } = useSWRAuth<
+    ReadonlyMap<string, number>
+  >(
     `staff-schedule-targets-${staffId}-${visibleFromKey}-${visibleToKey}`,
     () =>
       staffMonthSummaryService.getScheduleTargets(
@@ -278,6 +280,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               absences={visibleAbsences ?? []}
               schedule={schedule ?? null}
               dailyTargets={dailyTargets}
+              dailyTargetsError={dailyTargetsError != null}
               today={today}
               isAdminView
               plannedShifts={visibleShifts ?? []}

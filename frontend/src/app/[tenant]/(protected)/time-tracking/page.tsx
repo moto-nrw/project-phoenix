@@ -1610,7 +1610,7 @@ function OwnZeiterfassungSection({
   // the table's `schedule` prop only ever describes the CURRENT plan, so after
   // a contract change it would print today's hours onto historical rows and
   // contradict the Monatskarte above it.
-  const { data: dailyTargets } = useSWRAuth(
+  const { data: dailyTargets, error: dailyTargetsError } = useSWRAuth(
     `time-tracking-schedule-targets-${visibleFromKey}-${visibleToKey}`,
     () => timeTrackingService.getScheduleTargets(visibleFromKey, visibleToKey),
     { keepPreviousData: true, revalidateOnFocus: false },
@@ -1836,6 +1836,7 @@ function OwnZeiterfassungSection({
             absences={adaptedAbsences}
             schedule={schedule}
             dailyTargets={dailyTargets}
+            dailyTargetsError={dailyTargetsError != null}
             today={today}
             isAdminView={ownStaffId !== null}
             onEditDay={(date) => handleEdit(date)}
