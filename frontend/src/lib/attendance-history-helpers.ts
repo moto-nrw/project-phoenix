@@ -223,6 +223,8 @@ export function formatAttendanceSlotStatus(
 ): string {
   if (status === "present") return "Anwesend";
   if (substatus === "sick") return "Krank";
+  if (substatus === "excused") return "Entschuldigt";
+  if (substatus === "field_trip") return "Klassenfahrt";
   if (status === "absent") return "Abwesend";
   return "Erwartet";
 }

@@ -202,6 +202,8 @@ func TestProcessSessionTimeoutByID_ContinuesWhenSSECollectionFails(t *testing.T)
 	activityID := int64(200)
 	findCalls := 0
 	endedVisits := 0
+	visitEnded := false
+	entryTime := time.Now().Add(-time.Hour)
 
 	svc := &service{ServiceDependencies: ServiceDependencies{Logger: slog.Default(), GroupRepo: &mockGroupRepository{
 		findByIDFunc: func(context.Context, interface{}) (*activeModels.Group, error) {
@@ -214,11 +216,22 @@ func TestProcessSessionTimeoutByID_ContinuesWhenSSECollectionFails(t *testing.T)
 				return nil, errors.New("student lookup prefetch failed")
 			}
 			return []*activeModels.Visit{
-				{Model: modelBase.Model{ID: 300}, ActiveGroupID: 100, StudentID: 400},
+				{Model: modelBase.Model{ID: 300}, ActiveGroupID: 100, StudentID: 400, EntryTime: entryTime},
 			}, nil
+		},
+		findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+			visit := &activeModels.Visit{
+				Model: modelBase.Model{ID: 300}, ActiveGroupID: 100, StudentID: 400, EntryTime: entryTime,
+			}
+			if visitEnded {
+				exitTime := time.Now()
+				visit.ExitTime = &exitTime
+			}
+			return visit, nil
 		},
 		endVisitFunc: func(context.Context, int64) error {
 			endedVisits++
+			visitEnded = true
 			return nil
 		},
 	}},

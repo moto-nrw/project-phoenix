@@ -41,9 +41,9 @@ type AttendanceSnapshot struct {
 type AttendanceSyncer interface {
 	// MirrorCheckInForVisit is called AFTER visitRepo.Create succeeds. It
 	// looks up the instance bridged to visit.ActiveGroupID, then the
-	// instance_students row for visit.StudentID. If both exist and the row
-	// is still status='expected', it flips the row to 'present' and stamps
-	// checked_in_at from visit.EntryTime.
+	// instance_students row for visit.StudentID. If both exist, it opens
+	// observed presence from expected/day-status absence or reopens a prior
+	// checked-out presence while preserving the first checked_in_at.
 	//
 	// Returns a snapshot of the resulting row (or the pre-existing row, in
 	// the already-present case, so SSE still reflects state). Returns nil

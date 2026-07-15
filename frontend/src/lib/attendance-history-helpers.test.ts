@@ -200,6 +200,8 @@ describe("formatAttendanceSlotStatus", () => {
   it.each([
     ["present", null, "Anwesend"],
     ["absent", "sick", "Krank"],
+    ["absent", "excused", "Entschuldigt"],
+    ["absent", "field_trip", "Klassenfahrt"],
     ["absent", null, "Abwesend"],
     ["expected", null, "Erwartet"],
   ] as const)("formats %s/%s", (status, substatus, expected) => {

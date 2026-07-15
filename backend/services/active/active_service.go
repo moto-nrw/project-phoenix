@@ -709,7 +709,7 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 		return nil
 	}
 
-	endedVisit, err := s.endVisitRecord(ctx, id)
+	endedVisit, snapshot, err := s.endVisitWithAttendanceSync(ctx, id)
 	if err != nil {
 		if activeErr, ok := err.(*ActiveError); ok {
 			return activeErr
@@ -717,15 +717,28 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 		return &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
 	}
 
-	// WP-B10: load (not mutate) attendance snapshot for SSE enrichment.
-	// Per spec: check-out does NOT change instance_students.status.
+	s.broadcastVisitCheckout(ctx, endedVisit, snapshot)
+	return nil
+}
+
+// endVisitWithAttendanceSync closes one visit and mirrors its exact persisted
+// checkout timestamp into slot attendance. Session-end and timeout paths use
+// this helper too, so no visit-ending path can bypass care-slot checkout sync.
+// AttendanceSyncer owns graceful degradation: a missing bridge or sync failure
+// returns a nil snapshot without undoing the successfully ended visit.
+func (s *service) endVisitWithAttendanceSync(
+	ctx context.Context, id int64,
+) (*active.Visit, *AttendanceSnapshot, error) {
+	endedVisit, err := s.endVisitRecord(ctx, id)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	var snapshot *AttendanceSnapshot
 	if s.AttendanceSyncer != nil {
 		snapshot = s.AttendanceSyncer.LoadAttendanceForVisit(ctx, endedVisit)
 	}
-
-	s.broadcastVisitCheckout(ctx, endedVisit, snapshot)
-	return nil
+	return endedVisit, snapshot, nil
 }
 
 // endVisitRecord ends the visit record and returns the updated visit
@@ -831,9 +844,9 @@ func (s *service) broadcastToEducationalGroup(ctx context.Context, student *user
 // one to the active-group topic carrying every student, and one per distinct
 // educational group carrying that group's students. SSE events are triggers,
 // not payloads (the client refetches via bulk endpoints), so the per-student
-// attendance snapshot the old loop computed — at a cost of 2N schedule queries
-// — is dropped; only the student IDs are carried, to drive the client's
-// per-student detail-cache invalidation.
+// attendance snapshot is not carried in this bulk event; only the student IDs
+// drive the client's per-student detail-cache invalidation. Slot-attendance
+// checkout persistence still runs before this helper for every ended visit.
 func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDStr string, visitsToNotify []visitSSEData) {
 	if len(visitsToNotify) == 0 {
 		return

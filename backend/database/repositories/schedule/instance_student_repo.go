@@ -198,9 +198,10 @@ func (r *InstanceStudentRepository) FindByInstanceAndStudent(ctx context.Context
 	return &row, nil
 }
 
-// UpdateAttendanceFromCheckin flips an expected row, or an absence owned by a
-// broad day status, to observed presence. Independent manual slot decisions
-// have no provenance and are never clobbered here.
+// UpdateAttendanceFromCheckin flips an expected row, an absence owned by a
+// broad day status, or a previously checked-out present row to observed open
+// presence. Independent manual slot decisions and already-open present rows
+// have no matching predicate and are never clobbered here.
 //
 // Returns (updated=true) when exactly one row was modified. A zero-rows
 // result means either (a) the row doesn't exist in this tenant, or
@@ -221,7 +222,11 @@ func (r *InstanceStudentRepository) UpdateAttendanceFromCheckin(
 		Set(`updated_at = ?`, time.Now().UTC()).
 		Where(`"instance_student".instance_id = ?`, instanceID).
 		Where(`"instance_student".student_id = ?`, studentID).
-		Where(`("instance_student".status = ? OR "instance_student".student_status_day_id IS NOT NULL)`, schedule.AttendanceStatusExpected)
+		Where(`(
+			"instance_student".status = ?
+			OR "instance_student".student_status_day_id IS NOT NULL
+			OR ("instance_student".status = ? AND "instance_student".checked_out_at IS NOT NULL)
+		)`, schedule.AttendanceStatusExpected, schedule.AttendanceStatusPresent)
 
 	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 
@@ -319,17 +324,49 @@ func (r *InstanceStudentRepository) ApplyStatusDay(
 
 func (r *InstanceStudentRepository) ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error) {
 	res, err := base.GetDB(ctx, r.db).NewRaw(`
+		WITH released AS (
+			SELECT tenant_id, student_id, date
+			FROM active.student_status_days
+			WHERE tenant_id = ? AND id = ?
+		), replacement AS (
+			SELECT released.student_id, latest.id, latest.status
+			FROM released
+			LEFT JOIN LATERAL (
+				SELECT candidate.id, candidate.status
+				FROM active.student_status_days AS candidate
+				WHERE candidate.tenant_id = released.tenant_id
+					AND candidate.student_id = released.student_id
+					AND candidate.date = released.date
+					AND candidate.cleared_at IS NULL
+				ORDER BY candidate.reported_at DESC, candidate.id DESC
+				LIMIT 1
+			) AS latest ON TRUE
+		)
 		UPDATE schedule.instance_students AS attendance
-		SET status = CASE WHEN instance.status = ? THEN ? ELSE ? END,
-			substatus = NULL,
-			student_status_day_id = NULL,
+		SET status = CASE
+				WHEN replacement.id IS NOT NULL THEN ?
+				WHEN instance.status = ? THEN ?
+				ELSE ?
+			END,
+			substatus = CASE replacement.status
+				WHEN 'sick' THEN ?
+				WHEN 'excused' THEN ?
+				WHEN 'class_trip' THEN ?
+				ELSE NULL
+			END,
+			student_status_day_id = replacement.id,
 			updated_at = ?
-		FROM schedule.activity_instances AS instance
+		FROM schedule.activity_instances AS instance, replacement
 		WHERE attendance.tenant_id = ?
 			AND attendance.student_status_day_id = ?
+			AND attendance.student_id = replacement.student_id
 			AND instance.id = attendance.instance_id
 			AND instance.tenant_id = attendance.tenant_id
-	`, schedule.InstanceStatusCompleted, schedule.AttendanceStatusAbsent, schedule.AttendanceStatusExpected,
+	`, tenant.FromContext(ctx), statusDayID,
+		schedule.AttendanceStatusAbsent,
+		schedule.InstanceStatusCompleted, schedule.AttendanceStatusAbsent, schedule.AttendanceStatusExpected,
+		schedule.AttendanceSubstatusSick, schedule.AttendanceSubstatusExcused,
+		schedule.AttendanceSubstatusFieldTrip,
 		time.Now().UTC(), tenant.FromContext(ctx), statusDayID).Exec(ctx)
 	if err != nil {
 		return 0, &modelBase.DatabaseError{Op: "release student status day from slots", Err: err}

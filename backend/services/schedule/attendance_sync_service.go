@@ -76,7 +76,7 @@ func (s *AttendanceSyncService) getLogger() *slog.Logger {
 //	B3 no instance bridged           → Debug, return nil (walk-in)
 //	B4 instance_student lookup error → Warn, return nil
 //	B5 no instance_student row       → Debug, return nil (walk-in)
-//	B6 row already non-expected      → Debug, return current snapshot
+//	B6 row is manual/observably open → Debug, return current snapshot
 //	B7 UPDATE error                  → Error (tx likely tainted), return nil
 //	B8 UPDATE rowsAffected=0 (race)  → Debug, return snapshot of row we read
 //	B9 happy path                    → Info, return new snapshot
@@ -129,12 +129,14 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 		return s.createUnplannedAttendance(ctx, instance.ID, visit)
 	}
 
-	// B6: row is no longer 'expected' — respect existing state. This covers:
-	//   * double-tap within a short window (already present)
+	// B6: respect manual states and already-open presence. A checked-out
+	// present row is deliberately excluded: re-entry into the same care slot
+	// must reopen it so history does not claim the child is still checked out.
+	// This covers:
+	//   * double-tap within a short window (present, checked_out_at=NULL)
 	//   * admin marked absent before check-in via PATCH
-	//   * status=present from a prior visit today
 	// Return the snapshot we already read so SSE reflects the true state.
-	if row.Status != scheduleModel.AttendanceStatusExpected && row.StudentStatusDayID == nil {
+	if shouldPreserveAttendanceOnCheckin(row) {
 		s.getLogger().Debug("attendance mirror: row already past expected, not clobbering",
 			slog.Int64("instance_id", instance.ID),
 			slog.Int64("student_id", visit.StudentID),
@@ -254,7 +256,7 @@ func (s *AttendanceSyncService) MirrorCheckInAt(
 	}
 
 	row := rows[0]
-	if row.Status != scheduleModel.AttendanceStatusExpected && row.StudentStatusDayID == nil {
+	if shouldPreserveAttendanceOnCheckin(row) {
 		return snapshotFromRow(row)
 	}
 	updated, err := s.instanceStudentRepo.UpdateAttendanceFromCheckin(ctx, row.InstanceID, studentID, at)
@@ -278,6 +280,13 @@ func (s *AttendanceSyncService) MirrorCheckInAt(
 		}
 	}
 	return snapshotFromRow(row)
+}
+
+func shouldPreserveAttendanceOnCheckin(row *scheduleModel.InstanceStudent) bool {
+	if row == nil || row.Status == scheduleModel.AttendanceStatusExpected || row.StudentStatusDayID != nil {
+		return false
+	}
+	return row.Status != scheduleModel.AttendanceStatusPresent || row.CheckedOutAt == nil
 }
 
 // LoadAttendanceForVisit implements activeSvc.AttendanceSyncer. It preserves

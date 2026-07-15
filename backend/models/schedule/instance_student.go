@@ -168,11 +168,11 @@ type InstanceStudentRepository interface {
 	// DeleteByInstanceID removes all attendance rows for an instance.
 	DeleteByInstanceID(ctx context.Context, instanceID int64) error
 
-	// UpdateAttendanceFromCheckin flips status 'expected' → 'present' and
-	// stamps checked_in_at. The status='expected' predicate in the WHERE
-	// clause enforces monotonicity — a row that's already present (double
-	// tap, or post-hoc PATCH) is never clobbered. Returns (updated=true)
-	// only when a row was actually changed.
+	// UpdateAttendanceFromCheckin opens observed presence for an expected row,
+	// a broad-status absence, or a checked-out present row. It stamps the first
+	// checked_in_at and clears checked_out_at on re-entry; already-open presence
+	// and independent manual decisions are never clobbered. Returns
+	// (updated=true) only when a row was actually changed.
 	UpdateAttendanceFromCheckin(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (bool, error)
 	CreateUnplannedPresentIfAbsent(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (*InstanceStudent, error)
 	UpdateAttendanceCheckout(ctx context.Context, instanceID, studentID int64, checkedOutAt time.Time) error

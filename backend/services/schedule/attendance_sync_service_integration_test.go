@@ -24,11 +24,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/services"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -193,6 +195,54 @@ func TestAttendanceSync_MirrorCheckIn_WalkIn_NotEnrolled(t *testing.T) {
 	require.NotNil(t, row)
 	assert.True(t, row.IsUnplanned)
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
+}
+
+func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
+	tests := []struct {
+		name    string
+		timeout bool
+	}{
+		{name: "explicit session end"},
+		{name: "session timeout", timeout: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := buildAttendanceSyncSetup(t)
+			student := testpkg.CreateTestStudent(t, s.db, "AS-Bulk", fmt.Sprintf("B-%d", time.Now().UnixNano()), "3a")
+			t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
+
+			row := seedInstanceStudent(t, s, student.ID, scheduleModels.AttendanceStatusExpected)
+			entryTime := time.Now().Add(-time.Hour)
+			require.NotNil(t, s.syncer.MirrorCheckInForVisit(s.ctx, &activeModels.Visit{
+				StudentID: student.ID, ActiveGroupID: s.activeGroup.ID, EntryTime: entryTime,
+			}))
+			visit := testpkg.CreateTestVisit(t, s.db, student.ID, s.activeGroup.ID, entryTime, nil)
+			t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "active.visits", visit.ID) })
+
+			factory, err := services.NewFactory(repositories.NewFactory(s.db), s.db, slog.Default())
+			require.NoError(t, err)
+			if tt.timeout {
+				device := testpkg.CreateTestDevice(t, s.db, fmt.Sprintf("AS-Bulk-%d", time.Now().UnixNano()))
+				t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, device.ID) })
+				_, err = s.db.NewUpdate().
+					Table("active.groups").
+					Set("device_id = ?", device.ID).
+					Where("id = ?", s.activeGroup.ID).
+					Exec(s.ctx)
+				require.NoError(t, err)
+				_, err = factory.Active.ProcessSessionTimeout(s.ctx, device.ID)
+			} else {
+				err = factory.Active.EndActivitySession(s.ctx, s.activeGroup.ID)
+			}
+			require.NoError(t, err)
+
+			got, err := s.isRepo.FindByID(s.ctx, row.ID)
+			require.NoError(t, err)
+			require.NotNil(t, got.CheckedOutAt, "bulk-ended visit must close its slot attendance")
+			assert.False(t, got.CheckedOutAt.Before(entryTime))
+		})
+	}
 }
 
 func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t *testing.T) {
