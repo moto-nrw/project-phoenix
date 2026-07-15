@@ -20,7 +20,12 @@ interface PlanBlockProps {
   readonly timeRange: string;
   /** Blocklabel (Titel der Instanz bzw. Schichtart). */
   readonly label: string;
-  /** Farbe der Schichtart/Kategorie als Hex. Ohne Wert: neutrale Kante. */
+  /**
+   * Farbe der Schichtart/Kategorie als 6-stelliger Hex-Wert ("#RRGGBB").
+   * Kein anderes Format: die Tönung hängt "1A" (10 % Alpha) an den Wert an,
+   * Kurzform-Hex oder rgb() ergäben also stillschweigend eine ungültige
+   * CSS-Farbe. Ohne Wert: neutrale Kante.
+   */
   readonly color?: string;
   readonly size?: PlanBlockSize;
   readonly status?: PlanBlockStatus;
@@ -29,7 +34,12 @@ interface PlanBlockProps {
   readonly selected?: boolean;
   /** Genau ein Status-Icon (14px), absolut rechts oben. */
   readonly statusIcon?: ReactNode;
-  /** Optionaler dritter Slot bei size="default", z. B. ein CoverageIndicator. */
+  /**
+   * Optionaler dritter Slot bei size="default", z. B. ein CoverageIndicator.
+   * Nur nicht-interaktive Inhalte (Spans, Badges): bei interactive landet der
+   * Slot INNERHALB des <button> — verschachtelte interaktive Elemente wären
+   * ungültiges HTML.
+   */
   readonly footer?: ReactNode;
   /** Rendert <div> statt <button> und deaktiviert das Klick-/Fokusverhalten. */
   readonly interactive?: boolean;

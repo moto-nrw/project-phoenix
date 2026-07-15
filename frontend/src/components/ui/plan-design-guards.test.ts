@@ -31,7 +31,7 @@ const TIMETABLE_DIR = path.resolve(UI_DIR, "../timetable");
 
 const GRADIENT_PATTERN = /bg-gradient|from-\[|to-\[/g;
 const BRIGHT_COLOR_PATTERN =
-  /(text|bg|border)-(red|green|blue|orange|purple|amber|yellow|emerald|pink|rose|indigo|violet|cyan|teal|lime|fuchsia)-\d+/g;
+  /(text|bg|border)-(red|green|blue|sky|orange|purple|amber|yellow|emerald|pink|rose|indigo|violet|cyan|teal|lime|fuchsia)-\d+/g;
 
 // The one sanctioned hatch pattern (docs/04-designsprache.md 4/5/6.2),
 // centralized in plan-block.tsx. It is CSS (`repeating-linear-gradient(...)`
