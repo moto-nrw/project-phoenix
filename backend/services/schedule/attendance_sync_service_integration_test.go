@@ -197,6 +197,30 @@ func TestAttendanceSync_MirrorCheckIn_WalkIn_NotEnrolled(t *testing.T) {
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
 }
 
+func TestAttendanceSync_MirrorCheckIn_CompletedWalkInPersistsClosedInterval(t *testing.T) {
+	s := buildAttendanceSyncSetup(t)
+	student := testpkg.CreateTestStudent(t, s.db, "AS-Closed", fmt.Sprintf("U-%d", time.Now().UnixNano()), "3a")
+	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
+
+	entryTime := time.Date(2026, 4, 21, 12, 10, 0, 0, time.UTC)
+	exitTime := entryTime.Add(45 * time.Minute)
+	snap := s.syncer.MirrorCheckInForVisit(s.ctx, &activeModels.Visit{
+		StudentID: student.ID, ActiveGroupID: s.activeGroup.ID,
+		EntryTime: entryTime, ExitTime: &exitTime,
+	})
+	require.NotNil(t, snap)
+	assert.True(t, snap.IsUnplanned)
+
+	row, err := s.isRepo.FindByInstanceAndStudent(s.ctx, s.instance.ID, student.ID)
+	require.NoError(t, err)
+	require.NotNil(t, row)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
+	require.NotNil(t, row.CheckedInAt)
+	require.NotNil(t, row.CheckedOutAt)
+	assert.WithinDuration(t, entryTime, *row.CheckedInAt, time.Second)
+	assert.WithinDuration(t, exitTime, *row.CheckedOutAt, time.Second)
+}
+
 func TestAttendanceSync_BulkSessionEndPersistsSlotCheckout(t *testing.T) {
 	tests := []struct {
 		name    string

@@ -117,6 +117,12 @@ type fakeInstanceStudentRepo struct {
 	checkoutErr    error
 	checkoutCalls  int
 	checkoutID     int64
+	reconcileErr   error
+	reconcileCalls int
+	previousIn     time.Time
+	previousOut    *time.Time
+	updatedIn      time.Time
+	updatedOut     *time.Time
 }
 
 func (f *fakeInstanceStudentRepo) FindByInstanceAndStudent(_ context.Context, _, _ int64) (*scheduleModel.InstanceStudent, error) {
@@ -137,6 +143,22 @@ func (f *fakeInstanceStudentRepo) UpdateAttendanceCheckout(_ context.Context, in
 	f.checkoutCalls++
 	f.checkoutID = instanceID
 	return f.checkoutErr
+}
+
+func (f *fakeInstanceStudentRepo) ReconcileAttendanceInterval(
+	_ context.Context,
+	_, _ int64,
+	previousIn time.Time,
+	previousOut *time.Time,
+	updatedIn time.Time,
+	updatedOut *time.Time,
+) (bool, error) {
+	f.reconcileCalls++
+	f.previousIn = previousIn
+	f.previousOut = previousOut
+	f.updatedIn = updatedIn
+	f.updatedOut = updatedOut
+	return f.reconcileErr == nil, f.reconcileErr
 }
 
 func (f *fakeInstanceStudentRepo) FindCurrentCandidates(context.Context, int64, timezone.Date, time.Time) ([]*scheduleModel.InstanceStudent, error) {
@@ -717,6 +739,47 @@ func TestMirrorCheckOutAt_ClosesLatestOpenSlot(t *testing.T) {
 
 	assert.Equal(t, 1, isRepo.checkoutCalls)
 	assert.Equal(t, int64(88), isRepo.checkoutID)
+}
+
+func TestMirrorVisitRevision_ReconcilesExactPreviousInterval(t *testing.T) {
+	previous := validVisit()
+	previousExit := previous.EntryTime.Add(time.Hour)
+	previous.ExitTime = &previousExit
+	updated := *previous
+	updated.EntryTime = previous.EntryTime.Add(10 * time.Minute)
+	updated.ExitTime = nil
+	isRepo := &fakeInstanceStudentRepo{}
+	syncer := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo)
+
+	syncer.MirrorVisitRevision(context.Background(), previous, &updated)
+
+	require.Equal(t, 1, isRepo.reconcileCalls)
+	assert.Equal(t, previous.EntryTime, isRepo.previousIn)
+	require.NotNil(t, isRepo.previousOut)
+	assert.Equal(t, previousExit, *isRepo.previousOut)
+	assert.Equal(t, updated.EntryTime, isRepo.updatedIn)
+	assert.Nil(t, isRepo.updatedOut)
+}
+
+func TestMirrorVisitRevision_IgnoresIdentityAndGroupChanges(t *testing.T) {
+	previous := validVisit()
+	tests := []struct {
+		name   string
+		mutate func(*activeModel.Visit)
+	}{
+		{name: "student", mutate: func(v *activeModel.Visit) { v.StudentID++ }},
+		{name: "group", mutate: func(v *activeModel.Visit) { v.ActiveGroupID++ }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			updated := *previous
+			tt.mutate(&updated)
+			isRepo := &fakeInstanceStudentRepo{}
+			newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
+				MirrorVisitRevision(context.Background(), previous, &updated)
+			assert.Zero(t, isRepo.reconcileCalls)
+		})
+	}
 }
 
 func TestMirrorCheckOutAt_HandlesFailures(t *testing.T) {

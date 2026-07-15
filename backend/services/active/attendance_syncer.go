@@ -43,7 +43,7 @@ type AttendanceSyncer interface {
 	// looks up the instance bridged to visit.ActiveGroupID, then the
 	// instance_students row for visit.StudentID. If both exist, it opens
 	// observed presence from expected/day-status absence or reopens a prior
-	// checked-out presence while preserving the first checked_in_at.
+	// checked-out presence with the new visit's entry time.
 	//
 	// Returns a snapshot of the resulting row (or the pre-existing row, in
 	// the already-present case, so SSE still reflects state). Returns nil
@@ -58,6 +58,10 @@ type AttendanceSyncer interface {
 	// checkout time without changing its attendance status, then returns the
 	// current snapshot for SSE display.
 	MirrorCheckOutForVisit(ctx context.Context, visit *active.Visit) *AttendanceSnapshot
+
+	// MirrorVisitRevision replaces a slot interval only when it still matches
+	// previous. It is used when staff edit or reopen an existing visit.
+	MirrorVisitRevision(ctx context.Context, previous, updated *active.Visit)
 
 	// MirrorCheckOutAt closes the most recently checked-in open slot for a
 	// roomless attendance flow.

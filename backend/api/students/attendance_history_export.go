@@ -116,6 +116,10 @@ func parseAttendanceExportOptions(r *http.Request, visibleDays int) (attendanceE
 			return options, errors.New("invalid to date format, expected YYYY-MM-DD")
 		}
 	}
+	today := timezone.TodayDate()
+	if options.From.After(today) || options.To.After(today) {
+		return options, errors.New("attendance exports cannot include future dates")
+	}
 	if options.To.Before(options.From) {
 		return options, errors.New("to date must not be before from date")
 	}

@@ -66,6 +66,78 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 	})
 }
 
+func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupVisitHelperService(t, db)
+	ctx := testpkg.TenantContext(1)
+	activity := testpkg.CreateTestActivityGroup(t, db, "completed-visit")
+	room := testpkg.CreateTestRoom(t, db, "Completed Visit Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "Completed", "Visit", "2a")
+	staff := testpkg.CreateTestStaff(t, db, "Completed", "Staff")
+	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-COMPLETED-001")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
+
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
+	entryTime := time.Now().Add(-2 * time.Hour)
+	exitTime := entryTime.Add(time.Hour)
+	visit := &activeModels.Visit{
+		StudentID: student.ID, ActiveGroupID: activeGroup.ID,
+		EntryTime: entryTime, ExitTime: &exitTime,
+	}
+	require.NoError(t, service.CreateVisit(deviceCtx, visit))
+	defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+
+	attendance := getAttendanceForStudent(t, db, student.ID)
+	require.NotNil(t, attendance)
+	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
+	require.NotNil(t, attendance.CheckOutTime)
+	require.NotNil(t, attendance.CheckedOutBy)
+	assert.WithinDuration(t, exitTime, *attendance.CheckOutTime, time.Second)
+	assert.Equal(t, staff.ID, *attendance.CheckedOutBy)
+}
+
+func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupVisitHelperService(t, db)
+	ctx := testpkg.TenantContext(1)
+	activity := testpkg.CreateTestActivityGroup(t, db, "revised-visit")
+	room := testpkg.CreateTestRoom(t, db, "Revised Visit Room")
+	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
+	student := testpkg.CreateTestStudent(t, db, "Revised", "Visit", "2a")
+	staff := testpkg.CreateTestStaff(t, db, "Revised", "Staff")
+	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-REVISED-001")
+	defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, activeGroup.ID, student.ID, staff.ID, rfidDevice.ID)
+
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
+	entryTime := time.Now().Add(-2 * time.Hour)
+	visit := &activeModels.Visit{StudentID: student.ID, ActiveGroupID: activeGroup.ID, EntryTime: entryTime}
+	require.NoError(t, service.CreateVisit(deviceCtx, visit))
+	defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+
+	exitTime := entryTime.Add(time.Hour)
+	visit.ExitTime = &exitTime
+	require.NoError(t, service.UpdateVisit(deviceCtx, visit))
+	attendance := getAttendanceForStudent(t, db, student.ID)
+	require.NotNil(t, attendance)
+	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
+	require.NotNil(t, attendance.CheckOutTime)
+	assert.WithinDuration(t, exitTime, *attendance.CheckOutTime, time.Second)
+
+	visit.ExitTime = nil
+	require.NoError(t, service.UpdateVisit(deviceCtx, visit))
+	attendance = getAttendanceForStudent(t, db, student.ID)
+	require.NotNil(t, attendance)
+	assert.Nil(t, attendance.CheckOutTime)
+	assert.Nil(t, attendance.CheckedOutBy)
+}
+
 // =============================================================================
 // Re-entry Tests (Student already has attendance for today)
 // =============================================================================

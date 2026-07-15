@@ -1,6 +1,7 @@
 package students
 
 import (
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -12,6 +13,34 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestParseAttendanceExportOptions_RejectsFutureDates(t *testing.T) {
+	today := timezone.TodayDate()
+	future := today.AddDays(1)
+	tests := []struct {
+		name  string
+		query string
+	}{
+		{name: "future from", query: "?from=" + future.String() + "&to=" + future.String()},
+		{name: "future to", query: "?from=" + today.String() + "&to=" + future.String()},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("GET", "/attendance-history/export"+tt.query, nil)
+			_, err := parseAttendanceExportOptions(req, 30)
+			require.EqualError(t, err, "attendance exports cannot include future dates")
+		})
+	}
+}
+
+func TestParseAttendanceExportOptions_AcceptsToday(t *testing.T) {
+	today := timezone.TodayDate()
+	req := httptest.NewRequest("GET", "/attendance-history/export?from="+today.String()+"&to="+today.String(), nil)
+	options, err := parseAttendanceExportOptions(req, 30)
+	require.NoError(t, err)
+	assert.Equal(t, today, options.From)
+	assert.Equal(t, today, options.To)
+}
 
 func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T) {
 	date := timezone.NewDate(2026, 7, 15)

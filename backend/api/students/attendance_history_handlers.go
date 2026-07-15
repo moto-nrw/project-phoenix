@@ -143,8 +143,9 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 	}
 
 	// 4. Parse requested range and clamp against cap
-	today := timezone.Today()
-	endOfToday := today.Add(24 * time.Hour).Add(-time.Second)
+	todayDate := timezone.TodayDate()
+	today := todayDate.BerlinMidnight()
+	endOfToday := todayDate.EndOfDay()
 	defaultStart := today.AddDate(0, 0, -(attendanceCap - 1))
 
 	start, end, err := parseAttendanceHistoryRange(r, defaultStart, endOfToday)
@@ -152,12 +153,10 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-
-	clamped := false
-	maxDuration := time.Duration(attendanceCap) * 24 * time.Hour
-	if end.Sub(start) > maxDuration {
-		start = end.Add(-maxDuration).Add(time.Second)
-		clamped = true
+	start, end, clamped, err := clampAttendanceHistoryRange(start, end, endOfToday, attendanceCap)
+	if err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
 	}
 
 	// 5. Load attendance rows (DATE-keyed queries take the Berlin calendar
@@ -290,6 +289,26 @@ func parseAttendanceHistoryRange(r *http.Request, defaultStart, defaultEnd time.
 		return time.Time{}, time.Time{}, errors.New("start must be before end")
 	}
 	return start, end, nil
+}
+
+// clampAttendanceHistoryRange prevents future schedule materializations from
+// appearing as history and applies the tenant's retrospective visibility cap.
+func clampAttendanceHistoryRange(start, end, endOfToday time.Time, attendanceCap int) (time.Time, time.Time, bool, error) {
+	clamped := false
+	if end.After(endOfToday) {
+		end = endOfToday
+		clamped = true
+	}
+	if start.After(end) {
+		return time.Time{}, time.Time{}, false, errors.New("start must not be in the future")
+	}
+
+	maxDuration := time.Duration(attendanceCap) * 24 * time.Hour
+	if end.Sub(start) > maxDuration {
+		start = end.Add(-maxDuration).Add(time.Second)
+		clamped = true
+	}
+	return start, end, clamped, nil
 }
 
 // buildAttendanceHistoryDays groups attendance rows by calendar date and merges

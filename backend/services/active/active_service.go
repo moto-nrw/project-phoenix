@@ -600,14 +600,26 @@ func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
 		sourceSnapshot, targetSnapshot := s.syncMovedVisitAttendance(ctx, existing, visit, transferAt)
 		s.broadcastVisitMoved(ctx, existing, visit, sourceSnapshot, targetSnapshot)
 		s.trackProductEvent(ctx, "room_transfer", nil)
-	} else if existing.ExitTime == nil && visit.ExitTime != nil && s.AttendanceSyncer != nil {
-		// Checkout-only update: the visit closes without a group move, so the
-		// move path above never runs. Mirror the checkout into slot attendance
-		// or the persisted slot stays open while the visit is closed.
-		s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, visit)
+	} else if visitIntervalChanged(existing, visit) {
+		if err := s.syncAttendanceForVisitRevision(ctx, existing, visit); err != nil {
+			return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+		}
+		if s.AttendanceSyncer != nil {
+			s.AttendanceSyncer.MirrorVisitRevision(ctx, existing, visit)
+		}
 	}
 
 	return nil
+}
+
+func visitIntervalChanged(previous, updated *active.Visit) bool {
+	if previous == nil || updated == nil || !previous.EntryTime.Equal(updated.EntryTime) {
+		return true
+	}
+	if previous.ExitTime == nil || updated.ExitTime == nil {
+		return previous.ExitTime != updated.ExitTime
+	}
+	return !previous.ExitTime.Equal(*updated.ExitTime)
 }
 
 func (s *service) prepareVisitTransfer(

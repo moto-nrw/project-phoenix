@@ -75,7 +75,7 @@ func (s *AttendanceSyncService) getLogger() *slog.Logger {
 //	B2 instance lookup error         → Warn, return nil
 //	B3 no instance bridged           → Debug, return nil (walk-in)
 //	B4 instance_student lookup error → Warn, return nil
-//	B5 no instance_student row       → Debug, return nil (walk-in)
+//	B5 no instance_student row       → persist unplanned presence
 //	B6 row is manual/observably open → Debug, return current snapshot
 //	B7 UPDATE error                  → Error (tx likely tainted), return nil
 //	B8 UPDATE rowsAffected=0 (race)  → Debug, return snapshot of row we read
@@ -142,7 +142,7 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 			slog.Int64("student_id", visit.StudentID),
 			slog.String("current_status", row.Status),
 		)
-		return snapshotFromRow(row)
+		return s.finishVisitInterval(ctx, instance.ID, visit, row)
 	}
 
 	// checked_in_at is stamped from visit.EntryTime — the same instant
@@ -201,7 +201,7 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 		row.CheckedInAt = &visit.EntryTime
 	}
 	row.CheckedOutAt = nil
-	return snapshotFromRow(row)
+	return s.finishVisitInterval(ctx, instance.ID, visit, row)
 }
 
 func (s *AttendanceSyncService) createUnplannedAttendance(
@@ -224,6 +224,31 @@ func (s *AttendanceSyncService) createUnplannedAttendance(
 		slog.Int64("instance_id", instanceID),
 		slog.Int64("student_id", visit.StudentID),
 	)
+	return s.finishVisitInterval(ctx, instanceID, visit, row)
+}
+
+func (s *AttendanceSyncService) finishVisitInterval(
+	ctx context.Context,
+	instanceID int64,
+	visit *activeModel.Visit,
+	row *scheduleModel.InstanceStudent,
+) *activeSvc.AttendanceSnapshot {
+	if visit == nil || visit.ExitTime == nil || row == nil ||
+		row.Status != scheduleModel.AttendanceStatusPresent || row.CheckedInAt == nil ||
+		visit.ExitTime.Before(*row.CheckedInAt) {
+		return snapshotFromRow(row)
+	}
+	if err := s.instanceStudentRepo.UpdateAttendanceCheckout(
+		ctx, instanceID, visit.StudentID, *visit.ExitTime,
+	); err != nil {
+		s.getLogger().Error("attendance mirror: persist completed visit checkout failed",
+			slog.Int64("instance_id", instanceID),
+			slog.Int64("student_id", visit.StudentID),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	row.CheckedOutAt = visit.ExitTime
 	return snapshotFromRow(row)
 }
 
@@ -356,6 +381,64 @@ func (s *AttendanceSyncService) MirrorCheckOutForVisit(
 	}
 
 	return snapshotFromRow(row)
+}
+
+// MirrorVisitRevision updates the interval represented by a slot after staff
+// edit or reopen a visit. The repository compares the previous check-in first,
+// so an older visit cannot overwrite a later re-entry in the same slot. It may
+// also repair a missing checkout left by an older completed-visit write.
+func (s *AttendanceSyncService) MirrorVisitRevision(
+	ctx context.Context, previous, updated *activeModel.Visit,
+) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.getLogger().Error("attendance visit revision mirror panic",
+				slog.Any("panic", r),
+				slog.String("stack", string(debug.Stack())),
+			)
+		}
+	}()
+
+	if previous == nil || updated == nil ||
+		previous.StudentID != updated.StudentID ||
+		previous.ActiveGroupID <= 0 ||
+		previous.ActiveGroupID != updated.ActiveGroupID {
+		return
+	}
+	instance, err := s.instanceRepo.FindByActiveGroupID(ctx, previous.ActiveGroupID)
+	if err != nil {
+		s.getLogger().Warn("attendance visit revision: find instance failed",
+			slog.Int64("active_group_id", previous.ActiveGroupID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if instance == nil {
+		return
+	}
+	changed, err := s.instanceStudentRepo.ReconcileAttendanceInterval(
+		ctx,
+		instance.ID,
+		previous.StudentID,
+		previous.EntryTime,
+		previous.ExitTime,
+		updated.EntryTime,
+		updated.ExitTime,
+	)
+	if err != nil {
+		s.getLogger().Error("attendance visit revision: reconcile slot interval failed",
+			slog.Int64("instance_id", instance.ID),
+			slog.Int64("student_id", previous.StudentID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	if changed {
+		s.getLogger().Info("attendance visit revision synced",
+			slog.Int64("instance_id", instance.ID),
+			slog.Int64("student_id", previous.StudentID),
+		)
+	}
 }
 
 // MirrorCheckOutAt closes the latest open slot attendance for roomless binary

@@ -106,6 +106,9 @@ func (f *fakeRepo) CreateUnplannedPresentIfAbsent(context.Context, int64, int64,
 func (f *fakeRepo) UpdateAttendanceCheckout(context.Context, int64, int64, time.Time) error {
 	panic("unused")
 }
+func (f *fakeRepo) ReconcileAttendanceInterval(context.Context, int64, int64, time.Time, *time.Time, time.Time, *time.Time) (bool, error) {
+	panic("unused")
+}
 func (f *fakeRepo) FindCurrentCandidates(context.Context, int64, timezone.Date, time.Time) ([]*schedule.InstanceStudent, error) {
 	panic("unused")
 }

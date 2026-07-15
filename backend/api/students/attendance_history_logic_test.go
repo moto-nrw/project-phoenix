@@ -56,6 +56,27 @@ func TestParseAttendanceHistoryRange_StartAfterEnd(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestClampAttendanceHistoryRange_ClampsFutureEndAndVisibilityCap(t *testing.T) {
+	endOfToday := time.Date(2026, 3, 20, 23, 59, 59, 0, time.UTC)
+	start := endOfToday.AddDate(0, 0, -60)
+	end := endOfToday.AddDate(0, 0, 5)
+
+	gotStart, gotEnd, clamped, err := clampAttendanceHistoryRange(start, end, endOfToday, 30)
+	require.NoError(t, err)
+	assert.True(t, clamped)
+	assert.Equal(t, endOfToday, gotEnd)
+	assert.Equal(t, endOfToday.Add(-30*24*time.Hour).Add(time.Second), gotStart)
+}
+
+func TestClampAttendanceHistoryRange_RejectsFullyFutureRange(t *testing.T) {
+	endOfToday := time.Date(2026, 3, 20, 23, 59, 59, 0, time.UTC)
+	start := endOfToday.Add(time.Second)
+	end := start.Add(24 * time.Hour)
+
+	_, _, _, err := clampAttendanceHistoryRange(start, end, endOfToday, 30)
+	require.EqualError(t, err, "start must not be in the future")
+}
+
 func TestBuildAttendanceHistoryDays_EmptyRows(t *testing.T) {
 	days := buildAttendanceHistoryDays(nil, nil, nil, time.Now(), false)
 	assert.Empty(t, days)

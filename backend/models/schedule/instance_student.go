@@ -170,12 +170,17 @@ type InstanceStudentRepository interface {
 
 	// UpdateAttendanceFromCheckin opens observed presence for an expected row,
 	// a broad-status absence, or a checked-out present row. It stamps the first
-	// checked_in_at and clears checked_out_at on re-entry; already-open presence
+	// checked_in_at and re-stamps it on re-entry; already-open presence
 	// and independent manual decisions are never clobbered. Returns
 	// (updated=true) only when a row was actually changed.
 	UpdateAttendanceFromCheckin(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (bool, error)
 	CreateUnplannedPresentIfAbsent(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (*InstanceStudent, error)
 	UpdateAttendanceCheckout(ctx context.Context, instanceID, studentID int64, checkedOutAt time.Time) error
+	// ReconcileAttendanceInterval replaces the observed interval only when the
+	// row still carries the caller's previous check-in and checkout. A missing
+	// historical checkout may be repaired for a previously closed visit. The
+	// check-in guard protects a later re-entry from an edit to an older visit.
+	ReconcileAttendanceInterval(ctx context.Context, instanceID, studentID int64, previousCheckIn time.Time, previousCheckOut *time.Time, updatedCheckIn time.Time, updatedCheckOut *time.Time) (bool, error)
 	FindCurrentCandidates(ctx context.Context, studentID int64, date timezone.Date, at time.Time) ([]*InstanceStudent, error)
 	ApplyStatusDay(ctx context.Context, studentID int64, date timezone.Date, statusDayID int64, substatus string) (int, error)
 	ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error)
