@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -87,9 +88,13 @@ func (m *wtmMockShiftReader) FindByStaffAndDateRange(_ context.Context, _ int64,
 
 type wtmMockSettings struct {
 	accountStart string
+	err          error
 }
 
 func (m *wtmMockSettings) ResolveString(_ context.Context, _ string) (string, error) {
+	if m.err != nil {
+		return "", m.err
+	}
 	return m.accountStart, nil
 }
 
@@ -271,6 +276,68 @@ func TestWTMMonthSummary_ModelFallback(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, f.models.called, "work-time model fallback must be consulted")
 	assert.Equal(t, 5*300, summary.TargetMinutes)
+}
+
+// A mid-month account start binds the anchor month to the exact day: days
+// before it belong to no balance, in the card itself and in every later
+// carry. June 2026 Mondays from the 15th on: 15, 22, 29 → 3 × 480.
+func TestWTMMonthSummary_MidMonthAccountStartClampsAnchorMonth(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-06-15"
+	f.sessions.sessions = []*activeModels.WorkSession{
+		// Before the account start — must be invisible.
+		wtmSession(timezone.NewDate(2026, time.June, 1), 8, 480, 0),
+		wtmSession(timezone.NewDate(2026, time.June, 15), 8, 480, 0),
+	}
+	f.absences.absences = []*activeModels.StaffAbsence{
+		// Sick Monday before the account start — must not credit.
+		{Model: base.Model{ID: 1}, StaffID: wtmStaffID, AbsenceType: activeModels.AbsenceTypeSick, Status: activeModels.AbsenceStatusApproved,
+			DateStart: timezone.NewDate(2026, time.June, 8), DateEnd: timezone.NewDate(2026, time.June, 8)},
+	}
+
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 6)
+	require.NoError(t, err)
+	assert.Equal(t, 3*480, summary.TargetMinutes, "Soll starts on the account start date, not on the 1st")
+	assert.Equal(t, 3*480, summary.TargetMinutesToDate)
+	assert.Equal(t, 480, summary.ActualMinutes, "sessions before the account start don't count")
+	assert.Equal(t, 0, summary.CreditedSickMinutes, "absences before the account start don't credit")
+	assert.Equal(t, 480-1440, summary.BalanceMinutes)
+	assert.Equal(t, 0, summary.CarryInMinutes)
+}
+
+func TestWTMMonthSummary_MidMonthAccountStartCarry(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-06-15"
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(timezone.NewDate(2026, time.June, 1), 8, 480, 0),
+	}
+
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	assert.Equal(t, -1440, summary.CarryInMinutes,
+		"July's Übertrag is June 15–30 only; June 1–14 predates the account")
+}
+
+// A month entirely before the account start is summarized standalone.
+func TestWTMMonthSummary_MonthBeforeAccountStart(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-06-15"
+
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 5)
+	require.NoError(t, err)
+	assert.Equal(t, 4*480, summary.TargetMinutes, "May 2026 has 4 Mondays")
+	assert.Equal(t, 0, summary.CarryInMinutes)
+}
+
+// A failing settings read must surface, not silently fall back to January:
+// the fallback would return a materially wrong Stundenkonto with HTTP 200.
+func TestWTMMonthSummary_SettingsErrorPropagates(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.err = errors.New("settings unavailable")
+
+	_, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 6)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "account start date")
 }
 
 func TestWTMMonthSummary_InvalidMonth(t *testing.T) {

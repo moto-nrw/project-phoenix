@@ -175,16 +175,21 @@ export function StaffSessionTable({
     session: StaffHistorySession | null;
   } | null>(null);
 
-  // SWR mutate — used after a successful save to refresh both the visible
-  // window (week/month table) and the cumulative range (KpiCards). useSWRAuth
-  // prefixes keys with the tenant slug ("phoenix:staff-history-…"), so a
-  // plain startsWith match would never fire — we use includes instead.
+  // SWR mutate — used after a successful save to refresh the visible window
+  // (week/month table), the cumulative range (KpiCards) and the Monatskarte,
+  // whose Ist, Gutschriften, Saldo and Übertrag are all derived from the very
+  // rows this modal just changed. useSWRAuth prefixes keys with the tenant
+  // slug ("phoenix:staff-history-…"), so a plain startsWith match would never
+  // fire — we use includes instead.
   const { mutate } = useSWRConfig();
   const handleSaved = () => {
     void mutate(
       (key) =>
         typeof key === "string" &&
-        (key.includes("staff-history-") || key.includes("staff-absences-")),
+        (key.includes("staff-history-") ||
+          key.includes("staff-absences-") ||
+          key.includes("staff-month-summary-") ||
+          key.includes("time-tracking-month-summary-")),
     );
   };
 

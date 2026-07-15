@@ -23,7 +23,9 @@ import (
 // the day's contractual target (half-days credit half, rounded down), so a
 // legitimate absence never produces minus hours. TargetMinutes is the full
 // month's contractual Soll; TargetMinutesToDate clamps at today so the
-// current month's balance doesn't count days that haven't happened yet.
+// current month's balance doesn't count days that haven't happened yet. In
+// the account-start month both are clamped at the configured start date —
+// days before the account existed belong to no balance.
 type MonthSummary struct {
 	StaffID int64 `json:"staff_id"`
 	Year    int   `json:"year"`
@@ -250,12 +252,15 @@ func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID 
 	return resolver, nil
 }
 
-// computeAggregates builds the raw per-month numbers for every month in
-// [fromKey, toKey] with one set of range queries. Days after `today`
+// computeAggregates builds the raw per-month numbers for every month from
+// `first`'s month up to toKey with one set of range queries. `first` is a
+// date, not a month: the account start may fall mid-month, and then the
+// anchor month must only count from that day on. Days after `today`
 // contribute nothing to targetToDate and credits, so the current month's
 // balance is automatically pro-rated and future months are neutral.
-func (s *workTimeMonthService) computeAggregates(ctx context.Context, staffID int64, fromKey, toKey monthKey, today timezone.Date) (map[monthKey]*monthAggregates, error) {
-	first, last := fromKey.firstDay(), toKey.lastDay()
+func (s *workTimeMonthService) computeAggregates(ctx context.Context, staffID int64, first timezone.Date, toKey monthKey, today timezone.Date) (map[monthKey]*monthAggregates, error) {
+	fromKey := monthOf(first)
+	last := toKey.lastDay()
 
 	aggregates := make(map[monthKey]*monthAggregates)
 	for k := fromKey; !toKey.before(k); k = k.next() {
@@ -407,17 +412,31 @@ func shiftNetMinutes(shift *scheduleModels.StaffShift) int {
 // ---- carry chain + summary ---------------------------------------------------
 
 // chainAnchor determines where the live carry computation starts: the
-// configured account start month, or January of the summarized month's year
-// as the stable fallback (the frontend defaults its Stundenkonto to Jan 1
-// the same way).
-func (s *workTimeMonthService) chainAnchor(ctx context.Context, key monthKey) monthKey {
-	fallback := monthKey{Year: key.Year, Month: 1}
+// configured account start date, or January 1st of the summarized month's
+// year as the stable fallback (the frontend defaults its Stundenkonto to
+// Jan 1 the same way).
+//
+// The exact day matters — "Stundenkonto ab Datum" with 2026-06-15 means the
+// account starts on the 15th, so June 1–14 must not enter any balance. The
+// day is therefore preserved here and used as the lower bound of the anchor
+// month, mirroring the frontend engine (resolveAccountStartDate).
+//
+// A settings read failure is returned, never swallowed: the account start is
+// required input for the carry, and falling back to January would present a
+// materially wrong Stundenkonto as authoritative. An unparsable value is a
+// different case — it falls back with a warning, matching both the frontend
+// and the fact that the settings API validates the date on write.
+func (s *workTimeMonthService) chainAnchor(ctx context.Context, key monthKey) (timezone.Date, error) {
+	fallback := timezone.NewDate(key.Year, time.January, 1)
 	if s.settings == nil {
-		return fallback
+		return fallback, nil
 	}
 	value, err := s.settings.ResolveString(ctx, configModels.KeyTimeTrackingAccountStartDate)
-	if err != nil || value == "" {
-		return fallback
+	if err != nil {
+		return timezone.Date{}, fmt.Errorf("failed to resolve account start date setting: %w", err)
+	}
+	if value == "" {
+		return fallback, nil
 	}
 	start, err := timezone.ParseDate(value)
 	if err != nil {
@@ -425,9 +444,9 @@ func (s *workTimeMonthService) chainAnchor(ctx context.Context, key monthKey) mo
 			"value", value,
 			"error", err.Error(),
 		)
-		return fallback
+		return fallback, nil
 	}
-	return monthOf(start)
+	return start, nil
 }
 
 // GetMonthSummary computes the Monatskarte on read: the Übertrag is the sum
@@ -440,12 +459,18 @@ func (s *workTimeMonthService) GetMonthSummary(ctx context.Context, staffID int6
 	key := monthKey{Year: year, Month: month}
 	today := s.today()
 
-	startKey := key
-	if anchor := s.chainAnchor(ctx, key); anchor.before(key) {
-		startKey = anchor
+	anchor, err := s.chainAnchor(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	// The chain starts on the account start date; a month entirely before the
+	// account start is summarized standalone (full month, no carry).
+	startKey, first := monthOf(anchor), anchor
+	if key.before(startKey) {
+		startKey, first = key, key.firstDay()
 	}
 
-	aggregates, err := s.computeAggregates(ctx, staffID, startKey, key, today)
+	aggregates, err := s.computeAggregates(ctx, staffID, first, key, today)
 	if err != nil {
 		return nil, err
 	}

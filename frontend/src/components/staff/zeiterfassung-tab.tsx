@@ -25,7 +25,10 @@ import {
   startOfYear,
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
-import { getWeekNumber } from "~/lib/time-tracking-helpers";
+import {
+  getWeekNumber,
+  OPEN_MONTH_REFRESH_MS,
+} from "~/lib/time-tracking-helpers";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import { useSWRAuth } from "~/lib/swr";
 
@@ -139,9 +142,13 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
 
   // Monatskarte (#1842): server-computed month aggregate, only fetched in
   // month mode. Everything is live — the Übertrag recomputes automatically
-  // when past months are corrected.
+  // when past months are corrected. Edits and backfills invalidate this key
+  // (staff-session-table handleSaved); the poll on top covers the current
+  // month, whose Ist grows while a session is still running.
   const monthYear = monthAnchor.getFullYear();
   const monthNumber = monthAnchor.getMonth() + 1;
+  const isCurrentMonth =
+    monthYear === today.getFullYear() && monthNumber === today.getMonth() + 1;
   const {
     data: monthSummary,
     isLoading: monthSummaryLoading,
@@ -152,9 +159,8 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
       : null,
     () =>
       staffMonthSummaryService.getMonthSummary(staffId, monthYear, monthNumber),
+    { refreshInterval: isCurrentMonth ? OPEN_MONTH_REFRESH_MS : 0 },
   );
-  const isCurrentMonth =
-    monthYear === today.getFullYear() && monthNumber === today.getMonth() + 1;
 
   if (scheduleLoading) {
     return <Loading fullPage={false} />;

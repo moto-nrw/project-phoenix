@@ -481,6 +481,11 @@ export function calculateNetMinutes(
 /**
  * Backend shape of the Monatskarte aggregate (#1842).
  */
+// Poll interval for the current month's Monatskarte (admin tab and own
+// view). A running session keeps growing the Ist server-side, so a card
+// fetched once at mount would freeze at the check-in minute.
+export const OPEN_MONTH_REFRESH_MS = 60_000;
+
 export interface BackendMonthSummary {
   staff_id: number;
   year: number;

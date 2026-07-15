@@ -48,6 +48,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   useTenantMutate: vi.fn(() => vi.fn()),
+  useTenantMutateMatching: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("~/contexts/ToastContext", () => ({
@@ -2165,6 +2166,56 @@ describe("TimeTrackingPage", () => {
   });
 
   // ── Wochenübersicht heading ─────────────────────────────────────────────
+
+  // ── Own Dienstplan (Plan column) ────────────────────────────────────────
+
+  describe("own shift loading in the Zeiterfassung table", () => {
+    // A failed shift fetch must not render as an empty plan: every Plan cell
+    // would show "–", telling the staff member no shifts were scheduled.
+    it("warns instead of showing an empty plan when the shift fetch fails", () => {
+      setupDefaultMocks();
+      const base = vi.mocked(useSWRAuth).getMockImplementation()!;
+      vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
+        if (key?.startsWith("time-tracking-table-shifts")) {
+          return {
+            data: undefined,
+            isLoading: false,
+            mutate: mockMutate,
+            isValidating: false,
+            error: new Error("network down"),
+          } as never;
+        }
+        return base(key, (() => Promise.resolve()) as never);
+      });
+
+      render(<TimeTrackingPage />);
+      expect(
+        screen.getByText(/Der Dienstplan konnte nicht geladen/),
+      ).toBeInTheDocument();
+    });
+
+    // Same reason: a table rendered before the shifts resolve shows "–" in
+    // every Plan cell, so it must wait rather than guess.
+    it("holds the table back while own shifts are still pending", () => {
+      setupDefaultMocks();
+      const base = vi.mocked(useSWRAuth).getMockImplementation()!;
+      vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
+        if (key?.startsWith("time-tracking-table-shifts")) {
+          return {
+            data: undefined,
+            isLoading: true,
+            mutate: mockMutate,
+            isValidating: true,
+            error: undefined,
+          } as never;
+        }
+        return base(key, (() => Promise.resolve()) as never);
+      });
+
+      render(<TimeTrackingPage />);
+      expect(screen.queryByText("Woche gesamt")).not.toBeInTheDocument();
+    });
+  });
 
   describe("Wochenübersicht", () => {
     it("shows Wochenübersicht chart heading", () => {

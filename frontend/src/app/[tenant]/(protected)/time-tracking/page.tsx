@@ -28,6 +28,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "~/components/ui/chart";
+import { Alert } from "~/components/ui/alert";
 import { Modal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
 import {
@@ -46,8 +47,7 @@ import type { StaffShift } from "~/lib/shift-helpers";
 import { toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useToast } from "~/contexts/ToastContext";
-import { useSWRAuth } from "~/lib/swr";
-import { useSWRConfig } from "swr";
+import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { staffScheduleService } from "~/lib/staff-api";
 import {
   computeStaffMetrics,
@@ -77,6 +77,7 @@ import {
   getWeekDays,
   getWeekNumber,
   calculateNetMinutes,
+  OPEN_MONTH_REFRESH_MS,
 } from "~/lib/time-tracking-helpers";
 import { createLogger } from "~/lib/logger";
 
@@ -1591,17 +1592,28 @@ function OwnZeiterfassungSection({
   );
 
   // Own Dienstplan shifts for the visible range → the "Plan (Schicht)"
-  // column, same as the admin view (#1842 AC1).
-  const { data: tableShifts } = useSWRAuth(
+  // column, same as the admin view (#1842 AC1). Loading and error state are
+  // surfaced explicitly: rendering an unresolved or failed request as []
+  // would show "–" in every Plan cell, presenting a fetch failure as proof
+  // that no shifts were planned.
+  const {
+    data: tableShifts,
+    isLoading: shiftsLoading,
+    error: shiftsError,
+  } = useSWRAuth(
     `time-tracking-table-shifts-${visibleFromKey}-${visibleToKey}`,
     () => ownShiftService.getOwnShifts(visibleFromKey, visibleToKey),
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
   // Monatskarte (#1842): server-computed month aggregate, read-only for the
-  // staff member. Only fetched in month mode.
+  // staff member. Only fetched in month mode. Check-ins, checkouts and
+  // absence changes invalidate this key (refreshTableData); the poll on top
+  // covers a still-running session, whose Ist grows server-side.
   const monthYear = monthAnchor.getFullYear();
   const monthNumber = monthAnchor.getMonth() + 1;
+  const isCurrentMonth =
+    monthYear === today.getFullYear() && monthNumber === today.getMonth() + 1;
   const {
     data: monthSummary,
     isLoading: monthSummaryLoading,
@@ -1611,6 +1623,7 @@ function OwnZeiterfassungSection({
       ? `time-tracking-month-summary-${monthYear}-${monthNumber}`
       : null,
     () => timeTrackingService.getMonthSummary(monthYear, monthNumber),
+    { refreshInterval: isCurrentMonth ? OPEN_MONTH_REFRESH_MS : 0 },
   );
 
   // Self-scoped audit-trail fetcher so staff read their own Abweichungsgründe
@@ -1670,17 +1683,14 @@ function OwnZeiterfassungSection({
   };
   const isOnCurrent = useMemo(() => {
     if (viewMode === "month") {
-      return (
-        monthAnchor.getFullYear() === today.getFullYear() &&
-        monthAnchor.getMonth() === today.getMonth()
-      );
+      return isCurrentMonth;
     }
     const cur = new Date(today);
     const day = (cur.getDay() + 6) % 7;
     cur.setDate(cur.getDate() - day);
     cur.setHours(0, 0, 0, 0);
     return cur.getTime() === weekAnchor.getTime();
-  }, [viewMode, monthAnchor, weekAnchor, today]);
+  }, [viewMode, isCurrentMonth, weekAnchor, today]);
 
   const labelRange = useMemo(() => {
     if (viewMode === "month") {
@@ -1792,26 +1802,36 @@ function OwnZeiterfassungSection({
                 ? "Die Monatskarte konnte nicht geladen werden."
                 : null
             }
-            isCurrentMonth={isOnCurrent}
+            isCurrentMonth={isCurrentMonth}
           />
         </div>
       )}
-      {tableLoading && tableHistory.length === 0 ? (
+      {(tableLoading && tableHistory.length === 0) || shiftsLoading ? (
         <div className="py-10 text-center text-sm text-gray-400">...</div>
       ) : (
-        <StaffSessionTable
-          staffId={ownStaffId ?? ""}
-          from={visibleFrom}
-          to={visibleTo}
-          sessions={adaptedSessions}
-          absences={adaptedAbsences}
-          schedule={schedule}
-          today={today}
-          isAdminView={ownStaffId !== null}
-          onEditDay={(date) => handleEdit(date)}
-          plannedShifts={tableShifts ?? []}
-          fetchEdits={fetchOwnEdits}
-        />
+        <>
+          {shiftsError ? (
+            <div className="mb-4">
+              <Alert
+                type="error"
+                message="Der Dienstplan konnte nicht geladen werden. Die Plan-Spalte ist deshalb unvollständig; bitte die Seite neu laden."
+              />
+            </div>
+          ) : null}
+          <StaffSessionTable
+            staffId={ownStaffId ?? ""}
+            from={visibleFrom}
+            to={visibleTo}
+            sessions={adaptedSessions}
+            absences={adaptedAbsences}
+            schedule={schedule}
+            today={today}
+            isAdminView={ownStaffId !== null}
+            onEditDay={(date) => handleEdit(date)}
+            plannedShifts={tableShifts ?? []}
+            fetchEdits={fetchOwnEdits}
+          />
+        </>
       )}
     </div>
   );
@@ -3095,18 +3115,15 @@ function TimeTrackingContent() {
       { keepPreviousData: true, revalidateOnFocus: false, errorRetryCount: 1 },
     );
 
-  // Pattern-mutate helper — refreshes both the WeekChart's history fetch
-  // and the OwnZeiterfassungSection's dedicated table fetches after an
-  // edit, so the table updates without a manual refresh.
-  const { mutate: swrMutate } = useSWRConfig();
-  const refreshTableData = useCallback(
-    () =>
-      swrMutate(
-        (key) =>
-          typeof key === "string" && key.startsWith("time-tracking-table"),
-      ),
-    [swrMutate],
-  );
+  // Pattern-mutate helper — refreshes the OwnZeiterfassungSection's dedicated
+  // table fetches and its Monatskarte after a check-in/out, edit or absence
+  // change, so both update without a manual refresh. The Monatskarte belongs
+  // in here: its Ist, Gutschriften, Saldo and Übertrag are server-derived from
+  // exactly the sessions and absences these handlers just changed.
+  const refreshTableData = useTenantMutateMatching([
+    "time-tracking-table",
+    "time-tracking-month-summary",
+  ]);
 
   // Fetch history covering 2 weeks (chart needs prev + current week)
   const { data: historyData, mutate: mutateHistory } = useSWRAuth<{
@@ -3668,7 +3685,7 @@ function TimeTrackingContent() {
           half_day: req.half_day,
           note: req.note,
         });
-        await mutateAbsences();
+        await Promise.all([mutateAbsences(), refreshTableData()]);
         toast.success("Abwesenheit eingetragen");
         setAbsenceModalOpen(false);
       } catch (err) {
@@ -3680,14 +3697,14 @@ function TimeTrackingContent() {
         );
       }
     },
-    [mutateAbsences, toast],
+    [mutateAbsences, refreshTableData, toast],
   );
 
   const handleDeleteAbsence = useCallback(
     async (id: string) => {
       try {
         await timeTrackingService.deleteAbsence(id);
-        await mutateAbsences();
+        await Promise.all([mutateAbsences(), refreshTableData()]);
         toast.success("Abwesenheit gelöscht");
       } catch (err) {
         logger.error("delete_absence_failed", {
@@ -3697,7 +3714,7 @@ function TimeTrackingContent() {
         toast.error(friendlyError(err, "Fehler beim Löschen der Abwesenheit"));
       }
     },
-    [mutateAbsences, toast],
+    [mutateAbsences, refreshTableData, toast],
   );
 
   const handleUpdateAbsence = useCallback(
@@ -3713,7 +3730,7 @@ function TimeTrackingContent() {
     ) => {
       try {
         await timeTrackingService.updateAbsence(id, req);
-        await mutateAbsences();
+        await Promise.all([mutateAbsences(), refreshTableData()]);
         toast.success("Abwesenheit aktualisiert");
       } catch (err) {
         logger.error("update_absence_failed", {
@@ -3725,7 +3742,7 @@ function TimeTrackingContent() {
         );
       }
     },
-    [mutateAbsences, toast],
+    [mutateAbsences, refreshTableData, toast],
   );
 
   if (authStatus === "loading") {
