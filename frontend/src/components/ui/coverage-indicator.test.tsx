@@ -82,4 +82,30 @@ describe("CoverageIndicator", () => {
     expect(dot).toHaveStyle({ width: "6px", height: "6px" });
     expect(screen.getByText("2").parentElement).toHaveClass("text-[11px]");
   });
+
+  it("colors a free-form label red for tone=under (Unterdeckung, text only)", () => {
+    render(
+      <CoverageIndicator state="covered" label="18/20,25 h" tone="under" />,
+    );
+
+    expect(screen.getByText("18/20,25 h")).toHaveStyle({ color: "#FF3130" });
+  });
+
+  it("colors a free-form label amber for tone=over (Überdeckung, text only)", () => {
+    render(
+      <CoverageIndicator state="covered" label="22/20,25 h" tone="over" />,
+    );
+
+    expect(screen.getByText("22/20,25 h")).toHaveStyle({ color: "#EAB308" });
+  });
+
+  it("leaves the free-form label its default gray for tone=neutral", () => {
+    render(
+      <CoverageIndicator state="covered" label="20/20,25 h" tone="neutral" />,
+    );
+
+    const value = screen.getByText("20/20,25 h");
+    expect(value).toHaveClass("text-gray-600");
+    expect(value.style.color).toBe("");
+  });
 });

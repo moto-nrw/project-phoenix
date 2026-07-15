@@ -15,8 +15,9 @@ import { describe, expect, it } from "vitest";
  *       exempt — semantic color always routes through LOCATION_COLORS hex
  *       or a color prop, per .claude/rules/frontend-ui-kit.md.
  *
- * Scope: the new planning kit primitives (`ui/plan*.tsx`, `ui/coverage*.tsx`)
- * PLUS every `.tsx` file under `components/timetable/`. The new primitive
+ * Scope: the new planning kit primitives (`ui/plan*.tsx`, `ui/coverage*.tsx`,
+ * `ui/resource*.tsx`, `ui/capacity*.tsx`) PLUS every `.tsx` file under
+ * `components/timetable/`. The new primitive
  * files get a ZERO-tolerance check — no allowlist entries, ever. The
  * pre-existing timetable files may carry violations that existed before
  * this guard was introduced; those are captured in a shrink-only allowlist
@@ -64,19 +65,24 @@ function listTsxFiles(dir: string): string[] {
 }
 
 function planPrimitiveFiles(): string[] {
-  return listTsxFiles(UI_DIR).filter((name) => /^(plan|coverage)/.test(name));
+  return listTsxFiles(UI_DIR).filter((name) =>
+    /^(plan|coverage|resource|capacity)/.test(name),
+  );
 }
 
 describe("plan-design-guards", () => {
-  describe("new planning kit primitives (ui/plan*.tsx, ui/coverage*.tsx)", () => {
+  describe("new planning kit primitives (ui/plan*.tsx, ui/coverage*.tsx, ui/resource*.tsx, ui/capacity*.tsx)", () => {
     const files = planPrimitiveFiles();
 
-    it("found the three new primitive source files (sanity check on the glob)", () => {
+    it("found the new primitive source files (sanity check on the glob)", () => {
       expect(files).toEqual(
         expect.arrayContaining([
+          "capacity-strip.tsx",
           "coverage-indicator.tsx",
           "plan-block.tsx",
+          "plan-legend.tsx",
           "planning-context-bar.tsx",
+          "resource-grid.tsx",
         ]),
       );
     });
