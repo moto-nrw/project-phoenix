@@ -488,7 +488,7 @@ function SubstitutionPageContent() {
       <div className="-mt-1.5 w-full">
         {/* PageHeaderWithSearch - Title only on mobile */}
         <PageHeaderWithSearch
-          title={isMobile ? "Vertretungen" : ""}
+          title={isMobile ? "Übergaben" : ""}
           badge={{
             icon: (
               <svg

@@ -122,22 +122,28 @@ describe("useSidebarAccordion", () => {
     expect(result.current.expanded).toBe("enrollments");
   });
 
-  it("expands 'planning' section for planning paths", () => {
+  it("knows no 'planning' section anymore (Planung-Redesign)", () => {
+    // Die Planungsbereiche sind flache Sidebar-Einträge; kein Akkordeon
+    // öffnet sich auf ihren Pfaden (docs/planung-redesign/docs/03).
     for (const path of [
       "/calendar-periods",
       "/timetables",
       "/staff/dienstplan",
+      "/betreuungsplan",
+      "/dienstplan",
+      "/vertretung",
     ]) {
       const { result } = renderHook(() => useSidebarAccordion(path));
-      expect(result.current.expanded).toBe("planning");
+      expect(result.current.expanded).toBeNull();
     }
   });
 
-  it("expands 'planning' from fromParam on child pages", () => {
-    const { result } = renderHook(() =>
-      useSidebarAccordion("/students/123", "/calendar-periods"),
-    );
-    expect(result.current.expanded).toBe("planning");
+  it("ignores a stored legacy 'planning' value without errors", () => {
+    localStorageMock.getItem.mockReturnValueOnce("planning");
+
+    const { result } = renderHook(() => useSidebarAccordion("/dashboard"));
+
+    expect(result.current.expanded).toBeNull();
   });
 
   it("restores 'eltern' from localStorage when pathname does not determine section", () => {

@@ -34,6 +34,7 @@ export interface InstanceStaffSummary {
   isPrimary: boolean;
   isAbsent: boolean;
   isSubstitute: boolean;
+  absenceReason?: string;
 }
 
 type InstanceAttendanceStatus = "expected" | "present" | "absent";
@@ -61,7 +62,14 @@ export interface EnrichedInstance {
   endTime: string; // HH:MM
   title: string;
   description?: string;
+  /** Per-occurrence Tagesnotiz (schedule.activity_instances.notes). */
   notes?: string;
+  /**
+   * Durable Wochennotiz inherited from the series template
+   * (activities.groups.notes). Read-only on the occurrence; edited via the
+   * Regeltermin. Shown on every occurrence, survives Re-Plan/Split.
+   */
+  seriesNotes?: string;
   status: InstanceStatus;
   isSpontaneous: boolean;
   isLive: boolean;
@@ -74,8 +82,31 @@ export interface EnrichedInstance {
   students: InstanceStudentSummary[];
   staffCount: number;
   absentStaffCount: number;
+  /**
+   * #1840: admin deliberately accepts this block running with zero staff.
+   * Optional so existing instance fixtures need no change; the mapper always
+   * populates it (defaults false).
+   */
+  understaffedAck?: boolean;
+  understaffedNote?: string;
+  cancelReason?: string;
   expectedStudentsCount: number;
   presentStudentsCount: number;
+  /**
+   * Betreuungsplan capacity indicator (issue #1838): requiredStaffCount is
+   * ceil(children / Betreuungsschlüssel); assignedStaffCount is the
+   * non-absent staff count (staffCount - absentStaffCount, computed
+   * backend-side). Understaffed = assignedStaffCount < requiredStaffCount.
+   */
+  requiredStaffCount: number;
+  assignedStaffCount: number;
+  /**
+   * Raw manual Personalbedarf override (issue #1839), undefined when the block
+   * derives its requirement from the Betreuungsschlüssel. requiredStaffCount
+   * above already folds the override in; this is the raw value the edit form
+   * needs to distinguish "derive" from a set number.
+   */
+  requiredStaffOverride?: number;
   conflictWarnings: ConflictWarning[];
 }
 
@@ -95,6 +126,7 @@ interface BackendInstanceStaffSummary {
   is_primary: boolean;
   is_absent: boolean;
   is_substitute: boolean;
+  absence_reason?: string | null;
 }
 
 interface BackendInstanceStudentSummary {
@@ -113,6 +145,7 @@ export interface BackendEnrichedInstance {
   title: string;
   description?: string;
   notes?: string;
+  series_notes?: string;
   status: InstanceStatus;
   is_spontaneous: boolean;
   is_live: boolean;
@@ -125,8 +158,14 @@ export interface BackendEnrichedInstance {
   students?: BackendInstanceStudentSummary[];
   staff_count: number;
   absent_staff_count: number;
+  understaffed_ack?: boolean;
+  understaffed_note?: string | null;
+  cancel_reason?: string | null;
   expected_students_count: number;
   present_students_count: number;
+  required_staff_count: number;
+  assigned_staff_count: number;
+  required_staff_override?: number | null;
   conflict_warnings?: Array<{
     kind: ConflictKind;
     resource_id: number;
@@ -151,15 +190,23 @@ export interface GapInstance {
   status: InstanceStatus;
   assignedStaffCount: number;
   absentStaffCount: number;
+  /** Non-absent count: planned people still there plus any covering substitute. */
+  presentStaffCount?: number;
+  /** Base-plan positions (non-substitute rows). A partial shortfall has 0 < present < planned. */
+  plannedStaffCount?: number;
+  /** Present only on acknowledged gaps (#1840): the deliberately-unstaffed reason. */
+  understaffedNote?: string;
 }
 
 export interface GapsResponse {
   from: string;
   to: string;
   gaps: GapInstance[];
+  /** #1840: zero-staff blocks an admin deliberately left open — still a shortfall, no longer nagging. */
+  acknowledged: GapInstance[];
 }
 
-interface BackendGapInstance {
+export interface BackendGapInstance {
   instance_id: number;
   date: string;
   title: string;
@@ -169,12 +216,82 @@ interface BackendGapInstance {
   status: InstanceStatus;
   assigned_staff_count: number;
   absent_staff_count: number;
+  present_staff_count?: number;
+  planned_staff_count?: number;
+  understaffed_note?: string | null;
 }
 
 export interface BackendGapsResponse {
   from: string;
   to: string;
   gaps: BackendGapInstance[];
+  acknowledged?: BackendGapInstance[];
+}
+
+/** Ereignistypen des Änderungsprotokolls (#1886) — offenes Vokabular, das
+ * Backend darf jederzeit neue Typen liefern (Label-Fallback im Mapper). */
+type DeviationEventType =
+  | "absence"
+  | "return_to_presence"
+  | "substitution"
+  | "substitute_removed"
+  | "cancellation"
+  | "understaffed_ack"
+  | "understaffed_unack"
+  | "deviation_dropped_by_replan"
+  | "deviation_dropped_by_edit"
+  | "sick_reported"
+  | "sick_cleared"
+  | (string & {});
+
+/** Ein Eintrag im Änderungsprotokoll (#1886), aufgelöst für die Anzeige. */
+export interface DeviationHistoryEvent {
+  id: string;
+  activityGroupId?: string;
+  occurrenceDate: string; // YYYY-MM-DD
+  startTime: string; // HH:MM
+  instanceId?: string;
+  eventType: DeviationEventType;
+  subjectStaffId?: string;
+  subjectStaffName?: string;
+  relatedStaffId?: string;
+  relatedStaffName?: string;
+  actorAccountId?: string;
+  actorName?: string;
+  // Vorher-/Nachher-Zustand, ereignistypabhängig (z. B. Anwesenheits- oder
+  // Besetzungsstatus); nicht bei jedem Ereignistyp gesetzt.
+  oldValue?: unknown;
+  newValue?: unknown;
+  reason?: string;
+  occurredAt: string; // RFC3339
+}
+
+export interface DeviationHistoryResponse {
+  events: DeviationHistoryEvent[];
+}
+
+interface BackendDeviationHistoryEvent {
+  id: number;
+  activity_group_id?: number;
+  occurrence_date: string;
+  start_time: string;
+  instance_id?: number;
+  event_type: string;
+  subject_staff_id?: number;
+  subject_staff_name?: string;
+  related_staff_id?: number;
+  related_staff_name?: string;
+  actor_account_id?: number;
+  actor_name?: string;
+  // json.RawMessage im Backend (beliebiges JSON oder fehlend, omitempty).
+  old_value?: unknown;
+  new_value?: unknown;
+  reason?: string;
+  occurred_at: string;
+}
+
+export interface BackendDeviationHistoryResponse {
+  events: BackendDeviationHistoryEvent[] | null;
 }
 
 type ExceptionConflictKind =
@@ -231,6 +348,14 @@ interface TemplateSchedule {
   validUntil?: string;
 }
 
+/**
+ * Zielgruppe (target group) type for a Betreuungsplan block (issue #1838).
+ * "gruppe" reuses educationGroupId/educationGroupName above rather than a
+ * separate value field.
+ */
+export type TargetGroupType =
+  "jahrgang" | "klasse" | "gruppe" | "angebot" | "none";
+
 export interface TimetableTemplate {
   id: string;
   name: string;
@@ -243,8 +368,23 @@ export interface TimetableTemplate {
   educationGroupName?: string;
   isOpen: boolean;
   maxParticipants: number;
+  /** Durable Wochennotiz for the series (activities.groups.notes, #1837). */
+  notes?: string;
+  /** Category's mapped Dienstplan-Schichtart (#1836/#1837); empty = unmapped. */
+  shiftTypeName?: string;
+  shiftTypeColor?: string;
+  /** The template's own calendar-period pin (distinct from each schedule's). */
+  calendarPeriodId?: string;
+  targetGroupType: TargetGroupType;
+  targetGradeLevel?: number;
+  targetSchoolClass?: string;
   enrollmentCount: number;
   supervisorCount: number;
+  /** Betreuungsplan capacity indicator (issue #1838) — see EnrichedInstance. */
+  requiredStaffCount: number;
+  assignedStaffCount: number;
+  /** Raw manual Personalbedarf override (issue #1839); undefined = derive. */
+  requiredStaffOverride?: number;
   studentIds: string[];
   staffIds: string[];
   primaryStaffId?: string;
@@ -277,8 +417,18 @@ export interface BackendTimetableTemplate {
   education_group_name?: string;
   is_open: boolean;
   max_participants: number;
+  notes?: string;
+  shift_type_name?: string;
+  shift_type_color?: string;
+  calendar_period_id?: number;
+  target_group_type: TargetGroupType;
+  target_grade_level?: number;
+  target_school_class?: string;
   enrollment_count: number;
   supervisor_count: number;
+  required_staff_count: number;
+  assigned_staff_count: number;
+  required_staff_override?: number | null;
   student_ids?: number[];
   staff_ids?: number[];
   primary_staff_id?: number;
@@ -345,6 +495,48 @@ export interface BackendReplanWeekResult {
   instance_staff_created: number;
   warnings?: { code: string; message: string }[];
   duration_ms: number;
+}
+
+/**
+ * #1875: field categories a single-occurrence ("Nur diesen Termin") edit can
+ * touch that a series re-plan does NOT preserve. Stable machine-readable
+ * strings from the backend; mapped to German labels in the UI.
+ */
+export type EditedChange =
+  | "title"
+  | "description"
+  | "notes"
+  | "room"
+  | "time"
+  | "staff"
+  | "students"
+  | "deleted";
+
+/** One planned occurrence that was individually adjusted vs its template.
+ * Referenced only via EditedInWindowResult below (not exported on its own). */
+interface EditedOccurrence {
+  instanceId: string;
+  date: string; // YYYY-MM-DD
+  startTime: string; // HH:MM:SS
+  title: string;
+  changes: EditedChange[];
+}
+
+/** Result of the edited-in-window probe: total count + the concrete dates. */
+export interface EditedInWindowResult {
+  count: number;
+  occurrences: EditedOccurrence[];
+}
+
+export interface BackendEditedInWindowResult {
+  count: number;
+  occurrences: {
+    instance_id: number;
+    date: string;
+    start_time: string;
+    title: string;
+    changes: string[];
+  }[];
 }
 
 /**
@@ -418,19 +610,21 @@ interface SubstituteTimeConflict {
   endTime: string;
 }
 
+type SubstituteAction =
+  | "substituted"
+  | "already_substituted"
+  | "already_on_instance"
+  | "marked_absent"
+  | "already_absent"
+  // Returned by POST /instances/{id}/deviations when a saved day-wide absence is
+  // restored (staff marked present again) — see affectedInstanceOf (#1840).
+  | "marked_present";
+
 interface SubstituteAffectedInstance {
   instanceId: string;
   title: string;
   startTime: string;
-  action: "substituted" | "already_substituted" | "already_on_instance";
-}
-
-export interface SubstituteResponse {
-  absentStaffId: string;
-  substituteStaffId: string;
-  date: string;
-  affectedInstances: SubstituteAffectedInstance[];
-  warnings: SubstituteTimeConflict[];
+  action: SubstituteAction;
 }
 
 interface BackendSubstituteTimeConflict {
@@ -445,13 +639,42 @@ interface BackendSubstituteAffectedInstance {
   instance_id: number;
   title: string;
   start_time: string;
-  action: "substituted" | "already_substituted" | "already_on_instance";
+  action: SubstituteAction;
 }
 
-export interface BackendSubstituteResponse {
-  absent_staff_id: number;
-  substitute_staff_id: number;
-  date: string;
+/**
+ * #1840: the whole Vertretungsplan slide-over save applied atomically via
+ * POST /instances/{id}/deviations. `cancel` is exclusive (other fields are
+ * ignored); `understaffedAck` undefined means "no change". IDs are frontend
+ * strings; the client converts them to numbers for the backend.
+ */
+export interface ApplyDeviationsInput {
+  cancel?: boolean;
+  cancelReason?: string;
+  understaffedAck?: boolean;
+  understaffedNote?: string;
+  absences?: Array<{ staffId: string; reason?: string }>;
+  substitutions?: Array<{
+    absentStaffId: string;
+    substituteStaffId: string;
+    reason?: string;
+  }>;
+  /** Staff to mark present again — clears a persisted day-wide absence (#1840). */
+  presences?: string[];
+}
+
+export interface ApplyDeviationsResponse {
+  instanceId: string;
+  cancelled: boolean;
+  understaffedAck: boolean;
+  affectedInstances: SubstituteAffectedInstance[];
+  warnings: SubstituteTimeConflict[];
+}
+
+export interface BackendApplyDeviationsResponse {
+  instance_id: number;
+  cancelled: boolean;
+  understaffed_ack: boolean;
   affected_instances: BackendSubstituteAffectedInstance[];
   warnings: BackendSubstituteTimeConflict[];
 }
@@ -472,6 +695,8 @@ export interface CreateInstanceBody {
   activity_group_id?: number;
   staff_ids?: number[];
   student_ids?: number[];
+  /** Manual Personalbedarf override (#1839); null/omitted = derive. */
+  required_staff?: number | null;
 }
 
 /**
@@ -490,10 +715,17 @@ export interface CreateTemplateBody {
   end_time: string; // HH:MM
   room_id: number;
   category_id: number;
+  /** Durable Wochennotiz for the series (#1837 follow-up); omitted = none. */
+  notes?: string;
   education_group_id?: number;
   max_participants?: number;
+  /** Manual Personalbedarf override (#1839); null/omitted = derive. */
+  required_staff?: number | null;
   week_pattern?: number;
   calendar_period_id?: number;
+  target_group_type?: TargetGroupType;
+  target_grade_level?: number;
+  target_school_class?: string;
   materialize_from?: string;
   materialize_to?: string;
   student_ids?: number[];
@@ -597,11 +829,63 @@ export interface ConflictWarningItem {
   conflictingTitle: string;
 }
 
+/**
+ * Advisory Dienstplan warning for one uncovered part of a staff assignment.
+ * The warning never blocks saving a Betreuungsplan block.
+ */
+export interface ShiftCoverageWarningItem {
+  staffId: string;
+  staffName: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  uncoveredStartTime: string;
+  uncoveredEndTime: string;
+  message: string;
+}
+
 export interface ConflictCheckResult {
   date: string;
   startTime: string;
   endTime: string;
   warnings: ConflictWarningItem[];
+}
+
+/**
+ * Batched, read-only Dienstplan probe. Dates are concrete candidates; the
+ * backend applies the selected calendar period's existing A/B-week rule.
+ */
+export interface ShiftCoverageCheckParams {
+  dates: string[];
+  startTime: string;
+  endTime: string;
+  staffIds: string[];
+  excludeInstanceId?: string;
+  /** Date whose concrete roster belongs to excludeInstanceId in a series probe. */
+  concreteInstanceDate?: string;
+  /** Existing series whose concrete #1871 deviations survive this edit. */
+  replanActivityGroupId?: string;
+  calendarPeriodId?: string;
+  weekPattern?: number;
+}
+
+export interface ShiftCoverageCheckResult {
+  coverageWarnings: ShiftCoverageWarningItem[];
+  coverageWarningCount: number;
+}
+
+export interface BackendShiftCoverageCheckResult {
+  coverage_warning_count?: number;
+  coverage_warnings?: Array<{
+    staff_id: number;
+    staff_name: string;
+    date: string;
+    start_time: string;
+    end_time: string;
+    uncovered_start_time: string;
+    uncovered_end_time: string;
+    message: string;
+  }>;
 }
 
 export interface BackendConflictCheckResult {

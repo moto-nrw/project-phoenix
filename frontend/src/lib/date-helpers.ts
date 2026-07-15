@@ -30,6 +30,18 @@ export function parseISODate(s: string): Date {
   return new Date(y, m - 1, d);
 }
 
+/**
+ * True when `s` is a real "YYYY-MM-DD" calendar date. The shape check alone
+ * is not enough: parseISODate("2026-02-31") silently rolls over to March 3
+ * (JS Date overflow arithmetic), so the round-trip through
+ * toISODate(parseISODate(s)) rejects shape-valid but impossible dates. Use
+ * this before feeding untrusted input (URL params, legacy deep links) into
+ * parseISODate.
+ */
+export function isValidISODate(s: string): boolean {
+  return ISO_DATE_RE.test(s) && toISODate(parseISODate(s)) === s;
+}
+
 /** Today's calendar date in the user's local timezone as "YYYY-MM-DD". */
 export function todayISO(): string {
   return toISODate(new Date());

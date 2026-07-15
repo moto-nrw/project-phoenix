@@ -8,6 +8,7 @@ import (
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -621,4 +622,158 @@ func TestActivityInstanceFKOnDelete(t *testing.T) {
 				tc.refCol, tc.refTable, tc.wantCode, confdeltype)
 		})
 	}
+}
+
+// #1840: re-plan / template split / template end route destructive deletes
+// through DeletePlannedNonSpontaneousInWindow. A planned instance carrying a
+// Vertretungsplan deviation (an acknowledged shortfall, or any instance_staff
+// row marked absent / substitute / with an absence reason) is an explicit
+// override of the base plan and must be PRESERVED; only clean planned instances
+// are deleted and re-materialized.
+func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_PreservesDeviations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	fx := newActivityInstanceFixtures(t, db, "dev-preserve")
+	defer fx.cleanup()
+
+	date := timezone.NewDate(2026, 9, 21)
+
+	// plain: no deviation → deleted.
+	plain := buildInstance(1, fx.roomID, &fx.activityID, date,
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), "Plain")
+	require.NoError(t, repo.Create(ctx, plain))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", plain.ID)
+
+	// absentDev: carries an absent instance_staff row → preserved.
+	absentDev := buildInstance(1, fx.roomID, &fx.activityID, date,
+		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC), "AbsentDev")
+	require.NoError(t, repo.Create(ctx, absentDev))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", absentDev.ID)
+	staff := testpkg.CreateTestStaff(t, db, "DevP", fmt.Sprintf("%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
+	staffRow := testpkg.CreateTestInstanceStaff(t, db, absentDev.ID, staff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	defer testpkg.CleanupInstanceStaffFixtures(t, db, staffRow.ID)
+
+	// ackDev: understaffed_ack=true → preserved.
+	ackDev := buildInstance(1, fx.roomID, &fx.activityID, date,
+		time.Date(2024, 1, 1, 16, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 17, 0, 0, 0, time.UTC), "AckDev")
+	require.NoError(t, repo.Create(ctx, ackDev))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", ackDev.ID)
+	_, err := db.NewUpdate().
+		Model((*scheduleModels.ActivityInstance)(nil)).
+		ModelTableExpr(`schedule.activity_instances`).
+		Set("understaffed_ack = ?", true).
+		Where("id = ?", ackDev.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	to := date
+	// preserveDeviations=true (re-plan semantics): deviated instances survive.
+	deleted, err := repo.DeletePlannedNonSpontaneousInWindow(ctx, date, &to, nil, true)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, deleted, "only the non-deviated instance is deleted")
+
+	_, err = repo.FindByID(ctx, plain.ID)
+	assert.True(t, modelBase.IsNoRows(err), "plain instance must be deleted")
+
+	gotAbsent, err := repo.FindByID(ctx, absentDev.ID)
+	require.NoError(t, err, "instance with an absent staff row must be preserved")
+	assert.Equal(t, absentDev.ID, gotAbsent.ID)
+
+	gotAck, err := repo.FindByID(ctx, ackDev.ID)
+	require.NoError(t, err, "acknowledged-shortfall instance must be preserved")
+	assert.True(t, gotAck.UnderstaffedAck)
+}
+
+// #1840: the template split/end series operation passes preserveDeviations=false
+// and must HARD-DELETE deviated rows too — otherwise "end this and all
+// following" leaves the series partly alive, and a split leaves a duplicate old
+// block next to the materialized successor.
+func TestActivityInstanceRepository_DeletePlannedNonSpontaneousInWindow_HardDeleteIgnoresDeviations(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	fx := newActivityInstanceFixtures(t, db, "dev-harddelete")
+	defer fx.cleanup()
+
+	date := timezone.NewDate(2026, 9, 28)
+
+	// A deviated instance: acknowledged shortfall AND an absent staff row.
+	dev := buildInstance(1, fx.roomID, &fx.activityID, date,
+		time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+		time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC), "DevHard")
+	require.NoError(t, repo.Create(ctx, dev))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", dev.ID)
+	staff := testpkg.CreateTestStaff(t, db, "DevH", fmt.Sprintf("%d", time.Now().UnixNano()))
+	defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
+	staffRow := testpkg.CreateTestInstanceStaff(t, db, dev.ID, staff.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	defer testpkg.CleanupInstanceStaffFixtures(t, db, staffRow.ID)
+	_, err := db.NewUpdate().
+		Model((*scheduleModels.ActivityInstance)(nil)).
+		ModelTableExpr(`schedule.activity_instances`).
+		Set("understaffed_ack = ?", true).
+		Where("id = ?", dev.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	to := date
+	// preserveDeviations=false (split/end semantics): deviated rows are deleted.
+	deleted, err := repo.DeletePlannedNonSpontaneousInWindow(ctx, date, &to, nil, false)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, deleted, "the deviated instance is hard-deleted")
+
+	_, err = repo.FindByID(ctx, dev.ID)
+	assert.True(t, modelBase.IsNoRows(err),
+		"deviated instance must be deleted by the destructive series operation")
+}
+
+func TestActivityInstanceRepository_FindByIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	t.Run("empty input short-circuits without hitting the DB", func(t *testing.T) {
+		instances, err := repo.FindByIDs(ctx, nil)
+		require.NoError(t, err)
+		assert.Empty(t, instances)
+	})
+
+	t.Run("returns matching instances ordered by date then start time", func(t *testing.T) {
+		fx := newActivityInstanceFixtures(t, db, "findbyids")
+		defer fx.cleanup()
+
+		later := buildInstance(1, fx.roomID, &fx.activityID,
+			timezone.NewDate(2026, 9, 20),
+			time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
+			time.Date(2024, 1, 1, 10, 0, 0, 0, time.UTC),
+			"Later")
+		require.NoError(t, repo.Create(ctx, later))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", later.ID)
+
+		earlier := buildInstance(1, fx.roomID, &fx.activityID,
+			timezone.NewDate(2026, 9, 18),
+			time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC),
+			time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC),
+			"Earlier")
+		require.NoError(t, repo.Create(ctx, earlier))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", earlier.ID)
+
+		instances, err := repo.FindByIDs(ctx, []int64{later.ID, earlier.ID, 9_999_999})
+		require.NoError(t, err)
+		require.Len(t, instances, 2, "the non-existent id is silently absent")
+		assert.Equal(t, earlier.ID, instances[0].ID, "ordered by date ascending")
+		assert.Equal(t, later.ID, instances[1].ID)
+	})
 }

@@ -5,6 +5,7 @@
 // time-tracking-helpers formatters, so the visual treatment stays consistent
 // regardless of where the cards or calendar are rendered.
 
+import { OriginChip } from "~/components/ui/origin-chip";
 import { formatDuration } from "~/lib/time-tracking-helpers";
 import {
   computeStaffMetrics,
@@ -86,43 +87,53 @@ export function KpiCards({
   });
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-      <KpiCard
-        label="Diese Woche"
-        primary={formatDuration(metrics.weekIst)}
-        secondary={`von ${formatDuration(metrics.weekSoll)} Soll`}
-        progressPct={weekPct}
-        color={getDeltaStatus(metrics.weekDelta)}
-      />
-      <KpiCard
-        label="Dieser Monat"
-        primary={formatDuration(metrics.monthIst)}
-        secondary={`von ${formatDuration(metrics.monthSoll)} Soll`}
-        progressPct={monthPct}
-        color={monthDeltaColor}
-      />
-      <KpiCard
-        label="Überstunden Monat"
-        primary={formatSignedDuration(metrics.monthDelta)}
-        secondary={
-          metrics.monthDelta === 0
-            ? "ausgeglichen"
-            : metrics.monthDelta > 0
-              ? "Überstunden"
-              : "Minusstunden"
-        }
-        color={monthDeltaColor}
-      />
-      <KpiCard
-        label="Stundenkonto"
-        primary={formatSignedDuration(metrics.accountBalance)}
-        secondary={
-          metrics.accountBalance === 0
-            ? `Soll und Ist ausgeglichen seit ${accountStartLabel}`
-            : `seit ${accountStartLabel}`
-        }
-        color={accountColor}
-      />
+    <div className="space-y-2">
+      {/* Herkunfts-Chip am Soll-Wert (Planung-Redesign, docs/04 6.2): genau
+          einer pro Oberfläche, solange die Soll-Quellen-Frage offen ist. */}
+      <div className="flex justify-end">
+        <OriginChip
+          label="Soll aus Arbeitszeitmodell"
+          title="Wochensaldo und Stundenkonto rechnen gegen das im Arbeitszeitmodell hinterlegte Soll."
+        />
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <KpiCard
+          label="Diese Woche"
+          primary={formatDuration(metrics.weekIst)}
+          secondary={`von ${formatDuration(metrics.weekSoll)} Soll`}
+          progressPct={weekPct}
+          color={getDeltaStatus(metrics.weekDelta)}
+        />
+        <KpiCard
+          label="Dieser Monat"
+          primary={formatDuration(metrics.monthIst)}
+          secondary={`von ${formatDuration(metrics.monthSoll)} Soll`}
+          progressPct={monthPct}
+          color={monthDeltaColor}
+        />
+        <KpiCard
+          label="Überstunden Monat"
+          primary={formatSignedDuration(metrics.monthDelta)}
+          secondary={
+            metrics.monthDelta === 0
+              ? "ausgeglichen"
+              : metrics.monthDelta > 0
+                ? "Überstunden"
+                : "Minusstunden"
+          }
+          color={monthDeltaColor}
+        />
+        <KpiCard
+          label="Stundenkonto"
+          primary={formatSignedDuration(metrics.accountBalance)}
+          secondary={
+            metrics.accountBalance === 0
+              ? `Soll und Ist ausgeglichen seit ${accountStartLabel}`
+              : `seit ${accountStartLabel}`
+          }
+          color={accountColor}
+        />
+      </div>
     </div>
   );
 }

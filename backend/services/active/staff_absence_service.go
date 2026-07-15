@@ -29,6 +29,12 @@ type UpdateAbsenceRequest struct {
 	Note        *string `json:"note"`
 }
 
+// maxSickAbsenceRangeDays bounds the synchronous plan cascade. Sick reports
+// legitimately span longer than the week-sized plan views, but allowing an
+// arbitrary multi-year range would hold the tenant transaction while the
+// cascade expands and locks every civil day.
+const maxSickAbsenceRangeDays = 366
+
 // StaffAbsenceResponse wraps an absence with calculated fields
 type StaffAbsenceResponse struct {
 	*activeModels.StaffAbsence
@@ -66,8 +72,19 @@ type VacationQuotaSummary struct {
 // StaffAbsenceService defines operations for staff absence management
 type StaffAbsenceService interface {
 	CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error)
-	UpdateAbsence(ctx context.Context, staffID int64, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsenceResponse, error)
+	// CreateAbsenceFor separates the absence's subject from its creator so an
+	// admin can file a sick report on a staff member's behalf (#1843). A sick
+	// full-day absence cascades into the plans via the ShiftPlanSyncer inside
+	// the caller's tenant tx; a cascade error aborts the whole create.
+	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error)
+	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsenceResponse, error)
 	DeleteAbsence(ctx context.Context, staffID int64, absenceID int64) error
+	// DeleteAbsenceFor is DeleteAbsence with an explicit actor (admin delete,
+	// #1843): deleting a sick report reverses its plan cascade first.
+	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
+	// SetShiftPlanSyncer injects the #1843 plan cascade (wired in the factory
+	// after the schedule services exist; mirrors SetStaffShiftRepo).
+	SetShiftPlanSyncer(syncer ShiftPlanSyncer)
 	GetAbsencesForRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsenceResponse, error)
 	HasAbsenceOnDate(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error)
 
@@ -96,6 +113,22 @@ type staffAbsenceService struct {
 	workSessionRepo activeModels.WorkSessionRepository
 	quotaRepo       activeModels.StaffVacationQuotaRepository
 	auditRepo       activeModels.StaffAbsenceAuditRepository
+	shiftPlanSyncer ShiftPlanSyncer
+}
+
+// SetShiftPlanSyncer wires the #1843 plan cascade (setter injection because
+// the implementation lives in services/schedule, which imports this package).
+func (s *staffAbsenceService) SetShiftPlanSyncer(syncer ShiftPlanSyncer) {
+	s.shiftPlanSyncer = syncer
+}
+
+// planSyncer is nil-safe: bare-constructed services (unit tests) cascade into
+// a no-op.
+func (s *staffAbsenceService) planSyncer() ShiftPlanSyncer {
+	if s.shiftPlanSyncer != nil {
+		return s.shiftPlanSyncer
+	}
+	return noopShiftPlanSyncer{}
 }
 
 // NewStaffAbsenceService creates a new staff absence service
@@ -118,8 +151,17 @@ func NewStaffAbsenceService(
 // will come in a follow-up, see Issue #1375 Tranche 4a.
 const defaultEntitledDays = 30.0
 
-// CreateAbsence creates a new absence record
+// CreateAbsence creates a new absence record for the caller themself.
 func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
+	return s.CreateAbsenceFor(ctx, staffID, staffID, nil, req)
+}
+
+// CreateAbsenceFor creates an absence for subjectStaffID on createdByStaffID's
+// behalf (#1843 admin sick reporting; self-service passes the same id twice).
+// A full-day sick absence cascades into the plans; the merge path cascades
+// over the MERGED range of the primary row, which the idempotency guards in
+// the syncer make safe to re-run.
+func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
 	if req.AbsenceType == activeModels.AbsenceTypeVacation {
 		return nil, fmt.Errorf("vacation absences must be requested through the vacation flow")
 	}
@@ -128,23 +170,59 @@ func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, 
 	if err != nil {
 		return nil, err
 	}
+	if err := validateSickAbsenceRange(req.AbsenceType, dateStart, dateEnd); err != nil {
+		return nil, err
+	}
+	if err := s.lockStaffAbsenceWrites(ctx, subjectStaffID); err != nil {
+		return nil, err
+	}
 
 	// Check for overlapping absences, merge if same type, reject if different type.
-	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, dateStart, dateEnd)
+	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, subjectStaffID, dateStart, dateEnd)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing absences: %w", err)
 	}
 
-	if len(existing) > 0 {
-		blocking := filterBlockingAbsences(existing)
-		if len(blocking) > 0 {
-			return s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, req)
+	var resp *StaffAbsenceResponse
+	if blocking := filterBlockingAbsences(existing); len(blocking) > 0 {
+		resp, err = s.mergeOverlappingAbsences(ctx, blocking, dateStart, dateEnd, req)
+	} else {
+		if err := validateSingleDayHalfDaySick(req.AbsenceType, req.HalfDay, dateStart, dateEnd); err != nil {
+			return nil, err
 		}
+		s.warnIfWorkSessionsExist(ctx, subjectStaffID, dateStart, dateEnd)
+		resp, err = s.createNewAbsence(ctx, subjectStaffID, createdByStaffID, dateStart, dateEnd, req)
+	}
+	if err != nil {
+		return nil, err
 	}
 
-	s.warnIfWorkSessionsExist(ctx, staffID, dateStart, dateEnd)
+	if err := s.cascadeSickReport(ctx, resp.StaffAbsence, createdByStaffID, actorAccountID); err != nil {
+		return nil, err
+	}
+	return resp, nil
+}
 
-	return s.createNewAbsence(ctx, staffID, dateStart, dateEnd, req)
+// cascadeSickReport fans a full-day sick report out into the plans (#1843).
+// Fail-closed: an error aborts the surrounding create so a sick report whose
+// plan effects half-applied never commits.
+func (s *staffAbsenceService) cascadeSickReport(ctx context.Context, absence *activeModels.StaffAbsence, actorStaffID int64, actorAccountID *int64) error {
+	if absence.AbsenceType != activeModels.AbsenceTypeSick || absence.HalfDay {
+		return nil
+	}
+	if err := s.planSyncer().MarkSickForRange(ctx, SickCascadeInput{
+		SubjectStaffID: absence.StaffID,
+		DateStart:      absence.DateStart,
+		DateEnd:        absence.DateEnd,
+		SkipStartDay:   absence.StartHalfDay,
+		SkipEndDay:     absence.EndHalfDay,
+		AbsenceID:      absence.ID,
+		ActorStaffID:   actorStaffID,
+		ActorAccountID: actorAccountID,
+	}); err != nil {
+		return fmt.Errorf("sick report saved nothing — plan cascade failed: %w", err)
+	}
+	return nil
 }
 
 // parseDateRange parses start and end date strings in ISO format.
@@ -171,9 +249,18 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 	if err := validateSameAbsenceType(existing, req.AbsenceType); err != nil {
 		return nil, err
 	}
+	if err := validateSameSickDuration(existing, req); err != nil {
+		return nil, err
+	}
 
 	// Calculate merged date range
 	mergedStart, mergedEnd := calculateMergedDateRange(existing, dateStart, dateEnd)
+	if err := validateSickAbsenceRange(req.AbsenceType, mergedStart, mergedEnd); err != nil {
+		return nil, err
+	}
+	if err := validateSingleDayHalfDaySick(req.AbsenceType, req.HalfDay, mergedStart, mergedEnd); err != nil {
+		return nil, err
+	}
 
 	// Update the primary absence with merged range
 	primary := existing[0]
@@ -188,10 +275,60 @@ func (s *staffAbsenceService) mergeOverlappingAbsences(
 		return nil, fmt.Errorf("failed to merge absence: %w", err)
 	}
 
-	// Delete remaining overlapping absences
-	s.deleteRemainingAbsences(ctx, existing[1:])
+	// The secondaries are about to be deleted; their plan stamps must move to
+	// the surviving primary or its eventual deletion would miss those rows
+	// (#1843). Fail closed — a dangling stamp breaks the reversal invariant.
+	if primary.AbsenceType == activeModels.AbsenceTypeSick {
+		for _, secondary := range existing[1:] {
+			if err := s.planSyncer().ReassignSickStamps(ctx, secondary.ID, primary.ID); err != nil {
+				return nil, fmt.Errorf("failed to merge absence — plan stamp reassignment failed: %w", err)
+			}
+		}
+	}
+
+	// Delete remaining overlapping absences. The reassigned provenance and the
+	// primary update must roll back if even one secondary cannot be removed.
+	if err := s.deleteRemainingAbsences(ctx, existing[1:]); err != nil {
+		return nil, err
+	}
 
 	return toAbsenceResponse(primary), nil
+}
+
+func validateSameSickDuration(existing []*activeModels.StaffAbsence, req CreateAbsenceRequest) error {
+	if req.AbsenceType != activeModels.AbsenceTypeSick {
+		return nil
+	}
+	for _, absence := range existing {
+		if absence.HalfDay != req.HalfDay {
+			return fmt.Errorf("invalid sick absence: half-day and full-day reports cannot be merged")
+		}
+	}
+	return nil
+}
+
+func validateSickAbsenceRange(absenceType string, start, end timezone.Date) error {
+	if absenceType != activeModels.AbsenceTypeSick || start.IsZero() || end.IsZero() || end.Before(start) {
+		return nil
+	}
+	if start.DaysUntil(end)+1 > maxSickAbsenceRangeDays {
+		return fmt.Errorf("invalid sick absence: date range exceeds %d days", maxSickAbsenceRangeDays)
+	}
+	return nil
+}
+
+func validateSingleDayHalfDaySick(absenceType string, halfDay bool, start, end timezone.Date) error {
+	if absenceType == activeModels.AbsenceTypeSick && halfDay && start != end {
+		return fmt.Errorf("invalid sick absence: half-day reports must cover exactly one date")
+	}
+	return nil
+}
+
+func (s *staffAbsenceService) lockStaffAbsenceWrites(ctx context.Context, staffID int64) error {
+	if err := s.absenceRepo.LockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return fmt.Errorf("failed to lock staff absence writes: %w", err)
+	}
+	return nil
 }
 
 // validateSameAbsenceType checks that all existing absences match the requested type.
@@ -223,14 +360,13 @@ func calculateMergedDateRange(existing []*activeModels.StaffAbsence, dateStart, 
 }
 
 // deleteRemainingAbsences deletes absences that were merged into the primary.
-func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absences []*activeModels.StaffAbsence) {
+func (s *staffAbsenceService) deleteRemainingAbsences(ctx context.Context, absences []*activeModels.StaffAbsence) error {
 	for _, e := range absences {
 		if err := s.absenceRepo.Delete(ctx, e.ID); err != nil {
-			slog.Default().WarnContext(ctx, "failed to delete merged absence",
-				slog.Int64("absence_id", e.ID),
-				slog.String("error", err.Error()))
+			return fmt.Errorf("failed to delete merged absence %d: %w", e.ID, err)
 		}
 	}
+	return nil
 }
 
 // warnIfWorkSessionsExist logs a warning if work sessions exist in the date range.
@@ -245,10 +381,12 @@ func (s *staffAbsenceService) warnIfWorkSessionsExist(ctx context.Context, staff
 	}
 }
 
-// createNewAbsence creates a new absence record in the database.
+// createNewAbsence creates a new absence record in the database. createdBy
+// may differ from staffID when an admin files the report (#1843).
 func (s *staffAbsenceService) createNewAbsence(
 	ctx context.Context,
 	staffID int64,
+	createdBy int64,
 	dateStart, dateEnd timezone.Date,
 	req CreateAbsenceRequest,
 ) (*StaffAbsenceResponse, error) {
@@ -261,7 +399,7 @@ func (s *staffAbsenceService) createNewAbsence(
 		HalfDay:     req.HalfDay,
 		Note:        req.Note,
 		Status:      activeModels.AbsenceStatusReported,
-		CreatedBy:   staffID,
+		CreatedBy:   createdBy,
 	}
 	absence.CreatedAt = now
 	absence.UpdatedAt = now
@@ -275,7 +413,10 @@ func (s *staffAbsenceService) createNewAbsence(
 }
 
 // UpdateAbsence updates an existing absence record
-func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsenceResponse, error) {
+func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req UpdateAbsenceRequest) (*StaffAbsenceResponse, error) {
+	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
 		return nil, fmt.Errorf("absence not found")
@@ -285,15 +426,19 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 	if absence.StaffID != staffID {
 		return nil, fmt.Errorf("can only update own absences")
 	}
-	if isVacationWorkflowAbsence(absence) {
-		return nil, fmt.Errorf("vacation workflow absences must be changed through the vacation flow")
-	}
-	if req.AbsenceType != nil && *req.AbsenceType == activeModels.AbsenceTypeVacation {
-		return nil, fmt.Errorf("vacation absences must be requested through the vacation flow")
+	before := *absence
+	if err := validateAbsenceUpdate(absence, req); err != nil {
+		return nil, err
 	}
 
 	// Apply updates from request
 	if err := applyAbsenceUpdates(absence, req); err != nil {
+		return nil, err
+	}
+	if err := validateSickAbsenceRange(absence.AbsenceType, absence.DateStart, absence.DateEnd); err != nil {
+		return nil, err
+	}
+	if err := validateSingleDayHalfDaySick(absence.AbsenceType, absence.HalfDay, absence.DateStart, absence.DateEnd); err != nil {
 		return nil, err
 	}
 
@@ -312,7 +457,63 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		return nil, fmt.Errorf("failed to update absence: %w", err)
 	}
 
+	if err := s.reconcileUpdatedSickAbsence(ctx, &before, absence, staffID, actorAccountID); err != nil {
+		return nil, err
+	}
+
 	return toAbsenceResponse(absence), nil
+}
+
+func validateAbsenceUpdate(absence *activeModels.StaffAbsence, req UpdateAbsenceRequest) error {
+	if isVacationWorkflowAbsence(absence) {
+		return fmt.Errorf("vacation workflow absences must be changed through the vacation flow")
+	}
+	if req.AbsenceType != nil && *req.AbsenceType == activeModels.AbsenceTypeVacation {
+		return fmt.Errorf("vacation absences must be requested through the vacation flow")
+	}
+	// A type change into or out of "sick" would desync the #1843 plan cascade:
+	// sick→other keeps the cancellations/marks but skips the reversal on
+	// delete forever; other→sick pretends a cascade that never ran. Delete
+	// and re-create instead. Date edits remain supported and reconcile their
+	// plan-day difference below.
+	if req.AbsenceType != nil && *req.AbsenceType != absence.AbsenceType &&
+		(absence.AbsenceType == activeModels.AbsenceTypeSick || *req.AbsenceType == activeModels.AbsenceTypeSick) {
+		return fmt.Errorf("invalid absence type change: sick absences must be deleted and re-created, not converted")
+	}
+	// Same reasoning for the half-day flag: flipping it would desync the
+	// already-applied (or deliberately skipped) cascade from the record.
+	if absence.AbsenceType == activeModels.AbsenceTypeSick &&
+		req.HalfDay != nil && *req.HalfDay != absence.HalfDay {
+		return fmt.Errorf("invalid absence change: sick absences cannot switch between half and full days — delete and re-create the report")
+	}
+	return nil
+}
+
+func (s *staffAbsenceService) reconcileUpdatedSickAbsence(ctx context.Context, before, after *activeModels.StaffAbsence, actorStaffID int64, actorAccountID *int64) error {
+	if before.AbsenceType == activeModels.AbsenceTypeSick && !before.HalfDay &&
+		(before.DateStart != after.DateStart || before.DateEnd != after.DateEnd) {
+		if err := s.planSyncer().ReconcileSickRange(
+			ctx,
+			sickCascadeInput(before, actorStaffID, actorAccountID),
+			sickCascadeInput(after, actorStaffID, actorAccountID),
+		); err != nil {
+			return fmt.Errorf("absence update saved nothing — plan cascade reconciliation failed: %w", err)
+		}
+	}
+	return nil
+}
+
+func sickCascadeInput(absence *activeModels.StaffAbsence, actorStaffID int64, actorAccountID *int64) SickCascadeInput {
+	return SickCascadeInput{
+		SubjectStaffID: absence.StaffID,
+		DateStart:      absence.DateStart,
+		DateEnd:        absence.DateEnd,
+		SkipStartDay:   absence.StartHalfDay,
+		SkipEndDay:     absence.EndHalfDay,
+		AbsenceID:      absence.ID,
+		ActorStaffID:   actorStaffID,
+		ActorAccountID: actorAccountID,
+	}
 }
 
 // applyAbsenceUpdates applies partial updates from the request to the absence.
@@ -359,19 +560,50 @@ func (s *staffAbsenceService) checkOverlapExcludingSelf(ctx context.Context, sta
 	return nil
 }
 
-// DeleteAbsence deletes an absence record
+// DeleteAbsence deletes an absence record (self-service; the caller is the
+// absence's owner and the acting person).
 func (s *staffAbsenceService) DeleteAbsence(ctx context.Context, staffID int64, absenceID int64) error {
+	return s.DeleteAbsenceFor(ctx, staffID, staffID, nil, absenceID)
+}
+
+// DeleteAbsenceFor deletes subjectStaffID's absence on actorStaffID's behalf
+// (#1843 admin delete). Deleting a sick report first reverses its plan
+// cascade — reactivates the shifts it cancelled and clears the block
+// absences it stamped — in the same tenant tx, so a failed reversal aborts
+// the delete. CancelAbsence needs no such hook: it only accepts
+// requested/approved vacation-flow rows, never a reported sick absence.
+func (s *staffAbsenceService) DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error {
+	if err := s.lockStaffAbsenceWrites(ctx, subjectStaffID); err != nil {
+		return err
+	}
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
 		return fmt.Errorf("absence not found")
 	}
 
 	// Verify ownership
-	if absence.StaffID != staffID {
+	if absence.StaffID != subjectStaffID {
 		return fmt.Errorf("can only delete own absences")
 	}
 	if isVacationWorkflowAbsence(absence) {
 		return fmt.Errorf("vacation workflow absences must be canceled through the vacation flow")
+	}
+
+	// The reversal runs UNCONDITIONALLY: it is keyed purely by provenance
+	// stamps (sick_absence_id == this id), so an absence that never cascaded
+	// is a cheap no-op, while gating on type/half_day would let a mutated row
+	// (e.g. half_day flipped after the cascade ran) orphan its stamps forever.
+	if err := s.planSyncer().ClearSickForRange(ctx, SickCascadeInput{
+		SubjectStaffID: absence.StaffID,
+		DateStart:      absence.DateStart,
+		DateEnd:        absence.DateEnd,
+		SkipStartDay:   absence.StartHalfDay,
+		SkipEndDay:     absence.EndHalfDay,
+		AbsenceID:      absence.ID,
+		ActorStaffID:   actorStaffID,
+		ActorAccountID: actorAccountID,
+	}); err != nil {
+		return fmt.Errorf("absence not deleted — plan cascade reversal failed: %w", err)
 	}
 
 	if err := s.absenceRepo.Delete(ctx, absenceID); err != nil {
@@ -502,6 +734,9 @@ func (s *staffAbsenceService) RequestVacation(ctx context.Context, staffID int64
 	if isBeforeLocalToday(dateStart, time.Now()) {
 		return nil, fmt.Errorf("vacation request must start today or in the future")
 	}
+	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return nil, err
+	}
 
 	existing, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, dateStart, dateEnd)
 	if err != nil {
@@ -554,6 +789,13 @@ func (s *staffAbsenceService) ApproveAbsence(ctx context.Context, absenceID int6
 	if err != nil {
 		return nil, fmt.Errorf("absence not found")
 	}
+	if err := s.lockStaffAbsenceWrites(ctx, absence.StaffID); err != nil {
+		return nil, err
+	}
+	absence, err = s.absenceRepo.FindByID(ctx, absenceID)
+	if err != nil {
+		return nil, fmt.Errorf("absence not found")
+	}
 	if absence.Status != activeModels.AbsenceStatusRequested {
 		return nil, fmt.Errorf("only requested absences can be approved")
 	}
@@ -582,6 +824,13 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 	if err != nil {
 		return nil, fmt.Errorf("absence not found")
 	}
+	if err := s.lockStaffAbsenceWrites(ctx, absence.StaffID); err != nil {
+		return nil, err
+	}
+	absence, err = s.absenceRepo.FindByID(ctx, absenceID)
+	if err != nil {
+		return nil, fmt.Errorf("absence not found")
+	}
 	if absence.Status != activeModels.AbsenceStatusRequested {
 		return nil, fmt.Errorf("only requested absences can be declined")
 	}
@@ -603,6 +852,9 @@ func (s *staffAbsenceService) DenyAbsence(ctx context.Context, absenceID int64, 
 }
 
 func (s *staffAbsenceService) CancelAbsence(ctx context.Context, staffID int64, actorAccountID int64, absenceID int64) error {
+	if err := s.lockStaffAbsenceWrites(ctx, staffID); err != nil {
+		return err
+	}
 	absence, err := s.absenceRepo.FindByID(ctx, absenceID)
 	if err != nil {
 		return fmt.Errorf("absence not found")

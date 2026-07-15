@@ -224,13 +224,16 @@ export function HelpHeader({
           {!pdf ? (
             <Link
               href="/help"
-              className="flex w-fit items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:gap-3"
+              className="flex w-fit items-center gap-2 rounded-lg px-2 py-1 transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:gap-2.5"
             >
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-gray-200 bg-white text-sm font-bold text-gray-950 shadow-sm">
-                m
-              </span>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/images/moto_transparent.webp"
+                alt=""
+                className="h-7 w-auto shrink-0 object-contain"
+              />
               <span className="min-w-0">
-                <span className="block text-sm font-semibold text-gray-950">
+                <span className="block [font-family:var(--font-moto)] text-xl leading-none font-bold text-gray-950">
                   moto
                 </span>
                 <span className="block text-xs text-gray-500">Anleitung</span>
@@ -395,11 +398,11 @@ function GuidePrintCover({
         <div className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/images/moto_transparent.png"
+            src="/images/moto_transparent.webp"
             alt=""
             className="h-12 w-auto object-contain"
           />
-          <span className="text-3xl font-semibold tracking-normal text-gray-950">
+          <span className="[font-family:var(--font-moto)] text-3xl leading-none font-bold text-gray-950">
             moto
           </span>
           <div className="h-10 w-px bg-gray-300" />

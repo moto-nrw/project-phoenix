@@ -93,7 +93,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 		ActivityGroupID: tmpl.group.ID,
 		ExceptionDate:   target,
 		ExceptionType:   scheduleModel.ActivityExceptionCancelled,
-		Reason:          strPtr("Heizung kaputt"),
+		Reason:          testpkg.StrPtr("Heizung kaputt"),
 	}
 	cancelledExc.SetTenantID(primaryTenantID)
 	_, err := s.db.NewInsert().
@@ -185,7 +185,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 		ExceptionDate:   target,
 		ExceptionType:   scheduleModel.ActivityExceptionModified,
 		StartTime:       &modifiedStart,
-		Reason:          strPtr("Fruehschluss"),
+		Reason:          testpkg.StrPtr("Fruehschluss"),
 	}
 	modifiedExc.SetTenantID(primaryTenantID)
 	_, err = s.db.NewInsert().
@@ -263,5 +263,3 @@ func (s *scenario) registerArrivalFixtures(_ *testing.T) {
 			Exec(ctx)
 	})
 }
-
-func strPtr(s string) *string { return &s }

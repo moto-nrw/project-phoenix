@@ -76,9 +76,7 @@ func (r *StudentRepository) FindByPersonID(ctx context.Context, personID int64) 
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("person_id = ?", personID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -104,9 +102,7 @@ func (r *StudentRepository) FindByIDs(ctx context.Context, ids []int64) (map[int
 		ModelTableExpr(`users.students AS "student"`).
 		Where(`"student".id IN (?)`, bun.List(ids))
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -148,9 +144,7 @@ func (r *StudentRepository) FindReadScopeByIDs(ctx context.Context, ids []int64)
 		Column("id", "group_id", "person_id", "school_class").
 		Where(`"student".id IN (?)`, bun.List(ids))
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -174,9 +168,7 @@ func (r *StudentRepository) FindByGroupID(ctx context.Context, groupID int64) ([
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("group_id = ?", groupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -206,9 +198,7 @@ func (r *StudentRepository) FindByGroupIDs(ctx context.Context, groupIDs []int64
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("group_id IN (?)", bun.List(groupIDs))
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -234,9 +224,7 @@ func (r *StudentRepository) FindBySchoolClass(ctx context.Context, schoolClass s
 		ModelTableExpr(tableExprUsersStudentsAsStudent).
 		Where("LOWER(TRIM(school_class)) = LOWER(TRIM(?))", schoolClass)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -263,9 +251,7 @@ func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, er
 		Where(`TRIM("student".school_class) != ''`).
 		OrderExpr(`TRIM("student".school_class) ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	if err := query.Scan(ctx, &classes); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -275,52 +261,6 @@ func (r *StudentRepository) ListSchoolClasses(ctx context.Context) ([]string, er
 	}
 
 	return classes, nil
-}
-
-// AssignToGroup assigns a student to a group
-func (r *StudentRepository) AssignToGroup(ctx context.Context, studentID int64, groupID int64) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Set("group_id = ?", groupID).
-		Where(`"student".id = ?`, studentID)
-
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "assign to group",
-			Err: err,
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "assign to group")
-}
-
-// RemoveFromGroup removes a student from their group
-func (r *StudentRepository) RemoveFromGroup(ctx context.Context, studentID int64) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*users.Student)(nil)).
-		ModelTableExpr(`users.students AS "student"`).
-		Set("group_id = NULL").
-		Where(`"student".id = ?`, studentID)
-
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
-
-	result, err := query.Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "remove from group",
-			Err: err,
-		}
-	}
-
-	return base.AssertRowsAffected(result, 1, "remove from group")
 }
 
 // Create overrides the base Create method to handle validation
@@ -497,9 +437,7 @@ func (r *StudentRepository) persistDepartureDays(ctx context.Context, student *u
 		return nil
 	}
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -725,9 +663,7 @@ func (r *StudentRepository) ListWithOptions(ctx context.Context, options *modelB
 		Model(&students).
 		ModelTableExpr(tableExprUsersStudentsAsStudent)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	// Apply query options with table alias
 	if options != nil {
@@ -771,9 +707,7 @@ func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int6
 		Where(`"student".group_id IN (?)`, bun.List(groupIDs)).
 		GroupExpr(`"student".group_id`)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx, &results)
 
@@ -791,31 +725,6 @@ func (r *StudentRepository) CountByGroupIDs(ctx context.Context, groupIDs []int6
 	return counts, nil
 }
 
-// FindWithPerson retrieves a student with their associated person data
-func (r *StudentRepository) FindWithPerson(ctx context.Context, id int64) (*users.Student, error) {
-	student := new(users.Student)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(student).
-		ModelTableExpr(`users.students AS "student"`).
-		Relation("Person").
-		Where(`"student".id = ?`, id)
-
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with person",
-			Err: err,
-		}
-	}
-
-	return student, nil
-}
-
 // FindByGuardianEmail finds students with a specific guardian email
 func (r *StudentRepository) FindByGuardianEmail(ctx context.Context, email string) ([]*users.Student, error) {
 	var students []*users.Student
@@ -824,9 +733,7 @@ func (r *StudentRepository) FindByGuardianEmail(ctx context.Context, email strin
 		ModelTableExpr(`users.students AS "student"`).
 		Where(`LOWER("student".guardian_email) = LOWER(?)`, email)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -848,9 +755,7 @@ func (r *StudentRepository) FindByGuardianPhone(ctx context.Context, phone strin
 		ModelTableExpr(`users.students AS "student"`).
 		Where(`"student".guardian_phone = ?`, phone)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -859,76 +764,6 @@ func (r *StudentRepository) FindByGuardianPhone(ctx context.Context, phone strin
 			Op:  "find by guardian phone",
 			Err: err,
 		}
-	}
-
-	return students, nil
-}
-
-// FindByTeacherID retrieves students supervised by a teacher (through group assignments)
-func (r *StudentRepository) FindByTeacherID(ctx context.Context, teacherID int64) ([]*users.Student, error) {
-	// Define a result struct to handle the complex JOIN and mapping
-	type studentWithPersonAndGroup struct {
-		Student   *users.Student `bun:"student"`
-		Person    *users.Person  `bun:"person"`
-		GroupName string         `bun:"group_name"`
-	}
-
-	var results []*studentWithPersonAndGroup
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&results).
-		ModelTableExpr(`users.students AS "student"`).
-		// Student columns with proper aliasing
-		ColumnExpr(`"student".id AS "student__id", "student".created_at AS "student__created_at", "student".updated_at AS "student__updated_at"`).
-		ColumnExpr(`"student".tenant_id AS "student__tenant_id"`).
-		ColumnExpr(`"student".person_id AS "student__person_id", "student".school_class AS "student__school_class"`).
-		ColumnExpr(`"student".guardian_name AS "student__guardian_name", "student".guardian_contact AS "student__guardian_contact"`).
-		ColumnExpr(`"student".guardian_email AS "student__guardian_email", "student".guardian_phone AS "student__guardian_phone"`).
-		ColumnExpr(`"student".group_id AS "student__group_id"`).
-		ColumnExpr(`"student".extra_info AS "student__extra_info", "student".supervisor_notes AS "student__supervisor_notes"`).
-		ColumnExpr(`"student".health_info AS "student__health_info", "student".pickup_status AS "student__pickup_status"`).
-		// departure_companion_note is scanonly and hydrated below via
-		// hydrateBusDaysForStudents — never selected here, so the query stays
-		// valid on schemas where the column is absent (#1694).
-		// Person columns with proper aliasing
-		ColumnExpr(`"person".id AS "person__id", "person".created_at AS "person__created_at", "person".updated_at AS "person__updated_at"`).
-		ColumnExpr(`"person".first_name AS "person__first_name", "person".last_name AS "person__last_name"`).
-		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
-		// Group name for reference
-		ColumnExpr(`"group".name AS "group_name"`).
-		// JOINs to traverse the relationship chain
-		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
-		Join(`INNER JOIN education.groups AS "group" ON "group".id = "student".group_id`).
-		Join(`INNER JOIN education.group_teacher AS "gt" ON "gt".group_id = "group".id`).
-		// Filter by teacher ID and ensure student has a group assignment
-		Where(`"gt".teacher_id = ? AND "student".group_id IS NOT NULL`, teacherID).
-		// Use DISTINCT to avoid duplicates if a teacher supervises multiple groups with same student
-		Distinct()
-
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by teacher ID",
-			Err: err,
-		}
-	}
-
-	// Extract students from results and map the person relationship
-	students := make([]*users.Student, len(results))
-	for i, result := range results {
-		student := result.Student
-		if result.Person != nil && result.Person.ID != 0 {
-			student.Person = result.Person
-		}
-		students[i] = student
-	}
-
-	if err := r.hydrateBusDaysForStudents(ctx, students); err != nil {
-		return nil, err
 	}
 
 	return students, nil
@@ -962,9 +797,7 @@ func (r *StudentRepository) newStudentWithGroupQuery(ctx context.Context, result
 		ColumnExpr(`"person".tag_id AS "person__tag_id", "person".account_id AS "person__account_id"`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	return query
 }
@@ -1217,9 +1050,7 @@ func (r *StudentRepository) FindByIDForUpdate(ctx context.Context, id int64) (*u
 		Where(`"student".id = ?`, id).
 		For("UPDATE")
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find_by_id_for_update", Err: err}
@@ -1389,9 +1220,7 @@ func (r *StudentRepository) FindByNameAndClass(ctx context.Context, firstName, l
 		Where(`LOWER("person".last_name) = LOWER(?)`, lastName).
 		Where(`LOWER("student".school_class) = LOWER(?)`, schoolClass)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	err := query.Scan(ctx)
 
@@ -1415,9 +1244,7 @@ func (r *StudentRepository) UpdateStatus(ctx context.Context, studentID int64, n
 		Set("updated_at = NOW()").
 		Where(`"student".id = ?`, studentID)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -1442,9 +1269,7 @@ func (r *StudentRepository) FindPendingDueForActivation(ctx context.Context, asO
 		Where(`"student".enrolled_from IS NOT NULL`).
 		Where(`"student".enrolled_from <= ?`, asOf)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -1468,9 +1293,7 @@ func (r *StudentRepository) FindActiveDueForDeactivation(ctx context.Context, as
 		Where(`"student".enrolled_until IS NOT NULL`).
 		Where(`"student".enrolled_until <= ?`, asOf)
 
-	if where, val, ok := base.TenantWhere(ctx, "student"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "student")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{

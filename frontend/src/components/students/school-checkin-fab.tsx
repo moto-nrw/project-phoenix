@@ -3,6 +3,7 @@
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, CheckSquare, Loader2 } from "lucide-react";
 import { GROUP_ROOM_SHADES } from "~/lib/location-helper";
+import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 
 interface SchoolCheckinFabProps {
   /** Whether the page is currently in check-in/out mode. */
@@ -44,8 +45,11 @@ export function SchoolCheckinFab({
   pendingCount,
   variant,
 }: SchoolCheckinFabProps) {
+  const attendanceWebEnabled = useAttendanceWebEnabled();
   const reduceMotion = useReducedMotion();
   const resolved = variant;
+
+  if (!attendanceWebEnabled) return null;
 
   const label = isActive
     ? "An- und Abmelde-Modus beenden"

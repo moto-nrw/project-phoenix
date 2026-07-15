@@ -13,18 +13,21 @@ import { getSession } from "next-auth/react";
 import { createLogger } from "./logger";
 import type {
   BackendConflictCheckResult,
+  BackendShiftCoverageCheckResult,
   BackendCreateTemplateResult,
   BackendAttendanceResponse,
   BackendEndTemplateResult,
   BackendExceptionConflictsResponse,
   BackendEnrichedInstance,
   BackendGapsResponse,
+  BackendDeviationHistoryResponse,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
   BackendReplanWeekResult,
+  BackendEditedInWindowResult,
   BackendSplitTemplateResult,
   BackendStartInstanceResult,
-  BackendSubstituteResponse,
+  BackendApplyDeviationsResponse,
   BackendTimetableTemplate,
   BackendTemplatesResponse,
   BackendWeeklyInstancesResponse,
@@ -40,13 +43,18 @@ import type {
   EnrichedInstance,
   ExceptionConflictsResponse,
   GapsResponse,
+  DeviationHistoryResponse,
   InstanceStatusResult,
   MaterializeResult,
   ReplanWeekResult,
+  EditedInWindowResult,
+  ShiftCoverageCheckParams,
+  ShiftCoverageCheckResult,
   SplitTemplateBody,
   SplitTemplateResult,
   StartInstanceResult,
-  SubstituteResponse,
+  ApplyDeviationsInput,
+  ApplyDeviationsResponse,
   TemplatesResponse,
   TimetableTemplate,
   UpdateTemplateBody,
@@ -54,18 +62,21 @@ import type {
 } from "./timetable-types";
 import {
   mapConflictCheckResult,
+  mapShiftCoverageCheckResult,
   mapCreateTemplateResult,
   mapEndTemplateResult,
   mapAttendance,
   mapExceptionConflicts,
   mapGaps,
+  mapDeviationHistory,
+  mapApplyDeviations,
   mapInstance,
   mapInstanceStatusResult,
   mapMaterializeResult,
   mapReplanWeekResult,
+  mapEditedInWindowResult,
   mapSplitTemplateResult,
   mapStartInstanceResult,
-  mapSubstitute,
   mapTemplates,
   mapWeeklyInstances,
 } from "./timetable-helpers";
@@ -310,6 +321,44 @@ class TimetableService {
     return mapConflictCheckResult(raw);
   }
 
+  /**
+   * POST /api/timetable/shift-coverage — batched, read-only comparison of
+   * concrete candidate dates with the assigned staff members' shifts.
+   */
+  async checkShiftCoverage(
+    params: ShiftCoverageCheckParams,
+    options?: { signal?: AbortSignal },
+  ): Promise<ShiftCoverageCheckResult> {
+    const response = await fetch("/api/timetable/shift-coverage", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      credentials: "include",
+      signal: options?.signal,
+      body: JSON.stringify({
+        dates: params.dates,
+        start_time: params.startTime,
+        end_time: params.endTime,
+        staff_ids: params.staffIds.map(Number),
+        exclude_instance_id: params.excludeInstanceId
+          ? Number(params.excludeInstanceId)
+          : undefined,
+        concrete_instance_date: params.concreteInstanceDate,
+        replan_activity_group_id: params.replanActivityGroupId
+          ? Number(params.replanActivityGroupId)
+          : undefined,
+        calendar_period_id: params.calendarPeriodId
+          ? Number(params.calendarPeriodId)
+          : undefined,
+        week_pattern: params.weekPattern,
+      }),
+    });
+    const raw = await unwrap<BackendShiftCoverageCheckResult>(response);
+    return mapShiftCoverageCheckResult(raw);
+  }
+
   async updateTemplate(
     templateId: string,
     body: UpdateTemplateBody,
@@ -397,11 +446,15 @@ class TimetableService {
    * Cancels a planned or active instance. From active, ends the bridge
    * cleanly via active.EndActivitySession.
    */
-  async cancel(instanceId: string): Promise<InstanceStatusResult> {
+  async cancel(
+    instanceId: string,
+    reason?: string,
+  ): Promise<InstanceStatusResult> {
     return this.lifecycle<BackendInstanceStatusResult, InstanceStatusResult>(
       instanceId,
       "cancel",
       mapInstanceStatusResult,
+      reason ? { reason } : undefined,
     );
   }
 
@@ -409,6 +462,7 @@ class TimetableService {
     instanceId: string,
     action: "start" | "complete" | "cancel",
     mapper: (raw: TBackend) => TFront,
+    body: Record<string, unknown> = {},
   ): Promise<TFront> {
     const response = await fetch(
       `/api/timetable/instances/${instanceId}/${action}`,
@@ -419,7 +473,7 @@ class TimetableService {
           Accept: "application/json",
         },
         credentials: "include",
-        body: JSON.stringify({}),
+        body: JSON.stringify(body),
       },
     );
 
@@ -496,6 +550,40 @@ class TimetableService {
     return mapReplanWeekResult(raw);
   }
 
+  /**
+   * GET /api/timetable/instances/edited-in-window (#1875).
+   * Which planned occurrences of one template were individually edited ("Nur
+   * diesen Termin") in [from, to] — the changes a series re-plan would discard.
+   * The planner calls this before an "Alle Termine" / "Dieser und folgende"
+   * edit to warn and list the affected dates. Pass includeDeletions on the
+   * "following" split path: a split resurrects individually-deleted occurrences
+   * under the successor template (same-template re-plans preserve them).
+   */
+  async countEditedInWindow(
+    activityGroupId: string,
+    from: string,
+    to: string,
+    includeDeletions = false,
+  ): Promise<EditedInWindowResult> {
+    const params = new URLSearchParams({
+      activity_group_id: activityGroupId,
+      from,
+      to,
+    });
+    if (includeDeletions) params.set("include_deletions", "true");
+    const response = await fetch(
+      `/api/timetable/instances/edited-in-window?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+
+    const raw = await unwrap<BackendEditedInWindowResult>(response);
+    return mapEditedInWindowResult(raw);
+  }
+
   async getGaps(from: string, to: string): Promise<GapsResponse> {
     const params = new URLSearchParams({ date: from, date_to: to });
     const response = await fetch(`/api/timetable/gaps?${params}`, {
@@ -506,6 +594,30 @@ class TimetableService {
 
     const raw = await unwrap<BackendGapsResponse>(response);
     return mapGaps(raw);
+  }
+
+  /** Änderungsprotokoll (#1886): Abweichungs-Verlauf im Datumsfenster,
+   * optional auf einen Slot (Serie + Startzeit) eingegrenzt. */
+  async getDeviationHistory(
+    from: string,
+    to: string,
+    activityGroupId?: string,
+    startTime?: string,
+  ): Promise<DeviationHistoryResponse> {
+    const params = new URLSearchParams({ date: from, date_to: to });
+    if (activityGroupId) params.set("activity_group_id", activityGroupId);
+    if (startTime) params.set("start_time", startTime);
+    const response = await fetch(
+      `/api/timetable/deviations/history?${params}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        credentials: "include",
+      },
+    );
+
+    const raw = await unwrap<BackendDeviationHistoryResponse>(response);
+    return mapDeviationHistory(raw);
   }
 
   async getExceptionConflicts(
@@ -526,27 +638,65 @@ class TimetableService {
     return mapExceptionConflicts(raw);
   }
 
-  async substitute(
-    absentStaffId: string,
-    substituteStaffId: string,
-    date: string,
-  ): Promise<SubstituteResponse> {
-    const response = await fetch("/api/timetable/substitute", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      credentials: "include",
-      body: JSON.stringify({
-        absent_staff_id: Number(absentStaffId),
-        substitute_staff_id: Number(substituteStaffId),
-        date,
-      }),
-    });
+  /**
+   * POST /api/timetable/instances/{id}/deviations — applies an entire
+   * Vertretungsplan slide-over save (absences, substitute, understaffed
+   * acknowledgement, cancel) in ONE backend transaction (#1840). Either every
+   * edit lands or none does; the frontend never sequences independent
+   * mutations that could half-commit.
+   */
+  async applyDeviations(
+    instanceId: string,
+    input: ApplyDeviationsInput,
+  ): Promise<ApplyDeviationsResponse> {
+    const body: Record<string, unknown> = {};
+    if (input.cancel) {
+      body.cancel = true;
+      if (input.cancelReason) body.cancel_reason = input.cancelReason;
+    } else {
+      if (input.understaffedAck !== undefined) {
+        body.understaffed_ack = input.understaffedAck;
+        if (input.understaffedAck && input.understaffedNote) {
+          body.understaffed_note = input.understaffedNote;
+        }
+      }
+      if (input.absences && input.absences.length > 0) {
+        body.absences = input.absences.map((a) => ({
+          staff_id: Number(a.staffId),
+          reason: a.reason ?? undefined,
+        }));
+      }
+      if (input.substitutions && input.substitutions.length > 0) {
+        body.substitutions = input.substitutions.map((s) => ({
+          absent_staff_id: Number(s.absentStaffId),
+          substitute_staff_id: Number(s.substituteStaffId),
+          reason: s.reason ?? undefined,
+        }));
+      }
+      if (input.presences && input.presences.length > 0) {
+        body.presences = input.presences.map((staffId) => Number(staffId));
+      }
+    }
 
-    const raw = await unwrap<BackendSubstituteResponse>(response);
-    return mapSubstitute(raw);
+    const response = await fetch(
+      `/api/timetable/instances/${instanceId}/deviations`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify(body),
+      },
+    );
+
+    const raw = await unwrap<BackendApplyDeviationsResponse>(response);
+    logger.info("deviations_applied", {
+      instance_id: instanceId,
+      cancelled: raw.cancelled,
+    });
+    return mapApplyDeviations(raw);
   }
 
   async patchAttendance(

@@ -38,10 +38,11 @@ const maxInstanceListRangeDays = 56
 // instance. Names are intentionally omitted at the list level to keep the
 // payload compact; the slide-over detail view fetches them on demand.
 type instanceStaffSummary struct {
-	StaffID      int64 `json:"staff_id"`
-	IsPrimary    bool  `json:"is_primary"`
-	IsAbsent     bool  `json:"is_absent"`
-	IsSubstitute bool  `json:"is_substitute"`
+	StaffID       int64   `json:"staff_id"`
+	IsPrimary     bool    `json:"is_primary"`
+	IsAbsent      bool    `json:"is_absent"`
+	IsSubstitute  bool    `json:"is_substitute"`
+	AbsenceReason *string `json:"absence_reason,omitempty"`
 }
 
 // instanceStudentSummary carries the editable attendance state for one child.
@@ -64,27 +65,47 @@ type instanceStudentSummary struct {
 // "activity" | "care" | "external". Spontaneous instances without a template
 // fall back to "activity" so the frontend has a deterministic colour key.
 type enrichedInstance struct {
-	ID                    int64                                 `json:"id"`
-	Date                  string                                `json:"date"`
-	StartTime             string                                `json:"start_time"`
-	EndTime               string                                `json:"end_time"`
-	Title                 string                                `json:"title"`
-	Description           *string                               `json:"description,omitempty"`
-	Notes                 *string                               `json:"notes,omitempty"`
-	Status                string                                `json:"status"`
-	IsSpontaneous         bool                                  `json:"is_spontaneous"`
-	IsLive                bool                                  `json:"is_live"`
-	ActivityGroupID       *int64                                `json:"activity_group_id,omitempty"`
-	ActivityType          string                                `json:"activity_type"`
-	RoomID                int64                                 `json:"room_id"`
-	RoomName              string                                `json:"room_name"`
-	Staff                 []instanceStaffSummary                `json:"staff"`
-	StudentIDs            []int64                               `json:"student_ids"`
-	Students              []instanceStudentSummary              `json:"students"`
-	StaffCount            int                                   `json:"staff_count"`
-	AbsentStaffCount      int                                   `json:"absent_staff_count"`
-	ExpectedStudentsCount int                                   `json:"expected_students_count"`
-	PresentStudentsCount  int                                   `json:"present_students_count"`
+	ID                    int64                    `json:"id"`
+	Date                  string                   `json:"date"`
+	StartTime             string                   `json:"start_time"`
+	EndTime               string                   `json:"end_time"`
+	Title                 string                   `json:"title"`
+	Description           *string                  `json:"description,omitempty"`
+	Notes                 *string                  `json:"notes,omitempty"`
+	SeriesNotes           *string                  `json:"series_notes,omitempty"`
+	Status                string                   `json:"status"`
+	IsSpontaneous         bool                     `json:"is_spontaneous"`
+	IsLive                bool                     `json:"is_live"`
+	ActivityGroupID       *int64                   `json:"activity_group_id,omitempty"`
+	ActivityType          string                   `json:"activity_type"`
+	RoomID                int64                    `json:"room_id"`
+	RoomName              string                   `json:"room_name"`
+	Staff                 []instanceStaffSummary   `json:"staff"`
+	StudentIDs            []int64                  `json:"student_ids"`
+	Students              []instanceStudentSummary `json:"students"`
+	StaffCount            int                      `json:"staff_count"`
+	AbsentStaffCount      int                      `json:"absent_staff_count"`
+	UnderstaffedAck       bool                     `json:"understaffed_ack"`
+	UnderstaffedNote      *string                  `json:"understaffed_note,omitempty"`
+	CancelReason          *string                  `json:"cancel_reason,omitempty"`
+	ExpectedStudentsCount int                      `json:"expected_students_count"`
+	PresentStudentsCount  int                      `json:"present_students_count"`
+	// RequiredStaffCount and AssignedStaffCount drive the Betreuungsplan
+	// capacity indicator (issue #1838): required is
+	// ceil(children/Betreuungsschlüssel), assigned is the non-absent staff
+	// count already computed above (StaffCount - AbsentStaffCount). The
+	// frontend derives "understaffed" as assigned < required, the same
+	// pattern already used for every other count on this payload — this is
+	// intentionally not modeled as a ConflictWarning (see
+	// services/schedule/capacity_service.go).
+	RequiredStaffCount int `json:"required_staff_count"`
+	AssignedStaffCount int `json:"assigned_staff_count"`
+	// RequiredStaffOverride is the raw per-occurrence Personalbedarf pin
+	// (#1839), nil when the block inherits: template-backed instances fall
+	// back to the template's override, then to the Betreuungsschlüssel. The
+	// edit form needs the raw value to distinguish "inherit" from a pinned
+	// number; RequiredStaffCount above already folds the inheritance in.
+	RequiredStaffOverride *int                                  `json:"required_staff_override,omitempty"`
 	ConflictWarnings      []scheduleSvc.InstanceConflictWarning `json:"conflict_warnings"`
 }
 
@@ -97,7 +118,7 @@ type weeklyInstancesResponse struct {
 
 // listInstances handles GET /api/timetable/instances?from=&to=.
 func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(
 			errors.New("timetable resource not fully wired")))
 		return
@@ -138,7 +159,7 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	instances, err := rs.timetableData.GetActivityInstancesByDateRange(ctx, from, to)
+	instances, err := rs.TimetableData.GetActivityInstancesByDateRange(ctx, from, to)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"load instances failed", err))
@@ -148,11 +169,15 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	// Cache room and activity-group lookups for the request. ~5-8 unique
 	// rooms and templates per week — caching turns 30 lookups into ~10.
 	roomCache := make(map[int64]string)
-	typeCache := make(map[int64]string)
+	typeCache := make(map[int64]templateMeta)
+
+	// Resolved once per request (not per instance) — the Betreuungsschlüssel
+	// setting is tenant-wide, not per-block.
+	ratio := rs.childrenPerStaffRatio(ctx)
 
 	enriched := make([]enrichedInstance, 0, len(instances))
 	for _, inst := range instances {
-		item, err := rs.enrichInstance(ctx, inst, roomCache, typeCache)
+		item, err := rs.enrichInstance(ctx, inst, roomCache, typeCache, ratio)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap(
 				"enrich instance failed", err))
@@ -183,16 +208,17 @@ func (rs *Resource) enrichInstance(
 	ctx context.Context,
 	inst *scheduleModel.ActivityInstance,
 	roomCache map[int64]string,
-	typeCache map[int64]string,
+	metaCache map[int64]templateMeta,
+	childrenPerStaffRatio int,
 ) (enrichedInstance, error) {
 	if inst == nil {
 		return enrichedInstance{}, errors.New("nil instance")
 	}
 
 	roomName := rs.lookupRoomName(ctx, inst.RoomID, roomCache)
-	activityType := rs.lookupActivityType(ctx, inst.ActivityGroupID, typeCache)
+	meta := rs.lookupTemplateMeta(ctx, inst.ActivityGroupID, metaCache)
 
-	staffRows, err := rs.timetableData.GetInstanceStaff(ctx, inst.ID)
+	staffRows, err := rs.TimetableData.GetInstanceStaff(ctx, inst.ID)
 	if err != nil {
 		return enrichedInstance{}, fmt.Errorf("load staff for instance %d: %w", inst.ID, err)
 	}
@@ -203,14 +229,15 @@ func (rs *Resource) enrichInstance(
 			absentCount++
 		}
 		staff = append(staff, instanceStaffSummary{
-			StaffID:      row.StaffID,
-			IsPrimary:    row.IsPrimary,
-			IsAbsent:     row.IsAbsent,
-			IsSubstitute: row.IsSubstitute,
+			StaffID:       row.StaffID,
+			IsPrimary:     row.IsPrimary,
+			IsAbsent:      row.IsAbsent,
+			IsSubstitute:  row.IsSubstitute,
+			AbsenceReason: row.AbsenceReason,
 		})
 	}
 
-	studentRows, err := rs.timetableData.GetInstanceStudents(ctx, inst.ID)
+	studentRows, err := rs.TimetableData.GetInstanceStudents(ctx, inst.ID)
 	if err != nil {
 		return enrichedInstance{}, fmt.Errorf("load students for instance %d: %w", inst.ID, err)
 	}
@@ -240,6 +267,9 @@ func (rs *Resource) enrichInstance(
 		}
 	}
 
+	assignedStaff := len(staffRows) - absentCount
+	childrenCount := expected + present
+
 	return enrichedInstance{
 		ID:                    inst.ID,
 		Date:                  inst.Date.Format(dateLayout),
@@ -248,11 +278,12 @@ func (rs *Resource) enrichInstance(
 		Title:                 inst.Title,
 		Description:           inst.Description,
 		Notes:                 inst.Notes,
+		SeriesNotes:           meta.seriesNotes,
 		Status:                inst.Status,
 		IsSpontaneous:         inst.IsSpontaneous,
 		IsLive:                inst.Status == scheduleModel.InstanceStatusActive && inst.ActiveGroupID != nil,
 		ActivityGroupID:       inst.ActivityGroupID,
-		ActivityType:          activityType,
+		ActivityType:          meta.activityType,
 		RoomID:                inst.RoomID,
 		RoomName:              roomName,
 		Staff:                 staff,
@@ -260,8 +291,14 @@ func (rs *Resource) enrichInstance(
 		Students:              students,
 		StaffCount:            len(staffRows),
 		AbsentStaffCount:      absentCount,
+		UnderstaffedAck:       inst.UnderstaffedAck,
+		UnderstaffedNote:      inst.UnderstaffedNote,
+		CancelReason:          inst.CancelReason,
 		ExpectedStudentsCount: expected,
 		PresentStudentsCount:  present,
+		RequiredStaffCount:    scheduleSvc.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), childrenCount, childrenPerStaffRatio),
+		AssignedStaffCount:    assignedStaff,
+		RequiredStaffOverride: inst.RequiredStaff,
 		ConflictWarnings:      rs.instanceConflictWarnings(ctx, inst),
 	}, nil
 }
@@ -276,10 +313,10 @@ func (rs *Resource) instanceConflictWarnings(
 	if inst.Date != timezone.TodayDate() {
 		return []scheduleSvc.InstanceConflictWarning{}
 	}
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		return []scheduleSvc.InstanceConflictWarning{}
 	}
-	return rs.timetableData.DetectInstanceStartConflicts(ctx, inst, rs.getLogger())
+	return rs.TimetableData.DetectInstanceStartConflicts(ctx, inst, rs.getLogger())
 }
 
 // lookupRoomName resolves a room id to its display name, with per-request
@@ -289,11 +326,11 @@ func (rs *Resource) lookupRoomName(ctx context.Context, roomID int64, cache map[
 	if name, ok := cache[roomID]; ok {
 		return name
 	}
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		cache[roomID] = ""
 		return ""
 	}
-	room, err := rs.timetableData.GetRoom(ctx, roomID)
+	room, err := rs.TimetableData.GetRoom(ctx, roomID)
 	if err != nil || room == nil {
 		// Logged at debug only — a missing room reference here is recoverable.
 		rs.getLogger().Debug("instance list: room lookup failed",
@@ -310,25 +347,49 @@ func (rs *Resource) lookupRoomName(ctx context.Context, roomID int64, cache map[
 // ("activity" | "care" | "external"). For spontaneous instances without an
 // activity-group reference, falls back to GroupTypeActivity so the frontend
 // always has a deterministic colour key.
-func (rs *Resource) lookupActivityType(ctx context.Context, activityGroupID *int64, cache map[int64]string) string {
+// templateMeta caches the per-template fields enrichInstance needs so many
+// instances sharing a template (e.g. the daily Mensa) cost one group lookup.
+type templateMeta struct {
+	activityType  string
+	requiredStaff *int
+	// seriesNotes is the template's durable Wochennotiz (#1837 follow-up),
+	// joined onto each materialized instance at read time so it shows on every
+	// occurrence and survives Re-Plan/Split without an instance column.
+	seriesNotes *string
+}
+
+func (rs *Resource) lookupTemplateMeta(ctx context.Context, activityGroupID *int64, cache map[int64]templateMeta) templateMeta {
+	fallback := templateMeta{activityType: activitiesModel.GroupTypeActivity}
 	if activityGroupID == nil {
-		return activitiesModel.GroupTypeActivity
+		return fallback
 	}
-	if t, ok := cache[*activityGroupID]; ok {
-		return t
+	if meta, ok := cache[*activityGroupID]; ok {
+		return meta
 	}
-	if rs.timetableData == nil {
-		cache[*activityGroupID] = activitiesModel.GroupTypeActivity
-		return activitiesModel.GroupTypeActivity
+	if rs.TimetableData == nil {
+		cache[*activityGroupID] = fallback
+		return fallback
 	}
-	group, err := rs.timetableData.GetActivityGroup(ctx, *activityGroupID)
+	group, err := rs.TimetableData.GetActivityGroup(ctx, *activityGroupID)
 	if err != nil || group == nil {
 		rs.getLogger().Debug("instance list: activity group lookup failed",
 			slog.Int64("activity_group_id", *activityGroupID),
 		)
-		cache[*activityGroupID] = activitiesModel.GroupTypeActivity
-		return activitiesModel.GroupTypeActivity
+		cache[*activityGroupID] = fallback
+		return fallback
 	}
-	cache[*activityGroupID] = group.Type
-	return group.Type
+	meta := templateMeta{activityType: group.Type, requiredStaff: group.RequiredStaff, seriesNotes: group.Notes}
+	cache[*activityGroupID] = meta
+	return meta
+}
+
+// instanceRequiredStaffOverride resolves the override EffectiveRequiredStaff
+// should see for an instance: the per-occurrence pin when set, otherwise the
+// template's Personalbedarf override — materialized rows leave the column
+// NULL and inherit the template value at read time (#1839).
+func instanceRequiredStaffOverride(pin, templateOverride *int) *int {
+	if pin != nil {
+		return pin
+	}
+	return templateOverride
 }

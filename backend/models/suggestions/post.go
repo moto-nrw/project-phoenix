@@ -3,10 +3,8 @@ package suggestions
 import (
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Status constants for suggestion posts
@@ -18,9 +16,6 @@ const (
 	StatusRejected   = "rejected"
 	StatusNeedInfo   = "need_info"
 )
-
-// tableSuggestionsPosts is the schema-qualified table name
-const tableSuggestionsPosts = "suggestions.posts"
 
 // Field-length bounds for suggestion posts and comments.
 const (
@@ -53,21 +48,6 @@ type Post struct {
 	UserVote *string `bun:"user_vote,scanonly" json:"user_vote"`
 	// School metadata, resolved at query time via JOIN to platform.schools
 	SchoolName string `bun:"school_name,scanonly" json:"school_name,omitempty"`
-}
-
-func (p *Post) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableSuggestionsPosts)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(tableSuggestionsPosts)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (p *Post) TableName() string {
-	return tableSuggestionsPosts
 }
 
 // Validate ensures post data is valid
@@ -104,19 +84,4 @@ func IsValidStatus(status string) bool {
 	default:
 		return false
 	}
-}
-
-// GetID returns the entity's ID
-func (p *Post) GetID() any {
-	return p.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (p *Post) GetCreatedAt() time.Time {
-	return p.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (p *Post) GetUpdatedAt() time.Time {
-	return p.UpdatedAt
 }

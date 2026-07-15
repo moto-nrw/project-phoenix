@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { ArrowLeft } from "lucide-react";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import { TenantProvider } from "~/lib/tenant-context";
+import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import {
   createEnrollmentChangeRequest,
   fetchEnrollmentEditBootstrap,
@@ -80,9 +81,14 @@ export function EnrollmentEditPage({ params }: Props) {
     [bootstrap?.edit_mode, changeReason, statusHref, token, t],
   );
 
-  const handleSubmitted = useCallback(() => {
-    router.push(statusHref);
-  }, [router, statusHref]);
+  const handleSubmitted = useCallback(
+    (statusURL: string) => {
+      const submittedURL = new URL(statusURL, globalThis.location.origin);
+      const query = submittedURL.searchParams.toString();
+      router.push(query ? `${statusHref}?${query}` : statusHref);
+    },
+    [router, statusHref],
+  );
 
   if (loading) {
     return (
@@ -115,6 +121,25 @@ export function EnrollmentEditPage({ params }: Props) {
   }
 
   const isChangeRequestMode = bootstrap.edit_mode === "change_request";
+  if (!isSupportedGradeLevelMax(bootstrap.grade_level_max)) {
+    return (
+      <main className="mx-auto w-full max-w-4xl space-y-5 px-4 py-5 sm:px-6 sm:py-6">
+        <Link
+          href={statusHref}
+          className="inline-flex items-center gap-2 text-sm font-semibold text-[#5080D8] hover:underline focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        >
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          {t("backToStatus")}
+        </Link>
+        <div
+          role="alert"
+          className="rounded-2xl border border-[#FF3130]/30 bg-[#FF3130]/5 p-5 text-sm text-[#CC2626] shadow-sm"
+        >
+          {t("editLoadError")}
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="mx-auto w-full max-w-4xl space-y-5 px-4 py-5 sm:space-y-6 sm:px-6 sm:py-6">
@@ -159,12 +184,14 @@ export function EnrollmentEditPage({ params }: Props) {
       <TenantProvider tenantSlug={bootstrap.draft.tenant_slug} tenant={null}>
         <EnrollmentForm
           phaseID={bootstrap.draft.phase_id}
-          gradeLevelMax={4}
+          gradeLevelMax={bootstrap.grade_level_max}
           onSubmitted={handleSubmitted}
           prefetchedData={{
             schema: bootstrap.schema,
             offerings: bootstrap.offerings,
             careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
+            collectGradeLevel: bootstrap.collect_grade_level,
+            careOfferingsEnabled: bootstrap.care_offerings_enabled,
             captchaConfig: null,
             legalTexts: bootstrap.legal_texts,
             profile: null,

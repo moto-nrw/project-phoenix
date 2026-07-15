@@ -38,11 +38,7 @@ func init() {
 		Category:        "indikatoren",
 		SortOrder:       2,
 		Validation:      &config.ValidationRules{Pattern: &indicatorPattern},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyTrackingIndicatorsEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyTrackingIndicatorsEnabled, true),
 	})
 
 	config.Register(config.Definition{
@@ -57,11 +53,7 @@ func init() {
 		Category:        "indikatoren",
 		SortOrder:       3,
 		Validation:      &config.ValidationRules{Pattern: &indicatorPattern},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyTrackingIndicatorsEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyTrackingIndicatorsEnabled, true),
 	})
 
 	config.Register(config.Definition{
@@ -76,11 +68,7 @@ func init() {
 		Category:        "indikatoren",
 		SortOrder:       4,
 		Validation:      &config.ValidationRules{Pattern: &indicatorPattern},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyTrackingIndicatorsEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyTrackingIndicatorsEnabled, true),
 	})
 
 	// --- Automatic checkout at planned shift end (#1798) ---
@@ -101,8 +89,6 @@ func init() {
 		SortOrder:       2,
 	})
 
-	graceMin := float64(0)
-	graceMax := float64(240)
 	config.Register(config.Definition{
 		Key:             config.KeyTrackingAutoCheckoutGraceMinutes,
 		Label:           "Karenzzeit (Minuten)",
@@ -114,11 +100,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "zeiterfassung",
 		SortOrder:       3,
-		Validation:      &config.ValidationRules{Min: &graceMin, Max: &graceMax},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyTrackingAutoCheckoutEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		Validation:      config.Range(0, 240),
+		DependsOn:       config.DependsOnEq(config.KeyTrackingAutoCheckoutEnabled, true),
 	})
 }

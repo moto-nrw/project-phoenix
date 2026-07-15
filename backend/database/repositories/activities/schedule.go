@@ -45,9 +45,7 @@ func (r *ScheduleRepository) FindByGroupID(ctx context.Context, groupID int64) (
 		// Removed Timeframe relation since it's not properly defined in the model
 		Where("activity_group_id = ?", groupID)
 
-	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "schedule")
 
 	err := query.
 		Order("weekday").
@@ -74,9 +72,7 @@ func (r *ScheduleRepository) FindByWeekday(ctx context.Context, weekday string) 
 		// The caller should load ActivityGroup separately if needed
 		Where("weekday = ?", weekday)
 
-	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "schedule")
 
 	err := query.
 		Order("timeframe_id").
@@ -187,9 +183,7 @@ func (r *ScheduleRepository) CapValidUntil(ctx context.Context, activityGroupID 
 		Where(`"schedule".activity_group_id = ?`, activityGroupID).
 		Where(`("schedule".valid_until IS NULL OR "schedule".valid_until > ?)`, validUntil)
 
-	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "schedule")
 
 	res, err := query.Exec(ctx)
 	if err != nil {
@@ -200,49 +194,6 @@ func (r *ScheduleRepository) CapValidUntil(ctx context.Context, activityGroupID 
 	}
 	rows, _ := res.RowsAffected() // nil-driver-safe: fall through with 0
 	return rows, nil
-}
-
-// FindByTimeframeID finds all schedules for a specific timeframe
-func (r *ScheduleRepository) FindByTimeframeID(ctx context.Context, timeframeID int64) ([]*activities.Schedule, error) {
-	schedules := make([]*activities.Schedule, 0)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&schedules).
-		ModelTableExpr(tableExprActivitiesSchedulesAsSch).
-		// Note: ActivityGroup relation is commented out in model, so we can't use Relation()
-		// The caller should load ActivityGroup separately if needed
-		Where("timeframe_id = ?", timeframeID)
-
-	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.
-		Order("weekday").
-		Scan(ctx)
-
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find by timeframe ID",
-			Err: err,
-		}
-	}
-
-	return schedules, nil
-}
-
-// Create overrides the base Create method to handle validation
-func (r *ScheduleRepository) Create(ctx context.Context, schedule *activities.Schedule) error {
-	if schedule == nil {
-		return fmt.Errorf("schedule cannot be nil")
-	}
-
-	// Validate schedule
-	if err := schedule.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method which now uses ModelTableExpr
-	return r.Repository.Create(ctx, schedule)
 }
 
 // Update overrides the base Update method to handle validation
@@ -280,27 +231,7 @@ func (r *ScheduleRepository) Update(ctx context.Context, schedule *activities.Sc
 
 // List overrides the base List method to accept the new QueryOptions type
 func (r *ScheduleRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*activities.Schedule, error) {
-	var schedules []*activities.Schedule
-	query := base.GetDB(ctx, r.db).NewSelect().Model(&schedules).ModelTableExpr(tableExprActivitiesSchedulesAsSch)
-
-	if where, val, ok := base.TenantWhere(ctx, "schedule"); ok {
-		query = query.Where(where, val)
-	}
-
-	// Apply query options
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return schedules, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // DeleteByGroupID removes all schedules of an activity group (issue #584:

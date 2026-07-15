@@ -171,9 +171,7 @@ func TestListPendingApprovals_RepoErrorSurfaces(t *testing.T) {
 			findPendingApprv: func() ([]*authModels.GuardianInvitation, error) { return nil, errBoom },
 		},
 	})
-	_, err := svc.ListPendingApprovals(ctx)
-	require.Error(t, err)
-	_, err = svc.ListPendingApprovalsDetailed(ctx)
+	_, err := svc.ListPendingApprovalsDetailed(ctx)
 	require.Error(t, err)
 }
 

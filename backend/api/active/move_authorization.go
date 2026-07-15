@@ -6,14 +6,21 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 const bulkMoveForbiddenMessage = "not authorized to move the selected students"
 
+type bulkMoveAuthorizationContext struct {
+	supervisedGroups   map[int64]struct{}
+	targetSupervised   bool
+	attendanceStatuses map[int64]*activeSvc.AttendanceStatus
+}
+
 func (rs *Resource) bulkStudentMoveAuthorization(w http.ResponseWriter, r *http.Request) (*activeSvc.StudentMoveAuthorization, bool) {
-	if canBypassBulkMoveResourceChecks(r) {
+	if canBypassBulkMoveResourceChecks(r) || rs.openCareMode(r.Context()) {
 		return &activeSvc.StudentMoveAuthorization{BypassResourceChecks: true}, true
 	}
 
@@ -26,7 +33,7 @@ func (rs *Resource) bulkStudentMoveAuthorization(w http.ResponseWriter, r *http.
 }
 
 func (rs *Resource) authorizeBulkStudentMove(w http.ResponseWriter, r *http.Request, studentIDs []int64, targetActiveGroupID *int64) bool {
-	if canBypassBulkMoveResourceChecks(r) {
+	if canBypassBulkMoveResourceChecks(r) || rs.openCareMode(r.Context()) {
 		return true
 	}
 
@@ -35,47 +42,56 @@ func (rs *Resource) authorizeBulkStudentMove(w http.ResponseWriter, r *http.Requ
 		return false
 	}
 
-	supervisedGroups, err := rs.supervisedActiveGroupIDs(r.Context(), staff.ID)
+	authz, targetAllowed, err := rs.prepareBulkMoveAuthorization(r.Context(), staff.ID, studentIDs, targetActiveGroupID)
 	if err != nil {
 		common.RenderError(w, r, ErrorInternalServer(err))
 		return false
 	}
-
-	studentIDs = uniquePositiveStudentIDs(studentIDs)
-	targetSupervised := false
-	var attendanceStatuses map[int64]*activeSvc.AttendanceStatus
-	if targetActiveGroupID != nil {
-		canUseTarget, err := rs.staffCanUseMoveTarget(r.Context(), *targetActiveGroupID, supervisedGroups)
-		if err != nil {
-			common.RenderError(w, r, ErrorInternalServer(err))
-			return false
-		}
-		if !canUseTarget {
-			common.RenderError(w, r, ErrorForbidden(errors.New(bulkMoveForbiddenMessage)))
-			return false
-		}
-		targetSupervised = true
-
-		attendanceStatuses, err = rs.ActiveService.GetStudentsAttendanceStatuses(r.Context(), studentIDs)
-		if err != nil {
-			common.RenderError(w, r, ErrorInternalServer(err))
-			return false
-		}
+	if !targetAllowed {
+		common.RenderError(w, r, ErrorForbidden(errors.New(bulkMoveForbiddenMessage)))
+		return false
 	}
 
-	for _, studentID := range studentIDs {
-		ok, err := rs.staffCanMoveStudent(r.Context(), staff.ID, studentID, supervisedGroups, targetSupervised, attendanceStatuses)
-		if err != nil {
-			common.RenderError(w, r, ErrorInternalServer(err))
-			return false
-		}
-		if !ok {
-			common.RenderError(w, r, ErrorForbidden(errors.New(bulkMoveForbiddenMessage)))
-			return false
-		}
+	studentsAllowed, err := rs.allStudentsMovable(r.Context(), staff.ID, uniquePositiveStudentIDs(studentIDs), authz)
+	if err != nil {
+		common.RenderError(w, r, ErrorInternalServer(err))
+		return false
+	}
+	if !studentsAllowed {
+		common.RenderError(w, r, ErrorForbidden(errors.New(bulkMoveForbiddenMessage)))
+		return false
 	}
 
 	return true
+}
+
+func (rs *Resource) prepareBulkMoveAuthorization(ctx context.Context, staffID int64, studentIDs []int64, targetActiveGroupID *int64) (bulkMoveAuthorizationContext, bool, error) {
+	supervisedGroups, err := rs.supervisedActiveGroupIDs(ctx, staffID)
+	if err != nil {
+		return bulkMoveAuthorizationContext{}, false, err
+	}
+	authz := bulkMoveAuthorizationContext{supervisedGroups: supervisedGroups}
+	if targetActiveGroupID == nil {
+		return authz, true, nil
+	}
+
+	canUseTarget, err := rs.staffCanUseMoveTarget(ctx, *targetActiveGroupID, supervisedGroups)
+	if err != nil || !canUseTarget {
+		return authz, canUseTarget, err
+	}
+	authz.targetSupervised = true
+	authz.attendanceStatuses, err = rs.ActiveService.GetStudentsAttendanceStatuses(ctx, uniquePositiveStudentIDs(studentIDs))
+	return authz, err == nil, err
+}
+
+func (rs *Resource) allStudentsMovable(ctx context.Context, staffID int64, studentIDs []int64, authz bulkMoveAuthorizationContext) (bool, error) {
+	for _, studentID := range studentIDs {
+		allowed, err := rs.staffCanMoveStudent(ctx, staffID, studentID, authz.supervisedGroups, authz.targetSupervised, authz.attendanceStatuses)
+		if err != nil || !allowed {
+			return allowed, err
+		}
+	}
+	return true, nil
 }
 
 func canBypassBulkMoveResourceChecks(r *http.Request) bool {
@@ -83,12 +99,7 @@ func canBypassBulkMoveResourceChecks(r *http.Request) bool {
 	if claims.IsAdmin {
 		return true
 	}
-	for _, permission := range jwt.PermissionsFromCtx(r.Context()) {
-		if permission == "admin:*" || permission == "*:*" {
-			return true
-		}
-	}
-	return false
+	return authorize.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context()))
 }
 
 func (rs *Resource) supervisedActiveGroupIDs(ctx context.Context, staffID int64) (map[int64]struct{}, error) {

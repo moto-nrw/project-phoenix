@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,15 +13,16 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
+	"github.com/moto-nrw/project-phoenix/services/users/userstest"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -30,176 +32,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// --- Mock StaffRepository ---
-
-type mockStaffRepo struct {
-	findByPersonIDFn func(ctx context.Context, personID int64) (*userModels.Staff, error)
-}
-
-func (m *mockStaffRepo) Create(_ context.Context, _ *userModels.Staff) error { return nil }
-func (m *mockStaffRepo) FindByID(_ context.Context, _ any) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *mockStaffRepo) FindByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
-	if m.findByPersonIDFn != nil {
-		return m.findByPersonIDFn(ctx, personID)
-	}
-	return &userModels.Staff{}, nil
-}
-func (m *mockStaffRepo) Update(_ context.Context, _ *userModels.Staff) error { return nil }
-func (m *mockStaffRepo) Delete(_ context.Context, _ any) error               { return nil }
-func (m *mockStaffRepo) List(_ context.Context, _ map[string]any) ([]*userModels.Staff, error) {
-	return nil, nil
-}
-func (*mockStaffRepo) FindReachableCalendarStaffIDs(context.Context, []int64) (map[int64]bool, error) {
-	return map[int64]bool{}, nil
-}
-
-func (m *mockStaffRepo) ListAllWithPerson(_ context.Context) ([]*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *mockStaffRepo) UpdateNotes(_ context.Context, _ int64, _ string) error { return nil }
-func (m *mockStaffRepo) ClearWorkTimeModel(_ context.Context, _ int64) error    { return nil }
-func (m *mockStaffRepo) FindWithPerson(_ context.Context, _ int64) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *mockStaffRepo) FindByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *mockStaffRepo) FindWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *mockStaffRepo) ListStaffByRoles(_ context.Context, _ []string) ([]*userModels.StaffWithRoleInfo, error) {
-	panic("ListStaffByRoles not implemented")
-}
-
-// --- Mock PersonService ---
-
-type mockPersonService struct {
-	findByAccountIDFn func(ctx context.Context, accountID int64) (*userModels.Person, error)
-	staffRepo         *mockStaffRepo
-}
-
-func (m *mockPersonService) WithTx(_ bun.Tx) interface{} { return m }
-func (m *mockPersonService) Get(_ context.Context, _ any) (*userModels.Person, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Person, error) {
-	return nil, nil
-}
-func (m *mockPersonService) Create(_ context.Context, _ *userModels.Person) error { return nil }
-func (m *mockPersonService) Update(_ context.Context, _ *userModels.Person) error { return nil }
-func (m *mockPersonService) Delete(_ context.Context, _ any) error                { return nil }
-func (m *mockPersonService) DeleteStaff(_ context.Context, _ int64) error         { return nil }
-func (m *mockPersonService) List(_ context.Context, _ *base.QueryOptions) ([]*userModels.Person, error) {
-	return nil, nil
-}
-func (m *mockPersonService) FindByTagID(_ context.Context, _ string) (*userModels.Person, error) {
-	return nil, nil
-}
-func (m *mockPersonService) FindByAccountID(ctx context.Context, accountID int64) (*userModels.Person, error) {
-	if m.findByAccountIDFn != nil {
-		return m.findByAccountIDFn(ctx, accountID)
-	}
-	return &userModels.Person{}, nil
-}
-func (m *mockPersonService) FindByName(_ context.Context, _, _ string) ([]*userModels.Person, error) {
-	return nil, nil
-}
-func (m *mockPersonService) LinkToAccount(_ context.Context, _ int64, _ int64) error   { return nil }
-func (m *mockPersonService) UnlinkFromAccount(_ context.Context, _ int64) error        { return nil }
-func (m *mockPersonService) LinkToRFIDCard(_ context.Context, _ int64, _ string) error { return nil }
-func (m *mockPersonService) UnlinkFromRFIDCard(_ context.Context, _ int64) error       { return nil }
-func (m *mockPersonService) GetFullProfile(_ context.Context, _ int64) (*userModels.Person, error) {
-	return nil, nil
-}
-func (m *mockPersonService) FindByGuardianID(_ context.Context, _ int64) ([]*userModels.Person, error) {
-	return nil, nil
-}
-func (m *mockPersonService) ListAvailableRFIDCards(_ context.Context) ([]*userModels.RFIDCard, error) {
-	return nil, nil
-}
-func (m *mockPersonService) ValidateStaffPIN(_ context.Context, _ string) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *mockPersonService) ValidateStaffPINForSpecificStaff(_ context.Context, _ int64, _ string) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetStudentsByTeacher(_ context.Context, _ int64) ([]*userModels.Student, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetStudentsWithGroupsByTeacher(_ context.Context, _ int64) ([]usersSvc.StudentWithGroup, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetAllStudentsWithGroups(_ context.Context) ([]usersSvc.StudentWithGroup, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetStaffByID(_ context.Context, _ int64) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error) {
-	if m.staffRepo == nil {
-		return nil, nil
-	}
-	return m.staffRepo.FindByPersonID(ctx, personID)
-}
-func (m *mockPersonService) GetStaffWithPerson(_ context.Context, _ int64) (*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetStaffWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *mockPersonService) ListStaffWithPerson(_ context.Context) ([]*userModels.Staff, error) {
-	return nil, nil
-}
-func (m *mockPersonService) ListStaffByRoles(_ context.Context, _ []string) ([]*userModels.StaffWithRoleInfo, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetTeacherByStaffID(_ context.Context, _ int64) (*userModels.Teacher, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetTeachersByStaffIDs(_ context.Context, _ []int64) (map[int64]*userModels.Teacher, error) {
-	return nil, nil
-}
-func (m *mockPersonService) ListTeachersWithStaffAndPerson(_ context.Context) ([]*userModels.Teacher, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetStudentByID(_ context.Context, _ int64) (*userModels.Student, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetStudentByPersonID(_ context.Context, _ int64) (*userModels.Student, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetStudentsByIDs(_ context.Context, _ []int64) (map[int64]*userModels.Student, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetStudentsByGroupID(_ context.Context, _ int64) ([]*userModels.Student, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetStudentsByGroupIDs(_ context.Context, _ []int64) ([]*userModels.Student, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetTeachersBySpecialization(_ context.Context, _ string) ([]*userModels.Teacher, error) {
-	return nil, nil
-}
-func (m *mockPersonService) GetTeacherWithStaffAndPerson(_ context.Context, _ int64) (*userModels.Teacher, error) {
-	return nil, nil
-}
-func (m *mockPersonService) CreateStaffWithTeacher(_ context.Context, _ usersSvc.CreateStaffInput) (*userModels.Staff, *userModels.Teacher, bool, error) {
-	return nil, nil, false, nil
-}
-func (m *mockPersonService) UpdateStaffWithTeacher(_ context.Context, _ *userModels.Staff, _ bool, _, _, _ string) (*userModels.Teacher, usersSvc.TeacherAction, error) {
-	return nil, usersSvc.TeacherActionNone, nil
-}
-func (m *mockPersonService) CountStudentsByGroupIDs(_ context.Context, _ []int64) (map[int64]int, error) {
-	return nil, nil
-}
-
 // --- Mock WorkSessionService ---
 
 type mockWorkSessionService struct {
-	checkInFn            func(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error)
-	checkOutFn           func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
+	checkInFn            func(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error)
+	checkOutFn           func(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error)
 	startBreakFn         func(ctx context.Context, staffID int64, plannedDurationMinutes *int) (*activeModels.WorkSessionBreak, error)
 	endBreakFn           func(ctx context.Context, staffID int64) (*activeModels.WorkSession, error)
 	getSessionBreaksFn   func(ctx context.Context, staffID, sessionID int64) ([]*activeModels.WorkSessionBreak, error)
@@ -212,15 +49,15 @@ type mockWorkSessionService struct {
 	autoEndExpiredBreaks func(ctx context.Context) (int, error)
 }
 
-func (m *mockWorkSessionService) CheckIn(ctx context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error) {
+func (m *mockWorkSessionService) CheckIn(ctx context.Context, staffID int64, status, source, reason string) (*activeModels.WorkSession, error) {
 	if m.checkInFn != nil {
-		return m.checkInFn(ctx, staffID, status, source)
+		return m.checkInFn(ctx, staffID, status, source, reason)
 	}
 	return &activeModels.WorkSession{}, nil
 }
-func (m *mockWorkSessionService) CheckOut(ctx context.Context, staffID int64) (*activeModels.WorkSession, error) {
+func (m *mockWorkSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*activeModels.WorkSession, error) {
 	if m.checkOutFn != nil {
-		return m.checkOutFn(ctx, staffID)
+		return m.checkOutFn(ctx, staffID, reason)
 	}
 	return &activeModels.WorkSession{}, nil
 }
@@ -337,7 +174,7 @@ func (m *mockWorkSessionService) CreateSessionAsAdmin(_ context.Context, _, _ in
 
 type mockStaffAbsenceService struct {
 	createAbsenceFn     func(ctx context.Context, staffID int64, req activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error)
-	updateAbsenceFn     func(ctx context.Context, staffID int64, absenceID int64, req activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error)
+	updateAbsenceFn     func(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error)
 	deleteAbsenceFn     func(ctx context.Context, staffID int64, absenceID int64) error
 	getAbsencesForRange func(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error)
 	hasAbsenceOnDateFn  func(ctx context.Context, staffID int64, date timezone.Date) (bool, *activeModels.StaffAbsence, error)
@@ -349,9 +186,9 @@ func (m *mockStaffAbsenceService) CreateAbsence(ctx context.Context, staffID int
 	}
 	return &activeSvc.StaffAbsenceResponse{}, nil
 }
-func (m *mockStaffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, absenceID int64, req activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
+func (m *mockStaffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, req activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
 	if m.updateAbsenceFn != nil {
-		return m.updateAbsenceFn(ctx, staffID, absenceID, req)
+		return m.updateAbsenceFn(ctx, staffID, actorAccountID, absenceID, req)
 	}
 	return &activeSvc.StaffAbsenceResponse{}, nil
 }
@@ -361,6 +198,18 @@ func (m *mockStaffAbsenceService) DeleteAbsence(ctx context.Context, staffID int
 	}
 	return nil
 }
+
+// The #1843 *For variants delegate to the existing fn fields so the tests
+// written against CreateAbsence/DeleteAbsence keep exercising their hooks.
+func (m *mockStaffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaffID, _ int64, _ *int64, req activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
+	return m.CreateAbsence(ctx, subjectStaffID, req)
+}
+
+func (m *mockStaffAbsenceService) DeleteAbsenceFor(ctx context.Context, subjectStaffID, _ int64, _ *int64, absenceID int64) error {
+	return m.DeleteAbsence(ctx, subjectStaffID, absenceID)
+}
+
+func (m *mockStaffAbsenceService) SetShiftPlanSyncer(activeSvc.ShiftPlanSyncer) {}
 func (m *mockStaffAbsenceService) GetAbsencesForRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeSvc.StaffAbsenceResponse, error) {
 	if m.getAbsencesForRange != nil {
 		return m.getAbsencesForRange(ctx, staffID, from, to)
@@ -402,78 +251,51 @@ func (m *mockStaffAbsenceService) ListPendingRequests(_ context.Context) ([]*act
 	return nil, nil
 }
 
-type mockSettingsService struct {
-	stringVal string
-	stringErr error
-}
-
-func (m *mockSettingsService) GetSchema(context.Context, []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (m *mockSettingsService) GetSchemaForOperator(context.Context, []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (m *mockSettingsService) Resolve(context.Context, string) (any, error) {
-	return m.stringVal, m.stringErr
-}
-func (m *mockSettingsService) ResolveString(context.Context, string) (string, error) {
-	return m.stringVal, m.stringErr
-}
-func (m *mockSettingsService) ResolveStringForTenant(context.Context, int64, string) (string, error) {
-	return m.stringVal, m.stringErr
-}
-func (m *mockSettingsService) ResolveBool(context.Context, string) (bool, error) {
-	return false, nil
-}
-func (m *mockSettingsService) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
-	return false, nil
-}
-func (m *mockSettingsService) ResolveInt(context.Context, string) (int, error) {
-	return 0, nil
-}
-func (m *mockSettingsService) ResolveIntForTenant(context.Context, int64, string) (int, error) {
-	return 0, nil
-}
-func (m *mockSettingsService) HasTenantOverride(context.Context, string) (bool, error) {
-	return m.stringVal != "", nil
-}
-func (m *mockSettingsService) SetValue(context.Context, string, any, *int64, []string) error {
-	return nil
-}
-func (m *mockSettingsService) ResetValue(context.Context, string, *int64, []string) error {
-	return nil
-}
-func (m *mockSettingsService) GetLoginImageURL(context.Context, int64) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsService) SetLoginImageURL(context.Context, int64, string) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsService) ClearLoginImageURL(context.Context, int64) (string, error) {
-	return "", nil
-}
-
-// --- Test helpers ---
-
-func defaultPersonSvc() *mockPersonService {
-	return &mockPersonService{
-		findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
-			p := &userModels.Person{}
-			p.ID = 10
-			return p, nil
+// newMockSettingsService builds a configtest.Mock reproducing the former
+// hand-rolled mockSettingsService stub: Resolve/ResolveString/
+// ResolveStringForTenant all return the same (stringVal, stringErr) pair,
+// and HasTenantOverride reports true whenever stringVal is non-empty
+// (independent of stringErr).
+func newMockSettingsService(stringVal string, stringErr error) *configtest.Mock {
+	resolveString := func(context.Context, string) (string, error) {
+		return stringVal, stringErr
+	}
+	return &configtest.Mock{
+		ResolveFn: func(context.Context, string) (any, error) {
+			return stringVal, stringErr
 		},
-		staffRepo: &mockStaffRepo{
-			findByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
-				s := &userModels.Staff{}
-				s.ID = 100
-				return s, nil
-			},
+		ResolveStringFn: resolveString,
+		ResolveStringForTenantFn: func(ctx context.Context, _ int64, key string) (string, error) {
+			return resolveString(ctx, key)
+		},
+		HasTenantOverrideFn: func(context.Context, string) (bool, error) {
+			return stringVal != "", nil
 		},
 	}
 }
 
-func testResource(wsSvc *mockWorkSessionService, absSvc *mockStaffAbsenceService, pSvc *mockPersonService, db *bun.DB) *Resource {
-	return NewResource(wsSvc, absSvc, pSvc, nil, nil, db)
+// --- Test helpers ---
+
+func defaultPersonSvc() *userstest.PersonServiceMock {
+	staffRepo := &testpkg.StaffRepoMock{
+		FindByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
+			s := &userModels.Staff{}
+			s.ID = 100
+			return s, nil
+		},
+	}
+	return &userstest.PersonServiceMock{
+		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+			p := &userModels.Person{}
+			p.ID = 10
+			return p, nil
+		},
+		GetStaffByPersonIDFn: staffRepo.FindByPersonID,
+	}
+}
+
+func testResource(wsSvc *mockWorkSessionService, absSvc *mockStaffAbsenceService, pSvc *userstest.PersonServiceMock, db *bun.DB) *Resource {
+	return NewResource(wsSvc, absSvc, pSvc, nil, nil, nil, db)
 }
 
 func withClaims(r *http.Request, claims jwt.AppClaims) *http.Request {
@@ -513,8 +335,6 @@ func parseAPIResponse(t *testing.T, w *httptest.ResponseRecorder) apiResponse {
 var (
 	_ activeSvc.WorkSessionService  = (*mockWorkSessionService)(nil)
 	_ activeSvc.StaffAbsenceService = (*mockStaffAbsenceService)(nil)
-	_ usersSvc.PersonService        = (*mockPersonService)(nil)
-	_ userModels.StaffRepository    = (*mockStaffRepo)(nil)
 )
 
 // --- CheckInRequest.Bind ---
@@ -540,7 +360,7 @@ func TestCheckInRequest_Bind(t *testing.T) {
 // --- NewResource ---
 
 func TestNewResource(t *testing.T) {
-	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), &mockSettingsService{}, nil, nil)
+	rs := NewResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), newMockSettingsService("", nil), nil, nil, nil)
 	assert.NotNil(t, rs)
 	assert.NotNil(t, rs.WorkSessionService)
 	assert.NotNil(t, rs.StaffAbsenceService)
@@ -575,11 +395,10 @@ func TestGetStaffIDFromClaims_ZeroID(t *testing.T) {
 }
 
 func TestGetStaffIDFromClaims_PersonNotFound(t *testing.T) {
-	pSvc := &mockPersonService{
-		findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+	pSvc := &userstest.PersonServiceMock{
+		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return nil, errors.New("not found")
 		},
-		staffRepo: &mockStaffRepo{},
 	}
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, pSvc, nil)
 	claims := jwt.AppClaims{ID: 1, TenantID: 1}
@@ -589,16 +408,14 @@ func TestGetStaffIDFromClaims_PersonNotFound(t *testing.T) {
 }
 
 func TestGetStaffIDFromClaims_StaffNotFound(t *testing.T) {
-	pSvc := &mockPersonService{
-		findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+	pSvc := &userstest.PersonServiceMock{
+		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			p := &userModels.Person{}
 			p.ID = 10
 			return p, nil
 		},
-		staffRepo: &mockStaffRepo{
-			findByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
-				return nil, errors.New("not found")
-			},
+		GetStaffByPersonIDFn: func(_ context.Context, _ int64) (*userModels.Staff, error) {
+			return nil, errors.New("not found")
 		},
 	}
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, pSvc, nil)
@@ -615,7 +432,7 @@ func TestCheckIn_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkInFn: func(_ context.Context, staffID int64, status, source string) (*activeModels.WorkSession, error) {
+		checkInFn: func(_ context.Context, staffID int64, status, source, _ string) (*activeModels.WorkSession, error) {
 			assert.Equal(t, int64(100), staffID)
 			assert.Equal(t, "present", status)
 			assert.Equal(t, activeModels.WorkSessionSourceApp, source)
@@ -652,11 +469,10 @@ func TestCheckIn_InvalidBody(t *testing.T) {
 }
 
 func TestCheckIn_InvalidClaims(t *testing.T) {
-	pSvc := &mockPersonService{
-		findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+	pSvc := &userstest.PersonServiceMock{
+		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return nil, errors.New("not found")
 		},
-		staffRepo: &mockStaffRepo{},
 	}
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, pSvc, nil)
 
@@ -675,7 +491,7 @@ func TestCheckIn_ServiceConflict(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkInFn: func(_ context.Context, _ int64, _, _ string) (*activeModels.WorkSession, error) {
+		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
 			return nil, errors.New("already checked in")
 		},
 	}
@@ -703,7 +519,7 @@ func TestCheckIn_ReopenStatusConflict(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkInFn: func(_ context.Context, _ int64, _, _ string) (*activeModels.WorkSession, error) {
+		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
 			return nil, &activeSvc.ReopenStatusConflictError{
 				SessionID:       42,
 				ExistingStatus:  activeModels.WorkSessionStatusPresent,
@@ -749,7 +565,7 @@ func TestCheckIn_PlannedStartNotReached(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkInFn: func(_ context.Context, _ int64, _, _ string) (*activeModels.WorkSession, error) {
+		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
 			return nil, &activeSvc.PlannedStartNotReachedError{
 				PlannedStartTime: "09:00",
 				CurrentTime:      "08:45",
@@ -788,7 +604,7 @@ func TestCheckOut_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkOutFn: func(_ context.Context, staffID int64) (*activeModels.WorkSession, error) {
+		checkOutFn: func(_ context.Context, staffID int64, _ string) (*activeModels.WorkSession, error) {
 			assert.Equal(t, int64(100), staffID)
 			ws := &activeModels.WorkSession{}
 			ws.ID = 1
@@ -810,7 +626,7 @@ func TestCheckOut_NoActiveSession(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	wsSvc := &mockWorkSessionService{
-		checkOutFn: func(_ context.Context, _ int64) (*activeModels.WorkSession, error) {
+		checkOutFn: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
 			return nil, errors.New("no active session found")
 		},
 	}
@@ -825,11 +641,10 @@ func TestCheckOut_NoActiveSession(t *testing.T) {
 }
 
 func TestCheckOut_Unauthorized(t *testing.T) {
-	pSvc := &mockPersonService{
-		findByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
+	pSvc := &userstest.PersonServiceMock{
+		FindByAccountIDFn: func(_ context.Context, _ int64) (*userModels.Person, error) {
 			return nil, errors.New("not found")
 		},
-		staffRepo: &mockStaffRepo{},
 	}
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, pSvc, nil)
 
@@ -914,7 +729,7 @@ func TestGetConfig_EmptyDefault(t *testing.T) {
 
 func TestGetConfig_ReturnsAccountStartDate(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
-	rs.SettingsService = &mockSettingsService{stringVal: "2026-08-01"}
+	rs.SettingsService = newMockSettingsService("2026-08-01", nil)
 
 	r := httptest.NewRequest(http.MethodGet, "/config", nil)
 	r = withClaims(r, validClaims())
@@ -931,7 +746,7 @@ func TestGetConfig_ReturnsAccountStartDate(t *testing.T) {
 
 func TestGetConfig_AccountStartDateSettingsError(t *testing.T) {
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
-	rs.SettingsService = &mockSettingsService{stringErr: errors.New("settings unavailable")}
+	rs.SettingsService = newMockSettingsService("", errors.New("settings unavailable"))
 
 	r := httptest.NewRequest(http.MethodGet, "/config", nil)
 	r = withClaims(r, validClaims())
@@ -1506,8 +1321,10 @@ func TestUpdateAbsence_Success(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
-		updateAbsenceFn: func(_ context.Context, staffID int64, absenceID int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
+		updateAbsenceFn: func(_ context.Context, staffID int64, actorAccountID *int64, absenceID int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
 			assert.Equal(t, int64(100), staffID)
+			require.NotNil(t, actorAccountID)
+			assert.Equal(t, int64(validClaims().ID), *actorAccountID)
 			assert.Equal(t, int64(77), absenceID)
 			return &activeSvc.StaffAbsenceResponse{}, nil
 		},
@@ -1544,7 +1361,7 @@ func TestUpdateAbsence_Forbidden(t *testing.T) {
 	defer func() { _ = db.Close() }()
 
 	absSvc := &mockStaffAbsenceService{
-		updateAbsenceFn: func(_ context.Context, _ int64, _ int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
+		updateAbsenceFn: func(_ context.Context, _ int64, _ *int64, _ int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
 			return nil, errors.New("can only update own absences")
 		},
 	}
@@ -1635,6 +1452,93 @@ func TestDeleteAbsence_Forbidden(t *testing.T) {
 
 	rs.deleteAbsence(w, r)
 	assert.Equal(t, http.StatusForbidden, w.Code)
+}
+
+func TestAbsenceMutations_RollBackWritesOnConflictResponses(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+	scope := testpkg.NewTenantScope(t, db)
+	t.Cleanup(func() {
+		_, _ = db.NewDelete().TableExpr("platform.schools").Where("id = ?", scope.TenantID).Exec(context.Background())
+		_, _ = db.NewDelete().TableExpr("platform.organizations").Where("id = ?", scope.TenantID).Exec(context.Background())
+	})
+
+	profileRepo := repositories.NewFactory(db).GuardianProfile
+	tests := []struct {
+		name   string
+		method string
+		path   string
+		body   string
+	}{
+		{name: "create", method: http.MethodPost, path: "/absences", body: `{"absence_type":"sick","date_start":"2026-07-20","date_end":"2026-07-20"}`},
+		{name: "update", method: http.MethodPut, path: "/absences/77", body: `{"date_end":"2026-07-21"}`},
+		{name: "delete", method: http.MethodDelete, path: "/absences/77"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			email := fmt.Sprintf("absence-rollback-%s-%d@test.local", tc.name, time.Now().UnixNano())
+			probe := &userModels.GuardianProfile{
+				FirstName:              "Absence",
+				LastName:               "Rollback",
+				Email:                  &email,
+				PreferredContactMethod: "email",
+				LanguagePreference:     "de",
+			}
+			writeThenConflict := func(ctx context.Context) error {
+				require.NoError(t, profileRepo.Create(ctx, probe))
+				require.Positive(t, probe.ID)
+				return fmt.Errorf("sick cascade conflict: %w", scheduleSvc.ErrShiftOverlap)
+			}
+
+			absSvc := &mockStaffAbsenceService{}
+			switch tc.method {
+			case http.MethodPost:
+				absSvc.createAbsenceFn = func(ctx context.Context, _ int64, _ activeSvc.CreateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
+					return nil, writeThenConflict(ctx)
+				}
+			case http.MethodPut:
+				absSvc.updateAbsenceFn = func(ctx context.Context, _ int64, _ *int64, _ int64, _ activeSvc.UpdateAbsenceRequest) (*activeSvc.StaffAbsenceResponse, error) {
+					return nil, writeThenConflict(ctx)
+				}
+			case http.MethodDelete:
+				absSvc.deleteAbsenceFn = func(ctx context.Context, _ int64, _ int64) error {
+					return writeThenConflict(ctx)
+				}
+			}
+
+			rs := testResource(&mockWorkSessionService{}, absSvc, defaultPersonSvc(), db)
+			router := chi.NewRouter()
+			router.Use(render.SetContentType(render.ContentTypeJSON))
+			router.Use(func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					claims := jwt.AppClaims{ID: 101, TenantID: scope.TenantID}
+					ctx := context.WithValue(r.Context(), jwt.CtxClaims, claims)
+					ctx = tenant.WithTenantID(ctx, scope.TenantID)
+					next.ServeHTTP(w, r.WithContext(ctx))
+				})
+			})
+			router.Use(tenant.TenantTxMiddleware(db))
+			switch tc.method {
+			case http.MethodPost:
+				router.Post("/absences", rs.createAbsence)
+			case http.MethodPut:
+				router.Put("/absences/{id}", rs.updateAbsence)
+			case http.MethodDelete:
+				router.Delete("/absences/{id}", rs.deleteAbsence)
+			}
+
+			req := httptest.NewRequest(tc.method, tc.path, bytes.NewBufferString(tc.body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			router.ServeHTTP(w, req)
+
+			assert.Equal(t, http.StatusConflict, w.Code)
+			_, err := profileRepo.FindByID(scope.Context(), probe.ID)
+			assert.ErrorIs(t, err, userModels.ErrGuardianProfileNotFound,
+				"conflict responses must roll back writes from the failed absence mutation")
+		})
+	}
 }
 
 // --- getPresenceMap handler ---
@@ -1786,4 +1690,157 @@ func TestParseDateRange_BothMissing(t *testing.T) {
 	_, _, ok := parseDateRange(w, r)
 	assert.False(t, ok)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// --- F9 deviation-reason wire format ---
+
+// The frontend branches on this code via DEVIATION_REASON_REQUIRED_CODE and
+// drives the reason dialog from the details payload; both are wire contracts.
+func TestCheckIn_DeviationReasonRequired(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	wsSvc := &mockWorkSessionService{
+		checkInFn: func(_ context.Context, _ int64, _, _, _ string) (*activeModels.WorkSession, error) {
+			return nil, &activeSvc.DeviationReasonRequiredError{
+				Action:           "check_in",
+				PlannedTime:      "08:00",
+				ActualTime:       "07:30",
+				DeviationMinutes: 30,
+			}
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"status":"present"}`)
+	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.checkIn(w, r)
+	require.Equal(t, http.StatusConflict, w.Code)
+
+	var resp struct {
+		Status  string         `json:"status"`
+		Code    string         `json:"code"`
+		Details map[string]any `json:"details"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "error", resp.Status)
+	assert.Equal(t, "deviation_reason_required", resp.Code)
+	require.NotNil(t, resp.Details)
+	assert.Equal(t, "check_in", resp.Details["action"])
+	assert.Equal(t, "08:00", resp.Details["planned_time"])
+	assert.Equal(t, "07:30", resp.Details["actual_time"])
+	assert.Equal(t, "30", resp.Details["deviation_minutes"],
+		"minutes are serialized as string, consistent with the reopen-conflict details")
+}
+
+func TestCheckOut_DeviationReasonRequired(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	wsSvc := &mockWorkSessionService{
+		checkOutFn: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
+			return nil, &activeSvc.DeviationReasonRequiredError{
+				Action:           "check_out",
+				PlannedTime:      "16:00",
+				ActualTime:       "16:30",
+				DeviationMinutes: 30,
+			}
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	r := httptest.NewRequest(http.MethodPost, "/check-out", nil)
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.checkOut(w, r)
+	require.Equal(t, http.StatusConflict, w.Code)
+
+	var resp struct {
+		Code    string         `json:"code"`
+		Details map[string]any `json:"details"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &resp))
+	assert.Equal(t, "deviation_reason_required", resp.Code)
+	require.NotNil(t, resp.Details)
+	assert.Equal(t, "check_out", resp.Details["action"])
+	assert.Equal(t, "16:00", resp.Details["planned_time"])
+	assert.Equal(t, "16:30", resp.Details["actual_time"])
+	assert.Equal(t, "30", resp.Details["deviation_minutes"])
+}
+
+func TestCheckIn_ForwardsReason(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	var gotReason string
+	wsSvc := &mockWorkSessionService{
+		checkInFn: func(_ context.Context, _ int64, _, _, reason string) (*activeModels.WorkSession, error) {
+			gotReason = reason
+			return &activeModels.WorkSession{}, nil
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"status":"present","reason":"Frühdienst übernommen"}`)
+	r := httptest.NewRequest(http.MethodPost, "/check-in", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.checkIn(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "Frühdienst übernommen", gotReason)
+}
+
+func TestCheckOut_ForwardsReason(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	var gotReason string
+	wsSvc := &mockWorkSessionService{
+		checkOutFn: func(_ context.Context, _ int64, reason string) (*activeModels.WorkSession, error) {
+			gotReason = reason
+			return &activeModels.WorkSession{}, nil
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"reason":"Elterngespräch lief länger"}`)
+	r := httptest.NewRequest(http.MethodPost, "/check-out", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.checkOut(w, r)
+	require.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "Elterngespräch lief länger", gotReason)
+}
+
+func TestCheckOut_MalformedBodyRejected(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	called := false
+	wsSvc := &mockWorkSessionService{
+		checkOutFn: func(_ context.Context, _ int64, _ string) (*activeModels.WorkSession, error) {
+			called = true
+			return &activeModels.WorkSession{}, nil
+		},
+	}
+	rs := testResource(wsSvc, &mockStaffAbsenceService{}, defaultPersonSvc(), db)
+
+	body := bytes.NewBufferString(`{"reason":`)
+	r := httptest.NewRequest(http.MethodPost, "/check-out", body)
+	r.Header.Set("Content-Type", "application/json")
+	r = withClaims(r, validClaims())
+	w := httptest.NewRecorder()
+
+	rs.checkOut(w, r)
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+	assert.False(t, called, "a malformed body must not reach the service")
 }

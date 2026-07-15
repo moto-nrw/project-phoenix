@@ -49,6 +49,7 @@ interface CalendarPeriodModalProps {
    */
   usage?: {
     enrollmentPhaseCount: number;
+    activityGroupCount: number;
     scheduleCount: number;
     studentEnrollmentCount: number;
     supervisorCount: number;
@@ -131,29 +132,40 @@ export function CalendarPeriodModal({
   const [togglingPhaseId, setTogglingPhaseId] = useState<string | null>(null);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [saveWarnings, setSaveWarnings] = useState<CalendarPeriodWarning[]>([]);
+  // Once a save succeeded in this modal session, further submits must update
+  // that period — otherwise a corrected re-submit after an advisory warning
+  // would create a duplicate in create mode.
+  const [savedPeriod, setSavedPeriod] = useState<CalendarPeriod | null>(null);
 
   const isEdit = Boolean(initial);
+  const persisted = initial ?? savedPeriod;
 
-  // Most period links are nullable and get unlinked on delete. Roster rows can
-  // still make the delete fail when unlinking would create duplicate active
-  // unscoped assignments, so the warning must not promise success.
+  // Most period links are nullable and get unlinked on delete. The server can
+  // still reject the mutation when unpinning would invalidate a care-offering
+  // link or create duplicate active unscoped roster assignments, so the
+  // warning must not promise success.
   const usageText = usage
     ? formatPeriodUsage(
         usage.enrollmentPhaseCount,
         usage.scheduleCount,
         " und ",
         {
+          activityGroupCount: usage.activityGroupCount,
           studentEnrollmentCount: usage.studentEnrollmentCount,
           supervisorCount: usage.supervisorCount,
           activityInstanceCount: usage.activityInstanceCount,
         },
       )
     : "";
+  const groupDeleteImpact =
+    (usage?.activityGroupCount ?? 0) > 0
+      ? " Aktivitätsvorlagen verlieren dabei ihre Zeitraumfestlegung."
+      : "";
   const deleteWarning = usageText
-    ? `Dieser Zeitraum wird von ${usageText} verwendet. Beim Löschen werden diese Verknüpfungen entfernt, die Anmeldephasen und Termine selbst bleiben erhalten.`
-    : "Beim Löschen werden bestehende Verknüpfungen zu Anmeldephasen und Regelterminen entfernt.";
+    ? `Dieser Zeitraum wird von ${usageText} verwendet. Beim Löschen werden diese Verknüpfungen entfernt.${groupDeleteImpact} Die Anmeldephasen, Vorlagen und Termine selbst bleiben erhalten.`
+    : "Beim Löschen werden bestehende Verknüpfungen zu Anmeldephasen, Aktivitätsvorlagen und Regelterminen entfernt.";
   const deleteConflictHint =
-    "Falls dadurch doppelte aktive Kinder- oder Personalzuordnungen ohne Zeitraum entstehen würden, verweigert der Server das Löschen.";
+    "Der Server verweigert das Löschen, wenn dadurch eine Betreuungsangebot-Verknüpfung ungültig würde. Auch doppelte aktive Kinder- oder Personalzuordnungen ohne Zeitraum können das Löschen verhindern.";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -163,11 +175,15 @@ export function CalendarPeriodModal({
     setValidationError(null);
     setDeleteConfirm(false);
     setSaveWarnings([]);
+    setSavedPeriod(null);
   }, [isOpen, initial, createDefaults]);
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) => {
     setForm((prev) => ({ ...prev, [key]: value }));
     setValidationError(null);
+    // Editing after a warning-bearing save dismisses the warning state so the
+    // footer returns to Abbrechen + Speichern and the correction can be saved.
+    setSaveWarnings([]);
   };
 
   const cycleLength = useMemo(() => {
@@ -184,8 +200,8 @@ export function CalendarPeriodModal({
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (saveWarnings.length > 0) {
-      // Already saved; Enter mirrors the "Schließen" primary action so a
-      // re-submit cannot create a duplicate period.
+      // Already saved and untouched since (any edit clears the warnings);
+      // Enter mirrors the "Schließen" primary action.
       onClose();
       return;
     }
@@ -216,21 +232,23 @@ export function CalendarPeriodModal({
           : {}),
       };
 
-      const { period, warnings } = isEdit
-        ? await calendarPeriodService.update(initial!.id, body)
+      const { period, warnings } = persisted
+        ? await calendarPeriodService.update(persisted.id, body)
         : await calendarPeriodService.create(body);
 
       toastSuccess(
-        isEdit
+        persisted
           ? `Kalenderzeitraum "${period.name}" aktualisiert`
           : `Kalenderzeitraum "${period.name}" angelegt`,
       );
+      setSavedPeriod(period);
       onSaved(period);
       if (warnings.length === 0) {
         onClose();
       } else {
         // Advisory only: the save succeeded. Keep the modal open so the
-        // user reads the overlap warning, then closes it explicitly.
+        // user reads the overlap warning, then closes it explicitly (or
+        // edits the form, which re-enables saving).
         setSaveWarnings(warnings);
       }
     } catch (err) {
@@ -295,7 +313,7 @@ export function CalendarPeriodModal({
       onClose={onClose}
       size="md"
       title={
-        isEdit ? "Kalenderzeitraum bearbeiten" : "Kalenderzeitraum anlegen"
+        persisted ? "Kalenderzeitraum bearbeiten" : "Kalenderzeitraum anlegen"
       }
       footer={
         <div className="flex w-full items-center justify-between gap-2">
@@ -362,7 +380,7 @@ export function CalendarPeriodModal({
                 loadingText="Speichere …"
                 disabled={!canSubmit || deleting}
               >
-                {isEdit ? "Speichern" : "Anlegen"}
+                {persisted ? "Speichern" : "Anlegen"}
               </Button>
             )}
           </div>

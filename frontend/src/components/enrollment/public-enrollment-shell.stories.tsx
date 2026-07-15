@@ -23,6 +23,7 @@ const fakeTenant: TenantInfo = {
   nfcEnabled: true,
   messagingEnabled: false,
   displayEnabled: false,
+  gradeLevelMax: 4,
 };
 
 const meta = {

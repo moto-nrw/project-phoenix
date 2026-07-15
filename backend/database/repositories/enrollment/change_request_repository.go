@@ -27,6 +27,9 @@ func (r *ChangeRequestRepository) Create(ctx context.Context, row *enrollment.Ch
 	if row.Status == "" {
 		row.Status = enrollment.ChangeRequestStatusPendingReview
 	}
+	if row.Origin == "" {
+		row.Origin = enrollment.ChangeRequestOriginParent
+	}
 	if row.BaseSnapshot == nil {
 		row.BaseSnapshot = map[string]any{}
 	}
@@ -84,6 +87,25 @@ func (r *ChangeRequestRepository) ListByRequestID(ctx context.Context, requestID
 		Scan(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list enrollment change requests by request: %w", err)
+	}
+	return rows, nil
+}
+
+func (r *ChangeRequestRepository) ListOpenByRequestIDForUpdate(ctx context.Context, requestID int64) ([]*enrollment.ChangeRequest, error) {
+	var rows []*enrollment.ChangeRequest
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(changeRequestTableExpr).
+		Where(`"change_request".request_id = ?`, requestID).
+		Where(`"change_request".status IN (?, ?)`,
+			enrollment.ChangeRequestStatusPendingReview,
+			enrollment.ChangeRequestStatusNeedsParentResponse,
+		).
+		OrderExpr(`"change_request".created_at ASC, "change_request".id ASC`).
+		For("UPDATE").
+		Scan(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to lock open enrollment change requests by request: %w", err)
 	}
 	return rows, nil
 }

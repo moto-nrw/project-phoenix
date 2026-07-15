@@ -17,10 +17,10 @@ import (
 // tenant transaction and is best-effort, so a pill failure can never roll
 // back the sick note / pickup change (nor vice versa).
 func (s *service) emitSelfServicePill(tenantID, studentID, accountID int64, eventType, body, refTable string, refID *int64) {
-	if s.emitter == nil {
+	if s.Emitter == nil {
 		return
 	}
-	s.emitter.EmitChildEvent(tenantID, studentID, accountID, parentmessaging.ChildEvent{
+	s.Emitter.EmitChildEvent(tenantID, studentID, accountID, parentmessaging.ChildEvent{
 		EventType:      eventType,
 		ActorKind:      usersModels.ParentMessageSenderGuardian,
 		ActorAccountID: accountID,
@@ -28,6 +28,24 @@ func (s *service) emitSelfServicePill(tenantID, studentID, accountID int64, even
 		RefTable:       refTable,
 		RefID:          refID,
 	})
+}
+
+// wakeChildGuardians fans a message-INDEPENDENT parent_child_updated SSE event
+// to EVERY guardian of the child, so a SECOND guardian's already-open parents-
+// app tab refetches the child's care state after THIS guardian's self-service
+// write (sick note, care exception). emitSelfServicePill only appends a pill to
+// the ACTING guardian's own thread and wakes that guardian; a co-guardian would
+// otherwise keep showing a stale "Heute" pickup time or presence until they
+// refocus or reload (#1725 review). Like emitSelfServicePill it MUST be
+// scheduled from a tenant.RegisterAfterCommit callback: BroadcastChildUpdate-
+// ToGuardians opens its own detached tenant transaction to read the guardian
+// list, so a woken client never reads the pre-commit snapshot. A nil emitter is
+// a safe no-op.
+func (s *service) wakeChildGuardians(tenantID, studentID int64) {
+	if s.Emitter == nil {
+		return
+	}
+	s.Emitter.BroadcastChildUpdateToGuardians(tenantID, studentID)
 }
 
 func firstStatusID(rows []*activeModels.StudentStatusDay) *int64 {
@@ -77,12 +95,12 @@ func careExceptionEventBody(date timezone.Date, pickupTime, arrivalTime *time.Ti
 // submission wrote (pickup preferred, else arrival). Best-effort: a lookup
 // failure just leaves the pill without a ref.
 func (s *service) careExceptionRef(ctx context.Context, studentID int64, date timezone.Date) (string, *int64) {
-	pickup, err := s.pickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	pickup, err := s.PickupExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err == nil && pickup != nil {
 		id := pickup.ID
 		return "schedule.student_pickup_exceptions", &id
 	}
-	arrival, err := s.arrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
+	arrival, err := s.ArrivalExceptionRepo.FindByStudentIDAndDate(ctx, studentID, date)
 	if err == nil && arrival != nil {
 		id := arrival.ID
 		return "schedule.student_arrival_exceptions", &id

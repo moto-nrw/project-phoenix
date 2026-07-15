@@ -13,86 +13,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	suggestionsService "github.com/moto-nrw/project-phoenix/services/suggestions"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // Mock implementations
-type mockPostRepo struct {
-	createFn           func(ctx context.Context, post *suggestions.Post) error
-	findByIDFn         func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error)
-	findByIDWithVoteFn func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error)
-	updateFn           func(ctx context.Context, post *suggestions.Post) error
-	updateStatusFn     func(ctx context.Context, postID int64, status string) error
-	updateHiddenFn     func(ctx context.Context, postID int64, hidden bool) error
-	deleteFn           func(ctx context.Context, id int64) error
-	listFn             func(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error)
-	recalculateScoreFn func(ctx context.Context, postID int64) error
-}
-
-func (m *mockPostRepo) Create(ctx context.Context, post *suggestions.Post) error {
-	if m.createFn != nil {
-		return m.createFn(ctx, post)
-	}
-	return nil
-}
-
-func (m *mockPostRepo) FindByID(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
-	if m.findByIDFn != nil {
-		return m.findByIDFn(ctx, id, readerType)
-	}
-	return &suggestions.Post{}, nil
-}
-
-func (m *mockPostRepo) Update(ctx context.Context, post *suggestions.Post) error {
-	if m.updateFn != nil {
-		return m.updateFn(ctx, post)
-	}
-	return nil
-}
-
-func (m *mockPostRepo) UpdateStatus(ctx context.Context, postID int64, status string) error {
-	if m.updateStatusFn != nil {
-		return m.updateStatusFn(ctx, postID, status)
-	}
-	return nil
-}
-
-func (m *mockPostRepo) UpdateHidden(ctx context.Context, postID int64, hidden bool) error {
-	if m.updateHiddenFn != nil {
-		return m.updateHiddenFn(ctx, postID, hidden)
-	}
-	return nil
-}
-
-func (m *mockPostRepo) Delete(ctx context.Context, id int64) error {
-	if m.deleteFn != nil {
-		return m.deleteFn(ctx, id)
-	}
-	return nil
-}
-
-func (m *mockPostRepo) List(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error) {
-	if m.listFn != nil {
-		return m.listFn(ctx, accountID, readerType, sortBy, status)
-	}
-	return nil, nil
-}
-
-func (m *mockPostRepo) FindByIDWithVote(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
-	if m.findByIDWithVoteFn != nil {
-		return m.findByIDWithVoteFn(ctx, id, accountID, readerType)
-	}
-	return nil, nil
-}
-
-func (m *mockPostRepo) RecalculateScore(ctx context.Context, postID int64) error {
-	if m.recalculateScoreFn != nil {
-		return m.recalculateScoreFn(ctx, postID)
-	}
-	return nil
-}
-
 type mockVoteRepo struct {
 	upsertFn               func(ctx context.Context, vote *suggestions.Vote) error
 	deleteByPostAndVoterFn func(ctx context.Context, postID, voterID int64) error
@@ -120,81 +46,6 @@ func (m *mockVoteRepo) FindByPostAndVoter(ctx context.Context, postID, voterID i
 	return nil, nil
 }
 
-type mockCommentRepo struct {
-	createFn             func(ctx context.Context, comment *suggestions.Comment) error
-	findByIDFn           func(ctx context.Context, id int64) (*suggestions.Comment, error)
-	findByIDWithAuthorFn func(ctx context.Context, id int64) (*suggestions.Comment, error)
-	findByPostIDFn       func(ctx context.Context, postID int64) ([]*suggestions.Comment, error)
-	deleteFn             func(ctx context.Context, id int64) error
-}
-
-func (m *mockCommentRepo) Create(ctx context.Context, comment *suggestions.Comment) error {
-	if m.createFn != nil {
-		return m.createFn(ctx, comment)
-	}
-	return nil
-}
-
-func (m *mockCommentRepo) FindByID(ctx context.Context, id int64) (*suggestions.Comment, error) {
-	if m.findByIDFn != nil {
-		return m.findByIDFn(ctx, id)
-	}
-	return nil, nil
-}
-
-func (m *mockCommentRepo) FindByIDWithAuthor(ctx context.Context, id int64) (*suggestions.Comment, error) {
-	if m.findByIDWithAuthorFn != nil {
-		return m.findByIDWithAuthorFn(ctx, id)
-	}
-	return nil, nil
-}
-
-func (m *mockCommentRepo) FindByPostID(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
-	if m.findByPostIDFn != nil {
-		return m.findByPostIDFn(ctx, postID)
-	}
-	return nil, nil
-}
-
-func (m *mockCommentRepo) Delete(ctx context.Context, id int64) error {
-	if m.deleteFn != nil {
-		return m.deleteFn(ctx, id)
-	}
-	return nil
-}
-
-func (m *mockCommentRepo) CountByPostID(ctx context.Context, postID int64) (int, error) {
-	return 0, nil
-}
-
-type mockCommentReadRepo struct {
-	upsertFn            func(ctx context.Context, accountID, postID int64, readerType string) error
-	getLastReadAtFn     func(ctx context.Context, accountID, postID int64, readerType string) (*time.Time, error)
-	countUnreadByPostFn func(ctx context.Context, accountID, postID int64, readerType string) (int, error)
-	countTotalUnreadFn  func(ctx context.Context, accountID int64, readerType string) (int, error)
-}
-
-func (m *mockCommentReadRepo) Upsert(ctx context.Context, accountID, postID int64, readerType string) error {
-	if m.upsertFn != nil {
-		return m.upsertFn(ctx, accountID, postID, readerType)
-	}
-	return nil
-}
-
-func (m *mockCommentReadRepo) GetLastReadAt(ctx context.Context, accountID, postID int64, readerType string) (*time.Time, error) {
-	if m.getLastReadAtFn != nil {
-		return m.getLastReadAtFn(ctx, accountID, postID, readerType)
-	}
-	return nil, nil
-}
-
-func (m *mockCommentReadRepo) CountUnreadByPost(ctx context.Context, accountID, postID int64, readerType string) (int, error) {
-	if m.countUnreadByPostFn != nil {
-		return m.countUnreadByPostFn(ctx, accountID, postID, readerType)
-	}
-	return 0, nil
-}
-
 type capturingMailer struct {
 	messages chan email.Message
 }
@@ -208,13 +59,6 @@ func newCapturingMailer(buffer int) *capturingMailer {
 func (m *capturingMailer) Send(message email.Message) error {
 	m.messages <- message
 	return nil
-}
-
-func (m *mockCommentReadRepo) CountTotalUnread(ctx context.Context, accountID int64, readerType string) (int, error) {
-	if m.countTotalUnreadFn != nil {
-		return m.countTotalUnreadFn(ctx, accountID, readerType)
-	}
-	return 0, nil
 }
 
 // newTestService creates a service with mock repos for unit testing (no email notifications)
@@ -242,8 +86,8 @@ func waitForDispatchedMessage(t *testing.T, mailer *capturingMailer) email.Messa
 func TestCreatePost_Success(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		createFn: func(ctx context.Context, post *suggestions.Post) error {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		CreateFn: func(ctx context.Context, post *suggestions.Post) error {
 			assert.Equal(t, suggestions.StatusOpen, post.Status)
 			assert.Equal(t, 0, post.Score)
 			assert.Equal(t, "Test Post", post.Title)
@@ -251,7 +95,7 @@ func TestCreatePost_Success(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post := &suggestions.Post{
 		Title:       "Test Post",
@@ -268,7 +112,7 @@ func TestCreatePost_Success(t *testing.T) {
 func TestCreatePost_NilPost(t *testing.T) {
 	ctx := context.Background()
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.CreatePost(ctx, nil)
 	assert.Error(t, err)
@@ -278,7 +122,7 @@ func TestCreatePost_NilPost(t *testing.T) {
 func TestCreatePost_ValidationError(t *testing.T) {
 	ctx := context.Background()
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post := &suggestions.Post{
 		Title:       "", // Invalid: empty title
@@ -295,13 +139,13 @@ func TestCreatePost_RepoError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("repo error")
 
-	postRepo := &mockPostRepo{
-		createFn: func(ctx context.Context, post *suggestions.Post) error {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		CreateFn: func(ctx context.Context, post *suggestions.Post) error {
 			return expectedErr
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post := &suggestions.Post{
 		Title:       "Test Post",
@@ -318,12 +162,12 @@ func TestCreatePost_DispatchesNotificationToTrimmedRecipients(t *testing.T) {
 	mailer := newCapturingMailer(2)
 	dispatcher := email.NewDispatcher(mailer, nil)
 
-	postRepo := &mockPostRepo{
-		createFn: func(ctx context.Context, post *suggestions.Post) error {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		CreateFn: func(ctx context.Context, post *suggestions.Post) error {
 			post.ID = 77
 			return nil
 		},
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			require.Equal(t, int64(77), id)
 			require.Equal(t, int64(0), accountID)
 			require.Equal(t, suggestions.ReaderTypeUser, readerType)
@@ -339,8 +183,8 @@ func TestCreatePost_DispatchesNotificationToTrimmedRecipients(t *testing.T) {
 	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
 		PostRepo:        postRepo,
 		VoteRepo:        &mockVoteRepo{},
-		CommentRepo:     &mockCommentRepo{},
-		CommentReadRepo: &mockCommentReadRepo{},
+		CommentRepo:     &testpkg.SuggestionsCommentRepoMock{},
+		CommentReadRepo: &testpkg.SuggestionsCommentReadRepoMock{},
 		Dispatcher:      dispatcher,
 		DefaultFrom:     email.NewEmail("Phoenix", "noreply@example.com"),
 		NotifyEmail:     " ops1@example.com, ,ops2@example.com ",
@@ -370,7 +214,7 @@ func TestCreatePost_DispatchesNotificationToTrimmedRecipients(t *testing.T) {
 		assert.Equal(t, "new_post", content["Type"])
 		assert.Equal(t, "Alice Example", content["AuthorName"])
 		assert.Equal(t, "https://frontend.test/operator/suggestions?post=77", content["SuggestionURL"])
-		assert.Equal(t, "https://frontend.test/images/moto_transparent.png", content["LogoURL"])
+		assert.Equal(t, "https://frontend.test/images/moto-logo-mit-schriftzug.png", content["LogoURL"])
 		assert.Len(t, content["Description"], 503)
 		assert.True(t, strings.HasSuffix(content["Description"], "\u2026"))
 	}
@@ -382,12 +226,12 @@ func TestCreatePost_DispatchesNotificationWithInjectedLogger(t *testing.T) {
 	dispatcher := email.NewDispatcher(mailer, nil)
 	logger := slog.New(slog.DiscardHandler)
 
-	postRepo := &mockPostRepo{
-		createFn: func(ctx context.Context, post *suggestions.Post) error {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		CreateFn: func(ctx context.Context, post *suggestions.Post) error {
 			post.ID = 99
 			return nil
 		},
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{
 				Model:       base.Model{ID: id},
 				Title:       "Logger Post",
@@ -400,8 +244,8 @@ func TestCreatePost_DispatchesNotificationWithInjectedLogger(t *testing.T) {
 	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
 		PostRepo:        postRepo,
 		VoteRepo:        &mockVoteRepo{},
-		CommentRepo:     &mockCommentRepo{},
-		CommentReadRepo: &mockCommentReadRepo{},
+		CommentRepo:     &testpkg.SuggestionsCommentRepoMock{},
+		CommentReadRepo: &testpkg.SuggestionsCommentReadRepoMock{},
 		Dispatcher:      dispatcher,
 		DefaultFrom:     email.NewEmail("Phoenix", "noreply@example.com"),
 		NotifyEmail:     "ops@example.com",
@@ -424,19 +268,19 @@ func TestCreatePost_IgnoresNotificationLookupFailure(t *testing.T) {
 	createCalls := 0
 	lookupCalls := 0
 
-	postRepo := &mockPostRepo{
-		createFn: func(ctx context.Context, post *suggestions.Post) error {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		CreateFn: func(ctx context.Context, post *suggestions.Post) error {
 			createCalls++
 			post.ID = 55
 			return nil
 		},
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			lookupCalls++
 			return nil, errors.New("lookup failed")
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.CreatePost(ctx, &suggestions.Post{
 		Title:       "Test Post",
@@ -453,8 +297,8 @@ func TestGetPost_Success(t *testing.T) {
 	ctx := context.Background()
 	expectedPost := &suggestions.Post{Title: "Test Post"}
 
-	postRepo := &mockPostRepo{
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			assert.Equal(t, int64(456), id)
 			assert.Equal(t, int64(123), accountID)
 			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
@@ -462,7 +306,7 @@ func TestGetPost_Success(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post, err := svc.GetPost(ctx, 456, 123)
 	require.NoError(t, err)
@@ -472,14 +316,14 @@ func TestGetPost_Success(t *testing.T) {
 func TestGetPost_NotFound(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return nil, nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post, err := svc.GetPost(ctx, 456, 123)
 	assert.Error(t, err)
@@ -491,14 +335,14 @@ func TestGetPost_RepoError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("repo error")
 
-	postRepo := &mockPostRepo{
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return nil, expectedErr
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post, err := svc.GetPost(ctx, 456, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -508,22 +352,22 @@ func TestGetPost_RepoError(t *testing.T) {
 func TestUpdatePost_Success(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{
 				AuthorID: 123,
 				Title:    "Old Title",
 				Status:   suggestions.StatusOpen,
 			}, nil
 		},
-		updateFn: func(ctx context.Context, post *suggestions.Post) error {
+		UpdateFn: func(ctx context.Context, post *suggestions.Post) error {
 			assert.Equal(t, "New Title", post.Title)
 			assert.Equal(t, "New Description", post.Description)
 			return nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post := &suggestions.Post{
 		Title:       "New Title",
@@ -538,7 +382,7 @@ func TestUpdatePost_Success(t *testing.T) {
 func TestUpdatePost_NilPost(t *testing.T) {
 	ctx := context.Background()
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.UpdatePost(ctx, nil, 123)
 	assert.Error(t, err)
@@ -548,13 +392,13 @@ func TestUpdatePost_NilPost(t *testing.T) {
 func TestUpdatePost_PostNotFound(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return nil, nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post := &suggestions.Post{
 		Title:       "New Title",
@@ -571,13 +415,13 @@ func TestUpdatePost_FindByIDError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("find error")
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return nil, expectedErr
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post := &suggestions.Post{
 		Title:       "New Title",
@@ -592,15 +436,15 @@ func TestUpdatePost_FindByIDError(t *testing.T) {
 func TestUpdatePost_Forbidden(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{
 				AuthorID: 999, // Different author
 			}, nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post := &suggestions.Post{
 		Title:       "New Title",
@@ -616,8 +460,8 @@ func TestUpdatePost_Forbidden(t *testing.T) {
 func TestUpdatePost_ValidationError(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{
 				AuthorID: 123,
 				Status:   suggestions.StatusOpen,
@@ -625,7 +469,7 @@ func TestUpdatePost_ValidationError(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post := &suggestions.Post{
 		Title:       "", // Invalid: empty title
@@ -642,19 +486,19 @@ func TestUpdatePost_RepoErrorOnUpdate(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("update error")
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{
 				AuthorID: 123,
 				Status:   suggestions.StatusOpen,
 			}, nil
 		},
-		updateFn: func(ctx context.Context, post *suggestions.Post) error {
+		UpdateFn: func(ctx context.Context, post *suggestions.Post) error {
 			return expectedErr
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post := &suggestions.Post{
 		Title:       "New Title",
@@ -669,19 +513,19 @@ func TestUpdatePost_RepoErrorOnUpdate(t *testing.T) {
 func TestDeletePost_Success(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{
 				AuthorID: 123,
 			}, nil
 		},
-		deleteFn: func(ctx context.Context, id int64) error {
+		DeleteFn: func(ctx context.Context, id int64) error {
 			assert.Equal(t, int64(456), id)
 			return nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.DeletePost(ctx, 456, 123)
 	require.NoError(t, err)
@@ -690,13 +534,13 @@ func TestDeletePost_Success(t *testing.T) {
 func TestDeletePost_PostNotFound(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return nil, nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.DeletePost(ctx, 456, 123)
 	assert.Error(t, err)
@@ -707,13 +551,13 @@ func TestDeletePost_FindByIDError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("find error")
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return nil, expectedErr
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.DeletePost(ctx, 456, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -722,15 +566,15 @@ func TestDeletePost_FindByIDError(t *testing.T) {
 func TestDeletePost_Forbidden(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{
 				AuthorID: 999, // Different author
 			}, nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.DeletePost(ctx, 456, 123)
 	assert.Error(t, err)
@@ -741,18 +585,18 @@ func TestDeletePost_RepoError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("delete error")
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{
 				AuthorID: 123,
 			}, nil
 		},
-		deleteFn: func(ctx context.Context, id int64) error {
+		DeleteFn: func(ctx context.Context, id int64) error {
 			return expectedErr
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.DeletePost(ctx, 456, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -762,8 +606,8 @@ func TestListPosts_Success(t *testing.T) {
 	ctx := context.Background()
 	expectedPosts := []*suggestions.Post{{}, {}}
 
-	postRepo := &mockPostRepo{
-		listFn: func(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		ListFn: func(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error) {
 			assert.Equal(t, int64(123), accountID)
 			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			assert.Equal(t, "score", sortBy)
@@ -771,7 +615,7 @@ func TestListPosts_Success(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	posts, err := svc.ListPosts(ctx, 123, "score")
 	require.NoError(t, err)
@@ -782,14 +626,14 @@ func TestListPosts_RepoError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("list error")
 
-	postRepo := &mockPostRepo{
-		listFn: func(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		ListFn: func(ctx context.Context, accountID int64, readerType string, sortBy string, status string) ([]*suggestions.Post, error) {
 			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return nil, expectedErr
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	posts, err := svc.ListPosts(ctx, 123, "score")
 	assert.ErrorIs(t, err, expectedErr)
@@ -799,7 +643,7 @@ func TestListPosts_RepoError(t *testing.T) {
 func TestVote_InvalidDirection(t *testing.T) {
 	ctx := context.Background()
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post, err := svc.Vote(ctx, 456, 123, "invalid")
 	assert.Error(t, err)
@@ -810,13 +654,13 @@ func TestVote_InvalidDirection(t *testing.T) {
 func TestVote_PostNotFound(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return nil, nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post, err := svc.Vote(ctx, 456, 123, suggestions.DirectionUp)
 	assert.Error(t, err)
@@ -827,16 +671,16 @@ func TestVote_PostNotFound(t *testing.T) {
 func TestVote_Success(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			assert.Equal(t, int64(456), id)
 			return &suggestions.Post{Model: suggestions.Post{}.Model, AuthorID: 123}, nil
 		},
-		recalculateScoreFn: func(ctx context.Context, postID int64) error {
+		RecalculateScoreFn: func(ctx context.Context, postID int64) error {
 			assert.Equal(t, int64(456), postID)
 			return nil
 		},
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return &suggestions.Post{Score: 1}, nil
 		},
@@ -851,7 +695,7 @@ func TestVote_Success(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(postRepo, voteRepo, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, voteRepo, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post, err := svc.Vote(ctx, 456, 123, suggestions.DirectionUp)
 	require.NoError(t, err)
@@ -863,13 +707,13 @@ func TestVote_FindByIDError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("find failed")
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return nil, expectedErr
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post, err := svc.Vote(ctx, 456, 123, suggestions.DirectionUp)
 	assert.ErrorIs(t, err, expectedErr)
@@ -880,8 +724,8 @@ func TestVote_UpsertErrorRollsBack(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("upsert failed")
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{AuthorID: 123}, nil
 		},
 	}
@@ -892,7 +736,7 @@ func TestVote_UpsertErrorRollsBack(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(postRepo, voteRepo, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, voteRepo, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post, err := svc.Vote(ctx, 456, 123, suggestions.DirectionUp)
 	assert.ErrorIs(t, err, expectedErr)
@@ -903,11 +747,11 @@ func TestVote_RecalculateErrorRollsBack(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("recalculate failed")
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{AuthorID: 123}, nil
 		},
-		recalculateScoreFn: func(ctx context.Context, postID int64) error {
+		RecalculateScoreFn: func(ctx context.Context, postID int64) error {
 			return expectedErr
 		},
 	}
@@ -918,7 +762,7 @@ func TestVote_RecalculateErrorRollsBack(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(postRepo, voteRepo, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, voteRepo, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post, err := svc.Vote(ctx, 456, 123, suggestions.DirectionUp)
 	assert.ErrorIs(t, err, expectedErr)
@@ -928,13 +772,13 @@ func TestVote_RecalculateErrorRollsBack(t *testing.T) {
 func TestRemoveVote_PostNotFound(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return nil, nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post, err := svc.RemoveVote(ctx, 456, 123)
 	assert.Error(t, err)
@@ -945,15 +789,15 @@ func TestRemoveVote_PostNotFound(t *testing.T) {
 func TestRemoveVote_Success(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{AuthorID: 123}, nil
 		},
-		recalculateScoreFn: func(ctx context.Context, postID int64) error {
+		RecalculateScoreFn: func(ctx context.Context, postID int64) error {
 			assert.Equal(t, int64(456), postID)
 			return nil
 		},
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{Score: 0}, nil
 		},
 	}
@@ -966,7 +810,7 @@ func TestRemoveVote_Success(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(postRepo, voteRepo, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, voteRepo, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post, err := svc.RemoveVote(ctx, 456, 123)
 	require.NoError(t, err)
@@ -978,13 +822,13 @@ func TestRemoveVote_FindByIDError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("find failed")
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return nil, expectedErr
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post, err := svc.RemoveVote(ctx, 456, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -995,8 +839,8 @@ func TestRemoveVote_DeleteErrorRollsBack(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("delete failed")
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{AuthorID: 123}, nil
 		},
 	}
@@ -1007,7 +851,7 @@ func TestRemoveVote_DeleteErrorRollsBack(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(postRepo, voteRepo, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, voteRepo, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post, err := svc.RemoveVote(ctx, 456, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -1018,11 +862,11 @@ func TestRemoveVote_RecalculateErrorRollsBack(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("recalculate failed")
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{AuthorID: 123}, nil
 		},
-		recalculateScoreFn: func(ctx context.Context, postID int64) error {
+		RecalculateScoreFn: func(ctx context.Context, postID int64) error {
 			return expectedErr
 		},
 	}
@@ -1033,7 +877,7 @@ func TestRemoveVote_RecalculateErrorRollsBack(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(postRepo, voteRepo, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, voteRepo, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	post, err := svc.RemoveVote(ctx, 456, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -1043,21 +887,21 @@ func TestRemoveVote_RecalculateErrorRollsBack(t *testing.T) {
 func TestCreateComment_Success(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{}, nil
 		},
 	}
 
-	commentRepo := &mockCommentRepo{
-		createFn: func(ctx context.Context, comment *suggestions.Comment) error {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		CreateFn: func(ctx context.Context, comment *suggestions.Comment) error {
 			assert.Equal(t, suggestions.AuthorTypeUser, comment.AuthorType)
 			assert.Equal(t, "Test comment", comment.Content)
 			return nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, commentRepo, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	comment := &suggestions.Comment{
 		PostID:   456,
@@ -1073,7 +917,7 @@ func TestCreateComment_Success(t *testing.T) {
 func TestCreateComment_NilComment(t *testing.T) {
 	ctx := context.Background()
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.CreateComment(ctx, nil)
 	assert.Error(t, err)
@@ -1083,13 +927,13 @@ func TestCreateComment_NilComment(t *testing.T) {
 func TestCreateComment_PostNotFound(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return nil, nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	comment := &suggestions.Comment{
 		PostID:   456,
@@ -1105,13 +949,13 @@ func TestCreateComment_PostNotFound(t *testing.T) {
 func TestCreateComment_ValidationError(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{}, nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	comment := &suggestions.Comment{
 		PostID:   456,
@@ -1128,19 +972,19 @@ func TestCreateComment_RepoError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("create error")
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{}, nil
 		},
 	}
 
-	commentRepo := &mockCommentRepo{
-		createFn: func(ctx context.Context, comment *suggestions.Comment) error {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		CreateFn: func(ctx context.Context, comment *suggestions.Comment) error {
 			return expectedErr
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, commentRepo, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	comment := &suggestions.Comment{
 		PostID:   456,
@@ -1157,11 +1001,11 @@ func TestCreateComment_DispatchesNotificationForCreatedComment(t *testing.T) {
 	mailer := newCapturingMailer(2)
 	dispatcher := email.NewDispatcher(mailer, nil)
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{Model: base.Model{ID: id}}, nil
 		},
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{
 				Model:      base.Model{ID: id},
 				Title:      "Test Post",
@@ -1170,12 +1014,12 @@ func TestCreateComment_DispatchesNotificationForCreatedComment(t *testing.T) {
 		},
 	}
 
-	commentRepo := &mockCommentRepo{
-		createFn: func(ctx context.Context, comment *suggestions.Comment) error {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		CreateFn: func(ctx context.Context, comment *suggestions.Comment) error {
 			comment.ID = 88
 			return nil
 		},
-		findByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+		FindByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
 			require.Equal(t, int64(88), id)
 			return &suggestions.Comment{
 				Model:      base.Model{ID: 88},
@@ -1189,7 +1033,7 @@ func TestCreateComment_DispatchesNotificationForCreatedComment(t *testing.T) {
 		PostRepo:        postRepo,
 		VoteRepo:        &mockVoteRepo{},
 		CommentRepo:     commentRepo,
-		CommentReadRepo: &mockCommentReadRepo{},
+		CommentReadRepo: &testpkg.SuggestionsCommentReadRepoMock{},
 		Dispatcher:      dispatcher,
 		DefaultFrom:     email.NewEmail("Phoenix", "noreply@example.com"),
 		NotifyEmail:     "ops1@example.com, ops2@example.com",
@@ -1224,27 +1068,27 @@ func TestCreateComment_IgnoresNotificationLookupErrors(t *testing.T) {
 	ctx := context.Background()
 	findResolvedCommentCalls := 0
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{Model: base.Model{ID: id}}, nil
 		},
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			return nil, errors.New("post lookup failed")
 		},
 	}
 
-	commentRepo := &mockCommentRepo{
-		createFn: func(ctx context.Context, comment *suggestions.Comment) error {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		CreateFn: func(ctx context.Context, comment *suggestions.Comment) error {
 			comment.ID = 88
 			return nil
 		},
-		findByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+		FindByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
 			findResolvedCommentCalls++
 			return nil, nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, commentRepo, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.CreateComment(ctx, &suggestions.Comment{
 		PostID:   456,
@@ -1259,26 +1103,26 @@ func TestCreateComment_IgnoresNotificationLookupErrors(t *testing.T) {
 func TestCreateComment_IgnoresResolvedCommentLookupFailure(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{Model: base.Model{ID: id}}, nil
 		},
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{Model: base.Model{ID: id}, Title: "Test Post"}, nil
 		},
 	}
 
-	commentRepo := &mockCommentRepo{
-		createFn: func(ctx context.Context, comment *suggestions.Comment) error {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		CreateFn: func(ctx context.Context, comment *suggestions.Comment) error {
 			comment.ID = 88
 			return nil
 		},
-		findByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+		FindByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
 			return nil, errors.New("comment lookup failed")
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, commentRepo, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.CreateComment(ctx, &suggestions.Comment{
 		PostID:   456,
@@ -1294,13 +1138,13 @@ func TestCreatePost_NotificationLookupUsesDetachedContext(t *testing.T) {
 	mailer := newCapturingMailer(1)
 	dispatcher := email.NewDispatcher(mailer, nil)
 
-	postRepo := &mockPostRepo{
-		createFn: func(ctx context.Context, post *suggestions.Post) error {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		CreateFn: func(ctx context.Context, post *suggestions.Post) error {
 			post.ID = 77
 			cancel()
 			return nil
 		},
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			require.NoError(t, ctx.Err())
 			return &suggestions.Post{
 				Model:       base.Model{ID: id},
@@ -1314,8 +1158,8 @@ func TestCreatePost_NotificationLookupUsesDetachedContext(t *testing.T) {
 	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
 		PostRepo:        postRepo,
 		VoteRepo:        &mockVoteRepo{},
-		CommentRepo:     &mockCommentRepo{},
-		CommentReadRepo: &mockCommentReadRepo{},
+		CommentRepo:     &testpkg.SuggestionsCommentRepoMock{},
+		CommentReadRepo: &testpkg.SuggestionsCommentReadRepoMock{},
 		Dispatcher:      dispatcher,
 		DefaultFrom:     email.NewEmail("Phoenix", "noreply@example.com"),
 		NotifyEmail:     "ops@example.com",
@@ -1337,11 +1181,11 @@ func TestCreateComment_NotificationLookupUsesDetachedContext(t *testing.T) {
 	mailer := newCapturingMailer(1)
 	dispatcher := email.NewDispatcher(mailer, nil)
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{Model: base.Model{ID: id}}, nil
 		},
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			require.NoError(t, ctx.Err())
 			return &suggestions.Post{
 				Model:      base.Model{ID: id},
@@ -1351,13 +1195,13 @@ func TestCreateComment_NotificationLookupUsesDetachedContext(t *testing.T) {
 		},
 	}
 
-	commentRepo := &mockCommentRepo{
-		createFn: func(ctx context.Context, comment *suggestions.Comment) error {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		CreateFn: func(ctx context.Context, comment *suggestions.Comment) error {
 			comment.ID = 88
 			cancel()
 			return nil
 		},
-		findByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+		FindByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
 			require.NoError(t, ctx.Err())
 			return &suggestions.Comment{
 				Model:      base.Model{ID: id},
@@ -1371,7 +1215,7 @@ func TestCreateComment_NotificationLookupUsesDetachedContext(t *testing.T) {
 		PostRepo:        postRepo,
 		VoteRepo:        &mockVoteRepo{},
 		CommentRepo:     commentRepo,
-		CommentReadRepo: &mockCommentReadRepo{},
+		CommentReadRepo: &testpkg.SuggestionsCommentReadRepoMock{},
 		Dispatcher:      dispatcher,
 		DefaultFrom:     email.NewEmail("Phoenix", "noreply@example.com"),
 		NotifyEmail:     "ops@example.com",
@@ -1393,12 +1237,12 @@ func TestCreatePost_NotificationDescriptionTruncatesByRunes(t *testing.T) {
 	mailer := newCapturingMailer(1)
 	dispatcher := email.NewDispatcher(mailer, nil)
 
-	postRepo := &mockPostRepo{
-		createFn: func(ctx context.Context, post *suggestions.Post) error {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		CreateFn: func(ctx context.Context, post *suggestions.Post) error {
 			post.ID = 77
 			return nil
 		},
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{
 				Model:       base.Model{ID: id},
 				Title:       "Test Post",
@@ -1411,8 +1255,8 @@ func TestCreatePost_NotificationDescriptionTruncatesByRunes(t *testing.T) {
 	svc := suggestionsService.NewService(suggestionsService.ServiceConfig{
 		PostRepo:        postRepo,
 		VoteRepo:        &mockVoteRepo{},
-		CommentRepo:     &mockCommentRepo{},
-		CommentReadRepo: &mockCommentReadRepo{},
+		CommentRepo:     &testpkg.SuggestionsCommentRepoMock{},
+		CommentReadRepo: &testpkg.SuggestionsCommentReadRepoMock{},
 		Dispatcher:      dispatcher,
 		DefaultFrom:     email.NewEmail("Phoenix", "noreply@example.com"),
 		NotifyEmail:     "ops@example.com",
@@ -1438,11 +1282,11 @@ func TestCreateComment_NotificationContentTruncatesByRunes(t *testing.T) {
 	mailer := newCapturingMailer(1)
 	dispatcher := email.NewDispatcher(mailer, nil)
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{Model: base.Model{ID: id}}, nil
 		},
-		findByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
+		FindByIDWithVoteFn: func(ctx context.Context, id int64, accountID int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{
 				Model:      base.Model{ID: id},
 				Title:      "Test Post",
@@ -1451,12 +1295,12 @@ func TestCreateComment_NotificationContentTruncatesByRunes(t *testing.T) {
 		},
 	}
 
-	commentRepo := &mockCommentRepo{
-		createFn: func(ctx context.Context, comment *suggestions.Comment) error {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		CreateFn: func(ctx context.Context, comment *suggestions.Comment) error {
 			comment.ID = 88
 			return nil
 		},
-		findByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+		FindByIDWithAuthorFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
 			return &suggestions.Comment{
 				Model:      base.Model{ID: id},
 				AuthorName: "Comment A.",
@@ -1469,7 +1313,7 @@ func TestCreateComment_NotificationContentTruncatesByRunes(t *testing.T) {
 		PostRepo:        postRepo,
 		VoteRepo:        &mockVoteRepo{},
 		CommentRepo:     commentRepo,
-		CommentReadRepo: &mockCommentReadRepo{},
+		CommentReadRepo: &testpkg.SuggestionsCommentReadRepoMock{},
 		Dispatcher:      dispatcher,
 		DefaultFrom:     email.NewEmail("Phoenix", "noreply@example.com"),
 		NotifyEmail:     "ops@example.com",
@@ -1494,14 +1338,14 @@ func TestGetComments_Success(t *testing.T) {
 	ctx := context.Background()
 	expectedComments := []*suggestions.Comment{{Content: "Test"}}
 
-	commentRepo := &mockCommentRepo{
-		findByPostIDFn: func(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		FindByPostIDFn: func(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 			assert.Equal(t, int64(456), postID)
 			return expectedComments, nil
 		},
 	}
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, commentRepo, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	comments, err := svc.GetComments(ctx, 456)
 	require.NoError(t, err)
@@ -1512,13 +1356,13 @@ func TestGetComments_RepoError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("repo error")
 
-	commentRepo := &mockCommentRepo{
-		findByPostIDFn: func(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		FindByPostIDFn: func(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
 			return nil, expectedErr
 		},
 	}
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, commentRepo, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	comments, err := svc.GetComments(ctx, 456)
 	assert.ErrorIs(t, err, expectedErr)
@@ -1528,15 +1372,15 @@ func TestGetComments_RepoError(t *testing.T) {
 func TestGetComments_PostNotFound(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			assert.Equal(t, int64(456), id)
 			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return nil, nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	comments, err := svc.GetComments(ctx, 456)
 	assert.Error(t, err)
@@ -1547,20 +1391,20 @@ func TestGetComments_PostNotFound(t *testing.T) {
 func TestDeleteComment_Success(t *testing.T) {
 	ctx := context.Background()
 
-	commentRepo := &mockCommentRepo{
-		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
 			return &suggestions.Comment{
 				AuthorType: suggestions.AuthorTypeUser,
 				AuthorID:   123,
 			}, nil
 		},
-		deleteFn: func(ctx context.Context, id int64) error {
+		DeleteFn: func(ctx context.Context, id int64) error {
 			assert.Equal(t, int64(789), id)
 			return nil
 		},
 	}
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, commentRepo, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.DeleteComment(ctx, 789, 123)
 	require.NoError(t, err)
@@ -1569,13 +1413,13 @@ func TestDeleteComment_Success(t *testing.T) {
 func TestDeleteComment_CommentNotFound(t *testing.T) {
 	ctx := context.Background()
 
-	commentRepo := &mockCommentRepo{
-		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
 			return nil, nil
 		},
 	}
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, commentRepo, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.DeleteComment(ctx, 789, 123)
 	assert.Error(t, err)
@@ -1586,13 +1430,13 @@ func TestDeleteComment_FindByIDError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("find error")
 
-	commentRepo := &mockCommentRepo{
-		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
 			return nil, expectedErr
 		},
 	}
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, commentRepo, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.DeleteComment(ctx, 789, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -1601,8 +1445,8 @@ func TestDeleteComment_FindByIDError(t *testing.T) {
 func TestDeleteComment_ForbiddenWrongAuthorType(t *testing.T) {
 	ctx := context.Background()
 
-	commentRepo := &mockCommentRepo{
-		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
 			return &suggestions.Comment{
 				AuthorType: suggestions.AuthorTypeOperator, // Operator comment
 				AuthorID:   123,
@@ -1610,7 +1454,7 @@ func TestDeleteComment_ForbiddenWrongAuthorType(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, commentRepo, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.DeleteComment(ctx, 789, 123)
 	assert.Error(t, err)
@@ -1620,8 +1464,8 @@ func TestDeleteComment_ForbiddenWrongAuthorType(t *testing.T) {
 func TestDeleteComment_ForbiddenWrongAuthorID(t *testing.T) {
 	ctx := context.Background()
 
-	commentRepo := &mockCommentRepo{
-		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
 			return &suggestions.Comment{
 				AuthorType: suggestions.AuthorTypeUser,
 				AuthorID:   999, // Different author
@@ -1629,7 +1473,7 @@ func TestDeleteComment_ForbiddenWrongAuthorID(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, commentRepo, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.DeleteComment(ctx, 789, 123)
 	assert.Error(t, err)
@@ -1640,19 +1484,19 @@ func TestDeleteComment_RepoError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("delete error")
 
-	commentRepo := &mockCommentRepo{
-		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
 			return &suggestions.Comment{
 				AuthorType: suggestions.AuthorTypeUser,
 				AuthorID:   123,
 			}, nil
 		},
-		deleteFn: func(ctx context.Context, id int64) error {
+		DeleteFn: func(ctx context.Context, id int64) error {
 			return expectedErr
 		},
 	}
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, commentRepo, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.DeleteComment(ctx, 789, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -1661,8 +1505,8 @@ func TestDeleteComment_RepoError(t *testing.T) {
 func TestDeleteComment_PostNotFound(t *testing.T) {
 	ctx := context.Background()
 
-	commentRepo := &mockCommentRepo{
-		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
 			return &suggestions.Comment{
 				PostID:     456,
 				AuthorType: suggestions.AuthorTypeUser,
@@ -1671,15 +1515,15 @@ func TestDeleteComment_PostNotFound(t *testing.T) {
 		},
 	}
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			assert.Equal(t, int64(456), id)
 			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return nil, nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, commentRepo, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.DeleteComment(ctx, 789, 123)
 	assert.Error(t, err)
@@ -1690,8 +1534,8 @@ func TestDeleteComment_PostLookupError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("post lookup error")
 
-	commentRepo := &mockCommentRepo{
-		findByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
+	commentRepo := &testpkg.SuggestionsCommentRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64) (*suggestions.Comment, error) {
 			return &suggestions.Comment{
 				PostID:     456,
 				AuthorType: suggestions.AuthorTypeUser,
@@ -1700,14 +1544,14 @@ func TestDeleteComment_PostLookupError(t *testing.T) {
 		},
 	}
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return nil, expectedErr
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, commentRepo, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, commentRepo, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.DeleteComment(ctx, 789, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -1716,14 +1560,14 @@ func TestDeleteComment_PostLookupError(t *testing.T) {
 func TestMarkCommentsRead_Success(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{}, nil
 		},
 	}
 
-	commentReadRepo := &mockCommentReadRepo{
-		upsertFn: func(ctx context.Context, accountID, postID int64, readerType string) error {
+	commentReadRepo := &testpkg.SuggestionsCommentReadRepoMock{
+		UpsertFn: func(ctx context.Context, accountID, postID int64, readerType string) error {
 			assert.Equal(t, int64(123), accountID)
 			assert.Equal(t, int64(456), postID)
 			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
@@ -1731,7 +1575,7 @@ func TestMarkCommentsRead_Success(t *testing.T) {
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, commentReadRepo)
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, commentReadRepo)
 
 	err := svc.MarkCommentsRead(ctx, 456, 123)
 	require.NoError(t, err)
@@ -1740,13 +1584,13 @@ func TestMarkCommentsRead_Success(t *testing.T) {
 func TestMarkCommentsRead_PostNotFound(t *testing.T) {
 	ctx := context.Background()
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return nil, nil
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.MarkCommentsRead(ctx, 456, 123)
 	assert.Error(t, err)
@@ -1757,13 +1601,13 @@ func TestMarkCommentsRead_FindByIDError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("find error")
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return nil, expectedErr
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, &mockCommentReadRepo{})
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, &testpkg.SuggestionsCommentReadRepoMock{})
 
 	err := svc.MarkCommentsRead(ctx, 456, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -1773,20 +1617,20 @@ func TestMarkCommentsRead_RepoError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("upsert error")
 
-	postRepo := &mockPostRepo{
-		findByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
+	postRepo := &testpkg.SuggestionsPostRepoMock{
+		FindByIDFn: func(ctx context.Context, id int64, readerType string) (*suggestions.Post, error) {
 			return &suggestions.Post{}, nil
 		},
 	}
 
-	commentReadRepo := &mockCommentReadRepo{
-		upsertFn: func(ctx context.Context, accountID, postID int64, readerType string) error {
+	commentReadRepo := &testpkg.SuggestionsCommentReadRepoMock{
+		UpsertFn: func(ctx context.Context, accountID, postID int64, readerType string) error {
 			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return expectedErr
 		},
 	}
 
-	svc := newTestService(postRepo, &mockVoteRepo{}, &mockCommentRepo{}, commentReadRepo)
+	svc := newTestService(postRepo, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, commentReadRepo)
 
 	err := svc.MarkCommentsRead(ctx, 456, 123)
 	assert.ErrorIs(t, err, expectedErr)
@@ -1795,15 +1639,15 @@ func TestMarkCommentsRead_RepoError(t *testing.T) {
 func TestGetTotalUnreadCount_Success(t *testing.T) {
 	ctx := context.Background()
 
-	commentReadRepo := &mockCommentReadRepo{
-		countTotalUnreadFn: func(ctx context.Context, accountID int64, readerType string) (int, error) {
+	commentReadRepo := &testpkg.SuggestionsCommentReadRepoMock{
+		CountTotalUnreadFn: func(ctx context.Context, accountID int64, readerType string) (int, error) {
 			assert.Equal(t, int64(123), accountID)
 			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return 42, nil
 		},
 	}
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, commentReadRepo)
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, commentReadRepo)
 
 	count, err := svc.GetTotalUnreadCount(ctx, 123)
 	require.NoError(t, err)
@@ -1814,14 +1658,14 @@ func TestGetTotalUnreadCount_RepoError(t *testing.T) {
 	ctx := context.Background()
 	expectedErr := errors.New("count error")
 
-	commentReadRepo := &mockCommentReadRepo{
-		countTotalUnreadFn: func(ctx context.Context, accountID int64, readerType string) (int, error) {
+	commentReadRepo := &testpkg.SuggestionsCommentReadRepoMock{
+		CountTotalUnreadFn: func(ctx context.Context, accountID int64, readerType string) (int, error) {
 			assert.Equal(t, suggestions.ReaderTypeUser, readerType)
 			return 0, expectedErr
 		},
 	}
 
-	svc := newTestService(&mockPostRepo{}, &mockVoteRepo{}, &mockCommentRepo{}, commentReadRepo)
+	svc := newTestService(&testpkg.SuggestionsPostRepoMock{}, &mockVoteRepo{}, &testpkg.SuggestionsCommentRepoMock{}, commentReadRepo)
 
 	count, err := svc.GetTotalUnreadCount(ctx, 123)
 	assert.ErrorIs(t, err, expectedErr)

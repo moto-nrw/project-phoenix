@@ -4,9 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
-
-	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -51,9 +48,8 @@ func (rs *Resource) respondToCalendarInvitation(w http.ResponseWriter, r *http.R
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("calendar service is not configured")))
 		return
 	}
-	recipientID, err := strconv.ParseInt(chi.URLParam(r, "recipientId"), 10, 64)
-	if err != nil || recipientID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid recipient ID")))
+	recipientID, ok := common.ParsePositiveInt64IDWithError(w, r, "recipientId", "invalid recipient ID")
+	if !ok {
 		return
 	}
 	var req parentCalendarResponseRequest
@@ -77,9 +73,8 @@ func (rs *Resource) calendarAppointmentOverview(w http.ResponseWriter, r *http.R
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("calendar service is not configured")))
 		return
 	}
-	appointmentID, err := strconv.ParseInt(chi.URLParam(r, "appointmentId"), 10, 64)
-	if err != nil || appointmentID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid appointment ID")))
+	appointmentID, ok := common.ParsePositiveInt64IDWithError(w, r, "appointmentId", "invalid appointment ID")
+	if !ok {
 		return
 	}
 	overview, err := rs.CalendarService.GetParentAppointmentOverview(r.Context(), accountID, appointmentID)

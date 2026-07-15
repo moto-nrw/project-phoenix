@@ -435,11 +435,6 @@ func TestGradeTransition_GetUpdatedAt(t *testing.T) {
 	assert.Equal(t, now, updatedAt)
 }
 
-func TestGradeTransition_TableName(t *testing.T) {
-	transition := &GradeTransition{}
-	assert.Equal(t, "education.grade_transitions", transition.TableName())
-}
-
 // ============================================================================
 // Interface Method Tests - GradeTransitionMapping
 // ============================================================================
@@ -470,11 +465,6 @@ func TestGradeTransitionMapping_GetUpdatedAt(t *testing.T) {
 	assert.Equal(t, now, updatedAt)
 }
 
-func TestGradeTransitionMapping_TableName(t *testing.T) {
-	mapping := &GradeTransitionMapping{}
-	assert.Equal(t, "education.grade_transition_mappings", mapping.TableName())
-}
-
 // ============================================================================
 // Interface Method Tests - GradeTransitionHistory
 // ============================================================================
@@ -503,11 +493,6 @@ func TestGradeTransitionHistory_GetUpdatedAt(t *testing.T) {
 
 	updatedAt := history.GetUpdatedAt()
 	assert.Equal(t, now, updatedAt)
-}
-
-func TestGradeTransitionHistory_TableName(t *testing.T) {
-	history := &GradeTransitionHistory{}
-	assert.Equal(t, "education.grade_transition_history", history.TableName())
 }
 
 func TestGradeTransitionHistory_WasGraduated(t *testing.T) {

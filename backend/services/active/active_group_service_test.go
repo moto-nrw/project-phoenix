@@ -505,53 +505,6 @@ func TestActiveService_FindDeviceActiveGroupInRoom(t *testing.T) {
 }
 
 // =============================================================================
-// FindActiveGroupsByTimeRange Tests
-// =============================================================================
-
-func TestActiveService_FindActiveGroupsByTimeRange(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	service := createActiveService(t, db)
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns groups in time range", func(t *testing.T) {
-		// ARRANGE
-		activity := testpkg.CreateTestActivityGroup(t, db, "time-range")
-		room := testpkg.CreateTestRoom(t, db, "Time Range Room")
-		group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-		defer testpkg.CleanupActivityFixtures(t, db, activity.ID, room.ID, group.ID)
-
-		// Use a time range that includes the group's start time
-		start := time.Now().Add(-1 * time.Hour)
-		end := time.Now().Add(1 * time.Hour)
-
-		// ACT
-		result, err := service.FindActiveGroupsByTimeRange(ctx, start, end)
-
-		// ASSERT
-		require.NoError(t, err)
-		assert.NotEmpty(t, result)
-	})
-
-	t.Run("returns empty list for past time range", func(t *testing.T) {
-		// ARRANGE - use a time range so far in the past that no real data could match.
-		// This ensures hermeticity: the test passes regardless of what data exists,
-		// since no active groups can have started before 1900.
-		start := time.Date(1900, 1, 1, 0, 0, 0, 0, time.UTC)
-		end := time.Date(1900, 1, 2, 0, 0, 0, 0, time.UTC)
-
-		// ACT
-		result, err := service.FindActiveGroupsByTimeRange(ctx, start, end)
-
-		// ASSERT
-		require.NoError(t, err)
-		// Result may be nil or empty slice - both are valid for "no results"
-		assert.Empty(t, result)
-	})
-}
-
-// =============================================================================
 // EndActiveGroupSession Tests
 // =============================================================================
 
@@ -1067,7 +1020,7 @@ func TestActiveService_ForceStartActivitySession(t *testing.T) {
 		roomID := room.ID
 
 		// ACT
-		result, err := service.ForceStartActivitySession(ctx, activity.ID, iotDevice.ID, staff.ID, &roomID)
+		result, err := service.ForceStartActivitySessionWithSupervisors(ctx, activity.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
 
 		// ASSERT
 		require.NoError(t, err)
@@ -1092,7 +1045,7 @@ func TestActiveService_ForceStartActivitySession(t *testing.T) {
 		require.NotNil(t, session1)
 
 		// ACT - Force start a new session (should end the first one)
-		result, err := service.ForceStartActivitySession(ctx, activity2.ID, iotDevice.ID, staff.ID, &roomID)
+		result, err := service.ForceStartActivitySessionWithSupervisors(ctx, activity2.ID, iotDevice.ID, []int64{staff.ID}, &roomID)
 
 		// ASSERT
 		require.NoError(t, err)

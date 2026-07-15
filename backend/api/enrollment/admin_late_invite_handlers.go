@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -45,9 +44,8 @@ func (rs *Resource) createLateInvite(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("enrollment request service not configured")))
 		return
 	}
-	phaseID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || phaseID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid phase id")))
+	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid phase id")
+	if !ok {
 		return
 	}
 	body := &AdminCreateLateInviteRequest{}
@@ -63,7 +61,7 @@ func (rs *Resource) createLateInvite(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var result *enrollmentService.CreateLateInviteResult
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		out, createErr := rs.RequestService.CreateLateInvite(ctx, enrollmentService.CreateLateInviteInput{
 			PhaseID:           phaseID,
 			GuardianEmail:     body.GuardianEmail,
@@ -122,9 +120,8 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("manual enrollment services not configured")))
 		return
 	}
-	phaseID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || phaseID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid phase id")))
+	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid phase id")
+	if !ok {
 		return
 	}
 	body := &AdminManualApprovedEnrollmentRequest{}
@@ -159,7 +156,7 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 	}
 
 	body.PhaseID = phaseID
-	serviceReq, parseErr := buildServiceRequest(&body.SubmitEnrollmentRequest, tenantID, remoteIPFromRequest(r))
+	serviceReq, parseErr := BuildServiceRequest(&body.SubmitEnrollmentRequest, tenantID, remoteIPFromRequest(r))
 	if parseErr != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(parseErr))
 		return
@@ -180,7 +177,7 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 		submitResult *enrollmentService.SubmitResult
 		outcome      *enrollmentService.DecideOutcome
 	)
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		submitted, submitErr := rs.RequestService.Submit(ctx, serviceReq)
 		if submitErr != nil {
 			return submitErr
@@ -231,30 +228,29 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("manual enrollment bootstrap services not configured")))
 		return
 	}
-	phaseID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || phaseID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid phase id")))
+	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid phase id")
+	if !ok {
 		return
 	}
 
 	var (
-		phase              *enrollmentModels.Phase
-		schema             *enrollmentModels.FormSchema
-		offerings          []*enrollmentModels.CareOffering
-		texts              enrollmentService.LegalTexts
-		collectSchoolClass bool
+		phase        *enrollmentModels.Phase
+		schema       *enrollmentModels.FormSchema
+		offerings    []*enrollmentModels.CareOffering
+		texts        enrollmentService.LegalTexts
+		capabilities enrollmentService.FormCapabilities
 	)
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		loadedPhase, phaseErr := rs.RequestService.LoadManualEnrollmentPhase(ctx, phaseID)
 		if phaseErr != nil {
 			return phaseErr
 		}
 		phase = loadedPhase
-		collect, collectErr := rs.RequestService.CollectsSchoolClass(ctx)
-		if collectErr != nil {
-			return collectErr
+		resolvedCapabilities, capabilityErr := rs.RequestService.FormCapabilities(ctx)
+		if capabilityErr != nil {
+			return capabilityErr
 		}
-		collectSchoolClass = collect
+		capabilities = resolvedCapabilities
 		if phase.FormSchemaID != nil {
 			loadedSchema, schemaErr := rs.FormSchemaService.GetByID(ctx, *phase.FormSchemaID)
 			if schemaErr != nil {
@@ -265,11 +261,15 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 				schema = loadedSchema
 			}
 		}
-		list, listErr := rs.CareOfferingService.ListActiveByPhase(ctx, phaseID)
-		if listErr != nil {
-			return listErr
+		if capabilities.CareOfferingsEnabled {
+			list, listErr := rs.CareOfferingService.ListActiveByPhase(ctx, phaseID)
+			if listErr != nil {
+				return listErr
+			}
+			offerings = list
+		} else {
+			offerings = []*enrollmentModels.CareOffering{}
 		}
-		offerings = list
 		legalTexts, legalErr := rs.RequestService.LegalTextsForManualEnrollmentPhase(ctx, phaseID)
 		if legalErr != nil {
 			return legalErr
@@ -292,13 +292,16 @@ func (rs *Resource) getManualEnrollmentBootstrap(w http.ResponseWriter, r *http.
 	for _, o := range offerings {
 		items = append(items, toCareOfferingResponse(o))
 	}
+	capabilities = enrollmentService.EffectiveFormCapabilities(capabilities, offerings)
 	common.Respond(w, r, http.StatusOK, PublicEnrollmentFormBootstrapResponse{
 		Phase:                     toPublicPhase(phase),
 		Schema:                    toPublicFormSchemaResponse(schema),
 		Offerings:                 items,
-		CareOfferingSelectionMode: phase.CareOfferingSelectionMode,
-		CareRequired:              phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
-		SchoolClass:               toPublicSchoolClassConfig(phase, collectSchoolClass),
+		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(phase.CareOfferingSelectionMode, capabilities.CareOfferingsEnabled),
+		CareRequired:              capabilities.CareOfferingsEnabled && phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
+		SchoolClass:               toPublicSchoolClassConfig(phase, capabilities.CollectSchoolClass),
+		CollectGradeLevel:         capabilities.CollectGradeLevel,
+		CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
 		CaptchaConfig:             PublicCaptchaConfigResponse{},
 		LegalTexts: PublicLegalTextsResponse{
 			AGB:                 texts.AGB,
@@ -343,6 +346,6 @@ func mapManualEnrollmentError(w http.ResponseWriter, r *http.Request, err error)
 	case common.IsTransientDatabaseError(err):
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 	default:
-		mapSubmitError(w, r, err)
+		MapSubmitError(w, r, err)
 	}
 }

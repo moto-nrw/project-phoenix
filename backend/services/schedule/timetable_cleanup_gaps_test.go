@@ -13,6 +13,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -23,55 +24,21 @@ import (
 
 // --- SettingsService stub ---
 
-// stubSettingsService is a minimal configSvc.SettingsService that lets tests
-// exercise the resolveRetentionDays branches without a real settings DB.
-type stubSettingsService struct {
-	hasOverride    bool
-	hasOverrideErr error
-	intVal         int
-	intErr         error
-}
-
-func (s *stubSettingsService) GetSchema(context.Context, []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (s *stubSettingsService) GetSchemaForOperator(context.Context, []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (s *stubSettingsService) Resolve(context.Context, string) (any, error) { return nil, nil }
-func (s *stubSettingsService) ResolveString(context.Context, string) (string, error) {
-	return "", nil
-}
-func (s *stubSettingsService) ResolveStringForTenant(context.Context, int64, string) (string, error) {
-	return "", nil
-}
-func (s *stubSettingsService) ResolveBool(context.Context, string) (bool, error) { return false, nil }
-func (s *stubSettingsService) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
-	return false, nil
-}
-func (s *stubSettingsService) ResolveInt(_ context.Context, _ string) (int, error) {
-	return s.intVal, s.intErr
-}
-func (s *stubSettingsService) ResolveIntForTenant(_ context.Context, _ int64, _ string) (int, error) {
-	return s.intVal, s.intErr
-}
-func (s *stubSettingsService) HasTenantOverride(_ context.Context, _ string) (bool, error) {
-	return s.hasOverride, s.hasOverrideErr
-}
-func (s *stubSettingsService) SetValue(context.Context, string, any, *int64, []string) error {
-	return nil
-}
-func (s *stubSettingsService) ResetValue(context.Context, string, *int64, []string) error {
-	return nil
-}
-func (s *stubSettingsService) GetLoginImageURL(context.Context, int64) (string, error) {
-	return "", nil
-}
-func (s *stubSettingsService) SetLoginImageURL(context.Context, int64, string) (string, error) {
-	return "", nil
-}
-func (s *stubSettingsService) ClearLoginImageURL(context.Context, int64) (string, error) {
-	return "", nil
+// newStubSettingsService builds a configtest.Mock that lets tests exercise
+// the resolveRetentionDays branches without a real settings DB: HasTenantOverride
+// and ResolveInt/ResolveIntForTenant report the given canned values/errors.
+func newStubSettingsService(hasOverride bool, hasOverrideErr error, intVal int, intErr error) *configtest.Mock {
+	return &configtest.Mock{
+		HasTenantOverrideFn: func(context.Context, string) (bool, error) {
+			return hasOverride, hasOverrideErr
+		},
+		ResolveIntFn: func(context.Context, string) (int, error) {
+			return intVal, intErr
+		},
+		ResolveIntForTenantFn: func(context.Context, int64, string) (int, error) {
+			return intVal, intErr
+		},
+	}
 }
 
 // buildSvc wires a TimetableCleanupService with the given settings stub.
@@ -81,6 +48,7 @@ func buildSvc(db *bun.DB, settings configSvc.SettingsService) scheduleSvc.Timeta
 		scheduleRepoPkg.NewActivityExceptionRepository(db),
 		scheduleRepoPkg.NewInstanceStudentRepository(db),
 		auditRepoPkg.NewDataDeletionRepository(db),
+		auditRepoPkg.NewDeviationEventRepository(db),
 		settings,
 		slog.Default(),
 	)
@@ -189,7 +157,7 @@ func TestGetStats_ReportsTotals(t *testing.T) {
 func TestResolveRetentionDays_TenantOverride_UsesOverriddenValue(t *testing.T) {
 	// HasTenantOverride = true, ResolveInt returns a positive value → use it.
 	f, roomID := setupFixture(t)
-	settings := &stubSettingsService{hasOverride: true, intVal: 42}
+	settings := newStubSettingsService(true, nil, 42, nil)
 	svc := buildSvc(f.db, settings)
 
 	// Insert a 50-day-old instance to verify: 42-day window deletes it, a
@@ -208,10 +176,7 @@ func TestResolveRetentionDays_HasOverrideError_FallsBackToDefault(t *testing.T) 
 	// ResolveInt, which returns the registry default even when no override
 	// exists.
 	f, roomID := setupFixture(t)
-	settings := &stubSettingsService{
-		hasOverrideErr: errors.New("settings DB down"),
-		intVal:         365,
-	}
+	settings := newStubSettingsService(false, errors.New("settings DB down"), 365, nil)
 	svc := buildSvc(f.db, settings)
 
 	f.newInstance(t, timezone.TodayDate().AddDays(-400), scheduleModels.InstanceStatusCompleted, roomID, nil)
@@ -227,7 +192,7 @@ func TestResolveRetentionDays_NoOverride_UsesRegistryDefault(t *testing.T) {
 	// customization; the default 180 (via stub) is what the service should
 	// use.
 	f, _ := setupFixture(t)
-	settings := &stubSettingsService{hasOverride: false, intVal: 180}
+	settings := newStubSettingsService(false, nil, 180, nil)
 	svc := buildSvc(f.db, settings)
 
 	// Call Preview to inspect RetentionDays without having to seed data.
@@ -241,7 +206,7 @@ func TestResolveRetentionDays_ResolveIntReturnsZero_FallsThroughToLiteral(t *tes
 	// stored value or misconfigured registry default). The `v > 0` guard
 	// rejects it and the function falls through to the literal default 365.
 	f, _ := setupFixture(t)
-	settings := &stubSettingsService{hasOverride: true, intVal: 0}
+	settings := newStubSettingsService(true, nil, 0, nil)
 	svc := buildSvc(f.db, settings)
 
 	preview, err := svc.PreviewExpiredTimetableData(f.ctx)
@@ -277,6 +242,7 @@ func TestCleanup_NilAuditRepo_ReturnsError(t *testing.T) {
 		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
 		nil,
 		nil,
+		nil,
 		slog.Default(),
 	)
 
@@ -302,6 +268,7 @@ func TestNewTimetableCleanupService_NilLogger_FallsBackToDefault(t *testing.T) {
 		scheduleRepoPkg.NewActivityExceptionRepository(db),
 		scheduleRepoPkg.NewInstanceStudentRepository(db),
 		auditRepoPkg.NewDataDeletionRepository(db),
+		nil,
 		nil,
 		nil,
 	)

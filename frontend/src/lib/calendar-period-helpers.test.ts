@@ -11,6 +11,8 @@ import {
   mapPeriodWarnings,
   mapPeriodWithWarnings,
   uniqueAssignedPeriods,
+  weekCycleSlotForDate,
+  weekPatternForDate,
 } from "./calendar-period-helpers";
 
 function period(
@@ -54,13 +56,109 @@ describe("calendar-period-helpers", () => {
     it("formats every calendar-period reference category", () => {
       expect(
         formatPeriodUsage(0, 0, " · ", {
+          activityGroupCount: 1,
           studentEnrollmentCount: 1,
           supervisorCount: 2,
           activityInstanceCount: 3,
         }),
       ).toBe(
-        "1 Schülerzuordnung · 2 Mitarbeitenden-Zuordnungen · 3 Termininstanzen",
+        "1 Aktivitätsvorlage · 1 Schülerzuordnung · 2 Mitarbeitenden-Zuordnungen · 3 Termininstanzen",
       );
+    });
+  });
+
+  describe("weekPatternForDate", () => {
+    const cyclePeriod: CalendarPeriod = {
+      ...period("9", "A/B-Halbjahr", "2026-05-01", "2026-12-31"),
+      weekCycleLength: 2,
+      weekCycleAnchor: "2026-05-04",
+    };
+
+    it("resolves the anchor week as A and alternates weekly", () => {
+      expect(weekPatternForDate(cyclePeriod, "2026-05-04")).toBe(1);
+      // Friday still belongs to the anchor week.
+      expect(weekPatternForDate(cyclePeriod, "2026-05-08")).toBe(1);
+      expect(weekPatternForDate(cyclePeriod, "2026-05-11")).toBe(2);
+      expect(weekPatternForDate(cyclePeriod, "2026-05-18")).toBe(1);
+    });
+
+    it("wraps dates before the anchor", () => {
+      expect(weekPatternForDate(cyclePeriod, "2026-04-27")).toBe(2);
+      expect(weekPatternForDate(cyclePeriod, "2026-04-30")).toBe(2);
+      expect(weekPatternForDate(cyclePeriod, "2026-04-20")).toBe(1);
+    });
+
+    it("returns null without a usable cycle", () => {
+      expect(weekPatternForDate(null, "2026-05-04")).toBeNull();
+      expect(weekPatternForDate(undefined, "2026-05-04")).toBeNull();
+      expect(
+        weekPatternForDate(
+          period("1", "Ohne Zyklus", "2026-05-01", "2026-12-31"),
+          "2026-05-04",
+        ),
+      ).toBeNull();
+      expect(
+        weekPatternForDate(
+          { ...cyclePeriod, weekCycleAnchor: null },
+          "2026-05-04",
+        ),
+      ).toBeNull();
+    });
+
+    it("returns null for cycle slots beyond B", () => {
+      const threeWeekCycle = { ...cyclePeriod, weekCycleLength: 3 };
+      expect(weekPatternForDate(threeWeekCycle, "2026-05-04")).toBe(1);
+      expect(weekPatternForDate(threeWeekCycle, "2026-05-11")).toBe(2);
+      expect(weekPatternForDate(threeWeekCycle, "2026-05-18")).toBeNull();
+    });
+  });
+
+  describe("weekCycleSlotForDate", () => {
+    const threeWeekCycle: CalendarPeriod = {
+      ...period("9", "Drei-Wochen-Zyklus", "2026-05-01", "2026-12-31"),
+      weekCycleLength: 3,
+      weekCycleAnchor: "2026-05-04",
+    };
+
+    it("returns the raw slot including weeks beyond B", () => {
+      expect(weekCycleSlotForDate(threeWeekCycle, "2026-05-04")).toBe(1);
+      expect(weekCycleSlotForDate(threeWeekCycle, "2026-05-11")).toBe(2);
+      expect(weekCycleSlotForDate(threeWeekCycle, "2026-05-18")).toBe(3);
+      expect(weekCycleSlotForDate(threeWeekCycle, "2026-05-25")).toBe(1);
+    });
+
+    it("wraps dates before the anchor", () => {
+      expect(weekCycleSlotForDate(threeWeekCycle, "2026-04-27")).toBe(3);
+    });
+
+    it("returns null without a usable cycle or with an invalid date", () => {
+      expect(weekCycleSlotForDate(null, "2026-05-04")).toBeNull();
+      expect(weekCycleSlotForDate(undefined, "2026-05-04")).toBeNull();
+      expect(
+        weekCycleSlotForDate(
+          period("1", "Ohne Zyklus", "2026-05-01", "2026-12-31"),
+          "2026-05-04",
+        ),
+      ).toBeNull();
+      expect(
+        weekCycleSlotForDate(
+          { ...threeWeekCycle, weekCycleAnchor: null },
+          "2026-05-04",
+        ),
+      ).toBeNull();
+      expect(weekCycleSlotForDate(threeWeekCycle, "ungueltig")).toBeNull();
+    });
+
+    it("returns null for calendar-invalid dates instead of rolling them over", () => {
+      // Date.UTC would normalize these to 2026-03-02 / 2027-01-01.
+      expect(weekCycleSlotForDate(threeWeekCycle, "2026-02-30")).toBeNull();
+      expect(weekCycleSlotForDate(threeWeekCycle, "2026-13-01")).toBeNull();
+      expect(
+        weekCycleSlotForDate(
+          { ...threeWeekCycle, weekCycleAnchor: "2026-02-30" },
+          "2026-05-04",
+        ),
+      ).toBeNull();
     });
   });
 

@@ -71,8 +71,6 @@ func cleanupStudentWithGuardians(t *testing.T, tc *testContext, studentID, perso
 func TestCreateStudent_WithGuardians(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
-
 	body := map[string]interface{}{
 		"first_name":   "Guarded",
 		"last_name":    "Child",
@@ -95,7 +93,7 @@ func TestCreateStudent_WithGuardians(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 
@@ -149,8 +147,6 @@ func TestCreateStudent_WithGuardians(t *testing.T) {
 func TestCreateStudent_GuardianFailureRollsBackStudent(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
-
 	const firstName = "Rollback"
 	const lastName = "Orphan"
 
@@ -170,7 +166,7 @@ func TestCreateStudent_GuardianFailureRollsBackStudent(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	// Bad guardian input is a client error, not a server error: the handler
 	// classifies the ValidationError and returns 400 (not 500), and the
@@ -216,8 +212,6 @@ func TestCreateStudent_GuardianFailureRollsBackStudent(t *testing.T) {
 func TestCreateStudent_InvalidGuardianPhoneRollsBackStudent(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
-
 	const firstName = "PhoneRollback"
 	const lastName = "Orphan"
 
@@ -241,7 +235,7 @@ func TestCreateStudent_InvalidGuardianPhoneRollsBackStudent(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code,
 		"invalid guardian phone must return 400. Body: %s", rr.Body.String())
@@ -289,9 +283,8 @@ func assertGuardianBadRequestNoOrphan(
 ) {
 	t.Helper()
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code,
 		"invalid guardian input must return 400. Body: %s", rr.Body.String())
@@ -330,8 +323,6 @@ func assertGuardianBadRequestNoOrphan(
 func TestCreateStudent_MultipleGuardians(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
-
 	body := map[string]interface{}{
 		"first_name":   "Multi",
 		"last_name":    "Guardians",
@@ -365,7 +356,7 @@ func TestCreateStudent_MultipleGuardians(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 
@@ -399,8 +390,6 @@ func TestCreateStudent_MultipleGuardians(t *testing.T) {
 func TestCreateStudent_GuardianOptionalFieldsPersisted(t *testing.T) {
 	tc := setupTestContext(t)
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
-
 	body := map[string]interface{}{
 		"first_name":   "Optional",
 		"last_name":    "Fields",
@@ -424,7 +413,7 @@ func TestCreateStudent_GuardianOptionalFieldsPersisted(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 

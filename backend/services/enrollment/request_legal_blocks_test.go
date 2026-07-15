@@ -82,10 +82,10 @@ func TestResolveRequiredConsents_UsesTemplateLegalBlocks(t *testing.T) {
 		},
 	}
 
-	required, err := svc.resolveRequiredConsents(context.Background(), schema)
+	blocks, err := svc.resolveSubmissionLegalBlocks(context.Background(), schema)
 
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing, "custom_pool"}, required)
+	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing, "custom_pool"}, requiredConsentKeys(blocks))
 }
 
 func TestBuildLegalBlocks_RequiresEnabledTogglesForEveryStandardBlock(t *testing.T) {
@@ -210,14 +210,14 @@ func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testi
 	// A template whose blocks are ALL disabled must behave like a template
 	// without blocks: the tenant-wide settings contract stays in force, so
 	// the DSGVO acknowledgment cannot be erased by an empty snapshot.
-	svc := &requestService{settings: &legalSettingsStub{
+	svc := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: &legalSettingsStub{
 		values: map[string]string{
 			configModel.KeyEnrollmentLegalDSGVOText: "DSGVO Text",
 		},
 		bools: map[string]bool{
 			configModel.KeyEnrollmentLegalDSGVOEnabled: true,
 		},
-	}}
+	}}}
 	schema := &enrollmentModels.FormSchema{
 		LegalBlocks: []enrollmentModels.FormLegalBlock{
 			{
@@ -230,10 +230,10 @@ func TestResolveRequiredConsents_AllDisabledTemplateFallsBackToSettings(t *testi
 		},
 	}
 
-	required, err := svc.resolveRequiredConsents(context.Background(), schema)
+	blocks, err := svc.resolveSubmissionLegalBlocks(context.Background(), schema)
 
 	require.NoError(t, err)
-	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing}, required)
+	assert.ElementsMatch(t, []string{enrollmentModels.ConsentKeyDataProcessing}, requiredConsentKeys(blocks))
 }
 
 func TestBuildTemplateLegalBlocks_SortsBySortOrder(t *testing.T) {

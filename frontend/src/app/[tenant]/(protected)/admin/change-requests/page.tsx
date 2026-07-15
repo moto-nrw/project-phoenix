@@ -1,6 +1,7 @@
 "use client";
 
 import { CareRequestReviewList } from "~/components/students/care-request-review-list";
+import { ExcusedRequestReviewList } from "~/components/students/excused-request-review-list";
 import { MasterDataReviewList } from "~/components/students/master-data-review-list";
 import { Loading } from "~/components/ui/loading";
 import { useRequirePermission } from "~/lib/hooks/use-require-permission";
@@ -37,7 +38,7 @@ export default function AdminChangeRequestsPage() {
         <MasterDataReviewList />
       </section>
 
-      <section>
+      <section className="mb-8">
         <h2 className="text-base font-semibold text-gray-900">
           Betreuungszeiten
         </h2>
@@ -47,6 +48,18 @@ export default function AdminChangeRequestsPage() {
           Kindes.
         </p>
         <CareRequestReviewList />
+      </section>
+
+      <section>
+        <h2 className="text-base font-semibold text-gray-900">
+          Entschuldigte Abmeldungen
+        </h2>
+        <p className="mt-1 mb-3 text-sm text-gray-600">
+          Von Eltern gemeldete entschuldigte Abwesenheiten, die eine Bestätigung
+          benötigen. Das Kind bleibt bis zur Freigabe eingeplant. Freigeben
+          meldet das Kind für die gemeldeten Tage ab.
+        </p>
+        <ExcusedRequestReviewList />
       </section>
     </div>
   );

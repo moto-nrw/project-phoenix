@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 
 import { Alert } from "~/components/ui/alert";
@@ -10,6 +10,9 @@ import { ColorPickerField } from "~/components/ui/color-picker-field";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
+import { MultiCheckboxSelect } from "~/components/ui/multi-checkbox-select";
+import { getCategories } from "~/lib/activity-api";
+import type { ActivityCategory } from "~/lib/activity-helpers";
 import { getApiErrorMessage } from "~/lib/api-error-message";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
@@ -49,6 +52,12 @@ export function ShiftTypeManageModal({
   const [color, setColor] = useState<string | null>(DEFAULT_NEW_COLOR);
   const [description, setDescription] = useState("");
   const [isActive, setIsActive] = useState(true);
+  const [categoryIds, setCategoryIds] = useState<string[]>([]);
+  const [categories, setCategories] = useState<ActivityCategory[]>([]);
+  // Whether the category list has loaded successfully. Until it has, the
+  // category_ids payload is omitted so a pending/failed load can never send an
+  // empty array that clears existing mappings (#1837 follow-up).
+  const [categoriesReady, setCategoriesReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [seeding, setSeeding] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +70,55 @@ export function ShiftTypeManageModal({
     setError(null);
     setDeleteTarget(null);
   }, [isOpen]);
+
+  // Monotonic token so only the most recently started category load applies
+  // its result. Without it a slow initial load could resolve AFTER a post-save
+  // refresh and overwrite fresh mappings with a stale snapshot (#1837 review).
+  const loadTokenRef = useRef(0);
+
+  // Load the Timetable-Kategorien so they can be mapped to a shift type. Each
+  // category carries its current shift_type_id, which drives the form's
+  // preselection (#1837 follow-up). While loading (or after a failure) the
+  // list is cleared and categoriesReady is false, so the selector is disabled
+  // and category_ids is omitted from saves — never sending stale options.
+  const loadCategories = useCallback(async () => {
+    const token = loadTokenRef.current + 1;
+    loadTokenRef.current = token;
+    setCategoriesReady(false);
+    setCategories([]);
+    try {
+      const list = await getCategories();
+      if (loadTokenRef.current !== token) return; // superseded by a newer load
+      setCategories(list);
+      setCategoriesReady(true);
+    } catch (err: unknown) {
+      if (loadTokenRef.current !== token) return;
+      logger.error("shift_type_categories_load_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setCategories([]);
+      setCategoriesReady(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    void loadCategories();
+  }, [isOpen, loadCategories]);
+
+  // Preselect the categories currently mapped to the shift type being edited
+  // (empty for a new shift type). Re-runs when categories finish loading so a
+  // fast "open → edit" cannot miss the preselection.
+  useEffect(() => {
+    if (view !== "form") return;
+    setCategoryIds(
+      editing
+        ? categories
+            .filter((category) => category.shiftTypeId === editing.id)
+            .map((category) => category.id)
+        : [],
+    );
+  }, [view, editing, categories]);
 
   const openCreate = () => {
     setEditing(null);
@@ -114,6 +172,11 @@ export function ShiftTypeManageModal({
         color: color ?? DEFAULT_NEW_COLOR,
         description: description.trim(),
         isActive,
+        // Only manage the mapping when the category list is known. If it is
+        // still loading or failed to load, omit category_ids entirely so the
+        // backend leaves existing links untouched (never send an empty array
+        // that would clear them).
+        categoryIds: categoriesReady ? categoryIds : undefined,
       };
       if (editing) {
         await shiftTypeService.updateShiftType(editing.id, payload);
@@ -121,6 +184,13 @@ export function ShiftTypeManageModal({
         await shiftTypeService.createShiftType(payload);
       }
       onChanged();
+      // The save rewrote category.shift_type_id server-side. Refresh the local
+      // categories through the same tokened loader so a subsequent edit in the
+      // same open modal preselects from fresh mappings. loadCategories clears
+      // categoriesReady until the reload succeeds, so a failed refresh leaves
+      // the mapping state stale-but-guarded (a later save omits category_ids
+      // rather than clearing links that were just written, #1837).
+      await loadCategories();
       setView("list");
     } catch (err: unknown) {
       logger.error("shift_type_save_failed", {
@@ -366,6 +436,42 @@ export function ShiftTypeManageModal({
                 className="block w-full resize-none rounded-lg border-0 bg-white px-4 py-3 text-base text-gray-900 shadow-sm ring-1 ring-gray-200 transition-all duration-200 ring-inset placeholder:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-400"
               />
             </label>
+
+            <div>
+              <span
+                id="shift-type-categories-label"
+                className="mb-2 block text-sm font-medium text-gray-700"
+              >
+                Timetable-Kategorien (optional)
+              </span>
+              <MultiCheckboxSelect
+                ariaLabel="Timetable-Kategorien"
+                value={categoryIds}
+                onChange={setCategoryIds}
+                disabled={!categoriesReady}
+                options={categories.map((category) => ({
+                  value: category.id,
+                  label: category.name,
+                }))}
+                emptyLabel="Keine Kategorie zugeordnet"
+                unavailableLabel="Kategorien werden geladen…"
+                multipleLabel={(count) => `${count} Kategorien`}
+                searchable
+                searchPlaceholder="Kategorie suchen…"
+              />
+              {!categoriesReady && (
+                <p className="mt-1 text-xs text-gray-500">
+                  Kategorien werden geladen … Namen, Farbe und Status lassen
+                  sich bereits speichern; die Kategorie-Zuordnung bleibt dabei
+                  unverändert.
+                </p>
+              )}
+              <p className="mt-1 text-xs text-gray-500">
+                Ordnet Betreuungsblöcke dieser Kategorien im Stundenplan dieser
+                Schichtart zu. Eine Kategorie kann nur einer Schichtart
+                zugeordnet sein.
+              </p>
+            </div>
 
             <label
               htmlFor="shift-type-active"

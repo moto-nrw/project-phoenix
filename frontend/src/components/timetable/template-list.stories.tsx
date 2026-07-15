@@ -15,8 +15,11 @@ const templates: TimetableTemplate[] = [
     roomName: "Mensa",
     isOpen: true,
     maxParticipants: 30,
+    targetGroupType: "none",
     enrollmentCount: 12,
     supervisorCount: 2,
+    requiredStaffCount: 1,
+    assignedStaffCount: 2,
     studentIds: [],
     staffIds: [],
     schedules: [
@@ -37,8 +40,11 @@ const templates: TimetableTemplate[] = [
     categoryName: "Sport",
     isOpen: true,
     maxParticipants: 20,
+    targetGroupType: "none",
     enrollmentCount: 8,
     supervisorCount: 1,
+    requiredStaffCount: 1,
+    assignedStaffCount: 1,
     studentIds: [],
     staffIds: [],
     schedules: [

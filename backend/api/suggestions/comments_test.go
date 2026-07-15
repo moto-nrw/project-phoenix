@@ -56,26 +56,6 @@ func createCommentTestPost(t *testing.T, db *bun.DB, accountID int64, title, des
 	return post
 }
 
-func createTestComment(t *testing.T, db *bun.DB, postID, authorID int64, content string) *suggestions.Comment {
-	t.Helper()
-	comment := &suggestions.Comment{
-		PostID:     postID,
-		AuthorID:   authorID,
-		AuthorType: suggestions.AuthorTypeUser,
-		Content:    content,
-	}
-	comment.SetTenantID(1)
-	ctx, cancel := context.WithTimeout(testpkg.TenantContext(1), 5*time.Second)
-	defer cancel()
-	_, err := db.NewInsert().
-		Model(comment).
-		ModelTableExpr("suggestions.comments").
-		Returning("*").
-		Exec(ctx)
-	require.NoError(t, err)
-	return comment
-}
-
 func cleanupComments(t *testing.T, db *bun.DB, commentIDs ...int64) {
 	t.Helper()
 	if len(commentIDs) == 0 {
@@ -151,7 +131,7 @@ func TestListComments_Success(t *testing.T) {
 	post := createCommentTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
 	defer cleanupCommentPosts(t, db, post.ID)
 
-	comment := createTestComment(t, db, post.ID, account.ID, "Test comment")
+	comment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "Test comment", suggestions.AuthorTypeUser)
 	defer cleanupComments(t, db, comment.ID)
 
 	req := newCommentAuthRequest(t, "GET", fmt.Sprintf("/suggestions/%d/comments", post.ID), nil, account.ID, commentPerms)
@@ -296,7 +276,7 @@ func TestDeleteComment_Success(t *testing.T) {
 	post := createCommentTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
 	defer cleanupCommentPosts(t, db, post.ID)
 
-	comment := createTestComment(t, db, post.ID, account.ID, "To be deleted")
+	comment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "To be deleted", suggestions.AuthorTypeUser)
 
 	req := newCommentAuthRequest(t, "DELETE", fmt.Sprintf("/suggestions/%d/comments/%d", post.ID, comment.ID), nil, account.ID, commentPerms)
 	rr := execCommentRequest(router, req)
@@ -315,7 +295,7 @@ func TestDeleteComment_Forbidden(t *testing.T) {
 	post := createCommentTestPost(t, db, author.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
 	defer cleanupCommentPosts(t, db, post.ID)
 
-	comment := createTestComment(t, db, post.ID, author.ID, "Author's comment")
+	comment := testpkg.CreateTestComment(t, db, post.ID, author.ID, "Author's comment", suggestions.AuthorTypeUser)
 	defer cleanupComments(t, db, comment.ID)
 
 	// Try to delete as different user
@@ -365,7 +345,7 @@ func TestMarkCommentsRead_Success(t *testing.T) {
 	post := createCommentTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
 	defer cleanupCommentPosts(t, db, post.ID)
 
-	comment := createTestComment(t, db, post.ID, account.ID, "Unread comment")
+	comment := testpkg.CreateTestComment(t, db, post.ID, account.ID, "Unread comment", suggestions.AuthorTypeUser)
 	defer cleanupComments(t, db, comment.ID)
 
 	req := newCommentAuthRequest(t, "POST", fmt.Sprintf("/suggestions/%d/comments/read", post.ID), nil, account.ID, commentPerms)

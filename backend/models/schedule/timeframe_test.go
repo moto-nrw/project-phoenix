@@ -403,31 +403,6 @@ func TestTimeframe_IsActiveFlag(t *testing.T) {
 	})
 }
 
-func TestTimeframe_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		tf := &Timeframe{StartTime: time.Now()}
-		err := tf.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		tf := &Timeframe{StartTime: time.Now()}
-		err := tf.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
-func TestTimeframe_TableName(t *testing.T) {
-	tf := &Timeframe{}
-	if got := tf.TableName(); got != "schedule.timeframes" {
-		t.Errorf("TableName() = %v, want schedule.timeframes", got)
-	}
-}
-
 func TestTimeframe_GetID(t *testing.T) {
 	tf := &Timeframe{
 		Model:     base.Model{ID: 42},

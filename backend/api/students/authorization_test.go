@@ -46,11 +46,10 @@ func TestStudentAuthorization_NonAdminAccess(t *testing.T) {
 	testpkg.CreateTestGroupTeacher(t, tc.db, group.ID, teacher.ID)
 
 	t.Run("teacher_can_view_student_in_supervised_group", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetStudentHandler(), "id")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:read"})
+		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Teacher should view supervised student. Body: %s", rr.Body.String())
 	})
@@ -60,14 +59,13 @@ func TestStudentAuthorization_NonAdminAccess(t *testing.T) {
 		otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Other", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, otherStaff.ID)
 
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"first_name": "Updated",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
 		claims := testutil.TeacherTestClaims(int(otherAccount.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:write"})
+		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		// Non-supervisor should be forbidden
 		testutil.AssertForbidden(t, rr)
@@ -77,11 +75,10 @@ func TestStudentAuthorization_NonAdminAccess(t *testing.T) {
 		otherStaff, otherAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Delete", "Restricted")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, otherStaff.ID)
 
-		router := setupRouter(tc.resource.DeleteStudentHandler(), "id")
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d", student.ID), nil)
 
 		claims := testutil.TeacherTestClaims(int(otherAccount.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:delete"})
+		rr := authExec(t, tc, req, claims, []string{"users:delete"})
 
 		// Non-supervisor should be forbidden
 		testutil.AssertForbidden(t, rr)
@@ -99,14 +96,13 @@ func TestStudentAuthorization_StudentWithoutGroup(t *testing.T) {
 	defer testpkg.CleanupActivityFixtures(t, tc.db, staff.ID)
 
 	t.Run("non_admin_cannot_update_student_without_group", func(t *testing.T) {
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"first_name": "Updated",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:write"})
+		rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 		// Only administrators can update students without groups
 		testutil.AssertForbidden(t, rr)
@@ -114,13 +110,12 @@ func TestStudentAuthorization_StudentWithoutGroup(t *testing.T) {
 	})
 
 	t.Run("admin_can_update_student_without_group", func(t *testing.T) {
-		router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 		body := map[string]interface{}{
 			"first_name": "AdminUpdated",
 		}
 		req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Admin should update groupless student. Body: %s", rr.Body.String())
 	})
@@ -144,10 +139,9 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 			"guardian@example.com", "+49123456789", "Important notes", student.ID)
 		require.NoError(t, err)
 
-		router := setupRouter(tc.resource.GetStudentHandler(), "id")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
-		rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		// Admin should see sensitive fields
@@ -160,11 +154,10 @@ func TestStudentResponse_FullAccess(t *testing.T) {
 		staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "Limited", "Staff")
 		defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
 
-		router := setupRouter(tc.resource.GetStudentHandler(), "id")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:read"})
+		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		// Non-supervisor should see limited fields (response still 200 but with less data)
@@ -189,11 +182,10 @@ func TestGetStudentDetail_WithGroup(t *testing.T) {
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 
 	t.Run("supervisor_gets_full_access", func(t *testing.T) {
-		router := setupRouter(tc.resource.GetStudentHandler(), "id")
 		req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
 		claims := testutil.TeacherTestClaims(int(account.ID))
-		rr := executeWithAuth(router, req, claims, []string{"students:read"})
+		rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 		assert.Equal(t, http.StatusOK, rr.Code, "Supervisor should get student")
 		// Check response includes group name
@@ -211,11 +203,10 @@ func TestListStudents_WithTeacherAccess(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ListTeacher", "Access")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
 
-	router := setupRouter(tc.resource.ListStudentsHandler(), "")
 	req := testutil.NewRequest("GET", "/", nil)
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	rr := executeWithAuth(router, req, claims, []string{"students:read"})
+	rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Teacher should list students")
 }
@@ -227,11 +218,10 @@ func TestGetStudent_WithTeacherAccess(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "GetTeacher", "Access")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, teacher.ID)
 
-	router := setupRouter(tc.resource.GetStudentHandler(), "id")
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	rr := executeWithAuth(router, req, claims, []string{"students:read"})
+	rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Teacher should get student")
 }
@@ -258,10 +248,9 @@ func TestStudentDataScope_AllStaff_GrantsFullReadAccess(t *testing.T) {
 
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 
-	router := setupRouter(tc.resource.GetStudentHandler(), "id")
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 	claims := testutil.TeacherTestClaims(int(otherAccount.ID))
-	rr := executeWithAuth(router, req, claims, []string{"users:read"})
+	rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -292,10 +281,9 @@ func TestStudentDataScope_GroupSupervisorsOnly_RedactsForNonSupervisor(t *testin
 
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 
-	router := setupRouter(tc.resource.GetStudentHandler(), "id")
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 	claims := testutil.TeacherTestClaims(int(otherAccount.ID))
-	rr := executeWithAuth(router, req, claims, []string{"users:read"})
+	rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -321,10 +309,9 @@ func TestStudentDataScope_AllStaff_GrantsAccessToGrouplessStudent(t *testing.T) 
 	staff, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "AnyStaff", "Member")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, staff.ID)
 
-	router := setupRouter(tc.resource.GetStudentHandler(), "id")
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	rr := executeWithAuth(router, req, claims, []string{"users:read"})
+	rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -355,11 +342,10 @@ func TestStudentDataScope_DoesNotAffectWrites(t *testing.T) {
 
 	// A non-supervisor attempts to update → must still be forbidden even
 	// though the read scope is fully open.
-	router := setupRouter(tc.resource.UpdateStudentHandler(), "id")
 	body := map[string]interface{}{"first_name": "ShouldNotChange"}
 	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
 	claims := testutil.TeacherTestClaims(int(otherAccount.ID))
-	rr := executeWithAuth(router, req, claims, []string{"students:write"})
+	rr := authExec(t, tc, req, claims, []string{"users:update"})
 
 	testutil.AssertForbidden(t, rr)
 }
@@ -388,12 +374,11 @@ func TestStudentDataScope_AllStaff_ListReturnsFullAccess(t *testing.T) {
 		"LIST_SCOPE_MARKER_d5s", student.ID)
 	require.NoError(t, err)
 
-	router := setupRouter(tc.resource.ListStudentsHandler(), "")
 	// Filter by search query so we only get our specific student back and
 	// aren't fooled by leftover test data from other tests in the same run.
 	req := testutil.NewRequest("GET", "/?search=ListScope", nil)
 	claims := testutil.TeacherTestClaims(int(otherAccount.ID))
-	rr := executeWithAuth(router, req, claims, []string{"users:read"})
+	rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 	// The extra_info field should only be present when the viewer has full access.
@@ -415,10 +400,9 @@ func TestStudentDataScope_AllStaff_GroupRoomAccessible(t *testing.T) {
 
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 
-	router := setupRouter(tc.resource.GetStudentInGroupRoomHandler(), "id")
-	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
 	claims := testutil.TeacherTestClaims(int(otherAccount.ID))
-	rr := executeWithAuth(router, req, claims, []string{"users:read"})
+	rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 	// Under the default scope this would be 403; with all_staff it should be 200.
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
@@ -438,10 +422,9 @@ func TestStudentDataScope_GroupSupervisorsOnly_GroupRoomForbidden(t *testing.T) 
 
 	testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 
-	router := setupRouter(tc.resource.GetStudentInGroupRoomHandler(), "id")
-	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/in-group-room", student.ID), nil)
 	claims := testutil.TeacherTestClaims(int(otherAccount.ID))
-	rr := executeWithAuth(router, req, claims, []string{"users:read"})
+	rr := authExec(t, tc, req, claims, []string{"users:read"})
 
 	testutil.AssertForbidden(t, rr)
 }

@@ -11,7 +11,6 @@ import (
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -27,22 +26,6 @@ type toggleSettings struct{ enabled bool }
 
 func (s *toggleSettings) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
 	return s.enabled, nil
-}
-
-type countingBroadcaster struct {
-	parentMessages  int
-	lastGuardianID  int64
-	sawGuardianCall bool
-}
-
-func (b *countingBroadcaster) BroadcastToGroup(int64, string, realtime.Event) error { return nil }
-func (b *countingBroadcaster) BroadcastToTenant(int64, realtime.Event) error        { return nil }
-func (b *countingBroadcaster) BroadcastToAll(realtime.Event) error                  { return nil }
-func (b *countingBroadcaster) BroadcastParentMessage(_ int64, guardianAccountID int64, _ realtime.Event) error {
-	b.parentMessages++
-	b.lastGuardianID = guardianAccountID
-	b.sawGuardianCall = true
-	return nil
 }
 
 func i64(v int64) *int64 { return &v }
@@ -92,7 +75,7 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	settings := &toggleSettings{enabled: true}
-	bc := &countingBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage, settings, bc, slog.Default())
 
 	// 1) Guardian files a request → request_created pill, thread born.
@@ -165,7 +148,7 @@ func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
-		&toggleSettings{enabled: false}, &countingBroadcaster{}, slog.Default())
+		&toggleSettings{enabled: false}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
 		EventType:      usersModels.ParentMessageEventRequestStatus,
@@ -193,7 +176,7 @@ func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
-		&toggleSettings{enabled: false}, &countingBroadcaster{}, slog.Default())
+		&toggleSettings{enabled: false}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
 		EventType:      "sick_note",
@@ -219,7 +202,7 @@ func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	bc := &countingBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
 		&toggleSettings{enabled: true}, bc, slog.Default())
 
@@ -244,7 +227,7 @@ func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 	`, chain.TenantID, chain.StudentID, chain.GuardianProfileID)
 	require.NoError(t, err)
 
-	bc.sawGuardianCall = false
+	bc.Reset()
 	// Staff decides the request: the closing pill must still land, but the
 	// guardian must NOT be woken (broadcast guardian id forced to 0).
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
@@ -261,7 +244,8 @@ func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 	_, msgs := threadPills(t, db, repos, chain)
 	assert.Equal(t, 1, countEventType(msgs, usersModels.ParentMessageEventRequestStatus),
 		"the closing pill is still written for the staff timeline")
-	require.True(t, bc.sawGuardianCall, "the tenant-wide staff wake still fires")
-	assert.Equal(t, int64(0), bc.lastGuardianID,
+	parentCalls := bc.CallsByMethod("parent")
+	require.NotEmpty(t, parentCalls, "the tenant-wide staff wake still fires")
+	assert.Equal(t, int64(0), parentCalls[len(parentCalls)-1].GuardianID,
 		"a revoked guardian must not be woken (guardian broadcast id forced to 0)")
 }

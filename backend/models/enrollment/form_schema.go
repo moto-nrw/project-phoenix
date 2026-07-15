@@ -99,8 +99,8 @@ const (
 	// templates are not bound to a phase and offering ids differ per
 	// phase. Only valid on per-child fields, paired with the "includes"
 	// operator. Evaluated client-side only — the backend never resolves
-	// this source (care offerings are per-child, and ValidateSubmission
-	// checks guardian-level fields only).
+	// this source (care offerings are per-child; the submit flow's
+	// validation checks guardian-level fields only).
 	ConditionSourceCareOffering = "care_offering"
 )
 
@@ -835,11 +835,6 @@ type FormSchema struct {
 	LegalBlocks      []FormLegalBlock `bun:"legal_blocks,type:jsonb,notnull,default:'[]'" json:"legal_blocks"`
 	IsActive         bool             `bun:"is_active,notnull,default:false" json:"is_active"`
 	CreatedBy        int64            `bun:"created_by,notnull" json:"created_by"`
-}
-
-// TableName returns the schema-qualified table name.
-func (s *FormSchema) TableName() string {
-	return "enrollment.form_schemas"
 }
 
 // Validate checks fields for duplicate keys + per-field validity.

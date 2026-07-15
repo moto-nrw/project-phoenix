@@ -47,7 +47,7 @@ func (s *stubPhotoSettings) ResolveString(context.Context, string) (string, erro
 // close-fail. A startup misconfiguration must NEVER produce an open-by-
 // default photo upload path.
 func TestRequireFeatureEnabled_NilSettings(t *testing.T) {
-	svc := &studentPhotoService{settings: nil}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Settings: nil}}
 	err := svc.requireFeatureEnabled(context.Background())
 	require.Error(t, err, "nil settings service must fail closed")
 	assert.ErrorIs(t, err, ErrPhotoFeatureDisabled)
@@ -56,11 +56,11 @@ func TestRequireFeatureEnabled_NilSettings(t *testing.T) {
 // TestRequireFeatureEnabled_ResolveError — a settings DB outage must
 // propagate (wrapped) as an error, NOT silently default to enabled.
 func TestRequireFeatureEnabled_ResolveError(t *testing.T) {
-	svc := &studentPhotoService{settings: &stubPhotoSettings{
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Settings: &stubPhotoSettings{
 		resolveBoolFn: func(_ context.Context, _ string) (bool, error) {
 			return false, errors.New("db pool exhausted")
 		},
-	}}
+	}}}
 
 	err := svc.requireFeatureEnabled(context.Background())
 
@@ -73,13 +73,13 @@ func TestRequireFeatureEnabled_ResolveError(t *testing.T) {
 // TestRequireFeatureEnabled_Disabled — feature off returns the canonical
 // sentinel so handlers can map it to the right HTTP status + German message.
 func TestRequireFeatureEnabled_Disabled(t *testing.T) {
-	svc := &studentPhotoService{settings: &stubPhotoSettings{
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Settings: &stubPhotoSettings{
 		resolveBoolFn: func(_ context.Context, key string) (bool, error) {
 			require.Equal(t, configModel.KeyStudentPhotosEnabled, key,
 				"helper must look up the canonical key constant")
 			return false, nil
 		},
-	}}
+	}}}
 
 	err := svc.requireFeatureEnabled(context.Background())
 
@@ -91,13 +91,13 @@ func TestRequireFeatureEnabled_Disabled(t *testing.T) {
 // the canonical key.
 func TestRequireFeatureEnabled_Enabled(t *testing.T) {
 	called := false
-	svc := &studentPhotoService{settings: &stubPhotoSettings{
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Settings: &stubPhotoSettings{
 		resolveBoolFn: func(_ context.Context, key string) (bool, error) {
 			called = true
 			assert.Equal(t, configModel.KeyStudentPhotosEnabled, key)
 			return true, nil
 		},
-	}}
+	}}}
 
 	err := svc.requireFeatureEnabled(context.Background())
 
@@ -203,7 +203,7 @@ func (r *recordingUnlinker) UnlinkStored(url string) { r.urls = append(r.urls, u
 func TestApplyConsentTransition_GrantStampsConsent(t *testing.T) {
 	ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{ID: 4242})
 	unlinker := &recordingUnlinker{}
-	svc := &studentPhotoService{unlinker: unlinker}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Unlinker: unlinker}}
 	student := &userModels.Student{}
 
 	svc.ApplyConsentTransition(ctx, ptrBool(true), student)
@@ -218,7 +218,7 @@ func TestApplyConsentTransition_GrantStampsConsent(t *testing.T) {
 func TestApplyConsentTransition_WithdrawalSchedulesUnlink(t *testing.T) {
 	ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	unlinker := &recordingUnlinker{}
-	svc := &studentPhotoService{unlinker: unlinker}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Unlinker: unlinker}}
 	student := &userModels.Student{
 		PhotoPath:           ptrString("/uploads/student-photos/abc.jpg"),
 		PhotoConsentGivenAt: ptrTime(time.Now()),
@@ -235,7 +235,7 @@ func TestApplyConsentTransition_WithdrawalSchedulesUnlink(t *testing.T) {
 func TestApplyConsentTransition_WithdrawalWithoutPhotoNoUnlink(t *testing.T) {
 	ctx := context.WithValue(context.Background(), jwt.CtxClaims, jwt.AppClaims{ID: 1})
 	unlinker := &recordingUnlinker{}
-	svc := &studentPhotoService{unlinker: unlinker}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Unlinker: unlinker}}
 	student := &userModels.Student{
 		PhotoConsentGivenAt: ptrTime(time.Now()),
 		PhotoConsentGivenBy: ptrInt64(7),
@@ -248,7 +248,7 @@ func TestApplyConsentTransition_WithdrawalWithoutPhotoNoUnlink(t *testing.T) {
 
 func TestApplyConsentTransition_NoOpWhenFieldOmitted(t *testing.T) {
 	unlinker := &recordingUnlinker{}
-	svc := &studentPhotoService{unlinker: unlinker}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Unlinker: unlinker}}
 	student := &userModels.Student{PhotoPath: ptrString("/uploads/student-photos/x.jpg")}
 
 	svc.ApplyConsentTransition(context.Background(), nil, student)
@@ -259,7 +259,7 @@ func TestApplyConsentTransition_NoOpWhenFieldOmitted(t *testing.T) {
 
 func TestScheduleUnlinkAfterCommit_EmptyURLNoOp(t *testing.T) {
 	unlinker := &recordingUnlinker{}
-	svc := &studentPhotoService{unlinker: unlinker}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Unlinker: unlinker}}
 
 	svc.ScheduleUnlinkAfterCommit(context.Background(), "")
 
@@ -267,7 +267,7 @@ func TestScheduleUnlinkAfterCommit_EmptyURLNoOp(t *testing.T) {
 }
 
 func TestScheduleUnlinkAfterCommit_NilUnlinkerSafe(t *testing.T) {
-	svc := &studentPhotoService{unlinker: nil}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Unlinker: nil}}
 	require.NotPanics(t, func() {
 		svc.ScheduleUnlinkAfterCommit(context.Background(), "/uploads/student-photos/x.jpg")
 	})
@@ -275,7 +275,7 @@ func TestScheduleUnlinkAfterCommit_NilUnlinkerSafe(t *testing.T) {
 
 func TestScheduleUnlinkAfterCommit_OutsideTxRunsImmediately(t *testing.T) {
 	unlinker := &recordingUnlinker{}
-	svc := &studentPhotoService{unlinker: unlinker}
+	svc := &studentPhotoService{StudentPhotoServiceDependencies: StudentPhotoServiceDependencies{Unlinker: unlinker}}
 
 	svc.ScheduleUnlinkAfterCommit(context.Background(), "/uploads/student-photos/y.jpg")
 

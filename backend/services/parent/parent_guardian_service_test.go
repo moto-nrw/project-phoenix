@@ -19,25 +19,9 @@ import (
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
-
-// guardianStubSettings reports the guardian-management feature toggle for the
-// guardian service tests; the contact/pickup methods gate on it. All other keys
-// resolve false (unused by these methods).
-type guardianStubSettings struct {
-	configService.SettingsService
-	mgmtEnabled bool
-}
-
-func (s guardianStubSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	if key == configModels.KeyParentGuardianManagementEnabled {
-		return s.mgmtEnabled, nil
-	}
-	return false, nil
-}
 
 // buildGuardianService wires a parent service with the guardian feature enabled
 // (the registry default). Use buildGuardianServiceFeature to exercise the gate.
@@ -52,10 +36,12 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (parentService.
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:               repos.ParentChild,
-		StatusDayRepo:           repos.StudentStatusDay,
-		StudentRepo:             repos.Student,
-		Settings:                guardianStubSettings{mgmtEnabled: mgmtEnabled},
+		ChildRepo:     repos.ParentChild,
+		StatusDayRepo: repos.StudentStatusDay,
+		StudentRepo:   repos.Student,
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{configModels.KeyParentGuardianManagementEnabled: mgmtEnabled},
+		},
 		GuardianInvites:         &stubInvites{},
 		GuardianInviteRepo:      repos.GuardianInvitation,
 		StudentGuardianRepo:     repos.StudentGuardian,
@@ -1346,10 +1332,12 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 	repos := repositories.NewFactory(db)
 	lookupErr := fmt.Errorf("simulated guardian email lookup failure")
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:               repos.ParentChild,
-		StatusDayRepo:           repos.StudentStatusDay,
-		StudentRepo:             repos.Student,
-		Settings:                guardianStubSettings{mgmtEnabled: true},
+		ChildRepo:     repos.ParentChild,
+		StatusDayRepo: repos.StudentStatusDay,
+		StudentRepo:   repos.Student,
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{configModels.KeyParentGuardianManagementEnabled: true},
+		},
 		GuardianInvites:         &stubInvites{},
 		GuardianInviteRepo:      repos.GuardianInvitation,
 		StudentGuardianRepo:     repos.StudentGuardian,

@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 )
 
 // classifyServiceError maps known business errors to appropriate HTTP status codes
@@ -37,6 +38,19 @@ func classifyServiceError(err error) render.Renderer {
 		})
 	}
 
+	// Typed F9 deviation gate: 409 with a stable code plus the deviation
+	// facts, so the frontend can prompt "Du stempelst N Minuten nach
+	// Planende aus" and retry the same stamp with a reason.
+	var deviation *activeSvc.DeviationReasonRequiredError
+	if errors.As(err, &deviation) {
+		return common.ErrorConflictWithDetails(err, "deviation_reason_required", map[string]any{
+			"action":            deviation.Action,
+			"planned_time":      deviation.PlannedTime,
+			"actual_time":       deviation.ActualTime,
+			"deviation_minutes": strconv.Itoa(deviation.DeviationMinutes),
+		})
+	}
+
 	msg := err.Error()
 
 	switch {
@@ -58,6 +72,7 @@ func classifyServiceError(err error) render.Renderer {
 	case strings.HasPrefix(msg, "status must be"),
 		strings.HasPrefix(msg, "source must be"),
 		msg == "notes required when changing status",
+		msg == "notes required when changing recorded times",
 		msg == "break minutes cannot be negative",
 		msg == "break duration cannot be negative",
 		msg == "invalid session data: check-in time must be before check-out time",
@@ -93,6 +108,11 @@ func classifyAbsenceError(err error) render.Renderer {
 		msg == "invalid absence type",
 		msg == "invalid absence status":
 		return common.ErrorInvalidRequest(err)
+
+	// The #1843 sick cascade wraps schedule-layer errors: reactivating a
+	// shift whose freed window was re-planned collides as an overlap.
+	case errors.Is(err, scheduleSvc.ErrShiftOverlap):
+		return common.ErrorConflict(err)
 
 	default:
 		return common.ErrorInternalServer(err)

@@ -7,10 +7,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -19,6 +21,7 @@ import (
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -79,6 +82,29 @@ func TestTimetableOperationsPlannedNowAllowsAdminOverview(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	assert.True(t, result[0].IsOverdue)
+}
+
+func TestTimetableOperationsPlannedNowExcludesSchulhof(t *testing.T) {
+	now := time.Date(2026, time.May, 10, 14, 0, 0, 0, time.UTC)
+	const schulhofRoomID int64 = 811
+	deps := newTimetableOpsDeps()
+	deps.settings.enabled = true
+	deps.rooms.rooms = append(deps.rooms.rooms, &facilitiesModel.Room{
+		Model: modelBase.Model{ID: schulhofRoomID},
+		Name:  constants.SchulhofRoomName,
+	})
+	deps.instanceRepo.byDate = []*scheduleModel.ActivityInstance{
+		instanceWithRoomAndTimes(330, schulhofRoomID, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
+		instanceWithTimes(331, scheduleModel.InstanceStatusPlanned, now.Add(-time.Minute), now.Add(time.Hour)),
+	}
+	deps.staffRepo.byInstance[330] = []*scheduleModel.InstanceStaff{{StaffID: 220}}
+	deps.staffRepo.byInstance[331] = []*scheduleModel.InstanceStaff{{StaffID: 220}}
+
+	result, err := deps.service.PlannedNow(context.Background(), 620, true, timezone.DateFromTime(now), now, PlannedNowOptions{})
+
+	require.NoError(t, err)
+	require.Len(t, result, 1)
+	assert.Equal(t, int64(331), result[0].ID)
 }
 
 func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {
@@ -498,9 +524,9 @@ func TestTimetableOperationsPatchAttendanceUpdatesRowAndBroadcasts(t *testing.T)
 	require.Len(t, deps.studentRepo.updates, 1)
 	assert.Equal(t, rowID, deps.studentRepo.updates[0].rowID)
 	assert.Equal(t, &note, deps.studentRepo.updates[0].patch.Note)
-	require.Len(t, deps.broadcaster.events, 1)
-	assert.Equal(t, int64(721), deps.broadcaster.events[0].tenantID)
-	assert.Equal(t, realtime.EventActiveSupervisionChanged, deps.broadcaster.events[0].event.Type)
+	require.Len(t, deps.broadcaster.Calls(), 1)
+	assert.Equal(t, int64(721), deps.broadcaster.Calls()[0].TenantID)
+	assert.Equal(t, realtime.EventActiveSupervisionChanged, deps.broadcaster.Calls()[0].Event.Type)
 }
 
 func TestTimetableOperationsCompleteDelegatesAfterPermissionCheck(t *testing.T) {
@@ -558,6 +584,7 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 
 	t.Run("unassigned staff is forbidden", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
+		deps.settings.mode = configModel.GroupModeFixedGroups
 		wireAssignedStaff(deps, 676, 497, 257, instanceID)
 		deps.staffRepo.byInstance[instanceID] = []*scheduleModel.InstanceStaff{{StaffID: 258}}
 		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
@@ -565,6 +592,63 @@ func TestTimetableOperationsPermissionBranches(t *testing.T) {
 		_, err := deps.service.Roster(context.Background(), 676, false, instanceID)
 
 		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	})
+
+	t.Run("open care allows staff without instance assignment or supervision", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.mode = configModel.GroupModeOpenCare
+		wireAssignedStaff(deps, 693, 515, 274, instanceID)
+		deps.staffRepo.byInstance[instanceID] = nil
+
+		_, err := deps.service.Complete(context.Background(), 693, false, instanceID)
+
+		require.NoError(t, err)
+		assert.Equal(t, []int64{instanceID}, deps.instanceService.completed)
+	})
+
+	t.Run("group mode resolution failure keeps fixed-group checks", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.stringErr = errors.New("settings unavailable")
+		wireAssignedStaff(deps, 694, 516, 275, instanceID)
+		deps.staffRepo.byInstance[instanceID] = nil
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+
+		_, err := deps.service.Complete(context.Background(), 694, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Empty(t, deps.instanceService.completed)
+	})
+
+	t.Run("missing settings keeps fixed-group checks", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		wireAssignedStaff(deps, 696, 517, 276, instanceID)
+		deps.staffRepo.byInstance[instanceID] = nil
+		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
+		deps.service.(*timetableOperationsService).deps.Settings = nil
+
+		_, err := deps.service.Complete(context.Background(), 696, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+		assert.Empty(t, deps.instanceService.completed)
+	})
+
+	t.Run("open care still requires a staff identity", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.mode = configModel.GroupModeOpenCare
+
+		_, err := deps.service.Roster(context.Background(), 695, false, instanceID)
+
+		require.ErrorIs(t, err, ErrTimetableOperationForbidden)
+	})
+
+	t.Run("admin overview allows an admin without a staff identity", func(t *testing.T) {
+		deps := newTimetableOpsDeps()
+		deps.settings.enabled = true
+
+		_, err := deps.service.Complete(context.Background(), 697, true, instanceID)
+
+		require.NoError(t, err)
+		assert.Equal(t, []int64{instanceID}, deps.instanceService.completed)
 	})
 
 	t.Run("missing account id is forbidden before repository lookup", func(t *testing.T) {
@@ -841,17 +925,17 @@ func TestTimetableOperationsBroadcastBranches(t *testing.T) {
 
 		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
 
-		assert.Empty(t, deps.broadcaster.events)
+		assert.Empty(t, deps.broadcaster.Calls())
 	})
 
 	t.Run("logs and continues when broadcast fails", func(t *testing.T) {
 		deps := newTimetableOpsDeps()
-		deps.broadcaster.err = errors.New("send failed")
+		deps.broadcaster.Err = errors.New("send failed")
 		deps.instanceRepo.byID[414] = activeInstance(414, 300)
 
 		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
 
-		require.Len(t, deps.broadcaster.events, 1)
+		require.Len(t, deps.broadcaster.Calls(), 1)
 	})
 
 	t.Run("logs and skips when instance lookup fails", func(t *testing.T) {
@@ -860,7 +944,7 @@ func TestTimetableOperationsBroadcastBranches(t *testing.T) {
 
 		deps.service.(*timetableOperationsService).broadcastAttendanceChanged(ctx, 414, 560)
 
-		assert.Empty(t, deps.broadcaster.events)
+		assert.Empty(t, deps.broadcaster.Calls())
 	})
 }
 
@@ -907,7 +991,7 @@ func TestTimetableOperationHelpers(t *testing.T) {
 	planned, ok := findPlanned([]*scheduleModel.InstanceStudent{{StudentID: 556}}, 556)
 	require.True(t, ok)
 	assert.Equal(t, int64(556), planned.StudentID)
-	assert.False(t, isNoRows(errors.New("ordinary error")))
+	assert.False(t, modelBase.IsNoRows(errors.New("ordinary error")))
 }
 
 func TestTimetableOperationDirectHelperBranches(t *testing.T) {
@@ -969,12 +1053,16 @@ func wireAssignedStaff(deps *timetableOpsTestDeps, accountID, personID, staffID,
 }
 
 func instanceWithTimes(id int64, status string, start, end time.Time) *scheduleModel.ActivityInstance {
+	return instanceWithRoomAndTimes(id, 810, status, start, end)
+}
+
+func instanceWithRoomAndTimes(id, roomID int64, status string, start, end time.Time) *scheduleModel.ActivityInstance {
 	inst := &scheduleModel.ActivityInstance{
 		Date:      timezone.NewDate(start.Year(), start.Month(), start.Day()),
 		Title:     "Lernzeit",
 		StartTime: start,
 		EndTime:   end,
-		RoomID:    810,
+		RoomID:    roomID,
 		Status:    status,
 	}
 	inst.ID = id
@@ -1005,7 +1093,7 @@ type timetableOpsTestDeps struct {
 	rooms           *fakeOpsRoomRepo
 	personService   *fakeOpsPersonService
 	settings        *fakeOpsSettings
-	broadcaster     *fakeOpsBroadcaster
+	broadcaster     *testpkg.RecordingBroadcaster
 }
 
 func newTimetableOpsDeps() *timetableOpsTestDeps {
@@ -1025,7 +1113,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		rooms:           &fakeOpsRoomRepo{rooms: []*facilitiesModel.Room{{Model: modelBase.Model{ID: 810}, Name: "Lernraum"}}},
 		personService:   &fakeOpsPersonService{people: map[int64]*usersModel.Person{}, staffByPersonID: map[int64]*usersModel.Staff{}},
 		settings:        &fakeOpsSettings{},
-		broadcaster:     &fakeOpsBroadcaster{},
+		broadcaster:     testpkg.NewRecordingBroadcaster(),
 	}
 	deps.service = NewTimetableOperationsService(TimetableOperationsDependencies{
 		InstanceRepo:       deps.instanceRepo,
@@ -1332,40 +1420,19 @@ func (s *fakeOpsPersonService) GetStaffByPersonID(_ context.Context, personID in
 }
 
 type fakeOpsSettings struct {
-	enabled bool
-	err     error
+	enabled   bool
+	err       error
+	mode      string
+	stringErr error
 }
 
 func (s *fakeOpsSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
 	return s.enabled, s.err
 }
 
-type fakeOpsBroadcaster struct {
-	err    error
-	events []struct {
-		tenantID int64
-		event    realtime.Event
+func (s *fakeOpsSettings) ResolveString(_ context.Context, _ string) (string, error) {
+	if s.stringErr != nil {
+		return "", s.stringErr
 	}
-}
-
-func (b *fakeOpsBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
-
-func (b *fakeOpsBroadcaster) BroadcastToTenant(tenantID int64, event realtime.Event) error {
-	b.events = append(b.events, struct {
-		tenantID int64
-		event    realtime.Event
-	}{tenantID: tenantID, event: event})
-	return b.err
-}
-
-func (b *fakeOpsBroadcaster) BroadcastToGroup(tenantID int64, _ string, event realtime.Event) error {
-	return b.BroadcastToTenant(tenantID, event)
-}
-
-func (b *fakeOpsBroadcaster) BroadcastToAll(event realtime.Event) error {
-	b.events = append(b.events, struct {
-		tenantID int64
-		event    realtime.Event
-	}{event: event})
-	return nil
+	return s.mode, nil
 }

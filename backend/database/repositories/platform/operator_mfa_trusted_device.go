@@ -23,7 +23,7 @@ type OperatorMFATrustedDeviceRepository struct {
 
 func NewOperatorMFATrustedDeviceRepository(db *bun.DB) platform.OperatorMFATrustedDeviceRepository {
 	return &OperatorMFATrustedDeviceRepository{
-		Repository: base.NewRepository[*platform.OperatorMFATrustedDevice](db, operatorMFATrustedDeviceTable, "OperatorMFATrustedDevice"),
+		Repository: base.NewRepository[*platform.OperatorMFATrustedDevice](db, operatorMFATrustedDeviceTable, "OperatorMfaTrustedDevice"),
 		db:         db,
 	}
 }
@@ -78,16 +78,9 @@ func (r *OperatorMFATrustedDeviceRepository) ListActiveByOperatorID(ctx context.
 }
 
 func (r *OperatorMFATrustedDeviceRepository) UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error {
-	_, err := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*platform.OperatorMFATrustedDevice)(nil)).
-		ModelTableExpr(operatorMFATrustedDeviceTable).
-		Set("last_used_at = ?", when).
-		Where(platformWhereID, id).
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{Op: "update operator mfa trusted device last_used_at", Err: err}
-	}
-	return nil
+	device := &platform.OperatorMFATrustedDevice{Model: modelBase.Model{ID: id}, LastUsedAt: &when}
+	_, err := r.UpdateColumns(ctx, device, "last_used_at")
+	return err
 }
 
 func (r *OperatorMFATrustedDeviceRepository) Revoke(ctx context.Context, id int64, revokedAt time.Time) error {
@@ -119,17 +112,6 @@ func (r *OperatorMFATrustedDeviceRepository) RevokeAllByOperatorID(ctx context.C
 }
 
 func (r *OperatorMFATrustedDeviceRepository) DeleteExpired(ctx context.Context) (int, error) {
-	res, err := base.GetDB(ctx, r.db).NewDelete().
-		Model((*platform.OperatorMFATrustedDevice)(nil)).
-		ModelTableExpr(operatorMFATrustedDeviceTable).
-		Where("expires_at < ?", time.Now()).
-		Exec(ctx)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "delete expired operator mfa trusted devices", Err: err}
-	}
-	affected, err := res.RowsAffected()
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "rows affected for delete expired operator mfa trusted devices", Err: err}
-	}
-	return int(affected), nil
+	deleted, err := r.DeleteBefore(ctx, "expires_at", time.Now(), "delete expired operator mfa trusted devices")
+	return int(deleted), err
 }

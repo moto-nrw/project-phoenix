@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
@@ -29,19 +31,19 @@ func TestRelationshipResolver_ResolveGroup_ExactMatch(t *testing.T) {
 		{
 			name:     "exact match lowercase",
 			input:    "Gruppe 1A",
-			wantID:   int64Ptr(1),
+			wantID:   testpkg.Int64Ptr(1),
 			wantErrs: false,
 		},
 		{
 			name:     "exact match case insensitive",
 			input:    "gruppe 1a",
-			wantID:   int64Ptr(1),
+			wantID:   testpkg.Int64Ptr(1),
 			wantErrs: false,
 		},
 		{
 			name:     "exact match with spaces",
 			input:    "  Gruppe 1A  ",
-			wantID:   int64Ptr(1),
+			wantID:   testpkg.Int64Ptr(1),
 			wantErrs: false,
 		},
 		{
@@ -155,17 +157,17 @@ func TestRelationshipResolver_ResolveRoom_ExactMatch(t *testing.T) {
 		{
 			name:   "exact match",
 			input:  "Raum 101",
-			wantID: int64Ptr(1),
+			wantID: testpkg.Int64Ptr(1),
 		},
 		{
 			name:   "case insensitive",
 			input:  "raum 101",
-			wantID: int64Ptr(1),
+			wantID: testpkg.Int64Ptr(1),
 		},
 		{
 			name:   "with spaces",
 			input:  "  Raum 101  ",
-			wantID: int64Ptr(1),
+			wantID: testpkg.Int64Ptr(1),
 		},
 		{
 			name:   "empty",
@@ -504,11 +506,6 @@ func TestRelationshipResolver_FindSimilarRooms(t *testing.T) {
 		// ASSERT
 		assert.Empty(t, suggestions)
 	})
-}
-
-// Helper function
-func int64Ptr(i int64) *int64 {
-	return &i
 }
 
 // Stubs for the issue #585 refactor interface additions — unused here.

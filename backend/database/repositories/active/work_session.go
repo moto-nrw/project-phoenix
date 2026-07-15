@@ -35,19 +35,6 @@ func NewWorkSessionRepository(db *bun.DB) active.WorkSessionRepository {
 	}
 }
 
-// Create overrides base Create to handle validation
-func (r *WorkSessionRepository) Create(ctx context.Context, session *active.WorkSession) error {
-	if session == nil {
-		return fmt.Errorf("work session cannot be nil")
-	}
-
-	if err := session.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, session)
-}
-
 // GetByStaffAndDate returns the work session for a staff member on a given date
 func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*active.WorkSession, error) {
 	session := new(active.WorkSession)
@@ -57,9 +44,7 @@ func (r *WorkSessionRepository) GetByStaffAndDate(ctx context.Context, staffID i
 		Where(`"work_session".staff_id = ?`, staffID).
 		Where(`"work_session".date = ?`, date)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -93,9 +78,7 @@ func (r *WorkSessionRepository) getCurrentByStaffID(ctx context.Context, staffID
 		Where(`"work_session".date = ?`, today).
 		Where(`"work_session".check_out_time IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
 	if forUpdate {
 		query = query.For("UPDATE")
 	}
@@ -121,9 +104,7 @@ func (r *WorkSessionRepository) LockOpenByIDForUpdate(ctx context.Context, id in
 		Where(`"work_session".check_out_time IS NULL`).
 		For("UPDATE")
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -147,9 +128,7 @@ func (r *WorkSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID
 		Where(`"work_session".date <= ?`, to).
 		OrderExpr(`"work_session".date ASC`)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -171,9 +150,7 @@ func (r *WorkSessionRepository) GetOpenSessions(ctx context.Context, beforeDate 
 		Where(`"work_session".date < ?`, beforeDate).
 		Where(`"work_session".check_out_time IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -203,9 +180,7 @@ func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[in
 		ColumnExpr(`"work_session".check_out_time`).
 		Where(`"work_session".date = ?`, today)
 
-	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "work_session")
 
 	err := query.Scan(ctx, &results)
 	if err != nil {
@@ -233,51 +208,23 @@ func (r *WorkSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[in
 
 // List overrides base List to use QueryOptions and proper table alias
 func (r *WorkSessionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*active.WorkSession, error) {
-	var sessions []*active.WorkSession
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&sessions).
-		ModelTableExpr(tableExprActiveWorkSessionsAsSession)
-
-	if where, val, ok := base.TenantWhere(ctx, "work_session"); ok {
-		query = query.Where(where, val)
-	}
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return sessions, nil
+	return r.ListWithOptions(ctx, options)
 }
 
 // UpdateBreakMinutes sets the break_minutes cache field on a session
 func (r *WorkSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error {
-	query := base.GetDB(ctx, r.db).NewUpdate().
-		Table(tableActiveWorkSessions).
-		Set("break_minutes = ?", breakMinutes).
-		Set("updated_at = ?", time.Now()).
-		Where("id = ?", id)
-
-	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
-		query = query.Where("tenant_id = ?", tenantID)
-	}
-
-	result, err := query.Exec(ctx)
+	session := &active.WorkSession{Model: modelBase.Model{ID: id, UpdatedAt: time.Now()}, BreakMinutes: breakMinutes}
+	n, err := r.UpdateColumns(ctx, session, "break_minutes", "updated_at")
 	if err != nil {
+		return err
+	}
+	if n != 1 {
 		return &modelBase.DatabaseError{
 			Op:  "update break minutes",
-			Err: err,
+			Err: fmt.Errorf("expected 1 rows affected, got %d", n),
 		}
 	}
-
-	return base.AssertRowsAffected(result, 1, "update break minutes")
+	return nil
 }
 
 // CloseSession sets the check-out time and auto_checked_out flag.

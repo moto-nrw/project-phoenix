@@ -5,9 +5,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
 )
@@ -79,26 +76,6 @@ func TestShiftTypeValidate(t *testing.T) {
 			}
 		})
 	}
-}
-
-// hookDB builds a connectionless bun.DB purely to drive the BeforeAppendModel
-// hook — no DB connection is needed; the queries only carry the table
-// expression the hook rewrites.
-func hookDB() *bun.DB { return bun.NewDB(nil, pgdialect.New()) }
-
-func TestShiftType_BeforeAppendModelRoutesAllQueryKinds(t *testing.T) {
-	db := hookDB()
-	st := &ShiftType{}
-	require.NoError(t, st.BeforeAppendModel(db.NewInsert()))
-	require.NoError(t, st.BeforeAppendModel(db.NewUpdate()))
-	require.NoError(t, st.BeforeAppendModel(db.NewDelete()))
-	// A non-query argument (e.g. a select) is a no-op, not a panic.
-	require.NoError(t, st.BeforeAppendModel(db.NewSelect()))
-	require.NoError(t, st.BeforeAppendModel(nil))
-}
-
-func TestShiftType_TableName(t *testing.T) {
-	assert.Equal(t, "schedule.shift_types", (&ShiftType{}).TableName())
 }
 
 func TestShiftType_EntityAccessors(t *testing.T) {

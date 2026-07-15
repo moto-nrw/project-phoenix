@@ -42,6 +42,11 @@ func TestActivityGroupRepository_Create(t *testing.T) {
 		err := repo.Create(ctx, group)
 		require.NoError(t, err)
 		assert.NotZero(t, group.ID)
+		assert.Equal(t, activities.TargetGroupTypeNone, group.TargetGroupType)
+
+		persisted, err := repo.FindByID(ctx, group.ID)
+		require.NoError(t, err)
+		assert.Equal(t, activities.TargetGroupTypeNone, persisted.TargetGroupType)
 
 		testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
 	})
@@ -126,6 +131,20 @@ func TestActivityGroupRepository_Update(t *testing.T) {
 		found, err := repo.FindByID(ctx, group.ID)
 		require.NoError(t, err)
 		assert.False(t, found.IsOpen)
+	})
+
+	t.Run("canonicalizes an empty target group type before a generic update", func(t *testing.T) {
+		group := testpkg.CreateTestActivityGroup(t, db, "UpdateEmptyTargetGroup")
+		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
+
+		group.TargetGroupType = ""
+		require.NoError(t, repo.Update(ctx, group))
+		assert.Equal(t, activities.TargetGroupTypeNone, group.TargetGroupType)
+
+		found, err := repo.FindByID(ctx, group.ID)
+		require.NoError(t, err)
+		assert.Equal(t, activities.TargetGroupTypeNone, found.TargetGroupType)
 	})
 }
 
@@ -410,32 +429,6 @@ func TestActivityGroupRepository_FindWithSupervisors(t *testing.T) {
 	})
 }
 
-func TestActivityGroupRepository_FindWithSchedules(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns group with schedules", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "WithSchedules")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
-
-		foundGroup, schedules, err := repo.FindWithSchedules(ctx, group.ID)
-		require.NoError(t, err)
-		assert.NotNil(t, foundGroup)
-		assert.Equal(t, group.ID, foundGroup.ID)
-		assert.NotNil(t, schedules)
-		// Schedules may be empty if none are set
-	})
-
-	t.Run("returns error for non-existent group", func(t *testing.T) {
-		_, _, err := repo.FindWithSchedules(ctx, int64(999999))
-		require.Error(t, err)
-	})
-}
-
 func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -487,43 +480,6 @@ func TestActivityGroupRepository_FindByStaffSupervisor(t *testing.T) {
 	})
 }
 
-func TestActivityGroupRepository_FindByStaffSupervisorToday(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).ActivityGroup
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("finds only open groups supervised by staff member", func(t *testing.T) {
-		group := testpkg.CreateTestActivityGroup(t, db, "SupervisorToday")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, 0, 0, group.CategoryID, 0)
-		defer testpkg.CleanupTableRecords(t, db, "activities.groups", group.ID)
-
-		staff := testpkg.CreateTestStaff(t, db, "Today", "Supervisor")
-		defer testpkg.CleanupActivityFixtures(t, db, 0, staff.ID, 0, 0, 0)
-
-		// Add supervisor assignment
-		sup := &activities.SupervisorPlanned{
-			GroupID:   group.ID,
-			StaffID:   staff.ID,
-			IsPrimary: true,
-		}
-		sup.SetTenantID(1)
-		_, _ = db.NewInsert().
-			Model(sup).
-			ModelTableExpr(`activities.supervisors`).
-			Exec(ctx)
-
-		groups, err := repo.FindByStaffSupervisorToday(ctx, staff.ID)
-		require.NoError(t, err)
-
-		// All returned groups should be open
-		for _, g := range groups {
-			assert.True(t, g.IsOpen)
-		}
-	})
-}
-
 // ============================================================================
 // Edge Cases and Validation Tests
 // ============================================================================
@@ -566,5 +522,36 @@ func TestActivityGroupRepository_Delete_NonExistent(t *testing.T) {
 	t.Run("does not error when deleting non-existent group", func(t *testing.T) {
 		err := repo.Delete(ctx, int64(999999))
 		require.NoError(t, err)
+	})
+}
+
+func TestActivityGroupRepository_FindByIDs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).ActivityGroup
+	ctx := testpkg.TenantContext(1)
+
+	t.Run("empty input short-circuits without hitting the DB", func(t *testing.T) {
+		groups, err := repo.FindByIDs(ctx, nil)
+		require.NoError(t, err)
+		assert.Empty(t, groups)
+	})
+
+	t.Run("returns the groups matching the ids", func(t *testing.T) {
+		a := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("FindByIDs-A-%d", time.Now().UnixNano()))
+		b := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("FindByIDs-B-%d", time.Now().UnixNano()))
+		defer testpkg.CleanupTableRecords(t, db, "activities.groups", a.ID, b.ID)
+
+		groups, err := repo.FindByIDs(ctx, []int64{a.ID, b.ID, 9_999_999})
+		require.NoError(t, err)
+		require.Len(t, groups, 2, "the non-existent id is silently absent")
+
+		names := map[int64]string{}
+		for _, g := range groups {
+			names[g.ID] = g.Name
+		}
+		assert.Equal(t, a.Name, names[a.ID])
+		assert.Equal(t, b.Name, names[b.ID])
 	})
 }

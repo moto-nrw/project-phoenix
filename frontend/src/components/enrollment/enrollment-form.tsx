@@ -42,6 +42,10 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { Checkbox } from "~/components/ui/checkbox";
 import { createLogger } from "~/lib/logger";
 import { useScrollToFirstError } from "~/lib/hooks/use-scroll-to-error";
+import {
+  availableCareOfferings,
+  careOfferingIsAvailable,
+} from "~/lib/care-offering-availability";
 
 const logger = createLogger({ component: "EnrollmentForm" });
 
@@ -157,6 +161,8 @@ export interface EnrollmentFormPrefetchedData {
   profile?: MeProfileResponse | null;
   /** Concrete-class config (#1833); absent falls back to disabled. */
   schoolClass?: PublicSchoolClassConfig;
+  collectGradeLevel?: boolean;
+  careOfferingsEnabled?: boolean;
 }
 
 /**
@@ -195,9 +201,10 @@ export function EnrollmentForm({
     [intl, localizedCopy],
   );
   const { tenantSlug } = useTenant();
-  const initialRequiredOfferingIDs =
-    prefetchedData?.offerings.filter((o) => o.is_required).map((o) => o.id) ??
-    [];
+  const initialOfferings = prefetchedData?.offerings ?? [];
+  const initialRequiredOfferingIDs = initialOfferings
+    .filter((o) => o.is_required && careOfferingIsAvailable(o, undefined))
+    .map((o) => o.id);
   const [schema, setSchema] = useState<PublicFormSchema | null>(
     prefetchedData?.schema ?? null,
   );
@@ -208,6 +215,12 @@ export function EnrollmentForm({
     useState<CareOfferingSelectionMode>(
       prefetchedData?.careOfferingSelectionMode ?? "optional",
     );
+  const [collectGradeLevel, setCollectGradeLevel] = useState(
+    prefetchedData?.collectGradeLevel !== false,
+  );
+  const [careOfferingsEnabled, setCareOfferingsEnabled] = useState(
+    prefetchedData?.careOfferingsEnabled !== false,
+  );
   // Concrete-class config (#1833): whether to collect a concrete class,
   // the phase's pick list, and whether it is mandatory from grade 2.
   // Seeded from prefetched data (public page) or fetched in load()
@@ -219,9 +232,15 @@ export function EnrollmentForm({
   // Offerings the school flagged as mandatory. These are pre-selected and
   // locked in the UI so every child carries them.
   const requiredOfferingIDs = useMemo(
-    () => offerings.filter((o) => o.is_required).map((o) => o.id),
+    () =>
+      offerings
+        .filter((o) => o.is_required && careOfferingIsAvailable(o, undefined))
+        .map((o) => o.id),
     [offerings],
   );
+  const [availabilityNotices, setAvailabilityNotices] = useState<
+    Record<string, boolean>
+  >({});
   const [loading, setLoading] = useState(prefetchedData === undefined);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -276,7 +295,10 @@ export function EnrollmentForm({
   );
   const [children, setChildren] = useState<ChildDraft[]>([
     ...(initialDraft
-      ? draftChildren(initialDraft, initialRequiredOfferingIDs)
+      ? seedRequiredAvailableOfferings(
+          draftChildren(initialDraft, initialRequiredOfferingIDs),
+          initialOfferings,
+        )
       : [blankChild(initialRequiredOfferingIDs)]),
   ]);
   // Additional guardians (co-guardians). Start empty — the primary
@@ -297,10 +319,15 @@ export function EnrollmentForm({
     setGuardianEmail(initialDraft.guardian_email);
     setGuardianPhone(initialDraft.guardian_phone ?? "");
     setLegalConsents(draftConsentFlags(initialDraft));
-    setChildren(draftChildren(initialDraft, requiredOfferingIDs));
+    setChildren(
+      seedRequiredAvailableOfferings(
+        draftChildren(initialDraft, requiredOfferingIDs),
+        offerings,
+      ),
+    );
     setAdditionalGuardians(draftGuardians(initialDraft));
     setCustomData(initialDraft.custom_data ?? {});
-  }, [initialDraft, requiredOfferingIDs]);
+  }, [initialDraft, offerings, requiredOfferingIDs]);
   // Once the phase's class config is known (prefetched or fetched in load()),
   // drop any hydrated class an edit draft carries that the phase no longer
   // offers so it collapses to "Klasse offen" instead of being silently
@@ -332,6 +359,8 @@ export function EnrollmentForm({
       setSchema(prefetchedData.schema);
       setOfferings(prefetchedData.offerings);
       setCareOfferingSelectionMode(prefetchedData.careOfferingSelectionMode);
+      setCollectGradeLevel(prefetchedData.collectGradeLevel !== false);
+      setCareOfferingsEnabled(prefetchedData.careOfferingsEnabled !== false);
       setSchoolClassConfig(
         prefetchedData.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
       );
@@ -339,11 +368,9 @@ export function EnrollmentForm({
       setLegalTexts(prefetchedData.legalTexts);
       setProfile(prefetchedData.profile ?? null);
       setChildren((prev) =>
-        seedRequiredOfferings(
+        seedRequiredAvailableOfferings(
           prev.length > 0 ? prev : [blankChild()],
-          prefetchedData.offerings
-            .filter((o) => o.is_required)
-            .map((o) => o.id),
+          prefetchedData.offerings,
         ),
       );
       if (prefetchedData.profile) {
@@ -398,6 +425,8 @@ export function EnrollmentForm({
                 careOfferingSelectionMode: "optional" as const,
                 careRequired: false,
                 schoolClass: EMPTY_SCHOOL_CLASS_CONFIG,
+                collectGradeLevel: true,
+                careOfferingsEnabled: true,
               }),
           profileLoader().catch(() => null),
           // Skip the captcha config when the caller already authenticated
@@ -426,17 +455,16 @@ export function EnrollmentForm({
         setSchema(schemaResult);
         setOfferings(offeringsResult.offerings);
         setCareOfferingSelectionMode(offeringsResult.careOfferingSelectionMode);
+        setCollectGradeLevel(offeringsResult.collectGradeLevel !== false);
+        setCareOfferingsEnabled(offeringsResult.careOfferingsEnabled !== false);
         setSchoolClassConfig(
           offeringsResult.schoolClass ?? EMPTY_SCHOOL_CLASS_CONFIG,
         );
         // Seed mandatory offerings into the children that already exist
         // (the initial blank slot is created before offerings load).
-        const requiredIDs = offeringsResult.offerings
-          .filter((o) => o.is_required)
-          .map((o) => o.id);
-        if (requiredIDs.length > 0) {
-          setChildren((prev) => seedRequiredOfferings(prev, requiredIDs));
-        }
+        setChildren((prev) =>
+          seedRequiredAvailableOfferings(prev, offeringsResult.offerings),
+        );
         setCaptchaConfig(captchaResult);
         setLegalTexts(legalResult);
         // Prefill guardian fields from the profile when present. We
@@ -487,29 +515,34 @@ export function EnrollmentForm({
   };
 
   const toggleOffering = (childIndex: number, offeringID: string) => {
-    // Mandatory offerings are locked - they can never be unselected. The
-    // selection mode only governs the choosable (non-required) offerings,
-    // so required ones never block toggling a choosable one.
-    if (requiredOfferingIDs.includes(offeringID)) return;
     // "Genau eines" / "höchstens eines" selection_groups behave like radios:
     // selecting one clears the other selected member(s) of the same group.
     // Orthogonal to the phase-level exactly_one mode below; both can apply.
-    const toggled = offerings.find((o) => o.id === offeringID);
-    const group = toggled?.selection_group?.trim() ?? "";
-    const groupRule = toggled?.selection_rule ?? "optional";
-    const exclusiveGroup =
-      group !== "" &&
-      (groupRule === "exactly_one" || groupRule === "at_most_one");
-    const groupSiblingIDs = exclusiveGroup
-      ? new Set(
-          offerings
-            .filter((o) => (o.selection_group?.trim() ?? "") === group)
-            .map((o) => o.id),
-        )
-      : null;
     setChildren((prev) =>
       prev.map((c, i) => {
         if (i !== childIndex) return c;
+        const childOfferings = availableCareOfferings(
+          offerings,
+          c.target_grade_level,
+        );
+        const childRequiredIDs = childOfferings
+          .filter((o) => o.is_required)
+          .map((o) => o.id);
+        if (childRequiredIDs.includes(offeringID)) return c;
+        const toggled = childOfferings.find((o) => o.id === offeringID);
+        if (!toggled) return c;
+        const group = toggled.selection_group?.trim() ?? "";
+        const groupRule = toggled.selection_rule ?? "optional";
+        const exclusiveGroup =
+          group !== "" &&
+          (groupRule === "exactly_one" || groupRule === "at_most_one");
+        const groupSiblingIDs = exclusiveGroup
+          ? new Set(
+              childOfferings
+                .filter((o) => (o.selection_group?.trim() ?? "") === group)
+                .map((o) => o.id),
+            )
+          : null;
         const nextIDs = new Set(c.offering_ids);
         const nextDays = { ...c.offering_days };
         if (nextIDs.has(offeringID)) {
@@ -518,12 +551,12 @@ export function EnrollmentForm({
         } else {
           if (careOfferingSelectionMode === "exactly_one") {
             for (const existingID of nextIDs) {
-              if (!requiredOfferingIDs.includes(existingID)) {
+              if (!childRequiredIDs.includes(existingID)) {
                 delete nextDays[existingID];
               }
             }
             nextIDs.clear();
-            requiredOfferingIDs.forEach((id) => nextIDs.add(id));
+            childRequiredIDs.forEach((id) => nextIDs.add(id));
           }
           if (groupSiblingIDs) {
             for (const id of groupSiblingIDs) {
@@ -534,7 +567,7 @@ export function EnrollmentForm({
               if (
                 id !== offeringID &&
                 nextIDs.has(id) &&
-                !requiredOfferingIDs.includes(id)
+                !childRequiredIDs.includes(id)
               ) {
                 nextIDs.delete(id);
                 delete nextDays[id];
@@ -559,7 +592,14 @@ export function EnrollmentForm({
     setChildren((prev) =>
       prev.map((c, i) => {
         if (i !== childIndex) return c;
-        const materialized = materializeCareOfferings(c, offerings);
+        const childOfferings = availableCareOfferings(
+          offerings,
+          c.target_grade_level,
+        );
+        const childRequiredIDs = childOfferings
+          .filter((o) => o.is_required)
+          .map((o) => o.id);
+        const materialized = materializeCareOfferings(c, childOfferings);
         if (materialized.automaticDays[offeringID]?.has(day)) return c;
         const current = c.offering_days[offeringID] ?? new Set<string>();
         const next = new Set(current);
@@ -568,7 +608,7 @@ export function EnrollmentForm({
         const nextIDs = new Set(c.offering_ids);
         if (next.size > 0) {
           nextIDs.add(offeringID);
-        } else if (!requiredOfferingIDs.includes(offeringID)) {
+        } else if (!childRequiredIDs.includes(offeringID)) {
           nextIDs.delete(offeringID);
         }
         return {
@@ -622,11 +662,18 @@ export function EnrollmentForm({
   const childConditionCtx = (child: ChildDraft): ConditionContext => ({
     guardianAnswers: customData,
     childAnswers: child.custom,
-    gradeLevel: child.target_grade_level,
+    gradeLevel: collectGradeLevel ? child.target_grade_level : undefined,
     // Care-offering conditions match by name (templates aren't phase-bound),
     // so resolve the child's selected offering ids to names.
     offeringNames: new Set(
-      Array.from(materializeCareOfferings(child, offerings).offeringIds)
+      Array.from(
+        careOfferingsEnabled
+          ? materializeCareOfferings(
+              child,
+              availableCareOfferings(offerings, child.target_grade_level),
+            ).offeringIds
+          : [],
+      )
         .map((id) => offerings.find((o) => o.id === id)?.name)
         .filter((name): name is string => Boolean(name))
         .map((name) => name.toLowerCase()),
@@ -721,6 +768,10 @@ export function EnrollmentForm({
     }
     for (const [i, c] of children.entries()) {
       const childCtx = childConditionCtx(c);
+      const childOfferings = availableCareOfferings(
+        offerings,
+        c.target_grade_level,
+      );
       if (!c.first_name.trim()) {
         newFieldErrors[`children_${i}_first_name`] = tr("errors.firstName");
       }
@@ -730,7 +781,7 @@ export function EnrollmentForm({
       if (!c.date_of_birth) {
         newFieldErrors[`children_${i}_date_of_birth`] = tr("errors.dob");
       }
-      if (!c.target_grade_level) {
+      if (collectGradeLevel && !c.target_grade_level) {
         newFieldErrors[`children_${i}_target_grade_level`] = tr("errors.grade");
       }
       // Concrete class is only required when the tenant collects it, the
@@ -760,7 +811,12 @@ export function EnrollmentForm({
           customValueMissing(
             field,
             c.custom[field.key],
-            relevantCareDaysForChild(c, offerings, previewMode),
+            relevantCareDaysForChild(
+              c,
+              childOfferings,
+              previewMode,
+              offerings.length > 0,
+            ),
             careDaysAreConstrained(offerings, previewMode),
           )
         ) {
@@ -778,7 +834,12 @@ export function EnrollmentForm({
       // (only keys are unique), and each WeekdayMultiModeInput shows the note
       // input off its own value, so check every visible departure field, not
       // just the first, to keep validation aligned with the UI.
-      const relevantDays = relevantCareDaysForChild(c, offerings, previewMode);
+      const relevantDays = relevantCareDaysForChild(
+        c,
+        childOfferings,
+        previewMode,
+        offerings.length > 0,
+      );
       const accompaniedSelected = (schema?.fields ?? [])
         .filter(
           (f) =>
@@ -838,24 +899,37 @@ export function EnrollmentForm({
     // "at least one" / "exactly one"; otherwise a required base offering
     // would make exactly_one unsatisfiable.
     for (const [i, c] of children.entries()) {
-      const materializedCare = materializeCareOfferings(c, offerings);
+      const childOfferings = availableCareOfferings(
+        offerings,
+        c.target_grade_level,
+      );
+      const childRequiredIDs = childOfferings
+        .filter((o) => o.is_required)
+        .map((o) => o.id);
+      const selectionModeApplies =
+        offerings.length === 0 || childOfferings.some((o) => !o.is_required);
+      const materializedCare = materializeCareOfferings(c, childOfferings);
       const choosableSelectedCount = [...c.offering_ids].filter(
-        (id) => !requiredOfferingIDs.includes(id),
+        (id) =>
+          childOfferings.some((o) => o.id === id) &&
+          !childRequiredIDs.includes(id),
       ).length;
       if (
+        selectionModeApplies &&
         careOfferingSelectionMode === "at_least_one" &&
         choosableSelectedCount === 0
       ) {
         missingCareIndexes.push(i);
       }
       if (
+        selectionModeApplies &&
         careOfferingSelectionMode === "exactly_one" &&
         choosableSelectedCount !== 1
       ) {
         exactOneCareIndexes.push(i);
       }
       for (const id of materializedCare.offeringIds) {
-        const offering = offerings.find((o) => o.id === id);
+        const offering = childOfferings.find((o) => o.id === id);
         if (offering?.days_of_week_mode !== "parent_choice") {
           continue;
         }
@@ -872,7 +946,7 @@ export function EnrollmentForm({
       }
       const groupRuleMessage = offeringGroupRuleError(
         materializedCare.offeringIds,
-        offerings,
+        childOfferings,
         tr,
       );
       if (groupRuleMessage) {
@@ -945,12 +1019,18 @@ export function EnrollmentForm({
     // selections for parent_choice offerings are guaranteed present by the
     // validation above, so this only builds data (no further checks).
     const payloadChildren: SubmitChildPayload[] = children.map((c) => {
+      const childOfferings = availableCareOfferings(
+        offerings,
+        c.target_grade_level,
+      );
+      const childOfferingIDs = new Set(childOfferings.map((o) => o.id));
       const offeringDaysPayload: Array<{
         offering_id: number;
         selected_days: string[];
       }> = [];
       for (const id of c.offering_ids) {
-        const offering = offerings.find((o) => o.id === id);
+        if (!childOfferingIDs.has(id)) continue;
+        const offering = childOfferings.find((o) => o.id === id);
         if (offering?.days_of_week_mode !== "parent_choice") {
           continue;
         }
@@ -973,7 +1053,12 @@ export function EnrollmentForm({
           childConditionCtx(c),
         ),
         schema?.fields ?? [],
-        relevantCareDaysForChild(c, offerings, previewMode),
+        relevantCareDaysForChild(
+          c,
+          childOfferings,
+          previewMode,
+          offerings.length > 0,
+        ),
       );
       // Couple the "mit wem" note (#1694) back in: it rides on a reserved key
       // (not a schema field), so visibleAnswerData drops it. A schema may carry
@@ -1011,7 +1096,9 @@ export function EnrollmentForm({
         first_name: c.first_name.trim(),
         last_name: c.last_name.trim(),
         date_of_birth: c.date_of_birth,
-        target_grade_level: Number(c.target_grade_level),
+        target_grade_level: collectGradeLevel
+          ? Number(c.target_grade_level)
+          : undefined,
         // Only send a concrete class when the feature is on, the grade is
         // 2+, and a class was actually chosen; the backend re-validates
         // and normalises (#1833). Empty/grade-1 -> omitted ("Klasse offen").
@@ -1022,9 +1109,15 @@ export function EnrollmentForm({
             ? c.target_school_class.trim()
             : undefined,
         custom_data: customData,
-        offering_ids: Array.from(c.offering_ids).map((id) => Number(id)),
+        offering_ids: careOfferingsEnabled
+          ? Array.from(c.offering_ids)
+              .filter((id) => childOfferingIDs.has(id))
+              .map(Number)
+          : undefined,
         offering_days:
-          offeringDaysPayload.length > 0 ? offeringDaysPayload : undefined,
+          careOfferingsEnabled && offeringDaysPayload.length > 0
+            ? offeringDaysPayload
+            : undefined,
       };
     });
 
@@ -1077,7 +1170,19 @@ export function EnrollmentForm({
       const result = submitter
         ? await submitter(payload)
         : await submitEnrollment(tenantSlug, payload);
-      onSubmitted(result.status_url);
+      const statusURL = new URL(result.status_url, globalThis.location.origin);
+      if (
+        result.warnings?.some(
+          (warning) => warning.code === "enrollment.duplicate_detected",
+        )
+      ) {
+        statusURL.searchParams.set("duplicate_warning", "1");
+      }
+      onSubmitted(
+        /^https?:\/\//i.test(result.status_url)
+          ? statusURL.toString()
+          : `${statusURL.pathname}${statusURL.search}${statusURL.hash}`,
+      );
     } catch (err) {
       const message =
         err instanceof Error ? err.message : tr("submitErrorFallback");
@@ -1375,6 +1480,14 @@ export function EnrollmentForm({
               newSlot.last_name = child.last_name;
               newSlot.target_grade_level =
                 child.grade_level != null ? String(child.grade_level) : "";
+              for (const offering of availableCareOfferings(
+                offerings,
+                newSlot.target_grade_level,
+              )) {
+                if (offering.is_required) {
+                  newSlot.offering_ids.add(offering.id);
+                }
+              }
               // Prefill the concrete class only when it matches one of the
               // phase's offered classes, so re-enrolling an existing "2a"
               // child defaults sensibly without injecting a stale/unknown
@@ -1411,7 +1524,14 @@ export function EnrollmentForm({
         )}
 
         {children.map((child, i) => {
-          const materializedCare = materializeCareOfferings(child, offerings);
+          const childOfferings = availableCareOfferings(
+            offerings,
+            child.target_grade_level,
+          );
+          const materializedCare = materializeCareOfferings(
+            child,
+            childOfferings,
+          );
           return (
             <div
               key={child.clientId}
@@ -1461,30 +1581,75 @@ export function EnrollmentForm({
                     tr={tr}
                   />
                 </div>
-                <GradeLevelSelect
-                  id={`children-${i}-target-grade-level`}
-                  value={child.target_grade_level}
-                  onChange={(v) => {
-                    const patch: Partial<ChildDraft> = {
-                      target_grade_level: v,
-                    };
-                    // Drop a concrete class that no longer belongs to the
-                    // newly selected grade, so switching from grade 3 to
-                    // grade 2 can't leave a stale "3a" the backend rejects
-                    // on submit (#1833).
-                    if (
-                      child.target_school_class &&
-                      !classMatchesGrade(child.target_school_class, v)
-                    ) {
-                      patch.target_school_class = "";
-                    }
-                    updateChild(i, patch);
-                  }}
-                  max={gradeLevelMax}
-                  error={fieldErrors[`children_${i}_target_grade_level`]}
-                  tr={tr}
-                />
-                {schoolClassConfig.collect &&
+                {collectGradeLevel && (
+                  <GradeLevelSelect
+                    id={`children-${i}-target-grade-level`}
+                    value={child.target_grade_level}
+                    onChange={(v) => {
+                      const nextOfferings = availableCareOfferings(
+                        offerings,
+                        v,
+                      );
+                      const nextAvailableIDs = new Set(
+                        nextOfferings.map((o) => o.id),
+                      );
+                      const before = materializeCareOfferings(
+                        child,
+                        childOfferings,
+                      ).offeringIds;
+                      const nextIDs = new Set(
+                        [...child.offering_ids].filter((id) =>
+                          nextAvailableIDs.has(id),
+                        ),
+                      );
+                      nextOfferings
+                        .filter((o) => o.is_required)
+                        .forEach((o) => nextIDs.add(o.id));
+                      const nextDays = Object.fromEntries(
+                        Object.entries(child.offering_days).filter(([id]) =>
+                          nextAvailableIDs.has(id),
+                        ),
+                      );
+                      const removed = [...before].some(
+                        (id) => !nextAvailableIDs.has(id),
+                      );
+                      setChildren((prev) =>
+                        prev.map((entry, index) =>
+                          index === i
+                            ? {
+                                ...entry,
+                                target_grade_level: v,
+                                target_school_class:
+                                  entry.target_school_class &&
+                                  !classMatchesGrade(
+                                    entry.target_school_class,
+                                    v,
+                                  )
+                                    ? ""
+                                    : entry.target_school_class,
+                                offering_ids: nextIDs,
+                                offering_days: nextDays,
+                              }
+                            : entry,
+                        ),
+                      );
+                      setAvailabilityNotices((prev) =>
+                        removed
+                          ? { ...prev, [child.clientId]: true }
+                          : Object.fromEntries(
+                              Object.entries(prev).filter(
+                                ([key]) => key !== child.clientId,
+                              ),
+                            ),
+                      );
+                    }}
+                    max={gradeLevelMax}
+                    error={fieldErrors[`children_${i}_target_grade_level`]}
+                    tr={tr}
+                  />
+                )}
+                {collectGradeLevel &&
+                  schoolClassConfig.collect &&
                   Number(child.target_grade_level) >= 2 &&
                   (() => {
                     // Options are filtered to this child's grade; a phase may
@@ -1512,8 +1677,16 @@ export function EnrollmentForm({
                     );
                   })()}
               </div>
+              {availabilityNotices[child.clientId] ? (
+                <p
+                  role="status"
+                  className="rounded-lg border border-[#F3B63F]/50 bg-[#F3B63F]/10 px-3 py-2 text-sm text-[#805600]"
+                >
+                  {tr("care.availabilitySelectionRemoved")}
+                </p>
+              ) : null}
 
-              {offerings.length > 0 && (
+              {careOfferingsEnabled && childOfferings.length > 0 && (
                 <div className="space-y-4">
                   {/* Required offerings are part of the enrollment regardless of
                     the parent's choice. They are presented as an "always
@@ -1521,7 +1694,7 @@ export function EnrollmentForm({
                     they never read as "something I picked". The selection mode
                     and its "choose at least one" requirement live entirely in
                     the choosable block below. */}
-                  {offerings.some((o) => o.is_required) && (
+                  {childOfferings.some((o) => o.is_required) && (
                     <div>
                       <p className="text-sm font-semibold text-gray-700">
                         {tr("care.requiredTitle")}
@@ -1530,7 +1703,7 @@ export function EnrollmentForm({
                         {tr("care.requiredDescription")}
                       </p>
                       <div className="mt-2 space-y-2">
-                        {offerings
+                        {childOfferings
                           .filter((o) => o.is_required)
                           .map((o) => (
                             <OfferingCard
@@ -1556,10 +1729,10 @@ export function EnrollmentForm({
                       </div>
                     </div>
                   )}
-                  {offerings.some((o) => !o.is_required) && (
+                  {childOfferings.some((o) => !o.is_required) && (
                     <div>
                       <p className="text-sm font-semibold text-gray-700">
-                        {offerings.some((o) => o.is_required)
+                        {childOfferings.some((o) => o.is_required)
                           ? tr("care.additional")
                           : tr("care.offers")}
                         {careOfferingSelectionMode !== "optional" && (
@@ -1583,7 +1756,7 @@ export function EnrollmentForm({
                         }`}
                       >
                         {groupOfferings(
-                          offerings.filter((o) => !o.is_required),
+                          childOfferings.filter((o) => !o.is_required),
                         ).map((bucket) =>
                           bucket.kind === "single" ? (
                             <OfferingCard
@@ -1747,8 +1920,9 @@ export function EnrollmentForm({
                       }
                       relevantDays={relevantCareDaysForChild(
                         child,
-                        offerings,
+                        childOfferings,
                         previewMode,
+                        offerings.length > 0,
                       )}
                       careConstrained={careDaysAreConstrained(
                         offerings,
@@ -2057,16 +2231,18 @@ function asStringMap(value: unknown): Record<string, string> {
   );
 }
 
-// seedRequiredOfferings adds every mandatory offering id to each existing
-// child slot, leaving the rest of the draft untouched. Used after offerings
-// load to back-fill the initial blank child created before the fetch resolved.
-function seedRequiredOfferings(
+// Add mandatory offerings that apply to each child's grade after the catalog
+// loads. Conditional required offerings stay absent while their grade input is
+// empty and are added by the grade-change handler once they become applicable.
+function seedRequiredAvailableOfferings(
   children: ChildDraft[],
-  requiredIDs: readonly string[],
+  offerings: readonly PublicCareOffering[],
 ): ChildDraft[] {
   return children.map((c) => {
     const nextIDs = new Set(c.offering_ids);
-    requiredIDs.forEach((id) => nextIDs.add(id));
+    availableCareOfferings(offerings, c.target_grade_level)
+      .filter((offering) => offering.is_required)
+      .forEach((offering) => nextIDs.add(offering.id));
     return { ...c, offering_ids: nextIDs };
   });
 }
@@ -2430,13 +2606,11 @@ function GradeLevelSelect({
   );
 }
 
-// schoolClassGradePrefix returns the leading run of digits in a school
-// class name ("2a" -> "2", "12b" -> "12"), or "" when the name has no
-// numeric prefix. Mirrors the backend helper of the same name: concrete
-// class names follow the grade-number convention, so the prefix is the
-// grade the class belongs to (#1833).
+// schoolClassGradePrefix returns the first run of digits in a school class
+// name ("2a" -> "2", "Klasse 12b" -> "12"), matching getSchoolYear and the
+// backend schoolclass helper.
 function schoolClassGradePrefix(schoolClass: string): string {
-  const match = /^\s*(\d+)/.exec(schoolClass);
+  const match = /(\d+)/.exec(schoolClass);
   return match?.[1] ?? "";
 }
 
@@ -3549,12 +3723,13 @@ function relevantCareDaysForChild(
   child: ChildDraft,
   offerings: readonly PublicCareOffering[],
   previewMode: boolean,
+  hasOfferingCatalog = offerings.length > 0,
 ): string[] {
   // No offerings to derive care days from (care-offering feature unused, or
   // template preview): every weekday is relevant so day-scoped fields stay
   // usable. When offerings DO exist but the child has selected none, the
   // result is empty on purpose -- the parent must pick care days first.
-  if (previewMode || offerings.length === 0) {
+  if (previewMode || !hasOfferingCatalog) {
     return [...WEEKDAYS];
   }
   return selectedCareDaysForChild(child, offerings);

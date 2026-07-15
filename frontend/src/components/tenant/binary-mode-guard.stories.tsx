@@ -16,6 +16,7 @@ const binaryTenant: TenantInfo = {
   nfcEnabled: true,
   messagingEnabled: true,
   displayEnabled: false,
+  gradeLevelMax: 4,
 };
 
 const meta: Meta<typeof BinaryModeGuard> = {

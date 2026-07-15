@@ -17,20 +17,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messagingService "github.com/moto-nrw/project-phoenix/services/messaging"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Resource is the staff messaging HTTP resource.
 type Resource struct {
-	Service messagingService.Service
+	Service *messagingService.Service
 	db      *bun.DB
 }
 
 // NewResource wires the staff messaging resource.
-func NewResource(service messagingService.Service, db *bun.DB) *Resource {
+func NewResource(service *messagingService.Service, db *bun.DB) *Resource {
 	return &Resource{Service: service, db: db}
 }
 
@@ -38,12 +36,7 @@ func NewResource(service messagingService.Service, db *bun.DB) *Resource {
 func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 
-	tokenAuth := jwt.MustNewTokenAuth()
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// users:read is the coarse gate; per-child access is enforced in the
 		// service via authorize.CanReadStudent. Starting/sending a thread
@@ -338,12 +331,7 @@ func (rs *Resource) listGuardians(w http.ResponseWriter, r *http.Request) {
 }
 
 func parseInt64Param(w http.ResponseWriter, r *http.Request, param, label string) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, param), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid "+label+" ID")))
-		return 0, false
-	}
-	return id, true
+	return common.ParsePositiveInt64IDWithError(w, r, param, "invalid "+label+" ID")
 }
 
 // renderMessagingError maps service sentinels to HTTP status codes.

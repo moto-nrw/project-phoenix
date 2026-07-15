@@ -29,6 +29,7 @@ import {
   ChartTooltipContent,
 } from "~/components/ui/chart";
 import { Modal } from "~/components/ui/modal";
+import { OriginChip } from "~/components/ui/origin-chip";
 import {
   formatSignedDuration,
   ViewToggle,
@@ -36,6 +37,7 @@ import {
 } from "~/components/staff/staff-time-views";
 import { StaffSessionTable } from "~/components/staff/staff-session-table";
 import { StaffExportButton } from "~/components/staff/staff-export-button";
+import { BetreuungsplanHeuteCard } from "~/components/time-tracking/betreuungsplan-heute-card";
 import { LeaveRequestsCard } from "~/components/time-tracking/leave-requests-card";
 import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
 import { ownShiftService } from "~/lib/shift-api";
@@ -53,6 +55,7 @@ import {
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
 import {
+  DEVIATION_REASON_REQUIRED_CODE,
   PLANNED_START_NOT_REACHED_CODE,
   REOPEN_STATUS_CONFLICT_CODE,
   timeTrackingService,
@@ -214,6 +217,88 @@ function extractTimeFromISO(isoString: string): string {
 }
 
 // ─── ClockInCard ──────────────────────────────────────────────────────────────
+
+// Schichtart chip: a color dot + label driven by the tenant-defined Schichtart
+// color the backend embeds (#1844). The color is data, not a brand hue, so the
+// inline style is intentional; falls back to neutral gray when absent.
+function ShiftTypeChip({
+  name,
+  color,
+}: {
+  readonly name: string;
+  readonly color: string | null;
+}) {
+  const dot = color ?? "#6B7280";
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">
+      <span
+        className="h-1.5 w-1.5 rounded-full"
+        style={{ backgroundColor: dot }}
+      />
+      {name}
+    </span>
+  );
+}
+
+// Renders today's planned Dienstplan shifts under the Stempeluhr title: each
+// active shift with its Schichtart chip, a "Vertretung" tag for replacement
+// shifts, plus a muted line for shifts that do not take place ("entfällt"),
+// so Dienstplan-level changes are visible to the staff member (#1844).
+function PlannedShiftsInfo({
+  plannedShifts,
+  cancelledShifts,
+}: {
+  readonly plannedShifts?: readonly StaffShift[];
+  readonly cancelledShifts?: readonly StaffShift[];
+}) {
+  const active = plannedShifts ?? [];
+  const cancelled = cancelledShifts ?? [];
+  if (active.length === 0 && cancelled.length === 0) return null;
+  return (
+    <div className="-mt-3 mb-5 space-y-1 text-sm text-gray-500">
+      {active.map((shift) => (
+        <div key={shift.id} className="flex flex-wrap items-center gap-1.5">
+          <span className="text-gray-400">Geplant:</span>
+          {shift.shiftTypeName && (
+            <ShiftTypeChip
+              name={shift.shiftTypeName}
+              color={shift.shiftTypeColor}
+            />
+          )}
+          <span className="tabular-nums">
+            {shift.startTime}–{shift.endTime}
+          </span>
+          {shift.originShiftId && (
+            <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs font-medium text-[#5080D8]">
+              Vertretung
+            </span>
+          )}
+          {shift.breakMinutes > 0 && (
+            <span className="text-gray-400">
+              · Pause {shift.breakMinutes} min
+            </span>
+          )}
+        </div>
+      ))}
+      {cancelled.map((shift) => (
+        <div
+          key={shift.id}
+          className="flex flex-wrap items-center gap-1.5 text-gray-400"
+        >
+          <span className="tabular-nums line-through">
+            {shift.startTime}–{shift.endTime}
+          </span>
+          <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-500">
+            Entfällt
+          </span>
+          {shift.changeReason && (
+            <span className="italic">{shift.changeReason}</span>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
 
 function formatTimeFromDate(date: Date): string {
   return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`;
@@ -494,6 +579,7 @@ function ClockInCard({
   onAddAbsence,
   metrics,
   plannedShifts,
+  cancelledShifts,
 }: {
   readonly currentSession: WorkSession | null;
   readonly breaks: WorkSessionBreak[];
@@ -505,6 +591,7 @@ function ClockInCard({
   readonly onAddAbsence: () => void;
   readonly metrics?: ReturnType<typeof computeStaffMetrics> | null;
   readonly plannedShifts?: readonly StaffShift[];
+  readonly cancelledShifts?: readonly StaffShift[];
 }) {
   // Null until the staff member explicitly picks Vor Ort / Homeoffice / Abwesend.
   // No pre-selection per Issue #1368 — silent defaults are unacceptable for an
@@ -785,18 +872,13 @@ function ClockInCard({
           )}
         </div>
 
-        {/* Heute geplante Schichten (Dienstplan) — dezente Zeile unter dem
-            Titel. Geteilte Dienste zeigen alle Zeitbereiche des Tages. */}
-        {plannedShifts && plannedShifts.length > 0 && (
-          <p className="-mt-3 mb-5 text-sm text-gray-500 tabular-nums">
-            Geplant:{" "}
-            {plannedShifts
-              .map((s) => `${s.startTime}–${s.endTime}`)
-              .join(" · ")}
-            {plannedShifts.reduce((sum, s) => sum + s.breakMinutes, 0) > 0 &&
-              ` · Pause ${plannedShifts.reduce((sum, s) => sum + s.breakMinutes, 0)} min`}
-          </p>
-        )}
+        {/* Heute geplante Schichten (Dienstplan) — dezente Zeilen unter dem
+            Titel: Schichtart als farbiger Chip, Vertretungen und entfallene
+            Schichten sichtbar (#1844). Geteilte Dienste zeigen jede Schicht. */}
+        <PlannedShiftsInfo
+          plannedShifts={plannedShifts}
+          cancelledShifts={cancelledShifts}
+        />
 
         {/* ── Not checked in: start controls ── */}
         {!isCheckedIn && !isCheckedOut && (
@@ -1067,6 +1149,15 @@ function ClockInCard({
         {metrics ? (
           <div className="mt-5 border-t border-gray-100 pt-4">
             <ClockInStatsStrip metrics={metrics} />
+            {/* Herkunfts-Chip am Soll-Wert (Planung-Redesign, docs/04 6.2):
+                genau einer pro Oberfläche, solange die Soll-Quellen-Frage
+                offen ist. */}
+            <div className="mt-3 flex justify-end">
+              <OriginChip
+                label="Soll aus Arbeitszeitmodell"
+                title="Wochensaldo und Stundenkonto rechnen gegen das im Arbeitszeitmodell hinterlegte Soll."
+              />
+            </div>
           </div>
         ) : (
           <div className="mt-4 flex flex-col gap-y-1 text-xs text-gray-400 sm:flex-row sm:flex-wrap sm:gap-x-6">
@@ -2905,6 +2996,24 @@ function TimeTrackingContent() {
     setReopenStatusChangeReason("");
   }, []);
 
+  // F9 deviation-reason prompt. Set when the backend rejects a stamp with
+  // DEVIATION_REASON_REQUIRED_CODE because it falls outside the tolerance
+  // window around the planned shift window. The modal collects the reason
+  // and retries the same stamp; the backend stores it in the audit log.
+  const [pendingDeviation, setPendingDeviation] = useState<{
+    action: "check_in" | "check_out";
+    status?: SessionStatus;
+    plannedTime?: string;
+    actualTime?: string;
+    deviationMinutes?: string;
+  } | null>(null);
+  const [deviationReason, setDeviationReason] = useState("");
+  const [deviationSubmitting, setDeviationSubmitting] = useState(false);
+  const handleClosePendingDeviation = useCallback(() => {
+    setPendingDeviation(null);
+    setDeviationReason("");
+  }, []);
+
   // Calculate date range for data fetching
   // - Chart shows trailing 10 workdays ending at reference date
   // - WeekView shows calendar week containing reference date, so the
@@ -2994,7 +3103,21 @@ function TimeTrackingContent() {
   const todayShifts = useMemo(
     () =>
       (ownTodayShifts ?? [])
-        .filter((s) => s.date === todayISO)
+        // A cancelled shift does not take place (#1841): the person is absent
+        // or the gap is left open, so it must not appear as a *planned* shift in
+        // the Stempeluhr. A replacement is the covering person's own shift and
+        // shows for them normally (tagged "Vertretung", #1844).
+        .filter((s) => s.date === todayISO && !s.cancelled)
+        .sort((a, b) => a.startTime.localeCompare(b.startTime)),
+    [ownTodayShifts, todayISO],
+  );
+  // Cancelled shifts are shown separately as "entfällt" so Dienstplan-level
+  // changes stay visible to the staff member instead of silently vanishing
+  // (#1844, AC 2).
+  const todayCancelledShifts = useMemo(
+    () =>
+      (ownTodayShifts ?? [])
+        .filter((s) => s.date === todayISO && s.cancelled)
         .sort((a, b) => a.startTime.localeCompare(b.startTime)),
     [ownTodayShifts, todayISO],
   );
@@ -3145,6 +3268,27 @@ function TimeTrackingContent() {
         toast.success("Erfolgreich eingestempelt");
       } catch (err) {
         const apiErr = err as ApiError;
+        if (apiErr.code === DEVIATION_REASON_REQUIRED_CODE) {
+          const details = apiErr.details;
+          setDeviationReason("");
+          setPendingDeviation({
+            action: "check_in",
+            status,
+            plannedTime:
+              typeof details?.planned_time === "string"
+                ? details.planned_time
+                : undefined,
+            actualTime:
+              typeof details?.actual_time === "string"
+                ? details.actual_time
+                : undefined,
+            deviationMinutes:
+              typeof details?.deviation_minutes === "string"
+                ? details.deviation_minutes
+                : undefined,
+          });
+          return;
+        }
         if (apiErr.code === REOPEN_STATUS_CONFLICT_CODE) {
           // Audit-trail gate: silent status change on reopen is forbidden.
           // Surface the prompt; the user supplies a reason and we route
@@ -3312,12 +3456,76 @@ function TimeTrackingContent() {
       ]);
       toast.success("Erfolgreich ausgestempelt");
     } catch (err) {
+      const apiErr = err as ApiError;
+      if (apiErr.code === DEVIATION_REASON_REQUIRED_CODE) {
+        const details = apiErr.details;
+        setDeviationReason("");
+        setPendingDeviation({
+          action: "check_out",
+          plannedTime:
+            typeof details?.planned_time === "string"
+              ? details.planned_time
+              : undefined,
+          actualTime:
+            typeof details?.actual_time === "string"
+              ? details.actual_time
+              : undefined,
+          deviationMinutes:
+            typeof details?.deviation_minutes === "string"
+              ? details.deviation_minutes
+              : undefined,
+        });
+        return;
+      }
       logger.error("check_out_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       toast.error(friendlyError(err, "Fehler beim Ausstempeln"));
     }
   }, [mutateCurrentSession, mutateHistory, refreshTableData, toast]);
+
+  // Retry the rejected stamp with the collected reason. The modal stays open
+  // when the retry fails so the reason isn't lost.
+  const confirmDeviationReason = useCallback(async () => {
+    const pending = pendingDeviation;
+    if (!pending) return;
+    const reason = deviationReason.trim();
+    if (!reason) return;
+
+    setDeviationSubmitting(true);
+    try {
+      if (pending.action === "check_in" && pending.status) {
+        await timeTrackingService.checkIn(pending.status, reason);
+        toast.success("Erfolgreich eingestempelt");
+      } else {
+        await timeTrackingService.checkOut(reason);
+        setCurrentBreaks([]);
+        toast.success("Erfolgreich ausgestempelt");
+      }
+      await Promise.all([
+        mutateCurrentSession(),
+        mutateHistory(),
+        refreshTableData(),
+      ]);
+      setPendingDeviation(null);
+      setDeviationReason("");
+    } catch (err) {
+      logger.error("deviation_reason_submit_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        action: pending.action,
+      });
+      toast.error(friendlyError(err, "Fehler beim Stempeln"));
+    } finally {
+      setDeviationSubmitting(false);
+    }
+  }, [
+    pendingDeviation,
+    deviationReason,
+    mutateCurrentSession,
+    mutateHistory,
+    refreshTableData,
+    toast,
+  ]);
 
   const handleStartBreak = useCallback(
     async (durationMinutes: number) => {
@@ -3497,12 +3705,19 @@ function TimeTrackingContent() {
           onAddAbsence={() => setAbsenceModalOpen(true)}
           metrics={ownMetrics ?? null}
           plannedShifts={todayShifts}
+          cancelledShifts={todayCancelledShifts}
         />
         <WeekChart
           history={history}
           currentSession={currentSession ?? null}
           weekOffset={weekOffset}
         />
+      </div>
+
+      {/* Heute geplante Betreuungsplan-Einsätze (Ort/Aufgabe + Vertretungen,
+          #1844). Rendert nichts, wenn die Schule keinen Betreuungsplan pflegt. */}
+      <div className="mb-4 md:mb-6">
+        <BetreuungsplanHeuteCard />
       </div>
 
       <div className="mb-4 md:mb-6">
@@ -3708,6 +3923,91 @@ function TimeTrackingContent() {
             onChange={(e) => setReopenStatusChangeReason(e.target.value)}
             disabled={reopenStatusChangeSubmitting}
             placeholder="z. B. Mittags ins Homeoffice gewechselt"
+            rows={3}
+            className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:ring-1 focus:ring-gray-500 focus:outline-none disabled:opacity-50"
+          />
+        </div>
+      </Modal>
+
+      {/* F9: stamping outside the tolerance window around the planned shift
+          needs a reason that lands in the audit trail. */}
+      <Modal
+        isOpen={pendingDeviation !== null}
+        onClose={handleClosePendingDeviation}
+        title="Abweichung vom Dienstplan"
+        footer={
+          <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
+            <button
+              onClick={handleClosePendingDeviation}
+              disabled={deviationSubmitting}
+              className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
+            >
+              Abbrechen
+            </button>
+            <button
+              onClick={confirmDeviationReason}
+              disabled={deviationSubmitting || deviationReason.trim() === ""}
+              className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {pendingDeviation?.action === "check_in"
+                ? "Mit Begründung einstempeln"
+                : "Mit Begründung ausstempeln"}
+            </button>
+          </div>
+        }
+      >
+        <div className="py-2">
+          <p className="text-sm text-gray-600">
+            {pendingDeviation?.action === "check_in" ? (
+              <>
+                Du stempelst
+                {pendingDeviation?.deviationMinutes ? (
+                  <span className="font-medium text-gray-900">
+                    {" "}
+                    {pendingDeviation.deviationMinutes} Minuten
+                  </span>
+                ) : (
+                  " deutlich"
+                )}{" "}
+                vor deinem geplanten Dienstbeginn
+                {pendingDeviation?.plannedTime
+                  ? ` (${pendingDeviation.plannedTime} Uhr)`
+                  : ""}{" "}
+                ein.
+              </>
+            ) : (
+              <>
+                Du stempelst
+                {pendingDeviation?.deviationMinutes ? (
+                  <span className="font-medium text-gray-900">
+                    {" "}
+                    {pendingDeviation.deviationMinutes} Minuten
+                  </span>
+                ) : (
+                  " deutlich"
+                )}{" "}
+                nach deinem geplanten Dienstende
+                {pendingDeviation?.plannedTime
+                  ? ` (${pendingDeviation.plannedTime} Uhr)`
+                  : ""}{" "}
+                aus.
+              </>
+            )}{" "}
+            Bitte gib einen kurzen Grund an. Er wird im Audit-Trail der Sitzung
+            gespeichert.
+          </p>
+          <label
+            htmlFor="deviation-reason"
+            className="mt-4 block text-xs font-medium text-gray-700"
+          >
+            Grund
+          </label>
+          <textarea
+            id="deviation-reason"
+            value={deviationReason}
+            onChange={(e) => setDeviationReason(e.target.value)}
+            disabled={deviationSubmitting}
+            placeholder="z. B. Elterngespräch lief länger"
             rows={3}
             className="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm text-gray-900 focus:border-gray-500 focus:ring-1 focus:ring-gray-500 focus:outline-none disabled:opacity-50"
           />

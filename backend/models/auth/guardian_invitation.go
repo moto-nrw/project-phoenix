@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // GuardianInvitation represents an invitation sent to create a guardian account
@@ -39,7 +38,6 @@ type GuardianInvitation struct {
 	ProfileCreatedForInvitation bool `bun:"profile_created_for_invitation,notnull,default:false" json:"profile_created_for_invitation"`
 
 	// Relations (not stored in database)
-	Creator *Account `bun:"rel:belongs-to,join:created_by=id" json:"creator,omitempty"`
 }
 
 // Approval-status values for GuardianInvitation.ApprovalStatus.
@@ -54,26 +52,6 @@ const (
 // still awaiting staff approval (pure field accessor).
 func (i *GuardianInvitation) IsPendingApproval() bool {
 	return i.ApprovalStatus == GuardianInvitationApprovalPending
-}
-
-// TableName returns the fully-qualified table name
-func (i *GuardianInvitation) TableName() string {
-	return "auth.guardian_invitations"
-}
-
-// BeforeAppendModel ensures the schema-qualified table expression is used with an alias
-func (i *GuardianInvitation) BeforeAppendModel(query any) error {
-	const tableExpr = `auth.guardian_invitations AS "guardian_invitation"`
-
-	switch q := query.(type) {
-	case *bun.InsertQuery:
-		q.ModelTableExpr(tableExpr)
-	case *bun.UpdateQuery:
-		q.ModelTableExpr(tableExpr)
-	case *bun.DeleteQuery:
-		q.ModelTableExpr(tableExpr)
-	}
-	return nil
 }
 
 // Validate ensures core fields are present and sensible
@@ -104,19 +82,4 @@ func (i *GuardianInvitation) IsAccepted() bool {
 // SetExpiry assigns a duration from now as the expiry
 func (i *GuardianInvitation) SetExpiry(duration time.Duration) {
 	i.ExpiresAt = time.Now().Add(duration)
-}
-
-// GetID returns the primary key
-func (i *GuardianInvitation) GetID() interface{} {
-	return i.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (i *GuardianInvitation) GetCreatedAt() time.Time {
-	return i.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (i *GuardianInvitation) GetUpdatedAt() time.Time {
-	return i.UpdatedAt
 }

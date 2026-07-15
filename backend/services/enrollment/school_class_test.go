@@ -20,6 +20,9 @@ func (s schoolClassSettingsStub) HasTenantOverride(context.Context, string) (boo
 }
 
 func (s schoolClassSettingsStub) ResolveBool(_ context.Context, key string) (bool, error) {
+	if key == configModel.KeyEnrollmentCollectGradeLevel || key == configModel.KeyEnrollmentCareOfferingsEnabled {
+		return true, nil
+	}
 	if key == configModel.KeyEnrollmentCollectSchoolClass {
 		return s.collect, nil
 	}
@@ -145,7 +148,7 @@ func TestValidateAndNormalizeSchoolClasses(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			svc := &requestService{settings: schoolClassSettingsStub{collect: tc.collect}}
+			svc := &requestService{RequestServiceConfig: RequestServiceConfig{Settings: schoolClassSettingsStub{collect: tc.collect}}}
 			children := []SubmitChild{tc.child}
 			err := svc.validateAndNormalizeSchoolClasses(context.Background(), tc.phase, children)
 			if tc.wantErr {
@@ -194,9 +197,9 @@ func TestDecisionService_ResolveSchoolClass(t *testing.T) {
 			want:  "1",
 		},
 		{
-			name:  "no grade and no class yields empty",
+			name:  "no grade and no class yields neutral placeholder",
 			child: &enrollmentModels.RequestChild{},
-			want:  "",
+			want:  "offen",
 		},
 	}
 
@@ -237,6 +240,12 @@ func TestDecisionService_ResolveRolloverSchoolClass(t *testing.T) {
 			want:          "2",
 		},
 		{
+			name:          "open placeholder re-derives to newly collected grade",
+			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(2)},
+			existingClass: "offen",
+			want:          "2",
+		},
+		{
 			name:          "stale concrete class from old grade falls back to placeholder on grade bump",
 			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(3)},
 			existingClass: "2a",
@@ -266,6 +275,18 @@ func TestDecisionService_ResolveRolloverSchoolClass(t *testing.T) {
 			existingClass: "2a",
 			want:          "2a",
 		},
+		{
+			name:          "zero target grade keeps existing concrete class",
+			child:         &enrollmentModels.RequestChild{TargetGradeLevel: grade(0)},
+			existingClass: "2a",
+			want:          "2a",
+		},
+		{
+			name:          "nil target grade keeps existing bare placeholder",
+			child:         &enrollmentModels.RequestChild{},
+			existingClass: "2",
+			want:          "2",
+		},
 	}
 
 	for _, tc := range tests {
@@ -282,10 +303,12 @@ func TestIsBareGradePlaceholderClass(t *testing.T) {
 		in   string
 		want bool
 	}{
-		{"", true},    // no class assigned yet
-		{"  ", true},  // whitespace-only placeholder
-		{"1", true},   // bare grade number
-		{"12", true},  // still all digits
+		{"", true},   // no class assigned yet
+		{"  ", true}, // whitespace-only placeholder
+		{"1", true},  // bare grade number
+		{"12", true}, // still all digits
+		{"offen", true},
+		{" OFFEN ", true},
 		{"2a", false}, // hand-assigned concrete class
 		{"Klasse", false},
 		{" 2a ", false},

@@ -39,7 +39,7 @@ type Resource struct {
 	ParentService         parentService.Service
 	CalendarService       calendarService.Service
 	RequestService        enrollmentService.RequestService
-	GuardianProfileLoader usersService.GuardianProfileLoader
+	GuardianProfileLoader *usersService.GuardianProfileLoader
 	SchoolService         platformSvc.SchoolService
 	db                    *bun.DB
 	authRateLimiter       func(http.Handler) http.Handler
@@ -61,7 +61,7 @@ func NewResource(
 	auth authService.AuthService,
 	parent parentService.Service,
 	requestSvc enrollmentService.RequestService,
-	guardianProfileLoader usersService.GuardianProfileLoader,
+	guardianProfileLoader *usersService.GuardianProfileLoader,
 	schoolService platformSvc.SchoolService,
 	db *bun.DB,
 ) *Resource {
@@ -147,6 +147,10 @@ func (rs *Resource) Router() chi.Router {
 		r.Get("/me/children/{studentId}/meal-plan", rs.getChildMealPlan)
 		r.Get("/me/children/{studentId}/sick-note", rs.listSickDays)
 		r.Post("/me/children/{studentId}/sick-note", rs.submitSickNote)
+		// Excused-absence approval requests (#1845): pending/decided requests the
+		// parent can view, and withdraw their own still-pending one.
+		r.Get("/me/children/{studentId}/excused-requests", rs.listExcusedRequests)
+		r.Delete("/me/children/{studentId}/excused-requests/{requestId}", rs.withdrawExcusedRequest)
 
 		// Parent-OGS messaging — chat model. One continuous conversation per
 		// child with the OGS (no subject). The list aggregates the guardian's

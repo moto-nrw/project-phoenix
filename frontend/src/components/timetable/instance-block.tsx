@@ -18,7 +18,9 @@ import { TriangleAlert } from "lucide-react";
 
 import { getActivityColor } from "~/lib/timetable-helpers";
 import type { EnrichedInstance } from "~/lib/timetable-types";
+import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { timetableStatusColors } from "./timetable-style";
+import { useShowTimetableCounts } from "~/lib/tenant-context";
 
 interface InstanceBlockProps {
   instance: EnrichedInstance;
@@ -46,11 +48,21 @@ export function InstanceBlock({
   isSelected,
   onClick,
 }: InstanceBlockProps) {
+  const showTimetableCounts = useShowTimetableCounts();
   const isCancelled = instance.status === "cancelled";
   const isActive = instance.status === "active";
   const hasConflict = instance.conflictWarnings.length > 0;
   const isCompact = height <= COMPACT_HEIGHT_PX;
   const isTiny = height <= TINY_HEIGHT_PX;
+
+  // #1840 Vertretungsplan deviation signals. A removed substitute keeps
+  // is_substitute=true but is marked is_absent=true — they are no longer
+  // covering, so only a NON-absent substitute counts as an active replacement.
+  const isUnderstaffedAck = instance.understaffedAck === true && !isCancelled;
+  const hasSubstitute = instance.staff.some(
+    (s) => s.isSubstitute && !s.isAbsent,
+  );
+  const absentCount = instance.absentStaffCount;
 
   const ringClass = isSelected
     ? "ring-2 ring-offset-1 ring-gray-900"
@@ -59,9 +71,13 @@ export function InstanceBlock({
   const borderClass = isCancelled
     ? "border border-dashed border-[#FF3130]"
     : "border border-gray-200";
+  // A deliberately-unstaffed block gets an amber left bar so it reads as a
+  // known shortfall, not a normal block.
   const activityColor = isCancelled
     ? timetableStatusColors.cancelled
-    : getActivityColor(instance.activityType);
+    : isUnderstaffedAck
+      ? "#EAB308"
+      : getActivityColor(instance.activityType);
 
   return (
     <button
@@ -93,11 +109,18 @@ export function InstanceBlock({
             )}
             {instance.title}
           </span>
-          {hasConflict && (
+          {isUnderstaffedAck ? (
             <TriangleAlert
               className="h-3 w-3 shrink-0 text-[#EAB308]"
-              aria-label={`${instance.conflictWarnings.length} Konflikte`}
+              aria-label="Bewusst unbesetzt"
             />
+          ) : (
+            hasConflict && (
+              <TriangleAlert
+                className="h-3 w-3 shrink-0 text-[#EAB308]"
+                aria-label={`${instance.conflictWarnings.length} Konflikte`}
+              />
+            )
           )}
         </div>
 
@@ -129,13 +152,42 @@ export function InstanceBlock({
         )}
 
         {!isCompact && !isCancelled && (
-          <div className="truncate text-[10px] text-gray-500">
-            {instance.staffCount} P ·{" "}
-            {instance.expectedStudentsCount + instance.presentStudentsCount} K
-            {isActive &&
-            instance.expectedStudentsCount + instance.presentStudentsCount > 0
-              ? ` · ${instance.presentStudentsCount} anwesend`
-              : ""}
+          <div className="flex items-center gap-1 truncate text-[10px] text-gray-500">
+            <span className="truncate">
+              {instance.staffCount} P
+              {showTimetableCounts &&
+                ` · ${instance.expectedStudentsCount + instance.presentStudentsCount} K`}
+              {showTimetableCounts &&
+              isActive &&
+              instance.expectedStudentsCount + instance.presentStudentsCount > 0
+                ? ` · ${instance.presentStudentsCount} anwesend`
+                : ""}
+            </span>
+            {instance.requiredStaffCount > 0 && (
+              <TimetableRatioPill
+                variant="compact"
+                icon={null}
+                label="Besetzung"
+                value={`${instance.assignedStaffCount}/${instance.requiredStaffCount}`}
+                tone={capacityTone(
+                  instance.assignedStaffCount,
+                  instance.requiredStaffCount,
+                )}
+              />
+            )}
+          </div>
+        )}
+
+        {!isCompact && !isCancelled && (absentCount > 0 || hasSubstitute) && (
+          <div className="flex flex-wrap gap-1 text-[10px]">
+            {absentCount > 0 && (
+              <span className="font-semibold text-[#CC2626]">
+                {absentCount} abwesend
+              </span>
+            )}
+            {hasSubstitute && (
+              <span className="font-semibold text-[#5A8E1F]">Ersatz</span>
+            )}
           </div>
         )}
       </div>

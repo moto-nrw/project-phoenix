@@ -14,22 +14,23 @@ import {
 
 import {
   computeTimetableSetup,
-  type TimetableEnrollmentStatus,
+  type TimetableCareOfferingLinkStatus,
 } from "~/lib/timetable-helpers";
 
 interface TimetableSetupGuideProps {
   readonly hasActivePeriod: boolean;
   readonly activePeriodLabel: string | null;
-  readonly enrollmentStatus: TimetableEnrollmentStatus;
-  readonly enrollmentLabel: string | null;
+  readonly careOfferingLinkStatus: TimetableCareOfferingLinkStatus;
+  /** e.g. "2 von 5 Angeboten verknüpft"; null when the linkage is unknown. */
+  readonly careOfferingLinkLabel: string | null;
   readonly hasPlan: boolean;
   readonly plannedCount: number;
   /** Opens "Schuljahre & Ferien" (or the create modal when none exists). */
   readonly onManagePeriods: () => void;
   /** Opens the create-appointment modal. */
   readonly onCreateEvent: () => void;
-  /** Tenant-relative href to the enrollment admin overview. */
-  readonly enrollmentHref: string;
+  /** Tenant-relative href to the care-offerings admin page. */
+  readonly careOfferingsHref: string;
 }
 
 interface GuideStep {
@@ -49,17 +50,17 @@ interface GuideStep {
 export function TimetableSetupGuide({
   hasActivePeriod,
   activePeriodLabel,
-  enrollmentStatus,
-  enrollmentLabel,
+  careOfferingLinkStatus,
+  careOfferingLinkLabel,
   hasPlan,
   plannedCount,
   onManagePeriods,
   onCreateEvent,
-  enrollmentHref,
+  careOfferingsHref,
 }: TimetableSetupGuideProps) {
   const setup = computeTimetableSetup({
     hasActivePeriod,
-    enrollment: enrollmentStatus,
+    careOfferingLink: careOfferingLinkStatus,
     hasPlan,
   });
   const { setupComplete } = setup;
@@ -93,17 +94,13 @@ export function TimetableSetupGuide({
         "Verbinde den Plan mit der Online-Anmeldung, damit angemeldete Kinder direkt auftauchen.",
       done: setup.enrollmentDone,
       meta:
-        enrollmentStatus === "unknown"
+        careOfferingLinkStatus === "unknown"
           ? "Optional"
-          : enrollmentStatus === "active"
-            ? (enrollmentLabel ?? "Anmeldung aktiv")
-            : "Keine aktive Anmeldephase",
-      action: setup.enrollmentDone
-        ? "Anmeldung öffnen"
-        : "Anmeldung einrichten",
+          : (careOfferingLinkLabel ?? "Noch nichts verknüpft"),
+      action: setup.enrollmentDone ? "Angebote öffnen" : "Angebote verknüpfen",
       icon: ClipboardList,
       onClick: null,
-      href: enrollmentHref,
+      href: careOfferingsHref,
       optional: true,
       applicable: setup.enrollmentApplicable,
     },

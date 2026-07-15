@@ -85,6 +85,7 @@ interface AdminEnrollmentChangeRequestMessage {
 export interface AdminEnrollmentChangeRequest {
   id: string;
   request_id: string;
+  origin: "parent" | "admin";
   status: AdminEnrollmentChangeRequestStatus;
   parent_note?: string | null;
   admin_decision_note?: string | null;
@@ -99,8 +100,21 @@ export interface AdminEnrollmentChangeRequest {
   messages?: AdminEnrollmentChangeRequestMessage[];
 }
 
+export interface AdminChildDataCorrectionResult extends AdminEnrollmentChangeRequest {
+  request: AdminRequestSummary;
+}
+
 export interface UpdateAdminChildOfferingsInput {
   offerings: Array<{ offering_id: string; selected_days?: string[] }>;
+  reason: string;
+}
+
+export interface CorrectAdminChildDataInput {
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  target_grade_level?: number;
+  target_school_class?: string;
   reason: string;
 }
 
@@ -117,6 +131,7 @@ export interface AdminRequestChild {
   reviewed_at?: string | null;
   reviewed_by?: number | null;
   activation_mode: string;
+  created_student_id?: string;
   custom_data?: Record<string, unknown>;
   /** Per-child Betreuungsangebote selection — detail endpoint only. */
   offerings?: AdminRequestChildOffering[];
@@ -176,6 +191,34 @@ export interface AdminRequestSummary {
 
 export interface AdminRequestDetail extends AdminRequestSummary {
   status_token: string;
+}
+
+interface AdminEnrollmentDeletionCounts {
+  requests: number;
+  request_children: number;
+  request_child_offerings: number;
+  request_guardians: number;
+  change_requests: number;
+  change_request_messages: number;
+  late_invites: number;
+  offering_adjustments: number;
+  email_outbox: number;
+  rollover_links_cleared: number;
+  student_source_links_cleared: number;
+  total: number;
+}
+
+export interface AdminEnrollmentDeletionImpact {
+  request_id: string;
+  child_id?: string;
+  deletes_request: boolean;
+  can_delete: boolean;
+  counts: AdminEnrollmentDeletionCounts;
+  blocking_student_ids: string[];
+  preserved_guardian_profiles: number;
+  preserved_parent_accounts: number;
+  unlinked_guardian_profiles: number;
+  parent_accounts_without_students: number;
 }
 
 /** One additional guardian (co-guardian) on a submission. */
@@ -252,6 +295,76 @@ export async function getAdminRequest(id: string): Promise<AdminRequestDetail> {
     throw await readError(response, "Anmeldung konnte nicht geladen werden");
   }
   return readJSON<AdminRequestDetail>(response);
+}
+
+export async function getAdminRequestDeleteImpact(
+  requestId: string,
+): Promise<AdminEnrollmentDeletionImpact> {
+  const response = await fetch(
+    `${BASE}/${encodeURIComponent(requestId)}/delete-impact`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Auswirkungen der Löschung konnten nicht geladen werden",
+    );
+  }
+  return readJSON<AdminEnrollmentDeletionImpact>(response);
+}
+
+export async function getAdminChildDeleteImpact(
+  requestId: string,
+  childId: string,
+): Promise<AdminEnrollmentDeletionImpact> {
+  const response = await fetch(
+    `${BASE}/${encodeURIComponent(requestId)}/children/${encodeURIComponent(childId)}/delete-impact`,
+    { cache: "no-store" },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Auswirkungen der Löschung konnten nicht geladen werden",
+    );
+  }
+  return readJSON<AdminEnrollmentDeletionImpact>(response);
+}
+
+export async function deleteAdminRequest(
+  requestId: string,
+  reason: string,
+): Promise<AdminEnrollmentDeletionImpact> {
+  const response = await fetch(`${BASE}/${encodeURIComponent(requestId)}`, {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ reason }),
+  });
+  if (!response.ok) {
+    throw await readError(response, "Anmeldung konnte nicht gelöscht werden");
+  }
+  return readJSON<AdminEnrollmentDeletionImpact>(response);
+}
+
+export async function deleteAdminChild(
+  requestId: string,
+  childId: string,
+  reason: string,
+): Promise<AdminEnrollmentDeletionImpact> {
+  const response = await fetch(
+    `${BASE}/${encodeURIComponent(requestId)}/children/${encodeURIComponent(childId)}`,
+    {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ reason }),
+    },
+  );
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Kind konnte nicht aus der Anmeldung gelöscht werden",
+    );
+  }
+  return readJSON<AdminEnrollmentDeletionImpact>(response);
 }
 
 export interface CreateLateInviteInput {
@@ -429,6 +542,29 @@ export async function updateAdminChildOfferings(
     );
   }
   return readJSON<AdminRequestChild>(response);
+}
+
+export async function correctAdminChildData(
+  requestId: string,
+  childId: string,
+  input: CorrectAdminChildDataInput,
+): Promise<AdminChildDataCorrectionResult> {
+  const response = await fetch(`/api/enrollment/admin/data-correction`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      request_id: requestId,
+      child_id: childId,
+      ...input,
+    }),
+  });
+  if (!response.ok) {
+    throw await readError(
+      response,
+      "Anmeldedaten konnten nicht korrigiert werden",
+    );
+  }
+  return readJSON<AdminChildDataCorrectionResult>(response);
 }
 
 export async function listAdminChildOfferingAdjustments(

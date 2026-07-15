@@ -74,14 +74,14 @@ func (s *service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 	}
 
 	var out []*RelatedAccount
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		links, err := s.studentGuardianRepo.FindByStudentID(txCtx, studentID)
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		links, err := s.StudentGuardianRepo.FindByStudentID(txCtx, studentID)
 		if err != nil {
 			return err
 		}
 		out = make([]*RelatedAccount, 0, len(links))
 		for _, link := range links {
-			profile, err := s.guardianProfileRepo.FindByID(txCtx, link.GuardianProfileID)
+			profile, err := s.GuardianProfileRepo.FindByID(txCtx, link.GuardianProfileID)
 			if err != nil {
 				return err
 			}
@@ -116,10 +116,10 @@ func (s *service) relatedAccountStatus(ctx context.Context, profile *userModels.
 	if profile.HasAccount {
 		return RelatedAccountActive
 	}
-	if s.guardianInviteRepo == nil {
+	if s.GuardianInviteRepo == nil {
 		return RelatedAccountNoAccount
 	}
-	invitations, err := s.guardianInviteRepo.FindByGuardianProfileID(ctx, profile.ID)
+	invitations, err := s.GuardianInviteRepo.FindByGuardianProfileID(ctx, profile.ID)
 	if err != nil {
 		return RelatedAccountNoAccount
 	}
@@ -150,7 +150,7 @@ func (s *service) InviteRelatedAccount(ctx context.Context, accountID, studentID
 		return nil, err
 	}
 
-	mode, err := s.settings.ResolveStringForTenant(ctx, child.tenantID, configModels.KeyGuardianParentInviteMode)
+	mode, err := s.Settings.ResolveStringForTenant(ctx, child.tenantID, configModels.KeyGuardianParentInviteMode)
 	if err != nil {
 		return nil, fmt.Errorf("parent: resolve invite mode: %w", err)
 	}
@@ -161,8 +161,8 @@ func (s *service) InviteRelatedAccount(ctx context.Context, accountID, studentID
 
 	requestedBy := accountID
 	var result *authService.InviteToStudentResult
-	txErr := tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		res, inviteErr := s.guardianInvites.InviteToStudent(txCtx, authService.InviteToStudentRequest{
+	txErr := tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		res, inviteErr := s.GuardianInvites.InviteToStudent(txCtx, authService.InviteToStudentRequest{
 			StudentID:                  studentID,
 			Email:                      email,
 			FirstName:                  firstName,
@@ -195,14 +195,14 @@ func (s *service) RemoveRelatedAccount(ctx context.Context, accountID, studentID
 		return err
 	}
 
-	mode, err := s.settings.ResolveStringForTenant(ctx, child.tenantID, configModels.KeyGuardianParentInviteMode)
+	mode, err := s.Settings.ResolveStringForTenant(ctx, child.tenantID, configModels.KeyGuardianParentInviteMode)
 	if err != nil {
 		return fmt.Errorf("parent: resolve invite mode: %w", err)
 	}
 	if mode == configModels.ParentInviteModeDisabled {
 		return ErrRemoveDisabled
 	}
-	canRemove, err := s.settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyGuardianParentCanRemove)
+	canRemove, err := s.Settings.ResolveBoolForTenant(ctx, child.tenantID, configModels.KeyGuardianParentCanRemove)
 	if err != nil {
 		return fmt.Errorf("parent: resolve remove setting: %w", err)
 	}
@@ -210,8 +210,8 @@ func (s *service) RemoveRelatedAccount(ctx context.Context, accountID, studentID
 		return ErrRemoveDisabled
 	}
 
-	return tenant.WithTenantTx(ctx, s.db, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return s.guardianInvites.RevokeAccess(txCtx, authService.RevokeAccessRequest{
+	return tenant.WithTenantTx(ctx, s.DB, child.tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		return s.GuardianInvites.RevokeAccess(txCtx, authService.RevokeAccessRequest{
 			StudentID:         studentID,
 			GuardianProfileID: guardianProfileID,
 			ActorAccountID:    accountID,

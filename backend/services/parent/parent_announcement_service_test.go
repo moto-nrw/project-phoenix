@@ -20,28 +20,10 @@ import (
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
-
-// announcementSettings answers only the parent-news flag lookup the
-// announcement feed performs; newsEnabled toggles the whole feature per tenant.
-// The embedded (nil) SettingsService satisfies the full interface; any method
-// other than ResolveBoolForTenant panics if called, keeping the test honest
-// about what the service touches.
-type announcementSettings struct {
-	configService.SettingsService
-	newsEnabled bool
-}
-
-func (s announcementSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	if key == configModels.KeyParentNewsEnabled {
-		return s.newsEnabled, nil
-	}
-	return false, nil
-}
 
 // buildAnnouncementService wires the parent service with just the repositories
 // the announcement feed needs. newsEnabled controls the per-tenant feature gate.
@@ -54,9 +36,11 @@ func buildAnnouncementService(t *testing.T, newsEnabled bool) (parentService.Ser
 		ChildRepo:             repos.ParentChild,
 		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,
 		AnnouncementRepo:      repos.ParentAnnouncement,
-		Settings:              announcementSettings{newsEnabled: newsEnabled},
-		DB:                    db,
-		Logger:                slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{configModels.KeyParentNewsEnabled: newsEnabled},
+		},
+		DB:     db,
+		Logger: slog.Default(),
 	})
 	return svc, db, repos
 }

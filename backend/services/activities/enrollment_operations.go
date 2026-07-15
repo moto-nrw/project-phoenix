@@ -2,8 +2,6 @@ package activities
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
@@ -16,12 +14,10 @@ import (
 
 // EnrollStudent enrolls a student in an activity group
 func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) error {
-	// Check if group exists
-	_, err := s.groupRepo.FindByID(ctx, groupID)
+	// Timetable rosters have provenance and recurrence semantics that this
+	// legacy endpoint cannot preserve.
+	_, err := s.findMutableActivityGroup(ctx, groupID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return &ActivityError{Op: "enroll student", Err: ErrGroupNotFound}
-		}
 		return &ActivityError{Op: "enroll student", Err: err}
 	}
 
@@ -54,7 +50,7 @@ func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) e
 
 // UnenrollStudent removes a student from an activity group
 func (s *Service) UnenrollStudent(ctx context.Context, groupID, studentID int64) error {
-	if err := s.validateGroupExists(ctx, s, groupID); err != nil {
+	if _, err := s.findMutableActivityGroup(ctx, groupID); err != nil {
 		return &ActivityError{Op: "unenroll student", Err: err}
 	}
 
@@ -88,9 +84,9 @@ func (s *Service) findEnrollmentID(enrollments []*activities.StudentEnrollment, 
 // UpdateGroupEnrollments updates the student enrollments for a group
 // This follows the education.UpdateGroupTeachers pattern but for student enrollments
 func (s *Service) UpdateGroupEnrollments(ctx context.Context, groupID int64, studentIDs []int64) error {
-	_, err := s.groupRepo.FindByID(ctx, groupID)
+	_, err := s.findMutableActivityGroup(ctx, groupID)
 	if err != nil {
-		return &ActivityError{Op: "UpdateGroupEnrollments", Err: ErrGroupNotFound}
+		return &ActivityError{Op: "UpdateGroupEnrollments", Err: err}
 	}
 
 	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, groupID)
@@ -282,74 +278,4 @@ func (s *Service) GetAvailableGroups(ctx context.Context, studentID int64) ([]*a
 	}
 
 	return availableGroups, nil
-}
-
-// CanStudentJoinGroup reports whether a student may join the group given the
-// current enrollment count: the group must be open AND have available spots.
-// Enrollment eligibility is a business policy owned by the service so it can
-// evolve (waitlists, role overrides) without touching the data entity.
-func (s *Service) CanStudentJoinGroup(group *activities.Group, currentEnrollmentCount int) bool {
-	if group == nil {
-		return false
-	}
-	return group.IsOpen && group.HasAvailableSpots(currentEnrollmentCount)
-}
-
-// UpdateAttendanceStatus updates the attendance status for an enrollment
-func (s *Service) UpdateAttendanceStatus(ctx context.Context, enrollmentID int64, status *string) error {
-	// Check if enrollment exists
-	_, err := s.enrollmentRepo.FindByID(ctx, enrollmentID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return &ActivityError{Op: "update attendance status", Err: ErrEnrollmentNotFound}
-		}
-		return &ActivityError{Op: "update attendance status", Err: err}
-	}
-
-	// Update the status
-	if err := s.enrollmentRepo.UpdateAttendanceStatus(ctx, enrollmentID, status); err != nil {
-		return &ActivityError{Op: "update attendance status", Err: err}
-	}
-
-	return nil
-}
-
-// GetEnrollmentsByDate gets all enrollments for a specific date
-func (s *Service) GetEnrollmentsByDate(ctx context.Context, date timezone.Date) ([]*activities.StudentEnrollment, error) {
-	// NOTE: This is a placeholder implementation
-	// The actual implementation would likely query enrollments with schedules active on the given date
-	// and possibly filter for attendance status
-
-	// This would require a custom repository method with SQL join between enrollments and schedules
-	// For now, we just use the date range finder with the date as both start and end
-
-	// Using the repository's FindByValidFromRange method
-	enrollments, err := s.enrollmentRepo.FindByValidFromRange(ctx, date, date)
-	if err != nil {
-		return nil, &ActivityError{Op: "get enrollments by date", Err: err}
-	}
-
-	return enrollments, nil
-}
-
-// GetEnrollmentHistory gets a student's enrollment history within a date range
-func (s *Service) GetEnrollmentHistory(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*activities.StudentEnrollment, error) {
-	// NOTE: This is a placeholder implementation
-	// The actual implementation would query enrollments with schedules active in the given date range
-
-	// Get all enrollments for the student
-	enrollments, err := s.enrollmentRepo.FindByStudentID(ctx, studentID)
-	if err != nil {
-		return nil, &ActivityError{Op: "get enrollment history", Err: err}
-	}
-
-	// Filter by date range (simplified logic, actual implementation would be more complex)
-	var filteredEnrollments []*activities.StudentEnrollment
-	for _, enrollment := range enrollments {
-		if !enrollment.ValidFrom.Before(startDate) && !enrollment.ValidFrom.After(endDate) {
-			filteredEnrollments = append(filteredEnrollments, enrollment)
-		}
-	}
-
-	return filteredEnrollments, nil
 }

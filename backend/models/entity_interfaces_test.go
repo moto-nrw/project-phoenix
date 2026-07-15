@@ -82,7 +82,6 @@ var (
 	_ base.Entity = (*users.Guest)(nil)
 	_ base.Entity = (*users.GuardianProfile)(nil)
 	_ base.Entity = (*users.Person)(nil)
-	_ base.Entity = (*users.PersonGuardian)(nil)
 	_ base.Entity = (*users.PrivacyConsent)(nil)
 	_ base.Entity = (*users.Profile)(nil)
 	_ base.Entity = (*users.RFIDCard)(nil)

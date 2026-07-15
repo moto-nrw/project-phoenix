@@ -16,96 +16,75 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// stubSettings implements only the bool resolution the write service uses;
-// every other SettingsService method is inherited from the embedded nil
-// interface and would panic if (unexpectedly) called.
-type stubSettings struct {
-	configService.SettingsService
-	sickEnabled  bool
-	notesEnabled bool
-}
-
-func (s stubSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	switch key {
-	case configModels.KeyParentSickNoteEnabled:
-		return s.sickEnabled, nil
-	case configModels.KeyParentNotesEnabled:
-		return s.notesEnabled, nil
-	default:
-		return false, nil
+// tenantBroadcastIDs extracts the tenant IDs from every BroadcastToTenant call
+// recorded by bc, in call order — the shared RecordingBroadcaster equivalent of
+// the old captureBroadcaster.tenantEvents slice.
+func tenantBroadcastIDs(bc *testpkg.RecordingBroadcaster) []int64 {
+	calls := bc.CallsByMethod("tenant")
+	ids := make([]int64, len(calls))
+	for i, c := range calls {
+		ids[i] = c.TenantID
 	}
+	return ids
 }
 
-// ResolveStringForTenant answers the related-accounts invite-mode lookup that
-// ChildFeatures now performs. Defaults to "disabled" so the existing feature
-// tests are unaffected (they predate the invite/remove capability flags).
-func (s stubSettings) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
-	if key == configModels.KeyGuardianParentInviteMode {
-		return configModels.ParentInviteModeDisabled, nil
-	}
-	return "", nil
-}
-
-// captureBroadcaster records tenant broadcasts so tests can assert the SSE
-// fan-out fired after a sick note.
-type captureBroadcaster struct {
-	tenantEvents []int64
-}
-
-func (c *captureBroadcaster) BroadcastToGroup(_ int64, _ string, _ realtime.Event) error {
-	return nil
-}
-func (c *captureBroadcaster) BroadcastParentMessage(_, _ int64, _ realtime.Event) error { return nil }
-
-func (c *captureBroadcaster) BroadcastToTenant(tenantID int64, _ realtime.Event) error {
-	c.tenantEvents = append(c.tenantEvents, tenantID)
-	return nil
-}
-func (c *captureBroadcaster) BroadcastToAll(_ realtime.Event) error { return nil }
-
-func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *captureBroadcaster, *bun.DB) {
+func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
-	bc := &captureBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:     repos.ParentChild,
 		StatusDayRepo: repos.StudentStatusDay,
 		StudentRepo:   repos.Student,
-		Settings:      stubSettings{sickEnabled: sickEnabled, notesEnabled: notesEnabled},
-		Broadcaster:   bc,
-		DB:            db,
-		Logger:        slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{
+				configModels.KeyParentSickNoteEnabled: sickEnabled,
+				configModels.KeyParentNotesEnabled:    notesEnabled,
+			},
+			stringValues: map[string]string{
+				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+			},
+		},
+		Broadcaster: bc,
+		DB:          db,
+		Logger:      slog.Default(),
 	})
 	return svc, bc, db
 }
 
-func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *captureBroadcaster, *bun.DB, *repositories.Factory) {
+func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB, *repositories.Factory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
-	bc := &captureBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
 		StatusDayRepo:        repos.StudentStatusDay,
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  repos.StudentPickupException,
 		ArrivalExceptionRepo: repos.StudentArrivalException,
-		Settings:             stubSettings{sickEnabled: sickEnabled, notesEnabled: notesEnabled},
-		Broadcaster:          bc,
-		MessageThreadRepo:    repos.ParentMessageThread,
-		MessageRepo:          repos.ParentMessage,
-		MessageReadRepo:      repos.ParentMessageRead,
-		DB:                   db,
-		Logger:               slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{
+				configModels.KeyParentSickNoteEnabled: sickEnabled,
+				configModels.KeyParentNotesEnabled:    notesEnabled,
+			},
+			stringValues: map[string]string{
+				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+			},
+		},
+		Broadcaster:       bc,
+		MessageThreadRepo: repos.ParentMessageThread,
+		MessageRepo:       repos.ParentMessage,
+		MessageReadRepo:   repos.ParentMessageRead,
+		DB:                db,
+		Logger:            slog.Default(),
 	})
 	return svc, bc, db, repos
 }
@@ -117,21 +96,21 @@ func TestSubmitSickNote_TodayFlipsLiveFlagAndStoresReason(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	rows, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, "Fieber, beim Arzt", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Equal(t, activeModels.StudentStatusDaySick, rows[0].Status)
-	assert.Equal(t, activeModels.StudentStatusSourceParent, rows[0].Source)
-	require.NotNil(t, rows[0].Note)
-	assert.Equal(t, "Fieber, beim Arzt", *rows[0].Note)
+	require.Len(t, sickResult.StatusDays, 1)
+	assert.Equal(t, activeModels.StudentStatusDaySick, sickResult.StatusDays[0].Status)
+	assert.Equal(t, activeModels.StudentStatusSourceParent, sickResult.StatusDays[0].Source)
+	require.NotNil(t, sickResult.StatusDays[0].Note)
+	assert.Equal(t, "Fieber, beim Arzt", *sickResult.StatusDays[0].Note)
 
 	var sick bool
 	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.students").
 		Where("id = ?", chain.StudentID).Scan(context.Background(), &sick))
 	assert.True(t, sick, "today's sick note must flip the live sick flag")
 
-	assert.Contains(t, bc.tenantEvents, chain.TenantID, "SSE broadcast must fire for the tenant")
+	assert.Contains(t, tenantBroadcastIDs(bc), chain.TenantID, "SSE broadcast must fire for the tenant")
 }
 
 // TestChildMessaging_RequiresNotesWritePermission is the regression guard for the
@@ -273,11 +252,11 @@ func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
 	future := timezone.TodayDate().AddDays(7)
-	rows, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{future}, "", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Nil(t, rows[0].Note, "no reason supplied → note stays nil")
+	require.Len(t, sickResult.StatusDays, 1)
+	assert.Nil(t, sickResult.StatusDays[0].Note, "no reason supplied → note stays nil")
 
 	var sick bool
 	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.students").
@@ -360,10 +339,10 @@ func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
 		Source:     activeModels.StudentStatusSourcePlanned,
 	}))
 
-	rows, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID, []timezone.Date{date}, "", activeModels.StudentStatusDaySick)
+	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID, []timezone.Date{date}, "", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Equal(t, activeModels.StudentStatusDaySick, rows[0].Status)
+	require.Len(t, sickResult.StatusDays, 1)
+	assert.Equal(t, activeModels.StudentStatusDaySick, sickResult.StatusDays[0].Status)
 
 	activeRows, err := statusRepo.FindActiveByStudentAndDateRange(ctx, chain.StudentID, date, date)
 	require.NoError(t, err)
@@ -447,11 +426,11 @@ func TestSubmitSickNote_NonContiguousExcludesUnrelatedRows(t *testing.T) {
 		Source:     activeModels.StudentStatusSourceManual,
 	}))
 
-	rows, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{mon, wed}, "", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
-	require.Len(t, rows, 2, "only the two submitted sick days, not the Tuesday excused row")
-	for _, r := range rows {
+	require.Len(t, sickResult.StatusDays, 2, "only the two submitted sick days, not the Tuesday excused row")
+	for _, r := range sickResult.StatusDays {
 		assert.Equal(t, activeModels.StudentStatusDaySick, r.Status)
 		assert.NotEqual(t, tue, r.Date, "Tuesday excused row must be excluded")
 	}
@@ -464,14 +443,14 @@ func TestSubmitSickNote_ExcusedTodayStoresExcusedWithoutLiveFlag(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
 
-	rows, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
 		[]timezone.Date{timezone.TodayDate()}, "Zahnarzttermin", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Equal(t, activeModels.StudentStatusDayExcused, rows[0].Status)
-	assert.Equal(t, activeModels.StudentStatusSourceParent, rows[0].Source)
-	require.NotNil(t, rows[0].Note)
-	assert.Equal(t, "Zahnarzttermin", *rows[0].Note)
+	require.Len(t, sickResult.StatusDays, 1)
+	assert.Equal(t, activeModels.StudentStatusDayExcused, sickResult.StatusDays[0].Status)
+	assert.Equal(t, activeModels.StudentStatusSourceParent, sickResult.StatusDays[0].Source)
+	require.NotNil(t, sickResult.StatusDays[0].Note)
+	assert.Equal(t, "Zahnarzttermin", *sickResult.StatusDays[0].Note)
 
 	var sick, excused bool
 	require.NoError(t, db.NewSelect().
@@ -481,7 +460,7 @@ func TestSubmitSickNote_ExcusedTodayStoresExcusedWithoutLiveFlag(t *testing.T) {
 	assert.False(t, sick, "an excused absence must not set the live sick flag")
 	assert.False(t, excused, "an excused absence must not set a live excused flag (issue #1735)")
 
-	assert.Contains(t, bc.tenantEvents, chain.TenantID, "SSE broadcast must fire for the tenant")
+	assert.Contains(t, tenantBroadcastIDs(bc), chain.TenantID, "SSE broadcast must fire for the tenant")
 }
 
 func TestSubmitSickNote_ExcusedTodayClearsStaleLiveSickFlag(t *testing.T) {
@@ -496,11 +475,11 @@ func TestSubmitSickNote_ExcusedTodayClearsStaleLiveSickFlag(t *testing.T) {
 		[]timezone.Date{timezone.TodayDate()}, "", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 
-	rows, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate()}, "", activeModels.StudentStatusDayExcused)
+	sickResult, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
+		[]timezone.Date{timezone.TodayDate()}, "Termin", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
-	require.Len(t, rows, 1)
-	assert.Equal(t, activeModels.StudentStatusDayExcused, rows[0].Status)
+	require.Len(t, sickResult.StatusDays, 1)
+	assert.Equal(t, activeModels.StudentStatusDayExcused, sickResult.StatusDays[0].Status)
 
 	var sick bool
 	require.NoError(t, db.NewSelect().ColumnExpr("COALESCE(sick,false)").TableExpr("users.students").
@@ -529,7 +508,7 @@ func TestListSickDays_ReturnsSickAndExcused(t *testing.T) {
 		[]timezone.Date{sickDay}, "", activeModels.StudentStatusDaySick)
 	require.NoError(t, err)
 	_, err = svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
-		[]timezone.Date{excusedDay}, "", activeModels.StudentStatusDayExcused)
+		[]timezone.Date{excusedDay}, "Termin", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
 
 	from := timezone.TodayDate()
@@ -573,7 +552,7 @@ func TestListSickDays_ExcludesStaffCreatedExcused(t *testing.T) {
 
 	// Parent's own excused report on a different date.
 	_, err := svc.SubmitSickNote(context.Background(), chain.AccountID, chain.StudentID,
-		[]timezone.Date{parentExcusedDay}, "", activeModels.StudentStatusDayExcused)
+		[]timezone.Date{parentExcusedDay}, "Termin", activeModels.StudentStatusDayExcused)
 	require.NoError(t, err)
 
 	from := timezone.TodayDate()

@@ -35,6 +35,7 @@ interface PlanQualityPanelProps {
   onSelectInstance: (instanceId: string) => void;
   onEditInstance: (instanceId: string) => void;
   onSubstitute: (
+    instanceId: string,
     absentStaffId: string,
     substituteStaffId: string,
     date: string,
@@ -113,9 +114,12 @@ export function PlanQualityPanel({
     if (!absentStaff) return;
 
     setSubmittingGapId(gap.instanceId);
-    void onSubstitute(absentStaff.staffId, substituteStaffId, gap.date).finally(
-      () => setSubmittingGapId(null),
-    );
+    void onSubstitute(
+      gap.instanceId,
+      absentStaff.staffId,
+      substituteStaffId,
+      gap.date,
+    ).finally(() => setSubmittingGapId(null));
   };
 
   return (

@@ -1,76 +1,44 @@
 package rooms
 
 import (
-	"errors"
-
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	modelFacilities "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
 )
 
-// Common error variables
-var (
-	ErrInvalidRequest   = errors.New("invalid request")
-	ErrInternalServer   = errors.New("internal server error")
-	ErrResourceNotFound = errors.New("resource not found")
-)
+// errorRules map facilities-service sentinels to HTTP responses, applied to
+// the INNER error of a *facilities.FacilitiesError so the JSON `error` field
+// carries just the (German) message instead of the "facilities error during
+// {Op}: …" prefix. The trailing Match rule catches model-level Validate()
+// sentinels (name required, capacity negative, invalid color format)
+// propagated through the service — without it, a forgotten mapping turns
+// "name required" into a 500.
+var errorRules = []common.ErrorRule{
+	{Target: facilities.ErrRoomNotFound, Render: common.ErrorNotFound},
+	{Target: facilities.ErrRoomInUse, Render: common.ErrorConflict},
+	{Target: facilities.ErrRoomRequiredByCareOffering, Render: common.ErrorConflict},
+	{Target: facilities.ErrSystemRoomProtected, Render: common.ErrorForbidden},
+	{Target: facilities.ErrSystemRoomNameReserved, Render: common.ErrorInvalidRequest},
+	{Target: facilities.ErrDuplicateRoom, Render: common.ErrorConflict},
+	{Target: facilities.ErrDuplicateToiletRoom, Render: common.ErrorConflict},
+	{Target: facilities.ErrColorAlreadyInUse, Render: colorConflict},
+	{Target: facilities.ErrColorReserved, Render: common.ErrorInvalidRequest},
+	{Match: modelFacilities.IsValidationError, Render: common.ErrorInvalidRequest},
+}
+
+func colorConflict(err error) render.Renderer {
+	return common.ErrorConflictWithCode(err, "color_already_in_use")
+}
+
+// unwrapped handles errors that never went through a *FacilitiesError wrap.
+// Defence-in-depth: a future caller may forget to wrap a model validation
+// error; IsValidationError walks the chain so this still renders 400
+// instead of 500. Everything else keeps the full error for server logs.
+var unwrapped = []common.ErrorRule{
+	{Match: modelFacilities.IsValidationError, Render: common.ErrorInvalidRequest},
+}
 
 // ErrorRenderer maps service-layer errors to appropriate HTTP responses.
-//
-// The branches are ordered:
-//  1. Service-level FacilitiesError sentinels (the common path).
-//  2. Bare model-level Validate() sentinels (defensive — fires when a
-//     future code path returns an unwrapped facilities.ErrXxx). Without
-//     this, a forgotten wrap turns "name required" into 500.
-//  3. Default 500.
-//
-// User-facing branches render the inner sentinel directly so the JSON
-// `error` field carries just the (German) message instead of FacilitiesError's
-// "facilities error during {Op}: …" prefix. The 500 fallback keeps the
-// wrapped facErr so server logs still capture the operation context.
-func ErrorRenderer(err error) render.Renderer {
-	var facErr *facilities.FacilitiesError
-	if errors.As(err, &facErr) {
-		// Inner sentinel from the service layer (Op + Err wrap).
-		inner := facErr.Unwrap()
-		switch inner {
-		case facilities.ErrRoomNotFound:
-			return common.ErrorNotFound(inner)
-		case facilities.ErrRoomInUse:
-			return common.ErrorConflict(inner)
-		case facilities.ErrSystemRoomProtected:
-			return common.ErrorForbidden(inner)
-		case facilities.ErrDuplicateRoom:
-			return common.ErrorConflict(inner)
-		case facilities.ErrDuplicateToiletRoom:
-			return common.ErrorConflict(inner)
-		case facilities.ErrColorAlreadyInUse:
-			return common.ErrorConflictWithCode(inner, "color_already_in_use")
-		case facilities.ErrColorReserved:
-			return common.ErrorInvalidRequest(inner)
-		}
-
-		// Model-level Validate() sentinels propagated through the service
-		// (name required, capacity negative, invalid color format).
-		if modelFacilities.IsValidationError(inner) {
-			return common.ErrorInvalidRequest(inner)
-		}
-
-		return common.ErrorInternalServer(facErr)
-	}
-
-	// Defence-in-depth: a future caller may forget to wrap a model
-	// validation error in *FacilitiesError. errors.Is walks the chain so
-	// this still catches the intent and renders 400 instead of 500.
-	if modelFacilities.IsValidationError(err) {
-		return common.ErrorInvalidRequest(err)
-	}
-
-	return common.ErrorInternalServer(err)
-}
-
-// ErrorInvalidRequest returns a 400 Bad Request error response
-func ErrorInvalidRequest(err error) render.Renderer {
-	return common.ErrorInvalidRequest(err)
-}
+var ErrorRenderer = common.UnwrapRenderer[*facilities.FacilitiesError](errorRules,
+	common.RulesRenderer(unwrapped, common.ErrorInternalServer))

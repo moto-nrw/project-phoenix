@@ -270,39 +270,6 @@ func TestPrivacyConsent_SetStudent_Nil(t *testing.T) {
 	}
 }
 
-func TestPrivacyConsent_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		pc := &PrivacyConsent{
-			StudentID:         1,
-			PolicyVersion:     "1.0",
-			DataRetentionDays: 30,
-		}
-		err := pc.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		pc := &PrivacyConsent{
-			StudentID:         1,
-			PolicyVersion:     "1.0",
-			DataRetentionDays: 30,
-		}
-		err := pc.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
-func TestPrivacyConsent_TableName(t *testing.T) {
-	pc := &PrivacyConsent{}
-	if got := pc.TableName(); got != "users.privacy_consents" {
-		t.Errorf("TableName() = %v, want users.privacy_consents", got)
-	}
-}
-
 func TestPrivacyConsent_NeedsRenewal(t *testing.T) {
 	tests := []struct {
 		name            string

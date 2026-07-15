@@ -244,7 +244,10 @@
       "sickLabel": "Daily note",
       "noSick": "No absence",
       "pickupLabel": "Pickup",
-      "regularPickup": "Regular pickup",
+      "pickupTime": "{time}",
+      "pickupChanged": "changed",
+      "pickupAbsent": "Absent today",
+      "pickupNone": "No pickup today",
       "messagesLabel": "Messages",
       "noConversations": "No conversations",
       "unreadCount": "{count, plural, one {# unread message} other {# unread messages}}",
@@ -264,6 +267,7 @@
     "sick": {
       "title": "Report absence",
       "intro": "Report your child absent for one or more days. Choose whether they are sick or excused for another reason. The care team sees the report immediately.",
+      "introApproval": "Report your child absent for one or more days. Choose whether they are sick or excused for another reason. A sick report is seen by the care team immediately; an excused absence must be confirmed by the team.",
       "kindLabel": "Type of absence",
       "kindSick": "Sick",
       "kindExcused": "Excused",
@@ -274,12 +278,25 @@
       "reasonPlaceholder": "e.g. fever, dentist appointment",
       "invalidDate": "Please choose a valid date (end date after start date).",
       "saveError": "The absence could not be saved.",
-      "submit": "Send absence"
+      "submittedButRefreshFailed": "The absence was submitted but could not be displayed. Please reload the page.",
+      "overlapError": "One of these days already has an open absence request.",
+      "submit": "Send absence",
+      "reasonLabelRequired": "Note (required)",
+      "reasonRequiredError": "Please add a note explaining why your child is excused.",
+      "approvalHint": "This absence must be confirmed by the team."
     },
     "summary": {
       "none": "No absence",
       "oneDay": "Absent on {date}",
-      "range": "Absent {from} – {to}"
+      "range": "Absent {from} – {to}",
+      "sickLabel": "Sick",
+      "excusedLabel": "Excused",
+      "pendingLabel": "Approval pending",
+      "rejectedLabel": "Rejected",
+      "withdraw": "Withdraw",
+      "withdrawError": "Withdrawal failed. Please refresh the page.",
+      "withdrawAlreadyDecided": "The OGS has already processed this request, so it can no longer be withdrawn.",
+      "reasonPrefix": "Reason"
     },
     "pickup": {
       "title": "Change arrival & pickup time",
@@ -615,7 +632,8 @@
       "lunch": "incl. lunch",
       "ruleExactlyOne": "Please choose exactly one",
       "ruleAtLeastOne": "Please choose at least one",
-      "ruleAtMostOne": "At most one"
+      "ruleAtMostOne": "At most one",
+      "availabilitySelectionRemoved": "Some care offerings are no longer available for the selected grade. Their selections, days, and automatic additions were removed."
     },
     "consent": {
       "agb": "I accept the school's terms and conditions.",
@@ -739,6 +757,7 @@
     "submittedTitle": "Thank you. Your enrollment has been submitted.",
     "statusTitle": "Status of your enrollment",
     "submittedDescription": "The OGS reviews your information. You can see the current status on this page. Save the link or keep the confirmation email.",
+    "duplicateWarning": "At least one child may already have an active enrollment in this phase. The new enrollment was saved anyway. Contact the OGS if you have questions.",
     "statusDescription": "Your enrollment was received on {date}. Here you can see the current status, your contact details and the enrolled children.",
     "nextTitle": "What happens next",
     "currentTitle": "Current status",
@@ -786,6 +805,7 @@
     "changeRequestsDescription": "Here you can see requests that are still being reviewed, questions from the OGS and completed decisions.",
     "changeRequestsEmpty": "No change request sent yet.",
     "changeRequestCreated": "Sent on {date}",
+    "changeRequestAdminCorrection": "Corrected by the OGS on {date}",
     "changeRequestDiffTitle": "Requested changes",
     "changeRequestDiffEmpty": "No recognizable field changes.",
     "changeRequestBefore": "Before",
@@ -984,6 +1004,8 @@
     "eventRequestCreatedCareSchedule": "Care times change requested",
     "eventRequestCreatedMasterData": "Master data change requested",
     "eventRequestConfirmedMasterData": "Request confirmed, master data applied",
+    "eventRequestCreatedExcusedAbsence": "Excused absence requested",
+    "eventRequestConfirmedExcusedAbsence": "Request confirmed, absence recorded",
     "eventRequestRejected": "Request rejected",
     "eventRequestRejectedReason": "Request rejected: {reason}",
     "eventRequestWithdrawn": "Request withdrawn",

@@ -858,7 +858,7 @@ describe("apiGet (server-side)", () => {
     });
   });
 
-  it("forwards incoming client IP and user agent headers to the backend", async () => {
+  it("forwards the canonical client IP and user agent headers to the backend", async () => {
     mockNextHeaders.mockResolvedValueOnce(
       new Headers({
         "x-forwarded-for": "203.0.113.10, 172.20.0.4",
@@ -880,8 +880,7 @@ describe("apiGet (server-side)", () => {
         headers: expect.objectContaining({
           Authorization: "Bearer token",
           "Content-Type": "application/json",
-          "X-Forwarded-For": "203.0.113.10",
-          "X-Real-IP": "203.0.113.10",
+          "X-Forwarded-For": "172.20.0.4",
           "User-Agent": "Mozilla/5.0 Test Browser",
         }) as HeadersInit,
       }),
@@ -909,7 +908,6 @@ describe("apiGet (server-side)", () => {
           Authorization: "Bearer token",
           "Content-Type": "application/json",
           "X-Forwarded-For": "198.51.100.25",
-          "X-Real-IP": "198.51.100.25",
         },
       }),
     );

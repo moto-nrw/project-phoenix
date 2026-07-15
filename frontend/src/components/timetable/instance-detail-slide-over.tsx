@@ -10,6 +10,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type React from "react";
+import Link from "next/link";
 import {
   Check,
   CheckCircle2,
@@ -18,11 +19,13 @@ import {
   Pencil,
   Repeat,
   RotateCcw,
+  ShieldCheck,
   StickyNote,
   Timer,
   Trash2,
   TriangleAlert,
   UserCheck,
+  UserCog,
   Users,
   X,
 } from "lucide-react";
@@ -32,6 +35,11 @@ import { useModal } from "~/components/dashboard/modal-context";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { useTenantAwarePath } from "~/lib/tenant-path";
+import {
+  useAttendanceWebEnabled,
+  useShowTimetableCounts,
+} from "~/lib/tenant-context";
 import {
   SlideOver,
   SlideOverCloseButton,
@@ -51,6 +59,12 @@ import {
   timetableMutedSurface,
   timetableNestedSurface,
 } from "./timetable-style";
+import {
+  attendanceStaffTone,
+  attendanceStudentTone,
+  capacityTone,
+  TimetableRatioPill,
+} from "./timetable-ratio-pill";
 import type {
   AttendancePatchBody,
   EnrichedInstance,
@@ -85,7 +99,7 @@ const CONFIRM_DIALOGS: Record<
     title: "Abgesagten Termin löschen?",
     body: "Der abgesagte Termin wird dauerhaft entfernt.",
     confirmText: "Löschen",
-    confirmButtonClass: "bg-red-600 hover:bg-red-700",
+    confirmButtonClass: "bg-[#FF3130] hover:bg-[#CC2626]",
   },
 };
 
@@ -196,6 +210,143 @@ function fallbackStudentRows(studentIds: string[]): InstanceStudentSummary[] {
   }));
 }
 
+function studentsForInstance(
+  instance: EnrichedInstance | null,
+): InstanceStudentSummary[] {
+  if (!instance) return [];
+  if (instance.students.length > 0) return instance.students;
+  return fallbackStudentRows(instance.studentIds);
+}
+
+function attendancePatchForInstance(
+  attendanceWebEnabled: boolean,
+  instance: EnrichedInstance | null,
+  onAttendancePatch: InstanceDetailSlideOverProps["onAttendancePatch"],
+): InstanceDetailSlideOverProps["onAttendancePatch"] {
+  if (!attendanceWebEnabled || !instance) return undefined;
+  if (instance.status === "cancelled") return undefined;
+  return onAttendancePatch;
+}
+
+/**
+ * Parent callbacks own user-facing error reporting and rethrow so their callers
+ * can react. This drawer only owns pending UI state, so it consumes that already
+ * reported rejection and tells the local flow whether the mutation succeeded.
+ */
+async function awaitReportedAction(
+  action: () => Promise<void>,
+): Promise<boolean> {
+  try {
+    await action();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function ActivityTypeBadge({
+  activityType,
+}: Readonly<{ activityType: EnrichedInstance["activityType"] }>) {
+  const badge = getActivityTypeBadge(activityType);
+  if (!badge) return null;
+  return (
+    <span
+      className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white uppercase"
+      style={{ backgroundColor: badge.bg }}
+    >
+      {badge.label}
+    </span>
+  );
+}
+
+function AssignedStaffSection({
+  instance,
+  staffNames,
+}: Readonly<{
+  instance: EnrichedInstance;
+  staffNames: Map<string, string>;
+}>) {
+  return (
+    <Section title="Personal">
+      {instance.staff.length === 0 ? (
+        <EmptyLine>Kein Personal zugeordnet.</EmptyLine>
+      ) : (
+        <div className="space-y-1.5">
+          {instance.staff.map((item) => (
+            <PersonLine
+              key={item.staffId}
+              name={staffNames.get(item.staffId) ?? `Personal #${item.staffId}`}
+              meta={[
+                item.isPrimary ? "Zuständig" : null,
+                item.isAbsent ? "Abwesend" : null,
+                item.isSubstitute ? "Ersatz" : null,
+              ]}
+              danger={item.isAbsent}
+            />
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function InstanceStudentsSection({
+  groupedStudents,
+  handleAttendancePatch,
+  instance,
+  onAttendancePatch,
+  pendingStudentId,
+  studentNames,
+  students,
+}: Readonly<{
+  groupedStudents: Record<
+    InstanceStudentSummary["status"],
+    InstanceStudentSummary[]
+  >;
+  handleAttendancePatch: (
+    studentId: string,
+    body: AttendancePatchBody,
+  ) => Promise<void>;
+  instance: EnrichedInstance;
+  onAttendancePatch?: InstanceDetailSlideOverProps["onAttendancePatch"];
+  pendingStudentId: string | null;
+  studentNames: Map<string, string>;
+  students: InstanceStudentSummary[];
+}>) {
+  if (students.length === 0) {
+    return (
+      <Section title="Kinder">
+        <EmptyLine>Keine Kinder geplant.</EmptyLine>
+      </Section>
+    );
+  }
+
+  const groups = [
+    ["expected", groupedStudents.expected],
+    ["present", groupedStudents.present],
+    ["absent", groupedStudents.absent],
+  ] as const;
+
+  return (
+    <Section title="Kinder">
+      <div className="space-y-3">
+        {groups.map(([status, rows]) => (
+          <StudentGroup
+            key={status}
+            status={status}
+            students={rows}
+            studentNames={studentNames}
+            pendingStudentId={pendingStudentId}
+            onAttendancePatch={onAttendancePatch}
+            instanceStatus={instance.status}
+            handleAttendancePatch={handleAttendancePatch}
+          />
+        ))}
+      </div>
+    </Section>
+  );
+}
+
 export function InstanceDetailSlideOver({
   instance,
   onClose,
@@ -209,7 +360,12 @@ export function InstanceDetailSlideOver({
   onAttendancePatch,
   editDeferred = true,
 }: InstanceDetailSlideOverProps) {
+  const attendanceWebEnabled = useAttendanceWebEnabled();
+  const showTimetableCounts = useShowTimetableCounts();
   const { isModalOpen } = useModal();
+  // Tenant-bewusster Pfad: im Path-Routing-Modus muss /vertretung den
+  // /{slug}-Präfix tragen, sonst führt der Link ins Leere.
+  const tenantPath = useTenantAwarePath();
   const [pendingAction, setPendingAction] = useState<LifecycleAction | null>(
     null,
   );
@@ -221,15 +377,7 @@ export function InstanceDetailSlideOver({
     null,
   );
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
-  const students = useMemo(
-    () =>
-      instance
-        ? instance.students.length > 0
-          ? instance.students
-          : fallbackStudentRows(instance.studentIds)
-        : [],
-    [instance],
-  );
+  const students = useMemo(() => studentsForInstance(instance), [instance]);
   const groupedStudents = useMemo(
     () => ({
       expected: students.filter((student) => student.status === "expected"),
@@ -248,27 +396,27 @@ export function InstanceDetailSlideOver({
   const handleLifecycle = async (action: LifecycleAction) => {
     setPendingAction(action);
     try {
-      await onLifecycleAction(action);
+      await awaitReportedAction(() => onLifecycleAction(action));
     } finally {
       setPendingAction(null);
     }
   };
 
-  const handleDeleteCancelled = async () => {
-    if (!instance || !onDeleteCancelled) return;
+  const handleDeleteCancelled = async (): Promise<boolean> => {
+    if (!instance || !onDeleteCancelled) return false;
     setPendingDelete(true);
     try {
-      await onDeleteCancelled(instance);
+      return await awaitReportedAction(() => onDeleteCancelled(instance));
     } finally {
       setPendingDelete(false);
     }
   };
 
-  const handleDeleteFollowing = async () => {
-    if (!instance || !onDeleteFollowing) return;
+  const handleDeleteFollowing = async (): Promise<boolean> => {
+    if (!instance || !onDeleteFollowing) return false;
     setPendingDelete(true);
     try {
-      await onDeleteFollowing(instance);
+      return await awaitReportedAction(() => onDeleteFollowing(instance));
     } finally {
       setPendingDelete(false);
     }
@@ -286,25 +434,26 @@ export function InstanceDetailSlideOver({
     setPendingConfirm("delete");
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     const action = pendingConfirm;
     setPendingConfirm(null);
     if (action === "delete") {
-      void handleDeleteCancelled();
+      await handleDeleteCancelled();
     } else if (action) {
-      void handleLifecycle(action);
+      await handleLifecycle(action);
     }
   };
 
   const handleDeleteScopeSelect = async (scope: string) => {
     setPendingDeleteScope(scope);
     try {
-      if (scope === "following") {
-        await handleDeleteFollowing();
-      } else {
-        await handleDeleteCancelled();
+      const succeeded =
+        scope === "following"
+          ? await handleDeleteFollowing()
+          : await handleDeleteCancelled();
+      if (succeeded) {
+        setDeleteScopeOpen(false);
       }
-      setDeleteScopeOpen(false);
     } finally {
       setPendingDeleteScope(null);
     }
@@ -317,13 +466,20 @@ export function InstanceDetailSlideOver({
     if (!instance || !onAttendancePatch) return;
     setPendingStudentId(studentId);
     try {
-      await onAttendancePatch(instance.id, studentId, body);
+      await awaitReportedAction(() =>
+        onAttendancePatch(instance.id, studentId, body),
+      );
     } finally {
       setPendingStudentId(null);
     }
   };
 
   const open = instance !== null;
+  const attendancePatch = attendancePatchForInstance(
+    attendanceWebEnabled,
+    instance,
+    onAttendancePatch,
+  );
 
   return (
     <SlideOver
@@ -364,17 +520,7 @@ export function InstanceDetailSlideOver({
                       Spontan gestartet
                     </span>
                   )}
-                  {(() => {
-                    const tb = getActivityTypeBadge(instance.activityType);
-                    return tb ? (
-                      <span
-                        className="rounded-full px-1.5 py-0.5 text-[9px] font-bold tracking-wide text-white uppercase"
-                        style={{ backgroundColor: tb.bg }}
-                      >
-                        {tb.label}
-                      </span>
-                    ) : null;
-                  })()}
+                  <ActivityTypeBadge activityType={instance.activityType} />
                 </div>
                 <SlideOverDescription>
                   {germanFullDate(instance.date)} • {instance.startTime} –{" "}
@@ -421,80 +567,68 @@ export function InstanceDetailSlideOver({
                         : ""
                     }`}
               </Row>
-              <Row icon={<Users className="h-4 w-4" />} label="Kinder">
-                {instance.expectedStudentsCount + instance.presentStudentsCount}{" "}
-                eingetragen
-                {instance.presentStudentsCount > 0
-                  ? ` • ${instance.presentStudentsCount} anwesend`
-                  : ""}
-              </Row>
+              {showTimetableCounts ? (
+                <Row icon={<Users className="h-4 w-4" />} label="Kinder">
+                  {instance.expectedStudentsCount +
+                    instance.presentStudentsCount}{" "}
+                  eingetragen
+                  {instance.presentStudentsCount > 0
+                    ? ` • ${instance.presentStudentsCount} anwesend`
+                    : ""}
+                </Row>
+              ) : null}
+              {instance.seriesNotes && (
+                <Row icon={<Repeat className="h-4 w-4" />} label="Wochennotiz">
+                  <span className="whitespace-pre-line">
+                    {instance.seriesNotes}
+                  </span>
+                </Row>
+              )}
               {instance.notes && (
-                <Row icon={<StickyNote className="h-4 w-4" />} label="Notiz">
+                <Row
+                  icon={<StickyNote className="h-4 w-4" />}
+                  label={instance.seriesNotes ? "Tagesnotiz" : "Notiz"}
+                >
                   <span className="whitespace-pre-line">{instance.notes}</span>
                 </Row>
               )}
             </Section>
 
-            <Section title="Personal">
-              {instance.staff.length === 0 ? (
-                <EmptyLine>Kein Personal zugeordnet.</EmptyLine>
-              ) : (
-                <div className="space-y-1.5">
-                  {instance.staff.map((item) => (
-                    <PersonLine
-                      key={item.staffId}
-                      name={
-                        staffNames.get(item.staffId) ??
-                        `Personal #${item.staffId}`
-                      }
-                      meta={[
-                        item.isPrimary ? "Zuständig" : null,
-                        item.isAbsent ? "Abwesend" : null,
-                        item.isSubstitute ? "Ersatz" : null,
-                      ]}
-                      danger={item.isAbsent}
-                    />
-                  ))}
-                </div>
-              )}
-            </Section>
+            <AssignedStaffSection instance={instance} staffNames={staffNames} />
 
-            <Section title="Kinder">
-              {students.length === 0 ? (
-                <EmptyLine>Keine Kinder geplant.</EmptyLine>
-              ) : (
-                <div className="space-y-3">
-                  {(
-                    [
-                      ["expected", groupedStudents.expected],
-                      ["present", groupedStudents.present],
-                      ["absent", groupedStudents.absent],
-                    ] as const
-                  ).map(([status, rows]) => (
-                    <StudentGroup
-                      key={status}
-                      status={status}
-                      students={rows}
-                      studentNames={studentNames}
-                      pendingStudentId={pendingStudentId}
-                      onAttendancePatch={
-                        instance.status === "planned" ||
-                        instance.status === "active" ||
-                        instance.status === "completed"
-                          ? onAttendancePatch
-                          : undefined
-                      }
-                      instanceStatus={instance.status}
-                      handleAttendancePatch={handleAttendancePatch}
-                    />
-                  ))}
-                </div>
-              )}
-            </Section>
+            <InstanceStudentsSection
+              groupedStudents={groupedStudents}
+              handleAttendancePatch={handleAttendancePatch}
+              instance={instance}
+              onAttendancePatch={attendancePatch}
+              pendingStudentId={pendingStudentId}
+              studentNames={studentNames}
+              students={students}
+            />
           </div>
 
           <SlideOverFooter>
             <div className="flex flex-wrap items-center gap-2">
+              {/* Sprung in den Vertretungs-Bereich bei einer Störung des Blocks
+                  (offene Lücke oder eingetragene Abwesenheit) —
+                  docs/planung-redesign/docs/07-vertretung.md Abschnitt 6. Nutzt
+                  nur bereits geladene Instanzdaten, kein zusätzlicher Abruf. */}
+              {(instance.status === "planned" ||
+                instance.status === "active") &&
+                (instance.staff.some((row) => row.isAbsent) ||
+                  (instance.requiredStaffCount > 0 &&
+                    instance.assignedStaffCount <
+                      instance.requiredStaffCount)) && (
+                  <Link
+                    href={tenantPath(
+                      `/vertretung?d=${instance.date}&block=${instance.id}`,
+                    )}
+                    className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+                  >
+                    <UserCog className="h-4 w-4" />
+                    Vertretung regeln
+                  </Link>
+                )}
               {instance.status === "planned" && !editDeferred && onEdit && (
                 <Button
                   variant="outline"
@@ -525,7 +659,7 @@ export function InstanceDetailSlideOver({
                     </span>
                   </Button>
                 )}
-              {instance.status === "active" && (
+              {instance.status === "active" && attendanceWebEnabled && (
                 <Button
                   variant="primary"
                   size="md"
@@ -542,7 +676,7 @@ export function InstanceDetailSlideOver({
                 </Button>
               )}
               {(instance.status === "planned" ||
-                instance.status === "active") && (
+                (instance.status === "active" && attendanceWebEnabled)) && (
                 <Button
                   variant="outline_danger"
                   size="md"
@@ -648,18 +782,18 @@ export function InstanceDetailSlideOver({
           options={[
             {
               value: "single",
-              label: "Nur dieser Termin",
+              label: "Nur diese Woche",
               description:
-                "Löscht nur diesen Termin und verhindert, dass er erneut eingetragen wird.",
+                "Löscht nur diesen einen Termin und verhindert, dass er erneut eingetragen wird; der Regeltermin bleibt bestehen.",
             },
             {
               value: "following",
-              label: "Dieser und alle folgenden",
+              label: "Ab jetzt dauerhaft",
               description:
                 "Beendet den Regeltermin ab diesem Datum; frühere Termine bleiben erhalten.",
             },
           ]}
-          onSelect={(value) => void handleDeleteScopeSelect(value)}
+          onSelect={handleDeleteScopeSelect}
           isBusy={pendingDeleteScope !== null}
         />
       )}
@@ -687,86 +821,95 @@ function StudentGroup({
     body: AttendancePatchBody,
   ) => Promise<void>;
 }) {
+  const showTimetableCounts = useShowTimetableCounts();
   if (students.length === 0) return null;
   const isPlanned = instanceStatus === "planned";
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-[11px] font-bold tracking-wide text-gray-400 uppercase">
         <span>{attendanceLabel(status, isPlanned)}</span>
-        <span>{students.length}</span>
+        {showTimetableCounts ? <span>{students.length}</span> : null}
       </div>
-      {students.map((student) => (
-        <div
-          key={student.studentId}
-          className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-3 py-2 shadow-sm ${attendanceTone(
-            student.status,
-          )}`}
-        >
-          <div className="min-w-0">
-            <div className="truncate text-sm font-semibold text-gray-900">
-              {studentNames.get(student.studentId) ??
-                `Kind #${student.studentId}`}
+      {students.map((student) => {
+        const studentName =
+          studentNames.get(student.studentId) ?? `Kind #${student.studentId}`;
+
+        return (
+          <div
+            key={student.studentId}
+            className={`flex flex-wrap items-center justify-between gap-2 ${NESTED_SURFACE_BASE} px-3 py-2 ${attendanceTone(
+              student.status,
+            )}`}
+          >
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold text-gray-900">
+                {studentName}
+              </div>
+              <div className="text-[11px] text-gray-500">
+                {attendanceLabel(student.status, isPlanned)}
+                {student.substatus
+                  ? ` • ${attendanceSubstatusLabel(student.substatus)}`
+                  : ""}
+                {student.note ? ` • ${student.note}` : ""}
+              </div>
             </div>
-            <div className="text-[11px] text-gray-500">
-              {attendanceLabel(student.status, isPlanned)}
-              {student.substatus
-                ? ` • ${attendanceSubstatusLabel(student.substatus)}`
-                : ""}
-              {student.note ? ` • ${student.note}` : ""}
-            </div>
+            {onAttendancePatch && (
+              <div className="flex shrink-0 items-center gap-1">
+                {!isPlanned && student.status !== "present" && (
+                  <IconActionButton
+                    icon={<Check className="h-3.5 w-3.5" />}
+                    label={`${studentName} als anwesend markieren`}
+                    tone="green"
+                    isLoading={pendingStudentId === student.studentId}
+                    disabled={pendingStudentId !== null}
+                    onClick={() =>
+                      void handleAttendancePatch(student.studentId, {
+                        status: "present",
+                        substatus: null,
+                      })
+                    }
+                  />
+                )}
+                {student.status !== "absent" && (
+                  <IconActionButton
+                    icon={<X className="h-3.5 w-3.5" />}
+                    label={
+                      isPlanned
+                        ? `${studentName} abmelden`
+                        : `${studentName} als fehlend markieren`
+                    }
+                    tone="red"
+                    isLoading={pendingStudentId === student.studentId}
+                    disabled={pendingStudentId !== null}
+                    onClick={() =>
+                      void handleAttendancePatch(student.studentId, {
+                        status: "absent",
+                        substatus: isPlanned ? "excused" : null,
+                      })
+                    }
+                  />
+                )}
+                {student.status !== "expected" && (
+                  <IconActionButton
+                    icon={<RotateCcw className="h-3.5 w-3.5" />}
+                    label={`Status von ${studentName} zurücksetzen`}
+                    tone="slate"
+                    isLoading={pendingStudentId === student.studentId}
+                    disabled={pendingStudentId !== null}
+                    onClick={() =>
+                      void handleAttendancePatch(student.studentId, {
+                        status: "expected",
+                        substatus: null,
+                        note: null,
+                      })
+                    }
+                  />
+                )}
+              </div>
+            )}
           </div>
-          {onAttendancePatch && (
-            <div className="flex shrink-0 items-center gap-1">
-              {!isPlanned && student.status !== "present" && (
-                <IconActionButton
-                  icon={<Check className="h-3.5 w-3.5" />}
-                  label="Als anwesend markieren"
-                  tone="green"
-                  isLoading={pendingStudentId === student.studentId}
-                  disabled={pendingStudentId !== null}
-                  onClick={() =>
-                    void handleAttendancePatch(student.studentId, {
-                      status: "present",
-                      substatus: null,
-                    })
-                  }
-                />
-              )}
-              {student.status !== "absent" && (
-                <IconActionButton
-                  icon={<X className="h-3.5 w-3.5" />}
-                  label={isPlanned ? "Kind abmelden" : "Als fehlend markieren"}
-                  tone="red"
-                  isLoading={pendingStudentId === student.studentId}
-                  disabled={pendingStudentId !== null}
-                  onClick={() =>
-                    void handleAttendancePatch(student.studentId, {
-                      status: "absent",
-                      substatus: isPlanned ? "excused" : null,
-                    })
-                  }
-                />
-              )}
-              {student.status !== "expected" && (
-                <IconActionButton
-                  icon={<RotateCcw className="h-3.5 w-3.5" />}
-                  label="Status zurücksetzen"
-                  tone="slate"
-                  isLoading={pendingStudentId === student.studentId}
-                  disabled={pendingStudentId !== null}
-                  onClick={() =>
-                    void handleAttendancePatch(student.studentId, {
-                      status: "expected",
-                      substatus: null,
-                      note: null,
-                    })
-                  }
-                />
-              )}
-            </div>
-          )}
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -780,6 +923,14 @@ function EmptyLine({ children }: { children: React.ReactNode }) {
     </div>
   );
 }
+
+/**
+ * Structural radius/shadow shared by PersonLine and the StudentGroup row —
+ * same shape as `timetableNestedSurface`, but callers layer their own
+ * tone-conditional border/bg color on top (nested surface tokens are
+ * gray/white only).
+ */
+const NESTED_SURFACE_BASE = "rounded-xl border shadow-sm";
 
 type IconActionTone = "green" | "red" | "slate";
 
@@ -809,20 +960,25 @@ function IconActionButton({
   disabled,
 }: IconActionButtonProps) {
   return (
-    <button
+    <Button
       type="button"
+      variant="ghost"
+      size="icon"
       onClick={onClick}
       disabled={disabled || isLoading}
       title={label}
       aria-label={label}
-      className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${ICON_ACTION_PALETTE[tone]}`}
+      className={`rounded-full border ${ICON_ACTION_PALETTE[tone]}`}
     >
       {isLoading ? (
-        <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
+        <span
+          className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"
+          aria-hidden
+        />
       ) : (
-        icon
+        <span aria-hidden>{icon}</span>
       )}
-    </button>
+    </Button>
   );
 }
 
@@ -838,7 +994,7 @@ function PersonLine({
   const labels = meta.filter(Boolean);
   return (
     <div
-      className={`rounded-xl border px-3 py-2 shadow-sm ${
+      className={`${NESTED_SURFACE_BASE} px-3 py-2 ${
         danger
           ? "border-[#FF3130]/20 bg-[#FF3130]/10"
           : "border-gray-200 bg-white"
@@ -863,29 +1019,23 @@ interface StatsRowProps {
 }
 
 function StatsRow({ instance }: StatsRowProps) {
+  const showTimetableCounts = useShowTimetableCounts();
   const expected = instance.expectedStudentsCount;
   const present = instance.presentStudentsCount;
   const totalStudents = expected + present;
   const activeStaff = instance.staffCount - instance.absentStaffCount;
 
-  const studentTone: StatPillTone =
-    totalStudents === 0 ? "slate" : present > 0 ? "green" : "slate";
-  const staffTone: StatPillTone =
-    instance.staffCount === 0
-      ? "slate"
-      : instance.absentStaffCount > 0
-        ? "amber"
-        : "blue";
-
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <StatPill
-        icon={<Users className="h-3.5 w-3.5" />}
-        label="Anwesend"
-        value={totalStudents === 0 ? "—" : `${present} / ${totalStudents}`}
-        tone={studentTone}
-      />
-      <StatPill
+      {showTimetableCounts && (
+        <TimetableRatioPill
+          icon={<Users className="h-3.5 w-3.5" />}
+          label="Anwesend"
+          value={totalStudents === 0 ? "—" : `${present} / ${totalStudents}`}
+          tone={attendanceStudentTone(present, totalStudents)}
+        />
+      )}
+      <TimetableRatioPill
         icon={<UserCheck className="h-3.5 w-3.5" />}
         label="Personal"
         value={
@@ -893,69 +1043,25 @@ function StatsRow({ instance }: StatsRowProps) {
             ? "—"
             : `${activeStaff} / ${instance.staffCount}`
         }
-        tone={staffTone}
+        tone={attendanceStaffTone(
+          instance.staffCount,
+          instance.absentStaffCount,
+        )}
+      />
+      <TimetableRatioPill
+        icon={<ShieldCheck className="h-3.5 w-3.5" />}
+        label="Besetzung"
+        value={
+          instance.requiredStaffCount === 0
+            ? "—"
+            : `${instance.assignedStaffCount} / ${instance.requiredStaffCount}`
+        }
+        tone={capacityTone(
+          instance.assignedStaffCount,
+          instance.requiredStaffCount,
+        )}
       />
     </div>
-  );
-}
-
-type StatPillTone = "green" | "blue" | "amber" | "slate";
-
-interface StatPillProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-  tone: StatPillTone;
-}
-
-const STAT_PILL_PALETTE: Record<
-  StatPillTone,
-  { bg: string; border: string; accent: string; muted: string }
-> = {
-  // Brand-aligned pill tints: green=GROUP_ROOM #83CD2D, blue=OTHER_ROOM
-  // #5080D8, amber=SICK #EAB308, slate=neutral gray. Solid hex (not /10
-  // classes) because these feed inline styles.
-  green: {
-    bg: "#F1F9E6",
-    border: "#D7EDB8",
-    accent: "#5A8E1F",
-    muted: "#4A7A15CC",
-  },
-  blue: {
-    bg: "#EDF3FC",
-    border: "#C9DBF6",
-    accent: "#3F66C0",
-    muted: "#2F4F9ECC",
-  },
-  amber: {
-    bg: "#FBF3D6",
-    border: "#F2E2A0",
-    accent: "#8A6D00",
-    muted: "#6E5700CC",
-  },
-  slate: {
-    bg: "#F9FAFB",
-    border: "#E5E7EB",
-    accent: "#374151",
-    muted: "#4B5563CC",
-  },
-};
-
-function StatPill({ icon, label, value, tone }: StatPillProps) {
-  const { bg, border, accent, muted } = STAT_PILL_PALETTE[tone];
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
-      style={{ backgroundColor: bg, borderColor: border, color: accent }}
-    >
-      <span aria-hidden className="flex shrink-0 items-center">
-        {icon}
-      </span>
-      <span className="font-medium" style={{ color: muted }}>
-        {label}
-      </span>
-      <span className="font-bold tabular-nums">{value}</span>
-    </span>
   );
 }
 

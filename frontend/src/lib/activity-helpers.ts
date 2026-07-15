@@ -62,6 +62,7 @@ export interface BackendActivityCategory {
   name: string;
   description?: string;
   color?: string;
+  shift_type_id?: number;
   created_at: string;
   updated_at: string;
 }
@@ -159,6 +160,8 @@ export interface ActivityCategory {
   name: string;
   description?: string;
   color?: string;
+  /** Optional Dienstplan-Schichtart this category maps to (#1837 follow-up). */
+  shiftTypeId?: string;
   created_at: Date;
   updated_at: Date;
 }
@@ -384,6 +387,11 @@ export function mapActivityCategoryResponse(
     name: backendCategory.name,
     description: backendCategory.description,
     color: backendCategory.color,
+    shiftTypeId:
+      backendCategory.shift_type_id !== undefined &&
+      backendCategory.shift_type_id !== null
+        ? String(backendCategory.shift_type_id)
+        : undefined,
     created_at: new Date(backendCategory.created_at),
     updated_at: new Date(backendCategory.updated_at),
   };

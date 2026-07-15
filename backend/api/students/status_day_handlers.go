@@ -5,13 +5,13 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
-	"strconv"
+	"slices"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -29,7 +29,7 @@ func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	if !rs.checkStudentReadAccess(r, student) {
-		renderError(w, r, ErrorForbidden(errors.New("full access required")))
+		renderError(w, r, common.ErrorForbidden(errors.New("full access required")))
 		return
 	}
 	if rs.StudentStatusDayService == nil {
@@ -39,7 +39,7 @@ func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request)
 
 	from, to, err := parseStatusDayRange(r)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -60,31 +60,31 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 
 	req := &CreateStudentStatusDaysRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	if rs.StudentStatusDayService == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("student status day repository not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("student status day repository not configured")))
 		return
 	}
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
-		renderError(w, r, ErrorForbidden(authErr))
+		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
 
 	dates, err := parseStatusDayDates(req.Dates)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	now := time.Now()
 	today := timezone.TodayDate()
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
 		if err != nil {
 			return err
@@ -96,7 +96,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		if err := rs.clearOtherStatusDaysForDates(ctx, fresh.ID, req.Status, dates, now); err != nil {
 			return err
 		}
-		notePtr := normalizeSickReason(&req.Reason)
+		notePtr := strutil.TrimPtrToNil(&req.Reason)
 		for _, date := range dates {
 			if err := rs.StudentStatusDayService.UpsertReported(ctx, &active.StudentStatusDay{
 				StudentID:  fresh.ID,
@@ -109,7 +109,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 				return err
 			}
 		}
-		if containsDate(dates, today) {
+		if slices.Contains(dates, today) {
 			applyLiveStatusForToday(fresh, req.Status, now)
 			if err := rs.StudentService.Update(ctx, fresh); err != nil {
 				return err
@@ -120,18 +120,23 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		capturedTenantID := tenantID
 		tenant.RegisterAfterCommit(ctx, func() {
 			rs.broadcastStudentUpdated(capturedTenantID, studentID)
+			// Also wake the child's guardians so an open parents-app tab reflects
+			// the new/cleared absence (today_absent → the "Heute" pickup tile)
+			// live; the tenant-wide student_updated above never reaches the parent
+			// SSE stream (#1725).
+			rs.wakeChildGuardians(capturedTenantID, studentID)
 		})
 		return nil
 	}); err != nil {
 		if errors.Is(err, errStudentStatusDayReassigned) {
-			renderError(w, r, ErrorForbidden(err))
+			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
 		renderError(w, r, common.ErrorInternalServerWrap("failed to create student status days", err))
 		return
 	}
 
-	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(r.Context(), student.ID, minDate(dates), maxDate(dates))
+	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(r.Context(), student.ID, slices.MinFunc(dates, timezone.Date.Compare), slices.MaxFunc(dates, timezone.Date.Compare))
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to fetch student status days", err))
 		return
@@ -143,30 +148,30 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.Request) {
 	req := &BulkCreateStudentStatusDaysRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 	if rs.StudentStatusDayService == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("student status day repository not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("student status day repository not configured")))
 		return
 	}
 
 	from, err := timezone.ParseDate(req.From)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
 		return
 	}
 	to, err := timezone.ParseDate(req.To)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
 		return
 	}
 	if to.Before(from) {
-		renderError(w, r, ErrorInvalidRequest(errors.New("to must be after from")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("to must be after from")))
 		return
 	}
 	if to.After(from.AddDays(maxStudentStatusDayRangeDays - 1)) {
-		renderError(w, r, ErrorInvalidRequest(errors.New("date range cannot exceed 31 days")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("date range cannot exceed 31 days")))
 		return
 	}
 	dates := datesBetweenInclusive(from, to)
@@ -175,7 +180,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 	now := time.Now()
 	today := timezone.TodayDate()
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		for _, studentID := range req.StudentIDs {
 			fresh, err := rs.StudentService.GetByIDForUpdate(ctx, studentID)
 			if err != nil {
@@ -187,7 +192,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 			if err := rs.clearOtherStatusDaysForDates(ctx, fresh.ID, req.Status, dates, now); err != nil {
 				return err
 			}
-			notePtr := normalizeSickReason(&req.Reason)
+			notePtr := strutil.TrimPtrToNil(&req.Reason)
 			for _, date := range dates {
 				if err := rs.StudentStatusDayService.UpsertReported(ctx, &active.StudentStatusDay{
 					StudentID:  fresh.ID,
@@ -200,7 +205,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 					return err
 				}
 			}
-			if containsDate(dates, today) {
+			if slices.Contains(dates, today) {
 				applyLiveStatusForToday(fresh, req.Status, now)
 				if err := rs.StudentService.Update(ctx, fresh); err != nil {
 					return err
@@ -210,12 +215,15 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 			capturedTenantID := tenantID
 			tenant.RegisterAfterCommit(ctx, func() {
 				rs.broadcastStudentUpdated(capturedTenantID, studentID)
+				// Also wake the child's guardians so an open parents-app tab
+				// reflects the new/cleared absence live (#1725).
+				rs.wakeChildGuardians(capturedTenantID, studentID)
 			})
 		}
 		return nil
 	}); err != nil {
 		if errors.Is(err, errStudentStatusDayReassigned) {
-			renderError(w, r, ErrorForbidden(err))
+			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
 		renderError(w, r, common.ErrorInternalServerWrap("failed to bulk create student status days", err))
@@ -234,27 +242,26 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	statusDayID, err := strconv.ParseInt(chi.URLParam(r, "statusDayId"), 10, 64)
-	if err != nil || statusDayID <= 0 {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid status day id")))
+	statusDayID, ok := common.ParsePositiveInt64IDWithError(w, r, "statusDayId", "invalid status day id")
+	if !ok {
 		return
 	}
 	if rs.StudentStatusDayService == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("student status day repository not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("student status day repository not configured")))
 		return
 	}
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
 	authorized, authErr := canUpdateStudent(r.Context(), userPermissions, student, rs.UserContextService)
 	if !authorized {
-		renderError(w, r, ErrorForbidden(authErr))
+		renderError(w, r, common.ErrorForbidden(authErr))
 		return
 	}
 
 	now := time.Now()
 	today := timezone.TodayDate()
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		row, err := rs.StudentStatusDayService.GetActiveByID(ctx, statusDayID)
 		if err != nil {
 			return err
@@ -285,15 +292,20 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 		capturedTenantID := tenantID
 		tenant.RegisterAfterCommit(ctx, func() {
 			rs.broadcastStudentUpdated(capturedTenantID, studentID)
+			// Also wake the child's guardians so an open parents-app tab reflects
+			// the new/cleared absence (today_absent → the "Heute" pickup tile)
+			// live; the tenant-wide student_updated above never reaches the parent
+			// SSE stream (#1725).
+			rs.wakeChildGuardians(capturedTenantID, studentID)
 		})
 		return nil
 	}); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			renderError(w, r, ErrorNotFound(errors.New("student status day not found")))
+			renderError(w, r, common.ErrorNotFound(errors.New("student status day not found")))
 			return
 		}
 		if errors.Is(err, errStudentStatusDayReassigned) {
-			renderError(w, r, ErrorForbidden(err))
+			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
 		renderError(w, r, common.ErrorInternalServerWrap("failed to delete student status day", err))
@@ -394,33 +406,4 @@ func clearLiveStatusForToday(student *users.Student, status string) {
 		student.Excused = &falseVal
 		student.ExcusedSince = nil
 	}
-}
-
-func containsDate(dates []timezone.Date, needle timezone.Date) bool {
-	for _, date := range dates {
-		if date == needle {
-			return true
-		}
-	}
-	return false
-}
-
-func minDate(dates []timezone.Date) timezone.Date {
-	min := dates[0]
-	for _, date := range dates[1:] {
-		if date.Before(min) {
-			min = date
-		}
-	}
-	return min
-}
-
-func maxDate(dates []timezone.Date) timezone.Date {
-	max := dates[0]
-	for _, date := range dates[1:] {
-		if date.After(max) {
-			max = date
-		}
-	}
-	return max
 }

@@ -2,6 +2,7 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -11,8 +12,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/analytics"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/policies"
 	authjwt "github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	activeRepo "github.com/moto-nrw/project-phoenix/database/repositories/active"
@@ -21,6 +20,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/services/absence"
 	"github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/services/announcement"
@@ -39,6 +39,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/feedback"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/iot"
+	iotcheckin "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/services/mealplan"
 	"github.com/moto-nrw/project-phoenix/services/messaging"
@@ -63,7 +64,7 @@ type Factory struct {
 	StaffAbsence             active.StaffAbsenceService
 	Activities               activities.ActivityService
 	Education                education.Service
-	GradeTransition          education.GradeTransitionService
+	GradeTransition          *education.GradeTransitionService
 	Facilities               facilities.Service
 	Schulhof                 facilities.SchulhofService
 	WC                       facilities.WCService
@@ -73,15 +74,19 @@ type Factory struct {
 	MealPlan                 mealplan.Service
 	Suggestions              suggestions.Service
 	IoT                      iot.Service
+	Checkin                  *iotcheckin.CheckinService
 	Settings                 config.SettingsService
 	Schedule                 schedule.Service
 	StaffShifts              schedule.StaffShiftService
+	StaffShiftSeries         schedule.StaffShiftSeriesService
+	StaffAssignments         schedule.StaffAssignmentService
+	StaffScheduleOverview    schedule.StaffScheduleOverviewGetter
 	ShiftTypes               schedule.ShiftTypeService
 	PickupSchedule           schedule.PickupScheduleService
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
 	Materialization          schedule.MaterializationService
-	TemplateSplit            schedule.TemplateSplitService
+	TemplateSplit            *schedule.TemplateSplitService
 	TimetableCleanup         schedule.TimetableCleanupService
 	TimeTrackingCleanup      active.TimeTrackingCleanupService
 	Instance                 schedule.InstanceService
@@ -90,14 +95,14 @@ type Factory struct {
 	Users                    users.PersonService
 	StaffOffboarding         users.StaffOffboardingService
 	CaregiverCapability      users.CaregiverCapabilityService
-	Guardian                 users.GuardianService
-	GuardianProfileLoader    users.GuardianProfileLoader
+	Guardian                 *users.GuardianService
+	GuardianProfileLoader    *users.GuardianProfileLoader
 	UserContext              usercontext.UserContextService
 	Database                 database.DatabaseService
 	Import                   *importService.ImportService[importModels.StudentImportRow] // Student import service
 	StaffImport              *importService.ImportService[importModels.StaffImportRow]   // Staff (Mitarbeiter) import service
-	ListExport               listexport.Service
-	Emergency                emergency.Service
+	ListExport               *listexport.RendererService
+	Emergency                *emergency.Service
 	Reminders                reminders.Service
 	RealtimeHub              *realtime.Hub     // SSE event hub (shared by services and API)
 	Tracker                  analytics.Tracker // Product analytics (PostHog; no-op without POSTHOG_API_KEY)
@@ -113,13 +118,14 @@ type Factory struct {
 	OperatorProvisioning platform.OperatorProvisioningService
 	Announcement         platform.AnnouncementService
 	Schools              platform.SchoolService
-	WorkTimeModels       config.WorkTimeModelService
+	WorkTimeModels       *config.WorkTimeModelService
 	Students             users.StudentService
 	MasterDataReview     users.MasterDataReviewService
 	CareRequests         schedule.CareScheduleRequestService
-	StudentStatusDays    active.StudentStatusDayService
+	ExcusedRequests      absence.ExcusedAbsenceRequestService
+	StudentStatusDays    *active.StudentStatusDayService
 	StudentHistory       active.StudentHistoryService
-	TimetableData        schedule.TimetableDataService
+	TimetableData        *schedule.TimetableDataService
 	OperatorSuggestions  platform.OperatorSuggestionsService
 	OperatorMFA          platform.OperatorMFAService
 	OperatorPasskey      platform.OperatorPasskeyService
@@ -137,21 +143,29 @@ type Factory struct {
 	Display display.Service
 
 	// Enrollment domain (parent-enrollment PR 5+).
-	EnrollmentFormSchema    enrollment.FormSchemaService
-	EnrollmentCareOffering  enrollment.CareOfferingService
-	EnrollmentCaptcha       enrollment.CaptchaService
-	EnrollmentRequest       enrollment.RequestService
-	EnrollmentPhase         enrollment.PhaseService
-	EnrollmentDecision      enrollment.DecisionService
-	EnrollmentReport        enrollment.ReportService
-	EnrollmentRollover      enrollment.RolloverService
-	EnrollmentChangeRequest enrollment.ChangeRequestService
+	EnrollmentFormSchema      enrollment.FormSchemaService
+	EnrollmentCareOffering    enrollment.CareOfferingService
+	EnrollmentCaptcha         *enrollment.CaptchaService
+	EnrollmentRequest         enrollment.RequestService
+	EnrollmentPhase           enrollment.PhaseService
+	EnrollmentDecision        enrollment.DecisionService
+	EnrollmentReport          enrollment.ReportService
+	EnrollmentRollover        enrollment.RolloverService
+	EnrollmentChangeRequest   enrollment.ChangeRequestService
+	EnrollmentDeletion        enrollment.EnrollmentDeletionService
+	EnrollmentRejectedCleanup enrollment.RejectedEnrollmentCleaner
 
 	// Parent (cross-tenant guardian portal - PR 9)
 	Parent parent.Service
 
 	// Messaging (staff-side parent-OGS inbox / threads)
-	Messaging messaging.Service
+	Messaging *messaging.Service
+
+	// ParentEventEmitter is the chat-pill + guardian-wake emitter (#1803/#1845).
+	// Exposed so the API layer can wake a child's guardians (its message-
+	// independent parent_child_updated SSE fan-out) after staff-side care writes,
+	// so an open parents-app tab refetches the child's care state live (#1725).
+	ParentEventEmitter *parentmessaging.Emitter
 
 	// Calendar (staff and parent personal calendars)
 	Calendar calendarService.Service
@@ -279,16 +293,15 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 
 	// Initialize users service first (needed for active service)
 	usersService := users.NewPersonService(users.PersonServiceDependencies{
-		PersonRepo:         repos.Person,
-		RFIDRepo:           repos.RFIDCard,
-		AccountRepo:        repos.Account,
-		PersonGuardianRepo: repos.PersonGuardian,
-		StudentRepo:        repos.Student,
-		StaffRepo:          repos.Staff,
-		TeacherRepo:        repos.Teacher,
-		DB:                 db,
-		SettingsService:    settingsService,
-		Logger:             logger.With("service", "users"),
+		PersonRepo:      repos.Person,
+		RFIDRepo:        repos.RFIDCard,
+		AccountRepo:     repos.Account,
+		StudentRepo:     repos.Student,
+		StaffRepo:       repos.Staff,
+		TeacherRepo:     repos.Teacher,
+		DB:              db,
+		SettingsService: settingsService,
+		Logger:          logger.With("service", "users"),
 	})
 
 	// Initialize guardian service
@@ -416,11 +429,51 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		return nil, err
 	}
 
+	// Construct care-offering validation before services that can mutate its
+	// recurrence resources. Room/timeframe FKs use ON DELETE SET NULL, so those
+	// delete services must preflight the same materializability invariant as
+	// template and calendar-period mutations.
+	enrollmentCareOfferingService := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
+		Repo:                     repos.CareOffering,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		ActivityGroupRepo:        repos.ActivityGroup,
+		ActivityScheduleRepo:     repos.ActivitySchedule,
+		CalendarPeriodRepo:       repos.CalendarPeriod,
+		TimeframeRepo:            repos.Timeframe,
+		ActivityExceptionRepo:    repos.ActivityException,
+		PhaseRepo:                repos.Phase,
+		Settings:                 settingsService,
+		LockTemplateRecurrence: func(ctx context.Context) error {
+			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		},
+		Logger: logger.With("service", "enrollment-care-offering"),
+	})
+	careOfferingSeriesValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingSeriesValidator)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not implement series validation")
+	}
+	careOfferingCalendarPeriodValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingCalendarPeriodValidator)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not implement calendar period validation")
+	}
+	careOfferingResourceValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingMaterializationResourceValidator)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not implement materialization resource validation")
+	}
+	careOfferingPhaseValidator, ok := enrollmentCareOfferingService.(enrollment.CareOfferingPhaseValidator)
+	if !ok {
+		return nil, fmt.Errorf("enrollment care offering service does not implement phase validation")
+	}
+
 	// Initialize facilities service
-	facilitiesService := facilities.NewService(
-		repos.Room,
-		repos.ActiveGroup,
-	)
+	facilitiesService := facilities.NewServiceWithConfig(facilities.ServiceConfig{
+		RoomRepo:        repos.Room,
+		ActiveGroupRepo: repos.ActiveGroup,
+		LockTemplateRecurrence: func(ctx context.Context) error {
+			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		},
+		ValidateCareOfferingRoomDeletion: careOfferingResourceValidator.ValidateRoomDeletion,
+	})
 
 	// Initialize Schulhof service (depends on facilities, activities, and active services)
 	schulhofService := facilities.NewSchulhofService(
@@ -437,12 +490,28 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		facilitiesLogger,
 	)
 
+	// Initialize RFID check-in service (issue #575 B8). Orchestrates the
+	// active/users/facilities/activities services for the /api/iot check-in
+	// workflow. Lives in the services/iot/checkin sub-package to avoid the
+	// services/iot ↔ services/active ↔ auth/device import cycle.
+	checkinService := iotcheckin.NewCheckinService(iotcheckin.CheckinServiceDeps{
+		Active:     activeService,
+		Users:      usersService,
+		Facilities: facilitiesService,
+		Activities: activitiesService,
+		Logger:     logger.With("service", "checkin"),
+	})
+
 	// Initialize schedule service
-	scheduleService := schedule.NewService(
-		repos.Dateframe,
-		repos.Timeframe,
-		repos.RecurrenceRule,
-	)
+	scheduleService := schedule.NewServiceWithConfig(schedule.ServiceConfig{
+		DateframeRepo:      repos.Dateframe,
+		TimeframeRepo:      repos.Timeframe,
+		RecurrenceRuleRepo: repos.RecurrenceRule,
+		LockTemplateRecurrence: func(ctx context.Context) error {
+			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		},
+		ValidateCareOfferingTimeframeChange: careOfferingResourceValidator.ValidateTimeframeChange,
+	})
 
 	// Initialize shift type service (Schichtarten, #1836)
 	shiftTypeService := schedule.NewShiftTypeService(
@@ -458,6 +527,38 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		db,
 		logger.With("service", "staff_shift"),
 	)
+	staffShiftService.SetSeriesExceptionRepo(repos.StaffShiftSeriesException)
+
+	// Recurring shift series (Dienstplan-Serien, #1889)
+	staffShiftSeriesService := schedule.NewStaffShiftSeriesService(
+		repos.StaffShiftSeries,
+		repos.StaffShiftSeriesException,
+		repos.StaffShift,
+		repos.Staff,
+		repos.CalendarPeriod,
+		shiftTypeService,
+		db,
+		logger.With("service", "staff_shift_series"),
+	)
+	// Self-service Betreuungsplan assignments for a staff member ("Mein Tag",
+	// #1844) — the "Ort/Aufgabe" the Dienstplan shift alone cannot express.
+	staffAssignmentService := schedule.NewStaffAssignmentService(schedule.StaffAssignmentDependencies{
+		InstanceStaffRepo:    repos.InstanceStaff,
+		ActivityInstanceRepo: repos.ActivityInstance,
+		RoomRepo:             repos.Room,
+		ActivityGroupRepo:    repos.ActivityGroup,
+	}, logger.With("service", "staff_assignment"))
+
+	staffScheduleOverviewService := schedule.NewStaffScheduleOverviewService(schedule.StaffScheduleOverviewDependencies{
+		Shifts:        repos.StaffShift,
+		ShiftWeeks:    repos.StaffShift,
+		Instances:     repos.ActivityInstance,
+		InstanceStaff: repos.InstanceStaff,
+		Rooms:         repos.Room,
+		Staff:         repos.Staff,
+		WorkSchedules: repos.StaffWorkSchedule,
+		WorkModels:    repos.WorkTimeModel,
+	})
 
 	// Initialize pickup schedule service
 	pickupScheduleService := schedule.NewPickupScheduleService(
@@ -483,11 +584,16 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:            logger.With("service", "display"),
 	})
 
-	// Initialize calendar period service
-	calendarPeriodService := schedule.NewCalendarPeriodService(
-		repos.CalendarPeriod,
-		logger.With("service", "calendar-period"),
-	)
+	// Period updates/deletes use the same tenant recurrence transaction and
+	// advisory lock as template and care-offering mutations. The preflight
+	// callback sees the proposed post-update row (or nil for delete) before any
+	// FK can be cleared by ON DELETE SET NULL.
+	calendarPeriodService := schedule.NewCalendarPeriodServiceWithConfig(schedule.CalendarPeriodServiceConfig{
+		Repo:                       repos.CalendarPeriod,
+		DB:                         db,
+		ValidateCareOfferingChange: careOfferingCalendarPeriodValidator.ValidateCalendarPeriodChange,
+		Logger:                     logger.With("service", "calendar-period"),
+	})
 
 	// Initialize materialization service (WP-B8). Turns activity templates into
 	// concrete schedule.activity_instances + instance_staff/instance_students
@@ -505,22 +611,50 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.ActivityException,
 		repos.Timeframe,
 		calendarPeriodService,
+		db,
+		realtimeHub,
 		logger.With("service", "materialization"),
 	)
+
+	// Initialize instance lifecycle before template split: the split reuses its
+	// deviation snapshot/reapply machinery when replacing future occurrences.
+	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
+		InstanceRepo:       repos.ActivityInstance,
+		InstanceStaffRepo:  repos.InstanceStaff,
+		InstanceStudents:   repos.InstanceStudent,
+		ExceptionRepo:      repos.ActivityException,
+		ActiveGroupRepo:    repos.ActiveGroup,
+		SupervisorRepo:     repos.GroupSupervisor,
+		VisitRepo:          repos.ActiveVisit,
+		RoomRepo:           repos.Room,
+		ActivityGroupRepo:  repos.ActivityGroup,
+		StaffRepo:          repos.Staff,
+		StudentRepo:        repos.Student,
+		ActiveService:      activeService,
+		Materialization:    materializationService,
+		DeviationEventRepo: repos.DeviationEvent,
+		Broadcaster:        realtimeHub,
+		DB:                 db,
+		Logger:             logger.With("service", "instance-lifecycle"),
+	})
 
 	// Initialize template split service (WP-B3). "Dieser und alle folgenden":
 	// caps the old template's schedules + rosters at an effective date,
 	// creates a successor template and re-plans the affected window via the
 	// materialization service.
 	templateSplitService := schedule.NewTemplateSplitService(schedule.TemplateSplitDependencies{
-		GroupRepo:       repos.ActivityGroup,
-		ScheduleRepo:    repos.ActivitySchedule,
-		EnrollmentRepo:  repos.StudentEnrollment,
-		SupervisorRepo:  repos.ActivitySupervisor,
-		InstanceRepo:    repos.ActivityInstance,
-		TimeframeRepo:   repos.Timeframe,
-		Materialization: materializationService,
-		Logger:          logger.With("service", "template-split"),
+		GroupRepo:                  repos.ActivityGroup,
+		ScheduleRepo:               repos.ActivitySchedule,
+		EnrollmentRepo:             repos.StudentEnrollment,
+		SupervisorRepo:             repos.ActivitySupervisor,
+		InstanceRepo:               repos.ActivityInstance,
+		TimeframeRepo:              repos.Timeframe,
+		Materialization:            materializationService,
+		InstanceService:            instanceService,
+		ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
+		Broadcaster:                realtimeHub,
+		Logger:                     logger.With("service", "template-split"),
+		DB:                         db,
 	})
 
 	// Initialize timetable GDPR cleanup service (WP-B14). Deletes
@@ -532,6 +666,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.ActivityException,
 		repos.InstanceStudent,
 		repos.DataDeletion,
+		repos.DeviationEvent,
 		settingsService,
 		logger.With("service", "timetable-cleanup"),
 	)
@@ -549,35 +684,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "time-tracking-cleanup"),
 	)
 
-	// Initialize instance lifecycle service (WP-B9). Drives the state machine
-	// on schedule.activity_instances and its bridge to active.groups. Takes
-	// the active service as a dependency (for EndActivitySession) - when the
-	// bridge closes, visits + supervisors close and per-student checkout SSE
-	// events fire, matching today's observable behavior for a session ending.
-	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
-		InstanceRepo:      repos.ActivityInstance,
-		InstanceStaffRepo: repos.InstanceStaff,
-		InstanceStudents:  repos.InstanceStudent,
-		ExceptionRepo:     repos.ActivityException,
-		ActiveGroupRepo:   repos.ActiveGroup,
-		SupervisorRepo:    repos.GroupSupervisor,
-		VisitRepo:         repos.ActiveVisit,
-		RoomRepo:          repos.Room,
-		ActivityGroupRepo: repos.ActivityGroup,
-		StaffRepo:         repos.Staff,
-		StudentRepo:       repos.Student,
-		ActiveService:     activeService,
-		Materialization:   materializationService,
-		Broadcaster:       realtimeHub,
-		DB:                db,
-		Logger:            logger.With("service", "instance-lifecycle"),
-	})
-
 	autoStartService := schedule.NewAutoStartService(schedule.AutoStartDependencies{
 		InstanceRepo:      repos.ActivityInstance,
 		InstanceStaffRepo: repos.InstanceStaff,
 		InstanceStudents:  repos.InstanceStudent,
 		InstanceService:   instanceService,
+		RoomRepo:          repos.Room,
 		ActiveGroupRepo:   repos.ActiveGroup,
 		SupervisorRepo:    repos.GroupSupervisor,
 		VisitRepo:         repos.ActiveVisit,
@@ -717,13 +829,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		StudentGuardianRepo:  repos.StudentGuardian,
 		StudentRepo:          repos.Student,
 		SchoolRepo:           repos.School,
-		Mailer:               mailer,
-		Dispatcher:           dispatcher,
-		OutboxEnqueuer:       platform.NewAuthOutboxAdapter(emailOutboxService),
+		OutboxEnqueuer:       emailOutboxService,
 		EnrollmentBackfiller: repos.ParentEnrollmentRequest,
 		SettingsResolver:     settingsService,
 		FrontendURL:          parentsURL, // accept link goes to the parents portal, not the staff frontend
-		DefaultFrom:          defaultFrom,
 		FallbackExpiry:       invitationTokenExpiry,
 		DB:                   db,
 		Logger:               authLogger.With("flow", "guardian_invitation"),
@@ -745,84 +854,29 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			DefaultFrom: defaultFrom,
 		})),
 	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentSubmitted,
-		platform.RendererFunc(enrollment.NewEnrollmentSubmittedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentAdminNotify,
-		platform.RendererFunc(enrollment.NewEnrollmentAdminNotificationRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	// Per-status decision emails dispatched by the DecisionService
-	// (PR 8 slice 2). One renderer per kind keeps subjects + templates
-	// independent and makes future copy updates contained.
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentApproved,
-		platform.RendererFunc(enrollment.NewEnrollmentApprovedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentWaitlisted,
-		platform.RendererFunc(enrollment.NewEnrollmentWaitlistedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentRejected,
-		platform.RendererFunc(enrollment.NewEnrollmentRejectedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestSubmitted,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestSubmittedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestQuestion,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestQuestionRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestParentReply,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestParentReplyRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestApproved,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestApprovedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentChangeRequestRejected,
-		platform.RendererFunc(enrollment.NewEnrollmentChangeRequestRejectedRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	// Rollover (annual phase renewal) emails. Slice 1 reuses the
-	// submission template as a placeholder. Proper branded copy lands
-	// in a follow-up PR.
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentRolloverOptIn,
-		platform.RendererFunc(enrollment.NewEnrollmentRolloverOptInRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
-	emailTemplateRegistry.Register(
-		platformModels.EmailKindEnrollmentRolloverOptOut,
-		platform.RendererFunc(enrollment.NewEnrollmentRolloverOptOutRenderer(enrollment.EmailRendererConfig{
-			DefaultFrom: defaultFrom,
-		})),
-	)
+	// Enrollment outbox renderers, one per EmailKind sharing the same config.
+	// Per-status decision emails (PR 8 slice 2) keep one renderer per kind so
+	// subjects + templates stay independent and copy updates stay contained.
+	// The rollover (annual phase renewal) pair reuses the submission template
+	// as a placeholder until proper branded copy lands in a follow-up PR.
+	enrollmentRendererCfg := enrollment.EmailRendererConfig{DefaultFrom: defaultFrom}
+	for kind, newRenderer := range map[string]func(enrollment.EmailRendererConfig) func(context.Context, *platformModels.EmailOutbox) (*email.Message, error){
+		platformModels.EmailKindEnrollmentSubmitted:                enrollment.NewEnrollmentSubmittedRenderer,
+		platformModels.EmailKindEnrollmentAdminNotify:              enrollment.NewEnrollmentAdminNotificationRenderer,
+		platformModels.EmailKindEnrollmentApproved:                 enrollment.NewEnrollmentApprovedRenderer,
+		platformModels.EmailKindEnrollmentWaitlisted:               enrollment.NewEnrollmentWaitlistedRenderer,
+		platformModels.EmailKindEnrollmentRejected:                 enrollment.NewEnrollmentRejectedRenderer,
+		platformModels.EmailKindEnrollmentDecisionDigest:           enrollment.NewEnrollmentDecisionDigestRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestSubmitted:   enrollment.NewEnrollmentChangeRequestSubmittedRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestQuestion:    enrollment.NewEnrollmentChangeRequestQuestionRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestParentReply: enrollment.NewEnrollmentChangeRequestParentReplyRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestApproved:    enrollment.NewEnrollmentChangeRequestApprovedRenderer,
+		platformModels.EmailKindEnrollmentChangeRequestRejected:    enrollment.NewEnrollmentChangeRequestRejectedRenderer,
+		platformModels.EmailKindEnrollmentRolloverOptIn:            enrollment.NewEnrollmentRolloverOptInRenderer,
+		platformModels.EmailKindEnrollmentRolloverOptOut:           enrollment.NewEnrollmentRolloverOptOutRenderer,
+	} {
+		emailTemplateRegistry.Register(kind, platform.RendererFunc(newRenderer(enrollmentRendererCfg)))
+	}
 
 	caregiverCapabilityService := users.NewCaregiverCapabilityService(users.CaregiverCapabilityServiceDependencies{
 		AccountRepo:            repos.Account,
@@ -850,6 +904,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActivitySupervisorRepo: repos.ActivitySupervisor,
 		InstanceStaffRepo:      repos.InstanceStaff,
 		StaffShiftRepo:         repos.StaffShift,
+		StaffShiftSeriesRepo:   repos.StaffShiftSeries,
 		StaffAbsenceRepo:       repos.StaffAbsence,
 		AccountTenantRepo:      repos.AccountTenant,
 		RoleRepo:               repos.Role,
@@ -859,26 +914,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                     db,
 		Logger:                 logger.With("service", "staff_offboarding"),
 	})
-
-	// Initialize authorization
-	authorizationService := authorize.NewAuthorizationService()
-
-	// Create policy registry
-	policyRegistry := policies.NewPolicyRegistry(
-		educationService,
-		usersService,
-		activeService,
-	)
-
-	// Register all policies
-	if err := policyRegistry.RegisterAll(authorizationService); err != nil {
-		return nil, err
-	}
-
-	// Set global resource authorizer
-	authorize.SetResourceAuthorizer(
-		authorize.NewResourceAuthorizer(authorizationService),
-	)
 
 	// Initialize user context service
 	userContextService := usercontext.NewUserContextServiceWithRepos(usercontext.UserContextRepositories{
@@ -1063,15 +1098,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:      logger.With("service", "enrollment-form-schema"),
 	})
 
-	enrollmentCareOfferingService := enrollment.NewCareOfferingService(enrollment.CareOfferingServiceConfig{
-		Repo:                 repos.CareOffering,
-		ActivityGroupRepo:    repos.ActivityGroup,
-		ActivityScheduleRepo: repos.ActivitySchedule,
-		CalendarPeriodRepo:   repos.CalendarPeriod,
-		PhaseRepo:            repos.Phase,
-		Logger:               logger.With("service", "enrollment-care-offering"),
-	})
-
 	enrollmentCaptchaService := enrollment.NewCaptchaService(enrollment.CaptchaServiceConfig{
 		Settings: settingsService,
 		Logger:   logger.With("service", "enrollment-captcha"),
@@ -1088,13 +1114,34 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PhaseRepo:                repos.Phase,
 		SchoolRepo:               repos.School,
 		RateLimitRepo:            repos.SubmissionRateLimit,
-		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		OutboxEnqueuer:           emailOutboxService,
 		Settings:                 settingsService,
 		FrontendURL:              frontendURL, // admin notification email
 		ParentsURL:               parentsURL,  // parent confirmation/status emails
 		DB:                       db,
 		Logger:                   logger.With("service", "enrollment-request"),
 	})
+	enrollmentDeletionService := enrollment.NewEnrollmentDeletionService(
+		repos.Request,
+		repos.RequestChild,
+		repos.EnrollmentDeletion,
+		repos.EnrollmentDeletionAudit,
+		db,
+		logger.With("service", "enrollment-deletion"),
+	)
+	enrollmentRejectedCleanupService := enrollment.NewRejectedEnrollmentCleanupService(
+		repos.Request,
+		repos.RequestChild,
+		repos.LateInvite,
+		repos.EmailOutbox,
+		settingsService,
+		db,
+		logger.With("service", "enrollment-rejected-cleanup"),
+		enrollment.RejectedEnrollmentCleanupAuditDependencies{
+			Deletion: repos.EnrollmentDeletion,
+			Audit:    repos.EnrollmentDeletionAudit,
+		},
+	)
 
 	enrollmentPhaseService := enrollment.NewPhaseService(enrollment.PhaseServiceConfig{
 		Repo:             repos.Phase,
@@ -1103,8 +1150,12 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CareOfferingRepo: repos.CareOffering,
 		FormSchemaRepo:   repos.FormSchema,
 		CalendarPeriods:  calendarPeriodService,
-		DB:               db,
-		Logger:           logger.With("service", "enrollment-phase"),
+		LockTemplateRecurrence: func(ctx context.Context) error {
+			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		},
+		ValidateCareOfferingPhaseChange: careOfferingPhaseValidator.ValidatePhaseChange,
+		DB:                              db,
+		Logger:                          logger.With("service", "enrollment-phase"),
 	})
 
 	enrollmentDecisionService := enrollment.NewDecisionService(enrollment.DecisionServiceConfig{
@@ -1130,15 +1181,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActivityGroupRepo:        repos.ActivityGroup,
 		ActivityScheduleRepo:     repos.ActivitySchedule,
 		CalendarPeriodRepo:       repos.CalendarPeriod,
+		TimeframeRepo:            repos.Timeframe,
+		ActivityExceptionRepo:    repos.ActivityException,
 		AccountRepo:              repos.Account,
 		AccountTenantRepo:        repos.AccountTenant,
 		AccountRoleRepo:          repos.AccountRole,
 		RoleRepo:                 repos.Role,
-		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		OutboxEnqueuer:           emailOutboxService,
 		FrontendURL:              frontendURL,
 		ParentsURL:               parentsURL,
 		Settings:                 settingsService,
-		Logger:                   logger.With("service", "enrollment-decision"),
+		LockTemplateRecurrence: func(ctx context.Context) error {
+			return schedule.LockTenantRecurrenceWrites(ctx, db)
+		},
+		Logger: logger.With("service", "enrollment-decision"),
 	})
 
 	enrollmentReportService := enrollment.NewReportService(enrollment.ReportServiceConfig{
@@ -1172,7 +1228,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		GuardianPhoneRepo:        repos.GuardianPhoneNumber,
 		DecisionService:          enrollmentDecisionApplier,
 		Settings:                 settingsService,
-		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		OutboxEnqueuer:           emailOutboxService,
 		FrontendURL:              frontendURL,
 		ParentsURL:               parentsURL,
 		DB:                       db,
@@ -1187,7 +1243,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		RequestChildRepo:         repos.RequestChild,
 		RequestChildOfferingRepo: repos.RequestChildOffering,
 		SchoolRepo:               repos.School,
-		OutboxEnqueuer:           platform.NewEnrollmentOutboxAdapter(emailOutboxService),
+		OutboxEnqueuer:           emailOutboxService,
 		Settings:                 settingsService,
 		DecisionService:          enrollmentDecisionService,
 		ParentsURL:               parentsURL,
@@ -1222,6 +1278,21 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		pillEmitter,
 		realtimeHub,
 		logger.With("service", "care-requests"),
+	)
+
+	// Excused-absence approval requests (#1845): the optional office-approval
+	// gate for parent-submitted excused absences. Reuses the same review queue,
+	// badge and pill machinery as the care-schedule requests above; on approval
+	// it writes the excused status days directly.
+	excusedRequestService := absence.NewExcusedAbsenceRequestService(
+		repos.ExcusedAbsenceRequest,
+		repos.StudentStatusDay,
+		repos.Student,
+		repos.Person,
+		userContextService,
+		pillEmitter,
+		realtimeHub,
+		logger.With("service", "excused-requests"),
 	)
 
 	messagingService := messaging.NewService(messaging.Config{
@@ -1276,6 +1347,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ArrivalSchedules:        arrivalScheduleService,
 		PickupSchedules:         pickupScheduleService,
 		CareRequests:            careRequestService,
+		ExcusedRequests:         excusedRequestService,
 		Emitter:                 pillEmitter,
 		AnnouncementRepo:        repos.ParentAnnouncement,
 		GuardianInvites:         guardianInvitationService,
@@ -1331,6 +1403,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Attendance:  repos.Attendance,
 		Pickup:      pickupScheduleService,
 		Instance:    repos.ActivityInstance,
+		Room:        repos.Room,
 		Student:     repos.Student,
 		Person:      repos.Person,
 		Supervision: activeService,
@@ -1356,9 +1429,13 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		MealPlan:                 mealPlanService,
 		Suggestions:              suggestionsService,
 		IoT:                      iotService,
+		Checkin:                  checkinService,
 		Settings:                 settingsService,
 		Schedule:                 scheduleService,
 		StaffShifts:              staffShiftService,
+		StaffShiftSeries:         staffShiftSeriesService,
+		StaffAssignments:         staffAssignmentService,
+		StaffScheduleOverview:    staffScheduleOverviewService,
 		ShiftTypes:               shiftTypeService,
 		PickupSchedule:           pickupScheduleService,
 		Display:                  displayService,
@@ -1407,29 +1484,35 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Students:             studentService,
 		MasterDataReview:     users.NewMasterDataReviewService(repos.StudentDataChangeRequest, repos.Student, repos.Person, userContextService, pillEmitter, logger.With("service", "master-data-review"), realtimeHub),
 		CareRequests:         careRequestService,
+		ExcusedRequests:      excusedRequestService,
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
-		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
+		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
 		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
-			InstanceStudentRepo:    repos.InstanceStudent,
-			ActivityInstanceRepo:   repos.ActivityInstance,
-			ActivityExceptionRepo:  repos.ActivityException,
-			ActivityScheduleRepo:   repos.ActivitySchedule,
-			InstanceStaffRepo:      repos.InstanceStaff,
-			ActiveGroupRepo:        repos.ActiveGroup,
-			SupervisorRepo:         repos.GroupSupervisor,
-			ArrivalScheduleRepo:    repos.StudentArrivalSchedule,
-			ArrivalExceptionRepo:   repos.StudentArrivalException,
-			PickupScheduleRepo:     repos.StudentPickupSchedule,
-			PickupExceptionRepo:    repos.StudentPickupException,
-			VisitRepo:              repos.ActiveVisit,
-			RoomRepo:               repos.Room,
-			ActivityCategoryRepo:   repos.ActivityCategory,
-			ActivityGroupRepo:      repos.ActivityGroup,
-			ActivitySupervisorRepo: repos.ActivitySupervisor,
-			StudentEnrollmentRepo:  repos.StudentEnrollment,
-			TimeframeRepo:          repos.Timeframe,
-			EducationGroupRepo:     repos.Group,
-			DB:                     db,
+			InstanceStudentRepo:        repos.InstanceStudent,
+			ActivityInstanceRepo:       repos.ActivityInstance,
+			ActivityExceptionRepo:      repos.ActivityException,
+			ActivityScheduleRepo:       repos.ActivitySchedule,
+			InstanceStaffRepo:          repos.InstanceStaff,
+			StaffShiftRepo:             repos.StaffShift,
+			StaffRepo:                  repos.Staff,
+			CalendarPeriodRepo:         repos.CalendarPeriod,
+			ActiveGroupRepo:            repos.ActiveGroup,
+			SupervisorRepo:             repos.GroupSupervisor,
+			ArrivalScheduleRepo:        repos.StudentArrivalSchedule,
+			ArrivalExceptionRepo:       repos.StudentArrivalException,
+			PickupScheduleRepo:         repos.StudentPickupSchedule,
+			PickupExceptionRepo:        repos.StudentPickupException,
+			VisitRepo:                  repos.ActiveVisit,
+			RoomRepo:                   repos.Room,
+			ActivityCategoryRepo:       repos.ActivityCategory,
+			ActivityGroupRepo:          repos.ActivityGroup,
+			ActivitySupervisorRepo:     repos.ActivitySupervisor,
+			StudentEnrollmentRepo:      repos.StudentEnrollment,
+			TimeframeRepo:              repos.Timeframe,
+			EducationGroupRepo:         repos.Group,
+			ValidateCareOfferingSeries: careOfferingSeriesValidator.ValidateTemplateSeries,
+			DeviationEventRepo:         repos.DeviationEvent,
+			DB:                         db,
 		}),
 		OperatorSuggestions:  operatorSuggestionsService,
 		OperatorMFA:          operatorMFAService,
@@ -1440,24 +1523,41 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EmailOutboxWorker:     emailOutboxWorker,
 		EmailTemplateRegistry: emailTemplateRegistry,
 
-		EnrollmentFormSchema:    enrollmentFormSchemaService,
-		EnrollmentCareOffering:  enrollmentCareOfferingService,
-		EnrollmentCaptcha:       enrollmentCaptchaService,
-		EnrollmentRequest:       enrollmentRequestService,
-		EnrollmentPhase:         enrollmentPhaseService,
-		EnrollmentDecision:      enrollmentDecisionService,
-		EnrollmentReport:        enrollmentReportService,
-		EnrollmentRollover:      enrollmentRolloverService,
-		EnrollmentChangeRequest: enrollmentChangeRequestService,
+		EnrollmentFormSchema:      enrollmentFormSchemaService,
+		EnrollmentCareOffering:    enrollmentCareOfferingService,
+		EnrollmentCaptcha:         enrollmentCaptchaService,
+		EnrollmentRequest:         enrollmentRequestService,
+		EnrollmentPhase:           enrollmentPhaseService,
+		EnrollmentDecision:        enrollmentDecisionService,
+		EnrollmentReport:          enrollmentReportService,
+		EnrollmentRollover:        enrollmentRolloverService,
+		EnrollmentChangeRequest:   enrollmentChangeRequestService,
+		EnrollmentDeletion:        enrollmentDeletionService,
+		EnrollmentRejectedCleanup: enrollmentRejectedCleanupService,
 
 		Parent:             parentService,
 		Messaging:          messagingService,
 		Calendar:           calendarSvc,
 		ParentAnnouncement: parentAnnouncementService,
+		ParentEventEmitter: pillEmitter,
 	}
 
 	factory.SettingsSideEffects = sideeffects.NewRegistry()
 	facilities.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
+
+	// #1843 sick cascade: setter-injected after assembly because the syncer
+	// (services/schedule) needs the schedule services while the absence
+	// service (services/active) is constructed long before them.
+	staffAbsenceService.SetShiftPlanSyncer(schedule.NewShiftPlanSyncService(
+		staffShiftService,
+		instanceService,
+		factory.TimetableData,
+		repos.StaffShift,
+		repos.InstanceStaff,
+		factory.RealtimeHub,
+		db,
+		logger.With("service", "shift_plan_sync"),
+	))
 	return factory, nil
 }
 

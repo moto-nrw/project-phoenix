@@ -10,7 +10,8 @@ package parent_test
 //   - creating needs messaging enabled, but withdraw stays available after the
 //     school disables it so outstanding requests can be wound down.
 //
-// Reuses stubSettings / captureBroadcaster from parent_write_service_test.go.
+// Reuses parentSettingsStub from parent_settings_stub_test.go and the shared
+// testpkg.RecordingBroadcaster.
 
 import (
 	"context"
@@ -22,6 +23,9 @@ import (
 	"github.com/uptrace/bun"
 
 	repositories "github.com/moto-nrw/project-phoenix/database/repositories"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeModels "github.com/moto-nrw/project-phoenix/models/active"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/services"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -51,16 +55,25 @@ func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *repositories.Factory
 		StudentRepo:         repos.Student,
 		GuardianProfileRepo: repos.GuardianProfile,
 		PersonRepo:          repos.Person,
-		Settings:            stubSettings{sickEnabled: true, notesEnabled: notesEnabled},
-		Broadcaster:         &captureBroadcaster{},
-		ArrivalSchedules:    sf.ArrivalSchedule,
-		PickupSchedules:     sf.PickupSchedule,
-		CareRequests:        sf.CareRequests,
-		MessageThreadRepo:   repos.ParentMessageThread,
-		MessageRepo:         repos.ParentMessage,
-		MessageReadRepo:     repos.ParentMessageRead,
-		DB:                  db,
-		Logger:              slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{
+				configModels.KeyParentSickNoteEnabled: true,
+				configModels.KeyParentNotesEnabled:    notesEnabled,
+			},
+			stringValues: map[string]string{
+				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+			},
+		},
+		Broadcaster:       testpkg.NewRecordingBroadcaster(),
+		ArrivalSchedules:  sf.ArrivalSchedule,
+		PickupSchedules:   sf.PickupSchedule,
+		CareRequests:      sf.CareRequests,
+		StatusDayRepo:     repos.StudentStatusDay,
+		MessageThreadRepo: repos.ParentMessageThread,
+		MessageRepo:       repos.ParentMessage,
+		MessageReadRepo:   repos.ParentMessageRead,
+		DB:                db,
+		Logger:            slog.Default(),
 	})
 }
 
@@ -223,6 +236,50 @@ func TestGetChildCareSchedule_RequiresAccess(t *testing.T) {
 
 	_, err = svc.GetChildCareSchedule(context.Background(), chain.AccountID, chain.StudentID)
 	require.Error(t, err, "reading the care schedule requires parent_portal.access")
+}
+
+// TestGetChildCareSchedule_TodayAbsentReflectsStatusDay proves the parent-safe
+// absence signal on the read view catches a staff-created class-trip day for
+// today — exactly the row ListSickDays deliberately hides. Without it the
+// "Heute → Abholung" tile would show a pickup time for a child the school has
+// recorded as off.
+func TestGetChildCareSchedule_TodayAbsentReflectsStatusDay(t *testing.T) {
+	svc, db, _ := buildCareScheduleService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	ctx := context.Background()
+
+	// No status day yet: the tile has no absence to report.
+	view, err := svc.GetChildCareSchedule(ctx, chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.False(t, view.TodayAbsent, "no status day → not absent")
+
+	// Staff record a class trip for today (source=planned) — the kind of row
+	// ListSickDays hides from guardians.
+	_, err = db.ExecContext(ctx, `
+		INSERT INTO active.student_status_days
+			(tenant_id, student_id, date, status, reported_at, source)
+		VALUES (?, ?, ?, ?, now(), ?)
+	`, chain.TenantID, chain.StudentID, timezone.TodayDate(),
+		activeModels.StudentStatusDayClassTrip, activeModels.StudentStatusSourcePlanned)
+	require.NoError(t, err)
+	defer func() {
+		_, _ = db.ExecContext(context.Background(),
+			`DELETE FROM active.student_status_days WHERE student_id = ?`, chain.StudentID)
+	}()
+
+	// The read view now reports the absence...
+	view, err = svc.GetChildCareSchedule(ctx, chain.AccountID, chain.StudentID)
+	require.NoError(t, err)
+	assert.True(t, view.TodayAbsent, "an active class-trip day today makes the child absent")
+
+	// ...even though ListSickDays still hides the staff-created class-trip row,
+	// which is exactly why the tile needs a separate parent-safe signal.
+	days, err := svc.ListSickDays(ctx, chain.AccountID, chain.StudentID,
+		timezone.TodayDate(), timezone.TodayDate())
+	require.NoError(t, err)
+	assert.Empty(t, days, "class-trip days stay hidden from the parent sick-day list")
 }
 
 // TestChildFeatures_ReflectsPermissionsAndOpenRequest drives the parent

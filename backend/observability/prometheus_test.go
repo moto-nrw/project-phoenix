@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	dto "github.com/prometheus/client_model/go"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -159,8 +159,5 @@ func TestMain(m *testing.M) {
 
 func gaugeValue(t *testing.T, tenant string) float64 {
 	t.Helper()
-	metric := &dto.Metric{}
-	require.NoError(t, sseClients.WithLabelValues(tenant).Write(metric))
-	require.NotNil(t, metric.Gauge)
-	return metric.Gauge.GetValue()
+	return testutil.ToFloat64(sseClients.WithLabelValues(tenant))
 }

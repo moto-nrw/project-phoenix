@@ -5,10 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
@@ -259,11 +257,11 @@ func mapNoteToResponse(n *schedule.StudentPickupNote) PickupNoteResponse {
 func (rs *Resource) verifyExceptionOwnership(w http.ResponseWriter, r *http.Request, exceptionID, studentID int64) *schedule.StudentPickupException {
 	exception, err := rs.PickupScheduleService.GetStudentPickupExceptionByID(r.Context(), exceptionID)
 	if err != nil || exception == nil {
-		renderError(w, r, ErrorNotFound(errors.New("pickup exception not found")))
+		renderError(w, r, common.ErrorNotFound(errors.New("pickup exception not found")))
 		return nil
 	}
 	if exception.StudentID != studentID {
-		renderError(w, r, ErrorForbidden(errors.New("exception does not belong to this student")))
+		renderError(w, r, common.ErrorForbidden(errors.New("exception does not belong to this student")))
 		return nil
 	}
 	return exception
@@ -274,11 +272,11 @@ func (rs *Resource) verifyExceptionOwnership(w http.ResponseWriter, r *http.Requ
 func (rs *Resource) verifyNoteOwnership(w http.ResponseWriter, r *http.Request, noteID, studentID int64) *schedule.StudentPickupNote {
 	note, err := rs.PickupScheduleService.GetStudentPickupNoteByID(r.Context(), noteID)
 	if err != nil || note == nil {
-		renderError(w, r, ErrorNotFound(errors.New("pickup note not found")))
+		renderError(w, r, common.ErrorNotFound(errors.New("pickup note not found")))
 		return nil
 	}
 	if note.StudentID != studentID {
-		renderError(w, r, ErrorForbidden(errors.New("note does not belong to this student")))
+		renderError(w, r, common.ErrorForbidden(errors.New("note does not belong to this student")))
 		return nil
 	}
 	return note
@@ -316,7 +314,7 @@ func (rs *Resource) requirePickupReadAccess(w http.ResponseWriter, r *http.Reque
 		return nil
 	}
 	if !rs.checkStudentReadAccess(r, student) {
-		renderError(w, r, ErrorForbidden(fmt.Errorf("read access required to view pickup schedules")))
+		renderError(w, r, common.ErrorForbidden(fmt.Errorf("read access required to view pickup schedules")))
 		return nil
 	}
 	return student
@@ -331,7 +329,7 @@ func (rs *Resource) requirePickupWriteAccess(w http.ResponseWriter, r *http.Requ
 		return nil
 	}
 	if !rs.checkStudentFullAccess(r, student) {
-		renderError(w, r, ErrorForbidden(fmt.Errorf("full access required to %s", action)))
+		renderError(w, r, common.ErrorForbidden(fmt.Errorf("full access required to %s", action)))
 		return nil
 	}
 	return student
@@ -340,10 +338,9 @@ func (rs *Resource) requirePickupWriteAccess(w http.ResponseWriter, r *http.Requ
 // parseEntityID extracts a numeric ID from a URL parameter.
 // Returns 0 and writes an error response on failure.
 func parseEntityID(w http.ResponseWriter, r *http.Request, param string, label string) (int64, bool) {
-	idStr := chi.URLParam(r, param)
-	id, err := strconv.ParseInt(idStr, 10, 64)
+	id, err := common.ParseIDParam(r, param)
 	if err != nil {
-		renderError(w, r, ErrorInvalidRequest(fmt.Errorf("invalid %s ID", label)))
+		renderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid %s ID", label)))
 		return 0, false
 	}
 	return id, true
@@ -359,7 +356,7 @@ func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Req
 
 	data, err := rs.PickupScheduleService.GetStudentPickupData(r.Context(), student.ID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -398,14 +395,14 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 
 	req := &BulkPickupScheduleRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Get staff ID from JWT
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
@@ -413,17 +410,28 @@ func (rs *Resource) updateStudentPickupSchedules(w http.ResponseWriter, r *http.
 	schedules := toPickupScheduleModels(req.Schedules, student.ID, staffID)
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(ctx, student.ID, schedules)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
+
+	// Wake the child's guardians: the weekly base plan feeds the "Heute" pickup
+	// tile's base time, so a changed schedule must refetch on an open parents-app
+	// tab live (#1725). Defer to the OUTER request transaction's commit — the
+	// handler WithTenantTx above only REUSES the tx opened by TenantTxMiddleware
+	// (nested), so it has NOT committed on return; waking now would let a client
+	// refetch before the write is visible or wake for a write a later 5xx rolls
+	// back (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
 
 	// Fetch updated data
 	data, err := rs.PickupScheduleService.GetStudentPickupData(r.Context(), student.ID)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -441,13 +449,13 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 
 	req := &PickupExceptionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
@@ -460,8 +468,8 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 
 	var exception *schedule.StudentPickupException
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.db, student.ID, exceptionDate); err != nil {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, exceptionDate); err != nil {
 			return err
 		}
 
@@ -526,6 +534,16 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Wake the child's guardians so an open parents-app tab reflects the new
+	// pickup override on the "Heute" tile live. Defer to the OUTER request tx's
+	// commit: the handler WithTenantTx above only REUSES the tx opened by
+	// TenantTxMiddleware (nested) and has NOT committed on return, so a woken
+	// client would otherwise refetch the pre-commit snapshot — or be woken for a
+	// write a later 5xx rolls back (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
+
 	common.Respond(w, r, http.StatusCreated, mapExceptionToResponse(exception), "Pickup exception created successfully")
 }
 
@@ -548,7 +566,7 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 
 	req := &PickupExceptionRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -558,8 +576,8 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 	var exception *schedule.StudentPickupException
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.db, student.ID, exceptionDate); err != nil {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, exceptionDate); err != nil {
 			return err
 		}
 		freshException, err := rs.PickupScheduleService.GetStudentPickupExceptionByID(ctx, exceptionID)
@@ -623,6 +641,14 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Wake the child's guardians so the "Heute" pickup tile reflects the edited
+	// override live; defer to the outer request tx's commit (see the create path
+	// above — the handler WithTenantTx is a nested reuse, not committed on return)
+	// (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
+
 	common.Respond(w, r, http.StatusOK, mapExceptionToResponse(exception), "Pickup exception updated successfully")
 }
 
@@ -644,8 +670,8 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.db, student.ID, existingException.ExceptionDate); err != nil {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, existingException.ExceptionDate); err != nil {
 			return err
 		}
 		freshException, err := rs.PickupScheduleService.GetStudentPickupExceptionByID(ctx, exceptionID)
@@ -664,6 +690,13 @@ func (rs *Resource) deleteStudentPickupException(w http.ResponseWriter, r *http.
 		return
 	}
 
+	// Wake the child's guardians so the "Heute" pickup tile drops the removed
+	// override live; defer to the outer request tx's commit (nested handler
+	// WithTenantTx is not committed on return) (#1725 review).
+	tenant.RegisterAfterCommit(r.Context(), func() {
+		rs.wakeChildGuardians(tenantID, student.ID)
+	})
+
 	common.Respond(w, r, http.StatusOK, nil, "Pickup exception deleted successfully")
 }
 
@@ -676,13 +709,13 @@ func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Reque
 
 	req := &PickupNoteRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	staffID, err := rs.getStaffIDFromJWT(r)
 	if err != nil {
-		renderError(w, r, ErrorForbidden(err))
+		renderError(w, r, common.ErrorForbidden(err))
 		return
 	}
 
@@ -695,10 +728,10 @@ func (rs *Resource) createStudentPickupNote(w http.ResponseWriter, r *http.Reque
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.PickupScheduleService.CreateStudentPickupNote(ctx, note)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -724,7 +757,7 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 
 	req := &PickupNoteRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -740,10 +773,10 @@ func (rs *Resource) updateStudentPickupNote(w http.ResponseWriter, r *http.Reque
 	note.SetTenantID(existingNote.TenantID)
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.PickupScheduleService.UpdateStudentPickupNote(ctx, note)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -768,10 +801,10 @@ func (rs *Resource) deleteStudentPickupNote(w http.ResponseWriter, r *http.Reque
 	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		return rs.PickupScheduleService.DeleteStudentPickupNote(ctx, noteID)
 	}); err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -822,14 +855,14 @@ type BulkPickupTimeResponse struct {
 func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
 	req := &BulkPickupTimeRequest{}
 	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, ErrorInvalidRequest(err))
+		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
 	// Filter student IDs to only those the user has access to
 	authorizedIDs, err := rs.filterAuthorizedStudentIDs(r, req.StudentIDs)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -849,7 +882,7 @@ func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
 	// Use bulk service method (O(2) queries instead of O(N))
 	pickupTimes, err := rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(r.Context(), authorizedIDs, date)
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -880,53 +913,6 @@ func (rs *Resource) getBulkPickupTimes(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Bulk pickup times retrieved successfully")
-}
-
-// Handler accessor methods for testing
-
-// GetStudentPickupSchedulesHandler returns the handler for getting pickup schedules
-func (rs *Resource) GetStudentPickupSchedulesHandler() http.HandlerFunc {
-	return rs.getStudentPickupSchedules
-}
-
-// UpdateStudentPickupSchedulesHandler returns the handler for updating pickup schedules
-func (rs *Resource) UpdateStudentPickupSchedulesHandler() http.HandlerFunc {
-	return rs.updateStudentPickupSchedules
-}
-
-// CreateStudentPickupExceptionHandler returns the handler for creating pickup exceptions
-func (rs *Resource) CreateStudentPickupExceptionHandler() http.HandlerFunc {
-	return rs.createStudentPickupException
-}
-
-// UpdateStudentPickupExceptionHandler returns the handler for updating pickup exceptions
-func (rs *Resource) UpdateStudentPickupExceptionHandler() http.HandlerFunc {
-	return rs.updateStudentPickupException
-}
-
-// DeleteStudentPickupExceptionHandler returns the handler for deleting pickup exceptions
-func (rs *Resource) DeleteStudentPickupExceptionHandler() http.HandlerFunc {
-	return rs.deleteStudentPickupException
-}
-
-// GetBulkPickupTimesHandler returns the handler for getting bulk pickup times
-func (rs *Resource) GetBulkPickupTimesHandler() http.HandlerFunc {
-	return rs.getBulkPickupTimes
-}
-
-// CreateStudentPickupNoteHandler returns the handler for creating pickup notes
-func (rs *Resource) CreateStudentPickupNoteHandler() http.HandlerFunc {
-	return rs.createStudentPickupNote
-}
-
-// UpdateStudentPickupNoteHandler returns the handler for updating pickup notes
-func (rs *Resource) UpdateStudentPickupNoteHandler() http.HandlerFunc {
-	return rs.updateStudentPickupNote
-}
-
-// DeleteStudentPickupNoteHandler returns the handler for deleting pickup notes
-func (rs *Resource) DeleteStudentPickupNoteHandler() http.HandlerFunc {
-	return rs.deleteStudentPickupNote
 }
 
 // filterAuthorizedStudentIDs filters the requested student IDs to only those

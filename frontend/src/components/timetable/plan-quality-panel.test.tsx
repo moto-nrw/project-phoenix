@@ -42,6 +42,8 @@ function instance(overrides: Partial<EnrichedInstance> = {}): EnrichedInstance {
     absentStaffCount: 1,
     expectedStudentsCount: 0,
     presentStudentsCount: 0,
+    requiredStaffCount: 0,
+    assignedStaffCount: 0,
     conflictWarnings: [
       {
         kind: "room",
@@ -198,7 +200,7 @@ describe("PlanQualityPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: "Anwenden" }));
 
     await waitFor(() =>
-      expect(onSubstitute).toHaveBeenCalledWith("11", "12", "2026-05-04"),
+      expect(onSubstitute).toHaveBeenCalledWith("42", "11", "12", "2026-05-04"),
     );
 
     fireEvent.click(screen.getAllByRole("button", { name: /Mensa/ })[1]!);

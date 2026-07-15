@@ -13,7 +13,7 @@ import (
 // their detailed semantics; this adapter event gives every client one stable
 // cache invalidation path regardless of the write source.
 func (s *service) broadcastActiveSupervisionChanged(ctx context.Context, activeGroupID, studentID, reason string) {
-	if s.broadcaster == nil {
+	if s.Broadcaster == nil {
 		return
 	}
 
@@ -26,7 +26,7 @@ func (s *service) broadcastActiveSupervisionChanged(ctx context.Context, activeG
 
 	tenantID := tenant.FromContext(ctx)
 	event := realtime.NewEvent(realtime.EventActiveSupervisionChanged, activeGroupID, data)
-	if err := s.broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+	if err := s.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
 		s.getLogger().Warn("SSE active supervision broadcast failed",
 			slog.String("error", err.Error()),
 			slog.String("active_group_id", activeGroupID),

@@ -3,10 +3,14 @@
 package auth
 
 import (
+	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	authModel "github.com/moto-nrw/project-phoenix/models/auth"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/stretchr/testify/assert"
@@ -17,20 +21,21 @@ import (
 // getClientIP Tests
 // =============================================================================
 
-func TestGetClientIP_XRealIP(t *testing.T) {
+func TestGetClientIP_IgnoresRawXRealIP(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("X-Real-IP", "192.168.1.100")
+	req.RemoteAddr = "192.0.2.50:1234"
 
 	ip := getClientIP(req)
 
-	assert.Equal(t, "192.168.1.100", ip)
+	assert.Equal(t, "192.0.2.50", ip)
 }
 
 func TestGetClientIP_XForwardedFor_Single(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("X-Forwarded-For", "10.0.0.50")
 
-	ip := getClientIP(req)
+	ip := getClientIPThroughXFFMiddleware(req)
 
 	assert.Equal(t, "10.0.0.50", ip)
 }
@@ -39,19 +44,18 @@ func TestGetClientIP_XForwardedFor_Multiple(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("X-Forwarded-For", "10.0.0.1, 10.0.0.2, 10.0.0.3")
 
-	ip := getClientIP(req)
+	ip := getClientIPThroughXFFMiddleware(req)
 
-	// Should return first IP
-	assert.Equal(t, "10.0.0.1", ip)
+	assert.Equal(t, "10.0.0.3", ip)
 }
 
 func TestGetClientIP_XForwardedFor_WithSpaces(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("X-Forwarded-For", "  10.0.0.1  ,  10.0.0.2  ")
 
-	ip := getClientIP(req)
+	ip := getClientIPThroughXFFMiddleware(req)
 
-	assert.Equal(t, "10.0.0.1", ip)
+	assert.Equal(t, "10.0.0.2", ip)
 }
 
 func TestGetClientIP_RemoteAddr_WithPort(t *testing.T) {
@@ -82,16 +86,15 @@ func TestGetClientIP_RemoteAddr_NoPort(t *testing.T) {
 	assert.Equal(t, "192.168.1.1", ip)
 }
 
-func TestGetClientIP_XRealIP_TakesPrecedence(t *testing.T) {
+func TestGetClientIP_XForwardedForBeatsRawXRealIP(t *testing.T) {
 	req := httptest.NewRequest("GET", "/test", nil)
 	req.Header.Set("X-Real-IP", "1.1.1.1")
 	req.Header.Set("X-Forwarded-For", "2.2.2.2")
 	req.RemoteAddr = "3.3.3.3:1234"
 
-	ip := getClientIP(req)
+	ip := getClientIPThroughXFFMiddleware(req)
 
-	// X-Real-IP takes precedence
-	assert.Equal(t, "1.1.1.1", ip)
+	assert.Equal(t, "2.2.2.2", ip)
 }
 
 func TestGetClientIP_XForwardedFor_TakesPrecedence_OverRemoteAddr(t *testing.T) {
@@ -99,10 +102,21 @@ func TestGetClientIP_XForwardedFor_TakesPrecedence_OverRemoteAddr(t *testing.T) 
 	req.Header.Set("X-Forwarded-For", "2.2.2.2")
 	req.RemoteAddr = "3.3.3.3:1234"
 
-	ip := getClientIP(req)
+	ip := getClientIPThroughXFFMiddleware(req)
 
-	// X-Forwarded-For takes precedence over RemoteAddr
 	assert.Equal(t, "2.2.2.2", ip)
+}
+
+func getClientIPThroughXFFMiddleware(req *http.Request) string {
+	var ip string
+	router := chi.NewRouter()
+	router.Use(chimiddleware.ClientIPFromXFF())
+	router.Get("/test", func(w http.ResponseWriter, r *http.Request) {
+		ip = getClientIP(r)
+		w.WriteHeader(http.StatusNoContent)
+	})
+	router.ServeHTTP(httptest.NewRecorder(), req)
+	return ip
 }
 
 // =============================================================================
@@ -300,29 +314,29 @@ func TestNewResource_ReturnsResource(t *testing.T) {
 
 func TestNormalizeBaseRole(t *testing.T) {
 	t.Run("nil input returns nil", func(t *testing.T) {
-		assert.Nil(t, normalizeBaseRole(nil))
+		assert.Nil(t, strutil.TrimPtrToNil(nil))
 	})
 
 	t.Run("empty string returns nil", func(t *testing.T) {
 		empty := ""
-		assert.Nil(t, normalizeBaseRole(&empty))
+		assert.Nil(t, strutil.TrimPtrToNil(&empty))
 	})
 
 	t.Run("whitespace-only returns nil", func(t *testing.T) {
 		spaces := "   "
-		assert.Nil(t, normalizeBaseRole(&spaces))
+		assert.Nil(t, strutil.TrimPtrToNil(&spaces))
 	})
 
 	t.Run("trims whitespace", func(t *testing.T) {
 		padded := "  admin  "
-		result := normalizeBaseRole(&padded)
+		result := strutil.TrimPtrToNil(&padded)
 		require.NotNil(t, result)
 		assert.Equal(t, "admin", *result)
 	})
 
 	t.Run("passes through clean value", func(t *testing.T) {
 		clean := "guardian"
-		result := normalizeBaseRole(&clean)
+		result := strutil.TrimPtrToNil(&clean)
 		require.NotNil(t, result)
 		assert.Equal(t, "guardian", *result)
 	})

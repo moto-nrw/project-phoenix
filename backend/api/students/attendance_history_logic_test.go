@@ -7,6 +7,8 @@ package students
 // students_test) and require a test database.
 
 import (
+	"encoding/json"
+	"math"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -15,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,6 +56,27 @@ func TestParseAttendanceHistoryRange_StartAfterEnd(t *testing.T) {
 	req := httptest.NewRequest("GET", "/students/1/attendance-history?start=2026-03-20T00:00:00Z&end=2026-03-10T00:00:00Z", nil)
 	_, _, err := parseAttendanceHistoryRange(req, time.Now(), time.Now())
 	require.Error(t, err)
+}
+
+func TestClampAttendanceHistoryRange_ClampsFutureEndAndVisibilityCap(t *testing.T) {
+	endOfToday := time.Date(2026, 3, 20, 23, 59, 59, 0, time.UTC)
+	start := endOfToday.AddDate(0, 0, -60)
+	end := endOfToday.AddDate(0, 0, 5)
+
+	gotStart, gotEnd, clamped, err := clampAttendanceHistoryRange(start, end, endOfToday, 30)
+	require.NoError(t, err)
+	assert.True(t, clamped)
+	assert.Equal(t, endOfToday, gotEnd)
+	assert.Equal(t, endOfToday.Add(-30*24*time.Hour).Add(time.Second), gotStart)
+}
+
+func TestClampAttendanceHistoryRange_RejectsFullyFutureRange(t *testing.T) {
+	endOfToday := time.Date(2026, 3, 20, 23, 59, 59, 0, time.UTC)
+	start := endOfToday.Add(time.Second)
+	end := start.Add(24 * time.Hour)
+
+	_, _, _, err := clampAttendanceHistoryRange(start, end, endOfToday, 30)
+	require.EqualError(t, err, "start must not be in the future")
 }
 
 func TestBuildAttendanceHistoryDays_EmptyRows(t *testing.T) {
@@ -249,7 +273,8 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_Consolidated(t *testing.
 	assert.Equal(t, afternoonOut, *day.Attendance.CheckOutTime, "latest check-out wins")
 	assert.Equal(t, int64(42), day.Attendance.CheckedInBy, "checked_in_by from earliest row")
 	require.NotNil(t, day.Attendance.DurationMinutes)
-	assert.Equal(t, 480, *day.Attendance.DurationMinutes, "duration spans earliest check-in to latest check-out")
+	assert.Equal(t, 420, *day.Attendance.DurationMinutes, "duration sums sessions without counting the school-time gap")
+	require.Len(t, day.Attendance.Sessions, 2)
 }
 
 func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_OneOpenSession(t *testing.T) {
@@ -298,4 +323,176 @@ func TestBuildAttendanceHistoryDays_OutsideRoomCap_HidesVisits(t *testing.T) {
 	assert.False(t, days[0].RoomDetailAvailable, "older-than-room-cap day must hide visits")
 	assert.Empty(t, days[0].Visits)
 	assert.Nil(t, days[0].Attendance.DurationMinutes, "duration is nil when check_out_time is nil")
+}
+
+func TestAttachSlotAttendance_KeepsOpposingStatusesOnSameDay(t *testing.T) {
+	date := timezone.NewDate(2026, 7, 15)
+	morning := &schedule.ActivityInstance{
+		Date: date, Title: "Morgenbetreuung",
+		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
+	}
+	morning.ID = 101
+	afternoon := &schedule.ActivityInstance{
+		Date: date, Title: "Nachmittagsbetreuung",
+		StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+	}
+	afternoon.ID = 102
+	sick := schedule.AttendanceSubstatusSick
+
+	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{
+		{Instance: morning, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}},
+		{Instance: afternoon, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusAbsent, Substatus: &sick}},
+	}, nil, date.BerlinMidnight(), false)
+
+	require.Len(t, days, 1)
+	assert.True(t, days[0].RoomDetailAvailable, "slot-only day within the retention window must expose room details")
+	require.Len(t, days[0].Slots, 2)
+	assert.Equal(t, "Morgenbetreuung", days[0].Slots[0].Title)
+	assert.Equal(t, schedule.AttendanceStatusPresent, days[0].Slots[0].Status)
+	assert.Equal(t, "Nachmittagsbetreuung", days[0].Slots[1].Title)
+	assert.Equal(t, schedule.AttendanceStatusAbsent, days[0].Slots[1].Status)
+	require.NotNil(t, days[0].Slots[1].Substatus)
+	assert.Equal(t, schedule.AttendanceSubstatusSick, *days[0].Slots[1].Substatus)
+}
+
+func TestAttachSlotAttendance_SlotOnlyDayRespectsRoomRetention(t *testing.T) {
+	date := timezone.NewDate(2026, 7, 10)
+	instance := &schedule.ActivityInstance{
+		Date: date, Title: "Morgenbetreuung",
+		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
+	}
+	instance.ID = 201
+	rows := []*schedule.ScheduledInstanceRow{
+		{Instance: instance, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}},
+	}
+
+	t.Run("outside window stays unavailable", func(t *testing.T) {
+		cutoff := date.AddDays(2).BerlinMidnight()
+		days := attachSlotAttendance(nil, rows, nil, cutoff, false)
+		require.Len(t, days, 1)
+		assert.False(t, days[0].RoomDetailAvailable)
+	})
+
+	t.Run("failed visit query stays unavailable", func(t *testing.T) {
+		days := attachSlotAttendance(nil, rows, nil, date.BerlinMidnight(), true)
+		require.Len(t, days, 1)
+		assert.False(t, days[0].RoomDetailAvailable)
+	})
+
+	t.Run("within window attaches visits for the date", func(t *testing.T) {
+		entry := time.Date(2026, 7, 10, 9, 0, 0, 0, timezone.Berlin)
+		visits := map[string][]*active.Visit{
+			date.String(): {{StudentID: 1, EntryTime: entry}},
+		}
+		days := attachSlotAttendance(nil, rows, visits, date.BerlinMidnight(), false)
+		require.Len(t, days, 1)
+		assert.True(t, days[0].RoomDetailAvailable)
+		require.Len(t, days[0].Visits, 1)
+		assert.Equal(t, entry, days[0].Visits[0].EntryTime)
+	})
+}
+
+// TestAttachUnassignedAttendance_WindowMatchAndNeutralLeftover: a re-entry into
+// the same slot re-stamps the slot's checked_in_at, so the earlier session must
+// be claimed via the scheduled-window fallback. Sessions outside every window
+// stay visible as neutral "Ohne Zuordnung" entries without an is_unplanned claim.
+func TestAttachUnassignedAttendance_WindowMatchAndNeutralLeftover(t *testing.T) {
+	first := time.Date(2026, 7, 15, 8, 0, 0, 0, timezone.Berlin)
+	reentry := time.Date(2026, 7, 15, 10, 0, 0, 0, timezone.Berlin)
+	outside := time.Date(2026, 7, 15, 17, 30, 0, 0, timezone.Berlin)
+
+	days := attachUnassignedAttendance([]attendanceHistoryDay{{
+		Date: "2026-07-15",
+		Attendance: &attendanceDayRecord{
+			CheckInTime: first,
+			Sessions: []attendanceSessionRecord{
+				{CheckInTime: first},   // covered by the slot's scheduled window
+				{CheckInTime: reentry}, // exact match on the re-stamped checked_in_at
+				{CheckInTime: outside}, // after the window — stays unassigned
+			},
+		},
+		Slots: []attendanceSlotEntry{{
+			InstanceID: "301", Title: "Ganztagsbetreuung",
+			StartTime: "07:00", EndTime: "16:00",
+			Status: schedule.AttendanceStatusPresent, CheckedInAt: &reentry,
+		}},
+	}})
+
+	require.Len(t, days[0].Slots, 2, "only the out-of-window session may become a synthetic entry")
+	synthetic := days[0].Slots[1]
+	assert.Equal(t, "Ohne Zuordnung", synthetic.Title)
+	assert.Equal(t, "17:30", synthetic.StartTime)
+	assert.Equal(t, "-3", synthetic.InstanceID, "synthetic entries carry the negative sentinel")
+	assert.False(t, synthetic.IsUnplanned, "unknown booking situation must not claim 'ungeplant'")
+}
+
+// TestAttachUnassignedAttendance_AbsentSlotDoesNotAbsorbSessions: only present
+// slots may claim sessions via their scheduled window — an absence (sick) with
+// an overlapping window must not swallow observed presence.
+func TestAttachUnassignedAttendance_AbsentSlotDoesNotAbsorbSessions(t *testing.T) {
+	sick := schedule.AttendanceSubstatusSick
+	checkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
+
+	days := attachUnassignedAttendance([]attendanceHistoryDay{{
+		Date: "2026-07-15",
+		Attendance: &attendanceDayRecord{
+			CheckInTime: checkIn,
+			Sessions:    []attendanceSessionRecord{{CheckInTime: checkIn}},
+		},
+		Slots: []attendanceSlotEntry{{
+			InstanceID: "302", Title: "Morgenbetreuung",
+			StartTime: "07:00", EndTime: "12:00",
+			Status: schedule.AttendanceStatusAbsent, Substatus: &sick,
+		}},
+	}})
+
+	require.Len(t, days[0].Slots, 2, "the observed session must surface next to the absence")
+	assert.Equal(t, "Ohne Zuordnung", days[0].Slots[1].Title)
+}
+
+func TestAttachUnassignedAttendance_SortsMergedSlotsByDisplayedTime(t *testing.T) {
+	checkIn := time.Date(2026, 7, 15, 7, 0, 0, 0, timezone.Berlin)
+
+	days := attachUnassignedAttendance([]attendanceHistoryDay{{
+		Date: "2026-07-15",
+		Attendance: &attendanceDayRecord{
+			CheckInTime: checkIn,
+			Sessions:    []attendanceSessionRecord{{CheckInTime: checkIn}},
+		},
+		Slots: []attendanceSlotEntry{
+			{InstanceID: "401", Title: "Mittagsbetreuung", StartTime: "12:00", EndTime: "13:00"},
+			{InstanceID: "402", Title: "Nachmittagsbetreuung", StartTime: "14:00", EndTime: "16:00"},
+		},
+	}})
+
+	require.Len(t, days[0].Slots, 3)
+	assert.Equal(t, []string{"07:00", "12:00", "14:00"}, []string{
+		days[0].Slots[0].StartTime,
+		days[0].Slots[1].StartTime,
+		days[0].Slots[2].StartTime,
+	})
+	assert.Equal(t, "Ohne Zuordnung", days[0].Slots[0].Title)
+}
+
+func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testing.T) {
+	date := timezone.NewDate(2026, 7, 15)
+	instance := &schedule.ActivityInstance{
+		Date:      date,
+		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
+	}
+	instance.ID = math.MaxInt64
+
+	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{{
+		Instance:   instance,
+		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
+	}}, nil, date.BerlinMidnight(), false)
+
+	require.Len(t, days, 1)
+	payload, err := json.Marshal(days[0].Slots[0])
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"instance_id":"9223372036854775807","title":"","start_time":"07:00","end_time":"08:00","status":"expected","is_unplanned":false}`, string(payload))
 }

@@ -38,7 +38,7 @@ func TestUploadLegalDocument_SavesTenantPrefixedPDF(t *testing.T) {
 	req = req.WithContext(tenant.WithTenantID(req.Context(), 42))
 	w := httptest.NewRecorder()
 
-	(&Resource{}).UploadLegalDocument()(w, req)
+	(&Resource{}).uploadLegalDocument(w, req)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	var body struct {
@@ -62,7 +62,7 @@ func TestUploadLegalDocument_RejectsNonPDF(t *testing.T) {
 	req = req.WithContext(tenant.WithTenantID(req.Context(), 42))
 	w := httptest.NewRecorder()
 
-	(&Resource{}).UploadLegalDocument()(w, req)
+	(&Resource{}).uploadLegalDocument(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
@@ -75,7 +75,7 @@ func TestDeleteLegalDocument_RemovesUnreferencedTenantPDF(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	res := &Resource{legalDocumentRefs: fakeLegalDocumentReferenceRepository{}}
-	res.DeleteLegalDocument()(w, req)
+	res.deleteLegalDocument(w, req)
 
 	require.Equal(t, http.StatusNoContent, w.Code)
 	_, err := os.Stat(path)
@@ -90,7 +90,7 @@ func TestDeleteLegalDocument_KeepsReferencedTenantPDF(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	res := &Resource{legalDocumentRefs: fakeLegalDocumentReferenceRepository{referenced: true}}
-	res.DeleteLegalDocument()(w, req)
+	res.deleteLegalDocument(w, req)
 
 	require.Equal(t, http.StatusNoContent, w.Code)
 	_, err := os.Stat(path)
@@ -118,7 +118,7 @@ func TestDeleteLegalDocument_ChecksReferencesInTenantTx(t *testing.T) {
 		},
 	}
 
-	res.DeleteLegalDocument()(w, req)
+	res.deleteLegalDocument(w, req)
 
 	require.Equal(t, http.StatusNoContent, w.Code)
 	assert.True(t, sawTenantTxContext)
@@ -132,7 +132,7 @@ func TestDeleteLegalDocument_RejectsOtherTenantPDF(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	res := &Resource{legalDocumentRefs: fakeLegalDocumentReferenceRepository{}}
-	res.DeleteLegalDocument()(w, req)
+	res.deleteLegalDocument(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }

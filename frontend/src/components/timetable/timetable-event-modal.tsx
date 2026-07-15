@@ -1,7 +1,7 @@
 "use client";
 
-import { ChevronDown, Search, Trash2 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, Repeat, Search, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useModal } from "~/components/dashboard/modal-context";
 import { Alert } from "~/components/ui/alert";
@@ -23,10 +23,21 @@ import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { useToast } from "~/contexts/ToastContext";
 import type { ActivityCategory } from "~/lib/activity-helpers";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
-import { formatDate, todayISO } from "~/lib/date-helpers";
+import {
+  weekCycleSlotForDate,
+  weekPatternForDate,
+} from "~/lib/calendar-period-helpers";
+import {
+  berlinTodayISO,
+  formatDate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import { fetchStudents } from "~/lib/student-api";
+import { getSchoolYear } from "~/lib/student-helpers";
 import { staffService } from "~/lib/staff-api";
+import { useTenant } from "~/lib/tenant-context";
 import { timetableService } from "~/lib/timetable-api";
 import { useDebounce } from "~/lib/use-debounce";
 import {
@@ -34,6 +45,8 @@ import {
   getActivityColor,
   getGermanWeekdayLong,
   getGermanWeekdayShort,
+  resolveTemplateCalendarPeriodId,
+  weekdayDatesInRange,
 } from "~/lib/timetable-helpers";
 import {
   timetableMutedSurface,
@@ -48,7 +61,12 @@ import type {
   ConflictWarningItem,
   CreateInstanceBody,
   CreateTemplateBody,
+  EditedChange,
+  EditedInWindowResult,
   EnrichedInstance,
+  ShiftCoverageCheckParams,
+  ShiftCoverageWarningItem,
+  TargetGroupType,
   TimetableTemplate,
   UpdateTemplateBody,
 } from "~/lib/timetable-types";
@@ -63,12 +81,53 @@ interface PersonOption {
   id: string;
   name: string;
   schoolClass?: string;
+  groupId?: string;
   groupName?: string;
 }
 
 interface GroupOption {
   id: string;
   name: string;
+}
+
+const STUDENT_PAGE_SIZE = 500;
+const MAX_SUPPORTED_TARGET_GRADE_LEVEL = 13;
+const STUDENT_LOAD_ERROR =
+  "Die Kinderliste konnte nicht vollständig geladen werden. Die Kinderzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.";
+const STAFF_LOAD_ERROR =
+  "Die Personalliste konnte nicht vollständig geladen werden. Die Personalzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.";
+const COVERAGE_CHECK_ERROR =
+  "Die Dienstplan-Abdeckung konnte nicht geprüft werden. Speichern ist weiterhin möglich.";
+const COVERAGE_CHECK_TIMEOUT_MS = 5_000;
+
+// #1875: German labels for the field categories a single-occurrence edit can
+// change (backend EditedChange strings). Shown in the lost-edits warning.
+const EDIT_CHANGE_LABELS: Record<EditedChange, string> = {
+  title: "Titel",
+  description: "Beschreibung",
+  notes: "Notiz",
+  room: "Raum",
+  time: "Zeit/Datum",
+  staff: "Personal",
+  students: "Kinder",
+  deleted: "Gelöschter Termin",
+};
+
+function checkShiftCoverageWithSignal(
+  probe: ShiftCoverageCheckParams,
+  signal: AbortSignal,
+) {
+  const aborted = new Promise<never>((_, reject) => {
+    signal.addEventListener(
+      "abort",
+      () => reject(new DOMException("Coverage check aborted", "AbortError")),
+      { once: true },
+    );
+  });
+  return Promise.race([
+    timetableService.checkShiftCoverage(probe, { signal }),
+    aborted,
+  ]);
 }
 
 interface BackendRoomsEnvelope {
@@ -97,13 +156,42 @@ interface EventFormState {
   type: ActivityType;
   categoryId: string;
   educationGroupId: string;
+  /**
+   * Tagesnotiz — the one-off note on a single occurrence
+   * (schedule.activity_instances.notes). Editable only in the single-instance
+   * scope; series-wide scopes never write it.
+   */
   notes: string;
+  /**
+   * Wochennotiz — the durable series note on the Regeltermin
+   * (activities.groups.notes, #1837 follow-up). Shows on every occurrence and
+   * survives Re-Plan/Split. Editable in the series-create/edit flow; shown
+   * read-only on a single occurrence that belongs to a series.
+   */
+  seriesNotes: string;
   repeat: RepeatMode;
+  weekPattern: 0 | 1 | 2;
   weekdays: number[];
   calendarPeriodId: string;
   studentIds: string[];
   staffIds: string[];
   primaryStaffId: string;
+  /**
+   * Manual Personalbedarf override (issue #1839). Empty = automatic: a single
+   * occurrence inherits the series value, otherwise the Betreuungsschlüssel
+   * derivation applies. A non-negative integer overrides both (on a single
+   * occurrence it becomes a pin that survives series edits). Held as a string
+   * because it is an <input> value; parsed via parseRequiredStaffOverride.
+   */
+  requiredStaff: string;
+  /**
+   * Zielgruppe (target group, issue #1838). "gruppe" reuses educationGroupId
+   * above as its value rather than a separate field — switching away from
+   * "gruppe" clears educationGroupId so the two never disagree.
+   */
+  targetGroupType: TargetGroupType;
+  targetGradeLevel: string; // "" | configured grade, only meaningful for "jahrgang"
+  targetSchoolClass: string; // "", only meaningful for "klasse"
 }
 
 type TimetableEventModalResult =
@@ -136,6 +224,7 @@ interface TimetableEventModalProps {
   variant?: "full" | "quick";
   defaultStartTime?: string;
   defaultEndTime?: string;
+  canCheckShiftCoverage: boolean;
 }
 
 const logger = createLogger({ component: "TimetableEventModal" });
@@ -179,11 +268,26 @@ const REPEAT_OPTIONS: Array<{ value: RepeatMode; label: string }> = [
   { value: "biweekly", label: "Alle 2 Wochen" },
 ];
 
+/** Zielgruppe (target group) tab options, issue #1838. */
+const TARGET_GROUP_OPTIONS: Array<{ value: TargetGroupType; label: string }> = [
+  { value: "none", label: "Keine" },
+  { value: "jahrgang", label: "Jahrgang" },
+  { value: "klasse", label: "Klasse" },
+  { value: "gruppe", label: "Gruppe" },
+  { value: "angebot", label: "Angebotsauswahl" },
+];
+
 function isoWeekday(dateISO: string): number {
   const d = new Date(`${dateISO}T00:00:00`);
   const day = d.getDay();
   if (day === 0) return 7;
   return day;
+}
+
+function mondayOfWeekISO(dateISO: string): string {
+  const date = parseISODate(dateISO);
+  date.setDate(date.getDate() - (isoWeekday(dateISO) - 1));
+  return toISODate(date);
 }
 
 function weekdayLabel(iso: number): string {
@@ -210,12 +314,18 @@ function emptyForm(
     categoryId: "",
     educationGroupId: "",
     notes: "",
+    seriesNotes: "",
     repeat: defaultRepeat,
+    weekPattern: defaultRepeat === "biweekly" ? 2 : 0,
     weekdays: weekday >= 1 && weekday <= 5 ? [weekday] : [1],
     calendarPeriodId: defaultCalendarPeriodId ?? "",
     studentIds: [],
     staffIds: [],
     primaryStaffId: "",
+    requiredStaff: "",
+    targetGroupType: "none",
+    targetGradeLevel: "",
+    targetSchoolClass: "",
   };
 }
 
@@ -235,13 +345,24 @@ function formFromInstance(
     categoryId: "",
     educationGroupId: "",
     notes: instance.notes ?? "",
+    // Read-only on a single occurrence: the series note is edited via the
+    // Regeltermin, not here. Prefilled so it can be shown as a fixed hint.
+    seriesNotes: instance.seriesNotes ?? "",
     repeat,
+    weekPattern: repeat === "biweekly" ? 2 : 0,
     weekdays: weekday >= 1 && weekday <= 5 ? [weekday] : [1],
     calendarPeriodId: defaultCalendarPeriodId ?? "",
     studentIds: instance.studentIds,
     staffIds: instance.staff.map((item) => item.staffId),
     primaryStaffId:
       instance.staff.find((item) => item.isPrimary)?.staffId ?? "",
+    requiredStaff:
+      instance.requiredStaffOverride !== undefined
+        ? String(instance.requiredStaffOverride)
+        : "",
+    targetGroupType: "none",
+    targetGradeLevel: "",
+    targetSchoolClass: "",
   };
 }
 
@@ -252,7 +373,13 @@ function formFromSeries(
 ): EventFormState {
   const firstSchedule = series.schedules[0];
   const weekdays = series.schedules.map((schedule) => schedule.weekday);
-  const repeat = firstSchedule?.weekPattern === 2 ? "biweekly" : "weekly";
+  const weekPattern =
+    firstSchedule?.weekPattern === 1 || firstSchedule?.weekPattern === 2
+      ? firstSchedule.weekPattern
+      : 0;
+  // Both A (1) and B (2) are biweekly series. Mapping A to "weekly" here used
+  // to hide the A-ness and silently reset it on the next repeat-tab touch.
+  const repeat: RepeatMode = weekPattern === 0 ? "weekly" : "biweekly";
   return {
     title: series.name,
     date: defaultDate,
@@ -263,18 +390,38 @@ function formFromSeries(
     categoryId: series.categoryId,
     educationGroupId: series.educationGroupId ?? "",
     notes: "",
+    seriesNotes: series.notes ?? "",
     repeat,
+    weekPattern,
     weekdays: weekdays.length > 0 ? weekdays : [1],
     calendarPeriodId:
-      firstSchedule?.calendarPeriodId ?? defaultCalendarPeriodId ?? "",
+      resolveTemplateCalendarPeriodId(series) ?? defaultCalendarPeriodId ?? "",
     studentIds: series.studentIds,
     staffIds: series.staffIds,
     primaryStaffId: series.primaryStaffId ?? "",
+    requiredStaff:
+      series.requiredStaffOverride !== undefined
+        ? String(series.requiredStaffOverride)
+        : "",
+    targetGroupType: series.targetGroupType,
+    targetGradeLevel:
+      series.targetGradeLevel !== undefined && series.targetGradeLevel !== null
+        ? String(series.targetGradeLevel)
+        : "",
+    targetSchoolClass: series.targetSchoolClass?.trim() ?? "",
   };
 }
 
-function seriesWeekPattern(repeat: RepeatMode): number {
-  return repeat === "biweekly" ? 2 : 0;
+// parseRequiredStaffOverride maps the "Benötigtes Personal" input to the
+// override wire value (#1839): empty/invalid → null (clear the override, derive
+// from the Betreuungsschlüssel); a whole non-negative integer → manual
+// override. Only plain digit strings are accepted — Number.parseInt would
+// silently coerce "1e2" → 1 or "2.5" → 2 and persist the wrong requirement.
+function parseRequiredStaffOverride(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^\d+$/.test(trimmed)) return null;
+  const parsed = Number(trimmed);
+  return Number.isSafeInteger(parsed) ? parsed : null;
 }
 
 function sortPeople<T extends PersonOption>(items: T[]): T[] {
@@ -291,6 +438,88 @@ function sortPeople<T extends PersonOption>(items: T[]): T[] {
     if (groupCompare !== 0) return groupCompare;
     return a.name.localeCompare(b.name, "de");
   });
+}
+
+function schoolClassLabel(schoolClass: string): string {
+  const trimmed = schoolClass.trim();
+  return /^klasse(?:\s|$)/i.test(trimmed) ? trimmed : `Klasse ${trimmed}`;
+}
+
+function targetCohortActionLabel(
+  label: string,
+  memberCount: number,
+  missingMemberCount: number,
+): string {
+  if (memberCount === 0) return `Keine Kinder aus ${label} gefunden`;
+  if (missingMemberCount === 0) {
+    return `Alle Kinder aus ${label} übernommen`;
+  }
+  const childLabel = memberCount === 1 ? "Kind" : "Kinder";
+  return `Alle ${memberCount} ${childLabel} aus ${label} übernehmen`;
+}
+
+function initialStudentIDs(
+  initialInstance: EnrichedInstance | null,
+  initialSeries: TimetableTemplate | null,
+  convertInstance: EnrichedInstance | null,
+): string[] {
+  if (initialSeries) return initialSeries.studentIds;
+  if (convertInstance) return convertInstance.studentIds;
+  if (initialInstance) return initialInstance.studentIds;
+  return [];
+}
+
+function initialStaffIDs(
+  initialInstance: EnrichedInstance | null,
+  initialSeries: TimetableTemplate | null,
+  convertInstance: EnrichedInstance | null,
+): string[] {
+  if (initialSeries) return initialSeries.staffIds;
+  const instance = convertInstance ?? initialInstance;
+  return instance?.staff.map((item) => item.staffId) ?? [];
+}
+
+function initialPrimaryStaffID(
+  initialInstance: EnrichedInstance | null,
+  initialSeries: TimetableTemplate | null,
+  convertInstance: EnrichedInstance | null,
+): string {
+  if (initialSeries) return initialSeries.primaryStaffId ?? "";
+  const instance = convertInstance ?? initialInstance;
+  return instance?.staff.find((item) => item.isPrimary)?.staffId ?? "";
+}
+
+async function fetchAllStudentOptions(): Promise<PersonOption[]> {
+  const firstPage = await fetchStudents({
+    page: 1,
+    page_size: STUDENT_PAGE_SIZE,
+  });
+  const totalPages = Math.max(1, firstPage.pagination?.total_pages ?? 1);
+  const remainingPages =
+    totalPages > 1
+      ? await Promise.all(
+          Array.from({ length: totalPages - 1 }, (_, index) =>
+            fetchStudents({
+              page: index + 2,
+              page_size: STUDENT_PAGE_SIZE,
+            }),
+          ),
+        )
+      : [];
+
+  const byID = new Map<string, PersonOption>();
+  for (const page of [firstPage, ...remainingPages]) {
+    for (const student of page.students) {
+      byID.set(student.id, {
+        id: student.id,
+        name: student.name,
+        schoolClass: student.school_class,
+        groupId: student.group_id,
+        groupName: student.group_name,
+      });
+    }
+  }
+  return [...byID.values()];
 }
 
 export function TimetableEventModal({
@@ -311,7 +540,9 @@ export function TimetableEventModal({
   variant = "full",
   defaultStartTime,
   defaultEndTime,
+  canCheckShiftCoverage,
 }: TimetableEventModalProps) {
+  const { tenant } = useTenant();
   const {
     success: toastSuccess,
     error: toastError,
@@ -327,12 +558,26 @@ export function TimetableEventModal({
       defaultEndTime,
     ),
   );
+  const [initialStudentIDsSnapshot, setInitialStudentIDsSnapshot] = useState(
+    () => initialStudentIDs(initialInstance, initialSeries, convertInstance),
+  );
+  const [initialStaffIDsSnapshot, setInitialStaffIDsSnapshot] = useState(() =>
+    initialStaffIDs(initialInstance, initialSeries, convertInstance),
+  );
+  const [initialPrimaryStaffIDSnapshot, setInitialPrimaryStaffIDSnapshot] =
+    useState(() =>
+      initialPrimaryStaffID(initialInstance, initialSeries, convertInstance),
+    );
   const [rooms, setRooms] = useState<RoomOption[]>([]);
   const [categories, setCategories] = useState<ActivityCategory[]>([]);
   const [groups, setGroups] = useState<GroupOption[]>([]);
   const [students, setStudents] = useState<PersonOption[]>([]);
   const [staff, setStaff] = useState<PersonOption[]>([]);
   const [loadingRefs, setLoadingRefs] = useState(false);
+  const [loadingStudents, setLoadingStudents] = useState(false);
+  const [studentLoadError, setStudentLoadError] = useState<string | null>(null);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [staffLoadError, setStaffLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -346,11 +591,55 @@ export function TimetableEventModal({
   const [pendingSeriesEdit, setPendingSeriesEdit] = useState<{
     roomId: number;
   } | null>(null);
+  // #1875: a series edit that would discard single-occurrence changes is
+  // deferred here until the user confirms the loss (with the concrete dates).
+  // `onConfirm` runs the actual destructive edit — shared by the occurrence
+  // scope picker (handleScopeSelect) and the direct Regeltermin edit
+  // (handleSubmit); `scope` only drives the warning wording.
+  const [lostEdits, setLostEdits] = useState<{
+    scope: "all" | "following";
+    result: EditedInWindowResult;
+    onConfirm: () => Promise<void>;
+  } | null>(null);
   const [conflictWarnings, setConflictWarnings] = useState<
     ConflictWarningItem[]
   >([]);
+  const [coverageWarnings, setCoverageWarnings] = useState<
+    ShiftCoverageWarningItem[]
+  >([]);
+  const [coverageWarningCount, setCoverageWarningCount] = useState(0);
+  const [coverageCheckError, setCoverageCheckError] = useState<string | null>(
+    null,
+  );
+  // Reference data can outlive a close/reopen or a changed edit target. Keep
+  // the shared, student, and staff load generations separate so a retry may
+  // replace only its own roster while stale completions cannot overwrite a
+  // newer modal state.
+  const referenceLoadSeq = useRef(0);
+  const studentLoadSeq = useRef(0);
+  const staffLoadSeq = useRef(0);
+  const invalidateReferenceLoads = useCallback(() => {
+    referenceLoadSeq.current++;
+    studentLoadSeq.current++;
+    staffLoadSeq.current++;
+  }, []);
   // Monotonically increasing probe id so stale responses are dropped.
   const probeSeq = useRef(0);
+  const coverageProbeSeq = useRef(0);
+  // A materialized occurrence only exposes its own staffing pin, not the
+  // template override it may inherit. Remember user intent separately so an
+  // unrelated all/following edit can preserve the freshly fetched template.
+  const requiredStaffTouched = useRef(false);
+  // An occurrence may carry substitute rows that do not belong to the series
+  // roster. Preserve the fetched template roster for all/following edits until
+  // the user explicitly changes Personal; otherwise a title-only split would
+  // promote a substitute to planned series staff and erase its deviation role.
+  const staffRosterTouched = useRef(false);
+  // Once the user picks Woche A/B explicitly, date or period changes must not
+  // override that choice with the recomputed default parity — and the pick
+  // survives switching the repeat mode away and back within the same modal
+  // session. null = no manual pick yet (defaults apply).
+  const manualWeekPattern = useRef<1 | 2 | null>(null);
 
   const isEditingInstance = initialInstance !== null;
   const isEditingSeries = initialSeries !== null;
@@ -358,35 +647,143 @@ export function TimetableEventModal({
   const isSeriesFlow = form.repeat !== "none" || isEditingSeries;
   const choiceDialogOpen = pendingSeriesEdit !== null;
   const canDeleteSeries = isEditingSeries && initialSeries && onDeleteSeries;
+  const selectedCalendarPeriod = useMemo(
+    () => calendarPeriods.find((item) => item.id === form.calendarPeriodId),
+    [calendarPeriods, form.calendarPeriodId],
+  );
+  const abWeekCycleSlot = useMemo(
+    () => weekCycleSlotForDate(selectedCalendarPeriod, form.date),
+    [selectedCalendarPeriod, form.date],
+  );
+  const abWeekParity: 1 | 2 | null =
+    abWeekCycleSlot === 1 || abWeekCycleSlot === 2 ? abWeekCycleSlot : null;
+  // The backend materializes the A/B week_pattern by matching the period's
+  // cycle slot. It only represents a fortnightly schedule when the period has
+  // an anchored two-week cycle. New biweekly series are therefore disallowed
+  // for every other period (validateForm); stored series keep their pattern
+  // editable. Weeks beyond B (Woche C/D) only exist in longer cycles and are
+  // surfaced via the hint below.
+  const biweeklyUnavailable =
+    selectedCalendarPeriod?.weekCycleLength !== 2 ||
+    !selectedCalendarPeriod.weekCycleAnchor;
+  const abWeekBeyondCycle = abWeekCycleSlot !== null && abWeekCycleSlot > 2;
+  const abWeekHint = abWeekBeyondCycle
+    ? `Woche vom ${formatDate(mondayOfWeekISO(form.date))} ist Woche ${String.fromCharCode(64 + abWeekCycleSlot)} und liegt außerhalb des A/B-Rhythmus. Ein 14-tägiger Termin findet in dieser Woche nicht statt.`
+    : abWeekParity !== null
+      ? `Woche vom ${formatDate(mondayOfWeekISO(form.date))} ist Woche ${abWeekParity === 1 ? "A" : "B"}`
+      : "Kein A/B-Zyklus im Planungszeitraum hinterlegt (Standard: Woche B)";
+
+  // Keep the default A/B choice in sync with the selected week while the user
+  // has not picked one explicitly. Series edits keep their stored pattern.
+  useEffect(() => {
+    if (!isOpen || isEditingSeries || form.repeat !== "biweekly") return;
+    if (manualWeekPattern.current !== null) return;
+    const parity = abWeekParity ?? 2;
+    if (form.weekPattern !== parity) {
+      setForm((prev) => ({ ...prev, weekPattern: parity }));
+    }
+  }, [isOpen, isEditingSeries, form.repeat, form.weekPattern, abWeekParity]);
+  const gradeLevelMax = tenant?.gradeLevelMax;
+  const targetGradeOptions = useMemo(() => {
+    if (gradeLevelMax === undefined) return [];
+    const options = Array.from({ length: gradeLevelMax }, (_, index) => {
+      const value = String(index + 1);
+      return { value, label: `Jahrgang ${value}`, disabled: false };
+    });
+    if (
+      form.targetGradeLevel !== "" &&
+      !options.some((option) => option.value === form.targetGradeLevel)
+    ) {
+      const gradeLevel = Number(form.targetGradeLevel);
+      const supported =
+        Number.isInteger(gradeLevel) &&
+        gradeLevel >= 1 &&
+        gradeLevel <= MAX_SUPPORTED_TARGET_GRADE_LEVEL;
+      options.push({
+        value: form.targetGradeLevel,
+        label: `Jahrgang ${form.targetGradeLevel} (${supported ? "bestehend" : "ungültig"})`,
+        disabled: true,
+      });
+    }
+    return options;
+  }, [form.targetGradeLevel, gradeLevelMax]);
+  const preservesExistingTargetGrade =
+    initialSeries?.targetGradeLevel !== undefined &&
+    initialSeries.targetGradeLevel !== null &&
+    form.targetGradeLevel === String(initialSeries.targetGradeLevel) &&
+    Number.isInteger(initialSeries.targetGradeLevel) &&
+    initialSeries.targetGradeLevel >= 1 &&
+    initialSeries.targetGradeLevel <= MAX_SUPPORTED_TARGET_GRADE_LEVEL;
+  const preservesGradeAboveTenantCap =
+    preservesExistingTargetGrade &&
+    gradeLevelMax !== undefined &&
+    Number(form.targetGradeLevel) > gradeLevelMax;
+  const studentRosterEditable = !loadingStudents && studentLoadError === null;
+  const studentIDsForSave = studentRosterEditable
+    ? form.studentIds
+    : initialStudentIDsSnapshot;
+  const staffRosterEditable = !loadingStaff && staffLoadError === null;
+  const staffIDsForSave = staffRosterEditable
+    ? form.staffIds
+    : initialStaffIDsSnapshot;
+  const primaryStaffIDForSave = staffRosterEditable
+    ? form.primaryStaffId
+    : initialPrimaryStaffIDSnapshot;
 
   useEffect(() => {
-    if (!isOpen) return;
-    setForm(
-      initialSeries
-        ? formFromSeries(initialSeries, defaultDate, defaultCalendarPeriodId)
-        : convertInstance
-          ? formFromInstance(convertInstance, defaultCalendarPeriodId, "weekly")
-          : initialInstance
-            ? formFromInstance(initialInstance, defaultCalendarPeriodId)
-            : emptyForm(
-                defaultDate,
-                defaultCalendarPeriodId,
-                defaultRepeat,
-                defaultStartTime,
-                defaultEndTime,
-              ),
-    );
+    if (!isOpen) {
+      invalidateReferenceLoads();
+      return;
+    }
+    const referenceSeq = ++referenceLoadSeq.current;
+    const studentSeq = ++studentLoadSeq.current;
+    const staffSeq = ++staffLoadSeq.current;
+    const isCurrentReferenceLoad = () =>
+      referenceLoadSeq.current === referenceSeq;
+    const isCurrentStudentLoad = () => studentLoadSeq.current === studentSeq;
+    const isCurrentStaffLoad = () => staffLoadSeq.current === staffSeq;
+
+    const nextForm = initialSeries
+      ? formFromSeries(initialSeries, defaultDate, defaultCalendarPeriodId)
+      : convertInstance
+        ? formFromInstance(convertInstance, defaultCalendarPeriodId, "weekly")
+        : initialInstance
+          ? formFromInstance(initialInstance, defaultCalendarPeriodId)
+          : emptyForm(
+              defaultDate,
+              defaultCalendarPeriodId,
+              defaultRepeat,
+              defaultStartTime,
+              defaultEndTime,
+            );
+    setInitialStudentIDsSnapshot([...nextForm.studentIds]);
+    setInitialStaffIDsSnapshot([...nextForm.staffIds]);
+    setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
+    requiredStaffTouched.current = false;
+    staffRosterTouched.current = false;
+    manualWeekPattern.current = null;
+    setForm(nextForm);
     setValidationError(null);
     setFieldErrors({});
     setDeleteConfirmOpen(false);
-    setDeleteEffectiveDate(todayISO());
+    setDeleteEffectiveDate(berlinTodayISO());
     setDeleteError(null);
     setDeletingSeries(false);
     setExpanded(variant === "full");
     setMoreOpen(false);
     setPendingSeriesEdit(null);
+    setLostEdits(null);
     setConflictWarnings([]);
+    setCoverageWarnings([]);
+    setCoverageWarningCount(0);
+    setCoverageCheckError(null);
     setLoadingRefs(true);
+    setLoadingStudents(true);
+    setStudentLoadError(null);
+    setStudents([]);
+    setLoadingStaff(true);
+    setStaffLoadError(null);
+    setStaff([]);
 
     void Promise.all([
       fetch("/api/rooms", { credentials: "include" })
@@ -427,32 +824,8 @@ export function TimetableEventModal({
           });
           return [] as GroupOption[];
         }),
-      fetchStudents({ page_size: 500 })
-        .then((res) =>
-          res.students.map((student) => ({
-            id: student.id,
-            name: student.name,
-            schoolClass: student.school_class,
-            groupName: student.group_name,
-          })),
-        )
-        .catch((err: unknown) => {
-          logger.error("students_fetch_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return [] as PersonOption[];
-        }),
-      staffService
-        .getAllStaff()
-        .then((items) => items.map((s) => ({ id: s.id, name: s.name })))
-        .catch((err: unknown) => {
-          logger.error("staff_fetch_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return [] as PersonOption[];
-        }),
     ])
-      .then(([roomData, categoryData, groupData, studentData, staffData]) => {
+      .then(([roomData, categoryData, groupData]) => {
         const sortedRooms = [...roomData].sort((a, b) =>
           a.name.localeCompare(b.name, "de"),
         );
@@ -462,18 +835,67 @@ export function TimetableEventModal({
         const sortedGroups = [...groupData].sort((a, b) =>
           a.name.localeCompare(b.name, "de"),
         );
-        setRooms(sortedRooms);
-        setCategories(sortedCategories);
-        setGroups(sortedGroups);
+        if (isCurrentReferenceLoad()) {
+          setRooms(sortedRooms);
+          setCategories(sortedCategories);
+          setGroups(sortedGroups);
+          setForm((prev) =>
+            prev.categoryId || sortedCategories.length === 0
+              ? prev
+              : { ...prev, categoryId: sortedCategories[0]?.id ?? "" },
+          );
+        }
+      })
+      .finally(() => {
+        if (isCurrentReferenceLoad()) setLoadingRefs(false);
+      });
+
+    // The student catalog has a stricter permission boundary than the shared
+    // planner references. Keep it on an independent lifecycle so users without
+    // users:read can still use rooms, categories and groups immediately.
+    void fetchAllStudentOptions()
+      .then((studentData) => {
+        if (!isCurrentStudentLoad()) return;
         setStudents(sortPeople(studentData));
-        setStaff(sortPeople(staffData));
-        setForm((prev) =>
-          prev.categoryId || sortedCategories.length === 0
-            ? prev
-            : { ...prev, categoryId: sortedCategories[0]?.id ?? "" },
+      })
+      .catch((err: unknown) => {
+        logger.error("students_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!isCurrentStudentLoad()) return;
+        setStudents([]);
+        setStudentLoadError(STUDENT_LOAD_ERROR);
+        setMoreOpen(true);
+      })
+      .finally(() => {
+        if (isCurrentStudentLoad()) setLoadingStudents(false);
+      });
+
+    // Staff carries the same users:read boundary as students. Keep it
+    // independent from rooms/categories/groups so a 403 cannot masquerade as
+    // an empty editable roster or delay the planner references.
+    void staffService
+      .getAllStaff()
+      .then((items) => {
+        if (!isCurrentStaffLoad()) return;
+        setStaff(
+          sortPeople(items.map((item) => ({ id: item.id, name: item.name }))),
         );
       })
-      .finally(() => setLoadingRefs(false));
+      .catch((err: unknown) => {
+        logger.error("staff_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!isCurrentStaffLoad()) return;
+        setStaff([]);
+        setStaffLoadError(STAFF_LOAD_ERROR);
+        setMoreOpen(true);
+      })
+      .finally(() => {
+        if (isCurrentStaffLoad()) setLoadingStaff(false);
+      });
+
+    return invalidateReferenceLoads;
   }, [
     convertInstance,
     defaultCalendarPeriodId,
@@ -483,28 +905,81 @@ export function TimetableEventModal({
     defaultStartTime,
     initialInstance,
     initialSeries,
+    invalidateReferenceLoads,
     isOpen,
     variant,
   ]);
 
-  // ---------------------------------------------------------------------
-  // Inline conflict probe (QA M7). Advisory only — warnings never disable
-  // Speichern. For series (weekly) drafts the backend check is date-based,
-  // so we probe with the form's single date (the instance date / first
-  // occurrence); acceptable for Phase 3.
-  // ---------------------------------------------------------------------
+  // Advisory room/staff/student conflicts and Dienstplan coverage are
+  // separate reads. Exact shift gaps have the stricter time-tracking
+  // permission boundary, and a failed coverage read must not erase valid
+  // planning conflicts or disable Speichern.
   const probeKey = JSON.stringify({
     date: form.date,
     startTime: form.startTime,
     endTime: form.endTime,
     roomId: form.roomId,
-    staffIds: form.staffIds,
-    studentIds: form.studentIds,
+    staffIds: staffIDsForSave,
+    studentIds: studentIDsForSave,
   });
   const debouncedProbeKey = useDebounce(probeKey, 500);
   // The convert flow edits an existing instance too — its own slot must not
   // self-conflict, exactly like the regular instance edit.
   const excludeInstanceId = initialInstance?.id ?? convertInstance?.id;
+
+  const coverageProbe = useMemo(() => {
+    if (!form.startTime || !form.endTime || staffIDsForSave.length === 0) {
+      return null;
+    }
+    if (!isSeriesFlow) {
+      return {
+        dates: form.date ? [form.date] : [],
+        startTime: form.startTime,
+        endTime: form.endTime,
+        staffIds: staffIDsForSave,
+        excludeInstanceId: initialInstance?.id,
+      };
+    }
+
+    const period = calendarPeriods.find(
+      (candidate) => candidate.id === form.calendarPeriodId,
+    );
+    if (!period) return null;
+    const today = berlinTodayISO();
+    const from =
+      initialSeries && today > period.startDate ? today : period.startDate;
+    const dates = weekdayDatesInRange(from, period.endDate, form.weekdays);
+    if (convertInstance && form.date && !dates.includes(form.date)) {
+      dates.push(form.date);
+      dates.sort((left, right) => left.localeCompare(right));
+    }
+    return {
+      dates,
+      startTime: form.startTime,
+      endTime: form.endTime,
+      staffIds: staffIDsForSave,
+      excludeInstanceId: convertInstance?.id,
+      concreteInstanceDate: convertInstance ? form.date : undefined,
+      replanActivityGroupId: initialSeries?.id,
+      calendarPeriodId: period.id,
+      weekPattern: form.weekPattern,
+    };
+  }, [
+    calendarPeriods,
+    convertInstance,
+    form.calendarPeriodId,
+    form.date,
+    form.endTime,
+    form.weekPattern,
+    form.startTime,
+    form.weekdays,
+    initialInstance?.id,
+    initialSeries,
+    isSeriesFlow,
+    staffIDsForSave,
+  ]);
+  const coverageProbeKey = JSON.stringify(coverageProbe);
+  const debouncedCoverageProbeKey = useDebounce(coverageProbeKey, 500);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -550,9 +1025,117 @@ export function TimetableEventModal({
         logger.warn("conflict_probe_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
-        if (probeSeq.current === seq) setConflictWarnings([]);
+        if (probeSeq.current === seq) {
+          setConflictWarnings([]);
+        }
       });
   }, [debouncedProbeKey, excludeInstanceId, isOpen, probeKey]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!canCheckShiftCoverage) {
+      setCoverageWarnings([]);
+      setCoverageWarningCount(0);
+      setCoverageCheckError(null);
+      return;
+    }
+    if (debouncedCoverageProbeKey !== coverageProbeKey) {
+      coverageProbeSeq.current++;
+      return;
+    }
+    const probe = JSON.parse(debouncedCoverageProbeKey) as typeof coverageProbe;
+    if (!probe || probe.dates.length === 0) {
+      setCoverageWarnings([]);
+      setCoverageWarningCount(0);
+      setCoverageCheckError(null);
+      return;
+    }
+
+    const seq = ++coverageProbeSeq.current;
+    const controller = new AbortController();
+    const timeoutID = window.setTimeout(
+      () => controller.abort(),
+      COVERAGE_CHECK_TIMEOUT_MS,
+    );
+    setCoverageCheckError(null);
+    checkShiftCoverageWithSignal(probe, controller.signal)
+      .then((result) => {
+        if (coverageProbeSeq.current !== seq) return;
+        setCoverageWarnings(result.coverageWarnings);
+        setCoverageWarningCount(
+          result.coverageWarningCount ?? result.coverageWarnings.length,
+        );
+        setCoverageCheckError(null);
+      })
+      .catch((err: unknown) => {
+        logger.warn("shift_coverage_probe_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (coverageProbeSeq.current === seq) {
+          setCoverageWarnings([]);
+          setCoverageWarningCount(0);
+          setCoverageCheckError(COVERAGE_CHECK_ERROR);
+        }
+      })
+      .finally(() => window.clearTimeout(timeoutID));
+    return () => {
+      window.clearTimeout(timeoutID);
+      controller.abort();
+    };
+  }, [
+    canCheckShiftCoverage,
+    coverageProbeKey,
+    debouncedCoverageProbeKey,
+    isOpen,
+  ]);
+
+  // Recheck the exact live payload before every write. The debounced probe
+  // gives early feedback while editing, while this awaited probe closes the
+  // fast-save race. Warnings and probe failures remain advisory: both are
+  // surfaced as durable toasts and the write continues without confirmation.
+  const checkCoverageBeforeSave = async (
+    probe: ShiftCoverageCheckParams | null,
+  ): Promise<void> => {
+    if (!canCheckShiftCoverage || !probe || probe.dates.length === 0) return;
+    const controller = new AbortController();
+    const timeoutID = window.setTimeout(
+      () => controller.abort(),
+      COVERAGE_CHECK_TIMEOUT_MS,
+    );
+    try {
+      const result = await checkShiftCoverageWithSignal(
+        probe,
+        controller.signal,
+      );
+      const warningCount =
+        result.coverageWarningCount ?? result.coverageWarnings.length;
+      setCoverageWarnings(result.coverageWarnings);
+      setCoverageWarningCount(warningCount);
+      setCoverageCheckError(null);
+      for (const warning of result.coverageWarnings.slice(0, 3)) {
+        toastWarning(warning.message, { duration: 10_000 });
+      }
+      if (warningCount > 3) {
+        toastWarning(
+          `${warningCount - 3} weitere Dienstplan-Lücken wurden gefunden.`,
+          { duration: 10_000 },
+        );
+      }
+    } catch (coverageError) {
+      logger.warn("shift_coverage_pre_save_failed", {
+        error:
+          coverageError instanceof Error
+            ? coverageError.message
+            : String(coverageError),
+      });
+      setCoverageWarnings([]);
+      setCoverageWarningCount(0);
+      setCoverageCheckError(COVERAGE_CHECK_ERROR);
+      toastWarning(COVERAGE_CHECK_ERROR, { duration: 10_000 });
+    } finally {
+      window.clearTimeout(timeoutID);
+    }
+  };
 
   const clearFieldError = (key: string) => {
     setFieldErrors((prev) => {
@@ -573,6 +1156,33 @@ export function TimetableEventModal({
     // The end-before-start error is stored under endTime but depends on both
     // time fields, so correcting the start time must clear it too.
     if (key === "startTime") clearFieldError("endTime");
+    // The cycle-length error is stored under weekPattern but is resolved by
+    // switching to a period with an A/B (or no) week cycle.
+    if (key === "calendarPeriodId") clearFieldError("weekPattern");
+  };
+
+  const updateRepeat = (repeat: RepeatMode) => {
+    setForm((prev) => {
+      let weekPattern: 0 | 1 | 2 = 0;
+      if (repeat === "biweekly") {
+        // A manual Woche-A/B pick survives switching the repeat mode away and
+        // back; otherwise default to the parity of the currently selected
+        // week so the series runs in the week the user is looking at. B is
+        // the fallback when the period has no A/B cycle (previous hardcoded
+        // behavior).
+        const period = calendarPeriods.find(
+          (item) => item.id === prev.calendarPeriodId,
+        );
+        weekPattern =
+          manualWeekPattern.current ??
+          weekPatternForDate(period, prev.date) ??
+          2;
+      }
+      return { ...prev, repeat, weekPattern };
+    });
+    setValidationError(null);
+    clearFieldError("repeat");
+    clearFieldError("weekPattern");
   };
 
   const toggleWeekday = (iso: number) => {
@@ -585,6 +1195,24 @@ export function TimetableEventModal({
     });
     setValidationError(null);
     clearFieldError("weekdays");
+  };
+
+  const changeTargetGroupType = (nextType: TargetGroupType) => {
+    setForm((current) => ({
+      ...current,
+      targetGroupType: nextType,
+      targetGradeLevel: nextType === "jahrgang" ? current.targetGradeLevel : "",
+      targetSchoolClass: nextType === "klasse" ? current.targetSchoolClass : "",
+      educationGroupId: nextType === "gruppe" ? current.educationGroupId : "",
+    }));
+    setValidationError(null);
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next.targetGradeLevel;
+      delete next.targetSchoolClass;
+      delete next.educationGroupId;
+      return next;
+    });
   };
 
   const validateForm = (): { roomId: number; categoryId?: number } | null => {
@@ -622,6 +1250,41 @@ export function TimetableEventModal({
       if (form.weekdays.length === 0) {
         errors.weekdays = "Bitte mindestens einen Wochentag auswählen.";
       }
+      // "Alle 2 Wochen" only genuinely repeats every two weeks in an anchored
+      // two-week period. Otherwise the A/B week_pattern either fires weekly or
+      // once per longer cycle. Series edits are exempt so their stored pattern
+      // stays editable.
+      if (
+        form.repeat === "biweekly" &&
+        !isEditingSeries &&
+        biweeklyUnavailable
+      ) {
+        errors.weekPattern =
+          'Der gewählte Planungszeitraum hat keinen verankerten Zwei-Wochen-Zyklus. Eine 14-tägige Wiederholung ist hier nicht möglich; bitte "Jede Woche" wählen.';
+      }
+      if (form.targetGroupType === "jahrgang") {
+        const gradeLevel = Number(form.targetGradeLevel);
+        if (form.targetGradeLevel === "") {
+          errors.targetGradeLevel = "Bitte einen Jahrgang auswählen.";
+        } else if (
+          !Number.isInteger(gradeLevel) ||
+          gradeLevel < 1 ||
+          gradeLevel > MAX_SUPPORTED_TARGET_GRADE_LEVEL ||
+          gradeLevelMax === undefined ||
+          (gradeLevel > gradeLevelMax && !preservesExistingTargetGrade)
+        ) {
+          errors.targetGradeLevel = "Bitte einen gültigen Jahrgang auswählen.";
+        }
+      }
+      if (
+        form.targetGroupType === "klasse" &&
+        form.targetSchoolClass.trim() === ""
+      ) {
+        errors.targetSchoolClass = "Bitte eine Klasse auswählen.";
+      }
+      if (form.targetGroupType === "gruppe" && form.educationGroupId === "") {
+        errors.educationGroupId = "Bitte eine Gruppe auswählen.";
+      }
     }
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) {
@@ -629,7 +1292,13 @@ export function TimetableEventModal({
       // a hidden field (Kategorie, Planungszeitraum, Wochentage) is visible.
       if (
         !expanded &&
-        (errors.categoryId ?? errors.calendarPeriodId ?? errors.weekdays)
+        (errors.categoryId ??
+          errors.calendarPeriodId ??
+          errors.weekdays ??
+          errors.weekPattern ??
+          errors.targetGradeLevel ??
+          errors.targetSchoolClass ??
+          errors.educationGroupId)
       ) {
         setExpanded(true);
       }
@@ -663,17 +1332,17 @@ export function TimetableEventModal({
   const handleQuickPresetChange = (value: string) => {
     switch (value as QuickRepeatPreset) {
       case "einmalig":
-        update("repeat", "none");
+        updateRepeat("none");
         break;
       case "woechentlich-am":
-        update("repeat", "weekly");
+        updateRepeat("weekly");
         update(
           "weekdays",
           dateWeekday >= 1 && dateWeekday <= 5 ? [dateWeekday] : [1],
         );
         break;
       case "jeden-wochentag":
-        update("repeat", "weekly");
+        updateRepeat("weekly");
         update("weekdays", [...WEEKDAYS]);
         break;
       case "benutzerdefiniert":
@@ -691,8 +1360,9 @@ export function TimetableEventModal({
       room_id: roomId,
       notes: form.notes.trim() || undefined,
       activity_group_id: activityGroupId ? Number(activityGroupId) : undefined,
-      staff_ids: form.staffIds.map(Number),
-      student_ids: form.studentIds.map(Number),
+      staff_ids: staffIDsForSave.map(Number),
+      student_ids: studentIDsForSave.map(Number),
+      required_staff: parseRequiredStaffOverride(form.requiredStaff),
     }) satisfies CreateInstanceBody;
 
   const seriesBody = (
@@ -706,15 +1376,26 @@ export function TimetableEventModal({
     end_time: form.endTime,
     room_id: roomId,
     category_id: categoryId,
+    notes: form.seriesNotes.trim() || undefined,
     education_group_id: form.educationGroupId
       ? Number(form.educationGroupId)
       : undefined,
+    target_group_type: form.targetGroupType,
+    target_grade_level:
+      form.targetGroupType === "jahrgang" && form.targetGradeLevel
+        ? Number(form.targetGradeLevel)
+        : undefined,
+    target_school_class:
+      form.targetGroupType === "klasse" && form.targetSchoolClass
+        ? form.targetSchoolClass.trim()
+        : undefined,
     calendar_period_id: Number(form.calendarPeriodId),
-    week_pattern: seriesWeekPattern(form.repeat),
-    student_ids: form.studentIds.map(Number),
-    staff_ids: form.staffIds.map(Number),
-    primary_staff_id: form.primaryStaffId
-      ? Number(form.primaryStaffId)
+    week_pattern: form.weekPattern,
+    required_staff: parseRequiredStaffOverride(form.requiredStaff),
+    student_ids: studentIDsForSave.map(Number),
+    staff_ids: staffIDsForSave.map(Number),
+    primary_staff_id: primaryStaffIDForSave
+      ? Number(primaryStaffIDForSave)
       : undefined,
   });
 
@@ -732,8 +1413,24 @@ export function TimetableEventModal({
     roomId: number,
   ): UpdateTemplateBody => {
     const firstSchedule = template.schedules[0];
+    const calendarPeriodId =
+      resolveTemplateCalendarPeriodId(template) ?? form.calendarPeriodId;
     const weekdays = template.schedules.map((schedule) => schedule.weekday);
-    const primaryStaffId = form.primaryStaffId || template.primaryStaffId;
+    // A materialized occurrence may have a deliberate roster override. When
+    // users:read is unavailable, the occurrence snapshot is authoritative only
+    // for the single-instance scope; an all/following write targets the fetched
+    // template and must preserve that template's own roster instead.
+    const templateStudentIDs = studentRosterEditable
+      ? form.studentIds
+      : template.studentIds;
+    const templateStaffIDs =
+      staffRosterEditable && staffRosterTouched.current
+        ? form.staffIds
+        : template.staffIds;
+    const primaryStaffId =
+      staffRosterEditable && staffRosterTouched.current
+        ? form.primaryStaffId || template.primaryStaffId
+        : template.primaryStaffId;
     return {
       name: form.title.trim(),
       type: template.type,
@@ -742,21 +1439,34 @@ export function TimetableEventModal({
       end_time: form.endTime,
       room_id: roomId,
       category_id: Number(template.categoryId),
+      // Preserve the series' own Wochennotiz verbatim — an instance-scope edit
+      // (all/following) must never wipe it. It is read-only in this flow.
+      notes: template.notes ?? undefined,
       education_group_id: template.educationGroupId
         ? Number(template.educationGroupId)
         : undefined,
+      // Zielgruppe is preserved from the existing template, not edited —
+      // this body builder only carries the fields a single-instance edit
+      // actually changes (title, times, room, people).
+      target_group_type: template.targetGroupType,
+      target_grade_level: template.targetGradeLevel,
+      target_school_class: template.targetSchoolClass,
       max_participants:
         template.maxParticipants > 0 ? template.maxParticipants : undefined,
+      // An occurrence form starts from the occurrence's own pin, which is
+      // blank when it inherits from the series. Preserve the fetched template
+      // override until the user explicitly edits this field.
+      required_staff: requiredStaffTouched.current
+        ? parseRequiredStaffOverride(form.requiredStaff)
+        : (template.requiredStaffOverride ?? null),
       week_pattern: firstSchedule?.weekPattern ?? 0,
-      calendar_period_id: firstSchedule?.calendarPeriodId
-        ? Number(firstSchedule.calendarPeriodId)
-        : form.calendarPeriodId
-          ? Number(form.calendarPeriodId)
-          : undefined,
-      student_ids: form.studentIds.map(Number),
-      staff_ids: form.staffIds.map(Number),
+      calendar_period_id: calendarPeriodId
+        ? Number(calendarPeriodId)
+        : undefined,
+      student_ids: templateStudentIDs.map(Number),
+      staff_ids: templateStaffIDs.map(Number),
       primary_staff_id:
-        primaryStaffId && form.staffIds.includes(primaryStaffId)
+        primaryStaffId && templateStaffIDs.includes(primaryStaffId)
           ? Number(primaryStaffId)
           : undefined,
     };
@@ -776,7 +1486,11 @@ export function TimetableEventModal({
     const endISO =
       periodEndISO ?? findPeriod(form.calendarPeriodId)?.endDate ?? weekTo;
     if (!endISO) return true;
-    const chunks = chunkDateRange(todayISO(), endISO, MATERIALIZE_CHUNK_DAYS);
+    const chunks = chunkDateRange(
+      berlinTodayISO(),
+      endISO,
+      MATERIALIZE_CHUNK_DAYS,
+    );
     for (const chunk of chunks) {
       try {
         const result = await timetableService.replanWeek(
@@ -904,6 +1618,7 @@ export function TimetableEventModal({
 
     setSubmitting(true);
     try {
+      await checkCoverageBeforeSave(coverageProbe);
       if (!isSeriesFlow) {
         const body = instanceBody(
           parsed.roomId,
@@ -926,16 +1641,49 @@ export function TimetableEventModal({
       }
 
       if (initialSeries) {
-        await timetableService.updateTemplate(
-          initialSeries.id,
-          seriesBody(parsed.roomId, parsed.categoryId),
-        );
-        if (await replanTemplateFuture(initialSeries.id)) {
-          toastSuccess("Regeltermin gespeichert");
-        } else {
-          toastWarning(FOLLOW_UP_WARNING);
+        const seriesId = initialSeries.id;
+        const categoryId = parsed.categoryId;
+        const runSeriesEdit = async () => {
+          await timetableService.updateTemplate(
+            seriesId,
+            seriesBody(parsed.roomId, categoryId),
+          );
+          if (await replanTemplateFuture(seriesId)) {
+            toastSuccess("Regeltermin gespeichert");
+          } else {
+            toastWarning(FOLLOW_UP_WARNING);
+          }
+          onSaved({ kind: "series", seriesId });
+        };
+
+        // #1875: a direct Regeltermin edit runs the same destructive re-plan as
+        // the "Alle Termine" scope, so it needs the same lost-edits warning.
+        // replanTemplateFuture re-plans [today, period end]; probe that window.
+        const editsTo =
+          findPeriod(form.calendarPeriodId)?.endDate ??
+          weekTo ??
+          berlinTodayISO();
+        let lost: EditedInWindowResult | null = null;
+        try {
+          const probe = await timetableService.countEditedInWindow(
+            seriesId,
+            berlinTodayISO(),
+            editsTo,
+          );
+          if (probe.count > 0) lost = probe;
+        } catch (probeErr) {
+          logger.warn("edited_in_window_probe_failed", {
+            error:
+              probeErr instanceof Error ? probeErr.message : String(probeErr),
+          });
         }
-        onSaved({ kind: "series", seriesId: initialSeries.id });
+        if (lost) {
+          setLostEdits({ scope: "all", result: lost, onConfirm: runSeriesEdit });
+          setSubmitting(false);
+          return;
+        }
+
+        await runSeriesEdit();
         onClose();
         return;
       }
@@ -944,10 +1692,12 @@ export function TimetableEventModal({
         const created = await timetableService.createTemplate(
           seriesBody(parsed.roomId, parsed.categoryId),
         );
-        await timetableService.update(
-          convertInstance.id,
-          instanceBody(parsed.roomId, created.templateId),
-        );
+        await timetableService.update(convertInstance.id, {
+          ...instanceBody(parsed.roomId, created.templateId),
+          // The value entered during conversion belongs to the new series.
+          // Keep the seed occurrence unpinned so future series edits apply.
+          required_staff: null,
+        });
         if (await materializePeriodAfterConvert()) {
           toastSuccess("Termin wiederholt");
         } else {
@@ -997,120 +1747,281 @@ export function TimetableEventModal({
    * rebuilds future planned instances. A changed Datum only applies to
    * "single" — series-wide scopes ignore it.
    */
+  const seriesCoverageProbe = (
+    template: TimetableTemplate,
+    body: UpdateTemplateBody,
+    fromISO: string,
+    replanActivityGroupId?: string,
+  ) => {
+    const calendarPeriodId =
+      resolveTemplateCalendarPeriodId(template) ?? form.calendarPeriodId;
+    const period = findPeriod(calendarPeriodId);
+    const staffIds = (body.staff_ids ?? []).map(String);
+    if (
+      !period ||
+      body.weekdays.length === 0 ||
+      staffIds.length === 0 ||
+      !body.start_time ||
+      !body.end_time
+    ) {
+      return null;
+    }
+    const from = fromISO > period.startDate ? fromISO : period.startDate;
+    let dates = weekdayDatesInRange(from, period.endDate, body.weekdays);
+    // Without replanActivityGroupId the backend cannot apply the segment's
+    // validity envelope, so the probe caps itself at the schedules'
+    // validUntil (exclusive boundary): a split successor inherits it and
+    // never creates occurrences on or after that date. All schedules of a
+    // segment share the boundary; the latest one wins if they ever diverge,
+    // and one open-ended schedule leaves the probe uncapped.
+    let latestValidUntil: string | undefined;
+    for (const schedule of template.schedules) {
+      if (!schedule.validUntil) {
+        latestValidUntil = undefined;
+        break;
+      }
+      if (!latestValidUntil || schedule.validUntil > latestValidUntil) {
+        latestValidUntil = schedule.validUntil;
+      }
+    }
+    if (latestValidUntil) {
+      const boundary = latestValidUntil;
+      dates = dates.filter((date) => date < boundary);
+    }
+    return {
+      dates,
+      startTime: body.start_time,
+      endTime: body.end_time,
+      staffIds,
+      replanActivityGroupId,
+      calendarPeriodId: period.id,
+      weekPattern: body.week_pattern ?? 0,
+    };
+  };
+
+  const handleScopeError = (scope: string, err: unknown) => {
+    logger.error("series_scope_save_failed", {
+      scope,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    const raw =
+      err instanceof Error
+        ? err.message
+        : "Termin konnte nicht gespeichert werden";
+    // Backend rejects splits whose effective date already passed; the
+    // raw English message is meaningless to school staff.
+    const msg = raw.includes("effective_date must not be in the past")
+      ? "Der Stichtag liegt in der Vergangenheit. Bitte einen künftigen Termin der Serie wählen."
+      : raw;
+    setPendingSeriesEdit(null);
+    setLostEdits(null);
+    setValidationError(msg);
+    toastError(msg);
+  };
+
+  /**
+   * Applies a series-wide edit ("all" or "following") against a pre-loaded
+   * template. Split out of handleScopeSelect so the #1875 lost-edits warning
+   * can defer it until the user confirms.
+   */
+  const performSeriesEdit = async (
+    typedScope: "all" | "following",
+    roomId: number,
+    template: TimetableTemplate,
+    periodEnd: string | undefined,
+    groupId: string,
+  ) => {
+    if (!initialInstance) return;
+    const body = templateBodyFromForm(template, roomId);
+    const scopeProbe = seriesCoverageProbe(
+      template,
+      body,
+      typedScope === "following" ? initialInstance.date : berlinTodayISO(),
+      typedScope === "all" ? groupId : undefined,
+    );
+    await checkCoverageBeforeSave(scopeProbe);
+    if (typedScope === "following") {
+      const effectiveDate = initialInstance.date;
+      const chunks = chunkDateRange(
+        effectiveDate,
+        periodEnd ?? weekTo ?? effectiveDate,
+        MATERIALIZE_CHUNK_DAYS,
+      );
+      const split = await timetableService.splitTemplate(groupId, {
+        ...body,
+        effective_date: effectiveDate,
+        materialize_from: effectiveDate,
+        materialize_to: chunks[0]?.to ?? effectiveDate,
+      });
+      // Beyond the first 56-day window the split leaves the old
+      // template's stale planned rows in place; a scoped re-plan per
+      // chunk clears them and materializes the successor template.
+      // Chunk failures are follow-up only — the split already
+      // succeeded, so warn and close instead of re-opening the form.
+      let followUpOk = true;
+      for (const chunk of chunks.slice(1)) {
+        try {
+          const result = await timetableService.replanWeek(
+            chunk.from,
+            chunk.to,
+            groupId,
+          );
+          if (result.warnings.some((w) => w.code === "no_active_period")) {
+            break;
+          }
+        } catch (chunkErr) {
+          logger.error("series_replan_chunk_failed", {
+            template_id: groupId,
+            from: chunk.from,
+            to: chunk.to,
+            error:
+              chunkErr instanceof Error ? chunkErr.message : String(chunkErr),
+          });
+          followUpOk = false;
+          break;
+        }
+      }
+      if (followUpOk) {
+        toastSuccess(`Regeltermin ab ${formatDate(effectiveDate)} geändert`);
+      } else {
+        toastWarning(FOLLOW_UP_WARNING);
+      }
+      onSaved({ kind: "series", seriesId: split.newTemplateId });
+    } else {
+      await timetableService.updateTemplate(groupId, body);
+      if (await replanTemplateFuture(groupId, periodEnd)) {
+        toastSuccess("Regeltermin gespeichert");
+      } else {
+        toastWarning(FOLLOW_UP_WARNING);
+      }
+      onSaved({ kind: "series", seriesId: groupId });
+    }
+  };
+
   const handleScopeSelect = async (scope: string) => {
     if (submitting) return;
     const pending = pendingSeriesEdit;
     const groupId = initialInstance?.activityGroupId;
     if (!pending || !initialInstance || !groupId) return;
-    setSubmitting(true);
-    try {
-      if (scope === "single") {
+
+    // Single-occurrence edit ("Nur diese Woche"): unchanged plain instance PUT.
+    if (scope === "single") {
+      setSubmitting(true);
+      try {
+        await checkCoverageBeforeSave(coverageProbe);
         const saved = await timetableService.update(
           initialInstance.id,
           instanceBody(pending.roomId, groupId),
         );
         toastSuccess("Termin gespeichert");
         onSaved({ kind: "instance", instance: saved });
-      } else {
-        const template = await timetableService.getTemplate(groupId);
-        const periodEnd =
-          findPeriod(template.schedules[0]?.calendarPeriodId)?.endDate ??
-          findPeriod(form.calendarPeriodId)?.endDate;
-        const body = templateBodyFromForm(template, pending.roomId);
-        if (scope === "following") {
-          const effectiveDate = initialInstance.date;
-          const chunks = chunkDateRange(
-            effectiveDate,
-            periodEnd ?? weekTo ?? effectiveDate,
-            MATERIALIZE_CHUNK_DAYS,
-          );
-          const split = await timetableService.splitTemplate(groupId, {
-            ...body,
-            effective_date: effectiveDate,
-            materialize_from: effectiveDate,
-            materialize_to: chunks[0]?.to ?? effectiveDate,
-          });
-          // Beyond the first 56-day window the split leaves the old
-          // template's stale planned rows in place; a scoped re-plan per
-          // chunk clears them and materializes the successor template.
-          // Chunk failures are follow-up only — the split already
-          // succeeded, so warn and close instead of re-opening the form.
-          let followUpOk = true;
-          for (const chunk of chunks.slice(1)) {
-            try {
-              const result = await timetableService.replanWeek(
-                chunk.from,
-                chunk.to,
-                groupId,
-              );
-              if (result.warnings.some((w) => w.code === "no_active_period")) {
-                break;
-              }
-            } catch (chunkErr) {
-              logger.error("series_replan_chunk_failed", {
-                template_id: groupId,
-                from: chunk.from,
-                to: chunk.to,
-                error:
-                  chunkErr instanceof Error
-                    ? chunkErr.message
-                    : String(chunkErr),
-              });
-              followUpOk = false;
-              break;
-            }
-          }
-          if (followUpOk) {
-            toastSuccess(
-              `Regeltermin ab ${formatDate(effectiveDate)} geändert`,
-            );
-          } else {
-            toastWarning(FOLLOW_UP_WARNING);
-          }
-          onSaved({ kind: "series", seriesId: split.newTemplateId });
-        } else {
-          await timetableService.updateTemplate(groupId, body);
-          if (await replanTemplateFuture(groupId, periodEnd)) {
-            toastSuccess("Regeltermin gespeichert");
-          } else {
-            toastWarning(FOLLOW_UP_WARNING);
-          }
-          onSaved({ kind: "series", seriesId: groupId });
-        }
+        setPendingSeriesEdit(null);
+        onClose();
+      } catch (err) {
+        handleScopeError(scope, err);
+      } finally {
+        setSubmitting(false);
       }
+      return;
+    }
+
+    const typedScope = scope === "following" ? "following" : "all";
+    setSubmitting(true);
+    try {
+      const template = await timetableService.getTemplate(groupId);
+      const templateCalendarPeriodId =
+        resolveTemplateCalendarPeriodId(template);
+      const periodEnd =
+        findPeriod(templateCalendarPeriodId)?.endDate ??
+        findPeriod(form.calendarPeriodId)?.endDate;
+
+      // #1875: before rebuilding the series, check whether single-occurrence
+      // edits in the affected window would be discarded, and warn with the
+      // concrete dates. The probe is advisory — a failure must never block the
+      // edit, so on error we proceed silently (mirrors the coverage check).
+      // "following" splits into a successor template that rematerializes
+      // individually-deleted occurrences, so include deletions on that path;
+      // "all" re-plans the same template and preserves them.
+      const editsFrom =
+        typedScope === "following" ? initialInstance.date : berlinTodayISO();
+      const editsTo = periodEnd ?? weekTo ?? editsFrom;
+      let lost: EditedInWindowResult | null = null;
+      try {
+        const probe = await timetableService.countEditedInWindow(
+          groupId,
+          editsFrom,
+          editsTo,
+          typedScope === "following",
+        );
+        if (probe.count > 0) lost = probe;
+      } catch (probeErr) {
+        logger.warn("edited_in_window_probe_failed", {
+          error:
+            probeErr instanceof Error ? probeErr.message : String(probeErr),
+        });
+      }
+
+      if (lost) {
+        // Defer the edit: close the scope picker and ask the user to confirm
+        // the loss, listing the affected dates so they can re-edit afterwards.
+        setPendingSeriesEdit(null);
+        setLostEdits({
+          scope: typedScope,
+          result: lost,
+          onConfirm: () =>
+            performSeriesEdit(
+              typedScope,
+              pending.roomId,
+              template,
+              periodEnd,
+              groupId,
+            ),
+        });
+        setSubmitting(false);
+        return;
+      }
+
+      await performSeriesEdit(
+        typedScope,
+        pending.roomId,
+        template,
+        periodEnd,
+        groupId,
+      );
       setPendingSeriesEdit(null);
       onClose();
     } catch (err) {
-      logger.error("series_scope_save_failed", {
-        scope,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      const raw =
-        err instanceof Error
-          ? err.message
-          : "Termin konnte nicht gespeichert werden";
-      // Backend rejects splits whose effective date already passed; the
-      // raw English message is meaningless to school staff.
-      const msg = raw.includes("effective_date must not be in the past")
-        ? "Der Stichtag liegt in der Vergangenheit. Bitte einen künftigen Termin der Serie wählen."
-        : raw;
-      setPendingSeriesEdit(null);
-      setValidationError(msg);
-      toastError(msg);
+      handleScopeError(scope, err);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const confirmLostEdits = async () => {
+    if (submitting) return;
+    const pending = lostEdits;
+    if (!pending) return;
+    setSubmitting(true);
+    try {
+      await pending.onConfirm();
+      setLostEdits(null);
+      onClose();
+    } catch (err) {
+      handleScopeError(pending.scope, err);
     } finally {
       setSubmitting(false);
     }
   };
 
   const openSeriesDeleteConfirm = () => {
-    setDeleteEffectiveDate(todayISO());
+    setDeleteEffectiveDate(berlinTodayISO());
     setDeleteError(null);
     setDeleteConfirmOpen(true);
   };
 
   const handleConfirmSeriesDelete = async () => {
     if (!initialSeries || !onDeleteSeries || deletingSeries) return;
-    const minDate = todayISO();
+    const minDate = berlinTodayISO();
     if (!deleteEffectiveDate) {
       setDeleteError("Bitte ein Datum auswählen.");
       return;
@@ -1137,14 +2048,22 @@ export function TimetableEventModal({
     }
   };
 
-  // Bulk-add entries for the Kinder field: every distinct class and group
-  // present in the loaded students, each carrying its member ids.
+  // Bulk-add entries for the Kinder field: every distinct grade, class, and
+  // group present in the loaded students, each carrying its member ids.
   const studentBulkOptions = useMemo(() => {
+    const gradeLevels = new Map<string, string[]>();
     const classes = new Map<string, string[]>();
     const groupNames = new Map<string, string[]>();
     for (const student of students) {
       const schoolClass = student.schoolClass?.trim();
       if (schoolClass) {
+        const gradeLevel = getSchoolYear(schoolClass);
+        if (gradeLevel) {
+          gradeLevels.set(gradeLevel, [
+            ...(gradeLevels.get(gradeLevel) ?? []),
+            student.id,
+          ]);
+        }
         classes.set(schoolClass, [
           ...(classes.get(schoolClass) ?? []),
           student.id,
@@ -1161,9 +2080,14 @@ export function TimetableEventModal({
     const byName = (a: [string, string[]], b: [string, string[]]) =>
       a[0].localeCompare(b[0], "de");
     return [
+      ...[...gradeLevels.entries()].sort(byName).map(([name, memberIds]) => ({
+        key: `grade:${name}`,
+        label: `Jahrgang ${name}`,
+        memberIds,
+      })),
       ...[...classes.entries()].sort(byName).map(([name, memberIds]) => ({
         key: `class:${name}`,
-        label: `Klasse ${name}`,
+        label: schoolClassLabel(name),
         memberIds,
       })),
       ...[...groupNames.entries()].sort(byName).map(([name, memberIds]) => ({
@@ -1174,8 +2098,135 @@ export function TimetableEventModal({
     ];
   }, [students]);
 
-  // Datum and Notiz only apply to the single-instance scope — series-wide
-  // scopes write the template, which carries neither field.
+  // Distinct school-class names for the Zielgruppe "Klasse" value picker
+  // (issue #1838) — reuses the already-fetched students, no new fetch.
+  const targetClassOptions = useMemo(() => {
+    const options = new Set(
+      students
+        .map((student) => student.schoolClass?.trim())
+        .filter((item): item is string => Boolean(item)),
+    );
+    const currentClass = form.targetSchoolClass.trim();
+    if (currentClass !== "") options.add(currentClass);
+    return [...options].sort((a, b) => a.localeCompare(b, "de"));
+  }, [form.targetSchoolClass, students]);
+  const targetClassDescriptionIDs = [
+    fieldErrors.targetSchoolClass ? "event_target_school_class_error" : null,
+    loadingStudents || studentLoadError
+      ? "event_target_school_class_availability"
+      : null,
+  ]
+    .filter((id): id is string => id !== null)
+    .join(" ");
+
+  const targetCohort = useMemo(() => {
+    let label: string | null = null;
+    let members: PersonOption[] = [];
+    if (form.targetGroupType === "jahrgang" && form.targetGradeLevel) {
+      label = `Jahrgang ${form.targetGradeLevel}`;
+      members = students.filter(
+        (student) =>
+          getSchoolYear(student.schoolClass?.trim() ?? "") ===
+          form.targetGradeLevel,
+      );
+    } else if (form.targetGroupType === "klasse" && form.targetSchoolClass) {
+      label = schoolClassLabel(form.targetSchoolClass);
+      members = students.filter(
+        (student) => student.schoolClass?.trim() === form.targetSchoolClass,
+      );
+    } else if (form.targetGroupType === "gruppe" && form.educationGroupId) {
+      const groupName = groups.find(
+        (group) => group.id === form.educationGroupId,
+      )?.name;
+      if (groupName) {
+        label = `Gruppe ${groupName}`;
+        members = students.filter(
+          (student) => student.groupId === form.educationGroupId,
+        );
+      }
+    }
+    return { label, memberIds: members.map((student) => student.id) };
+  }, [
+    form.educationGroupId,
+    form.targetGradeLevel,
+    form.targetGroupType,
+    form.targetSchoolClass,
+    groups,
+    students,
+  ]);
+  const missingTargetCohortCount = useMemo(() => {
+    const selected = new Set(form.studentIds);
+    return targetCohort.memberIds.filter((id) => !selected.has(id)).length;
+  }, [form.studentIds, targetCohort.memberIds]);
+  const targetCohortButtonLabel = targetCohort.label
+    ? targetCohortActionLabel(
+        targetCohort.label,
+        targetCohort.memberIds.length,
+        missingTargetCohortCount,
+      )
+    : "";
+
+  const addTargetCohort = () => {
+    if (targetCohort.memberIds.length === 0) return;
+    setForm((current) => ({
+      ...current,
+      studentIds: Array.from(
+        new Set([...current.studentIds, ...targetCohort.memberIds]),
+      ),
+    }));
+  };
+
+  const retryStudentLoad = async () => {
+    const studentSeq = ++studentLoadSeq.current;
+    const isCurrentStudentLoad = () => studentLoadSeq.current === studentSeq;
+    setLoadingStudents(true);
+    setStudentLoadError(null);
+    try {
+      const studentData = await fetchAllStudentOptions();
+      if (!isCurrentStudentLoad()) return;
+      setStudents(sortPeople(studentData));
+      setValidationError(null);
+    } catch (err) {
+      logger.error("students_retry_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      if (!isCurrentStudentLoad()) return;
+      setStudents([]);
+      setStudentLoadError(STUDENT_LOAD_ERROR);
+      setMoreOpen(true);
+    } finally {
+      if (isCurrentStudentLoad()) setLoadingStudents(false);
+    }
+  };
+
+  const retryStaffLoad = async () => {
+    const staffSeq = ++staffLoadSeq.current;
+    const isCurrentStaffLoad = () => staffLoadSeq.current === staffSeq;
+    setLoadingStaff(true);
+    setStaffLoadError(null);
+    try {
+      const staffData = await staffService.getAllStaff();
+      if (!isCurrentStaffLoad()) return;
+      setStaff(
+        sortPeople(staffData.map((item) => ({ id: item.id, name: item.name }))),
+      );
+      setValidationError(null);
+    } catch (err) {
+      logger.error("staff_retry_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      if (!isCurrentStaffLoad()) return;
+      setStaff([]);
+      setStaffLoadError(STAFF_LOAD_ERROR);
+      setMoreOpen(true);
+    } finally {
+      if (isCurrentStaffLoad()) setLoadingStaff(false);
+    }
+  };
+
+  // Datum and Tagesnotiz only apply to the single-instance scope — series-wide
+  // scopes write the template, which carries the Wochennotiz instead of the
+  // per-occurrence Tagesnotiz.
   const dateChanged =
     initialInstance !== null && form.date !== initialInstance.date;
   const notesChanged =
@@ -1189,43 +2240,31 @@ export function TimetableEventModal({
         ? "Termin wiederholen"
         : "Termin";
 
-  // Personal renders before Kinder in every mode (Streichliste 8); the
-  // quick variant tucks all of this behind the "Weitere Optionen" row.
-  const peopleFields = (
-    <>
-      <MultiSelectField
-        label="Personal"
-        options={staff}
-        value={form.staffIds}
-        onChange={(ids) => {
-          update("staffIds", ids);
-          if (form.primaryStaffId && !ids.includes(form.primaryStaffId)) {
-            update("primaryStaffId", "");
-          }
-        }}
-        metadata="staff"
+  let studentRosterField: React.ReactNode;
+  if (loadingStudents) {
+    studentRosterField = (
+      <Alert
+        type="info"
+        message="Kinderliste wird geladen … Die bestehende Kinderzuordnung bleibt beim Speichern unverändert."
       />
-
-      {isSeriesFlow && form.staffIds.length > 0 && (
-        <Field label="Zuständige Person" htmlFor="event_primary_staff">
-          <select
-            id="event_primary_staff"
-            value={form.primaryStaffId}
-            onChange={(event) => update("primaryStaffId", event.target.value)}
-            className={FORM_SELECT_CLASS}
-          >
-            <option value="">Keine Auswahl</option>
-            {staff
-              .filter((person) => form.staffIds.includes(person.id))
-              .map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.name}
-                </option>
-              ))}
-          </select>
-        </Field>
-      )}
-
+    );
+  } else if (studentLoadError) {
+    studentRosterField = (
+      <div className="flex flex-col gap-2">
+        <Alert type="warning" message={studentLoadError} />
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          className="self-start"
+          onClick={() => void retryStudentLoad()}
+        >
+          Kinder erneut laden
+        </Button>
+      </div>
+    );
+  } else {
+    studentRosterField = (
       <MultiSelectField
         label="Kinder"
         options={students}
@@ -1234,17 +2273,147 @@ export function TimetableEventModal({
         metadata="student"
         bulkOptions={studentBulkOptions}
       />
+    );
+  }
 
-      {!isSeriesFlow && (
-        <Field label="Notiz" htmlFor="event_notes">
+  let staffRosterField: React.ReactNode;
+  if (loadingStaff) {
+    staffRosterField = (
+      <Alert
+        type="info"
+        message="Personalliste wird geladen … Die bestehende Personalzuordnung bleibt beim Speichern unverändert."
+      />
+    );
+  } else if (staffLoadError) {
+    staffRosterField = (
+      <div className="flex flex-col gap-2">
+        <Alert type="warning" message={staffLoadError} />
+        <Button
+          type="button"
+          variant="outline"
+          size="compact"
+          className="self-start"
+          onClick={() => void retryStaffLoad()}
+        >
+          Personal erneut laden
+        </Button>
+      </div>
+    );
+  } else {
+    staffRosterField = (
+      <>
+        <MultiSelectField
+          label="Personal"
+          options={staff}
+          value={form.staffIds}
+          onChange={(ids) => {
+            staffRosterTouched.current = true;
+            update("staffIds", ids);
+            if (form.primaryStaffId && !ids.includes(form.primaryStaffId)) {
+              update("primaryStaffId", "");
+            }
+          }}
+          metadata="staff"
+        />
+
+        {isSeriesFlow && form.staffIds.length > 0 && (
+          <Field label="Zuständige Person" htmlFor="event_primary_staff">
+            <select
+              id="event_primary_staff"
+              value={form.primaryStaffId}
+              onChange={(event) => {
+                staffRosterTouched.current = true;
+                update("primaryStaffId", event.target.value);
+              }}
+              className={FORM_SELECT_CLASS}
+            >
+              <option value="">Keine Auswahl</option>
+              {staff
+                .filter((person) => form.staffIds.includes(person.id))
+                .map((person) => (
+                  <option key={person.id} value={person.id}>
+                    {person.name}
+                  </option>
+                ))}
+            </select>
+          </Field>
+        )}
+      </>
+    );
+  }
+
+  // Personal renders before Kinder in every mode (Streichliste 8); the
+  // quick variant tucks all of this behind the "Weitere Optionen" row.
+  const peopleFields = (
+    <>
+      {staffRosterField}
+
+      <Field label="Benötigtes Personal" htmlFor="event_required_staff">
+        <Input
+          id="event_required_staff"
+          type="number"
+          min={0}
+          step={1}
+          inputMode="numeric"
+          value={form.requiredStaff}
+          onChange={(event) => {
+            requiredStaffTouched.current = true;
+            update("requiredStaff", event.target.value);
+          }}
+          placeholder="automatisch aus Betreuungsschlüssel"
+          controlSize="compact"
+        />
+        <p className="mt-1 text-xs text-gray-500">
+          Leer = automatisch: Es gilt der Wert der Terminreihe, sonst die
+          Berechnung aus dem Betreuungsschlüssel (Kinderzahl). Eine Zahl legt
+          den Bedarf fest und überschreibt beides.
+        </p>
+      </Field>
+
+      {studentRosterField}
+
+      {isSeriesFlow ? (
+        <Field label="Wochennotiz" htmlFor="event_series_notes">
           <textarea
-            id="event_notes"
-            value={form.notes}
-            onChange={(event) => update("notes", event.target.value)}
+            id="event_series_notes"
+            value={form.seriesNotes}
+            onChange={(event) => update("seriesNotes", event.target.value)}
             rows={3}
             className={timetableTextAreaClass}
+            placeholder="z. B. Raum erst ab 14 Uhr offen"
           />
+          <p className="mt-1 text-xs text-gray-500">
+            Gilt dauerhaft für die ganze Terminreihe und erscheint an jedem
+            Termin. Bleibt bei Re-Plan und Serienänderungen erhalten.
+          </p>
         </Field>
+      ) : (
+        <>
+          {form.seriesNotes.trim() !== "" && (
+            <div className="rounded-lg border border-[#5080D8]/30 bg-[#5080D8]/10 p-3">
+              <div className="flex items-center gap-1.5 text-xs font-medium text-[#5080D8]">
+                <Repeat className="h-3.5 w-3.5" aria-hidden="true" />
+                Wochennotiz der Terminreihe
+              </div>
+              <p className="mt-1 text-sm whitespace-pre-wrap text-gray-700">
+                {form.seriesNotes}
+              </p>
+              <p className="mt-1 text-xs text-gray-500">
+                Wird über den Regeltermin gepflegt und gilt für alle Termine.
+              </p>
+            </div>
+          )}
+          <Field label="Tagesnotiz" htmlFor="event_notes">
+            <textarea
+              id="event_notes"
+              value={form.notes}
+              onChange={(event) => update("notes", event.target.value)}
+              rows={3}
+              className={timetableTextAreaClass}
+              placeholder="Nur für diesen einen Termin"
+            />
+          </Field>
+        </>
       )}
     </>
   );
@@ -1413,7 +2582,7 @@ export function TimetableEventModal({
                   value={form.repeat}
                   onValueChange={(value) => {
                     const nextRepeat = value as RepeatMode;
-                    update("repeat", nextRepeat);
+                    updateRepeat(nextRepeat);
                     if (nextRepeat !== "none" && form.weekdays.length === 0) {
                       const weekday = isoWeekday(form.date);
                       update(
@@ -1428,7 +2597,12 @@ export function TimetableEventModal({
                       <TabsTrigger
                         key={option.value}
                         value={option.value}
-                        disabled={isEditingSeries && option.value === "none"}
+                        disabled={
+                          (isEditingSeries && option.value === "none") ||
+                          (!isEditingSeries &&
+                            option.value === "biweekly" &&
+                            biweeklyUnavailable)
+                        }
                       >
                         {option.label}
                       </TabsTrigger>
@@ -1462,6 +2636,32 @@ export function TimetableEventModal({
               </Field>
             )}
 
+            {expanded && form.repeat === "biweekly" && (
+              <div className="flex flex-col gap-1">
+                <span className="text-xs font-semibold text-gray-700">
+                  Wochenrhythmus
+                </span>
+                <Tabs
+                  value={form.weekPattern === 1 ? "A" : "B"}
+                  onValueChange={(value) => {
+                    manualWeekPattern.current = value === "A" ? 1 : 2;
+                    update("weekPattern", value === "A" ? 1 : 2);
+                  }}
+                >
+                  <TabsList aria-label="A/B-Woche" className="w-fit">
+                    <TabsTrigger value="A">Woche A</TabsTrigger>
+                    <TabsTrigger value="B">Woche B</TabsTrigger>
+                  </TabsList>
+                </Tabs>
+                <p className="text-xs text-gray-500">{abWeekHint}</p>
+                {fieldErrors.weekPattern && (
+                  <p role="alert" className="mt-1 text-xs text-red-600">
+                    {fieldErrors.weekPattern}
+                  </p>
+                )}
+              </div>
+            )}
+
             {expanded && isSeriesFlow && (
               <>
                 <div className="flex flex-col gap-1">
@@ -1477,7 +2677,7 @@ export function TimetableEventModal({
                           key={option.value}
                           type="button"
                           onClick={() => update("type", option.value)}
-                          className={`flex flex-col items-start gap-0.5 rounded-xl border border-l-[3px] px-3 py-2 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                          className={`flex flex-col items-start gap-0.5 rounded-lg border border-l-[3px] px-3 py-2 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
                             isActive
                               ? "border-gray-300 bg-white"
                               : "border-gray-200 bg-white hover:bg-gray-50"
@@ -1507,19 +2707,17 @@ export function TimetableEventModal({
                     {WEEKDAYS.map((iso) => {
                       const isActive = form.weekdays.includes(iso);
                       return (
-                        <button
+                        <Button
                           key={iso}
                           type="button"
+                          variant={isActive ? "primary" : "outline"}
+                          size="compact"
+                          className="min-w-[44px]"
                           onClick={() => toggleWeekday(iso)}
-                          className={`min-w-[44px] rounded-lg border px-3 py-1.5 text-sm font-semibold shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                            isActive
-                              ? "border-gray-900 bg-gray-900 text-white"
-                              : "border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
-                          }`}
                           aria-pressed={isActive}
                         >
                           {weekdayLabel(iso)}
-                        </button>
+                        </Button>
                       );
                     })}
                   </div>
@@ -1530,59 +2728,222 @@ export function TimetableEventModal({
                   )}
                 </div>
 
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  <Field
-                    label="Kategorie"
-                    htmlFor="event_category"
+                <Field
+                  label="Kategorie"
+                  htmlFor="event_category"
+                  required
+                  error={fieldErrors.categoryId}
+                >
+                  <select
+                    id="event_category"
+                    value={form.categoryId}
+                    onChange={(event) =>
+                      update("categoryId", event.target.value)
+                    }
                     required
-                    error={fieldErrors.categoryId}
+                    disabled={loadingRefs}
+                    aria-invalid={fieldErrors.categoryId ? true : undefined}
+                    aria-describedby={
+                      fieldErrors.categoryId
+                        ? "event_category_error"
+                        : undefined
+                    }
+                    className={FORM_SELECT_CLASS}
                   >
-                    <select
-                      id="event_category"
-                      value={form.categoryId}
-                      onChange={(event) =>
-                        update("categoryId", event.target.value)
-                      }
-                      required
-                      disabled={loadingRefs}
-                      aria-invalid={fieldErrors.categoryId ? true : undefined}
-                      aria-describedby={
-                        fieldErrors.categoryId
-                          ? "event_category_error"
-                          : undefined
-                      }
-                      className={FORM_SELECT_CLASS}
-                    >
-                      <option value="">
-                        {loadingRefs
-                          ? "Lade Kategorien …"
-                          : "Kategorie wählen …"}
+                    <option value="">
+                      {loadingRefs ? "Lade Kategorien …" : "Kategorie wählen …"}
+                    </option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
                       </option>
-                      {categories.map((category) => (
-                        <option key={category.id} value={category.id}>
-                          {category.name}
-                        </option>
+                    ))}
+                  </select>
+                </Field>
+
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold text-gray-700">
+                    Zielgruppe
+                  </span>
+                  <Tabs
+                    value={form.targetGroupType}
+                    onValueChange={(value) =>
+                      changeTargetGroupType(value as TargetGroupType)
+                    }
+                  >
+                    <TabsList aria-label="Zielgruppe" className="w-fit">
+                      {TARGET_GROUP_OPTIONS.map((option) => (
+                        <TabsTrigger key={option.value} value={option.value}>
+                          {option.label}
+                        </TabsTrigger>
                       ))}
-                    </select>
-                  </Field>
-                  <Field label="Klassengruppe" htmlFor="event_education_group">
-                    <select
-                      id="event_education_group"
-                      value={form.educationGroupId}
-                      onChange={(event) =>
-                        update("educationGroupId", event.target.value)
-                      }
-                      disabled={loadingRefs}
-                      className={FORM_SELECT_CLASS}
-                    >
-                      <option value="">Keine Zuordnung</option>
-                      {groups.map((group) => (
-                        <option key={group.id} value={group.id}>
-                          {group.name}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
+                    </TabsList>
+                  </Tabs>
+
+                  {form.targetGroupType === "jahrgang" && (
+                    <div className="mt-1">
+                      <Field
+                        label="Jahrgang"
+                        htmlFor="event_target_grade_level"
+                        required
+                        error={fieldErrors.targetGradeLevel}
+                      >
+                        <select
+                          id="event_target_grade_level"
+                          value={form.targetGradeLevel}
+                          onChange={(event) =>
+                            update("targetGradeLevel", event.target.value)
+                          }
+                          required
+                          aria-invalid={
+                            fieldErrors.targetGradeLevel ? true : undefined
+                          }
+                          aria-describedby={
+                            fieldErrors.targetGradeLevel
+                              ? "event_target_grade_level_error"
+                              : undefined
+                          }
+                          className={FORM_SELECT_CLASS}
+                        >
+                          <option value="">Jahrgang wählen …</option>
+                          {targetGradeOptions.map((option) => (
+                            <option
+                              key={option.value}
+                              value={option.value}
+                              disabled={option.disabled}
+                            >
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      {preservesGradeAboveTenantCap ? (
+                        <p className="mt-1 text-xs text-gray-500" role="status">
+                          Jahrgang {form.targetGradeLevel} liegt über der
+                          aktuell konfigurierten Höchststufe {gradeLevelMax}.
+                          Die bestehende Zielgruppe bleibt beim Speichern
+                          erhalten.
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {form.targetGroupType === "klasse" && (
+                    <div className="mt-1">
+                      <Field
+                        label="Klasse"
+                        htmlFor="event_target_school_class"
+                        required
+                        error={fieldErrors.targetSchoolClass}
+                      >
+                        <select
+                          id="event_target_school_class"
+                          value={form.targetSchoolClass}
+                          onChange={(event) =>
+                            update("targetSchoolClass", event.target.value)
+                          }
+                          disabled={
+                            loadingStudents || studentLoadError !== null
+                          }
+                          required
+                          aria-invalid={
+                            fieldErrors.targetSchoolClass ? true : undefined
+                          }
+                          aria-describedby={
+                            targetClassDescriptionIDs || undefined
+                          }
+                          className={FORM_SELECT_CLASS}
+                        >
+                          <option value="">Klasse wählen …</option>
+                          {targetClassOptions.map((schoolClass) => (
+                            <option key={schoolClass} value={schoolClass}>
+                              {schoolClass}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                      {loadingStudents || studentLoadError ? (
+                        <p
+                          id="event_target_school_class_availability"
+                          className="mt-1 text-xs text-gray-500"
+                          role="status"
+                        >
+                          {studentLoadError
+                            ? "Die Klassenliste ist nicht verfügbar. Eine bestehende Klassen-Zielgruppe bleibt unverändert."
+                            : "Klassenliste wird geladen …"}
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+
+                  {form.targetGroupType === "gruppe" && (
+                    <div className="mt-1">
+                      <Field
+                        label="Gruppe"
+                        htmlFor="event_target_gruppe"
+                        required
+                        error={fieldErrors.educationGroupId}
+                      >
+                        <select
+                          id="event_target_gruppe"
+                          value={form.educationGroupId}
+                          onChange={(event) =>
+                            update("educationGroupId", event.target.value)
+                          }
+                          disabled={loadingRefs}
+                          required
+                          aria-invalid={
+                            fieldErrors.educationGroupId ? true : undefined
+                          }
+                          aria-describedby={
+                            fieldErrors.educationGroupId
+                              ? "event_target_gruppe_error"
+                              : undefined
+                          }
+                          className={FORM_SELECT_CLASS}
+                        >
+                          <option value="">Gruppe wählen …</option>
+                          {groups.map((group) => (
+                            <option key={group.id} value={group.id}>
+                              {group.name}
+                            </option>
+                          ))}
+                        </select>
+                      </Field>
+                    </div>
+                  )}
+
+                  {form.targetGroupType === "angebot" && (
+                    <p className="mt-1 text-xs text-gray-500">
+                      Kinder kommen automatisch über ein Betreuungsangebot
+                      hinzu. Die Verknüpfung wird unter „Angebote“ beim
+                      jeweiligen Angebot gepflegt (Feld „Regeltermin“).
+                    </p>
+                  )}
+
+                  {targetCohort.label &&
+                    !loadingStudents &&
+                    !studentLoadError && (
+                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white/70 p-3">
+                        <p className="min-w-0 flex-1 text-xs leading-5 text-gray-600">
+                          Die Zielgruppe beschreibt den Regeltermin. Übernimm
+                          die passenden Kinder mit einem Klick; die Auswahl
+                          bleibt danach anpassbar.
+                        </p>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="compact"
+                          onClick={addTargetCohort}
+                          disabled={
+                            targetCohort.memberIds.length === 0 ||
+                            missingTargetCohortCount === 0
+                          }
+                        >
+                          {targetCohortButtonLabel}
+                        </Button>
+                      </div>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -1677,17 +3038,67 @@ export function TimetableEventModal({
           </div>
         </form>
 
-        {conflictWarnings.length > 0 && (
+        {(conflictWarnings.length > 0 ||
+          coverageWarnings.length > 0 ||
+          coverageCheckError) && (
           // Advisory pre-save hints (QA M7): visible in quick and expanded
           // mode, pinned above the footer. Never disables Speichern.
-          <div className="flex flex-col gap-2 border-t border-gray-200 px-5 py-3">
+          <div className="flex max-h-[40vh] flex-col gap-2 overflow-y-auto overscroll-contain border-t border-gray-200 px-5 py-3">
+            <p className="sr-only" aria-live="polite">
+              {`${conflictWarnings.length} Terminüberschneidungen und ${coverageWarningCount} Dienstplan-Lücken gefunden. Speichern ist weiterhin möglich.`}
+            </p>
             {conflictWarnings.map((warning, index) => (
               <Alert
                 key={`${warning.kind}-${warning.resourceId}-${index}`}
                 type="warning"
                 message={`Hinweis: ${warning.message}`}
+                announce="off"
               />
             ))}
+            {coverageWarningCount > 0 && (
+              <Alert
+                type="warning"
+                message={`${coverageWarningCount} Dienstplan-${coverageWarningCount === 1 ? "Lücke" : "Lücken"} gefunden. Speichern ist weiterhin möglich.`}
+                announce="off"
+              />
+            )}
+            {coverageWarnings.slice(0, 3).map((warning, index) => (
+              <p
+                key={`shift-coverage-example-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${index}`}
+                className="rounded-lg border border-yellow-100 bg-yellow-50/50 px-3 py-2 text-sm text-yellow-800"
+              >
+                {warning.message}
+              </p>
+            ))}
+            {coverageWarningCount > 3 && (
+              <details className="rounded-lg border border-yellow-100 bg-yellow-50/40 px-3 py-2 text-sm text-yellow-800">
+                <summary className="cursor-pointer font-medium focus-visible:ring-2 focus-visible:ring-yellow-600 focus-visible:outline-none">
+                  {coverageWarningCount - 3} weitere Lücken anzeigen
+                </summary>
+                <div className="mt-2 max-h-48 space-y-2 overflow-y-auto overscroll-contain pr-1">
+                  {coverageWarnings.slice(3).map((warning, index) => (
+                    <p
+                      key={`shift-coverage-detail-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${index}`}
+                      className="border-t border-yellow-100 pt-2 first:border-t-0 first:pt-0"
+                    >
+                      {warning.message}
+                    </p>
+                  ))}
+                  {coverageWarningCount > coverageWarnings.length && (
+                    <p className="border-t border-yellow-100 pt-2 font-medium">
+                      Es werden höchstens 100 Beispiele angezeigt.
+                    </p>
+                  )}
+                </div>
+              </details>
+            )}
+            {coverageCheckError && (
+              <Alert
+                type="warning"
+                message={`Hinweis: ${coverageCheckError}`}
+                announce="off"
+              />
+            )}
           </div>
         )}
 
@@ -1765,7 +3176,7 @@ export function TimetableEventModal({
                   id="series_delete_effective_date"
                   type="date"
                   value={deleteEffectiveDate}
-                  min={todayISO()}
+                  min={berlinTodayISO()}
                   controlSize="compact"
                   aria-invalid={deleteError ? true : undefined}
                   disabled={deletingSeries}
@@ -1788,19 +3199,19 @@ export function TimetableEventModal({
             description={
               `Der Termin am ${formatDate(initialInstance.date)} gehört zu einem Regeltermin.` +
               (dateChanged || notesChanged
-                ? " Geändertes Datum und Notiz gelten nur bei „Nur dieser Termin“."
+                ? " Geändertes Datum und Tagesnotiz gelten nur bei „Nur diese Woche“; die Wochennotiz der Terminreihe bleibt bei allen Optionen erhalten."
                 : "")
             }
             options={[
               {
                 value: "single",
-                label: "Nur dieser Termin",
-                description: `Die Änderung gilt nur am ${formatDate(form.date)}.`,
+                label: "Nur diese Woche",
+                description: `Ändert nur den Termin am ${formatDate(form.date)}; der Regeltermin bleibt unverändert.`,
               },
               {
                 value: "following",
-                label: "Dieser und alle folgenden",
-                description: `Die Änderung gilt ab dem ${formatDate(initialInstance.date)} für diesen und alle weiteren Termine; frühere bleiben unverändert.`,
+                label: "Ab jetzt dauerhaft",
+                description: `Ändert diesen und alle künftigen Termine ab dem ${formatDate(initialInstance.date)} dauerhaft; frühere Termine bleiben unverändert.`,
               },
               {
                 value: "all",
@@ -1813,6 +3224,56 @@ export function TimetableEventModal({
             isBusy={submitting}
           />
         )}
+
+        {/* #1875: warn before a series edit discards single-occurrence edits. */}
+        <ConfirmationModal
+          isOpen={lostEdits !== null}
+          onClose={() => {
+            if (!submitting) setLostEdits(null);
+          }}
+          onConfirm={() => void confirmLostEdits()}
+          title="Einzelanpassungen gehen verloren"
+          confirmText="Trotzdem fortfahren"
+          cancelText="Abbrechen"
+          isConfirmLoading={submitting}
+          confirmButtonClass="bg-[#F78C10] hover:bg-[#d97908]"
+        >
+          {lostEdits && (
+            <div className="flex flex-col gap-3">
+              <p className="text-sm leading-relaxed text-gray-600">
+                {lostEdits.result.count === 1
+                  ? "1 Termin dieser Serie wurde einzeln angepasst. "
+                  : `${lostEdits.result.count} Termine dieser Serie wurden einzeln angepasst. `}
+                {lostEdits.scope === "following"
+                  ? "Wenn du diesen und alle folgenden Termine bearbeitest, gehen diese Anpassungen verloren:"
+                  : "Wenn du alle Termine der Serie bearbeitest, gehen diese Anpassungen verloren:"}
+              </p>
+              <ul className="max-h-52 overflow-y-auto rounded-lg border border-gray-200 bg-gray-50 p-2 text-sm">
+                {lostEdits.result.occurrences.map((occ) => (
+                  <li
+                    // Deleted occurrences share instanceId "0"; date+start keeps
+                    // the key unique (one deletion per date, one slot per start).
+                    key={`${occ.instanceId}-${occ.date}-${occ.startTime}`}
+                    className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 px-1 py-1"
+                  >
+                    <span className="font-semibold text-gray-800">
+                      {formatDate(occ.date)}
+                    </span>
+                    <span className="text-gray-500">
+                      {occ.changes
+                        .map((c) => EDIT_CHANGE_LABELS[c] ?? c)
+                        .join(", ")}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs leading-relaxed text-gray-500">
+                Notiere dir diese Termine, um sie anschließend erneut
+                anzupassen.
+              </p>
+            </div>
+          )}
+        </ConfirmationModal>
       </SlideOverContent>
     </SlideOver>
   );
@@ -1871,6 +3332,7 @@ function MultiSelectField({
   bulkOptions?: Array<{ key: string; label: string; memberIds: string[] }>;
 }) {
   const [query, setQuery] = useState("");
+  const [gradeFilter, setGradeFilter] = useState("all");
   const [classFilter, setClassFilter] = useState("all");
   const [groupFilter, setGroupFilter] = useState("all");
   const selected = useMemo(() => new Set(value), [value]);
@@ -1885,6 +3347,18 @@ function MultiSelectField({
             .filter((item): item is string => Boolean(item)),
         ),
       ).sort((a, b) => a.localeCompare(b, "de")),
+    [options],
+  );
+
+  const gradeOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          options
+            .map((option) => getSchoolYear(option.schoolClass?.trim() ?? ""))
+            .filter((item): item is string => Boolean(item)),
+        ),
+      ).sort((a, b) => a.localeCompare(b, "de", { numeric: true })),
     [options],
   );
 
@@ -1911,12 +3385,15 @@ function MultiSelectField({
             .toLocaleLowerCase("de")
             .includes(normalizedQuery);
         const matchesClass =
-          classFilter === "all" || option.schoolClass === classFilter;
+          classFilter === "all" || option.schoolClass?.trim() === classFilter;
+        const matchesGrade =
+          gradeFilter === "all" ||
+          getSchoolYear(option.schoolClass?.trim() ?? "") === gradeFilter;
         const matchesGroup =
-          groupFilter === "all" || option.groupName === groupFilter;
-        return matchesQuery && matchesClass && matchesGroup;
+          groupFilter === "all" || option.groupName?.trim() === groupFilter;
+        return matchesQuery && matchesGrade && matchesClass && matchesGroup;
       }),
-    [classFilter, groupFilter, normalizedQuery, options],
+    [classFilter, gradeFilter, groupFilter, normalizedQuery, options],
   );
 
   const toggle = (id: string) => {
@@ -1932,7 +3409,10 @@ function MultiSelectField({
   const allVisibleSelected =
     visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
   const hasFilters =
-    query.trim() !== "" || classFilter !== "all" || groupFilter !== "all";
+    query.trim() !== "" ||
+    gradeFilter !== "all" ||
+    classFilter !== "all" ||
+    groupFilter !== "all";
 
   const selectVisible = () => {
     const next = Array.from(new Set([...value, ...visibleIds]));
@@ -1953,7 +3433,7 @@ function MultiSelectField({
         </span>
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto]">
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto]">
         <label className="relative">
           <span className="sr-only">{label} suchen</span>
           <Search
@@ -1968,6 +3448,21 @@ function MultiSelectField({
             className={FORM_SEARCH_CLASS}
           />
         </label>
+        {metadata === "student" && gradeOptions.length > 0 && (
+          <select
+            value={gradeFilter}
+            onChange={(event) => setGradeFilter(event.target.value)}
+            className={FORM_SELECT_CLASS}
+            aria-label="Nach Jahrgang filtern"
+          >
+            <option value="all">Alle Jahrgänge</option>
+            {gradeOptions.map((gradeLevel) => (
+              <option key={gradeLevel} value={gradeLevel}>
+                Jahrgang {gradeLevel}
+              </option>
+            ))}
+          </select>
+        )}
         {metadata === "student" && classOptions.length > 0 && (
           <select
             value={classFilter}
@@ -2021,11 +3516,11 @@ function MultiSelectField({
               if (!entry) return;
               onChange(Array.from(new Set([...value, ...entry.memberIds])));
             }}
-            aria-label="Klasse oder Gruppe komplett hinzufügen"
+            aria-label="Jahrgang, Klasse oder Gruppe komplett hinzufügen"
             className="moto-select rounded-lg border border-gray-200 bg-white py-1.5 pr-7 pl-2.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
           >
             <option value="" disabled>
-              Klasse/Gruppe komplett hinzufügen …
+              Jahrgang/Klasse/Gruppe komplett hinzufügen …
             </option>
             {bulkOptions.map((option) => (
               <option key={option.key} value={option.key}>
@@ -2048,6 +3543,7 @@ function MultiSelectField({
             type="button"
             onClick={() => {
               setQuery("");
+              setGradeFilter("all");
               setClassFilter("all");
               setGroupFilter("all");
             }}
@@ -2072,7 +3568,7 @@ function MultiSelectField({
             {filteredOptions.map((option) => (
               <label
                 key={option.id}
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-700 [contain-intrinsic-size:auto_36px] [content-visibility:auto] hover:bg-gray-50"
               >
                 <Checkbox
                   checked={selected.has(option.id)}

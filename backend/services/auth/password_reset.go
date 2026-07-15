@@ -149,9 +149,8 @@ func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, acc
 	var resetToken *auth.PasswordResetToken
 
 	err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(AuthService)
 
-		if err := txService.(*Service).repos.PasswordResetToken.InvalidateTokensByAccountID(ctx, accountID); err != nil {
+		if err := s.repos.PasswordResetToken.InvalidateTokensByAccountID(ctx, accountID); err != nil {
 			s.getLogger().Error("failed to invalidate reset tokens, rolling back",
 				slog.Int64("account_id", accountID),
 				slog.Any("error", err),
@@ -167,7 +166,7 @@ func (s *Service) createPasswordResetTokenInTransaction(ctx context.Context, acc
 			Used:      false,
 		}
 
-		if err := txService.(*Service).repos.PasswordResetToken.Create(ctx, resetToken); err != nil {
+		if err := s.repos.PasswordResetToken.Create(ctx, resetToken); err != nil {
 			return err
 		}
 
@@ -191,7 +190,7 @@ func (s *Service) dispatchPasswordResetEmail(ctx context.Context, resetToken *au
 
 	frontendURL := strings.TrimRight(baseURL, "/")
 	resetURL := fmt.Sprintf("%s/reset-password?token=%s", frontendURL, resetToken.Token)
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", frontendURL)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", frontendURL)
 
 	message := email.Message{
 		From:     s.defaultFrom,
@@ -249,21 +248,18 @@ func (s *Service) ResetPassword(ctx context.Context, token, newPassword string) 
 	// with no JWT/tenant context. Token.DeleteByAccountID touches auth.tokens which has
 	// RLS policies — phoenix_auth cannot satisfy them without tenant context.
 	err = tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-		// Get transactional service
-		txService := s.WithTx(tx).(AuthService)
-
 		// Update account password
-		if err := txService.(*Service).repos.Account.UpdatePassword(ctx, resetToken.AccountID, passwordHash); err != nil {
+		if err := s.repos.Account.UpdatePassword(ctx, resetToken.AccountID, passwordHash); err != nil {
 			return err
 		}
 
 		// Mark token as used
-		if err := txService.(*Service).repos.PasswordResetToken.MarkAsUsed(ctx, resetToken.ID); err != nil {
+		if err := s.repos.PasswordResetToken.MarkAsUsed(ctx, resetToken.ID); err != nil {
 			return err
 		}
 
 		// Invalidate all existing auth tokens for security
-		if err := txService.(*Service).repos.Token.DeleteByAccountID(ctx, resetToken.AccountID); err != nil {
+		if err := s.repos.Token.DeleteByAccountID(ctx, resetToken.AccountID); err != nil {
 			// Log error but don't fail the password reset
 			s.getLogger().Warn("failed to delete tokens during password reset",
 				slog.Int64("account_id", resetToken.AccountID),

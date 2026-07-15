@@ -428,8 +428,7 @@ export async function getActivity(id: string): Promise<Activity> {
     }
 
     const responseData = (await response.json()) as
-      | ApiResponse<Activity>
-      | Activity;
+      ApiResponse<Activity> | Activity;
 
     // Extract the data from the response wrapper if needed
     if (
@@ -597,8 +596,7 @@ export async function updateActivity(
     }
 
     const responseData = (await response.json()) as
-      | ApiResponse<Activity>
-      | Activity;
+      ApiResponse<Activity> | Activity;
 
     // Extract the data from the response wrapper if needed
     if (
@@ -652,18 +650,22 @@ export async function getCategories(): Promise<ActivityCategory[]> {
       }
 
       const responseData = (await response.json()) as
-        | ApiResponse<ActivityCategory[]>
-        | ActivityCategory[];
+        ApiResponse<BackendActivityCategory[]> | BackendActivityCategory[];
 
-      // Extract the array from the response wrapper if needed
-      if (
+      // Extract the array from the response wrapper, then map to the frontend
+      // shape. The browser path previously returned the raw backend payload
+      // (snake_case shift_type_id, numeric id), which broke consumers relying
+      // on the mapped ActivityCategory contract (e.g. the shift-type mapping
+      // modal preselecting category.shiftTypeId).
+      const rawCategories =
         responseData &&
         typeof responseData === "object" &&
         "data" in responseData
-      ) {
-        return responseData.data;
-      }
-      return responseData;
+          ? responseData.data
+          : responseData;
+      return Array.isArray(rawCategories)
+        ? rawCategories.map(mapActivityCategoryResponse)
+        : [];
     } else {
       const response =
         await api.get<ApiResponse<BackendActivityCategory[]>>(url);
@@ -768,8 +770,7 @@ export async function getActivitySchedule(
       }
 
       const responseData = (await response.json()) as
-        | ApiResponse<BackendActivitySchedule>
-        | BackendActivitySchedule;
+        ApiResponse<BackendActivitySchedule> | BackendActivitySchedule;
 
       // Extract the data from the response wrapper if needed
       if (
@@ -841,8 +842,7 @@ export async function getAvailableTimeSlots(
       }
 
       const responseData = (await response.json()) as
-        | ApiResponse<AvailableTimeSlot[]>
-        | AvailableTimeSlot[];
+        ApiResponse<AvailableTimeSlot[]> | AvailableTimeSlot[];
 
       // Extract the array from the response wrapper if needed
       if (
@@ -887,8 +887,7 @@ export async function createActivitySchedule(
       }
 
       const responseData = (await response.json()) as
-        | ApiResponse<BackendActivitySchedule>
-        | BackendActivitySchedule;
+        ApiResponse<BackendActivitySchedule> | BackendActivitySchedule;
 
       // Extract the data from the response wrapper if needed
       if (
@@ -937,8 +936,7 @@ export async function updateActivitySchedule(
       }
 
       const responseData = (await response.json()) as
-        | ApiResponse<BackendActivitySchedule>
-        | BackendActivitySchedule;
+        ApiResponse<BackendActivitySchedule> | BackendActivitySchedule;
 
       // Extract the data from the response wrapper if needed
       if (

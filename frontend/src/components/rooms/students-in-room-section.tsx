@@ -39,6 +39,10 @@ import type { Staff } from "~/lib/usercontext-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 import { createLogger } from "~/lib/logger";
+import {
+  useAttendanceWebEnabled,
+  useOpenCareGroupMode,
+} from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "StudentsInRoomSection" });
 const EMPTY_STUDENTS: Student[] = [];
@@ -68,7 +72,9 @@ export function StudentsInRoomSection({
 }: StudentsInRoomSectionProps) {
   const router = useTenantRouter();
   const { data: session } = useSession();
-  const showAllTargets = canUseAllMoveTargets(session);
+  const attendanceWebEnabled = useAttendanceWebEnabled();
+  const openCare = useOpenCareGroupMode();
+  const showAllTargets = canUseAllMoveTargets(session) || openCare;
   const { success: toastSuccess } = useToast();
   const refreshRoomConsumers = useTenantMutateMatching([
     "room-students-",
@@ -155,6 +161,7 @@ export function StudentsInRoomSection({
   // supervision of every active group in this room, offering the bulk
   // move would only produce a guaranteed error.
   const canBulkMove = useMemo(() => {
+    if (!attendanceWebEnabled) return false;
     if (showAllTargets) return true;
     const sourceGroups = activeGroups.filter(
       (group) => group.isActive && group.roomId === roomId,
@@ -163,7 +170,13 @@ export function StudentsInRoomSection({
       sourceGroups.length > 0 &&
       sourceGroups.every((group) => supervisedTargetGroupIds.has(group.id))
     );
-  }, [showAllTargets, activeGroups, roomId, supervisedTargetGroupIds]);
+  }, [
+    attendanceWebEnabled,
+    showAllTargets,
+    activeGroups,
+    roomId,
+    supervisedTargetGroupIds,
+  ]);
   const targetOptions = useMemo(
     () =>
       buildTargetRoomOptions(

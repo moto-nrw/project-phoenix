@@ -113,6 +113,69 @@ describe("shiftTypeService requests", () => {
     });
   });
 
+  it("includes category_ids (as numbers) when the mapping is managed (#1837)", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json({ data: backendShiftType }, { status: 200 }),
+    );
+
+    await shiftTypeService.updateShiftType("12", {
+      name: "Betreuung",
+      color: "#83CD2D",
+      description: "",
+      isActive: true,
+      categoryIds: ["3", "7"],
+    });
+
+    expect(mockSessionFetch).toHaveBeenCalledWith("/api/staff/shift-types/12", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: "Betreuung",
+        color: "#83CD2D",
+        description: "",
+        is_active: true,
+        category_ids: [3, 7],
+      }),
+    });
+  });
+
+  it("sends an empty category_ids array to clear the mapping", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json({ data: backendShiftType }, { status: 200 }),
+    );
+
+    await shiftTypeService.updateShiftType("12", {
+      name: "Betreuung",
+      color: "#83CD2D",
+      description: "",
+      isActive: true,
+      categoryIds: [],
+    });
+
+    const body = JSON.parse(
+      (mockSessionFetch.mock.calls[0]![1] as RequestInit).body as string,
+    ) as Record<string, unknown>;
+    expect(body.category_ids).toEqual([]);
+  });
+
+  it("omits category_ids entirely when categoryIds is undefined", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json({ data: backendShiftType }, { status: 201 }),
+    );
+
+    await shiftTypeService.createShiftType({
+      name: "Betreuung",
+      color: "#83CD2D",
+      description: "",
+      isActive: true,
+    });
+
+    const body = JSON.parse(
+      (mockSessionFetch.mock.calls[0]![1] as RequestInit).body as string,
+    ) as Record<string, unknown>;
+    expect(body).not.toHaveProperty("category_ids");
+  });
+
   it("returns cleanly after a successful delete", async () => {
     mockSessionFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 

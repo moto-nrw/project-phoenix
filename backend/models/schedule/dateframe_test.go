@@ -324,37 +324,6 @@ func TestDateframe_Overlaps(t *testing.T) {
 	}
 }
 
-func TestDateframe_BeforeAppendModel(t *testing.T) {
-	t.Run("handles nil query", func(t *testing.T) {
-		df := &Dateframe{
-			StartDate: time.Now(),
-			EndDate:   time.Now().AddDate(0, 0, 1),
-		}
-		err := df.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		df := &Dateframe{
-			StartDate: time.Now(),
-			EndDate:   time.Now().AddDate(0, 0, 1),
-		}
-		err := df.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
-func TestDateframe_TableName(t *testing.T) {
-	df := &Dateframe{}
-	if got := df.TableName(); got != "schedule.dateframes" {
-		t.Errorf("TableName() = %v, want schedule.dateframes", got)
-	}
-}
-
 func TestDateframe_GetID(t *testing.T) {
 	df := &Dateframe{
 		Model:     base.Model{ID: 42},

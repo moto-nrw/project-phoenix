@@ -698,23 +698,6 @@ func TestListPending_ReturnsEnrichedItemWithDiff(t *testing.T) {
 	assert.True(t, news["16:00"], "requested pickup should appear in the diff")
 }
 
-// captureCareBroadcaster records the tenant-wide and global cache-invalidation
-// events the approve path fires so the test can assert both went out.
-type captureCareBroadcaster struct {
-	tenantEvents int
-	allEvents    int
-}
-
-func (b *captureCareBroadcaster) BroadcastToGroup(int64, string, realtime.Event) error { return nil }
-func (b *captureCareBroadcaster) BroadcastToTenant(int64, realtime.Event) error {
-	b.tenantEvents++
-	return nil
-}
-func (b *captureCareBroadcaster) BroadcastToAll(realtime.Event) error { b.allEvents++; return nil }
-func (b *captureCareBroadcaster) BroadcastParentMessage(int64, int64, realtime.Event) error {
-	return nil
-}
-
 // TestDecide_ApproveBroadcastsCacheInvalidation proves that applying a care
 // request fans out the cache-invalidation events (student_updated tenant-wide,
 // arrival_schedule_changed globally) so every open kiosk/dashboard refetches the
@@ -726,7 +709,7 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 		map[string]any{"weekday": 1, "arrival": "08:00", "pickup": "16:00"},
 	))
 
-	bc := &captureCareBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	svc := schedule.NewCareScheduleRequestService(
 		f.repos.CareScheduleChangeRequest, f.repos.Student, f.repos.Person,
 		f.sf.ArrivalSchedule, f.sf.PickupSchedule, f.sf.UserContext,
@@ -738,8 +721,8 @@ func TestDecide_ApproveBroadcastsCacheInvalidation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	assert.Positive(t, bc.tenantEvents, "approve must broadcast student_updated to the tenant")
-	assert.Positive(t, bc.allEvents, "approve must broadcast arrival_schedule_changed globally")
+	assert.Positive(t, len(bc.CallsByMethod("tenant")), "approve must broadcast student_updated to the tenant")
+	assert.Positive(t, len(bc.CallsByMethod("all")), "approve must broadcast arrival_schedule_changed globally")
 }
 
 // TestWithdrawRequest_BogusIDNotFound covers the repository's no-rows lock
@@ -769,4 +752,67 @@ func TestDecide_BogusIDNotFound(t *testing.T) {
 	})
 	require.ErrorIs(t, err, scheduleModels.ErrCareRequestNotFound,
 		"deciding a non-existent request must be not-found")
+}
+
+// TestCareRequestLifecycle_WakesAllGuardians covers #1725 review finding #2: every
+// care-schedule change-request lifecycle transition (create / withdraw / decide)
+// posts its notification pill only to the SUBMITTING guardian's thread, and the
+// approve-time staff broadcasts (student_updated / arrival_schedule_changed) never
+// reach the parents SSE stream. So each transition must ALSO fan a message-
+// independent parent_child_updated out to EVERY guardian of the child, or a
+// co-guardian's open child-detail view keeps a stale pending badge (create/
+// withdraw) or pickup time (approve) until reload. A RecordingBroadcaster wired
+// into the emitter proves the guardian wake fires on each transition.
+func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
+	f := newCareFixture(t)
+	// The create/withdraw/decide pills reference the staff + guardian accounts
+	// without cascade; clear them LIFO-first, ahead of the auth cleanup.
+	t.Cleanup(func() { testpkg.CleanupParentMessagingForAccount(t, f.db, f.staffAccount) })
+
+	broadcaster := testpkg.NewRecordingBroadcaster()
+	svc := schedule.NewCareScheduleRequestService(
+		f.repos.CareScheduleChangeRequest,
+		f.repos.Student,
+		f.repos.Person,
+		f.sf.ArrivalSchedule,
+		f.sf.PickupSchedule,
+		f.sf.UserContext,
+		parentmessaging.NewEmitter(f.db, f.repos.ParentMessageThread, f.repos.ParentMessage, &toggleSettings{enabled: true}, broadcaster, slog.Default()),
+		broadcaster,
+		slog.Default(),
+	)
+
+	assertWoke := func(t *testing.T, label string) {
+		t.Helper()
+		woke := false
+		for _, c := range broadcaster.CallsByMethod("guardian") {
+			if c.GuardianID == f.chain.AccountID && c.Event.Type == realtime.EventParentChildUpdated {
+				woke = true
+				assert.Equal(t, f.chain.TenantID, c.TenantID)
+			}
+		}
+		assert.Truef(t, woke, "%s must wake the child's guardian %d with parent_child_updated (#1725)", label, f.chain.AccountID)
+	}
+
+	// create → wake
+	broadcaster.Reset()
+	req, err := svc.CreateRequest(f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
+		careWeekdays(map[string]any{"weekday": 1, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"}))
+	require.NoError(t, err)
+	assertWoke(t, "creating a care request")
+
+	// withdraw (submitter withdraws own pending request) → wake
+	broadcaster.Reset()
+	_, err = svc.WithdrawRequest(f.staffCtx(f.chain.AccountID), req.ID, f.chain.StudentID, f.chain.AccountID)
+	require.NoError(t, err)
+	assertWoke(t, "withdrawing a care request")
+
+	// re-file, then approve (applies the weekly plan) → wake
+	req2, err := svc.CreateRequest(f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
+		careWeekdays(map[string]any{"weekday": 2, "pickup": "15:00"}))
+	require.NoError(t, err)
+	broadcaster.Reset()
+	_, err = svc.Decide(f.staffCtx(f.staffAccount), schedule.CareRequestDecideInput{RequestID: req2.ID, Approve: true, ReviewedBy: f.staffAccount})
+	require.NoError(t, err)
+	assertWoke(t, "approving a care request")
 }

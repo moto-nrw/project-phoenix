@@ -4,10 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/uptrace/bun"
@@ -31,19 +31,6 @@ func NewOperatorInvitationTokenRepository(db *bun.DB) platform.OperatorInvitatio
 		Repository: base.NewRepository[*platform.OperatorInvitationToken](db, operatorInvitationTokenTable, "OperatorInvitationToken"),
 		db:         db,
 	}
-}
-
-// Create creates a new invitation token
-func (r *OperatorInvitationTokenRepository) Create(ctx context.Context, token *platform.OperatorInvitationToken) error {
-	if token == nil {
-		return fmt.Errorf("invitation token cannot be nil")
-	}
-
-	if err := token.Validate(); err != nil {
-		return err
-	}
-
-	return r.Repository.Create(ctx, token)
 }
 
 // FindByID retrieves an invitation token by its ID
@@ -221,32 +208,14 @@ func (r *OperatorInvitationTokenRepository) InvalidateByEmail(ctx context.Contex
 
 // UpdateDeliveryResult updates the email delivery metadata for a token
 func (r *OperatorInvitationTokenRepository) UpdateDeliveryResult(ctx context.Context, tokenID int64, sentAt *time.Time, emailError *string, retryCount int) error {
-	update := base.GetDB(ctx, r.db).NewUpdate().
-		Model((*platform.OperatorInvitationToken)(nil)).
-		ModelTableExpr(operatorInvitationTokenTable).
-		Where("id = ?", tokenID).
-		Set("email_retry_count = ?", retryCount)
-
-	if sentAt != nil {
-		update = update.Set("email_sent_at = ?", *sentAt)
-	} else {
-		update = update.Set("email_sent_at = NULL")
-	}
-
+	token := &platform.OperatorInvitationToken{Model: modelBase.Model{ID: tokenID}, EmailSentAt: sentAt, EmailRetryCount: retryCount}
 	if emailError != nil {
-		update = update.Set("email_error = ?", truncateInvitationEmailError(*emailError))
-	} else {
-		update = update.Set("email_error = NULL")
+		truncated := strutil.TruncateRunes(*emailError, maxInvitationEmailErrorLength, "")
+		token.EmailError = &truncated
 	}
 
-	if _, err := update.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "update invitation delivery result",
-			Err: err,
-		}
-	}
-
-	return nil
+	_, err := r.UpdateColumns(ctx, token, "email_sent_at", "email_error", "email_retry_count")
+	return err
 }
 
 // CountRecentByCreatedBy counts tokens created after `since` by the given
@@ -293,15 +262,4 @@ func (r *OperatorInvitationTokenRepository) DeleteExpired(ctx context.Context) (
 	}
 
 	return int(affected), nil
-}
-
-func truncateInvitationEmailError(msg string) string {
-	if msg == "" {
-		return ""
-	}
-	runes := []rune(msg)
-	if len(runes) <= maxInvitationEmailErrorLength {
-		return msg
-	}
-	return string(runes[:maxInvitationEmailErrorLength])
 }

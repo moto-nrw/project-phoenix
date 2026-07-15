@@ -17,11 +17,7 @@ import (
 // signal the condition without importing the service package.
 var ErrAnnouncementPublished = errors.New("users: parent announcement is published (not editable)")
 
-const (
-	tableUsersParentAnnouncements       = "users.parent_announcements"
-	tableUsersParentAnnouncementTargets = "users.parent_announcement_targets"
-	tableUsersParentAnnouncementReads   = "users.parent_announcement_reads"
-)
+const ()
 
 // Announcement priority levels (mirrors the chk_parent_announcements_priority
 // constraint). "important" only changes presentation (a highlighted badge); it
@@ -83,26 +79,6 @@ type ParentAnnouncement struct {
 	Targets []*ParentAnnouncementTarget `bun:"-" json:"targets,omitempty"`
 }
 
-// BeforeAppendModel pins INSERT/UPDATE to the bare (un-aliased) table so the
-// repository's raw Set(...)/column clauses resolve. It deliberately does NOT
-// touch DeleteQuery: the generic base.Repository.Delete builds
-// `... AS "parent_announcement"` and a WHERE that references that alias, so
-// overriding the table expression here would drop the alias and the DELETE
-// would fail on a missing FROM-clause entry (Postgres allows the alias on
-// DELETE, so leaving base's aliased expression intact is correct).
-func (a *ParentAnnouncement) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(tableUsersParentAnnouncements)
-	}
-	if q, ok := query.(*bun.InsertQuery); ok {
-		q.ModelTableExpr(tableUsersParentAnnouncements)
-	}
-	return nil
-}
-
-// TableName returns the schema-qualified table name.
-func (a *ParentAnnouncement) TableName() string { return tableUsersParentAnnouncements }
-
 // IsPublished reports whether the announcement has been published (vs draft).
 func (a *ParentAnnouncement) IsPublished() bool {
 	return a.PublishedAt != nil
@@ -125,9 +101,6 @@ type ParentAnnouncementTarget struct {
 	CreatedAt      time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
 }
 
-// TableName returns the schema-qualified table name.
-func (t *ParentAnnouncementTarget) TableName() string { return tableUsersParentAnnouncementTargets }
-
 // ParentAnnouncementRead is a guardian account's read/ack state for one
 // announcement. Read state is account-global (one row per account+announcement),
 // not per child: the feed is a cross-child, cross-tenant list, so "gelesen" is
@@ -141,9 +114,6 @@ type ParentAnnouncementRead struct {
 	ReadAt         time.Time  `bun:"read_at,notnull" json:"read_at"`
 	AcknowledgedAt *time.Time `bun:"acknowledged_at" json:"acknowledged_at,omitempty"`
 }
-
-// TableName returns the schema-qualified table name.
-func (r *ParentAnnouncementRead) TableName() string { return tableUsersParentAnnouncementReads }
 
 // AnnouncementFeedItem is the parent-facing list/detail projection: the
 // announcement core fields plus the authoring school's name (the feed is

@@ -27,19 +27,20 @@ type Resource struct {
 	FormSchemaService         enrollmentService.FormSchemaService
 	CareOfferingService       enrollmentService.CareOfferingService
 	RequestService            enrollmentService.RequestService
-	CaptchaService            enrollmentService.CaptchaService
+	CaptchaService            *enrollmentService.CaptchaService
 	PhaseService              enrollmentService.PhaseService
 	DecisionService           enrollmentService.DecisionService
 	ReportService             enrollmentService.ReportService
 	RolloverService           enrollmentService.RolloverService
 	ChangeRequestService      enrollmentService.ChangeRequestService
+	DeletionService           enrollmentService.EnrollmentDeletionService
 	GuardianInvitationService authService.GuardianInvitationService
-	GuardianProfileLoader     usersService.GuardianProfileLoader
+	GuardianProfileLoader     *usersService.GuardianProfileLoader
 	SchoolService             platformSvc.SchoolService
 	// ListExportService renders the compact per-phase registration
 	// export (PDF blocks + XLSX flat table). Set as a field after
 	// construction (mirrors api/rooms), not via the constructor.
-	ListExportService    listexport.Service
+	ListExportService    *listexport.RendererService
 	db                   *bun.DB
 	legalDocumentRefs    legalDocumentReferenceRepository
 	runInTenantTxForTest func(r *http.Request, fn func(ctx context.Context) error) error
@@ -55,14 +56,15 @@ func NewResource(
 	formSchemaSvc enrollmentService.FormSchemaService,
 	careOfferingSvc enrollmentService.CareOfferingService,
 	requestSvc enrollmentService.RequestService,
-	captchaSvc enrollmentService.CaptchaService,
+	captchaSvc *enrollmentService.CaptchaService,
 	phaseSvc enrollmentService.PhaseService,
 	decisionSvc enrollmentService.DecisionService,
 	reportSvc enrollmentService.ReportService,
 	rolloverSvc enrollmentService.RolloverService,
 	changeRequestSvc enrollmentService.ChangeRequestService,
+	deletionSvc enrollmentService.EnrollmentDeletionService,
 	guardianInvitationSvc authService.GuardianInvitationService,
-	guardianProfileLoader usersService.GuardianProfileLoader,
+	guardianProfileLoader *usersService.GuardianProfileLoader,
 	schoolService platformSvc.SchoolService,
 	db *bun.DB,
 	legalDocumentRefs ...legalDocumentReferenceRepository,
@@ -77,6 +79,7 @@ func NewResource(
 		ReportService:             reportSvc,
 		RolloverService:           rolloverSvc,
 		ChangeRequestService:      changeRequestSvc,
+		DeletionService:           deletionSvc,
 		GuardianInvitationService: guardianInvitationSvc,
 		GuardianProfileLoader:     guardianProfileLoader,
 		SchoolService:             schoolService,
@@ -202,7 +205,12 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listAdminRequests)
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Get("/delete-impact", rs.getAdminRequestDeleteImpact)
+				r.With(authorize.RequiresPermission("config:manage")).Delete("/", rs.deleteAdminRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Get("/children/{childId}/delete-impact", rs.getAdminChildDeleteImpact)
+				r.With(authorize.RequiresPermission("config:manage")).Delete("/children/{childId}", rs.deleteAdminChild)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/children/{childId}/decide", rs.decideAdminChild)
+				r.With(authorize.RequiresPermission("config:manage")).Put("/children/{childId}/data-correction", rs.correctAdminChildData)
 				r.With(authorize.RequiresPermission("config:manage")).Put("/children/{childId}/offerings", rs.updateAdminChildOfferings)
 				r.With(authorize.RequiresPermission("config:manage")).Get("/children/{childId}/offering-adjustments", rs.listAdminChildOfferingAdjustments)
 			})

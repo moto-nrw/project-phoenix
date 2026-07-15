@@ -41,9 +41,7 @@ func (r *CalendarPeriodRepository) FindByTenantID(ctx context.Context) ([]*sched
 		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`).
 		Order("start_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -65,9 +63,7 @@ func (r *CalendarPeriodRepository) FindActiveByTenantID(ctx context.Context) ([]
 		Where(`"calendar_period".is_active = ?`, true).
 		Order("start_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -88,9 +84,7 @@ func (r *CalendarPeriodRepository) FindByName(ctx context.Context, name string) 
 		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`).
 		Where(`"calendar_period".name = ?`, name)
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -115,9 +109,7 @@ func (r *CalendarPeriodRepository) FindByID(ctx context.Context, id any) (*sched
 		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`).
 		Where(`"calendar_period".id = ?`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -128,15 +120,6 @@ func (r *CalendarPeriodRepository) FindByID(ctx context.Context, id any) (*sched
 	}
 
 	return &period, nil
-}
-
-// Create overrides the base Create method with nil guard
-func (r *CalendarPeriodRepository) Create(ctx context.Context, p *schedule.CalendarPeriod) error {
-	if p == nil {
-		return errCalendarPeriodNil
-	}
-
-	return r.Repository.Create(ctx, p)
 }
 
 // CreateIfAbsent inserts the period unless a row with the same
@@ -201,14 +184,40 @@ func (r *CalendarPeriodRepository) FindActiveOverlapping(ctx context.Context, st
 		Where(`"calendar_period".id != ?`, excludeID).
 		Order("start_date ASC")
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active overlapping",
+			Err: err,
+		}
+	}
+
+	return periods, nil
+}
+
+// FindActiveOverlappingByType behaves like FindActiveOverlapping but only
+// considers active periods of the given period_type. It backs the hard
+// same-type overlap rejection (#1837); the untyped variant stays advisory.
+func (r *CalendarPeriodRepository) FindActiveOverlappingByType(ctx context.Context, periodType string, start, end timezone.Date, excludeID int64) ([]*schedule.CalendarPeriod, error) {
+	var periods []*schedule.CalendarPeriod
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&periods).
+		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`).
+		Where(`"calendar_period".is_active = ?`, true).
+		Where(`"calendar_period".period_type = ?`, periodType).
+		Where(`"calendar_period".start_date <= ?`, end).
+		Where(`"calendar_period".end_date >= ?`, start).
+		Where(`"calendar_period".id != ?`, excludeID).
+		Order("start_date ASC")
+
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
+
+	err := query.Scan(ctx)
+	if err != nil {
+		return nil, &modelBase.DatabaseError{
+			Op:  "find active overlapping by type",
 			Err: err,
 		}
 	}
@@ -226,6 +235,7 @@ func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]s
 	var rows []struct {
 		ID                     int64 `bun:"id"`
 		PhaseCount             int   `bun:"phase_count"`
+		ActivityGroupCount     int   `bun:"activity_group_count"`
 		ScheduleCount          int   `bun:"schedule_count"`
 		StudentEnrollmentCount int   `bun:"student_enrollment_count"`
 		SupervisorCount        int   `bun:"supervisor_count"`
@@ -240,6 +250,11 @@ func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]s
 			WHERE p.calendar_period_id = "calendar_period".id
 			  AND p.tenant_id = "calendar_period".tenant_id
 		)::int AS phase_count`).
+		ColumnExpr(`(
+			SELECT COUNT(*) FROM activities.groups g
+			WHERE g.calendar_period_id = "calendar_period".id
+			  AND g.tenant_id = "calendar_period".tenant_id
+		)::int AS activity_group_count`).
 		ColumnExpr(`(
 			SELECT COUNT(*) FROM activities.schedules s
 			WHERE s.calendar_period_id = "calendar_period".id
@@ -261,9 +276,7 @@ func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]s
 			  AND ai.tenant_id = "calendar_period".tenant_id
 		)::int AS activity_instance_count`)
 
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "calendar_period")
 
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -275,6 +288,7 @@ func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]s
 	usage := make(map[int64]schedule.CalendarPeriodUsage, len(rows))
 	for _, row := range rows {
 		if row.PhaseCount == 0 &&
+			row.ActivityGroupCount == 0 &&
 			row.ScheduleCount == 0 &&
 			row.StudentEnrollmentCount == 0 &&
 			row.SupervisorCount == 0 &&
@@ -283,6 +297,7 @@ func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]s
 		}
 		usage[row.ID] = schedule.CalendarPeriodUsage{
 			EnrollmentPhases:   row.PhaseCount,
+			ActivityGroups:     row.ActivityGroupCount,
 			Schedules:          row.ScheduleCount,
 			StudentEnrollments: row.StudentEnrollmentCount,
 			Supervisors:        row.SupervisorCount,
@@ -292,37 +307,7 @@ func (r *CalendarPeriodRepository) UsageCounts(ctx context.Context) (map[int64]s
 	return usage, nil
 }
 
-// Update overrides the base Update method with nil guard
-func (r *CalendarPeriodRepository) Update(ctx context.Context, p *schedule.CalendarPeriod) error {
-	if p == nil {
-		return errCalendarPeriodNil
-	}
-
-	return r.Repository.Update(ctx, p)
-}
-
 // List retrieves calendar periods matching the provided query options
 func (r *CalendarPeriodRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.CalendarPeriod, error) {
-	var periods []*schedule.CalendarPeriod
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&periods).
-		ModelTableExpr(`schedule.calendar_periods AS "calendar_period"`)
-
-	if where, val, ok := base.TenantWhere(ctx, "calendar_period"); ok {
-		query = query.Where(where, val)
-	}
-
-	if options != nil {
-		query = options.ApplyToQuery(query)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "list",
-			Err: err,
-		}
-	}
-
-	return periods, nil
+	return r.ListWithOptions(ctx, options)
 }

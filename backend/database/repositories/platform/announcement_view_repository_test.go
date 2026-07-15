@@ -509,43 +509,6 @@ func TestAnnouncementViewRepository_MarkDismissed(t *testing.T) {
 // BeforeAppendModel hook for SelectQuery, or using ColumnExpr to override column generation).
 // The test below documents the expected behavior and will pass once the bug is fixed.
 
-func TestAnnouncementViewRepository_HasSeen(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	ctx := testpkg.TenantContext(1)
-	viewRepo := platform.NewAnnouncementViewRepository(db)
-
-	operator := createTestOperator(t, db, "hasseen-op@test.com", "HasSeen Op")
-	defer cleanupTestOperator(t, db, operator.ID)
-
-	announcement := createTestAnnouncement(t, db, "HasSeen Test", operator.ID)
-	defer cleanupTestAnnouncement(t, db, announcement.ID)
-
-	accountID := createTestAccount(t, db, "hasseen-user@test.com")
-	defer cleanupTestAccount(t, db, accountID)
-
-	t.Run("false when not seen", func(t *testing.T) {
-		seen, err := viewRepo.HasSeen(ctx, accountID, announcement.ID)
-		if err != nil {
-			t.Skipf("HasSeen has a known BUN alias bug (see NOTE above): %v", err)
-		}
-		assert.False(t, seen)
-	})
-
-	t.Run("true when seen", func(t *testing.T) {
-		err := viewRepo.MarkSeen(ctx, accountID, announcement.ID)
-		require.NoError(t, err)
-		defer cleanupTestAnnouncementView(t, db, accountID, announcement.ID)
-
-		seen, err := viewRepo.HasSeen(ctx, accountID, announcement.ID)
-		if err != nil {
-			t.Skipf("HasSeen has a known BUN alias bug (see NOTE above): %v", err)
-		}
-		assert.True(t, seen)
-	})
-}
-
 // --- Test: GetUnreadForUser ---
 
 func TestAnnouncementViewRepository_GetUnreadForUser(t *testing.T) {

@@ -115,8 +115,6 @@ describe("POST /api/auth/register", () => {
       headers: {
         "Content-Type": "application/json",
         "User-Agent": "unknown",
-        "X-Forwarded-For": "unknown",
-        "X-Real-IP": "unknown",
       },
       body: JSON.stringify(registrationPayload),
     });
@@ -166,8 +164,6 @@ describe("POST /api/auth/register", () => {
         "Content-Type": "application/json",
         Authorization: "Bearer admin-token",
         "User-Agent": "unknown",
-        "X-Forwarded-For": "unknown",
-        "X-Real-IP": "unknown",
       },
       body: JSON.stringify(registrationPayload),
     });

@@ -95,10 +95,12 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (parentService.Serv
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  pickup,
 		ArrivalExceptionRepo: arrival,
-		Settings:             careStubSettings{pickupChangeEnabled: true},
-		Broadcaster:          &captureBroadcaster{},
-		DB:                   db,
-		Logger:               slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},
+		},
+		Broadcaster: testpkg.NewRecordingBroadcaster(),
+		DB:          db,
+		Logger:      slog.Default(),
 	})
 	return svc, db
 }
@@ -109,36 +111,24 @@ func buildCareServiceWithPickupRepo(t *testing.T, wrap func(scheduleModels.Stude
 	return buildCareServiceWithRepos(t, careRepoWrap{pickup: wrap})
 }
 
-// careStubSettings resolves only the pickup-change toggle the care-exception
-// path reads; all other keys default to false.
-type careStubSettings struct {
-	stubSettings
-	pickupChangeEnabled bool
-}
-
-func (s careStubSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	if key == configModels.KeyParentPickupChangeEnabled {
-		return s.pickupChangeEnabled, nil
-	}
-	return false, nil
-}
-
-func buildCareService(t *testing.T, pickupChangeEnabled bool) (parentService.Service, *captureBroadcaster, *bun.DB) {
+func buildCareService(t *testing.T, pickupChangeEnabled bool) (parentService.Service, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 	repos := repositories.NewFactory(db)
-	bc := &captureBroadcaster{}
+	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
 		StatusDayRepo:        repos.StudentStatusDay,
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  repos.StudentPickupException,
 		ArrivalExceptionRepo: repos.StudentArrivalException,
-		Settings:             careStubSettings{pickupChangeEnabled: pickupChangeEnabled},
-		Broadcaster:          bc,
-		DB:                   db,
-		Logger:               slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: pickupChangeEnabled},
+		},
+		Broadcaster: bc,
+		DB:          db,
+		Logger:      slog.Default(),
 	})
 	return svc, bc, db
 }
@@ -164,7 +154,7 @@ func TestSubmitCareException_PersistsGuardianRowWithNullCreatedBy(t *testing.T) 
 	assert.Equal(t, "14:30", result.PickupTime.Format("15:04"))
 	assert.Equal(t, "08:15", result.ArrivalTime.Format("15:04"))
 	assert.Equal(t, scheduleModels.ExceptionSourceGuardian, result.Source)
-	assert.Contains(t, bc.tenantEvents, chain.TenantID, "SSE broadcast must fire")
+	assert.Contains(t, tenantBroadcastIDs(bc), chain.TenantID, "SSE broadcast must fire")
 
 	// The load-bearing assertion: a guardian row stores created_by as NULL
 	// (nullzero) and references the account via created_by_guardian. NULL is
@@ -613,6 +603,87 @@ func TestListCareExceptions_MergesBothLegsAndFlagsStaffSource(t *testing.T) {
 		"a staff arrival row must mark the day staff-owned")
 }
 
+// TestListCareExceptions_FlagsAbsentPickupRow proves a staff pickup exception
+// with NO time (StudentPickupException.IsAbsent — "not coming today") surfaces as
+// PickupAbsent so the parent tile resolves it as an absence rather than falling
+// back to the base-plan pickup. Such a row creates no status day, so the
+// care-schedule today_absent signal alone would miss it (#1725 review).
+func TestListCareExceptions_FlagsAbsentPickupRow(t *testing.T) {
+	svc, _, db := buildCareService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
+	ctx := context.Background()
+	repos := repositories.NewFactory(db)
+	defer func() {
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM schedule.student_pickup_exceptions WHERE student_id = ?`, chain.StudentID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.staff WHERE id = ?`, staff.ID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
+	}()
+
+	absentDay := timezone.TodayDate().AddDays(1)
+	// A staff pickup row with no time — the "child is absent today" marker.
+	absent := &scheduleModels.StudentPickupException{
+		StudentID:     chain.StudentID,
+		ExceptionDate: absentDay,
+		PickupTime:    nil,
+		CreatedBy:     staff.ID,
+	}
+	absent.SetTenantID(chain.TenantID)
+	require.NoError(t, repos.StudentPickupException.Create(ctx, absent))
+
+	list, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID,
+		timezone.TodayDate(), timezone.TodayDate().AddDays(30))
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	assert.Equal(t, absentDay, list[0].Date)
+	assert.Nil(t, list[0].PickupTime, "an absent pickup row carries no time")
+	assert.True(t, list[0].PickupAbsent, "a timeless pickup row must flag the day absent")
+	assert.False(t, list[0].ArrivalAbsent, "no arrival row exists, so the arrival leg is not absent")
+	assert.Equal(t, scheduleModels.ExceptionSourceStaff, list[0].Source)
+}
+
+// TestListCareExceptions_FlagsAbsentArrivalRow is the arrival-leg twin of
+// TestListCareExceptions_FlagsAbsentPickupRow: a staff arrival exception with NO
+// expected time (StudentArrivalException.IsAbsent — "not coming today") surfaces
+// as ArrivalAbsent. Like a timeless pickup row it creates no status day, so the
+// today_absent signal alone would miss it and the parent tile would wrongly fall
+// back to the base-plan pickup for a child who is not coming (#1725 review).
+func TestListCareExceptions_FlagsAbsentArrivalRow(t *testing.T) {
+	svc, _, db := buildCareService(t, true)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+	staff := testpkg.CreateTestStaff(t, db, "Team", "Mitglied")
+	ctx := context.Background()
+	repos := repositories.NewFactory(db)
+	defer func() {
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM schedule.student_arrival_exceptions WHERE student_id = ?`, chain.StudentID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.staff WHERE id = ?`, staff.ID)
+		_, _ = db.ExecContext(context.Background(), `DELETE FROM users.persons WHERE id = ?`, staff.PersonID)
+	}()
+
+	absentDay := timezone.TodayDate().AddDays(1)
+	// A staff arrival row with no expected time — the "child is absent today" marker.
+	absent := &scheduleModels.StudentArrivalException{
+		StudentID:       chain.StudentID,
+		ExceptionDate:   absentDay,
+		ExpectedArrival: nil,
+		CreatedBy:       staff.ID,
+	}
+	absent.SetTenantID(chain.TenantID)
+	require.NoError(t, repos.StudentArrivalException.Create(ctx, absent))
+
+	list, err := svc.ListCareExceptions(ctx, chain.AccountID, chain.StudentID,
+		timezone.TodayDate(), timezone.TodayDate().AddDays(30))
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	assert.Equal(t, absentDay, list[0].Date)
+	assert.Nil(t, list[0].ArrivalTime, "an absent arrival row carries no time")
+	assert.True(t, list[0].ArrivalAbsent, "a timeless arrival row must flag the day absent")
+	assert.False(t, list[0].PickupAbsent, "no pickup row exists, so the pickup leg is not absent")
+	assert.Equal(t, scheduleModels.ExceptionSourceStaff, list[0].Source)
+}
+
 // TestDeleteCareException_RemovesBothLegs covers the arrival side of the delete
 // path (the pickup-only delete is covered by TestListAndDeleteCareException):
 // a day with both guardian legs must have both rows removed and broadcast once.
@@ -627,7 +698,7 @@ func TestDeleteCareException_RemovesBothLegs(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date))
-	assert.Contains(t, bc.tenantEvents, chain.TenantID, "deleting guardian rows must broadcast a student update")
+	assert.Contains(t, tenantBroadcastIDs(bc), chain.TenantID, "deleting guardian rows must broadcast a student update")
 
 	for _, table := range []string{"schedule.student_pickup_exceptions", "schedule.student_arrival_exceptions"} {
 		var count int
@@ -766,10 +837,12 @@ func TestDeleteCareException_ArrivalFindErrorSurfaces(t *testing.T) {
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  repos.StudentPickupException,
 		ArrivalExceptionRepo: stubArrivalRepo{StudentArrivalExceptionRepository: repos.StudentArrivalException, findErr: errBoom},
-		Settings:             careStubSettings{pickupChangeEnabled: true},
-		Broadcaster:          &captureBroadcaster{},
-		DB:                   db,
-		Logger:               slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},
+		},
+		Broadcaster: testpkg.NewRecordingBroadcaster(),
+		DB:          db,
+		Logger:      slog.Default(),
 	})
 
 	err = svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date)

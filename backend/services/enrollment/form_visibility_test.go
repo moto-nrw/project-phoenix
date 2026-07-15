@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -1038,4 +1039,38 @@ func TestValidateConstrainedSchedules_OffListTimeOnNonCareDayIgnored(t *testing.
 	err := s.validateConstrainedSchedules(schema, bad, openByID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, ErrPickupTimeNotAllowed))
+}
+
+func TestMatchExistingChildrenBySubmittedIdentityNeverFallsBackToPosition(t *testing.T) {
+	existing := []*enrollmentModels.RequestChild{
+		{FirstName: "Anna", LastName: "Beispiel", DateOfBirth: timezone.NewDate(2018, 4, 15)},
+		{FirstName: "Ben", LastName: "Beispiel", DateOfBirth: timezone.NewDate(2019, 8, 1)},
+	}
+	existing[0].ID = 11
+	existing[1].ID = 12
+
+	matches := matchExistingChildrenBySubmittedIdentity(existing, []SubmitChild{
+		{ID: 12, FirstName: "Ben", LastName: "Beispiel", DateOfBirth: timezone.NewDate(2019, 8, 1)},
+		{FirstName: "Clara", LastName: "Beispiel", DateOfBirth: timezone.NewDate(2020, 9, 2)},
+	})
+	require.Len(t, matches, 2)
+	assert.Same(t, existing[1], matches[0])
+	assert.Nil(t, matches[1], "new child must not inherit the removed child's hidden state")
+}
+
+func TestMatchExistingChildrenBySubmittedIdentityAllowsUniqueIDLessReorder(t *testing.T) {
+	existing := []*enrollmentModels.RequestChild{
+		{FirstName: "Anna", LastName: "Beispiel", DateOfBirth: timezone.NewDate(2018, 4, 15)},
+		{FirstName: "Ben", LastName: "Beispiel", DateOfBirth: timezone.NewDate(2019, 8, 1)},
+	}
+	existing[0].ID = 11
+	existing[1].ID = 12
+
+	matches := matchExistingChildrenBySubmittedIdentity(existing, []SubmitChild{
+		{FirstName: " ben ", LastName: "BEISPIEL", DateOfBirth: timezone.NewDate(2019, 8, 1)},
+		{FirstName: "ANNA", LastName: "Beispiel", DateOfBirth: timezone.NewDate(2018, 4, 15)},
+	})
+	require.Len(t, matches, 2)
+	assert.Same(t, existing[1], matches[0])
+	assert.Same(t, existing[0], matches[1])
 }

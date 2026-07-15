@@ -49,7 +49,8 @@ import {
 } from "~/lib/enrollment-form-schema-api";
 import { createLogger } from "~/lib/logger";
 import { RolloverForm } from "./rollover-form";
-import { useTenantSlugSafe } from "~/lib/tenant-context";
+import { useTenant } from "~/lib/tenant-context";
+import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import { useToast } from "~/contexts/ToastContext";
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -181,7 +182,11 @@ export function PhasesEditor() {
   const [rolloverSource, setRolloverSource] = useState<Phase | null>(null);
   const [highlightFormSection, setHighlightFormSection] = useState(false);
   const [highlightActions, setHighlightActions] = useState(false);
-  const tenantSlug = useTenantSlugSafe();
+  const { tenantSlug, tenant } = useTenant();
+  const resolvedGradeLevelMax = tenant?.gradeLevelMax;
+  const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
+    ? resolvedGradeLevelMax
+    : null;
   const tenantPath = useTenantAwarePath();
   const toast = useToast();
   const assignFormId = searchParams.get("assignForm");
@@ -537,6 +542,7 @@ export function PhasesEditor() {
           <PhaseActions
             phase={phase}
             tenantSlug={tenantSlug}
+            gradeLevelMax={gradeLevelMax}
             tenantPath={tenantPath}
             saving={saving}
             deleting={deletingId === phase.id}
@@ -561,6 +567,7 @@ export function PhasesEditor() {
       saving,
       schemaNameById,
       startEdit,
+      gradeLevelMax,
       tenantSlug,
       tenantPath,
     ],
@@ -829,6 +836,7 @@ function FormSchemaCell({
 interface PhaseActionsProps {
   readonly phase: Phase;
   readonly tenantSlug?: string | null;
+  readonly gradeLevelMax: number | null;
   readonly tenantPath: (path: string) => string;
   readonly saving: boolean;
   readonly deleting: boolean;
@@ -852,6 +860,7 @@ const PHASE_ACTIONS_MENU_HEIGHT = 292;
 function PhaseActions({
   phase,
   tenantSlug,
+  gradeLevelMax,
   tenantPath,
   saving,
   deleting,
@@ -1131,6 +1140,7 @@ function PhaseActions({
         isOpen={manualOpen}
         onClose={() => setManualOpen(false)}
         phase={phase}
+        gradeLevelMax={gradeLevelMax}
       />
     </>
   );

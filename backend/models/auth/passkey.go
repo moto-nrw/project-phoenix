@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 const (
@@ -29,18 +28,6 @@ type PasskeyCredential struct {
 	RevokedAt      *time.Time      `bun:"revoked_at" json:"revoked_at,omitempty"`
 }
 
-func (c *PasskeyCredential) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.passkey_credentials AS "passkey_credential"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.passkey_credentials AS "passkey_credential"`)
-	}
-	return nil
-}
-
-func (c *PasskeyCredential) TableName() string { return "auth.passkey_credentials" }
-
 func (c *PasskeyCredential) Validate() error {
 	if c.AccountID == 0 {
 		return errors.New("account_id is required")
@@ -57,10 +44,6 @@ func (c *PasskeyCredential) Validate() error {
 	return nil
 }
 
-func (c *PasskeyCredential) GetID() interface{}      { return c.ID }
-func (c *PasskeyCredential) GetCreatedAt() time.Time { return c.CreatedAt }
-func (c *PasskeyCredential) GetUpdatedAt() time.Time { return c.UpdatedAt }
-
 // PasskeySession stores the server-side WebAuthn ceremony state.
 type PasskeySession struct {
 	ID             string          `bun:"id,pk" json:"id"`
@@ -75,18 +58,6 @@ type PasskeySession struct {
 	CreatedAt      time.Time       `bun:"created_at,notnull,default:current_timestamp" json:"created_at"`
 	UpdatedAt      time.Time       `bun:"updated_at,notnull,default:current_timestamp" json:"updated_at"`
 }
-
-func (s *PasskeySession) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`auth.passkey_sessions AS "passkey_session"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`auth.passkey_sessions AS "passkey_session"`)
-	}
-	return nil
-}
-
-func (s *PasskeySession) TableName() string { return "auth.passkey_sessions" }
 
 func (s *PasskeySession) GetID() interface{}      { return s.ID }
 func (s *PasskeySession) GetCreatedAt() time.Time { return s.CreatedAt }

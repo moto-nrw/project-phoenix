@@ -96,10 +96,13 @@ func NewServer(logger *slog.Logger) (*Server, error) {
 		if api.Services.TimeTrackingCleanup != nil {
 			srv.scheduler.SetTimeTrackingCleanup(api.Services.TimeTrackingCleanup)
 		}
-		// WP-B9: overdue instance tick. Requires both the ActivityInstance
-		// repo and a broadcaster — either missing disables the tick.
+		if api.Services.EnrollmentRejectedCleanup != nil {
+			srv.scheduler.SetEnrollmentRejectedCleanup(api.Services.EnrollmentRejectedCleanup)
+		}
+		// WP-B9: overdue instance tick. Requires the activity-instance repo,
+		// room repo, and broadcaster; partial wiring disables the tick.
 		if api.repos != nil && api.Services.RealtimeHub != nil {
-			srv.scheduler.SetInstanceOverdueDeps(api.repos.ActivityInstance, api.Services.RealtimeHub)
+			srv.scheduler.SetInstanceOverdueDeps(api.repos.ActivityInstance, api.repos.Room, api.Services.RealtimeHub)
 		}
 		// Daily session-end bridge: closes schedule-side rows for ended
 		// active.groups via repositories (issue #585 layering).

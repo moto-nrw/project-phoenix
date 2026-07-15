@@ -25,7 +25,7 @@ func ResolveStudentReadScope(
 	settings StudentReadSettings,
 	logger *slog.Logger,
 ) (allStudents bool, groupIDs []int64) {
-	if hasAdminPermissions(userPermissions) {
+	if HasAdminWildcard(userPermissions) {
 		return true, nil
 	}
 

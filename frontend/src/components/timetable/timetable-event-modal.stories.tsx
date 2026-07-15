@@ -25,6 +25,7 @@ export const Default: Story = {
     },
     defaultDate: "2026-07-01",
     calendarPeriods: [],
+    canCheckShiftCoverage: true,
   },
 };
 
@@ -39,6 +40,7 @@ export const QuickCreate: Story = {
     },
     defaultDate: "2026-07-01",
     calendarPeriods: [],
+    canCheckShiftCoverage: true,
     variant: "quick",
   },
 };

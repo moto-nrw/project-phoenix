@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -604,68 +605,68 @@ func TestExportedHandlers_NotNil(t *testing.T) {
 	rs := &Resource{}
 
 	// Active Group Handlers
-	assert.NotNil(t, rs.ListActiveGroupsHandler())
-	assert.NotNil(t, rs.GetActiveGroupHandler())
-	assert.NotNil(t, rs.CreateActiveGroupHandler())
-	assert.NotNil(t, rs.UpdateActiveGroupHandler())
-	assert.NotNil(t, rs.DeleteActiveGroupHandler())
-	assert.NotNil(t, rs.EndActiveGroupHandler())
+	assert.NotNil(t, rs.listActiveGroups)
+	assert.NotNil(t, rs.getActiveGroup)
+	assert.NotNil(t, rs.createActiveGroup)
+	assert.NotNil(t, rs.updateActiveGroup)
+	assert.NotNil(t, rs.deleteActiveGroup)
+	assert.NotNil(t, rs.endActiveGroup)
 
 	// Visit Handlers
-	assert.NotNil(t, rs.ListVisitsHandler())
-	assert.NotNil(t, rs.GetVisitHandler())
-	assert.NotNil(t, rs.CreateVisitHandler())
-	assert.NotNil(t, rs.UpdateVisitHandler())
-	assert.NotNil(t, rs.DeleteVisitHandler())
-	assert.NotNil(t, rs.EndVisitHandler())
-	assert.NotNil(t, rs.GetStudentVisitsHandler())
-	assert.NotNil(t, rs.GetStudentCurrentVisitHandler())
+	assert.NotNil(t, rs.listVisits)
+	assert.NotNil(t, rs.getVisit)
+	assert.NotNil(t, rs.createVisit)
+	assert.NotNil(t, rs.updateVisit)
+	assert.NotNil(t, rs.deleteVisit)
+	assert.NotNil(t, rs.endVisit)
+	assert.NotNil(t, rs.getStudentVisits)
+	assert.NotNil(t, rs.getStudentCurrentVisit)
 
 	// Supervisor Handlers
-	assert.NotNil(t, rs.ListSupervisorsHandler())
-	assert.NotNil(t, rs.GetSupervisorHandler())
-	assert.NotNil(t, rs.CreateSupervisorHandler())
-	assert.NotNil(t, rs.UpdateSupervisorHandler())
-	assert.NotNil(t, rs.DeleteSupervisorHandler())
-	assert.NotNil(t, rs.EndSupervisionHandler())
-	assert.NotNil(t, rs.GetStaffSupervisionsHandler())
-	assert.NotNil(t, rs.GetStaffActiveSupervisionsHandler())
+	assert.NotNil(t, rs.listSupervisors)
+	assert.NotNil(t, rs.getSupervisor)
+	assert.NotNil(t, rs.createSupervisor)
+	assert.NotNil(t, rs.updateSupervisor)
+	assert.NotNil(t, rs.deleteSupervisor)
+	assert.NotNil(t, rs.endSupervision)
+	assert.NotNil(t, rs.getStaffSupervisions)
+	assert.NotNil(t, rs.getStaffActiveSupervisions)
 
 	// Analytics Handlers
-	assert.NotNil(t, rs.GetDashboardAnalyticsHandler())
+	assert.NotNil(t, rs.getDashboardAnalytics)
 	// Combined Group Handlers
-	assert.NotNil(t, rs.ListCombinedGroupsHandler())
-	assert.NotNil(t, rs.GetCombinedGroupHandler())
-	assert.NotNil(t, rs.CreateCombinedGroupHandler())
-	assert.NotNil(t, rs.UpdateCombinedGroupHandler())
-	assert.NotNil(t, rs.DeleteCombinedGroupHandler())
-	assert.NotNil(t, rs.EndCombinedGroupHandler())
-	assert.NotNil(t, rs.GetActiveCombinedGroupsHandler())
+	assert.NotNil(t, rs.listCombinedGroups)
+	assert.NotNil(t, rs.getCombinedGroup)
+	assert.NotNil(t, rs.createCombinedGroup)
+	assert.NotNil(t, rs.updateCombinedGroup)
+	assert.NotNil(t, rs.deleteCombinedGroup)
+	assert.NotNil(t, rs.endCombinedGroup)
+	assert.NotNil(t, rs.getActiveCombinedGroups)
 
 	// Group by filters Handlers
-	assert.NotNil(t, rs.GetActiveGroupsByRoomHandler())
-	assert.NotNil(t, rs.GetActiveGroupsByGroupHandler())
-	assert.NotNil(t, rs.GetActiveGroupVisitsHandler())
-	assert.NotNil(t, rs.GetActiveGroupVisitsWithDisplayHandler())
-	assert.NotNil(t, rs.GetActiveGroupSupervisorsHandler())
-	assert.NotNil(t, rs.GetVisitsByGroupHandler())
-	assert.NotNil(t, rs.GetSupervisorsByGroupHandler())
+	assert.NotNil(t, rs.getActiveGroupsByRoom)
+	assert.NotNil(t, rs.getActiveGroupsByGroup)
+	assert.NotNil(t, rs.getActiveGroupVisits)
+	assert.NotNil(t, rs.getActiveGroupVisitsWithDisplay)
+	assert.NotNil(t, rs.getActiveGroupSupervisors)
+	assert.NotNil(t, rs.getVisitsByGroup)
+	assert.NotNil(t, rs.getSupervisorsByGroup)
 
 	// Group Mapping Handlers
-	assert.NotNil(t, rs.GetGroupMappingsHandler())
-	assert.NotNil(t, rs.GetCombinedGroupMappingsHandler())
-	assert.NotNil(t, rs.AddGroupToCombinationHandler())
-	assert.NotNil(t, rs.RemoveGroupFromCombinationHandler())
+	assert.NotNil(t, rs.getGroupMappings)
+	assert.NotNil(t, rs.getCombinedGroupMappings)
+	assert.NotNil(t, rs.addGroupToCombination)
+	assert.NotNil(t, rs.removeGroupFromCombination)
 
 	// Unclaimed Group Handlers
-	assert.NotNil(t, rs.ListUnclaimedGroupsHandler())
-	assert.NotNil(t, rs.ClaimGroupHandler())
+	assert.NotNil(t, rs.listUnclaimedGroups)
+	assert.NotNil(t, rs.claimGroup)
 
 	// Checkout Handler
-	assert.NotNil(t, rs.CheckoutStudentHandler())
+	assert.NotNil(t, rs.checkoutStudent)
 
 	// Checkin Handler
-	assert.NotNil(t, rs.CheckinStudentHandler())
+	assert.NotNil(t, rs.checkinStudent)
 }
 
 // =============================================================================
@@ -676,120 +677,120 @@ func TestErrorRenderer_ActiveGroupNotFound(t *testing.T) {
 	err := activeSvc.ErrActiveGroupNotFound
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Active Group Not Found", errResp.StatusText)
+	assert.Equal(t, "Active Group Not Found", errResp.Status)
 }
 
 func TestErrorRenderer_VisitNotFound(t *testing.T) {
 	err := activeSvc.ErrVisitNotFound
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Visit Not Found", errResp.StatusText)
+	assert.Equal(t, "Visit Not Found", errResp.Status)
 }
 
 func TestErrorRenderer_GroupSupervisorNotFound(t *testing.T) {
 	err := activeSvc.ErrGroupSupervisorNotFound
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Group Supervisor Not Found", errResp.StatusText)
+	assert.Equal(t, "Group Supervisor Not Found", errResp.Status)
 }
 
 func TestErrorRenderer_CombinedGroupNotFound(t *testing.T) {
 	err := activeSvc.ErrCombinedGroupNotFound
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Combined Group Not Found", errResp.StatusText)
+	assert.Equal(t, "Combined Group Not Found", errResp.Status)
 }
 
 func TestErrorRenderer_GroupMappingNotFound(t *testing.T) {
 	err := activeSvc.ErrGroupMappingNotFound
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 404, errResp.HTTPStatusCode)
-	assert.Equal(t, "Group Mapping Not Found", errResp.StatusText)
+	assert.Equal(t, "Group Mapping Not Found", errResp.Status)
 }
 
 func TestErrorRenderer_InvalidData(t *testing.T) {
 	err := activeSvc.ErrInvalidData
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Invalid Data", errResp.StatusText)
+	assert.Equal(t, "Invalid Data", errResp.Status)
 }
 
 func TestErrorRenderer_ActiveGroupAlreadyEnded(t *testing.T) {
 	err := activeSvc.ErrActiveGroupAlreadyEnded
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Active Group Already Ended", errResp.StatusText)
+	assert.Equal(t, "Active Group Already Ended", errResp.Status)
 }
 
 func TestErrorRenderer_VisitAlreadyEnded(t *testing.T) {
 	err := activeSvc.ErrVisitAlreadyEnded
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Visit Already Ended", errResp.StatusText)
+	assert.Equal(t, "Visit Already Ended", errResp.Status)
 }
 
 func TestErrorRenderer_SupervisionAlreadyEnded(t *testing.T) {
 	err := activeSvc.ErrSupervisionAlreadyEnded
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Supervision Already Ended", errResp.StatusText)
+	assert.Equal(t, "Supervision Already Ended", errResp.Status)
 }
 
 func TestErrorRenderer_CombinedGroupAlreadyEnded(t *testing.T) {
 	err := activeSvc.ErrCombinedGroupAlreadyEnded
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Combined Group Already Ended", errResp.StatusText)
+	assert.Equal(t, "Combined Group Already Ended", errResp.Status)
 }
 
 func TestErrorRenderer_GroupAlreadyInCombination(t *testing.T) {
 	err := activeSvc.ErrGroupAlreadyInCombination
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Group Already In Combination", errResp.StatusText)
+	assert.Equal(t, "Group Already In Combination", errResp.Status)
 }
 
 func TestErrorRenderer_StudentAlreadyInGroup(t *testing.T) {
 	err := activeSvc.ErrStudentAlreadyInGroup
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Student Already In Group", errResp.StatusText)
+	assert.Equal(t, "Student Already In Group", errResp.Status)
 }
 
 func TestErrorRenderer_StudentAlreadyActive(t *testing.T) {
@@ -803,60 +804,60 @@ func TestErrorRenderer_StudentAlreadyActive(t *testing.T) {
 	err := activeSvc.ErrStudentAlreadyActive
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, http.StatusConflict, errResp.HTTPStatusCode)
-	assert.Equal(t, "Student Already Has Active Visit", errResp.StatusText)
+	assert.Equal(t, "Student Already Has Active Visit", errResp.Status)
 }
 
 func TestErrorRenderer_StaffAlreadySupervising(t *testing.T) {
 	err := activeSvc.ErrStaffAlreadySupervising
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Staff Already Supervising This Group", errResp.StatusText)
+	assert.Equal(t, "Staff Already Supervising This Group", errResp.Status)
 }
 
 func TestErrorRenderer_CannotDeleteActiveGroup(t *testing.T) {
 	err := activeSvc.ErrCannotDeleteActiveGroup
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Cannot Delete Active Group With Active Visits", errResp.StatusText)
+	assert.Equal(t, "Cannot Delete Active Group With Active Visits", errResp.Status)
 }
 
 func TestErrorRenderer_InvalidTimeRange(t *testing.T) {
 	err := activeSvc.ErrInvalidTimeRange
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 400, errResp.HTTPStatusCode)
-	assert.Equal(t, "Invalid Time Range", errResp.StatusText)
+	assert.Equal(t, "Invalid Time Range", errResp.Status)
 }
 
 func TestErrorRenderer_RoomConflict(t *testing.T) {
 	err := activeSvc.ErrRoomConflict
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 409, errResp.HTTPStatusCode)
-	assert.Equal(t, "Room Conflict", errResp.StatusText)
+	assert.Equal(t, "Room Conflict", errResp.Status)
 }
 
 func TestErrorRenderer_UnknownError(t *testing.T) {
 	err := errors.New("unknown error")
 	renderer := ErrorRenderer(err)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	assert.True(t, ok)
 	assert.Equal(t, 500, errResp.HTTPStatusCode)
-	assert.Equal(t, "Internal Server Error", errResp.StatusText)
+	assert.Equal(t, "Internal Server Error", errResp.Status)
 	assert.Equal(t, "unknown error", errResp.ErrorText)
 }
 

@@ -70,75 +70,7 @@ func TestRequestChild_IsTerminal_EmptyStatusNotTerminal(t *testing.T) {
 	assert.False(t, c.IsTerminal())
 }
 
-// --- IsRenewalPending ----------------------------------------------------
-
-// IsRenewalPending scopes the deadline worker's scan. Only rows in
-// these two states need a deadline check — everything else has
-// already been resolved (or wasn't a rollover row).
-
-func TestRequestChild_IsRenewalPending_PendingRenewalTrue(t *testing.T) {
-	c := &RequestChild{Status: ChildStatusPendingRenewal}
-	assert.True(t, c.IsRenewalPending())
-}
-
-func TestRequestChild_IsRenewalPending_AutoRenewedTrue(t *testing.T) {
-	c := &RequestChild{Status: ChildStatusAutoRenewed}
-	assert.True(t, c.IsRenewalPending())
-}
-
-func TestRequestChild_IsRenewalPending_OtherStatesFalse(t *testing.T) {
-	for _, status := range []string{
-		ChildStatusSubmitted,
-		ChildStatusUnderReview,
-		ChildStatusApproved,
-		ChildStatusWaitlisted,
-		ChildStatusRejected,
-		ChildStatusWithdrawn,
-		ChildStatusPendingAdminReview,
-		"",
-	} {
-		c := &RequestChild{Status: status}
-		assert.False(t, c.IsRenewalPending(), "status %q must NOT be renewal-pending", status)
-	}
-}
-
-// --- IsRollover ----------------------------------------------------------
-
-// IsRollover is the decision service's signal to update the existing
-// student record (the previous-year approval) instead of inserting a
-// brand-new student row. Driven by the presence/absence of the back-
-// link column rather than the status (rollover rows can transition
-// through several statuses).
-
-func TestRequestChild_IsRollover_NilSourceFalse(t *testing.T) {
-	c := &RequestChild{}
-	assert.False(t, c.IsRollover())
-}
-
-func TestRequestChild_IsRollover_SetSourceTrue(t *testing.T) {
-	src := int64(7777)
-	c := &RequestChild{RolloverSourceChildID: &src}
-	assert.True(t, c.IsRollover())
-}
-
-func TestRequestChild_IsRollover_TerminalStatusStillRollover(t *testing.T) {
-	// A rollover row that's been approved/rejected/withdrawn is still
-	// a rollover for decision-service purposes — the back-link drives
-	// the predicate, not the status.
-	src := int64(7777)
-	c := &RequestChild{
-		Status:                ChildStatusApproved,
-		RolloverSourceChildID: &src,
-	}
-	assert.True(t, c.IsRollover())
-}
-
 // --- TableName -----------------------------------------------------------
-
-func TestRequestChild_TableName(t *testing.T) {
-	c := &RequestChild{}
-	assert.Equal(t, "enrollment.request_children", c.TableName())
-}
 
 // --- Status constants ----------------------------------------------------
 

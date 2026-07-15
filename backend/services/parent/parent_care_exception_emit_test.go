@@ -14,33 +14,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	parentService "github.com/moto-nrw/project-phoenix/services/parent"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
-
-// careExcSettings turns on the pickup-change feature (so a care exception is
-// accepted) and parent notes (so the emitter writes the self-service pill).
-type careExcSettings struct {
-	configService.SettingsService
-}
-
-func (careExcSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	switch key {
-	case configModels.KeyParentPickupChangeEnabled, configModels.KeyParentNotesEnabled:
-		return true, nil
-	default:
-		return false, nil
-	}
-}
-
-type notesResolver struct{}
-
-func (notesResolver) ResolveBoolForTenant(context.Context, int64, string) (bool, error) {
-	return true, nil
-}
 
 // TestSubmitCareException_EmitsSelfServiceMirrorPill wires a real emitter into
 // the parent write service so the self-service mirror pill path actually runs:
@@ -53,21 +32,26 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	repos := repositories.NewFactory(db)
 
 	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
-		notesResolver{}, &captureBroadcaster{}, slog.Default())
+		parentSettingsStub{boolDefault: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 	svc := parentService.NewService(parentService.ServiceConfig{
 		ChildRepo:            repos.ParentChild,
 		StatusDayRepo:        repos.StudentStatusDay,
 		StudentRepo:          repos.Student,
 		PickupExceptionRepo:  repos.StudentPickupException,
 		ArrivalExceptionRepo: repos.StudentArrivalException,
-		Settings:             careExcSettings{},
-		Broadcaster:          &captureBroadcaster{},
-		MessageThreadRepo:    repos.ParentMessageThread,
-		MessageRepo:          repos.ParentMessage,
-		MessageReadRepo:      repos.ParentMessageRead,
-		Emitter:              emitter,
-		DB:                   db,
-		Logger:               slog.Default(),
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{
+				configModels.KeyParentPickupChangeEnabled: true,
+				configModels.KeyParentNotesEnabled:        true,
+			},
+		},
+		Broadcaster:       testpkg.NewRecordingBroadcaster(),
+		MessageThreadRepo: repos.ParentMessageThread,
+		MessageRepo:       repos.ParentMessage,
+		MessageReadRepo:   repos.ParentMessageRead,
+		Emitter:           emitter,
+		DB:                db,
+		Logger:            slog.Default(),
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -92,6 +76,69 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	_, msgs = loadThreadPills(t, db, repos, chain)
 	assert.GreaterOrEqual(t, len(msgs), 2,
 		"deleting the exception drops a correction pill onto the thread")
+}
+
+// TestSubmitCareException_WakesEveryGuardian is the regression guard for the
+// #1725 review finding that a guardian's self-service write only woke the acting
+// guardian: emitSelfServicePill appends a pill to the acting guardian's own
+// thread, and broadcastStudentUpdated is a staff-only tenant event that never
+// reaches the parents SSE stream — so a co-guardian's open child-detail view kept
+// showing a stale pickup time until they refocused or reloaded. The write must
+// now fan a message-independent parent_child_updated wake to EVERY guardian.
+func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { require.NoError(t, db.Close()) }()
+	repos := repositories.NewFactory(db)
+
+	// Capture the EMITTER's broadcaster (distinct from the service's own): the
+	// guardian fan-out rides BroadcastChildUpdateToGuardians on the emitter.
+	emitterBC := testpkg.NewRecordingBroadcaster()
+	emitter := parentmessaging.NewEmitter(db, repos.ParentMessageThread, repos.ParentMessage,
+		parentSettingsStub{boolDefault: true}, emitterBC, slog.Default())
+	svc := parentService.NewService(parentService.ServiceConfig{
+		ChildRepo:            repos.ParentChild,
+		StatusDayRepo:        repos.StudentStatusDay,
+		StudentRepo:          repos.Student,
+		PickupExceptionRepo:  repos.StudentPickupException,
+		ArrivalExceptionRepo: repos.StudentArrivalException,
+		Settings: parentSettingsStub{
+			boolValues: map[string]bool{
+				configModels.KeyParentPickupChangeEnabled: true,
+				configModels.KeyParentNotesEnabled:        true,
+			},
+		},
+		Broadcaster:       testpkg.NewRecordingBroadcaster(),
+		MessageThreadRepo: repos.ParentMessageThread,
+		MessageRepo:       repos.ParentMessage,
+		MessageReadRepo:   repos.ParentMessageRead,
+		Emitter:           emitter,
+		DB:                db,
+		Logger:            slog.Default(),
+	})
+
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	defer testpkg.CleanupParentGuardianChain(t, db, chain)
+
+	date := timezone.TodayDate().AddDays(3)
+	pickup := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
+
+	_, err := svc.SubmitCareException(context.Background(), chain.AccountID, chain.StudentID, date, &pickup, nil)
+	require.NoError(t, err)
+
+	guardianCalls := emitterBC.CallsByMethod("guardian")
+	require.NotEmpty(t, guardianCalls,
+		"a parent care-exception submit must wake the child's guardians (#1725 review)")
+	woke := false
+	for _, c := range guardianCalls {
+		if c.GuardianID == chain.AccountID {
+			woke = true
+			assert.Equal(t, realtime.EventParentChildUpdated, c.Event.Type,
+				"the wake must carry a parent_child_updated invalidation")
+			assert.Equal(t, chain.TenantID, c.TenantID)
+		}
+	}
+	assert.True(t, woke,
+		"the child's guardian account %d must be among the woken guardians", chain.AccountID)
 }
 
 // loadThreadPills reads the (student, guardian) thread messages under the tenant

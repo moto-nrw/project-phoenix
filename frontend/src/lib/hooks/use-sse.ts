@@ -161,6 +161,15 @@ export function useSSE(
           "instance_overdue",
           "parent_message",
           "parent_message_read",
+          // Named SSE events MUST be registered here or the browser's EventSource
+          // never delivers them (onmessage fires only for UNNAMED events). Both of
+          // these are sent as NAMED events by the backend and consumed by their
+          // handlers (change_requests_changed → staff review queue in useGlobalSSE;
+          // parent_child_updated → the parents-portal ParentRealtimeBridge). Without
+          // this registration those branches are dead and the queues/tabs only
+          // refresh on focus or manual reload (#1845 review).
+          "change_requests_changed",
+          "parent_child_updated",
         ];
 
         for (const eventType of eventTypes) {

@@ -61,20 +61,6 @@ func setupOperatorInvitationTokenRepositoryTest(
 	return db, repoplatform.NewOperatorInvitationTokenRepository(db)
 }
 
-// createTestOperatorForInvitation inserts a minimal operator row needed as FK target.
-func createTestOperatorForInvitation(tb testing.TB, db *bun.DB) *platform.Operator {
-	tb.Helper()
-	op := &platform.Operator{
-		Email:        uuid.Must(uuid.NewV4()).String() + "@test.local",
-		DisplayName:  "Test Operator",
-		PasswordHash: "$argon2id$v=19$m=65536,t=3,p=2$placeholder$placeholder",
-		Active:       true,
-	}
-	_, err := db.NewInsert().Model(op).Exec(context.Background())
-	require.NoError(tb, err, "failed to insert test operator")
-	return op
-}
-
 // cleanupInvitationTokens removes all tokens created by a specific operator.
 func cleanupInvitationTokens(tb testing.TB, db *bun.DB, createdBy int64) {
 	tb.Helper()
@@ -110,7 +96,7 @@ func newTestToken(email string, createdBy int64) *platform.OperatorInvitationTok
 
 func TestOperatorInvitationTokenRepository_Create_Success(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -145,7 +131,7 @@ func TestOperatorInvitationTokenRepository_Create_ValidationError(t *testing.T) 
 
 func TestOperatorInvitationTokenRepository_FindByID_Success(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -173,7 +159,7 @@ func TestOperatorInvitationTokenRepository_FindByID_NotFound(t *testing.T) {
 
 func TestOperatorInvitationTokenRepository_FindValidByToken_Success(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -188,7 +174,7 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_Success(t *testing.T
 
 func TestOperatorInvitationTokenRepository_FindValidByToken_Expired(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -209,7 +195,7 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_Expired(t *testing.T
 
 func TestOperatorInvitationTokenRepository_FindValidByToken_Used(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -239,7 +225,7 @@ func TestOperatorInvitationTokenRepository_FindValidByToken_NotFound(t *testing.
 
 func TestOperatorInvitationTokenRepository_ConsumeByToken_Success(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -255,7 +241,7 @@ func TestOperatorInvitationTokenRepository_ConsumeByToken_Success(t *testing.T) 
 
 func TestOperatorInvitationTokenRepository_ConsumeByToken_AlreadyConsumed(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -287,7 +273,7 @@ func TestOperatorInvitationTokenRepository_ConsumeByToken_NotFound(t *testing.T)
 
 func TestOperatorInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -307,7 +293,7 @@ func TestOperatorInvitationTokenRepository_MarkAsUsed_Success(t *testing.T) {
 
 func TestOperatorInvitationTokenRepository_MarkAsUsed_AlreadyUsed(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -331,7 +317,7 @@ func TestOperatorInvitationTokenRepository_MarkAsUsed_AlreadyUsed(t *testing.T) 
 
 func TestOperatorInvitationTokenRepository_ListPending(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -372,7 +358,7 @@ func TestOperatorInvitationTokenRepository_ListPending(t *testing.T) {
 
 func TestOperatorInvitationTokenRepository_ExtendExpiry_Success(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -392,7 +378,7 @@ func TestOperatorInvitationTokenRepository_ExtendExpiry_Success(t *testing.T) {
 
 func TestOperatorInvitationTokenRepository_ExtendExpiry_AlreadyUsed(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -414,7 +400,7 @@ func TestOperatorInvitationTokenRepository_ExtendExpiry_AlreadyUsed(t *testing.T
 
 func TestOperatorInvitationTokenRepository_InvalidateByEmail(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -447,7 +433,7 @@ func TestOperatorInvitationTokenRepository_InvalidateByEmail_NoMatch(t *testing.
 
 func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_Success(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -468,7 +454,7 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_Success(t *testi
 
 func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_WithError(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -490,7 +476,7 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_WithError(t *tes
 
 func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_ClearsOnReset(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -520,7 +506,7 @@ func TestOperatorInvitationTokenRepository_UpdateDeliveryResult_ClearsOnReset(t 
 
 func TestOperatorInvitationTokenRepository_DeleteExpired(t *testing.T) {
 	db, repo := setupOperatorInvitationTokenRepositoryTest(t)
-	op := createTestOperatorForInvitation(t, db)
+	op := testpkg.CreateTestOperator(t, db)
 	defer cleanupOperator(t, db, op.ID)
 	defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -562,7 +548,7 @@ func TestOperatorInvitationTokenRepository_CountRecentByCreatedBy(t *testing.T) 
 	ctx := context.Background()
 
 	t.Run("NoTokens_ReturnsZero", func(t *testing.T) {
-		op := createTestOperatorForInvitation(t, db)
+		op := testpkg.CreateTestOperator(t, db)
 		defer cleanupOperator(t, db, op.ID)
 		defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -572,7 +558,7 @@ func TestOperatorInvitationTokenRepository_CountRecentByCreatedBy(t *testing.T) 
 	})
 
 	t.Run("CountsAllTokensInWindow_PendingAndUsed", func(t *testing.T) {
-		op := createTestOperatorForInvitation(t, db)
+		op := testpkg.CreateTestOperator(t, db)
 		defer cleanupOperator(t, db, op.ID)
 		defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -593,7 +579,7 @@ func TestOperatorInvitationTokenRepository_CountRecentByCreatedBy(t *testing.T) 
 	})
 
 	t.Run("IgnoresTokensOutsideWindow", func(t *testing.T) {
-		op := createTestOperatorForInvitation(t, db)
+		op := testpkg.CreateTestOperator(t, db)
 		defer cleanupOperator(t, db, op.ID)
 		defer cleanupInvitationTokens(t, db, op.ID)
 
@@ -621,8 +607,8 @@ func TestOperatorInvitationTokenRepository_CountRecentByCreatedBy(t *testing.T) 
 	})
 
 	t.Run("ScopesByCreatedBy", func(t *testing.T) {
-		opA := createTestOperatorForInvitation(t, db)
-		opB := createTestOperatorForInvitation(t, db)
+		opA := testpkg.CreateTestOperator(t, db)
+		opB := testpkg.CreateTestOperator(t, db)
 		defer cleanupOperator(t, db, opA.ID)
 		defer cleanupOperator(t, db, opB.ID)
 		defer cleanupInvitationTokens(t, db, opA.ID)

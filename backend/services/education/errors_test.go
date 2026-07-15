@@ -22,10 +22,7 @@ func TestEducationErrorVariables(t *testing.T) {
 		{"ErrDuplicateGroup", ErrDuplicateGroup, "Eine Gruppe mit diesem Namen existiert bereits"},
 		{"ErrDuplicateTeacherInGroup", ErrDuplicateTeacherInGroup, "this teacher is already assigned to the group"},
 		{"ErrSubstitutionConflict", ErrSubstitutionConflict, "substitution conflicts with an existing one"},
-		{"ErrSameTeacherSubstitution", ErrSameTeacherSubstitution, "regular staff and substitute staff cannot be the same"},
 		{"ErrInvalidDateRange", ErrInvalidDateRange, "invalid date range"},
-		{"ErrDatabaseOperation", ErrDatabaseOperation, "database operation failed"},
-		{"ErrInvalidData", ErrInvalidData, "invalid data provided"},
 		{"ErrSubstitutionBackdated", ErrSubstitutionBackdated, "substitutions cannot be created or updated for past dates"},
 	}
 
@@ -47,10 +44,7 @@ func TestEducationErrorsAreDistinct(t *testing.T) {
 		ErrDuplicateGroup,
 		ErrDuplicateTeacherInGroup,
 		ErrSubstitutionConflict,
-		ErrSameTeacherSubstitution,
 		ErrInvalidDateRange,
-		ErrDatabaseOperation,
-		ErrInvalidData,
 		ErrSubstitutionBackdated,
 	}
 

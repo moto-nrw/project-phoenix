@@ -275,7 +275,7 @@ func TestPublish_EnqueuesBrandingLogos(t *testing.T) {
 		t.Fatalf("expected one e-mail, got %d", len(outbox.requests))
 	}
 	payload := outbox.requests[0].Payload
-	if got := payload[emailPayloadMotoLogoURL]; got != "https://parents.example.test/images/moto_transparent.png" {
+	if got := payload[emailPayloadMotoLogoURL]; got != "https://parents.example.test/images/moto-logo-mit-schriftzug.png" {
 		t.Fatalf("unexpected moto logo url: %v", got)
 	}
 	if got := payload[emailPayloadLogoURL]; got != "https://parents.example.test/api/public/login-image/2_abc.jpg" {
@@ -299,7 +299,7 @@ func TestPublish_BrandingWithoutSchoolLogo(t *testing.T) {
 		t.Fatalf("publish failed: %v", err)
 	}
 	payload := outbox.requests[0].Payload
-	if got := payload[emailPayloadMotoLogoURL]; got != "https://parents.example.test/images/moto_transparent.png" {
+	if got := payload[emailPayloadMotoLogoURL]; got != "https://parents.example.test/images/moto-logo-mit-schriftzug.png" {
 		t.Fatalf("moto logo must always be present, got %v", got)
 	}
 	if got := payload[emailPayloadLogoURL]; got != "" {
@@ -479,7 +479,7 @@ func TestAnnouncementRenderer_PassesBranding(t *testing.T) {
 			emailPayloadSchoolName:  "OGS Testschule",
 			emailPayloadPortalURL:   "https://parents.example.test",
 			emailPayloadLogoURL:     "https://parents.example.test/api/public/login-image/2_abc.jpg",
-			emailPayloadMotoLogoURL: "https://parents.example.test/images/moto_transparent.png",
+			emailPayloadMotoLogoURL: "https://parents.example.test/images/moto-logo-mit-schriftzug.png",
 		},
 	})
 	if err != nil {
@@ -492,7 +492,7 @@ func TestAnnouncementRenderer_PassesBranding(t *testing.T) {
 	if content["LogoURL"] != "https://parents.example.test/api/public/login-image/2_abc.jpg" {
 		t.Fatalf("expected school logo in content, got %v", content["LogoURL"])
 	}
-	if content["MotoLogoURL"] != "https://parents.example.test/images/moto_transparent.png" {
+	if content["MotoLogoURL"] != "https://parents.example.test/images/moto-logo-mit-schriftzug.png" {
 		t.Fatalf("expected moto logo in content, got %v", content["MotoLogoURL"])
 	}
 }

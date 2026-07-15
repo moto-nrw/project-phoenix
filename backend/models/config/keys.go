@@ -82,6 +82,15 @@ const (
 	KeyCheckoutWCEnabled          = "checkout.wc_enabled"
 )
 
+// Checkin capacity-detail disclosure settings (issue #1879, devices tab).
+// Gate whether the 409 capacity-exceeded responses include the `details`
+// object PyrePortal renders as "{Name} ist voll (X/Y ...)". When off, the
+// backend omits `details` and the kiosk shows its generic German fallback.
+const (
+	KeyCheckinActivityCapacityDetailsEnabled = "checkin.activity_capacity_details_enabled"
+	KeyCheckinRoomCapacityDetailsEnabled     = "checkin.room_capacity_details_enabled"
+)
+
 // IoT device health-monitoring settings (issue #586 — Rule 12 extraction).
 // A device counts as "online" when its last_seen timestamp is within
 // KeyDeviceOnlineWindowMinutes of now. The 5-minute window moved off the
@@ -130,6 +139,7 @@ const (
 	KeyGroupMode                       = "operations.group_mode"
 	KeyCareConcept                     = "operations.care_concept"
 	KeyParentSickNoteEnabled           = "operations.parent_sick_note_enabled"
+	KeyParentExcusedRequiresApproval   = "operations.parent_excused_requires_approval"
 	KeyParentNotesEnabled              = "operations.parent_notes_enabled"
 	KeyParentMessageStaffNameVisible   = "operations.parent_message_staff_name_visible"
 	KeyParentPickupChangeEnabled       = "operations.parent_pickup_change_enabled"
@@ -139,7 +149,11 @@ const (
 	KeyParentNewsEnabled               = "operations.parent_news_enabled"
 	KeyTimeTrackingAccountStartDate    = "operations.time_tracking_account_start_date"
 	KeyTimeTrackingEnforcePlannedStart = "operations.time_tracking_enforce_planned_start"
-	KeyMealPlanEnabled                 = "operations.meal_plan_enabled"
+	// F9: stamping outside the tolerance window around the planned shift
+	// window requires a reason; the tolerance is configurable per school.
+	KeyTimeTrackingRequireDeviationReason    = "operations.time_tracking_require_deviation_reason"
+	KeyTimeTrackingDeviationToleranceMinutes = "operations.time_tracking_deviation_tolerance_minutes"
+	KeyMealPlanEnabled                       = "operations.meal_plan_enabled"
 )
 
 // PresenceMode option values for KeyPresenceMode.
@@ -265,7 +279,12 @@ const (
 	KeyTimetableAutoStartPlanned          = "timetable.auto_start_planned"
 	KeyTimetableOverdueThresholdMinutes   = "timetable.overdue_threshold_minutes"
 	KeyTimetableShowExpectedChildrenCount = "timetable.show_expected_children_count"
-	KeyGDPRTimetableRetentionDays         = "gdpr.timetable_retention_days"
+	// KeyTimetableChildrenPerStaffRatio is the Betreuungsschlüssel: the max
+	// number of children one staff member supervises unassisted. Used to
+	// derive a block's required staff count (ceil(children/ratio)) instead
+	// of a manually-maintained headcount field.
+	KeyTimetableChildrenPerStaffRatio = "timetable.children_per_staff_ratio"
+	KeyGDPRTimetableRetentionDays     = "gdpr.timetable_retention_days"
 	// Display range for the admin weekly calendar (Apple-style grid).
 	// Both are HH:MM strings; the UI renders the visible window between them
 	// and scrolls if events fall outside.

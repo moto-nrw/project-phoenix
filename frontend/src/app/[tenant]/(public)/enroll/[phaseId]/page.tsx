@@ -18,6 +18,7 @@ import {
   PublicInfoCard,
 } from "~/components/enrollment/public-enrollment-shell";
 import { useTenant } from "~/lib/tenant-context";
+import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import {
   fetchPublicEnrollmentBootstrap,
   type PublicEnrollmentBootstrap,
@@ -33,9 +34,8 @@ interface PageProps {
  * phase. The form fetches its own schema + offerings using the phaseId,
  * and posts to /api/enrollment/{tenantSlug}/submit with phase_id set.
  *
- * Grade-level cap is hardcoded to 4 (OGS default), same as the
- * pre-phase page. PR D autofill or per-phase grade-cap settings can
- * promote this later.
+ * The grade-level cap comes from the tenant resolve contract so the client
+ * enforces the same tenant setting as submission validation.
  */
 export default function EnrollPhaseFormPage({ params }: PageProps) {
   const t = useTranslations("enrollmentPublic");
@@ -75,6 +75,10 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
   }, [lateInviteToken, phaseId, tenantSlug, t]);
 
   const phase = bootstrap?.phase ?? null;
+  const resolvedGradeLevelMax = tenant?.gradeLevelMax;
+  const gradeLevelMax = isSupportedGradeLevelMax(resolvedGradeLevelMax)
+    ? resolvedGradeLevelMax
+    : null;
   const prefetchedData = useMemo<
     EnrollmentFormPrefetchedData | undefined
   >(() => {
@@ -83,6 +87,8 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
       schema: bootstrap.schema,
       offerings: bootstrap.offerings,
       careOfferingSelectionMode: bootstrap.care_offering_selection_mode,
+      collectGradeLevel: bootstrap.collect_grade_level,
+      careOfferingsEnabled: bootstrap.care_offerings_enabled,
       captchaConfig: bootstrap.captcha_config,
       legalTexts: bootstrap.legal_texts,
       profile: bootstrap.profile ?? null,
@@ -93,7 +99,8 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
   const handleSubmitted = (statusURL: string) => {
     try {
       const u = new URL(statusURL);
-      router.push(`${u.pathname}?submitted=1`);
+      u.searchParams.set("submitted", "1");
+      router.push(`${u.pathname}?${u.searchParams.toString()}`);
     } catch {
       globalThis.window.location.href = statusURL;
     }
@@ -130,14 +137,14 @@ export default function EnrollPhaseFormPage({ params }: PageProps) {
             <div className="moto-content-surface rounded-3xl border p-6 text-sm font-medium text-gray-600 shadow-sm">
               {t("detailsLoading")}
             </div>
-          ) : error ? (
+          ) : error || gradeLevelMax === null ? (
             <div className="moto-content-surface rounded-3xl border border-[#FF3130]/20 bg-[#FF3130]/10 p-6 text-sm font-medium text-[#9F1F1E] shadow-sm">
-              {error}
+              {error ?? t("detailsLoadFailed")}
             </div>
           ) : (
             <EnrollmentForm
               phaseID={phaseId}
-              gradeLevelMax={4}
+              gradeLevelMax={gradeLevelMax}
               onSubmitted={handleSubmitted}
               prefetchedData={prefetchedData}
               lateInviteToken={lateInviteToken ?? undefined}

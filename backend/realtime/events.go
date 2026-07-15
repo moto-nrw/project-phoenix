@@ -42,6 +42,20 @@ const (
 	EventInstanceCancelled EventType = "instance_cancelled"
 	EventInstanceOverdue   EventType = "instance_overdue"
 
+	// EventStaffingDeviationChanged is a tenant-wide signal that planned
+	// staffing state changed on an instance — an absence was set or cleared, a
+	// substitute assigned, the deliberately-unstaffed acknowledgement toggled,
+	// or a still-planned instance was created, edited (title/time/room/staff,
+	// incl. a date move), or deleted (#1840/#1844). The instance_* lifecycle
+	// events do NOT cover these writes: they change no lifecycle status, and on
+	// an active block only a group-scoped activity_update fires, which the
+	// affected staff member may not be subscribed to. Clients treat it like an
+	// instance lifecycle trigger and refetch timetable + own-assignment caches.
+	// The Source field names the emitting flow (e.g. "deviations",
+	// "understaffed_ack", "instance_create", "instance_update",
+	// "instance_delete").
+	EventStaffingDeviationChanged EventType = "staffing_deviation_changed"
+
 	// Global refresh event — tells all clients to re-fetch dashboard counts
 	EventDashboardCountsChanged EventType = "dashboard_counts_changed"
 
@@ -53,6 +67,16 @@ const (
 	// Arrival schedule events affect derived "not arriving today" badges and
 	// bulk arrival-time lookups across student list/detail pages.
 	EventArrivalScheduleChanged EventType = "arrival_schedule_changed"
+
+	// EventChangeRequestsChanged is a tenant-wide staff signal that a parent
+	// change-request queue changed — a request was created, decided, or withdrawn
+	// (excused absence today; care-schedule / master-data can adopt it too). Staff
+	// review lists and the "Änderungsanfragen" pending-count badge refetch on it,
+	// so an already-open review page updates in real time WITHOUT depending on the
+	// parent-messaging pill (which the school may have disabled). Unlike
+	// student_updated it fires ONLY on a request transition — never on the
+	// high-frequency check-in/out traffic — so listeners can refetch unconditionally.
+	EventChangeRequestsChanged EventType = "change_requests_changed"
 
 	// Tenant-scoped settings change. Fires when a setting whose value travels
 	// through /auth/tenant/resolve (currently operations.student_photos_enabled)
@@ -82,6 +106,15 @@ const (
 	// ONLY when a read cursor actually advances (parentmessaging.MarkReadToNewest),
 	// so it cannot ping-pong with the receipt refetch it triggers on the far side.
 	EventParentMessageRead EventType = "parent_message_read"
+
+	// EventParentChildUpdated is a message-INDEPENDENT invalidation delivered to
+	// EVERY guardian of a child (not just the one who acted) so an already-open
+	// parents-app tab refetches that child's care state in real time — after a
+	// parent write or a staff decision — regardless of whether parent messaging is
+	// enabled. Unlike EventParentMessage it never accompanies a thread/pill and
+	// must NOT touch any unread badge or thread list; it carries only student_id so
+	// the affected child's view refetches while others skip. Trigger only.
+	EventParentChildUpdated EventType = "parent_child_updated"
 )
 
 // Event represents a Server-Sent Event that will be broadcast to clients
@@ -98,8 +131,6 @@ type EventData struct {
 	// Student-related fields (for check-in/check-out events)
 	StudentID   *string `json:"student_id,omitempty"`
 	StudentName *string `json:"student_name,omitempty"`
-	SchoolClass *string `json:"school_class,omitempty"`
-	GroupName   *string `json:"group_name,omitempty"` // Student's OGS group, not active group
 
 	// StudentIDs carries the affected students on a bulk_student_checkout event
 	// (whole-session end). The client adds each to its per-student
@@ -210,6 +241,14 @@ func NewParentMessageEvent(guardianAccountID, threadID, studentID int64) Event {
 // bump. Same staffSafeParentMessage sanitization applies to the staff fan-out.
 func NewParentMessageReadEvent(guardianAccountID, threadID, studentID int64) Event {
 	return NewEvent(EventParentMessageRead, "", parentMessageData(guardianAccountID, threadID, studentID))
+}
+
+// NewParentChildUpdatedEvent builds the EventParentChildUpdated invalidation for
+// one guardian: the guardian account as Source (so their own tabs can dedupe) and
+// the affected student_id (so only that child's view refetches). No thread id — it
+// accompanies no message. The caller fans it out once per guardian of the child.
+func NewParentChildUpdatedEvent(guardianAccountID, studentID int64) Event {
+	return NewEvent(EventParentChildUpdated, "", parentMessageData(guardianAccountID, 0, studentID))
 }
 
 // parentMessageData builds the shared payload for the parent-messaging events:

@@ -46,6 +46,41 @@ func TestTemplateEndInputValidation(t *testing.T) {
 	require.NoError(t, validateTemplateEndInput(TemplateEndInput{TemplateID: 10, EffectiveDate: future}))
 }
 
+func TestValidateProtectedEnrollmentRebaseRejectsActiveScopedCollision(t *testing.T) {
+	periodA, periodB, targetPeriod := int64(11), int64(12), int64(13)
+	activeA := &activitiesModel.StudentEnrollment{
+		StudentID:                42,
+		CalendarPeriodID:         &periodA,
+		EnrollmentRequestChildID: testInt64Ptr(101),
+	}
+	activeB := &activitiesModel.StudentEnrollment{
+		StudentID:                42,
+		CalendarPeriodID:         &periodB,
+		EnrollmentRequestChildID: testInt64Ptr(101),
+	}
+
+	err := validateProtectedEnrollmentRebase(
+		[]*activitiesModel.StudentEnrollment{activeA, activeB},
+		&targetPeriod,
+	)
+	require.ErrorIs(t, err, ErrTemplateRosterRebaseConflict)
+
+	boundedUntil := timezone.TodayDate().AddDays(30)
+	activeB.ValidUntil = &boundedUntil
+	require.NoError(t, validateProtectedEnrollmentRebase(
+		[]*activitiesModel.StudentEnrollment{activeA, activeB},
+		&targetPeriod,
+	), "bounded rows do not collide with the active-row partial unique index")
+	require.NoError(t, validateProtectedEnrollmentRebase(
+		[]*activitiesModel.StudentEnrollment{activeA, activeB},
+		nil,
+	), "without an explicit target period no scoped rows are merged")
+}
+
+func testInt64Ptr(value int64) *int64 {
+	return &value
+}
+
 func TestTemplateEndFromDate_RequiresTenantBeforeMutation(t *testing.T) {
 	future := timezone.TodayDate().AddDays(1)
 	groupRepo := &templateEndUnitGroupRepo{group: templateEndUnitGroup(201)}
@@ -100,6 +135,10 @@ func TestTemplateEndFromDate_ReturnsSummaryAndDeletesOpenEndedWindow(t *testing.
 	assert.Equal(t, group.ID, *instanceRepo.activityGroupID)
 	assert.Equal(t, future, instanceRepo.from)
 	assert.Nil(t, instanceRepo.to)
+	// #1840: ending a series is destructive — it must hard-delete deviated
+	// rows too, so preservation is OFF.
+	assert.False(t, instanceRepo.preserveDeviations,
+		"template end must NOT preserve deviations (destructive series delete)")
 }
 
 func TestTemplateEndFromDate_ErrorBranches(t *testing.T) {
@@ -188,15 +227,18 @@ func templateEndUnitService(
 	enrollmentRepo *templateEndUnitEnrollmentRepo,
 	supervisorRepo *templateEndUnitSupervisorRepo,
 	instanceRepo *templateEndUnitInstanceRepo,
-) *templateSplitService {
-	return &templateSplitService{deps: TemplateSplitDependencies{
-		GroupRepo:      groupRepo,
-		ScheduleRepo:   scheduleRepo,
-		EnrollmentRepo: enrollmentRepo,
-		SupervisorRepo: supervisorRepo,
-		InstanceRepo:   instanceRepo,
-		Logger:         slog.New(slog.DiscardHandler),
-	}}
+) *TemplateSplitService {
+	return &TemplateSplitService{
+		deps: TemplateSplitDependencies{
+			GroupRepo:      groupRepo,
+			ScheduleRepo:   scheduleRepo,
+			EnrollmentRepo: enrollmentRepo,
+			SupervisorRepo: supervisorRepo,
+			InstanceRepo:   instanceRepo,
+			Logger:         slog.New(slog.DiscardHandler),
+		},
+		lockTenantRecurrence: func(context.Context) error { return nil },
+	}
 }
 
 func templateEndUnitGroup(id int64) *activitiesModel.Group {
@@ -225,10 +267,19 @@ func (r *templateEndUnitGroupRepo) FindByID(_ context.Context, _ any) (*activiti
 
 type templateEndUnitScheduleRepo struct {
 	activitiesModel.ScheduleRepository
+	schedules  []*activitiesModel.Schedule
+	findErr    error
 	capped     int64
 	err        error
 	groupID    int64
 	validUntil timezone.Date
+}
+
+func (r *templateEndUnitScheduleRepo) FindByGroupID(_ context.Context, _ int64) ([]*activitiesModel.Schedule, error) {
+	if r.findErr != nil {
+		return nil, r.findErr
+	}
+	return r.schedules, nil
 }
 
 func (r *templateEndUnitScheduleRepo) CapValidUntil(_ context.Context, groupID int64, validUntil timezone.Date) (int64, error) {
@@ -247,6 +298,10 @@ type templateEndUnitEnrollmentRepo struct {
 	groupID int64
 }
 
+func (r *templateEndUnitEnrollmentRepo) FindByGroupID(_ context.Context, _ int64) ([]*activitiesModel.StudentEnrollment, error) {
+	return nil, nil
+}
+
 func (r *templateEndUnitEnrollmentRepo) CapActiveByGroup(_ context.Context, groupID int64, _ timezone.Date) (int64, error) {
 	r.groupID = groupID
 	if r.err != nil {
@@ -262,6 +317,10 @@ type templateEndUnitSupervisorRepo struct {
 	groupID int64
 }
 
+func (r *templateEndUnitSupervisorRepo) FindByGroupID(_ context.Context, _ int64) ([]*activitiesModel.SupervisorPlanned, error) {
+	return nil, nil
+}
+
 func (r *templateEndUnitSupervisorRepo) CapActiveByGroup(_ context.Context, groupID int64, _ timezone.Date) (int64, error) {
 	r.groupID = groupID
 	if r.err != nil {
@@ -272,17 +331,19 @@ func (r *templateEndUnitSupervisorRepo) CapActiveByGroup(_ context.Context, grou
 
 type templateEndUnitInstanceRepo struct {
 	scheduleModel.ActivityInstanceRepository
-	deleted         int64
-	err             error
-	from            timezone.Date
-	to              *timezone.Date
-	activityGroupID *int64
+	deleted            int64
+	err                error
+	from               timezone.Date
+	to                 *timezone.Date
+	activityGroupID    *int64
+	preserveDeviations bool
 }
 
-func (r *templateEndUnitInstanceRepo) DeletePlannedNonSpontaneousInWindow(_ context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64) (int64, error) {
+func (r *templateEndUnitInstanceRepo) DeletePlannedNonSpontaneousInWindow(_ context.Context, from timezone.Date, to *timezone.Date, activityGroupID *int64, preserveDeviations bool) (int64, error) {
 	r.from = from
 	r.to = to
 	r.activityGroupID = activityGroupID
+	r.preserveDeviations = preserveDeviations
 	if r.err != nil {
 		return 0, r.err
 	}

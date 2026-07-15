@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -17,6 +16,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentService "github.com/moto-nrw/project-phoenix/services/enrollment"
@@ -107,8 +107,9 @@ func (req *SubmitEnrollmentRequest) Bind(_ *http.Request) error {
 // email; we return it inline too so the confirmation page can show it
 // without waiting for the email.
 type SubmitEnrollmentResponse struct {
-	RequestID string `json:"request_id"`
-	StatusURL string `json:"status_url"`
+	RequestID string                                `json:"request_id"`
+	StatusURL string                                `json:"status_url"`
+	Warnings  []enrollmentService.SubmissionWarning `json:"warnings,omitempty"`
 }
 
 // submitEnrollment is the public submission handler. Verifies the
@@ -120,19 +121,10 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	slug := strings.TrimSpace(chi.URLParam(r, "tenantSlug"))
-	if slug == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
-		return
-	}
-
-	wireReq := &SubmitEnrollmentRequest{}
-	if err := render.Bind(r, wireReq); err != nil {
+	slug, wireReq, err := bindSubmitEnrollmentRequest(r)
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
-	}
-	if wireReq.LateInviteToken == "" {
-		wireReq.LateInviteToken = lateInviteTokenFromRequest(r)
 	}
 
 	remoteIP := remoteIPFromRequest(r)
@@ -159,7 +151,7 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 				return submitErr
 			}
 
-			serviceReq, parseErr := buildServiceRequest(wireReq, schoolID, remoteIP)
+			serviceReq, parseErr := BuildServiceRequest(wireReq, schoolID, remoteIP)
 			if parseErr != nil {
 				submitErr = parseErr
 				return submitErr
@@ -179,7 +171,7 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 	// submitErr wins over resolveErr: when the closure failed, resolveErr
 	// carries the same error and the submit-specific mapping applies.
 	if submitErr != nil {
-		mapSubmitError(w, r, submitErr)
+		MapSubmitError(w, r, submitErr)
 		return
 	}
 	if resolveErr != nil {
@@ -190,13 +182,29 @@ func (rs *Resource) submitEnrollment(w http.ResponseWriter, r *http.Request) {
 	resp := SubmitEnrollmentResponse{
 		RequestID: strconv.FormatInt(result.Request.ID, 10),
 		StatusURL: result.StatusURL,
+		Warnings:  result.Warnings,
 	}
 	common.Respond(w, r, http.StatusCreated, resp, "Enrollment submitted")
 }
 
-// buildServiceRequest converts the wire request into the service-layer
+func bindSubmitEnrollmentRequest(r *http.Request) (string, *SubmitEnrollmentRequest, error) {
+	slug := strings.TrimSpace(chi.URLParam(r, "tenantSlug"))
+	if slug == "" {
+		return "", nil, errors.New("tenant slug is required")
+	}
+	request := &SubmitEnrollmentRequest{}
+	if err := render.Bind(r, request); err != nil {
+		return "", nil, err
+	}
+	if request.LateInviteToken == "" {
+		request.LateInviteToken = lateInviteTokenFromRequest(r)
+	}
+	return slug, request, nil
+}
+
+// BuildServiceRequest converts the wire request into the service-layer
 // shape. Parses date strings; surfaces a typed error on bad input.
-func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remoteIP string) (enrollmentService.SubmitRequest, error) {
+func BuildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remoteIP string) (enrollmentService.SubmitRequest, error) {
 	out := enrollmentService.SubmitRequest{
 		TenantID:          tenantID,
 		PhaseID:           wireReq.PhaseID,
@@ -253,34 +261,43 @@ func int64PtrValue(v *int64) int64 {
 
 // Stable error codes returned in the JSON envelope so the frontend can
 // map to localized German messages without parsing free-form text. Keep
-// in sync with SUBMISSION_ERROR_MESSAGES in
-// frontend/src/lib/enrollment-submission-api.ts.
+// in sync with ENROLLMENT_CODE_MESSAGES in
+// frontend/src/lib/enrollment-error-messages.ts.
 const (
 	ErrCodeEnrollmentCareOfferingMissing         = "enrollment.care_offering_missing"
 	ErrCodeEnrollmentCareOfferingExactlyOne      = "enrollment.care_offering_exactly_one"
 	ErrCodeEnrollmentRequiredCareOfferingMissing = "enrollment.required_care_offering_missing"
 	ErrCodeEnrollmentCareOfferingFull            = "enrollment.care_offering_full"
+	ErrCodeEnrollmentCareOfferingsDisabled       = "enrollment.care_offerings_disabled"
+	ErrCodeEnrollmentCareOfferingUnavailable     = "enrollment.care_offering_unavailable"
 	ErrCodeEnrollmentInvalidPhone                = "enrollment.invalid_phone"
 	ErrCodeEnrollmentInvalidEmail                = "enrollment.invalid_email"
 	ErrCodeEnrollmentPickupTimeNotAllowed        = "enrollment.pickup_time_not_allowed"
 	ErrCodeEnrollmentLateInviteInvalid           = "enrollment.late_invite_invalid"
+	ErrCodeEnrollmentSelectedDayNotAvailable     = "enrollment.selected_day_not_available"
+	ErrCodeEnrollmentDaySelectionRequired        = "enrollment.day_selection_required"
+	ErrCodeEnrollmentDaySelectionNotAllowed      = "enrollment.day_selection_not_allowed"
 )
 
-// mapSubmitError translates service-layer sentinel errors into HTTP
+// MapSubmitError translates service-layer sentinel errors into HTTP
 // status codes. Unknown errors fall through to 500.
-func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
+func MapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, enrollmentService.ErrEnrollmentDisabled),
 		errors.Is(err, enrollmentService.ErrEnrollmentWindowClosed):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	case errors.Is(err, enrollmentService.ErrLateInviteInvalid):
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, ErrCodeEnrollmentLateInviteInvalid))
+	case errors.Is(err, enrollmentService.ErrCareOfferingUnavailable):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingUnavailable))
 	case errors.Is(err, enrollmentService.ErrCareOfferingMissing):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingMissing))
 	case errors.Is(err, enrollmentService.ErrCareOfferingExactlyOneRequired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingExactlyOne))
 	case errors.Is(err, enrollmentService.ErrRequiredCareOfferingMissing):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentRequiredCareOfferingMissing))
+	case errors.Is(err, enrollmentService.ErrCareOfferingsDisabled):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentCareOfferingsDisabled))
 	case errors.Is(err, enrollmentService.ErrInvalidGuardianPhone):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentInvalidPhone))
 	// Must precede the generic ErrInvalidSubmission case below: the email
@@ -291,6 +308,14 @@ func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	// error wraps ErrInvalidSubmission, so the specific match has to win.
 	case errors.Is(err, enrollmentService.ErrPickupTimeNotAllowed):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentPickupTimeNotAllowed))
+	// The three offering-day errors (#1885) also wrap ErrInvalidSubmission,
+	// so their specific matches must precede the generic case below.
+	case errors.Is(err, enrollmentService.ErrSelectedDayNotAvailable):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentSelectedDayNotAvailable))
+	case errors.Is(err, enrollmentService.ErrDaySelectionRequired):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentDaySelectionRequired))
+	case errors.Is(err, enrollmentService.ErrDaySelectionNotAllowed):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, ErrCodeEnrollmentDaySelectionNotAllowed))
 	case errors.Is(err, enrollmentService.ErrCareOfferingClosed),
 		errors.Is(err, enrollmentService.ErrInvalidSubmission):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
@@ -328,20 +353,10 @@ func lateInviteTokenFromRequest(r *http.Request) string {
 	return strings.TrimSpace(r.URL.Query().Get("late_invite"))
 }
 
-// remoteIPFromRequest extracts the client IP for captcha verification +
-// future rate limiting. Honors X-Forwarded-For (first hop) when set.
+// remoteIPFromRequest returns the router-selected client IP for captcha
+// verification and submission rate limiting.
 func remoteIPFromRequest(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if comma := strings.IndexByte(xff, ','); comma >= 0 {
-			return strings.TrimSpace(xff[:comma])
-		}
-		return strings.TrimSpace(xff)
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
+	return clientip.GetClientIPString(r)
 }
 
 // --- status / edit / withdraw handlers (token-gated, public) ---
@@ -388,6 +403,9 @@ type EditBootstrapResponse struct {
 	CareOfferingSelectionMode string                    `json:"care_offering_selection_mode"`
 	CareRequired              bool                      `json:"care_required"`
 	SchoolClass               PublicSchoolClassConfig   `json:"school_class"`
+	CollectGradeLevel         bool                      `json:"collect_grade_level"`
+	CareOfferingsEnabled      bool                      `json:"care_offerings_enabled"`
+	GradeLevelMax             int                       `json:"grade_level_max"`
 	LegalTexts                PublicLegalTextsResponse  `json:"legal_texts"`
 	Draft                     EditDraftResponse         `json:"draft"`
 	EditMode                  string                    `json:"edit_mode"`
@@ -543,9 +561,12 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 		Phase:                     toPublicPhase(draft.Phase),
 		Schema:                    toPublicFormSchemaResponse(draft.Schema),
 		Offerings:                 offerings,
-		CareOfferingSelectionMode: draft.Phase.CareOfferingSelectionMode,
-		CareRequired:              draft.Phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
+		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(draft.Phase.CareOfferingSelectionMode, draft.CareOfferingsEnabled),
+		CareRequired:              draft.CareOfferingsEnabled && draft.Phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
 		SchoolClass:               toPublicSchoolClassConfig(draft.Phase, draft.CollectSchoolClass),
+		CollectGradeLevel:         draft.CollectGradeLevel,
+		CareOfferingsEnabled:      draft.CareOfferingsEnabled,
+		GradeLevelMax:             draft.GradeLevelMax,
 		LegalTexts: PublicLegalTextsResponse{
 			AGB:                 draft.LegalTexts.AGB,
 			DSGVO:               draft.LegalTexts.DSGVO,
@@ -564,58 +585,83 @@ func (rs *Resource) getEditBootstrap(w http.ResponseWriter, r *http.Request) {
 
 func toEditDraftResponse(draft *enrollmentService.EditDraft) EditDraftResponse {
 	resp := EditDraftResponse{
-		RequestID:         strconv.FormatInt(draft.Request.ID, 10),
-		StatusToken:       draft.Request.StatusToken,
-		TenantID:          strconv.FormatInt(draft.Request.GetTenantID(), 10),
-		PhaseID:           strconv.FormatInt(draft.Request.PhaseID, 10),
-		GuardianFirstName: draft.Request.GuardianFirstName,
-		GuardianLastName:  draft.Request.GuardianLastName,
-		GuardianEmail:     draft.Request.GuardianEmail,
-		GuardianPhone:     draft.Request.GuardianPhone,
-		ConsentFlags:      draft.Request.ConsentFlags,
-		CustomData:        draft.Request.CustomData,
-		Children:          make([]EditDraftChildResponse, 0, len(draft.Children)),
+		RequestID:           strconv.FormatInt(draft.Request.ID, 10),
+		StatusToken:         draft.Request.StatusToken,
+		TenantID:            strconv.FormatInt(draft.Request.GetTenantID(), 10),
+		PhaseID:             strconv.FormatInt(draft.Request.PhaseID, 10),
+		GuardianFirstName:   draft.Request.GuardianFirstName,
+		GuardianLastName:    draft.Request.GuardianLastName,
+		GuardianEmail:       draft.Request.GuardianEmail,
+		GuardianPhone:       draft.Request.GuardianPhone,
+		ConsentFlags:        draft.Request.ConsentFlags,
+		CustomData:          draft.Request.CustomData,
+		AdditionalGuardians: toEditDraftGuardianResponses(draft.Guardians),
+		Children:            toEditDraftChildResponses(draft),
 	}
 	if draft.School != nil {
 		resp.TenantSlug = draft.School.Slug
 	}
-	for _, g := range draft.Guardians {
-		resp.AdditionalGuardians = append(resp.AdditionalGuardians, EditDraftGuardianResponse{
-			FirstName: g.FirstName,
-			LastName:  g.LastName,
-			Email:     g.Email,
-			Phone:     g.Phone,
+	return resp
+}
+
+func toEditDraftGuardianResponses(guardians []*enrollmentModels.RequestGuardian) []EditDraftGuardianResponse {
+	var responses []EditDraftGuardianResponse
+	for _, guardian := range guardians {
+		responses = append(responses, EditDraftGuardianResponse{
+			FirstName: guardian.FirstName,
+			LastName:  guardian.LastName,
+			Email:     guardian.Email,
+			Phone:     guardian.Phone,
 		})
 	}
-	for _, c := range draft.Children {
-		child := EditDraftChildResponse{
-			ID:                strconv.FormatInt(c.ID, 10),
-			FirstName:         c.FirstName,
-			LastName:          c.LastName,
-			DateOfBirth:       c.DateOfBirth.String(),
-			TargetGradeLevel:  c.TargetGradeLevel,
-			TargetSchoolClass: c.TargetSchoolClass,
-			CustomData:        c.CustomData,
-			OfferingIDs:       []string{},
-		}
-		for _, link := range draft.OfferingsByChild[c.ID] {
-			child.OfferingIDs = append(child.OfferingIDs, strconv.FormatInt(link.CareOfferingID, 10))
-			if len(link.SelectedDays) > 0 {
-				manualDays := link.ManualSelectedDays
-				if len(manualDays) == 0 && len(link.AutomaticSelectedDays) == 0 {
-					manualDays = link.SelectedDays
-				}
-				child.OfferingDays = append(child.OfferingDays, EditDraftOfferingDayResponse{
-					OfferingID:            strconv.FormatInt(link.CareOfferingID, 10),
-					SelectedDays:          link.SelectedDays,
-					ManualSelectedDays:    manualDays,
-					AutomaticSelectedDays: link.AutomaticSelectedDays,
-				})
-			}
-		}
-		resp.Children = append(resp.Children, child)
+	return responses
+}
+
+func toEditDraftChildResponses(draft *enrollmentService.EditDraft) []EditDraftChildResponse {
+	responses := make([]EditDraftChildResponse, 0, len(draft.Children))
+	for _, child := range draft.Children {
+		responses = append(responses, toEditDraftChildResponse(child, draft.OfferingsByChild[child.ID], draft.CareOfferingsEnabled))
 	}
-	return resp
+	return responses
+}
+
+func toEditDraftChildResponse(child *enrollmentModels.RequestChild, offeringLinks []*enrollmentModels.RequestChildOffering, careOfferingsEnabled bool) EditDraftChildResponse {
+	response := EditDraftChildResponse{
+		ID:                strconv.FormatInt(child.ID, 10),
+		FirstName:         child.FirstName,
+		LastName:          child.LastName,
+		DateOfBirth:       child.DateOfBirth.String(),
+		TargetGradeLevel:  child.TargetGradeLevel,
+		TargetSchoolClass: child.TargetSchoolClass,
+		CustomData:        child.CustomData,
+		OfferingIDs:       []string{},
+	}
+	if !careOfferingsEnabled {
+		return response
+	}
+	for _, link := range offeringLinks {
+		response.OfferingIDs = append(response.OfferingIDs, strconv.FormatInt(link.CareOfferingID, 10))
+		if offeringDay := toEditDraftOfferingDayResponse(link); offeringDay != nil {
+			response.OfferingDays = append(response.OfferingDays, *offeringDay)
+		}
+	}
+	return response
+}
+
+func toEditDraftOfferingDayResponse(link *enrollmentModels.RequestChildOffering) *EditDraftOfferingDayResponse {
+	if len(link.SelectedDays) == 0 {
+		return nil
+	}
+	manualDays := link.ManualSelectedDays
+	if len(manualDays) == 0 && len(link.AutomaticSelectedDays) == 0 {
+		manualDays = link.SelectedDays
+	}
+	return &EditDraftOfferingDayResponse{
+		OfferingID:            strconv.FormatInt(link.CareOfferingID, 10),
+		SelectedDays:          link.SelectedDays,
+		ManualSelectedDays:    manualDays,
+		AutomaticSelectedDays: link.AutomaticSelectedDays,
+	}
 }
 
 // EditPatchRequest is the wire shape for PATCH /requests/{token}.
@@ -688,9 +734,9 @@ func (rs *Resource) replaceStatus(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	serviceReq, err := buildServiceRequest(wireReq, 0, "")
+	serviceReq, err := BuildServiceRequest(wireReq, 0, "")
 	if err != nil {
-		mapSubmitError(w, r, err)
+		MapSubmitError(w, r, err)
 		return
 	}
 	result, err := rs.RequestService.ReplaceEditable(r.Context(), token, serviceReq)
@@ -701,6 +747,7 @@ func (rs *Resource) replaceStatus(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, SubmitEnrollmentResponse{
 		RequestID: strconv.FormatInt(result.Request.ID, 10),
 		StatusURL: result.StatusURL,
+		Warnings:  result.Warnings,
 	}, "Request updated")
 }
 
@@ -711,7 +758,7 @@ func mapEditError(w http.ResponseWriter, r *http.Request, err error) {
 	case errors.Is(err, enrollmentService.ErrEditNotAllowed):
 		common.RenderError(w, r, common.ErrorForbidden(err))
 	default:
-		mapSubmitError(w, r, err)
+		MapSubmitError(w, r, err)
 	}
 }
 

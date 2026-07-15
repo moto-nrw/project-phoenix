@@ -18,12 +18,16 @@
  */
 
 import { useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import Link from "next/link";
+import { Check, ChevronDown, Plus, SlidersHorizontal } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
-import { timetablePopoverSurface } from "./timetable-style";
+import {
+  timetablePopoverSurface,
+  timetableWarningText,
+} from "./timetable-style";
 
 import {
   type CalendarPeriod,
@@ -141,7 +145,6 @@ export function PeriodSwitcherDropdown({
         variant="primary"
         size="compact"
         onClick={onCreate}
-        className="rounded-lg"
         title="Ohne aktiven Zeitraum können keine regelmäßigen Termine eingetragen werden."
       >
         Zeitraum anlegen
@@ -151,12 +154,14 @@ export function PeriodSwitcherDropdown({
 
   return (
     <div className="relative" ref={containerRef}>
-      <button
+      <Button
         type="button"
+        variant="outline"
+        size="compact"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="dialog"
-        className="inline-flex h-8 max-w-[240px] items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-2.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:border-gray-300 hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+        className="max-w-[240px]"
         title="Planungszeitraum wechseln"
       >
         <span
@@ -165,7 +170,7 @@ export function PeriodSwitcherDropdown({
         />
         <span className="truncate">{triggerLabel}</span>
         <ChevronDown className="h-3.5 w-3.5 text-gray-400" aria-hidden />
-      </button>
+      </Button>
 
       {open && (
         <div
@@ -207,7 +212,7 @@ export function PeriodSwitcherDropdown({
                       </span>
                       <span className="min-w-0 flex-1 truncate text-right text-gray-700">
                         {a.period?.name ?? (
-                          <span className="text-[#92400E]">
+                          <span className={timetableWarningText}>
                             Kein aktiver Zeitraum
                           </span>
                         )}
@@ -278,16 +283,29 @@ export function PeriodSwitcherDropdown({
           </div>
 
           {/* Footer: create new */}
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="compact"
             onClick={() => {
               setOpen(false);
               onCreate();
             }}
-            className="flex w-full items-center gap-1.5 border-t border-gray-100 px-4 py-2.5 text-left text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50"
+            className="w-full justify-start rounded-none border-t border-gray-100 px-4"
           >
             <Plus className="h-4 w-4" aria-hidden /> Neuen Zeitraum anlegen
-          </button>
+          </Button>
+          {/* Verwaltungslink: /calendar-periods hat keinen Sidebar-Eintrag
+              mehr, die Seite ist über diesen Chip erreichbar
+              (Planung-Redesign, Synthese 1.1). */}
+          <Link
+            href="/calendar-periods"
+            onClick={() => setOpen(false)}
+            className="flex h-8 w-full items-center gap-1 border-t border-gray-100 px-4 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-100"
+          >
+            <SlidersHorizontal className="h-4 w-4" aria-hidden /> Zeiträume
+            verwalten
+          </Link>
         </div>
       )}
     </div>
@@ -322,7 +340,7 @@ function MonthPeriodSummary({
         <p className="mb-1 text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
           Dieser Monat
         </p>
-        <p className="text-xs text-[#92400E]">
+        <p className={`text-xs ${timetableWarningText}`}>
           Für diesen Monat ist kein aktiver Zeitraum hinterlegt.
         </p>
       </div>
@@ -346,7 +364,7 @@ function MonthPeriodSummary({
           </p>
         ))}
         {hasMissingDays && (
-          <p className="text-[11px] text-[#92400E]">
+          <p className={`text-[11px] ${timetableWarningText}`}>
             Einige Tage haben keinen aktiven Zeitraum.
           </p>
         )}

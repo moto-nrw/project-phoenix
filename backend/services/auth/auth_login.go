@@ -14,11 +14,12 @@ import (
 	jwx "github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
+	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/models/auth"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Login authenticates a user and returns access and refresh tokens
@@ -190,7 +191,7 @@ func (s *Service) LoginWithMFAGate(
 		return &LoginResult{
 			Status:                LoginStatusMFAEnrollmentRequired,
 			AccessToken:           enrollmentToken,
-			MaskedEmail:           maskEmailForUX(account.Email),
+			MaskedEmail:           MaskEmailForUX(account.Email),
 			MFAEnrollmentRequired: true,
 		}, nil
 	}
@@ -206,14 +207,14 @@ func (s *Service) LoginWithMFAGate(
 	// no valid trusted-device cookie. Anything else falls through to the
 	// existing token-pair pipeline.
 	if mfaRequired && enrolled && !trustedDeviceVerified {
-		challenge, chErr := s.mfaService.StartChallenge(ctx, account.ID, metadata.tenantID, jwt.MFAChallengeScopeTenant, parseClientIPString(ipAddress))
+		challenge, chErr := s.mfaService.StartChallenge(ctx, account.ID, metadata.tenantID, jwt.MFAChallengeScopeTenant, ParseClientIP(ipAddress))
 		if chErr != nil {
 			return nil, &AuthError{Op: "start mfa challenge", Err: chErr}
 		}
 		return &LoginResult{
 			Status:               LoginStatusMFARequired,
 			ChallengeToken:       challenge,
-			MaskedEmail:          maskEmailForUX(account.Email),
+			MaskedEmail:          MaskEmailForUX(account.Email),
 			TrustedDeviceEnabled: s.mfaService.IsTrustedDeviceEnabled(ctx, metadata.tenantID),
 			TrustedDeviceDays:    s.mfaService.TrustedDeviceDays(ctx, metadata.tenantID),
 		}, nil
@@ -237,10 +238,11 @@ func (s *Service) LoginWithMFAGate(
 	}, nil
 }
 
-// maskEmailForUX renders an email address as `j***@example.com` so the
+// MaskEmailForUX renders an email address as `j***@example.com` so the
 // frontend can show the user *which* mailbox just received a code without
-// leaking the full address (e.g. in shared-screen scenarios).
-func maskEmailForUX(email string) string {
+// leaking the full address (e.g. in shared-screen scenarios). Shared with
+// the operator login flow in services/platform.
+func MaskEmailForUX(email string) string {
 	at := strings.IndexByte(email, '@')
 	if at <= 0 {
 		return email
@@ -253,13 +255,11 @@ func maskEmailForUX(email string) string {
 	return string(local[0]) + "***" + domain
 }
 
-// parseClientIPString wraps net.ParseIP with the empty-string guard so the
-// MFA service can pass it through to the audit row without nil-dereferencing.
-func parseClientIPString(ipAddress string) net.IP {
-	if ipAddress == "" {
-		return nil
-	}
-	return net.ParseIP(ipAddress)
+// ParseClientIP wraps net.ParseIP with the empty-string guard so audit rows
+// don't get malformed inet values. Shared with the operator login flow in
+// services/platform.
+func ParseClientIP(ipAddress string) net.IP {
+	return clientip.ParseIPString(ipAddress)
 }
 
 // IssueTokensForAuthenticatedAccount mints an access + refresh token pair for
@@ -388,11 +388,10 @@ func (s *Service) newRefreshToken(accountID int64) *auth.Token {
 // so we switch to phoenix_admin for the token write.
 func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64) error {
 	return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
 
 		// Clean up old tokens (keep 5 most recent)
 		const maxTokensPerAccount = 5
-		if err := txService.repos.Token.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
+		if err := s.repos.Token.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
 			s.getLogger().Warn("failed to clean up old tokens",
 				slog.Int64("account_id", account.ID),
 				slog.Any("error", err),
@@ -403,7 +402,7 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 		token.SetTenantID(tenantID)
 
 		// Create new token
-		if err := txService.repos.Token.Create(ctx, token); err != nil {
+		if err := s.repos.Token.Create(ctx, token); err != nil {
 			if s.isTokenFamilyConflict(err) {
 				return err // Will retry with new family ID
 			}
@@ -413,7 +412,7 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 		// Update last login
 		loginTime := time.Now()
 		account.LastLogin = &loginTime
-		return txService.repos.Account.Update(ctx, account)
+		return s.repos.Account.Update(ctx, account)
 	})
 }
 
@@ -451,25 +450,24 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 	// queries return zero rows and the JWT gets empty permissions.
 	var result *accountMetadata
 	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
 
 		// Step 1: Resolve tenant FIRST — roles/permissions depend on the target tenant.
-		tenantID, orgID, err := txService.resolveAccountTenant(ctx, account.ID, tenantSlug)
+		tenantID, orgID, err := s.resolveAccountTenant(ctx, account.ID, tenantSlug)
 		if err != nil {
 			return err
 		}
 
 		// Step 2: Load roles scoped to the resolved tenant (D13 §6.1 step 6).
-		txService.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
+		s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
 
 		// Step 3: Load permissions scoped to the resolved tenant (D13 §6.1 step 7).
-		permissions := txService.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
-		roleNames := txService.extractRoleNames(account.Roles)
-		permissionStrs := txService.extractPermissionNames(permissions)
+		permissions := s.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
+		roleNames := s.extractRoleNames(account.Roles)
+		permissionStrs := s.extractPermissionNames(permissions)
 
-		username := txService.extractUsername(account)
-		firstName, lastName := txService.loadPersonNames(ctx, account.ID)
-		isAdmin := txService.checkRoleFlags(roleNames)
+		username := s.extractUsername(account)
+		firstName, lastName := s.loadPersonNames(ctx, account.ID)
+		isAdmin := s.checkRoleFlags(roleNames)
 
 		result = &accountMetadata{
 			roleNames:      roleNames,
@@ -495,12 +493,11 @@ func (s *Service) loadAccountMetadata(ctx context.Context, account *auth.Account
 func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *auth.Account, tenantID int64) (*accountMetadata, error) {
 	var result *accountMetadata
 	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
 
 		// Look up the school's organization ID for the JWT org_id claim.
 		var orgID int64
 		if tenantID > 0 {
-			school, err := txService.repos.School.FindByID(ctx, tenantID)
+			school, err := s.repos.School.FindByID(ctx, tenantID)
 			if err != nil {
 				// Distinguish "not found" from transient DB errors so the caller
 				// returns 401 (re-login) instead of 500 (retry) when the school
@@ -517,14 +514,14 @@ func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *aut
 		}
 
 		// Load roles and permissions scoped to the preserved tenant.
-		txService.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
-		permissions := txService.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
-		roleNames := txService.extractRoleNames(account.Roles)
-		permissionStrs := txService.extractPermissionNames(permissions)
+		s.ensureAccountRolesLoadedForTenant(ctx, account, tenantID)
+		permissions := s.loadAccountPermissionsForTenant(ctx, account.ID, tenantID)
+		roleNames := s.extractRoleNames(account.Roles)
+		permissionStrs := s.extractPermissionNames(permissions)
 
-		username := txService.extractUsername(account)
-		firstName, lastName := txService.loadPersonNames(ctx, account.ID)
-		isAdmin := txService.checkRoleFlags(roleNames)
+		username := s.extractUsername(account)
+		firstName, lastName := s.loadPersonNames(ctx, account.ID)
+		isAdmin := s.checkRoleFlags(roleNames)
 
 		result = &accountMetadata{
 			roleNames:      roleNames,
@@ -542,29 +539,6 @@ func (s *Service) loadAccountMetadataForTenant(ctx context.Context, account *aut
 		return nil, err
 	}
 	return result, nil
-}
-
-// ensureAccountRolesLoaded loads account roles if not already loaded.
-// Uses context-based tenant filtering (for authenticated requests).
-func (s *Service) ensureAccountRolesLoaded(ctx context.Context, account *auth.Account) {
-	if len(account.Roles) > 0 {
-		return
-	}
-
-	accountRoles, err := s.repos.AccountRole.FindByAccountID(ctx, account.ID)
-	if err != nil {
-		s.getLogger().Warn("failed to load roles",
-			slog.Int64("account_id", account.ID),
-			slog.Any("error", err),
-		)
-		return
-	}
-
-	for _, ar := range accountRoles {
-		if ar.Role != nil {
-			account.Roles = append(account.Roles, ar.Role)
-		}
-	}
 }
 
 // ensureAccountRolesLoadedForTenant loads account roles scoped to a specific tenant.
@@ -603,24 +577,6 @@ func (s *Service) loadAccountPermissionsForTenant(ctx context.Context, accountID
 		return []*auth.Permission{}
 	}
 	return permissions
-}
-
-// ensureAccountPermissionsLoaded loads account permissions if not already loaded
-func (s *Service) ensureAccountPermissionsLoaded(ctx context.Context, account *auth.Account) {
-	if len(account.Permissions) > 0 {
-		return
-	}
-
-	permissions, err := s.getAccountPermissions(ctx, account.ID)
-	if err != nil {
-		s.getLogger().Warn("failed to load permissions",
-			slog.Int64("account_id", account.ID),
-			slog.Any("error", err),
-		)
-		return
-	}
-
-	account.Permissions = permissions
 }
 
 // extractRoleNames converts roles to string slice
@@ -958,15 +914,14 @@ func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Acco
 	if tenantID <= 0 {
 		// No tenant context (e.g. tests) — fall back to admin tx for the account insert only.
 		return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-			return s.WithTx(tx).(*Service).repos.Account.Create(ctx, account)
+			return s.repos.Account.Create(ctx, account)
 		})
 	}
 
 	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
 
 		// Create account (auth.accounts has no tenant_id, no RLS — plain INSERT)
-		if err := txService.repos.Account.Create(ctx, account); err != nil {
+		if err := s.repos.Account.Create(ctx, account); err != nil {
 			return err
 		}
 
@@ -978,7 +933,7 @@ func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Acco
 			Status:      auth.AccountTenantStatusActive,
 			ActivatedAt: &now,
 		}
-		if err := txService.repos.AccountTenant.Create(ctx, mapping); err != nil {
+		if err := s.repos.AccountTenant.Create(ctx, mapping); err != nil {
 			return fmt.Errorf("failed to create account-tenant mapping: %w", err)
 		}
 
@@ -989,7 +944,7 @@ func (s *Service) persistAccountWithRole(ctx context.Context, account *auth.Acco
 				RoleID:    *roleID,
 			}
 			accountRole.SetTenantID(tenantID)
-			if err := txService.repos.AccountRole.Create(ctx, accountRole); err != nil {
+			if err := s.repos.AccountRole.Create(ctx, accountRole); err != nil {
 				return fmt.Errorf("failed to assign role to account: %w", err)
 			}
 		}
@@ -1035,12 +990,11 @@ func (s *Service) LinkAccountToTenant(ctx context.Context, email string, roleID 
 // performAccountTenantLink creates a tenant mapping and role assignment for an existing account.
 func (s *Service) performAccountTenantLink(ctx context.Context, account *auth.Account, roleID *int64, tenantID int64) error {
 	return tenant.WithTenantTx(ctx, s.db, tenantID, func(ctx context.Context, tx bun.Tx) error {
-		txService := s.WithTx(tx).(*Service)
 
-		if err := txService.ensureTenantMapping(ctx, account.ID, tenantID); err != nil {
+		if err := s.ensureTenantMapping(ctx, account.ID, tenantID); err != nil {
 			return err
 		}
-		return txService.ensureRoleAssignment(ctx, account.ID, roleID, tenantID)
+		return s.ensureRoleAssignment(ctx, account.ID, roleID, tenantID)
 	})
 }
 
@@ -1081,68 +1035,7 @@ func (s *Service) ensureRoleAssignment(ctx context.Context, accountID int64, rol
 
 // isDuplicateKeyError checks if a database error is a unique constraint violation (PG code 23505).
 func isDuplicateKeyError(err error) bool {
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		return pgErr.Field('C') == "23505"
-	}
-	return false
-}
-
-// ValidateToken validates an access token and returns the associated account and parsed claims.
-func (s *Service) ValidateToken(ctx context.Context, tokenString string) (*auth.Account, *jwt.AppClaims, error) {
-	// Parse and validate JWT token
-	jwtToken, err := s.tokenAuth.JwtAuth.Decode(tokenString)
-	if err != nil {
-		return nil, nil, &AuthError{Op: "validate token", Err: ErrInvalidToken}
-	}
-
-	// Extract claims
-	claims := extractClaims(jwtToken)
-
-	// Parse claims into AppClaims
-	var appClaims jwt.AppClaims
-	err = appClaims.ParseClaims(claims)
-	if err != nil {
-		return nil, nil, &AuthError{Op: "parse claims", Err: ErrInvalidToken}
-	}
-
-	// Get account by ID
-	account, err := s.repos.Account.FindByID(ctx, int64(appClaims.ID))
-	if err != nil {
-		return nil, nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
-	}
-
-	// Ensure account is active
-	if !account.Active {
-		return nil, nil, &AuthError{Op: "validate token", Err: ErrAccountInactive}
-	}
-
-	// Load roles and permissions scoped to the JWT's tenant (D13 revision:
-	// never load cross-tenant roles/permissions, even in secondary paths).
-	// Use WithTenantTx so that app.current_tenant_id is set for RLS policies.
-	// ValidateToken may be called from public routes (e.g. /register) where
-	// no tenant middleware exists. Without a tenant-scoped tx, RLS on
-	// auth.account_roles and auth.account_permissions returns zero rows.
-	if appClaims.TenantID > 0 {
-		err = tenant.WithTenantTx(ctx, s.db, appClaims.TenantID, func(ctx context.Context, tx bun.Tx) error {
-			txService := s.WithTx(tx).(*Service)
-			txService.ensureAccountRolesLoadedForTenant(ctx, account, appClaims.TenantID)
-			account.Permissions = txService.loadAccountPermissionsForTenant(ctx, account.ID, appClaims.TenantID)
-			return nil
-		})
-		if err != nil {
-			s.getLogger().Warn("failed to load roles/permissions in tenant tx",
-				slog.Int64("account_id", account.ID),
-				slog.Int64("tenant_id", appClaims.TenantID),
-				slog.Any("error", err),
-			)
-		}
-	} else {
-		s.ensureAccountRolesLoaded(ctx, account)
-		s.ensureAccountPermissionsLoaded(ctx, account)
-	}
-
-	return account, &appClaims, nil
+	return modelBase.IsUniqueViolation(err)
 }
 
 // RefreshToken generates new token pair from a refresh token
@@ -1453,11 +1346,6 @@ func (s *Service) validateTenantAccess(ctx context.Context, claims *jwt.RefreshC
 	return nil
 }
 
-// Logout invalidates a refresh token
-func (s *Service) Logout(ctx context.Context, refreshTokenStr string) error {
-	return s.LogoutWithAudit(ctx, refreshTokenStr, "", "")
-}
-
 // LogoutWithAudit invalidates a refresh token with audit logging.
 //
 // Uses WithAdminTx (BYPASSRLS) because logout is a pre-deauthentication flow.
@@ -1559,18 +1447,6 @@ func (s *Service) GetAccountByID(ctx context.Context, id int) (*auth.Account, er
 	account, err := s.repos.Account.FindByID(ctx, int64(id))
 	if err != nil {
 		return nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
-	}
-	return account, nil
-}
-
-// GetAccountByEmail retrieves an account by email
-func (s *Service) GetAccountByEmail(ctx context.Context, email string) (*auth.Account, error) {
-	// Normalize email
-	email = strings.TrimSpace(strings.ToLower(email))
-
-	account, err := s.repos.Account.FindByEmail(ctx, email)
-	if err != nil {
-		return nil, &AuthError{Op: "get account by email", Err: ErrAccountNotFound}
 	}
 	return account, nil
 }

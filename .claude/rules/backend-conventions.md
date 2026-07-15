@@ -112,18 +112,19 @@ type Model struct {
     CreatedAt time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
     UpdatedAt time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
-func (m *Model) BeforeAppend() error  // note: NOT BeforeAppendModel
+func (m *Model) GetID() any / GetCreatedAt() / GetUpdatedAt()  // Rule-3 getters, live here ONCE
+// base.StringIDModel provides the same three getters for string-ID entities
 
 // models/base/tenant.go
 type TenantModel struct { TenantID int64 `bun:"tenant_id,notnull"` }
 func (t *TenantModel) GetTenantID() int64 / SetTenantID(id int64)
 ```
 
-`base.Model` does NOT provide `GetID()`/`GetCreatedAt()`/`GetUpdatedAt()`. If an interface needs them, add them ONCE on `base.Model` — never per entity. The legacy copy-paste is still widespread (~85 `GetID` copies, ~170 timestamp getters, ~82 `BeforeAppendModel` hooks as of 2026-06-12, and growing — nothing ratchets it yet); don't add to it.
+`base.Model` and `base.StringIDModel` provide `GetID()`/`GetCreatedAt()`/`GetUpdatedAt()` — never redeclare them per entity (shadowing is allowed only for genuinely different semantics, e.g. the audit models mapping `GetUpdatedAt` to `AccessedAt`/`ChangedAt`). The same goes for GORM-style `TableName()` methods: bun never calls them; table names come from struct tags and `ModelTableExpr` strings. Both patterns are CI-ratcheted by `TestModelCeremonyRatchet` (`backend/test/model_ceremony_ratchet_test.go`) with an allowlist of the load-bearing shadow getters.
 
 ### A note on `BeforeAppendModel`
 
-The per-entity `BeforeAppendModel` hooks implement BUN's `BeforeAppendModelHook` interface and may contain entity-specific logic — they are NOT automatically redundant. Audit each hook before deleting.
+The old per-entity `BeforeAppendModel(query any) error` hooks never ran: bun's hook interface is `BeforeAppendModel(ctx context.Context, query schema.Query) error`, dispatched via a reflection `Implements()` check the one-arg signature never matched. All 93 copies were deleted in the 2026-07 audit cleanup; repositories set `ModelTableExpr` explicitly, which is the actual mechanism. If a model genuinely needs a bun append hook, use the correct two-arg signature — the dead one-arg shape is CI-ratcheted to zero by `TestModelCeremonyRatchet` (M3).
 
 ---
 
@@ -135,7 +136,12 @@ The per-entity `BeforeAppendModel` hooks implement BUN's `BeforeAppendModelHook`
 gocognit -over 15 backend/api/
 ```
 
-**Not CI-enforced today** (gocognit is in neither `.golangci.yml` nor the workflows) — apply it in review. Current worst offenders score 64, 45, 44, 41, 39 (~53 functions over 15); new code must not join them.
+**CI-enforced since 2026-07-12** (issue #575 B0): `TestHandlerComplexityRatchet` (`backend/test/handler_complexity_ratchet_test.go`) fails any function under `api/` scoring over 15 that is not in its shrink-only allowlist (seeded with the 75 offenders existing at ratchet time; keys match `gocognit -over 15 api/` output 1:1). When a refactor lowers a score, ratchet the entry down; never raise one or add one.
+
+Two shapes that keep handlers under the threshold without hiding logic:
+
+- **Pure pass-through handlers** (parse → one service call → respond) should not exist as named functions at all — register them with the `api/common` handler builders (`IDAction`, `TwoIDAction`, `IDFetch`, `BindAction`) directly in `Router()`. Cutoff: a handler with per-request branching, multi-service reads, or response shaping keeps a named function; do not grow option-struct builder variants to force-fit those.
+- **Error classification** belongs in a declarative rule table (`api/common/error_rules.go`: `ErrorRule` + `RulesRenderer` / `UnwrapRenderer`), not a hand-written switch. `UnwrapRenderer` covers the domain-wrapper pattern (render the inner sentinel, keep the wrapped error for 500 logs). The one sanctioned hand-written renderer is `api/iot/internal/shared.ErrorRenderer` (multi-domain dispatch + PyrePortal wire contract).
 
 ---
 
@@ -152,7 +158,7 @@ router := resource.Router()
 router.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/staff", nil))
 ```
 
-~294 such wrappers exist today (unratcheted). They're dead code from the production server's perspective (CI's `deadcode -test` run keeps them alive only because tests call them).
+All 308 such wrappers were deleted in the 2026-07 audit B3 batch; tests drive the resource's public `Router()` with minted JWTs (`api/testutil`: `SeedTestJWTConfig` + `MintTestJWT` + `WithJWTBearer`) or, for internal-package tests, call the private handler directly. `TestHandlerLayerRatchet` (R5) now fails any new niladic method returning `http.HandlerFunc` under `api/` — the shape is CI-ratcheted to zero regardless of method name.
 
 ---
 
@@ -172,7 +178,7 @@ import "github.com/moto-nrw/project-phoenix/api/common"
 common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID")))
 ```
 
-The duplication has GROWN since this rule was written (~49 `Error*` functions outside `api/common` across 13 `errors.go` files as of 2026-06-12, vs ~30 in April) and has no ratchet yet. Don't add to it; deleting a local copy in favor of `api/common` is always welcome.
+Consolidated in issue #575 B1/B2 (2026-07-12): the duplicate `ErrResponse` structs and constructor sets in `active`, `feedback`, and `suggestions` were deleted — those packages keep thin `newErrResponse` wrappers only because their wire format carries human-text `status` values (pinned by per-package `wire_format_test.go` goldens; normalizing to `"error"` is a separate frontend-audited change). `api/operator` stays deliberately divergent (`json:"message"`). Do not reintroduce local `Error*` constructor sets — declare classification in an error-rule table (see Rule 4) and let `api/common` build the responses.
 
 ---
 
@@ -232,6 +238,10 @@ err := s.txHandler.RunInTx(ctx, func(ctx context.Context, tx bun.Tx) error {
 
 Cross-repo / cross-schema cleanup operations that genuinely don't fit a single repo's responsibility may use raw SQL — but the raw SQL must live in `database/repositories/{domain}/cleanup.go`, not inside the service. Document with a comment why a repo method isn't possible.
 
+### Handler-side transactions (`tenant.WithTenantTx` in `api/`)
+
+A `tenant.WithTenantTx` closure in a handler is usually the smell of a missing service method — multi-step writes belong in a service method that the handler's transaction wraps as ONE call (see `UpdateGroupWithDetails`, #575 B10). The exception is a genuine cross-service composition with no natural owner: `createStudent` atomically composes Guardian + Person + Student + Arrival/Pickup-schedule services (the latter live in `services/schedule`, so a `services/users` orchestrator would import-cycle), and `updateStudent`'s locked-row invariants include an in-tx re-authorization against the caller's JWT permissions — HTTP-bound policy that doesn't belong in a service. Those handler-side transactions are sanctioned; new ones need the same written justification.
+
 ### Why
 
 The repository layer owns tenant filtering, soft-delete semantics, audit hooks, and BUN-specific quirks. When a service constructs a query directly, every one of those invariants is at risk of being silently dropped — **a forgotten `WHERE tenant_id = ?` becomes a multi-tenant data leak.** Centralizing queries in repos isolates that risk and makes RLS testing tractable.
@@ -271,6 +281,26 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 
 ---
 
+## 13. Shared Test Doubles — No Per-Package Mock Copies
+
+**RULE: Before hand-rolling a mock, fake, stub, or fixture in a `_test.go` file, check the shared homes.** Full-interface mocks copy-pasted across packages were ~2,000 lines of the 2026-07 audit's test-side findings (slice B14); the shared implementations now exist and new copies are review failures.
+
+| Double | Shared home |
+|---|---|
+| DB fixtures (`CreateTest*` / `Cleanup*`) | `test/fixtures*.go` (the mandated catalog) |
+| Pointer helpers (`StrPtr`, `IntPtr`, `Int64Ptr`, `TimePtr`) | `test/helpers.go` |
+| `email.Mailer` capture | `test.CapturingMailer` (`test/mailers.go`) |
+| `realtime.Broadcaster` recording fake | `test.RecordingBroadcaster` (`test/broadcaster.go`) |
+| Repo mocks for `models/*` interfaces (School, Staff, suggestions) | `test/repo_mocks.go`, `test/suggestions_mocks.go` |
+| `config.SettingsService` | `configtest.Mock` (`services/config/configtest`) |
+| `auth.MFAService` / `auth.InvitationService` | `services/auth/authtest` |
+| `users.PersonService` | `services/users/userstest` |
+| API request/bootstrap helpers | `api/testutil` (`SetupAPITest`, `ExecuteWithAuth`, `ExecuteWithAuthPermissions`, `MintTestJWT`) |
+
+Placement rules: mocks for `models/*` interfaces go in `test/` (imports models only — safe for internal test packages); mocks for a service interface go in a leaf `<domain>test` package next to the interface (usable everywhere EXCEPT that package's own internal tests — import cycle). New shared mocks follow the func-field convention (`XxxFn` fields, nil = zero-value default). Behaviorally divergent doubles (error-injection hooks, deliberate panics, channel-based capture) may stay package-local — divergence is the documented exception, copy-paste is not.
+
+---
+
 ## Code Review Checklist
 
 - [ ] No repository imports/fields/getter-calls in `api/` (CI: `TestHandlerLayerRatchet`)
@@ -285,6 +315,7 @@ Business rules drift constantly. "Offline after 5 minutes" becomes "10 minutes f
 - [ ] No query construction in `services/` (CI: `TestServiceRepositoryRatchet`)
 - [ ] Models hold data, not decisions — no `Mark*/End*/Activate*` mutations, no RBAC, no magic thresholds
 - [ ] Searched for existing helpers before writing a new one (`rg` before `func`)
+- [ ] No new hand-rolled mock/fixture where a shared test double exists (Rule 13 table)
 
 ## Detection commands (one-shot health check)
 

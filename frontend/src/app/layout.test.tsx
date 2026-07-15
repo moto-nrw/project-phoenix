@@ -11,6 +11,9 @@ vi.mock("next/font/google", () => ({
   Inter: () => ({
     className: "inter-font-class",
   }),
+  Kalam: () => ({
+    variable: "moto-font-variable",
+  }),
 }));
 
 vi.mock("next/headers", () => ({

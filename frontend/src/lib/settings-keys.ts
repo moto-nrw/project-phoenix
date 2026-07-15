@@ -21,4 +21,17 @@ export const TENANT_RESOLVE_AFFECTING_KEYS: ReadonlySet<string> = new Set([
   // leaves reloads/new tabs on the stale messagingEnabled value for up to the
   // layout cache TTL (300s).
   "operations.parent_notes_enabled",
+  // Approved-child offering corrections consume this through tenant shell
+  // metadata so staff without config:read never see a save action that the
+  // authoritative enrollment service will reject.
+  "enrollment.care_offerings_enabled",
+  "attendance.web_enabled",
+  "operations.group_mode",
+  "timetable.show_expected_children_count",
+  "enrollment.waitlist_enabled",
+  // grade_level_max is exposed by tenant resolve and drives every enrollment
+  // form's client-side upper bound. Purge the layout cache immediately so a
+  // saved setting cannot leave new forms enforcing the old cap for five
+  // minutes.
+  "enrollment.grade_level_max",
 ]);

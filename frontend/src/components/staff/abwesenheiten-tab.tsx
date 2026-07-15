@@ -1,8 +1,21 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useSWRConfig } from "swr";
+import { Thermometer, Trash2 } from "lucide-react";
 
+import {
+  SickReportModal,
+  type SickReportStaff,
+} from "~/components/staff/sick-report-modal";
+import { Button } from "~/components/ui/button";
+import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
@@ -13,6 +26,11 @@ import {
   type StaffAbsenceRow,
   type StaffVacationQuotaSummary,
 } from "~/lib/staff-api";
+import { useTenantMutateMatching } from "~/lib/swr";
+import {
+  VERTRETUNG_GAPS_KEY_PREFIX,
+  VERTRETUNG_WEEK_KEY_PREFIX,
+} from "~/lib/timetable-helpers";
 
 const logger = createLogger({ component: "AbwesenheitenTab" });
 
@@ -23,12 +41,28 @@ const ABSENCE_TYPE_LABEL: Record<string, string> = {
   other: "Sonstige",
 };
 
+// Noun form for the delete action ("Krankmeldung löschen", not "Krank
+// löschen"); unknown types fall back to the generic noun.
+function absenceTypeLabel(absenceType: string): string {
+  if (absenceType === "sick") return "Krankmeldung";
+  if (absenceType === "vacation") return "Urlaub";
+  if (absenceType === "training") return "Fortbildung";
+  return "Abwesenheit";
+}
+
 const ABSENCE_TYPE_COLOR: Record<string, string> = {
   vacation: "bg-[#5080D8]/15 text-[#5080D8]",
   sick: "bg-[#EAB308]/15 text-amber-700",
   training: "bg-[#7C3AED]/15 text-purple-700",
   other: "bg-gray-100 text-gray-600",
 };
+
+const VACATION_WORKFLOW_STATUSES = new Set([
+  "requested",
+  "approved",
+  "declined",
+  "canceled",
+]);
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("de-DE", {
@@ -128,12 +162,63 @@ function statusMeta(status: string): StatusMeta {
   }
 }
 
+function pendingAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
+  return absences.filter((absence) => absence.status === "requested");
+}
+
+function upcomingAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
+  const today = todayISO();
+  return absences.filter(
+    (absence) =>
+      (absence.status === "approved" || absence.status === "reported") &&
+      absence.date_end >= today,
+  );
+}
+
+function historicalAbsences(absences: StaffAbsenceRow[]): StaffAbsenceRow[] {
+  const today = todayISO();
+  return absences
+    .filter(
+      (absence) =>
+        absence.status === "declined" ||
+        absence.status === "canceled" ||
+        ((absence.status === "approved" || absence.status === "reported") &&
+          absence.date_end < today),
+    )
+    .sort((left, right) => (left.date_start < right.date_start ? 1 : -1));
+}
+
+export function isVacationWorkflowAbsence(row: StaffAbsenceRow): boolean {
+  return (
+    row.absence_type === "vacation" &&
+    VACATION_WORKFLOW_STATUSES.has(row.status)
+  );
+}
+
+function TabLoadingBoundary({
+  loading,
+  children,
+}: {
+  readonly loading: boolean;
+  readonly children: ReactNode;
+}) {
+  if (loading) return <Loading fullPage={false} />;
+  return children;
+}
+
 export function AbwesenheitenTab({
   staffId,
   canEdit,
+  canManageSickReports,
+  staff,
 }: {
   readonly staffId: string;
   readonly canEdit: boolean;
+  readonly canManageSickReports: boolean;
+  // Passed in from the staff detail page so the "Krank melden" modal has the
+  // person's name. Optional so the tab still renders (without the action)
+  // where the staff object is not available (#1843).
+  readonly staff?: SickReportStaff;
 }) {
   const toast = useToast();
   const year = useMemo(() => new Date().getFullYear(), []);
@@ -143,70 +228,75 @@ export function AbwesenheitenTab({
   const [pendingActionId, setPendingActionId] = useState<number | null>(null);
   const [denyModal, setDenyModal] = useState<StaffAbsenceRow | null>(null);
   const [quotaModal, setQuotaModal] = useState(false);
+  // Snapshot of the staff identity taken when the modal opens: the live
+  // `staff` prop can flip to undefined while onCreated's cache invalidation
+  // refetches the page data, and a conditional `{staff && <Modal/>}` render
+  // would then unmount the modal mid-success-state (#1843).
+  const [sickStaff, setSickStaff] = useState<SickReportStaff | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<StaffAbsenceRow | null>(
+    null,
+  );
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
   const { mutate: swrMutate } = useSWRConfig();
 
-  const reload = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [q, abs] = await Promise.all([
-        staffAbsenceService.getVacationQuota(staffId, year),
-        staffAbsenceService.getAbsences(
-          staffId,
-          `${year}-01-01`,
-          `${year}-12-31`,
-        ),
-      ]);
-      setQuota(q);
-      setAbsences(abs);
-      // Page-level tab badge SWR (staff-pending-absences-${staffId}) lives
-      // outside this component and otherwise stays stale after approvals,
-      // denials and stornos. useSWRAuth prefixes every key with the tenant
-      // slug ("phoenix:staff-pending-absences-…"), so a plain startsWith
-      // never matches, we use includes for the cache hit.
-      swrMutate(
-        (key) =>
-          typeof key === "string" && key.includes("staff-pending-absences-"),
-      );
-    } catch (err) {
-      logger.error("load_failed", {
-        staff_id: staffId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      toast.error("Daten konnten nicht geladen werden.");
-    } finally {
-      setLoading(false);
-    }
-  }, [staffId, year, swrMutate, toast]);
+  // A sick report / its deletion cascades into the Dienst- and
+  // Vertretungsplan, so revalidate those caches alongside the local reload.
+  const refreshPlanCaches = useTenantMutateMatching([
+    "dienstplan-overview-",
+    "dienstplan-shifts-",
+    VERTRETUNG_WEEK_KEY_PREFIX,
+    VERTRETUNG_GAPS_KEY_PREFIX,
+  ]);
+
+  // silent skips the loading flag: the loading boundary unmounts the
+  // whole tab subtree including any open modal, which would wipe the
+  // SickReportModal's success state right after a report (#1843).
+  const reload = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) {
+        setLoading(true);
+      }
+      try {
+        const [q, abs] = await Promise.all([
+          staffAbsenceService.getVacationQuota(staffId, year),
+          staffAbsenceService.getAbsences(
+            staffId,
+            `${year}-01-01`,
+            `${year}-12-31`,
+          ),
+        ]);
+        setQuota(q);
+        setAbsences(abs);
+        // Page-level tab badge SWR (staff-pending-absences-${staffId}) lives
+        // outside this component and otherwise stays stale after approvals,
+        // denials and stornos. useSWRAuth prefixes every key with the tenant
+        // slug ("phoenix:staff-pending-absences-…"), so a plain startsWith
+        // never matches, we use includes for the cache hit.
+        swrMutate(
+          (key) =>
+            typeof key === "string" && key.includes("staff-pending-absences-"),
+        );
+      } catch (err) {
+        logger.error("load_failed", {
+          staff_id: staffId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        toast.error("Daten konnten nicht geladen werden.");
+      } finally {
+        setLoading(false);
+      }
+    },
+    [staffId, year, swrMutate, toast],
+  );
 
   useEffect(() => {
     reload();
   }, [reload]);
 
-  const pending = useMemo(
-    () => absences.filter((a) => a.status === "requested"),
-    [absences],
-  );
-  const upcoming = useMemo(() => {
-    const today = todayISO();
-    return absences.filter(
-      (a) =>
-        (a.status === "approved" || a.status === "reported") &&
-        a.date_end >= today,
-    );
-  }, [absences]);
-  const history = useMemo(
-    () =>
-      absences
-        .filter(
-          (a) =>
-            a.status === "declined" ||
-            a.status === "canceled" ||
-            ((a.status === "approved" || a.status === "reported") &&
-              a.date_end < todayISO()),
-        )
-        .sort((a, b) => (a.date_start < b.date_start ? 1 : -1)),
-    [absences],
-  );
+  const pending = useMemo(() => pendingAbsences(absences), [absences]);
+  const upcoming = useMemo(() => upcomingAbsences(absences), [absences]);
+  const history = useMemo(() => historicalAbsences(absences), [absences]);
 
   const handleApprove = async (row: StaffAbsenceRow) => {
     setPendingActionId(row.id);
@@ -223,11 +313,25 @@ export function AbwesenheitenTab({
     }
   };
 
-  if (loading) {
-    return <Loading fullPage={false} />;
-  }
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setDeleteLoading(true);
+    setDeleteError("");
+    try {
+      await staffAbsenceService.deleteAbsence(staffId, deleteTarget.id);
+      toast.success("Krankmeldung gelöscht.");
+      setDeleteTarget(null);
+      await Promise.all([refreshPlanCaches(), reload()]);
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : "Löschen fehlgeschlagen.",
+      );
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
 
-  return (
+  const content = (
     <div className="space-y-5">
       {/* Quota KPI cards */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
@@ -262,121 +366,32 @@ export function AbwesenheitenTab({
         />
       </div>
 
-      <div className="flex items-center justify-end">
+      <div className="flex items-center justify-between gap-3">
+        {canManageSickReports && staff ? (
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={() => setSickStaff(staff ?? null)}
+          >
+            <Thermometer className="mr-1.5 h-4 w-4" aria-hidden />
+            Krank melden
+          </Button>
+        ) : (
+          <span />
+        )}
         <span className="inline-flex items-center rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600">
           Jahr {year}
         </span>
       </div>
 
-      {/* Pending requests, Inbox-Zero pattern: always shows the slot. With
-          items it surfaces as an amber action card; empty it collapses to a
-          subtle "alles bearbeitet" confirmation so the layout anchor stays. */}
-      {pending.length === 0 ? (
-        <div className="flex items-center gap-3 rounded-3xl border border-gray-100/80 bg-white/60 px-5 py-4 text-sm text-gray-500">
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#83CD2D]/15 text-[#4a7a15]">
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2.5}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M5 13l4 4L19 7"
-              />
-            </svg>
-          </span>
-          <div>
-            <p className="text-sm font-medium text-gray-700">
-              Keine offenen Anfragen
-            </p>
-            <p className="text-xs text-gray-400">Alles bearbeitet.</p>
-          </div>
-        </div>
-      ) : (
-        <div className="rounded-3xl border-2 border-amber-200 bg-amber-50/40 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
-              {pending.length}
-            </span>
-            <h3 className="text-sm font-bold tracking-wide text-amber-900 uppercase">
-              Eingehende Anfragen
-            </h3>
-          </div>
-          <ul className="space-y-2">
-            {pending.map((row) => {
-              const isBusy = pendingActionId === row.id;
-              return (
-                <li
-                  key={row.id}
-                  className="rounded-2xl border border-amber-100 bg-white p-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ABSENCE_TYPE_COLOR[row.absence_type] ?? "bg-gray-100 text-gray-600"}`}
-                        >
-                          {ABSENCE_TYPE_LABEL[row.absence_type] ??
-                            row.absence_type}
-                        </span>
-                        <p className="text-sm font-medium text-gray-800">
-                          {formatRange(row.date_start, row.date_end)}
-                          {row.half_day && (
-                            <span className="ml-2 text-xs text-gray-500">
-                              (halber Tag)
-                            </span>
-                          )}
-                          {row.working_days != null && (
-                            <span className="ml-2 text-xs text-gray-500">
-                              · {row.working_days}{" "}
-                              {row.working_days === 1 ? "Tag" : "Tage"}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                      {row.note && (
-                        <p className="mt-2 text-xs text-gray-600">
-                          <span className="font-medium">Notiz:</span> {row.note}
-                        </p>
-                      )}
-                      {row.requested_at && (
-                        <p className="mt-1 text-[11px] text-gray-400">
-                          Eingegangen {formatDate(row.requested_at)}
-                        </p>
-                      )}
-                    </div>
-                    {canEdit && (
-                      <div className="flex w-full flex-col gap-2 min-[420px]:w-auto min-[420px]:flex-row">
-                        <button
-                          type="button"
-                          onClick={() => setDenyModal(row)}
-                          disabled={isBusy}
-                          className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
-                        >
-                          Ablehnen
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            handleApprove(row);
-                          }}
-                          disabled={isBusy}
-                          className="rounded-lg bg-[#83CD2D] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#74b827] disabled:opacity-50"
-                        >
-                          {isBusy ? "…" : "Genehmigen"}
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-        </div>
-      )}
+      <PendingAbsences
+        rows={pending}
+        canEdit={canEdit}
+        pendingActionId={pendingActionId}
+        onApprove={handleApprove}
+        onDeny={setDenyModal}
+      />
 
       {/* Upcoming approved absences */}
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
@@ -390,7 +405,15 @@ export function AbwesenheitenTab({
         ) : (
           <ul className="space-y-2">
             {upcoming.map((row) => (
-              <AbsenceRow key={row.id} row={row} />
+              <AbsenceRow
+                key={row.id}
+                row={row}
+                onDelete={
+                  canManageSickReports && !isVacationWorkflowAbsence(row)
+                    ? () => setDeleteTarget(row)
+                    : undefined
+                }
+              />
             ))}
           </ul>
         )}
@@ -408,13 +431,68 @@ export function AbwesenheitenTab({
         ) : (
           <ul className="space-y-2">
             {history.slice(0, 20).map((row) => (
-              <AbsenceRow key={row.id} row={row} />
+              <AbsenceRow
+                key={row.id}
+                row={row}
+                onDelete={
+                  canManageSickReports && !isVacationWorkflowAbsence(row)
+                    ? () => setDeleteTarget(row)
+                    : undefined
+                }
+              />
             ))}
           </ul>
         )}
       </div>
 
       {/* Modals */}
+      {sickStaff && (
+        <SickReportModal
+          isOpen
+          staff={sickStaff}
+          onClose={() => setSickStaff(null)}
+          onCreated={() => {
+            Promise.all([refreshPlanCaches(), reload({ silent: true })]).catch(
+              (err: unknown) => {
+                logger.error("post_create_refresh_failed", {
+                  staff_id: staffId,
+                  error: err instanceof Error ? err.message : String(err),
+                });
+              },
+            );
+          }}
+        />
+      )}
+      <ConfirmDeleteModal
+        isOpen={deleteTarget !== null}
+        title={`${deleteTarget ? absenceTypeLabel(deleteTarget.absence_type) : "Abwesenheit"} löschen`}
+        description={
+          <>
+            Die Abwesenheit{" "}
+            <strong>
+              {deleteTarget
+                ? formatRange(deleteTarget.date_start, deleteTarget.date_end)
+                : ""}
+            </strong>{" "}
+            wird gelöscht.
+            {deleteTarget?.absence_type === "sick" && (
+              <>
+                {" "}
+                Stornierte Schichten und als abwesend markierte Betreuungsblöcke
+                werden wiederhergestellt, sofern noch kein Ersatz eingetragen
+                wurde.
+              </>
+            )}
+          </>
+        }
+        gate={{ mode: "twoStep" }}
+        loading={deleteLoading}
+        error={deleteError}
+        confirmLabel="Löschen"
+        loadingLabel="Wird gelöscht…"
+        onConfirm={handleDelete}
+        onClose={() => setDeleteTarget(null)}
+      />
       {denyModal && (
         <DenyAbsenceModal
           absence={denyModal}
@@ -438,6 +516,148 @@ export function AbwesenheitenTab({
         />
       )}
     </div>
+  );
+
+  return <TabLoadingBoundary loading={loading}>{content}</TabLoadingBoundary>;
+}
+
+function PendingAbsences({
+  rows,
+  canEdit,
+  pendingActionId,
+  onApprove,
+  onDeny,
+}: {
+  readonly rows: StaffAbsenceRow[];
+  readonly canEdit: boolean;
+  readonly pendingActionId: number | null;
+  readonly onApprove: (row: StaffAbsenceRow) => Promise<void>;
+  readonly onDeny: (row: StaffAbsenceRow) => void;
+}) {
+  if (rows.length === 0) {
+    return (
+      <div className="flex items-center gap-3 rounded-3xl border border-gray-100/80 bg-white/60 px-5 py-4 text-sm text-gray-500">
+        <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-[#83CD2D]/15 text-[#4a7a15]">
+          <svg
+            className="h-4 w-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2.5}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M5 13l4 4L19 7"
+            />
+          </svg>
+        </span>
+        <div>
+          <p className="text-sm font-medium text-gray-700">
+            Keine offenen Anfragen
+          </p>
+          <p className="text-xs text-gray-400">Alles bearbeitet.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-3xl border-2 border-amber-200 bg-amber-50/40 p-5 shadow-[0_8px_30px_rgb(0,0,0,0.08)]">
+      <div className="mb-3 flex items-center gap-2">
+        <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
+          {rows.length}
+        </span>
+        <h3 className="text-sm font-bold tracking-wide text-amber-900 uppercase">
+          Eingehende Anfragen
+        </h3>
+      </div>
+      <ul className="space-y-2">
+        {rows.map((row) => (
+          <PendingAbsenceRow
+            key={row.id}
+            row={row}
+            canEdit={canEdit}
+            isBusy={pendingActionId === row.id}
+            onApprove={onApprove}
+            onDeny={onDeny}
+          />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function PendingAbsenceRow({
+  row,
+  canEdit,
+  isBusy,
+  onApprove,
+  onDeny,
+}: {
+  readonly row: StaffAbsenceRow;
+  readonly canEdit: boolean;
+  readonly isBusy: boolean;
+  readonly onApprove: (row: StaffAbsenceRow) => Promise<void>;
+  readonly onDeny: (row: StaffAbsenceRow) => void;
+}) {
+  return (
+    <li className="rounded-2xl border border-amber-100 bg-white p-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${ABSENCE_TYPE_COLOR[row.absence_type] ?? "bg-gray-100 text-gray-600"}`}
+            >
+              {ABSENCE_TYPE_LABEL[row.absence_type] ?? row.absence_type}
+            </span>
+            <p className="text-sm font-medium text-gray-800">
+              {formatRange(row.date_start, row.date_end)}
+              {row.half_day && (
+                <span className="ml-2 text-xs text-gray-500">(halber Tag)</span>
+              )}
+              {row.working_days != null && (
+                <span className="ml-2 text-xs text-gray-500">
+                  · {row.working_days} {row.working_days === 1 ? "Tag" : "Tage"}
+                </span>
+              )}
+            </p>
+          </div>
+          {row.note && (
+            <p className="mt-2 text-xs text-gray-600">
+              <span className="font-medium">Notiz:</span> {row.note}
+            </p>
+          )}
+          {row.requested_at && (
+            <p className="mt-1 text-[11px] text-gray-400">
+              Eingegangen {formatDate(row.requested_at)}
+            </p>
+          )}
+        </div>
+        {canEdit && (
+          <div className="flex w-full flex-col gap-2 min-[420px]:w-auto min-[420px]:flex-row">
+            <button
+              type="button"
+              onClick={() => onDeny(row)}
+              disabled={isBusy}
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-50"
+            >
+              Ablehnen
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onApprove(row);
+              }}
+              disabled={isBusy}
+              className="rounded-lg bg-[#83CD2D] px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-[#74b827] disabled:opacity-50"
+            >
+              {isBusy ? "…" : "Genehmigen"}
+            </button>
+          </div>
+        )}
+      </div>
+    </li>
   );
 }
 
@@ -514,9 +734,18 @@ function isRedundantNote(absenceType: string, note: string): boolean {
   return (REDUNDANT_NOTES[absenceType] ?? []).includes(normalized);
 }
 
-function AbsenceRow({ row }: { readonly row: StaffAbsenceRow }) {
+function AbsenceRow({
+  row,
+  onDelete,
+}: {
+  readonly row: StaffAbsenceRow;
+  // Delete action for admin-entered absences (status "reported"), e.g. a sick
+  // report whose plan cascade can be undone. Omitted for read-only rows.
+  readonly onDelete?: () => void;
+}) {
   const meta = statusMeta(row.status);
   const showNote = row.note && !isRedundantNote(row.absence_type, row.note);
+  const canDelete = onDelete && row.status === "reported";
   return (
     <li className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3">
       <div className="min-w-0 flex-1">
@@ -543,11 +772,24 @@ function AbsenceRow({ row }: { readonly row: StaffAbsenceRow }) {
           </p>
         )}
       </div>
-      <span
-        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${meta.className}`}
-      >
-        {meta.label}
-      </span>
+      <div className="flex items-center gap-2">
+        <span
+          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${meta.className}`}
+        >
+          {meta.label}
+        </span>
+        {canDelete && (
+          <button
+            type="button"
+            onClick={onDelete}
+            aria-label={`${absenceTypeLabel(row.absence_type)} ${formatRange(row.date_start, row.date_end)} löschen`}
+            title={`${absenceTypeLabel(row.absence_type)} löschen`}
+            className="rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600"
+          >
+            <Trash2 className="h-4 w-4" aria-hidden />
+          </button>
+        )}
+      </div>
     </li>
   );
 }

@@ -11,6 +11,7 @@ import {
   Bus,
   MoreVertical,
 } from "lucide-react";
+import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 
 // Type for the action the user can perform
 type StudentActionType = "checkout" | "checkin" | "none";
@@ -22,6 +23,8 @@ interface StudentCheckoutSectionProps {
 export function StudentCheckoutSection({
   onCheckoutClick,
 }: StudentCheckoutSectionProps) {
+  const attendanceWebEnabled = useAttendanceWebEnabled();
+  if (!attendanceWebEnabled) return null;
   return (
     <button
       onClick={onCheckoutClick}
@@ -48,6 +51,8 @@ interface StudentCheckinSectionProps {
 export function StudentCheckinSection({
   onCheckinClick,
 }: StudentCheckinSectionProps) {
+  const attendanceWebEnabled = useAttendanceWebEnabled();
+  if (!attendanceWebEnabled) return null;
   return (
     <button
       onClick={onCheckinClick}

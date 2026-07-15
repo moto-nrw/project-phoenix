@@ -18,13 +18,13 @@ export const NotStarted: Story = {
   args: {
     hasActivePeriod: false,
     activePeriodLabel: null,
-    enrollmentStatus: "unknown",
-    enrollmentLabel: null,
+    careOfferingLinkStatus: "unknown",
+    careOfferingLinkLabel: null,
     hasPlan: false,
     plannedCount: 0,
     onManagePeriods: () => undefined,
     onCreateEvent: () => undefined,
-    enrollmentHref: "/enrollment",
+    careOfferingsHref: "/care-offerings",
   },
 };
 
@@ -32,13 +32,13 @@ export const PeriodDoneEnrollmentPending: Story = {
   args: {
     hasActivePeriod: true,
     activePeriodLabel: "Schuljahr 2026/27",
-    enrollmentStatus: "none",
-    enrollmentLabel: null,
+    careOfferingLinkStatus: "unlinked",
+    careOfferingLinkLabel: null,
     hasPlan: false,
     plannedCount: 0,
     onManagePeriods: () => undefined,
     onCreateEvent: () => undefined,
-    enrollmentHref: "/enrollment",
+    careOfferingsHref: "/care-offerings",
   },
 };
 
@@ -46,12 +46,12 @@ export const Complete: Story = {
   args: {
     hasActivePeriod: true,
     activePeriodLabel: "Schuljahr 2026/27",
-    enrollmentStatus: "active",
-    enrollmentLabel: "Anmeldephase Herbst",
+    careOfferingLinkStatus: "linked",
+    careOfferingLinkLabel: "2 von 3 Angeboten verknüpft",
     hasPlan: true,
     plannedCount: 12,
     onManagePeriods: () => undefined,
     onCreateEvent: () => undefined,
-    enrollmentHref: "/enrollment",
+    careOfferingsHref: "/care-offerings",
   },
 };

@@ -15,6 +15,7 @@ import {
   Pencil,
   Phone,
   ShieldCheck,
+  Trash2,
   UserRound,
   X,
 } from "lucide-react";
@@ -34,9 +35,18 @@ import {
   updateAdminChildOfferings,
 } from "~/lib/enrollment-admin-api";
 import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
+import { availableCareOfferings } from "~/lib/care-offering-availability";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
+import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
+import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
+import { Button } from "~/components/ui/button";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { useTenantRouter } from "~/lib/tenant-router";
 import { createLogger } from "~/lib/logger";
+import {
+  useCareOfferingsEnabled,
+  useWaitlistEnabled,
+} from "~/lib/tenant-context";
 
 const logger = createLogger({ component: "AdminEnrollmentDetail" });
 
@@ -95,13 +105,18 @@ interface Props {
 }
 
 export function AdminEnrollmentDetail({ requestId }: Props) {
+  const waitlistEnabled = useWaitlistEnabled();
   const tenantPath = useTenantAwarePath();
+  const router = useTenantRouter();
   const [data, setData] = useState<AdminRequestDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busyChildId, setBusyChildId] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [deletionTarget, setDeletionTarget] = useState<
+    { type: "request" } | { type: "child"; id: string; label: string } | null
+  >(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -118,9 +133,31 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
     }
   }, [requestId]);
 
+  const handleDataCorrected = useCallback(
+    (correctedChild: AdminRequestChild) => {
+      setData((current) => {
+        if (!current) return current;
+        return {
+          ...current,
+          children: current.children.map((existingChild) =>
+            existingChild.id === correctedChild.id
+              ? { ...existingChild, ...correctedChild }
+              : existingChild,
+          ),
+        };
+      });
+      void load();
+    },
+    [load],
+  );
+
   useEffect(() => {
     void load();
   }, [load]);
+
+  const availableActions = waitlistEnabled
+    ? ACTIONS
+    : ACTIONS.filter((action) => action.status !== "waitlisted");
 
   const handleDecide = async (childId: string, status: DecisionStatus) => {
     if (!data) return;
@@ -234,11 +271,20 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   busy={busyChildId === child.id}
                   reason={reasons[child.id] ?? ""}
                   schemaFields={data.schema_fields}
+                  actions={availableActions}
                   onReasonChange={(value) =>
                     setReasons((prev) => ({ ...prev, [child.id]: value }))
                   }
                   onDecide={(status) => void handleDecide(child.id, status)}
                   onOfferingsChanged={() => void load()}
+                  onDataCorrected={handleDataCorrected}
+                  onDelete={() =>
+                    setDeletionTarget({
+                      type: "child",
+                      id: child.id,
+                      label: `${child.first_name} ${child.last_name}`,
+                    })
+                  }
                 />
               ))}
             </section>
@@ -250,10 +296,32 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
               data={data}
               statusHref={statusHref}
               submittedAt={submittedAt}
+              onDeleteRequest={() => setDeletionTarget({ type: "request" })}
             />
           </aside>
         </div>
       </section>
+      <AdminEnrollmentDeletionModal
+        isOpen={deletionTarget !== null}
+        requestId={data.id}
+        childId={
+          deletionTarget?.type === "child" ? deletionTarget.id : undefined
+        }
+        childLabel={
+          deletionTarget?.type === "child" ? deletionTarget.label : undefined
+        }
+        studentHref={(studentId) => tenantPath(`/students/${studentId}`)}
+        onClose={() => setDeletionTarget(null)}
+        onDeleted={(impact) => {
+          setDeletionTarget(null);
+          if (impact.deletes_request) {
+            router.push(`/admin/enrollments/phases/${data.phase_id}`);
+            return;
+          }
+          setInfo("Kind wurde vollständig aus der Anmeldung gelöscht.");
+          void load();
+        }}
+      />
     </div>
   );
 }
@@ -373,27 +441,44 @@ function InfoItem({
 }
 
 function ChildInformationCard({
+  actions,
   busy,
   child,
   onDecide,
+  onDataCorrected,
   onOfferingsChanged,
   onReasonChange,
+  onDelete,
   phaseId,
   reason,
   requestId,
   schemaFields,
 }: Readonly<{
+  actions: ActionDef[];
   busy: boolean;
   child: AdminRequestChild;
   requestId: string;
   phaseId: string;
   onDecide: (status: DecisionStatus) => void;
+  onDataCorrected: (correctedChild: AdminRequestChild) => void;
   onOfferingsChanged: () => void;
   onReasonChange: (value: string) => void;
+  onDelete: () => void;
   reason: string;
   schemaFields?: AdminRequestSchemaField[];
 }>) {
   const terminal = TERMINAL.has(child.status);
+  const canDeleteFromEnrollment =
+    child.created_student_id === undefined &&
+    (child.status === "rejected" ||
+      child.status === "withdrawn" ||
+      child.status === "approved");
+  const tenantPath = useTenantAwarePath();
+  const studentHref = tenantPath(
+    child.created_student_id
+      ? `/students/${child.created_student_id}`
+      : "/students",
+  );
   return (
     <article className="moto-content-surface overflow-hidden rounded-2xl border shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-gray-100 p-4">
@@ -432,6 +517,22 @@ function ChildInformationCard({
             Letzte Entscheidung: {formatDateTime(child.reviewed_at)}
           </p>
         ) : null}
+        {child.status === "approved" && child.created_student_id ? (
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href={studentHref}
+              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+            >
+              Kind &amp; Einladung verwalten
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+            </Link>
+            <AdminChildDataCorrection
+              requestId={requestId}
+              child={child}
+              onSaved={onDataCorrected}
+            />
+          </div>
+        ) : null}
         <ChildOfferings offerings={child.offerings} />
         {child.status === "approved" ? (
           <ChildOfferingAdjustment
@@ -443,11 +544,26 @@ function ChildInformationCard({
         ) : null}
         <ChildExtraFields child={child} schemaFields={schemaFields} />
         {terminal ? (
-          <div className="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
-            Diese Entscheidung ist final.
+          <div className="space-y-3">
+            <div className="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
+              Die Entscheidung ist final. Bei bestätigten Kindern können falsche
+              Anmeldedaten weiterhin gezielt korrigiert werden.
+            </div>
+            {canDeleteFromEnrollment ? (
+              <Button
+                type="button"
+                variant="outline_danger"
+                size="md"
+                onClick={onDelete}
+              >
+                <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                Kind aus Anmeldung löschen
+              </Button>
+            ) : null}
           </div>
         ) : (
           <DecisionPanel
+            actions={actions}
             child={child}
             busy={busy}
             reason={reason}
@@ -465,11 +581,13 @@ function ReviewSidebar({
   data,
   statusHref,
   submittedAt,
+  onDeleteRequest,
 }: Readonly<{
   childStats: ReturnType<typeof summarizeChildren>;
   data: AdminRequestSummary;
   statusHref: string;
   submittedAt: string;
+  onDeleteRequest: () => void;
 }>) {
   return (
     <div className="space-y-4 lg:sticky lg:top-6">
@@ -517,6 +635,16 @@ function ReviewSidebar({
           Statusseite öffnen
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
         </a>
+        <Button
+          type="button"
+          variant="outline_danger"
+          size="md"
+          className="mt-3 w-full"
+          onClick={onDeleteRequest}
+        >
+          <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
+          Gesamte Anmeldung löschen
+        </Button>
       </section>
 
       {data.children.map((child) => {
@@ -569,12 +697,14 @@ function SidebarMetric({
 }
 
 function DecisionPanel({
+  actions,
   busy,
   child,
   onDecide,
   onReasonChange,
   reason,
 }: Readonly<{
+  actions: ActionDef[];
   busy: boolean;
   child: AdminRequestChild;
   onDecide: (status: DecisionStatus) => void;
@@ -610,7 +740,7 @@ function DecisionPanel({
       </label>
 
       <div className="mt-3 flex flex-wrap gap-2">
-        {ACTIONS.map((action) => {
+        {actions.map((action) => {
           const isCurrent = child.status === action.status;
           return (
             <button
@@ -838,8 +968,10 @@ export function ChildOfferingAdjustment({
   phaseId: string;
   onSaved: () => void;
 }>) {
+  const careOfferingsEnabled = useCareOfferingsEnabled();
   const [open, setOpen] = useState(false);
   const [catalog, setCatalog] = useState<CareOffering[]>([]);
+  const [rawCatalog, setRawCatalog] = useState<CareOffering[]>([]);
   const [history, setHistory] = useState<AdminOfferingAdjustment[]>([]);
   const [selected, setSelected] = useState<Set<string>>(() =>
     initialManualOfferingIDs(child.offerings),
@@ -858,6 +990,10 @@ export function ChildOfferingAdjustment({
     setPortalRoot(document.body);
   }, []);
 
+  useEffect(() => {
+    if (!careOfferingsEnabled) setOpen(false);
+  }, [careOfferingsEnabled]);
+
   const loadHistory = useCallback(async () => {
     try {
       const rows = await listAdminChildOfferingAdjustments(requestId, child.id);
@@ -874,16 +1010,41 @@ export function ChildOfferingAdjustment({
     void loadHistory();
   }, [loadHistory]);
 
+  const resetEditorSelection = (offerings: CareOffering[]) => {
+    const available = availableCareOfferings(
+      offerings,
+      child.target_grade_level,
+    );
+    const fetchedIDs = new Set(offerings.map((offering) => offering.id));
+    const availableIDs = new Set(available.map((offering) => offering.id));
+    const nextSelected = new Set(
+      [...initialManualOfferingIDs(child.offerings)].filter(
+        (id) => !fetchedIDs.has(id) || availableIDs.has(id),
+      ),
+    );
+    for (const offering of available) {
+      if (offering.is_active && offering.is_required) {
+        nextSelected.add(offering.id);
+      }
+    }
+    setCatalog(available);
+    setSelected(nextSelected);
+  };
+
   const openEditor = async () => {
+    if (!careOfferingsEnabled) return;
     setOpen(true);
     setError(null);
-    setSelected(initialManualOfferingIDs(child.offerings));
     setDays(initialManualOfferingDays(child.offerings));
-    if (catalogLoaded) return;
+    if (catalogLoaded) {
+      resetEditorSelection(rawCatalog);
+      return;
+    }
     setLoading(true);
     try {
       const offerings = await listCareOfferings(phaseId);
-      setCatalog(offerings);
+      setRawCatalog(offerings);
+      resetEditorSelection(offerings);
       setCatalogLoaded(true);
     } catch (err) {
       const message =
@@ -892,6 +1053,7 @@ export function ChildOfferingAdjustment({
           : "Betreuungsangebote konnten nicht geladen werden";
       setError(message);
       setCatalog([]);
+      setRawCatalog([]);
       setCatalogLoaded(false);
     } finally {
       setLoading(false);
@@ -904,6 +1066,7 @@ export function ChildOfferingAdjustment({
   );
 
   const handleToggle = (offering: CareOffering) => {
+    if (offering.is_required) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(offering.id)) {
@@ -967,29 +1130,37 @@ export function ChildOfferingAdjustment({
     }
   };
 
+  if (!careOfferingsEnabled && history.length === 0) return null;
+
   return (
     <div className="rounded-lg border border-gray-100 bg-white p-3">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
-            Nachbearbeitung
-          </h4>
-          <p className="mt-1 text-sm text-gray-600">
-            Angebote können für dieses bestätigte Kind korrigiert werden.
-          </p>
+      {careOfferingsEnabled ? (
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h4 className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+              Nachbearbeitung
+            </h4>
+            <p className="mt-1 text-sm text-gray-600">
+              Angebote können für dieses bestätigte Kind korrigiert werden.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void openEditor()}
+            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
+          >
+            <Pencil className="h-4 w-4" aria-hidden />
+            Bearbeiten
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => void openEditor()}
-          className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-        >
-          <Pencil className="h-4 w-4" aria-hidden />
-          Bearbeiten
-        </button>
-      </div>
+      ) : null}
 
       {history.length > 0 ? (
-        <div className="mt-3 border-t border-gray-100 pt-3">
+        <div
+          className={
+            careOfferingsEnabled ? "mt-3 border-t border-gray-100 pt-3" : ""
+          }
+        >
           <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-gray-500 uppercase">
             <History className="h-3.5 w-3.5" aria-hidden />
             Änderungshistorie
@@ -1016,7 +1187,7 @@ export function ChildOfferingAdjustment({
         </div>
       ) : null}
 
-      {open && portalRoot
+      {careOfferingsEnabled && open && portalRoot
         ? createPortal(
             <div className="fixed inset-0 z-[9999] overflow-y-auto overscroll-contain bg-black/40 p-4">
               <div className="mx-auto my-8 w-full max-w-2xl rounded-xl bg-white shadow-xl">
@@ -1057,6 +1228,7 @@ export function ChildOfferingAdjustment({
                               <input
                                 type="checkbox"
                                 checked={checked}
+                                disabled={offering.is_required}
                                 onChange={() => handleToggle(offering)}
                                 className="mt-1 h-4 w-4 rounded border-gray-300 text-[#5080D8] focus:ring-[#5080D8]"
                               />
@@ -1068,6 +1240,11 @@ export function ChildOfferingAdjustment({
                                   {!offering.is_active ? (
                                     <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
                                       Inaktiv
+                                    </span>
+                                  ) : null}
+                                  {offering.is_required ? (
+                                    <span className="rounded-full bg-[#5080D8]/10 px-2 py-0.5 text-xs text-[#355A9A]">
+                                      Pflichtangebot
                                     </span>
                                   ) : null}
                                   {autoDays.length > 0 ? (

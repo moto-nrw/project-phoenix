@@ -11,7 +11,9 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -32,13 +34,13 @@ const (
 
 // InviteOperator creates an invitation token and sends an email to the invitee.
 func (s *operatorAuthService) InviteOperator(ctx context.Context, inviteeEmail string, displayName *string, createdByID int64, clientIP net.IP) error {
-	if s.invitationTokenRepo == nil {
+	if s.InvitationTokenRepo == nil {
 		return fmt.Errorf("operator invitation requires invitation_token_repo to be configured")
 	}
-	if s.operatorFrontendURL == "" {
+	if s.OperatorFrontendURL == "" {
 		return fmt.Errorf("operator invitation requires operator_frontend_url to be configured")
 	}
-	if s.dispatcher == nil {
+	if s.Dispatcher == nil {
 		return fmt.Errorf("operator invitation requires email dispatcher to be configured")
 	}
 
@@ -52,7 +54,7 @@ func (s *operatorAuthService) InviteOperator(ctx context.Context, inviteeEmail s
 	}
 	inviteeEmail = parsed.Address
 
-	if !emailFormatRegex.MatchString(inviteeEmail) {
+	if !userModels.IsValidEmailFormat(inviteeEmail) {
 		return &InvalidDataError{Err: fmt.Errorf("invalid email format")}
 	}
 	if len(inviteeEmail) > 255 {
@@ -60,7 +62,7 @@ func (s *operatorAuthService) InviteOperator(ctx context.Context, inviteeEmail s
 	}
 
 	// 3. Check email not already an active operator
-	existing, err := s.operatorRepo.FindByEmail(ctx, inviteeEmail)
+	existing, err := s.OperatorRepo.FindByEmail(ctx, inviteeEmail)
 	if err != nil {
 		return fmt.Errorf("failed to check email uniqueness: %w", err)
 	}
@@ -71,14 +73,14 @@ func (s *operatorAuthService) InviteOperator(ctx context.Context, inviteeEmail s
 	// 4. Invalidate old invitations and create new token atomically.
 	// Without the transaction, a failed insert would leave the old token burned.
 	var token *platform.OperatorInvitationToken
-	if err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+	if err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		// Lock the inviter's operator row to serialize concurrent InviteOperator
 		// calls from the same operator. Without this, two parallel transactions
 		// under READ COMMITTED could both read count=N, both pass the rate-limit
 		// check, and both insert — producing N+2 rows despite the limit being N+1.
 		// The lock forces the second tx to wait until the first commits, at which
 		// point it observes the updated count.
-		if _, lockErr := s.operatorRepo.FindByIDForUpdate(txCtx, createdByID); lockErr != nil {
+		if _, lockErr := s.OperatorRepo.FindByIDForUpdate(txCtx, createdByID); lockErr != nil {
 			return fmt.Errorf("failed to lock inviter row: %w", lockErr)
 		}
 
@@ -87,7 +89,7 @@ func (s *operatorAuthService) InviteOperator(ctx context.Context, inviteeEmail s
 		// every row (pending or used) created by this operator in the window,
 		// because each successful Create dispatches an email regardless of the
 		// token's eventual state.
-		recentCount, countErr := s.invitationTokenRepo.CountRecentByCreatedBy(txCtx, createdByID, time.Now().Add(-operatorInvitationRateWindow))
+		recentCount, countErr := s.InvitationTokenRepo.CountRecentByCreatedBy(txCtx, createdByID, time.Now().Add(-operatorInvitationRateWindow))
 		if countErr != nil {
 			return fmt.Errorf("failed to check invitation rate limit: %w", countErr)
 		}
@@ -95,20 +97,20 @@ func (s *operatorAuthService) InviteOperator(ctx context.Context, inviteeEmail s
 			return &OperatorInvitationRateLimitError{}
 		}
 
-		if _, txErr := s.invitationTokenRepo.InvalidateByEmail(txCtx, inviteeEmail); txErr != nil {
+		if _, txErr := s.InvitationTokenRepo.InvalidateByEmail(txCtx, inviteeEmail); txErr != nil {
 			return fmt.Errorf("failed to invalidate previous invitations: %w", txErr)
 		}
 
 		token = &platform.OperatorInvitationToken{
 			Email:       inviteeEmail,
 			Token:       uuid.Must(uuid.NewV4()).String(),
-			ExpiresAt:   time.Now().Add(s.invitationExpiry),
+			ExpiresAt:   time.Now().Add(s.InvitationExpiry),
 			CreatedBy:   createdByID,
 			DisplayName: displayName,
 		}
 
-		if txErr := s.invitationTokenRepo.Create(txCtx, token); txErr != nil {
-			if isUniqueViolation(txErr) {
+		if txErr := s.InvitationTokenRepo.Create(txCtx, token); txErr != nil {
+			if base.IsUniqueViolation(txErr) {
 				return &OperatorInvitationEmailExistsError{}
 			}
 			return fmt.Errorf("failed to create invitation token: %w", txErr)
@@ -126,7 +128,7 @@ func (s *operatorAuthService) InviteOperator(ctx context.Context, inviteeEmail s
 		ResourceID:   &token.ID,
 		RequestIP:    clientIP,
 	}
-	if err := s.auditLogRepo.Create(ctx, auditEntry); err != nil {
+	if err := s.AuditLogRepo.Create(ctx, auditEntry); err != nil {
 		s.getLogger().Error("failed to create audit log for operator invitation",
 			slog.Int64("operator_id", createdByID),
 			slog.Any("error", err),
@@ -141,11 +143,11 @@ func (s *operatorAuthService) InviteOperator(ctx context.Context, inviteeEmail s
 
 // ValidateOperatorInvitation validates an invitation token and returns its data.
 func (s *operatorAuthService) ValidateOperatorInvitation(ctx context.Context, tokenStr string) (*platform.OperatorInvitationToken, error) {
-	if s.invitationTokenRepo == nil {
+	if s.InvitationTokenRepo == nil {
 		return nil, fmt.Errorf("operator invitation requires invitation_token_repo to be configured")
 	}
 
-	token, err := s.invitationTokenRepo.FindValidByToken(ctx, tokenStr)
+	token, err := s.InvitationTokenRepo.FindValidByToken(ctx, tokenStr)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate invitation token: %w", err)
 	}
@@ -158,7 +160,7 @@ func (s *operatorAuthService) ValidateOperatorInvitation(ctx context.Context, to
 
 // AcceptOperatorInvitation creates a new operator from a valid invitation token.
 func (s *operatorAuthService) AcceptOperatorInvitation(ctx context.Context, tokenStr, displayName, password string, clientIP net.IP) (*platform.Operator, error) {
-	if s.invitationTokenRepo == nil {
+	if s.InvitationTokenRepo == nil {
 		return nil, fmt.Errorf("operator invitation requires invitation_token_repo to be configured")
 	}
 
@@ -176,12 +178,12 @@ func (s *operatorAuthService) AcceptOperatorInvitation(ctx context.Context, toke
 	}
 
 	var operator *platform.Operator
-	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		// 2. Atomically consume the token FIRST (cheap DB operation).
 		// This prevents CPU amplification: bogus/expired tokens are rejected before
 		// the expensive Argon2id hash. The tx rollback on any later failure unconsumeS
 		// the token, so it remains usable if account creation fails.
-		token, consumeErr := s.invitationTokenRepo.ConsumeByToken(txCtx, tokenStr)
+		token, consumeErr := s.InvitationTokenRepo.ConsumeByToken(txCtx, tokenStr)
 		if consumeErr != nil {
 			return fmt.Errorf("failed to consume invitation token: %w", consumeErr)
 		}
@@ -190,7 +192,7 @@ func (s *operatorAuthService) AcceptOperatorInvitation(ctx context.Context, toke
 		}
 
 		// 3. Check email uniqueness (race guard)
-		existing, findErr := s.operatorRepo.FindByEmail(txCtx, token.Email)
+		existing, findErr := s.OperatorRepo.FindByEmail(txCtx, token.Email)
 		if findErr != nil {
 			return fmt.Errorf("failed to check email uniqueness: %w", findErr)
 		}
@@ -211,8 +213,8 @@ func (s *operatorAuthService) AcceptOperatorInvitation(ctx context.Context, toke
 			PasswordHash: hash,
 			Active:       true,
 		}
-		if createErr := s.operatorRepo.Create(txCtx, operator); createErr != nil {
-			if isUniqueViolation(createErr) {
+		if createErr := s.OperatorRepo.Create(txCtx, operator); createErr != nil {
+			if base.IsUniqueViolation(createErr) {
 				return &OperatorInvitationEmailExistsError{}
 			}
 			return fmt.Errorf("failed to create operator: %w", createErr)
@@ -232,7 +234,7 @@ func (s *operatorAuthService) AcceptOperatorInvitation(ctx context.Context, toke
 		ResourceID:   &operator.ID,
 		RequestIP:    clientIP,
 	}
-	if err := s.auditLogRepo.Create(ctx, auditEntry); err != nil {
+	if err := s.AuditLogRepo.Create(ctx, auditEntry); err != nil {
 		s.getLogger().Error("failed to create audit log for operator invitation acceptance",
 			slog.Int64("operator_id", operator.ID),
 			slog.Any("error", err),
@@ -244,19 +246,19 @@ func (s *operatorAuthService) AcceptOperatorInvitation(ctx context.Context, toke
 
 // ListPendingOperatorInvitations returns all pending operator invitations.
 func (s *operatorAuthService) ListPendingOperatorInvitations(ctx context.Context) ([]*platform.OperatorInvitationToken, error) {
-	if s.invitationTokenRepo == nil {
+	if s.InvitationTokenRepo == nil {
 		return nil, nil
 	}
-	return s.invitationTokenRepo.ListPending(ctx)
+	return s.InvitationTokenRepo.ListPending(ctx)
 }
 
 // RevokeOperatorInvitation marks an invitation as used.
 func (s *operatorAuthService) RevokeOperatorInvitation(ctx context.Context, invitationID int64, actorID int64, clientIP net.IP) error {
-	if s.invitationTokenRepo == nil {
+	if s.InvitationTokenRepo == nil {
 		return fmt.Errorf("operator invitation requires invitation_token_repo to be configured")
 	}
 
-	token, err := s.invitationTokenRepo.FindByID(ctx, invitationID)
+	token, err := s.InvitationTokenRepo.FindByID(ctx, invitationID)
 	if err != nil {
 		return fmt.Errorf("failed to find invitation: %w", err)
 	}
@@ -264,7 +266,7 @@ func (s *operatorAuthService) RevokeOperatorInvitation(ctx context.Context, invi
 		return &OperatorInvitationNotFoundError{}
 	}
 
-	revoked, err := s.invitationTokenRepo.MarkAsUsed(ctx, invitationID)
+	revoked, err := s.InvitationTokenRepo.MarkAsUsed(ctx, invitationID)
 	if err != nil {
 		return fmt.Errorf("failed to revoke invitation: %w", err)
 	}
@@ -279,7 +281,7 @@ func (s *operatorAuthService) RevokeOperatorInvitation(ctx context.Context, invi
 		ResourceID:   &invitationID,
 		RequestIP:    clientIP,
 	}
-	if err := s.auditLogRepo.Create(ctx, auditEntry); err != nil {
+	if err := s.AuditLogRepo.Create(ctx, auditEntry); err != nil {
 		s.getLogger().Error("failed to create audit log for invitation revocation",
 			slog.Int64("operator_id", actorID),
 			slog.Any("error", err),
@@ -291,14 +293,14 @@ func (s *operatorAuthService) RevokeOperatorInvitation(ctx context.Context, invi
 
 // ResendOperatorInvitation re-sends the invitation email.
 func (s *operatorAuthService) ResendOperatorInvitation(ctx context.Context, invitationID int64, actorID int64, clientIP net.IP) error {
-	if s.invitationTokenRepo == nil {
+	if s.InvitationTokenRepo == nil {
 		return fmt.Errorf("operator invitation requires invitation_token_repo to be configured")
 	}
-	if s.dispatcher == nil {
+	if s.Dispatcher == nil {
 		return fmt.Errorf("operator invitation resend requires email dispatcher to be configured")
 	}
 
-	token, err := s.invitationTokenRepo.FindByID(ctx, invitationID)
+	token, err := s.InvitationTokenRepo.FindByID(ctx, invitationID)
 	if err != nil {
 		return fmt.Errorf("failed to find invitation: %w", err)
 	}
@@ -307,8 +309,8 @@ func (s *operatorAuthService) ResendOperatorInvitation(ctx context.Context, invi
 	}
 
 	// Extend expiry atomically — fails if the token was consumed concurrently
-	newExpiresAt := time.Now().Add(s.invitationExpiry)
-	extended, err := s.invitationTokenRepo.ExtendExpiry(ctx, invitationID, newExpiresAt)
+	newExpiresAt := time.Now().Add(s.InvitationExpiry)
+	extended, err := s.InvitationTokenRepo.ExtendExpiry(ctx, invitationID, newExpiresAt)
 	if err != nil {
 		return fmt.Errorf("failed to extend invitation expiry: %w", err)
 	}
@@ -318,7 +320,7 @@ func (s *operatorAuthService) ResendOperatorInvitation(ctx context.Context, invi
 	token.ExpiresAt = newExpiresAt
 
 	// Reset delivery tracking
-	if err := s.invitationTokenRepo.UpdateDeliveryResult(ctx, invitationID, nil, nil, 0); err != nil {
+	if err := s.InvitationTokenRepo.UpdateDeliveryResult(ctx, invitationID, nil, nil, 0); err != nil {
 		return fmt.Errorf("failed to reset delivery tracking: %w", err)
 	}
 	token.EmailRetryCount = 0
@@ -333,7 +335,7 @@ func (s *operatorAuthService) ResendOperatorInvitation(ctx context.Context, invi
 		ResourceID:   &invitationID,
 		RequestIP:    clientIP,
 	}
-	if err := s.auditLogRepo.Create(ctx, auditEntry); err != nil {
+	if err := s.AuditLogRepo.Create(ctx, auditEntry); err != nil {
 		s.getLogger().Error("failed to create audit log for invitation resend",
 			slog.Int64("operator_id", actorID),
 			slog.Any("error", err),
@@ -345,10 +347,10 @@ func (s *operatorAuthService) ResendOperatorInvitation(ctx context.Context, invi
 
 // CleanupExpiredOperatorInvitations removes expired invitation tokens.
 func (s *operatorAuthService) CleanupExpiredOperatorInvitations(ctx context.Context) (int, error) {
-	if s.invitationTokenRepo == nil {
+	if s.InvitationTokenRepo == nil {
 		return 0, nil
 	}
-	return s.invitationTokenRepo.DeleteExpired(ctx)
+	return s.InvitationTokenRepo.DeleteExpired(ctx)
 }
 
 func (s *operatorAuthService) dispatchOperatorInvitationEmail(ctx context.Context, token *platform.OperatorInvitationToken, inviterID int64) {
@@ -358,7 +360,7 @@ func (s *operatorAuthService) dispatchOperatorInvitationEmail(ctx context.Contex
 
 	// Look up inviter name for the email template
 	inviterName := "Ein Operator"
-	inviter, err := s.operatorRepo.FindByID(ctx, inviterID)
+	inviter, err := s.OperatorRepo.FindByID(ctx, inviterID)
 	if err == nil && inviter != nil {
 		inviterName = inviter.DisplayName
 	}
@@ -367,17 +369,17 @@ func (s *operatorAuthService) dispatchOperatorInvitationEmail(ctx context.Contex
 	// email content scanners treat as a phishing signal. The path is /invite
 	// (not /operator/invite) because the operator subdomain proxy rewrites
 	// /invite → /operator/invite internally.
-	invitationURL := fmt.Sprintf("%s/invite?token=%s", s.operatorFrontendURL, token.Token)
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.frontendURL)
+	invitationURL := fmt.Sprintf("%s/invite?token=%s", s.OperatorFrontendURL, token.Token)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL)
 
 	message := email.Message{
-		From:     s.defaultFrom,
+		From:     s.DefaultFrom,
 		To:       email.NewEmail("", token.Email),
 		Subject:  "Einladung als Operator zu moto",
 		Template: "operator-invitation.html",
 		Content: map[string]any{
 			"InvitationURL": invitationURL,
-			"ExpiryHours":   int(s.invitationExpiry.Hours()),
+			"ExpiryHours":   int(s.InvitationExpiry.Hours()),
 			"LogoURL":       logoURL,
 			"InviterName":   inviterName,
 		},
@@ -392,7 +394,7 @@ func (s *operatorAuthService) dispatchOperatorInvitationEmail(ctx context.Contex
 
 	baseRetry := token.EmailRetryCount
 
-	s.dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
+	s.Dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: []time.Duration{1 * time.Second, 5 * time.Second, 15 * time.Second},
@@ -416,7 +418,7 @@ func (s *operatorAuthService) persistInvitationDelivery(ctx context.Context, met
 		errText = &msg
 	}
 
-	if err := s.invitationTokenRepo.UpdateDeliveryResult(ctx, meta.ReferenceID, sentAt, errText, retryCount); err != nil {
+	if err := s.InvitationTokenRepo.UpdateDeliveryResult(ctx, meta.ReferenceID, sentAt, errText, retryCount); err != nil {
 		s.getLogger().Error("failed to update invitation delivery status",
 			slog.Int64("token_id", meta.ReferenceID),
 			slog.Any("error", err),

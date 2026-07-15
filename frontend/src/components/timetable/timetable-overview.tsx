@@ -9,8 +9,8 @@ interface TimetableOverviewProps {
   readonly plannedLabel: string;
   readonly plannedCount: number;
   readonly plannedSublabel: string;
-  readonly staffGapCount: number;
-  readonly staffGapSublabel: string;
+  readonly understaffedCount: number;
+  readonly understaffedSublabel: string;
   readonly createLabel: string;
   readonly onCreate: () => void;
 }
@@ -19,8 +19,8 @@ export function TimetableOverview({
   plannedLabel,
   plannedCount,
   plannedSublabel,
-  staffGapCount,
-  staffGapSublabel,
+  understaffedCount,
+  understaffedSublabel,
   createLabel,
   onCreate,
 }: TimetableOverviewProps) {
@@ -35,8 +35,7 @@ export function TimetableOverview({
             Betreuungsplan im Blick
           </h2>
           <p className="mt-1 max-w-2xl text-sm leading-6 text-gray-600">
-            Schneller Überblick über geplante Termine und offene
-            Personal-Lücken.
+            Schneller Überblick über geplante und unterbesetzte Termine.
           </p>
         </div>
         <button
@@ -52,7 +51,7 @@ export function TimetableOverview({
       <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
         <TimetableStatCard
           size="lg"
-          icon={<CalendarClock className="h-4 w-4" />}
+          icon={<CalendarClock className="h-4 w-4" aria-hidden />}
           label={plannedLabel}
           value={String(plannedCount)}
           sublabel={plannedSublabel}
@@ -60,11 +59,11 @@ export function TimetableOverview({
         />
         <TimetableStatCard
           size="lg"
-          icon={<UserPlus className="h-4 w-4" />}
-          label="Ohne Personal"
-          value={String(staffGapCount)}
-          sublabel={staffGapSublabel}
-          tone={staffGapCount > 0 ? "danger" : "neutral"}
+          icon={<UserPlus className="h-4 w-4" aria-hidden />}
+          label="Unterbesetzt"
+          value={String(understaffedCount)}
+          sublabel={understaffedSublabel}
+          tone={understaffedCount > 0 ? "danger" : "neutral"}
         />
       </div>
     </section>

@@ -35,43 +35,6 @@ func (a *Attendance) IsOnYard() bool {
 	return a.YardSince != nil && a.CheckOutTime == nil
 }
 
-// BeforeAppendModel is commented out to let the repository control the table expression
-// func (a *Attendance) BeforeAppendModel(query any) error {
-// 	if q, ok := query.(*bun.SelectQuery); ok {
-// 		q.ModelTableExpr("active.attendance")
-// 	}
-// 	if q, ok := query.(*bun.InsertQuery); ok {
-// 		q.ModelTableExpr("active.attendance")
-// 	}
-// 	if q, ok := query.(*bun.UpdateQuery); ok {
-// 		q.ModelTableExpr("active.attendance")
-// 	}
-// 	if q, ok := query.(*bun.DeleteQuery); ok {
-// 		q.ModelTableExpr("active.attendance")
-// 	}
-// 	return nil
-// }
-
-// GetID returns the entity's ID
-func (a *Attendance) GetID() interface{} {
-	return a.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (a *Attendance) GetCreatedAt() time.Time {
-	return a.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (a *Attendance) GetUpdatedAt() time.Time {
-	return a.UpdatedAt
-}
-
-// TableName returns the database table name
-func (a *Attendance) TableName() string {
-	return "active.attendance"
-}
-
 // IsCheckedIn returns true if the student is currently checked in
 func (a *Attendance) IsCheckedIn() bool {
 	return a.CheckOutTime == nil

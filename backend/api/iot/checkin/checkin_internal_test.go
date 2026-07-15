@@ -1,5 +1,7 @@
-// Package checkin internal tests for helper functions and auto-create paths.
-// Pure helper tests don't need DB; auto-create tests use real database via testutil.
+// Package checkin internal tests for handler-layer helper functions.
+// These are pure helper tests that don't need a database. The DB-backed
+// auto-create and workflow tests moved to services/iot/checkin alongside the
+// extracted CheckinService (issue #575 B8).
 package checkin
 
 import (
@@ -15,22 +17,16 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/device"
-	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/education"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/config/configtest"
 	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
+	checkinsvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // =============================================================================
@@ -153,74 +149,57 @@ func TestGetStudentDailyCheckoutTime_EdgeCases(t *testing.T) {
 // Settings service wiring tests
 // =============================================================================
 
-// mockSettingsService is a minimal mock that supports ResolveString, ResolveBool, and ResolveInt.
-type mockSettingsService struct {
-	values     map[string]string
-	boolValues map[string]bool
-	intValues  map[string]int
-}
-
-func (m *mockSettingsService) GetSchema(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (m *mockSettingsService) GetSchemaForOperator(_ context.Context, _ []string) (*configSvc.SettingsSchema, error) {
-	return nil, nil
-}
-func (m *mockSettingsService) Resolve(_ context.Context, key string) (any, error) {
-	if v, ok := m.values[key]; ok {
-		return v, nil
-	}
-	return nil, fmt.Errorf("not found")
-}
-func (m *mockSettingsService) ResolveString(_ context.Context, key string) (string, error) {
-	if v, ok := m.values[key]; ok {
-		return v, nil
-	}
-	return "", fmt.Errorf("not found")
-}
-func (m *mockSettingsService) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
-	return m.ResolveString(context.Background(), key)
-}
-func (m *mockSettingsService) ResolveBool(_ context.Context, key string) (bool, error) {
-	if m.boolValues != nil {
-		if v, ok := m.boolValues[key]; ok {
+// newMockSettingsService builds a configtest.Mock reproducing the behavior
+// of the former hand-rolled mockSettingsService stub: ResolveString/Resolve
+// return a "not found" error for missing keys, while ResolveBool/ResolveInt
+// return the zero value with no error for missing keys.
+func newMockSettingsService(values map[string]string, boolValues map[string]bool, intValues map[string]int) *configtest.Mock {
+	resolveString := func(_ context.Context, key string) (string, error) {
+		if v, ok := values[key]; ok {
 			return v, nil
 		}
+		return "", fmt.Errorf("not found")
 	}
-	return false, nil
-}
-func (m *mockSettingsService) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	return m.ResolveBool(context.Background(), key)
-}
-func (m *mockSettingsService) ResolveInt(_ context.Context, key string) (int, error) {
-	if m.intValues != nil {
-		if v, ok := m.intValues[key]; ok {
-			return v, nil
+	resolveBool := func(_ context.Context, key string) (bool, error) {
+		if boolValues != nil {
+			if v, ok := boolValues[key]; ok {
+				return v, nil
+			}
 		}
+		return false, nil
 	}
-	return 0, nil
-}
-func (m *mockSettingsService) ResolveIntForTenant(_ context.Context, _ int64, key string) (int, error) {
-	return m.ResolveInt(context.Background(), key)
-}
-func (m *mockSettingsService) HasTenantOverride(_ context.Context, key string) (bool, error) {
-	_, exists := m.values[key]
-	return exists, nil
-}
-func (m *mockSettingsService) SetValue(_ context.Context, _ string, _ any, _ *int64, _ []string) error {
-	return nil
-}
-func (m *mockSettingsService) ResetValue(_ context.Context, _ string, _ *int64, _ []string) error {
-	return nil
-}
-func (m *mockSettingsService) GetLoginImageURL(_ context.Context, _ int64) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsService) SetLoginImageURL(_ context.Context, _ int64, _ string) (string, error) {
-	return "", nil
-}
-func (m *mockSettingsService) ClearLoginImageURL(_ context.Context, _ int64) (string, error) {
-	return "", nil
+	resolveInt := func(_ context.Context, key string) (int, error) {
+		if intValues != nil {
+			if v, ok := intValues[key]; ok {
+				return v, nil
+			}
+		}
+		return 0, nil
+	}
+	return &configtest.Mock{
+		ResolveFn: func(_ context.Context, key string) (any, error) {
+			if v, ok := values[key]; ok {
+				return v, nil
+			}
+			return nil, fmt.Errorf("not found")
+		},
+		ResolveStringFn: resolveString,
+		ResolveStringForTenantFn: func(ctx context.Context, _ int64, key string) (string, error) {
+			return resolveString(ctx, key)
+		},
+		ResolveBoolFn: resolveBool,
+		ResolveBoolForTenantFn: func(ctx context.Context, _ int64, key string) (bool, error) {
+			return resolveBool(ctx, key)
+		},
+		ResolveIntFn: resolveInt,
+		ResolveIntForTenantFn: func(ctx context.Context, _ int64, key string) (int, error) {
+			return resolveInt(ctx, key)
+		},
+		HasTenantOverrideFn: func(_ context.Context, key string) (bool, error) {
+			_, exists := values[key]
+			return exists, nil
+		},
+	}
 }
 
 func TestGetStudentDailyCheckoutTime_UsesSettingsService(t *testing.T) {
@@ -228,11 +207,9 @@ func TestGetStudentDailyCheckoutTime_UsesSettingsService(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values: map[string]string{
-				"operations.student_daily_checkout_time": "16:45",
-			},
-		},
+		SettingsService: newMockSettingsService(map[string]string{
+			"operations.student_daily_checkout_time": "16:45",
+		}, nil, nil),
 	}
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
@@ -248,9 +225,7 @@ func TestGetStudentDailyCheckoutTime_SettingsServiceFallsBackToEnv(t *testing.T)
 
 	// Settings service returns empty — should fall back to env var
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values: map[string]string{},
-		},
+		SettingsService: newMockSettingsService(map[string]string{}, nil, nil),
 	}
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
@@ -280,9 +255,7 @@ func TestGetStudentDailyCheckoutTime_NoConfigAnywhere_ReturnsNil(t *testing.T) {
 
 	// Settings service exists but has no override
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values: map[string]string{},
-		},
+		SettingsService: newMockSettingsService(map[string]string{}, nil, nil),
 	}
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
@@ -291,76 +264,8 @@ func TestGetStudentDailyCheckoutTime_NoConfigAnywhere_ReturnsNil(t *testing.T) {
 }
 
 // =============================================================================
-// getRoomNameFromVisit TESTS
+// selectPickupNote TESTS
 // =============================================================================
-
-func TestGetRoomNameFromVisit_NilVisit(t *testing.T) {
-	result := getRoomNameFromVisit(nil)
-	assert.Equal(t, "", result)
-}
-
-func TestGetRoomNameFromVisit_NilActiveGroup(t *testing.T) {
-	visit := &active.Visit{}
-	result := getRoomNameFromVisit(visit)
-	assert.Equal(t, "", result)
-}
-
-func TestGetRoomNameFromVisit_NilRoom(t *testing.T) {
-	visit := &active.Visit{
-		ActiveGroup: &active.Group{},
-	}
-	result := getRoomNameFromVisit(visit)
-	assert.Equal(t, "", result)
-}
-
-func TestGetRoomNameFromVisit_WithRoom(t *testing.T) {
-	visit := &active.Visit{
-		ActiveGroup: &active.Group{
-			Room: &facilities.Room{Name: "Test Room"},
-		},
-	}
-	result := getRoomNameFromVisit(visit)
-	assert.Equal(t, "Test Room", result)
-}
-
-// =============================================================================
-// shouldSkipCheckin TESTS
-// =============================================================================
-
-func TestShouldSkipCheckin_NilRoomID(t *testing.T) {
-	result := shouldSkipCheckin(nil, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}})
-	assert.False(t, result)
-}
-
-func TestShouldSkipCheckin_NotCheckedOut(t *testing.T) {
-	roomID := int64(1)
-	result := shouldSkipCheckin(&roomID, false, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}})
-	assert.False(t, result)
-}
-
-func TestShouldSkipCheckin_NilCurrentVisit(t *testing.T) {
-	roomID := int64(1)
-	result := shouldSkipCheckin(&roomID, true, nil)
-	assert.False(t, result)
-}
-
-func TestShouldSkipCheckin_NilActiveGroup(t *testing.T) {
-	roomID := int64(1)
-	result := shouldSkipCheckin(&roomID, true, &active.Visit{})
-	assert.False(t, result)
-}
-
-func TestShouldSkipCheckin_SameRoom(t *testing.T) {
-	roomID := int64(1)
-	result := shouldSkipCheckin(&roomID, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}})
-	assert.True(t, result)
-}
-
-func TestShouldSkipCheckin_DifferentRoom(t *testing.T) {
-	roomID := int64(2)
-	result := shouldSkipCheckin(&roomID, true, &active.Visit{ActiveGroup: &active.Group{RoomID: 1}})
-	assert.False(t, result)
-}
 
 func TestSelectPickupNote_PreservesDayNoteOrder(t *testing.T) {
 	effectivePickup := &scheduleSvc.EffectivePickupTime{
@@ -501,126 +406,6 @@ func TestAttachPickupInfoToResponse_EmptyNotesOmitsKey(t *testing.T) {
 }
 
 // =============================================================================
-// buildCheckinResult TESTS
-// =============================================================================
-
-func TestBuildCheckinResult_CheckedOutAndCheckedIn_Transfer(t *testing.T) {
-	newVisitID := int64(123)
-	checkoutVisitID := int64(100)
-
-	input := &checkinResultInput{
-		Student:          &users.Student{Model: base.Model{ID: 1}},
-		Person:           &users.Person{FirstName: "Max", LastName: "Test"},
-		CheckedOut:       true,
-		NewVisitID:       &newVisitID,
-		CheckoutVisitID:  &checkoutVisitID,
-		RoomName:         "Room B",
-		PreviousRoomName: "Room A",
-	}
-
-	result := buildCheckinResult(input)
-
-	assert.Equal(t, "transferred", result.Action)
-	assert.Equal(t, "Gewechselt von Room A zu Room B!", result.GreetingMsg)
-	assert.Equal(t, &newVisitID, result.VisitID)
-	assert.Equal(t, "Room B", result.RoomName)
-	assert.Equal(t, "Room A", result.PreviousRoomName)
-}
-
-func TestBuildCheckinResult_CheckedOutAndCheckedIn_SameRoom(t *testing.T) {
-	newVisitID := int64(123)
-	checkoutVisitID := int64(100)
-
-	input := &checkinResultInput{
-		Student:          &users.Student{Model: base.Model{ID: 1}},
-		Person:           &users.Person{FirstName: "Max", LastName: "Test"},
-		CheckedOut:       true,
-		NewVisitID:       &newVisitID,
-		CheckoutVisitID:  &checkoutVisitID,
-		RoomName:         "Room A",
-		PreviousRoomName: "Room A", // Same room
-	}
-
-	result := buildCheckinResult(input)
-
-	assert.Equal(t, "checked_in", result.Action)
-	assert.Equal(t, "Hallo Max!", result.GreetingMsg)
-}
-
-func TestBuildCheckinResult_CheckedOutOnly(t *testing.T) {
-	checkoutVisitID := int64(100)
-
-	input := &checkinResultInput{
-		Student:         &users.Student{Model: base.Model{ID: 1}},
-		Person:          &users.Person{FirstName: "Max", LastName: "Test"},
-		CheckedOut:      true,
-		NewVisitID:      nil, // No checkin
-		CheckoutVisitID: &checkoutVisitID,
-		RoomName:        "Room A",
-	}
-
-	result := buildCheckinResult(input)
-
-	assert.Equal(t, "checked_out", result.Action)
-	assert.Equal(t, "Tschüss Max!", result.GreetingMsg)
-	assert.Equal(t, &checkoutVisitID, result.VisitID)
-}
-
-func TestBuildCheckinResult_CheckedInOnly(t *testing.T) {
-	newVisitID := int64(123)
-
-	input := &checkinResultInput{
-		Student:    &users.Student{Model: base.Model{ID: 1}},
-		Person:     &users.Person{FirstName: "Max", LastName: "Test"},
-		CheckedOut: false,
-		NewVisitID: &newVisitID,
-		RoomName:   "Room A",
-	}
-
-	result := buildCheckinResult(input)
-
-	assert.Equal(t, "checked_in", result.Action)
-	assert.Equal(t, "Hallo Max!", result.GreetingMsg)
-	assert.Equal(t, &newVisitID, result.VisitID)
-}
-
-func TestBuildCheckinResult_NoAction(t *testing.T) {
-	input := &checkinResultInput{
-		Student:    &users.Student{Model: base.Model{ID: 1}},
-		Person:     &users.Person{FirstName: "Max", LastName: "Test"},
-		CheckedOut: false,
-		NewVisitID: nil,
-	}
-
-	result := buildCheckinResult(input)
-
-	// No action - empty action field
-	assert.Equal(t, "", result.Action)
-	assert.Equal(t, "", result.GreetingMsg)
-}
-
-func TestBuildCheckinResult_TransferNoPreviousRoom(t *testing.T) {
-	newVisitID := int64(123)
-	checkoutVisitID := int64(100)
-
-	input := &checkinResultInput{
-		Student:          &users.Student{Model: base.Model{ID: 1}},
-		Person:           &users.Person{FirstName: "Max", LastName: "Test"},
-		CheckedOut:       true,
-		NewVisitID:       &newVisitID,
-		CheckoutVisitID:  &checkoutVisitID,
-		RoomName:         "Room B",
-		PreviousRoomName: "", // No previous room
-	}
-
-	result := buildCheckinResult(input)
-
-	// No previous room, so treated as regular checkin
-	assert.Equal(t, "checked_in", result.Action)
-	assert.Equal(t, "Hallo Max!", result.GreetingMsg)
-}
-
-// =============================================================================
 // buildCheckinResponse TESTS
 // =============================================================================
 
@@ -631,7 +416,7 @@ func TestBuildCheckinResponse_BasicFields(t *testing.T) {
 		Model:  base.Model{ID: 1},
 		Person: &users.Person{FirstName: "Max", LastName: "Test"},
 	}
-	result := &checkinResult{
+	result := &checkinsvc.CheckinResult{
 		Action:      "checked_in",
 		VisitID:     &visitID,
 		RoomName:    "Room A",
@@ -657,7 +442,7 @@ func TestBuildCheckinResponse_Transfer(t *testing.T) {
 		Model:  base.Model{ID: 1},
 		Person: &users.Person{FirstName: "Max", LastName: "Test"},
 	}
-	result := &checkinResult{
+	result := &checkinsvc.CheckinResult{
 		Action:           "transferred",
 		VisitID:          &visitID,
 		RoomName:         "Room B",
@@ -677,7 +462,7 @@ func TestBuildCheckinResponse_NoTransferNoPreviousRoom(t *testing.T) {
 		Model:  base.Model{ID: 1},
 		Person: &users.Person{FirstName: "Max", LastName: "Test"},
 	}
-	result := &checkinResult{
+	result := &checkinsvc.CheckinResult{
 		Action:   "checked_out",
 		RoomName: "Room A",
 	}
@@ -773,7 +558,7 @@ func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_AlwaysAvailable(t *tes
 
 	// Education group has no room → daily checkout available from any room
 	rs := &Resource{
-		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		SettingsService:  newMockSettingsService(map[string]string{}, nil, nil),
 		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}}},
 	}
 	groupID := int64(1)
@@ -788,7 +573,7 @@ func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_MatchingRoom(t *testin
 
 	roomID := int64(42)
 	rs := &Resource{
-		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		SettingsService:  newMockSettingsService(map[string]string{}, nil, nil),
 		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}, RoomID: &roomID}},
 	}
 	groupID := int64(1)
@@ -803,7 +588,7 @@ func TestShouldShowDailyCheckoutWithGroup_NilCheckoutTime_DifferentRoom(t *testi
 
 	roomID := int64(42)
 	rs := &Resource{
-		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		SettingsService:  newMockSettingsService(map[string]string{}, nil, nil),
 		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}, RoomID: &roomID}},
 	}
 	groupID := int64(1)
@@ -830,7 +615,7 @@ func TestShouldShowDailyCheckoutWithGroup_EducationServiceError(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{
-		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		SettingsService:  newMockSettingsService(map[string]string{}, nil, nil),
 		EducationService: &mockEducationService{err: fmt.Errorf("db error")},
 	}
 	groupID := int64(1)
@@ -845,7 +630,7 @@ func TestShouldUpgradeToDailyCheckout_CheckedOut_NoTimeGate(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{
-		SettingsService:  &mockSettingsService{values: map[string]string{}},
+		SettingsService:  newMockSettingsService(map[string]string{}, nil, nil),
 		EducationService: &mockEducationService{group: &education.Group{Model: base.Model{ID: 1}}},
 	}
 	groupID := int64(1)
@@ -866,7 +651,7 @@ func TestBuildCheckinResponse_DailyCheckoutAvailable(t *testing.T) {
 		Model:  base.Model{ID: 1},
 		Person: &users.Person{FirstName: "Max", LastName: "Test"},
 	}
-	result := &checkinResult{
+	result := &checkinsvc.CheckinResult{
 		Action:                 "checked_out",
 		VisitID:                &visitID,
 		RoomName:               "Klassenraum 1a",
@@ -887,7 +672,7 @@ func TestBuildCheckinResponse_DailyCheckoutNotAvailable(t *testing.T) {
 		Model:  base.Model{ID: 2},
 		Person: &users.Person{FirstName: "Anna", LastName: "Test"},
 	}
-	result := &checkinResult{
+	result := &checkinsvc.CheckinResult{
 		Action:      "checked_in",
 		VisitID:     &visitID,
 		RoomName:    "Library",
@@ -913,7 +698,7 @@ func TestBuildCheckinResponse_WithPickupTime(t *testing.T) {
 		Model:  base.Model{ID: 3},
 		Person: &users.Person{FirstName: "Lisa", LastName: "Test"},
 	}
-	result := &checkinResult{
+	result := &checkinsvc.CheckinResult{
 		Action:      "checked_in",
 		VisitID:     &visitID,
 		RoomName:    "Klassenraum 2b",
@@ -934,7 +719,7 @@ func TestBuildCheckinResponse_WithoutPickupTime(t *testing.T) {
 		Model:  base.Model{ID: 4},
 		Person: &users.Person{FirstName: "Tom", LastName: "Test"},
 	}
-	result := &checkinResult{
+	result := &checkinsvc.CheckinResult{
 		Action:      "checked_in",
 		VisitID:     &visitID,
 		RoomName:    "Library",
@@ -946,120 +731,6 @@ func TestBuildCheckinResponse_WithoutPickupTime(t *testing.T) {
 
 	_, hasPickupTime := response["pickup_time"]
 	assert.False(t, hasPickupTime, "pickup_time should be omitted when nil")
-}
-
-// =============================================================================
-// roomNameByID TESTS (additional edge cases)
-// =============================================================================
-
-func TestRoomNameByID_WithRoomObject(t *testing.T) {
-	rs := &Resource{}
-	room := &facilities.Room{Name: "Test Room"}
-	name := rs.roomNameByID(context.Background(), room, 1)
-	assert.Equal(t, "Test Room", name)
-}
-
-func TestRoomNameByID_FallbackToLookup(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	room := testpkg.CreateTestRoom(t, tc.db, "LookupRoom")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
-
-	// Pass nil room to force lookup by ID
-	name := tc.rs.roomNameByID(context.Background(), nil, room.ID)
-	assert.Contains(t, name, "LookupRoom")
-}
-
-func TestRoomNameByID_FallbackToFormattedID(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	// Use a non-existent room ID
-	name := tc.rs.roomNameByID(context.Background(), nil, 999999)
-	assert.Equal(t, "Room 999999", name)
-}
-
-func TestRoomNameForResponse_WithRoomID_NoVisit(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	room := testpkg.CreateTestRoom(t, tc.db, "ResponseRoom")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
-
-	roomID := room.ID
-	name := tc.rs.roomNameForResponse(context.Background(), nil, &roomID)
-	assert.Contains(t, name, "ResponseRoom")
-}
-
-func TestRoomNameForResponse_VisitWithoutRoom_FallbackToRoomID(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	room := testpkg.CreateTestRoom(t, tc.db, "FallbackRoom")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
-
-	// Visit without ActiveGroup.Room loaded
-	visit := &active.Visit{ActiveGroup: &active.Group{}}
-	roomID := room.ID
-	name := tc.rs.roomNameForResponse(context.Background(), visit, &roomID)
-	assert.Contains(t, name, "FallbackRoom")
-}
-
-// =============================================================================
-// processStudentCheckin TESTS (DB-backed)
-// =============================================================================
-
-func TestProcessStudentCheckin_NoRoomNotCheckedOut(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("POST", "/checkin", nil)
-	student := &users.Student{Model: base.Model{ID: 1}}
-	person := &users.Person{FirstName: "Test", LastName: "User"}
-
-	input := &checkinProcessingInput{
-		RoomID:      nil,
-		SkipCheckin: false,
-		CheckedOut:  false,
-	}
-
-	result := tc.rs.processStudentCheckin(r.Context(), w, r, student, person, input)
-	require.NotNil(t, result)
-	assert.Error(t, result.Error)
-	assert.Contains(t, result.Error.Error(), "room_id is required")
-}
-
-func TestProcessStudentCheckin_SkippedCheckin_GetsRoomName(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	room := testpkg.CreateTestRoom(t, tc.db, "SkipCheckinRoom")
-	defer testpkg.CleanupActivityFixtures(t, tc.db, room.ID)
-
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest("POST", "/checkin", nil)
-	student := &users.Student{Model: base.Model{ID: 1}}
-	person := &users.Person{FirstName: "Test", LastName: "User"}
-
-	roomID := room.ID
-	input := &checkinProcessingInput{
-		RoomID:      &roomID,
-		SkipCheckin: true,
-		CheckedOut:  true,
-		CurrentVisit: &active.Visit{
-			ActiveGroup: &active.Group{
-				Room: &facilities.Room{Name: "SkipCheckinRoom"},
-			},
-		},
-	}
-
-	result := tc.rs.processStudentCheckin(r.Context(), w, r, student, person, input)
-	require.NotNil(t, result)
-	assert.Nil(t, result.Error)
-	assert.Equal(t, "SkipCheckinRoom", result.RoomName)
-	assert.Nil(t, result.NewVisitID, "Should not create a new visit when skipping checkin")
 }
 
 // =============================================================================
@@ -1088,108 +759,6 @@ func TestSendCheckinResponse(t *testing.T) {
 }
 
 // =============================================================================
-// roomNameForResponse TESTS
-// =============================================================================
-
-func TestRoomNameForResponse_WithActiveGroupRoom(t *testing.T) {
-	rs := &Resource{}
-	currentVisit := &active.Visit{
-		ActiveGroup: &active.Group{
-			Room: &facilities.Room{Name: "Library"},
-		},
-	}
-
-	name := rs.roomNameForResponse(context.Background(), currentVisit, nil)
-	assert.Equal(t, "Library", name)
-}
-
-func TestRoomNameForResponse_NilVisit_NilRoomID(t *testing.T) {
-	rs := &Resource{}
-
-	name := rs.roomNameForResponse(context.Background(), nil, nil)
-	assert.Equal(t, "", name)
-}
-
-// =============================================================================
-// processStudentCheckin result struct TESTS
-// =============================================================================
-
-func TestCheckinProcessingResult_Struct(t *testing.T) {
-	visitID := int64(123)
-	result := &checkinProcessingResult{
-		NewVisitID: &visitID,
-		RoomName:   "Test Room",
-		Error:      nil,
-	}
-
-	assert.Equal(t, &visitID, result.NewVisitID)
-	assert.Equal(t, "Test Room", result.RoomName)
-	assert.Nil(t, result.Error)
-}
-
-func TestCheckinProcessingInput_Struct(t *testing.T) {
-	roomID := int64(1)
-	input := &checkinProcessingInput{
-		RoomID:       &roomID,
-		SkipCheckin:  false,
-		CheckedOut:   true,
-		CurrentVisit: nil,
-	}
-
-	assert.Equal(t, &roomID, input.RoomID)
-	assert.False(t, input.SkipCheckin)
-	assert.True(t, input.CheckedOut)
-	assert.Nil(t, input.CurrentVisit)
-}
-
-// =============================================================================
-// countActiveStudentsInVisits TESTS
-// =============================================================================
-
-func TestCountActiveStudentsInVisits_EmptySlice(t *testing.T) {
-	count := countActiveStudentsInVisits([]*active.Visit{})
-	assert.Equal(t, 0, count)
-}
-
-func TestCountActiveStudentsInVisits_NilSlice(t *testing.T) {
-	count := countActiveStudentsInVisits(nil)
-	assert.Equal(t, 0, count)
-}
-
-func TestCountActiveStudentsInVisits_AllActive(t *testing.T) {
-	visits := []*active.Visit{
-		{Model: base.Model{ID: 1}, ExitTime: nil},
-		{Model: base.Model{ID: 2}, ExitTime: nil},
-		{Model: base.Model{ID: 3}, ExitTime: nil},
-	}
-	count := countActiveStudentsInVisits(visits)
-	assert.Equal(t, 3, count)
-}
-
-func TestCountActiveStudentsInVisits_AllExited(t *testing.T) {
-	now := time.Now()
-	visits := []*active.Visit{
-		{Model: base.Model{ID: 1}, ExitTime: &now},
-		{Model: base.Model{ID: 2}, ExitTime: &now},
-	}
-	count := countActiveStudentsInVisits(visits)
-	assert.Equal(t, 0, count)
-}
-
-func TestCountActiveStudentsInVisits_Mixed(t *testing.T) {
-	now := time.Now()
-	visits := []*active.Visit{
-		{Model: base.Model{ID: 1}, ExitTime: nil},  // active
-		{Model: base.Model{ID: 2}, ExitTime: &now}, // exited
-		{Model: base.Model{ID: 3}, ExitTime: nil},  // active
-		{Model: base.Model{ID: 4}, ExitTime: &now}, // exited
-		{Model: base.Model{ID: 5}, ExitTime: nil},  // active
-	}
-	count := countActiveStudentsInVisits(visits)
-	assert.Equal(t, 3, count)
-}
-
-// =============================================================================
 // buildCheckinResponse ActiveStudents TESTS
 // =============================================================================
 
@@ -1201,7 +770,7 @@ func TestBuildCheckinResponse_WithActiveStudents(t *testing.T) {
 		Model:  base.Model{ID: 1},
 		Person: &users.Person{FirstName: "Max", LastName: "Test"},
 	}
-	result := &checkinResult{
+	result := &checkinsvc.CheckinResult{
 		Action:         "checked_in",
 		VisitID:        &visitID,
 		RoomName:       "Room A",
@@ -1221,7 +790,7 @@ func TestBuildCheckinResponse_WithoutActiveStudents(t *testing.T) {
 		Model:  base.Model{ID: 1},
 		Person: &users.Person{FirstName: "Max", LastName: "Test"},
 	}
-	result := &checkinResult{
+	result := &checkinsvc.CheckinResult{
 		Action:         "checked_in",
 		VisitID:        &visitID,
 		RoomName:       "Room A",
@@ -1243,7 +812,7 @@ func TestBuildCheckinResponse_ActiveStudentsZero(t *testing.T) {
 		Model:  base.Model{ID: 1},
 		Person: &users.Person{FirstName: "Max", LastName: "Test"},
 	}
-	result := &checkinResult{
+	result := &checkinsvc.CheckinResult{
 		Action:         "checked_out",
 		VisitID:        &visitID,
 		RoomName:       "Room A",
@@ -1284,440 +853,6 @@ func TestParseCheckinRequest_NilBody(t *testing.T) {
 	assert.Nil(t, result, "Should return nil for nil body")
 }
 
-// =============================================================================
-// checkinResult struct TESTS
-// =============================================================================
-
-func TestCheckinResult_AllFields(t *testing.T) {
-	visitID := int64(42)
-	activeStudents := 7
-	result := &checkinResult{
-		Action:                 "transferred",
-		VisitID:                &visitID,
-		RoomName:               "Room B",
-		PreviousRoomName:       "Room A",
-		GreetingMsg:            "Gewechselt!",
-		DailyCheckoutAvailable: true,
-		ActiveStudents:         &activeStudents,
-	}
-
-	assert.Equal(t, "transferred", result.Action)
-	assert.Equal(t, &visitID, result.VisitID)
-	assert.Equal(t, "Room B", result.RoomName)
-	assert.Equal(t, "Room A", result.PreviousRoomName)
-	assert.Equal(t, "Gewechselt!", result.GreetingMsg)
-	assert.True(t, result.DailyCheckoutAvailable)
-	assert.Equal(t, &activeStudents, result.ActiveStudents)
-}
-
-// =============================================================================
-// INTERNAL DB-BACKED TESTS: WC auto-create paths
-// =============================================================================
-
-// internalTestContext holds shared dependencies for internal DB-backed tests.
-type internalTestContext struct {
-	rs *Resource
-	db *bun.DB
-}
-
-// setupInternalTestResource creates a Resource with real database services
-// for internal unit tests that exercise auto-create code paths.
-func setupInternalTestResource(t *testing.T) *internalTestContext {
-	t.Helper()
-
-	db, svc := testutil.SetupAPITest(t)
-
-	// Belt-and-suspenders: ensure the FK target row for tenant_id=1 exists
-	// on the exact connection pool used by the services. SetupTestDB already
-	// calls EnsureTestTenant, but connection pool semantics can cause a fresh
-	// connection (without the SET search_path) to be used for subsequent queries.
-	testpkg.EnsureTestTenant(t, db, 1)
-
-	rs := &Resource{
-		IoTService:            svc.IoT,
-		UsersService:          svc.Users,
-		ActiveService:         svc.Active,
-		FacilityService:       svc.Facilities,
-		ActivitiesService:     svc.Activities,
-		EducationService:      svc.Education,
-		PickupScheduleService: svc.PickupSchedule,
-		logger:                slog.Default(),
-	}
-
-	return &internalTestContext{rs: rs, db: db}
-}
-
-// cleanupWCTestArtifacts removes WC infrastructure created by auto-create tests.
-func cleanupWCTestArtifacts(t *testing.T, tc *internalTestContext) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	stmts := []string{
-		fmt.Sprintf(`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.WCRoomName),
-		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.WCRoomName),
-		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.WCRoomName),
-		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = '%s')`, constants.WCRoomName),
-		fmt.Sprintf(`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.groups WHERE name = '%s'`, constants.WCActivityName),
-		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = '%s'`, constants.WCCategoryName),
-		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE name = '%s'`, constants.WCRoomName),
-	}
-	for _, stmt := range stmts {
-		_, _ = tc.db.ExecContext(ctx, stmt)
-	}
-}
-
-// cleanupSchulhofTestArtifacts removes Schulhof infrastructure created by auto-create tests.
-func cleanupSchulhofTestArtifacts(t *testing.T, tc *internalTestContext) {
-	t.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	stmts := []string{
-		fmt.Sprintf(`DELETE FROM active.attendance WHERE visit_id IN (SELECT v.id FROM active.visits v JOIN active.groups ag ON ag.id = v.active_group_id JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
-		fmt.Sprintf(`DELETE FROM active.visits WHERE active_group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
-		fmt.Sprintf(`DELETE FROM active.group_supervisors WHERE group_id IN (SELECT ag.id FROM active.groups ag JOIN facilities.rooms r ON r.id = ag.room_id WHERE r.name = '%s')`, constants.SchulhofRoomName),
-		fmt.Sprintf(`DELETE FROM active.groups WHERE room_id IN (SELECT id FROM facilities.rooms WHERE name = '%s')`, constants.SchulhofRoomName),
-		fmt.Sprintf(`DELETE FROM activities.schedules WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.SchulhofActivityName),
-		fmt.Sprintf(`DELETE FROM activities.student_enrollments WHERE group_id IN (SELECT id FROM activities.groups WHERE name = '%s')`, constants.SchulhofActivityName),
-		fmt.Sprintf(`DELETE FROM activities.groups WHERE name = '%s'`, constants.SchulhofActivityName),
-		fmt.Sprintf(`DELETE FROM activities.categories WHERE name = '%s'`, constants.SchulhofCategoryName),
-		fmt.Sprintf(`DELETE FROM facilities.rooms WHERE name = '%s'`, constants.SchulhofRoomName),
-	}
-	for _, stmt := range stmts {
-		_, _ = tc.db.ExecContext(ctx, stmt)
-	}
-}
-
-// TestEnsureWCRoom_AutoCreatesWhenNotFound verifies that ensureWCRoom creates
-// a new WC room when none exists in the database.
-func TestEnsureWCRoom_AutoCreatesWhenNotFound(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	// Clean up any pre-existing WC infrastructure (from seed data)
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
-	room, err := tc.rs.ensureWCRoom(ctx)
-
-	require.NoError(t, err, "ensureWCRoom should not return error")
-	require.NotNil(t, room, "ensureWCRoom should return a room")
-	assert.Equal(t, constants.WCRoomName, room.Name)
-	assert.NotZero(t, room.ID, "Room should have a valid ID after creation")
-}
-
-// TestEnsureWCRoom_FindsExistingRoom verifies that ensureWCRoom returns
-// an existing WC room without creating a duplicate.
-func TestEnsureWCRoom_FindsExistingRoom(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
-
-	// Create WC room first
-	room1, err := tc.rs.ensureWCRoom(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, room1)
-
-	// Call again - should find existing room
-	room2, err := tc.rs.ensureWCRoom(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, room2)
-
-	assert.Equal(t, room1.ID, room2.ID, "Should return same room, not create duplicate")
-}
-
-// TestEnsureWCCategory_AutoCreatesWhenNotFound verifies that ensureWCCategory
-// creates a new WC category when none exists.
-func TestEnsureWCCategory_AutoCreatesWhenNotFound(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
-	category, err := tc.rs.ensureWCCategory(ctx)
-
-	require.NoError(t, err, "ensureWCCategory should not return error")
-	require.NotNil(t, category, "ensureWCCategory should return a category")
-	assert.Equal(t, constants.WCCategoryName, category.Name)
-	assert.NotZero(t, category.ID)
-}
-
-// TestEnsureWCCategory_FindsExistingCategory verifies that ensureWCCategory
-// returns an existing WC category without creating a duplicate.
-func TestEnsureWCCategory_FindsExistingCategory(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
-
-	// Create category first
-	cat1, err := tc.rs.ensureWCCategory(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, cat1)
-
-	// Call again - should find existing
-	cat2, err := tc.rs.ensureWCCategory(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, cat2)
-
-	assert.Equal(t, cat1.ID, cat2.ID, "Should return same category, not create duplicate")
-}
-
-// TestWcActivityGroup_FullAutoCreate verifies that wcActivityGroup creates
-// the full WC infrastructure (room, category, activity) when nothing exists.
-func TestWcActivityGroup_FullAutoCreate(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
-
-	// Create staff for the created_by FK constraint
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	staff := testpkg.CreateTestStaff(t, db, "WCInternal", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-
-	// Set staff context with tenant
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
-
-	group, err := tc.rs.wcActivityGroup(ctx)
-
-	require.NoError(t, err, "wcActivityGroup should not return error")
-	require.NotNil(t, group, "wcActivityGroup should return an activity group")
-	assert.Equal(t, constants.WCActivityName, group.Name)
-	assert.NotZero(t, group.ID)
-}
-
-// TestWcActivityGroup_FindsExisting verifies that wcActivityGroup returns
-// an existing WC activity without creating duplicates.
-func TestWcActivityGroup_FindsExisting(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
-
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	staff := testpkg.CreateTestStaff(t, db, "WCExist", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
-
-	// First call - creates everything
-	group1, err := tc.rs.wcActivityGroup(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, group1)
-
-	// Second call - should find existing
-	group2, err := tc.rs.wcActivityGroup(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, group2)
-
-	assert.Equal(t, group1.ID, group2.ID, "Should return same activity group, not create duplicate")
-}
-
-// =============================================================================
-// INTERNAL DB-BACKED TESTS: Schulhof auto-create paths
-// =============================================================================
-
-// TestEnsureSchulhofRoom_AutoCreatesWhenNotFound verifies that ensureSchulhofRoom
-// creates a new Schulhof room when none exists in the database.
-func TestEnsureSchulhofRoom_AutoCreatesWhenNotFound(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
-	room, err := tc.rs.ensureSchulhofRoom(ctx)
-
-	require.NoError(t, err, "ensureSchulhofRoom should not return error")
-	require.NotNil(t, room, "ensureSchulhofRoom should return a room")
-	assert.Equal(t, constants.SchulhofRoomName, room.Name)
-	assert.NotZero(t, room.ID)
-}
-
-// TestEnsureSchulhofRoom_FindsExistingRoom verifies that ensureSchulhofRoom
-// returns an existing Schulhof room without creating a duplicate.
-func TestEnsureSchulhofRoom_FindsExistingRoom(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
-
-	room1, err := tc.rs.ensureSchulhofRoom(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, room1)
-
-	room2, err := tc.rs.ensureSchulhofRoom(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, room2)
-
-	assert.Equal(t, room1.ID, room2.ID, "Should return same room, not create duplicate")
-}
-
-// TestEnsureSchulhofCategory_AutoCreatesWhenNotFound verifies that ensureSchulhofCategory
-// creates a new Schulhof category when none exists.
-func TestEnsureSchulhofCategory_AutoCreatesWhenNotFound(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
-	category, err := tc.rs.ensureSchulhofCategory(ctx)
-
-	require.NoError(t, err, "ensureSchulhofCategory should not return error")
-	require.NotNil(t, category, "ensureSchulhofCategory should return a category")
-	assert.Equal(t, constants.SchulhofCategoryName, category.Name)
-	assert.NotZero(t, category.ID)
-}
-
-// TestEnsureSchulhofCategory_FindsExistingCategory verifies that ensureSchulhofCategory
-// returns an existing Schulhof category without creating a duplicate.
-func TestEnsureSchulhofCategory_FindsExistingCategory(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
-
-	cat1, err := tc.rs.ensureSchulhofCategory(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, cat1)
-
-	cat2, err := tc.rs.ensureSchulhofCategory(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, cat2)
-
-	assert.Equal(t, cat1.ID, cat2.ID, "Should return same category, not create duplicate")
-}
-
-// TestSchulhofActivityGroup_FullAutoCreate verifies that schulhofActivityGroup creates
-// the full Schulhof infrastructure (room, category, activity) when nothing exists.
-func TestSchulhofActivityGroup_FullAutoCreate(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
-
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	staff := testpkg.CreateTestStaff(t, db, "SchulhofInt", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
-
-	group, err := tc.rs.schulhofActivityGroup(ctx)
-
-	require.NoError(t, err, "schulhofActivityGroup should not return error")
-	require.NotNil(t, group, "schulhofActivityGroup should return an activity group")
-	assert.Equal(t, constants.SchulhofActivityName, group.Name)
-	assert.NotZero(t, group.ID)
-}
-
-// TestSchulhofActivityGroup_FindsExisting verifies that schulhofActivityGroup
-// returns an existing Schulhof activity without creating duplicates.
-func TestSchulhofActivityGroup_FindsExisting(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
-
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	staff := testpkg.CreateTestStaff(t, db, "SchulhofExist", "Staff")
-	defer testpkg.CleanupActivityFixtures(t, db, staff.ID)
-
-	ctx := tenant.WithTenantID(context.WithValue(context.Background(), device.CtxStaff, staff), 1)
-
-	group1, err := tc.rs.schulhofActivityGroup(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, group1)
-
-	group2, err := tc.rs.schulhofActivityGroup(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, group2)
-
-	assert.Equal(t, group1.ID, group2.ID, "Should return same activity group, not create duplicate")
-}
-
-// =============================================================================
-// NO STAFF CONTEXT TESTS: system-created auto-create paths (created_by = NULL)
-// =============================================================================
-
-// TestWcActivityGroup_NoStaffContext verifies that wcActivityGroup succeeds
-// without any staff in the context (created_by = NULL = system-created).
-func TestWcActivityGroup_NoStaffContext(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
-
-	// No staff context — tenant context only (no staff)
-	ctx := tenant.WithTenantID(context.Background(), 1)
-
-	group, err := tc.rs.wcActivityGroup(ctx)
-
-	require.NoError(t, err, "wcActivityGroup should succeed without staff context")
-	require.NotNil(t, group, "wcActivityGroup should return an activity group")
-	assert.Equal(t, constants.WCActivityName, group.Name)
-	assert.NotZero(t, group.ID)
-	assert.Nil(t, group.CreatedBy, "system-created WC group should have NULL created_by")
-}
-
-// TestSchulhofActivityGroup_NoStaffContext verifies that schulhofActivityGroup succeeds
-// without any staff in the context (created_by = NULL = system-created).
-func TestSchulhofActivityGroup_NoStaffContext(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
-
-	// No staff context — tenant context only (no staff)
-	ctx := tenant.WithTenantID(context.Background(), 1)
-
-	group, err := tc.rs.schulhofActivityGroup(ctx)
-
-	require.NoError(t, err, "schulhofActivityGroup should succeed without staff context")
-	require.NotNil(t, group, "schulhofActivityGroup should return an activity group")
-	assert.Equal(t, constants.SchulhofActivityName, group.Name)
-	assert.NotZero(t, group.ID)
-	assert.Nil(t, group.CreatedBy, "system-created Schulhof group should have NULL created_by")
-}
-
 // overrideTimeNow pins the package-level timeNow clock to fixed and returns a
 // restore function that should be deferred by the caller.
 func overrideTimeNow(fixed time.Time) func() {
@@ -1748,20 +883,22 @@ func (m *mockEducationService) GetGroup(_ context.Context, _ int64) (*education.
 	return m.group, m.err
 }
 
-// mockErrorSettingsService returns errors from HasTenantOverride.
-type mockErrorSettingsService struct {
-	mockSettingsService
-}
-
-func (m *mockErrorSettingsService) HasTenantOverride(_ context.Context, _ string) (bool, error) {
-	return false, fmt.Errorf("db connection failed")
+// newMockErrorSettingsService builds a configtest.Mock reproducing the
+// former mockErrorSettingsService stub: identical to an empty
+// mockSettingsService, except HasTenantOverride always errors.
+func newMockErrorSettingsService() *configtest.Mock {
+	m := newMockSettingsService(nil, nil, nil)
+	m.HasTenantOverrideFn = func(_ context.Context, _ string) (bool, error) {
+		return false, fmt.Errorf("db connection failed")
+	}
+	return m
 }
 
 func TestGetStudentDailyCheckoutTime_HasTenantOverrideError(t *testing.T) {
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{
-		SettingsService: &mockErrorSettingsService{},
+		SettingsService: newMockErrorSettingsService(),
 	}
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
@@ -1775,7 +912,7 @@ func TestGetStudentDailyCheckoutTime_HasTenantOverrideError_FallsBackToEnv(t *te
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
 	rs := &Resource{
-		SettingsService: &mockErrorSettingsService{},
+		SettingsService: newMockErrorSettingsService(),
 	}
 
 	checkoutTime, err := rs.getStudentDailyCheckoutTime(context.Background())
@@ -1794,7 +931,7 @@ func TestIsAfterCheckoutTimeGate_PerStudentDisabled_FallsBackToGlobal(t *testing
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{values: map[string]string{}},
+		SettingsService: newMockSettingsService(map[string]string{}, nil, nil),
 	}
 	student := &users.Student{Model: base.Model{ID: 1}}
 
@@ -1809,7 +946,7 @@ func TestIsAfterCheckoutTimeGate_PerStudentDisabled_GlobalTimeInFuture(t *testin
 	defer func() { _ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME") }()
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{values: map[string]string{}},
+		SettingsService: newMockSettingsService(map[string]string{}, nil, nil),
 	}
 	student := &users.Student{Model: base.Model{ID: 1}}
 
@@ -1832,11 +969,11 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_BeforeDelta(t *testing.T) {
 	pickupTime := time.Date(2000, 1, 1, fixedNow.Hour()+2, 0, 0, 0, fixedNow.Location())
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values:     map[string]string{},
-			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
-			intValues:  map[string]int{"operations.per_student_checkout_delta_minutes": 15},
-		},
+		SettingsService: newMockSettingsService(
+			map[string]string{},
+			map[string]bool{"operations.per_student_checkout_enabled": true},
+			map[string]int{"operations.per_student_checkout_delta_minutes": 15},
+		),
 		PickupScheduleService: &mockPickupScheduleService{
 			effectivePickupTime: &scheduleSvc.EffectivePickupTime{PickupTime: &pickupTime},
 		},
@@ -1855,11 +992,11 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_AfterDelta(t *testing.T) {
 	pickupTime := time.Date(2000, 1, 1, now.Hour(), now.Minute()+5, 0, 0, now.Location())
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values:     map[string]string{},
-			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
-			intValues:  map[string]int{"operations.per_student_checkout_delta_minutes": 15},
-		},
+		SettingsService: newMockSettingsService(
+			map[string]string{},
+			map[string]bool{"operations.per_student_checkout_enabled": true},
+			map[string]int{"operations.per_student_checkout_delta_minutes": 15},
+		),
 		PickupScheduleService: &mockPickupScheduleService{
 			effectivePickupTime: &scheduleSvc.EffectivePickupTime{PickupTime: &pickupTime},
 		},
@@ -1875,10 +1012,11 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_NoPickupTime_FallsBackToGloba
 
 	// Per-student enabled but student has no pickup time → fall back to global (no global = always available)
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values:     map[string]string{},
-			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
-		},
+		SettingsService: newMockSettingsService(
+			map[string]string{},
+			map[string]bool{"operations.per_student_checkout_enabled": true},
+			nil,
+		),
 		PickupScheduleService: &mockPickupScheduleService{
 			effectivePickupTime: &scheduleSvc.EffectivePickupTime{PickupTime: nil},
 		},
@@ -1893,10 +1031,11 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_PickupServiceError_FallsBackT
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values:     map[string]string{},
-			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
-		},
+		SettingsService: newMockSettingsService(
+			map[string]string{},
+			map[string]bool{"operations.per_student_checkout_enabled": true},
+			nil,
+		),
 		PickupScheduleService: &mockPickupScheduleService{
 			err: fmt.Errorf("db error"),
 		},
@@ -1911,10 +1050,11 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_NilPickupService_FallsBackToG
 	_ = os.Unsetenv("STUDENT_DAILY_CHECKOUT_TIME")
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values:     map[string]string{},
-			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
-		},
+		SettingsService: newMockSettingsService(
+			map[string]string{},
+			map[string]bool{"operations.per_student_checkout_enabled": true},
+			nil,
+		),
 		// PickupScheduleService is nil
 	}
 	student := &users.Student{Model: base.Model{ID: 1}}
@@ -1931,11 +1071,11 @@ func TestIsAfterCheckoutTimeGate_PerStudentEnabled_DeltaZero(t *testing.T) {
 	pickupTime := time.Date(2000, 1, 1, now.Hour(), now.Minute()+1, 0, 0, now.Location())
 
 	rs := &Resource{
-		SettingsService: &mockSettingsService{
-			values:     map[string]string{},
-			boolValues: map[string]bool{"operations.per_student_checkout_enabled": true},
-			intValues:  map[string]int{"operations.per_student_checkout_delta_minutes": 0},
-		},
+		SettingsService: newMockSettingsService(
+			map[string]string{},
+			map[string]bool{"operations.per_student_checkout_enabled": true},
+			map[string]int{"operations.per_student_checkout_delta_minutes": 0},
+		),
 		PickupScheduleService: &mockPickupScheduleService{
 			effectivePickupTime: &scheduleSvc.EffectivePickupTime{PickupTime: &pickupTime},
 		},
@@ -1955,63 +1095,4 @@ func TestIsAfterCheckoutTimeGate_NilSettingsService(t *testing.T) {
 	// No settings service → perStudentEnabled defaults to false → no global time → always available
 	result := rs.isAfterCheckoutTimeGate(context.Background(), student)
 	assert.True(t, result, "should return true when SettingsService is nil and no global time")
-}
-
-// =============================================================================
-// IS_SYSTEM FLAG TESTS: auto-provisioned infrastructure is flagged (issue #923)
-// =============================================================================
-
-// TestWcProvisioning_SetsIsSystemFlag verifies that auto-created WC
-// infrastructure (room, category, activity group) carries is_system = true
-// so it stays hidden from staff-facing list endpoints.
-func TestWcProvisioning_SetsIsSystemFlag(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupWCTestArtifacts(t, tc)
-	defer cleanupWCTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
-
-	room, err := tc.rs.ensureWCRoom(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, room)
-	assert.True(t, room.IsSystem, "auto-created WC room must be flagged is_system")
-
-	group, err := tc.rs.wcActivityGroup(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, group)
-	assert.True(t, group.IsSystem, "auto-created WC activity group must be flagged is_system")
-
-	category, err := tc.rs.ensureWCCategory(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, category)
-	assert.True(t, category.IsSystem, "auto-created WC category must be flagged is_system")
-}
-
-// TestSchulhofProvisioning_SetsIsSystemFlag verifies that auto-created
-// Schulhof infrastructure carries is_system = true.
-func TestSchulhofProvisioning_SetsIsSystemFlag(t *testing.T) {
-	tc := setupInternalTestResource(t)
-	defer func() { _ = tc.db.Close() }()
-
-	cleanupSchulhofTestArtifacts(t, tc)
-	defer cleanupSchulhofTestArtifacts(t, tc)
-
-	ctx := tenant.WithTenantID(context.Background(), 1)
-
-	room, err := tc.rs.ensureSchulhofRoom(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, room)
-	assert.True(t, room.IsSystem, "auto-created Schulhof room must be flagged is_system")
-
-	group, err := tc.rs.schulhofActivityGroup(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, group)
-	assert.True(t, group.IsSystem, "auto-created Schulhof activity group must be flagged is_system")
-
-	category, err := tc.rs.ensureSchulhofCategory(ctx)
-	require.NoError(t, err)
-	require.NotNil(t, category)
-	assert.True(t, category.IsSystem, "auto-created Schulhof category must be flagged is_system")
 }

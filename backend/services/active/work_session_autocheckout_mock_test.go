@@ -57,7 +57,41 @@ func (m *wsMockStaffShiftRepository) FindByStaffIDsAndDate(ctx context.Context, 
 	return nil, nil
 }
 
+func (m *wsMockStaffShiftRepository) FindByStaffIDsAndDates(_ context.Context, _ []int64, _ []timezone.Date) ([]*scheduleModels.StaffShift, error) {
+	return nil, nil
+}
+
+func (m *wsMockStaffShiftRepository) FindByOriginShiftID(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
+	return nil, nil
+}
+
+// Interface-compile stubs for the generic methods surfaced for the #1843 sick
+// cascade; auto-checkout never exercises them.
+func (m *wsMockStaffShiftRepository) List(_ context.Context, _ map[string]any) ([]*scheduleModels.StaffShift, error) {
+	return nil, nil
+}
+
+func (m *wsMockStaffShiftRepository) UpdateColumns(_ context.Context, _ *scheduleModels.StaffShift, _ ...string) (int64, error) {
+	return 0, nil
+}
+
+func (m *wsMockStaffShiftRepository) FindUsedCalendarWeeks(_ context.Context, _, _ timezone.Date) ([]timezone.Date, error) {
+	return nil, nil
+}
+
 func (m *wsMockStaffShiftRepository) DeleteUpcomingByStaffID(context.Context, int64, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
+func (m *wsMockStaffShiftRepository) BulkCreate(context.Context, []*scheduleModels.StaffShift) error {
+	return nil
+}
+
+func (m *wsMockStaffShiftRepository) DeleteNonDetachedBySeriesFrom(context.Context, int64, timezone.Date) (int64, error) {
+	return 0, nil
+}
+
+func (m *wsMockStaffShiftRepository) RepointDetachedSeriesFrom(context.Context, int64, int64, timezone.Date) (int64, error) {
 	return 0, nil
 }
 

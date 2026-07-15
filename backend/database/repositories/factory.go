@@ -73,7 +73,6 @@ type Factory struct {
 	Teacher             userModels.TeacherRepository
 	Guest               userModels.GuestRepository
 	Profile             userModels.ProfileRepository
-	PersonGuardian      userModels.PersonGuardianRepository
 	StudentGuardian     userModels.StudentGuardianRepository
 	GuardianProfile     userModels.GuardianProfileRepository
 	GuardianPhoneNumber userModels.GuardianPhoneNumberRepository
@@ -100,6 +99,8 @@ type Factory struct {
 	StudentArrivalNote        scheduleModels.StudentArrivalNoteRepository
 	CareScheduleChangeRequest scheduleModels.CareScheduleChangeRequestRepository
 	StaffShift                scheduleModels.StaffShiftRepository
+	StaffShiftSeries          scheduleModels.StaffShiftSeriesRepository
+	StaffShiftSeriesException scheduleModels.StaffShiftSeriesExceptionRepository
 	ShiftType                 scheduleModels.ShiftTypeRepository
 	CalendarPeriod            scheduleModels.CalendarPeriodRepository
 	ActivityInstance          scheduleModels.ActivityInstanceRepository
@@ -115,18 +116,19 @@ type Factory struct {
 	StudentEnrollment  activitiesModels.StudentEnrollmentRepository
 
 	// Active domain
-	ActiveGroup        activeModels.GroupRepository
-	ActiveVisit        activeModels.VisitRepository
-	GroupSupervisor    activeModels.GroupSupervisorRepository
-	CombinedGroup      activeModels.CombinedGroupRepository
-	GroupMapping       activeModels.GroupMappingRepository
-	Attendance         activeModels.AttendanceRepository
-	StudentStatusDay   activeModels.StudentStatusDayRepository
-	WorkSession        activeModels.WorkSessionRepository
-	WorkSessionBreak   activeModels.WorkSessionBreakRepository
-	StaffAbsence       activeModels.StaffAbsenceRepository
-	StaffAbsenceAudit  activeModels.StaffAbsenceAuditRepository
-	StaffVacationQuota activeModels.StaffVacationQuotaRepository
+	ActiveGroup           activeModels.GroupRepository
+	ActiveVisit           activeModels.VisitRepository
+	GroupSupervisor       activeModels.GroupSupervisorRepository
+	CombinedGroup         activeModels.CombinedGroupRepository
+	GroupMapping          activeModels.GroupMappingRepository
+	Attendance            activeModels.AttendanceRepository
+	StudentStatusDay      activeModels.StudentStatusDayRepository
+	ExcusedAbsenceRequest activeModels.ExcusedAbsenceRequestRepository
+	WorkSession           activeModels.WorkSessionRepository
+	WorkSessionBreak      activeModels.WorkSessionBreakRepository
+	StaffAbsence          activeModels.StaffAbsenceRepository
+	StaffAbsenceAudit     activeModels.StaffAbsenceAuditRepository
+	StaffVacationQuota    activeModels.StaffVacationQuotaRepository
 
 	// Meal plan domain
 	MealPlanEntry mealplanModels.MealPlanEntryRepository
@@ -152,9 +154,11 @@ type Factory struct {
 
 	// Audit domain
 	DataDeletion                 auditModels.DataDeletionRepository
+	EnrollmentDeletionAudit      auditModels.EnrollmentDeletionRepository
 	DataAccessLog                auditModels.DataAccessLogRepository
 	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
 	GuardianChange               auditModels.GuardianChangeRepository
+	DeviationEvent               auditModels.DeviationEventRepository
 	AuthEvent                    auditModels.AuthEventRepository
 	DataImport                   auditModels.DataImportRepository
 	WorkSessionEdit              auditModels.WorkSessionEditRepository
@@ -171,7 +175,7 @@ type Factory struct {
 	OperatorInvitationToken  platformModels.OperatorInvitationTokenRepository
 	OperatorSummaries        platformModels.OperatorSummariesRepository
 	School                   platformModels.SchoolRepository
-	EmailOutbox              platformModels.EmailOutboxRepository
+	EmailOutbox              platformModels.EmailOutboxCleanupRepository
 
 	// Operator MFA (issue #1308 phase 7b)
 	OperatorMFACredential     platformModels.OperatorMFACredentialRepository
@@ -183,6 +187,7 @@ type Factory struct {
 	// Enrollment domain (parent-enrollment PR 5+)
 	FormSchema           enrollmentModels.FormSchemaRepository
 	Request              enrollmentModels.RequestRepository
+	EnrollmentDeletion   enrollmentModels.DeletionRepository
 	RequestChild         enrollmentModels.RequestChildRepository
 	RequestGuardian      enrollmentModels.RequestGuardianRepository
 	LateInvite           enrollmentModels.LateInviteRepository
@@ -253,7 +258,6 @@ func NewFactory(db *bun.DB) *Factory {
 		Teacher:             users.NewTeacherRepository(db),
 		Guest:               users.NewGuestRepository(db),
 		Profile:             users.NewProfileRepository(db),
-		PersonGuardian:      users.NewPersonGuardianRepository(db),
 		StudentGuardian:     users.NewStudentGuardianRepository(db),
 		GuardianProfile:     users.NewGuardianProfileRepository(db),
 		GuardianPhoneNumber: users.NewGuardianPhoneNumberRepository(db),
@@ -280,6 +284,8 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentArrivalNote:        schedule.NewStudentArrivalNoteRepository(db),
 		CareScheduleChangeRequest: schedule.NewCareScheduleChangeRequestRepository(db),
 		StaffShift:                schedule.NewStaffShiftRepository(db),
+		StaffShiftSeries:          schedule.NewStaffShiftSeriesRepository(db),
+		StaffShiftSeriesException: schedule.NewStaffShiftSeriesExceptionRepository(db),
 		ShiftType:                 schedule.NewShiftTypeRepository(db),
 		CalendarPeriod:            schedule.NewCalendarPeriodRepository(db),
 		ActivityInstance:          schedule.NewActivityInstanceRepository(db),
@@ -295,18 +301,19 @@ func NewFactory(db *bun.DB) *Factory {
 		StudentEnrollment:  activities.NewStudentEnrollmentRepository(db),
 
 		// Active repositories
-		ActiveGroup:        active.NewGroupRepository(db),
-		ActiveVisit:        active.NewVisitRepository(db),
-		GroupSupervisor:    active.NewGroupSupervisorRepository(db),
-		CombinedGroup:      active.NewCombinedGroupRepository(db),
-		GroupMapping:       active.NewGroupMappingRepository(db),
-		Attendance:         active.NewAttendanceRepository(db),
-		StudentStatusDay:   active.NewStudentStatusDayRepository(db),
-		WorkSession:        active.NewWorkSessionRepository(db),
-		WorkSessionBreak:   active.NewWorkSessionBreakRepository(db),
-		StaffAbsence:       active.NewStaffAbsenceRepository(db),
-		StaffAbsenceAudit:  active.NewStaffAbsenceAuditRepository(db),
-		StaffVacationQuota: active.NewStaffVacationQuotaRepository(db),
+		ActiveGroup:           active.NewGroupRepository(db),
+		ActiveVisit:           active.NewVisitRepository(db),
+		GroupSupervisor:       active.NewGroupSupervisorRepository(db),
+		CombinedGroup:         active.NewCombinedGroupRepository(db),
+		GroupMapping:          active.NewGroupMappingRepository(db),
+		Attendance:            active.NewAttendanceRepository(db),
+		StudentStatusDay:      active.NewStudentStatusDayRepository(db),
+		ExcusedAbsenceRequest: active.NewExcusedAbsenceRequestRepository(db),
+		WorkSession:           active.NewWorkSessionRepository(db),
+		WorkSessionBreak:      active.NewWorkSessionBreakRepository(db),
+		StaffAbsence:          active.NewStaffAbsenceRepository(db),
+		StaffAbsenceAudit:     active.NewStaffAbsenceAuditRepository(db),
+		StaffVacationQuota:    active.NewStaffVacationQuotaRepository(db),
 
 		// Meal plan repositories
 		MealPlanEntry: mealplanRepo.NewMealPlanEntryRepository(db),
@@ -332,9 +339,11 @@ func NewFactory(db *bun.DB) *Factory {
 
 		// Audit repositories
 		DataDeletion:                 audit.NewDataDeletionRepository(db),
+		EnrollmentDeletionAudit:      audit.NewEnrollmentDeletionRepository(db),
 		DataAccessLog:                audit.NewDataAccessLogRepository(db),
 		EnrollmentOfferingAdjustment: audit.NewEnrollmentOfferingAdjustmentRepository(db),
 		GuardianChange:               audit.NewGuardianChangeRepository(db),
+		DeviationEvent:               audit.NewDeviationEventRepository(db),
 		AuthEvent:                    audit.NewAuthEventRepository(db),
 		DataImport:                   audit.NewDataImportRepository(db),
 		WorkSessionEdit:              audit.NewWorkSessionEditRepository(db),
@@ -362,6 +371,7 @@ func NewFactory(db *bun.DB) *Factory {
 		// Enrollment repositories
 		FormSchema:           enrollment.NewFormSchemaRepository(db),
 		Request:              enrollment.NewRequestRepository(db),
+		EnrollmentDeletion:   enrollment.NewDeletionRepository(db),
 		RequestChild:         enrollment.NewRequestChildRepository(db),
 		RequestGuardian:      enrollment.NewRequestGuardianRepository(db),
 		LateInvite:           enrollment.NewLateInviteRepository(db),

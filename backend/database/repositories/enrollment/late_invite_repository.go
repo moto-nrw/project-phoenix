@@ -81,3 +81,18 @@ func (r *LateInviteRepository) MarkUsed(ctx context.Context, inviteID, requestID
 	}
 	return nil
 }
+
+// DeleteByUsedRequestID removes late-invite PII linked to a request before the
+// request deletion can clear used_request_id through ON DELETE SET NULL.
+func (r *LateInviteRepository) DeleteByUsedRequestID(ctx context.Context, requestID int64) (int64, error) {
+	res, err := base.GetDB(ctx, r.db).NewDelete().
+		Model((*enrollment.LateInvite)(nil)).
+		ModelTableExpr(lateInviteTableExpr).
+		Where(`"late_invite".used_request_id = ?`, requestID).
+		Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete enrollment late invites by used request: %w", err)
+	}
+	affected, _ := res.RowsAffected()
+	return affected, nil
+}

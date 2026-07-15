@@ -87,6 +87,7 @@ func verifyRequest(t *testing.T, body MFAVerifyRequest) *http.Request {
 	r.Header.Set("Content-Type", "application/json")
 	r.Header.Set("User-Agent", "test-ua")
 	r.Header.Set("X-Real-IP", "203.0.113.10")
+	r.RemoteAddr = "203.0.113.10:54321"
 	return r
 }
 

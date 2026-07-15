@@ -39,11 +39,11 @@ func (rs *Resource) getStudentEnrollmentExtraFields(w http.ResponseWriter, r *ht
 		return
 	}
 	if !rs.checkStudentReadAccess(r, student) {
-		renderError(w, r, ErrorForbidden(errors.New("read access required to view enrollment extra fields")))
+		renderError(w, r, common.ErrorForbidden(errors.New("read access required to view enrollment extra fields")))
 		return
 	}
 	if rs.EnrollmentDecision == nil || rs.EnrollmentFormSchema == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("enrollment services not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("enrollment services not configured")))
 		return
 	}
 
@@ -154,10 +154,4 @@ func (rs *Resource) studentEnrollmentExtraFieldsForChild(r *http.Request, schema
 		})
 	}
 	return out, nil
-}
-
-// GetStudentEnrollmentExtraFieldsHandler returns the handler for getting
-// per-child enrollment extra fields linked to a student.
-func (rs *Resource) GetStudentEnrollmentExtraFieldsHandler() http.HandlerFunc {
-	return rs.getStudentEnrollmentExtraFields
 }

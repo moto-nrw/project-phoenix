@@ -9,6 +9,7 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	enrollmentSvc "github.com/moto-nrw/project-phoenix/services/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -322,7 +323,7 @@ func TestPrepareEnrollmentLegalAGBDocumentCleanup_PropagatesReferenceCheckError(
 }
 
 func TestPublicEnrollmentLegalDocumentURL_RewritesStoredUploadURL(t *testing.T) {
-	got := publicEnrollmentLegalDocumentURL(legalAGBDocumentPrefix + "tenant-1.pdf")
+	got := enrollmentSvc.PublicEnrollmentLegalDocumentURL(legalAGBDocumentPrefix + "tenant-1.pdf")
 
 	assert.Equal(t, "/api/public/enrollment-legal-documents/tenant-1.pdf", got)
 }

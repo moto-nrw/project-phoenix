@@ -2,7 +2,6 @@ package schedule
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -10,9 +9,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/constants"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	educationModel "github.com/moto-nrw/project-phoenix/models/education"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -33,6 +34,7 @@ var (
 
 type OperationSettings interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
 }
 
 type TimetableAttendanceValidationError struct {
@@ -124,13 +126,12 @@ type OperationRoster struct {
 }
 
 type OperationRosterInstance struct {
-	ID            int64   `json:"id"`
-	Title         string  `json:"title"`
-	Status        string  `json:"status"`
-	IsSpontaneous bool    `json:"is_spontaneous"`
-	ActiveGroupID *int64  `json:"active_group_id,omitempty"`
-	RoomID        int64   `json:"room_id"`
-	RoomName      *string `json:"room_name,omitempty"`
+	ID            int64  `json:"id"`
+	Title         string `json:"title"`
+	Status        string `json:"status"`
+	IsSpontaneous bool   `json:"is_spontaneous"`
+	ActiveGroupID *int64 `json:"active_group_id,omitempty"`
+	RoomID        int64  `json:"room_id"`
 }
 
 type OperationRosterRow struct {
@@ -146,6 +147,7 @@ type OperationRosterRow struct {
 	Substatus        *string                  `json:"substatus,omitempty"`
 	Note             *string                  `json:"note,omitempty"`
 	CheckedInAt      *string                  `json:"checked_in_at,omitempty"`
+	CheckedOutAt     *string                  `json:"checked_out_at,omitempty"`
 	VisitEntryTime   *string                  `json:"visit_entry_time,omitempty"`
 	Warnings         []OperationRosterWarning `json:"warnings,omitempty"`
 }
@@ -179,8 +181,8 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 	if err != nil {
 		return nil, err
 	}
-	adminAll := s.adminOverviewEnabled(ctx, isAdmin)
-	if !hasStaff && !adminAll {
+	allOperational := s.adminOverviewEnabled(ctx, isAdmin) || (hasStaff && s.openCareMode(ctx))
+	if !hasStaff && !allOperational {
 		return nil, ErrTimetableOperationForbidden
 	}
 
@@ -197,18 +199,22 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		if inst.Status != scheduleModel.InstanceStatusPlanned || !plannedNowWindow(inst, now, opts.HorizonMinutes) {
 			continue
 		}
+		roomName := roomNames[inst.RoomID]
+		if roomName != nil && *roomName == constants.SchulhofRoomName {
+			continue
+		}
 		staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, inst.ID)
 		if err != nil {
 			return nil, err
 		}
-		if !adminAll && !staffAssigned(staffRows, staffID) {
+		if !allOperational && !staffAssigned(staffRows, staffID) {
 			continue
 		}
 		studentRows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, inst.ID)
 		if err != nil {
 			return nil, err
 		}
-		mapped := mapPlannedInstance(inst, staffRows, studentRows, now, staffID, roomNames[inst.RoomID])
+		mapped := mapPlannedInstance(inst, staffRows, studentRows, now, staffID, roomName)
 		if opts.IncludeRoster {
 			roster, err := s.buildRoster(ctx, inst.ID)
 			if err != nil {
@@ -276,7 +282,7 @@ func (s *timetableOperationsService) CheckInStudent(ctx context.Context, account
 		return nil, fmt.Errorf("%w: instance is not active", ErrTimetableOperationConflict)
 	}
 	current, err := s.deps.VisitRepo.GetCurrentByStudentID(ctx, studentID)
-	if err != nil && !isNoRows(err) {
+	if err != nil && !modelBase.IsNoRows(err) {
 		return nil, err
 	}
 	if current != nil {
@@ -394,12 +400,19 @@ func (s *timetableOperationsService) requireCanOperate(ctx context.Context, acco
 	if err != nil {
 		return 0, err
 	}
+	if hasStaff && s.openCareMode(ctx) {
+		return staffID, nil
+	}
 	if s.adminOverviewEnabled(ctx, isAdmin) {
 		return staffID, nil
 	}
 	if !hasStaff {
 		return 0, ErrTimetableOperationForbidden
 	}
+	return s.requireFixedGroupOperationAccess(ctx, staffID, instanceID)
+}
+
+func (s *timetableOperationsService) requireFixedGroupOperationAccess(ctx context.Context, staffID, instanceID int64) (int64, error) {
 	inst, err := s.loadInstance(ctx, instanceID)
 	if err != nil {
 		return 0, err
@@ -423,6 +436,18 @@ func (s *timetableOperationsService) requireCanOperate(ctx context.Context, acco
 		}
 	}
 	return 0, ErrTimetableOperationForbidden
+}
+
+func (s *timetableOperationsService) openCareMode(ctx context.Context) bool {
+	if s.deps.Settings == nil {
+		return false
+	}
+	mode, err := s.deps.Settings.ResolveString(ctx, configModel.KeyGroupMode)
+	if err != nil {
+		s.logger().ErrorContext(ctx, "failed to resolve operational group mode", slog.String("error", err.Error()))
+		return false
+	}
+	return mode == configModel.GroupModeOpenCare
 }
 
 func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID int64) (*OperationRoster, error) {
@@ -524,12 +549,25 @@ func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID
 func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *scheduleModel.InstanceStudent, visit *activeModel.Visit, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group, warnings []OperationRosterWarning) OperationRosterRow {
 	row := OperationRosterRow{
 		StudentID:        studentID,
-		Planned:          planned != nil,
-		IsUnplanned:      planned == nil && visit != nil,
+		Planned:          planned != nil && !planned.IsUnplanned,
+		IsUnplanned:      (planned != nil && planned.IsUnplanned) || (planned == nil && visit != nil),
 		CurrentlyPresent: visit != nil && visit.ExitTime == nil,
 		Status:           scheduleModel.AttendanceStatusPresent,
 		Warnings:         warnings,
 	}
+	applyPlannedRosterAttendance(&row, planned)
+
+	if visit != nil {
+		id := visit.ID
+		row.VisitID = &id
+		v := visit.EntryTime.UTC().Format(time.RFC3339)
+		row.VisitEntryTime = &v
+	}
+	applyRosterStudentIdentity(&row, studentID, students, persons, groups)
+	return row
+}
+
+func applyPlannedRosterAttendance(row *OperationRosterRow, planned *scheduleModel.InstanceStudent) {
 	if planned != nil {
 		row.Status = planned.Status
 		row.Substatus = planned.Substatus
@@ -538,13 +576,17 @@ func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *sche
 			v := planned.CheckedInAt.UTC().Format(time.RFC3339)
 			row.CheckedInAt = &v
 		}
+		if planned.CheckedOutAt != nil {
+			v := planned.CheckedOutAt.UTC().Format(time.RFC3339)
+			row.CheckedOutAt = &v
+		}
+		if planned.Status == scheduleModel.AttendanceStatusPresent && planned.CheckedInAt != nil && planned.CheckedOutAt == nil {
+			row.CurrentlyPresent = true
+		}
 	}
-	if visit != nil {
-		id := visit.ID
-		row.VisitID = &id
-		v := visit.EntryTime.UTC().Format(time.RFC3339)
-		row.VisitEntryTime = &v
-	}
+}
+
+func applyRosterStudentIdentity(row *OperationRosterRow, studentID int64, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group) {
 	if st := students[studentID]; st != nil {
 		row.SchoolClass = st.SchoolClass
 		if st.GroupID != nil {
@@ -556,7 +598,6 @@ func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *sche
 			row.StudentName = p.GetFullName()
 		}
 	}
-	return row
 }
 
 func (s *timetableOperationsService) loadRosterTemplateGroup(ctx context.Context, activityGroupID *int64) (*activitiesModel.Group, error) {
@@ -565,7 +606,7 @@ func (s *timetableOperationsService) loadRosterTemplateGroup(ctx context.Context
 	}
 	group, err := s.deps.ActivityGroupRepo.FindByID(ctx, *activityGroupID)
 	if err != nil {
-		if isNoRows(err) {
+		if modelBase.IsNoRows(err) {
 			return nil, nil
 		}
 		return nil, err
@@ -670,7 +711,7 @@ func (s *timetableOperationsService) resolveStaffID(ctx context.Context, account
 	}
 	staff, err := s.deps.PersonService.GetStaffByPersonID(ctx, person.ID)
 	if err != nil {
-		if isNoRows(err) {
+		if modelBase.IsNoRows(err) {
 			return 0, false, nil
 		}
 		return 0, false, err
@@ -731,7 +772,7 @@ func (s *timetableOperationsService) adminOverviewEnabled(ctx context.Context, i
 func (s *timetableOperationsService) loadInstance(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
 	inst, err := s.deps.InstanceRepo.FindByID(ctx, instanceID)
 	if err != nil {
-		if isNoRows(err) {
+		if modelBase.IsNoRows(err) {
 			return nil, ErrTimetableOperationNotFound
 		}
 		return nil, err
@@ -855,15 +896,4 @@ func findPlanned(rows []*scheduleModel.InstanceStudent, studentID int64) (*sched
 		}
 	}
 	return nil, false
-}
-
-func isNoRows(err error) bool {
-	if errors.Is(err, sql.ErrNoRows) {
-		return true
-	}
-	type unwrapper interface{ Unwrap() error }
-	if u, ok := err.(unwrapper); ok {
-		return isNoRows(u.Unwrap())
-	}
-	return false
 }

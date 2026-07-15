@@ -12,7 +12,7 @@
  * bar that ties the card back to the activity type.
  */
 
-import { Archive, Clock, DoorOpen, Users } from "lucide-react";
+import { Archive, Clock, DoorOpen, ShieldCheck, Users } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import {
@@ -20,6 +20,7 @@ import {
   getGermanWeekdayShort,
 } from "~/lib/timetable-helpers";
 import type { TimetableTemplate } from "~/lib/timetable-types";
+import { capacityTone, TimetableRatioPill } from "./timetable-ratio-pill";
 import { timetableSurface } from "./timetable-style";
 
 interface TemplateCardProps {
@@ -86,6 +87,25 @@ export function TemplateCard({
               {TYPE_LABELS[template.type]}
               {template.categoryName ? ` · ${template.categoryName}` : ""}
             </p>
+            {template.shiftTypeName ? (
+              <span
+                className="mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
+                style={{
+                  backgroundColor: `${template.shiftTypeColor || "#6B7280"}1A`,
+                  color: template.shiftTypeColor || "#6B7280",
+                }}
+                title={`Schichtart: ${template.shiftTypeName}`}
+              >
+                <span
+                  className="h-2 w-2 rounded-full"
+                  style={{
+                    backgroundColor: template.shiftTypeColor || "#6B7280",
+                  }}
+                  aria-hidden
+                />
+                {template.shiftTypeName}
+              </span>
+            ) : null}
           </div>
         </div>
 
@@ -95,7 +115,7 @@ export function TemplateCard({
             return (
               <div
                 key={wd}
-                className={`flex h-6 w-7 items-center justify-center rounded-lg text-[10px] font-semibold ${
+                className={`flex h-6 w-7 items-center justify-center rounded-full text-[10px] font-semibold ${
                   active
                     ? "bg-gray-900 text-white"
                     : "bg-gray-100 text-gray-400"
@@ -127,6 +147,21 @@ export function TemplateCard({
               {template.supervisorCount} Personal
             </span>
           </div>
+          {template.requiredStaffCount > 0 && (
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-3.5 w-3.5 text-gray-400" aria-hidden />
+              <TimetableRatioPill
+                icon={<ShieldCheck className="h-3.5 w-3.5" />}
+                label="Besetzung"
+                value={`${template.assignedStaffCount}/${template.requiredStaffCount}`}
+                tone={capacityTone(
+                  template.assignedStaffCount,
+                  template.requiredStaffCount,
+                )}
+                variant="compact"
+              />
+            </div>
+          )}
         </dl>
 
         {!template.roomId && (

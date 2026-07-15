@@ -1,55 +1,42 @@
-// Package timetable — WP-B12 substitute flow.
+// Package timetable — shared substitute/deviation classification helpers.
 //
-//	POST /api/timetable/substitute
-//
-// Body: {absent_staff_id, substitute_staff_id, date}. For every instance_staff
-// row of the absent staff on the given date, mark the original is_absent=true
-// and insert a substitute row. Idempotent on replay; atomic on 409.
-//
-// Atomicity note: the TenantTxMiddleware rolls the request transaction back
-// only on 5xx (see tenant/http_middleware.go:40). A 409 rendered mid-handler
-// would therefore commit any writes made before the 409. We avoid that with a
-// strict two-phase flow:
-//
-//	Phase A (Dry-Run): classify every target instance without writing.
-//	                   A single 409 case aborts the whole request.
-//	Phase B (Apply):   only reached when Phase A validates cleanly. All writes
-//	                   happen here, so a 409 never commits partial state.
-//
-// Permission: SchedulesManage. Same tenant tx as other /instances routes.
+// The former POST /api/timetable/substitute endpoint was consolidated into
+// POST /instances/{id}/deviations (#1886): its only frontend caller (the
+// Betreuungsplan gap-fill quick action) now sends the same day-wide
+// substitution through the atomic deviations save. What remains here is the
+// pure classification logic (classifySubstitute), the shared response row
+// (AffectedInstance), and the time-conflict advisory builder — all consumed by
+// deviations.go. The write path lives in services/schedule
+// (ApplyAbsence/ApplySubstitute, #1886).
 package timetable
 
 import (
 	"context"
-	"encoding/json"
-	"errors"
-	"fmt"
 	"log/slog"
-	"net/http"
-	"time"
+	"strings"
+	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// substituteRequest is the POST body shape.
-type substituteRequest struct {
-	AbsentStaffID     int64  `json:"absent_staff_id"`
-	SubstituteStaffID int64  `json:"substitute_staff_id"`
-	Date              string `json:"date"`
-}
-
 // substituteActionType is the stable per-instance action string returned in
 // the response. Callers switch on it rather than parsing messages.
+// The action vocabulary lives in services/schedule (single source, #1886);
+// these aliases keep the handler code and wire format unchanged.
 const (
-	substituteActionSubstituted       = "substituted"
-	substituteActionAlreadySubstitute = "already_substituted"
-	substituteActionAlreadyOnInstance = "already_on_instance"
+	substituteActionSubstituted       = scheduleSvc.SubstituteActionSubstituted
+	substituteActionAlreadySubstitute = scheduleSvc.SubstituteActionAlreadySubstitute
+	substituteActionAlreadyOnInstance = scheduleSvc.SubstituteActionAlreadyOnInstance
+	// Absent-only mode (#1840): substitute_staff_id omitted. The absent staff
+	// is marked absent and the position is left open.
+	substituteActionMarkedAbsent  = scheduleSvc.SubstituteActionMarkedAbsent
+	substituteActionAlreadyAbsent = scheduleSvc.SubstituteActionAlreadyAbsent
+	// Present mode (#1840): a persisted day-wide absence was cleared.
+	substituteActionMarkedPresent = scheduleSvc.SubstituteActionMarkedPresent
 )
 
 // AffectedInstance is one row in the affected_instances list of the response.
@@ -58,15 +45,6 @@ type AffectedInstance struct {
 	Title      string `json:"title"`
 	StartTime  string `json:"start_time"`
 	Action     string `json:"action"`
-}
-
-// SubstituteResponse is the 200 body.
-type SubstituteResponse struct {
-	AbsentStaffID     int64                                `json:"absent_staff_id"`
-	SubstituteStaffID int64                                `json:"substitute_staff_id"`
-	Date              string                               `json:"date"`
-	AffectedInstances []AffectedInstance                   `json:"affected_instances"`
-	Warnings          []scheduleSvc.SubstituteTimeConflict `json:"warnings"`
 }
 
 // plannedOp holds one classified target instance and the decision of what
@@ -79,272 +57,45 @@ type plannedOp struct {
 	action   string
 }
 
-// substitute handles POST /api/timetable/substitute.
-func (rs *Resource) substitute(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-
-	// --- Parse + validate the request body --------------------------------
-	var req substituteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid JSON body")))
-		return
+// writeOp maps the handler-side classification onto the service write input.
+func (op plannedOp) writeOp() scheduleSvc.SubstituteWriteOp {
+	return scheduleSvc.SubstituteWriteOp{
+		Instance: op.instance,
+		OrigRow:  op.origRow,
+		Action:   op.action,
 	}
-	if req.AbsentStaffID <= 0 || req.SubstituteStaffID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("absent_staff_id and substitute_staff_id are required")))
-		return
+}
+
+// trimReason normalizes an optional deviation reason: nil/blank becomes nil,
+// and an over-long value is truncated to the shared note ceiling so a single
+// oversized field can never bloat a row. The ceiling counts runes, not bytes:
+// slicing on a byte offset can split a multi-byte UTF-8 rune, producing an
+// invalid string that PostgreSQL rejects. The frontend's maxLength is likewise
+// a character count, so a rune ceiling keeps the two limits consistent.
+func trimReason(reason *string) *string {
+	if reason == nil {
+		return nil
 	}
-	if req.AbsentStaffID == req.SubstituteStaffID {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("absent and substitute staff must differ")))
-		return
+	trimmed := strings.TrimSpace(*reason)
+	if trimmed == "" {
+		return nil
 	}
-	if req.Date == "" {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("date is required")))
-		return
+	if utf8.RuneCountInString(trimmed) > understaffedAckNoteMaxLength {
+		trimmed = string([]rune(trimmed)[:understaffedAckNoteMaxLength])
 	}
-	date, err := berlinDate(req.Date)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD")))
-		return
-	}
+	return &trimmed
+}
 
-	// Past dates are rejected. /substitute is a planner tool for "today's staff
-	// is out" scenarios; mutating is_absent flags on completed instances would
-	// rewrite history. Matches the /gaps policy. Post-hoc correction (if ever
-	// required) belongs behind a distinct endpoint or an explicit flag, not
-	// this fast-path.
-	if date.Before(timezone.TodayDate()) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("'date' must be today or a future date")))
-		return
-	}
-
-	if rs.timetableData == nil || rs.personService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
-		return
-	}
-
-	// --- 404 checks: both staff must exist in this tenant -----------------
-	absentStaff, err := rs.personService.GetStaffByID(ctx, req.AbsentStaffID)
-	if err != nil {
-		if isNotFoundDBError(err) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("absent staff not found")))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServerWrap("load absent staff failed", err))
-		return
-	}
-	if absentStaff == nil || absentStaff.ID == 0 {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("absent staff not found")))
-		return
-	}
-	subStaff, err := rs.personService.GetStaffByID(ctx, req.SubstituteStaffID)
-	if err != nil {
-		if isNotFoundDBError(err) {
-			common.RenderError(w, r, common.ErrorNotFound(errors.New("substitute staff not found")))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServerWrap("load substitute staff failed", err))
-		return
-	}
-	if subStaff == nil || subStaff.ID == 0 {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("substitute staff not found")))
-		return
-	}
-
-	// --- Load absent staff's same-day assignments -------------------------
-	origRows, err := rs.timetableData.GetInstanceStaffByStaffAndDate(ctx, req.AbsentStaffID, date)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("load absent assignments failed", err))
-		return
-	}
-
-	// No rows → empty success response. An absent staff without a scheduled
-	// day is not an error; responding 404 would conflate "staff exists?" with
-	// "staff has work today?".
-	if len(origRows) == 0 {
-		rs.getLogger().Info("substitute no-op (no assignments)",
-			slog.Int64("absent_staff_id", req.AbsentStaffID),
-			slog.Int64("substitute_staff_id", req.SubstituteStaffID),
-			slog.String("date", req.Date),
-		)
-		common.Respond(w, r, http.StatusOK, SubstituteResponse{
-			AbsentStaffID:     req.AbsentStaffID,
-			SubstituteStaffID: req.SubstituteStaffID,
-			Date:              req.Date,
-			AffectedInstances: []AffectedInstance{},
-			Warnings:          []scheduleSvc.SubstituteTimeConflict{},
-		}, "No assignments to substitute")
-		return
-	}
-
-	// ======================================================================
-	// PHASE A — Dry-Run: classify every row, no writes.
-	// ======================================================================
-	plan := make([]plannedOp, 0, len(origRows))
-
-	for _, orig := range origRows {
-		instance, err := rs.timetableData.GetActivityInstance(ctx, orig.InstanceID)
-		if err != nil {
-			common.RenderError(w, r, common.ErrorInternalServerWrap("load target instance failed", err))
-			return
-		}
-		if instance == nil {
-			// Data-corruption branch: instance_staff row references an instance
-			// that no longer exists. Aborting is safer than silently skipping.
-			common.RenderError(w, r, common.ErrorInternalServer(
-				fmt.Errorf("instance_staff %d references missing instance %d", orig.ID, orig.InstanceID)))
-			return
-		}
-
-		// All rows of this instance — needed to detect existing substitutes
-		// and co-supervisor cases.
-		allRows, err := rs.timetableData.GetInstanceStaff(ctx, instance.ID)
-		if err != nil {
-			common.RenderError(w, r, common.ErrorInternalServerWrap("load instance staff failed", err))
-			return
-		}
-
-		action, conflictOtherStaff, ok := classifySubstitute(allRows, orig, req.SubstituteStaffID)
-		if !ok {
-			// Phase A aborts the whole request — no writes have happened yet,
-			// so even though the tenant middleware will commit the (empty)
-			// tx, no DB state changed. The stable code lets the frontend
-			// render the conflict without parsing the German message.
-			common.RenderError(w, r, common.ErrorConflictWithCode(
-				fmt.Errorf("instance %d has a different substitute already assigned (staff_id=%d); remove the existing substitute first",
-					instance.ID, conflictOtherStaff),
-				"substitute_conflict",
-			))
-			return
-		}
-
-		plan = append(plan, plannedOp{
-			instance: instance,
-			origRow:  orig,
-			action:   action,
-		})
-	}
-
-	// ======================================================================
-	// PHASE B — Apply writes. Any DB error from here renders 500 → the
-	// middleware rolls the tx back. No 4xx path writes anything.
-	// ======================================================================
-	now := time.Now()
-	affected := make([]AffectedInstance, 0, len(plan))
-	// Collect active-group IDs we touched to fire SSE updates at the end.
-	activeTouched := make(map[int64]*scheduleModel.ActivityInstance)
-
-	for _, op := range plan {
-		switch op.action {
-		case substituteActionAlreadySubstitute:
-			// No writes.
-
-		case substituteActionAlreadyOnInstance:
-			// Mark only the absent's original row. Existing co-supervisor
-			// row stays untouched: is_substitute, is_primary, room_id
-			// preserved — the person was independently planned, not a
-			// Vertretung, and reports should preserve that distinction.
-			op.origRow.IsAbsent = true
-			if err := rs.timetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
-				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
-				return
-			}
-			// For active instances, end the absent's supervisor row. Do NOT
-			// create a new supervisor — the substitute (co-supervisor) is
-			// already an active supervisor.
-			if op.instance.Status == scheduleModel.InstanceStatusActive && op.instance.ActiveGroupID != nil {
-				if _, err := rs.timetableData.EndGroupSupervisor(ctx, *op.instance.ActiveGroupID, req.AbsentStaffID); err != nil {
-					common.RenderError(w, r, common.ErrorInternalServerWrap("end absent supervisor failed", err))
-					return
-				}
-				activeTouched[*op.instance.ActiveGroupID] = op.instance
-			}
-
-		case substituteActionSubstituted:
-			op.origRow.IsAbsent = true
-			if err := rs.timetableData.UpdateInstanceStaff(ctx, op.origRow); err != nil {
-				common.RenderError(w, r, common.ErrorInternalServerWrap("update original staff row failed", err))
-				return
-			}
-			newRow := &scheduleModel.InstanceStaff{
-				InstanceID:   op.instance.ID,
-				StaffID:      req.SubstituteStaffID,
-				RoomID:       op.origRow.RoomID, // inherit room split, if any
-				IsPrimary:    false,
-				IsSubstitute: true,
-				IsAbsent:     false,
-			}
-			if err := rs.timetableData.CreateInstanceStaff(ctx, newRow); err != nil {
-				common.RenderError(w, r, common.ErrorInternalServerWrap("create substitute staff row failed", err))
-				return
-			}
-			if op.instance.Status == scheduleModel.InstanceStatusActive && op.instance.ActiveGroupID != nil {
-				if _, err := rs.timetableData.EndGroupSupervisor(ctx, *op.instance.ActiveGroupID, req.AbsentStaffID); err != nil {
-					common.RenderError(w, r, common.ErrorInternalServerWrap("end absent supervisor failed", err))
-					return
-				}
-				newSup := &activeModel.GroupSupervisor{
-					StaffID:   req.SubstituteStaffID,
-					GroupID:   *op.instance.ActiveGroupID,
-					Role:      "supervisor",
-					StartDate: timezone.DateFromTime(now),
-				}
-				newSup.SetTenantID(tenant.FromContext(ctx))
-				if err := rs.timetableData.CreateGroupSupervisor(ctx, newSup); err != nil {
-					common.RenderError(w, r, common.ErrorInternalServerWrap("create substitute supervisor failed", err))
-					return
-				}
-				activeTouched[*op.instance.ActiveGroupID] = op.instance
-			}
-		}
-
-		affected = append(affected, AffectedInstance{
-			InstanceID: op.instance.ID,
-			Title:      op.instance.Title,
-			StartTime:  op.instance.StartTime.Format("15:04"),
-			Action:     op.action,
-		})
-	}
-
-	// ======================================================================
-	// Soft warnings: substitute's OTHER same-day assignments that overlap a
-	// target. Only relevant for instances actually substituted or co-cover.
-	// Dry-run: no DB writes, just a second Find + comparison.
-	// ======================================================================
-	warnings, err := rs.buildSubstituteTimeConflicts(ctx, plan, req.SubstituteStaffID, date)
-	if err != nil {
-		// A warning lookup failure is not a showstopper. Log and continue
-		// with an empty warning list — the mutations above are correct
-		// independent of the advisory output.
-		rs.getLogger().Warn("substitute time-conflict detection failed",
-			slog.Int64("substitute_staff_id", req.SubstituteStaffID),
-			slog.String("error", err.Error()),
-		)
-		warnings = nil
-	}
-	if warnings == nil {
-		warnings = []scheduleSvc.SubstituteTimeConflict{}
-	}
-
-	// ======================================================================
-	// SSE broadcast — fire-and-forget inside the tx, consistent with WP-B9.
-	// ======================================================================
-	rs.broadcastSubstituteEvents(ctx, activeTouched)
-
-	rs.getLogger().Info("substitute applied",
-		slog.Int64("absent_staff_id", req.AbsentStaffID),
-		slog.Int64("substitute_staff_id", req.SubstituteStaffID),
-		slog.String("date", req.Date),
-		slog.Int("affected_count", len(affected)),
-		slog.Int("warning_count", len(warnings)),
-	)
-
-	common.Respond(w, r, http.StatusOK, SubstituteResponse{
-		AbsentStaffID:     req.AbsentStaffID,
-		SubstituteStaffID: req.SubstituteStaffID,
-		Date:              req.Date,
-		AffectedInstances: affected,
-		Warnings:          warnings,
-	}, "Substitute applied")
+// isPlannableInstance reports whether a substitute/absence write may touch this
+// instance. Only planned and active blocks are editable: completed and
+// cancelled ones are historical record. GetInstanceStaffByStaffAndDate returns
+// every same-day assignment regardless of status, so a staff member with an
+// already-finished morning block and a planned afternoon block would otherwise
+// have the completed block's staffing rewritten. Mirrors the /gaps candidate
+// filter and DeleteUpcomingByStaffID's "keep same-day history" rule.
+func isPlannableInstance(instance *scheduleModel.ActivityInstance) bool {
+	return instance.Status == scheduleModel.InstanceStatusPlanned ||
+		instance.Status == scheduleModel.InstanceStatusActive
 }
 
 // classifySubstitute decides the action for a single target instance. Pure
@@ -358,28 +109,65 @@ func classifySubstitute(
 	origRow *scheduleModel.InstanceStaff,
 	subID int64,
 ) (action string, conflictOtherStaff int64, ok bool) {
-	// Scan once for the three signals we need.
+	// Scan once for the signals we need: whether subID already has a row here,
+	// whether subID is a present co-supervisor, and the block's coverage balance
+	// (absent planned positions vs OTHER active substitutes already covering them).
 	var existingSubOfSub *scheduleModel.InstanceStaff
-	var existingSubOfOther *scheduleModel.InstanceStaff
 	var subAsNonAbsent *scheduleModel.InstanceStaff
+	var anyActiveSubOfOther *scheduleModel.InstanceStaff
+	absentPlanned := 0
+	activeSubsOfOther := 0
 	for _, row := range allRows {
-		if row.IsSubstitute && row.StaffID == subID {
+		switch {
+		case row.IsSubstitute && row.StaffID == subID:
 			existingSubOfSub = row
-		}
-		if row.IsSubstitute && row.StaffID != subID && !row.IsAbsent {
-			existingSubOfOther = row
+		case row.IsSubstitute && !row.IsAbsent:
+			activeSubsOfOther++
+			anyActiveSubOfOther = row
+		case !row.IsSubstitute && row.IsAbsent:
+			absentPlanned++
 		}
 		if !row.IsSubstitute && row.StaffID == subID && !row.IsAbsent {
 			subAsNonAbsent = row
 		}
 	}
 
-	if origRow.IsAbsent && existingSubOfSub != nil {
-		return substituteActionAlreadySubstitute, 0, true
+	// The substitute already holds a substitute row on this instance. A second
+	// insert would violate UNIQUE(instance_id, staff_id), so we never add another
+	// row — the person already provides coverage. This holds regardless of whether
+	// the absent's row is flagged yet: in a combined /deviations save the absent's
+	// row is still non-absent at classification time (it is flipped in Phase B),
+	// and the same substitute may already cover a co-absent colleague on this
+	// block. When the absent row is already flagged there is nothing left to do
+	// (idempotent retry, e.g. re-running /substitute); otherwise the row still
+	// needs flagging, handled exactly like an already-present co-supervisor (mark
+	// absent, insert nothing) so Phase B cannot hit the unique constraint (#1840).
+	if existingSubOfSub != nil {
+		if origRow.IsAbsent {
+			return substituteActionAlreadySubstitute, 0, true
+		}
+		return substituteActionAlreadyOnInstance, 0, true
 	}
-	if origRow.IsAbsent && existingSubOfOther != nil {
-		return "", existingSubOfOther.StaffID, false
+
+	// Count-based overstaffing guard (#1840). A substitute covers exactly one
+	// absent planned position, but the data model carries NO substitute→absent
+	// link, so coverage is tracked by BALANCE, not identity: the block still has
+	// room for another substitute only while active substitutes are FEWER than
+	// absent planned positions. Reject a new substitute only when origRow is
+	// already flagged absent AND every absent position is already covered
+	// (activeSubsOfOther >= absentPlanned) — adding one more would overstaff, so
+	// the admin must remove a redundant replacement first. When an absent slot is
+	// still open the substitute fills a real gap and is accepted; this is what lets
+	// a later save cover a still-open position without first tearing down another
+	// position's valid replacement. When origRow is not yet absent (a fresh
+	// substitution Phase B will flag) the guard does not apply — the block gains a
+	// matching absence in the same save, so coverage stays balanced.
+	// anyActiveSubOfOther is non-nil here: origRow.IsAbsent makes absentPlanned>=1,
+	// so activeSubsOfOther>=absentPlanned implies activeSubsOfOther>=1.
+	if origRow.IsAbsent && activeSubsOfOther >= absentPlanned {
+		return "", anyActiveSubOfOther.StaffID, false
 	}
+
 	if subAsNonAbsent != nil {
 		// Substitute is already a co-supervisor on this instance. We cannot
 		// insert a second row for the same staff (UNIQUE(instance_id,
@@ -403,7 +191,7 @@ func (rs *Resource) buildSubstituteTimeConflicts(
 	if len(plan) == 0 {
 		return nil, nil
 	}
-	subRows, err := rs.timetableData.GetInstanceStaffByStaffAndDate(ctx, subID, date)
+	subRows, err := rs.TimetableData.GetInstanceStaffByStaffAndDate(ctx, subID, date)
 	if err != nil {
 		return nil, err
 	}
@@ -428,7 +216,7 @@ func (rs *Resource) buildSubstituteTimeConflicts(
 	}
 	foreigns := make([]scheduleSvc.SubstituteConflictInstance, 0, len(foreignIDs))
 	for _, fid := range foreignIDs {
-		inst, err := rs.timetableData.GetActivityInstance(ctx, fid)
+		inst, err := rs.TimetableData.GetActivityInstance(ctx, fid)
 		if err != nil {
 			return nil, err
 		}
@@ -465,34 +253,45 @@ func toConflictInstance(inst *scheduleModel.ActivityInstance) scheduleSvc.Substi
 	}
 }
 
-// broadcastSubstituteEvents queues one activity_update per affected active
-// group after the surrounding tenant transaction commits.
-func (rs *Resource) broadcastSubstituteEvents(
+// broadcastDeviationSaveEvents fires the SSE signals after a /deviations save:
+// the group-scoped activity_update per touched active group, plus — when the
+// save actually changed staffing state (any applied write, an acknowledgement
+// change, or a cleared stale ack) — the tenant-wide staffing_deviation_changed
+// invalidation (#1844). Kept out of applyDeviations so the handler's gocognit
+// score stays within its ratchet allowance.
+func (rs *Resource) broadcastDeviationSaveEvents(
 	ctx context.Context,
 	touched map[int64]*scheduleModel.ActivityInstance,
+	appliedWrites int,
+	ackChanged bool,
+	clearedAcks int,
 ) {
-	if rs.broadcaster == nil || len(touched) == 0 {
+	rs.InstanceService.QueueActivityUpdates(ctx, touched)
+	if appliedWrites > 0 || ackChanged || clearedAcks > 0 {
+		rs.broadcastStaffingDeviationChanged(ctx, "deviations")
+	}
+}
+
+// broadcastStaffingDeviationChanged queues one tenant-wide
+// staffing_deviation_changed event after the surrounding tenant transaction
+// commits. Deviation writes on still-planned blocks emit no instance_*
+// lifecycle event, and the group-scoped activity_update below only reaches
+// clients subscribed to the active group — so without this signal an open
+// staff page (Betreuungsplan card, planner) stays stale until reload (#1844).
+// source names the emitting flow for log review.
+func (rs *Resource) broadcastStaffingDeviationChanged(ctx context.Context, source string) {
+	if rs.Broadcaster == nil {
 		return
 	}
 	tenantID := tenant.FromContext(ctx)
-	for activeGroupID, inst := range touched {
-		activeGroupIDStr := fmt.Sprintf("%d", activeGroupID)
-		instanceIDStr := fmt.Sprintf("%d", inst.ID)
-		instanceDate := inst.Date.Format(dateLayout)
-		instanceStart := inst.StartTime.Format("15:04:05")
-		data := realtime.EventData{
-			InstanceID:        &instanceIDStr,
-			InstanceDate:      &instanceDate,
-			InstanceStartTime: &instanceStart,
+	event := realtime.NewEvent(realtime.EventStaffingDeviationChanged, "", realtime.EventData{Source: &source})
+	tenant.RegisterAfterCommit(ctx, func() {
+		if err := rs.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
+			rs.getLogger().Warn("SSE staffing deviation broadcast failed",
+				slog.String("source", source),
+				slog.Int64("tenant_id", tenantID),
+				slog.String("error", err.Error()),
+			)
 		}
-		event := realtime.NewEvent(realtime.EventActivityUpdate, activeGroupIDStr, data)
-		tenant.RegisterAfterCommit(ctx, func() {
-			if err := rs.broadcaster.BroadcastToGroup(tenantID, activeGroupIDStr, event); err != nil {
-				rs.getLogger().Warn("SSE substitute broadcast failed",
-					slog.String("active_group_id", activeGroupIDStr),
-					slog.String("error", err.Error()),
-				)
-			}
-		})
-	}
+	})
 }

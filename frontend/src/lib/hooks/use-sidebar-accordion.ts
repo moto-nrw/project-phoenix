@@ -3,13 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 
 type AccordionSection =
-  | "groups"
-  | "supervisions"
-  | "database"
-  | "enrollments"
-  | "planning"
-  | "eltern"
-  | null;
+  "groups" | "supervisions" | "database" | "enrollments" | "eltern" | null;
 
 // Paths that belong to the enrollments accordion. Centralized so the
 // sidebar's render code and the auto-expand logic stay in sync.
@@ -22,18 +16,6 @@ const ENROLLMENT_PATH_PREFIXES = [
 
 function isEnrollmentPath(p: string): boolean {
   return ENROLLMENT_PATH_PREFIXES.some((prefix) => p.startsWith(prefix));
-}
-
-// Paths that belong to the "Planung" accordion. Keep in sync with
-// PLANNING_SUB_PAGES in sidebar.tsx.
-const PLANNING_PATH_PREFIXES = [
-  "/calendar-periods",
-  "/timetables",
-  "/staff/dienstplan",
-];
-
-function isPlanningPath(p: string): boolean {
-  return PLANNING_PATH_PREFIXES.some((prefix) => p.startsWith(prefix));
 }
 
 // Paths that belong to the "Eltern" accordion (overview hub + the parent
@@ -66,7 +48,6 @@ function sectionFromPathname(
   if (pathname.startsWith("/active-supervisions")) return "supervisions";
   if (pathname.startsWith("/database")) return "database";
   if (isEnrollmentPath(pathname)) return "enrollments";
-  if (isPlanningPath(pathname)) return "planning";
   if (isElternPath(pathname)) return "eltern";
 
   // Child pages: keep the originating accordion section open
@@ -75,7 +56,6 @@ function sectionFromPathname(
     if (fromParam.startsWith("/active-supervisions")) return "supervisions";
     if (fromParam.startsWith("/database")) return "database";
     if (isEnrollmentPath(fromParam)) return "enrollments";
-    if (isPlanningPath(fromParam)) return "planning";
     if (isElternPath(fromParam)) return "eltern";
   }
 
@@ -110,7 +90,6 @@ export function useSidebarAccordion(
       stored === "supervisions" ||
       stored === "database" ||
       stored === "enrollments" ||
-      stored === "planning" ||
       stored === "eltern"
     ) {
       setExpanded(stored);

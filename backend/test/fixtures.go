@@ -179,7 +179,7 @@ func CreateTestRoom(tb testing.TB, db *bun.DB, name string) *facilities.Room {
 	room := &facilities.Room{
 		Name:     uniqueName,
 		Building: "Test Building",
-		Capacity: intPtr(30),
+		Capacity: IntPtr(30),
 	}
 	room.SetTenantID(1)
 
@@ -205,9 +205,9 @@ func CreateTestDevice(tb testing.TB, db *bun.DB, deviceID string) *iot.Device {
 	device := &iot.Device{
 		DeviceID:   uniqueDeviceID,
 		DeviceType: "terminal",
-		Name:       stringPtr("Test Device"),
+		Name:       StrPtr("Test Device"),
 		Status:     iot.DeviceStatusActive,
-		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
+		APIKey:     StrPtr("test-api-key-" + uniqueDeviceID),
 	}
 	device.SetTenantID(1)
 
@@ -232,7 +232,7 @@ func EnsureWebManualDevice(tb testing.TB, db *bun.DB) *iot.Device {
 	device := &iot.Device{
 		DeviceID:   iot.WebManualDeviceID,
 		DeviceType: iot.DeviceTypeVirtual,
-		Name:       stringPtr("Web-Portal (Manuell)"),
+		Name:       StrPtr("Web-Portal (Manuell)"),
 		Status:     iot.DeviceStatusActive,
 	}
 	device.SetTenantID(1)
@@ -930,15 +930,6 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 	return supervisor
 }
 
-// Helper functions for pointer creation
-func stringPtr(s string) *string {
-	return &s
-}
-
-func intPtr(i int) *int {
-	return &i
-}
-
 // CleanupPerson removes a person from the database by ID.
 func CleanupPerson(tb testing.TB, db *bun.DB, personID int64) {
 	tb.Helper()
@@ -954,6 +945,64 @@ func CleanupAccount(tb testing.TB, db *bun.DB, accountID int64) {
 	tb.Helper()
 
 	CleanupAuthFixtures(tb, db, accountID)
+}
+
+// CleanupRoleRecords removes roles and their role-permission/account-role associations.
+// Deliberately separate from CleanupAccount, which never deletes by role ID.
+func CleanupRoleRecords(tb testing.TB, db *bun.DB, roleIDs ...int64) {
+	tb.Helper()
+	if len(roleIDs) == 0 {
+		return
+	}
+
+	ctx := TenantContext(1)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.role_permissions").
+		Where("role_id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.account_roles").
+		Where("role_id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+
+	_, err := db.NewDelete().
+		TableExpr("auth.roles").
+		Where("id IN (?)", bun.List(roleIDs)).
+		Exec(ctx)
+	if err != nil {
+		tb.Logf("Warning: failed to cleanup roles: %v", err)
+	}
+}
+
+// CleanupPermissionRecords removes permissions and their role/account associations.
+// Deliberately separate from CleanupAccount, which never deletes by permission ID.
+func CleanupPermissionRecords(tb testing.TB, db *bun.DB, permissionIDs ...int64) {
+	tb.Helper()
+	if len(permissionIDs) == 0 {
+		return
+	}
+
+	ctx := TenantContext(1)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.role_permissions").
+		Where("permission_id IN (?)", bun.List(permissionIDs)).
+		Exec(ctx)
+
+	_, _ = db.NewDelete().
+		TableExpr("auth.account_permissions").
+		Where("permission_id IN (?)", bun.List(permissionIDs)).
+		Exec(ctx)
+
+	_, err := db.NewDelete().
+		TableExpr("auth.permissions").
+		Where("id IN (?)", bun.List(permissionIDs)).
+		Exec(ctx)
+	if err != nil {
+		tb.Logf("Warning: failed to cleanup permissions: %v", err)
+	}
 }
 
 // CleanupStaffFixtures removes staff fixtures from the database.
@@ -1359,33 +1408,6 @@ func CreateTestTeacherWithAccount(tb testing.TB, db *bun.DB, firstName, lastName
 	return teacher, account
 }
 
-// CreateTestStaffWithPIN creates a staff member with account and a hashed PIN.
-// This is required for testing PIN validation flows.
-func CreateTestStaffWithPIN(tb testing.TB, db *bun.DB, firstName, lastName, pin string) (*users.Staff, *auth.Account) {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Create staff with account
-	staff, account := CreateTestStaffWithAccount(tb, db, firstName, lastName)
-
-	// Hash and set the PIN
-	err := account.HashPIN(pin)
-	require.NoError(tb, err, "Failed to hash PIN")
-
-	// Update account with PIN hash
-	_, err = db.NewUpdate().
-		Model(account).
-		ModelTableExpr(`auth.accounts`).
-		Column("pin_hash").
-		Where(whereIDEquals, account.ID).
-		Exec(ctx)
-	require.NoError(tb, err, "Failed to update account with PIN")
-
-	return staff, account
-}
-
 // AssignStudentToGroup updates a student's group assignment.
 // This is used to set up the teacher-student-group relationship for policy testing.
 func AssignStudentToGroup(tb testing.TB, db *bun.DB, studentID, groupID int64) {
@@ -1768,67 +1790,9 @@ func CreateTestParentAccount(tb testing.TB, db *bun.DB, email string) *auth.Acco
 	return account
 }
 
-// CreateTestPersonGuardian creates a person-guardian relationship in the database.
-// The guardianAccountID should be a parent account ID (from CreateTestParentAccount).
-func CreateTestPersonGuardian(tb testing.TB, db *bun.DB, personID, guardianAccountID int64, relType string) *users.PersonGuardian {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	pg := &users.PersonGuardian{
-		PersonID:          personID,
-		GuardianAccountID: guardianAccountID,
-		RelationshipType:  users.RelationshipType(relType),
-		IsPrimary:         true,
-		Permissions:       "{}", // Valid empty JSON object
-	}
-	pg.SetTenantID(1)
-
-	err := db.NewInsert().
-		Model(pg).
-		ModelTableExpr(`users.persons_guardians`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test person guardian relationship")
-
-	return pg
-}
-
 // ============================================================================
 // Schedule Domain Fixtures
 // ============================================================================
-
-// CreateTestTimeframe creates a timeframe in the database.
-// This is used for schedule-related tests that need a timeframe reference.
-func CreateTestTimeframe(tb testing.TB, db *bun.DB, description string) *schedule.Timeframe {
-	tb.Helper()
-
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-
-	// Make description unique
-	uniqueDesc := fmt.Sprintf("%s-%d", description, time.Now().UnixNano())
-
-	now := time.Now()
-	startTime := time.Date(now.Year(), now.Month(), now.Day(), 8, 0, 0, 0, now.Location())
-	endTime := time.Date(now.Year(), now.Month(), now.Day(), 16, 0, 0, 0, now.Location())
-
-	timeframe := &schedule.Timeframe{
-		StartTime:   startTime,
-		EndTime:     &endTime,
-		IsActive:    true,
-		Description: uniqueDesc,
-	}
-	timeframe.SetTenantID(1)
-
-	err := db.NewInsert().
-		Model(timeframe).
-		ModelTableExpr(`schedule.timeframes`).
-		Scan(ctx)
-	require.NoError(tb, err, "Failed to create test timeframe")
-
-	return timeframe
-}
 
 // CleanupScheduleFixtures removes schedule-related fixtures from the database.
 func CleanupScheduleFixtures(tb testing.TB, db *bun.DB, timeframeIDs ...int64) {
@@ -2241,7 +2205,7 @@ func CreateTestRoomForTenant(tb testing.TB, db *bun.DB, tenantID int64, name str
 	room := &facilities.Room{
 		Name:     uniqueName,
 		Building: "Test Building",
-		Capacity: intPtr(30),
+		Capacity: IntPtr(30),
 	}
 	room.SetTenantID(tenantID)
 
@@ -2319,9 +2283,9 @@ func CreateTestDeviceForTenant(tb testing.TB, db *bun.DB, tenantID int64, device
 	device := &iot.Device{
 		DeviceID:   uniqueDeviceID,
 		DeviceType: "terminal",
-		Name:       stringPtr("Test Device " + uniqueDeviceID),
+		Name:       StrPtr("Test Device " + uniqueDeviceID),
 		Status:     iot.DeviceStatusActive,
-		APIKey:     stringPtr("test-api-key-" + uniqueDeviceID),
+		APIKey:     StrPtr("test-api-key-" + uniqueDeviceID),
 	}
 	device.SetTenantID(tenantID)
 

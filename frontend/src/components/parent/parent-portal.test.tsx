@@ -16,14 +16,25 @@ const mocks = vi.hoisted(() => ({
   // thread list, which call these on mount; stub them so the rendered detail
   // view loads cleanly.
   listSickDays: vi.fn().mockResolvedValue([]),
+  listExcusedRequests: vi.fn().mockResolvedValue([]),
+  withdrawExcusedRequest: vi.fn(),
   listCareExceptions: vi.fn().mockResolvedValue([]),
+  // The child-care hook now also loads the weekly care schedule (for the
+  // "Heute → Abholung" tile's base time + today_absent signal); stub it so the
+  // detail view settles cleanly instead of throwing on an undefined export.
+  getChildCareSchedule: vi.fn().mockResolvedValue({
+    weekdays: [],
+    can_request: false,
+    today_absent: false,
+  }),
   listChildThreads: vi.fn().mockResolvedValue([]),
-  submitSickNote: vi.fn().mockResolvedValue([]),
+  submitSickNote: vi.fn().mockResolvedValue({ status_days: [] }),
   submitCareException: vi.fn(),
   deleteCareException: vi.fn(),
   getChildFeatures: vi.fn().mockResolvedValue({
     sick_note_enabled: true,
     notes_enabled: true,
+    excused_requires_approval: false,
     pickup_change_enabled: false,
     related_accounts_invite_enabled: false,
     related_accounts_remove_enabled: false,
@@ -60,7 +71,10 @@ vi.mock("~/lib/parent-api", () => ({
   listMyChildren: mocks.listMyChildren,
   listMyEnrollments: mocks.listMyEnrollments,
   listSickDays: mocks.listSickDays,
+  listExcusedRequests: mocks.listExcusedRequests,
+  withdrawExcusedRequest: mocks.withdrawExcusedRequest,
   listCareExceptions: mocks.listCareExceptions,
+  getChildCareSchedule: mocks.getChildCareSchedule,
   listChildThreads: mocks.listChildThreads,
   submitSickNote: mocks.submitSickNote,
   submitCareException: mocks.submitCareException,
@@ -79,6 +93,7 @@ import { ChildDetail } from "./child-detail";
 import { ParentChildrenPage } from "./parent-children-page";
 import { ParentDashboard } from "./parent-dashboard";
 import type { Child, EnrollmentRequest } from "~/lib/parent-api";
+import { todayISO } from "~/lib/date-helpers";
 
 function child(overrides: Partial<Child> = {}): Child {
   return {
@@ -242,19 +257,23 @@ describe("Parent portal components", () => {
 
     await screen.findByRole("dialog", { name: "Abmelden" });
 
-    // Switch to "Entschuldigt" and submit.
+    // Switch to "Entschuldigt". A note is now mandatory for an excused absence
+    // (issue #1845), so fill it in before submitting.
     fireEvent.click(
       screen.getByRole("combobox", { name: "Art der Abmeldung" }),
     );
     fireEvent.click(screen.getByRole("option", { name: "Entschuldigt" }));
+    fireEvent.change(document.querySelector("textarea")!, {
+      target: { value: "Zahnarzttermin" },
+    });
     fireEvent.click(screen.getByRole("button", { name: "Abmeldung senden" }));
 
-    // The hook forwards the chosen status to the API for the right child.
+    // The hook forwards the chosen status + note to the API for the right child.
     await waitFor(() =>
       expect(mocks.submitSickNote).toHaveBeenCalledWith(
         "42",
         expect.any(Array),
-        "",
+        "Zahnarzttermin",
         "excused",
       ),
     );
@@ -285,7 +304,7 @@ describe("Parent portal components", () => {
     });
     mocks.listCareExceptions.mockResolvedValueOnce([
       {
-        date: "2026-06-17",
+        date: todayISO(),
         pickup_time: "14:45",
         source: "guardian",
         updated_at: "2026-06-16T10:00:00Z",
@@ -295,17 +314,17 @@ describe("Parent portal components", () => {
     render(<ChildDetail studentId="42" />);
 
     await screen.findAllByRole("heading", { name: "Lina Muster" });
-    await waitFor(() => expect(mocks.listCareExceptions).toHaveBeenCalled());
-
-    const pickupButtons = screen.getAllByRole("button", {
-      name: /Ankunfts- und Abholzeit ändern/,
+    const enabledPickupButton = await waitFor(() => {
+      const button = screen
+        .getAllByRole("button", {
+          name: /Ankunfts- und Abholzeit ändern/,
+        })
+        .find((candidate) => !candidate.hasAttribute("disabled"));
+      if (!button) throw new Error("pickup action is still disabled");
+      return button;
     });
-    const enabledPickupButton = pickupButtons.find(
-      (button) => !button.hasAttribute("disabled"),
-    );
-    expect(enabledPickupButton).toBeTruthy();
 
-    fireEvent.click(enabledPickupButton!);
+    fireEvent.click(enabledPickupButton);
 
     expect(
       await screen.findByRole("dialog", {

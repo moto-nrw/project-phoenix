@@ -205,15 +205,3 @@ func TestPhase_Validate_RequireSchoolClassWithClassesAccepted(t *testing.T) {
 	p.AvailableSchoolClasses = []string{"2a", "2b"}
 	require.NoError(t, p.Validate())
 }
-
-func TestPhase_IsRollover(t *testing.T) {
-	mode := PhaseRolloverModeOptOut
-	src := int64(7)
-	p := validPhase()
-	p.RolloverMode = &mode
-	p.RolloverSourcePhaseID = &src
-	assert.True(t, p.IsRollover())
-
-	p2 := validPhase()
-	assert.False(t, p2.IsRollover(), "fresh phase is not a rollover")
-}

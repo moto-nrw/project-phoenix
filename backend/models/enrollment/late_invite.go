@@ -24,13 +24,10 @@ type LateInvite struct {
 	Reason            *string    `bun:"reason" json:"reason,omitempty"`
 }
 
-func (l *LateInvite) TableName() string {
-	return "enrollment.late_invites"
-}
-
 type LateInviteRepository interface {
 	Create(ctx context.Context, invite *LateInvite) error
 	FindUsableByTokenHash(ctx context.Context, tokenHash string, phaseID int64, now time.Time) (*LateInvite, error)
 	FindUsableByTokenHashForUpdate(ctx context.Context, tokenHash string, phaseID int64, now time.Time) (*LateInvite, error)
 	MarkUsed(ctx context.Context, inviteID, requestID int64, usedAt time.Time) error
+	DeleteByUsedRequestID(ctx context.Context, requestID int64) (int64, error)
 }

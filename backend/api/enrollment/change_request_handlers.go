@@ -19,6 +19,7 @@ import (
 type ChangeRequestResponse struct {
 	ID                string                         `json:"id"`
 	RequestID         string                         `json:"request_id"`
+	Origin            string                         `json:"origin"`
 	Status            string                         `json:"status"`
 	ParentNote        *string                        `json:"parent_note,omitempty"`
 	AdminDecisionNote *string                        `json:"admin_decision_note,omitempty"`
@@ -78,9 +79,9 @@ func (rs *Resource) createChangeRequest(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	serviceReq, err := buildServiceRequest(&body.SubmitEnrollmentRequest, 0, "")
+	serviceReq, err := BuildServiceRequest(&body.SubmitEnrollmentRequest, 0, "")
 	if err != nil {
-		mapSubmitError(w, r, err)
+		MapSubmitError(w, r, err)
 		return
 	}
 	agg, err := rs.ChangeRequestService.Create(r.Context(), token, enrollmentService.CreateChangeRequestInput{
@@ -262,12 +263,7 @@ func (rs *Resource) reviewChangeRequest(w http.ResponseWriter, r *http.Request, 
 }
 
 func changeRequestIDParam(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
-		return 0, false
-	}
-	return id, true
+	return common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
 }
 
 func toChangeRequestResponse(agg *enrollmentService.ChangeRequestAggregate, includeRequest bool, includeInternal bool) ChangeRequestResponse {
@@ -278,6 +274,7 @@ func toChangeRequestResponse(agg *enrollmentService.ChangeRequestAggregate, incl
 	resp := ChangeRequestResponse{
 		ID:                strconv.FormatInt(row.ID, 10),
 		RequestID:         strconv.FormatInt(row.RequestID, 10),
+		Origin:            row.Origin,
 		Status:            row.Status,
 		ParentNote:        row.ParentNote,
 		AdminDecisionNote: row.AdminDecisionNote,

@@ -6,37 +6,36 @@ import (
 	"log/slog"
 	"net"
 	"net/mail"
-	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
+	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
 const emailChangeRateLimit = 5
 
-var emailFormatRegex = regexp.MustCompile(`^[A-Za-z0-9._+%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$`)
-
 // InitiateEmailChange starts the email change flow: validates credentials,
 // creates a verification token, and dispatches emails to both old and new addresses.
 func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error {
-	if s.frontendURL == "" {
+	if s.FrontendURL == "" {
 		return fmt.Errorf("email change requires frontend_url to be configured")
 	}
-	if s.emailChangeTokenRepo == nil {
+	if s.EmailChangeTokenRepo == nil {
 		return fmt.Errorf("email change requires email_change_token_repo to be configured")
 	}
-	if s.dispatcher == nil {
+	if s.Dispatcher == nil {
 		return fmt.Errorf("email change requires email dispatcher to be configured")
 	}
 
 	// 1. Fetch operator
-	operator, err := s.operatorRepo.FindByID(ctx, operatorID)
+	operator, err := s.OperatorRepo.FindByID(ctx, operatorID)
 	if err != nil {
 		return err
 	}
@@ -69,7 +68,7 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 	newEmail = parsed.Address
 
 	// 5b. Require a real domain with TLD (ParseAddress accepts "t@t" per RFC 5322)
-	if !emailFormatRegex.MatchString(newEmail) {
+	if !userModels.IsValidEmailFormat(newEmail) {
 		return &InvalidDataError{Err: fmt.Errorf("invalid email format")}
 	}
 
@@ -99,18 +98,18 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 	// regardless of whether the address exists.
 	var emailTaken bool
 	maskedEmail := maskEmail(newEmail)
-	err = tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+	err = tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		// Lock the operator row to serialize concurrent email-change requests
 		// for the same operator. Without this, two parallel transactions under
 		// READ COMMITTED could both pass the rate-limit count and both insert,
 		// relying solely on the partial unique index for conflict detection.
-		if _, err := s.operatorRepo.FindByIDForUpdate(txCtx, operatorID); err != nil {
+		if _, err := s.OperatorRepo.FindByIDForUpdate(txCtx, operatorID); err != nil {
 			return fmt.Errorf("failed to lock operator row: %w", err)
 		}
 
 		// Rate limit FIRST — check before invalidating the active token so that
 		// a blocked request does not destroy the operator's last usable link.
-		count, err := s.emailChangeTokenRepo.CountRecentByOperatorID(txCtx, operatorID, time.Now().Add(-1*time.Hour))
+		count, err := s.EmailChangeTokenRepo.CountRecentByOperatorID(txCtx, operatorID, time.Now().Add(-1*time.Hour))
 		if err != nil {
 			return fmt.Errorf("failed to check rate limit: %w", err)
 		}
@@ -121,7 +120,7 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 		// TOCTOU guard: re-read the operator inside the transaction to detect
 		// a concurrent ChangePassword that committed between our VerifyPassword
 		// call and this point. Comparing hashes is cheap (no Argon2id needed).
-		current, err := s.operatorRepo.FindByID(txCtx, operatorID)
+		current, err := s.OperatorRepo.FindByID(txCtx, operatorID)
 		if err != nil {
 			return fmt.Errorf("failed to re-fetch operator in tx: %w", err)
 		}
@@ -133,7 +132,7 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 		// taken addresses prevents email enumeration, and doing so after the
 		// rate-limit check ensures the observable behavior (rate limit vs.
 		// success) is the same regardless of whether the address is in use.
-		existing, err := s.operatorRepo.FindByEmail(txCtx, newEmail)
+		existing, err := s.OperatorRepo.FindByEmail(txCtx, newEmail)
 		if err != nil {
 			return fmt.Errorf("failed to check email uniqueness: %w", err)
 		}
@@ -144,7 +143,7 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 
 		// Only invalidate after passing the rate limit — the old token stays
 		// usable if this request is going to be rejected anyway.
-		if err := s.emailChangeTokenRepo.InvalidateByOperatorID(txCtx, operatorID); err != nil {
+		if err := s.EmailChangeTokenRepo.InvalidateByOperatorID(txCtx, operatorID); err != nil {
 			return err
 		}
 
@@ -152,17 +151,17 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 			OperatorID: operatorID,
 			NewEmail:   newEmail,
 			Token:      uuid.Must(uuid.NewV4()).String(),
-			Expiry:     time.Now().Add(s.emailChangeExpiry),
+			Expiry:     time.Now().Add(s.EmailChangeExpiry),
 			Used:       false,
 		}
-		if err := s.emailChangeTokenRepo.Create(txCtx, token); err != nil {
+		if err := s.EmailChangeTokenRepo.Create(txCtx, token); err != nil {
 			return err
 		}
 
 		return nil
 	})
 	if err != nil {
-		if isUniqueViolation(err) {
+		if base.IsUniqueViolation(err) {
 			return &EmailChangeRateLimitError{}
 		}
 		return fmt.Errorf("failed to create email change token: %w", err)
@@ -197,7 +196,7 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 			slog.Any("error", err),
 		)
 	}
-	if err := s.auditLogRepo.Create(ctx, auditEntry); err != nil {
+	if err := s.AuditLogRepo.Create(ctx, auditEntry); err != nil {
 		s.getLogger().Error("failed to create audit log for email change initiation",
 			slog.Int64("operator_id", operatorID),
 			slog.Any("error", err),
@@ -218,7 +217,7 @@ func (s *operatorAuthService) InitiateEmailChange(ctx context.Context, operatorI
 // ConfirmEmailChange completes the email change by verifying the token and updating the operator's email.
 // Returns the new email address on success.
 func (s *operatorAuthService) ConfirmEmailChange(ctx context.Context, tokenStr string, clientIP net.IP) (string, error) {
-	if s.emailChangeTokenRepo == nil {
+	if s.EmailChangeTokenRepo == nil {
 		return "", fmt.Errorf("email change requires email_change_token_repo to be configured")
 	}
 
@@ -227,12 +226,12 @@ func (s *operatorAuthService) ConfirmEmailChange(ctx context.Context, tokenStr s
 	var operatorID int64
 	var displayName string
 
-	err := tenant.WithAdminTx(ctx, s.db, func(txCtx context.Context, _ bun.Tx) error {
+	err := tenant.WithAdminTx(ctx, s.DB, func(txCtx context.Context, _ bun.Tx) error {
 		// a. Atomically consume the token (UPDATE ... WHERE used = FALSE RETURNING *).
 		// Only one concurrent transaction can succeed — the loser sees zero rows
 		// and gets EmailChangeTokenInvalidError. If a later step fails, the entire
 		// transaction rolls back and the token remains unconsumed.
-		token, err := s.emailChangeTokenRepo.ConsumeByToken(txCtx, tokenStr)
+		token, err := s.EmailChangeTokenRepo.ConsumeByToken(txCtx, tokenStr)
 		if err != nil {
 			return fmt.Errorf("failed to consume email change token: %w", err)
 		}
@@ -241,7 +240,7 @@ func (s *operatorAuthService) ConfirmEmailChange(ctx context.Context, tokenStr s
 		}
 
 		// b. Re-check email uniqueness (race condition guard)
-		existing, err := s.operatorRepo.FindByEmail(txCtx, token.NewEmail)
+		existing, err := s.OperatorRepo.FindByEmail(txCtx, token.NewEmail)
 		if err != nil {
 			return fmt.Errorf("failed to check email uniqueness: %w", err)
 		}
@@ -250,7 +249,7 @@ func (s *operatorAuthService) ConfirmEmailChange(ctx context.Context, tokenStr s
 		}
 
 		// c. Fetch operator
-		operator, err := s.operatorRepo.FindByID(txCtx, token.OperatorID)
+		operator, err := s.OperatorRepo.FindByID(txCtx, token.OperatorID)
 		if err != nil {
 			return fmt.Errorf("failed to find operator: %w", err)
 		}
@@ -271,8 +270,8 @@ func (s *operatorAuthService) ConfirmEmailChange(ctx context.Context, tokenStr s
 		// f+g. Update and persist email
 		newEmail = token.NewEmail
 		operator.Email = token.NewEmail
-		if err := s.operatorRepo.Update(txCtx, operator); err != nil {
-			if isUniqueViolation(err) {
+		if err := s.OperatorRepo.Update(txCtx, operator); err != nil {
+			if base.IsUniqueViolation(err) {
 				return &EmailAlreadyInUseError{}
 			}
 			return fmt.Errorf("failed to update operator email: %w", err)
@@ -301,7 +300,7 @@ func (s *operatorAuthService) ConfirmEmailChange(ctx context.Context, tokenStr s
 			slog.Any("error", err),
 		)
 	}
-	if err := s.auditLogRepo.Create(ctx, auditEntry); err != nil {
+	if err := s.AuditLogRepo.Create(ctx, auditEntry); err != nil {
 		s.getLogger().Error("failed to create audit log for email change confirmation",
 			slog.Int64("operator_id", operatorID),
 			slog.Any("error", err),
@@ -319,11 +318,11 @@ func (s *operatorAuthService) ConfirmEmailChange(ctx context.Context, tokenStr s
 // CleanupExpiredEmailChangeTokens marks expired tokens as used (freeing the
 // unique index so operators can request new links), then deletes stale rows.
 func (s *operatorAuthService) CleanupExpiredEmailChangeTokens(ctx context.Context) (int, error) {
-	if s.emailChangeTokenRepo == nil {
+	if s.EmailChangeTokenRepo == nil {
 		return 0, nil
 	}
 
-	invalidated, err := s.emailChangeTokenRepo.InvalidateExpiredTokens(ctx)
+	invalidated, err := s.EmailChangeTokenRepo.InvalidateExpiredTokens(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("failed to invalidate expired tokens: %w", err)
 	}
@@ -333,11 +332,11 @@ func (s *operatorAuthService) CleanupExpiredEmailChangeTokens(ctx context.Contex
 		)
 	}
 
-	return s.emailChangeTokenRepo.DeleteStaleTokens(ctx)
+	return s.EmailChangeTokenRepo.DeleteStaleTokens(ctx)
 }
 
 func (s *operatorAuthService) dispatchVerificationEmail(ctx context.Context, token *platform.OperatorEmailChangeToken, newEmail string) {
-	if s.dispatcher == nil {
+	if s.Dispatcher == nil {
 		s.getLogger().Warn("email dispatcher unavailable, skipping email change verification",
 			slog.Int64("operator_id", token.OperatorID),
 		)
@@ -348,17 +347,17 @@ func (s *operatorAuthService) dispatchVerificationEmail(ctx context.Context, tok
 	// which preserves query params via nextUrl.search. The client strips the
 	// token from the URL on mount via history.replaceState, so any Referer
 	// from subsequent navigations on this page carries no token.
-	verifyURL := fmt.Sprintf("%s/operator/email-confirm?token=%s", s.frontendURL, token.Token)
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.frontendURL)
+	verifyURL := fmt.Sprintf("%s/operator/email-confirm?token=%s", s.FrontendURL, token.Token)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL)
 
 	message := email.Message{
-		From:     s.defaultFrom,
+		From:     s.DefaultFrom,
 		To:       email.NewEmail("", newEmail),
 		Subject:  "E-Mail-Adresse bestätigen",
 		Template: "operator-email-change-verify.html",
 		Content: map[string]any{
 			"VerifyURL":     verifyURL,
-			"ExpiryMinutes": int(s.emailChangeExpiry.Minutes()),
+			"ExpiryMinutes": int(s.EmailChangeExpiry.Minutes()),
 			"LogoURL":       logoURL,
 		},
 	}
@@ -372,7 +371,7 @@ func (s *operatorAuthService) dispatchVerificationEmail(ctx context.Context, tok
 
 	baseRetry := token.EmailRetryCount
 
-	s.dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
+	s.Dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      meta,
 		BackoffPolicy: []time.Duration{1 * time.Second, 5 * time.Second, 15 * time.Second},
@@ -384,17 +383,17 @@ func (s *operatorAuthService) dispatchVerificationEmail(ctx context.Context, tok
 }
 
 func (s *operatorAuthService) dispatchNotificationEmail(ctx context.Context, operator *platform.Operator, maskedNewEmail string) {
-	if s.dispatcher == nil {
+	if s.Dispatcher == nil {
 		s.getLogger().Warn("email dispatcher unavailable, skipping email change notification",
 			slog.Int64("operator_id", operator.ID),
 		)
 		return
 	}
 
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.frontendURL)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL)
 
 	message := email.Message{
-		From:     s.defaultFrom,
+		From:     s.DefaultFrom,
 		To:       email.NewEmail(operator.DisplayName, operator.Email),
 		Subject:  "E-Mail-Änderung angefordert",
 		Template: "operator-email-change-notify.html",
@@ -405,7 +404,7 @@ func (s *operatorAuthService) dispatchNotificationEmail(ctx context.Context, ope
 		},
 	}
 
-	s.dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
+	s.Dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      email.DeliveryMetadata{Recipient: operator.Email},
 		BackoffPolicy: []time.Duration{1 * time.Second, 5 * time.Second, 15 * time.Second},
@@ -415,14 +414,14 @@ func (s *operatorAuthService) dispatchNotificationEmail(ctx context.Context, ope
 }
 
 func (s *operatorAuthService) dispatchChangeConfirmedEmail(ctx context.Context, oldEmail, displayName string) {
-	if s.dispatcher == nil {
+	if s.Dispatcher == nil {
 		return
 	}
 
-	logoURL := fmt.Sprintf("%s/images/moto_transparent.png", s.frontendURL)
+	logoURL := fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL)
 
 	message := email.Message{
-		From:     s.defaultFrom,
+		From:     s.DefaultFrom,
 		To:       email.NewEmail(displayName, oldEmail),
 		Subject:  "E-Mail-Adresse wurde geändert",
 		Template: "operator-email-change-confirmed.html",
@@ -432,7 +431,7 @@ func (s *operatorAuthService) dispatchChangeConfirmedEmail(ctx context.Context, 
 		},
 	}
 
-	s.dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
+	s.Dispatcher.Dispatch(context.WithoutCancel(ctx), email.DeliveryRequest{
 		Message:       message,
 		Metadata:      email.DeliveryMetadata{Recipient: oldEmail},
 		BackoffPolicy: []time.Duration{1 * time.Second, 5 * time.Second, 15 * time.Second},
@@ -454,7 +453,7 @@ func (s *operatorAuthService) persistEmailChangeDelivery(ctx context.Context, me
 		errText = &msg
 	}
 
-	if err := s.emailChangeTokenRepo.UpdateDeliveryResult(ctx, meta.ReferenceID, sentAt, errText, retryCount); err != nil {
+	if err := s.EmailChangeTokenRepo.UpdateDeliveryResult(ctx, meta.ReferenceID, sentAt, errText, retryCount); err != nil {
 		s.getLogger().Error("failed to update email change delivery status",
 			slog.Int64("token_id", meta.ReferenceID),
 			slog.Any("error", err),

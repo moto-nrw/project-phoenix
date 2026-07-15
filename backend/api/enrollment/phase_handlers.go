@@ -9,7 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -272,14 +271,13 @@ func (rs *Resource) getPhase(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
 	var phase *enrollmentModels.Phase
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		p, e := rs.PhaseService.GetByID(ctx, id)
 		phase = p
 		return e
@@ -318,108 +316,118 @@ func (rs *Resource) createPhase(w http.ResponseWriter, r *http.Request) {
 		return e
 	})
 	if err != nil {
-		if errors.Is(err, enrollmentService.ErrPhaseDuplicateName) {
-			common.RenderError(w, r, common.ErrorConflict(err))
-			return
-		}
-		if errors.Is(err, enrollmentService.ErrInvalidPhase) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, phaseWriteErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toPhaseResponse(created), "Phase created")
 }
 
-func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
-	if rs.PhaseService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
+// updateWithRefetch is the shared decode -> update -> refetch -> respond body
+// of updatePhase and updateCareOffering. decode binds the request and maps it
+// to the update model; both bind and mapping failures render as 400. updateErr
+// maps an update() failure to its HTTP error (sentinel-based status dispatch
+// lives at the call site).
+func updateWithRefetch[M, E any](rs *Resource, w http.ResponseWriter, r *http.Request,
+	serviceMissing bool, missingMsg string,
+	decode func(r *http.Request, id int64) (M, error),
+	update func(ctx context.Context, model M) error,
+	refetch func(ctx context.Context, id int64) (E, error),
+	toResponse func(E) any, successMsg string,
+	updateErr func(error) render.Renderer,
+) {
+	if serviceMissing {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(missingMsg)))
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
-	req := &PhaseRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	model, err := req.toModel(id)
+	model, err := decode(r, id)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
-	// A stale client (pre-#1833) omits the concrete-class fields entirely.
-	// Update replaces the whole row, so without this a partial update would
-	// silently wipe the admin's class pick list / mandatory toggle. Re-hydrate
-	// any omitted field from the stored phase before persisting.
-	if req.AvailableSchoolClasses == nil || req.RequireSchoolClass == nil {
-		var existing *enrollmentModels.Phase
-		if fetchErr := rs.runInTenantTx(r, func(ctx context.Context) error {
-			p, e := rs.PhaseService.GetByID(ctx, id)
-			existing = p
-			return e
-		}); fetchErr != nil {
-			if errors.Is(fetchErr, enrollmentService.ErrPhaseNotFound) {
-				common.RenderError(w, r, common.ErrorNotFound(fetchErr))
-				return
+	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+		return update(ctx, model)
+	})
+	if err != nil {
+		common.RenderError(w, r, updateErr(err))
+		return
+	}
+
+	// Refetch so the response carries DB-managed timestamps + applied
+	// defaults (e.g. care_overflow_mode normalisation in Validate).
+	var refreshed E
+	if fetchErr := rs.runInTenantTx(r, func(ctx context.Context) error {
+		e, err := refetch(ctx, id)
+		refreshed = e
+		return err
+	}); fetchErr != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(fetchErr))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, toResponse(refreshed), successMsg)
+}
+
+// phaseWriteErrorRenderer maps phase create/update failures onto their HTTP
+// status: duplicate name -> 409, missing phase -> 404, validation -> 400,
+// everything else -> 500.
+func phaseWriteErrorRenderer(err error) render.Renderer {
+	switch {
+	case errors.Is(err, enrollmentService.ErrPhaseDuplicateName):
+		return common.ErrorConflict(err)
+	case errors.Is(err, enrollmentService.ErrPhaseCareOfferingConflict):
+		return common.ErrorConflict(err)
+	case errors.Is(err, enrollmentService.ErrPhaseNotFound):
+		return common.ErrorNotFound(err)
+	case errors.Is(err, enrollmentService.ErrInvalidPhase):
+		return common.ErrorInvalidRequest(err)
+	default:
+		return common.ErrorInternalServer(err)
+	}
+}
+
+func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
+	req := &PhaseRequest{}
+	updateWithRefetch(rs, w, r, rs.PhaseService == nil, "phase service not configured",
+		func(r *http.Request, id int64) (*enrollmentModels.Phase, error) {
+			if err := render.Bind(r, req); err != nil {
+				return nil, err
 			}
-			common.RenderError(w, r, common.ErrorInternalServer(fetchErr))
-			return
-		}
-		if existing != nil {
+			return req.toModel(id)
+		},
+		func(ctx context.Context, model *enrollmentModels.Phase) error {
+			// A PUT without calendar_period_id keeps the stored link; only an
+			// explicit null (or value) changes it. The fetch also surfaces
+			// ErrPhaseNotFound before the update runs.
+			existing, getErr := rs.PhaseService.GetByID(ctx, model.ID)
+			if getErr != nil {
+				return getErr
+			}
+			if !req.calendarPeriodIDPresent {
+				model.CalendarPeriodID = existing.CalendarPeriodID
+			}
+			// A stale client (pre-#1833) omits the concrete-class fields
+			// entirely. Update replaces the whole row, so without this a
+			// partial update would silently wipe the admin's class pick
+			// list / mandatory toggle. Re-hydrate any omitted field from
+			// the stored phase before persisting.
 			if req.AvailableSchoolClasses == nil {
 				model.AvailableSchoolClasses = existing.AvailableSchoolClasses
 			}
 			if req.RequireSchoolClass == nil {
 				model.RequireSchoolClass = existing.RequireSchoolClass
 			}
-		}
-	}
-
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
-		existing, getErr := rs.PhaseService.GetByID(ctx, id)
-		if getErr != nil {
-			return getErr
-		}
-		if !req.calendarPeriodIDPresent {
-			model.CalendarPeriodID = existing.CalendarPeriodID
-		}
-		return rs.PhaseService.Update(ctx, model)
-	})
-	if err != nil {
-		if errors.Is(err, enrollmentService.ErrPhaseDuplicateName) {
-			common.RenderError(w, r, common.ErrorConflict(err))
-			return
-		}
-		if errors.Is(err, enrollmentService.ErrPhaseNotFound) {
-			common.RenderError(w, r, common.ErrorNotFound(err))
-			return
-		}
-		if errors.Is(err, enrollmentService.ErrInvalidPhase) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	// Refetch so the response carries DB-managed timestamps + applied
-	// defaults (e.g. care_overflow_mode normalisation in Validate).
-	var refreshed *enrollmentModels.Phase
-	if fetchErr := rs.runInTenantTx(r, func(ctx context.Context) error {
-		p, e := rs.PhaseService.GetByID(ctx, id)
-		refreshed = p
-		return e
-	}); fetchErr != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fetchErr))
-		return
-	}
-	common.Respond(w, r, http.StatusOK, toPhaseResponse(refreshed), "Phase updated")
+			return rs.PhaseService.Update(ctx, model)
+		},
+		func(ctx context.Context, id int64) (*enrollmentModels.Phase, error) {
+			return rs.PhaseService.GetByID(ctx, id)
+		},
+		func(p *enrollmentModels.Phase) any { return toPhaseResponse(p) },
+		"Phase updated",
+		phaseWriteErrorRenderer)
 }
 
 func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {
@@ -427,13 +435,12 @@ func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		return rs.PhaseService.Delete(ctx, id)
 	})
 	if err != nil {
@@ -461,14 +468,13 @@ func (rs *Resource) getPhaseDeleteImpact(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("phase service not configured")))
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 
 	var impact *enrollmentService.PhaseDeleteImpact
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		i, e := rs.PhaseService.DeleteImpact(ctx, id)
 		impact = i
 		return e

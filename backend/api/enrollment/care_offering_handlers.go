@@ -21,27 +21,54 @@ import (
 // CareOfferingResponse is the wire shape for a single offering. IDs
 // stringified so the frontend keeps its int64-as-string convention.
 type CareOfferingResponse struct {
-	ID                  string    `json:"id"`
-	PhaseID             string    `json:"phase_id"`
-	ActivityGroupID     *string   `json:"activity_group_id,omitempty"`
-	Name                string    `json:"name"`
-	Description         *string   `json:"description,omitempty"`
-	DaysOfWeekMode      string    `json:"days_of_week_mode"`
-	AvailableDays       []string  `json:"available_days"`
-	IncludesHolidayCare bool      `json:"includes_holiday_care"`
-	IncludesLunch       bool      `json:"includes_lunch"`
-	Capacity            *int      `json:"capacity,omitempty"`
-	PriceCents          *int      `json:"price_cents,omitempty"`
-	IsActive            bool      `json:"is_active"`
-	IsRequired          bool      `json:"is_required"`
-	CountsAsCare        bool      `json:"counts_as_care"`
-	AutoAddGradeLevels  []int     `json:"auto_add_grade_levels"`
-	AutoAddTriggerIDs   []string  `json:"auto_add_trigger_offering_ids"`
-	SortOrder           int       `json:"sort_order"`
-	SelectionGroup      string    `json:"selection_group,omitempty"`
-	SelectionRule       string    `json:"selection_rule"`
-	CreatedAt           time.Time `json:"created_at"`
-	UpdatedAt           time.Time `json:"updated_at"`
+	ID                  string                                         `json:"id"`
+	PhaseID             string                                         `json:"phase_id"`
+	ActivityGroupID     *string                                        `json:"activity_group_id,omitempty"`
+	Name                string                                         `json:"name"`
+	Description         *string                                        `json:"description,omitempty"`
+	DaysOfWeekMode      string                                         `json:"days_of_week_mode"`
+	AvailableDays       []string                                       `json:"available_days"`
+	IncludesHolidayCare bool                                           `json:"includes_holiday_care"`
+	IncludesLunch       bool                                           `json:"includes_lunch"`
+	Capacity            *int                                           `json:"capacity,omitempty"`
+	PriceCents          *int                                           `json:"price_cents,omitempty"`
+	IsActive            bool                                           `json:"is_active"`
+	IsRequired          bool                                           `json:"is_required"`
+	CountsAsCare        bool                                           `json:"counts_as_care"`
+	AutoAddGradeLevels  []int                                          `json:"auto_add_grade_levels"`
+	AvailabilityRule    *enrollmentModels.CareOfferingAvailabilityRule `json:"availability_rule,omitempty"`
+	AutoAddTriggerIDs   []string                                       `json:"auto_add_trigger_offering_ids"`
+	SortOrder           int                                            `json:"sort_order"`
+	SelectionGroup      string                                         `json:"selection_group,omitempty"`
+	SelectionRule       string                                         `json:"selection_rule"`
+	CreatedAt           time.Time                                      `json:"created_at"`
+	UpdatedAt           time.Time                                      `json:"updated_at"`
+}
+
+// ErrCodeCareOfferingTemplatePeriodMismatch lets the admin frontend map the
+// authoritative service validation to a localized explanation.
+const ErrCodeCareOfferingTemplatePeriodMismatch = "enrollment.care_offering_template_period_mismatch"
+
+// ErrCodeCareOfferingInUse identifies a delete blocked by existing enrollment
+// selections without exposing PostgreSQL constraint names to the client.
+const ErrCodeCareOfferingInUse = "enrollment.care_offering_in_use"
+
+// ErrCodeCareOfferingDaysRequired identifies a save without any weekday so
+// the admin editor can show a localized message (#1885).
+const ErrCodeCareOfferingDaysRequired = "enrollment.care_offering_days_required"
+
+func careOfferingWriteErrorRenderer(err error) render.Renderer {
+	switch {
+	case errors.Is(err, enrollmentService.ErrCareOfferingTemplatePeriodMismatch):
+		return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingTemplatePeriodMismatch)
+	case errors.Is(err, enrollmentModels.ErrCareOfferingDaysRequired):
+		return common.ErrorInvalidRequestWithCode(err, ErrCodeCareOfferingDaysRequired)
+	case errors.Is(err, enrollmentService.ErrCareOfferingInvalid),
+		errors.Is(err, enrollmentService.ErrCareOfferingGroupRuleConflict):
+		return common.ErrorInvalidRequest(err)
+	default:
+		return common.ErrorInternalServerWrap("care offering operation failed", err)
+	}
 }
 
 func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingResponse {
@@ -60,6 +87,7 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 		IsRequired:          o.IsRequired,
 		CountsAsCare:        o.CountsAsCare,
 		AutoAddGradeLevels:  o.AutoAddGradeLevels,
+		AvailabilityRule:    o.AvailabilityRule,
 		AutoAddTriggerIDs:   make([]string, 0, len(o.AutoAddTriggerOfferingIDs)),
 		SortOrder:           o.SortOrder,
 		SelectionGroup:      o.SelectionGroup,
@@ -79,24 +107,25 @@ func toCareOfferingResponse(o *enrollmentModels.CareOffering) CareOfferingRespon
 
 // CareOfferingRequest is the wire shape POST + PUT accept.
 type CareOfferingRequest struct {
-	PhaseID             int64    `json:"phase_id"`
-	ActivityGroupID     *int64   `json:"activity_group_id,omitempty"`
-	Name                string   `json:"name"`
-	Description         *string  `json:"description,omitempty"`
-	DaysOfWeekMode      string   `json:"days_of_week_mode"`
-	AvailableDays       []string `json:"available_days"`
-	IncludesHolidayCare bool     `json:"includes_holiday_care"`
-	IncludesLunch       bool     `json:"includes_lunch"`
-	Capacity            *int     `json:"capacity,omitempty"`
-	PriceCents          *int     `json:"price_cents,omitempty"`
-	IsActive            bool     `json:"is_active"`
-	IsRequired          bool     `json:"is_required"`
-	CountsAsCare        *bool    `json:"counts_as_care"`
-	AutoAddGradeLevels  []int    `json:"auto_add_grade_levels"`
-	AutoAddTriggerIDs   []string `json:"auto_add_trigger_offering_ids"`
-	SortOrder           int      `json:"sort_order"`
-	SelectionGroup      string   `json:"selection_group,omitempty"`
-	SelectionRule       string   `json:"selection_rule,omitempty"`
+	PhaseID             int64                                          `json:"phase_id"`
+	ActivityGroupID     *int64                                         `json:"activity_group_id,omitempty"`
+	Name                string                                         `json:"name"`
+	Description         *string                                        `json:"description,omitempty"`
+	DaysOfWeekMode      string                                         `json:"days_of_week_mode"`
+	AvailableDays       []string                                       `json:"available_days"`
+	IncludesHolidayCare bool                                           `json:"includes_holiday_care"`
+	IncludesLunch       bool                                           `json:"includes_lunch"`
+	Capacity            *int                                           `json:"capacity,omitempty"`
+	PriceCents          *int                                           `json:"price_cents,omitempty"`
+	IsActive            bool                                           `json:"is_active"`
+	IsRequired          bool                                           `json:"is_required"`
+	CountsAsCare        *bool                                          `json:"counts_as_care"`
+	AutoAddGradeLevels  []int                                          `json:"auto_add_grade_levels"`
+	AvailabilityRule    *enrollmentModels.CareOfferingAvailabilityRule `json:"availability_rule,omitempty"`
+	AutoAddTriggerIDs   []string                                       `json:"auto_add_trigger_offering_ids"`
+	SortOrder           int                                            `json:"sort_order"`
+	SelectionGroup      string                                         `json:"selection_group,omitempty"`
+	SelectionRule       string                                         `json:"selection_rule,omitempty"`
 }
 
 // Bind satisfies render.Binder. Field-level validation runs in the
@@ -139,6 +168,7 @@ func (req *CareOfferingRequest) toModel(existingID int64) (*enrollmentModels.Car
 		CountsAsCare:              countsAsCare,
 		CountsAsCareSet:           true,
 		AutoAddGradeLevels:        req.AutoAddGradeLevels,
+		AvailabilityRule:          req.AvailabilityRule,
 		SortOrder:                 req.SortOrder,
 		SelectionGroup:            req.SelectionGroup,
 		SelectionRule:             req.SelectionRule,
@@ -174,6 +204,15 @@ func (rs *Resource) listCareOfferings(w http.ResponseWriter, r *http.Request) {
 	}
 
 	phaseFilter := r.URL.Query().Get("phase_id")
+	var phaseID int64
+	if phaseFilter != "" {
+		var parseErr error
+		phaseID, parseErr = strconv.ParseInt(phaseFilter, 10, 64)
+		if parseErr != nil || phaseID <= 0 {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid phase_id")))
+			return
+		}
+	}
 	var (
 		offerings []*enrollmentModels.CareOffering
 		err       error
@@ -181,18 +220,14 @@ func (rs *Resource) listCareOfferings(w http.ResponseWriter, r *http.Request) {
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		var listErr error
 		if phaseFilter != "" {
-			id, parseErr := strconv.ParseInt(phaseFilter, 10, 64)
-			if parseErr != nil || id <= 0 {
-				return errors.New("invalid phase_id")
-			}
-			offerings, listErr = rs.CareOfferingService.ListByPhase(ctx, id)
+			offerings, listErr = rs.CareOfferingService.ListByPhase(ctx, phaseID)
 			return listErr
 		}
 		offerings, listErr = rs.CareOfferingService.List(ctx)
 		return listErr
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("list care offerings failed", err))
 		return
 	}
 
@@ -208,19 +243,22 @@ func (rs *Resource) getCareOffering(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 	var offering *enrollmentModels.CareOffering
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		o, e := rs.CareOfferingService.GetByID(ctx, id)
 		offering = o
 		return e
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorNotFound(err))
+		if errors.Is(err, enrollmentService.ErrCareOfferingNotFound) {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load care offering failed", err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toCareOfferingResponse(offering), "Care offering retrieved")
@@ -249,52 +287,30 @@ func (rs *Resource) createCareOffering(w http.ResponseWriter, r *http.Request) {
 		return e
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, careOfferingWriteErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toCareOfferingResponse(offering), "Care offering created")
 }
 
 func (rs *Resource) updateCareOffering(w http.ResponseWriter, r *http.Request) {
-	if rs.CareOfferingService == nil {
-		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
-		return
-	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
-		return
-	}
-	req := &CareOfferingRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	model, err := req.toModel(id)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
-		return rs.CareOfferingService.Update(ctx, model)
-	})
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-
-	// Refetch so the response reflects DB-side timestamps.
-	var refreshed *enrollmentModels.CareOffering
-	if fetchErr := rs.runInTenantTx(r, func(ctx context.Context) error {
-		o, e := rs.CareOfferingService.GetByID(ctx, id)
-		refreshed = o
-		return e
-	}); fetchErr != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fetchErr))
-		return
-	}
-	common.Respond(w, r, http.StatusOK, toCareOfferingResponse(refreshed), "Care offering updated")
+	updateWithRefetch(rs, w, r, rs.CareOfferingService == nil, "care offering service not configured",
+		func(r *http.Request, id int64) (*enrollmentModels.CareOffering, error) {
+			req := &CareOfferingRequest{}
+			if err := render.Bind(r, req); err != nil {
+				return nil, err
+			}
+			return req.toModel(id)
+		},
+		func(ctx context.Context, model *enrollmentModels.CareOffering) error {
+			return rs.CareOfferingService.Update(ctx, model)
+		},
+		func(ctx context.Context, id int64) (*enrollmentModels.CareOffering, error) {
+			return rs.CareOfferingService.GetByID(ctx, id)
+		},
+		func(o *enrollmentModels.CareOffering) any { return toCareOfferingResponse(o) },
+		"Care offering updated",
+		careOfferingWriteErrorRenderer)
 }
 
 func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {
@@ -302,18 +318,29 @@ func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
 		return
 	}
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || id <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	id, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		return rs.CareOfferingService.Delete(ctx, id)
 	})
 	if err != nil {
 		// FK violation when request_child_offerings already references
 		// this offering — admin should soft-delete (is_active=false).
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		if common.IsConstraintViolation(err) {
+			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
+				//nolint:staticcheck // ST1005: user-facing German message
+				errors.New("Das Betreuungsangebot wird bereits verwendet und kann nicht gelöscht werden. Deaktivieren Sie es stattdessen."),
+				ErrCodeCareOfferingInUse,
+			))
+			return
+		}
+		if errors.Is(err, enrollmentService.ErrCareOfferingInvalid) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("delete care offering failed", err))
 		return
 	}
 	common.RespondNoContent(w, r)
@@ -324,9 +351,8 @@ func (rs *Resource) cloneCareOffering(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("care offering service not configured")))
 		return
 	}
-	sourceID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil || sourceID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid id")))
+	sourceID, ok := common.ParsePositiveInt64IDWithError(w, r, "id", "invalid id")
+	if !ok {
 		return
 	}
 	req := &CloneCareOfferingRequest{}
@@ -336,13 +362,13 @@ func (rs *Resource) cloneCareOffering(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var clone *enrollmentModels.CareOffering
-	err = rs.runInTenantTx(r, func(ctx context.Context) error {
+	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		c, e := rs.CareOfferingService.Clone(ctx, sourceID, req.TargetPhaseID)
 		clone = c
 		return e
 	})
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		common.RenderError(w, r, careOfferingWriteErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toCareOfferingResponse(clone), "Care offering cloned")
@@ -368,9 +394,8 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
 		return
 	}
-	phaseID, err := strconv.ParseInt(chi.URLParam(r, "phaseId"), 10, 64)
-	if err != nil || phaseID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phaseId is required")))
+	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "phaseId", "phaseId is required")
+	if !ok {
 		return
 	}
 
@@ -378,6 +403,7 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 		offerings      []*enrollmentModels.CareOffering
 		selectionMode  = enrollmentModels.PhaseCareOfferingSelectionOptional
 		schoolClassCfg PublicSchoolClassConfig
+		capabilities   enrollmentService.FormCapabilities
 		classErr       error
 	)
 	lateInviteToken := lateInviteTokenFromRequest(r)
@@ -394,15 +420,20 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 				return phaseErr
 			}
 			selectionMode = phase.CareOfferingSelectionMode
-			collectClasses, collectErr := rs.RequestService.CollectsSchoolClass(txCtx)
-			if collectErr != nil {
+			resolvedCapabilities, capabilityErr := rs.RequestService.FormCapabilities(txCtx)
+			if capabilityErr != nil {
 				// A settings-resolution failure (corrupt override, repo
 				// error) is a server problem, not "not found" — flag it so
 				// the outer handler returns 500 instead of a misleading 404.
-				classErr = collectErr
-				return collectErr
+				classErr = capabilityErr
+				return capabilityErr
 			}
-			schoolClassCfg = toPublicSchoolClassConfig(phase, collectClasses)
+			capabilities = resolvedCapabilities
+			schoolClassCfg = toPublicSchoolClassConfig(phase, capabilities.CollectSchoolClass)
+			if !capabilities.CareOfferingsEnabled {
+				offerings = []*enrollmentModels.CareOffering{}
+				return nil
+			}
 			list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
 			offerings = list
 			return listErr
@@ -421,11 +452,14 @@ func (rs *Resource) listPublicCareOfferings(w http.ResponseWriter, r *http.Reque
 	for _, o := range offerings {
 		items = append(items, toCareOfferingResponse(o))
 	}
+	capabilities = enrollmentService.EffectiveFormCapabilities(capabilities, offerings)
 	common.Respond(w, r, http.StatusOK, PublicCareOfferingsResponse{
 		Offerings:                 items,
-		CareOfferingSelectionMode: selectionMode,
-		CareRequired:              selectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
+		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(selectionMode, capabilities.CareOfferingsEnabled),
+		CareRequired:              capabilities.CareOfferingsEnabled && selectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
 		SchoolClass:               schoolClassCfg,
+		CollectGradeLevel:         capabilities.CollectGradeLevel,
+		CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
 	}, "Public care offerings retrieved")
 }
 
@@ -477,6 +511,8 @@ type PublicCareOfferingsResponse struct {
 	CareOfferingSelectionMode string                  `json:"care_offering_selection_mode"`
 	CareRequired              bool                    `json:"care_required"`
 	SchoolClass               PublicSchoolClassConfig `json:"school_class"`
+	CollectGradeLevel         bool                    `json:"collect_grade_level"`
+	CareOfferingsEnabled      bool                    `json:"care_offerings_enabled"`
 }
 
 type PublicEnrollmentFormBootstrapResponse struct {
@@ -486,6 +522,8 @@ type PublicEnrollmentFormBootstrapResponse struct {
 	CareOfferingSelectionMode string                      `json:"care_offering_selection_mode"`
 	CareRequired              bool                        `json:"care_required"`
 	SchoolClass               PublicSchoolClassConfig     `json:"school_class"`
+	CollectGradeLevel         bool                        `json:"collect_grade_level"`
+	CareOfferingsEnabled      bool                        `json:"care_offerings_enabled"`
 	CaptchaConfig             PublicCaptchaConfigResponse `json:"captcha_config"`
 	LegalTexts                PublicLegalTextsResponse    `json:"legal_texts"`
 }
@@ -512,6 +550,13 @@ func toPublicSchoolClassConfig(phase *enrollmentModels.Phase, collect bool) Publ
 		AvailableClasses: classes,
 		Require:          phase.RequireSchoolClass,
 	}
+}
+
+func effectiveCareOfferingSelectionMode(mode string, enabled bool) string {
+	if !enabled {
+		return enrollmentModels.PhaseCareOfferingSelectionOptional
+	}
+	return mode
 }
 
 // We deliberately don't expose enrollmentService here — it is already
@@ -575,21 +620,20 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tenant slug is required")))
 		return
 	}
-	phaseID, err := strconv.ParseInt(chi.URLParam(r, "phaseId"), 10, 64)
-	if err != nil || phaseID <= 0 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("phaseId is required")))
+	phaseID, ok := common.ParsePositiveInt64IDWithError(w, r, "phaseId", "phaseId is required")
+	if !ok {
 		return
 	}
 
 	var (
-		phase          *enrollmentModels.Phase
-		schema         *enrollmentModels.FormSchema
-		offerings      []*enrollmentModels.CareOffering
-		texts          enrollmentService.LegalTexts
-		captcha        PublicCaptchaConfigResponse
-		collectClasses bool
-		classErr       error
-		legalErr       error
+		phase        *enrollmentModels.Phase
+		schema       *enrollmentModels.FormSchema
+		offerings    []*enrollmentModels.CareOffering
+		texts        enrollmentService.LegalTexts
+		captcha      PublicCaptchaConfigResponse
+		capabilities enrollmentService.FormCapabilities
+		classErr     error
+		legalErr     error
 	)
 	lateInviteToken := lateInviteTokenFromRequest(r)
 	schoolID, resolveErr := rs.resolvePublicTenantID(r.Context(), slug)
@@ -602,14 +646,14 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 				return phaseErr
 			}
 			phase = loadedPhase
-			resolvedCollectClasses, collectErr := rs.RequestService.CollectsSchoolClass(txCtx)
-			if collectErr != nil {
+			resolvedCapabilities, capabilityErr := rs.RequestService.FormCapabilities(txCtx)
+			if capabilityErr != nil {
 				// Settings-resolution failure is a server problem, not "not
 				// found" — flag it so the outer handler returns 500.
-				classErr = collectErr
-				return collectErr
+				classErr = capabilityErr
+				return capabilityErr
 			}
-			collectClasses = resolvedCollectClasses
+			capabilities = resolvedCapabilities
 			if phase.FormSchemaID != nil {
 				if rs.FormSchemaService == nil {
 					return errors.New("form schema service not configured")
@@ -624,11 +668,15 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 					schema = loadedSchema
 				}
 			}
-			list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
-			if listErr != nil {
-				return listErr
+			if capabilities.CareOfferingsEnabled {
+				list, listErr := rs.CareOfferingService.ListActiveByPhase(txCtx, phaseID)
+				if listErr != nil {
+					return listErr
+				}
+				offerings = list
+			} else {
+				offerings = []*enrollmentModels.CareOffering{}
 			}
-			offerings = list
 			captcha.Enabled = rs.CaptchaService.IsEnabled(txCtx)
 			captcha.SiteKey = rs.CaptchaService.SiteKey(txCtx)
 			legalTexts, legalTextErr := rs.RequestService.LegalTextsForPhaseWithLateInvite(txCtx, phaseID, lateInviteToken)
@@ -662,13 +710,16 @@ func (rs *Resource) publicFormBootstrap(w http.ResponseWriter, r *http.Request) 
 	for _, o := range offerings {
 		items = append(items, toCareOfferingResponse(o))
 	}
+	capabilities = enrollmentService.EffectiveFormCapabilities(capabilities, offerings)
 	common.Respond(w, r, http.StatusOK, PublicEnrollmentFormBootstrapResponse{
 		Phase:                     toPublicPhase(phase),
 		Schema:                    toPublicFormSchemaResponse(schema),
 		Offerings:                 items,
-		CareOfferingSelectionMode: phase.CareOfferingSelectionMode,
-		CareRequired:              phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
-		SchoolClass:               toPublicSchoolClassConfig(phase, collectClasses),
+		CareOfferingSelectionMode: effectiveCareOfferingSelectionMode(phase.CareOfferingSelectionMode, capabilities.CareOfferingsEnabled),
+		CareRequired:              capabilities.CareOfferingsEnabled && phase.CareOfferingSelectionMode != enrollmentModels.PhaseCareOfferingSelectionOptional,
+		SchoolClass:               toPublicSchoolClassConfig(phase, capabilities.CollectSchoolClass),
+		CollectGradeLevel:         capabilities.CollectGradeLevel,
+		CareOfferingsEnabled:      capabilities.CareOfferingsEnabled,
 		CaptchaConfig:             captcha,
 		LegalTexts: PublicLegalTextsResponse{
 			AGB:                 texts.AGB,

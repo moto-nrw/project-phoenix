@@ -2,6 +2,7 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { recordBackendProxyMetric } from "./backend-proxy-metrics";
+import { canonicalForwardedFor } from "./client-headers.server";
 import { createLogger } from "~/lib/logger";
 
 // Logger instance for API helpers
@@ -96,15 +97,12 @@ async function getIncomingForwardHeaders(): Promise<Record<string, string>> {
   try {
     const { headers } = await import("next/headers");
     const incomingHeaders = await headers();
-    const forwardedFor = incomingHeaders.get("x-forwarded-for");
-    const realIp = incomingHeaders.get("x-real-ip");
     const userAgent = incomingHeaders.get("user-agent");
-    const ip = forwardedFor?.split(",")[0]?.trim() ?? realIp;
+    const forwardedFor = canonicalForwardedFor(incomingHeaders);
 
     return {
-      ...(ip && {
-        "X-Forwarded-For": ip,
-        "X-Real-IP": ip,
+      ...(forwardedFor && {
+        "X-Forwarded-For": forwardedFor,
       }),
       ...(userAgent && { "User-Agent": userAgent }),
     };

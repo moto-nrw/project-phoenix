@@ -43,8 +43,16 @@ vi.mock("~/lib/tenant-context", () => ({
 }));
 
 vi.mock("~/components/enrollment/enrollment-form", () => ({
-  EnrollmentForm: ({ submitLabel }: { submitLabel: string }) => (
-    <button type="button">{submitLabel}</button>
+  EnrollmentForm: ({
+    submitLabel,
+    gradeLevelMax,
+  }: {
+    submitLabel: string;
+    gradeLevelMax: number;
+  }) => (
+    <button type="button" data-grade-level-max={gradeLevelMax}>
+      {submitLabel}
+    </button>
   ),
 }));
 
@@ -64,6 +72,7 @@ const bootstrap = {
   offerings: [],
   care_offering_selection_mode: "optional",
   care_required: false,
+  grade_level_max: 13,
   legal_texts: { blocks: [] },
   draft: {
     request_id: "99",
@@ -112,10 +121,32 @@ describe("EnrollmentEditPage", () => {
     expect(screen.getByText("Back to status")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Save changes" }),
-    ).toBeInTheDocument();
+    ).toHaveAttribute("data-grade-level-max", "13");
     expect(mockFetchEnrollmentEditBootstrap).toHaveBeenCalledWith(
       "tok",
       "Enrollment cannot be edited",
     );
+  });
+
+  it("withholds the form when the bootstrap omits a supported grade cap", async () => {
+    mockFetchEnrollmentEditBootstrap.mockResolvedValueOnce({
+      ...bootstrap,
+      grade_level_max: 0,
+    });
+
+    await act(async () => {
+      render(
+        <Suspense fallback={null}>
+          <EnrollmentEditPage params={Promise.resolve({ token: "tok" })} />
+        </Suspense>,
+      );
+    });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Enrollment cannot be edited",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Save changes" }),
+    ).not.toBeInTheDocument();
   });
 });

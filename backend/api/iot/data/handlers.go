@@ -12,7 +12,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	iotCommon "github.com/moto-nrw/project-phoenix/api/iot/common"
+	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -36,7 +36,7 @@ func (rs *Resource) getAvailableTeachers(w http.ResponseWriter, r *http.Request)
 	// of caregiver-account lifecycle state.
 	teachers, err := rs.UsersService.ListTeachersWithStaffAndPerson(r.Context())
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -118,7 +118,7 @@ func (rs *Resource) getTeacherActivities(w http.ResponseWriter, r *http.Request)
 	// Get all activities with occupancy status
 	activitiesWithOccupancy, err := rs.ActivitiesService.ListGroupsWithOccupancy(r.Context())
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -164,7 +164,7 @@ func (rs *Resource) getAvailableRoomsForDevice(w http.ResponseWriter, r *http.Re
 	// Get available rooms with occupancy status from facility service
 	roomsWithOccupancy, err := rs.FacilityService.GetAvailableRoomsWithOccupancy(r.Context(), capacity)
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -195,12 +195,12 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 	// Get tagId from URL parameter
 	tagID := chi.URLParam(r, "tagId")
 	if tagID == "" {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New("tagId parameter is required")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("tagId parameter is required")))
 		return
 	}
 
 	// Normalize and find person by RFID tag
-	normalizedTagID := iotCommon.NormalizeTagID(tagID)
+	normalizedTagID := users.NormalizeTagID(tagID)
 	person := rs.findPersonByTag(r.Context(), normalizedTagID, tagID)
 
 	// Build response based on person type
@@ -213,7 +213,7 @@ func (rs *Resource) checkRFIDTagAssignment(w http.ResponseWriter, r *http.Reques
 func (rs *Resource) getAllStudents(w http.ResponseWriter, r *http.Request) {
 	allStudents, err := rs.UsersService.GetAllStudentsWithGroups(r.Context())
 	if err != nil {
-		iotCommon.RenderError(w, r, iotCommon.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -261,7 +261,7 @@ func (rs *Resource) parseTeacherIDs(w http.ResponseWriter, r *http.Request) ([]i
 		}
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
-			iotCommon.RenderError(w, r, iotCommon.ErrorInvalidRequest(errors.New("invalid teacher ID: "+idStr)))
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid teacher ID: "+idStr)))
 			return nil, false
 		}
 		teacherIDs = append(teacherIDs, id)
@@ -348,7 +348,7 @@ func (rs *Resource) buildStudentResponses(uniqueStudents map[int64]usersSvc.Stud
 func (rs *Resource) findPersonByTag(ctx context.Context, normalizedTagID, originalTagID string) *users.Person {
 	person, err := rs.UsersService.FindByTagID(ctx, normalizedTagID)
 	if err != nil {
-		rs.recordUnregisteredTagScan(ctx, normalizedTagID)
+		shared.RecordUnregisteredTagScan(ctx, rs.UnregisteredTagScans, slog.Default(), normalizedTagID)
 		slog.Default().WarnContext(ctx, "no person found for RFID tag",
 			slog.String("tag_id", originalTagID),
 			slog.String("error", err.Error()),

@@ -24,8 +24,6 @@ func init() {
 		SortOrder:       1,
 	})
 
-	minLead := float64(1)
-	maxLead := float64(120)
 	config.Register(config.Definition{
 		Key:             config.KeyRemindersPickupUpcomingLeadMinutes,
 		Label:           "Vorlaufzeit anstehende Abholung (Minuten)",
@@ -37,12 +35,8 @@ func init() {
 		Tab:             "reminders",
 		Category:        "abholung",
 		SortOrder:       2,
-		Validation:      &config.ValidationRules{Min: &minLead, Max: &maxLead},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyRemindersPickupUpcomingEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		Validation:      config.Range(1, 120),
+		DependsOn:       config.DependsOnEq(config.KeyRemindersPickupUpcomingEnabled, true),
 	})
 
 	config.Register(config.Definition{
@@ -84,12 +78,8 @@ func init() {
 		Tab:             "reminders",
 		Category:        "aktivitaeten",
 		SortOrder:       11,
-		Validation:      &config.ValidationRules{Min: &minLead, Max: &maxLead},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyRemindersActivityStartEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		Validation:      config.Range(1, 120),
+		DependsOn:       config.DependsOnEq(config.KeyRemindersActivityStartEnabled, true),
 	})
 
 	config.Register(config.Definition{

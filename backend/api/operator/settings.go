@@ -137,19 +137,10 @@ func NewSettingsResource(svc configSvc.SettingsService, db *bun.DB, broadcaster 
 	}
 }
 
-// scheduleSettingsBroadcast queues a tenant_settings_changed SSE event to
-// fire after the OUTERMOST tenant tx commits. Mirrors the tenant-side
-// helper so both writers fan out the same event shape.
+// scheduleSettingsBroadcast delegates to the shared cross-portal helper; see
+// common.ScheduleTenantSettingsBroadcast for the SSE contract.
 func (rs *SettingsResource) scheduleSettingsBroadcast(ctx context.Context, tenantID int64, key string) {
-	if rs.broadcaster == nil || tenantID == 0 {
-		return
-	}
-	tenant.RegisterAfterCommit(ctx, func() {
-		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{
-			Source: &key,
-		})
-		_ = rs.broadcaster.BroadcastToTenant(tenantID, event)
-	})
+	common.ScheduleTenantSettingsBroadcast(ctx, rs.broadcaster, tenantID, key)
 }
 
 // OnValueSet registers a callback that runs after a setting value change is

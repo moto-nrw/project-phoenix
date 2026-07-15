@@ -3,9 +3,9 @@ package parent
 import (
 	"errors"
 	"testing"
-)
 
-func strPtr(s string) *string { return &s }
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+)
 
 // TestValidateContactInputEmailNormalization pins that a submitted email is
 // validated AND normalized to its bare addr-spec: mail.ParseAddress accepts
@@ -18,14 +18,14 @@ func TestValidateContactInputEmailNormalization(t *testing.T) {
 		wantErr   bool
 		wantEmail string // expected *input.Email after validation (when no error)
 	}{
-		{name: "plain address unchanged", email: strPtr("oma@example.de"), wantEmail: "oma@example.de"},
-		{name: "display name stripped", email: strPtr("Oma <oma@example.de>"), wantEmail: "oma@example.de"},
-		{name: "display name with spaces stripped", email: strPtr("Oma Müller <oma@example.de>"), wantEmail: "oma@example.de"},
-		{name: "surrounding whitespace trimmed then normalized", email: strPtr("  Oma <oma@example.de>  "), wantEmail: "oma@example.de"},
-		{name: "blank email left as-is (cleared)", email: strPtr("   "), wantEmail: "   "},
+		{name: "plain address unchanged", email: testpkg.StrPtr("oma@example.de"), wantEmail: "oma@example.de"},
+		{name: "display name stripped", email: testpkg.StrPtr("Oma <oma@example.de>"), wantEmail: "oma@example.de"},
+		{name: "display name with spaces stripped", email: testpkg.StrPtr("Oma Müller <oma@example.de>"), wantEmail: "oma@example.de"},
+		{name: "surrounding whitespace trimmed then normalized", email: testpkg.StrPtr("  Oma <oma@example.de>  "), wantEmail: "oma@example.de"},
+		{name: "blank email left as-is (cleared)", email: testpkg.StrPtr("   "), wantEmail: "   "},
 		{name: "nil email untouched", email: nil},
-		{name: "invalid rejected", email: strPtr("not-an-email"), wantErr: true},
-		{name: "multiple addresses rejected", email: strPtr(`a@b.de, c@d.de`), wantErr: true},
+		{name: "invalid rejected", email: testpkg.StrPtr("not-an-email"), wantErr: true},
+		{name: "multiple addresses rejected", email: testpkg.StrPtr(`a@b.de, c@d.de`), wantErr: true},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

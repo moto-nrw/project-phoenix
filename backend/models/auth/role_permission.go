@@ -2,14 +2,9 @@ package auth
 
 import (
 	"errors"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
-
-// tableAuthRolePermissions is the schema-qualified table name for role permissions
-const tableAuthRolePermissions = "auth.role_permissions"
 
 // RolePermission represents a mapping between roles and permissions
 type RolePermission struct {
@@ -20,23 +15,6 @@ type RolePermission struct {
 	// Relations
 	Role       *Role       `bun:"rel:belongs-to,join:role_id=id" json:"role,omitempty"`
 	Permission *Permission `bun:"rel:belongs-to,join:permission_id=id" json:"permission,omitempty"`
-}
-
-// TableName returns the database table name
-func (rp *RolePermission) TableName() string {
-	return tableAuthRolePermissions
-}
-
-func (rp *RolePermission) BeforeAppendModel(query any) error {
-	switch q := query.(type) {
-	case *bun.InsertQuery:
-		q.ModelTableExpr(tableAuthRolePermissions)
-	case *bun.UpdateQuery:
-		q.ModelTableExpr(tableAuthRolePermissions)
-	case *bun.DeleteQuery:
-		q.ModelTableExpr(tableAuthRolePermissions)
-	}
-	return nil
 }
 
 // Validate ensures role permission mapping data is valid
@@ -50,19 +28,4 @@ func (rp *RolePermission) Validate() error {
 	}
 
 	return nil
-}
-
-// GetID returns the entity's ID
-func (m *RolePermission) GetID() interface{} {
-	return m.ID
-}
-
-// GetCreatedAt returns the creation timestamp
-func (m *RolePermission) GetCreatedAt() time.Time {
-	return m.CreatedAt
-}
-
-// GetUpdatedAt returns the last update timestamp
-func (m *RolePermission) GetUpdatedAt() time.Time {
-	return m.UpdatedAt
 }

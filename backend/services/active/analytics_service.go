@@ -80,10 +80,10 @@ func (s *service) GetDashboardAnalytics(ctx context.Context) (*DashboardAnalytic
 }
 
 func (s *service) countEffectiveAbsencesForDate(ctx context.Context, date timezone.Date) (studentStatusCounts, error) {
-	if s.studentStatusRepo == nil {
+	if s.StudentStatusRepo == nil {
 		return studentStatusCounts{}, nil
 	}
-	counts, err := s.studentStatusRepo.CountEffectiveDashboardAbsences(ctx, date)
+	counts, err := s.StudentStatusRepo.CountEffectiveDashboardAbsences(ctx, date)
 	if err != nil {
 		return studentStatusCounts{}, err
 	}

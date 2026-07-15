@@ -6,15 +6,14 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	authService "github.com/moto-nrw/project-phoenix/services/auth"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -31,16 +30,7 @@ var errMFAServiceUnavailable = errors.New("mfa service is not configured for thi
 // requireMFA returns true when the MFA service is wired in and writes a 503
 // response otherwise. Use as the first line of every MFA handler.
 func (rs *Resource) requireMFA(w http.ResponseWriter, r *http.Request) bool {
-	if rs.MFAService == nil {
-		common.RenderError(w, r, &common.ErrResponse{
-			Err:            errMFAServiceUnavailable,
-			HTTPStatusCode: http.StatusServiceUnavailable,
-			Status:         "error",
-			ErrorText:      errMFAServiceUnavailable.Error(),
-		})
-		return false
-	}
-	return true
+	return common.RequireDependency(w, r, rs.MFAService != nil, errMFAServiceUnavailable)
 }
 
 // mapMFAError translates known MFA-service errors into HTTP responses.
@@ -70,22 +60,9 @@ func mapMFAError(w http.ResponseWriter, r *http.Request, err error) {
 
 // ----- /mfa/verify -----
 
-// MFAVerifyRequest is the body for POST /auth/mfa/verify.
-type MFAVerifyRequest struct {
-	ChallengeToken string `json:"challenge_token"`
-	Code           string `json:"code"`
-	RememberDevice bool   `json:"remember_device,omitempty"`
-}
-
-// Bind validates the verify request fields.
-func (req *MFAVerifyRequest) Bind(_ *http.Request) error {
-	req.ChallengeToken = strings.TrimSpace(req.ChallengeToken)
-	req.Code = strings.TrimSpace(req.Code)
-	return validation.ValidateStruct(req,
-		validation.Field(&req.ChallengeToken, validation.Required),
-		validation.Field(&req.Code, validation.Required, validation.Length(authService.MFAEmailCodeLength, authService.MFAEmailCodeLength)),
-	)
-}
+// MFAVerifyRequest is the body for POST /auth/mfa/verify. Shared with the
+// operator portal via api/common.
+type MFAVerifyRequest = common.MFAVerifyRequest
 
 // mfaVerify exchanges a challenge token + email code for a regular access /
 // refresh token pair. When the request carries `remember_device: true` the
@@ -111,25 +88,12 @@ func (rs *Resource) mfaVerify(w http.ResponseWriter, r *http.Request) {
 
 // ----- /mfa/resend -----
 
-// MFAResendRequest is the body for POST /auth/mfa/resend.
-type MFAResendRequest struct {
-	ChallengeToken string `json:"challenge_token"`
-}
+// MFAResendRequest is the body for POST /auth/mfa/resend. Shared with the
+// operator portal via api/common.
+type MFAResendRequest = common.MFAResendRequest
 
-// Bind validates the resend request.
-func (req *MFAResendRequest) Bind(_ *http.Request) error {
-	req.ChallengeToken = strings.TrimSpace(req.ChallengeToken)
-	return validation.ValidateStruct(req,
-		validation.Field(&req.ChallengeToken, validation.Required),
-	)
-}
-
-// MFAResendResponse carries the renewed challenge token. The frontend
-// must replace its in-flight token with this value so the next verify
-// travels with a JWT whose expiry covers the freshly emailed code.
-type MFAResendResponse struct {
-	ChallengeToken string `json:"challenge_token"`
-}
+// MFAResendResponse carries the renewed challenge token — see api/common.
+type MFAResendResponse = common.MFAResendResponse
 
 // mfaResend re-issues an email code against the existing challenge token.
 // Rate-limited inside the service. Returns the renewed challenge JWT —
@@ -185,21 +149,8 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 // ----- /mfa/enroll/confirm -----
 
 // MFAEnrollConfirmRequest is the body for POST /auth/mfa/enroll/confirm.
-type MFAEnrollConfirmRequest struct {
-	Code string `json:"code"`
-	// RememberDevice mirrors the verify-flow flag: when true, a successful
-	// confirm additionally issues a trusted-device cookie so the next
-	// login on this browser can skip MFA. Optional — defaults to false.
-	RememberDevice bool `json:"remember_device,omitempty"`
-}
-
-// Bind validates the confirm request.
-func (req *MFAEnrollConfirmRequest) Bind(_ *http.Request) error {
-	req.Code = strings.TrimSpace(req.Code)
-	return validation.ValidateStruct(req,
-		validation.Field(&req.Code, validation.Required, validation.Length(authService.MFAEmailCodeLength, authService.MFAEmailCodeLength)),
-	)
-}
+// Shared with the operator portal via api/common.
+type MFAEnrollConfirmRequest = common.MFAEnrollConfirmRequest
 
 // mfaEnrollConfirm verifies the just-emailed code, marks the account as
 // enrolled, and mints a full access/refresh token pair so the frontend can
@@ -402,9 +353,5 @@ func (rs *Resource) issueTrustedDeviceCookie(w http.ResponseWriter, r *http.Requ
 // parseClientIP wraps getClientIP and parses the result as net.IP. Returns
 // nil when the header value is empty or unparseable.
 func parseClientIP(r *http.Request) net.IP {
-	raw := getClientIP(r)
-	if raw == "" {
-		return nil
-	}
-	return net.ParseIP(raw)
+	return clientip.ParseClientIP(r)
 }

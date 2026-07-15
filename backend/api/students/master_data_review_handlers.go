@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-chi/chi/v5"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	userService "github.com/moto-nrw/project-phoenix/services/users"
@@ -51,12 +49,12 @@ func toMasterDataChangeRequestResponse(item *userService.MasterDataReviewItem) M
 // requests for the staff review queue.
 func (rs *Resource) listMasterDataChangeRequests(w http.ResponseWriter, r *http.Request) {
 	if rs.MasterDataReviewService == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("master data review service not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("master data review service not configured")))
 		return
 	}
 	items, err := rs.MasterDataReviewService.ListPending(r.Context())
 	if err != nil {
-		renderError(w, r, ErrorInternalServer(err))
+		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 	out := make([]MasterDataChangeRequestResponse, 0, len(items))
@@ -76,21 +74,20 @@ type DecideMasterDataChangeRequestBody struct {
 // decideMasterDataChangeRequest approves (and applies) or rejects one request.
 func (rs *Resource) decideMasterDataChangeRequest(w http.ResponseWriter, r *http.Request) {
 	if rs.MasterDataReviewService == nil {
-		renderError(w, r, ErrorInternalServer(errors.New("master data review service not configured")))
+		renderError(w, r, common.ErrorInternalServer(errors.New("master data review service not configured")))
 		return
 	}
-	requestID, err := strconv.ParseInt(chi.URLParam(r, "requestId"), 10, 64)
-	if err != nil || requestID <= 0 {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid request id")))
+	requestID, ok := common.ParsePositiveInt64IDWithError(w, r, "requestId", "invalid request id")
+	if !ok {
 		return
 	}
 	var body DecideMasterDataChangeRequestBody
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("invalid request body")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
 	if body.Approve == nil {
-		renderError(w, r, ErrorInvalidRequest(errors.New("approve is required")))
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("approve is required")))
 		return
 	}
 
@@ -104,18 +101,18 @@ func (rs *Resource) decideMasterDataChangeRequest(w http.ResponseWriter, r *http
 	if err != nil {
 		switch {
 		case errors.Is(err, userService.ErrReviewNotFound):
-			renderError(w, r, ErrorNotFound(err))
+			renderError(w, r, common.ErrorNotFound(err))
 		case errors.Is(err, userService.ErrReviewForbidden):
-			renderError(w, r, ErrorForbidden(err))
+			renderError(w, r, common.ErrorForbidden(err))
 		case errors.Is(err, userService.ErrReviewNotPending):
-			renderError(w, r, ErrorConflictWithCode(err, "change_request_not_pending"))
+			renderError(w, r, common.ErrorConflictWithCode(err, "change_request_not_pending"))
 		case errors.Is(err, userService.ErrReviewStaleValue):
-			renderError(w, r, ErrorConflictWithCode(err, "change_request_stale"))
+			renderError(w, r, common.ErrorConflictWithCode(err, "change_request_stale"))
 		case errors.Is(err, userService.ErrReviewInvalidTarget),
 			errors.Is(err, userService.ErrReviewInvalidValue):
-			renderError(w, r, ErrorInvalidRequest(err))
+			renderError(w, r, common.ErrorInvalidRequest(err))
 		default:
-			renderError(w, r, ErrorInternalServer(err))
+			renderError(w, r, common.ErrorInternalServer(err))
 		}
 		return
 	}

@@ -22,7 +22,7 @@ func TestPostReadRepository_MarkViewed(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-mark-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("marks post as viewed for first time", func(t *testing.T) {
@@ -92,7 +92,7 @@ func TestPostReadRepository_IsViewed(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-isviewed-%d", time.Now().UnixNano()))
 	defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account.ID)
 
-	post := createTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
+	post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Description")
 	defer cleanupPosts(t, db, post.ID)
 
 	t.Run("returns false when operator never viewed post", func(t *testing.T) {
@@ -146,8 +146,8 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 	})
 
 	t.Run("counts all posts when operator never viewed any", func(t *testing.T) {
-		post1 := createTestPost(t, db, account.ID, fmt.Sprintf("Post1 %d", time.Now().UnixNano()), "Desc1")
-		post2 := createTestPost(t, db, account.ID, fmt.Sprintf("Post2 %d", time.Now().UnixNano()), "Desc2")
+		post1 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post1 %d", time.Now().UnixNano()), "Desc1")
+		post2 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post2 %d", time.Now().UnixNano()), "Desc2")
 		defer cleanupPosts(t, db, post1.ID, post2.ID)
 
 		count, err := repo.CountUnviewed(ctx, account.ID, "user")
@@ -156,9 +156,9 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 	})
 
 	t.Run("excludes viewed posts from count", func(t *testing.T) {
-		post1 := createTestPost(t, db, account.ID, fmt.Sprintf("Post1 %d", time.Now().UnixNano()), "Desc1")
-		post2 := createTestPost(t, db, account.ID, fmt.Sprintf("Post2 %d", time.Now().UnixNano()), "Desc2")
-		post3 := createTestPost(t, db, account.ID, fmt.Sprintf("Post3 %d", time.Now().UnixNano()), "Desc3")
+		post1 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post1 %d", time.Now().UnixNano()), "Desc1")
+		post2 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post2 %d", time.Now().UnixNano()), "Desc2")
+		post3 := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post3 %d", time.Now().UnixNano()), "Desc3")
 		defer cleanupPosts(t, db, post1.ID, post2.ID, post3.ID)
 
 		countBefore, err := repo.CountUnviewed(ctx, account.ID, "user")
@@ -177,7 +177,7 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 		account2 := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-op2-%d", time.Now().UnixNano()))
 		defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account2.ID)
 
-		post := createTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
+		post := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Post %d", time.Now().UnixNano()), "Desc")
 		defer cleanupPosts(t, db, post.ID)
 
 		err := repo.MarkViewed(ctx, account.ID, post.ID, "user")
@@ -196,8 +196,8 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 		account3 := testpkg.CreateTestAccount(t, db, fmt.Sprintf("post-read-op3-%d", time.Now().UnixNano()))
 		defer testpkg.CleanupTableRecords(t, db, "auth.accounts", account3.ID)
 
-		post1 := createTestPost(t, db, account3.ID, fmt.Sprintf("P1 %d", time.Now().UnixNano()), "D1")
-		post2 := createTestPost(t, db, account3.ID, fmt.Sprintf("P2 %d", time.Now().UnixNano()), "D2")
+		post1 := testpkg.CreateTestPost(t, db, account3.ID, fmt.Sprintf("P1 %d", time.Now().UnixNano()), "D1")
+		post2 := testpkg.CreateTestPost(t, db, account3.ID, fmt.Sprintf("P2 %d", time.Now().UnixNano()), "D2")
 		defer cleanupPosts(t, db, post1.ID, post2.ID)
 
 		err := repo.MarkViewed(ctx, account3.ID, post1.ID, "user")
@@ -212,8 +212,8 @@ func TestPostReadRepository_CountUnviewed(t *testing.T) {
 	})
 
 	t.Run("excludes hidden posts for operators", func(t *testing.T) {
-		visiblePost := createTestPost(t, db, account.ID, fmt.Sprintf("Visible %d", time.Now().UnixNano()), "Desc")
-		hiddenPost := createTestPost(t, db, account.ID, fmt.Sprintf("Hidden %d", time.Now().UnixNano()), "Desc")
+		visiblePost := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Visible %d", time.Now().UnixNano()), "Desc")
+		hiddenPost := testpkg.CreateTestPost(t, db, account.ID, fmt.Sprintf("Hidden %d", time.Now().UnixNano()), "Desc")
 		defer cleanupPosts(t, db, visiblePost.ID, hiddenPost.ID)
 
 		_, err := db.NewUpdate().

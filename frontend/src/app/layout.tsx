@@ -2,13 +2,20 @@ import "~/styles/globals.css";
 
 import { Providers } from "./providers";
 import { BackgroundWrapper } from "~/components/background-wrapper";
-import { Inter } from "next/font/google";
+import { Inter, Kalam } from "next/font/google";
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { getLocale } from "next-intl/server";
 import { faviconMetadata, resolveFaviconVariant } from "~/lib/favicon-variants";
 
 const inter = Inter({ subsets: ["latin"] });
+const motoFont = Kalam({
+  subsets: ["latin"],
+  weight: "700",
+  display: "swap",
+  preload: true,
+  variable: "--font-moto",
+});
 
 const baseMetadata = {
   title: "moto – Digitale Ganztagsbetreuung",
@@ -60,7 +67,7 @@ export default async function RootLayout({
   const locale = await getLocale();
   return (
     <html lang={locale}>
-      <body className={`font-sans ${inter.className}`}>
+      <body className={`font-sans ${inter.className} ${motoFont.variable}`}>
         <Providers>
           <BackgroundWrapper>{children}</BackgroundWrapper>
         </Providers>

@@ -39,11 +39,6 @@ type DataAccessLog struct {
 	Metadata map[string]interface{} `bun:"metadata,type:jsonb" json:"metadata,omitempty"`
 }
 
-// TableName returns the database table name.
-func (d *DataAccessLog) TableName() string {
-	return "audit.data_access_log"
-}
-
 // GetID implements the base.Entity interface.
 func (d *DataAccessLog) GetID() interface{} {
 	return d.ID

@@ -71,17 +71,17 @@ func studentInGroup(groupID int64) *users.Student {
 
 func TestHasAdminPermissions(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
-		assert.False(t, hasAdminPermissions(nil))
-		assert.False(t, hasAdminPermissions([]string{}))
+		assert.False(t, HasAdminWildcard(nil))
+		assert.False(t, HasAdminWildcard([]string{}))
 	})
 	t.Run("non-admin scopes only", func(t *testing.T) {
-		assert.False(t, hasAdminPermissions([]string{"users:read", "users:update"}))
+		assert.False(t, HasAdminWildcard([]string{"users:read", "users:update"}))
 	})
 	t.Run("admin:* grants", func(t *testing.T) {
-		assert.True(t, hasAdminPermissions([]string{"users:read", "admin:*"}))
+		assert.True(t, HasAdminWildcard([]string{"users:read", "admin:*"}))
 	})
 	t.Run("*:* grants", func(t *testing.T) {
-		assert.True(t, hasAdminPermissions([]string{"*:*"}))
+		assert.True(t, HasAdminWildcard([]string{"*:*"}))
 	})
 }
 

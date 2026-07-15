@@ -3,6 +3,7 @@ package timetracking
 import (
 	"context"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -36,18 +37,22 @@ type Resource struct {
 	PersonService       usersSvc.PersonService
 	SettingsService     configSvc.SettingsService
 	StaffShiftService   scheduleSvc.StaffShiftService
-	db                  *bun.DB
+	// StaffAssignmentService backs GET /assignments — the staff member's own
+	// Betreuungsplan blocks (Ort/Aufgabe) for a day (#1844).
+	StaffAssignmentService scheduleSvc.StaffAssignmentService
+	db                     *bun.DB
 }
 
 // NewResource creates a new time-tracking resource
-func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService, settingsService configSvc.SettingsService, staffShiftService scheduleSvc.StaffShiftService, db *bun.DB) *Resource {
+func NewResource(workSessionService activeSvc.WorkSessionService, staffAbsenceService activeSvc.StaffAbsenceService, personService usersSvc.PersonService, settingsService configSvc.SettingsService, staffShiftService scheduleSvc.StaffShiftService, staffAssignmentService scheduleSvc.StaffAssignmentService, db *bun.DB) *Resource {
 	return &Resource{
-		WorkSessionService:  workSessionService,
-		StaffAbsenceService: staffAbsenceService,
-		PersonService:       personService,
-		SettingsService:     settingsService,
-		StaffShiftService:   staffShiftService,
-		db:                  db,
+		WorkSessionService:     workSessionService,
+		StaffAbsenceService:    staffAbsenceService,
+		PersonService:          personService,
+		SettingsService:        settingsService,
+		StaffShiftService:      staffShiftService,
+		StaffAssignmentService: staffAssignmentService,
+		db:                     db,
 	}
 }
 
@@ -56,15 +61,8 @@ func (rs *Resource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	// Create JWT auth instance for middleware
-	tokenAuth := jwt.MustNewTokenAuth()
-
 	// Protected routes that require authentication and permissions
-	r.Group(func(r chi.Router) {
-		r.Use(tokenAuth.Verifier())
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.TenantMiddleware)
-		withTx := tenant.TenantTxMiddleware(rs.db)
+	common.ProtectedTenantGroup(r, rs.db, func(r chi.Router, withTx common.Middleware) {
 
 		// All time-tracking endpoints require TimeTrackingOwn permission
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-in", rs.checkIn)
@@ -85,6 +83,8 @@ func (rs *Resource) Router() chi.Router {
 
 		// Own planned shifts (Dienstplan, #1376/#1798)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/shifts", rs.getOwnShifts)
+		// Own Betreuungsplan blocks for the day (Ort/Aufgabe + Vertretungen, #1844)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/assignments", rs.getOwnAssignments)
 
 		// Absence management
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/absences", rs.listAbsences)
@@ -104,9 +104,18 @@ func (rs *Resource) Router() chi.Router {
 	return r
 }
 
-// CheckInRequest represents a check-in request
+// CheckInRequest represents a check-in request. Reason is the optional F9
+// deviation reason; it is only required when the backend answered a previous
+// attempt with the "deviation_reason_required" conflict.
 type CheckInRequest struct {
 	Status string `json:"status"` // "present" or "home_office"
+	Reason string `json:"reason"`
+}
+
+// CheckOutRequest is the optional check-out body. Existing clients send no
+// body at all; the handler treats an empty body as an empty request.
+type CheckOutRequest struct {
+	Reason string `json:"reason"`
 }
 
 type ConfigResponse struct {
@@ -188,7 +197,7 @@ func (rs *Resource) checkIn(w http.ResponseWriter, r *http.Request) {
 	var session *activeModels.WorkSession
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		session, txErr = rs.WorkSessionService.CheckIn(ctx, staffID, req.Status, activeModels.WorkSessionSourceApp)
+		session, txErr = rs.WorkSessionService.CheckIn(ctx, staffID, req.Status, activeModels.WorkSessionSourceApp, req.Reason)
 		return txErr
 	}); err != nil {
 		common.RenderError(w, r, classifyServiceError(err))
@@ -200,6 +209,14 @@ func (rs *Resource) checkIn(w http.ResponseWriter, r *http.Request) {
 
 // checkOut handles POST /api/time-tracking/check-out
 func (rs *Resource) checkOut(w http.ResponseWriter, r *http.Request) {
+	// The body is optional (legacy clients POST without one); an empty body
+	// is an empty request, anything else must be valid JSON.
+	req := &CheckOutRequest{}
+	if err := render.DecodeJSON(r.Body, req); err != nil && !errors.Is(err, io.EOF) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
 	// Get staff ID from JWT claims
 	userClaims := jwt.ClaimsFromCtx(r.Context())
 	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
@@ -213,7 +230,7 @@ func (rs *Resource) checkOut(w http.ResponseWriter, r *http.Request) {
 	var session *activeModels.WorkSession
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		session, txErr = rs.WorkSessionService.CheckOut(ctx, staffID)
+		session, txErr = rs.WorkSessionService.CheckOut(ctx, staffID, req.Reason)
 		return txErr
 	}); err != nil {
 		common.RenderError(w, r, classifyServiceError(err))
@@ -296,11 +313,8 @@ func (rs *Resource) updateSession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse session ID from URL
-	idStr := chi.URLParam(r, "id")
-	sessionID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidSessionID)))
+	sessionID, ok := common.ParseInt64IDWithError(w, r, "id", errInvalidSessionID)
+	if !ok {
 		return
 	}
 
@@ -400,11 +414,8 @@ func (rs *Resource) getBreaks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse session ID from URL
-	idStr := chi.URLParam(r, "sessionId")
-	sessionID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidSessionID)))
+	sessionID, ok := common.ParseInt64IDWithError(w, r, "sessionId", errInvalidSessionID)
+	if !ok {
 		return
 	}
 
@@ -428,11 +439,8 @@ func (rs *Resource) getSessionEdits(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Parse session ID from URL
-	idStr := chi.URLParam(r, "id")
-	sessionID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errInvalidSessionID)))
+	sessionID, ok := common.ParseInt64IDWithError(w, r, "id", errInvalidSessionID)
+	if !ok {
 		return
 	}
 
@@ -527,13 +535,17 @@ func (rs *Resource) createAbsence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Self-service passes the caller as subject AND creator; the account id
+	// makes the #1843 sick-cascade protocol entries carry a real actor.
+	actorAccountID := int64(userClaims.ID)
 	tenantID := tenant.FromContext(r.Context())
 	var absence *activeSvc.StaffAbsenceResponse
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		absence, txErr = rs.StaffAbsenceService.CreateAbsence(ctx, staffID, req)
+		absence, txErr = rs.StaffAbsenceService.CreateAbsenceFor(ctx, staffID, staffID, &actorAccountID, req)
 		return txErr
 	}); err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return
 	}
@@ -550,10 +562,8 @@ func (rs *Resource) updateAbsence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	idStr := chi.URLParam(r, "id")
-	absenceID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid absence ID")))
+	absenceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid absence ID")
+	if !ok {
 		return
 	}
 
@@ -564,12 +574,14 @@ func (rs *Resource) updateAbsence(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tenantID := tenant.FromContext(r.Context())
+	actorAccountID := int64(userClaims.ID)
 	var absence *activeSvc.StaffAbsenceResponse
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
 		var txErr error
-		absence, txErr = rs.StaffAbsenceService.UpdateAbsence(ctx, staffID, absenceID, req)
+		absence, txErr = rs.StaffAbsenceService.UpdateAbsence(ctx, staffID, &actorAccountID, absenceID, req)
 		return txErr
 	}); err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return
 	}
@@ -586,17 +598,19 @@ func (rs *Resource) deleteAbsence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	idStr := chi.URLParam(r, "id")
-	absenceID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid absence ID")))
+	absenceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid absence ID")
+	if !ok {
 		return
 	}
 
+	// Deleting one's own sick report reverses its plan cascade (#1843); the
+	// account id stamps the sick_cleared protocol entries.
+	actorAccountID := int64(userClaims.ID)
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		return rs.StaffAbsenceService.DeleteAbsence(ctx, staffID, absenceID)
+		return rs.StaffAbsenceService.DeleteAbsenceFor(ctx, staffID, staffID, &actorAccountID, absenceID)
 	}); err != nil {
+		tenant.MarkRollback(r.Context())
 		common.RenderError(w, r, classifyAbsenceError(err))
 		return
 	}
@@ -641,10 +655,8 @@ func (rs *Resource) cancelAbsence(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(err))
 		return
 	}
-	idStr := chi.URLParam(r, "id")
-	absenceID, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid absence ID")))
+	absenceID, ok := common.ParseInt64IDWithError(w, r, "id", "invalid absence ID")
+	if !ok {
 		return
 	}
 	tenantID := tenant.FromContext(r.Context())
@@ -728,4 +740,79 @@ func (rs *Resource) getOwnShifts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, staffshifts.ToShiftResponses(shifts), "Shifts retrieved successfully")
+}
+
+// assignmentResponse is the wire format for one Betreuungsplan block a staff
+// member is planned into (#1844). It deliberately carries no student data
+// (GDPR: no child names in time-tracking lists).
+type assignmentResponse struct {
+	InstanceID      int64   `json:"instance_id"`
+	Title           string  `json:"title"`
+	GroupName       *string `json:"group_name,omitempty"`
+	RoomName        string  `json:"room_name,omitempty"`
+	Date            string  `json:"date"`
+	StartTime       string  `json:"start_time"`
+	EndTime         string  `json:"end_time"`
+	Status          string  `json:"status"`
+	Cancelled       bool    `json:"cancelled"`
+	IsPrimary       bool    `json:"is_primary"`
+	IsSubstitute    bool    `json:"is_substitute"`
+	IsAbsent        bool    `json:"is_absent"`
+	AbsenceReason   *string `json:"absence_reason,omitempty"`
+	CancelReason    *string `json:"cancel_reason,omitempty"`
+	UnderstaffedAck bool    `json:"understaffed_ack"`
+}
+
+func toAssignmentResponses(assignments []*scheduleSvc.StaffAssignment) []assignmentResponse {
+	out := make([]assignmentResponse, 0, len(assignments))
+	for _, a := range assignments {
+		out = append(out, assignmentResponse{
+			InstanceID:      a.InstanceID,
+			Title:           a.Title,
+			GroupName:       a.GroupName,
+			RoomName:        a.RoomName,
+			Date:            a.Date.String(),
+			StartTime:       timezone.WallClock(a.StartTime).Format("15:04"),
+			EndTime:         timezone.WallClock(a.EndTime).Format("15:04"),
+			Status:          a.Status,
+			Cancelled:       a.Cancelled,
+			IsPrimary:       a.IsPrimary,
+			IsSubstitute:    a.IsSubstitute,
+			IsAbsent:        a.IsAbsent,
+			AbsenceReason:   a.AbsenceReason,
+			CancelReason:    a.CancelReason,
+			UnderstaffedAck: a.UnderstaffedAck,
+		})
+	}
+	return out
+}
+
+// getOwnAssignments handles GET /api/time-tracking/assignments — the staff
+// member's own Betreuungsplan blocks (room + activity + Vertretungsplan state)
+// in a from/to date range. Self-scoped: the staff id comes from the caller's
+// JWT, never a parameter, so no one reads another person's plan (#1844).
+func (rs *Resource) getOwnAssignments(w http.ResponseWriter, r *http.Request) {
+	userClaims := jwt.ClaimsFromCtx(r.Context())
+	staffID, err := rs.getStaffIDFromClaims(r.Context(), userClaims)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	from, to, ok := parseDateRange(w, r)
+	if !ok {
+		return
+	}
+
+	assignments, err := rs.StaffAssignmentService.ListAssignmentsForStaff(r.Context(), staffID, from, to)
+	if err != nil {
+		if errors.Is(err, scheduleSvc.ErrShiftInvalid) || errors.Is(err, scheduleSvc.ErrShiftRangeTooLarge) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, toAssignmentResponses(assignments), "Assignments retrieved successfully")
 }

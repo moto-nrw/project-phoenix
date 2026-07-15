@@ -246,6 +246,7 @@ describe("CalendarPeriodModal", () => {
         initial={period}
         usage={{
           enrollmentPhaseCount: 1,
+          activityGroupCount: 2,
           scheduleCount: 3,
           studentEnrollmentCount: 0,
           supervisorCount: 0,
@@ -257,11 +258,14 @@ describe("CalendarPeriodModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Löschen" }));
     expect(
       screen.getByText(
-        /Dieser Zeitraum wird von 1 Anmeldephase und 3 Regelterminen? verwendet/,
+        /Dieser Zeitraum wird von 1 Anmeldephase und 2 Aktivitätsvorlagen und 3 Regelterminen? verwendet/,
       ),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/verweigert der Server das Löschen/),
+      screen.getByText(/Betreuungsangebot-Verknüpfung ungültig würde/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Personalzuordnungen.*Löschen verhindern/),
     ).toBeInTheDocument();
   });
 
@@ -311,6 +315,58 @@ describe("CalendarPeriodModal", () => {
     ).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Schließen" }));
+    expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("lets a follow-up correction save as an update after a warning-bearing create", async () => {
+    const onClose = vi.fn();
+    mockCreate.mockResolvedValueOnce({
+      period,
+      warnings: [
+        {
+          code: "overlapping_active_periods",
+          message:
+            'Der Zeitraum überschneidet sich mit dem aktiven Zeitraum "Schuljahr 2025/2026".',
+          overlappingPeriodIds: ["3"],
+          overlappingPeriodNames: ["Schuljahr 2025/2026"],
+        },
+      ],
+    });
+
+    render(
+      <CalendarPeriodModal
+        isOpen
+        onClose={onClose}
+        onSaved={vi.fn()}
+        createDefaults={{
+          name: "Schuljahr 2026/2027",
+          startDate: "2026-08-01",
+          endDate: "2027-07-31",
+        }}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Anlegen" }));
+    await screen.findByRole("button", { name: "Schließen" });
+
+    // Editing the form dismisses the warning footer and re-enables saving …
+    fireEvent.change(screen.getByLabelText("Bezeichnung*"), {
+      target: { value: "Schuljahr 2026/2027 B" },
+    });
+
+    // … and the re-submit updates the just-created period instead of
+    // creating a duplicate.
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(mockUpdate).toHaveBeenCalledWith(
+        "5",
+        expect.objectContaining({ name: "Schuljahr 2026/2027 B" }),
+      ),
+    );
+    expect(mockCreate).toHaveBeenCalledTimes(1);
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      'Kalenderzeitraum "Schuljahr 2026/2027" aktualisiert',
+    );
     expect(onClose).toHaveBeenCalledOnce();
   });
 

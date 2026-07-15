@@ -33,9 +33,8 @@ func TestGetStudentAttendanceHistory_FeatureDisabled(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "DisabledFeat", "Student", "1a")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.GetStudentAttendanceHistoryHandler(), "id")
-	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusForbidden, rr.Code, "should return 403 when feature is disabled. Body: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "feature_disabled")
@@ -56,9 +55,8 @@ func TestGetStudentAttendanceHistory_FeatureEnabled_ReturnsData(t *testing.T) {
 	a := testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, checkIn, &checkOut)
 	defer testpkg.CleanupTableRecords(t, tc.db, "active.attendance", a.ID)
 
-	router := setupRouter(tc.resource.GetStudentAttendanceHistoryHandler(), "id")
-	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -96,9 +94,8 @@ func TestGetStudentAttendanceHistory_InvalidStudentID(t *testing.T) {
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
-	router := setupRouter(tc.resource.GetStudentAttendanceHistoryHandler(), "id")
-	req := testutil.NewRequest("GET", "/invalid", nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	req := testutil.NewRequest("GET", "/invalid/attendance-history", nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
@@ -107,9 +104,8 @@ func TestGetStudentAttendanceHistory_StudentNotFound(t *testing.T) {
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)
 
-	router := setupRouter(tc.resource.GetStudentAttendanceHistoryHandler(), "id")
-	req := testutil.NewRequest("GET", "/999999", nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	req := testutil.NewRequest("GET", "/999999/attendance-history", nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusNotFound, rr.Code)
 }
@@ -121,9 +117,8 @@ func TestGetStudentAttendanceHistory_WritesAuditLog(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "Audit", "Student", "3a")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.GetStudentAttendanceHistoryHandler(), "id")
-	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -155,9 +150,8 @@ func TestGetStudentAttendanceHistory_RangeClampedWhenExceedingCap(t *testing.T) 
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
 	// Request 90-day range (cap is 30 by default)
-	router := setupRouter(tc.resource.GetStudentAttendanceHistoryHandler(), "id")
-	req := testutil.NewRequest("GET", fmt.Sprintf("/%d?start=2026-01-01T00:00:00Z&end=2026-04-06T23:59:59Z", student.ID), nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history?start=2026-01-01T00:00:00Z&end=2026-04-06T23:59:59Z", student.ID), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
 
@@ -169,6 +163,59 @@ func TestGetStudentAttendanceHistory_RangeClampedWhenExceedingCap(t *testing.T) 
 	err := json.Unmarshal(rr.Body.Bytes(), &body)
 	require.NoError(t, err)
 	assert.True(t, body.Data.Clamped, "response should be clamped when range exceeds cap")
+}
+
+func TestGetStudentAttendanceHistory_FutureEndClampsToToday(t *testing.T) {
+	tc := setupTestContext(t)
+	enableAttendanceLog(t, tc)
+	student := testpkg.CreateTestStudent(t, tc.db, "FutureEnd", "Student", "2c")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	today := timezone.Today()
+	start := today.AddDate(0, 0, -1)
+	end := today.AddDate(0, 0, 2)
+	req := testutil.NewRequest("GET", fmt.Sprintf(
+		"/%d/attendance-history?start=%s&end=%s",
+		student.ID, start.UTC().Format(time.RFC3339), end.UTC().Format(time.RFC3339),
+	), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var body struct {
+		Data struct {
+			Days []struct {
+				Date string `json:"date"`
+			} `json:"days"`
+			Range struct {
+				End time.Time `json:"end"`
+			} `json:"range"`
+			Clamped bool `json:"clamped"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.True(t, body.Data.Clamped)
+	assert.False(t, body.Data.Range.End.After(timezone.TodayDate().EndOfDay()))
+	for _, day := range body.Data.Days {
+		assert.LessOrEqual(t, day.Date, timezone.TodayDate().String())
+	}
+}
+
+func TestGetStudentAttendanceHistory_FullyFutureRangeRejected(t *testing.T) {
+	tc := setupTestContext(t)
+	enableAttendanceLog(t, tc)
+	student := testpkg.CreateTestStudent(t, tc.db, "FutureOnly", "Student", "2c")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	today := timezone.Today()
+	start := today.AddDate(0, 0, 1)
+	end := today.AddDate(0, 0, 2)
+	req := testutil.NewRequest("GET", fmt.Sprintf(
+		"/%d/attendance-history?start=%s&end=%s",
+		student.ID, start.UTC().Format(time.RFC3339), end.UTC().Format(time.RFC3339),
+	), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "start must not be in the future")
 }
 
 func TestGetStudentAttendanceHistory_ScopeAllStaff_NonAdminCanAccess(t *testing.T) {
@@ -188,10 +235,9 @@ func TestGetStudentAttendanceHistory_ScopeAllStaff_NonAdminCanAccess(t *testing.
 	account := testpkg.CreateTestAccount(t, tc.db, "scopeall-teacher")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID, account.ID)
 
-	router := setupRouter(tc.resource.GetStudentAttendanceHistoryHandler(), "id")
-	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
 	// Use teacher claims (non-admin) with UsersRead permission — account ID must exist in auth.accounts
-	rr := executeWithAuth(router, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
+	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})
 
 	assert.Equal(t, http.StatusOK, rr.Code, "all_staff scope should allow any staff with UsersRead. Body: %s", rr.Body.String())
 }
@@ -203,9 +249,8 @@ func TestGetStudentAttendanceHistory_InvalidDateRange(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "DateRange", "Student", "1c")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.GetStudentAttendanceHistoryHandler(), "id")
-	req := testutil.NewRequest("GET", fmt.Sprintf("/%d?start=2026-04-10T00:00:00Z&end=2026-04-01T00:00:00Z", student.ID), nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history?start=2026-04-10T00:00:00Z&end=2026-04-01T00:00:00Z", student.ID), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "start > end should be rejected")
 }
@@ -217,9 +262,8 @@ func TestGetStudentAttendanceHistory_EmptyResult(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "Empty", "Student", "4a")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
 
-	router := setupRouter(tc.resource.GetStudentAttendanceHistoryHandler(), "id")
-	req := testutil.NewRequest("GET", fmt.Sprintf("/%d", student.ID), nil)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusOK, rr.Code, "empty result is still 200")
 

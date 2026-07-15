@@ -398,12 +398,14 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		SettingsService:         api.Services.Settings,
 		MasterDataReviewService: api.Services.MasterDataReview,
 		CareRequestService:      api.Services.CareRequests,
+		ExcusedRequestService:   api.Services.ExcusedRequests,
 		StudentStatusDayService: api.Services.StudentStatusDays,
 		StudentHistoryService:   api.Services.StudentHistory,
 		ActivityService:         api.Services.Activities,
 		EnrollmentDecision:      api.Services.EnrollmentDecision,
 		EnrollmentFormSchema:    api.Services.EnrollmentFormSchema,
 		Broadcaster:             api.Services.RealtimeHub,
+		ParentEventEmitter:      api.Services.ParentEventEmitter,
 		StudentPhotos:           api.Services.StudentPhotos,
 		ListExportService:       api.Services.ListExport,
 		Logger:                  logger.With("handler", "students"),
@@ -418,8 +420,8 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Activities = activitiesAPI.NewResource(api.Services.Activities, api.Services.Schedule, api.Services.Users, api.Services.UserContext, db)
 	api.Staff = staffAPI.NewResource(api.Services.Users, api.Services.StaffOffboarding, api.Services.Education, api.Services.Auth, api.Services.WorkSession, api.Services.StaffAbsence, db, logger.With("handler", "staff"))
 	api.WorkTimeModels = worktimemodelsAPI.NewResource(api.Services.WorkTimeModels, db, logger.With("handler", "work-time-models"))
-	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.Users, db, logger.With("handler", "staff-shifts"))
-	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, db, logger.With("handler", "shift-types"))
+	api.StaffShifts = staffshiftsAPI.NewResource(api.Services.StaffShifts, api.Services.StaffShiftSeries, api.Services.StaffScheduleOverview, api.Services.Users, db, logger.With("handler", "staff-shifts"))
+	api.ShiftTypes = shifttypesAPI.NewResource(api.Services.ShiftTypes, api.Services.Activities, db, logger.With("handler", "shift-types"))
 	api.Feedback = feedbackAPI.NewResource(api.Services.Feedback, api.Services.Settings, db)
 	api.MealPlan = mealplanAPI.NewResource(api.Services.MealPlan, api.Services.Settings, db)
 	api.Enrollment = enrollmentAPI.NewResource(
@@ -432,6 +434,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.EnrollmentReport,
 		api.Services.EnrollmentRollover,
 		api.Services.EnrollmentChangeRequest,
+		api.Services.EnrollmentDeletion,
 		api.Services.GuardianInvitation,
 		api.Services.GuardianProfileLoader,
 		api.Services.Schools,
@@ -444,9 +447,10 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Schedules = schedulesAPI.NewResource(api.Services.Schedule, db)
 	api.Settings = configAPI.NewSettingsResource(api.Services.Settings, db, api.Services.RealtimeHub, repoFactory.FormSchema)
 	api.Settings.OnValueSet(api.Services.SettingsSideEffects.Dispatch)
-	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
+	api.Active = activeAPI.NewResource(api.Services.Active, api.Services.Users, api.Services.Education, api.Services.Schulhof, api.Services.UserContext, api.Services.Settings, db, logger.With("handler", "active"))
 	api.IoT = iotAPI.NewResource(iotAPI.ServiceDependencies{
 		IoTService:            api.Services.IoT,
+		CheckinService:        api.Services.Checkin,
 		UsersService:          api.Services.Users,
 		ActiveService:         api.Services.Active,
 		ActivitiesService:     api.Services.Activities,
@@ -468,7 +472,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 	api.Substitutions = substitutionsAPI.NewResource(api.Services.Education, db)
 	api.Database = databaseAPI.NewResource(api.Services.Database, db)
 	api.GradeTransitions = adminAPI.NewGradeTransitionResource(api.Services.GradeTransition, db)
-	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, db)
+	api.TimeTracking = timeTrackingAPI.NewResource(api.Services.WorkSession, api.Services.StaffAbsence, api.Services.Users, api.Services.Settings, api.Services.StaffShifts, api.Services.StaffAssignments, db)
 	api.Timetable = timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriodService:  api.Services.CalendarPeriod,
 		MaterializationService: api.Services.Materialization,

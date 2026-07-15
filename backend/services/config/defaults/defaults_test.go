@@ -45,6 +45,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"checkout.raumwechsel_enabled",
 		"checkout.schulhof_enabled",
 		"checkout.wc_enabled",
+		// Capacity-detail disclosure toggles (issue #1879, devices tab).
+		"checkin.activity_capacity_details_enabled",
+		"checkin.room_capacity_details_enabled",
 		// Device online/offline window for health monitoring (issue #586, Rule 12).
 		"iot.device_online_window_minutes",
 		"tracking.indicators_enabled",
@@ -73,6 +76,9 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"operations.care_concept",
 		"operations.time_tracking_account_start_date",
 		"operations.time_tracking_enforce_planned_start",
+		// F9 deviation-reason gate (Planung redesign, Inkrement 6A).
+		"operations.time_tracking_require_deviation_reason",
+		"operations.time_tracking_deviation_tolerance_minutes",
 		// Student photo feature (Datenverwaltung): per-school opt-in toggle.
 		"operations.student_photos_enabled",
 		// 2FA / MFA work package (issue #1308): mode toggle + trusted-device pair.
@@ -114,6 +120,7 @@ func TestAllSettingsRegistered(t *testing.T) {
 		"enrollment.grade_level_max",
 		// Parents-portal write features.
 		"operations.parent_sick_note_enabled",
+		"operations.parent_excused_requires_approval",
 		"operations.parent_notes_enabled",
 		"operations.parent_message_staff_name_visible",
 		"operations.parent_pickup_change_enabled",
@@ -315,6 +322,38 @@ func TestTimeTrackingEnforcePlannedStartSetting(t *testing.T) {
 	assert.Equal(t, "config:update", def.WritePermission)
 }
 
+func TestTimeTrackingRequireDeviationReasonSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyTimeTrackingRequireDeviationReason)
+	require.NotNil(t, def, "operations.time_tracking_require_deviation_reason should be registered")
+	assert.Equal(t, config.FieldBoolean, def.Type)
+	assert.Equal(t, true, def.Default, "deviation-reason gate is on by default (#1844); schools can opt out per tenant")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "zeiterfassung", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	assert.Nil(t, def.DependsOn)
+}
+
+func TestTimeTrackingDeviationToleranceSetting(t *testing.T) {
+	def := config.GetDefinition(config.KeyTimeTrackingDeviationToleranceMinutes)
+	require.NotNil(t, def, "operations.time_tracking_deviation_tolerance_minutes should be registered")
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 15, def.Default, "default mirrors the fixed 15-minute frontend tolerance of getDeltaStatus")
+	assert.Equal(t, config.AccessShared, def.AccessPolicy)
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "zeiterfassung", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	assert.Equal(t, float64(0), *def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(120), *def.Validation.Max)
+	require.NotNil(t, def.DependsOn, "tolerance is only visible while the gate is active")
+	assert.Equal(t, config.KeyTimeTrackingRequireDeviationReason, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
+}
+
 func TestTimetableSettings_Types(t *testing.T) {
 	tests := []struct {
 		key      string
@@ -471,6 +510,28 @@ func TestTimetableSettings_WeekdayOptions(t *testing.T) {
 	}
 }
 
+func TestTimetableChildrenPerStaffRatioSetting(t *testing.T) {
+	def := config.GetDefinition("timetable.children_per_staff_ratio")
+	require.NotNil(t, def, "setting timetable.children_per_staff_ratio should exist")
+
+	assert.Equal(t, config.FieldNumber, def.Type)
+	assert.Equal(t, 12, def.Default, "children-per-staff ratio must default to 12")
+	assert.Equal(t, "operations", def.Tab)
+	assert.Equal(t, "stundenplan", def.Category)
+	assert.Equal(t, "config:update", def.WritePermission)
+
+	require.NotNil(t, def.Validation)
+	require.NotNil(t, def.Validation.Min)
+	require.NotNil(t, def.Validation.Max)
+	assert.Equal(t, float64(1), *def.Validation.Min)
+	assert.Equal(t, float64(30), *def.Validation.Max)
+
+	require.NotNil(t, def.DependsOn, "must be gated behind the top-level timetable toggle")
+	assert.Equal(t, "timetable.enabled", def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
+}
+
 func TestOperationsSettings_Types(t *testing.T) {
 	tests := []struct {
 		key      string
@@ -490,6 +551,7 @@ func TestOperationsSettings_Types(t *testing.T) {
 		{"operations.sick_clear_mode", config.FieldSelect},
 		{"operations.excused_clear_mode", config.FieldSelect},
 		{"operations.parent_sick_note_enabled", config.FieldBoolean},
+		{"operations.parent_excused_requires_approval", config.FieldBoolean},
 		{"operations.parent_notes_enabled", config.FieldBoolean},
 		{"operations.parent_pickup_change_enabled", config.FieldBoolean},
 		{"operations.parent_guardian_management_enabled", config.FieldBoolean},
@@ -516,6 +578,23 @@ func TestParentPortalSettings_DefaultOn(t *testing.T) {
 		assert.Equalf(t, true, def.Default, "setting %q should default to true (opt-out)", key)
 		assert.Equalf(t, "operations", def.Tab, "setting %q should be on the operations tab", key)
 	}
+}
+
+// TestParentExcusedRequiresApprovalSetting guards the opt-in excused-approval
+// gate (#1845): unlike the other parents-portal toggles it defaults OFF (so
+// existing schools keep the immediate-write behavior) and is hidden while the
+// sick-note feature it extends is disabled.
+func TestParentExcusedRequiresApprovalSetting(t *testing.T) {
+	def := config.GetDefinition("operations.parent_excused_requires_approval")
+	require.NotNil(t, def, "operations.parent_excused_requires_approval should exist")
+	assert.Equal(t, config.FieldBoolean, def.Type, "excused-approval toggle should be boolean")
+	assert.Equal(t, false, def.Default, "excused-approval toggle must default OFF (opt-in)")
+	assert.Equal(t, "operations", def.Tab, "excused-approval toggle should be on the operations tab")
+	assert.Equal(t, "config:manage", def.WritePermission, "changes the absence-approval workflow -> manage")
+	require.NotNil(t, def.DependsOn, "should be hidden when the sick-note feature is off")
+	assert.Equal(t, config.KeyParentSickNoteEnabled, def.DependsOn.Key)
+	assert.Equal(t, "eq", def.DependsOn.Condition)
+	assert.Equal(t, true, def.DependsOn.Value)
 }
 
 // TestParentPickupChangeSetting_DefaultOn guards that the pickup-change toggle
@@ -1121,6 +1200,34 @@ func TestDevicesSettings(t *testing.T) {
 	assert.Equal(t, false, wc.Default, "wc should default to false (opt-in)")
 }
 
+func TestCheckinCapacityDetailSettings(t *testing.T) {
+	keys := []string{
+		config.KeyCheckinActivityCapacityDetailsEnabled,
+		config.KeyCheckinRoomCapacityDetailsEnabled,
+	}
+	for _, key := range keys {
+		def := config.GetDefinition(key)
+		require.NotNilf(t, def, "setting %q should exist", key)
+		assert.Equal(t, config.FieldBoolean, def.Type, "setting %q should be boolean", key)
+		assert.Equal(t, "devices", def.Tab, "setting %q should be in devices tab", key)
+		assert.Equal(t, "kapazität", def.Category, "setting %q should be in kapazität category", key)
+		assert.Equal(t, "config:update", def.WritePermission, "setting %q should use config:update", key)
+		require.NotNil(t, def.DependsOn, "setting %q should be gated by nfc_enabled", key)
+		assert.Equal(t, config.KeyAttendanceNFCEnabled, def.DependsOn.Key)
+		assert.Equal(t, "eq", def.DependsOn.Condition)
+		assert.Equal(t, true, def.DependsOn.Value)
+	}
+
+	// Activity defaults to false: the rich kiosk message was never visible
+	// before issue #1879, so it stays opt-in.
+	activity := config.GetDefinition(config.KeyCheckinActivityCapacityDetailsEnabled)
+	assert.Equal(t, false, activity.Default, "activity capacity details should default to false (opt-in)")
+
+	// Room defaults to true: schools already see the rich room message today.
+	room := config.GetDefinition(config.KeyCheckinRoomCapacityDetailsEnabled)
+	assert.Equal(t, true, room.Default, "room capacity details should default to true (preserves existing behavior)")
+}
+
 func TestStudentDailyCheckoutTime_OptionalDefault(t *testing.T) {
 	def := config.GetDefinition("operations.student_daily_checkout_time")
 	require.NotNil(t, def)
@@ -1189,6 +1296,8 @@ func TestDefaults_HaveReasonableValues(t *testing.T) {
 		{"checkout.raumwechsel_enabled", true},
 		{"checkout.schulhof_enabled", false},
 		{"checkout.wc_enabled", false},
+		{"checkin.activity_capacity_details_enabled", false},
+		{"checkin.room_capacity_details_enabled", true},
 		{"tracking.indicators_enabled", false},
 		{"tracking.indicator_1", ""},
 		{"tracking.indicator_2", ""},

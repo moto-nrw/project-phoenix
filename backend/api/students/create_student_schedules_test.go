@@ -25,8 +25,6 @@ func TestCreateStudent_WithSchedules(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Schedule", "Creator")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
-
 	body := map[string]interface{}{
 		"first_name":   "Scheduled",
 		"last_name":    "Child",
@@ -42,7 +40,7 @@ func TestCreateStudent_WithSchedules(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 	require.Equal(t, http.StatusCreated, rr.Code, "Expected 201 Created. Body: %s", rr.Body.String())
 
@@ -97,8 +95,6 @@ func TestCreateStudent_InvalidScheduleTimeRejected(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BadTimeSchedule", "Creator")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
-
 	const firstName = "BadTime"
 	const lastName = "Schedule"
 
@@ -112,7 +108,7 @@ func TestCreateStudent_InvalidScheduleTimeRejected(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code,
 		"invalid arrival time must return 400. Body: %s", rr.Body.String())
@@ -156,8 +152,6 @@ func TestCreateStudent_WithSchedulesRequiresUsersUpdate(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ScheduleCreateOnly", "Creator")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
-
 	const firstName = "CreateOnly"
 	const lastName = "ScheduleDenied"
 
@@ -171,7 +165,7 @@ func TestCreateStudent_WithSchedulesRequiresUsersUpdate(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"users:create"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"users:create"})
 
 	assert.Equal(t, http.StatusForbidden, rr.Code,
 		"create-only users must not create Betreuungszeiten. Body: %s", rr.Body.String())
@@ -206,8 +200,6 @@ func TestCreateStudent_GuardianFailureRollsBackSchedules(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "ScheduleRollback", "Creator")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
-
 	const firstName = "ScheduleAtomic"
 	const lastName = "Orphan"
 
@@ -235,7 +227,7 @@ func TestCreateStudent_GuardianFailureRollsBackSchedules(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code,
 		"invalid guardian email must return 400 even with schedules attached. Body: %s", rr.Body.String())
@@ -304,8 +296,6 @@ func TestCreateStudent_InvalidPickupTimeRejected(t *testing.T) {
 	teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "BadPickupSchedule", "Creator")
 	defer testpkg.CleanupActivityFixtures(t, tc.db, teacher.ID)
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
-
 	const firstName = "BadPickup"
 	const lastName = "Schedule"
 
@@ -319,7 +309,7 @@ func TestCreateStudent_InvalidPickupTimeRejected(t *testing.T) {
 	}
 
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"admin:*"})
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code,
 		"invalid pickup time must return 400. Body: %s", rr.Body.String())
@@ -367,8 +357,6 @@ func TestCreateStudent_SchedulesNonStaffAccountForbidden(t *testing.T) {
 	defer testpkg.CleanupPerson(t, tc.db, actingPerson.ID)
 	defer testpkg.CleanupAccount(t, tc.db, account.ID)
 
-	router := setupRouter(tc.resource.CreateStudentHandler(), "")
-
 	const firstName = "NonStaffCreated"
 	const lastName = "Child"
 
@@ -384,7 +372,7 @@ func TestCreateStudent_SchedulesNonStaffAccountForbidden(t *testing.T) {
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/", body)
 	// users:update passes the permission gate so the staff-resolution branch is
 	// the thing under test, not the permission check.
-	rr := executeWithAuth(router, req, testutil.AdminTestClaims(int(account.ID)), []string{"users:create", "users:update"})
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(int(account.ID)), []string{"users:create", "users:update"})
 
 	assert.Equal(t, http.StatusForbidden, rr.Code,
 		"non-staff account must not create Betreuungszeiten. Body: %s", rr.Body.String())

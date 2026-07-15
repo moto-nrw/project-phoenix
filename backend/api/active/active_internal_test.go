@@ -3,16 +3,15 @@
 package active
 
 import (
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -24,9 +23,9 @@ import (
 // =============================================================================
 
 func TestErrResponse_Render(t *testing.T) {
-	errResp := &ErrResponse{
+	errResp := &common.ErrResponse{
 		HTTPStatusCode: http.StatusNotFound,
-		StatusText:     "Not Found",
+		Status:         "Not Found",
 	}
 
 	req := httptest.NewRequest("GET", "/test", nil)
@@ -36,23 +35,11 @@ func TestErrResponse_Render(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestErrResponse_Fields(t *testing.T) {
-	testErr := assert.AnError
-
-	errResp := &ErrResponse{
-		Err:            testErr,
-		HTTPStatusCode: http.StatusBadRequest,
-		StatusText:     "Bad Request",
-		AppCode:        1001,
-		ErrorText:      "Test error",
-	}
-
-	assert.Equal(t, testErr, errResp.Err)
-	assert.Equal(t, http.StatusBadRequest, errResp.HTTPStatusCode)
-	assert.Equal(t, "Bad Request", errResp.StatusText)
-	assert.Equal(t, 1001, errResp.AppCode)
-	assert.Equal(t, "Test error", errResp.ErrorText)
-}
+// TestErrResponse_Fields was deleted with the package-local ErrResponse
+// struct (issue #575 B1): it exercised only that struct's field assignments,
+// including the AppCode field no production code ever set (deletion approved
+// in the #575 June batch plan). Wire-format coverage lives in
+// wire_format_test.go.
 
 // =============================================================================
 // ErrorRenderer Tests - Extended Coverage
@@ -84,10 +71,10 @@ func TestErrorRenderer_AllNotFoundErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			renderer := ErrorRenderer(tt.err)
-			errResp, ok := renderer.(*ErrResponse)
+			errResp, ok := renderer.(*common.ErrResponse)
 			require.True(t, ok)
 			assert.Equal(t, http.StatusNotFound, errResp.HTTPStatusCode)
-			assert.Equal(t, tt.expectedText, errResp.StatusText)
+			assert.Equal(t, tt.expectedText, errResp.Status)
 		})
 	}
 }
@@ -152,10 +139,10 @@ func TestErrorRenderer_AllBadRequestErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			renderer := ErrorRenderer(tt.err)
-			errResp, ok := renderer.(*ErrResponse)
+			errResp, ok := renderer.(*common.ErrResponse)
 			require.True(t, ok)
 			assert.Equal(t, http.StatusBadRequest, errResp.HTTPStatusCode)
-			assert.Equal(t, tt.expectedText, errResp.StatusText)
+			assert.Equal(t, tt.expectedText, errResp.Status)
 		})
 	}
 }
@@ -168,11 +155,11 @@ func TestErrorInvalidRequest(t *testing.T) {
 	testErr := assert.AnError
 	renderer := ErrorInvalidRequest(testErr)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 
 	assert.Equal(t, http.StatusBadRequest, errResp.HTTPStatusCode)
-	assert.Equal(t, "Invalid Request", errResp.StatusText)
+	assert.Equal(t, "Invalid Request", errResp.Status)
 	assert.Equal(t, testErr.Error(), errResp.ErrorText)
 	assert.Equal(t, testErr, errResp.Err)
 }
@@ -181,11 +168,11 @@ func TestErrorInternalServer(t *testing.T) {
 	testErr := assert.AnError
 	renderer := ErrorInternalServer(testErr)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 
 	assert.Equal(t, http.StatusInternalServerError, errResp.HTTPStatusCode)
-	assert.Equal(t, "Internal Server Error", errResp.StatusText)
+	assert.Equal(t, "Internal Server Error", errResp.Status)
 	assert.Equal(t, testErr.Error(), errResp.ErrorText)
 	assert.Equal(t, testErr, errResp.Err)
 }
@@ -194,11 +181,11 @@ func TestErrorForbidden(t *testing.T) {
 	testErr := assert.AnError
 	renderer := ErrorForbidden(testErr)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 
 	assert.Equal(t, http.StatusForbidden, errResp.HTTPStatusCode)
-	assert.Equal(t, "Forbidden", errResp.StatusText)
+	assert.Equal(t, "Forbidden", errResp.Status)
 	assert.Equal(t, testErr.Error(), errResp.ErrorText)
 	assert.Equal(t, testErr, errResp.Err)
 }
@@ -207,11 +194,11 @@ func TestErrorUnauthorized(t *testing.T) {
 	testErr := assert.AnError
 	renderer := ErrorUnauthorized(testErr)
 
-	errResp, ok := renderer.(*ErrResponse)
+	errResp, ok := renderer.(*common.ErrResponse)
 	require.True(t, ok)
 
 	assert.Equal(t, http.StatusUnauthorized, errResp.HTTPStatusCode)
-	assert.Equal(t, "Unauthorized", errResp.StatusText)
+	assert.Equal(t, "Unauthorized", errResp.Status)
 	assert.Equal(t, testErr.Error(), errResp.ErrorText)
 	assert.Equal(t, testErr, errResp.Err)
 }
@@ -403,66 +390,6 @@ func TestCheckinError_Respond_InternalServerError(t *testing.T) {
 // NOTE: Common error tests are in checkout_test.go
 
 // =============================================================================
-// VisitIDExtractor Tests
-// =============================================================================
-
-func TestVisitIDExtractor_ValidID(t *testing.T) {
-	extractor := VisitIDExtractor()
-
-	req := httptest.NewRequest("GET", "/visits/123", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "123")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	resource, metadata := extractor(req)
-
-	assert.Equal(t, int64(123), resource)
-	assert.Nil(t, metadata)
-}
-
-func TestVisitIDExtractor_EmptyID(t *testing.T) {
-	extractor := VisitIDExtractor()
-
-	req := httptest.NewRequest("GET", "/visits/", nil)
-	rctx := chi.NewRouteContext()
-	// Don't add id param
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	resource, metadata := extractor(req)
-
-	assert.Nil(t, resource)
-	assert.Nil(t, metadata)
-}
-
-func TestVisitIDExtractor_InvalidID(t *testing.T) {
-	extractor := VisitIDExtractor()
-
-	req := httptest.NewRequest("GET", "/visits/invalid", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "invalid")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	resource, metadata := extractor(req)
-
-	assert.Nil(t, resource)
-	assert.Nil(t, metadata)
-}
-
-func TestVisitIDExtractor_LargeID(t *testing.T) {
-	extractor := VisitIDExtractor()
-
-	req := httptest.NewRequest("GET", "/visits/9999999999", nil)
-	rctx := chi.NewRouteContext()
-	rctx.URLParams.Add("id", "9999999999")
-	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
-
-	resource, metadata := extractor(req)
-
-	assert.Equal(t, int64(9999999999), resource)
-	assert.Nil(t, metadata)
-}
-
-// =============================================================================
 // Response Types Tests
 // =============================================================================
 
@@ -477,7 +404,6 @@ func TestActiveGroupResponse_Fields(t *testing.T) {
 		StartTime:       now,
 		EndTime:         &endTime,
 		IsActive:        true,
-		Notes:           "Test notes",
 		VisitCount:      5,
 		SupervisorCount: 2,
 		Supervisors: []GroupSupervisorSimple{
@@ -497,7 +423,6 @@ func TestActiveGroupResponse_Fields(t *testing.T) {
 	}
 	assert.Equal(t, int64(20), resp.RoomID)
 	assert.True(t, resp.IsActive)
-	assert.Equal(t, "Test notes", resp.Notes)
 	assert.Equal(t, 5, resp.VisitCount)
 	assert.Equal(t, 2, resp.SupervisorCount)
 	assert.Len(t, resp.Supervisors, 1)
@@ -535,7 +460,6 @@ func TestVisitResponse_Fields(t *testing.T) {
 		CheckInTime:     now,
 		CheckOutTime:    &checkOutTime,
 		IsActive:        false,
-		Notes:           "Visit notes",
 		StudentName:     "John Doe",
 		ActiveGroupName: "Activity A",
 		CreatedAt:       now,

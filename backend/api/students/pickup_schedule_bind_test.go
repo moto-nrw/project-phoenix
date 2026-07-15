@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
@@ -15,11 +17,6 @@ import (
 // =============================================================================
 // Test Helpers
 // =============================================================================
-
-// strPtr returns a pointer to the given string
-func strPtr(s string) *string {
-	return &s
-}
 
 // =============================================================================
 // PickupScheduleRequest Bind Tests
@@ -186,7 +183,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &pickupTime,
-			Reason:        strPtr("Doctor appointment"),
+			Reason:        testpkg.StrPtr("Doctor appointment"),
 		}
 		err := r.Bind(req)
 		require.NoError(t, err)
@@ -197,7 +194,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "",
 			PickupTime:    &pickupTime,
-			Reason:        strPtr("Test reason"),
+			Reason:        testpkg.StrPtr("Test reason"),
 		}
 		err := r.Bind(req)
 		require.Error(t, err)
@@ -209,7 +206,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "15-02-2026",
 			PickupTime:    &pickupTime,
-			Reason:        strPtr("Test reason"),
+			Reason:        testpkg.StrPtr("Test reason"),
 		}
 		err := r.Bind(req)
 		require.Error(t, err)
@@ -220,7 +217,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    nil,
-			Reason:        strPtr("Student is sick"),
+			Reason:        testpkg.StrPtr("Student is sick"),
 		}
 		err := r.Bind(req)
 		require.NoError(t, err, "nil pickup_time should be valid for absent students")
@@ -231,7 +228,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &emptyTime,
-			Reason:        strPtr("Student is sick"),
+			Reason:        testpkg.StrPtr("Student is sick"),
 		}
 		err := r.Bind(req)
 		require.NoError(t, err, "empty pickup_time should be valid for absent students")
@@ -242,7 +239,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &invalidTime,
-			Reason:        strPtr("Test reason"),
+			Reason:        testpkg.StrPtr("Test reason"),
 		}
 		err := r.Bind(req)
 		require.Error(t, err)
@@ -593,7 +590,7 @@ func TestPickupExceptionRequest_Bind_EdgeCases(t *testing.T) {
 			r := &PickupExceptionRequest{
 				ExceptionDate: date,
 				PickupTime:    &pickupTime,
-				Reason:        strPtr("Test"),
+				Reason:        testpkg.StrPtr("Test"),
 			}
 			err := r.Bind(req)
 			assert.Error(t, err, "Date %s should be invalid", date)
@@ -767,47 +764,47 @@ func TestHandlerAccessorMethods(t *testing.T) {
 	rs := &Resource{}
 
 	t.Run("GetStudentPickupSchedulesHandler returns handler", func(t *testing.T) {
-		handler := rs.GetStudentPickupSchedulesHandler()
+		handler := rs.getStudentPickupSchedules
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("UpdateStudentPickupSchedulesHandler returns handler", func(t *testing.T) {
-		handler := rs.UpdateStudentPickupSchedulesHandler()
+		handler := rs.updateStudentPickupSchedules
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("CreateStudentPickupExceptionHandler returns handler", func(t *testing.T) {
-		handler := rs.CreateStudentPickupExceptionHandler()
+		handler := rs.createStudentPickupException
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("UpdateStudentPickupExceptionHandler returns handler", func(t *testing.T) {
-		handler := rs.UpdateStudentPickupExceptionHandler()
+		handler := rs.updateStudentPickupException
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("DeleteStudentPickupExceptionHandler returns handler", func(t *testing.T) {
-		handler := rs.DeleteStudentPickupExceptionHandler()
+		handler := rs.deleteStudentPickupException
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("GetBulkPickupTimesHandler returns handler", func(t *testing.T) {
-		handler := rs.GetBulkPickupTimesHandler()
+		handler := rs.getBulkPickupTimes
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("CreateStudentPickupNoteHandler returns handler", func(t *testing.T) {
-		handler := rs.CreateStudentPickupNoteHandler()
+		handler := rs.createStudentPickupNote
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("UpdateStudentPickupNoteHandler returns handler", func(t *testing.T) {
-		handler := rs.UpdateStudentPickupNoteHandler()
+		handler := rs.updateStudentPickupNote
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 
 	t.Run("DeleteStudentPickupNoteHandler returns handler", func(t *testing.T) {
-		handler := rs.DeleteStudentPickupNoteHandler()
+		handler := rs.deleteStudentPickupNote
 		assert.NotNil(t, handler, "Handler should not be nil")
 	})
 }
@@ -888,7 +885,7 @@ func TestPickupDataResponse_Structure(t *testing.T) {
 			ID:            1,
 			StudentID:     100,
 			ExceptionDate: "2026-01-29",
-			Reason:        strPtr("Doctor"),
+			Reason:        testpkg.StrPtr("Doctor"),
 			CreatedBy:     5,
 			CreatedAt:     "2026-01-27T10:00:00Z",
 			UpdatedAt:     "2026-01-27T10:00:00Z",
@@ -996,7 +993,7 @@ func TestPickupExceptionRequest_Bind_AdditionalCases(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    nil,
-			Reason:        strPtr("Krank"),
+			Reason:        testpkg.StrPtr("Krank"),
 		}
 		err := r.Bind(req)
 		require.NoError(t, err)
@@ -1007,7 +1004,7 @@ func TestPickupExceptionRequest_Bind_AdditionalCases(t *testing.T) {
 		r := &PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &emptyTime,
-			Reason:        strPtr("Krank"),
+			Reason:        testpkg.StrPtr("Krank"),
 		}
 		err := r.Bind(req)
 		require.NoError(t, err, "empty string pickup time should be valid for absent students")

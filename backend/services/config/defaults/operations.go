@@ -32,16 +32,10 @@ func init() {
 		Tab:             "system",
 		Category:        "sitzungsende",
 		SortOrder:       2,
-		DependsOn: &config.Dependency{
-			Key:       config.KeySessionEndEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
-		AccessPolicy: config.AccessOperatorOnly,
+		DependsOn:       config.DependsOnEq(config.KeySessionEndEnabled, true),
+		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	minTimeout := float64(1)
-	maxTimeout := float64(60)
 	config.Register(config.Definition{
 		Key:             config.KeySessionEndTimeoutMinutes,
 		Label:           "Sitzungsende Timeout (Minuten)",
@@ -53,13 +47,9 @@ func init() {
 		Tab:             "system",
 		Category:        "sitzungsende",
 		SortOrder:       3,
-		Validation:      &config.ValidationRules{Min: &minTimeout, Max: &maxTimeout},
-		DependsOn: &config.Dependency{
-			Key:       config.KeySessionEndEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
-		AccessPolicy: config.AccessOperatorOnly,
+		Validation:      config.Range(1, 60),
+		DependsOn:       config.DependsOnEq(config.KeySessionEndEnabled, true),
+		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
 	// --- Student Daily Checkout ---
@@ -75,11 +65,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "checkout",
 		SortOrder:       1,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyAttendanceNFCEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
 	})
 
 	config.Register(config.Definition{
@@ -93,15 +79,9 @@ func init() {
 		Tab:             "operations",
 		Category:        "checkout",
 		SortOrder:       2,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyAttendanceNFCEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyAttendanceNFCEnabled, true),
 	})
 
-	minDelta := float64(0)
-	maxDelta := float64(120)
 	config.Register(config.Definition{
 		Key:             config.KeyPerStudentCheckoutDeltaMinutes,
 		Label:           "Vorlaufzeit vor Abholung (Minuten)",
@@ -113,12 +93,8 @@ func init() {
 		Tab:             "operations",
 		Category:        "checkout",
 		SortOrder:       3,
-		Validation:      &config.ValidationRules{Min: &minDelta, Max: &maxDelta},
-		DependsOn: &config.Dependency{
-			Key:       config.KeyPerStudentCheckoutEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		Validation:      config.Range(0, 120),
+		DependsOn:       config.DependsOnEq(config.KeyPerStudentCheckoutEnabled, true),
 	})
 
 	// --- Abandoned Session Cleanup (system tab — automated background process) ---
@@ -137,8 +113,6 @@ func init() {
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	minInterval := float64(5)
-	maxInterval := float64(120)
 	config.Register(config.Definition{
 		Key:             config.KeySessionCleanupIntervalMinutes,
 		Label:           "Bereinigungsintervall (Minuten)",
@@ -150,17 +124,11 @@ func init() {
 		Tab:             "system",
 		Category:        "sitzungsbereinigung",
 		SortOrder:       11,
-		Validation:      &config.ValidationRules{Min: &minInterval, Max: &maxInterval},
-		DependsOn: &config.Dependency{
-			Key:       config.KeySessionCleanupEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
-		AccessPolicy: config.AccessOperatorOnly,
+		Validation:      config.Range(5, 120),
+		DependsOn:       config.DependsOnEq(config.KeySessionCleanupEnabled, true),
+		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	minThreshold := float64(10)
-	maxThreshold := float64(480)
 	config.Register(config.Definition{
 		Key:             config.KeySessionAbandonedThresholdMin,
 		Label:           "Inaktivitätsschwelle (Minuten)",
@@ -172,17 +140,11 @@ func init() {
 		Tab:             "system",
 		Category:        "sitzungsbereinigung",
 		SortOrder:       12,
-		Validation:      &config.ValidationRules{Min: &minThreshold, Max: &maxThreshold},
-		DependsOn: &config.Dependency{
-			Key:       config.KeySessionCleanupEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
-		AccessPolicy: config.AccessOperatorOnly,
+		Validation:      config.Range(10, 480),
+		DependsOn:       config.DependsOnEq(config.KeySessionCleanupEnabled, true),
+		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
-	minInactivityTimeout := float64(1)
-	maxInactivityTimeout := float64(480)
 	config.Register(config.Definition{
 		Key:             config.KeySessionInactivityTimeoutMin,
 		Label:           "Standard-Sitzungstimeout (Minuten)",
@@ -194,7 +156,7 @@ func init() {
 		Tab:             "system",
 		Category:        "sitzungsbereinigung",
 		SortOrder:       13,
-		Validation:      &config.ValidationRules{Min: &minInactivityTimeout, Max: &maxInactivityTimeout},
+		Validation:      config.Range(1, 480),
 		AccessPolicy:    config.AccessOperatorOnly,
 	})
 
@@ -239,6 +201,37 @@ func init() {
 		Tab:             "operations",
 		Category:        "zeiterfassung",
 		SortOrder:       2,
+	})
+
+	config.Register(config.Definition{
+		Key:         config.KeyTimeTrackingRequireDeviationReason,
+		Label:       "Begründung bei Abweichung vom Dienstplan",
+		Description: "Wenn aktiviert, verlangt das Ein- und Ausstempeln außerhalb des Toleranzfensters um die geplante Schichtzeit eine Begründung. Gilt auch für nachträgliche Änderungen eigener Zeiten. Tage ohne geplante Schicht bleiben unverändert.",
+		Type:        config.FieldBoolean,
+		// Default on (#1844): Planabweichungen sollen standardmäßig begründet
+		// werden, damit spätere Zeiten (später Bus, längerer Einsatz) im Audit-Log
+		// nachvollziehbar sind. Schulen können es pro Mandant abschalten.
+		Default:         true,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       3,
+	})
+
+	config.Register(config.Definition{
+		Key:             config.KeyTimeTrackingDeviationToleranceMinutes,
+		Label:           "Toleranzfenster für Abweichungen (Minuten)",
+		Description:     "So viele Minuten darf die Ist-Zeit von der geplanten Schichtzeit abweichen, bevor eine Begründung verlangt wird.",
+		Type:            config.FieldNumber,
+		Default:         15,
+		Validation:      config.Range(0, 120),
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       4,
+		DependsOn:       config.DependsOnEq(config.KeyTimeTrackingRequireDeviationReason, true),
 	})
 
 	// Break auto-end interval is NOT registered here. It controls a global ticker
@@ -394,8 +387,6 @@ func init() {
 	// Date transitions only happen on day boundaries — the interval is a
 	// safety-net for restarts and clock drift, not a precision dial.
 
-	minActivationInterval := float64(5)
-	maxActivationInterval := float64(1440)
 	config.Register(config.Definition{
 		Key:             config.KeyStudentActivationIntervalMin,
 		Label:           "Kinderaktivierung Intervall (Minuten)",
@@ -407,7 +398,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "schüleraktivierung",
 		SortOrder:       50,
-		Validation:      &config.ValidationRules{Min: &minActivationInterval, Max: &maxActivationInterval},
+		Validation:      config.Range(5, 1440),
 	})
 
 	// --- Web-An/Abmeldung Zugriff (who can toggle presence via web UI) ---
@@ -442,11 +433,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "anwesenheit",
 		SortOrder:       42,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyCareConcept,
-			Condition: "eq",
-			Value:     config.CareConceptOpenRooms,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyCareConcept, config.CareConceptOpenRooms),
 	})
 
 	// --- Kinderfotos (Datenverwaltung-Erweiterung) ---
@@ -487,6 +474,28 @@ func init() {
 		SortOrder:       60,
 	})
 
+	// Optional office/OGS approval gate for parent-submitted EXCUSED absences
+	// ("entschuldigt"), issue #1845. Default OFF (opt-in): with it off, an
+	// excused absence is written straight to the child's status days exactly like
+	// a Krankmeldung (only a note is now mandatory). With it ON, an excused
+	// absence becomes a PENDING request in the change-request queue that staff
+	// must confirm before it takes effect; Krankmeldungen stay direct regardless.
+	// Only meaningful while the sick-note feature above is enabled; DependsOn
+	// hides it otherwise.
+	config.Register(config.Definition{
+		Key:             config.KeyParentExcusedRequiresApproval,
+		Label:           "Entschuldigte Abmeldung muss bestätigt werden",
+		Description:     "Wenn aktiviert, wird eine entschuldigte Abmeldung über das Elternportal zunächst eine Anfrage, die das Team auf der Seite „Änderungsanfragen“ bestätigen oder ablehnen muss. Bis zur Bestätigung gilt das Kind als erwartet. Krankmeldungen werden weiterhin sofort eingetragen.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "operations",
+		Category:        "elternportal",
+		SortOrder:       62,
+		DependsOn:       &config.Dependency{Key: config.KeyParentSickNoteEnabled, Condition: "eq", Value: true},
+	})
+
 	config.Register(config.Definition{
 		Key:             config.KeyParentNotesEnabled,
 		Label:           "Eltern-OGS-Nachrichten",
@@ -519,11 +528,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "elternportal",
 		SortOrder:       62,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyParentNotesEnabled,
-			Condition: "eq",
-			Value:     true,
-		},
+		DependsOn:       config.DependsOnEq(config.KeyParentNotesEnabled, true),
 	})
 
 	// Related-accounts management. Whether a parent may invite further
@@ -560,11 +565,7 @@ func init() {
 		Tab:             "operations",
 		Category:        "elternportal",
 		SortOrder:       64,
-		DependsOn: &config.Dependency{
-			Key:       config.KeyGuardianParentInviteMode,
-			Condition: "neq",
-			Value:     config.ParentInviteModeDisabled,
-		},
+		DependsOn:       config.DependsOnNeq(config.KeyGuardianParentInviteMode, config.ParentInviteModeDisabled),
 	})
 
 	config.Register(config.Definition{

@@ -35,22 +35,10 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 	}
 }
 
-// Common error variables
-var (
-	ErrInvalidRequest   = errors.New("invalid request")
-	ErrUnauthorized     = errors.New("unauthorized")
-	ErrForbidden        = errors.New("forbidden")
-	ErrInternalServer   = errors.New("internal server error")
-	ErrResourceNotFound = errors.New("resource not found")
-	ErrConflict         = errors.New("resource conflict")
-	ErrTooManyRequests  = errors.New("too many requests")
-	ErrGone             = errors.New("resource no longer available")
-)
+// ErrUnauthorized is the sentinel for authentication failures.
+var ErrUnauthorized = errors.New("unauthorized")
 
 const statusClientClosedRequest = 499
-
-// LogRenderError is the format string for logging render errors
-const LogRenderError = "Error rendering error response: %v"
 
 // Validation error messages
 const (
@@ -62,7 +50,6 @@ const (
 	MsgInvalidAccountID       = "invalid account ID"
 	MsgInvalidPermissionID    = "invalid permission ID"
 	MsgInvalidParentAccountID = "invalid parent account ID"
-	MsgInvalidSettingID       = "invalid setting ID"
 	MsgInvalidRoomID          = "invalid room ID"
 	MsgInvalidWeekday         = "invalid weekday"
 	MsgInvalidPersonID        = "invalid person ID"
@@ -336,4 +323,16 @@ func IsConstraintViolation(err error) bool {
 // ErrorGone returns a 410 Gone error response
 func ErrorGone(err error) render.Renderer {
 	return newErrResponse(http.StatusGone, err)
+}
+
+// RequireDependency writes a 503 response built from unavailableErr when ok
+// is false and returns ok unchanged. Handlers use it to guard optional
+// service dependencies:
+//
+//	if !common.RequireDependency(w, r, rs.MFAService != nil, errMFAServiceUnavailable) { return }
+func RequireDependency(w http.ResponseWriter, r *http.Request, ok bool, unavailableErr error) bool {
+	if !ok {
+		RenderError(w, r, newErrResponse(http.StatusServiceUnavailable, unavailableErr))
+	}
+	return ok
 }

@@ -92,6 +92,32 @@ func TestEmailOutboxRepository_Create_RejectsInvalidRow(t *testing.T) {
 	assert.Contains(t, err.Error(), "validation failed")
 }
 
+func TestEmailOutboxRepository_Create_IdempotencyKeySuppressesDuplicate(t *testing.T) {
+	db, repo, tenantID := setupOutboxRepoTest(t)
+	kind := uniqueOutboxToken("idempotent")
+	defer wipeOutbox(db, tenantID, kind)
+	key := uniqueOutboxToken("decision-key")
+	first := makeOutbox(kind)
+	first.IdempotencyKey = &key
+	second := makeOutbox(kind)
+	second.IdempotencyKey = &key
+
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		if err := repo.Create(ctx, first); err != nil {
+			return err
+		}
+		return repo.Create(ctx, second)
+	}))
+
+	count, err := db.NewSelect().
+		Table("platform.email_outbox").
+		Where("tenant_id = ?", tenantID).
+		Where("idempotency_key = ?", key).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, 1, count)
+}
+
 func TestEmailOutboxRepository_FindByID_HappyPath(t *testing.T) {
 	db, repo, tenantID := setupOutboxRepoTest(t)
 	kind := uniqueOutboxToken("find")
@@ -299,6 +325,52 @@ func TestEmailOutboxRepository_ClaimDuePending_ZeroLimitDefaultsTo25(t *testing.
 		}
 	}
 	assert.True(t, found, "limit=0 must default to the budget (25), not return 0 rows")
+}
+
+// --- LockSending -------------------------------------------------------
+
+func TestEmailOutboxRepository_LockSending_TrueForSendingRow(t *testing.T) {
+	db, repo, tenantID := setupOutboxRepoTest(t)
+	kind := uniqueOutboxToken("locksending")
+	defer wipeOutbox(db, tenantID, kind)
+
+	r := makeOutbox(kind)
+	r.Status = platformModels.EmailOutboxStatusSending
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, r)
+	}))
+
+	var claimed bool
+	require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+		var lErr error
+		claimed, lErr = repo.LockSending(ctx, r.ID)
+		return lErr
+	}))
+	assert.True(t, claimed, "a row still in 'sending' must lock as claimed")
+}
+
+func TestEmailOutboxRepository_LockSending_FalseWhenGoneOrNotSending(t *testing.T) {
+	db, repo, tenantID := setupOutboxRepoTest(t)
+	kind := uniqueOutboxToken("lockgone")
+	defer wipeOutbox(db, tenantID, kind)
+
+	pending := makeOutbox(kind) // still 'pending' — not a valid claim
+	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
+		return repo.Create(ctx, pending)
+	}))
+
+	for name, id := range map[string]int64{
+		"deleted row":     9_999_999,
+		"non-sending row": pending.ID,
+	} {
+		var claimed bool
+		require.NoError(t, runAsAdmin(t, db, func(ctx context.Context) error {
+			var lErr error
+			claimed, lErr = repo.LockSending(ctx, id)
+			return lErr
+		}), name)
+		assert.False(t, claimed, "%s must report not claimed, without error", name)
+	}
 }
 
 // --- MarkSent / MarkRetry / MarkFailed --------------------------------

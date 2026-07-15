@@ -11,18 +11,19 @@ import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import {
   AuthShell,
+  MotoIconBrand,
   authInputClassName,
   authPrimaryButtonClassName,
 } from "~/components/auth/auth-shell";
 import { listAllTenants } from "~/lib/tenant-api";
-import type { TenantInfo, TenantListResult } from "~/lib/tenant-api";
+import type { TenantListResult, TenantSummary } from "~/lib/tenant-api";
 import { createLogger } from "~/lib/logger";
 import { env } from "~/env";
 
 const logger = createLogger({ component: "RootPage" });
 
 export default function RootPage() {
-  const [tenants, setTenants] = useState<TenantInfo[]>([]);
+  const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [listStatus, setListStatus] =
     useState<TenantListResult["status"]>("ok");
@@ -64,7 +65,7 @@ export default function RootPage() {
       title="Willkommen"
       subtitle="Wählen Sie Ihre Einrichtung aus."
       variant="tenant-select"
-      brand={null}
+      brand={<MotoIconBrand />}
       footer={
         <p className="text-sm text-gray-500">
           Noch nicht registriert?{" "}

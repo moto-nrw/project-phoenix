@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
@@ -31,11 +32,17 @@ const mocks = vi.hoisted(() => ({
   updateSchema: vi.fn(),
   uploadEnrollmentLegalDocument: vi.fn(),
   getTemplates: vi.fn(),
-  enrollmentFormProps: [] as Array<{ lockChildStructure?: boolean }>,
+  listCalendarPeriods: vi.fn(),
+  gradeLevelMax: 13,
+  enrollmentFormProps: [] as Array<{
+    lockChildStructure?: boolean;
+    gradeLevelMax?: number;
+  }>,
   searchParams: new URLSearchParams(),
   toast: {
     success: vi.fn(),
     error: vi.fn(),
+    warning: vi.fn(),
   },
 }));
 
@@ -44,6 +51,11 @@ vi.mock("next/navigation", () => ({
 }));
 
 vi.mock("~/lib/tenant-context", () => ({
+  useTenant: () => ({
+    tenantSlug: "demo",
+    tenant: { gradeLevelMax: mocks.gradeLevelMax },
+    routingMode: "path",
+  }),
   useTenantSlugSafe: () => "demo",
   useTenantRoutingModeSafe: () => "path",
   useNFCEnabled: vi.fn(() => true),
@@ -138,6 +150,12 @@ vi.mock("~/lib/timetable-api", () => ({
   },
 }));
 
+vi.mock("~/lib/calendar-period-api", () => ({
+  calendarPeriodService: {
+    list: mocks.listCalendarPeriods,
+  },
+}));
+
 vi.mock("~/lib/enrollment-admin-api", () => ({
   createLateInvite: mocks.createLateInvite,
   createManualApprovedEnrollment: mocks.createManualApprovedEnrollment,
@@ -145,7 +163,10 @@ vi.mock("~/lib/enrollment-admin-api", () => ({
 }));
 
 vi.mock("~/components/enrollment/enrollment-form", () => ({
-  EnrollmentForm: (props: { lockChildStructure?: boolean }) => {
+  EnrollmentForm: (props: {
+    lockChildStructure?: boolean;
+    gradeLevelMax?: number;
+  }) => {
     mocks.enrollmentFormProps.push(props);
     return (
       <div
@@ -165,6 +186,7 @@ import { PhasesEditor } from "./phases-editor";
 import type { CareOffering } from "~/lib/care-offering-api";
 import type { FormField, FormSchema } from "~/lib/enrollment-form-schema-api";
 import type { Phase } from "~/lib/enrollment-phase-api";
+import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 
 function phase(overrides: Partial<Phase> = {}): Phase {
   return {
@@ -227,6 +249,25 @@ function offering(overrides: Partial<CareOffering> = {}): CareOffering {
     sort_order: 0,
     created_at: "2026-01-01T00:00:00.000Z",
     updated_at: "2026-01-01T00:00:00.000Z",
+    ...overrides,
+  };
+}
+
+function calendarPeriod(
+  overrides: Partial<CalendarPeriod> = {},
+): CalendarPeriod {
+  return {
+    id: "period-1",
+    tenantId: "1",
+    name: "Schuljahr 2026/27",
+    periodType: "school_year",
+    startDate: "2026-08-01",
+    endDate: "2027-08-31",
+    weekCycleLength: 1,
+    weekCycleAnchor: null,
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00.000Z",
+    updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
   };
 }
@@ -310,9 +351,13 @@ beforeEach(() => {
   mocks.deleteEnrollmentLegalDocument.mockReset();
   mocks.getTemplates.mockReset();
   mocks.getTemplates.mockResolvedValue({ templates: [] });
+  mocks.listCalendarPeriods.mockReset();
+  mocks.listCalendarPeriods.mockResolvedValue([]);
+  mocks.gradeLevelMax = 13;
   mocks.enrollmentFormProps = [];
   mocks.toast.success.mockReset();
   mocks.toast.error.mockReset();
+  mocks.toast.warning.mockReset();
   mocks.searchParams = new URLSearchParams();
   Object.defineProperty(window, "confirm", {
     value: vi.fn(() => true),
@@ -349,6 +394,11 @@ describe("CareOfferingsEditor", () => {
     );
     expect(screen.getByText("Betreuungstage & Mitbuchung")).toBeVisible();
     expect(screen.getByText("Als Betreuungstage zählen")).toBeVisible();
+    // Weekdays start unselected (#1885): picking a day is a deliberate input.
+    const mondayToggle = screen.getByRole("button", { name: "Mo" });
+    expect(mondayToggle).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(mondayToggle);
+    expect(mondayToggle).toHaveAttribute("aria-pressed", "true");
     fireEvent.change(await waitForInputByName("name"), {
       target: { value: "Frühbetreuung" },
     });
@@ -374,6 +424,70 @@ describe("CareOfferingsEditor", () => {
     await waitFor(() => {
       expect(mocks.listCareOfferings.mock.calls.length).toBeGreaterThanOrEqual(
         2,
+      );
+    });
+  });
+
+  it("edits availability rules without JSON and blocks incomplete rules", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([]);
+    mocks.createCareOffering.mockResolvedValue(
+      offering({ id: "new", name: "Randstunde" }),
+    );
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Erstes Betreuungsangebot anlegen",
+      }),
+    );
+
+    expect(
+      screen.getByRole("checkbox", {
+        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+      }),
+    ).not.toBeChecked();
+    fireEvent.change(await waitForInputByName("name"), {
+      target: { value: "Randstunde" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
+    fireEvent.click(
+      screen.getByRole("checkbox", {
+        name: /Für alle Klassenstufen \/ ohne Bedingungen/,
+      }),
+    );
+
+    expect(
+      screen.getByText("Bedingung 1: Wähle mindestens eine Klassenstufe."),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Erstellen" })).toBeDisabled();
+    const availabilityFields = within(
+      screen.getByRole("group", {
+        name: "Bedingungen für die Verfügbarkeit",
+      }),
+    );
+    fireEvent.click(
+      availabilityFields.getByRole("button", { name: "Klasse 1" }),
+    );
+    fireEvent.click(
+      availabilityFields.getByRole("button", { name: "Klasse 2" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    await waitFor(() => {
+      expect(mocks.createCareOffering).toHaveBeenCalledWith(
+        expect.objectContaining({
+          availability_rule: {
+            match: "all",
+            conditions: [
+              {
+                source: "grade_level",
+                operator: "in",
+                value: [1, 2],
+              },
+            ],
+          },
+        }),
       );
     });
   });
@@ -418,6 +532,8 @@ describe("CareOfferingsEditor", () => {
       target: { value: "Randstunde" },
     });
     fireEvent.click(screen.getByRole("checkbox", { name: /Ganztag/ }));
+    // Weekdays start unselected (#1885); save requires at least one day.
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
     fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
 
     await waitFor(() => {
@@ -502,6 +618,8 @@ describe("CareOfferingsEditor", () => {
     fireEvent.click(screen.getByText("Pflicht"));
     expect(inputByName("capacity")).toBeDisabled();
 
+    // Weekdays start unselected (#1885); save requires at least one day.
+    fireEvent.click(screen.getByRole("button", { name: "Mo" }));
     fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
     await waitFor(() => {
       expect(mocks.createCareOffering).toHaveBeenCalledWith(
@@ -514,9 +632,10 @@ describe("CareOfferingsEditor", () => {
     });
   });
 
-  it("shows warnings for timetable template mismatches", async () => {
+  it("blocks a Regeltermin whose slots omit selected offering weekdays", async () => {
     mocks.listPhases.mockResolvedValue([phase()]);
     mocks.listCareOfferings.mockResolvedValue([offering()]);
+    mocks.listCalendarPeriods.mockResolvedValue([calendarPeriod()]);
     mocks.getTemplates.mockResolvedValue({
       templates: [
         {
@@ -546,6 +665,7 @@ describe("CareOfferingsEditor", () => {
               startTime: "13:00",
               endTime: "14:00",
               weekPattern: 0,
+              calendarPeriodId: "period-1",
             },
           ],
         },
@@ -558,24 +678,971 @@ describe("CareOfferingsEditor", () => {
     fireEvent.click(
       screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
     );
-    await waitForInputByName("name");
-    await chooseOption("Betreuungsplan-Vorlage", /Lernzeit/);
+    fireEvent.change(await waitForInputByName("name"), {
+      target: { value: "Lernzeitangebot" },
+    });
+    // Weekdays start unselected (#1885); pick Mo-Fr explicitly so the
+    // template (Mon + Sat) misses the selected Tue-Fri as before.
+    for (const day of ["Mo", "Di", "Mi", "Do", "Fr"]) {
+      fireEvent.click(screen.getByRole("button", { name: day }));
+    }
+    await chooseOption("Regeltermin", /Lernzeit/);
 
     expect(
       screen.getByText(
-        "Das Angebot enthält Tage, an denen die ausgewählte Vorlage keinen Slot hat.",
+        /Regeltermin deckt die ausgewählten Angebotstage Di, Mi, Do, Fr nicht ab/,
       ),
-    ).toBeInTheDocument();
+    ).toHaveAttribute("role", "alert");
     expect(
       screen.getByText(
-        "Die Vorlage enthält Tage, die im Angebot nicht auswählbar sind.",
+        "Der Regeltermin enthält Tage, die im Angebot nicht auswählbar sind.",
       ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Erstellen" })).toBeDisabled();
+
+    for (const day of ["Di", "Mi", "Do", "Fr"]) {
+      fireEvent.click(screen.getByRole("button", { name: day }));
+    }
+
+    expect(
+      screen.queryByText(/Regeltermin deckt die ausgewählten Angebotstage/),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Erstellen" })).toBeEnabled();
+  });
+
+  it("warns when the offering name says one weekday but more days are selected", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    );
+    fireEvent.change(await waitForInputByName("name"), {
+      target: {
+        value:
+          "Montags: Betreuung bis zum Beginn des privaten Musikunterrichts",
+      },
+    });
+    for (const day of ["Mo", "Di", "Mi", "Do", "Fr"]) {
+      fireEvent.click(screen.getByRole("button", { name: day }));
+    }
+
+    const warning = screen.getByText(
+      /Der Name nennt nur einen Wochentag, ausgewählt sind zusätzlich Di, Mi, Do, Fr\./,
+    );
+    expect(warning).toBeVisible();
+    // Soft hint, not an error: saving stays possible.
+    expect(warning).not.toHaveAttribute("role", "alert");
+    expect(screen.getByRole("button", { name: "Erstellen" })).toBeEnabled();
+
+    // Deselecting the extra days resolves the mismatch.
+    for (const day of ["Di", "Mi", "Do", "Fr"]) {
+      fireEvent.click(screen.getByRole("button", { name: day }));
+    }
+    expect(
+      screen.queryByText(/Der Name nennt nur einen Wochentag/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not warn for names without a single-weekday claim", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    );
+    const nameInput = await waitForInputByName("name");
+    for (const day of ["Mo", "Mi", "Fr"]) {
+      fireEvent.click(screen.getByRole("button", { name: day }));
+    }
+
+    // Two weekday words: the name makes no single-day claim.
+    fireEvent.change(nameInput, {
+      target: { value: "Montag und Mittwoch AG" },
+    });
+    expect(
+      screen.queryByText(/Der Name nennt nur einen Wochentag/),
+    ).not.toBeInTheDocument();
+
+    // No weekday word at all.
+    fireEvent.change(nameInput, { target: { value: "Fußball AG" } });
+    expect(
+      screen.queryByText(/Der Name nennt nur einen Wochentag/),
+    ).not.toBeInTheDocument();
+  });
+
+  it("does not block saving while the name-weekday warning shows", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+    mocks.createCareOffering.mockResolvedValue(
+      offering({ id: "new", name: "Montags-Club" }),
+    );
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Neues Betreuungsangebot" }),
+    );
+    fireEvent.change(await waitForInputByName("name"), {
+      target: { value: "Montags-Club" },
+    });
+    for (const day of ["Mo", "Di"]) {
+      fireEvent.click(screen.getByRole("button", { name: day }));
+    }
+    expect(
+      screen.getByText(/Der Name nennt nur einen Wochentag/),
+    ).toBeVisible();
+
+    fireEvent.click(screen.getByRole("button", { name: "Erstellen" }));
+
+    await waitFor(() => {
+      expect(mocks.createCareOffering).toHaveBeenCalledWith(
+        expect.objectContaining({
+          name: "Montags-Club",
+          available_days: ["mon", "tue"],
+        }),
+      );
+    });
+    expect(mocks.toast.error).not.toHaveBeenCalled();
+  });
+
+  it("offers Regeltermine whose resolved period contains the phase", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([]);
+    mocks.listCalendarPeriods.mockResolvedValue([
+      calendarPeriod(),
+      calendarPeriod({
+        id: "period-short",
+        name: "Kurzer Zeitraum",
+        startDate: "2026-09-01",
+        endDate: "2026-12-31",
+      }),
+      calendarPeriod({
+        id: "period-inactive",
+        name: "Inaktiver Zeitraum",
+        isActive: false,
+      }),
+    ]);
+    const baseTemplate = {
+      type: "care" as const,
+      categoryId: "cat-1",
+      categoryName: "Betreuung",
+      isOpen: true,
+      maxParticipants: 20,
+      enrollmentCount: 0,
+      supervisorCount: 0,
+      requiredStaffCount: 0,
+      assignedStaffCount: 0,
+      studentIds: [],
+      staffIds: [],
+      targetGroupType: "none" as const,
+    };
+    mocks.getTemplates.mockResolvedValue({
+      templates: [
+        {
+          ...baseTemplate,
+          id: "8",
+          name: "Passender Regeltermin",
+          schedules: [
+            {
+              id: "schedule-compatible",
+              weekday: 1,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+              calendarPeriodId: "period-1",
+            },
+          ],
+        },
+        {
+          ...baseTemplate,
+          id: "9",
+          name: "Zu kurzer Regeltermin",
+          schedules: [
+            {
+              id: "schedule-short",
+              weekday: 1,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+              calendarPeriodId: "period-short",
+            },
+          ],
+        },
+        {
+          ...baseTemplate,
+          id: "10",
+          name: "Regeltermin ohne Slots",
+          schedules: [],
+        },
+        {
+          ...baseTemplate,
+          id: "11",
+          name: "Regeltermin mit Vorlagenperiode",
+          calendarPeriodId: "period-1",
+          schedules: [
+            {
+              id: "schedule-template-period",
+              weekday: 2,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+            },
+          ],
+        },
+        {
+          ...baseTemplate,
+          id: "12",
+          name: "Regeltermin im inaktiven Zeitraum",
+          calendarPeriodId: "period-inactive",
+          schedules: [
+            {
+              id: "schedule-inactive-period",
+              weekday: 2,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Erstes Betreuungsangebot anlegen",
+      }),
+    );
+    fireEvent.click(screen.getByLabelText("Regeltermin"));
+
+    expect(
+      screen.getByRole("option", { name: /Passender Regeltermin/ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(
-        "Die Vorlage muss genau eine Planungsperiode für alle Slots verwenden.",
-      ),
+      screen.queryByRole("option", { name: /Zu kurzer Regeltermin/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: /Regeltermin ohne Slots/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("option", {
+        name: /Regeltermin mit Vorlagenperiode/,
+      }),
     ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", {
+        name: /Regeltermin im inaktiven Zeitraum/,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps inactive offerings linked to inactive periods but blocks activation", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({
+        activity_group_id: "12",
+        available_days: ["tue"],
+        is_active: false,
+      }),
+    ]);
+    mocks.listCalendarPeriods.mockResolvedValue([
+      calendarPeriod({ id: "period-inactive", isActive: false }),
+    ]);
+    mocks.getTemplates.mockResolvedValue({
+      templates: [
+        {
+          id: "12",
+          name: "Regeltermin im inaktiven Zeitraum",
+          type: "care",
+          categoryId: "cat-1",
+          categoryName: "Betreuung",
+          isOpen: true,
+          maxParticipants: 20,
+          calendarPeriodId: "period-inactive",
+          targetGroupType: "none",
+          enrollmentCount: 0,
+          supervisorCount: 0,
+          requiredStaffCount: 0,
+          assignedStaffCount: 0,
+          studentIds: [],
+          staffIds: [],
+          schedules: [
+            {
+              id: "schedule-inactive-period",
+              weekday: 2,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+            },
+          ],
+        },
+      ],
+    });
+    mocks.updateCareOffering.mockResolvedValue(
+      offering({
+        activity_group_id: "12",
+        available_days: ["tue"],
+        is_active: false,
+      }),
+    );
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    expect(screen.getByLabelText("Regeltermin")).toHaveTextContent(
+      /Regeltermin im inaktiven Zeitraum/,
+    );
+    const activeCheckbox = screen.getByRole("checkbox", { name: /^Aktiv/ });
+    const save = screen.getByRole("button", { name: "Speichern" });
+    expect(activeCheckbox).not.toBeChecked();
+    expect(save).toBeEnabled();
+
+    fireEvent.click(activeCheckbox);
+    expect(
+      screen.getByText(/aktives Betreuungsangebot braucht einen aktiven/),
+    ).toBeVisible();
+    expect(save).toBeDisabled();
+
+    fireEvent.click(activeCheckbox);
+    expect(
+      screen.queryByText(/aktives Betreuungsangebot braucht einen aktiven/),
+    ).not.toBeInTheDocument();
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+
+    await waitFor(() =>
+      expect(mocks.updateCareOffering).toHaveBeenCalledWith(
+        "offer-1",
+        expect.objectContaining({
+          activity_group_id: 12,
+          is_active: false,
+        }),
+      ),
+    );
+  });
+
+  it("shows an existing incompatible link and blocks saving it", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ activity_group_id: "9" }),
+    ]);
+    mocks.listCalendarPeriods.mockResolvedValue([
+      calendarPeriod({
+        id: "period-short",
+        startDate: "2026-09-01",
+        endDate: "2026-12-31",
+      }),
+    ]);
+    mocks.getTemplates.mockResolvedValue({
+      templates: [
+        {
+          id: "9",
+          name: "Lernzeit",
+          type: "care",
+          categoryId: "cat-1",
+          categoryName: "Betreuung",
+          isOpen: true,
+          maxParticipants: 20,
+          enrollmentCount: 0,
+          supervisorCount: 0,
+          requiredStaffCount: 0,
+          assignedStaffCount: 0,
+          studentIds: [],
+          staffIds: [],
+          targetGroupType: "none",
+          schedules: [
+            {
+              id: "schedule-short",
+              weekday: 1,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+              calendarPeriodId: "period-short",
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    expect(screen.getByLabelText("Regeltermin")).toHaveTextContent(
+      /Lernzeit.*nicht kompatibel/,
+    );
+    expect(
+      screen.getByText(/muss den gesamten Betreuungszeitraum/),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+  });
+
+  it("does not expose technical series-gap errors returned on save", async () => {
+    const technicalError =
+      "timetable recurrence does not cover care offering weekday 1 on 2027-03-01";
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ activity_group_id: "8", available_days: ["mon"] }),
+    ]);
+    mocks.listCalendarPeriods.mockResolvedValue([calendarPeriod()]);
+    mocks.getTemplates.mockResolvedValue({
+      templates: [
+        {
+          id: "8",
+          name: "Lernzeit",
+          type: "care",
+          categoryId: "cat-1",
+          categoryName: "Betreuung",
+          isOpen: true,
+          maxParticipants: 20,
+          calendarPeriodId: "period-1",
+          targetGroupType: "none",
+          enrollmentCount: 0,
+          supervisorCount: 0,
+          requiredStaffCount: 0,
+          assignedStaffCount: 0,
+          studentIds: [],
+          staffIds: [],
+          schedules: [
+            {
+              id: "schedule-monday",
+              weekday: 1,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+            },
+          ],
+        },
+      ],
+    });
+    mocks.updateCareOffering.mockRejectedValue(new Error(technicalError));
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+    await waitFor(() =>
+      expect(screen.getByLabelText("Regeltermin")).toHaveTextContent(
+        "Lernzeit",
+      ),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        "Betreuungsangebot konnte nicht gespeichert werden",
+      ),
+    ).toBeVisible();
+    expect(screen.queryByText(technicalError)).not.toBeInTheDocument();
+    expect(mocks.toast.error).toHaveBeenCalledWith(
+      "Betreuungsangebot konnte nicht gespeichert werden",
+    );
+  });
+
+  it("clears a linked Regeltermin when the phase change makes it incompatible", async () => {
+    mocks.listPhases.mockResolvedValue([
+      phase(),
+      phase({
+        id: "11",
+        name: "Schuljahr 2027/28",
+        service_start_date: "2027-09-01",
+        service_end_date: "2028-07-31",
+      }),
+    ]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ activity_group_id: "8" }),
+    ]);
+    mocks.listCalendarPeriods.mockResolvedValue([calendarPeriod()]);
+    mocks.updateCareOffering.mockResolvedValue(
+      offering({ phase_id: "11", activity_group_id: null }),
+    );
+    mocks.getTemplates.mockResolvedValue({
+      templates: [
+        {
+          id: "8",
+          name: "Lernzeit",
+          type: "care",
+          categoryId: "cat-1",
+          categoryName: "Betreuung",
+          isOpen: true,
+          maxParticipants: 20,
+          enrollmentCount: 0,
+          supervisorCount: 0,
+          requiredStaffCount: 0,
+          assignedStaffCount: 0,
+          studentIds: [],
+          staffIds: [],
+          targetGroupType: "none",
+          schedules: [
+            {
+              id: "schedule-linked",
+              weekday: 1,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+              calendarPeriodId: "period-1",
+            },
+          ],
+        },
+      ],
+    });
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+    const form = screen
+      .getByRole("heading", { name: "Betreuungsangebot bearbeiten" })
+      .closest("form");
+    expect(form).not.toBeNull();
+    fireEvent.click(within(form!).getByLabelText("Anmeldephase"));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Schuljahr 2027/28" }),
+    );
+
+    expect(mocks.toast.warning).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /Verknüpfung zum Regeltermin wurde entfernt.*neu gewählten Anmeldephase/,
+      ),
+    );
+    expect(within(form!).getByLabelText("Regeltermin")).toHaveTextContent(
+      "Keine automatische Regeltermin-Zuordnung",
+    );
+    fireEvent.click(within(form!).getByRole("button", { name: "Speichern" }));
+    await waitFor(() => {
+      expect(mocks.updateCareOffering).toHaveBeenCalledWith(
+        "offer-1",
+        expect.objectContaining({
+          phase_id: 11,
+          activity_group_id: null,
+        }),
+      );
+    });
+  });
+
+  it("renders the offering catalog before optional planner metadata settles", async () => {
+    const templatesRequest = deferred<{ templates: [] }>();
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+    mocks.getTemplates.mockReturnValue(templatesRequest.promise);
+
+    render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+    expect(mocks.listCalendarPeriods).toHaveBeenCalledTimes(1);
+
+    await act(async () => templatesRequest.resolve({ templates: [] }));
+  });
+
+  it("allows an existing link to be removed when planner metadata fails", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ activity_group_id: "8" }),
+    ]);
+    mocks.getTemplates.mockRejectedValue(new Error("Regeltermine verboten"));
+    mocks.updateCareOffering.mockResolvedValue(
+      offering({ activity_group_id: "8" }),
+    );
+
+    render(<CareOfferingsEditor />);
+
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+    expect(await screen.findByRole("status")).toHaveTextContent(
+      /Betreuungsangebote bleiben nutzbar/,
+    );
+    expect(screen.getByRole("button", { name: "Erneut laden" })).toBeEnabled();
+    expect(mocks.toast.error).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Regelbetreuung" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    const templateSelect = screen.getByLabelText("Regeltermin");
+    expect(templateSelect).toBeEnabled();
+    expect(
+      screen.getByText(/Kompatibilität ist derzeit unbekannt/),
+    ).toBeVisible();
+    fireEvent.click(templateSelect);
+    expect(
+      screen.getByRole("option", {
+        name: "Keine automatische Regeltermin-Zuordnung",
+      }),
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("option", { name: /Regeltermin #8/ }),
+    ).toBeDisabled();
+    fireEvent.click(
+      screen.getByRole("option", {
+        name: "Keine automatische Regeltermin-Zuordnung",
+      }),
+    );
+    const save = screen.getByRole("button", { name: "Speichern" });
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
+
+    await waitFor(() =>
+      expect(mocks.updateCareOffering).toHaveBeenCalledWith(
+        "offer-1",
+        expect.objectContaining({ activity_group_id: null }),
+      ),
+    );
+  });
+
+  it("keeps existing links when calendar-period metadata fails", async () => {
+    mocks.listPhases.mockResolvedValue([
+      phase(),
+      phase({ id: "11", name: "Schuljahr 2027/28" }),
+    ]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ activity_group_id: "8" }),
+    ]);
+    mocks.listCalendarPeriods.mockRejectedValue(new Error("Perioden kaputt"));
+    mocks.getTemplates.mockResolvedValue({
+      templates: [
+        {
+          id: "8",
+          name: "Lernzeit",
+          type: "care",
+          categoryId: "cat-1",
+          categoryName: "Betreuung",
+          isOpen: true,
+          maxParticipants: 20,
+          enrollmentCount: 0,
+          supervisorCount: 0,
+          requiredStaffCount: 0,
+          assignedStaffCount: 0,
+          studentIds: [],
+          staffIds: [],
+          targetGroupType: "none",
+          calendarPeriodId: "period-1",
+          schedules: [
+            {
+              id: "schedule-linked",
+              weekday: 1,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+            },
+          ],
+        },
+      ],
+    });
+    mocks.updateCareOffering.mockResolvedValue(
+      offering({ phase_id: "11", activity_group_id: "8" }),
+    );
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+    const form = screen
+      .getByRole("heading", { name: "Betreuungsangebot bearbeiten" })
+      .closest("form");
+    expect(form).not.toBeNull();
+    fireEvent.click(within(form!).getByLabelText("Anmeldephase"));
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Schuljahr 2027/28" }),
+    );
+
+    fireEvent.click(within(form!).getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(mocks.updateCareOffering).toHaveBeenCalledWith(
+        "offer-1",
+        expect.objectContaining({
+          phase_id: 11,
+          activity_group_id: 8,
+        }),
+      ),
+    );
+    expect(mocks.toast.warning).not.toHaveBeenCalled();
+  });
+
+  it("withholds a stale catalog when the newly selected phase fails to load", async () => {
+    let targetPhaseFails = true;
+    const metadataRequest = deferred<{ templates: [] }>();
+    const failedCatalogRequest = deferred<CareOffering[]>();
+    const successfulCatalogRequest = deferred<CareOffering[]>();
+    mocks.getTemplates.mockReturnValue(metadataRequest.promise);
+    mocks.listPhases.mockResolvedValue([
+      phase(),
+      phase({ id: "11", name: "Ferien", kind: "holiday" }),
+    ]);
+    mocks.listCareOfferings.mockImplementation((phaseID: string) => {
+      if (phaseID === "11") {
+        return targetPhaseFails
+          ? failedCatalogRequest.promise
+          : successfulCatalogRequest.promise;
+      }
+      return Promise.resolve([offering({ name: "Regelbetreuung" })]);
+    });
+
+    render(<CareOfferingsEditor />);
+    expect(await screen.findByText("Regelbetreuung")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByLabelText("Anmeldephase"));
+    const holidayPhaseOption = await screen.findByRole("option", {
+      name: "Ferien (Ferienbetreuung)",
+    });
+    await act(async () => {
+      holidayPhaseOption.click();
+      await Promise.resolve();
+    });
+    await act(async () => {
+      failedCatalogRequest.reject(new Error("Ferienkatalog nicht erreichbar"));
+      await failedCatalogRequest.promise.catch(() => undefined);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Betreuungsangebote konnten nicht geladen werden",
+      }),
+    ).toBeVisible();
+    expect(screen.getByText("Ferienkatalog nicht erreichbar")).toBeVisible();
+    expect(screen.queryByText("Regelbetreuung")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch kein Betreuungsangebot angelegt"),
+    ).not.toBeInTheDocument();
+
+    targetPhaseFails = false;
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Betreuungsangebote erneut laden",
+      }),
+    );
+    await act(async () => {
+      successfulCatalogRequest.resolve([
+        offering({
+          id: "holiday-offer",
+          phase_id: "11",
+          name: "Ferienbetreuung",
+        }),
+      ]);
+      await successfulCatalogRequest.promise;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+
+    expect(await screen.findByText("Ferienbetreuung")).toBeInTheDocument();
+    expect(screen.queryByText("Regelbetreuung")).not.toBeInTheDocument();
+
+    await act(async () => {
+      metadataRequest.resolve({ templates: [] });
+      await metadataRequest.promise;
+    });
+  });
+
+  it("ignores an out-of-order catalog load under React StrictMode", async () => {
+    const stalePhaseRequest = deferred<Phase[]>();
+    mocks.listPhases
+      .mockReturnValueOnce(stalePhaseRequest.promise)
+      .mockResolvedValueOnce([
+        phase({ id: "11", name: "Aktuelle Phase", kind: "custom" }),
+      ]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({
+        id: "current-offer",
+        phase_id: "11",
+        name: "Aktuelles Angebot",
+      }),
+    ]);
+
+    render(
+      <StrictMode>
+        <CareOfferingsEditor />
+      </StrictMode>,
+    );
+
+    expect(await screen.findByText("Aktuelles Angebot")).toBeInTheDocument();
+
+    await act(async () => {
+      stalePhaseRequest.resolve([phase()]);
+      await stalePhaseRequest.promise;
+    });
+
+    expect(screen.getByText("Aktuelles Angebot")).toBeInTheDocument();
+    expect(mocks.listCareOfferings).toHaveBeenCalledTimes(1);
+    expect(mocks.listCareOfferings).toHaveBeenCalledWith("11");
+  });
+
+  it("allows an unresolved linked template period to be removed", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ activity_group_id: "8" }),
+    ]);
+    mocks.listCalendarPeriods.mockResolvedValue([calendarPeriod()]);
+    mocks.getTemplates.mockResolvedValue({
+      templates: [
+        {
+          id: "8",
+          name: "Lernzeit",
+          type: "care",
+          categoryId: "cat-1",
+          categoryName: "Betreuung",
+          isOpen: true,
+          maxParticipants: 20,
+          enrollmentCount: 0,
+          supervisorCount: 0,
+          requiredStaffCount: 0,
+          assignedStaffCount: 0,
+          studentIds: [],
+          staffIds: [],
+          targetGroupType: "none",
+          schedules: [
+            {
+              id: "schedule-unresolved",
+              weekday: 1,
+              startTime: "13:00",
+              endTime: "14:00",
+              weekPattern: 0,
+            },
+          ],
+        },
+      ],
+    });
+    mocks.updateCareOffering.mockResolvedValue(
+      offering({ activity_group_id: "8" }),
+    );
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    const templateSelect = screen.getByLabelText("Regeltermin");
+    expect(templateSelect).toBeEnabled();
+    expect(screen.getByText(/Planungsperiode.*nicht eindeutig/)).toBeVisible();
+    fireEvent.click(templateSelect);
+    expect(
+      await screen.findByRole("option", {
+        name: /Lernzeit.*Kompatibilität unbekannt/,
+      }),
+    ).toBeDisabled();
+    fireEvent.click(
+      screen.getByRole("option", {
+        name: "Keine automatische Regeltermin-Zuordnung",
+      }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mocks.updateCareOffering).toHaveBeenCalledWith(
+        "offer-1",
+        expect.objectContaining({ activity_group_id: null }),
+      ),
+    );
+  });
+
+  it("derives automation grades from the tenant cap", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+    mocks.updateCareOffering.mockResolvedValue(offering());
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    const gradeThirteen = screen.getByRole("button", { name: "Klasse 13" });
+    expect(gradeThirteen).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(gradeThirteen);
+    expect(gradeThirteen).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mocks.updateCareOffering).toHaveBeenCalledWith(
+        "offer-1",
+        expect.objectContaining({ auto_add_grade_levels: [13] }),
+      ),
+    );
+  });
+
+  it("preserves existing supported automation grades above a lowered tenant cap", async () => {
+    mocks.gradeLevelMax = 4;
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([
+      offering({ auto_add_grade_levels: [5, 13] }),
+    ]);
+    mocks.updateCareOffering.mockResolvedValue(
+      offering({ auto_add_grade_levels: [2, 5, 13] }),
+    );
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Klasse 5 (bestehend)" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(
+      screen.getByRole("button", { name: "Klasse 13 (bestehend)" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    const gradeTwo = screen.getByRole("button", { name: "Klasse 2" });
+    expect(gradeTwo).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(gradeTwo);
+    expect(gradeTwo).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(mocks.updateCareOffering).toHaveBeenCalledWith(
+        "offer-1",
+        expect.objectContaining({ auto_add_grade_levels: [2, 5, 13] }),
+      ),
+    );
   });
 
   it("shows empty and error states", async () => {
@@ -747,6 +1814,7 @@ describe("PhasesEditor", () => {
     expect(form).toHaveAttribute("data-lock-child-structure", "true");
     expect(mocks.enrollmentFormProps.at(-1)).toMatchObject({
       lockChildStructure: true,
+      gradeLevelMax: 13,
     });
   });
 });

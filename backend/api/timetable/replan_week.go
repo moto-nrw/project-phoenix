@@ -50,7 +50,7 @@ type replanWeekResponse struct {
 
 // replanWeek handles POST /instances/re-plan-week.
 func (rs *Resource) replanWeek(w http.ResponseWriter, r *http.Request) {
-	if rs.instanceService == nil {
+	if rs.InstanceService == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("instance service not wired")))
 		return
 	}
@@ -72,7 +72,7 @@ func (rs *Resource) replanWeek(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := rs.instanceService.ReplanWeek(r.Context(), from, to, req.ActivityGroupID)
+	result, err := rs.InstanceService.ReplanWeek(r.Context(), from, to, req.ActivityGroupID, resolveActorAccountID(r.Context()))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("replan week failed", err))
 		return

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -47,6 +48,127 @@ var validSelectionRules = map[string]bool{
 	SelectionRuleAtMostOne:  true,
 }
 
+// ErrCareOfferingInvalid classifies an administrator-controlled catalog or
+// timetable-link configuration that cannot be accepted. It lives with the
+// shared model so enrollment and schedule services can agree on the boundary
+// between a client-correctable conflict (HTTP 400) and an infrastructure
+// failure (HTTP 500) without introducing a service-package import cycle.
+var ErrCareOfferingInvalid = errors.New("invalid care offering configuration")
+
+// ErrCareOfferingDaysRequired marks the missing-weekday validation so the
+// HTTP layer can attach a stable error code for the admin editor (#1885).
+var ErrCareOfferingDaysRequired = errors.New("available_days must contain at least one day")
+
+const (
+	AvailabilityMatchAll = "all"
+	AvailabilityMatchAny = "any"
+
+	AvailabilitySourceGradeLevel = "grade_level"
+
+	AvailabilityOperatorIn    = "in"
+	AvailabilityOperatorNotIn = "not_in"
+)
+
+// CareOfferingAvailabilityRule is deliberately typed and source-oriented so
+// later condition sources can be added without changing the care_offerings
+// table again. A nil rule (and, defensively, an empty conditions list) means
+// that the offering is available to every child.
+type CareOfferingAvailabilityRule struct {
+	Match      string                              `json:"match"`
+	Conditions []CareOfferingAvailabilityCondition `json:"conditions"`
+}
+
+type CareOfferingAvailabilityCondition struct {
+	Source   string `json:"source"`
+	Operator string `json:"operator"`
+	Value    []int  `json:"value"`
+}
+
+// NormalizeAndValidate validates the storage-level rule contract and
+// canonicalizes grade lists without changing condition order.
+func (r *CareOfferingAvailabilityRule) NormalizeAndValidate() error {
+	if r == nil || len(r.Conditions) == 0 {
+		return nil
+	}
+	if r.Match != AvailabilityMatchAll && r.Match != AvailabilityMatchAny {
+		return fmt.Errorf("availability_rule.match must be %q or %q", AvailabilityMatchAll, AvailabilityMatchAny)
+	}
+	for i := range r.Conditions {
+		condition := &r.Conditions[i]
+		if condition.Source != AvailabilitySourceGradeLevel {
+			return fmt.Errorf("availability_rule condition %d has unknown source %q", i+1, condition.Source)
+		}
+		if condition.Operator != AvailabilityOperatorIn && condition.Operator != AvailabilityOperatorNotIn {
+			return fmt.Errorf("availability_rule condition %d has unknown operator %q", i+1, condition.Operator)
+		}
+		if len(condition.Value) == 0 {
+			return fmt.Errorf("availability_rule condition %d requires at least one value", i+1)
+		}
+		seen := make(map[int]struct{}, len(condition.Value))
+		values := make([]int, 0, len(condition.Value))
+		for _, grade := range condition.Value {
+			if grade < 1 || grade > 13 {
+				return fmt.Errorf("availability_rule condition %d contains invalid grade %d", i+1, grade)
+			}
+			if _, ok := seen[grade]; ok {
+				continue
+			}
+			seen[grade] = struct{}{}
+			values = append(values, grade)
+		}
+		slices.Sort(values)
+		condition.Value = values
+	}
+	return nil
+}
+
+func (r *CareOfferingAvailabilityRule) RequiresGradeLevel() bool {
+	if r == nil {
+		return false
+	}
+	for _, condition := range r.Conditions {
+		if condition.Source == AvailabilitySourceGradeLevel {
+			return true
+		}
+	}
+	return false
+}
+
+// MatchesGradeLevel is the authoritative availability evaluator. Missing
+// grade data never satisfies a condition, including a negative condition.
+func (r *CareOfferingAvailabilityRule) MatchesGradeLevel(gradeLevel *int16) (bool, error) {
+	if r == nil || len(r.Conditions) == 0 {
+		return true, nil
+	}
+	if err := r.NormalizeAndValidate(); err != nil {
+		return false, err
+	}
+	if gradeLevel == nil {
+		return false, nil
+	}
+	matches := func(condition CareOfferingAvailabilityCondition) bool {
+		included := slices.Contains(condition.Value, int(*gradeLevel))
+		if condition.Operator == AvailabilityOperatorNotIn {
+			return !included
+		}
+		return included
+	}
+	if r.Match == AvailabilityMatchAll {
+		for _, condition := range r.Conditions {
+			if !matches(condition) {
+				return false, nil
+			}
+		}
+		return true, nil
+	}
+	for _, condition := range r.Conditions {
+		if matches(condition) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // CareOffering is a row in enrollment.care_offerings - one care option
 // in the tenant's catalog. Admins build the catalog per calendar period
 // (typically a school year, occasionally a holiday); parents pick from
@@ -69,9 +191,10 @@ type CareOffering struct {
 	// Keep the DB default, but do not tag this with bun default:true:
 	// explicit false must be inserted instead of letting Postgres default
 	// it back to true.
-	CountsAsCare       bool  `bun:"counts_as_care,notnull" json:"counts_as_care"`
-	AutoAddGradeLevels []int `bun:"auto_add_grade_levels,type:jsonb,notnull" json:"auto_add_grade_levels"`
-	SortOrder          int   `bun:"sort_order,notnull,default:0" json:"sort_order"`
+	CountsAsCare       bool                          `bun:"counts_as_care,notnull" json:"counts_as_care"`
+	AutoAddGradeLevels []int                         `bun:"auto_add_grade_levels,type:jsonb,notnull" json:"auto_add_grade_levels"`
+	AvailabilityRule   *CareOfferingAvailabilityRule `bun:"availability_rule,type:jsonb" json:"availability_rule,omitempty"`
+	SortOrder          int                           `bun:"sort_order,notnull,default:0" json:"sort_order"`
 	// SelectionGroup groups offerings that share a selection rule (empty
 	// = ungrouped). SelectionRule constrains how many of the group a
 	// parent must pick. See SelectionRule* constants.
@@ -83,11 +206,6 @@ type CareOffering struct {
 	// care_offerings itself.
 	AutoAddTriggerOfferingIDs []int64 `bun:"-" json:"auto_add_trigger_offering_ids,omitempty"`
 	CountsAsCareSet           bool    `bun:"-" json:"-"`
-}
-
-// TableName returns the schema-qualified table name.
-func (c *CareOffering) TableName() string {
-	return "enrollment.care_offerings"
 }
 
 // Validate enforces the column-level CHECK constraints in app code so
@@ -108,6 +226,13 @@ func (c *CareOffering) Validate() error {
 	if !validDaysOfWeekModes[c.DaysOfWeekMode] {
 		return fmt.Errorf("days_of_week_mode must be 'fixed' or 'parent_choice', got %q", c.DaysOfWeekMode)
 	}
+	// The weekday selection is a deliberate input: an offering that was
+	// silently saved with all (or no) days caused wrong enrollments in
+	// production (#1885). Existing rows are untouched — this runs only on
+	// admin create/update.
+	if len(c.AvailableDays) == 0 {
+		return ErrCareOfferingDaysRequired
+	}
 	for _, d := range c.AvailableDays {
 		if !canonicalDaySet[strings.ToLower(d)] {
 			return fmt.Errorf("available_days entry %q is not a known day abbreviation", d)
@@ -127,6 +252,14 @@ func (c *CareOffering) Validate() error {
 		return err
 	}
 	c.AutoAddGradeLevels = levels
+	if c.AvailabilityRule != nil {
+		if err := c.AvailabilityRule.NormalizeAndValidate(); err != nil {
+			return err
+		}
+		if len(c.AvailabilityRule.Conditions) == 0 {
+			c.AvailabilityRule = nil
+		}
+	}
 	c.SelectionGroup = strings.TrimSpace(c.SelectionGroup)
 	if c.SelectionRule == "" {
 		c.SelectionRule = SelectionRuleOptional
@@ -201,6 +334,11 @@ type CareOfferingRepository interface {
 	// regardless of phase. Empty input returns an empty slice.
 	ListByIDs(ctx context.Context, ids []int64) ([]*CareOffering, error)
 
+	// ListByActivityGroupIDs returns offerings whose timetable link points at
+	// one of the supplied groups. Split validation uses it to find every care
+	// offering attached anywhere in one recurring-template series.
+	ListByActivityGroupIDs(ctx context.Context, activityGroupIDs []int64) ([]*CareOffering, error)
+
 	// CountByPhaseID returns how many care offerings belong to the phase.
 	// Powers the phase-delete confirmation modal.
 	CountByPhaseID(ctx context.Context, phaseID int64) (int, error)
@@ -220,10 +358,6 @@ type RequestChildOffering struct {
 	Notes                 *string  `bun:"notes" json:"notes,omitempty"`
 }
 
-func (r *RequestChildOffering) TableName() string {
-	return "enrollment.request_child_offerings"
-}
-
 // CareOfferingAutoTrigger links a target offering to one source offering
 // that should cause it to be selected automatically.
 type CareOfferingAutoTrigger struct {
@@ -231,10 +365,6 @@ type CareOfferingAutoTrigger struct {
 	base.TenantModel
 	TargetCareOfferingID  int64 `bun:"target_care_offering_id,notnull" json:"target_care_offering_id"`
 	TriggerCareOfferingID int64 `bun:"trigger_care_offering_id,notnull" json:"trigger_care_offering_id"`
-}
-
-func (c *CareOfferingAutoTrigger) TableName() string {
-	return "enrollment.care_offering_auto_triggers"
 }
 
 // RequestChildOfferingRepository is the contract PR 7's submission

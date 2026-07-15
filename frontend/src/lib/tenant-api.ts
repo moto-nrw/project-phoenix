@@ -67,7 +67,31 @@ export interface TenantInfo {
    * admin page must stay hidden until a school explicitly enables it.
    */
   displayEnabled: boolean;
+  /**
+   * Whether staff may correct care offerings on approved enrollments. Missing
+   * metadata is treated as enabled for compatibility with older backends.
+   */
+  careOfferingsEnabled?: boolean;
+  attendanceWebEnabled?: boolean;
+  groupMode?: "fixed_groups" | "open_care";
+  showTimetableCounts?: boolean;
+  waitlistEnabled?: boolean;
+  /** Highest grade offered by this tenant (enrollment.grade_level_max). */
+  gradeLevelMax: number;
 }
+
+/** Identity-only tenant row returned by list/switch endpoints. Feature and
+ * settings metadata is deliberately absent until resolveTenant is called. */
+export type TenantSummary = Pick<
+  TenantInfo,
+  | "tenantId"
+  | "slug"
+  | "name"
+  | "subdomain"
+  | "organizationId"
+  | "organizationName"
+  | "hidden"
+>;
 
 interface TenantResolveResponse {
   tenant_id: number;
@@ -83,6 +107,12 @@ interface TenantResolveResponse {
   nfc_enabled?: boolean;
   parent_messaging_enabled?: boolean;
   display_enabled?: boolean;
+  care_offerings_enabled?: boolean;
+  attendance_web_enabled?: boolean;
+  group_mode?: string;
+  show_timetable_counts?: boolean;
+  waitlist_enabled?: boolean;
+  grade_level_max: number;
 }
 
 /**
@@ -127,6 +157,12 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       nfcEnabled: data.nfc_enabled === true,
       messagingEnabled: data.parent_messaging_enabled === true,
       displayEnabled: data.display_enabled === true,
+      careOfferingsEnabled: data.care_offerings_enabled !== false,
+      attendanceWebEnabled: data.attendance_web_enabled === true,
+      groupMode: data.group_mode === "open_care" ? "open_care" : "fixed_groups",
+      showTimetableCounts: data.show_timetable_counts !== false,
+      waitlistEnabled: data.waitlist_enabled !== false,
+      gradeLevelMax: data.grade_level_max,
     };
   } catch {
     return null;
@@ -142,7 +178,7 @@ interface PublicTenantBackend {
 }
 
 export interface TenantListResult {
-  tenants: TenantInfo[];
+  tenants: TenantSummary[];
   /** "ok" = backend responded successfully, "error" = network or server failure */
   status: "ok" | "error";
 }
@@ -185,15 +221,6 @@ export async function listAllTenants(
           organizationId: 0,
           organizationName: t.organization_name,
           hidden: false,
-          settings: {},
-          // list endpoints don't carry per-tenant presence mode; consumers
-          // that need it call resolveTenant() on the selected slug.
-          presenceMode: "detailed",
-          // Same story for the photo flag — re-resolved on tenant landing.
-          studentPhotosEnabled: false,
-          nfcEnabled: false,
-          messagingEnabled: false,
-          displayEnabled: false,
         })),
         status: "ok",
       };
@@ -229,7 +256,7 @@ interface AccountTenantBackend {
  * List tenants the current user has access to.
  * Requires an authenticated session.
  */
-export async function listAvailableTenants(): Promise<TenantInfo[]> {
+export async function listAvailableTenants(): Promise<TenantSummary[]> {
   const response = await sessionFetch("/api/auth/account-tenants");
   if (!response.ok) {
     return [];
@@ -243,14 +270,6 @@ export async function listAvailableTenants(): Promise<TenantInfo[]> {
     subdomain: t.subdomain,
     organizationId: t.organization_id,
     organizationName: t.organization_name,
-    settings: {},
-    // account-tenants endpoint is pre-switch listing; presenceMode is re-resolved
-    // after the switch when the new tenant's layout mounts and calls resolveTenant.
-    presenceMode: "detailed",
-    studentPhotosEnabled: false,
-    nfcEnabled: false,
-    messagingEnabled: false,
-    displayEnabled: false,
   }));
 }
 

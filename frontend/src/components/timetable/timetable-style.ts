@@ -31,8 +31,30 @@ export const timetableWarningPanel =
 
 export const timetableRequiredMark = "ml-0.5 text-[#FF3130]";
 
+/** Readable dark-amber text pairing with white/gray-50 backgrounds. */
+export const timetableWarningText = "text-[#92400E]";
+
 export const timetableStatusColors = {
   active: LOCATION_COLORS.GROUP_ROOM,
   cancelled: LOCATION_COLORS.HOME,
   warning: LOCATION_COLORS.SICK,
+} as const;
+
+/**
+ * Shared 5-tone palette for small status/ratio indicators across the
+ * timetable feature (issue #1838). Supersedes two previously-separate,
+ * incompatible local palettes (the 4-tone StatPill in
+ * instance-detail-slide-over.tsx had no "danger", TimetableStatCard's
+ * neutral/success/warning/danger had no "info") — this is the union of both,
+ * mapped onto the existing LOCATION_COLORS semantic set. No new hex values.
+ */
+export type TimetableTone =
+  "neutral" | "success" | "info" | "warning" | "danger";
+
+export const timetableToneColors: Record<TimetableTone, string> = {
+  neutral: LOCATION_COLORS.UNKNOWN,
+  success: LOCATION_COLORS.GROUP_ROOM,
+  info: LOCATION_COLORS.OTHER_ROOM,
+  warning: LOCATION_COLORS.SICK,
+  danger: LOCATION_COLORS.HOME,
 } as const;

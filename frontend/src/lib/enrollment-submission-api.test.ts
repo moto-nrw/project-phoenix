@@ -82,6 +82,9 @@ describe("enrollment-submission-api", () => {
       offerings: [],
       careOfferingSelectionMode: "optional",
       careRequired: false,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+      schoolClass: undefined,
     });
 
     mockFetch.mockResolvedValueOnce(
@@ -91,6 +94,51 @@ describe("enrollment-submission-api", () => {
       offerings: [],
       careOfferingSelectionMode: "at_least_one",
       careRequired: true,
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+      schoolClass: undefined,
+    });
+  });
+
+  it("normalizes enrollment feature flags from enabled, disabled, and missing fields", async () => {
+    mockFetch
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            offerings: [],
+            collect_grade_level: true,
+            care_offerings_enabled: true,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            offerings: [],
+            collect_grade_level: false,
+            care_offerings_enabled: false,
+          },
+        }),
+      )
+      .mockResolvedValueOnce(jsonResponse({ data: { offerings: [] } }));
+
+    await expect(
+      fetchPublicCareOfferings("tenant", "5"),
+    ).resolves.toMatchObject({
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
+    });
+    await expect(
+      fetchPublicCareOfferings("tenant", "5"),
+    ).resolves.toMatchObject({
+      collectGradeLevel: false,
+      careOfferingsEnabled: false,
+    });
+    await expect(
+      fetchPublicCareOfferings("tenant", "5"),
+    ).resolves.toMatchObject({
+      collectGradeLevel: true,
+      careOfferingsEnabled: true,
     });
   });
 
@@ -236,6 +284,32 @@ describe("enrollment-submission-api", () => {
     expect(mockFetch).toHaveBeenCalledWith(
       "/api/enrollment/form-bootstrap/public/demo%20slug/ph%2F5",
       { cache: "no-store" },
+    );
+  });
+
+  it("omits credentials without adding a profile-enrichment query flag", async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse({
+        data: {
+          phase: { id: "5", name: "Ferien" },
+          schema: null,
+          offerings: [],
+          care_offering_selection_mode: "optional",
+          care_required: false,
+          captcha_config: null,
+          legal_texts: { blocks: [] },
+        },
+      }),
+    );
+
+    await fetchPublicEnrollmentBootstrap("demo", "5", {
+      lateInviteToken: "invite token",
+      omitCredentials: true,
+    });
+
+    expect(mockFetch).toHaveBeenCalledWith(
+      "/api/enrollment/form-bootstrap/public/demo/5?late_invite=invite%20token",
+      { cache: "no-store", credentials: "omit" },
     );
   });
 
@@ -391,6 +465,7 @@ describe("enrollment-submission-api", () => {
           offerings: [],
           care_offering_selection_mode: "optional",
           care_required: false,
+          grade_level_max: 13,
           legal_texts: { blocks: [] },
           draft: {
             request_id: "99",
@@ -413,6 +488,7 @@ describe("enrollment-submission-api", () => {
       {
         draft: { request_id: "99", status_token: "tok/en" },
         phase: { id: "5" },
+        grade_level_max: 13,
       },
     );
     expect(mockFetch).toHaveBeenCalledWith(

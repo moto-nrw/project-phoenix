@@ -10,7 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { MoreVertical } from "lucide-react";
+import { Check, MoreVertical } from "lucide-react";
 
 export interface OverflowMenuItem {
   /** Visible label. */
@@ -27,11 +27,37 @@ export interface OverflowMenuItem {
   readonly disabled?: boolean;
 }
 
+/** Non-interactive uppercase label grouping the entries below it. */
+interface OverflowMenuHeader {
+  readonly kind: "header";
+  readonly label: string;
+}
+
+/** Single-select row with a checkmark shown when active (role="menuitemradio"). */
+interface OverflowMenuRadioItem {
+  readonly kind: "radio";
+  readonly label: string;
+  readonly checked: boolean;
+  readonly onClick: () => void;
+  readonly disabled?: boolean;
+}
+
+export type OverflowMenuEntry =
+  OverflowMenuItem | OverflowMenuHeader | OverflowMenuRadioItem;
+
 interface OverflowMenuProps {
   /** Menu items to render. Empty array → renders nothing. */
-  readonly items: readonly OverflowMenuItem[];
+  readonly items: readonly OverflowMenuEntry[];
   /** Accessible label for the trigger button. */
   readonly ariaLabel?: string;
+  /**
+   * Trigger footprint. `"default"` is the 36px page-header kebab; `"sm"` is a
+   * compact 24px kebab with a smaller icon and a more muted default color, for
+   * dense inline chrome (e.g. a shift block in the Dienstplan grid) where the
+   * full-size trigger would tower over the row. Additive — existing callers
+   * omit it and get the unchanged 36px trigger.
+   */
+  readonly triggerSize?: "default" | "sm";
   /** Optional class for the trigger button (size/spacing tweaks). */
   readonly triggerClassName?: string;
   /**
@@ -46,7 +72,8 @@ interface OverflowMenuProps {
 
 /**
  * Generic kebab (⋮) overflow menu. Anchored bottom-right of the trigger by
- * default; flips to bottom-left if the page edge is too close on the right.
+ * default; flips to bottom-left if the page edge is too close on the right, and
+ * flips ABOVE the trigger when it sits too close to the viewport bottom.
  *
  * Closes on outside click, Escape key, or item activation. Built without a
  * popover library to avoid adding a Radix dep just for one use site — the
@@ -55,9 +82,19 @@ interface OverflowMenuProps {
 export function OverflowMenu({
   items,
   ariaLabel = "Weitere Aktionen",
+  triggerSize = "default",
   triggerClassName = "",
   matchContainerSelector,
 }: OverflowMenuProps) {
+  // Size variant: the "default" values are byte-for-byte the previous hardcoded
+  // ones, so unchanged callers keep the exact 36px trigger + 20px icon +
+  // gray-600 color. "sm" shrinks to a 24px trigger, 16px icon, and a muted
+  // gray-400 (splitting color from the string avoids a Tailwind text-* conflict
+  // that class-string order would not resolve).
+  const triggerSizeClass = triggerSize === "sm" ? "size-6" : "size-9";
+  const triggerColorClass =
+    triggerSize === "sm" ? "text-gray-400" : "text-gray-600";
+  const iconSizeClass = triggerSize === "sm" ? "size-4" : "size-5";
   const [isOpen, setIsOpen] = useState(false);
   // The menu renders in a portal on <body> with fixed positioning so it can
   // never be clipped by an ancestor's `overflow-hidden` (e.g. a rounded table
@@ -87,7 +124,19 @@ export function OverflowMenu({
         triggerRef.current?.focus();
       }
     };
-    const onReflow = () => setIsOpen(false);
+    const onReflow = (event: Event) => {
+      // A viewport-bounded menu scrolls internally. That scroll bubbles through
+      // the capture listener on window and must not close the menu itself.
+      const target = event.target;
+      if (
+        event.type === "scroll" &&
+        target instanceof Node &&
+        menuRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setIsOpen(false);
+    };
 
     document.addEventListener("mousedown", onPointer);
     document.addEventListener("keydown", onKey);
@@ -112,8 +161,27 @@ export function OverflowMenu({
   const handleOpen = () => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect != null) {
-      // 4px gap below the trigger (matches the old mt-1).
-      const top = rect.bottom + 4;
+      const gap = 4; // matches the old mt-1
+      const viewportInset = 8;
+      // Vertical anchoring: below the trigger by default, flipped ABOVE it when
+      // there is not enough room below for the (conservatively estimated) menu
+      // height. Without the flip, a trigger near the viewport bottom (e.g. the
+      // last table row) drops the menu below the fold, where the first scroll
+      // attempt immediately closes it via the scroll listener. Anchoring by
+      // `bottom` needs no exact height — only the flip decision estimates one.
+      const estimatedMenuHeight = items.length * 40 + 16;
+      const roomAbove = Math.max(0, rect.top - gap - viewportInset);
+      const roomBelow = Math.max(
+        0,
+        window.innerHeight - rect.bottom - gap - viewportInset,
+      );
+      const flipUp = roomBelow < estimatedMenuHeight && roomAbove > roomBelow;
+      const vertical: CSSProperties = flipUp
+        ? {
+            bottom: window.innerHeight - rect.top + gap,
+            maxHeight: roomAbove,
+          }
+        : { top: rect.bottom + gap, maxHeight: roomBelow };
       // Container-stretch mode: when an ancestor selector is given, size the
       // menu to that ancestor (8px inset both sides) so it sits cleanly INSIDE
       // a narrow container instead of poking out the side. The trigger only
@@ -125,7 +193,7 @@ export function OverflowMenu({
         const cr = container.getBoundingClientRect();
         const inset = 8;
         setMenuStyle({
-          top,
+          ...vertical,
           left: cr.left + inset,
           width: cr.width - inset * 2,
         });
@@ -135,8 +203,8 @@ export function OverflowMenu({
         // the left edge for the menu to extend leftward.
         const style: CSSProperties =
           rect.left >= 220
-            ? { top, right: window.innerWidth - rect.right }
-            : { top, left: rect.left };
+            ? { ...vertical, right: window.innerWidth - rect.right }
+            : { ...vertical, left: rect.left };
         setMenuStyle(style);
       }
     }
@@ -144,7 +212,8 @@ export function OverflowMenu({
   };
 
   const onItemKey =
-    (item: OverflowMenuItem) => (event: KeyboardEvent<HTMLButtonElement>) => {
+    (item: OverflowMenuItem | OverflowMenuRadioItem) =>
+    (event: KeyboardEvent<HTMLButtonElement>) => {
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
         if (item.disabled) return;
@@ -165,9 +234,9 @@ export function OverflowMenu({
         aria-haspopup="menu"
         aria-expanded={isOpen}
         aria-controls={isOpen ? menuId : undefined}
-        className={`inline-flex size-9 items-center justify-center rounded-full text-gray-600 transition-colors duration-150 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:outline-none active:bg-gray-200 ${triggerClassName}`}
+        className={`inline-flex ${triggerSizeClass} items-center justify-center rounded-full ${triggerColorClass} transition-colors duration-150 hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-blue-500/50 focus-visible:outline-none active:bg-gray-200 ${triggerClassName}`}
       >
-        <MoreVertical className="size-5" aria-hidden />
+        <MoreVertical className={iconSizeClass} aria-hidden />
       </button>
 
       {isOpen
@@ -184,11 +253,53 @@ export function OverflowMenu({
               // escapes any clipping `overflow-hidden` ancestor. In
               // container-stretch mode the width comes from `menuStyle`, so the
               // 220px floor is dropped to let the menu match a narrow column.
-              className={`fixed z-50 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
+              className={`fixed z-50 overflow-x-hidden overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
                 matchContainerSelector ? "" : "min-w-[220px]"
               }`}
             >
-              {items.map((item, index) => {
+              {items.map((entry, index) => {
+                if ("kind" in entry && entry.kind === "header") {
+                  return (
+                    <div
+                      key={`header-${entry.label}-${index}`}
+                      className={`px-4 py-2 ${index > 0 ? "border-t border-gray-100" : ""}`}
+                    >
+                      <p className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
+                        {entry.label}
+                      </p>
+                    </div>
+                  );
+                }
+
+                if ("kind" in entry && entry.kind === "radio") {
+                  return (
+                    <button
+                      key={`radio-${entry.label}-${index}`}
+                      type="button"
+                      role="menuitemradio"
+                      aria-checked={entry.checked}
+                      disabled={entry.disabled}
+                      onClick={() => {
+                        if (entry.disabled) return;
+                        setIsOpen(false);
+                        entry.onClick();
+                      }}
+                      onKeyDown={onItemKey(entry)}
+                      className={`flex w-full items-center justify-between px-4 py-2 text-left text-sm font-medium transition-colors ${
+                        entry.disabled
+                          ? "cursor-not-allowed opacity-50"
+                          : "hover:bg-gray-50 active:bg-gray-100"
+                      } ${entry.checked ? "text-gray-900" : "text-gray-700"}`}
+                    >
+                      <span>{entry.label}</span>
+                      {entry.checked ? (
+                        <Check className="size-4 text-gray-900" aria-hidden />
+                      ) : null}
+                    </button>
+                  );
+                }
+
+                const item = entry;
                 const colorClass = item.destructive
                   ? "text-red-600"
                   : "text-gray-700";

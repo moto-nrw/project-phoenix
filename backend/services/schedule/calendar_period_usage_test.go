@@ -47,7 +47,17 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 		IsActive:        false,
 	}
 	require.NoError(t, svc.CreatePeriod(ctx, unused))
-	defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", used.ID, unused.ID)
+
+	groupOnly := &scheduleModels.CalendarPeriod{
+		Name:            fmt.Sprintf("Usage-Group-Only-%d", suffix),
+		PeriodType:      scheduleModels.PeriodTypeSemester,
+		StartDate:       timezone.NewDate(2027, 8, 1),
+		EndDate:         timezone.NewDate(2028, 1, 31),
+		WeekCycleLength: 1,
+		IsActive:        false,
+	}
+	require.NoError(t, svc.CreatePeriod(ctx, groupOnly))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.calendar_periods", used.ID, unused.ID, groupOnly.ID)
 
 	bg := context.Background()
 
@@ -75,6 +85,23 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Usage", fmt.Sprintf("Staff-%d", suffix))
 	room := testpkg.CreateTestRoom(t, db, fmt.Sprintf("Usage-Room-%d", suffix))
 	defer testpkg.CleanupActivityFixtures(t, db, group.ID, student.ID, staff.ID, room.ID)
+	_, err = db.NewUpdate().
+		Model(group).
+		ModelTableExpr(`activities.groups AS "group"`).
+		Set("calendar_period_id = ?", used.ID).
+		Where(`"group".id = ?`, group.ID).
+		Exec(bg)
+	require.NoError(t, err, "Failed to link test activity group to calendar period")
+
+	groupOnlyFixture := testpkg.CreateTestActivityGroup(t, db, fmt.Sprintf("Usage-Group-Only-Fixture-%d", suffix))
+	defer testpkg.CleanupActivityFixtures(t, db, groupOnlyFixture.ID)
+	_, err = db.NewUpdate().
+		Model(groupOnlyFixture).
+		ModelTableExpr(`activities.groups AS "group"`).
+		Set("calendar_period_id = ?", groupOnly.ID).
+		Where(`"group".id = ?`, groupOnlyFixture.ID).
+		Exec(bg)
+	require.NoError(t, err, "Failed to create group-only calendar-period usage")
 
 	sched := &activitiesModels.Schedule{
 		Weekday:          activitiesModels.WeekdayMonday,
@@ -138,11 +165,15 @@ func TestCalendarPeriodService_GetUsageCounts(t *testing.T) {
 
 	assert.Equal(t, scheduleModels.CalendarPeriodUsage{
 		EnrollmentPhases:   1,
+		ActivityGroups:     1,
 		Schedules:          1,
 		StudentEnrollments: 1,
 		Supervisors:        1,
 		ActivityInstances:  1,
 	}, usage[used.ID], "used period must report every calendar-period reference")
+	assert.Equal(t, scheduleModels.CalendarPeriodUsage{
+		ActivityGroups: 1,
+	}, usage[groupOnly.ID], "a group-level reference alone must make the period used")
 
 	_, ok := usage[unused.ID]
 	assert.False(t, ok, "period without references must be omitted from the map")

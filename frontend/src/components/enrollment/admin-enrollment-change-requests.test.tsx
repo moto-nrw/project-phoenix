@@ -36,6 +36,7 @@ import type { AdminEnrollmentChangeRequest } from "~/lib/enrollment-admin-api";
 const baseChangeRequest: AdminEnrollmentChangeRequest = {
   id: "42",
   request_id: "7",
+  origin: "parent",
   status: "pending_review",
   parent_note: "Bitte korrigieren.",
   admin_decision_note: null,
@@ -155,6 +156,27 @@ describe("AdminEnrollmentChangeRequestDetail", () => {
     expect(screen.getByText("Coco")).toBeInTheDocument();
     expect(screen.getByText("Cocoa")).toBeInTheDocument();
     expect(screen.queryByText("1 Eintrag")).not.toBeInTheDocument();
+  });
+
+  it("renders admin corrections as read-only audit entries", async () => {
+    mocks.getAdminEnrollmentChangeRequest.mockResolvedValueOnce({
+      ...baseChangeRequest,
+      origin: "admin",
+      status: "approved",
+      parent_note: null,
+      admin_decision_note: "Klassenstufe nach Rücksprache korrigiert",
+    });
+
+    render(<AdminEnrollmentChangeRequestDetail changeRequestId="42" />);
+
+    expect(await screen.findByText("OGS-Korrektur")).toBeInTheDocument();
+    expect(
+      screen.getByText("Klassenstufe nach Rücksprache korrigiert"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Freigeben" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Nachricht an Eltern")).not.toBeInTheDocument();
   });
 });
 

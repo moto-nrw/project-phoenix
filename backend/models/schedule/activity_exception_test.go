@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 func validActivityException() *ActivityException {
@@ -118,15 +117,4 @@ func TestActivityException_IsCancellation(t *testing.T) {
 	modified := validActivityException()
 	modified.ExceptionType = ActivityExceptionModified
 	assert.False(t, modified.IsCancellation())
-}
-
-func TestActivityException_TableName(t *testing.T) {
-	assert.Equal(t, "schedule.activity_exceptions", (&ActivityException{}).TableName())
-}
-
-func TestActivityException_BeforeAppendModel(t *testing.T) {
-	e := &ActivityException{}
-	for _, q := range []any{&bun.SelectQuery{}, &bun.UpdateQuery{}, &bun.DeleteQuery{}, "unknown"} {
-		require.NoError(t, e.BeforeAppendModel(q))
-	}
 }

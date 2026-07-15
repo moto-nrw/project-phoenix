@@ -691,12 +691,27 @@ describe("Schulhof tab onTabChange callback", () => {
       );
     });
 
-    // Should have called loadRoomVisits for Schulhof
-    await waitFor(() => {
-      expect(
-        activeService.getActiveGroupVisitsWithDisplay,
-      ).toHaveBeenCalledWith("active-schulhof");
-    });
+    // The tab callback itself must not start a duplicate request.
+    expect(
+      activeService.getActiveGroupVisitsWithDisplay,
+    ).not.toHaveBeenCalled();
+
+    // The keyed SWR subscription owns exactly one Schulhof request and must
+    // not carry another room's previous data across the key change.
+    const visitCall = vi
+      .mocked(useSWRAuth)
+      .mock.calls.find(([key]) => key === "supervision-visits-active-schulhof");
+    expect(visitCall).toBeDefined();
+    expect(visitCall?.[2]).toMatchObject({ keepPreviousData: false });
+    const visitFetcher = visitCall?.[1] as (() => Promise<unknown>) | undefined;
+    expect(visitFetcher).toBeTypeOf("function");
+    await visitFetcher?.();
+    expect(activeService.getActiveGroupVisitsWithDisplay).toHaveBeenCalledTimes(
+      1,
+    );
+    expect(activeService.getActiveGroupVisitsWithDisplay).toHaveBeenCalledWith(
+      "active-schulhof",
+    );
   });
 
   it("clicking Schulhof tab when not supervising sets empty students", async () => {

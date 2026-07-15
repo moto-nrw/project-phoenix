@@ -8,7 +8,7 @@ package emailbranding
 import "strings"
 
 const (
-	motoLogoPath           = "/images/moto_transparent.png"
+	motoLogoPath           = "/images/moto-logo-mit-schriftzug.png"
 	loginImageUploadPrefix = "/uploads/login-images/"
 )
 

@@ -8,6 +8,12 @@ const meta: Meta<typeof SpontaneousActivityStart> = {
   parameters: {
     layout: "fullscreen",
   },
+  args: {
+    schulhofSupervisionAvailable: true,
+    onOpenSchulhofSupervision: () => {
+      // no-op for story
+    },
+  },
 };
 
 export default meta;

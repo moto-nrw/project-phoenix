@@ -221,23 +221,6 @@ func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
 	})
 }
 
-func TestGuardianProfileRepository_Count(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("counts guardian profiles", func(t *testing.T) {
-		profile := testpkg.CreateTestGuardianProfile(t, db, "count")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
-
-		count, err := repo.Count(ctx)
-		require.NoError(t, err)
-		assert.Greater(t, count, 0)
-	})
-}
-
 func TestGuardianProfileRepository_FindWithoutAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -358,20 +341,6 @@ func TestGuardianProfileRepository_LinkAccount(t *testing.T) {
 	})
 }
 
-func TestGuardianProfileRepository_UnlinkAccount(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns error for non-existent profile", func(t *testing.T) {
-		err := repo.UnlinkAccount(ctx, int64(999999))
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "not found")
-	})
-}
-
 func TestGuardianProfileRepository_FindByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -389,23 +358,6 @@ func TestGuardianProfileRepository_FindByAccountID(t *testing.T) {
 // ============================================================================
 // Student Count Tests
 // ============================================================================
-
-func TestGuardianProfileRepository_GetStudentCount(t *testing.T) {
-	db := testpkg.SetupTestDB(t)
-	defer func() { _ = db.Close() }()
-
-	repo := repositories.NewFactory(db).GuardianProfile
-	ctx := testpkg.TenantContext(1)
-
-	t.Run("returns zero for guardian with no students", func(t *testing.T) {
-		profile := testpkg.CreateTestGuardianProfile(t, db, "nostudents")
-		defer testpkg.CleanupTableRecords(t, db, "users.guardian_profiles", profile.ID)
-
-		count, err := repo.GetStudentCount(ctx, profile.ID)
-		require.NoError(t, err)
-		assert.Equal(t, 0, count)
-	})
-}
 
 func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t *testing.T) {
 	db := testpkg.SetupTestDB(t)

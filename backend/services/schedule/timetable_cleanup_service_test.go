@@ -188,6 +188,7 @@ func newCleanupSvc(db *bun.DB) scheduleSvc.TimetableCleanupService {
 		scheduleRepoPkg.NewActivityExceptionRepository(db),
 		scheduleRepoPkg.NewInstanceStudentRepository(db),
 		auditRepoPkg.NewDataDeletionRepository(db),
+		auditRepoPkg.NewDeviationEventRepository(db),
 		nil, // no settings — retention falls through to the 365-day default
 		slog.Default(),
 	)
@@ -317,7 +318,8 @@ func TestCleanup_RetentionOverride_UsesOverriddenDays(t *testing.T) {
 		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
 		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
 		auditRepoPkg.NewDataDeletionRepository(f.db),
-		&stubSettingsService{hasOverride: true, intVal: 30},
+		auditRepoPkg.NewDeviationEventRepository(f.db),
+		newStubSettingsService(true, nil, 30, nil),
 		slog.Default(),
 	)
 
@@ -557,6 +559,7 @@ func TestCleanup_AuditWriteFailure_BubblesError(t *testing.T) {
 		scheduleRepoPkg.NewActivityExceptionRepository(f.db),
 		scheduleRepoPkg.NewInstanceStudentRepository(f.db),
 		&failingAuditRepo{err: errors.New("simulated audit failure")},
+		nil,
 		nil,
 		slog.Default(),
 	)

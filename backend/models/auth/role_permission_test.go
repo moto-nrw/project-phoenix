@@ -73,38 +73,6 @@ func TestRolePermission_Validate(t *testing.T) {
 	}
 }
 
-func TestRolePermission_TableName(t *testing.T) {
-	rp := &RolePermission{}
-	if got := rp.TableName(); got != "auth.role_permissions" {
-		t.Errorf("TableName() = %v, want auth.role_permissions", got)
-	}
-}
-
-func TestRolePermission_BeforeAppendModel(t *testing.T) {
-	// BeforeAppendModel modifies query table expressions for different query types
-	// It doesn't set timestamps - those are handled by the base model or repository
-
-	t.Run("handles nil query", func(t *testing.T) {
-		rp := &RolePermission{RoleID: 1, PermissionID: 1}
-		err := rp.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		rp := &RolePermission{RoleID: 1, PermissionID: 1}
-		err := rp.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	// Note: Testing with actual BUN query objects requires a database connection.
-	// The InsertQuery, SelectQuery, UpdateQuery, and DeleteQuery cases are covered
-	// by integration tests in the repository layer that use real database operations.
-}
-
 func TestRolePermission_GetID(t *testing.T) {
 	rp := &RolePermission{
 		Model: base.Model{ID: 42},

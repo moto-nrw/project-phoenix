@@ -10,7 +10,6 @@ import (
 	"context"
 	"log/slog"
 	"net"
-	"sync"
 	"testing"
 	"time"
 
@@ -28,69 +27,14 @@ import (
 
 // --- capturing mailer (file-local to avoid name clashes) ---
 
-type operatorMailCapture struct {
-	mu       sync.Mutex
-	messages []email.Message
-	ch       chan struct{}
-}
-
-func newOperatorMailCapture() *operatorMailCapture {
-	return &operatorMailCapture{ch: make(chan struct{}, 32)}
-}
-
-func (m *operatorMailCapture) Send(msg email.Message) error {
-	m.mu.Lock()
-	m.messages = append(m.messages, msg)
-	m.mu.Unlock()
-	select {
-	case m.ch <- struct{}{}:
-	default:
-	}
-	return nil
-}
-
-func (m *operatorMailCapture) Templates() []string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	out := make([]string, len(m.messages))
-	for i, msg := range m.messages {
-		out[i] = msg.Template
-	}
-	return out
-}
-
-func (m *operatorMailCapture) WaitFor(count int, timeout time.Duration) bool {
-	if count <= 0 {
-		return true
-	}
-	deadline := time.NewTimer(timeout)
-	defer deadline.Stop()
-	for {
-		m.mu.Lock()
-		got := len(m.messages)
-		m.mu.Unlock()
-		if got >= count {
-			return true
-		}
-		select {
-		case <-m.ch:
-		case <-deadline.C:
-			m.mu.Lock()
-			got := len(m.messages)
-			m.mu.Unlock()
-			return got >= count
-		}
-	}
-}
-
 // --- shared fixture for the dispatcher-driven tests ---
 
-func newOperatorMFAWithDispatcher(t *testing.T) (platform.OperatorMFAService, *repositories.Factory, *bun.DB, *operatorMailCapture) {
+func newOperatorMFAWithDispatcher(t *testing.T) (platform.OperatorMFAService, *repositories.Factory, *bun.DB, *testpkg.CapturingMailer) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })
 
-	mailer := newOperatorMailCapture()
+	mailer := testpkg.NewCapturingMailer()
 	dispatcher := email.NewDispatcher(mailer, slog.Default())
 	dispatcher.SetDefaults(1, []time.Duration{time.Millisecond})
 
@@ -116,14 +60,13 @@ func TestOperatorMFAService_StartChallenge_DispatchesEmail(t *testing.T) {
 	ctx := context.Background()
 	svc, _, db, mailer := newOperatorMFAWithDispatcher(t)
 
-	op := createTestOperatorForMFAService(t, db, "dispatch-challenge")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
 	_, err := svc.StartChallenge(ctx, op.ID, net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
 
-	if !mailer.WaitFor(1, 3*time.Second) {
+	if !mailer.WaitForMessages(1, 3*time.Second) {
 		t.Fatal("expected dispatcher to fire an operator MFA email")
 	}
 	templates := mailer.Templates()
@@ -136,8 +79,7 @@ func TestOperatorMFAService_IssueTrustedDevice_DispatchesAddedEmail(t *testing.T
 	ctx := context.Background()
 	svc, _, db, mailer := newOperatorMFAWithDispatcher(t)
 
-	op := createTestOperatorForMFAService(t, db, "dispatch-trusted-added")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
 	cookie, _, err := svc.IssueTrustedDevice(ctx, op.ID,
@@ -145,7 +87,7 @@ func TestOperatorMFAService_IssueTrustedDevice_DispatchesAddedEmail(t *testing.T
 	require.NoError(t, err)
 	require.NotEmpty(t, cookie)
 
-	if !mailer.WaitFor(1, 3*time.Second) {
+	if !mailer.WaitForMessages(1, 3*time.Second) {
 		t.Fatal("expected dispatcher to fire a trusted-device-added email")
 	}
 	templates := mailer.Templates()
@@ -160,8 +102,7 @@ func TestOperatorMFAService_VerifyCodeForOperator_NoActiveChallenge(t *testing.T
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
-	op := createTestOperatorForMFAService(t, db, "verify-no-active")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
 	err := svc.VerifyCodeForOperator(ctx, op.ID, "123456")
@@ -184,8 +125,7 @@ func TestOperatorMFAService_VerifyCodeForOperator_WrongCode(t *testing.T) {
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
-	op := createTestOperatorForMFAService(t, db, "verify-wrong")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
 	_, err := svc.StartChallenge(ctx, op.ID, net.ParseIP("127.0.0.1"))
@@ -202,8 +142,7 @@ func TestOperatorMFAService_VerifyChallenge_RejectsTenantScopeToken(t *testing.T
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
-	op := createTestOperatorForMFAService(t, db, "verify-tenant-scope")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 
 	tokenAuth, err := authjwt.NewTokenAuthWithSecret(operatorMFATestJWTSecret)
 	require.NoError(t, err)
@@ -253,8 +192,7 @@ func TestOperatorMFAService_ResendChallenge_HappyPathDispatcher(t *testing.T) {
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
-	op := createTestOperatorForMFAService(t, db, "resend-happy")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
 	tok, err := svc.StartChallenge(ctx, op.ID, net.ParseIP("127.0.0.1"))
@@ -276,8 +214,7 @@ func TestOperatorMFAService_StartChallenge_RateLimitAfter3Codes(t *testing.T) {
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
-	op := createTestOperatorForMFAService(t, db, "rate-limit")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
 	ip := net.ParseIP("203.0.113.30")
@@ -293,8 +230,7 @@ func TestOperatorMFAService_VerifyChallenge_LockoutAfter5Failures(t *testing.T) 
 	ctx := context.Background()
 	svc, _, db := newTestOperatorMFAService(t)
 
-	op := createTestOperatorForMFAService(t, db, "lockout")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
 	challenge, err := svc.StartChallenge(ctx, op.ID, net.ParseIP("127.0.0.1"))
@@ -324,8 +260,7 @@ func TestOperatorMFAService_VerifyCodeForOperator_HappyPath(t *testing.T) {
 	ctx := context.Background()
 	svc, repos, db := newTestOperatorMFAService(t)
 
-	op := createTestOperatorForMFAService(t, db, "verify-happy")
-	t.Cleanup(func() { cleanupTestOperatorForMFAService(t, db, op.ID) })
+	op := testpkg.CreateTestOperator(t, db)
 	require.NoError(t, svc.Enroll(ctx, op.ID))
 
 	_, err := svc.StartChallenge(ctx, op.ID, net.ParseIP("127.0.0.1"))

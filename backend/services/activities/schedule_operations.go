@@ -14,8 +14,7 @@ import (
 
 // AddSchedule adds a schedule to an activity group
 func (s *Service) AddSchedule(ctx context.Context, groupID int64, schedule *activities.Schedule) (*activities.Schedule, error) {
-	// Check if group exists
-	_, err := s.groupRepo.FindByID(ctx, groupID)
+	_, err := s.findMutableActivityGroup(ctx, groupID)
 	if err != nil {
 		return nil, &ActivityError{Op: opFindGroup, Err: err}
 	}
@@ -41,12 +40,8 @@ func (s *Service) AddSchedule(ctx context.Context, groupID int64, schedule *acti
 func (s *Service) GetSchedule(ctx context.Context, id int64) (*activities.Schedule, error) {
 	schedule, err := s.scheduleRepo.FindByID(ctx, id)
 	if err != nil {
-		// Check for "no rows" error and convert to our own error
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: opGetSchedule, Err: ErrScheduleNotFound}
-		}
-		// Check if the wrapped database error contains sql.ErrNoRows
-		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
+		if base.IsNoRows(err) {
 			return nil, &ActivityError{Op: opGetSchedule, Err: ErrScheduleNotFound}
 		}
 		return nil, &ActivityError{Op: opGetSchedule, Err: err}
@@ -68,11 +63,14 @@ func (s *Service) GetGroupSchedules(ctx context.Context, groupID int64) ([]*acti
 // DeleteSchedule deletes a schedule
 func (s *Service) DeleteSchedule(ctx context.Context, id int64) error {
 	// Check if schedule exists
-	_, err := s.scheduleRepo.FindByID(ctx, id)
+	schedule, err := s.scheduleRepo.FindByID(ctx, id)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return &ActivityError{Op: "delete schedule", Err: ErrScheduleNotFound}
 		}
+		return &ActivityError{Op: "delete schedule", Err: err}
+	}
+	if _, err := s.findMutableActivityGroup(ctx, schedule.ActivityGroupID); err != nil {
 		return &ActivityError{Op: "delete schedule", Err: err}
 	}
 
@@ -92,6 +90,9 @@ func (s *Service) UpdateSchedule(ctx context.Context, schedule *activities.Sched
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, &ActivityError{Op: opUpdateSchedule, Err: ErrScheduleNotFound}
 		}
+		return nil, &ActivityError{Op: opUpdateSchedule, Err: err}
+	}
+	if _, err := s.findMutableActivityGroup(ctx, existingSchedule.ActivityGroupID); err != nil {
 		return nil, &ActivityError{Op: opUpdateSchedule, Err: err}
 	}
 

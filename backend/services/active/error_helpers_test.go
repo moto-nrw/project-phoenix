@@ -21,7 +21,7 @@ func TestIsNotFoundError(t *testing.T) {
 			Op:  "find by id",
 			Err: sql.ErrNoRows,
 		}
-		assert.True(t, isNotFoundError(err))
+		assert.True(t, base.IsNoRows(err))
 	})
 
 	t.Run("returns false for DatabaseError with other error", func(t *testing.T) {
@@ -29,16 +29,16 @@ func TestIsNotFoundError(t *testing.T) {
 			Op:  "find by id",
 			Err: errors.New("connection refused"),
 		}
-		assert.False(t, isNotFoundError(err))
+		assert.False(t, base.IsNoRows(err))
 	})
 
 	t.Run("returns false for non-DatabaseError", func(t *testing.T) {
 		err := errors.New("some error")
-		assert.False(t, isNotFoundError(err))
+		assert.False(t, base.IsNoRows(err))
 	})
 
 	t.Run("returns false for nil error", func(t *testing.T) {
-		assert.False(t, isNotFoundError(nil))
+		assert.False(t, base.IsNoRows(nil))
 	})
 
 	t.Run("returns true for wrapped DatabaseError with sql.ErrNoRows", func(t *testing.T) {
@@ -49,7 +49,7 @@ func TestIsNotFoundError(t *testing.T) {
 		// Wrap the error
 		wrappedErr := errors.Join(errors.New("context"), dbErr)
 		// Note: errors.As will find the DatabaseError in the chain
-		assert.True(t, isNotFoundError(wrappedErr))
+		assert.True(t, base.IsNoRows(wrappedErr))
 	})
 }
 

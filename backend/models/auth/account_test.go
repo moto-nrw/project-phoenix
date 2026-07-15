@@ -208,34 +208,6 @@ func TestAccount_HasPIN(t *testing.T) {
 	}
 }
 
-func TestAccount_TableName(t *testing.T) {
-	account := &Account{}
-	if got := account.TableName(); got != "auth.accounts" {
-		t.Errorf("TableName() = %v, want auth.accounts", got)
-	}
-}
-
-func TestAccount_BeforeAppendModel(t *testing.T) {
-	// BeforeAppendModel modifies query table expressions for different query types
-	// It doesn't set timestamps - those are handled by the base model or repository
-
-	t.Run("handles nil query", func(t *testing.T) {
-		account := &Account{Email: "test@example.com"}
-		err := account.BeforeAppendModel(nil)
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-
-	t.Run("returns no error for unknown query type", func(t *testing.T) {
-		account := &Account{Email: "test@example.com"}
-		err := account.BeforeAppendModel("some string")
-		if err != nil {
-			t.Errorf("BeforeAppendModel() error = %v", err)
-		}
-	})
-}
-
 func TestAccount_GetID(t *testing.T) {
 	account := &Account{
 		Model: base.Model{ID: 42},

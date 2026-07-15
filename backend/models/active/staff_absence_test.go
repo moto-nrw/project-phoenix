@@ -141,11 +141,6 @@ func TestStaffAbsence_DurationDays(t *testing.T) {
 	})
 }
 
-func TestStaffAbsence_TableName(t *testing.T) {
-	a := &StaffAbsence{}
-	assert.Equal(t, "active.staff_absences", a.TableName())
-}
-
 func TestStaffAbsence_Getters(t *testing.T) {
 	now := time.Now()
 	a := &StaffAbsence{}
@@ -169,28 +164,4 @@ func TestAbsenceStatusConstants(t *testing.T) {
 	assert.Equal(t, "reported", AbsenceStatusReported)
 	assert.Equal(t, "approved", AbsenceStatusApproved)
 	assert.Equal(t, "declined", AbsenceStatusDeclined)
-}
-
-func TestStaffAbsence_BeforeAppendModel(t *testing.T) {
-	a := &StaffAbsence{}
-
-	t.Run("handles SelectQuery", func(t *testing.T) {
-		err := a.BeforeAppendModel(nil)
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles UpdateQuery", func(t *testing.T) {
-		err := a.BeforeAppendModel(nil)
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles DeleteQuery", func(t *testing.T) {
-		err := a.BeforeAppendModel(nil)
-		assert.NoError(t, err)
-	})
-
-	t.Run("handles InsertQuery", func(t *testing.T) {
-		err := a.BeforeAppendModel(nil)
-		assert.NoError(t, err)
-	})
 }

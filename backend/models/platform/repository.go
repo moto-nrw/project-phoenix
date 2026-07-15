@@ -3,6 +3,8 @@ package platform
 import (
 	"context"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // OperatorRepository defines operations for managing operators
@@ -60,8 +62,6 @@ type AnnouncementRepository interface {
 
 	// Listing operations
 	List(ctx context.Context, includeInactive bool) ([]*Announcement, error)
-	ListPublished(ctx context.Context) ([]*Announcement, error)
-
 	// Publishing
 	Publish(ctx context.Context, id int64) error
 	Unpublish(ctx context.Context, id int64) error
@@ -78,9 +78,6 @@ type AnnouncementViewRepository interface {
 
 	// Count unread announcements for a user scoped to the current session tenant/org
 	CountUnread(ctx context.Context, userID int64, userRoles []string, tenantID int64, orgID int64) (int, error)
-
-	// Check if user has seen announcement
-	HasSeen(ctx context.Context, userID, announcementID int64) (bool, error)
 
 	// Get view statistics for an announcement
 	GetStats(ctx context.Context, announcementID int64) (*AnnouncementStats, error)
@@ -153,7 +150,6 @@ type OperatorAuditLogRepository interface {
 
 	// Query audit logs
 	FindByOperatorID(ctx context.Context, operatorID int64, limit int) ([]*OperatorAuditLog, error)
-	FindByResourceType(ctx context.Context, resourceType string, limit int) ([]*OperatorAuditLog, error)
 	FindByDateRange(ctx context.Context, start, end time.Time, limit int) ([]*OperatorAuditLog, error)
 }
 
@@ -161,14 +157,10 @@ type OperatorAuditLogRepository interface {
 // Mirror of auth.MFACredentialRepository for the platform.operator_*
 // schema.
 type OperatorMFACredentialRepository interface {
-	Create(ctx context.Context, credential *OperatorMFACredential) error
-	FindByID(ctx context.Context, id interface{}) (*OperatorMFACredential, error)
+	base.CRUDRepository[*OperatorMFACredential]
 	FindByOperatorID(ctx context.Context, operatorID int64) (*OperatorMFACredential, error)
-	Update(ctx context.Context, credential *OperatorMFACredential) error
 	UpdateLastUsedAt(ctx context.Context, id int64, when time.Time) error
-	Delete(ctx context.Context, id interface{}) error
 	DeleteByOperatorID(ctx context.Context, operatorID int64) error
-	List(ctx context.Context, filters map[string]interface{}) ([]*OperatorMFACredential, error)
 }
 
 // OperatorMFAEmailChallengeRepository persists time-limited 6-digit codes
@@ -198,7 +190,6 @@ type OperatorMFATrustedDeviceRepository interface {
 type OperatorPasskeyCredentialRepository interface {
 	Create(ctx context.Context, credential *OperatorPasskeyCredential) error
 	FindActiveByOperatorID(ctx context.Context, operatorID int64) ([]*OperatorPasskeyCredential, error)
-	FindActiveByCredentialID(ctx context.Context, credentialID []byte) (*OperatorPasskeyCredential, error)
 	FindActiveByCredentialIDAndUserHandle(ctx context.Context, credentialID, userHandle []byte) (*OperatorPasskeyCredential, error)
 	UpdateAfterUse(ctx context.Context, id int64, credentialJSON []byte, usedAt time.Time) error
 	Revoke(ctx context.Context, operatorID, id int64, revokedAt time.Time) error

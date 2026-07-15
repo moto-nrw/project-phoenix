@@ -45,7 +45,6 @@ type GuardianInvitationService interface {
 	Validate(ctx context.Context, token string) (*GuardianInvitationValidation, error)
 	Accept(ctx context.Context, token string, data GuardianInvitationAcceptData) (*authModels.Account, error)
 	Resend(ctx context.Context, invitationID int64, actorAccountID int64) error
-	CleanupExpired(ctx context.Context) (int, error)
 
 	// Related-accounts management (invite further guardians to a child,
 	// approve/reject parent-initiated requests, revoke an account's access).
@@ -54,7 +53,6 @@ type GuardianInvitationService interface {
 	ApproveInvitation(ctx context.Context, invitationID int64, approverAccountID int64) error
 	RejectInvitation(ctx context.Context, invitationID int64, approverAccountID int64) error
 	PendingInvitationStudentID(ctx context.Context, invitationID int64) (int64, error)
-	ListPendingApprovals(ctx context.Context) ([]*authModels.GuardianInvitation, error)
 	ListPendingApprovalsDetailed(ctx context.Context) ([]*PendingApprovalView, error)
 	RevokeAccess(ctx context.Context, req RevokeAccessRequest) error
 

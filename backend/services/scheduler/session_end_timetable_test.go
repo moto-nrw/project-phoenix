@@ -32,10 +32,23 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		IsSpontaneous: true,
 	})
 	instanceStudent := testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
+
+	// A second student who is checked in and still open — the bridge must
+	// stamp their slot checkout when the daily session end closes the visits.
+	presentStudent := testpkg.CreateTestStudent(t, db, "DailySync", "Present", "9z")
+	presentRow := testpkg.CreateTestInstanceStudent(t, db, instance.ID, presentStudent.ID, scheduleModels.AttendanceStatusPresent)
+	checkedInAt := time.Now().Add(-2 * time.Hour)
+	_, err := db.NewUpdate().
+		Table("schedule.instance_students").
+		Set("checked_in_at = ?", checkedInAt).
+		Where("id = ?", presentRow.ID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
 	t.Cleanup(func() {
-		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", instanceStudent.ID)
+		testpkg.CleanupTableRecords(t, db, "schedule.instance_students", instanceStudent.ID, presentRow.ID)
 		testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", instance.ID)
-		testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activity.ID, room.ID, student.ID)
+		testpkg.CleanupActivityFixtures(t, db, activeGroup.ID, activity.ID, room.ID, student.ID, presentStudent.ID)
 	})
 
 	s := &Scheduler{
@@ -67,4 +80,15 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		Scan(context.Background())
 	require.NoError(t, err)
 	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, reloadedStudent.Status)
+
+	var reloadedPresent scheduleModels.InstanceStudent
+	err = db.NewSelect().
+		Model(&reloadedPresent).
+		ModelTableExpr(`schedule.instance_students AS "instance_student"`).
+		Where(`"instance_student".id = ?`, presentRow.ID).
+		Scan(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, scheduleModels.AttendanceStatusPresent, reloadedPresent.Status, "observed presence must be preserved")
+	require.NotNil(t, reloadedPresent.CheckedOutAt, "daily session end must close the open slot checkout")
+	assert.False(t, reloadedPresent.CheckedOutAt.Before(checkedInAt))
 }

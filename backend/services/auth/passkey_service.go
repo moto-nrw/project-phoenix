@@ -25,12 +25,11 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const passkeyUserHandleBytes = 32
+const PasskeyUserHandleBytes = 32
 
 const PasskeyCeremonyTimeout = 10 * time.Minute
 
 var (
-	ErrPasskeyUnavailable    = errors.New("passkey service is unavailable")
 	ErrPasskeyOriginInvalid  = errors.New("passkey origin is invalid")
 	ErrPasskeySessionInvalid = errors.New("passkey session is invalid")
 	ErrPasskeyNotFound       = errors.New("passkey not found")
@@ -161,9 +160,9 @@ func NewPasskeyService(cfg PasskeyServiceConfig) (PasskeyService, error) {
 		authService:  cfg.AuthService,
 		db:           cfg.DB,
 		logger:       logger,
-		rpID:         hostWithoutPort(rpID),
+		rpID:         HostWithoutPort(rpID),
 		rpName:       rpName,
-		tenantDomain: hostWithoutPort(tenantDomain),
+		tenantDomain: HostWithoutPort(tenantDomain),
 	}, nil
 }
 
@@ -178,7 +177,7 @@ func (s *passkeyService) StartEnrollmentChallenge(ctx context.Context, accountID
 	}
 	return &PasskeyEnrollmentChallenge{
 		ChallengeToken: challengeToken,
-		MaskedEmail:    maskEmailForUX(account.Email),
+		MaskedEmail:    MaskEmailForUX(account.Email),
 	}, nil
 }
 
@@ -273,7 +272,7 @@ func (s *passkeyService) FinishRegistration(ctx context.Context, req PasskeyRegi
 	if err != nil {
 		return nil, &AuthError{Op: "configure passkey registration finish", Err: err}
 	}
-	httpReq, err := passkeyResponseRequest(ctx, req.CredentialResponse)
+	httpReq, err := PasskeyResponseRequest(ctx, req.CredentialResponse)
 	if err != nil {
 		return nil, &AuthError{Op: "parse passkey registration response", Err: err}
 	}
@@ -285,9 +284,9 @@ func (s *passkeyService) FinishRegistration(ctx context.Context, req PasskeyRegi
 	if err != nil {
 		return nil, &AuthError{Op: "marshal passkey credential", Err: err}
 	}
-	name := normalizePasskeyName(req.Name)
+	name := NormalizePasskeyName(req.Name)
 	if name == "" {
-		name = normalizePasskeyName("Passkey")
+		name = NormalizePasskeyName("Passkey")
 	}
 	row := &authModel.PasskeyCredential{
 		AccountID:      req.AccountID,
@@ -357,7 +356,7 @@ func (s *passkeyService) FinishLogin(ctx context.Context, req PasskeyLoginFinish
 	if err != nil {
 		return nil, &AuthError{Op: "configure passkey login finish", Err: err}
 	}
-	httpReq, err := passkeyResponseRequest(ctx, req.CredentialResponse)
+	httpReq, err := PasskeyResponseRequest(ctx, req.CredentialResponse)
 	if err != nil {
 		return nil, &AuthError{Op: "parse passkey login response", Err: err}
 	}
@@ -382,12 +381,12 @@ func (s *passkeyService) FinishLogin(ctx context.Context, req PasskeyLoginFinish
 		return nil, &AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials}
 	}
 
-	passkeyUser, ok := user.(*tenantPasskeyUser)
+	passkeyUser, ok := user.(*WebAuthnUser)
 	if !ok {
 		return nil, &AuthError{Op: "finish passkey login", Err: ErrInvalidCredentials}
 	}
 	tenantID := *sessionRow.TenantID
-	hasAccess, err := s.authService.VerifyAccountTenantMembership(ctx, passkeyUser.accountID, tenantID)
+	hasAccess, err := s.authService.VerifyAccountTenantMembership(ctx, passkeyUser.ID, tenantID)
 	if err != nil {
 		return nil, &AuthError{Op: "verify passkey tenant access", Err: ErrTenantAccessDenied}
 	}
@@ -401,7 +400,7 @@ func (s *passkeyService) FinishLogin(ctx context.Context, req PasskeyLoginFinish
 	if err := s.repos.PasskeyCredential.UpdateAfterUse(ctx, matchedCredentialID, credentialJSON, time.Now()); err != nil {
 		return nil, &AuthError{Op: "update passkey after login", Err: err}
 	}
-	accessToken, refreshToken, err := s.authService.IssueTokensForAuthenticatedAccount(ctx, passkeyUser.accountID, tenantID, req.IPAddress, req.UserAgent)
+	accessToken, refreshToken, err := s.authService.IssueTokensForAuthenticatedAccount(ctx, passkeyUser.ID, tenantID, req.IPAddress, req.UserAgent)
 	if err != nil {
 		return nil, err
 	}
@@ -427,7 +426,7 @@ func (s *passkeyService) RevokeCredential(ctx context.Context, accountID, creden
 	return nil
 }
 
-func (s *passkeyService) passkeyUserForAccount(ctx context.Context, account *authModel.Account, sessionUserHandle ...[]byte) (*tenantPasskeyUser, error) {
+func (s *passkeyService) passkeyUserForAccount(ctx context.Context, account *authModel.Account, sessionUserHandle ...[]byte) (*WebAuthnUser, error) {
 	rows, err := s.repos.PasskeyCredential.FindActiveByAccountID(ctx, account.ID)
 	if err != nil {
 		return nil, err
@@ -448,18 +447,18 @@ func (s *passkeyService) passkeyUserForAccount(ctx context.Context, account *aut
 		if len(sessionUserHandle) > 0 && len(sessionUserHandle[0]) > 0 {
 			userHandle = sessionUserHandle[0]
 		} else {
-			userHandle = make([]byte, passkeyUserHandleBytes)
+			userHandle = make([]byte, PasskeyUserHandleBytes)
 			if _, err := rand.Read(userHandle); err != nil {
 				return nil, err
 			}
 		}
 	}
-	return &tenantPasskeyUser{
-		accountID:   account.ID,
-		userHandle:  userHandle,
-		name:        account.Email,
-		displayName: account.Email,
-		credentials: credentials,
+	return &WebAuthnUser{
+		ID:          account.ID,
+		UserHandle:  userHandle,
+		Name:        account.Email,
+		DisplayName: account.Email,
+		Credentials: credentials,
 	}, nil
 }
 
@@ -468,9 +467,15 @@ func (s *passkeyService) webAuthnForOrigin(origin string) (*webauthn.WebAuthn, e
 	if err != nil {
 		return nil, err
 	}
+	return NewWebAuthnForOrigin(rpID, s.rpName, origin)
+}
+
+// NewWebAuthnForOrigin builds a *webauthn.WebAuthn scoped to a single origin
+// with the ceremony timeouts shared by the tenant and operator passkey flows.
+func NewWebAuthnForOrigin(rpID, rpName, origin string) (*webauthn.WebAuthn, error) {
 	return webauthn.New(&webauthn.Config{
 		RPID:          rpID,
-		RPDisplayName: s.rpName,
+		RPDisplayName: rpName,
 		RPOrigins:     []string{origin},
 		Timeouts: webauthn.TimeoutsConfig{
 			Login: webauthn.TimeoutConfig{
@@ -492,11 +497,11 @@ func (s *passkeyService) rpIDForOrigin(origin string) (string, error) {
 }
 
 func (s *passkeyService) validateTenantOrigin(origin, subdomain string) error {
-	originHost, err := originHostWithoutPort(origin)
+	originHost, err := OriginHostWithoutPort(origin)
 	if err != nil {
 		return ErrPasskeyOriginInvalid
 	}
-	root := strings.ToLower(hostWithoutPort(s.tenantDomain))
+	root := strings.ToLower(HostWithoutPort(s.tenantDomain))
 	subdomain = strings.ToLower(strings.TrimSpace(subdomain))
 	if root == "localhost" {
 		if originHost == "localhost" || originHost == subdomain+".localhost" {
@@ -513,20 +518,23 @@ func (s *passkeyService) validateTenantOrigin(origin, subdomain string) error {
 	return nil
 }
 
-type tenantPasskeyUser struct {
-	accountID   int64
-	userHandle  []byte
-	name        string
-	displayName string
-	credentials []webauthn.Credential
+// WebAuthnUser adapts an account or operator to the go-webauthn user
+// interface. ID is the account/operator PK, read by callers outside the
+// webauthn.User method set. Shared by the tenant and operator passkey flows.
+type WebAuthnUser struct {
+	ID          int64
+	UserHandle  []byte
+	Name        string
+	DisplayName string
+	Credentials []webauthn.Credential
 }
 
-func (u *tenantPasskeyUser) WebAuthnID() []byte                         { return u.userHandle }
-func (u *tenantPasskeyUser) WebAuthnName() string                       { return u.name }
-func (u *tenantPasskeyUser) WebAuthnDisplayName() string                { return u.displayName }
-func (u *tenantPasskeyUser) WebAuthnCredentials() []webauthn.Credential { return u.credentials }
+func (u *WebAuthnUser) WebAuthnID() []byte                         { return u.UserHandle }
+func (u *WebAuthnUser) WebAuthnName() string                       { return u.Name }
+func (u *WebAuthnUser) WebAuthnDisplayName() string                { return u.DisplayName }
+func (u *WebAuthnUser) WebAuthnCredentials() []webauthn.Credential { return u.Credentials }
 
-func passkeyResponseRequest(ctx context.Context, raw json.RawMessage) (*http.Request, error) {
+func PasskeyResponseRequest(ctx context.Context, raw json.RawMessage) (*http.Request, error) {
 	if len(raw) == 0 || !json.Valid(raw) {
 		return nil, ErrPasskeySessionInvalid
 	}
@@ -547,7 +555,7 @@ func summarizePasskeyCredential(row *authModel.PasskeyCredential) *PasskeyCreden
 	}
 }
 
-func normalizePasskeyName(value string) string {
+func NormalizePasskeyName(value string) string {
 	value = strings.TrimSpace(value)
 	if len(value) > 80 {
 		value = value[:80]
@@ -555,21 +563,7 @@ func normalizePasskeyName(value string) string {
 	return value
 }
 
-// PasskeyResponseRequestForPlatform exposes the shared WebAuthn response
-// adapter to the platform service without forcing handlers to duplicate it.
-func PasskeyResponseRequestForPlatform(ctx context.Context, raw json.RawMessage) (*http.Request, error) {
-	return passkeyResponseRequest(ctx, raw)
-}
-
-func NormalizePasskeyNameForPlatform(value string) string {
-	return normalizePasskeyName(value)
-}
-
-func PasskeyUserHandleBytesForPlatform() int {
-	return passkeyUserHandleBytes
-}
-
-func hostWithoutPort(value string) string {
+func HostWithoutPort(value string) string {
 	value = strings.TrimSpace(strings.ToLower(value))
 	if strings.Contains(value, "://") {
 		if parsed, err := url.Parse(value); err == nil {
@@ -582,23 +576,19 @@ func hostWithoutPort(value string) string {
 	return strings.TrimSuffix(value, ".")
 }
 
-func HostWithoutPortForPlatform(value string) string {
-	return hostWithoutPort(value)
-}
-
 func ResolvePasskeyRPIDForOrigin(configuredRPID, origin string) (string, error) {
-	rpID := hostWithoutPort(configuredRPID)
+	rpID := HostWithoutPort(configuredRPID)
 	if rpID != "localhost" {
 		return rpID, nil
 	}
-	originHost, err := originHostWithoutPort(origin)
+	originHost, err := OriginHostWithoutPort(origin)
 	if err != nil {
 		return "", err
 	}
 	return originHost, nil
 }
 
-func originHostWithoutPort(origin string) (string, error) {
+func OriginHostWithoutPort(origin string) (string, error) {
 	parsed, err := url.Parse(strings.TrimSpace(origin))
 	if err != nil {
 		return "", err
@@ -609,9 +599,5 @@ func originHostWithoutPort(origin string) (string, error) {
 	if parsed.Scheme != "https" && parsed.Scheme != "http" {
 		return "", fmt.Errorf("unsupported origin scheme")
 	}
-	return hostWithoutPort(parsed.Host), nil
-}
-
-func OriginHostWithoutPortForPlatform(origin string) (string, error) {
-	return originHostWithoutPort(origin)
+	return HostWithoutPort(parsed.Host), nil
 }

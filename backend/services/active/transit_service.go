@@ -5,6 +5,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -21,7 +22,7 @@ const (
 // ListStudentsInTransit returns students who are checked in today but do not
 // currently have an open room visit.
 func (s *service) ListStudentsInTransit(ctx context.Context) ([]int64, error) {
-	openAttendanceIDs, err := s.attendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
+	openAttendanceIDs, err := s.AttendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
 	if err != nil {
 		return nil, &ActiveError{Op: "ListStudentsInTransit", Err: ErrDatabaseOperation}
 	}
@@ -29,7 +30,7 @@ func (s *service) ListStudentsInTransit(ctx context.Context) ([]int64, error) {
 		return []int64{}, nil
 	}
 
-	currentVisits, err := s.visitRepo.GetCurrentByStudentIDs(ctx, openAttendanceIDs)
+	currentVisits, err := s.VisitRepo.GetCurrentByStudentIDs(ctx, openAttendanceIDs)
 	if err != nil {
 		return nil, &ActiveError{Op: "ListStudentsInTransit", Err: ErrDatabaseOperation}
 	}
@@ -48,7 +49,7 @@ func (s *service) ListStudentsInTransit(ctx context.Context) ([]int64, error) {
 // ListStudentsPresentToday returns students with open attendance today,
 // regardless of whether they currently have an open room visit.
 func (s *service) ListStudentsPresentToday(ctx context.Context) ([]int64, error) {
-	ids, err := s.attendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
+	ids, err := s.AttendanceRepo.ListOpenStudentIDsForDate(ctx, timezone.TodayDate())
 	if err != nil {
 		return nil, &ActiveError{Op: "ListStudentsPresentToday", Err: ErrDatabaseOperation}
 	}
@@ -70,16 +71,16 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 		return nil, err
 	}
 
-	uniqueIDs := uniquePositiveInt64s(studentIDs)
+	uniqueIDs := sliceutil.UniquePositive(studentIDs)
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrInvalidData}
 	}
 
-	openAttendance, err := s.attendanceRepo.GetOpenTodayByStudentIDsForUpdate(ctx, uniqueIDs)
+	openAttendance, err := s.AttendanceRepo.GetOpenTodayByStudentIDsForUpdate(ctx, uniqueIDs)
 	if err != nil {
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrDatabaseOperation}
 	}
-	currentVisits, err := s.visitRepo.GetCurrentByStudentIDs(ctx, uniqueIDs)
+	currentVisits, err := s.VisitRepo.GetCurrentByStudentIDs(ctx, uniqueIDs)
 	if err != nil {
 		return nil, &ActiveError{Op: "AssignTransitStudentsToActiveGroup", Err: ErrDatabaseOperation}
 	}
@@ -125,14 +126,6 @@ func (s *service) AssignTransitStudentsToActiveGroup(ctx context.Context, studen
 	return result, nil
 }
 
-// MoveStudentsToActiveGroup moves checked-in students into the target active
-// group while preserving room history: any old open visit is ended and a new
-// visit opens in the target group. It never creates or reopens daily
-// attendance; not-present students are reported as skipped.
-func (s *service) MoveStudentsToActiveGroup(ctx context.Context, studentIDs []int64, activeGroupID int64) (*StudentMoveResult, error) {
-	return s.moveStudentsToActiveGroup(ctx, studentIDs, activeGroupID, nil)
-}
-
 // MoveStudentsToActiveGroupAuthorized is the HTTP-facing bulk move path. It
 // revalidates the caller's source/target access against the locked move state
 // before any current visit is ended or recreated.
@@ -152,7 +145,7 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 		return nil, err
 	}
 
-	uniqueIDs := uniquePositiveInt64s(studentIDs)
+	uniqueIDs := sliceutil.UniquePositive(studentIDs)
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
@@ -229,12 +222,6 @@ func (s *service) moveStudentsToActiveGroup(ctx context.Context, studentIDs []in
 	return result, nil
 }
 
-// MoveStudentsToTransit ends any current room visit for checked-in students
-// while keeping their daily attendance open.
-func (s *service) MoveStudentsToTransit(ctx context.Context, studentIDs []int64) (*StudentMoveResult, error) {
-	return s.moveStudentsToTransit(ctx, studentIDs, nil)
-}
-
 // MoveStudentsToTransitAuthorized is the HTTP-facing transit move path. It
 // revalidates source-room access against the locked move state before ending
 // any current visit.
@@ -249,7 +236,7 @@ func (s *service) moveStudentsToTransit(ctx context.Context, studentIDs []int64,
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
 
-	uniqueIDs := uniquePositiveInt64s(studentIDs)
+	uniqueIDs := sliceutil.UniquePositive(studentIDs)
 	if len(uniqueIDs) == 0 {
 		return nil, &ActiveError{Op: op, Err: ErrInvalidData}
 	}
@@ -326,12 +313,12 @@ func newStudentMoveResult(activeGroupID, roomID *int64) *StudentMoveResult {
 }
 
 func (s *service) loadMoveState(ctx context.Context, studentIDs []int64, op string) (map[int64]*active.Attendance, map[int64]*active.Visit, error) {
-	openAttendance, err := s.attendanceRepo.GetOpenTodayByStudentIDsForUpdate(ctx, studentIDs)
+	openAttendance, err := s.AttendanceRepo.GetOpenTodayByStudentIDsForUpdate(ctx, studentIDs)
 	if err != nil {
 		return nil, nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
 
-	currentVisits, err := s.visitRepo.GetCurrentByStudentIDs(ctx, studentIDs)
+	currentVisits, err := s.VisitRepo.GetCurrentByStudentIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
@@ -413,7 +400,7 @@ func studentMoveForbidden(op string) error {
 }
 
 func (s *service) lockActiveGroupForMove(ctx context.Context, activeGroupID int64, op string) (*active.Group, error) {
-	group, err := s.groupRepo.FindByIDForUpdate(ctx, activeGroupID)
+	group, err := s.GroupRepo.FindByIDForUpdate(ctx, activeGroupID)
 	if err != nil {
 		return nil, &ActiveError{Op: op, Err: ErrDatabaseOperation}
 	}
@@ -438,7 +425,7 @@ func (s *service) createVisitWithoutAttendanceMutation(ctx context.Context, visi
 	}
 
 	visit.SetTenantID(tenant.FromContext(ctx))
-	if err := s.visitRepo.Create(ctx, visit); err != nil {
+	if err := s.VisitRepo.Create(ctx, visit); err != nil {
 		if isDuplicateActiveVisitViolation(err) {
 			return &ActiveError{Op: "CreateMoveVisit", Err: ErrStudentAlreadyActive}
 		}
@@ -446,25 +433,9 @@ func (s *service) createVisitWithoutAttendanceMutation(ctx context.Context, visi
 	}
 
 	var snapshot *AttendanceSnapshot
-	if s.attendanceSyncer != nil {
-		snapshot = s.attendanceSyncer.MirrorCheckInForVisit(ctx, visit)
+	if s.AttendanceSyncer != nil {
+		snapshot = s.AttendanceSyncer.MirrorCheckInForVisit(ctx, visit)
 	}
 	s.broadcastVisitCreated(ctx, visit, snapshot)
 	return nil
-}
-
-func uniquePositiveInt64s(ids []int64) []int64 {
-	seen := make(map[int64]struct{}, len(ids))
-	unique := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if id <= 0 {
-			continue
-		}
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		unique = append(unique, id)
-	}
-	return unique
 }

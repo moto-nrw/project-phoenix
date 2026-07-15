@@ -244,7 +244,10 @@
       "sickLabel": "Tagesmeldung",
       "noSick": "Keine Abmeldung",
       "pickupLabel": "Abholung",
-      "regularPickup": "Reguläre Abholung",
+      "pickupTime": "{time} Uhr",
+      "pickupChanged": "geändert",
+      "pickupAbsent": "Heute abgemeldet",
+      "pickupNone": "Keine Abholung heute",
       "messagesLabel": "Nachrichten",
       "noConversations": "Keine Unterhaltungen",
       "unreadCount": "{count, plural, one {# ungelesene Nachricht} other {# ungelesene Nachrichten}}",
@@ -264,6 +267,7 @@
     "sick": {
       "title": "Abmelden",
       "intro": "Melden Sie Ihr Kind für einen oder mehrere Tage ab. Wählen Sie, ob es krank ist oder aus einem anderen Grund entschuldigt fehlt. Die Betreuung sieht die Meldung sofort.",
+      "introApproval": "Melden Sie Ihr Kind für einen oder mehrere Tage ab. Wählen Sie, ob es krank ist oder aus einem anderen Grund entschuldigt fehlt. Eine Krankmeldung sieht die Betreuung sofort; eine entschuldigte Abmeldung muss vom Team bestätigt werden.",
       "kindLabel": "Art der Abmeldung",
       "kindSick": "Krank",
       "kindExcused": "Entschuldigt",
@@ -274,12 +278,25 @@
       "reasonPlaceholder": "z. B. Fieber, Zahnarzttermin",
       "invalidDate": "Bitte ein gültiges Datum wählen (Bis-Datum nach Von-Datum).",
       "saveError": "Die Abmeldung konnte nicht gespeichert werden.",
-      "submit": "Abmeldung senden"
+      "submittedButRefreshFailed": "Die Abmeldung wurde gesendet, konnte aber nicht angezeigt werden. Bitte laden Sie die Seite neu.",
+      "overlapError": "Für einen dieser Tage liegt bereits eine offene Abmeldung vor.",
+      "submit": "Abmeldung senden",
+      "reasonLabelRequired": "Notiz (Pflichtfeld)",
+      "reasonRequiredError": "Bitte geben Sie eine Notiz an, warum Ihr Kind entschuldigt fehlt.",
+      "approvalHint": "Diese Abmeldung muss vom Team bestätigt werden."
     },
     "summary": {
       "none": "Keine Abmeldung",
       "oneDay": "Abgemeldet am {date}",
-      "range": "Abgemeldet {from} – {to}"
+      "range": "Abgemeldet {from} – {to}",
+      "sickLabel": "Krank",
+      "excusedLabel": "Entschuldigt",
+      "pendingLabel": "Freigabe ausstehend",
+      "rejectedLabel": "Abgelehnt",
+      "withdraw": "Zurückziehen",
+      "withdrawError": "Zurückziehen fehlgeschlagen. Bitte aktualisieren Sie die Seite.",
+      "withdrawAlreadyDecided": "Diese Abmeldung wurde bereits von der OGS bearbeitet und kann nicht mehr zurückgezogen werden.",
+      "reasonPrefix": "Grund"
     },
     "pickup": {
       "title": "Ankunfts- und Abholzeit ändern",
@@ -618,7 +635,8 @@
       "lunch": "inkl. Mittagessen",
       "ruleExactlyOne": "Bitte genau eines wählen",
       "ruleAtLeastOne": "Bitte mindestens eines wählen",
-      "ruleAtMostOne": "Höchstens eines"
+      "ruleAtMostOne": "Höchstens eines",
+      "availabilitySelectionRemoved": "Durch die geänderte Klassenstufe sind Betreuungsangebote nicht mehr verfügbar. Die zugehörige Auswahl, Betreuungstage und automatische Mitbuchungen wurden entfernt."
     },
     "consent": {
       "agb": "Ich akzeptiere die AGB der Schule.",
@@ -739,6 +757,7 @@
     "submittedTitle": "Danke. Ihre Anmeldung wurde übermittelt.",
     "statusTitle": "Status Ihrer Anmeldung",
     "submittedDescription": "Die OGS prüft die Angaben. Den aktuellen Stand sehen Sie auf dieser Seite. Speichern Sie den Link am besten direkt oder bewahren Sie die Bestätigungs-E-Mail auf.",
+    "duplicateWarning": "Für mindestens ein Kind besteht möglicherweise bereits eine aktive Anmeldung in dieser Phase. Die neue Anmeldung wurde trotzdem gespeichert. Bitte wenden Sie sich bei Fragen an die OGS.",
     "statusDescription": "Ihre Anmeldung ist am {date} eingegangen. Hier sehen Sie den aktuellen Stand, Ihre Kontaktdaten und die angemeldeten Kinder.",
     "nextTitle": "Was jetzt passiert",
     "currentTitle": "Aktueller Stand",
@@ -786,6 +805,7 @@
     "changeRequestsDescription": "Hier sehen Sie Anfragen, die noch geprüft werden, Rückfragen der OGS und abgeschlossene Entscheidungen.",
     "changeRequestsEmpty": "Noch keine Änderungsanfrage gesendet.",
     "changeRequestCreated": "Gesendet am {date}",
+    "changeRequestAdminCorrection": "Von der OGS korrigiert am {date}",
     "changeRequestDiffTitle": "Angefragte Änderungen",
     "changeRequestDiffEmpty": "Keine erkennbaren Feldänderungen.",
     "changeRequestBefore": "Bisher",
@@ -984,6 +1004,8 @@
     "eventRequestCreatedCareSchedule": "Anfrage zu Betreuungszeiten gestellt",
     "eventRequestCreatedMasterData": "Anfrage zu Stammdaten gestellt",
     "eventRequestConfirmedMasterData": "Anfrage bestätigt, Stammdaten übernommen",
+    "eventRequestCreatedExcusedAbsence": "Anfrage zur entschuldigten Abmeldung gestellt",
+    "eventRequestConfirmedExcusedAbsence": "Anfrage bestätigt, Abmeldung übernommen",
     "eventRequestRejected": "Anfrage abgelehnt",
     "eventRequestRejectedReason": "Anfrage abgelehnt: {reason}",
     "eventRequestWithdrawn": "Anfrage zurückgezogen",

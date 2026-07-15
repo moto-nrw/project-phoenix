@@ -20,20 +20,6 @@ type TeacherStudentResponse struct {
 	RFIDTag     string `json:"rfid_tag,omitempty"`
 }
 
-// DeviceActivityResponse represents an activity available for teacher selection on RFID devices
-type DeviceActivityResponse struct {
-	ID              int64  `json:"id"`
-	Name            string `json:"name"`
-	CategoryName    string `json:"category_name"`
-	CategoryColor   string `json:"category_color,omitempty"`
-	RoomName        string `json:"room_name,omitempty"`
-	EnrollmentCount int    `json:"enrollment_count"`
-	MaxParticipants int    `json:"max_participants"`
-	HasSpots        bool   `json:"has_spots"`
-	SupervisorName  string `json:"supervisor_name"`
-	IsActive        bool   `json:"is_active"`
-}
-
 // TeacherActivityResponse represents an activity in the teacher's activity list
 type TeacherActivityResponse struct {
 	ID         int64  `json:"id"`

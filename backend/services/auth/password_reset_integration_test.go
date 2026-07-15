@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -19,9 +21,9 @@ import (
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 )
 
-func newPasswordResetTestEnv(t *testing.T) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *stubTokenRepository, *capturingMailer, sqlmock.Sqlmock, func()) {
-	service, accounts, tokens, rateRepo, sessions, mailer, mock, cleanup := newPasswordResetTestEnvWithMailer(t, newCapturingMailer())
-	capturing, _ := mailer.(*capturingMailer)
+func newPasswordResetTestEnv(t *testing.T) (*Service, *stubAccountRepository, *stubPasswordResetTokenRepository, *testRateLimitRepo, *stubTokenRepository, *testpkg.CapturingMailer, sqlmock.Sqlmock, func()) {
+	service, accounts, tokens, rateRepo, sessions, mailer, mock, cleanup := newPasswordResetTestEnvWithMailer(t, testpkg.NewCapturingMailer())
+	capturing, _ := mailer.(*testpkg.CapturingMailer)
 	return service, accounts, tokens, rateRepo, sessions, capturing, mock, cleanup
 }
 
@@ -157,7 +159,7 @@ func TestInitiateParentPasswordResetSendsParentPortalLink(t *testing.T) {
 	require.Equal(t, "Passwort zurücksetzen", msg.Subject)
 	content := msg.Content.(map[string]any)
 	require.Equal(t, "http://parents.localhost:3000/reset-password?token="+token.Token, content["ResetURL"])
-	require.Equal(t, "http://parents.localhost:3000/images/moto_transparent.png", content["LogoURL"])
+	require.Equal(t, "http://parents.localhost:3000/images/moto-logo-mit-schriftzug.png", content["LogoURL"])
 
 	_, ok := tokens.tokens[token.Token]
 	require.True(t, ok, "token should be persisted")

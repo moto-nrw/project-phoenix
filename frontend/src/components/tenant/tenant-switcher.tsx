@@ -6,7 +6,7 @@ import { mutate } from "~/lib/swr";
 import {
   listAvailableTenants,
   performTenantSwitch,
-  type TenantInfo,
+  type TenantSummary,
 } from "~/lib/tenant-api";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
 import { createLogger } from "~/lib/logger";
@@ -27,7 +27,7 @@ const logger = createLogger({ component: "TenantSwitcher" });
  * 5. Hard-navigate to new tenant URL
  */
 export function TenantSwitcher() {
-  const [tenants, setTenants] = useState<TenantInfo[]>([]);
+  const [tenants, setTenants] = useState<TenantSummary[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isSwitching, setIsSwitching] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -63,7 +63,7 @@ export function TenantSwitcher() {
   }, [isOpen]);
 
   const handleSwitch = useCallback(
-    async (targetTenant: TenantInfo) => {
+    async (targetTenant: TenantSummary) => {
       if (isSwitching) return;
       setIsSwitching(true);
       setIsOpen(false);
@@ -106,7 +106,7 @@ export function TenantSwitcher() {
   const otherTenants = tenants.filter((t) => t.slug !== currentSlug);
 
   // Group other tenants by organization
-  const grouped = new Map<string, TenantInfo[]>();
+  const grouped = new Map<string, TenantSummary[]>();
   for (const t of otherTenants) {
     const orgName = t.organizationName || "Andere";
     const existing = grouped.get(orgName) ?? [];

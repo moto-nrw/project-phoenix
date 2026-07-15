@@ -548,7 +548,6 @@ func TestErrorTypes(t *testing.T) {
 	assert.Equal(t, "token unauthorized", ErrTokenUnauthorized.Error())
 	assert.Equal(t, "token expired", ErrTokenExpired.Error())
 	assert.Equal(t, "invalid access token", ErrInvalidAccessToken.Error())
-	assert.Equal(t, "invalid refresh token", ErrInvalidRefreshToken.Error())
 }
 
 // =============================================================================

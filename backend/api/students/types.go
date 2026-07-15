@@ -8,6 +8,8 @@ import (
 	"time"
 	"unicode/utf8"
 
+	guardiansAPI "github.com/moto-nrw/project-phoenix/api/guardians"
+	iotDataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
@@ -108,6 +110,12 @@ type StudentResponse struct {
 	DayPlanningStatus      string        `json:"day_planning_status,omitempty"`
 	DayPlanningReason      string        `json:"day_planning_reason,omitempty"`
 	DayPlanningLabel       string        `json:"day_planning_label,omitempty"`
+	// PendingExcusedNote is set (#1845) when the child has a parent excused-absence
+	// request awaiting office approval that covers the planning day. The child
+	// stays "expected" (this does NOT change DayPlanningStatus); the planning
+	// views render it as an informational "entschuldigt – Freigabe ausstehend"
+	// badge carrying the parent's note so staff can decide it in context.
+	PendingExcusedNote *string `json:"pending_excused_note,omitempty"`
 
 	// Photo (gated by operations.student_photos_enabled). PhotoURL is empty
 	// when no photo is set OR when the feature is off — the frontend's Avatar
@@ -147,7 +155,6 @@ type SupervisorContact struct {
 	FirstName string `json:"first_name"`
 	LastName  string `json:"last_name"`
 	Email     string `json:"email,omitempty"`
-	Phone     string `json:"phone,omitempty"`
 	Role      string `json:"role"` // "teacher" or "staff"
 }
 
@@ -232,7 +239,7 @@ type StudentRequest struct {
 	// Guardians created together with the student in one atomic transaction
 	// (guardian_profiles system). Optional and independent of the legacy
 	// scalar guardian_* fields above.
-	Guardians []GuardianInput `json:"guardians,omitempty"`
+	Guardians []guardiansAPI.GuardianWithRelationshipInput `json:"guardians,omitempty"`
 
 	// Weekly recurring arrival/pickup schedules persisted together with the
 	// student in the same atomic transaction. Reuse the bulk-update item DTOs
@@ -240,48 +247,6 @@ type StudentRequest struct {
 	// endpoints (PUT /students/{id}/{arrival,pickup}-schedules).
 	ArrivalSchedules []ArrivalScheduleRequestItem `json:"arrival_schedules,omitempty"`
 	PickupSchedules  []PickupScheduleRequest      `json:"pickup_schedules,omitempty"`
-}
-
-// GuardianPhoneInput is one phone number for a guardian created alongside a student.
-type GuardianPhoneInput struct {
-	PhoneNumber string `json:"phone_number"`
-	PhoneType   string `json:"phone_type,omitempty"` // mobile, home, work, other
-	Label       string `json:"label,omitempty"`
-	IsPrimary   bool   `json:"is_primary,omitempty"`
-}
-
-// GuardianInput is one guardian (profile + relationship + phone numbers) to be
-// created together with a new student. Mirrors the fields managed on the
-// student detail page's guardian form.
-type GuardianInput struct {
-	// GuardianProfileID, when set, links an EXISTING guardian profile to the
-	// new student instead of creating a new one (sibling case, issue #1513).
-	// When present the profile fields below (name, email, address, phone
-	// numbers) are ignored and the existing profile is never mutated — only the
-	// relationship flags apply to the new link.
-	GuardianProfileID *int64 `json:"guardian_profile_id,omitempty"`
-
-	// Profile
-	FirstName              string `json:"first_name"`
-	LastName               string `json:"last_name"`
-	Email                  string `json:"email,omitempty"`
-	AddressStreet          string `json:"address_street,omitempty"`
-	AddressCity            string `json:"address_city,omitempty"`
-	AddressPostalCode      string `json:"address_postal_code,omitempty"`
-	PreferredContactMethod string `json:"preferred_contact_method,omitempty"`
-	LanguagePreference     string `json:"language_preference,omitempty"`
-	Notes                  string `json:"notes,omitempty"`
-
-	// Relationship to the student
-	RelationshipType   string `json:"relationship_type"` // parent, guardian, relative, other
-	GuardianRole       string `json:"guardian_role,omitempty"`
-	IsPrimary          bool   `json:"is_primary,omitempty"`
-	IsEmergencyContact bool   `json:"is_emergency_contact,omitempty"`
-	CanPickup          bool   `json:"can_pickup,omitempty"`
-	PickupNotes        string `json:"pickup_notes,omitempty"`
-	EmergencyPriority  int    `json:"emergency_priority,omitempty"`
-
-	PhoneNumbers []GuardianPhoneInput `json:"phone_numbers,omitempty"`
 }
 
 // UpdateStudentRequest represents a student update request
@@ -329,10 +294,9 @@ type UpdateStudentRequest struct {
 	PhotoConsentGiven *bool `json:"photo_consent_given,omitempty"`
 }
 
-// RFIDAssignmentRequest represents an RFID tag assignment request
-type RFIDAssignmentRequest struct {
-	RFIDTag string `json:"rfid_tag"`
-}
+// RFIDAssignmentRequest is the RFID tag assignment payload, shared with
+// the device-auth endpoint in api/iot/data (single declaration site).
+type RFIDAssignmentRequest = iotDataAPI.RFIDAssignmentRequest
 
 // RFIDAssignmentResponse represents an RFID tag assignment response
 type RFIDAssignmentResponse struct {
@@ -563,20 +527,6 @@ func isValidStudentStatusDayStatus(status string) bool {
 	default:
 		return false
 	}
-}
-
-// Bind validates the RFID assignment request
-func (req *RFIDAssignmentRequest) Bind(_ *http.Request) error {
-	if req.RFIDTag == "" {
-		return errors.New("rfid_tag is required")
-	}
-	if len(req.RFIDTag) < 8 {
-		return errors.New("rfid_tag must be at least 8 characters")
-	}
-	if len(req.RFIDTag) > 64 {
-		return errors.New("rfid_tag must be at most 64 characters")
-	}
-	return nil
 }
 
 // Bind validates the privacy consent request

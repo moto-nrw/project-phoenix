@@ -37,37 +37,12 @@ func (r *GroupSupervisorRepository) FindActiveByStaffID(ctx context.Context, sta
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		Where("staff_id = ? AND (end_date IS NULL OR end_date > NOW())", staffID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	err := query.Scan(ctx)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{
 			Op:  "find active by staff ID",
-			Err: err,
-		}
-	}
-
-	return supervisions, nil
-}
-
-// FindAllActive finds all currently active supervisions across all staff
-func (r *GroupSupervisorRepository) FindAllActive(ctx context.Context) ([]*active.GroupSupervisor, error) {
-	var supervisions []*active.GroupSupervisor
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(&supervisions).
-		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Where(`"group_supervisor".end_date IS NULL OR "group_supervisor".end_date > NOW()`)
-
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find all active supervisions",
 			Err: err,
 		}
 	}
@@ -87,9 +62,7 @@ func (r *GroupSupervisorRepository) FindStaleOpen(ctx context.Context, before ti
 		Where(`"group_supervisor".start_date < ?`, before).
 		Where(`"group_supervisor".end_date IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	if err := query.Scan(ctx); err != nil {
 		return nil, &modelBase.DatabaseError{
@@ -121,9 +94,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupID(ctx context.Context, act
 		query = query.Where(`"group_supervisor".end_date IS NULL`)
 	}
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -160,9 +131,7 @@ func (r *GroupSupervisorRepository) FindByActiveGroupIDs(ctx context.Context, ac
 		query = query.Where(`"group_supervisor".end_date IS NULL`)
 	}
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	err := query.Scan(ctx)
 	if err != nil {
@@ -183,61 +152,12 @@ func (r *GroupSupervisorRepository) EndSupervision(ctx context.Context, id int64
 		Set("end_date = ?", timezone.TodayDate()).
 		Where(`"group_supervisor".id = ? AND "group_supervisor".end_date IS NULL`, id)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	_, err := query.Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{
 			Op:  "end supervision",
-			Err: err,
-		}
-	}
-
-	return nil
-}
-
-// Create overrides base Create to handle validation
-func (r *GroupSupervisorRepository) Create(ctx context.Context, supervision *active.GroupSupervisor) error {
-	if supervision == nil {
-		return fmt.Errorf("group supervisor cannot be nil")
-	}
-
-	// Validate supervision
-	if err := supervision.Validate(); err != nil {
-		return err
-	}
-
-	// Use the base Create method
-	return r.Repository.Create(ctx, supervision)
-}
-
-// CreateBulk inserts multiple supervisors in a single query.
-// All supervisors are validated and have their tenant IDs set from context before insertion.
-func (r *GroupSupervisorRepository) CreateBulk(ctx context.Context, supervisors []*active.GroupSupervisor) error {
-	if len(supervisors) == 0 {
-		return nil
-	}
-
-	// Validate all supervisors and set tenant IDs
-	for _, sup := range supervisors {
-		if sup == nil {
-			return fmt.Errorf("group supervisor cannot be nil")
-		}
-		if err := sup.Validate(); err != nil {
-			return err
-		}
-		base.EnsureTenantID(ctx, sup)
-	}
-
-	_, err := base.GetDB(ctx, r.db).NewInsert().
-		Model(&supervisors).
-		ModelTableExpr(`active.group_supervisors`).
-		Exec(ctx)
-	if err != nil {
-		return &modelBase.DatabaseError{
-			Op:  "create bulk",
 			Err: err,
 		}
 	}
@@ -262,9 +182,7 @@ func (r *GroupSupervisorRepository) Update(ctx context.Context, supervision *act
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
 		WherePK()
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -307,9 +225,7 @@ func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase
 		Model(&supervisions).
 		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	if options != nil {
 		if options.Filter != nil {
@@ -330,54 +246,6 @@ func (r *GroupSupervisorRepository) List(ctx context.Context, options *modelBase
 	return supervisions, nil
 }
 
-// FindWithStaff retrieves supervisions with staff details
-func (r *GroupSupervisorRepository) FindWithStaff(ctx context.Context, id int64) (*active.GroupSupervisor, error) {
-	supervision := new(active.GroupSupervisor)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(supervision).
-		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Relation("Staff").
-		Where("id = ?", id)
-
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with staff",
-			Err: err,
-		}
-	}
-
-	return supervision, nil
-}
-
-// FindWithActiveGroup retrieves supervisions with active group details
-func (r *GroupSupervisorRepository) FindWithActiveGroup(ctx context.Context, id int64) (*active.GroupSupervisor, error) {
-	supervision := new(active.GroupSupervisor)
-	query := base.GetDB(ctx, r.db).NewSelect().
-		Model(supervision).
-		ModelTableExpr(`active.group_supervisors AS "group_supervisor"`).
-		Relation("ActiveGroup").
-		Where("id = ?", id)
-
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
-
-	err := query.Scan(ctx)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{
-			Op:  "find with active group",
-			Err: err,
-		}
-	}
-
-	return supervision, nil
-}
-
 // EndAllActiveByStaffID ends all active supervisions for a staff member.
 // Sets end_date = CURRENT_DATE for all supervisions where end_date IS NULL.
 // Returns the number of supervisions that were ended.
@@ -388,9 +256,7 @@ func (r *GroupSupervisorRepository) EndAllActiveByStaffID(ctx context.Context, s
 		Set("end_date = CURRENT_DATE").
 		Where(`"group_supervisor".staff_id = ? AND "group_supervisor".end_date IS NULL`, staffID)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -423,9 +289,7 @@ func (r *GroupSupervisorRepository) EndByActiveGroupAndStaffID(ctx context.Conte
 		Where(`"group_supervisor".staff_id = ?`, staffID).
 		Where(`"group_supervisor".end_date IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -460,9 +324,7 @@ func (r *GroupSupervisorRepository) EndSupervisionsByActiveGroupIDs(ctx context.
 		Where(`"group_supervisor".group_id IN (?)`, bun.List(activeGroupIDs)).
 		Where(`"group_supervisor".end_date IS NULL`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	result, err := query.Exec(ctx)
 	if err != nil {
@@ -505,9 +367,7 @@ func (r *GroupSupervisorRepository) GetStaffIDsWithSupervisionToday(ctx context.
 			)
 		)`)
 
-	if where, val, ok := base.TenantWhere(ctx, "group_supervisor"); ok {
-		query = query.Where(where, val)
-	}
+	query = base.WithTenantFilter(ctx, query, "group_supervisor")
 
 	err := query.Scan(ctx, &staffIDs)
 	if err != nil {

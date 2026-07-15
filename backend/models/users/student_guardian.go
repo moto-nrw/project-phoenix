@@ -3,10 +3,8 @@ package users
 import (
 	"errors"
 	"strings"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // ErrStudentGuardianNotFound is returned when no students_guardians row joins a
@@ -42,23 +40,7 @@ type StudentGuardian struct {
 	Permissions        map[string]interface{} `bun:"permissions,type:jsonb,nullzero" json:"permissions,omitempty"`
 
 	// Relations not stored in the database
-	Student         *Student         `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
-	GuardianProfile *GuardianProfile `bun:"rel:belongs-to,join:guardian_profile_id=id" json:"guardian_profile,omitempty"`
-}
-
-func (sg *StudentGuardian) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`users.students_guardians AS "student_guardian"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`users.students_guardians AS "student_guardian"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (sg *StudentGuardian) TableName() string {
-	return "users.students_guardians"
+	Student *Student `bun:"rel:belongs-to,join:student_id=id" json:"student,omitempty"`
 }
 
 // Validate ensures student guardian data is valid
@@ -137,19 +119,4 @@ func (sg *StudentGuardian) GetRelationshipName() string {
 	default:
 		return "Unknown"
 	}
-}
-
-// GetID implements the base.Entity interface
-func (sg *StudentGuardian) GetID() interface{} {
-	return sg.ID
-}
-
-// GetCreatedAt implements the base.Entity interface
-func (sg *StudentGuardian) GetCreatedAt() time.Time {
-	return sg.CreatedAt
-}
-
-// GetUpdatedAt implements the base.Entity interface
-func (sg *StudentGuardian) GetUpdatedAt() time.Time {
-	return sg.UpdatedAt
 }

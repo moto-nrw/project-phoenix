@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Attendance status constants (system-controlled, E18).
@@ -34,9 +33,6 @@ const (
 // field on an attendance row.
 const InstanceStudentNoteMaxLength = 500
 
-// tableInstanceStudents is the schema-qualified table name.
-const tableInstanceStudents = "schedule.instance_students"
-
 // InstanceStudent represents a student's expected attendance at a materialized
 // activity instance, plus the three-field attendance model (E18):
 //
@@ -47,36 +43,20 @@ type InstanceStudent struct {
 	base.Model `bun:"schema:schedule,table:instance_students"`
 	base.TenantModel
 
-	InstanceID  int64      `bun:"instance_id,notnull" json:"instance_id"`
-	StudentID   int64      `bun:"student_id,notnull" json:"student_id"`
-	RoomID      *int64     `bun:"room_id" json:"room_id,omitempty"`
-	Status      string     `bun:"status,notnull,default:'expected'" json:"status"`
-	Substatus   *string    `bun:"substatus" json:"substatus,omitempty"`
-	Note        *string    `bun:"note" json:"note,omitempty"`
-	CheckedInAt *time.Time `bun:"checked_in_at" json:"checked_in_at,omitempty"`
+	InstanceID   int64      `bun:"instance_id,notnull" json:"instance_id"`
+	StudentID    int64      `bun:"student_id,notnull" json:"student_id"`
+	RoomID       *int64     `bun:"room_id" json:"room_id,omitempty"`
+	Status       string     `bun:"status,notnull,default:'expected'" json:"status"`
+	Substatus    *string    `bun:"substatus" json:"substatus,omitempty"`
+	Note         *string    `bun:"note" json:"note,omitempty"`
+	CheckedInAt  *time.Time `bun:"checked_in_at" json:"checked_in_at,omitempty"`
+	CheckedOutAt *time.Time `bun:"checked_out_at" json:"checked_out_at,omitempty"`
+	IsUnplanned  bool       `bun:"is_unplanned,notnull,default:false" json:"is_unplanned"`
+	// StudentStatusDayID marks a broad day status that owns the slot absence.
+	// Manual slot decisions keep this nil and therefore win over later broad
+	// status changes.
+	StudentStatusDayID *int64 `bun:"student_status_day_id" json:"-"`
 }
-
-func (s *InstanceStudent) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.instance_students AS "instance_student"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.instance_students AS "instance_student"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name.
-func (s *InstanceStudent) TableName() string { return tableInstanceStudents }
-
-// GetID implements the Entity interface.
-func (s *InstanceStudent) GetID() any { return s.ID }
-
-// GetCreatedAt implements the Entity interface.
-func (s *InstanceStudent) GetCreatedAt() time.Time { return s.CreatedAt }
-
-// GetUpdatedAt implements the Entity interface.
-func (s *InstanceStudent) GetUpdatedAt() time.Time { return s.UpdatedAt }
 
 // Validate ensures the attendance row is well-formed.
 func (s *InstanceStudent) Validate() error {
@@ -168,6 +148,14 @@ type InstanceStudentRepository interface {
 	// modification exception attached.
 	FindExpectedByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*InstanceStudent, error)
 
+	// CountNonAbsentByInstanceIDs groups rows by instance_id and returns the
+	// count of rows with status != 'absent' per instance, mirroring
+	// InstanceStaffRepository.CountNonAbsentByInstanceIDs. Instances with
+	// zero non-absent rows do not appear in the returned map - callers must
+	// treat missing keys as zero. Feeds the Betreuungsplan capacity
+	// computation (children count per block).
+	CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error)
+
 	// FindByStudentAndDateRange returns attendance rows for a student across
 	// all instances whose date falls in the inclusive range. Used by the
 	// per-student day view (aggregation layer).
@@ -180,12 +168,23 @@ type InstanceStudentRepository interface {
 	// DeleteByInstanceID removes all attendance rows for an instance.
 	DeleteByInstanceID(ctx context.Context, instanceID int64) error
 
-	// UpdateAttendanceFromCheckin flips status 'expected' → 'present' and
-	// stamps checked_in_at. The status='expected' predicate in the WHERE
-	// clause enforces monotonicity — a row that's already present (double
-	// tap, or post-hoc PATCH) is never clobbered. Returns (updated=true)
-	// only when a row was actually changed.
+	// UpdateAttendanceFromCheckin opens observed presence for an expected row,
+	// a broad-status absence, or a checked-out present row. It stamps the first
+	// checked_in_at and re-stamps it on re-entry; already-open presence
+	// and independent manual decisions are never clobbered. Returns
+	// (updated=true) only when a row was actually changed.
 	UpdateAttendanceFromCheckin(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (bool, error)
+	CreateUnplannedPresentIfAbsent(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (*InstanceStudent, error)
+	UpdateAttendanceCheckout(ctx context.Context, instanceID, studentID int64, checkedOutAt time.Time) error
+	// ReconcileAttendanceInterval replaces the observed interval only when the
+	// row still carries the caller's previous check-in and checkout. A missing
+	// historical checkout may be repaired for a previously closed visit. The
+	// check-in guard protects a later re-entry from an edit to an older visit.
+	ReconcileAttendanceInterval(ctx context.Context, instanceID, studentID int64, previousCheckIn time.Time, previousCheckOut *time.Time, updatedCheckIn time.Time, updatedCheckOut *time.Time) (bool, error)
+	FindCurrentCandidates(ctx context.Context, studentID int64, date timezone.Date, at time.Time) ([]*InstanceStudent, error)
+	ApplyStatusDay(ctx context.Context, studentID int64, date timezone.Date, statusDayID int64, substatus string) (int, error)
+	ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error)
+	ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date timezone.Date) (int, error)
 
 	// UpdateAttendanceFields writes only the fields carried by the patch.
 	// Callers (the PATCH handler) must validate cross-field invariants
@@ -221,6 +220,11 @@ type InstanceStudentRepository interface {
 	// for students on still-active instances bridged to the given
 	// active.groups. Used by the scheduler's daily session-end bridge.
 	MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time) error
+
+	// CloseOpenCheckoutsByActiveGroupIDs stamps checked_out_at on open
+	// present rows whose instance is bridged to the given active.groups.
+	// Mirrors the daily session-end bulk visit close into slot attendance.
+	CloseOpenCheckoutsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, checkedOutAt time.Time) (int, error)
 
 	// ListStudentInstanceRefsBefore returns (student_id, instance_id) pairs
 	// for attendance rows whose instance date is before the cutoff, ordered

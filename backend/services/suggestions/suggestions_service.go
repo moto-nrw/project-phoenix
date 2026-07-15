@@ -1,12 +1,14 @@
 package suggestions
 
 import (
+	"cmp"
 	"context"
 	"fmt"
 	"log/slog"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/email"
+	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/suggestions"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -28,23 +30,13 @@ type ServiceConfig struct {
 }
 
 type suggestionsService struct {
-	postRepo        suggestions.PostRepository
-	voteRepo        suggestions.VoteRepository
-	commentRepo     suggestions.CommentRepository
-	commentReadRepo suggestions.CommentReadRepository
-	txHandler       *base.TxHandler
-	dispatcher      *email.Dispatcher
-	defaultFrom     email.Email
-	notifyEmails    []string
-	frontendURL     string
-	logger          *slog.Logger
+	ServiceConfig
+	txHandler    *base.TxHandler
+	notifyEmails []string
 }
 
 func (s *suggestionsService) getLogger() *slog.Logger {
-	if s.logger != nil {
-		return s.logger
-	}
-	return slog.Default()
+	return cmp.Or(s.Logger, slog.Default())
 }
 
 func notificationContext(ctx context.Context) context.Context {
@@ -54,17 +46,14 @@ func notificationContext(ctx context.Context) context.Context {
 	return context.WithoutCancel(ctx)
 }
 
+// truncateRunes caps value to limit runes with an ellipsis suffix. It keeps the
+// limit<=0 → "" guard (a zero/negative limit means "no room"); the rune-cutting
+// core is strutil.TruncateRunes.
 func truncateRunes(value string, limit int) string {
 	if limit <= 0 {
 		return ""
 	}
-
-	runes := []rune(value)
-	if len(runes) <= limit {
-		return value
-	}
-
-	return string(runes[:limit]) + "…"
+	return strutil.TruncateRunes(value, limit, "…")
 }
 
 // NewService creates a new suggestions service
@@ -79,16 +68,9 @@ func NewService(cfg ServiceConfig) Service {
 	}
 
 	return &suggestionsService{
-		postRepo:        cfg.PostRepo,
-		voteRepo:        cfg.VoteRepo,
-		commentRepo:     cfg.CommentRepo,
-		commentReadRepo: cfg.CommentReadRepo,
-		txHandler:       base.NewTxHandler(cfg.DB),
-		dispatcher:      cfg.Dispatcher,
-		defaultFrom:     cfg.DefaultFrom,
-		notifyEmails:    emails,
-		frontendURL:     cfg.FrontendURL,
-		logger:          cfg.Logger,
+		ServiceConfig: cfg,
+		txHandler:     base.NewTxHandler(cfg.DB),
+		notifyEmails:  emails,
 	}
 }
 
@@ -107,12 +89,12 @@ func (s *suggestionsService) CreatePost(ctx context.Context, post *suggestions.P
 		return &InvalidDataError{Err: err}
 	}
 
-	if err := s.postRepo.Create(ctx, post); err != nil {
+	if err := s.PostRepo.Create(ctx, post); err != nil {
 		return err
 	}
 
 	// Fetch post with author name for the notification email
-	fullPost, err := s.postRepo.FindByIDWithVote(notificationContext(ctx), post.ID, 0, suggestions.ReaderTypeUser)
+	fullPost, err := s.PostRepo.FindByIDWithVote(notificationContext(ctx), post.ID, 0, suggestions.ReaderTypeUser)
 	if err == nil && fullPost != nil {
 		s.notifyNewPost(fullPost)
 	}
@@ -122,7 +104,7 @@ func (s *suggestionsService) CreatePost(ctx context.Context, post *suggestions.P
 
 // GetPost retrieves a post by ID with author name and vote info
 func (s *suggestionsService) GetPost(ctx context.Context, id int64, accountID int64) (*suggestions.Post, error) {
-	post, err := s.postRepo.FindByIDWithVote(ctx, id, accountID, suggestions.ReaderTypeUser)
+	post, err := s.PostRepo.FindByIDWithVote(ctx, id, accountID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return nil, err
 	}
@@ -138,7 +120,7 @@ func (s *suggestionsService) UpdatePost(ctx context.Context, post *suggestions.P
 		return &InvalidDataError{Err: fmt.Errorf("post cannot be nil")}
 	}
 
-	existing, err := s.postRepo.FindByID(ctx, post.ID, suggestions.ReaderTypeUser)
+	existing, err := s.PostRepo.FindByID(ctx, post.ID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return err
 	}
@@ -159,12 +141,12 @@ func (s *suggestionsService) UpdatePost(ctx context.Context, post *suggestions.P
 		return &InvalidDataError{Err: err}
 	}
 
-	return s.postRepo.Update(ctx, existing)
+	return s.PostRepo.Update(ctx, existing)
 }
 
 // DeletePost deletes a post. Only the author can delete their own posts.
 func (s *suggestionsService) DeletePost(ctx context.Context, id int64, accountID int64) error {
-	existing, err := s.postRepo.FindByID(ctx, id, suggestions.ReaderTypeUser)
+	existing, err := s.PostRepo.FindByID(ctx, id, suggestions.ReaderTypeUser)
 	if err != nil {
 		return err
 	}
@@ -177,12 +159,12 @@ func (s *suggestionsService) DeletePost(ctx context.Context, id int64, accountID
 		return &ForbiddenError{}
 	}
 
-	return s.postRepo.Delete(ctx, id)
+	return s.PostRepo.Delete(ctx, id)
 }
 
 // ListPosts returns all posts sorted as requested
 func (s *suggestionsService) ListPosts(ctx context.Context, accountID int64, sortBy string) ([]*suggestions.Post, error) {
-	return s.postRepo.List(ctx, accountID, suggestions.ReaderTypeUser, sortBy, "")
+	return s.PostRepo.List(ctx, accountID, suggestions.ReaderTypeUser, sortBy, "")
 }
 
 // Vote casts or changes a vote on a post, then recalculates score in a transaction
@@ -192,7 +174,7 @@ func (s *suggestionsService) Vote(ctx context.Context, postID int64, accountID i
 	}
 
 	// Verify post exists and is visible to users
-	existing, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
+	existing, err := s.PostRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return nil, err
 	}
@@ -207,21 +189,21 @@ func (s *suggestionsService) Vote(ctx context.Context, postID int64, accountID i
 	}
 	vote.SetTenantID(tenant.FromContext(ctx))
 
-	if err := s.voteRepo.Upsert(ctx, vote); err != nil {
+	if err := s.VoteRepo.Upsert(ctx, vote); err != nil {
 		return nil, err
 	}
 
-	if err := s.postRepo.RecalculateScore(ctx, postID); err != nil {
+	if err := s.PostRepo.RecalculateScore(ctx, postID); err != nil {
 		return nil, err
 	}
 
-	return s.postRepo.FindByIDWithVote(ctx, postID, accountID, suggestions.ReaderTypeUser)
+	return s.PostRepo.FindByIDWithVote(ctx, postID, accountID, suggestions.ReaderTypeUser)
 }
 
 // RemoveVote removes a user's vote from a post, then recalculates score
 func (s *suggestionsService) RemoveVote(ctx context.Context, postID int64, accountID int64) (*suggestions.Post, error) {
 	// Verify post exists and is visible to users
-	existing, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
+	existing, err := s.PostRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return nil, err
 	}
@@ -229,15 +211,15 @@ func (s *suggestionsService) RemoveVote(ctx context.Context, postID int64, accou
 		return nil, &PostNotFoundError{PostID: postID}
 	}
 
-	if err := s.voteRepo.DeleteByPostAndVoter(ctx, postID, int64(accountID)); err != nil {
+	if err := s.VoteRepo.DeleteByPostAndVoter(ctx, postID, int64(accountID)); err != nil {
 		return nil, err
 	}
 
-	if err := s.postRepo.RecalculateScore(ctx, postID); err != nil {
+	if err := s.PostRepo.RecalculateScore(ctx, postID); err != nil {
 		return nil, err
 	}
 
-	return s.postRepo.FindByIDWithVote(ctx, postID, accountID, suggestions.ReaderTypeUser)
+	return s.PostRepo.FindByIDWithVote(ctx, postID, accountID, suggestions.ReaderTypeUser)
 }
 
 // CreateComment creates a new user-facing comment on a post
@@ -251,7 +233,7 @@ func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggest
 	comment.SetTenantID(tenant.FromContext(ctx))
 
 	// Verify post exists and is visible to users
-	post, err := s.postRepo.FindByID(ctx, comment.PostID, suggestions.ReaderTypeUser)
+	post, err := s.PostRepo.FindByID(ctx, comment.PostID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return err
 	}
@@ -263,16 +245,16 @@ func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggest
 		return &InvalidDataError{Err: err}
 	}
 
-	if err := s.commentRepo.Create(ctx, comment); err != nil {
+	if err := s.CommentRepo.Create(ctx, comment); err != nil {
 		return err
 	}
 
 	notifyCtx := notificationContext(ctx)
 
 	// Fetch full post for notification (with author name resolved)
-	fullPost, fetchErr := s.postRepo.FindByIDWithVote(notifyCtx, comment.PostID, 0, suggestions.ReaderTypeUser)
+	fullPost, fetchErr := s.PostRepo.FindByIDWithVote(notifyCtx, comment.PostID, 0, suggestions.ReaderTypeUser)
 	if fetchErr == nil && fullPost != nil {
-		resolvedComment, commentErr := s.commentRepo.FindByIDWithAuthor(notifyCtx, comment.ID)
+		resolvedComment, commentErr := s.CommentRepo.FindByIDWithAuthor(notifyCtx, comment.ID)
 		if commentErr == nil && resolvedComment != nil {
 			s.notifyNewComment(fullPost, resolvedComment)
 		}
@@ -284,7 +266,7 @@ func (s *suggestionsService) CreateComment(ctx context.Context, comment *suggest
 // GetComments retrieves comments for a post.
 // Hidden posts return PostNotFoundError — comments on hidden posts are not accessible to users.
 func (s *suggestionsService) GetComments(ctx context.Context, postID int64) ([]*suggestions.Comment, error) {
-	post, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
+	post, err := s.PostRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return nil, err
 	}
@@ -292,13 +274,13 @@ func (s *suggestionsService) GetComments(ctx context.Context, postID int64) ([]*
 		return nil, &PostNotFoundError{PostID: postID}
 	}
 
-	return s.commentRepo.FindByPostID(ctx, postID)
+	return s.CommentRepo.FindByPostID(ctx, postID)
 }
 
 // DeleteComment deletes a user's own comment.
 // Hidden posts return PostNotFoundError — users cannot interact with hidden posts.
 func (s *suggestionsService) DeleteComment(ctx context.Context, commentID int64, accountID int64) error {
-	comment, err := s.commentRepo.FindByID(ctx, commentID)
+	comment, err := s.CommentRepo.FindByID(ctx, commentID)
 	if err != nil {
 		return err
 	}
@@ -307,7 +289,7 @@ func (s *suggestionsService) DeleteComment(ctx context.Context, commentID int64,
 	}
 
 	// Verify the parent post is visible to users
-	post, err := s.postRepo.FindByID(ctx, comment.PostID, suggestions.ReaderTypeUser)
+	post, err := s.PostRepo.FindByID(ctx, comment.PostID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return err
 	}
@@ -320,13 +302,13 @@ func (s *suggestionsService) DeleteComment(ctx context.Context, commentID int64,
 		return &ForbiddenError{Reason: "you can only delete your own comments"}
 	}
 
-	return s.commentRepo.Delete(ctx, commentID)
+	return s.CommentRepo.Delete(ctx, commentID)
 }
 
 // MarkCommentsRead marks all comments on a post as read for the user
 func (s *suggestionsService) MarkCommentsRead(ctx context.Context, postID int64, accountID int64) error {
 	// Verify post exists and is visible to users
-	post, err := s.postRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
+	post, err := s.PostRepo.FindByID(ctx, postID, suggestions.ReaderTypeUser)
 	if err != nil {
 		return err
 	}
@@ -334,33 +316,33 @@ func (s *suggestionsService) MarkCommentsRead(ctx context.Context, postID int64,
 		return &PostNotFoundError{PostID: postID}
 	}
 
-	return s.commentReadRepo.Upsert(ctx, accountID, postID, suggestions.ReaderTypeUser)
+	return s.CommentReadRepo.Upsert(ctx, accountID, postID, suggestions.ReaderTypeUser)
 }
 
 // GetTotalUnreadCount returns the total number of unread comments across all posts
 func (s *suggestionsService) GetTotalUnreadCount(ctx context.Context, accountID int64) (int, error) {
-	return s.commentReadRepo.CountTotalUnread(ctx, accountID, suggestions.ReaderTypeUser)
+	return s.CommentReadRepo.CountTotalUnread(ctx, accountID, suggestions.ReaderTypeUser)
 }
 
 // notifyNewPost sends an email notification for a new suggestion post
 func (s *suggestionsService) notifyNewPost(post *suggestions.Post) {
-	if s.dispatcher == nil || len(s.notifyEmails) == 0 {
+	if s.Dispatcher == nil || len(s.notifyEmails) == 0 {
 		return
 	}
 
 	// Truncate description for email preview
 	description := truncateRunes(post.Description, 500)
 
-	suggestionURL := fmt.Sprintf("%s/operator/suggestions?post=%d", s.frontendURL, post.ID)
+	suggestionURL := fmt.Sprintf("%s/operator/suggestions?post=%d", s.FrontendURL, post.ID)
 
 	for _, recipient := range s.notifyEmails {
 		message := email.Message{
-			From:     s.defaultFrom,
+			From:     s.DefaultFrom,
 			To:       email.NewEmail("", recipient),
 			Subject:  fmt.Sprintf("Neuer Vorschlag: %s", post.Title),
 			Template: "suggestion-notification.html",
 			Content: map[string]string{
-				"LogoURL":       fmt.Sprintf("%s/images/moto_transparent.png", s.frontendURL),
+				"LogoURL":       fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL),
 				"Type":          "new_post",
 				"AuthorName":    post.AuthorName,
 				"Title":         post.Title,
@@ -369,7 +351,7 @@ func (s *suggestionsService) notifyNewPost(post *suggestions.Post) {
 			},
 		}
 
-		s.dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
+		s.Dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
 			Message: message,
 			Metadata: email.DeliveryMetadata{
 				Type:      "suggestion_notification",
@@ -387,23 +369,23 @@ func (s *suggestionsService) notifyNewPost(post *suggestions.Post) {
 
 // notifyNewComment sends an email notification for a new user comment
 func (s *suggestionsService) notifyNewComment(post *suggestions.Post, comment *suggestions.Comment) {
-	if s.dispatcher == nil || len(s.notifyEmails) == 0 {
+	if s.Dispatcher == nil || len(s.notifyEmails) == 0 {
 		return
 	}
 
 	// Truncate comment for email preview
 	content := truncateRunes(comment.Content, 500)
 
-	suggestionURL := fmt.Sprintf("%s/operator/suggestions?post=%d", s.frontendURL, post.ID)
+	suggestionURL := fmt.Sprintf("%s/operator/suggestions?post=%d", s.FrontendURL, post.ID)
 
 	for _, recipient := range s.notifyEmails {
 		message := email.Message{
-			From:     s.defaultFrom,
+			From:     s.DefaultFrom,
 			To:       email.NewEmail("", recipient),
 			Subject:  fmt.Sprintf("Neuer Kommentar: %s", post.Title),
 			Template: "suggestion-notification.html",
 			Content: map[string]string{
-				"LogoURL":        fmt.Sprintf("%s/images/moto_transparent.png", s.frontendURL),
+				"LogoURL":        fmt.Sprintf("%s/images/moto-logo-mit-schriftzug.png", s.FrontendURL),
 				"Type":           "new_comment",
 				"AuthorName":     comment.AuthorName,
 				"Title":          post.Title,
@@ -412,7 +394,7 @@ func (s *suggestionsService) notifyNewComment(post *suggestions.Post, comment *s
 			},
 		}
 
-		s.dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
+		s.Dispatcher.Dispatch(context.Background(), email.DeliveryRequest{
 			Message: message,
 			Metadata: email.DeliveryMetadata{
 				Type:      "suggestion_notification",

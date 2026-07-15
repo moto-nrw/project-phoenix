@@ -25,6 +25,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -41,22 +42,36 @@ import (
 // case is dominated by care/Mensa-style activities where the cap is the
 // room capacity, not a numerical roster limit.
 type createTemplateRequest struct {
-	Name             string  `json:"name"`
-	Type             string  `json:"type"` // care | activity | external
-	Weekdays         []int   `json:"weekdays"`
-	StartTime        string  `json:"start_time"` // HH:MM
-	EndTime          string  `json:"end_time"`   // HH:MM
-	RoomID           int64   `json:"room_id"`
-	CategoryID       int64   `json:"category_id"`
-	MaxParticipants  *int    `json:"max_participants,omitempty"`
-	WeekPattern      *int    `json:"week_pattern,omitempty"`
-	CalendarPeriodID *int64  `json:"calendar_period_id,omitempty"`
-	EducationGroupID *int64  `json:"education_group_id,omitempty"`
-	MaterializeFrom  *string `json:"materialize_from,omitempty"` // YYYY-MM-DD
-	MaterializeTo    *string `json:"materialize_to,omitempty"`   // YYYY-MM-DD
-	StudentIDs       []int64 `json:"student_ids,omitempty"`
-	StaffIDs         []int64 `json:"staff_ids,omitempty"`
-	PrimaryStaffID   *int64  `json:"primary_staff_id,omitempty"`
+	Name            string `json:"name"`
+	Type            string `json:"type"` // care | activity | external
+	Weekdays        []int  `json:"weekdays"`
+	StartTime       string `json:"start_time"` // HH:MM
+	EndTime         string `json:"end_time"`   // HH:MM
+	RoomID          int64  `json:"room_id"`
+	CategoryID      int64  `json:"category_id"`
+	MaxParticipants *int   `json:"max_participants,omitempty"`
+	// RequiredStaff is the optional manual Personalbedarf override (#1839);
+	// omitted/null = derive from the Betreuungsschlüssel.
+	RequiredStaff    *int   `json:"required_staff,omitempty"`
+	WeekPattern      *int   `json:"week_pattern,omitempty"`
+	CalendarPeriodID *int64 `json:"calendar_period_id,omitempty"`
+	EducationGroupID *int64 `json:"education_group_id,omitempty"`
+	// Zielgruppe (target-group) fields. TargetGroupType is one of
+	// activitiesModel.TargetGroupType* ("jahrgang" | "klasse" | "gruppe" |
+	// "angebot" | "none"/omitted). "gruppe" reuses EducationGroupID above
+	// rather than a separate field. Cross-field validity is checked via
+	// activitiesModel.Group.ValidateTargetGroup() in Bind() below.
+	TargetGroupType   string  `json:"target_group_type,omitempty"`
+	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	// Notes is the optional durable Wochennotiz for the template; it shows on
+	// every materialized instance and survives Re-Plan/Split.
+	Notes           *string `json:"notes,omitempty"`
+	MaterializeFrom *string `json:"materialize_from,omitempty"` // YYYY-MM-DD
+	MaterializeTo   *string `json:"materialize_to,omitempty"`   // YYYY-MM-DD
+	StudentIDs      []int64 `json:"student_ids,omitempty"`
+	StaffIDs        []int64 `json:"staff_ids,omitempty"`
+	PrimaryStaffID  *int64  `json:"primary_staff_id,omitempty"`
 }
 
 // Bind enforces presence, but defers format/business validation to the
@@ -67,6 +82,9 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 	}
 	if len(req.Name) > 255 {
 		return errors.New("name cannot exceed 255 characters")
+	}
+	if req.Notes != nil && len(*req.Notes) > 2000 {
+		return errors.New("notes cannot exceed 2000 characters")
 	}
 	if req.StartTime == "" {
 		return errors.New("start_time is required (HH:MM)")
@@ -88,6 +106,17 @@ func (req *createTemplateRequest) Bind(_ *http.Request) error {
 			return fmt.Errorf("invalid weekday %d (must be 1=Mon … 7=Sun)", w)
 		}
 	}
+	target := &activitiesModel.Group{
+		TargetGroupType:   req.TargetGroupType,
+		TargetGradeLevel:  req.TargetGradeLevel,
+		TargetSchoolClass: req.TargetSchoolClass,
+		EducationGroupID:  req.EducationGroupID,
+	}
+	if err := target.ValidateTargetGroup(); err != nil {
+		return err
+	}
+	req.TargetGroupType = target.TargetGroupType
+	req.TargetSchoolClass = target.TargetSchoolClass
 	return nil
 }
 
@@ -105,7 +134,7 @@ type createTemplateResponse struct {
 
 // createTemplate handles POST /api/timetable/templates.
 func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
-	if rs.timetableData == nil {
+	if rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(
 			errors.New("timetable resource not fully wired")))
 		return
@@ -163,6 +192,21 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 			errors.New("no tenant in context")))
 		return
 	}
+	gradeLevelMax, err := rs.resolveTemplateGradeLevelMax(ctx)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"resolve template grade level limit failed", err))
+		return
+	}
+	if err := scheduleSvc.ValidateTemplateTargetGradeLimit(
+		gradeLevelMax,
+		nil,
+		req.TargetGroupType,
+		req.TargetGradeLevel,
+	); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	rosterValidFrom, err := rs.templateRosterValidFrom(ctx, req.CalendarPeriodID)
 	if err != nil {
 		renderTemplatePeriodLookupError(w, r, err)
@@ -193,18 +237,24 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 
 	roomIDCopy := req.RoomID
 	group := &activitiesModel.Group{
-		Name:             req.Name,
-		MaxParticipants:  maxParticipants,
-		IsOpen:           true,
-		CategoryID:       req.CategoryID,
-		PlannedRoomID:    &roomIDCopy,
-		Type:             req.Type,
-		EducationGroupID: req.EducationGroupID,
-		IsTemplate:       true,
-		CreatedBy:        createdByPtr,
+		Name:              req.Name,
+		MaxParticipants:   maxParticipants,
+		RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
+		IsOpen:            true,
+		CategoryID:        req.CategoryID,
+		PlannedRoomID:     &roomIDCopy,
+		Type:              req.Type,
+		EducationGroupID:  req.EducationGroupID,
+		IsTemplate:        true,
+		CreatedBy:         createdByPtr,
+		CalendarPeriodID:  req.CalendarPeriodID,
+		TargetGroupType:   req.TargetGroupType,
+		TargetGradeLevel:  req.TargetGradeLevel,
+		TargetSchoolClass: req.TargetSchoolClass,
+		Notes:             normalizeNotes(req.Notes),
 	}
 	group.SetTenantID(tenantID)
-	if err := rs.timetableData.CreateActivityGroup(ctx, group); err != nil {
+	if err := rs.TimetableData.CreateActivityGroup(ctx, group); err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap(
 			"create template failed", err))
 		return
@@ -224,7 +274,7 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 			CalendarPeriodID: req.CalendarPeriodID,
 		}
 		sched.SetTenantID(tenantID)
-		if err := rs.timetableData.CreateActivitySchedule(ctx, sched); err != nil {
+		if err := rs.TimetableData.CreateActivitySchedule(ctx, sched); err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap(
 				"create schedule failed", err))
 			return
@@ -252,11 +302,11 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 	// 4. Optionally materialize the visible window so the new template
 	//    yields instances that show up on the grid immediately.
 	if req.MaterializeFrom != nil && req.MaterializeTo != nil &&
-		rs.materializationService != nil {
+		rs.MaterializationService != nil {
 		from, ferr := berlinDate(*req.MaterializeFrom)
 		to, terr := berlinDate(*req.MaterializeTo)
 		if ferr == nil && terr == nil && !to.Before(from) {
-			mat, mErr := rs.materializationService.MaterializeForTenant(
+			mat, mErr := rs.MaterializationService.MaterializeForTenant(
 				ctx, from, to, scheduleSvc.MaterializationSourceManual,
 			)
 			if mErr != nil {
@@ -287,7 +337,7 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 // the template name on first creation as a debug hint, but is informational
 // only — lookups go by time window.
 func (rs *Resource) findOrCreateTimeframe(ctx context.Context, start, end time.Time, descHint string) (int64, error) {
-	existing, err := rs.timetableData.GetTimeframesByTimeRange(ctx, start, end)
+	existing, err := rs.TimetableData.GetTimeframesByTimeRange(ctx, start, end)
 	if err == nil {
 		for _, tf := range existing {
 			if tf == nil {
@@ -298,7 +348,7 @@ func (rs *Resource) findOrCreateTimeframe(ctx context.Context, start, end time.T
 			// time.Time.Equal here: schedule.timeframes stores SQL TIME, and
 			// drivers may decode TIME with a different date anchor than the
 			// handler's parseClockTime uses.
-			if sameClockTime(tf.StartTime, start) && tf.EndTime != nil && sameClockTime(*tf.EndTime, end) {
+			if timezone.SameClockTime(tf.StartTime, start) && tf.EndTime != nil && timezone.SameClockTime(*tf.EndTime, end) {
 				return tf.ID, nil
 			}
 		}
@@ -312,17 +362,10 @@ func (rs *Resource) findOrCreateTimeframe(ctx context.Context, start, end time.T
 		Description: fmt.Sprintf("auto: %s", descHint),
 	}
 	tf.SetTenantID(tenant.FromContext(ctx))
-	if err := rs.timetableData.CreateTimeframe(ctx, tf); err != nil {
+	if err := rs.TimetableData.CreateTimeframe(ctx, tf); err != nil {
 		return 0, fmt.Errorf("create timeframe: %w", err)
 	}
 	return tf.ID, nil
-}
-
-func sameClockTime(a, b time.Time) bool {
-	return a.Hour() == b.Hour() &&
-		a.Minute() == b.Minute() &&
-		a.Second() == b.Second() &&
-		a.Nanosecond() == b.Nanosecond()
 }
 
 // isValidActivityType matches the constants in models/activities/group.go.

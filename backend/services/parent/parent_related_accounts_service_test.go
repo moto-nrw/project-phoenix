@@ -45,37 +45,19 @@ func (s *stubInvites) RevokeAccess(_ context.Context, req authService.RevokeAcce
 	return nil
 }
 
-// relAcctSettings is a configurable settings stub for the related-accounts gate.
-type relAcctSettings struct {
-	configService.SettingsService
-	inviteMode string
-	canRemove  bool
-}
-
-func (s relAcctSettings) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
-	if key == configModels.KeyGuardianParentInviteMode {
-		return s.inviteMode, nil
-	}
-	return "", nil
-}
-
-func (s relAcctSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
-	if key == configModels.KeyGuardianParentCanRemove {
-		return s.canRemove, nil
-	}
-	return false, nil
-}
-
 func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (parentService.Service, *stubInvites, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	invites := &stubInvites{}
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:           repos.ParentChild,
-		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
-		Settings:            relAcctSettings{inviteMode: inviteMode, canRemove: canRemove},
+		ChildRepo:     repos.ParentChild,
+		StatusDayRepo: repos.StudentStatusDay,
+		StudentRepo:   repos.Student,
+		Settings: parentSettingsStub{
+			boolValues:   map[string]bool{configModels.KeyGuardianParentCanRemove: canRemove},
+			stringValues: map[string]string{configModels.KeyGuardianParentInviteMode: inviteMode},
+		},
 		GuardianInvites:     invites,
 		GuardianInviteRepo:  repos.GuardianInvitation,
 		StudentGuardianRepo: repos.StudentGuardian,
@@ -369,17 +351,6 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 	})
 }
 
-// erroringSettings makes every resolve fail, to exercise the parent service's
-// error-wrapping branches.
-type erroringSettings struct{ configService.SettingsService }
-
-func (erroringSettings) ResolveStringForTenant(_ context.Context, _ int64, _ string) (string, error) {
-	return "", errors.New("settings unavailable")
-}
-func (erroringSettings) ResolveBoolForTenant(_ context.Context, _ int64, _ string) (bool, error) {
-	return false, errors.New("settings unavailable")
-}
-
 func buildRelAcctServiceWith(t *testing.T, settings configService.SettingsService) (parentService.Service, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
@@ -424,7 +395,10 @@ func TestInviteRelatedAccount_InvalidEmailRejected(t *testing.T) {
 }
 
 func TestRelatedAccounts_SettingsErrorsAreSurfaced(t *testing.T) {
-	svc, db := buildRelAcctServiceWith(t, erroringSettings{})
+	svc, db := buildRelAcctServiceWith(t, parentSettingsStub{
+		boolErr:   errors.New("settings unavailable"),
+		stringErr: errors.New("settings unavailable"),
+	})
 	defer func() { _ = db.Close() }()
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	defer testpkg.CleanupParentGuardianChain(t, db, chain)
@@ -454,10 +428,13 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 	db := testpkg.SetupTestDB(t)
 	repos := repositories.NewFactory(db)
 	svc := parentService.NewService(parentService.ServiceConfig{
-		ChildRepo:           repos.ParentChild,
-		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
-		Settings:            relAcctSettings{inviteMode: inviteMode, canRemove: canRemove},
+		ChildRepo:     repos.ParentChild,
+		StatusDayRepo: repos.StudentStatusDay,
+		StudentRepo:   repos.Student,
+		Settings: parentSettingsStub{
+			boolValues:   map[string]bool{configModels.KeyGuardianParentCanRemove: canRemove},
+			stringValues: map[string]string{configModels.KeyGuardianParentInviteMode: inviteMode},
+		},
 		GuardianInvites:     invites,
 		GuardianInviteRepo:  repos.GuardianInvitation,
 		StudentGuardianRepo: repos.StudentGuardian,

@@ -69,13 +69,13 @@ type InvitationResponse struct {
 
 func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
 		return
 	}
 
 	req := &CreateInvitationRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -136,7 +136,7 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		if renderInvitationError(w, r, err) {
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -172,7 +172,7 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
 		return
 	}
 
@@ -195,7 +195,7 @@ func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
 		if renderInvitationError(w, r, err) {
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -231,13 +231,13 @@ func renderAcceptError(w http.ResponseWriter, r *http.Request, err error) bool {
 	switch {
 	case errors.Is(err, authService.ErrPasswordTooWeak),
 		errors.Is(err, authService.ErrPasswordMismatch):
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, authService.ErrEmailAlreadyExists):
 		common.RenderError(w, r, common.ErrorConflict(authService.ErrEmailAlreadyExists))
 	case errors.Is(err, authService.ErrInvitationNameRequired):
-		common.RenderError(w, r, ErrorInvalidRequest(authService.ErrInvitationNameRequired))
+		common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrInvitationNameRequired))
 	case errors.Is(err, authService.ErrInvitationTenantDeleted):
-		common.RenderError(w, r, ErrorNotFound(authService.ErrInvitationTenantDeleted))
+		common.RenderError(w, r, common.ErrorNotFound(authService.ErrInvitationTenantDeleted))
 	case renderInvitationError(w, r, err):
 		// handled by renderInvitationError
 	default:
@@ -248,7 +248,7 @@ func renderAcceptError(w http.ResponseWriter, r *http.Request, err error) bool {
 
 func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
 		return
 	}
 
@@ -256,7 +256,7 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 
 	req := &AcceptInvitationRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(err))
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
@@ -282,7 +282,7 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		if !renderAcceptError(w, r, err) {
-			common.RenderError(w, r, ErrorInternalServer(err))
+			common.RenderError(w, r, common.ErrorInternalServer(err))
 		}
 		return
 	}
@@ -311,7 +311,7 @@ func (rs *Resource) lookupTenantSlugForInvitation(ctx context.Context, token str
 
 func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
 		return
 	}
 
@@ -328,7 +328,7 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 		invitations, err = rs.InvitationService.ListPendingInvitations(ctx)
 	}
 	if err != nil {
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
@@ -380,14 +380,24 @@ func invitationCreatedByValue(createdBy *int64) int64 {
 
 func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
 		return
 	}
+	rs.resendInvitationHandler(w, r,
+		rs.InvitationService.ResendInvitation,
+		"invitation resend requested", "Invitation resent", "Invitation resent successfully")
+}
 
+// resendInvitationHandler is the shared body of the staff and guardian
+// invitation resend endpoints: parse id, run the resend inside the tenant
+// tx (when a DB is wired), map expired/known errors, log, respond.
+// The response strings are passed verbatim per endpoint. Callers must
+// nil-check their service before delegating (svcCall is a bound method).
+func (rs *Resource) resendInvitationHandler(w http.ResponseWriter, r *http.Request, svcCall func(ctx context.Context, invitationID, actorID int64) error, logMsg, message, respondMsg string) {
 	idParam := chi.URLParam(r, "id")
 	invitationID, err := strconv.ParseInt(idParam, 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid invitation id")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid invitation id")))
 		return
 	}
 
@@ -396,39 +406,39 @@ func (rs *Resource) resendInvitation(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if rs.db != nil {
 		err = tenant.WithTenantTx(ctx, rs.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-			return rs.InvitationService.ResendInvitation(txCtx, invitationID, int64(claims.ID))
+			return svcCall(txCtx, invitationID, int64(claims.ID))
 		})
 	} else {
-		err = rs.InvitationService.ResendInvitation(ctx, invitationID, int64(claims.ID))
+		err = svcCall(ctx, invitationID, int64(claims.ID))
 	}
 	if err != nil {
 		if errors.Is(err, authService.ErrInvitationExpired) {
-			common.RenderError(w, r, ErrorInvalidRequest(authService.ErrInvitationExpired))
+			common.RenderError(w, r, common.ErrorInvalidRequest(authService.ErrInvitationExpired))
 			return
 		}
 		if renderInvitationError(w, r, err) {
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
 
-	slog.Default().Info("invitation resend requested",
+	slog.Default().Info(logMsg,
 		slog.Int64("invitation_id", invitationID),
 		slog.Int64("account_id", int64(claims.ID)))
-	common.Respond(w, r, http.StatusOK, map[string]string{"message": "Invitation resent"}, "Invitation resent successfully")
+	common.Respond(w, r, http.StatusOK, map[string]string{"message": message}, respondMsg)
 }
 
 func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 	if rs.InvitationService == nil {
-		common.RenderError(w, r, ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New(errInvitationServiceUnavailable)))
 		return
 	}
 
 	idParam := chi.URLParam(r, "id")
 	invitationID, err := strconv.ParseInt(idParam, 10, 64)
 	if err != nil {
-		common.RenderError(w, r, ErrorInvalidRequest(errors.New("invalid invitation id")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid invitation id")))
 		return
 	}
 
@@ -447,7 +457,7 @@ func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 		if renderInvitationError(w, r, revokeErr) {
 			return
 		}
-		common.RenderError(w, r, ErrorInternalServer(revokeErr))
+		common.RenderError(w, r, common.ErrorInternalServer(revokeErr))
 		return
 	}
 

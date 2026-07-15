@@ -348,12 +348,22 @@ async function fetchActiveGroups(): Promise<ActiveGroupWithId[]> {
 
 // Staff service
 class StaffService {
-  // Get all staff members with their current supervision status
-  async getAllStaff(filters?: StaffFilters): Promise<Staff[]> {
+  // Get all staff members with their current supervision status.
+  // `options.strict` opts into the /api/staff route's non-swallowing path so a
+  // backend failure rejects here instead of masquerading as an empty staff list
+  // (the lenient default returns [] on backend errors) — callers that must tell
+  // "fetch failed" from "no staff" apart pass it (#1840).
+  async getAllStaff(
+    filters?: StaffFilters,
+    options?: { strict?: boolean },
+  ): Promise<Staff[]> {
     // Build staff URL with search filter
-    const staffUrl = filters?.search
+    let staffUrl = filters?.search
       ? `/api/staff?search=${encodeURIComponent(filters.search)}`
       : "/api/staff";
+    if (options?.strict) {
+      staffUrl += `${staffUrl.includes("?") ? "&" : "?"}strict=1`;
+    }
 
     // Fetch staff and active groups in parallel
     const [staffResponse, activeGroups] = await Promise.all([
@@ -715,6 +725,20 @@ export interface StaffVacationQuotaSummary {
   remaining_days: number;
 }
 
+// Body for the admin "Abwesenheit anlegen" endpoint (POST
+// /api/staff/{id}/absences). Keys are snake_case to match the backend
+// CreateAbsenceRequest one-to-one; the route handler forwards them verbatim.
+// The backend struct only knows `half_day` (no per-boundary flags), so those
+// are intentionally absent — sending them would be silently dropped (#1843).
+// A `sick` absence triggers the Dienst-/Betreuungsplan cascade backend-side.
+interface AdminCreateAbsenceBody {
+  absence_type: string;
+  date_start: string; // YYYY-MM-DD
+  date_end: string; // YYYY-MM-DD
+  half_day?: boolean;
+  note?: string;
+}
+
 class StaffAbsenceService {
   async getAbsences(
     staffId: string,
@@ -803,6 +827,42 @@ class StaffAbsenceService {
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       throw new Error(text || "Ablehnung fehlgeschlagen");
+    }
+  }
+
+  // Admin-side "Abwesenheit anlegen" (POST /api/staff/{id}/absences). A
+  // `sick` absence cancels planned shifts and marks Betreuungsblöcke as
+  // absent server-side (#1843). Returns the created StaffAbsence row.
+  async createAbsence(
+    staffId: string,
+    body: AdminCreateAbsenceBody,
+  ): Promise<StaffAbsenceRow> {
+    const response = await sessionFetch(`/api/staff/${staffId}/absences`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(text || "Krankmeldung fehlgeschlagen");
+    }
+    const json = (await response.json()) as { data: StaffAbsenceRow };
+    return json.data;
+  }
+
+  // Deletes an absence (DELETE /api/staff/{id}/absences/{absenceId}).
+  // Deleting a `sick` absence reverses the plan cascade backend-side.
+  async deleteAbsence(
+    staffId: string,
+    absenceId: number | string,
+  ): Promise<void> {
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/absences/${absenceId}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      const text = await response.text().catch(() => "");
+      throw new Error(text || "Löschen fehlgeschlagen");
     }
   }
 }

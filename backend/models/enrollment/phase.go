@@ -150,18 +150,6 @@ type Phase struct {
 	RequireSchoolClass     bool     `bun:"require_school_class,notnull" json:"require_school_class"`
 }
 
-// IsRollover reports whether this phase was created from a source
-// phase (i.e., the rollover columns are set). Used by the deadline
-// worker to scope its scan to rollover phases only.
-func (p *Phase) IsRollover() bool {
-	return p.RolloverSourcePhaseID != nil && p.RolloverMode != nil
-}
-
-// TableName returns the schema-qualified table name.
-func (p *Phase) TableName() string {
-	return "enrollment.phases"
-}
-
 // Validate runs the column-level checks in app code so the service can
 // fail fast before round-tripping. Mirrors the CHECK clauses from
 // migration 1.15.67 plus a couple of sanity rules (name non-empty,

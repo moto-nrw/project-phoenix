@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Activity exception type constants.
@@ -19,16 +18,6 @@ const (
 
 // ActivityExceptionReasonMaxLength is the maximum length of the reason field.
 const ActivityExceptionReasonMaxLength = 500
-
-// Sentinel errors for the activity exception domain.
-var (
-	// ErrActivityExceptionDateConflict is returned when a create or update
-	// would violate the per-template per-date uniqueness rule.
-	ErrActivityExceptionDateConflict = errors.New("activity exception for this date already exists")
-)
-
-// tableActivityExceptions is the schema-qualified table name.
-const tableActivityExceptions = "schedule.activity_exceptions"
 
 // ActivityException records a per-date deviation from a template's normal
 // schedule: either a cancellation or a modification (time/room override).
@@ -50,28 +39,6 @@ type ActivityException struct {
 	Reason          *string       `bun:"reason" json:"reason,omitempty"`
 	CreatedBy       *int64        `bun:"created_by" json:"created_by,omitempty"`
 }
-
-func (e *ActivityException) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.activity_exceptions AS "activity_exception"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.activity_exceptions AS "activity_exception"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name.
-func (e *ActivityException) TableName() string { return tableActivityExceptions }
-
-// GetID implements the Entity interface.
-func (e *ActivityException) GetID() any { return e.ID }
-
-// GetCreatedAt implements the Entity interface.
-func (e *ActivityException) GetCreatedAt() time.Time { return e.CreatedAt }
-
-// GetUpdatedAt implements the Entity interface.
-func (e *ActivityException) GetUpdatedAt() time.Time { return e.UpdatedAt }
 
 // Validate ensures the exception is well-formed for persistence.
 func (e *ActivityException) Validate() error {
@@ -131,6 +98,10 @@ type ActivityExceptionRepository interface {
 	// FindByActivityGroupAndDate returns the exception for a specific
 	// (template, date) pair, or nil if none exists.
 	FindByActivityGroupAndDate(ctx context.Context, activityGroupID int64, date timezone.Date) (*ActivityException, error)
+
+	// FindByActivityGroupAndDateRange returns one template's exceptions within
+	// an inclusive date range in a single tenant-scoped query.
+	FindByActivityGroupAndDateRange(ctx context.Context, activityGroupID int64, from, to timezone.Date) ([]*ActivityException, error)
 
 	// FindByDateRange returns all exceptions across all templates within the
 	// inclusive range. Used by the materialization service to apply exceptions

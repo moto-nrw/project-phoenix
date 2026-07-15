@@ -37,12 +37,12 @@ const (
 	FieldBreakDuration = "break_duration"
 	FieldStatus        = "status"
 	FieldNotes         = "notes"
+	// FieldDeviationReason records the mandatory reason for stamping outside
+	// the tolerance window around the planned shift window (F9). OldValue
+	// holds the planned wall-clock time, NewValue the actual one, Notes the
+	// reason given by the staff member.
+	FieldDeviationReason = "deviation_reason"
 )
-
-// TableName returns the database table name
-func (e *WorkSessionEdit) TableName() string {
-	return "audit.work_session_edits"
-}
 
 // Validate ensures the edit record is valid
 func (e *WorkSessionEdit) Validate() error {
@@ -61,7 +61,7 @@ func (e *WorkSessionEdit) Validate() error {
 	}
 
 	switch e.FieldName {
-	case FieldDate, FieldCheckInTime, FieldCheckOutTime, FieldBreakMinutes, FieldBreakDuration, FieldStatus, FieldNotes:
+	case FieldDate, FieldCheckInTime, FieldCheckOutTime, FieldBreakMinutes, FieldBreakDuration, FieldStatus, FieldNotes, FieldDeviationReason:
 		// Valid field names
 	default:
 		return errors.New("invalid field name")
@@ -80,6 +80,8 @@ type WorkSessionEditRepository interface {
 	GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionEdit, error)
 	CountBySessionID(ctx context.Context, sessionID int64) (int, error)
 	CountBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
-	// CountManualBySessionIDs excludes system-authored edits (edited_by = SystemEditorID).
+	// CountManualBySessionIDs excludes system-authored edits (edited_by =
+	// SystemEditorID) and FieldDeviationReason rows — a stamp-time deviation
+	// reason is audit trail, not a manual correction (#1844).
 	CountManualBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64]int, error)
 }

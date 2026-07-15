@@ -86,50 +86,14 @@ func (s *Service) CreateCategory(ctx context.Context, category *activities.Categ
 func (s *Service) GetCategory(ctx context.Context, id int64) (*activities.Category, error) {
 	category, err := s.categoryRepo.FindByID(ctx, id)
 	if err != nil {
-		// Check for "no rows" error and convert to our own error
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: opGetCategory, Err: ErrCategoryNotFound}
-		}
-		// Check if the wrapped database error contains sql.ErrNoRows
-		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
+		if base.IsNoRows(err) {
 			return nil, &ActivityError{Op: opGetCategory, Err: ErrCategoryNotFound}
 		}
 		return nil, &ActivityError{Op: opGetCategory, Err: err}
 	}
 
 	return category, nil
-}
-
-// UpdateCategory updates an activity category
-func (s *Service) UpdateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error) {
-	if err := category.Validate(); err != nil {
-		return nil, &ActivityError{Op: "update category", Err: err}
-	}
-
-	if err := s.categoryRepo.Update(ctx, category); err != nil {
-		return nil, &ActivityError{Op: "update category", Err: err}
-	}
-
-	return category, nil
-}
-
-// DeleteCategory deletes a category
-func (s *Service) DeleteCategory(ctx context.Context, id int64) error {
-	// Check if the category is in use by any group
-	groupsWithCategory, err := s.groupRepo.FindByCategory(ctx, id)
-	if err != nil {
-		return &ActivityError{Op: "check category usage", Err: err}
-	}
-
-	if len(groupsWithCategory) > 0 {
-		return &ActivityError{Op: "delete category", Err: errors.New("category is in use by one or more activity groups")}
-	}
-
-	if err := s.categoryRepo.Delete(ctx, id); err != nil {
-		return &ActivityError{Op: "delete category", Err: err}
-	}
-
-	return nil
 }
 
 // ListCategories lists all activity categories
@@ -142,10 +106,25 @@ func (s *Service) ListCategories(ctx context.Context) ([]*activities.Category, e
 	return categories, nil
 }
 
+// SetCategoryShiftTypeLinks maps the given categories to a Dienstplan shift type
+// and clears the mapping on any category no longer linked to it (#1837
+// follow-up). Called from the shift-types admin flow; the FK lives on the
+// category side, so the write is owned here. Runs inside the caller's tenant
+// transaction (the shift-types router wires TenantTxMiddleware).
+func (s *Service) SetCategoryShiftTypeLinks(ctx context.Context, shiftTypeID int64, categoryIDs []int64) error {
+	if err := s.categoryRepo.SetShiftTypeForCategories(ctx, shiftTypeID, categoryIDs); err != nil {
+		return &ActivityError{Op: "set category shift type links", Err: err}
+	}
+	return nil
+}
+
 // ======== Activity Group Methods ========
 
 // CreateGroup creates a new activity group with supervisors and schedules
 func (s *Service) CreateGroup(ctx context.Context, group *activities.Group, supervisorIDs []int64, schedules []*activities.Schedule) (*activities.Group, error) {
+	if group != nil && group.IsTemplate {
+		return nil, &ActivityError{Op: "create group", Err: ErrTimetableTemplateProtected}
+	}
 	if err := group.Validate(); err != nil {
 		return nil, &ActivityError{Op: "validate group", Err: err}
 	}
@@ -235,12 +214,8 @@ func (s *Service) createSchedulesInTx(ctx context.Context, txService ActivitySer
 func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, error) {
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
-		// Check for "no rows" error and convert to our own error
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
-		}
-		// Check if the wrapped database error contains sql.ErrNoRows
-		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
+		if base.IsNoRows(err) {
 			return nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
 		}
 		return nil, &ActivityError{Op: opGetGroup, Err: err}
@@ -249,9 +224,30 @@ func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, er
 	return group, nil
 }
 
+// findMutableActivityGroup resolves the persisted group and rejects timetable
+// templates. The generic activities service has none of the recurrence lock,
+// split-lineage, or care-offering validation required to mutate templates.
+// Every legacy mutation entry point must call this guard before writing.
+func (s *Service) findMutableActivityGroup(ctx context.Context, id int64) (*activities.Group, error) {
+	group, err := s.groupRepo.FindByID(ctx, id)
+	if err != nil {
+		if base.IsNoRows(err) {
+			return nil, ErrGroupNotFound
+		}
+		return nil, err
+	}
+	if group.IsTemplate {
+		return nil, ErrTimetableTemplateProtected
+	}
+	return group, nil
+}
+
 // UpdateGroup updates an activity group with ownership verification
 // Only the creator, supervisors, or users with manage permission can update
 func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requestingStaffID int64, hasManagePermission bool) (*activities.Group, error) {
+	if group != nil && group.IsTemplate {
+		return nil, &ActivityError{Op: "update group", Err: ErrTimetableTemplateProtected}
+	}
 	if err := group.Validate(); err != nil {
 		return nil, &ActivityError{Op: "validate group", Err: err}
 	}
@@ -268,9 +264,9 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 	// Block renaming system activities (Schulhof Freispiel, WC).
 	// Placed after CanModifyActivity to avoid an extra FindByID call — CanModifyActivity
 	// already fetches the group internally for non-admin users.
-	existingGroup, err := s.groupRepo.FindByID(ctx, group.ID)
+	existingGroup, err := s.findMutableActivityGroup(ctx, group.ID)
 	if err != nil {
-		return nil, &ActivityError{Op: "update group", Err: ErrGroupNotFound}
+		return nil, &ActivityError{Op: "update group", Err: err}
 	}
 	if constants.IsSystemActivityName(existingGroup.Name) && group.Name != existingGroup.Name {
 		return nil, &ActivityError{Op: "update group", Err: ErrSystemActivityProtected}
@@ -286,12 +282,26 @@ func (s *Service) UpdateGroup(ctx context.Context, group *activities.Group, requ
 // DeleteGroup deletes an activity group and all related records with ownership verification
 // Only the creator, supervisors, or users with manage permission can delete
 func (s *Service) DeleteGroup(ctx context.Context, id int64, requestingStaffID int64, hasManagePermission bool) error {
-	// Block deletion of system activities (Schulhof Freispiel, WC).
-	// Only block if the group exists and is a system activity — if it doesn't exist,
-	// fall through to CanModifyActivity which handles admin idempotent deletes.
+	// Resolve exactly once before permission and mutation checks. Managers keep
+	// the historical idempotent-delete contract for a missing row, but return
+	// immediately so a concurrently inserted template with the same sequence ID
+	// can never be deleted after an absent preflight. Infrastructure failures
+	// are never treated as absence.
 	existingGroup, err := s.groupRepo.FindByID(ctx, id)
-	if err == nil && constants.IsSystemActivityName(existingGroup.Name) {
+	if err != nil {
+		if base.IsNoRows(err) && hasManagePermission {
+			return nil
+		}
+		if base.IsNoRows(err) {
+			return &ActivityError{Op: "delete group", Err: ErrGroupNotFound}
+		}
+		return &ActivityError{Op: "delete group", Err: err}
+	}
+	if constants.IsSystemActivityName(existingGroup.Name) {
 		return &ActivityError{Op: "delete group", Err: ErrSystemActivityProtected}
+	}
+	if existingGroup.IsTemplate {
+		return &ActivityError{Op: "delete group", Err: ErrTimetableTemplateProtected}
 	}
 
 	// Check if user can modify this activity before starting transaction
@@ -324,52 +334,36 @@ func (s *Service) DeleteGroup(ctx context.Context, id int64, requestingStaffID i
 	return nil
 }
 
-// deleteGroupEnrollments deletes all enrollments for a group
-func deleteGroupEnrollments(ctx context.Context, service *Service, groupID int64) error {
-	enrollments, err := service.enrollmentRepo.FindByGroupID(ctx, groupID)
+// deleteGroupRows deletes every row FindByGroupID returns, one delete per
+// row (per-row deletes keep the historical query pattern and repo hooks).
+func deleteGroupRows[E interface{ GetID() any }](ctx context.Context, groupID int64, find func(context.Context, int64) ([]E, error), del func(context.Context, any) error) error {
+	rows, err := find(ctx, groupID)
 	if err != nil {
 		return err
 	}
 
-	for _, enrollment := range enrollments {
-		if err := service.enrollmentRepo.Delete(ctx, enrollment.ID); err != nil {
+	for _, row := range rows {
+		if err := del(ctx, row.GetID()); err != nil {
 			return err
 		}
 	}
 
 	return nil
+}
+
+// deleteGroupEnrollments deletes all enrollments for a group
+func deleteGroupEnrollments(ctx context.Context, service *Service, groupID int64) error {
+	return deleteGroupRows(ctx, groupID, service.enrollmentRepo.FindByGroupID, service.enrollmentRepo.Delete)
 }
 
 // deleteGroupSupervisors deletes all supervisors for a group
 func deleteGroupSupervisors(ctx context.Context, service *Service, groupID int64) error {
-	supervisors, err := service.supervisorRepo.FindByGroupID(ctx, groupID)
-	if err != nil {
-		return err
-	}
-
-	for _, supervisor := range supervisors {
-		if err := service.supervisorRepo.Delete(ctx, supervisor.ID); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return deleteGroupRows(ctx, groupID, service.supervisorRepo.FindByGroupID, service.supervisorRepo.Delete)
 }
 
 // deleteGroupSchedules deletes all schedules for a group
 func deleteGroupSchedules(ctx context.Context, service *Service, groupID int64) error {
-	schedules, err := service.scheduleRepo.FindByGroupID(ctx, groupID)
-	if err != nil {
-		return err
-	}
-
-	for _, schedule := range schedules {
-		if err := service.scheduleRepo.Delete(ctx, schedule.ID); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return deleteGroupRows(ctx, groupID, service.scheduleRepo.FindByGroupID, service.scheduleRepo.Delete)
 }
 
 // ListGroups lists activity groups with optional filters
@@ -443,12 +437,8 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 	// Get the group
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
-		// Check for "no rows" error and convert to our own error
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
-		}
-		// Check if the wrapped database error contains sql.ErrNoRows
-		if dbErr, ok := err.(*base.DatabaseError); ok && errors.Is(dbErr.Err, sql.ErrNoRows) {
+		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
+		if base.IsNoRows(err) {
 			return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
 		}
 		return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: err}
@@ -538,16 +528,4 @@ func (s *Service) CanModifyActivity(ctx context.Context, groupID int64, staffID 
 	}
 
 	return false, nil
-}
-
-// validateGroupExists checks if a group exists
-func (s *Service) validateGroupExists(ctx context.Context, txService ActivityService, groupID int64) error {
-	_, err := txService.(*Service).groupRepo.FindByID(ctx, groupID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return ErrGroupNotFound
-		}
-		return &ActivityError{Op: opFindGroup, Err: err}
-	}
-	return nil
 }

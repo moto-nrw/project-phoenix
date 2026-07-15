@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/uptrace/bun"
 )
 
 // Common validation error messages for arrival schedule models.
@@ -34,21 +33,6 @@ type StudentArrivalSchedule struct {
 	ExpectedArrival time.Time `bun:"expected_arrival,notnull" json:"expected_arrival"`
 	Notes           *string   `bun:"notes" json:"notes,omitempty"`
 	CreatedBy       int64     `bun:"created_by,notnull" json:"created_by"`
-}
-
-func (s *StudentArrivalSchedule) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_schedules AS "schedule"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_schedules AS "schedule"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (s *StudentArrivalSchedule) TableName() string {
-	return "schedule.student_arrival_schedules"
 }
 
 // Validate ensures arrival schedule data is valid
@@ -79,21 +63,6 @@ func (s *StudentArrivalSchedule) GetWeekdayName() string {
 	return ""
 }
 
-// GetID implements the Entity interface
-func (s *StudentArrivalSchedule) GetID() any {
-	return s.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (s *StudentArrivalSchedule) GetCreatedAt() time.Time {
-	return s.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (s *StudentArrivalSchedule) GetUpdatedAt() time.Time {
-	return s.UpdatedAt
-}
-
 // StudentArrivalException represents a date-specific arrival exception
 type StudentArrivalException struct {
 	base.Model `bun:"schema:schedule,table:student_arrival_exceptions"`
@@ -106,21 +75,6 @@ type StudentArrivalException struct {
 	Source            string        `bun:"source,nullzero,notnull,default:'staff'" json:"source"`
 	CreatedBy         int64         `bun:"created_by,nullzero" json:"created_by,omitempty"`
 	CreatedByGuardian *int64        `bun:"created_by_guardian,nullzero" json:"created_by_guardian,omitempty"`
-}
-
-func (e *StudentArrivalException) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_exceptions AS "exception"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_exceptions AS "exception"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (e *StudentArrivalException) TableName() string {
-	return "schedule.student_arrival_exceptions"
 }
 
 // Validate ensures arrival exception data is valid
@@ -145,21 +99,6 @@ func (e *StudentArrivalException) IsAbsent() bool {
 	return e.ExpectedArrival == nil
 }
 
-// GetID implements the Entity interface
-func (e *StudentArrivalException) GetID() any {
-	return e.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (e *StudentArrivalException) GetCreatedAt() time.Time {
-	return e.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (e *StudentArrivalException) GetUpdatedAt() time.Time {
-	return e.UpdatedAt
-}
-
 // StudentArrivalNote represents a date-specific note for a student's arrival
 type StudentArrivalNote struct {
 	base.Model `bun:"schema:schedule,table:student_arrival_notes"`
@@ -169,21 +108,6 @@ type StudentArrivalNote struct {
 	NoteDate  timezone.Date `bun:"note_date,notnull" json:"note_date"`
 	Content   string        `bun:"content,notnull" json:"content"`
 	CreatedBy int64         `bun:"created_by,notnull" json:"created_by"`
-}
-
-func (n *StudentArrivalNote) BeforeAppendModel(query any) error {
-	if q, ok := query.(*bun.UpdateQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`)
-	}
-	if q, ok := query.(*bun.DeleteQuery); ok {
-		q.ModelTableExpr(`schedule.student_arrival_notes AS "student_arrival_note"`)
-	}
-	return nil
-}
-
-// TableName returns the database table name
-func (n *StudentArrivalNote) TableName() string {
-	return "schedule.student_arrival_notes"
 }
 
 // Validate ensures arrival note data is valid
@@ -204,21 +128,6 @@ func (n *StudentArrivalNote) Validate() error {
 		return errors.New(errMsgArrivalCreatedByRequired)
 	}
 	return nil
-}
-
-// GetID implements the Entity interface
-func (n *StudentArrivalNote) GetID() any {
-	return n.ID
-}
-
-// GetCreatedAt implements the Entity interface
-func (n *StudentArrivalNote) GetCreatedAt() time.Time {
-	return n.CreatedAt
-}
-
-// GetUpdatedAt implements the Entity interface
-func (n *StudentArrivalNote) GetUpdatedAt() time.Time {
-	return n.UpdatedAt
 }
 
 // StudentArrivalScheduleRepository defines operations for managing student arrival schedules

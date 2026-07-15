@@ -3,8 +3,11 @@ package common
 import (
 	"context"
 	"fmt"
+	"maps"
+	"slices"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	activeModels "github.com/moto-nrw/project-phoenix/models/active"
 	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
@@ -47,7 +50,7 @@ type StudentLocationSnapshot struct {
 // In binary-mode tenants it skips the visit/group queries as a perf win — those
 // fields become irrelevant because the resolver won't read them anyway.
 func LoadStudentLocationSnapshot(ctx context.Context, svc activeService.Service, studentIDs []int64) (*StudentLocationSnapshot, error) {
-	uniqueIDs := uniqueInt64(studentIDs)
+	uniqueIDs := sliceutil.Unique(studentIDs)
 	mode := svc.GetPresenceMode(ctx)
 	snapshot := newEmptyLocationSnapshot(mode)
 
@@ -60,7 +63,7 @@ func LoadStudentLocationSnapshot(ctx context.Context, svc activeService.Service,
 	if err != nil {
 		return nil, err
 	}
-	snapshot.Attendances = coalesceMap(attendances, snapshot.Attendances)
+	snapshot.Attendances = coalesce(attendances, snapshot.Attendances)
 
 	// Binary mode ignores room/group data entirely — stop here.
 	if mode == PresenceModeBinary {
@@ -78,7 +81,7 @@ func LoadStudentLocationSnapshot(ctx context.Context, svc activeService.Service,
 	if err != nil {
 		return nil, err
 	}
-	snapshot.Visits = coalesceVisitMap(visits, snapshot.Visits)
+	snapshot.Visits = coalesce(visits, snapshot.Visits)
 
 	// Load groups for active visits
 	groupIDs := extractActiveGroupIDs(snapshot.Visits)
@@ -90,7 +93,7 @@ func LoadStudentLocationSnapshot(ctx context.Context, svc activeService.Service,
 	if err != nil {
 		return nil, err
 	}
-	snapshot.Groups = coalesceGroupMap(groups, snapshot.Groups)
+	snapshot.Groups = coalesce(groups, snapshot.Groups)
 
 	return snapshot, nil
 }
@@ -129,31 +132,11 @@ func extractActiveGroupIDs(visits map[int64]*activeModels.Visit) []int64 {
 			groupIDSet[visit.ActiveGroupID] = struct{}{}
 		}
 	}
-	result := make([]int64, 0, len(groupIDSet))
-	for groupID := range groupIDSet {
-		result = append(result, groupID)
-	}
-	return result
+	return slices.Collect(maps.Keys(groupIDSet))
 }
 
-// coalesceMap returns m if non-nil, otherwise fallback
-func coalesceMap(m, fallback map[int64]*activeService.AttendanceStatus) map[int64]*activeService.AttendanceStatus {
-	if m != nil {
-		return m
-	}
-	return fallback
-}
-
-// coalesceVisitMap returns m if non-nil, otherwise fallback
-func coalesceVisitMap(m, fallback map[int64]*activeModels.Visit) map[int64]*activeModels.Visit {
-	if m != nil {
-		return m
-	}
-	return fallback
-}
-
-// coalesceGroupMap returns m if non-nil, otherwise fallback
-func coalesceGroupMap(m, fallback map[int64]*activeModels.Group) map[int64]*activeModels.Group {
+// coalesce returns m if non-nil, otherwise fallback.
+func coalesce[K comparable, V any](m, fallback map[K]V) map[K]V {
 	if m != nil {
 		return m
 	}
@@ -257,22 +240,4 @@ func ResolveBinaryLocation(status *activeService.AttendanceStatus, hasFullAccess
 	default:
 		return StudentLocationInfo{Location: "Abwesend"}
 	}
-}
-
-func uniqueInt64(ids []int64) []int64 {
-	if len(ids) == 0 {
-		return ids
-	}
-
-	seen := make(map[int64]struct{}, len(ids))
-	result := make([]int64, 0, len(ids))
-	for _, id := range ids {
-		if _, exists := seen[id]; exists {
-			continue
-		}
-		seen[id] = struct{}{}
-		result = append(result, id)
-	}
-
-	return result
 }

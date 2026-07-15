@@ -6,7 +6,6 @@ package display
 import (
 	"errors"
 	"net/http"
-	"strconv"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
@@ -232,12 +231,7 @@ func (rs *Resource) deleteDisplay(w http.ResponseWriter, r *http.Request) {
 }
 
 func parseDisplayID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	id, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid display ID")))
-		return 0, false
-	}
-	return id, true
+	return common.ParseInt64IDWithError(w, r, "id", "invalid display ID")
 }
 
 func renderDisplayError(w http.ResponseWriter, r *http.Request, err error) {

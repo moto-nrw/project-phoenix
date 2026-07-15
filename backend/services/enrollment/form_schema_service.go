@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/moto-nrw/project-phoenix/models/base"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -35,8 +36,8 @@ var (
 const formSchemaNameVersionUniqueIndex = "uq_form_schemas_tenant_name_version"
 
 // FormSchemaService manages form-schema versioning. GetActive feeds the public
-// form renderer and admin pre-fill; PublishVersion creates a new active version
-// for the default schema.
+// form renderer and admin pre-fill; CreateSchema/UpdateSchema create new
+// schemas and versions.
 type FormSchemaService interface {
 	// GetActive returns the currently-active form schema for the
 	// tenant in context, or ErrNoActiveSchema if none exists.
@@ -49,18 +50,6 @@ type FormSchemaService interface {
 	// ListVersions returns all schema versions for the tenant in
 	// context, newest-first. Powers the admin "version history" view.
 	ListVersions(ctx context.Context) ([]*enrollmentModels.FormSchema, error)
-
-	// PublishVersion creates a new schema version with the given
-	// fields, marks it active, and deactivates any previously-active
-	// version atomically. createdBy is the staff/admin account ID
-	// from the JWT.
-	//
-	// Deprecated: prefer CreateSchema (new schema) or UpdateSchema
-	// (new version of an existing schema). PublishVersion is kept for
-	// backward compatibility with the original single-schema flow.
-	// it now writes the row with name="Standardformular" and does NOT
-	// deactivate other names' rows, only siblings of the same name.
-	PublishVersion(ctx context.Context, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error)
 
 	// CreateSchema creates a new logical schema (version 1) under the
 	// given name. Use this when the admin clicks "Neues Formular" on
@@ -92,11 +81,6 @@ type FormSchemaService interface {
 	// by id. It refuses deletion when any version is used by a phase or
 	// historical request.
 	DeleteSchema(ctx context.Context, id int64) error
-
-	// ValidateSubmission checks guardian-level custom data against a pinned
-	// schema version. The parent submit flow performs the full request/child
-	// validation before creating enrollment rows.
-	ValidateSubmission(ctx context.Context, schemaID int64, data enrollmentModels.SubmissionData) error
 }
 
 // FormSchemaServiceConfig is the dependency-injection bundle.
@@ -157,18 +141,10 @@ func (s *formSchemaService) ListVersions(ctx context.Context) ([]*enrollmentMode
 	return s.repo.ListByTenant(ctx)
 }
 
-// defaultSchemaName is the name PublishVersion writes for legacy
-// callers that don't supply one. Matches the backfill string used by
-// migration 1.15.74 so older rows merge cleanly into the same logical
-// schema.
+// defaultSchemaName is the fallback name for legacy callers that don't
+// supply one. Matches the backfill string used by migration 1.15.74 so
+// older rows merge cleanly into the same logical schema.
 const defaultSchemaName = "Standardformular"
-
-func (s *formSchemaService) PublishVersion(ctx context.Context, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
-	if err := s.repo.LockLineages(ctx); err != nil {
-		return nil, err
-	}
-	return s.createOrVersion(ctx, defaultSchemaName, fields, createdBy, firstCoreRequirements(coreRequirements), nil)
-}
 
 func (s *formSchemaService) CreateSchema(ctx context.Context, name string, fields []enrollmentModels.FormField, createdBy int64, coreRequirements ...enrollmentModels.CoreRequirements) (*enrollmentModels.FormSchema, error) {
 	if name == "" {
@@ -298,7 +274,7 @@ func (s *formSchemaService) RenameSchema(ctx context.Context, id int64, newName 
 		// between the check above and this update, the unique index
 		// (tenant_id, name, version) raises 23505. Translate it to the
 		// sentinel so the handler still returns 409, not a generic 400.
-		if isUniqueViolationOn(err, formSchemaNameVersionUniqueIndex) {
+		if base.IsUniqueViolationOn(err, formSchemaNameVersionUniqueIndex) {
 			return nil, ErrFormSchemaNameExists
 		}
 		return nil, fmt.Errorf("rename schema: %w", err)
@@ -500,57 +476,6 @@ func firstCoreRequirements(values []enrollmentModels.CoreRequirements) enrollmen
 		return enrollmentModels.CoreRequirements{}
 	}
 	return values[0]
-}
-
-// ValidateSubmission resolves the schema by ID and runs the legacy
-// guardian-level required-field check against the supplied data. Full public
-// submission validation, including child fields and structured field types,
-// lives in request_service.go.
-func (s *formSchemaService) ValidateSubmission(ctx context.Context, schemaID int64, data enrollmentModels.SubmissionData) error {
-	schema, err := s.repo.FindByID(ctx, schemaID)
-	if err != nil {
-		return fmt.Errorf("schema lookup: %w", err)
-	}
-
-	for i := range schema.Fields {
-		field := schema.Fields[i]
-		if !field.Required {
-			continue
-		}
-
-		var value any
-		var present bool
-		if field.AppliesToCh {
-			// Per-child fields are validated in the parent submit flow where
-			// child rows are available. This helper only receives
-			// guardian-level data.
-			continue
-		}
-		// A field hidden by its visibility condition is not shown to the
-		// parent, so its required flag does not apply to this submission.
-		if guardianFieldHidden(field, data.GuardianFields) {
-			continue
-		}
-		value, present = data.GuardianFields[field.Key]
-		if !present || value == nil || value == "" {
-			return fmt.Errorf("field %q is required", field.Key)
-		}
-	}
-	return nil
-}
-
-// guardianFieldHidden reports whether a guardian-level field is hidden
-// by its visibility condition given the submitted guardian answers.
-// Only "field"-sourced conditions are evaluable at guardian level; the
-// grade_level / care_offering sources are per-child and never apply to a
-// guardian-level field (the model rejects them there). Shares the scalar
-// comparison logic with the full evaluator in form_visibility.go.
-func guardianFieldHidden(field enrollmentModels.FormField, guardianFields map[string]any) bool {
-	c := field.VisibleWhen
-	if c == nil || c.Source != enrollmentModels.ConditionSourceField {
-		return false
-	}
-	return !matchScalar(c.Operator, guardianFields[c.Field], c.Value)
 }
 
 // conditionValuesEqual compares a submitted answer against a condition

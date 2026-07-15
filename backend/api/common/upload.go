@@ -1,7 +1,6 @@
 package common
 
 import (
-	"crypto/rand"
 	"errors"
 	"io"
 	"log/slog"
@@ -11,6 +10,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/internal/randstr"
 )
 
 // AllowedImageTypes maps MIME types detected by http.DetectContentType to allowed image formats.
@@ -43,12 +44,6 @@ func ParseImage(w http.ResponseWriter, r *http.Request, fieldName string, maxSiz
 // the multipart body cap. Body cap needs headroom for boundaries and headers.
 func ParseImageWithLimits(w http.ResponseWriter, r *http.Request, fieldName string, maxFileSize, maxBodySize int64) (*UploadedFile, error) {
 	return parseUploadWithLimits(w, r, fieldName, maxFileSize, maxBodySize, detectImageContentType)
-}
-
-// ParsePDF parses a multipart form upload, validates the content type via magic bytes,
-// and returns the file ready for saving. The caller must close UploadedFile.File.
-func ParsePDF(w http.ResponseWriter, r *http.Request, fieldName string, maxSize int64) (*UploadedFile, error) {
-	return ParsePDFWithLimits(w, r, fieldName, maxSize, maxSize)
 }
 
 // ParsePDFWithLimits enforces an advertised file-size cap separately from
@@ -99,10 +94,6 @@ func detectImageContentType(file io.ReadSeeker) (string, error) {
 	return detectAllowedContentType(file, AllowedImageTypes, "invalid file type. Only JPEG, PNG, and WebP images are allowed")
 }
 
-func detectContentType(file io.ReadSeeker) (string, error) {
-	return detectImageContentType(file)
-}
-
 // detectPDFContentType reads the first 512 bytes to detect a PDF via magic bytes.
 func detectPDFContentType(file io.ReadSeeker) (string, error) {
 	return detectAllowedContentType(file, AllowedPDFTypes, "invalid file type. Only PDF documents are allowed")
@@ -146,7 +137,7 @@ func SavePDF(file io.Reader, targetDir, prefix string) (string, error) {
 }
 
 func saveUploadedFile(file io.Reader, targetDir, prefix, ext string) (string, error) {
-	randomStr, err := generateRandomString(8)
+	randomStr, err := randstr.String(8, randstr.Alphanumeric)
 	if err != nil {
 		return "", errors.New("failed to generate filename")
 	}
@@ -321,19 +312,6 @@ func fileExtension(contentType string) string {
 	default:
 		return ""
 	}
-}
-
-// generateRandomString generates a cryptographically secure random string.
-func generateRandomString(length int) (string, error) {
-	const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
-	b := make([]byte, length)
-	if _, err := rand.Read(b); err != nil {
-		return "", err
-	}
-	for i := range b {
-		b[i] = charset[b[i]%byte(len(charset))]
-	}
-	return string(b), nil
 }
 
 var (

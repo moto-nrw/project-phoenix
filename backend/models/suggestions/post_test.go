@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 func TestPost_Validate_Success(t *testing.T) {
@@ -203,11 +201,6 @@ func TestIsValidStatus(t *testing.T) {
 	}
 }
 
-func TestPost_TableName(t *testing.T) {
-	post := &Post{}
-	assert.Equal(t, "suggestions.posts", post.TableName())
-}
-
 func TestPost_GetID(t *testing.T) {
 	post := &Post{}
 	post.ID = 42
@@ -226,38 +219,4 @@ func TestPost_GetUpdatedAt(t *testing.T) {
 	post := &Post{}
 	post.UpdatedAt = now
 	assert.Equal(t, now, post.GetUpdatedAt())
-}
-
-func TestPost_BeforeAppendModel(t *testing.T) {
-	// mock DB with nil driver — no real database connection
-	db := bun.NewDB(nil, pgdialect.New())
-	p := &Post{}
-
-	t.Run("handles SelectQuery", func(t *testing.T) {
-		q := db.NewSelect().Model(p)
-		err := p.BeforeAppendModel(q)
-		require.NoError(t, err)
-	})
-
-	t.Run("handles UpdateQuery", func(t *testing.T) {
-		q := db.NewUpdate().Model(p)
-		err := p.BeforeAppendModel(q)
-		require.NoError(t, err)
-	})
-
-	t.Run("handles DeleteQuery", func(t *testing.T) {
-		q := db.NewDelete().Model(p)
-		err := p.BeforeAppendModel(q)
-		require.NoError(t, err)
-	})
-
-	t.Run("ignores unknown query type", func(t *testing.T) {
-		err := p.BeforeAppendModel("not a query")
-		require.NoError(t, err)
-	})
-
-	t.Run("handles nil query", func(t *testing.T) {
-		err := p.BeforeAppendModel(nil)
-		require.NoError(t, err)
-	})
 }
