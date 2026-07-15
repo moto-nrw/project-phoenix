@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { redirect } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
+import { redirect, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 import { Settings2 } from "lucide-react";
@@ -15,8 +15,10 @@ import { ShiftTypeManageModal } from "~/components/staff/shift-type-manage-modal
 import { SickReportModal } from "~/components/staff/sick-report-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { PlanningContextBar } from "~/components/ui/planning-context-bar";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { isAdmin } from "~/lib/auth-utils";
-import { parseISODate, toISODate } from "~/lib/date-helpers";
+import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
 import { createLogger } from "~/lib/logger";
@@ -32,6 +34,17 @@ const logger = createLogger({ component: "DienstplanView" });
 // One row per staff member, Mo–Fr columns, click-to-edit per cell. The
 // planned shift end also drives the automatic checkout (#1798) when the
 // tenant setting "Automatische Ausstempelung" is enabled.
+//
+// URL-Vokabular (Planung-Redesign, docs/05-dienstplan.md Abschnitt 1): genau
+// `d` (Berlin-Kalendertag; die angezeigte Woche ist die Woche, die `d` enthält)
+// und `view` ("woche" | "halbjahr"). Ungültige Werte fallen still auf die
+// Defaults zurück (heute, "woche"). Modals bleiben reiner React-State.
+
+type DienstplanView = "woche" | "halbjahr";
+
+// updateUrlParams baut die URL aus dieser Allowlist neu auf, damit fremde
+// Params (?utm_source=…) nicht jeden Wochen-/Ansichtswechsel überleben.
+const ALLOWED_URL_PARAMS = ["d", "view"] as const;
 
 function startOfWeek(d: Date): Date {
   const monday = new Date(d);
@@ -60,15 +73,25 @@ function DienstplanContent() {
     },
   });
   const router = useTenantRouter();
+  const searchParams = useSearchParams();
   const canEdit = isAdmin(session);
   const today = useBerlinToday();
 
-  const [weekAnchor, setWeekAnchor] = useState<Date>(() =>
-    startOfWeek(parseISODate(today)),
-  );
+  // URL-State: der angezeigte Tag und die Ansicht werden bei jedem Render aus
+  // den Search-Params abgeleitet (kein weekAnchor-useState mehr). Ein ungültiges
+  // `d` (?d=foo oder ?d=2026-02-31) fällt auf heute zurück, ein unbekanntes
+  // `view` auf "woche" — still, kein Fehlerzustand.
+  const rawDay = searchParams.get("d");
+  const dayISO = rawDay !== null && isValidISODate(rawDay) ? rawDay : today;
+  const rawView = searchParams.get("view");
+  const view: DienstplanView = rawView === "halbjahr" ? "halbjahr" : "woche";
+
   const [modal, setModal] = useState<ModalState | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [sickModal, setSickModal] = useState<StaffScheduleStaff | null>(null);
+
+  // Montag der Woche, die `d` enthält.
+  const weekAnchor = useMemo(() => startOfWeek(parseISODate(dayISO)), [dayISO]);
 
   const weekDays = useMemo(() => {
     return Array.from({ length: 5 }, (_, i) => {
@@ -120,13 +143,53 @@ function DienstplanContent() {
     return `KW ${getWeekNumber(weekAnchor)}: ${startLabel} bis ${endLabel}`;
   }, [weekAnchor]);
 
-  const shiftWeek = (deltaDays: number) => {
-    setWeekAnchor((prev) => {
-      const next = new Date(prev);
-      next.setDate(next.getDate() + deltaDays);
-      return next;
-    });
-  };
+  // Rebuild the URL from the allowlist (mirrors vertretung-view): a bare
+  // window.history.replaceState, no router.replace, so a week/view change never
+  // triggers a server roundtrip.
+  const updateUrlParams = useCallback(
+    (updates: Record<string, string | null>) => {
+      const current = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams();
+      for (const key of ALLOWED_URL_PARAMS) {
+        const value = current.get(key);
+        if (value !== null) params.set(key, value);
+      }
+      for (const [key, value] of Object.entries(updates)) {
+        if (value === null) params.delete(key);
+        else params.set(key, value);
+      }
+      const qs = params.toString();
+      window.history.replaceState(
+        null,
+        "",
+        qs ? `?${qs}` : window.location.pathname,
+      );
+    },
+    [],
+  );
+
+  // Wochen-Navigation schreibt den Montag der Zielwoche nach `d`.
+  const goToWeek = useCallback(
+    (deltaDays: number) => {
+      const target = new Date(weekAnchor);
+      target.setDate(target.getDate() + deltaDays);
+      updateUrlParams({ d: toISODate(target) });
+    },
+    [weekAnchor, updateUrlParams],
+  );
+
+  const goToToday = useCallback(
+    () => updateUrlParams({ d: today }),
+    [today, updateUrlParams],
+  );
+
+  // "woche" ist der Default und wird als Param-Entfernung geschrieben, damit die
+  // URL sauber bleibt; Deep-Links funktionieren in beide Richtungen.
+  const setView = useCallback(
+    (next: DienstplanView) =>
+      updateUrlParams({ view: next === "woche" ? null : next }),
+    [updateUrlParams],
+  );
 
   if (sessionStatus === "loading") {
     return <DienstplanPageSkeleton />;
@@ -137,131 +200,139 @@ function DienstplanContent() {
     return <DienstplanPageSkeleton />;
   }
 
+  // Ein einziges Ladebild für Session- UND Daten-Laden (docs/05 Abschnitt 5):
+  // während scheduleLoading rendert die View das Skeleton, statt das Grid mit
+  // isLoading zu mounten.
+  if (scheduleLoading) {
+    return <DienstplanPageSkeleton />;
+  }
+
   return (
     <div className="space-y-4">
-      {/* No in-page h1: the header breadcrumb already shows "Dienstplan"
-          (breadcrumb-utils exactPageTitles), matching the app-wide pattern. */}
-      <div className="flex justify-end">
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          onClick={() => setManageOpen(true)}
-          disabled={Boolean(shiftTypesError)}
-        >
-          <Settings2 className="mr-1.5 h-4 w-4" />
-          Schichtarten verwalten
-        </Button>
-      </div>
-      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-        <div className="mb-4 flex flex-col gap-3 sm:grid sm:grid-cols-3 sm:items-center">
-          <p className="hidden text-xs text-gray-500 sm:block">
-            Schichten und Betreuungsplan-Einsätze pro Mitarbeiter. Schichten
-            lassen sich hier anlegen und bearbeiten.
-          </p>
-          <div className="flex min-w-0 items-center justify-center gap-2">
-            <button
-              type="button"
-              onClick={() => shiftWeek(-7)}
-              aria-label="Vorherige Woche"
-              className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M15 19l-7-7 7-7"
-                />
-              </svg>
-            </button>
-            <h2 className="min-w-0 flex-1 text-center text-sm font-semibold text-gray-800 sm:min-w-[14rem]">
-              {weekLabel}
-            </h2>
-            <button
-              type="button"
-              onClick={() => shiftWeek(7)}
-              aria-label="Nächste Woche"
-              className="rounded-full p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-900"
-            >
-              <svg
-                className="h-4 w-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M9 5l7 7-7 7"
-                />
-              </svg>
-            </button>
-          </div>
-          <div className="flex justify-center sm:justify-end">
-            <button
-              type="button"
-              onClick={() => setWeekAnchor(startOfWeek(parseISODate(today)))}
-              disabled={isOnCurrentWeek}
-              className="rounded-full border border-gray-200 bg-white px-3 py-1 text-xs font-medium text-gray-600 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Diese Woche
-            </button>
-          </div>
+      <PlanningContextBar
+        title="Dienstplan"
+        onPrevious={() => goToWeek(-7)}
+        onNext={() => goToWeek(7)}
+        previousLabel="Vorherige Woche"
+        nextLabel="Nächste Woche"
+        dateLabel={weekLabel}
+        onToday={isOnCurrentWeek ? undefined : goToToday}
+        viewSwitcher={
+          <Tabs
+            value={view}
+            onValueChange={(v) => setView(v as DienstplanView)}
+          >
+            <TabsList variant="default">
+              <TabsTrigger value="woche">Woche</TabsTrigger>
+              <TabsTrigger value="halbjahr">Halbjahr</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        }
+        actions={
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            onClick={() => setManageOpen(true)}
+            disabled={Boolean(shiftTypesError)}
+          >
+            <Settings2 className="mr-1.5 h-4 w-4" />
+            Schichtarten verwalten
+          </Button>
+        }
+      />
+
+      {view === "halbjahr" ? (
+        // Chunk 7 (dienstplan-halbjahr-grid.tsx) ersetzt diesen Platzhalter
+        // durch die Halbjahres-Sicht (Personen × Kalenderwochen). Der
+        // Leerzustand "Kein Planungszeitraum" gehört dann dorthin, nicht hierher.
+        <div className="moto-content-surface rounded-2xl border p-6 text-sm text-gray-500 shadow-sm sm:p-8">
+          Halbjahresansicht folgt.
         </div>
-        {shiftTypesError && (
-          <Alert
-            type="warning"
-            message="Schichtarten konnten nicht geladen werden. Der Dienstplan wird mit neutralen Schichtfarben angezeigt; die Schichtartenverwaltung ist vorübergehend deaktiviert."
-          />
-        )}
-        {scheduleError ? (
-          <div className="space-y-3">
+      ) : (
+        <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+          {shiftTypesError && (
             <Alert
-              type="error"
-              message="Der Dienstplan konnte nicht vollständig geladen werden. Bearbeiten ist deaktiviert, bis die Daten erfolgreich geladen wurden."
+              type="warning"
+              message="Schichtarten konnten nicht geladen werden. Der Dienstplan wird mit neutralen Schichtfarben angezeigt; die Schichtartenverwaltung ist vorübergehend deaktiviert."
             />
-            <button
-              type="button"
-              onClick={retryLoad}
-              className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-            >
-              Erneut laden
-            </button>
-          </div>
-        ) : (
-          <DienstplanWeekGrid
-            staff={sortedStaff}
-            shiftsByStaff={shiftsByStaff}
-            assignmentsByStaff={assignmentsByStaff}
-            summaryByStaff={summaryByStaff}
-            weekDays={weekDays}
-            todayIso={today}
-            typesById={typesById}
-            isLoading={scheduleLoading}
-            onCellClick={(member, date, shift) =>
-              setModal({
-                mode: shift ? "edit" : "create",
-                staff: member,
-                date,
-                shift,
-                replacements: shift
-                  ? allShifts.filter((s) => s.originShiftId === shift.id)
-                  : [],
-              })
-            }
-            onSickReport={
-              canManageAbsences ? (member) => setSickModal(member) : undefined
-            }
-          />
-        )}
-      </div>
+          )}
+          {scheduleError ? (
+            <div className="space-y-3">
+              <Alert
+                type="error"
+                message="Der Dienstplan konnte nicht vollständig geladen werden. Bearbeiten ist deaktiviert, bis die Daten erfolgreich geladen wurden."
+              />
+              <button
+                type="button"
+                onClick={retryLoad}
+                className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+              >
+                Erneut laden
+              </button>
+            </div>
+          ) : sortedStaff.length === 0 ? (
+            // Leerzustand: keine Mitarbeitenden (docs/05 Abschnitt 4). Kein
+            // Artwork, kein Marketing-Ton — nur der Hinweis plus Sprung zur
+            // Mitarbeiterverwaltung.
+            <div className="flex flex-col items-center gap-3 py-10 text-center">
+              <p className="text-sm font-semibold text-gray-900">
+                Noch keine Mitarbeitenden angelegt
+              </p>
+              <p className="max-w-md text-sm leading-relaxed text-gray-600">
+                Sobald Mitarbeitende angelegt sind, erscheinen sie hier als
+                Zeilen im Dienstplan.
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => router.push("/staff")}
+              >
+                Zu den Mitarbeitenden
+              </Button>
+            </div>
+          ) : (
+            <>
+              {allShifts.length === 0 && (
+                // Leerzustand: Mitarbeitende vorhanden, aber keine Schichten in
+                // der Woche (docs/05 Abschnitt 4) — dezente Hinweiszeile über dem
+                // Raster, keine Alert-Box.
+                <p className="mb-3 text-sm text-gray-500">
+                  In dieser Woche sind keine Schichten geplant.
+                </p>
+              )}
+              <DienstplanWeekGrid
+                staff={sortedStaff}
+                shiftsByStaff={shiftsByStaff}
+                assignmentsByStaff={assignmentsByStaff}
+                summaryByStaff={summaryByStaff}
+                weekDays={weekDays}
+                todayIso={today}
+                typesById={typesById}
+                isLoading={false}
+                onCellClick={(member, date, shift) =>
+                  setModal({
+                    mode: shift ? "edit" : "create",
+                    staff: member,
+                    date,
+                    shift,
+                    replacements: shift
+                      ? allShifts.filter((s) => s.originShiftId === shift.id)
+                      : [],
+                  })
+                }
+                onSickReport={
+                  canManageAbsences
+                    ? (member) => setSickModal(member)
+                    : undefined
+                }
+              />
+            </>
+          )}
+        </div>
+      )}
+
       {modal && (
         <ShiftEditModal
           isOpen
@@ -308,8 +379,8 @@ function DienstplanContent() {
   );
 }
 
-// DienstplanView is the embeddable Dienstplan surface, hosted by /planung
-// (#1886 Konsolidierung); formerly the /staff/dienstplan page.
+// DienstplanView is the embeddable Dienstplan surface, hosted by /dienstplan
+// (Planung-Redesign, docs/05); formerly the /staff/dienstplan page.
 export function DienstplanView() {
   return <DienstplanContent />;
 }
