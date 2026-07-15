@@ -42,6 +42,7 @@ import { Checkbox } from "~/components/ui/checkbox";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { Input } from "~/components/ui/input";
 import { Loading } from "~/components/ui/loading";
+import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
   SlideOverCloseButton,
@@ -219,6 +220,18 @@ export function SubstitutionSlideOver({
     setActiveTab(initialTab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [instance?.id]);
+
+  // Reiter-Sync auch OHNE Blockwechsel: ein erneuter Klick auf den bereits
+  // geöffneten Block räumt `verlauf` aus der URL (openEditor), instance.id
+  // bleibt dabei gleich — nur initialTab kippt. Bewusst ein eigener, schmaler
+  // Effekt: initialTab in die Abhängigkeiten des Re-Seed-Effekts oben zu
+  // heben, würde bei jedem Reiterwechsel das gesamte Formular zurücksetzen
+  // und laufende Eingaben verwerfen. Lokale Reiterklicks sind unkritisch:
+  // handleTabChange meldet den Wechsel per onTabChange an die URL, initialTab
+  // kommt mit demselben Wert zurück und der Effekt ist ein No-op.
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   function handleTabChange(next: SubstitutionEditorTab) {
     setActiveTab(next);
@@ -461,14 +474,13 @@ export function SubstitutionSlideOver({
                       htmlFor="vp-action-edit"
                       className="flex items-start gap-2 rounded-xl border border-gray-200 bg-white p-3"
                     >
-                      <input
-                        type="radio"
+                      <Radio
                         id="vp-action-edit"
                         name="vp-action"
                         value="edit"
                         checked={!cancel}
                         onChange={() => setCancel(false)}
-                        className="mt-0.5 h-4 w-4 accent-gray-900"
+                        className="mt-0.5"
                       />
                       <span className="text-sm text-gray-800">
                         Besetzung bearbeiten
@@ -482,14 +494,13 @@ export function SubstitutionSlideOver({
                       htmlFor="vp-action-cancel"
                       className="flex items-start gap-2 rounded-xl border border-gray-200 bg-white p-3"
                     >
-                      <input
-                        type="radio"
+                      <Radio
                         id="vp-action-cancel"
                         name="vp-action"
                         value="cancel"
                         checked={cancel}
                         onChange={() => setCancel(true)}
-                        className="mt-0.5 h-4 w-4 accent-gray-900"
+                        className="mt-0.5"
                       />
                       <span className="text-sm text-gray-800">
                         Block absagen

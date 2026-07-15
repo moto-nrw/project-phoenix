@@ -56,6 +56,16 @@ import type {
 } from "./timetable-types";
 
 /**
+ * SWR-Key-Präfixe der Vertretungs-Ansicht. Producer (vertretung-view) und
+ * Invalidatoren (Krankmeldungs-Kaskade #1843 in dienstplan-view und
+ * abwesenheiten-tab) MÜSSEN dieselben Konstanten verwenden:
+ * useTenantMutateMatching ist ein stiller No-op, wenn kein Key matcht — ein
+ * umbenannter String-Literal fällt in keinem Test auf.
+ */
+export const VERTRETUNG_WEEK_KEY_PREFIX = "vertretung-week-";
+export const VERTRETUNG_GAPS_KEY_PREFIX = "vertretung-gaps-";
+
+/**
  * Brand-colour key per activity type. Mirrors the timetable RFC §5.5
  * ("Color-coded by type using MOTO brand colors from LOCATION_COLORS").
  *

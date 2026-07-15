@@ -352,6 +352,38 @@ describe("VertretungView", () => {
     );
   });
 
+  it("falls back to today when d is not a real calendar date", () => {
+    // "foo" ergäbe ohne Guard NaN-NaN-NaN-Fetchfenster, "2026-02-31" würde
+    // still zum 3. März überlaufen — beide müssen auf heute zurückfallen.
+    for (const bad of ["foo", "2026-02-31"]) {
+      mockSearch.value = `d=${bad}`;
+      const { unmount } = render(<VertretungView />);
+
+      const props = mockDayListProps.mock.calls.at(-1)?.[0];
+      expect(props.instances.map((i: EnrichedInstance) => i.id)).toEqual([
+        "42",
+      ]);
+      expect(props.instances[0].date).toBe("2026-07-15");
+      unmount();
+    }
+  });
+
+  it("strips unknown query params on the first URL write", () => {
+    mockSearch.value = "d=2026-07-15&utm_source=x";
+    window.history.replaceState(
+      null,
+      "",
+      "/acme/vertretung?d=2026-07-15&utm_source=x",
+    );
+    render(<VertretungView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Do 16.07." }));
+    expect(urlKeys()).toEqual(["d"]);
+    expect(new URLSearchParams(window.location.search).get("d")).toBe(
+      "2026-07-16",
+    );
+  });
+
   it("keeps the URL to at most d/block/verlauf across interactions", () => {
     mockSearch.value = "d=2026-07-15&block=42";
     window.history.replaceState(
@@ -434,6 +466,21 @@ describe("VertretungView", () => {
     ).toBeInTheDocument();
     expect(screen.queryByTestId("day-list")).not.toBeInTheDocument();
     expect(screen.queryByTestId("calendar-grid")).not.toBeInTheDocument();
+  });
+
+  it("retries week, gaps, AND staff list from the error surface", () => {
+    // Ein Backend-Blip lässt typischerweise alle drei Abrufe gleichzeitig
+    // scheitern; ein Retry nur des Wochen-Keys ließe Gaps-Chips und
+    // Personal-Alert bis zum Reload stale.
+    setupSWR({ weekError: new Error("boom") });
+    render(<VertretungView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Erneut versuchen" }));
+    expect(mockTenantMutate.mock.calls.map((c) => c[0] as string)).toEqual([
+      "vertretung-week-2026-07-13-2026-07-19",
+      "vertretung-gaps-2026-07-15-2026-07-19",
+      "vertretung-staff-list",
+    ]);
   });
 
   it("defaults the list filter to 'Nur Störungen' and toggles to 'Ganzer Tag'", async () => {

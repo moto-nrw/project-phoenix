@@ -48,7 +48,12 @@ import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
 import { useToast } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
-import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  isValidISODate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { createLogger } from "~/lib/logger";
 import {
@@ -59,6 +64,8 @@ import { staffService } from "~/lib/staff-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { timetableService } from "~/lib/timetable-api";
 import {
+  VERTRETUNG_GAPS_KEY_PREFIX,
+  VERTRETUNG_WEEK_KEY_PREFIX,
   getGermanWeekdayShort,
   getWeekRange,
   getWeekdays,
@@ -68,6 +75,12 @@ import type { ApplyDeviationsInput } from "~/lib/timetable-types";
 
 const logger = createLogger({ component: "Vertretung" });
 const HOUR_HEIGHT_PX = 90;
+const VERTRETUNG_STAFF_LIST_KEY = "vertretung-staff-list";
+// Das verbindliche Drei-Parameter-Vokabular (Abschnitt 1). updateUrlParams
+// baut die URL aus dieser Allowlist neu auf, damit fremde Params
+// (?utm_source=…) nicht jeden Tageswechsel überleben. Muss mit ALLOWED_PARAMS
+// in e2e/vertretung-flow.spec.ts übereinstimmen.
+const ALLOWED_URL_PARAMS = ["d", "block", "verlauf"] as const;
 
 function shiftDayISO(iso: string, delta: number): string {
   const d = parseISODate(iso);
@@ -97,8 +110,13 @@ function VertretungContent() {
   // URL-Vokabular: d / block / verlauf — sonst nichts (Abschnitt 1).
   // Wochenendtage (Erstaufruf am Sa/So oder ?d=-Deeplink) snappen auf den
   // folgenden Montag — der eine Guard am Lese-Ort deckt alle Pfade ab, weil
-  // dayISO nach jedem replaceState hier re-derived wird.
-  const dayISO = nextWorkdayISO(searchParams.get("d") ?? berlinTodayISO());
+  // dayISO nach jedem replaceState hier re-derived wird. Ein ungültiges `d`
+  // (?d=foo oder ?d=2026-02-31) fällt auf heute zurück, statt NaN-Datumsketten
+  // bzw. einen stillen Monats-Überlauf in die Fetch-Fenster zu speisen.
+  const rawDay = searchParams.get("d");
+  const dayISO = nextWorkdayISO(
+    rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO(),
+  );
   const selectedInstanceId = searchParams.get("block");
   const historyOpen = searchParams.get("verlauf") === "1";
 
@@ -120,7 +138,12 @@ function VertretungContent() {
 
   const updateUrlParams = useCallback(
     (updates: Record<string, string | null>) => {
-      const params = new URLSearchParams(window.location.search);
+      const current = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams();
+      for (const key of ALLOWED_URL_PARAMS) {
+        const value = current.get(key);
+        if (value !== null) params.set(key, value);
+      }
       for (const [key, value] of Object.entries(updates)) {
         if (value === null) params.delete(key);
         else params.set(key, value);
@@ -135,13 +158,13 @@ function VertretungContent() {
     [],
   );
 
-  const weekSwrKey = `vertretung-week-${fromISO}-${toISO}`;
+  const weekSwrKey = `${VERTRETUNG_WEEK_KEY_PREFIX}${fromISO}-${toISO}`;
   // Die Lücken-Erkennung ist vorwärtsgerichtet: der Endpunkt lehnt ein
   // vergangenes `date` ab, also den Fensterstart auf heute klemmen und für
   // vollständig vergangene Wochen den Abruf ganz überspringen.
   const gapsFromISO = fromISO < today ? today : fromISO;
   const loadGaps = toISO >= today;
-  const gapsSwrKey = `vertretung-gaps-${gapsFromISO}-${toISO}`;
+  const gapsSwrKey = `${VERTRETUNG_GAPS_KEY_PREFIX}${gapsFromISO}-${toISO}`;
 
   const { data, isLoading, error } = useSWRAuth(
     status === "authenticated" ? weekSwrKey : null,
@@ -152,7 +175,7 @@ function VertretungContent() {
     () => timetableService.getGaps(gapsFromISO, toISO),
   );
   const { data: staffData, error: staffError } = useSWRAuth(
-    status === "authenticated" ? "vertretung-staff-list" : null,
+    status === "authenticated" ? VERTRETUNG_STAFF_LIST_KEY : null,
     // strict: ein Backend-Fehler muss rejecten (nicht zu [] resolven), damit
     // staffError feuert und der Picker den Fehler statt "kein Personal" zeigt.
     () => staffService.getAllStaff(undefined, { strict: true }),
@@ -322,6 +345,19 @@ function VertretungContent() {
     }
   }, [gapsSwrKey, weekSwrKey, tenantMutate, toast]);
 
+  // Retry der Fehlerfläche: ein Backend-Blip lässt typischerweise alle drei
+  // Abrufe gleichzeitig scheitern, also alle drei Keys revalidieren — sonst
+  // bleiben Gaps-Chips und Personal-Alert stale, bis die Seite neu geladen
+  // wird. allSettled statt all: Fehler tauchen über die error-States der
+  // jeweiligen useSWRAuth-Hooks wieder auf, nicht als unhandled rejection.
+  const retryAll = useCallback(() => {
+    void Promise.allSettled([
+      tenantMutate(weekSwrKey),
+      tenantMutate(gapsSwrKey),
+      tenantMutate(VERTRETUNG_STAFF_LIST_KEY),
+    ]);
+  }, [gapsSwrKey, weekSwrKey, tenantMutate]);
+
   // Ein atomares Save für das gesamte Editor-Formular. Der Cache-Refresh läuft
   // NACH der committeten Mutation und kann ihren Erfolg nicht zurücknehmen.
   const handleApply = useCallback(
@@ -467,12 +503,7 @@ function VertretungContent() {
             Die Termine des Tages konnten nicht abgerufen werden. Bitte erneut
             versuchen.
           </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            onClick={() => void tenantMutate(weekSwrKey)}
-          >
+          <Button type="button" variant="outline" size="md" onClick={retryAll}>
             Erneut versuchen
           </Button>
         </div>

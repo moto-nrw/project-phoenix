@@ -32,6 +32,10 @@ import { shiftTypeService } from "~/lib/shift-type-api";
 import { indexShiftTypes, type ShiftType } from "~/lib/shift-type-helpers";
 import { staffService, type Staff } from "~/lib/staff-api";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
+import {
+  VERTRETUNG_GAPS_KEY_PREFIX,
+  VERTRETUNG_WEEK_KEY_PREFIX,
+} from "~/lib/timetable-helpers";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
 
@@ -106,8 +110,8 @@ function DienstplanContent() {
   const refreshPlanCaches = useTenantMutateMatching([
     "dienstplan-overview-",
     "dienstplan-shifts-",
-    "vertretungsplan-week-",
-    "vertretungsplan-gaps-",
+    VERTRETUNG_WEEK_KEY_PREFIX,
+    VERTRETUNG_GAPS_KEY_PREFIX,
     "staff-pending-absences-",
     "time-tracking-absences-",
     "time-tracking-table-absences-",

@@ -54,6 +54,12 @@ describe("resolvePlanungRedirect", () => {
       expected: "/betreuungsplan?d=2026-09-01",
     },
     {
+      name: "impossible day (2026-02-31) is rejected and falls through to week",
+      query: "day=2026-02-31&week=1",
+      target: "betreuungsplan",
+      expected: "/betreuungsplan?d=2026-07-20",
+    },
+    {
       name: "negative week offset",
       query: "week=-2",
       target: "betreuungsplan",

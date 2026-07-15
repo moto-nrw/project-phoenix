@@ -15,14 +15,18 @@
 import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 
-import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  isValidISODate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import { getWeekRange } from "~/lib/timetable-helpers";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 export type PlanungRedirectTarget =
   "betreuungsplan" | "dienstplan" | "vertretung";
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MONTH_RE = /^\d{4}-\d{2}$/;
 const YEAR_RE = /^\d{4}$/;
 
@@ -43,8 +47,10 @@ function resolveAnchorDate(
   today: string,
   target: PlanungRedirectTarget,
 ): string | null {
+  // isValidISODate statt reinem Shape-Check: "2026-02-31" würde sonst als
+  // `d` weitergereicht und erst in der Zielansicht still überlaufen.
   const day = params.get("day");
-  if (day && ISO_DATE_RE.test(day)) return day;
+  if (day && isValidISODate(day)) return day;
 
   const week = params.get("week");
   if (week !== null) {

@@ -279,6 +279,41 @@ describe("SubstitutionSlideOver", () => {
       expect(screen.getByText("Abwesenheit eingetragen")).toBeInTheDocument();
     });
 
+    it("springt auf Bearbeiten zurück, wenn initialTab ohne Blockwechsel kippt", () => {
+      mockHistory([
+        makeEvent({ eventType: "absence", subjectStaffName: "Anna Alt" }),
+      ]);
+      const props = {
+        instance: makeInstance(),
+        staffOptions: STAFF_OPTIONS,
+        staffNames: STAFF_NAMES,
+        dayAbsentStaffIds: new Set<string>(),
+        canManage: true,
+        onClose: vi.fn<() => void>(),
+        onApply: applyMock(true),
+      };
+      const { rerender } = render(
+        <SubstitutionSlideOver {...props} initialTab="bearbeiten" />,
+      );
+
+      // Nutzer öffnet den Verlauf; der Elternteil spiegelt das in die URL
+      // und reicht initialTab="verlauf" zurück (onTabChange-Pfad).
+      fireEvent.mouseDown(screen.getByRole("tab", { name: "Verlauf" }), {
+        button: 0,
+      });
+      rerender(<SubstitutionSlideOver {...props} initialTab="verlauf" />);
+      expect(screen.getByText("Abwesenheit eingetragen")).toBeInTheDocument();
+
+      // Erneuter Klick auf denselben Block: openEditor räumt verlauf aus der
+      // URL, instance.id bleibt gleich — nur initialTab kippt zurück. Der
+      // Editor muss im Bearbeiten-Reiter landen, nicht im Verlauf kleben.
+      rerender(<SubstitutionSlideOver {...props} initialTab="bearbeiten" />);
+      expect(screen.getByText("Personal")).toBeInTheDocument();
+      expect(
+        screen.queryByText("Abwesenheit eingetragen"),
+      ).not.toBeInTheDocument();
+    });
+
     it("zeigt Ereigniszeilen mit Beschreibung, Grund und Akteur", () => {
       mockHistory([
         makeEvent({

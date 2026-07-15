@@ -116,7 +116,11 @@ export function SickReportModal({
 
   const goToVertretung = () => {
     const day = createdStart ?? dateStart;
-    router.push(`/vertretung?view=day&day=${day}`);
+    // Neues Drei-Parameter-Vokabular von /vertretung (d/block/verlauf):
+    // `?view=day&day=` stammte aus der alten vertretungsplan-view und wird
+    // von der neuen Ansicht ignoriert — sie landete immer auf heute statt
+    // auf dem Starttag der Krankmeldung.
+    router.push(`/vertretung?d=${day}`);
     onClose();
   };
 
