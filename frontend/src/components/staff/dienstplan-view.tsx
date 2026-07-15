@@ -15,27 +15,12 @@ import { ShiftTypeManageModal } from "~/components/staff/shift-type-manage-modal
 import { SickReportModal } from "~/components/staff/sick-report-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { hasPermission, isAdmin } from "~/lib/auth-utils";
+import { isAdmin } from "~/lib/auth-utils";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
 import { createLogger } from "~/lib/logger";
-import { staffShiftService } from "~/lib/shift-api";
-import {
-  groupShiftsByStaffAndDate,
-  type StaffScheduleAssignment,
-  type StaffScheduleOverview,
-  type StaffScheduleStaff,
-  type StaffShift,
-  type StaffWeeklySummary,
-} from "~/lib/shift-helpers";
-import { shiftTypeService } from "~/lib/shift-type-api";
-import { indexShiftTypes, type ShiftType } from "~/lib/shift-type-helpers";
-import { staffService, type Staff } from "~/lib/staff-api";
-import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
-import {
-  VERTRETUNG_GAPS_KEY_PREFIX,
-  VERTRETUNG_WEEK_KEY_PREFIX,
-} from "~/lib/timetable-helpers";
+import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
 
@@ -67,26 +52,6 @@ interface ModalState {
   replacements: readonly StaffShift[];
 }
 
-function groupAssignmentsByStaffAndDate(
-  assignments: readonly StaffScheduleAssignment[],
-): Map<string, Map<string, StaffScheduleAssignment[]>> {
-  const byStaff = new Map<string, Map<string, StaffScheduleAssignment[]>>();
-  for (const assignment of assignments) {
-    let byDate = byStaff.get(assignment.staffId);
-    if (!byDate) {
-      byDate = new Map<string, StaffScheduleAssignment[]>();
-      byStaff.set(assignment.staffId, byDate);
-    }
-    const dayAssignments = byDate.get(assignment.date);
-    if (dayAssignments) {
-      dayAssignments.push(assignment);
-    } else {
-      byDate.set(assignment.date, [assignment]);
-    }
-  }
-  return byStaff;
-}
-
 function DienstplanContent() {
   const { data: session, status: sessionStatus } = useSession({
     required: true,
@@ -96,27 +61,7 @@ function DienstplanContent() {
   });
   const router = useTenantRouter();
   const canEdit = isAdmin(session);
-  const canManageAbsences = hasPermission(session, "time_tracking:manage");
-  const canUseAssignmentOverview =
-    canManageAbsences &&
-    hasPermission(session, "schedules:read") &&
-    hasPermission(session, "users:read");
   const today = useBerlinToday();
-
-  // A sick report cancels shifts (Dienstplan) and marks Betreuungsblöcke
-  // absent (Vertretungsplan) server-side, so revalidate every cache that
-  // renders those rows plus the absence lists on the staff detail /
-  // self-service surfaces (#1843).
-  const refreshPlanCaches = useTenantMutateMatching([
-    "dienstplan-overview-",
-    "dienstplan-shifts-",
-    VERTRETUNG_WEEK_KEY_PREFIX,
-    VERTRETUNG_GAPS_KEY_PREFIX,
-    "staff-pending-absences-",
-    "time-tracking-absences-",
-    "time-tracking-table-absences-",
-    "time-tracking-own-absences-",
-  ]);
 
   const [weekAnchor, setWeekAnchor] = useState<Date>(() =>
     startOfWeek(parseISODate(today)),
@@ -137,96 +82,24 @@ function DienstplanContent() {
   const weekTo = weekDays[4] ?? "";
 
   const {
-    data: overview,
-    error: overviewError,
-    isLoading: overviewLoading,
-    mutate: mutateOverview,
-  } = useSWRAuth<StaffScheduleOverview>(
-    canUseAssignmentOverview
-      ? `dienstplan-overview-${weekFrom}-${weekTo}`
-      : null,
-    () => staffShiftService.getOverview(weekFrom, weekTo),
-  );
-
-  const {
-    data: legacyStaff,
-    error: legacyStaffError,
-    isLoading: legacyStaffLoading,
-    mutate: mutateLegacyStaff,
-  } = useSWRAuth<Staff[]>(
-    canUseAssignmentOverview ? null : "dienstplan-staff",
-    () => staffService.getAllStaff(),
-  );
-
-  const {
-    data: legacyShifts,
-    error: legacyShiftsError,
-    isLoading: legacyShiftsLoading,
-    mutate: mutateLegacyShifts,
-  } = useSWRAuth<StaffShift[]>(
-    canUseAssignmentOverview ? null : `dienstplan-shifts-${weekFrom}-${weekTo}`,
-    () => staffShiftService.getShifts(weekFrom, weekTo),
-  );
-
-  const {
-    data: shiftTypes,
-    error: shiftTypesError,
-    isLoading: shiftTypesLoading,
-    mutate: mutateShiftTypes,
-  } = useSWRAuth<ShiftType[]>("dienstplan-shift-types", () =>
-    shiftTypeService.getShiftTypes(),
-  );
-
-  const typesById = useMemo(
-    () => indexShiftTypes(shiftTypes ?? []),
-    [shiftTypes],
-  );
-
-  const sortedStaff = useMemo(() => {
-    const staff: StaffScheduleStaff[] = canUseAssignmentOverview
-      ? (overview?.staff ?? [])
-      : (legacyStaff ?? []).map((member) => ({
-          id: member.id,
-          firstName: member.firstName,
-          lastName: member.lastName,
-        }));
-    return [...staff].sort((a, b) =>
-      `${a.lastName} ${a.firstName}`.localeCompare(
-        `${b.lastName} ${b.firstName}`,
-        "de",
-      ),
-    );
-  }, [canUseAssignmentOverview, legacyStaff, overview?.staff]);
-
-  const allShifts = useMemo(
-    () =>
-      canUseAssignmentOverview
-        ? (overview?.shifts ?? [])
-        : (legacyShifts ?? []),
-    [canUseAssignmentOverview, legacyShifts, overview?.shifts],
-  );
-
-  const shiftsByStaff = useMemo(
-    () => groupShiftsByStaffAndDate(allShifts),
-    [allShifts],
-  );
-
-  const assignmentsByStaff = useMemo(
-    () => groupAssignmentsByStaffAndDate(overview?.assignments ?? []),
-    [overview?.assignments],
-  );
-
-  // Weekly planned/target summaries for the displayed week (weekFrom is its
-  // Monday). Empty on the legacy no-overview path.
-  const summaryByStaff = useMemo(() => {
-    const byStaff = new Map<string, StaffWeeklySummary>();
-    for (const summary of overview?.weeklySummaries ?? []) {
-      if (summary.weekStart === weekFrom) {
-        byStaff.set(summary.staffId, summary);
-      }
-    }
-    return byStaff;
-  }, [overview?.weeklySummaries, weekFrom]);
+    canManageAbsences,
+    sortedStaff,
+    shiftsByStaff,
+    assignmentsByStaff,
+    summaryByStaff,
+    typesById,
+    allShifts,
+    shiftTypes,
+    shiftTypesError,
+    shiftTypesLoading,
+    mutateShiftTypes,
+    scheduleError,
+    scheduleLoading,
+    retryLoad,
+    mutateScheduleData,
+    mutateOverview,
+    refreshPlanCaches,
+  } = useDienstplanData(weekFrom, weekTo);
 
   const isOnCurrentWeek =
     toISODate(startOfWeek(parseISODate(today))) === toISODate(weekAnchor);
@@ -254,23 +127,6 @@ function DienstplanContent() {
       return next;
     });
   };
-
-  const scheduleError = canUseAssignmentOverview
-    ? overviewError
-    : (legacyStaffError ?? legacyShiftsError);
-  const scheduleLoading = canUseAssignmentOverview
-    ? overviewLoading
-    : legacyStaffLoading || legacyShiftsLoading;
-  const retryLoad = () => {
-    void Promise.all(
-      canUseAssignmentOverview
-        ? [mutateOverview()]
-        : [mutateLegacyStaff(), mutateLegacyShifts()],
-    );
-  };
-  const mutateScheduleData = canUseAssignmentOverview
-    ? mutateOverview
-    : mutateLegacyShifts;
 
   if (sessionStatus === "loading") {
     return <DienstplanPageSkeleton />;
