@@ -59,7 +59,7 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 		assert.NotZero(t, visit.ID, "Visit should have been created with an ID")
 
 		// Verify attendance was created with RFID device
-		attendance := getAttendanceForStudent(t, db, student.ID)
+		attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
 		require.NotNil(t, attendance, "Attendance record should exist")
 		assert.Equal(t, rfidDevice.ID, attendance.DeviceID, "Attendance should use RFID device")
 		assert.Equal(t, staff.ID, attendance.CheckedInBy, "Attendance should have correct staff ID")
@@ -91,7 +91,7 @@ func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 	require.NoError(t, service.CreateVisit(deviceCtx, visit))
 	defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
 
-	attendance := getAttendanceForStudent(t, db, student.ID)
+	attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
 	require.NotNil(t, attendance)
 	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
 	require.NotNil(t, attendance.CheckOutTime)
@@ -124,7 +124,7 @@ func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
 	exitTime := entryTime.Add(time.Hour)
 	visit.ExitTime = &exitTime
 	require.NoError(t, service.UpdateVisit(deviceCtx, visit))
-	attendance := getAttendanceForStudent(t, db, student.ID)
+	attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
 	require.NotNil(t, attendance)
 	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
 	require.NotNil(t, attendance.CheckOutTime)
@@ -132,7 +132,7 @@ func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
 
 	visit.ExitTime = nil
 	require.NoError(t, service.UpdateVisit(deviceCtx, visit))
-	attendance = getAttendanceForStudent(t, db, student.ID)
+	attendance = getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
 	require.NotNil(t, attendance)
 	assert.Nil(t, attendance.CheckOutTime)
 	assert.Nil(t, attendance.CheckedOutBy)
@@ -171,7 +171,7 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 	visit.ExitTime = &exitTime
 	require.NoError(t, service.UpdateVisit(deviceCtx, visit))
 
-	attendance := getAttendanceForStudent(t, db, student.ID)
+	attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
 	require.NotNil(t, attendance)
 	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
 	require.NotNil(t, attendance.CheckOutTime,
@@ -223,7 +223,7 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 		assert.NotZero(t, visit.ID, "Visit should have been created with an ID")
 
 		// The latest row is a new open session.
-		attendance := getAttendanceForStudent(t, db, student.ID)
+		attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
 		require.NotNil(t, attendance, "Attendance record should exist")
 		assert.NotEqual(t, existingAttendance.ID, attendance.ID)
 		assert.Nil(t, attendance.CheckOutTime)
@@ -542,7 +542,7 @@ func setupVisitHelperService(t *testing.T, db *bun.DB) active.Service {
 	return serviceFactory.Active
 }
 
-func getAttendanceForStudent(t *testing.T, db *bun.DB, studentID int64) *activeModels.Attendance {
+func getAttendanceForStudent(t *testing.T, db *bun.DB, studentID int64, date timezone.Date) *activeModels.Attendance {
 	t.Helper()
 
 	var attendance activeModels.Attendance
@@ -550,7 +550,7 @@ func getAttendanceForStudent(t *testing.T, db *bun.DB, studentID int64) *activeM
 		Model(&attendance).
 		ModelTableExpr(`active.attendance`). // NOTE: singular, not plural!
 		Where("student_id = ?", studentID).
-		Where("date = ?", timezone.TodayDate()).
+		Where("date = ?", date).
 		Order("check_in_time DESC").
 		Limit(1).
 		Scan(context.Background())
