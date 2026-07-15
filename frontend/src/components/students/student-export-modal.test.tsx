@@ -342,12 +342,14 @@ describe("StudentExportModal", () => {
       });
     });
 
-    it("opens directly on the birthday preset when asked to", async () => {
+    // Opening "Geburtstagsliste" must not present the other lists: the card
+    // promised one thing, so the dialog offers exactly that.
+    it("locks the dialog to the birthday list and hides the template grid", async () => {
       renderModal({
         filters: {},
         resultCount: undefined,
         heading: "Geburtstagsliste exportieren",
-        initialPreset: "birthday_list",
+        lockedPreset: "birthday_list",
       });
 
       await screen.findByRole("dialog", {
@@ -356,6 +358,84 @@ describe("StudentExportModal", () => {
       expect(screen.getByLabelText("Titel")).toHaveValue("Geburtstagsliste");
       expect(
         await screen.findByRole("button", { name: "September" }),
+      ).toBeInTheDocument();
+
+      expect(screen.queryByText("Vorlage")).not.toBeInTheDocument();
+      for (const other of ["OGS Wochenliste", "Klassenliste", "Tagesliste"]) {
+        expect(
+          screen.queryByRole("button", { name: new RegExp(`^${other}`) }),
+        ).not.toBeInTheDocument();
+      }
+      expect(
+        screen.queryByRole("checkbox", { name: /Nach Klassen getrennt/ }),
+      ).not.toBeInTheDocument();
+    });
+
+    // A weekly matrix or a current-location snapshot has no place on a
+    // birthday list.
+    it("offers only the birthday list's own columns when locked", async () => {
+      renderModal({
+        filters: {},
+        resultCount: undefined,
+        lockedPreset: "birthday_list",
+      });
+      await screen.findByRole("dialog");
+
+      for (const column of [
+        "Geburtstag",
+        "Alter",
+        "Name",
+        "Klasse",
+        "Gruppe",
+      ]) {
+        expect(
+          screen.getByRole("checkbox", { name: new RegExp(column) }),
+        ).toBeChecked();
+      }
+      expect(screen.getByText("5 aktiv")).toBeInTheDocument();
+      for (const column of [
+        "Montag",
+        "Tageshinweise",
+        "Aktueller Aufenthaltsort",
+      ]) {
+        expect(
+          screen.queryByRole("checkbox", { name: new RegExp(column) }),
+        ).not.toBeInTheDocument();
+      }
+    });
+
+    it("still exports the locked list correctly", async () => {
+      renderModal({
+        filters: {},
+        resultCount: undefined,
+        lockedPreset: "birthday_list",
+      });
+      await screen.findByRole("dialog");
+
+      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+
+      await waitFor(() => {
+        expect(mockExportStudents).toHaveBeenCalledWith({
+          format: "pdf",
+          preset: "birthday_list",
+          title: "Geburtstagsliste",
+          filters: { months: ["09"], sort: "birthday" },
+          columns: ["name", "school_class", "group", "birthday", "age"],
+        });
+      });
+    });
+
+    // The general-purpose dialog keeps every template, so the birthday list
+    // stays reachable from the Kindersuche too.
+    it("keeps the full template grid when not locked", async () => {
+      await openModal();
+
+      expect(screen.getByText("Vorlage")).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /^Geburtstagsliste/ }),
+      ).toBeInTheDocument();
+      expect(
+        screen.getByRole("button", { name: /^OGS Wochenliste/ }),
       ).toBeInTheDocument();
     });
 

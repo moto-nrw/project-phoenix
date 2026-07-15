@@ -39,8 +39,13 @@ interface StudentExportModalProps {
   readonly resultCount?: number;
   /** Modal heading. Defaults to the Kindersuche wording. */
   readonly heading?: string;
-  /** Preset to open on, overriding the filter-derived default. */
-  readonly initialPreset?: StudentExportPreset;
+  /**
+   * Restricts the dialog to one list: the template grid and the class grouping
+   * disappear, and only that template's columns are offered. Opening
+   * "Geburtstagsliste" should not present a weekly matrix. Omit for the
+   * general-purpose export that lets users pick any template.
+   */
+  readonly lockedPreset?: StudentExportPreset;
   readonly onClose: () => void;
 }
 
@@ -63,7 +68,7 @@ export function StudentExportModal({
   filters,
   resultCount,
   heading = "Kindersuche exportieren",
-  initialPreset,
+  lockedPreset,
   onClose,
 }: StudentExportModalProps) {
   const [mounted, setMounted] = useState(false);
@@ -85,9 +90,9 @@ export function StudentExportModal({
   useEffect(() => {
     if (!isOpen) return;
     setPreset(
-      initialPreset ?? (filters.school_class ? "class_roster" : "ogs_weekly"),
+      lockedPreset ?? (filters.school_class ? "class_roster" : "ogs_weekly"),
     );
-  }, [filters.school_class, initialPreset, isOpen]);
+  }, [filters.school_class, lockedPreset, isOpen]);
 
   // The month a birthday list is most often wanted for is the current one.
   useEffect(() => {
@@ -123,6 +128,14 @@ export function StudentExportModal({
     () => STUDENT_EXPORT_PRESETS.find((item) => item.id === preset),
     [preset],
   );
+
+  // A locked dialog offers only the columns its list is made of; the full
+  // catalog would put a weekly matrix on a birthday list.
+  const availableColumns = useMemo(() => {
+    if (!lockedPreset) return STUDENT_EXPORT_COLUMNS;
+    const allowed = new Set<StudentExportColumn>(activePreset?.columns ?? []);
+    return STUDENT_EXPORT_COLUMNS.filter((column) => allowed.has(column.id));
+  }, [activePreset, lockedPreset]);
 
   if (!isOpen || !mounted) return null;
 
@@ -227,34 +240,36 @@ export function StudentExportModal({
             />
           </section>
 
-          <section>
-            <p className="text-sm font-medium text-gray-900">Vorlage</p>
-            <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {STUDENT_EXPORT_PRESETS.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => setPreset(item.id)}
-                  className={`rounded-lg border px-3 py-3 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                    preset === item.id
-                      ? "border-gray-900 bg-gray-950 text-white"
-                      : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50"
-                  }`}
-                >
-                  <span className="block text-sm font-semibold">
-                    {item.label}
-                  </span>
-                  <span
-                    className={`mt-1 block text-xs ${
-                      preset === item.id ? "text-gray-200" : "text-gray-500"
+          {!lockedPreset && (
+            <section>
+              <p className="text-sm font-medium text-gray-900">Vorlage</p>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                {STUDENT_EXPORT_PRESETS.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setPreset(item.id)}
+                    className={`rounded-lg border px-3 py-3 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                      preset === item.id
+                        ? "border-gray-900 bg-gray-950 text-white"
+                        : "border-gray-200 bg-white text-gray-800 hover:bg-gray-50"
                     }`}
                   >
-                    {item.description}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </section>
+                    <span className="block text-sm font-semibold">
+                      {item.label}
+                    </span>
+                    <span
+                      className={`mt-1 block text-xs ${
+                        preset === item.id ? "text-gray-200" : "text-gray-500"
+                      }`}
+                    >
+                      {item.description}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
 
           <section>
             <p className="text-sm font-medium text-gray-900">Format</p>
@@ -327,7 +342,7 @@ export function StudentExportModal({
             </section>
           )}
 
-          {!filters.school_class && (
+          {!lockedPreset && !filters.school_class && (
             <section>
               <p className="text-sm font-medium text-gray-900">Gliederung</p>
               <div className="mt-2">
@@ -354,7 +369,7 @@ export function StudentExportModal({
               </span>
             </div>
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              {STUDENT_EXPORT_COLUMNS.map((column) => {
+              {availableColumns.map((column) => {
                 const checked = columns.includes(column.id);
                 return (
                   <ExportColumnCheckbox

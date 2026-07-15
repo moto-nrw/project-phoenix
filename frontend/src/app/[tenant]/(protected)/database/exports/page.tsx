@@ -18,10 +18,10 @@ import {
 
 import { StudentExportModal } from "~/components/students/student-export-modal";
 import { Button } from "~/components/ui/button";
+import { InfoCard } from "~/components/ui/info-card";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { useToast } from "~/contexts/ToastContext";
-import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import { exportEmergencySnapshot } from "~/lib/emergency-export-api";
 import {
@@ -48,7 +48,8 @@ const ROOM_FORMATS: Array<{
 
 interface StudentModalConfig {
   heading: string;
-  preset: StudentExportPreset;
+  /** Omitted for the general-purpose child list, which offers every template. */
+  lockedPreset?: StudentExportPreset;
 }
 
 /**
@@ -96,134 +97,139 @@ export default function DatabaseExportsPage() {
         </p>
 
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <ExportCard
-            icon={<Users className="h-6 w-6" />}
-            iconColor={LOCATION_COLORS.OTHER_ROOM}
-            title="Kinderliste"
-            description="Wochen-, Klassen-, Tages- oder Abholliste. Vorlage, Format und Spalten sind frei wählbar."
-          >
-            <Button
-              type="button"
-              size="md"
-              variant="secondary"
-              onClick={() =>
-                setStudentModal({
-                  heading: "Kinderliste exportieren",
-                  preset: "ogs_weekly",
-                })
-              }
-            >
-              <Download className="h-4 w-4" aria-hidden />
-              Liste erstellen
-            </Button>
-          </ExportCard>
-
-          <ExportCard
-            icon={<Cake className="h-6 w-6" />}
-            iconColor={LOCATION_COLORS.SICK}
-            title="Geburtstagsliste"
-            description="Geburtstage nach Kalender sortiert, wahlweise für einzelne Monate oder das ganze Jahr."
-          >
-            <Button
-              type="button"
-              size="md"
-              variant="secondary"
-              onClick={() =>
-                setStudentModal({
-                  heading: "Geburtstagsliste exportieren",
-                  preset: "birthday_list",
-                })
-              }
-            >
-              <Download className="h-4 w-4" aria-hidden />
-              Liste erstellen
-            </Button>
-          </ExportCard>
-
-          <ExportCard
-            icon={<ClipboardList className="h-6 w-6" />}
-            iconColor={LOCATION_COLORS.HOME}
-            title="Notfallliste"
-            description="Alle aktuell anwesenden Kinder mit Kontaktdaten der Erziehungsberechtigten. Momentaufnahme."
-          >
-            <Button
-              type="button"
-              size="md"
-              variant="secondary"
-              disabled={busy === "emergency-download"}
-              onClick={() =>
-                void runExport("emergency-download", () =>
-                  exportEmergencySnapshot("download"),
-                )
-              }
-            >
-              <Download className="h-4 w-4" aria-hidden />
-              PDF
-            </Button>
-            <Button
-              type="button"
-              size="md"
-              variant="outline"
-              disabled={busy === "emergency-print"}
-              onClick={() =>
-                void runExport("emergency-print", () =>
-                  exportEmergencySnapshot("print"),
-                )
-              }
-            >
-              <Printer className="h-4 w-4" aria-hidden />
-              Drucken
-            </Button>
-          </ExportCard>
-
-          <ExportCard
-            icon={<DoorOpen className="h-6 w-6" />}
-            iconColor={LOCATION_COLORS.TRANSIT}
-            title="Wer ist wo"
-            description="Aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl. Momentaufnahme."
-          >
-            {ROOM_FORMATS.map(({ format, label, icon }) => (
+          <InfoCard title="Kinderliste" icon={<Users className="h-5 w-5" />}>
+            <ExportDescription>
+              Wochen-, Klassen-, Tages- oder Abholliste. Vorlage, Format und
+              Spalten sind frei wählbar.
+            </ExportDescription>
+            <ExportActions>
               <Button
-                key={format}
                 type="button"
                 size="md"
-                variant="outline"
-                disabled={busy === `rooms-${format}`}
                 onClick={() =>
-                  void runExport(`rooms-${format}`, () =>
-                    exportRoomSnapshot({
-                      format,
-                      title: "Wer ist wo",
-                      // room_ids stays omitted on purpose: every room. An empty
-                      // array would select nothing and render an empty file.
-                      include_transit: true,
-                    }),
+                  setStudentModal({ heading: "Kinderliste exportieren" })
+                }
+              >
+                <Download className="mr-2 h-4 w-4" aria-hidden />
+                Liste erstellen
+              </Button>
+            </ExportActions>
+          </InfoCard>
+
+          <InfoCard
+            title="Geburtstagsliste"
+            icon={<Cake className="h-5 w-5" />}
+          >
+            <ExportDescription>
+              Geburtstage nach Kalender sortiert, wahlweise für einzelne Monate
+              oder das ganze Jahr.
+            </ExportDescription>
+            <ExportActions>
+              <Button
+                type="button"
+                size="md"
+                onClick={() =>
+                  setStudentModal({
+                    heading: "Geburtstagsliste exportieren",
+                    lockedPreset: "birthday_list",
+                  })
+                }
+              >
+                <Download className="mr-2 h-4 w-4" aria-hidden />
+                Liste erstellen
+              </Button>
+            </ExportActions>
+          </InfoCard>
+
+          <InfoCard
+            title="Notfallliste"
+            icon={<ClipboardList className="h-5 w-5" />}
+          >
+            <ExportDescription>
+              Alle aktuell anwesenden Kinder mit Kontaktdaten der
+              Erziehungsberechtigten. Momentaufnahme.
+            </ExportDescription>
+            <ExportActions>
+              <Button
+                type="button"
+                size="md"
+                disabled={busy === "emergency-download"}
+                onClick={() =>
+                  void runExport("emergency-download", () =>
+                    exportEmergencySnapshot("download"),
                   )
                 }
               >
-                {icon}
-                {label}
+                <Download className="mr-2 h-4 w-4" aria-hidden />
+                PDF
               </Button>
-            ))}
-          </ExportCard>
+              <Button
+                type="button"
+                size="md"
+                variant="outline"
+                disabled={busy === "emergency-print"}
+                onClick={() =>
+                  void runExport("emergency-print", () =>
+                    exportEmergencySnapshot("print"),
+                  )
+                }
+              >
+                <Printer className="mr-2 h-4 w-4" aria-hidden />
+                Drucken
+              </Button>
+            </ExportActions>
+          </InfoCard>
 
-          <ExportLinkCard
-            icon={<FileText className="h-6 w-6" />}
-            iconColor={LOCATION_COLORS.GROUP_ROOM}
-            title="Anmeldungen"
-            description="Eingegangene Anmeldungen einer Anmeldephase. Der Export gehört zur jeweiligen Phase."
-            href="/admin/enrollments"
-            cta="Zu den Anmeldephasen"
-          />
+          <InfoCard title="Wer ist wo" icon={<DoorOpen className="h-5 w-5" />}>
+            <ExportDescription>
+              Aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl.
+              Momentaufnahme.
+            </ExportDescription>
+            <ExportActions>
+              {ROOM_FORMATS.map(({ format, label, icon }, index) => (
+                <Button
+                  key={format}
+                  type="button"
+                  size="md"
+                  variant={index === 0 ? "primary" : "outline"}
+                  disabled={busy === `rooms-${format}`}
+                  onClick={() =>
+                    void runExport(`rooms-${format}`, () =>
+                      exportRoomSnapshot({
+                        format,
+                        title: "Wer ist wo",
+                        // room_ids stays omitted on purpose: every room. An
+                        // empty array would select nothing and render an
+                        // empty file.
+                        include_transit: true,
+                      }),
+                    )
+                  }
+                >
+                  <span className="mr-2">{icon}</span>
+                  {label}
+                </Button>
+              ))}
+            </ExportActions>
+          </InfoCard>
 
-          <ExportLinkCard
-            icon={<Clock className="h-6 w-6" />}
-            iconColor={LOCATION_COLORS.SCHOOLYARD}
-            title="Zeitnachweis"
-            description="Arbeitszeiten einer Person für einen Zeitraum. Der Export gehört zum jeweiligen Profil."
-            href="/database/personal"
-            cta="Zum Personal"
-          />
+          <InfoCard title="Anmeldungen" icon={<FileText className="h-5 w-5" />}>
+            <ExportDescription>
+              Eingegangene Anmeldungen einer Anmeldephase. Der Export gehört zur
+              jeweiligen Phase.
+            </ExportDescription>
+            <ExportLink href="/admin/enrollments">
+              Zu den Anmeldephasen
+            </ExportLink>
+          </InfoCard>
+
+          <InfoCard title="Zeitnachweis" icon={<Clock className="h-5 w-5" />}>
+            <ExportDescription>
+              Arbeitszeiten einer Person für einen Zeitraum. Der Export gehört
+              zum jeweiligen Profil.
+            </ExportDescription>
+            <ExportLink href="/database/personal">Zum Personal</ExportLink>
+          </InfoCard>
         </div>
       </div>
 
@@ -231,77 +237,35 @@ export default function DatabaseExportsPage() {
         isOpen={studentModal !== null}
         filters={{}}
         heading={studentModal?.heading}
-        initialPreset={studentModal?.preset}
+        lockedPreset={studentModal?.lockedPreset}
         onClose={() => setStudentModal(null)}
       />
     </div>
   );
 }
 
-function CardIcon({
-  icon,
-  iconColor,
-}: Readonly<{ icon: ReactNode; iconColor: string }>) {
-  return (
-    <div
-      className="mb-4 w-fit rounded-2xl p-3 text-white shadow-sm"
-      style={{ backgroundColor: iconColor }}
-    >
-      {icon}
-    </div>
-  );
+function ExportDescription({ children }: Readonly<{ children: ReactNode }>) {
+  return <p className="text-sm text-gray-600">{children}</p>;
 }
 
-function ExportCard({
-  icon,
-  iconColor,
-  title,
-  description,
-  children,
-}: Readonly<{
-  icon: ReactNode;
-  iconColor: string;
-  title: string;
-  description: string;
-  children: ReactNode;
-}>) {
-  return (
-    <div className="moto-content-surface flex flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-sm">
-      <CardIcon icon={icon} iconColor={iconColor} />
-      <h3 className="mb-2 text-lg font-bold text-gray-900">{title}</h3>
-      <p className="mb-4 flex-1 text-sm text-gray-600">{description}</p>
-      <div className="flex flex-wrap gap-2">{children}</div>
-    </div>
-  );
+function ExportActions({ children }: Readonly<{ children: ReactNode }>) {
+  return <div className="flex flex-wrap gap-2 pt-1">{children}</div>;
 }
 
-function ExportLinkCard({
-  icon,
-  iconColor,
-  title,
-  description,
+function ExportLink({
   href,
-  cta,
-}: Readonly<{
-  icon: ReactNode;
-  iconColor: string;
-  title: string;
-  description: string;
-  href: string;
-  cta: string;
-}>) {
+  children,
+}: Readonly<{ href: string; children: ReactNode }>) {
   return (
     <Link
       href={href}
-      className="moto-content-surface moto-hover-elevated group flex touch-manipulation flex-col rounded-2xl border border-gray-200 bg-white p-6 shadow-sm"
+      className="group inline-flex items-center pt-1 text-sm font-medium text-gray-700 transition-colors hover:text-gray-950"
     >
-      <CardIcon icon={icon} iconColor={iconColor} />
-      <h3 className="mb-2 text-lg font-bold text-gray-900">{title}</h3>
-      <p className="mb-4 flex-1 text-sm text-gray-600">{description}</p>
-      <span className="flex items-center text-sm font-medium text-gray-400 transition-colors group-hover:text-gray-700">
-        {cta}
-        <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-      </span>
+      {children}
+      <ArrowRight
+        className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5"
+        aria-hidden
+      />
     </Link>
   );
 }
