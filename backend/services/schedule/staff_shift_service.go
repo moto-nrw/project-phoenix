@@ -530,9 +530,11 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	if err := s.lockStaffWritesOrdered(ctx, lockIDs); err != nil {
 		return nil, err
 	}
-	// StaffID is mutable only through MoveShift. A normal edit that loaded the
-	// row before a concurrent move must not write the stale owner back after it
-	// finally acquires the old owner's lock.
+	// A normal edit may have loaded the row before a concurrent MoveShift acquired
+	// this same lock. Re-read after locking and reject every move-relevant change,
+	// including a same-person date/window move: otherwise the stale edit payload
+	// would silently move the row back. UpdatedAt additionally catches other
+	// concurrent whole-row updates while this request waited.
 	lockedExisting, err := s.repo.FindByID(ctx, shift.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -543,8 +545,9 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	if lockedExisting == nil {
 		return nil, ErrShiftNotFound
 	}
-	if lockedExisting.StaffID != existing.StaffID {
-		return nil, fmt.Errorf("%w: staff assignment changed", ErrShiftConflict)
+	if staffShiftMoveChanged(existing, lockedExisting) ||
+		!lockedExisting.UpdatedAt.Equal(existing.UpdatedAt) {
+		return nil, fmt.Errorf("%w: shift changed while the edit was waiting for its write lock", ErrShiftConflict)
 	}
 	if revalidateOrigin {
 		if err := s.validateOriginLink(ctx, shift); err != nil {

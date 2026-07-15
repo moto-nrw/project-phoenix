@@ -301,6 +301,36 @@ describe("DienstplanHalbjahrGrid", () => {
     expect(screen.queryByText("8 h")).not.toBeInTheDocument();
   });
 
+  it("uses a valid weekend range when the period begins on Saturday", () => {
+    const weekendStartPeriod: CalendarPeriod = {
+      ...PERIOD_6W,
+      startDate: "2026-09-12", // Saturday of KW 37
+      endDate: "2026-09-14", // Monday of KW 38
+    };
+    configureSWR({
+      periods: [weekendStartPeriod],
+      overviewByKey: {
+        [ovKey("2026-09-12", "2026-09-13")]: overview(
+          "2026-09-12",
+          "2026-09-13",
+          [],
+        ),
+        [ovKey("2026-09-14", "2026-09-14")]: overview(
+          "2026-09-14",
+          "2026-09-14",
+          [],
+        ),
+      },
+    });
+
+    renderGrid({ dayISO: "2026-09-12", staff: STAFF_ADA });
+
+    const keys = mocks.useSWRAuth.mock.calls.map(([key]) => key);
+    expect(keys).toContain(ovKey("2026-09-12", "2026-09-13"));
+    expect(keys).toContain(ovKey("2026-09-14", "2026-09-14"));
+    expect(keys).not.toContain(ovKey("2026-09-12", "2026-09-11"));
+  });
+
   it("colors the cell sum by delta and shows only the sum without a target", async () => {
     // All summaries in KW 38 only; the other weeks stay empty. Assertions target
     // the label span's inline tone color and the "/soll" separator, never the
