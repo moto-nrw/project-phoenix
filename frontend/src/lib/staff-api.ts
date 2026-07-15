@@ -658,7 +658,7 @@ class WorkTimeModelService {
 // Staff history types (reuses time-tracking-helpers types)
 // One break of a work session. Narrowed to the fields the metric helpers read
 // from the wire (SessionResponse.Breaks); the payload carries more.
-export interface StaffSessionBreak {
+interface StaffSessionBreak {
   started_at: string;
   ended_at: string | null;
 }
