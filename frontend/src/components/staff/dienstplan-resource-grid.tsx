@@ -110,7 +110,7 @@ function formatColumnDate(isoDate: string): string {
   return `${d}.${m}.`;
 }
 
-// Copied 1:1 from dienstplan-week-grid.tsx (pure, prop-only) — the accent color
+// Ported 1:1 from the retired per-cell week grid (pure, prop-only) — the accent color
 // of a read-only Betreuungsplan assignment card.
 function assignmentAccentColor(assignment: StaffScheduleAssignment): string {
   if (assignment.isAbsent) return LOCATION_COLORS.HOME;
@@ -119,7 +119,7 @@ function assignmentAccentColor(assignment: StaffScheduleAssignment): string {
   return LOCATION_COLORS.UNKNOWN;
 }
 
-// Copied 1:1 from dienstplan-week-grid.tsx — the visually subordinate second
+// Ported 1:1 from the retired per-cell week grid — the visually subordinate second
 // tier under the shift blocks (docs/05 Abschnitt 2.2). Only rendered on the
 // full permission path where assignments exist.
 function AssignmentCard({

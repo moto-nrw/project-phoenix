@@ -76,6 +76,31 @@ function absentAssignment(
   };
 }
 
+// Read-only Betreuungsplan assignment — mirrors the default fixture from the
+// retired per-cell week grid's test suite (coverage carried forward 1:1).
+function assignment(
+  overrides: Partial<StaffScheduleAssignment> = {},
+): StaffScheduleAssignment {
+  return {
+    instanceId: "42",
+    staffId: member.id,
+    date: "2026-07-06",
+    startTime: "12:00",
+    endTime: "14:00",
+    activityTitle: "Mensa",
+    roomId: "3",
+    roomName: "Speisesaal",
+    status: "planned",
+    isAbsent: false,
+    isSubstitute: false,
+    absenceReason: null,
+    coverageStatus: "uncovered",
+    coverageReason: null,
+    uncoveredIntervals: [{ startTime: "12:30", endTime: "14:00" }],
+    ...overrides,
+  };
+}
+
 interface RenderOverrides {
   staff?: readonly StaffScheduleStaff[];
   shiftsByStaff?: Map<string, Map<string, StaffShift[]>>;
@@ -173,6 +198,15 @@ describe("DienstplanResourceGrid status mapping", () => {
     expect(block.style.backgroundImage).toContain("repeating-linear-gradient");
   });
 
+  it("shows no series icon on a standalone shift", () => {
+    renderGrid({ shiftsByStaff: shiftMap("2026-07-06", [baseShift()]) });
+
+    expect(screen.queryByLabelText("Teil einer Serie")).not.toBeInTheDocument();
+    expect(
+      screen.queryByLabelText("Serie, für diese Woche angepasst"),
+    ).not.toBeInTheDocument();
+  });
+
   it("shows the neutral series icon and the amber detached icon", () => {
     const { unmount } = renderGrid({
       shiftsByStaff: shiftMap("2026-07-06", [baseShift({ seriesId: "5" })]),
@@ -190,6 +224,85 @@ describe("DienstplanResourceGrid status mapping", () => {
     expect(
       screen.getByLabelText("Serie, für diese Woche angepasst"),
     ).toHaveClass("text-[#EAB308]");
+  });
+});
+
+describe("DienstplanResourceGrid assignment cards", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("renders a read-only assignment with activity, room and exact gap; clicking it does not open the shift editor", () => {
+    const { onCellClick } = renderGrid({
+      assignmentsByStaff: new Map([
+        [member.id, new Map([["2026-07-06", [assignment()]]])],
+      ]),
+    });
+
+    expect(screen.getByText("Mensa")).toBeInTheDocument();
+    expect(screen.getByText("Speisesaal")).toBeInTheDocument();
+    expect(screen.getByText("12:00–14:00")).toBeInTheDocument();
+    expect(
+      screen.getByText("Nicht abgedeckt: 12:30–14:00"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText("Mensa"));
+    expect(onCellClick).not.toHaveBeenCalled();
+  });
+
+  it("shows the assignment-level absence and substitute badges, hiding the uncovered note once covered", () => {
+    renderGrid({
+      assignmentsByStaff: new Map([
+        [
+          member.id,
+          new Map([
+            [
+              "2026-07-06",
+              [
+                assignment({
+                  instanceId: "43",
+                  isAbsent: true,
+                  absenceReason: "krank",
+                  coverageStatus: "not_applicable",
+                  coverageReason: "absent",
+                  uncoveredIntervals: [],
+                }),
+                assignment({
+                  instanceId: "44",
+                  activityTitle: "Lernzeit",
+                  isSubstitute: true,
+                  coverageStatus: "covered",
+                  uncoveredIntervals: [],
+                }),
+              ],
+            ],
+          ]),
+        ],
+      ]),
+    });
+
+    expect(screen.getByText("Abwesend · krank")).toBeInTheDocument();
+    // "Vertretung" also appears as a legend label, so scope to the card.
+    expect(
+      within(screen.getByTestId("dienstplan-assignment-44-7")).getByText(
+        "Vertretung",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Nicht abgedeckt:/)).not.toBeInTheDocument();
+  });
+});
+
+describe("DienstplanResourceGrid shift click", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("opens the shift editor when an existing shift block is clicked", () => {
+    const shift = baseShift();
+    const { onCellClick } = renderGrid({
+      shiftsByStaff: shiftMap("2026-07-06", [shift]),
+    });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /08:00–12:00 Schicht/ }),
+    );
+    expect(onCellClick).toHaveBeenCalledWith(member, "2026-07-06", shift);
   });
 });
 
@@ -469,5 +582,22 @@ describe("DienstplanResourceGrid row-header menu", () => {
       screen.getByRole("menuitem", { name: "Zeiterfassung öffnen" }),
     );
     expect(mocks.push).toHaveBeenCalledWith("/staff/7?tab=zeiterfassung");
+  });
+
+  it("hides Krank melden but keeps the other actions when no sick-report callback is given", () => {
+    renderGrid({ currentStaffId: "7" });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen für Ada Lovelace" }),
+    );
+    expect(
+      screen.queryByRole("menuitem", { name: "Krank melden" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Für heute abwesend melden" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("menuitem", { name: "Zeiterfassung öffnen" }),
+    ).toBeInTheDocument();
   });
 });

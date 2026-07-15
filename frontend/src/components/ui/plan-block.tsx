@@ -48,7 +48,7 @@ interface PlanBlockProps {
   readonly "aria-label"?: string;
 }
 
-/** Bestandskonstante `UNTYPED_SHIFT_COLOR` (dienstplan-week-grid.tsx) — die
+/** Bestandskonstante `UNTYPED_SHIFT_COLOR` (frühere per-Zell-Wochenansicht) — die
  *  neutrale Kante für Blöcke ohne Schichtart, jetzt hier zentralisiert. */
 const UNTYPED_EDGE_COLOR = "#D1D5DB";
 const CANCELLED_EDGE_COLOR = "#9CA3AF";
