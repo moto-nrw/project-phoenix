@@ -178,7 +178,7 @@ describe("ShiftEditModal series creation", () => {
     await screen.findByText("1. Halbjahr 2026/27");
     // Enable A/B on the cycle period, then switch to a period without a
     // cycle: the hidden biweekly flag must not leak into the payload.
-    fireEvent.click(screen.getByRole("button", { name: "Alle 2 Wochen" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Alle 2 Wochen" }));
     fireEvent.click(screen.getByLabelText("Kalenderzeitraum"));
     fireEvent.click(
       screen.getByRole("option", { name: "Ganzjahr ohne Zyklus" }),
