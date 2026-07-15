@@ -40,6 +40,17 @@ describe("PlanLegend", () => {
     expect(swatch).toHaveStyle({ backgroundColor: "#D1D5DB" });
   });
 
+  it("falls back to the neutral swatch color for an invalid color", () => {
+    const { container } = render(
+      <PlanLegend
+        entries={[{ key: "invalid", label: "Ungültig", color: "red" }]}
+      />,
+    );
+
+    const swatch = container.querySelector('[aria-hidden="true"]');
+    expect(swatch).toHaveStyle({ backgroundColor: "#D1D5DB" });
+  });
+
   it("renders state entries as an SVG glyph, not a gradient", () => {
     const { container } = render(
       <PlanLegend

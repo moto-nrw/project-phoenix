@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -17,6 +17,8 @@ import type { ShiftType } from "~/lib/shift-type-helpers";
 
 const logger = createLogger({ component: "ShiftMoveDialog" });
 const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
+const INACTIVE_TYPE_MOVE_MESSAGE =
+  "Diese Schichtart ist inaktiv. Bitte wählen Sie für die andere Person eine aktive Schichtart oder „Keine Schichtart“.";
 
 // "Verschieben nach" (docs/05-dienstplan.md Abschnitt 2.7, US-D6): move one
 // materialized shift to another person and/or day in a single confirmed
@@ -114,6 +116,9 @@ export function ShiftMoveDialog({
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
+  // React state does not update synchronously. The ref closes the same-render
+  // double-click / double-Enter window before the loading render commits.
+  const moveInFlightRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   // Set only when the target POST succeeded but the source DELETE failed (the
   // shift exists twice): the form is replaced by the manual-delete instruction.
@@ -153,8 +158,16 @@ export function ShiftMoveDialog({
     : STAFF_SHIFT_MAX_BREAK_MINUTES;
   const breakMinutes = parseBreakMinutes(breakMinutesStr, breakMax);
   const breakValid = breakMinutes !== null;
+  const movingToOtherPerson = targetStaffId !== shift.staffId;
+  const selectedShiftType = shiftTypes.find((type) => type.id === shiftTypeId);
+  const inactiveTypeBlocksMove =
+    movingToOtherPerson && selectedShiftType?.isActive === false;
   const canSubmit =
-    targetStaffId !== "" && targetDate !== "" && timesValid && breakValid;
+    targetStaffId !== "" &&
+    targetDate !== "" &&
+    timesValid &&
+    breakValid &&
+    !inactiveTypeBlocksMove;
 
   const targetMember = staff.find((member) => member.id === targetStaffId);
   const sourceName = `${sourceMember.firstName} ${sourceMember.lastName}`;
@@ -182,6 +195,10 @@ export function ShiftMoveDialog({
     }
     if (!breakValid) {
       setError(`Pause muss eine ganze Zahl zwischen 0 und ${breakMax} sein.`);
+      return;
+    }
+    if (inactiveTypeBlocksMove) {
+      setError(INACTIVE_TYPE_MOVE_MESSAGE);
       return;
     }
     setConfirmOpen(true);
@@ -212,6 +229,7 @@ export function ShiftMoveDialog({
       });
       setError(moveErrorMessage(err));
       setConfirmOpen(false);
+      moveInFlightRef.current = false;
       setIsMoving(false);
     }
   };
@@ -225,6 +243,8 @@ export function ShiftMoveDialog({
         endTime,
         breakMinutes: breakMinutes ?? 0,
         shiftTypeId: resolvedShiftTypeId,
+        notes: shift.notes,
+        changeReason: shift.changeReason,
         // A replacement keeps covering its origin across the move; the backend
         // re-validates the link (same date, within the cancelled origin's
         // window) and rejects the whole move here, before anything is deleted.
@@ -239,6 +259,7 @@ export function ShiftMoveDialog({
       });
       setError(moveErrorMessage(err));
       setConfirmOpen(false);
+      moveInFlightRef.current = false;
       setIsMoving(false);
       return;
     }
@@ -259,6 +280,7 @@ export function ShiftMoveDialog({
       setError(moveErrorMessage(err));
       setRecovery(true);
       setConfirmOpen(false);
+      moveInFlightRef.current = false;
       setIsMoving(false);
       // The POST went through, so the grid must show the new shift alongside
       // the still-present source while the admin follows the instruction.
@@ -267,6 +289,8 @@ export function ShiftMoveDialog({
   };
 
   const executeMove = async () => {
+    if (moveInFlightRef.current) return;
+    moveInFlightRef.current = true;
     setIsMoving(true);
     setError(null);
     const resolvedShiftTypeId = shiftTypeId === "" ? null : shiftTypeId;
@@ -413,6 +437,9 @@ export function ShiftMoveDialog({
                   placeholder="Keine Schichtart"
                 />
               </Field>
+            )}
+            {inactiveTypeBlocksMove && (
+              <Alert type="warning" message={INACTIVE_TYPE_MOVE_MESSAGE} />
             )}
             {error && <Alert type="error" message={error} />}
           </div>

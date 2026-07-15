@@ -22,11 +22,12 @@ import { getWeekNumber } from "../src/lib/time-tracking-helpers";
 // (die decken die Go-Tests in backend/api/staff-shifts ab, die Detached-/
 // Delta-Logik die Vitest-Tests dienstplan-resource-grid.test.tsx u. a.).
 //
-// Muster: exakt wie vertretung-flow.spec.ts. Testdaten werden über die
-// Next.js-Proxy-Routen (/api/staff/shifts …) angelegt und wieder entfernt; die
-// Requests laufen über den Browser-Context, teilen also die NextAuth-Session
-// des UI-Logins. Die Dev-DB gehört dem Nutzer: jeder Test räumt vor UND nach
-// dem Lauf die von ihm berührten Schichten wieder ab (idempotent, wiederholbar).
+// Testdaten werden über die Next.js-Proxy-Routen (/api/staff/shifts …)
+// angelegt und wieder entfernt; die Requests laufen über den Browser-Context,
+// teilen also die NextAuth-Session des UI-Logins. Die Dev-DB gehört dem Nutzer:
+// jeder Test merkt sich die IDs seiner Datensätze und einen Baseline-Snapshot
+// seiner leeren Testbereiche. finally + afterEach entfernen ausschließlich
+// Datensätze, die nach dieser Baseline entstanden sind.
 //
 // Login/Tenant-Herkunft wie bei den Nachbar-Specs: Slug + Admin-Zugang aus
 // backend/.seed-state.json (regeneriert bei jedem Seed); E2E_TENANT_SLUG /
@@ -105,6 +106,18 @@ interface StaffLite {
   last_name: string;
 }
 
+interface CleanupScope {
+  staffId: number;
+  from: string;
+  to: string;
+  baselineIds: ReadonlySet<number>;
+}
+
+let ownedShiftIds = new Set<number>();
+let ownedAbsenceIds = new Set<number>();
+let shiftCleanupScopes: CleanupScope[] = [];
+let absenceCleanupScopes: CleanupScope[] = [];
+
 async function fetchNonAdminStaff(
   request: APIRequestContext,
 ): Promise<StaffLite[]> {
@@ -145,48 +158,172 @@ async function createShift(
     true,
   );
   const json = (await res.json()) as { data: { id: number } };
+  ownedShiftIds.add(json.data.id);
   return json.data.id;
 }
 
-// Fegt ALLE Schichten einer Person im Zeitraum weg — unabhängig davon, ob sie
-// per API oder über die UI entstanden sind. Als Vorbedingung UND im finally
-// aufgerufen, damit ein abgebrochener Lauf keine Waisen hinterlässt.
-async function clearShifts(
+async function listShifts(
   request: APIRequestContext,
   staffId: number,
   from: string,
   to: string,
-): Promise<void> {
+): Promise<Array<{ id: number }>> {
   const res = await request.get(
     `${base}/api/staff/shifts?staff_id=${staffId}&from=${from}&to=${to}`,
   );
-  if (!res.ok()) return;
+  expect(res.ok(), `Schichten laden fehlgeschlagen (${res.status()})`).toBe(
+    true,
+  );
   const json = (await res.json()) as { data?: Array<{ id: number }> };
-  for (const row of json.data ?? []) {
-    await request
-      .delete(`${base}/api/staff/shifts/${row.id}`)
-      .catch(() => undefined);
-  }
+  return json.data ?? [];
 }
 
-// Nimmt eine Krankmeldung im Zeitraum zurück (der Backend-DELETE dreht die
-// Kaskade zurück und aktiviert die stornierte Schicht wieder).
-async function clearSickAbsences(
+async function listAbsences(
+  request: APIRequestContext,
+  staffId: number,
+  from: string,
+  to: string,
+): Promise<Array<{ id: number }>> {
+  const res = await request.get(
+    `${base}/api/staff/${staffId}/absences?from=${from}&to=${to}`,
+  );
+  expect(res.ok(), `Abwesenheiten laden fehlgeschlagen (${res.status()})`).toBe(
+    true,
+  );
+  const json = (await res.json()) as { data?: Array<{ id: number }> };
+  return json.data ?? [];
+}
+
+async function findStaffWithEmptyRange(
+  request: APIRequestContext,
+  staff: readonly StaffLite[],
+  from: string,
+  to: string,
+  count: number,
+  options: { requireNoAbsence?: boolean } = {},
+): Promise<StaffLite[]> {
+  const available: StaffLite[] = [];
+  for (const person of staff) {
+    const shifts = await listShifts(request, person.id, from, to);
+    const absences = options.requireNoAbsence
+      ? await listAbsences(request, person.id, from, to)
+      : [];
+    if (shifts.length === 0 && absences.length === 0) {
+      available.push(person);
+      if (available.length === count) break;
+    }
+  }
+  return available;
+}
+
+async function registerShiftCleanupScope(
   request: APIRequestContext,
   staffId: number,
   from: string,
   to: string,
 ): Promise<void> {
-  const res = await request.get(
-    `${base}/api/staff/${staffId}/absences?from=${from}&to=${to}`,
-  );
-  if (!res.ok()) return;
-  const json = (await res.json()) as { data?: Array<{ id: number }> };
-  for (const row of json.data ?? []) {
-    await request
-      .delete(`${base}/api/staff/${staffId}/absences/${row.id}`)
-      .catch(() => undefined);
+  const rows = await listShifts(request, staffId, from, to);
+  shiftCleanupScopes.push({
+    staffId,
+    from,
+    to,
+    baselineIds: new Set(rows.map((row) => row.id)),
+  });
+}
+
+async function registerAbsenceCleanupScope(
+  request: APIRequestContext,
+  staffId: number,
+  from: string,
+  to: string,
+): Promise<void> {
+  const rows = await listAbsences(request, staffId, from, to);
+  absenceCleanupScopes.push({
+    staffId,
+    from,
+    to,
+    baselineIds: new Set(rows.map((row) => row.id)),
+  });
+}
+
+async function cleanupOwnedRecords(request: APIRequestContext): Promise<void> {
+  // Abwesenheiten zuerst entfernen: der Backend-DELETE nimmt die
+  // Krankmeldungs-Kaskade zurück, bevor die zugehörige Schicht gelöscht wird.
+  for (const scope of absenceCleanupScopes) {
+    const rows = await listAbsences(
+      request,
+      scope.staffId,
+      scope.from,
+      scope.to,
+    ).catch(() => []);
+    for (const row of rows) {
+      if (!scope.baselineIds.has(row.id) || ownedAbsenceIds.has(row.id)) {
+        await request
+          .delete(`${base}/api/staff/${scope.staffId}/absences/${row.id}`)
+          .catch(() => undefined);
+      }
+    }
   }
+
+  for (const scope of shiftCleanupScopes) {
+    const rows = await listShifts(
+      request,
+      scope.staffId,
+      scope.from,
+      scope.to,
+    ).catch(() => []);
+    for (const row of rows) {
+      if (!scope.baselineIds.has(row.id) || ownedShiftIds.has(row.id)) {
+        await request
+          .delete(`${base}/api/staff/shifts/${row.id}`)
+          .catch(() => undefined);
+      }
+    }
+  }
+}
+
+function resetCleanupRegistry(): void {
+  ownedShiftIds = new Set<number>();
+  ownedAbsenceIds = new Set<number>();
+  shiftCleanupScopes = [];
+  absenceCleanupScopes = [];
+}
+
+async function captureCreatedShift(
+  page: Page,
+  action: () => Promise<void>,
+): Promise<void> {
+  const responsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      response.request().method() === "POST" &&
+      url.pathname.endsWith("/api/staff/shifts")
+    );
+  });
+  await action();
+  const response = await responsePromise;
+  if (!response.ok()) return;
+  const json = (await response.json()) as { data?: { id?: number } };
+  if (json.data?.id != null) ownedShiftIds.add(json.data.id);
+}
+
+async function captureCreatedAbsence(
+  page: Page,
+  staffId: number,
+  action: () => Promise<void>,
+): Promise<void> {
+  const responsePromise = page.waitForResponse((response) => {
+    const url = new URL(response.url());
+    return (
+      response.request().method() === "POST" &&
+      url.pathname.endsWith(`/api/staff/${staffId}/absences`)
+    );
+  });
+  await action();
+  const response = await responsePromise;
+  if (!response.ok()) return;
+  const json = (await response.json()) as { data?: { id?: number } };
+  if (json.data?.id != null) ownedAbsenceIds.add(json.data.id);
 }
 
 async function login(page: Page, email: string, password: string) {
@@ -231,6 +368,11 @@ function personRow(page: Page, staff: StaffLite) {
 }
 
 test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", () => {
+  // Diese Flows mutieren dieselbe lokale Dev-DB und lösen mehrere kalte
+  // Next.js-Routen aus. Seriell bleiben die Ownership-Snapshots eindeutig und
+  // der Dev-Server wird nicht mit sechs parallelen Kompiliervorgängen blockiert.
+  test.describe.configure({ mode: "serial" });
+
   test.beforeEach(async ({ page }) => {
     test.skip(
       access === null,
@@ -238,6 +380,18 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
     );
     if (!access) return;
     await login(page, access.email, access.password);
+  });
+
+  test.afterEach(async ({ page }) => {
+    // Netz für harte Test-Timeouts: afterEach erhält ein eigenes Budget. Das
+    // in-Test-finally räumt den Normalfall auf; die Registry bleibt bis hierhin
+    // erhalten, damit ein unterbrochenes finally erneut versucht werden kann.
+    if (!access) return;
+    try {
+      await cleanupOwnedRecords(page.request);
+    } finally {
+      resetCleanupRegistry();
+    }
   });
 
   // ── Flow 1: Navigation + Redirects ────────────────────────────────────────
@@ -313,10 +467,21 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
     if (!access) return;
     test.setTimeout(90000);
     const staff = await fetchNonAdminStaff(page.request);
-    const person = staff[0]!;
     const day = mondayOf(addDaysISO(TODAY, 7)); // Montag nächster Woche
+    const [person] = await findStaffWithEmptyRange(
+      page.request,
+      staff,
+      day,
+      day,
+      1,
+    );
+    test.skip(
+      person === undefined,
+      "Keine Testperson ohne bestehende Schicht am Zieltag verfügbar",
+    );
+    if (!person) return;
 
-    await clearShifts(page.request, person.id, day, day);
+    await registerShiftCleanupScope(page.request, person.id, day, day);
     try {
       await openWeek(page, day);
       const dialog = page.getByRole("dialog");
@@ -326,7 +491,9 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
       await expect(dialog).toBeVisible();
       await dialog.getByLabel("Beginn", { exact: true }).fill("08:00");
       await dialog.getByLabel("Ende", { exact: true }).fill("10:00");
-      await dialog.getByRole("button", { name: "Schicht anlegen" }).click();
+      await captureCreatedShift(page, () =>
+        dialog.getByRole("button", { name: "Schicht anlegen" }).click(),
+      );
       await expect(dialog).toBeHidden(DATA);
 
       // Block erscheint.
@@ -349,149 +516,33 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
       ).toBeVisible(DATA);
       await expect(dialog).toBeVisible();
     } finally {
-      await clearShifts(page.request, person.id, day, day);
+      await cleanupOwnedRecords(page.request);
     }
   });
 
-  // ── Flow 4: Serie mit Woche A + "Nur diese Woche" (Detached-Icon) ────────
-  // Erfordert einen aktiven Kalenderzeitraum mit weekCycleLength > 1. Der Seed
-  // liefert nur einen 1-Wochen-Zyklus; die öffentliche API kann einen selbst
-  // angelegten Zeitraum nicht wieder löschen, sobald eine Serie ihn referenziert
-  // (FK fk_staff_shift_series_calendar_period; EndSeries kappt nur, löscht die
-  // Serien-Wurzel nicht). Ein selbst-aufräumender E2E darf daher keinen
-  // Zyklus-Zeitraum anlegen. Existiert bereits einer, läuft der Test; sonst
-  // überspringt er mit klarer Begründung (siehe Bericht — der Detached-Zustand
-  // ist zusätzlich in dienstplan-resource-grid.test.tsx unit-getestet).
-  test("Serie (Woche A) anlegen, dann 'Nur diese Woche' -> gelbes Detached-Icon", async ({
-    page,
-  }) => {
-    if (!access) return;
-    test.setTimeout(120000);
-
-    const periodsRes = await page.request.get(`${base}/api/timetable/periods`);
-    const periodsJson = (await periodsRes.json()) as {
-      data?: Array<{
-        id: number | string;
-        start_date: string;
-        end_date: string;
-        week_cycle_length: number;
-        is_active: boolean;
-      }>;
-    };
-    const cyclePeriod = (periodsJson.data ?? []).find(
-      (p) => p.is_active && p.week_cycle_length > 1,
-    );
-    test.skip(
-      cyclePeriod === undefined,
-      "Kein aktiver Kalenderzeitraum mit weekCycleLength > 1 vorhanden (Seed liefert keinen; die API kann keinen selbst-aufräumend anlegen). Detached-Zustand ist unit-getestet.",
-    );
-    if (!cyclePeriod) return;
-
-    const staff = await fetchNonAdminStaff(page.request);
-    const person = staff[4]!;
-    // Erster Montag des Zyklus-Zeitraums, der in der Zukunft liegt (ab morgen
-    // materialisiert die Serie).
-    let seriesStart = mondayOf(cyclePeriod.start_date);
-    while (seriesStart <= TODAY) seriesStart = addDaysISO(seriesStart, 7);
-    const rangeEnd = cyclePeriod.end_date;
-
-    await clearShifts(page.request, person.id, seriesStart, rangeEnd);
-    let seriesId: number | null = null;
-    try {
-      await openWeek(page, seriesStart);
-      const dialog = page.getByRole("dialog");
-
-      await emptyCellButton(page, person, seriesStart).first().click();
-      await expect(dialog).toBeVisible();
-      await dialog.getByLabel("Beginn", { exact: true }).fill("09:00");
-      await dialog.getByLabel("Ende", { exact: true }).fill("12:00");
-      // Serien-Abschnitt (der angeklickte Wochentag ist bereits vorausgewählt).
-      await dialog.getByText("Als Serie wiederholen").click();
-      await dialog.getByRole("radio", { name: "Alle 2 Wochen" }).check();
-      await dialog.getByRole("radio", { name: "Woche A" }).check();
-      await dialog.getByRole("button", { name: "Serie anlegen" }).click();
-      // Serien-Notiz + Schließen.
-      await expect(
-        dialog.getByText("Die Serie wurde gespeichert."),
-      ).toBeVisible(DATA);
-      await dialog.getByRole("button", { name: "Schließen" }).click();
-      await expect(dialog).toBeHidden(DATA);
-
-      // Materialisierte A-Wochen ermitteln (jede zweite Woche ab seriesStart).
-      const listRes = await page.request.get(
-        `${base}/api/staff/shifts?staff_id=${person.id}&from=${seriesStart}&to=${rangeEnd}`,
-      );
-      const listJson = (await listRes.json()) as {
-        data?: Array<{ date: string; series_id: number | null }>;
-      };
-      const seriesShifts = (listJson.data ?? []).filter(
-        (s) => s.series_id != null,
-      );
-      seriesId = seriesShifts[0]?.series_id ?? null;
-      expect(
-        seriesShifts.length,
-        "Serie muss mehrere A-Wochen materialisieren",
-      ).toBeGreaterThanOrEqual(2);
-      const editWeek = mondayOf(seriesShifts[0]!.date);
-      const keepWeek = mondayOf(seriesShifts[1]!.date);
-
-      // Serien-Block der ersten A-Woche: graues Wiederhol-Symbol.
-      await openWeek(page, editWeek);
-      const editBlock = personRow(page, person).getByRole("button", {
-        name: /09:00.*12:00/,
-      });
-      await expect(editBlock).toBeVisible(DATA);
-      await expect(
-        personRow(page, person).getByLabel("Teil einer Serie"),
-      ).toBeVisible(DATA);
-
-      // Bearbeiten -> "Nur diese Woche".
-      await editBlock.click();
-      await expect(dialog).toBeVisible();
-      await dialog
-        .getByRole("button", { name: "Änderungen speichern" })
-        .click();
-      await page.getByRole("button", { name: "Nur diese Woche" }).click();
-      await expect(dialog).toBeHidden(DATA);
-
-      // Diese Woche: gelbes Detached-Icon (aria "Serie, für diese Woche angepasst").
-      await expect(
-        personRow(page, person).getByLabel("Serie, für diese Woche angepasst"),
-      ).toBeVisible(DATA);
-
-      // Die übrigen Serien-Blöcke bleiben unverändert (grau).
-      await openWeek(page, keepWeek);
-      await expect(
-        personRow(page, person).getByLabel("Teil einer Serie"),
-      ).toBeVisible(DATA);
-    } finally {
-      // Serie beenden (stoppt künftige Materialisierung) und alle Schichten der
-      // Person im Zeitraum entfernen. Die Serien-Wurzel bleibt (kein Hard-Delete
-      // in der API) — sie referenziert einen bereits bestehenden Zeitraum.
-      if (seriesId != null) {
-        await page.request
-          .delete(
-            `${base}/api/staff/shifts/series/${seriesId}?from=${seriesStart}`,
-          )
-          .catch(() => undefined);
-      }
-      await clearShifts(page.request, person.id, seriesStart, rangeEnd);
-    }
-  });
-
-  // ── Flow 5: Verschieben nach einer anderen Person ────────────────────────
+  // ── Flow 4: Verschieben nach einer anderen Person ────────────────────────
   test("Verschieben nach: Schicht wandert zur Zielperson (Quelle leer, Ziel gefüllt)", async ({
     page,
   }) => {
     if (!access) return;
     test.setTimeout(90000);
     const staff = await fetchNonAdminStaff(page.request);
-    const source = staff[1]!;
-    const target = staff[2]!;
     const day = mondayOf(addDaysISO(TODAY, 14)); // eigene Woche
+    const [source, target] = await findStaffWithEmptyRange(
+      page.request,
+      staff,
+      day,
+      day,
+      2,
+    );
+    test.skip(
+      source === undefined || target === undefined,
+      "Weniger als zwei Testpersonen ohne Schicht am Zieltag verfügbar",
+    );
+    if (!source || !target) return;
 
-    await clearShifts(page.request, source.id, day, day);
-    await clearShifts(page.request, target.id, day, day);
+    await registerShiftCleanupScope(page.request, source.id, day, day);
+    await registerShiftCleanupScope(page.request, target.id, day, day);
     try {
       await createShift(page.request, {
         staffId: source.id,
@@ -525,7 +576,9 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
       await expect(
         page.getByRole("heading", { name: "Verschieben bestätigen" }),
       ).toBeVisible();
-      await page.getByRole("button", { name: "Verschieben" }).click();
+      await captureCreatedShift(page, () =>
+        page.getByRole("button", { name: "Verschieben" }).click(),
+      );
 
       // Ziel gefüllt, Quelle leer.
       await expect(
@@ -535,29 +588,40 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
         personRow(page, source).getByText(/12:00.*16:00/),
       ).toHaveCount(0);
     } finally {
-      await clearShifts(page.request, source.id, day, day);
-      await clearShifts(page.request, target.id, day, day);
+      await cleanupOwnedRecords(page.request);
     }
   });
 
-  // ── Flow 6: Halbjahres-Sicht — Zellklick springt in die Woche ────────────
+  // ── Flow 5: Halbjahres-Sicht — Zellklick springt in die Woche ────────────
   test("Halbjahr: Zellklick springt in die richtige Woche (d gesetzt, view entfernt)", async ({
     page,
   }) => {
     if (!access) return;
     test.setTimeout(90000);
     const staff = await fetchNonAdminStaff(page.request);
-    const person = staff[3]!;
     // Woche innerhalb des laufenden Planungszeitraums (Seed-Schuljahr deckt heute
     // ab), damit eine klickbare Zelle (plannedMinutes > 0) entsteht.
     const kwMonday = mondayOf(addDaysISO(TODAY, 7));
+    const kwFriday = addDaysISO(kwMonday, 4);
     const kw = getWeekNumber(parseISODate(kwMonday));
+    const [person] = await findStaffWithEmptyRange(
+      page.request,
+      staff,
+      kwMonday,
+      kwFriday,
+      1,
+    );
+    test.skip(
+      person === undefined,
+      "Keine Testperson ohne Schichten in der Zielwoche verfügbar",
+    );
+    if (!person) return;
 
-    await clearShifts(
+    await registerShiftCleanupScope(
       page.request,
       person.id,
       kwMonday,
-      addDaysISO(kwMonday, 4),
+      kwFriday,
     );
     try {
       await createShift(page.request, {
@@ -590,21 +654,16 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
         page.getByRole("region", { name: "Dienstplan-Wochenansicht" }),
       ).toBeVisible(GRID);
     } finally {
-      await clearShifts(
-        page.request,
-        person.id,
-        kwMonday,
-        addDaysISO(kwMonday, 4),
-      );
+      await cleanupOwnedRecords(page.request);
     }
   });
 
-  // ── Flow 7: Krank-Flow (Einstieg Vertretung + "Fällt aus") ───────────────
+  // ── Flow 6: Krank-Flow (Einstieg Vertretung + "Fällt aus") ───────────────
   test("Krank-Flow: 'Für heute abwesend melden' navigiert nach /vertretung; 'Krank melden' storniert die Schicht", async ({
     page,
   }) => {
     if (!access) return;
-    // Flow 7a wechselt auf /vertretung — der erste Kompiliervorgang dieser Route
+    // Flow 6a wechselt auf /vertretung — der erste Kompiliervorgang dieser Route
     // im Next-Dev-Server kann kalt spürbar dauern, daher großzügiges Budget.
     test.setTimeout(180000);
     // Hohes Viewport: das Personen-Menü (drei Einträge) klappt nach unten auf;
@@ -612,13 +671,25 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
     // abwesend melden") sonst unter dem Fold und wäre nicht anklickbar.
     await page.setViewportSize({ width: 1280, height: 1200 });
     const staff = await fetchNonAdminStaff(page.request);
-    const person = staff[5]!;
     // Schicht heute (die Krankmeldung storniert reguläre Schichten im Zeitraum).
     const from = mondayOf(TODAY);
     const to = addDaysISO(from, 4);
+    const [person] = await findStaffWithEmptyRange(
+      page.request,
+      staff,
+      from,
+      to,
+      1,
+      { requireNoAbsence: true },
+    );
+    test.skip(
+      person === undefined,
+      "Keine Testperson ohne Schicht oder Abwesenheit in dieser Woche verfügbar",
+    );
+    if (!person) return;
 
-    await clearSickAbsences(page.request, person.id, TODAY, TODAY);
-    await clearShifts(page.request, person.id, from, to);
+    await registerShiftCleanupScope(page.request, person.id, from, to);
+    await registerAbsenceCleanupScope(page.request, person.id, from, to);
     try {
       await createShift(page.request, {
         staffId: person.id,
@@ -641,7 +712,9 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
           name: `Krank melden: ${person.first_name} ${person.last_name}`,
         }),
       ).toBeVisible();
-      await sick.getByRole("button", { name: "Krank melden" }).click();
+      await captureCreatedAbsence(page, person.id, () =>
+        sick.getByRole("button", { name: "Krank melden" }).click(),
+      );
       await expect(sick.getByText(/als krank gemeldet/)).toBeVisible(DATA);
       await sick
         .getByRole("button", { name: "Schließen", exact: true })
@@ -667,9 +740,7 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
       });
       expect(new URL(page.url()).searchParams.get("d")).toBe(TODAY);
     } finally {
-      // Krankmeldung zurücknehmen (dreht die Kaskade zurück) und Schicht löschen.
-      await clearSickAbsences(page.request, person.id, TODAY, TODAY);
-      await clearShifts(page.request, person.id, from, to);
+      await cleanupOwnedRecords(page.request);
     }
   });
 });

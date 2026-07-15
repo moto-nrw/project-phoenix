@@ -986,10 +986,8 @@ export function ShiftEditModal({
                                   name="shift-series-ab-pattern"
                                   value="a"
                                   checked={abPattern === 1}
-                                  onChange={() => {
-                                    setAbPattern(1);
-                                    setAbTouched(true);
-                                  }}
+                                  onClick={() => setAbTouched(true)}
+                                  onChange={() => setAbPattern(1)}
                                 />
                                 <span className="text-xs font-medium text-gray-700">
                                   Woche A
@@ -1004,10 +1002,8 @@ export function ShiftEditModal({
                                   name="shift-series-ab-pattern"
                                   value="b"
                                   checked={abPattern === 2}
-                                  onChange={() => {
-                                    setAbPattern(2);
-                                    setAbTouched(true);
-                                  }}
+                                  onClick={() => setAbTouched(true)}
+                                  onChange={() => setAbPattern(2)}
                                 />
                                 <span className="text-xs font-medium text-gray-700">
                                   Woche B

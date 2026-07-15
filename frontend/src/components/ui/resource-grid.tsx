@@ -96,6 +96,7 @@ export function ResourceGrid<TRow>({
       aria-describedby={scrollHintId}
       tabIndex={0}
       onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return;
         if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
         event.preventDefault();
         event.currentTarget.scrollBy({

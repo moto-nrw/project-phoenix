@@ -124,7 +124,19 @@ export function OverflowMenu({
         triggerRef.current?.focus();
       }
     };
-    const onReflow = () => setIsOpen(false);
+    const onReflow = (event: Event) => {
+      // A viewport-bounded menu scrolls internally. That scroll bubbles through
+      // the capture listener on window and must not close the menu itself.
+      const target = event.target;
+      if (
+        event.type === "scroll" &&
+        target instanceof Node &&
+        menuRef.current?.contains(target)
+      ) {
+        return;
+      }
+      setIsOpen(false);
+    };
 
     document.addEventListener("mousedown", onPointer);
     document.addEventListener("keydown", onKey);
@@ -150,6 +162,7 @@ export function OverflowMenu({
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect != null) {
       const gap = 4; // matches the old mt-1
+      const viewportInset = 8;
       // Vertical anchoring: below the trigger by default, flipped ABOVE it when
       // there is not enough room below for the (conservatively estimated) menu
       // height. Without the flip, a trigger near the viewport bottom (e.g. the
@@ -157,10 +170,18 @@ export function OverflowMenu({
       // attempt immediately closes it via the scroll listener. Anchoring by
       // `bottom` needs no exact height — only the flip decision estimates one.
       const estimatedMenuHeight = items.length * 40 + 16;
-      const flipUp = window.innerHeight - rect.bottom < estimatedMenuHeight;
+      const roomAbove = Math.max(0, rect.top - gap - viewportInset);
+      const roomBelow = Math.max(
+        0,
+        window.innerHeight - rect.bottom - gap - viewportInset,
+      );
+      const flipUp = roomBelow < estimatedMenuHeight && roomAbove > roomBelow;
       const vertical: CSSProperties = flipUp
-        ? { bottom: window.innerHeight - rect.top + gap }
-        : { top: rect.bottom + gap };
+        ? {
+            bottom: window.innerHeight - rect.top + gap,
+            maxHeight: roomAbove,
+          }
+        : { top: rect.bottom + gap, maxHeight: roomBelow };
       // Container-stretch mode: when an ancestor selector is given, size the
       // menu to that ancestor (8px inset both sides) so it sits cleanly INSIDE
       // a narrow container instead of poking out the side. The trigger only
@@ -232,7 +253,7 @@ export function OverflowMenu({
               // escapes any clipping `overflow-hidden` ancestor. In
               // container-stretch mode the width comes from `menuStyle`, so the
               // 220px floor is dropped to let the menu match a narrow column.
-              className={`fixed z-50 overflow-hidden rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
+              className={`fixed z-50 overflow-x-hidden overflow-y-auto rounded-xl border border-gray-200 bg-white py-1 shadow-lg ${
                 matchContainerSelector ? "" : "min-w-[220px]"
               }`}
             >

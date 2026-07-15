@@ -44,6 +44,8 @@ interface ModalProps {
    * pass a translated string on localized surfaces.
    */
   readonly backdropLabel?: string;
+  /** Prevent every dismissal path while an operation must finish in place. */
+  readonly isDismissDisabled?: boolean;
 }
 
 export function Modal({
@@ -55,6 +57,7 @@ export function Modal({
   widthClass = "mx-4 w-[calc(100%-2rem)] max-w-lg",
   closeLabel = "Modal schließen",
   backdropLabel = "Hintergrund - Klicken zum Schließen",
+  isDismissDisabled = false,
 }: ModalProps) {
   // Stable id so the dialog can reference its heading via aria-labelledby,
   // giving the dialog an accessible name (role="dialog" alone has none).
@@ -75,9 +78,12 @@ export function Modal({
   // Store onClose in a ref so handleClose never changes identity
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
+  const isDismissDisabledRef = useRef(isDismissDisabled);
+  isDismissDisabledRef.current = isDismissDisabled;
 
   // Enhanced close handler with exit animation (stable — no deps on onClose)
   const handleClose = useCallback(() => {
+    if (isDismissDisabledRef.current) return;
     setIsExiting(true);
     setIsAnimating(false);
 
@@ -155,6 +161,7 @@ export function Modal({
           type="button"
           tabIndex={-1}
           onClick={handleClose}
+          disabled={isDismissDisabled}
           aria-label={backdropLabel}
           className={`absolute inset-0 cursor-default border-none bg-transparent p-0 transition-all duration-200 ease-out ${
             isAnimating && !isExiting ? "bg-black/40" : "bg-black/0"
@@ -190,7 +197,9 @@ export function Modal({
                 {title}
               </h3>
               <button
+                type="button"
                 onClick={handleClose}
+                disabled={isDismissDisabled}
                 className="group relative flex-shrink-0 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
                 aria-label={closeLabel}
               >
@@ -221,7 +230,9 @@ export function Modal({
           ) : (
             /* X button positioned absolutely in top-right when no title */
             <button
+              type="button"
               onClick={handleClose}
+              disabled={isDismissDisabled}
               className="group absolute top-4 right-4 z-10 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
               aria-label={closeLabel}
             >
@@ -316,7 +327,8 @@ export function ConfirmationModal({
       <button
         type="button"
         onClick={onClose}
-        className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100"
+        disabled={isConfirmLoading}
+        className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:border-gray-300 disabled:hover:bg-transparent disabled:hover:shadow-none"
       >
         {cancelText}
       </button>
@@ -358,7 +370,13 @@ export function ConfirmationModal({
   );
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title={title} footer={modalFooter}>
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title={title}
+      footer={modalFooter}
+      isDismissDisabled={isConfirmLoading}
+    >
       {children}
     </Modal>
   );

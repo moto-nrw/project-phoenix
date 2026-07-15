@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -42,6 +48,12 @@ const shiftType: ShiftType = {
   isActive: true,
 };
 
+const inactiveShiftType: ShiftType = {
+  ...shiftType,
+  name: "Betreuung alt",
+  isActive: false,
+};
+
 function baseShift(overrides: Partial<StaffShift> = {}): StaffShift {
   return {
     id: "1",
@@ -63,7 +75,12 @@ function baseShift(overrides: Partial<StaffShift> = {}): StaffShift {
   };
 }
 
-function renderDialog(overrides: { shift?: StaffShift } = {}) {
+function renderDialog(
+  overrides: {
+    shift?: StaffShift;
+    shiftTypes?: readonly ShiftType[];
+  } = {},
+) {
   const onClose = vi.fn();
   const onDataChanged = vi.fn();
   render(
@@ -72,7 +89,7 @@ function renderDialog(overrides: { shift?: StaffShift } = {}) {
       shift={overrides.shift ?? baseShift()}
       sourceMember={source}
       staff={[source, other]}
-      shiftTypes={[shiftType]}
+      shiftTypes={overrides.shiftTypes ?? [shiftType]}
       onClose={onClose}
       onDataChanged={onDataChanged}
     />,
@@ -90,7 +107,10 @@ async function confirmMove() {
   // "Verschieben" button is visible at a time (the form modal is hidden while
   // the confirmation shows).
   fireEvent.click(screen.getByRole("button", { name: "Verschieben" }));
-  fireEvent.click(screen.getByRole("button", { name: "Verschieben" }));
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Verschieben" }));
+    await Promise.resolve();
+  });
 }
 
 describe("ShiftMoveDialog prefill", () => {
@@ -152,7 +172,12 @@ describe("ShiftMoveDialog person change", () => {
   it("creates the shift for the target person before deleting the source", async () => {
     vi.mocked(staffShiftService.deleteShift).mockResolvedValue(undefined);
     vi.mocked(staffShiftService.createShift).mockResolvedValue(baseShift());
-    const { onDataChanged, onClose } = renderDialog();
+    const { onDataChanged, onClose } = renderDialog({
+      shift: baseShift({
+        notes: "Nur Hintereingang",
+        changeReason: "Zeiten angepasst",
+      }),
+    });
 
     selectPerson("Zielperson", "Yilmaz, Bo");
     await confirmMove();
@@ -168,13 +193,16 @@ describe("ShiftMoveDialog person change", () => {
     const createOrder = vi.mocked(staffShiftService.createShift).mock
       .invocationCallOrder[0]!;
     expect(createOrder).toBeLessThan(deleteOrder);
-    // The create carries the target person, target day, and times.
+    // The create carries the target person, target day, times, and fields that
+    // would otherwise be lost when the source row is deleted.
     expect(staffShiftService.createShift).toHaveBeenCalledWith(
       expect.objectContaining({
         staffId: "8",
         date: "2026-07-06",
         startTime: "08:00",
         endTime: "12:00",
+        notes: "Nur Hintereingang",
+        changeReason: "Zeiten angepasst",
       }),
     );
     expect(staffShiftService.updateShift).not.toHaveBeenCalled();
@@ -267,6 +295,49 @@ describe("ShiftMoveDialog person change", () => {
     );
     // Nothing was deleted — the rejection happened before the DELETE.
     expect(staffShiftService.deleteShift).not.toHaveBeenCalled();
+  });
+
+  it("requires an active or empty shift type when the person changes", () => {
+    renderDialog({
+      shift: baseShift({ shiftTypeName: inactiveShiftType.name }),
+      shiftTypes: [inactiveShiftType],
+    });
+
+    selectPerson("Zielperson", "Yilmaz, Bo");
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Diese Schichtart ist inaktiv",
+    );
+    expect(screen.getByRole("button", { name: "Verschieben" })).toBeDisabled();
+    expect(staffShiftService.createShift).not.toHaveBeenCalled();
+  });
+
+  it("executes only once for two confirmations in the same render", async () => {
+    let resolveCreate: ((shift: StaffShift) => void) | undefined;
+    vi.mocked(staffShiftService.createShift).mockImplementation(
+      () =>
+        new Promise<StaffShift>((resolve) => {
+          resolveCreate = resolve;
+        }),
+    );
+    vi.mocked(staffShiftService.deleteShift).mockResolvedValue(undefined);
+    renderDialog();
+    selectPerson("Zielperson", "Yilmaz, Bo");
+
+    fireEvent.click(screen.getByRole("button", { name: "Verschieben" }));
+    const confirm = screen.getByRole("button", { name: "Verschieben" });
+    fireEvent.click(confirm);
+    fireEvent.click(confirm);
+
+    expect(staffShiftService.createShift).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveCreate?.(baseShift());
+      await Promise.resolve();
+    });
+    await waitFor(() =>
+      expect(staffShiftService.deleteShift).toHaveBeenCalledTimes(1),
+    );
   });
 });
 

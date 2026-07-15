@@ -27,11 +27,13 @@ interface ShiftPayload {
   breakMinutes: number;
   /** Id of the linked shift type (Schichtart), or null if untyped */
   shiftTypeId: string | null;
+  /** Optional free-form shift note. Omitted updates preserve the stored note. */
+  notes?: string;
   /** The shift does not take place (staff absent / gap left open, #1841). */
   cancelled?: boolean;
   /** Optional "why" for a flexible daily change (#1841). Sent verbatim, so the
-   *  saved value always matches what the admin sees; "" clears a stored reason. */
-  changeReason?: string;
+   *  saved value always matches what the admin sees; "" or null clears it. */
+  changeReason?: string | null;
   /** Id of the shift this one covers as a replacement (#1841). Create-only. */
   originShiftId?: string | null;
 }
@@ -138,6 +140,7 @@ function toBackendBody(payload: ShiftPayload) {
       payload.shiftTypeId != null
         ? Number.parseInt(payload.shiftTypeId, 10)
         : null,
+    ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
     ...(payload.cancelled ? { cancelled: true } : {}),
     ...(payload.changeReason !== undefined
       ? { change_reason: payload.changeReason }

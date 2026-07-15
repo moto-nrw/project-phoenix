@@ -304,6 +304,38 @@ describe("staffShiftService requests", () => {
     });
   });
 
+  it("serializes notes and a nullable change reason when supplied", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json({ data: backendShift }, { status: 201 }),
+    );
+
+    await staffShiftService.createShift({
+      staffId: "7",
+      date: "2026-07-06",
+      startTime: "08:00",
+      endTime: "16:00",
+      breakMinutes: 30,
+      shiftTypeId: null,
+      notes: "Nur Hintereingang",
+      changeReason: null,
+    });
+
+    expect(mockSessionFetch).toHaveBeenCalledWith("/api/staff/shifts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        staff_id: 7,
+        date: "2026-07-06",
+        start_time: "08:00",
+        end_time: "16:00",
+        break_minutes: 30,
+        shift_type_id: null,
+        notes: "Nur Hintereingang",
+        change_reason: null,
+      }),
+    });
+  });
+
   it("returns cleanly after successful deletes", async () => {
     mockSessionFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 

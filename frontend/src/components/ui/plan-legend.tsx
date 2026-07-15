@@ -34,6 +34,7 @@ const FALLBACK_BAR_COLOR = "#D1D5DB";
 /** Grays reused for the state glyphs (cancelled edge / hatch strokes). */
 const CANCELLED_GLYPH_COLOR = "#9CA3AF";
 const HATCH_STROKE_COLOR = "#6B7280";
+const HEX6_RE = /^#[0-9a-fA-F]{6}$/;
 
 function LegendGlyph({ entry }: { entry: PlanLegendEntry }) {
   const variant = entry.variant ?? "bar";
@@ -80,7 +81,12 @@ function LegendGlyph({ entry }: { entry: PlanLegendEntry }) {
     <span
       aria-hidden="true"
       className="h-3 w-1 shrink-0 rounded-full"
-      style={{ backgroundColor: entry.color ?? FALLBACK_BAR_COLOR }}
+      style={{
+        backgroundColor:
+          entry.color != null && HEX6_RE.test(entry.color)
+            ? entry.color
+            : FALLBACK_BAR_COLOR,
+      }}
     />
   );
 }

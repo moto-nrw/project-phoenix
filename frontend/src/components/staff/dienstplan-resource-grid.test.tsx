@@ -431,6 +431,26 @@ describe("DienstplanResourceGrid capacity footer", () => {
     // The remaining weekdays have no shifts.
     expect(cells[1]).toHaveTextContent("0");
   });
+
+  it("keeps an absent assignment in planned capacity while its shift remains active", () => {
+    renderGrid({
+      shiftsByStaff: shiftMap("2026-07-06", [
+        baseShift({ startTime: "12:00", endTime: "16:00" }),
+      ]),
+      assignmentsByStaff: new Map([
+        [member.id, new Map([["2026-07-06", [absentAssignment()]]])],
+      ]),
+    });
+
+    const capRow = screen.getByText("Kapazität 12–16").closest("tr");
+    expect(capRow).not.toBeNull();
+    const [monday] = within(capRow as HTMLElement).getAllByRole("cell");
+
+    // The strip deliberately describes planned Dienstplan capacity. An
+    // assignment-level absence only changes coverage; the shift must be
+    // cancelled before the person leaves planned capacity.
+    expect(monday).toHaveTextContent("1");
+  });
 });
 
 describe("DienstplanResourceGrid empty cells", () => {

@@ -304,6 +304,47 @@ describe("OverflowMenu", () => {
     }
   });
 
+  it("bounds a tall menu to the viewport and keeps it open during internal scrolling", () => {
+    const originalGetRect = window.HTMLElement.prototype.getBoundingClientRect;
+    window.HTMLElement.prototype.getBoundingClientRect = () =>
+      ({
+        left: 600,
+        right: 640,
+        top: 200,
+        bottom: 210,
+        width: 40,
+        height: 10,
+        x: 600,
+        y: 200,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    try {
+      render(
+        <OverflowMenu
+          items={Array.from({ length: 30 }, (_, index) => ({
+            label: `Aktion ${index + 1}`,
+            onClick: () => undefined,
+          }))}
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: /Weitere Aktionen/i }),
+      );
+      const menu = screen.getByRole("menu");
+
+      expect(menu).toHaveClass("overflow-y-auto");
+      expect(Number.parseFloat(menu.style.maxHeight)).toBeGreaterThan(0);
+      fireEvent.scroll(menu);
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+
+      fireEvent.scroll(window);
+      expect(screen.queryByRole("menu")).toBeNull();
+    } finally {
+      window.HTMLElement.prototype.getBoundingClientRect = originalGetRect;
+    }
+  });
+
   it("closes on outside click", () => {
     render(
       <div>

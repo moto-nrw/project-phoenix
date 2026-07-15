@@ -466,6 +466,45 @@ describe("ConfirmationModal", () => {
     expect(confirmButton).toBeDisabled();
   });
 
+  it("should block every dismissal path while loading", async () => {
+    const onClose = vi.fn();
+    render(
+      <TestWrapper>
+        <ConfirmationModal
+          isOpen={true}
+          onClose={onClose}
+          onConfirm={vi.fn()}
+          title="Confirm"
+          isConfirmLoading={true}
+        >
+          <p>Sure?</p>
+        </ConfirmationModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const cancel = screen.getByRole("button", { name: "Abbrechen" });
+    const close = screen.getByRole("button", { name: "Modal schließen" });
+    const backdrop = screen.getByRole("button", {
+      name: "Hintergrund - Klicken zum Schließen",
+    });
+    expect(cancel).toBeDisabled();
+    expect(close).toBeDisabled();
+    expect(backdrop).toBeDisabled();
+
+    fireEvent.click(cancel);
+    fireEvent.click(close);
+    fireEvent.click(backdrop);
+    fireEvent.keyDown(document, { key: "Escape" });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it("should apply custom confirmButtonClass", async () => {
     render(
       <TestWrapper>

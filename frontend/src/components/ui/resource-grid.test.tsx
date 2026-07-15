@@ -167,4 +167,24 @@ describe("ResourceGrid", () => {
     fireEvent.keyDown(region, { key: "Enter" });
     expect(scrollBy).not.toHaveBeenCalled();
   });
+
+  it("does not hijack arrow keys from an interactive cell descendant", () => {
+    renderGrid({
+      renderCell: (_row, column) =>
+        column.key === "mo" ? <input aria-label="Zelleneingabe" /> : null,
+    });
+
+    const region = screen.getByRole("region", { name: "Testraster" });
+    const scrollBy = vi.fn();
+    region.scrollBy = scrollBy as unknown as HTMLElement["scrollBy"];
+
+    const input = screen
+      .getAllByRole("textbox", { name: "Zelleneingabe" })
+      .at(0);
+    if (!input) throw new Error("Testzelle wurde nicht gerendert");
+    const wasNotPrevented = fireEvent.keyDown(input, { key: "ArrowRight" });
+
+    expect(wasNotPrevented).toBe(true);
+    expect(scrollBy).not.toHaveBeenCalled();
+  });
 });
