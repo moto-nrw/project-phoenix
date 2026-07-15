@@ -39,7 +39,7 @@ interface BackendAttendanceSession {
 }
 
 interface BackendAttendanceSlot {
-  instance_id: number;
+  instance_id: string;
   title: string;
   start_time: string;
   end_time: string;
@@ -178,7 +178,7 @@ function mapAttendanceRecord(rec: BackendAttendanceRecord): AttendanceRecord {
 
 function mapAttendanceSlot(slot: BackendAttendanceSlot): AttendanceSlot {
   return {
-    instanceId: slot.instance_id.toString(),
+    instanceId: slot.instance_id,
     title: slot.title,
     startTime: slot.start_time,
     endTime: slot.end_time,

@@ -31,7 +31,7 @@ describe("mapAttendanceHistoryResponse", () => {
         },
         slots: [
           {
-            instance_id: 101,
+            instance_id: "9223372036854775807",
             title: "Morgenbetreuung",
             start_time: "07:00",
             end_time: "08:00",
@@ -118,7 +118,7 @@ describe("mapAttendanceHistoryResponse", () => {
 
     expect(day1.slots).toHaveLength(1);
     expect(day1.slots[0]).toMatchObject({
-      instanceId: "101",
+      instanceId: "9223372036854775807",
       title: "Morgenbetreuung",
       status: "present",
       substatus: null,

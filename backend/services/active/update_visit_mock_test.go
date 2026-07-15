@@ -17,6 +17,10 @@ type recordingAttendanceSyncer struct {
 	loaded   []*activeModels.Visit
 	mirrored []*activeModels.Visit
 	revised  [][2]*activeModels.Visit
+	mirrorAt []struct {
+		studentID int64
+		at        time.Time
+	}
 }
 
 func (r *recordingAttendanceSyncer) MirrorCheckInForVisit(_ context.Context, visit *activeModels.Visit) *AttendanceSnapshot {
@@ -25,7 +29,11 @@ func (r *recordingAttendanceSyncer) MirrorCheckInForVisit(_ context.Context, vis
 	return &AttendanceSnapshot{Status: "present", InstanceID: 2}
 }
 
-func (r *recordingAttendanceSyncer) MirrorCheckInAt(context.Context, int64, time.Time) *AttendanceSnapshot {
+func (r *recordingAttendanceSyncer) MirrorCheckInAt(_ context.Context, studentID int64, at time.Time) *AttendanceSnapshot {
+	r.mirrorAt = append(r.mirrorAt, struct {
+		studentID int64
+		at        time.Time
+	}{studentID: studentID, at: at})
 	return nil
 }
 

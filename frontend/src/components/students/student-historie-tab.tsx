@@ -35,7 +35,7 @@ interface AttendanceHistoryDay {
   room_detail_available: boolean;
   visits: AttendanceVisitEntry[];
   slots?: Array<{
-    instance_id: number;
+    instance_id: string;
     title: string;
     start_time: string;
     end_time: string;

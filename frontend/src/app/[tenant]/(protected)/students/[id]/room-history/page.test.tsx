@@ -560,7 +560,7 @@ describe("StudentRoomHistoryPage", () => {
       ...fullDay,
       slots: [
         {
-          instance_id: 501,
+          instance_id: "501",
           title: "Morgenbetreuung",
           start_time: "07:00",
           end_time: "08:00",
@@ -570,7 +570,7 @@ describe("StudentRoomHistoryPage", () => {
           is_unplanned: false,
         },
         {
-          instance_id: 502,
+          instance_id: "502",
           title: "Nachmittagsbetreuung",
           start_time: "12:00",
           end_time: "16:00",

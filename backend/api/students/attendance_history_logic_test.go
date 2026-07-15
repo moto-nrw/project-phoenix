@@ -7,6 +7,8 @@ package students
 // students_test) and require a test database.
 
 import (
+	"encoding/json"
+	"math"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -413,7 +415,7 @@ func TestAttachUnassignedAttendance_WindowMatchAndNeutralLeftover(t *testing.T) 
 			},
 		},
 		Slots: []attendanceSlotEntry{{
-			InstanceID: 301, Title: "Ganztagsbetreuung",
+			InstanceID: "301", Title: "Ganztagsbetreuung",
 			StartTime: "07:00", EndTime: "16:00",
 			Status: schedule.AttendanceStatusPresent, CheckedInAt: &reentry,
 		}},
@@ -423,7 +425,7 @@ func TestAttachUnassignedAttendance_WindowMatchAndNeutralLeftover(t *testing.T) 
 	synthetic := days[0].Slots[1]
 	assert.Equal(t, "Ohne Zuordnung", synthetic.Title)
 	assert.Equal(t, "17:30", synthetic.StartTime)
-	assert.Negative(t, synthetic.InstanceID, "synthetic entries carry the negative sentinel")
+	assert.Equal(t, "-3", synthetic.InstanceID, "synthetic entries carry the negative sentinel")
 	assert.False(t, synthetic.IsUnplanned, "unknown booking situation must not claim 'ungeplant'")
 }
 
@@ -441,7 +443,7 @@ func TestAttachUnassignedAttendance_AbsentSlotDoesNotAbsorbSessions(t *testing.T
 			Sessions:    []attendanceSessionRecord{{CheckInTime: checkIn}},
 		},
 		Slots: []attendanceSlotEntry{{
-			InstanceID: 302, Title: "Morgenbetreuung",
+			InstanceID: "302", Title: "Morgenbetreuung",
 			StartTime: "07:00", EndTime: "12:00",
 			Status: schedule.AttendanceStatusAbsent, Substatus: &sick,
 		}},
@@ -449,4 +451,48 @@ func TestAttachUnassignedAttendance_AbsentSlotDoesNotAbsorbSessions(t *testing.T
 
 	require.Len(t, days[0].Slots, 2, "the observed session must surface next to the absence")
 	assert.Equal(t, "Ohne Zuordnung", days[0].Slots[1].Title)
+}
+
+func TestAttachUnassignedAttendance_SortsMergedSlotsByDisplayedTime(t *testing.T) {
+	checkIn := time.Date(2026, 7, 15, 7, 0, 0, 0, timezone.Berlin)
+
+	days := attachUnassignedAttendance([]attendanceHistoryDay{{
+		Date: "2026-07-15",
+		Attendance: &attendanceDayRecord{
+			CheckInTime: checkIn,
+			Sessions:    []attendanceSessionRecord{{CheckInTime: checkIn}},
+		},
+		Slots: []attendanceSlotEntry{
+			{InstanceID: "401", Title: "Mittagsbetreuung", StartTime: "12:00", EndTime: "13:00"},
+			{InstanceID: "402", Title: "Nachmittagsbetreuung", StartTime: "14:00", EndTime: "16:00"},
+		},
+	}})
+
+	require.Len(t, days[0].Slots, 3)
+	assert.Equal(t, []string{"07:00", "12:00", "14:00"}, []string{
+		days[0].Slots[0].StartTime,
+		days[0].Slots[1].StartTime,
+		days[0].Slots[2].StartTime,
+	})
+	assert.Equal(t, "Ohne Zuordnung", days[0].Slots[0].Title)
+}
+
+func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testing.T) {
+	date := timezone.NewDate(2026, 7, 15)
+	instance := &schedule.ActivityInstance{
+		Date:      date,
+		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
+	}
+	instance.ID = math.MaxInt64
+
+	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{{
+		Instance:   instance,
+		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
+	}}, nil, date.BerlinMidnight(), false)
+
+	require.Len(t, days, 1)
+	payload, err := json.Marshal(days[0].Slots[0])
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"instance_id":"9223372036854775807","title":"","start_time":"07:00","end_time":"08:00","status":"expected","is_unplanned":false}`, string(payload))
 }

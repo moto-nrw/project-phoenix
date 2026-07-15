@@ -312,6 +312,9 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 		s.autoClearStudentSickness(ctx, studentID)
 		s.autoClearStudentExcused(ctx, studentID)
 		s.autoClearPlannedStudentStatuses(ctx, studentID)
+		if s.GetPresenceMode(ctx) == "binary" && s.AttendanceSyncer != nil {
+			s.AttendanceSyncer.MirrorCheckInAt(ctx, studentID, existing.CheckInTime)
+		}
 		return &AttendanceResult{
 			Action:       "checked_in",
 			AttendanceID: existing.ID,

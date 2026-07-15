@@ -71,10 +71,10 @@ type attendanceSessionRecord struct {
 
 // attendanceSlotEntry is one care-offering slot in a day's history. Synthetic
 // "Ohne Zuordnung" entries (observed sessions no slot could claim) carry a
-// NEGATIVE instance_id sentinel unique within the day — consumers must not
+// negative decimal instance_id sentinel unique within the day — consumers must not
 // treat it as a real schedule.activity_instances ID.
 type attendanceSlotEntry struct {
-	InstanceID   int64      `json:"instance_id"`
+	InstanceID   string     `json:"instance_id"`
 	Title        string     `json:"title"`
 	StartTime    string     `json:"start_time"`
 	EndTime      string     `json:"end_time"`
@@ -490,7 +490,7 @@ func attachSlotAttendance(
 			index[date] = i
 		}
 		days[i].Slots = append(days[i].Slots, attendanceSlotEntry{
-			InstanceID:   row.Instance.ID,
+			InstanceID:   strconv.FormatInt(row.Instance.ID, 10),
 			Title:        row.Instance.Title,
 			StartTime:    row.Instance.StartTime.Format("15:04"),
 			EndTime:      row.Instance.EndTime.Format("15:04"),
@@ -512,16 +512,22 @@ func attachSlotAttendance(
 func attachUnassignedAttendance(days []attendanceHistoryDay) []attendanceHistoryDay {
 	for dayIndex := range days {
 		day := &days[dayIndex]
-		if day.Attendance == nil {
-			continue
-		}
-		coverages := slotEntryCoverages(day.Slots)
-		for sessionIndex, session := range day.Attendance.Sessions {
-			if sessionCoveredBySlots(coverages, session.CheckInTime) {
-				continue
+		if day.Attendance != nil {
+			coverages := slotEntryCoverages(day.Slots)
+			for sessionIndex, session := range day.Attendance.Sessions {
+				if sessionCoveredBySlots(coverages, session.CheckInTime) {
+					continue
+				}
+				day.Slots = append(day.Slots, unassignedSlotEntry(sessionIndex, session))
 			}
-			day.Slots = append(day.Slots, unassignedSlotEntry(sessionIndex, session))
 		}
+
+		// Scheduled slots display their planned start time; synthetic slots
+		// display the observed check-in time in the same field. Sorting the
+		// merged list here keeps the response chronological across both sources.
+		sort.SliceStable(day.Slots, func(i, j int) bool {
+			return day.Slots[i].StartTime < day.Slots[j].StartTime
+		})
 	}
 	return days
 }
@@ -578,7 +584,7 @@ func unassignedSlotEntry(index int, session attendanceSessionRecord) attendanceS
 	// (zero or several candidate slots) — the title alone marks the row as
 	// unassigned. Persisted walk-in slot rows carry is_unplanned instead.
 	entry := attendanceSlotEntry{
-		InstanceID: -int64(index + 1), Title: "Ohne Zuordnung",
+		InstanceID: strconv.FormatInt(-int64(index+1), 10), Title: "Ohne Zuordnung",
 		StartTime: session.CheckInTime.In(timezone.Berlin).Format("15:04"),
 		Status:    "present", CheckedInAt: &session.CheckInTime,
 		CheckedOutAt: session.CheckOutTime,
