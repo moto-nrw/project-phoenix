@@ -340,6 +340,8 @@ describe("useDienstplanData", () => {
       "time-tracking-absences-",
       "time-tracking-table-absences-",
       "time-tracking-own-absences-",
+      "staff-shifts-visible-",
+      "time-tracking-own-shifts-today-",
     ]);
   });
 });

@@ -44,14 +44,13 @@ import { parseTimeToMinutes } from "~/lib/timetable-helpers";
 // A pure read-and-jump surface — no editing, no blocks, no menus. Each cell is
 // the person's planned weekly sum with the same delta coloring as the week
 // view's row header; clicking it jumps to that week (view=woche). Data loads
-// per week through the SAME SWR keys the week view uses, so navigating
-// week↔half-year serves cached windows both ways.
+// per week. Full-permission interior weeks reuse the week view's SWR keys;
+// reduced-permission sums deliberately load Monday-Sunday because raw shifts,
+// unlike server summaries, are limited to the requested range.
 
-// Reuse of the week hook's SWR keys is the whole point of the cache-sharing
-// contract (docs/05 Abschnitt 3, Chunk 3 report): the half-year loader for a
-// week and the week view's own hook resolve to the identical key string, so
-// SWR dedupes and the round trip never refetches. Keep these in lockstep with
-// use-dienstplan-data.ts.
+// Keep the key format in lockstep with use-dienstplan-data.ts. The overview
+// path shares its ordinary Mon-Fri windows with the week view; the raw-shift
+// path uses a distinct full-week key so weekend work is not undercounted.
 const overviewKey = (from: string, to: string): string =>
   `dienstplan-overview-${from}-${to}`;
 const shiftsKey = (from: string, to: string): string =>
@@ -113,10 +112,13 @@ interface WeekColumnState {
 interface WeekMeta {
   /** Monday of the week as "YYYY-MM-DD" — stable column/summary key. */
   monday: string;
-  /** Fetch bounds clamped to the selected planning period. */
-  from: string;
-  to: string;
-  /** The column covers only part of its Monday-Friday viewport. */
+  /** Overview bounds preserve the normal Mon-Fri SWR key for interior weeks. */
+  overviewFrom: string;
+  overviewTo: string;
+  /** Raw-shift bounds cover the complete Mon-Sun week, clamped to the period. */
+  shiftsFrom: string;
+  shiftsTo: string;
+  /** The planning period covers only part of the complete Mon-Sun week. */
   isBoundaryClamped: boolean;
   kw: number;
 }
@@ -213,14 +215,25 @@ function weeksInPeriod(period: CalendarPeriod): WeekMeta[] {
   while (toISODate(cursor) <= period.endDate && guard < 400) {
     const friday = new Date(cursor);
     friday.setDate(friday.getDate() + 4);
+    const sunday = new Date(cursor);
+    sunday.setDate(sunday.getDate() + 6);
     const monday = toISODate(cursor);
     const fridayISO = toISODate(friday);
+    const sundayISO = toISODate(sunday);
+    const isBoundaryClamped =
+      monday < period.startDate || sundayISO > period.endDate;
+    const shiftsFrom = monday < period.startDate ? period.startDate : monday;
+    const shiftsTo = sundayISO > period.endDate ? period.endDate : sundayISO;
     weeks.push({
       monday,
-      from: monday < period.startDate ? period.startDate : monday,
-      to: fridayISO > period.endDate ? period.endDate : fridayISO,
-      isBoundaryClamped:
-        monday < period.startDate || fridayISO > period.endDate,
+      // Interior overview requests keep sharing the week view's Mon-Fri SWR
+      // key; boundary requests need the exact period intersection so the
+      // client-side correction sees every in-period weekend shift.
+      overviewFrom: isBoundaryClamped ? shiftsFrom : monday,
+      overviewTo: isBoundaryClamped ? shiftsTo : fridayISO,
+      shiftsFrom,
+      shiftsTo,
+      isBoundaryClamped,
       kw: getWeekNumber(cursor),
     });
     cursor.setDate(cursor.getDate() + 7);
@@ -237,15 +250,19 @@ function weeksInPeriod(period: CalendarPeriod): WeekMeta[] {
 // variable number of useSWRAuth for a variable number of columns).
 function HalbjahrColumnData({
   weekKey,
-  weekFrom,
-  weekTo,
+  overviewFrom,
+  overviewTo,
+  shiftsFrom,
+  shiftsTo,
   isBoundaryClamped,
   reducedPath,
   onState,
 }: {
   readonly weekKey: string;
-  readonly weekFrom: string;
-  readonly weekTo: string;
+  readonly overviewFrom: string;
+  readonly overviewTo: string;
+  readonly shiftsFrom: string;
+  readonly shiftsTo: string;
   readonly isBoundaryClamped: boolean;
   readonly reducedPath: boolean;
   readonly onState: (weekKey: string, state: WeekColumnState) => void;
@@ -255,8 +272,9 @@ function HalbjahrColumnData({
     error: overviewError,
     mutate: mutateOverview,
   } = useSWRAuth<StaffScheduleOverview>(
-    reducedPath ? null : overviewKey(weekFrom, weekTo),
-    () => withSlot(() => staffShiftService.getOverview(weekFrom, weekTo)),
+    reducedPath ? null : overviewKey(overviewFrom, overviewTo),
+    () =>
+      withSlot(() => staffShiftService.getOverview(overviewFrom, overviewTo)),
   );
 
   const {
@@ -264,8 +282,8 @@ function HalbjahrColumnData({
     error: shiftsError,
     mutate: mutateShifts,
   } = useSWRAuth<StaffShift[]>(
-    reducedPath ? shiftsKey(weekFrom, weekTo) : null,
-    () => withSlot(() => staffShiftService.getShifts(weekFrom, weekTo)),
+    reducedPath ? shiftsKey(shiftsFrom, shiftsTo) : null,
+    () => withSlot(() => staffShiftService.getShifts(shiftsFrom, shiftsTo)),
   );
 
   const summaryByStaff = useMemo(
@@ -403,8 +421,10 @@ function HalbjahrGridInner({
         <HalbjahrColumnData
           key={week.monday}
           weekKey={week.monday}
-          weekFrom={week.from}
-          weekTo={week.to}
+          overviewFrom={week.overviewFrom}
+          overviewTo={week.overviewTo}
+          shiftsFrom={week.shiftsFrom}
+          shiftsTo={week.shiftsTo}
           isBoundaryClamped={week.isBoundaryClamped}
           reducedPath={reducedPath}
           onState={reportWeekState}

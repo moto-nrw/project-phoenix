@@ -92,6 +92,10 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 	if input.ActorStaffID > 0 {
 		moved.UpdatedBy = &input.ActorStaffID
 	}
+	moveChanged := staffShiftMoveChanged(existing, &moved)
+	if !moveChanged {
+		return existing, nil
+	}
 
 	if err := moved.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %s", ErrShiftInvalid, err.Error())
@@ -112,23 +116,26 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 	}
 
 	vacatesSeriesOccurrence := existing.SeriesID != nil &&
-		(existing.StaffID != moved.StaffID || existing.Date != moved.Date)
+		(existing.StaffID != moved.StaffID || seriesOccurrenceDate(existing) != moved.Date)
 	if vacatesSeriesOccurrence {
 		if s.exceptionRepo == nil {
 			return nil, errors.New("series exception repository is required for shift move")
 		}
-		if err := s.recordSeriesException(ctx, existing, existing.Date); err != nil {
+		if err := s.recordSeriesException(ctx, existing, seriesOccurrenceDate(existing)); err != nil {
 			return nil, fmt.Errorf("record original series occurrence for shift move: %w", err)
 		}
 	}
 	if existing.SeriesID != nil {
 		if existing.StaffID == moved.StaffID {
-			moved.Detached = true
+			if moveChanged {
+				moved.Detached = true
+			}
 		} else {
 			// A series belongs to its original staff member. The moved target row is
 			// standalone; the exception above keeps the original occurrence consumed.
 			moved.SeriesID = nil
 			moved.Detached = false
+			moved.SeriesOccurrenceDate = nil
 		}
 	}
 
@@ -142,6 +149,25 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 		"date", moved.Date.String(),
 	)
 	return &moved, nil
+}
+
+func staffShiftMoveChanged(existing, moved *scheduleModels.StaffShift) bool {
+	return existing.StaffID != moved.StaffID ||
+		existing.Date != moved.Date ||
+		!timezone.SameClockTime(existing.StartTime, moved.StartTime) ||
+		!timezone.SameClockTime(existing.EndTime, moved.EndTime) ||
+		existing.BreakMinutes != moved.BreakMinutes ||
+		!sameShiftTypeID(existing.ShiftTypeID, moved.ShiftTypeID)
+}
+
+// seriesOccurrenceDate returns the immutable recurrence slot for a materialized
+// row. The Date fallback keeps mock-built and pre-migration in-memory rows safe;
+// migration 1.15.202 backfills every persisted series row.
+func seriesOccurrenceDate(shift *scheduleModels.StaffShift) timezone.Date {
+	if shift.SeriesOccurrenceDate != nil {
+		return *shift.SeriesOccurrenceDate
+	}
+	return shift.Date
 }
 
 func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*scheduleModels.StaffShift, error) {

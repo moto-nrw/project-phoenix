@@ -489,6 +489,7 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	// alone (#1889). Standalone rows stay untouched by this.
 	shift.SeriesID = existing.SeriesID
 	shift.Detached = existing.Detached
+	shift.SeriesOccurrenceDate = existing.SeriesOccurrenceDate
 	if existing.SeriesID != nil {
 		shift.Detached = true
 	}
@@ -632,7 +633,7 @@ func (s *staffShiftService) DeleteShift(ctx context.Context, id int64) error {
 	// Deleting a series-backed row records the date as a series exception so
 	// re-plans and splits never regenerate the removed occurrence (#1889).
 	if existing.SeriesID != nil && s.exceptionRepo != nil {
-		if err := s.recordSeriesException(ctx, existing, existing.Date); err != nil {
+		if err := s.recordSeriesException(ctx, existing, seriesOccurrenceDate(existing)); err != nil {
 			return fmt.Errorf("record series exception for deleted shift: %w", err)
 		}
 	}
@@ -724,7 +725,8 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 	// could interleave with the delete-and-rebuild below and be silently overwritten,
 	// deleted twice, or resurrected from this operation's snapshot. Fold every
 	// current cover's staff into the lock set so those rows serialize against us too
-	// (#1841). StaffID is immutable, so a cover discovered here stays lock-relevant.
+	// (#1841). MoveShift can change a cover's owner, so the authoritative reload
+	// below verifies that every current owner was included in this snapshot.
 	discoveredCovers, err := s.repo.FindByOriginShiftID(ctx, existing.ID)
 	if err != nil {
 		return nil, fmt.Errorf("discover existing replacements: %w", err)
@@ -745,6 +747,12 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 	}
 	if err := s.lockStaffWritesOrdered(ctx, lockIDs); err != nil {
 		return nil, err
+	}
+	lockedStaffIDs := make(map[int64]bool, len(lockIDs))
+	for _, id := range lockIDs {
+		if id > 0 {
+			lockedStaffIDs[id] = true
+		}
 	}
 
 	// existing was read before the advisory lock. A concurrent normal edit that
@@ -777,6 +785,15 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 	covers, err := s.repo.FindByOriginShiftID(ctx, existing.ID)
 	if err != nil {
 		return nil, fmt.Errorf("reload existing replacements: %w", err)
+	}
+	for _, cover := range covers {
+		if !lockedStaffIDs[cover.StaffID] {
+			// A replacement moved after discovery but before this transaction
+			// acquired the origin lock. Taking the newly discovered lock now could
+			// violate the global lock order and deadlock; reject the stale snapshot
+			// so a retry discovers and locks the current owner from the outset.
+			return nil, fmt.Errorf("%w: replacement staff assignment changed", ErrShiftConflict)
+		}
 	}
 	// The rebuilt cover set re-sends each existing cover's own shift type; a type
 	// deactivated after the cover was created must still be allowed to remain. Scope

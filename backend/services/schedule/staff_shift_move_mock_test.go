@@ -36,6 +36,7 @@ func TestShiftService_MoveAcrossStaffPreservesIdentityAndConsumesSeriesOccurrenc
 	existing := validShift(7)
 	existing.ID = 5
 	existing.SeriesID = &seriesID
+	existing.SeriesOccurrenceDate = &existing.Date
 	existing.Notes = "Nur Hintereingang"
 	existing.ChangeReason = &reason
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
@@ -74,6 +75,7 @@ func TestShiftService_MoveAcrossStaffPreservesIdentityAndConsumesSeriesOccurrenc
 	assert.Equal(t, "Nur Hintereingang", moved.Notes)
 	assert.Equal(t, &reason, moved.ChangeReason)
 	assert.Nil(t, moved.SeriesID, "a target person cannot inherit another person's series")
+	assert.Nil(t, moved.SeriesOccurrenceDate)
 	assert.False(t, moved.Detached)
 	require.NotNil(t, exception)
 	assert.Equal(t, seriesID, exception.SeriesID)
@@ -117,6 +119,7 @@ func TestShiftService_MoveSeriesDateRetainsDeviationAndConsumesOriginalDate(t *t
 	existing := validShift(7)
 	existing.ID = 5
 	existing.SeriesID = &seriesID
+	existing.SeriesOccurrenceDate = &existing.Date
 	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
 		return existing, nil
 	}
@@ -144,4 +147,45 @@ func TestShiftService_MoveSeriesDateRetainsDeviationAndConsumesOriginalDate(t *t
 	assert.Equal(t, seriesID, *moved.SeriesID)
 	assert.True(t, moved.Detached)
 	assert.Equal(t, existing.Date, exceptionDate)
+}
+
+func TestShiftService_MoveSeriesNoOpDoesNotDetachOrWrite(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+	seriesID := int64(17)
+	existing := validShift(7)
+	existing.ID = 5
+	existing.SeriesID = &seriesID
+	existing.SeriesOccurrenceDate = &existing.Date
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return existing, nil
+	}
+	updates := 0
+	repo.updateFunc = func(_ context.Context, _ *scheduleModels.StaffShift) error {
+		updates++
+		return nil
+	}
+	exceptions := 0
+	svc.SetSeriesExceptionRepo(&shiftMoveExceptionRepo{
+		createFunc: func(_ context.Context, _ *scheduleModels.StaffShiftSeriesException) error {
+			exceptions++
+			return nil
+		},
+	})
+
+	moved, err := svc.MoveShift(context.Background(), MoveShiftInput{
+		ShiftID:       existing.ID,
+		SourceStaffID: existing.StaffID,
+		TargetStaffID: existing.StaffID,
+		Date:          existing.Date,
+		StartTime:     existing.StartTime,
+		EndTime:       existing.EndTime,
+		BreakMinutes:  existing.BreakMinutes,
+		ShiftTypeID:   existing.ShiftTypeID,
+	})
+
+	require.NoError(t, err)
+	assert.Same(t, existing, moved)
+	assert.False(t, moved.Detached)
+	assert.Zero(t, updates)
+	assert.Zero(t, exceptions)
 }

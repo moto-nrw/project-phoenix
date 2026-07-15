@@ -24,12 +24,15 @@ func NewStaffShiftSeriesExceptionRepository(db *bun.DB) schedule.StaffShiftSerie
 	return &StaffShiftSeriesExceptionRepository{db: db}
 }
 
-// Create records one deliberately removed occurrence of a series.
+// Create records one deliberately removed occurrence of a series. Recording
+// the same source slot again is a successful no-op: a detached row may be
+// moved away, back, and away again while still referring to that one slot.
 func (r *StaffShiftSeriesExceptionRepository) Create(ctx context.Context, exception *schedule.StaffShiftSeriesException) error {
 	base.EnsureTenantID(ctx, exception)
 	_, err := base.GetDB(ctx, r.db).NewInsert().
 		Model(exception).
 		ModelTableExpr("schedule.staff_shift_series_exceptions").
+		On("CONFLICT (tenant_id, series_id, date) DO NOTHING").
 		Exec(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "create staff shift series exception", Err: err}

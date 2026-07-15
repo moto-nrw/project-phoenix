@@ -272,14 +272,14 @@ describe("DienstplanHalbjahrGrid", () => {
       startDate: "2026-09-09", // Wednesday of KW 37
       endDate: "2026-09-16", // Wednesday of KW 38
     };
-    const firstBoundary = ovKey("2026-09-09", "2026-09-11");
+    const firstBoundary = ovKey("2026-09-09", "2026-09-13");
     const secondBoundary = ovKey("2026-09-14", "2026-09-16");
     configureSWR({
       periods: [partialPeriod],
       overviewByKey: {
         [firstBoundary]: overview(
           "2026-09-09",
-          "2026-09-11",
+          "2026-09-13",
           // The backend summary covers the complete week and includes an
           // out-of-period Monday shift (8 h total). The viewport payload only
           // contains Wednesday's in-period 4 h shift.
@@ -293,7 +293,7 @@ describe("DienstplanHalbjahrGrid", () => {
     renderGrid({ staff: STAFF_ADA });
 
     const keys = mocks.useSWRAuth.mock.calls.map(([key]) => key);
-    expect(keys).toContain(ovKey("2026-09-09", "2026-09-11"));
+    expect(keys).toContain(ovKey("2026-09-09", "2026-09-13"));
     expect(keys).toContain(ovKey("2026-09-14", "2026-09-16"));
     expect(keys).not.toContain(ovKey("2026-09-07", "2026-09-11"));
     expect(keys).not.toContain(ovKey("2026-09-14", "2026-09-18"));
@@ -412,7 +412,7 @@ describe("DienstplanHalbjahrGrid", () => {
   });
 
   it("sums client-side from shifts and excludes cancelled ones on the reduced path", async () => {
-    const week1 = shKey("2026-09-07", "2026-09-11");
+    const week1 = shKey("2026-09-07", "2026-09-13");
     configureSWR({
       periods: [PERIOD_6W],
       shiftsByKey: {
@@ -430,15 +430,23 @@ describe("DienstplanHalbjahrGrid", () => {
             endTime: "16:00",
             cancelled: true,
           }), // 180 min excluded (B6)
+          shift({
+            id: "3",
+            staffId: "1",
+            date: "2026-09-12",
+            startTime: "10:00",
+            endTime: "12:00",
+          }), // Saturday is part of the weekly total
         ],
       },
     });
 
     renderGrid({ staff: STAFF_ADA, reducedPath: true });
 
-    // Only the non-cancelled shift contributes: 240 min = 4 h, not 7 h.
-    const cell = await screen.findByText("4 h");
+    // Both non-cancelled weekday + weekend shifts contribute: 360 min = 6 h.
+    const cell = await screen.findByText("6 h");
     expect(cell).toBeInTheDocument();
+    expect(screen.queryByText("4 h")).not.toBeInTheDocument();
     expect(screen.queryByText("7 h")).not.toBeInTheDocument();
     // Reduced path has no target → neutral, never red/amber.
     expect(cell).not.toHaveStyle({ color: "#FF3130" });
