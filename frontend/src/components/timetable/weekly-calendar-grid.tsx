@@ -59,6 +59,13 @@ interface WeeklyCalendarGridProps {
    * renders exactly as before (no extra elements).
    */
   onSlotClick?: (dateISO: string, hour: number) => void;
+  /**
+   * Instanz-IDs offener (nicht quittierter) Personal-Lücken. Ein Block, dessen
+   * ID hier liegt, zeigt das eine Lücken-Status-Icon (Betreuungsplan Abschnitt
+   * 5.1/5.2). Optional und per Default leer: ohne Set zeigt kein Block ein
+   * Lücken-Icon, beide bestehenden Call-Sites bleiben verhaltensgleich.
+   */
+  gapInstanceIds?: ReadonlySet<string>;
   emptyState?: {
     title: string;
     description: string;
@@ -75,6 +82,7 @@ export function WeeklyCalendarGrid({
   dayEndHour,
   hourHeightPx,
   onSlotClick,
+  gapInstanceIds,
   emptyState,
 }: WeeklyCalendarGridProps) {
   const gridColsClass =
@@ -310,6 +318,7 @@ export function WeeklyCalendarGrid({
                       left={`${lane * widthPct}%`}
                       width={`calc(${widthPct}% - 4px)`}
                       isSelected={selectedId === instance.id}
+                      isGap={gapInstanceIds?.has(instance.id) ?? false}
                       onClick={() => onInstanceClick(instance)}
                     />
                   );

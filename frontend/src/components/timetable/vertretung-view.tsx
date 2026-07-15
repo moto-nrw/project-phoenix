@@ -261,6 +261,13 @@ function VertretungContent() {
     () => (gapsData?.acknowledged ?? []).filter((g) => g.date === dayISO),
     [gapsData?.acknowledged, dayISO],
   );
+  // Instanz-IDs der offenen (NICHT quittierten) Lücken des Tages für die
+  // Block-Markierung im Kalender. Quittierte liegen in `acknowledged` und
+  // bekommen kein Lücken-Icon (sie sind bewusst unbesetzt).
+  const dayGapInstanceIds = useMemo(
+    () => new Set(dayGaps.map((g) => g.instanceId)),
+    [dayGaps],
+  );
   // Pro-Tag-Zahlen der Wochenleiste durch Client-Gruppierung der `gaps`.
   const gapsByDate = useMemo(() => {
     const m = new Map<string, number>();
@@ -506,6 +513,7 @@ function VertretungContent() {
               instances={dayInstances}
               selectedId={selectedInstanceId}
               onInstanceClick={(inst) => openEditor(inst.id)}
+              gapInstanceIds={dayGapInstanceIds}
               todayISO={today}
               dayStartHour={dayStartHour}
               dayEndHour={dayEndHour}
