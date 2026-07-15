@@ -85,6 +85,7 @@ export interface GuideEntryPoint {
   readonly body: string;
   readonly icon: LucideIcon;
   readonly points: readonly string[];
+  readonly searchable?: boolean;
 }
 
 export const guideEntryPoints: readonly GuideEntryPoint[] = [
@@ -108,6 +109,18 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
       "Kindersuche, Aufsicht, Räume, Mitarbeiter",
       "Vertretungen, Betreuungsplan, Zeiterfassung",
       "Datenverwaltung, Anmeldungen, Feedback, Einstellungen",
+    ],
+  },
+  {
+    href: "/help/nfc/erste-schritte",
+    title: "NFC Erste Schritte",
+    body: "Das kompakte Einlegeblatt für neue NFC-Tablets: montieren, anmelden und die ersten Armbänder zuweisen.",
+    icon: PlugZap,
+    searchable: false,
+    points: [
+      "Für den Versandkarton und den schnellen Start",
+      "QR-Code zur ausführlichen NFC-Anleitung",
+      "Als druckfertige A4-Seite aufgebaut",
     ],
   },
   {
