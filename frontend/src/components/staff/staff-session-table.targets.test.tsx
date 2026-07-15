@@ -31,6 +31,7 @@ const today = new Date(2026, 5, 15);
 function renderTable(props: {
   dailyTargets?: ReadonlyMap<string, number>;
   dailyTargetsError?: boolean;
+  dailyTargetsPending?: boolean;
 }) {
   return render(
     <StaffSessionTable
@@ -54,10 +55,38 @@ describe("StaffSessionTable Soll-Auflösung", () => {
     expect(screen.getAllByText("5h").length).toBeGreaterThan(0);
   });
 
-  it("fällt auf den Plan zurück, solange die Targets laden", () => {
+  it("zeigt während des Ladens kein Soll aus dem aktuellen Plan", () => {
+    // Die Fetches laufen mit keepPreviousData: nach einem Zeitraumwechsel hält
+    // `dailyTargets` noch die Keys des VORHERIGEN Zeitraums, die neuen Tage
+    // fehlen. Der Plan als Lückenfüller zeigte dort kurzzeitig ein falsches
+    // historisches Soll, bis die Antwort eintraf (#1842).
+    renderTable({ dailyTargetsPending: true });
+
+    expect(screen.queryByText("8h")).not.toBeInTheDocument();
+    expect(screen.getAllByText("…").length).toBe(5);
+    // Laden ist kein Fehler — kein Warnhinweis.
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("behält beim Zeitraumwechsel die bereits aufgelösten Tage", () => {
+    // Ein überlappender Tag aus dem vorherigen Fetch bleibt gültig: dasselbe
+    // Datum liefert für dieselbe Person immer dasselbe Soll. Nur die noch
+    // nicht abgedeckten Tage bleiben ungelöst.
+    renderTable({
+      dailyTargets: new Map([["2026-01-05", 300]]),
+      dailyTargetsPending: true,
+    });
+
+    expect(screen.getAllByText("5h").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("…").length).toBe(4);
+    expect(screen.queryByText("8h")).not.toBeInTheDocument();
+  });
+
+  it("nutzt ohne Lade- und Fehlersignal den Plan als Fallback", () => {
+    // Der unsignalisierte Default (kein Caller im Produktivcode): ohne jede
+    // Angabe bleibt der Plan die einzige Quelle.
     renderTable({});
 
-    // Mo–Fr aus dem Plan, kein Fehlerhinweis.
     expect(screen.getAllByText("8h").length).toBe(5);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });

@@ -57,6 +57,7 @@ export function StaffSessionTable({
   schedule,
   dailyTargets,
   dailyTargetsError,
+  dailyTargetsPending,
   today,
   isAdminView,
   plannedShifts,
@@ -72,14 +73,22 @@ export function StaffSessionTable({
   // Server-resolved Soll je Tag (#1842), keyed YYYY-MM-DD. Wenn gesetzt, ist
   // das die Quelle für die Soll-Spalte: `schedule` beschreibt NUR den heute
   // gültigen Plan, angewendet auf vergangene Tage widerspricht er der
-  // Monatskarte, sobald jemand seine Stunden ändert. Der Plan bleibt der
-  // Fallback, solange die Targets laden.
+  // Monatskarte, sobald jemand seine Stunden ändert.
   readonly dailyTargets?: ReadonlyMap<string, number>;
   // Fehler beim Laden der Targets. Dann bleibt die Soll-Spalte ungelöst ("?")
   // statt auf `schedule` zurückzufallen: der heutige Plan als historisches
   // Soll auszugeben wäre eine stille Falschaussage, die der Monatskarte
   // widerspricht (die weiter mit datumsgültigen Versionen rechnet).
   readonly dailyTargetsError?: boolean;
+  // Die Targets für den SICHTBAREN Zeitraum werden noch geladen. Die Fetches
+  // laufen mit keepPreviousData, `dailyTargets` hält nach einem Wechsel des
+  // Zeitraums also noch die Keys des VORHERIGEN — die neuen Tage sind schlicht
+  // nicht enthalten. Ohne dieses Flag fielen genau diese Tage auf `schedule`
+  // (den heutigen Plan) zurück und zeigten kurzzeitig falsche historische
+  // Soll-/Saldo-Werte, bis die Antwort eintrifft (#1842). Tage, die der
+  // vorherige Zeitraum bereits aufgelöst hat, bleiben gültig: dasselbe Datum
+  // liefert für dieselbe Person immer dasselbe Soll.
+  readonly dailyTargetsPending?: boolean;
   readonly today: Date;
   readonly isAdminView: boolean;
   // Planned Dienstplan shifts for the visible range. When provided (admin
@@ -241,12 +250,15 @@ export function StaffSessionTable({
               const dow = toIsoDayOfWeek(day);
               const session = sessionsByDate.get(key);
               const absence = absencesByDate.get(key);
-              // Ein fehlgeschlagener Targets-Fetch darf NICHT auf den aktuellen
-              // Plan zurückfallen (#1842): der Tag bleibt ungelöst, damit die
-              // Tabelle keinen erfundenen Soll-/Saldo-Wert behauptet.
+              // Ein fehlgeschlagener ODER noch laufender Targets-Fetch darf
+              // NICHT auf den aktuellen Plan zurückfallen (#1842): der Tag
+              // bleibt ungelöst, damit die Tabelle keinen erfundenen
+              // Soll-/Saldo-Wert behauptet — weder dauerhaft (Fehler) noch
+              // kurzzeitig beim Zeitraumwechsel (pending, stale Map).
               const resolvedTarget = dailyTargets?.get(key);
               const targetUnresolved =
-                resolvedTarget === undefined && dailyTargetsError === true;
+                resolvedTarget === undefined &&
+                (dailyTargetsError === true || dailyTargetsPending === true);
               const target =
                 resolvedTarget ??
                 (targetUnresolved || !schedule
@@ -335,7 +347,15 @@ export function StaffSessionTable({
                     </td>
                     <td className="px-4 py-3 text-right text-gray-500 tabular-nums">
                       {targetUnresolved ? (
-                        <span title="Soll konnte nicht geladen werden">?</span>
+                        <span
+                          title={
+                            dailyTargetsError === true
+                              ? "Soll konnte nicht geladen werden"
+                              : "Soll wird geladen"
+                          }
+                        >
+                          {dailyTargetsError === true ? "?" : "…"}
+                        </span>
                       ) : target > 0 ? (
                         formatDuration(target)
                       ) : (

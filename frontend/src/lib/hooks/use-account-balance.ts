@@ -45,13 +45,14 @@ export interface AccountBalance {
  * last month's closing balance under a key that no longer matches the
  * Monatskarte. `useBerlinToday` also re-renders on the rollover itself.
  *
- * A configured account start in a FUTURE month yields no balance. The backend
- * summarizes months before the anchor standalone (full month, no carry), so
- * `closingBalanceMinutes` is then this month's own Saldo — not a cumulative
- * account balance — and labelling it "Stundenkonto seit <future date>" would
- * be materially wrong. Consumers already render `null` as "–". The anchor is
- * required input, so a failed config read is surfaced rather than swallowed,
- * mirroring the backend's `chainAnchor`.
+ * An account start in the FUTURE — a later month, or a later day of the
+ * current month — yields no balance. The backend summarizes months before the
+ * anchor standalone (full month, no carry), so `closingBalanceMinutes` is then
+ * this month's own Saldo — not a cumulative account balance — and labelling it
+ * "Stundenkonto seit <future date>" would be materially wrong. Consumers
+ * already render `null` as "–". The anchor is required input, so a failed
+ * config read is surfaced rather than swallowed, mirroring the backend's
+ * `chainAnchor`.
  */
 export function useAccountBalance(staffId?: string): AccountBalance {
   const today = useBerlinToday();
@@ -64,13 +65,17 @@ export function useAccountBalance(staffId?: string): AccountBalance {
     error: configError,
   } = useSWRAuth("time-tracking-config", () => timeTrackingService.getConfig());
 
-  // ISO "YYYY-MM" compares lexicographically. An empty setting means "no
+  // ISO "YYYY-MM-DD" compares lexicographically. An empty setting means "no
   // anchor configured" — the backend then starts the chain on January 1st.
+  // The comparison is on the FULL date, not the month: an account starting
+  // later in the CURRENT month has not started either, and the backend then
+  // aggregates an empty span (every day of the anchor month before the start
+  // day carries no Soll and no Ist) and answers a clean 0 — which the widget
+  // would print as a real "Stundenkonto Stand: 0:00" days before the account
+  // exists (#1842).
   const anchor = config?.accountStartDate ?? "";
-  const anchorIsFutureMonth =
-    anchor !== "" && anchor.slice(0, 7) > today.slice(0, 7);
-  const canResolveAccount =
-    !configLoading && !configError && !anchorIsFutureMonth;
+  const anchorIsInFuture = anchor !== "" && anchor > today;
+  const canResolveAccount = !configLoading && !configError && !anchorIsInFuture;
 
   const { data, isLoading, error } = useSWRAuth<MonthSummary>(
     !canResolveAccount

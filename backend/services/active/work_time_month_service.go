@@ -393,7 +393,8 @@ func workedMinutesUpTo(session *activeModels.WorkSession, now time.Time) int {
 // records no duration and the cache is refreshed when the break ends or is
 // auto-ended — so netMinutes counts every minute of a running break as worked
 // time. Without this correction the polled Monatskarte inflates Ist and Saldo
-// for as long as the staff member is on break.
+// for as long as the staff member is on break. The elapsed math is shared with
+// /history (runningBreakElapsedMinutes) so card and day rows agree.
 func (s *workTimeMonthService) runningBreakMinutes(ctx context.Context, session *activeModels.WorkSession, now time.Time) (int, error) {
 	if s.breakRepo == nil || session.CheckOutTime != nil {
 		return 0, nil
@@ -402,14 +403,7 @@ func (s *workTimeMonthService) runningBreakMinutes(ctx context.Context, session 
 	if err != nil {
 		return 0, fmt.Errorf("failed to load active break: %w", err)
 	}
-	if brk == nil || !brk.IsActive() {
-		return 0, nil
-	}
-	elapsed := int(now.Sub(brk.StartedAt).Minutes())
-	if elapsed < 0 {
-		return 0, nil
-	}
-	return elapsed, nil
+	return runningBreakElapsedMinutes(brk, now), nil
 }
 
 // addAbsenceCredits credits sick/vacation/training days with the day's
@@ -610,10 +604,23 @@ func (s *workTimeMonthService) GetMonthSummary(ctx context.Context, staffID int6
 	return summary, nil
 }
 
+// excludedByAccountStart reports whether d is inside the account-start month
+// but before the start day. GetMonthSummary begins the anchor month's
+// aggregation on the start date itself (`first = anchor`), so those days carry
+// no Soll on the card; a month WHOLLY before the anchor is a different case —
+// it is summarized standalone over its full length and stays fully counted.
+func excludedByAccountStart(d, anchor timezone.Date) bool {
+	return monthOf(d) == monthOf(anchor) && d.Before(anchor)
+}
+
 // GetDailyTargets resolves the contractual Soll for every day in [from, to]
 // through the same resolver the Monatskarte uses, so card and table can never
 // disagree. Days with no target are returned as 0 rather than omitted: the
 // caller must be able to tell "planned day off" from "range not covered".
+//
+// Days before a mid-month account start resolve to 0 for the same reason: the
+// card starts accruing Soll on the start date, so billing them in the table
+// would make the Soll column contradict the card's "Summe Soll" (#1842).
 func (s *workTimeMonthService) GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error) {
 	if from.IsZero() || to.IsZero() {
 		return nil, fmt.Errorf("%w: from and to are required", ErrInvalidTargetRange)
@@ -629,9 +636,20 @@ func (s *workTimeMonthService) GetDailyTargets(ctx context.Context, staffID int6
 	if err != nil {
 		return nil, err
 	}
+	// The anchor is absolute; the month key only picks the January fallback for
+	// an unset setting, and no day can precede January 1st of its own year — so
+	// an unset account start zeroes nothing.
+	anchor, err := s.chainAnchor(ctx, monthOf(from))
+	if err != nil {
+		return nil, err
+	}
 	targets := make([]DailyTarget, 0, from.DaysUntil(to)+1)
 	for d := from; !d.After(to); d = d.AddDays(1) {
-		targets = append(targets, DailyTarget{Date: d, TargetMinutes: resolver.targetFor(d)})
+		target := resolver.targetFor(d)
+		if excludedByAccountStart(d, anchor) {
+			target = 0
+		}
+		targets = append(targets, DailyTarget{Date: d, TargetMinutes: target})
 	}
 	return targets, nil
 }

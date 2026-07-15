@@ -1591,7 +1591,14 @@ function OwnZeiterfassungSection({
   // the table's `schedule` prop only ever describes the CURRENT plan, so after
   // a contract change it would print today's hours onto historical rows and
   // contradict the Monatskarte above it.
-  const { data: dailyTargets, error: dailyTargetsError } = useSWRAuth(
+  // `isLoading` is the staleness signal, not a spinner: with keepPreviousData
+  // SWR serves the PREVIOUS range's map while the new one is in flight, and the
+  // table must not fall back to today's plan for the days it doesn't cover.
+  const {
+    data: dailyTargets,
+    error: dailyTargetsError,
+    isLoading: dailyTargetsLoading,
+  } = useSWRAuth(
     `time-tracking-schedule-targets-${visibleFromKey}-${visibleToKey}`,
     () => timeTrackingService.getScheduleTargets(visibleFromKey, visibleToKey),
     { keepPreviousData: true, revalidateOnFocus: false },
@@ -1835,6 +1842,7 @@ function OwnZeiterfassungSection({
             schedule={schedule}
             dailyTargets={dailyTargets}
             dailyTargetsError={dailyTargetsError != null}
+            dailyTargetsPending={dailyTargetsLoading}
             today={today}
             isAdminView={ownStaffId !== null}
             onEditDay={(date) => handleEdit(date)}

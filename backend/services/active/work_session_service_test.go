@@ -1604,6 +1604,94 @@ func TestWSGetHistory_Success(t *testing.T) {
 	require.Len(t, historyResp.WeeklySummaries, 1)
 }
 
+// WorkSession.BreakMinutes caches ENDED breaks only, so an open break is
+// invisible to netMinutes and the day row would keep counting break time as
+// worked time — climbing while the Monatskarte and the week KPI, which both
+// deduct the running break server-side, stand still (#1842).
+func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
+	staffID := int64(100)
+	// Open session, checked in 4h ago: 30 min of ended breaks (in the cache)
+	// plus a break that started 20 min ago and is still running.
+	checkIn := time.Now().Add(-4 * time.Hour)
+	breakStart := time.Now().Add(-20 * time.Minute)
+	endedBreakEnd := time.Now().Add(-2 * time.Hour)
+
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{
+			{
+				Model:        base.Model{ID: 1},
+				StaffID:      staffID,
+				Date:         timezone.TodayDate(),
+				CheckInTime:  checkIn,
+				BreakMinutes: 30,
+			},
+		}, nil
+	}
+	auditRepo.countManualBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{
+			{Model: base.Model{ID: 1}, SessionID: 1, StartedAt: time.Now().Add(-150 * time.Minute), EndedAt: &endedBreakEnd, DurationMinutes: 30},
+			{Model: base.Model{ID: 2}, SessionID: 1, StartedAt: breakStart},
+		}, nil
+	}
+
+	historyResp, err := svc.GetHistory(context.Background(), staffID, timezone.TodayDate(), timezone.TodayDate())
+	require.NoError(t, err)
+	require.Len(t, historyResp.Sessions, 1)
+
+	// 240 gross − 30 ended − 20 running = 190.
+	assert.InDelta(t, 190, historyResp.Sessions[0].NetMinutes, 1,
+		"the running break must be deducted, exactly as the Monatskarte does")
+	assert.InDelta(t, 190, historyResp.WeeklySummaries[0].TotalNetMinutes, 1,
+		"the weekly summary aggregates the corrected value")
+}
+
+// A checked-out session is final: its breaks are all ended and folded into the
+// cache, so nothing may be deducted twice.
+func TestWSGetHistory_ClosedSessionKeepsCachedBreaks(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
+	staffID := int64(100)
+	checkIn := time.Now().Add(-8 * time.Hour)
+	checkOut := time.Now().Add(-2 * time.Hour)
+	breakEnd := time.Now().Add(-5 * time.Hour)
+
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{
+			{
+				Model:        base.Model{ID: 1},
+				StaffID:      staffID,
+				Date:         timezone.TodayDate(),
+				CheckInTime:  checkIn,
+				CheckOutTime: &checkOut,
+				BreakMinutes: 30,
+			},
+		}, nil
+	}
+	auditRepo.countManualBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{
+			{Model: base.Model{ID: 1}, SessionID: 1, StartedAt: time.Now().Add(-330 * time.Minute), EndedAt: &breakEnd, DurationMinutes: 30},
+		}, nil
+	}
+
+	historyResp, err := svc.GetHistory(context.Background(), staffID, timezone.TodayDate(), timezone.TodayDate())
+	require.NoError(t, err)
+	require.Len(t, historyResp.Sessions, 1)
+	// 360 gross − 30 cached = 330, unchanged.
+	assert.InDelta(t, 330, historyResp.Sessions[0].NetMinutes, 1)
+}
+
 func TestWSGetHistory_UsesRotationWeekTargets(t *testing.T) {
 	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
 	staffID := int64(100)

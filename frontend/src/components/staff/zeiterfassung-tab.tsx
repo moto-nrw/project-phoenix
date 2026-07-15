@@ -128,9 +128,14 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
   // Monatskarte is computed from. Without it the table applies the CURRENT
   // schedule to historical dates, so card and rows disagree the moment a
   // staff member's contracted hours change.
-  const { data: dailyTargets, error: dailyTargetsError } = useSWRAuth<
-    ReadonlyMap<string, number>
-  >(
+  // `isLoading` is the staleness signal, not a spinner: with keepPreviousData
+  // SWR serves the PREVIOUS range's map while the new one is in flight, and the
+  // table must not fall back to today's plan for the days it doesn't cover.
+  const {
+    data: dailyTargets,
+    error: dailyTargetsError,
+    isLoading: dailyTargetsLoading,
+  } = useSWRAuth<ReadonlyMap<string, number>>(
     `staff-schedule-targets-${staffId}-${visibleFromKey}-${visibleToKey}`,
     () =>
       staffMonthSummaryService.getScheduleTargets(
@@ -276,6 +281,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               schedule={schedule ?? null}
               dailyTargets={dailyTargets}
               dailyTargetsError={dailyTargetsError != null}
+              dailyTargetsPending={dailyTargetsLoading}
               today={today}
               isAdminView
               plannedShifts={visibleShifts ?? []}

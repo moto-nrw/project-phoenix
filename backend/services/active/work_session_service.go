@@ -1277,8 +1277,13 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 		}
 
 		responses[i] = &SessionResponse{
-			WorkSession:      session,
-			NetMinutes:       netMinutes(session, now),
+			WorkSession: session,
+			// A running break is NOT in the BreakMinutes cache, so netMinutes
+			// alone would keep counting it as worked time and the day rows
+			// would climb while the Monatskarte and the week KPI (which both
+			// deduct it) stand still (#1842). The breaks are already loaded
+			// above — no extra query.
+			NetMinutes:       netMinutesWithBreaks(session, breaks, now),
 			IsOvertime:       isOvertime(session, now),
 			IsBreakCompliant: isBreakCompliant(session, now),
 			Breaks:           breaks,

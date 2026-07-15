@@ -43,6 +43,43 @@ func netMinutes(ws *activeModels.WorkSession, now time.Time) int {
 	return net
 }
 
+// runningBreakElapsedMinutes is the elapsed duration of a break that has
+// started but not ended yet, floored at 0. WorkSession.BreakMinutes caches
+// ENDED breaks only (see recalcBreakMinutes), so netMinutes counts every
+// minute of a running break as worked time and every reader has to correct for
+// it against its own clock. The math lives here once so the Monatskarte and
+// /history can't drift apart (#1842).
+func runningBreakElapsedMinutes(brk *activeModels.WorkSessionBreak, now time.Time) int {
+	if brk == nil || !brk.IsActive() {
+		return 0
+	}
+	elapsed := int(now.Sub(brk.StartedAt).Minutes())
+	if elapsed < 0 {
+		return 0
+	}
+	return elapsed
+}
+
+// netMinutesWithBreaks is netMinutes minus the elapsed time of a still-running
+// break in `breaks`. Use this wherever net work time is reported to a reader
+// that also sees the Monatskarte: netMinutes alone keeps climbing while a
+// staff member is on break, so Ist and Saldo would contradict the card, which
+// deducts the running break server-side. A checked-out session cannot have a
+// running break (checkout ends it), so it is left untouched.
+func netMinutesWithBreaks(ws *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, now time.Time) int {
+	net := netMinutes(ws, now)
+	if ws.CheckOutTime != nil {
+		return net
+	}
+	for _, brk := range breaks {
+		net -= runningBreakElapsedMinutes(brk, now)
+	}
+	if net < 0 {
+		return 0
+	}
+	return net
+}
+
 // isOvertime reports whether net work time exceeds the statutory overtime
 // threshold (10 hours).
 func isOvertime(ws *activeModels.WorkSession, now time.Time) bool {

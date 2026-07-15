@@ -466,6 +466,68 @@ func TestWTMDailyTargets_UsesDateValidScheduleVersion(t *testing.T) {
 	assert.Equal(t, 0, byDate[timezone.NewDate(2026, time.June, 30)], "Tuesday is a planned day off")
 }
 
+// A mid-month account start makes the card skip every day of the anchor month
+// before the start date. The table reads GetDailyTargets, so it has to skip the
+// same days — otherwise its Soll column bills days the card never counted and
+// the two contradict each other on the very first month of the account.
+func TestWTMDailyTargets_ZeroesDaysBeforeMidMonthAccountStart(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-08"
+
+	targets, err := f.svc.GetDailyTargets(context.Background(), wtmStaffID,
+		timezone.NewDate(2026, time.June, 29), timezone.NewDate(2026, time.July, 13))
+	require.NoError(t, err)
+
+	byDate := make(map[timezone.Date]int, len(targets))
+	for _, target := range targets {
+		byDate[target.Date] = target.TargetMinutes
+	}
+	assert.Equal(t, 0, byDate[timezone.NewDate(2026, time.July, 6)],
+		"Monday in the anchor month but before the start day carries no Soll")
+	assert.Equal(t, 480, byDate[timezone.NewDate(2026, time.July, 13)],
+		"Monday after the start day keeps its Soll")
+	assert.Equal(t, 480, byDate[timezone.NewDate(2026, time.June, 29)],
+		"a month WHOLLY before the anchor is summarized standalone over its full length, so it stays fully counted")
+}
+
+// The guarantee the table depends on, stated end to end: for a mid-month start
+// the per-day targets must sum to exactly the card's Summe Soll.
+func TestWTMDailyTargets_SumMatchesCardForMidMonthStart(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-08"
+	ctx := context.Background()
+
+	targets, err := f.svc.GetDailyTargets(ctx, wtmStaffID,
+		timezone.NewDate(2026, time.July, 1), timezone.NewDate(2026, time.July, 31))
+	require.NoError(t, err)
+	sum := 0
+	for _, target := range targets {
+		sum += target.TargetMinutes
+	}
+
+	summary, err := f.svc.GetMonthSummary(ctx, wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	assert.Equal(t, summary.TargetMinutes, sum, "table rows and Monatskarte must cover the same span")
+	assert.Equal(t, 3*480, sum, "Mondays from the start day on: Jul 13, 20, 27")
+}
+
+// An unset account start must not zero anything: chainAnchor then falls back to
+// January 1st, and no day can precede January 1st of its own year.
+func TestWTMDailyTargets_UnsetAccountStartZeroesNothing(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = ""
+
+	targets, err := f.svc.GetDailyTargets(context.Background(), wtmStaffID,
+		timezone.NewDate(2026, time.January, 1), timezone.NewDate(2026, time.January, 31))
+	require.NoError(t, err)
+
+	sum := 0
+	for _, target := range targets {
+		sum += target.TargetMinutes
+	}
+	assert.Equal(t, 4*480, sum, "all four January Mondays keep their Soll")
+}
+
 func TestWTMDailyTargets_RejectsInvalidRange(t *testing.T) {
 	f := newWTMFixture()
 	ctx := context.Background()

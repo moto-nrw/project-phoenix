@@ -84,11 +84,28 @@ describe("useAccountBalance", () => {
     expect(result.current.balanceMinutes).toBe(-30);
   });
 
-  it("still resolves when the account starts later within the current month", () => {
-    // The chain anchors inside this month, so closingBalanceMinutes IS the
-    // account balance — nothing to suppress.
+  it("reports no balance when the account starts later within the current month", () => {
+    // The account has not started yet. The backend aggregates the anchor month
+    // from the start DAY, so today it would answer a clean 0 for an empty span
+    // — and printing that as "Stundenkonto Stand: 0:00" claims an account that
+    // does not exist yet. Comparing only "YYYY-MM" missed exactly this case.
     const swr = mockSWR({
       config: { accountStartDate: "2026-08-20" },
+      summary: { closingBalanceMinutes: 0 },
+    });
+
+    const { result } = renderHook(() => useAccountBalance());
+
+    expect(swr.summaryKey()).toBeNull();
+    expect(result.current.balanceMinutes).toBeNull();
+    expect(result.current.isLoading).toBe(false);
+  });
+
+  it("resolves from the start day on", () => {
+    // The boundary itself: on the start date the account exists, so the
+    // balance is real and must be shown.
+    const swr = mockSWR({
+      config: { accountStartDate: "2026-08-01" },
       summary: { closingBalanceMinutes: 120 },
     });
 
