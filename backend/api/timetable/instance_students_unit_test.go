@@ -100,6 +100,27 @@ func (f *fakeRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Cont
 func (f *fakeRepo) UpdateAttendanceFromCheckin(context.Context, int64, int64, time.Time) (bool, error) {
 	panic("unused")
 }
+func (f *fakeRepo) CreateUnplannedPresentIfAbsent(context.Context, int64, int64, time.Time) (*schedule.InstanceStudent, error) {
+	panic("unused")
+}
+func (f *fakeRepo) UpdateAttendanceCheckout(context.Context, int64, int64, time.Time) error {
+	panic("unused")
+}
+func (f *fakeRepo) ReconcileAttendanceInterval(context.Context, int64, int64, time.Time, *time.Time, time.Time, *time.Time) (bool, error) {
+	panic("unused")
+}
+func (f *fakeRepo) FindCurrentCandidates(context.Context, int64, timezone.Date, time.Time) ([]*schedule.InstanceStudent, error) {
+	panic("unused")
+}
+func (f *fakeRepo) ApplyStatusDay(context.Context, int64, timezone.Date, int64, string) (int, error) {
+	panic("unused")
+}
+func (f *fakeRepo) ReleaseStatusDay(context.Context, int64) (int, error) {
+	panic("unused")
+}
+func (f *fakeRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, timezone.Date) (int, error) {
+	panic("unused")
+}
 
 // -----------------------------------------------------------------------------
 // Router helpers
@@ -574,6 +595,10 @@ func TestDecodePatchBody_Direct(t *testing.T) {
 // Stubs for the issue #585 cleanup refactor interface additions — unused by
 // these tests.
 func (f *fakeRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time) error {
+	panic("unused")
+}
+
+func (f *fakeRepo) CloseOpenCheckoutsByActiveGroupIDs(context.Context, []int64, time.Time) (int, error) {
 	panic("unused")
 }
 

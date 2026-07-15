@@ -17,17 +17,20 @@ import (
 // FindByStudentAndTimeRange, where an ad-hoc struct works around the tag).
 type scheduledInstanceScan struct {
 	// instance_students columns
-	IsID          int64      `bun:"is_id"`
-	IsTenantID    int64      `bun:"is_tenant_id"`
-	IsInstanceID  int64      `bun:"is_instance_id"`
-	IsStudentID   int64      `bun:"is_student_id"`
-	IsRoomID      *int64     `bun:"is_room_id"`
-	IsStatus      string     `bun:"is_status"`
-	IsSubstatus   *string    `bun:"is_substatus"`
-	IsNote        *string    `bun:"is_note"`
-	IsCheckedInAt *time.Time `bun:"is_checked_in_at"`
-	IsCreatedAt   time.Time  `bun:"is_created_at"`
-	IsUpdatedAt   time.Time  `bun:"is_updated_at"`
+	IsID                 int64      `bun:"is_id"`
+	IsTenantID           int64      `bun:"is_tenant_id"`
+	IsInstanceID         int64      `bun:"is_instance_id"`
+	IsStudentID          int64      `bun:"is_student_id"`
+	IsRoomID             *int64     `bun:"is_room_id"`
+	IsStatus             string     `bun:"is_status"`
+	IsSubstatus          *string    `bun:"is_substatus"`
+	IsNote               *string    `bun:"is_note"`
+	IsCheckedInAt        *time.Time `bun:"is_checked_in_at"`
+	IsCheckedOutAt       *time.Time `bun:"is_checked_out_at"`
+	IsUnplanned          bool       `bun:"is_unplanned"`
+	IsStudentStatusDayID *int64     `bun:"is_student_status_day_id"`
+	IsCreatedAt          time.Time  `bun:"is_created_at"`
+	IsUpdatedAt          time.Time  `bun:"is_updated_at"`
 
 	// activity_instances columns
 	AiID              int64         `bun:"ai_id"`
@@ -71,6 +74,9 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		ColumnExpr(`"instance_student".substatus AS is_substatus`).
 		ColumnExpr(`"instance_student".note AS is_note`).
 		ColumnExpr(`"instance_student".checked_in_at AS is_checked_in_at`).
+		ColumnExpr(`"instance_student".checked_out_at AS is_checked_out_at`).
+		ColumnExpr(`"instance_student".is_unplanned AS is_unplanned`).
+		ColumnExpr(`"instance_student".student_status_day_id AS is_student_status_day_id`).
 		ColumnExpr(`"instance_student".created_at AS is_created_at`).
 		ColumnExpr(`"instance_student".updated_at AS is_updated_at`).
 		ColumnExpr(`"activity_instance".id AS ai_id`).
@@ -134,13 +140,16 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		inst.SetTenantID(s.AiTenantID)
 
 		att := &schedule.InstanceStudent{
-			InstanceID:  s.IsInstanceID,
-			StudentID:   s.IsStudentID,
-			RoomID:      s.IsRoomID,
-			Status:      s.IsStatus,
-			Substatus:   s.IsSubstatus,
-			Note:        s.IsNote,
-			CheckedInAt: s.IsCheckedInAt,
+			InstanceID:         s.IsInstanceID,
+			StudentID:          s.IsStudentID,
+			RoomID:             s.IsRoomID,
+			Status:             s.IsStatus,
+			Substatus:          s.IsSubstatus,
+			Note:               s.IsNote,
+			CheckedInAt:        s.IsCheckedInAt,
+			CheckedOutAt:       s.IsCheckedOutAt,
+			IsUnplanned:        s.IsUnplanned,
+			StudentStatusDayID: s.IsStudentStatusDayID,
 		}
 		att.ID = s.IsID
 		att.CreatedAt = s.IsCreatedAt

@@ -928,7 +928,7 @@ describe("StudentHistorySection", () => {
     render(<StudentHistorySection {...defaultProps} />);
     expect(screen.getByText("Anwesenheitsprotokoll")).toBeInTheDocument();
     expect(
-      screen.getByText("Anwesenheit und besuchte Räume"),
+      screen.getByText("Anwesenheit je Betreuungsangebot und besuchte Räume"),
     ).toBeInTheDocument();
     expect(
       screen.getByText("Anwesenheitsprotokoll").closest("button"),

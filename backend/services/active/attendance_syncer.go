@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -15,9 +16,11 @@ import (
 // is no cyclic-import risk — the schedule package already depends on active
 // for its bridge semantics, but active must not import schedule.
 type AttendanceSnapshot struct {
-	Status    string
-	Substatus *string
-	Note      *string
+	Status      string
+	Substatus   *string
+	Note        *string
+	InstanceID  int64
+	IsUnplanned bool
 }
 
 // AttendanceSyncer is the optional dependency active.service calls on visit
@@ -38,19 +41,31 @@ type AttendanceSnapshot struct {
 type AttendanceSyncer interface {
 	// MirrorCheckInForVisit is called AFTER visitRepo.Create succeeds. It
 	// looks up the instance bridged to visit.ActiveGroupID, then the
-	// instance_students row for visit.StudentID. If both exist and the row
-	// is still status='expected', it flips the row to 'present' and stamps
-	// checked_in_at from visit.EntryTime.
+	// instance_students row for visit.StudentID. If both exist, it opens
+	// observed presence from expected/day-status absence or reopens a prior
+	// checked-out presence with the new visit's entry time.
 	//
 	// Returns a snapshot of the resulting row (or the pre-existing row, in
 	// the already-present case, so SSE still reflects state). Returns nil
 	// for walk-ins, pre-start races, tenant mismatches, or any error.
 	MirrorCheckInForVisit(ctx context.Context, visit *active.Visit) *AttendanceSnapshot
 
-	// LoadAttendanceForVisit is called at visit end. It never mutates —
-	// it only returns the current attendance snapshot so the checkout SSE
-	// event can carry status/substatus/note for frontend display.
-	LoadAttendanceForVisit(ctx context.Context, visit *active.Visit) *AttendanceSnapshot
+	// MirrorCheckInAt resolves a roomless check-in to exactly one currently
+	// scheduled student slot. Zero or multiple matches remain unassigned.
+	MirrorCheckInAt(ctx context.Context, studentID int64, at time.Time) *AttendanceSnapshot
+
+	// MirrorCheckOutForVisit is called at visit end. It stamps the slot's
+	// checkout time without changing its attendance status, then returns the
+	// current snapshot for SSE display.
+	MirrorCheckOutForVisit(ctx context.Context, visit *active.Visit) *AttendanceSnapshot
+
+	// MirrorVisitRevision replaces a slot interval only when it still matches
+	// previous. It is used when staff edit or reopen an existing visit.
+	MirrorVisitRevision(ctx context.Context, previous, updated *active.Visit)
+
+	// MirrorCheckOutAt closes the most recently checked-in open slot for a
+	// roomless attendance flow.
+	MirrorCheckOutAt(ctx context.Context, studentID int64, at time.Time)
 }
 
 // applyAttendanceSnapshot copies the three WP-B10 fields from snapshot into

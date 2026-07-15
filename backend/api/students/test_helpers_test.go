@@ -71,7 +71,7 @@ func setupTestContext(t *testing.T) *testContext {
 		ArrivalScheduleService:  svc.ArrivalSchedule,
 		SchoolService:           svc.Schools,
 		SettingsService:         svc.Settings,
-		StudentHistoryService:   activeSvc.NewStudentHistoryService(repoFactory.Attendance, repoFactory.ActiveVisit, repoFactory.DataAccessLog),
+		StudentHistoryService:   activeSvc.NewStudentHistoryService(repoFactory.Attendance, repoFactory.ActiveVisit, repoFactory.DataAccessLog, repoFactory.InstanceStudent),
 		InstanceService:         svc.Instance,
 		StudentStatusDayService: activeSvc.NewStudentStatusDayService(repoFactory.StudentStatusDay),
 		ExcusedRequestService:   svc.ExcusedRequests,

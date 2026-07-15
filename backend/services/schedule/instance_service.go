@@ -788,6 +788,9 @@ func (s *instanceService) Create(ctx context.Context, req CreateInstanceInput) (
 			return nil, &ScheduleError{Op: "create instance: assign student", Err: err}
 		}
 	}
+	if _, err := s.deps.InstanceStudents.ApplyActiveStatusDaysForInstance(ctx, inst.ID, inst.Date); err != nil {
+		return nil, &ScheduleError{Op: "create instance: apply student status days", Err: err}
+	}
 
 	s.getLogger().Info("instance created",
 		slog.Int64("tenant_id", tenantID),
@@ -1060,6 +1063,9 @@ func (s *instanceService) replaceInstanceAssignments(ctx context.Context, instan
 		if err := s.deps.InstanceStudents.Create(ctx, row); err != nil {
 			return &ScheduleError{Op: "update instance: assign student", Err: err}
 		}
+	}
+	if _, err := s.deps.InstanceStudents.ApplyActiveStatusDaysForInstance(ctx, instanceID, instance.Date); err != nil {
+		return &ScheduleError{Op: "update instance: apply student status days", Err: err}
 	}
 	return nil
 }

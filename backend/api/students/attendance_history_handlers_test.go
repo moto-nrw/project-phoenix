@@ -165,6 +165,59 @@ func TestGetStudentAttendanceHistory_RangeClampedWhenExceedingCap(t *testing.T) 
 	assert.True(t, body.Data.Clamped, "response should be clamped when range exceeds cap")
 }
 
+func TestGetStudentAttendanceHistory_FutureEndClampsToToday(t *testing.T) {
+	tc := setupTestContext(t)
+	enableAttendanceLog(t, tc)
+	student := testpkg.CreateTestStudent(t, tc.db, "FutureEnd", "Student", "2c")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	today := timezone.Today()
+	start := today.AddDate(0, 0, -1)
+	end := today.AddDate(0, 0, 2)
+	req := testutil.NewRequest("GET", fmt.Sprintf(
+		"/%d/attendance-history?start=%s&end=%s",
+		student.ID, start.UTC().Format(time.RFC3339), end.UTC().Format(time.RFC3339),
+	), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+
+	var body struct {
+		Data struct {
+			Days []struct {
+				Date string `json:"date"`
+			} `json:"days"`
+			Range struct {
+				End time.Time `json:"end"`
+			} `json:"range"`
+			Clamped bool `json:"clamped"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.True(t, body.Data.Clamped)
+	assert.False(t, body.Data.Range.End.After(timezone.TodayDate().EndOfDay()))
+	for _, day := range body.Data.Days {
+		assert.LessOrEqual(t, day.Date, timezone.TodayDate().String())
+	}
+}
+
+func TestGetStudentAttendanceHistory_FullyFutureRangeRejected(t *testing.T) {
+	tc := setupTestContext(t)
+	enableAttendanceLog(t, tc)
+	student := testpkg.CreateTestStudent(t, tc.db, "FutureOnly", "Student", "2c")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, student.ID)
+
+	today := timezone.Today()
+	start := today.AddDate(0, 0, 1)
+	end := today.AddDate(0, 0, 2)
+	req := testutil.NewRequest("GET", fmt.Sprintf(
+		"/%d/attendance-history?start=%s&end=%s",
+		student.ID, start.UTC().Format(time.RFC3339), end.UTC().Format(time.RFC3339),
+	), nil)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
+	assert.Contains(t, rr.Body.String(), "start must not be in the future")
+}
+
 func TestGetStudentAttendanceHistory_ScopeAllStaff_NonAdminCanAccess(t *testing.T) {
 	tc := setupTestContext(t)
 	enableAttendanceLog(t, tc)

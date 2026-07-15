@@ -54,16 +54,23 @@ func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *active.Vi
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 
-	if len(attendanceRecords) == 0 {
-		return s.createAttendanceRecord(ctx, visit, staffID, deviceID, visitDate)
+	for _, attendance := range attendanceRecords {
+		if attendance.CheckOutTime == nil {
+			return nil
+		}
 	}
 
-	// Attendance exists - handle re-entry case
-	s.clearCheckoutOnReentry(ctx, visit.StudentID, attendanceRecords)
-	return nil
+	// Every completed stay remains immutable. A later return creates a new
+	// session instead of reopening and corrupting the earlier checkout.
+	return s.createAttendanceRecord(ctx, visit, staffID, deviceID, visitDate)
 }
 
-// createAttendanceRecord creates a new attendance record for first visit of the day
+// createAttendanceRecord creates a new attendance record for first visit of the day.
+// CheckInTime is deliberately visit.EntryTime — the slot-attendance mirror
+// (schedule.AttendanceSyncService) stamps instance_students.checked_in_at from
+// the same instant, and history/export session-to-slot matching relies on the
+// two timestamps being identical. Never replace either side with an
+// independent time.Now().
 func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visit, staffID, deviceID int64, visitDate timezone.Date) error {
 	resolvedStaffID := s.resolveStaffIDForAttendance(ctx, staffID, deviceID)
 	resolvedDeviceID := s.resolveDeviceIDForAttendance(ctx, deviceID)
@@ -75,10 +82,49 @@ func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visi
 		CheckedInBy: resolvedStaffID,
 		DeviceID:    resolvedDeviceID,
 	}
+	if visit.ExitTime != nil {
+		attendance.CheckOutTime = visit.ExitTime
+		attendance.CheckedOutBy = &resolvedStaffID
+	}
 
 	attendance.SetTenantID(tenant.FromContext(ctx))
 	if _, err := s.AttendanceRepo.CreateIfNoOpenForToday(ctx, attendance); err != nil {
 		return &ActiveError{Op: "CreateVisit", Err: err}
+	}
+	return nil
+}
+
+// syncAttendanceForVisitRevision keeps the matching daily attendance session
+// aligned with a visit edit. Entry times are stamped from the same source when
+// visits are created, so the previous entry time is the session identity.
+func (s *service) syncAttendanceForVisitRevision(
+	ctx context.Context, previous, updated *active.Visit,
+) error {
+	if s.AttendanceRepo == nil || previous == nil || updated == nil || previous.StudentID != updated.StudentID {
+		return nil
+	}
+	rows, err := s.AttendanceRepo.FindByStudentAndDate(
+		ctx, previous.StudentID, timezone.DateFromTime(previous.EntryTime),
+	)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if row == nil || !row.CheckInTime.Equal(previous.EntryTime) {
+			continue
+		}
+		row.Date = timezone.DateFromTime(updated.EntryTime)
+		row.CheckInTime = updated.EntryTime
+		row.CheckOutTime = updated.ExitTime
+		if updated.ExitTime == nil {
+			row.CheckedOutBy = nil
+		} else if row.CheckedOutBy == nil {
+			_, staffID := s.extractContextIDs(ctx)
+			if staffID > 0 {
+				row.CheckedOutBy = &staffID
+			}
+		}
+		return s.AttendanceRepo.Update(ctx, row)
 	}
 	return nil
 }
@@ -103,25 +149,6 @@ func (s *service) resolveDeviceIDForAttendance(ctx context.Context, deviceID int
 	)
 
 	return 0
-}
-
-// clearCheckoutOnReentry clears checkout time for re-entry after daily checkout
-func (s *service) clearCheckoutOnReentry(ctx context.Context, studentID int64, attendanceRecords []*active.Attendance) {
-	for _, attendance := range attendanceRecords {
-		if attendance.CheckOutTime == nil {
-			continue
-		}
-
-		attendance.CheckOutTime = nil
-		attendance.CheckedOutBy = nil
-		if err := s.AttendanceRepo.Update(ctx, attendance); err != nil {
-			s.getLogger().Warn("failed to clear check_out_time on re-entry",
-				slog.Int64("student_id", studentID),
-				slog.Int64("attendance_id", attendance.ID),
-				slog.String("error", err.Error()),
-			)
-		}
-	}
 }
 
 // resolveClearMode resolves the configured clear mode for a status flag,
