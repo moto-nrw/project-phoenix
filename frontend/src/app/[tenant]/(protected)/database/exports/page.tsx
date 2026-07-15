@@ -70,10 +70,13 @@ export default function DatabaseExportsPage() {
   const [studentModal, setStudentModal] = useState<StudentModalConfig | null>(
     null,
   );
-  const [busy, setBusy] = useState<string | null>(null);
+  // Every in-flight export, keyed per action: a single "which one is running"
+  // value would let a finished export re-enable the buttons of one still
+  // rendering, so two clicks could fire the same export twice.
+  const [busy, setBusy] = useState<ReadonlySet<string>>(new Set());
 
   const runExport = async (key: string, task: () => Promise<void>) => {
-    setBusy(key);
+    setBusy((current) => new Set(current).add(key));
     try {
       await task();
       toast.success("Export wurde erstellt.");
@@ -83,7 +86,11 @@ export default function DatabaseExportsPage() {
       logger.error("central_export_failed", { export: key, error: message });
       toast.error(message);
     } finally {
-      setBusy(null);
+      setBusy((current) => {
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
     }
   };
 
@@ -163,7 +170,7 @@ export default function DatabaseExportsPage() {
                 type="button"
                 size="md"
                 variant="outline"
-                disabled={busy === "emergency-download"}
+                disabled={busy.has("emergency-download")}
                 onClick={() =>
                   void runExport("emergency-download", () =>
                     exportEmergencySnapshot("download"),
@@ -177,7 +184,7 @@ export default function DatabaseExportsPage() {
                 type="button"
                 size="md"
                 variant="outline"
-                disabled={busy === "emergency-print"}
+                disabled={busy.has("emergency-print")}
                 onClick={() =>
                   void runExport("emergency-print", () =>
                     exportEmergencySnapshot("print"),
@@ -202,7 +209,7 @@ export default function DatabaseExportsPage() {
                   type="button"
                   size="md"
                   variant="outline"
-                  disabled={busy === `rooms-${format}`}
+                  disabled={busy.has(`rooms-${format}`)}
                   onClick={() =>
                     void runExport(`rooms-${format}`, () =>
                       exportRoomSnapshot({

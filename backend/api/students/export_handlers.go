@@ -106,7 +106,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, today)
 
 	responses = applyExportFilters(responses, req.Filters, req.Preset)
-	sortExportResponses(responses, req.Filters.Sort)
+	sortExportResponses(responses, exportSortMode(req))
 	if req.Filters.GroupByClass {
 		groupExportResponsesByClass(responses)
 	}
@@ -294,6 +294,17 @@ func applyExportFilters(students []StudentResponse, filters studentExportFilters
 		filtered = append(filtered, student)
 	}
 	return filtered
+}
+
+// exportSortMode resolves the ordering a request asks for. Calendar order is
+// what makes a birthday list a birthday list, so the preset implies it rather
+// than depending on a caller to pass the matching sort; an explicit sort still
+// wins for the rare pickup/arrival view of the same list.
+func exportSortMode(req studentExportRequest) string {
+	if req.Filters.Sort == "" && req.Preset == listexport.PresetBirthdayList {
+		return "birthday"
+	}
+	return req.Filters.Sort
 }
 
 func sortExportResponses(students []StudentResponse, sortMode string) {

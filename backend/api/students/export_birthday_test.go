@@ -191,6 +191,27 @@ func TestSortExportResponsesByBirthdayPlacesUnknownLast(t *testing.T) {
 	assert.Equal(t, []int64{302, 301}, exportedIDs(students))
 }
 
+// The preset defines the ordering, so a request that only asks for the birthday
+// list still gets a calendar — no caller has to know to pass sort="birthday".
+func TestExportSortModeDerivedFromBirthdayPreset(t *testing.T) {
+	assert.Equal(t, "birthday", exportSortMode(studentExportRequest{
+		Preset: listexport.PresetBirthdayList,
+	}))
+}
+
+func TestExportSortModeKeepsExplicitSort(t *testing.T) {
+	assert.Equal(t, "pickup", exportSortMode(studentExportRequest{
+		Preset:  listexport.PresetBirthdayList,
+		Filters: studentExportFilters{Sort: "pickup"},
+	}))
+}
+
+func TestExportSortModeLeavesOtherPresetsAlone(t *testing.T) {
+	assert.Empty(t, exportSortMode(studentExportRequest{
+		Preset: listexport.PresetOGSWeekly,
+	}))
+}
+
 func TestBirthdayExportCell(t *testing.T) {
 	assert.Equal(t, "02.09.2018", birthdayExportCell("2018-09-02"))
 	assert.Equal(t, "", birthdayExportCell(""), "no birthday renders empty, never a fabricated date")
