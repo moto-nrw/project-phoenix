@@ -30,8 +30,13 @@ import { useSession } from "next-auth/react";
 import { CalendarOff } from "lucide-react";
 
 import { CalendarPeriodModal } from "~/components/timetable/calendar-period-modal";
+import { Button } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OriginChip } from "~/components/ui/origin-chip";
+import {
+  OverflowMenu,
+  type OverflowMenuEntry,
+} from "~/components/ui/page-header/OverflowMenu";
 import { PageHeader } from "~/components/ui/page-header/PageHeader";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
@@ -46,21 +51,12 @@ import {
 import { TimetableAddMenu } from "~/components/timetable/timetable-add-menu";
 import { MonthPlannerGrid } from "~/components/timetable/month-planner-grid";
 import { PeriodSwitcherDropdown } from "~/components/timetable/period-switcher-dropdown";
-import { PlanQualityPanel } from "~/components/timetable/plan-quality-panel";
-import { TimetableOverview } from "~/components/timetable/timetable-overview";
-import { TimetableSetupGuide } from "~/components/timetable/timetable-setup-guide";
 import { TemplateList } from "~/components/timetable/template-list";
 import { TimetableEventModal } from "~/components/timetable/timetable-event-modal";
 import { resolveDemandOrigin } from "~/components/timetable/demand-origin";
-import { hasPermission } from "~/lib/auth-utils";
-import {
-  DENSITY_TO_HOUR_HEIGHT_PX,
-  type TimetableView,
-  type WeekDensity,
-} from "~/components/timetable/timetable-toolbar";
 import { timetableSurface } from "~/components/timetable/timetable-style";
 import { WeeklyCalendarGrid } from "~/components/timetable/weekly-calendar-grid";
-import { YearPlannerGrid } from "~/components/timetable/year-planner-grid";
+import { hasPermission } from "~/lib/auth-utils";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
@@ -73,7 +69,6 @@ import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { fetchStudents } from "~/lib/student-api";
 import { staffService } from "~/lib/staff-api";
 import { listPhases } from "~/lib/enrollment-phase-api";
-import { listCareOfferings } from "~/lib/care-offering-api";
 import {
   berlinTodayISO,
   formatDate,
@@ -87,28 +82,23 @@ import {
 } from "~/lib/calendar-period-helpers";
 import { timetableService } from "~/lib/timetable-api";
 import {
+  DENSITY_TO_HOUR_HEIGHT_PX,
   chunkDateRange,
-  countPlanned,
-  countUnderstaffedInstances,
-  countUnderstaffedTemplates,
   formatWeekLabel,
   formatMonthLabel,
-  formatYearLabel,
   getMonthDays,
   getMonthRange,
   getWeekRange,
   getWeekdays,
-  getYearMonths,
-  getYearRange,
   resolveTemplateCalendarPeriodId,
   toISODate,
-  type TimetableCareOfferingLinkStatus,
+  type TimetableView,
+  type WeekDensity,
 } from "~/lib/timetable-helpers";
 import type {
   EnrichedInstance,
   MaterializeWarning,
   TimetableTemplate,
-  WeeklyInstancesResponse,
 } from "~/lib/timetable-types";
 import {
   TimetableContentSkeleton,
@@ -144,71 +134,14 @@ function viewToTab(view: TimetableView): ViewParam {
   return "woche";
 }
 
-interface CareOfferingLinkSummary {
-  total: number;
-  linked: number;
-}
-
-/**
- * Load the optional enrollment linkage summary used by the setup guide.
- * A partial result would be actively misleading, so any failed phase request
- * makes the whole summary unknown.
- */
-export async function loadCareOfferingLinkSummary(): Promise<CareOfferingLinkSummary | null> {
-  try {
-    const phases = await listPhases();
-    const activePhaseIds = new Set(
-      phases.filter((phase) => phase.is_active).map((phase) => phase.id),
-    );
-    const offeringLists = await Promise.all(
-      [...activePhaseIds].map((phaseId) => listCareOfferings(phaseId)),
-    );
-    const offerings = offeringLists
-      .flat()
-      .filter(
-        (offering) =>
-          offering.is_active && activePhaseIds.has(offering.phase_id),
-      );
-
-    return {
-      total: offerings.length,
-      linked: offerings.filter((offering) => offering.activity_group_id != null)
-        .length,
-    };
-  } catch (err) {
-    logger.warn("timetable_care_offering_link_load_failed", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    return null;
-  }
-}
-
-function plannedPeriodLabel(
-  view: TimetableView,
-  isSeriesView: boolean,
-): string {
-  if (isSeriesView) return "als Regeltermin";
-  if (view === "week") return "diese Woche";
-  if (view === "month") return "diesen Monat";
-  return "dieses Jahr";
-}
-
-function careOfferingLinkPresentation(summary: CareOfferingLinkSummary | null) {
-  if (summary === null) {
-    return {
-      status: "unknown" as const,
-      label: null,
-    };
-  }
-
-  return {
-    status: summary.linked > 0 ? ("linked" as const) : ("unlinked" as const),
-    label:
-      summary.total === 0
-        ? "Noch keine Angebote"
-        : `${summary.linked} von ${summary.total} Angeboten verknüpft`,
-  };
-}
+// Dichte-Umschalter des Wochenrasters (reiner Component-State, nie in der URL).
+// Der Bedienknopf sitzt seit dem Chrome-Abbau als kleines Kebab-Menü in der
+// PlanningContextBar-Aktionszeile (nur in der Wochenansicht).
+const DENSITY_OPTIONS: Array<{ value: WeekDensity; label: string }> = [
+  { value: "compact", label: "Kompakt" },
+  { value: "normal", label: "Normal" },
+  { value: "comfortable", label: "Komfortabel" },
+];
 
 function calendarPeriodUsage(period: CalendarPeriod | null) {
   if (!period) return undefined;
@@ -318,10 +251,9 @@ function TimetablesContent() {
   // bootstrap POST from firing twice per mount.
   const bootstrapAttemptedRef = useRef(false);
   // Density picker for the week grid (Kompakt/Normal/Komfortabel maps to
-  // 60/90/120 px per hour). Local-only, never synced to URL. Der Umschalter
-  // selbst wandert mit dem Chrome-Abbau (Chunk 5/6); der Zustand bleibt hier
-  // als Component-State erhalten (06 §2.1).
-  const [density] = useState<WeekDensity>("normal");
+  // 60/90/120 px per hour). Local-only, never synced to URL (06 §2.1). Der
+  // Bedienknopf sitzt als Kebab-Menü in der PlanningContextBar-Aktionszeile.
+  const [density, setDensity] = useState<WeekDensity>("normal");
   const hourHeightPx = DENSITY_TO_HOUR_HEIGHT_PX[density];
   const { dayStartHour, dayEndHour } = useTimetableDayHours();
 
@@ -356,13 +288,6 @@ function TimetablesContent() {
     },
     [visibleDate, updateUrlParams],
   );
-  const goToYear = useCallback(
-    (delta: number) => {
-      const target = new Date(visibleDate.getFullYear() + delta, 0, 1);
-      updateUrlParams({ d: toISODate(target), block: null });
-    },
-    [visibleDate, updateUrlParams],
-  );
   const goToToday = useCallback(
     () => updateUrlParams({ d: todayISO, block: null }),
     [todayISO, updateUrlParams],
@@ -371,13 +296,11 @@ function TimetablesContent() {
   const handlePrev = useCallback(() => {
     if (view === "week") goToWeek(-7);
     else if (view === "month") goToMonth(-1);
-    else if (view === "year") goToYear(-1);
-  }, [view, goToWeek, goToMonth, goToYear]);
+  }, [view, goToWeek, goToMonth]);
   const handleNext = useCallback(() => {
     if (view === "week") goToWeek(7);
     else if (view === "month") goToMonth(1);
-    else if (view === "year") goToYear(1);
-  }, [view, goToWeek, goToMonth, goToYear]);
+  }, [view, goToWeek, goToMonth]);
 
   // Ansichtswechsel schreibt `view` (Woche als Default = Param-Entfernung) und
   // schließt den Slide-Over (Block-Param abräumen).
@@ -396,15 +319,6 @@ function TimetablesContent() {
     [updateUrlParams],
   );
 
-  // Jahresraster (nicht mehr verlinkbar, toter Renderpfad bis Chunk 5): Klick
-  // auf einen Monat wechselt in die Monatsansicht.
-  const openMonthFromYear = useCallback(
-    (month: Date) => {
-      updateUrlParams({ view: "monat", d: toISODate(month), block: null });
-    },
-    [updateUrlParams],
-  );
-
   const handleSelectInstance = useCallback(
     (instance: EnrichedInstance | null) => {
       updateUrlParams({ block: instance?.id ?? null });
@@ -413,36 +327,16 @@ function TimetablesContent() {
   );
 
   // Fetch-Fenster. Woche/Monat leiten ihr Fenster aus `d` ab; die Serienansicht
-  // lädt keine Instanzen. Der Jahres-Renderpfad bleibt bis Chunk 5 bestehen,
-  // ist aber über die URL nicht mehr erreichbar.
+  // lädt keine Instanzen. Die Jahresansicht ist ersatzlos entfallen.
   const fromISO = toISODate(weekRange.from);
   const toISO = toISODate(weekRange.to);
   const monthRange = useMemo(() => getMonthRange(visibleDate), [visibleDate]);
   const monthDays = useMemo(() => getMonthDays(visibleDate), [visibleDate]);
-  const yearDate = useMemo(
-    () => new Date(visibleDate.getFullYear(), 0, 1),
-    [visibleDate],
-  );
-  const yearRange = useMemo(() => getYearRange(yearDate), [yearDate]);
-  const yearMonths = useMemo(() => getYearMonths(yearDate), [yearDate]);
-  const yearFetchFromISO = toISODate(yearRange.from);
-  const yearFetchToISO = toISODate(yearRange.to);
-  const fetchFromISO =
-    view === "month"
-      ? toISODate(monthRange.from)
-      : view === "year"
-        ? yearFetchFromISO
-        : fromISO;
-  const fetchToISO =
-    view === "month"
-      ? toISODate(monthRange.to)
-      : view === "year"
-        ? yearFetchToISO
-        : toISO;
+  const fetchFromISO = view === "month" ? toISODate(monthRange.from) : fromISO;
+  const fetchToISO = view === "month" ? toISODate(monthRange.to) : toISO;
   const weekDays = useMemo(() => getWeekdays(weekRange.from), [weekRange.from]);
   const weekDayISOs = useMemo(() => weekDays.map(toISODate), [weekDays]);
-  const periodContextDays =
-    view === "month" ? monthDays : view === "year" ? yearMonths : weekDays;
+  const periodContextDays = view === "month" ? monthDays : weekDays;
   const periodContextDayISOs = useMemo(
     () => periodContextDays.map(toISODate),
     [periodContextDays],
@@ -455,7 +349,6 @@ function TimetablesContent() {
     () => formatMonthLabel(visibleDate),
     [visibleDate],
   );
-  const yearLabel = useMemo(() => formatYearLabel(yearDate), [yearDate]);
 
   const swrKey = `timetable-${view}-${fetchFromISO}-${fetchToISO}`;
   const shouldLoadInstances = view !== "series";
@@ -472,38 +365,16 @@ function TimetablesContent() {
   const exceptionConflictsSWRKey = `timetable-exception-conflicts-${gapsFromISO}-${toISO}`;
   const { data, error, isLoading } = useSWRAuth(
     status === "authenticated" && shouldLoadInstances ? swrKey : null,
-    async () => {
-      if (view !== "year") {
-        return timetableService.getWeek(fetchFromISO, fetchToISO);
-      }
-
-      const chunks = chunkDateRange(fetchFromISO, fetchToISO, 56);
-      const responses = await Promise.all(
-        chunks.map((chunk) => timetableService.getWeek(chunk.from, chunk.to)),
-      );
-      return responses.reduce<WeeklyInstancesResponse>(
-        (merged, response) => ({
-          from: merged.from,
-          to: response.to,
-          instances: [...merged.instances, ...response.instances],
-        }),
-        { from: fetchFromISO, to: fetchToISO, instances: [] },
-      );
-    },
+    () => timetableService.getWeek(fetchFromISO, fetchToISO),
   );
-  const {
-    data: gapsData,
-    error: gapsError,
-    isLoading: gapsLoading,
-  } = useSWRAuth(
+  const { data: gapsData, error: gapsError } = useSWRAuth(
     status === "authenticated" && shouldLoadGaps ? gapsSWRKey : null,
     () => timetableService.getGaps(gapsFromISO, fetchToISO),
   );
-  const {
-    data: exceptionConflictData,
-    error: conflictsError,
-    isLoading: conflictsLoading,
-  } = useSWRAuth(
+  // Ausnahmekonflikte speisen kein Panel mehr (PlanQualityPanel entfällt), der
+  // Abruf bleibt nur als Fehlerquelle für den Planstatus-Toast und als
+  // invalidierbarer SWR-Key der Lifecycle-Aktionen erhalten.
+  const { error: conflictsError } = useSWRAuth(
     status === "authenticated" && shouldLoadConflicts
       ? exceptionConflictsSWRKey
       : null,
@@ -518,21 +389,10 @@ function TimetablesContent() {
     () => fetchStudents({ page_size: 500 }),
   );
   // Bedarfsquellen-Chip (06 §3.2): die Anmeldephasen für die clientseitige
-  // Zuordnung. Eigener SWR-Key, damit der Chip unabhängig vom (übergangsweise
-  // noch vorhandenen) Setup-Guide lädt.
+  // Zuordnung.
   const { data: phasesData } = useSWRAuth(
     status === "authenticated" ? PHASES_SWR_KEY : null,
     () => listPhases(),
-    { revalidateOnFocus: false },
-  );
-  // The optional "Mit der Anmeldung verknüpfen" setup step is done only when a
-  // care offering actually points at a Regeltermin — an active enrollment phase
-  // alone proves no linkage (issue #1651). Missing permission or an incomplete
-  // per-phase result degrades to the neutral "unknown" status instead of
-  // failing the page or displaying a false partial count.
-  const { data: careOfferingLink } = useSWRAuth(
-    status === "authenticated" ? "timetable-care-offering-link" : null,
-    loadCareOfferingLinkSummary,
     { revalidateOnFocus: false },
   );
   const {
@@ -655,10 +515,6 @@ function TimetablesContent() {
     () => new Set(gaps.map((gap) => gap.instanceId)),
     [gaps],
   );
-  const exceptionConflicts = useMemo(
-    () => exceptionConflictData?.conflicts ?? [],
-    [exceptionConflictData?.conflicts],
-  );
   const staff = useMemo(() => staffData ?? [], [staffData]);
   const students = useMemo(
     () => studentData?.students ?? [],
@@ -750,47 +606,6 @@ function TimetablesContent() {
     [phases, visiblePeriod, dayISO],
   );
 
-  // --- Overview zone (KPIs + setup guide), rendered in every view ---
-  // KPIs are derived from the already-loaded instances/templates so they
-  // work in every view. The /api/timetable/gaps endpoint uses a different,
-  // zero-coverage rule, so only the Planstatus panel uses it.
-  const isSeriesView = view === "series";
-  const plannedCount = useMemo(
-    () => (isSeriesView ? templates.length : countPlanned(instances)),
-    [isSeriesView, templates, instances],
-  );
-  const understaffedCount = useMemo(
-    () =>
-      isSeriesView
-        ? countUnderstaffedTemplates(templates)
-        : countUnderstaffedInstances(instances),
-    [isSeriesView, templates, instances],
-  );
-  const plannedSublabel = plannedPeriodLabel(view, isSeriesView);
-  const understaffedSublabel =
-    understaffedCount > 0
-      ? "zusätzliches Personal nötig"
-      : "ausreichend besetzt";
-  const hasActivePeriod = useMemo(
-    () => calendarPeriods.some((period) => period.isActive),
-    [calendarPeriods],
-  );
-  const activePeriodLabel = useMemo(() => {
-    const period =
-      findPeriodForDate(calendarPeriods, todayISO) ??
-      calendarPeriods.find((item) => item.isActive) ??
-      null;
-    if (!period) return null;
-    return `${period.name} · gültig bis ${formatDate(period.endDate)}`;
-  }, [calendarPeriods, todayISO]);
-  const hasPlan = instances.length > 0 || templates.length > 0;
-  const careOfferingPresentation = careOfferingLinkPresentation(
-    careOfferingLink ?? null,
-  );
-  const careOfferingLinkStatus: TimetableCareOfferingLinkStatus =
-    careOfferingPresentation.status;
-  const careOfferingLinkLabel = careOfferingPresentation.label;
-
   const handleLifecycle = useCallback(
     async (action: LifecycleAction) => {
       if (!selectedInstance) return;
@@ -836,50 +651,6 @@ function TimetablesContent() {
       tenantMutate,
       toast,
     ],
-  );
-
-  const handleSubstitute = useCallback(
-    async (
-      instanceId: string,
-      absentStaffId: string,
-      substituteStaffId: string,
-      date: string,
-    ) => {
-      try {
-        // Konsolidierung (#1886): der Gap-Fill nutzt denselben atomaren
-        // Deviations-Pfad wie der Vertretungs-Editor; die Zuweisung wirkt
-        // weiterhin tagesweit auf alle Blöcke der abwesenden Person.
-        const result = await timetableService.applyDeviations(instanceId, {
-          substitutions: [{ absentStaffId, substituteStaffId }],
-        });
-        toast.success(
-          `Ersatz eingetragen: ${result.affectedInstances.length} Termin(e) aktualisiert`,
-        );
-        if (result.warnings.length > 0) {
-          toast.error(
-            `${result.warnings.length} mögliche Zeitüberschneidung(en) prüfen.`,
-          );
-        }
-        await tenantMutate(swrKey);
-        await tenantMutate(gapsSWRKey);
-        await tenantMutate(exceptionConflictsSWRKey);
-      } catch (err) {
-        logger.error("substitute_failed", {
-          instance_id: instanceId,
-          absent_staff_id: absentStaffId,
-          substitute_staff_id: substituteStaffId,
-          date,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        toast.error(
-          err instanceof Error
-            ? err.message
-            : "Ersatz konnte nicht eingetragen werden",
-        );
-        throw err;
-      }
-    },
-    [exceptionConflictsSWRKey, gapsSWRKey, swrKey, tenantMutate, toast],
   );
 
   const handleAttendancePatch = useCallback(
@@ -1077,16 +848,6 @@ function TimetablesContent() {
     [todayISO, updateUrlParams],
   );
 
-  // Der Zeitraum-Chip ist immer sichtbar, sobald mindestens ein Zeitraum
-  // existiert (Kriterium 8). Das "Schuljahre & Ferien" der noch verbliebenen
-  // Overview/SetupGuide-Karten öffnet weiterhin den Anlegen-Dialog, wenn es
-  // noch keinen Zeitraum gibt.
-  const handleManagePeriods = useCallback(() => {
-    if (calendarPeriods.length === 0) {
-      openPeriodCreate();
-    }
-  }, [calendarPeriods.length, openPeriodCreate]);
-
   const handleApplyTemplate = useCallback(
     async (template: TimetableTemplate) => {
       // Resolve which calendar period the template's schedules belong to.
@@ -1224,10 +985,8 @@ function TimetablesContent() {
       ? true
       : view === "week"
         ? todayISO >= fromISO && todayISO <= toISO
-        : view === "month"
-          ? visibleDate.getFullYear() === todayDate.getFullYear() &&
-            visibleDate.getMonth() === todayDate.getMonth()
-          : visibleDate.getFullYear() === todayDate.getFullYear();
+        : visibleDate.getFullYear() === todayDate.getFullYear() &&
+          visibleDate.getMonth() === todayDate.getMonth();
   const showTodayButton = view !== "series" && !isOnToday;
 
   const demandOriginChip = demandOrigin.href ? (
@@ -1237,6 +996,26 @@ function TimetablesContent() {
   ) : (
     <OriginChip label={demandOrigin.label} />
   );
+
+  // Dichte-Umschalter als kleines Kebab-Menü in der Aktionszeile (nur in der
+  // Wochenansicht, weil nur das Wochenraster Zeilenhöhen kennt). Reiner
+  // Component-State, kein URL-Parameter (06 §2.1).
+  const densityMenuItems: OverflowMenuEntry[] = [
+    { kind: "header", label: "Zeilenhöhe" },
+    ...DENSITY_OPTIONS.map((opt) => ({
+      kind: "radio" as const,
+      label: opt.label,
+      checked: density === opt.value,
+      onClick: () => setDensity(opt.value),
+    })),
+  ];
+
+  // Leerzustand (Kriterium 5): solange kein Planungszeitraum existiert, zeigt
+  // die Kalenderfläche eine Hinweiskarte statt des Rasters. Der stille
+  // bootstrap() legt in der Regel einen Default-Zeitraum an; bei fehlender
+  // Berechtigung (403) bleibt es leer und der Hinweis führt zum Anlegen-Dialog.
+  const showEmptyPeriodState =
+    !periodsLoading && periods !== undefined && calendarPeriods.length === 0;
 
   return (
     <div className="flex flex-col gap-4">
@@ -1251,9 +1030,7 @@ function TimetablesContent() {
             ? (visiblePeriod?.name ?? undefined)
             : view === "month"
               ? monthLabel
-              : view === "year"
-                ? yearLabel
-                : weekLabel
+              : weekLabel
         }
         onToday={showTodayButton ? goToToday : undefined}
         viewSwitcher={
@@ -1269,10 +1046,15 @@ function TimetablesContent() {
           </Tabs>
         }
         actions={
-          <TimetableAddMenu
-            onAddInstance={openEventCreate}
-            onAddSeries={openSeriesCreate}
-          />
+          <>
+            {view === "week" && (
+              <OverflowMenu ariaLabel="Zeilenhöhe" items={densityMenuItems} />
+            )}
+            <TimetableAddMenu
+              onAddInstance={openEventCreate}
+              onAddSeries={openSeriesCreate}
+            />
+          </>
         }
       >
         {calendarPeriods.length > 0 && (
@@ -1298,137 +1080,97 @@ function TimetablesContent() {
         )}
       </PlanningContextBar>
 
-      <TimetableOverview
-        plannedLabel={isSeriesView ? "Regeltermine" : "Geplant"}
-        plannedCount={plannedCount}
-        plannedSublabel={plannedSublabel}
-        understaffedCount={understaffedCount}
-        understaffedSublabel={understaffedSublabel}
-        createLabel={
-          isSeriesView ? "Regeltermin erstellen" : "Termin erstellen"
-        }
-        onCreate={isSeriesView ? openSeriesCreate : openEventCreate}
-      />
-
-      <TimetableSetupGuide
-        hasActivePeriod={hasActivePeriod}
-        activePeriodLabel={activePeriodLabel}
-        careOfferingLinkStatus={careOfferingLinkStatus}
-        careOfferingLinkLabel={careOfferingLinkLabel}
-        hasPlan={hasPlan}
-        plannedCount={plannedCount}
-        onManagePeriods={handleManagePeriods}
-        onCreateEvent={openEventCreate}
-        careOfferingsHref="/care-offerings"
-      />
-
-      {shouldLoadInstances && (
-        <ConflictWarningsBanner conflictCount={conflictCount} />
-      )}
-
-      {view === "month" &&
-        (isInstanceDataLoading ? (
-          <TimetableContentSkeleton view="month" />
-        ) : (
-          <MonthPlannerGrid
-            days={monthDays}
-            monthDate={visibleDate}
-            instances={instances}
-            todayISO={todayISO}
-            onDayClick={openWeekForDay}
+      {showEmptyPeriodState ? (
+        <div className={`${timetableSurface} p-10 text-center`}>
+          <CalendarOff
+            className="mx-auto h-10 w-10 text-gray-300"
+            aria-hidden
           />
-        ))}
-
-      {view === "year" &&
-        (isInstanceDataLoading ? (
-          <TimetableContentSkeleton view="year" />
-        ) : (
-          <YearPlannerGrid
-            months={yearMonths}
-            instances={instances}
-            todayISO={todayISO}
-            onMonthClick={openMonthFromYear}
-            onDayClick={openWeekForDay}
-          />
-        ))}
-
-      {view === "week" && (
+          <h2 className="mt-4 text-base font-semibold text-gray-900">
+            Noch kein Planungszeitraum
+          </h2>
+          <p className="mx-auto mt-2 max-w-md text-sm leading-relaxed text-gray-600">
+            Lege einen Planungszeitraum an, um Angebote und Termine im
+            Betreuungsplan zu planen.
+          </p>
+          <div className="mt-4 flex justify-center">
+            <Button type="button" variant="primary" onClick={openPeriodCreate}>
+              Planungszeitraum anlegen
+            </Button>
+          </div>
+        </div>
+      ) : (
         <>
-          {isInstanceDataLoading ? (
-            <TimetableContentSkeleton view="week" />
-          ) : (
-            <WeeklyCalendarGrid
-              weekDays={weekDays}
-              instances={instances}
-              selectedId={selectedInstanceId}
-              onInstanceClick={handleSelectInstance}
-              onSlotClick={openQuickCreate}
-              gapInstanceIds={gapInstanceIds}
-              todayISO={todayISO}
-              dayStartHour={dayStartHour}
-              dayEndHour={dayEndHour}
-              hourHeightPx={hourHeightPx}
-              emptyState={
-                instances.length === 0 && !error
-                  ? {
-                      title: weekHasFullPeriodCoverage
-                        ? "Diese Woche hat noch keine Termine"
-                        : "Diese Woche hat keinen Planungszeitraum",
-                      description: weekHasFullPeriodCoverage
-                        ? "Plane Angebote über die Toolbar oder lege einen einzelnen Termin an."
-                        : "Lege zuerst einen aktiven Planungszeitraum an.",
-                    }
-                  : undefined
-              }
-            />
+          {shouldLoadInstances && (
+            <ConflictWarningsBanner conflictCount={conflictCount} />
           )}
 
-          {instances.length > 0 && (
-            <PlanQualityPanel
-              instances={instances}
-              gaps={gaps}
-              conflicts={exceptionConflicts}
-              staff={staff}
-              loading={gapsLoading || conflictsLoading}
-              error={planQualityErrorMessage}
-              onSelectInstance={(instanceId) =>
-                updateUrlParams({ block: instanceId })
-              }
-              onEditInstance={(instanceId) => {
-                const instance = instances.find(
-                  (item) => item.id === instanceId,
-                );
-                if (!instance) return;
-                setEditingInstance(instance);
-                setEditingTemplate(null);
-                setConvertingInstance(null);
-                setEventDefaultRepeat("none");
-                setEventModalOpen(true);
-              }}
-              onSubstitute={handleSubstitute}
-            />
-          )}
-        </>
-      )}
+          {view === "month" &&
+            (isInstanceDataLoading ? (
+              <TimetableContentSkeleton view="month" />
+            ) : (
+              <MonthPlannerGrid
+                days={monthDays}
+                monthDate={visibleDate}
+                instances={instances}
+                todayISO={todayISO}
+                onDayClick={openWeekForDay}
+              />
+            ))}
 
-      {view === "series" && (
-        <>
-          {templatesLoading ? (
-            <TimetableContentSkeleton view="series" />
-          ) : (
-            <TemplateList
-              templates={templates}
-              onCreate={openSeriesCreate}
-              onEdit={(template) => {
-                setEditingInstance(null);
-                setConvertingInstance(null);
-                setEditingTemplate(template);
-                setEventDefaultRepeat("weekly");
-                setEventModalOpen(true);
-              }}
-              onApply={(template) => void handleApplyTemplate(template)}
-              onArchive={setArchivingTemplate}
-            />
+          {view === "week" && (
+            <>
+              {isInstanceDataLoading ? (
+                <TimetableContentSkeleton view="week" />
+              ) : (
+                <WeeklyCalendarGrid
+                  weekDays={weekDays}
+                  instances={instances}
+                  selectedId={selectedInstanceId}
+                  onInstanceClick={handleSelectInstance}
+                  onSlotClick={openQuickCreate}
+                  gapInstanceIds={gapInstanceIds}
+                  todayISO={todayISO}
+                  dayStartHour={dayStartHour}
+                  dayEndHour={dayEndHour}
+                  hourHeightPx={hourHeightPx}
+                  emptyState={
+                    instances.length === 0 && !error
+                      ? {
+                          title: weekHasFullPeriodCoverage
+                            ? "Diese Woche hat noch keine Termine"
+                            : "Diese Woche hat keinen Planungszeitraum",
+                          description: weekHasFullPeriodCoverage
+                            ? "Plane Angebote als Regeltermin oder lege einen einzelnen Termin an."
+                            : "Lege zuerst einen aktiven Planungszeitraum an.",
+                        }
+                      : undefined
+                  }
+                />
+              )}
+            </>
+          )}
+
+          {view === "series" && (
+            <>
+              {templatesLoading ? (
+                <TimetableContentSkeleton view="series" />
+              ) : (
+                <TemplateList
+                  templates={templates}
+                  onCreate={openSeriesCreate}
+                  onEdit={(template) => {
+                    setEditingInstance(null);
+                    setConvertingInstance(null);
+                    setEditingTemplate(template);
+                    setEventDefaultRepeat("weekly");
+                    setEventModalOpen(true);
+                  }}
+                  onApply={(template) => void handleApplyTemplate(template)}
+                  onArchive={setArchivingTemplate}
+                />
+              )}
+            </>
           )}
         </>
       )}

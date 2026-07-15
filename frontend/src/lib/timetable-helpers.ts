@@ -1073,3 +1073,30 @@ export function computeTimetableSetup(input: {
     setupComplete: periodDone && planDone,
   };
 }
+
+/**
+ * Ansichts-Typ und Dichte-Konstanten des Betreuungsplans. Wohnten früher in
+ * `components/timetable/timetable-toolbar.tsx`; die Toolbar wird mit dem
+ * Chrome-Abbau (Planung-Redesign Inkrement 4) entfernt, deshalb leben die
+ * noch gebrauchten Typen/Konstanten hier im Helper-Modul. `timetable-toolbar`
+ * re-exportiert sie bis zur Toolbar-Löschung (Chunk 8) für Altverbraucher.
+ *
+ * `TimetableView` behält "year", obwohl die Jahresansicht nicht mehr
+ * verlinkbar ist: der Wert existiert weiterhin als toter Zweig in Skeleton
+ * und Grid-Typen und wird erst beim Aufräumen entfernt.
+ */
+export type TimetableView = "week" | "month" | "year" | "series";
+
+/**
+ * Drei diskrete Zoomstufen des Wochenrasters. Die Pixel-pro-Stunde-Werte
+ * werden daraus abgeleitet — nie rohe Pixel in der UI zeigen (semantische
+ * Labels nach Apple/Google/Outlook-Konvention: Zoom nach Absicht, nicht
+ * Betrag).
+ */
+export type WeekDensity = "compact" | "normal" | "comfortable";
+
+export const DENSITY_TO_HOUR_HEIGHT_PX: Record<WeekDensity, number> = {
+  compact: 60,
+  normal: 90,
+  comfortable: 120,
+};

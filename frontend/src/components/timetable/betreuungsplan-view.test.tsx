@@ -29,7 +29,6 @@ const {
   mockLoggerWarn,
   mockLoggerError,
   mockListPhases,
-  mockListCareOfferings,
 } = vi.hoisted(() => ({
   mockUseSession: vi.fn(),
   mockToastSuccess: vi.fn(),
@@ -51,7 +50,6 @@ const {
   mockLoggerWarn: vi.fn(),
   mockLoggerError: vi.fn(),
   mockListPhases: vi.fn(),
-  mockListCareOfferings: vi.fn(),
 }));
 
 // useSearchParams spiegelt die echte URL wider; kombiniert mit dem
@@ -89,12 +87,6 @@ vi.mock("~/lib/swr", () => ({
 
 vi.mock("~/lib/hooks/use-timetable-day-hours", () => ({
   useTimetableDayHours: () => ({ dayStartHour: 9, dayEndHour: 17 }),
-}));
-
-// Nur die Konstante wird gebraucht; die TimetableToolbar-Komponente ist nicht
-// mehr Teil der View (durch PlanningContextBar ersetzt).
-vi.mock("~/components/timetable/timetable-toolbar", () => ({
-  DENSITY_TO_HOUR_HEIGHT_PX: { compact: 60, normal: 90, comfortable: 120 },
 }));
 
 vi.mock("~/lib/timetable-api", () => ({
@@ -174,10 +166,6 @@ vi.mock("~/lib/staff-api", () => ({
 
 vi.mock("~/lib/enrollment-phase-api", () => ({
   listPhases: mockListPhases,
-}));
-
-vi.mock("~/lib/care-offering-api", () => ({
-  listCareOfferings: mockListCareOfferings,
 }));
 
 vi.mock("~/components/ui/loading", () => ({
@@ -265,10 +253,6 @@ vi.mock("~/components/timetable/month-planner-grid", () => ({
   ),
 }));
 
-vi.mock("~/components/timetable/year-planner-grid", () => ({
-  YearPlannerGrid: () => <div data-testid="year-grid" />,
-}));
-
 vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
   WeeklyCalendarGrid: ({
     instances,
@@ -296,38 +280,6 @@ vi.mock("~/components/timetable/weekly-calendar-grid", () => ({
           slot-click
         </button>
       )}
-    </div>
-  ),
-}));
-
-vi.mock("~/components/timetable/plan-quality-panel", () => ({
-  PlanQualityPanel: ({
-    onSelectInstance,
-    onEditInstance,
-    onSubstitute,
-  }: {
-    onSelectInstance: (id: string) => void;
-    onEditInstance: (id: string) => void;
-    onSubstitute: (
-      instanceId: string,
-      absent: string,
-      substitute: string,
-      date: string,
-    ) => Promise<void>;
-  }) => (
-    <div>
-      <button type="button" onClick={() => onSelectInstance("42")}>
-        quality-select
-      </button>
-      <button type="button" onClick={() => onEditInstance("42")}>
-        quality-edit
-      </button>
-      <button
-        type="button"
-        onClick={() => void onSubstitute("42", "11", "12", "2026-05-04")}
-      >
-        quality-substitute
-      </button>
     </div>
   ),
 }));
@@ -536,10 +488,7 @@ vi.mock("~/components/timetable/calendar-period-modal", () => ({
     ) : null,
 }));
 
-import {
-  BetreuungsplanView,
-  loadCareOfferingLinkSummary,
-} from "./betreuungsplan-view";
+import { BetreuungsplanView } from "./betreuungsplan-view";
 
 const instance = {
   id: "42",
@@ -778,7 +727,6 @@ describe("BetreuungsplanView", () => {
     );
     mockArchiveTemplate.mockResolvedValue({});
     mockListPhases.mockResolvedValue([]);
-    mockListCareOfferings.mockResolvedValue([]);
     setupSWR();
 
     // Der syncPopstate-Hook reagiert auf popstate, nicht auf manuelle
@@ -998,27 +946,6 @@ describe("BetreuungsplanView", () => {
         effective_date: "2026-05-04",
       }),
     );
-  });
-
-  it("selects and edits an instance from the plan-quality panel", async () => {
-    setUrl("view=woche");
-    render(<BetreuungsplanView />);
-
-    fireEvent.click(screen.getByText("quality-substitute"));
-    await waitFor(() =>
-      expect(mockApplyDeviations).toHaveBeenCalledWith("42", {
-        substitutions: [{ absentStaffId: "11", substituteStaffId: "12" }],
-      }),
-    );
-
-    fireEvent.click(screen.getByText("quality-select"));
-    await waitFor(() => expect(urlParams().get("block")).toBe("42"));
-
-    fireEvent.click(screen.getByText("quality-edit"));
-    expect(screen.getByText("event-save")).toBeInTheDocument();
-    fireEvent.click(screen.getByText("event-save"));
-    await waitFor(() => expect(mockTenantMutate).toHaveBeenCalled());
-    expect(urlParams().get("block")).toBe("42");
   });
 
   it("repeats an instance into a series from the slide-over", async () => {
@@ -1306,105 +1233,38 @@ describe("BetreuungsplanView", () => {
     );
   });
 
-  // --- Setup guide (übergangsweise noch gerendert, entfällt in Chunk 5) ---
+  // --- Chrome-Abbau: Kalender als erstes Inhaltselement, kein Setup-Chrome ---
 
-  it("keeps the enrollment setup step open while no care offering is linked", () => {
-    setupSWR({ careOfferingLink: { total: 3, linked: 0 } });
-
+  it("renders no setup chrome and shows the calendar as the first content when a period exists", () => {
+    setUrl("view=woche");
     render(<BetreuungsplanView />);
 
-    const step = screen.getByRole("link", {
-      name: /Mit der Anmeldung verknüpfen/,
-    });
-    expect(step).toHaveAttribute("href", "/care-offerings");
-    expect(step).toHaveTextContent("0 von 3 Angeboten verknüpft");
-  });
-
-  it("marks the enrollment setup step done once a care offering is linked", () => {
-    setupSWR({ careOfferingLink: { total: 3, linked: 2 } });
-
-    render(<BetreuungsplanView />);
-
-    const step = screen.getByRole("link", {
-      name: /Mit der Anmeldung verknüpfen/,
-    });
-    expect(step).toHaveTextContent("2 von 3 Angeboten verknüpft");
-    expect(step).toHaveTextContent("Angebote öffnen");
-  });
-
-  it("hides the enrollment setup step when the linkage cannot be read", () => {
-    setupSWR({ careOfferingLink: null });
-
-    render(<BetreuungsplanView />);
-
+    // Kalenderraster ist da; die abgebauten Karten (Overview/SetupGuide) nicht.
+    expect(screen.getByText("week-grid")).toBeVisible();
+    expect(
+      screen.queryByText("Betreuungsplan im Blick"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Einrichtung")).not.toBeInTheDocument();
     expect(
       screen.queryByText("Mit der Anmeldung verknüpfen"),
     ).not.toBeInTheDocument();
+    // Kein Leerzustand-Hinweis, solange ein Zeitraum existiert.
+    expect(
+      screen.queryByText("Noch kein Planungszeitraum"),
+    ).not.toBeInTheDocument();
   });
 
-  it("treats a failed active-phase offering request as unknown", async () => {
-    mockListPhases.mockResolvedValue([
-      { id: "10", is_active: true },
-      { id: "11", is_active: true },
-    ]);
-    mockListCareOfferings.mockImplementation((phaseId: string) => {
-      if (phaseId === "11") return Promise.reject(new Error("forbidden"));
-      return Promise.resolve([
-        {
-          phase_id: "10",
-          is_active: true,
-          activity_group_id: "7",
-        },
-      ]);
-    });
-
-    await expect(loadCareOfferingLinkSummary()).resolves.toBeNull();
-    expect(mockLoggerWarn).toHaveBeenCalledWith(
-      "timetable_care_offering_link_load_failed",
-      { error: "forbidden" },
-    );
-  });
-
-  it("summarizes only active offerings from active phases", async () => {
-    mockListPhases.mockResolvedValue([
-      { id: "10", is_active: true },
-      { id: "11", is_active: false },
-    ]);
-    mockListCareOfferings.mockResolvedValue([
-      {
-        phase_id: "10",
-        is_active: true,
-        activity_group_id: "7",
-      },
-      {
-        phase_id: "10",
-        is_active: true,
-        activity_group_id: null,
-      },
-      {
-        phase_id: "10",
-        is_active: false,
-        activity_group_id: "8",
-      },
-    ]);
-
-    await expect(loadCareOfferingLinkSummary()).resolves.toEqual({
-      total: 2,
-      linked: 1,
-    });
-    expect(mockListCareOfferings).toHaveBeenCalledTimes(1);
-    expect(mockListCareOfferings).toHaveBeenCalledWith("10");
-  });
-
-  it("shows a plain hint instead of a 0-of-0 ratio when no offerings exist", () => {
-    setupSWR({ careOfferingLink: { total: 0, linked: 0 } });
-
+  it("shows the empty-period hint instead of the grid when no period exists, and its action opens the period modal", () => {
+    setupSWR({ periods: [] });
+    setUrl("view=woche");
     render(<BetreuungsplanView />);
 
-    const step = screen.getByRole("link", {
-      name: /Mit der Anmeldung verknüpfen/,
-    });
-    expect(step).toHaveTextContent("Noch keine Angebote");
-    expect(step).not.toHaveTextContent("0 von 0");
+    expect(screen.getByText("Noch kein Planungszeitraum")).toBeVisible();
+    expect(screen.queryByText("week-grid")).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Planungszeitraum anlegen" }),
+    );
+    expect(screen.getByText("period-save")).toBeInTheDocument();
   });
 });

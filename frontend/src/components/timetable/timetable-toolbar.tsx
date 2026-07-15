@@ -20,22 +20,17 @@ import {
   type OverflowMenuEntry,
 } from "~/components/ui/page-header/OverflowMenu";
 import { timetableSurface } from "./timetable-style";
+import {
+  DENSITY_TO_HOUR_HEIGHT_PX,
+  type TimetableView,
+  type WeekDensity,
+} from "~/lib/timetable-helpers";
 
-export type TimetableView = "week" | "month" | "year" | "series";
-
-/**
- * Three discrete zoom levels for the week grid. Pixel-per-hour values are
- * mapped from these — never expose raw pixels in the UI; that pattern was
- * called out as "horrible UX" and replaced with semantic labels matching
- * the Apple/Google/Outlook convention (zoom by intent, not magnitude).
- */
-export type WeekDensity = "compact" | "normal" | "comfortable";
-
-export const DENSITY_TO_HOUR_HEIGHT_PX: Record<WeekDensity, number> = {
-  compact: 60,
-  normal: 90,
-  comfortable: 120,
-};
+// Diese Typen/Konstanten sind in `~/lib/timetable-helpers` umgezogen (der
+// Chrome-Abbau des Planung-Redesigns entfernt diese Toolbar in Chunk 8). Bis
+// dahin re-exportiert die Toolbar sie unverändert für Altverbraucher.
+export { DENSITY_TO_HOUR_HEIGHT_PX };
+export type { TimetableView, WeekDensity };
 
 const DENSITY_OPTIONS: Array<{ value: WeekDensity; label: string }> = [
   { value: "compact", label: "Kompakt" },
