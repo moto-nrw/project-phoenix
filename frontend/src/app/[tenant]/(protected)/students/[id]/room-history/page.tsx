@@ -33,6 +33,9 @@ import { RoomHistorySkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "StudentRoomHistoryPage" });
 
+const EXPORT_FORMATS = ["pdf", "docx", "xlsx"] as const;
+type ExportFormat = (typeof EXPORT_FORMATS)[number];
+
 // ─── Types ───────────────────────────────────────────────────────────────────
 
 interface Student {
@@ -383,7 +386,7 @@ function DayCard({
                       {slot.startTime}–{slot.endTime}
                     </span>
                     {slot.isUnplanned && (
-                      <span className="ml-2 text-amber-700">ungeplant</span>
+                      <span className="ml-2 text-[#F78C10]">ungeplant</span>
                     )}
                   </div>
                   <span className="font-medium text-gray-600">
@@ -576,7 +579,7 @@ function HistoryTable({
                                   {slot.endTime && <>–{slot.endTime}</>}
                                 </span>
                                 {slot.isUnplanned && (
-                                  <span className="text-amber-700">
+                                  <span className="text-[#F78C10]">
                                     ungeplant
                                   </span>
                                 )}
@@ -741,6 +744,8 @@ function StudentRoomHistoryPageContent() {
   const [history, setHistory] = useState<AttendanceHistory | null>(null);
   const [loading, setLoading] = useState(true);
   const [errorCode, setErrorCode] = useState<ErrorCode | null>(null);
+  const [exporting, setExporting] = useState<ExportFormat | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   useStudentHistoryBreadcrumb({ studentName: student?.name, referrer });
 
@@ -796,6 +801,48 @@ function StudentRoomHistoryPageContent() {
       setErrorCode("generic");
     }
   }, [studentId]);
+
+  const downloadExport = useCallback(
+    async (format: ExportFormat): Promise<void> => {
+      setExporting(format);
+      setExportError(null);
+      try {
+        const res = await fetch(
+          `/api/students/${studentId}/attendance-history/export?format=${format}`,
+        );
+        if (!res.ok) {
+          setExportError(
+            "Export fehlgeschlagen. Bitte versuchen Sie es später erneut.",
+          );
+          return;
+        }
+        const blob = await res.blob();
+        const disposition = res.headers.get("Content-Disposition") ?? "";
+        const filename =
+          /filename="([^"]+)"/.exec(disposition)?.[1] ??
+          `anwesenheit.${format}`;
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement("a");
+        anchor.href = url;
+        anchor.download = filename;
+        document.body.appendChild(anchor);
+        anchor.click();
+        anchor.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        logger.error("attendance_history_export_failed", {
+          student_id: studentId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        setExportError(
+          "Export fehlgeschlagen. Bitte versuchen Sie es später erneut.",
+        );
+      } finally {
+        setExporting(null);
+      }
+    },
+    [studentId],
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -874,20 +921,24 @@ function StudentRoomHistoryPageContent() {
 
       {history && (
         <>
+          {exportError && (
+            <div className="mb-4">
+              <Alert type="error" message={exportError} />
+            </div>
+          )}
           <div className="mb-4 flex flex-wrap justify-end gap-2">
-            {(["pdf", "docx", "xlsx"] as const).map((format) => (
+            {EXPORT_FORMATS.map((format) => (
               <Button
                 key={format}
                 type="button"
                 variant="outline"
                 size="compact"
-                onClick={() =>
-                  window.location.assign(
-                    `/api/students/${studentId}/attendance-history/export?format=${format}`,
-                  )
-                }
+                disabled={exporting !== null}
+                onClick={() => void downloadExport(format)}
               >
-                {format.toUpperCase()} exportieren
+                {exporting === format
+                  ? "Wird exportiert…"
+                  : `${format.toUpperCase()} exportieren`}
               </Button>
             ))}
           </div>

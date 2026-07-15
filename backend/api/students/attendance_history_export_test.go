@@ -49,9 +49,40 @@ func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T
 	assert.Equal(t, "Morgenbetreuung", rows[0].Values[attendanceColumnOffering])
 	assert.Equal(t, "Anwesend", rows[0].Values[attendanceColumnStatus])
 	assert.Equal(t, "Ohne Zuordnung", rows[1].Values[attendanceColumnOffering])
-	assert.Equal(t, "Ungeplant, ohne Buchung", rows[1].Values[attendanceColumnAssignment])
+	assert.Equal(t, "Nicht zugeordnet", rows[1].Values[attendanceColumnAssignment])
 	assert.Equal(t, "Nachmittagsbetreuung", rows[2].Values[attendanceColumnOffering])
 	assert.Equal(t, "Krank", rows[2].Values[attendanceColumnStatus])
+}
+
+// TestAttendanceExportRows_SameSlotReentryIsCoveredByWindow: re-entry into the
+// same care slot re-stamps the slot's checked_in_at, so the earlier session
+// loses its exact timestamp match. The scheduled-window fallback must still
+// claim it — no false "Nicht zugeordnet" row for booked presence.
+func TestAttendanceExportRows_SameSlotReentryIsCoveredByWindow(t *testing.T) {
+	date := timezone.NewDate(2026, 7, 15)
+	firstCheckIn := time.Date(2026, 7, 15, 8, 0, 0, 0, timezone.Berlin)
+	reentryCheckIn := time.Date(2026, 7, 15, 10, 0, 0, 0, timezone.Berlin)
+
+	rows := attendanceExportRows([]*scheduleModel.ScheduledInstanceRow{
+		{
+			Instance: &scheduleModel.ActivityInstance{
+				Date: date, Title: "Ganztagsbetreuung",
+				StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
+				EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+			},
+			Attendance: &scheduleModel.InstanceStudent{
+				// Reopened slot: checked_in_at re-stamped with the re-entry.
+				Status: scheduleModel.AttendanceStatusPresent, CheckedInAt: &reentryCheckIn,
+			},
+		},
+	}, []*activeModel.Attendance{
+		{Date: date, CheckInTime: firstCheckIn},
+		{Date: date, CheckInTime: reentryCheckIn},
+	})
+
+	require.Len(t, rows, 1, "both sessions belong to the booked slot — no unassigned rows")
+	assert.Equal(t, "Ganztagsbetreuung", rows[0].Values[attendanceColumnOffering])
+	assert.Equal(t, "Gebucht", rows[0].Values[attendanceColumnAssignment])
 }
 
 func TestAttendanceExportDocument_RendersEverySupportedFormat(t *testing.T) {

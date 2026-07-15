@@ -58,6 +58,13 @@ func attendancePerCareSlotUp(ctx context.Context, db *bun.DB) error {
 
 	// Preserve retained visit evidence. Existing planned rows gain an
 	// unambiguous last checkout; retained walk-ins become durable slot rows.
+	// Two deliberate guards:
+	//   * status <> 'absent' — a manual or status-day absence documented by
+	//     staff must never be flipped to present by historical visit data
+	//     (mirrors the runtime monotonicity rule in shouldPreserveAttendanceOnCheckin).
+	//   * Berlin-day match between visit and instance — if an active group is
+	//     ever bridged to more than one instance, visit bounds must not smear
+	//     across dates.
 	if _, err := db.NewRaw(`
 		WITH visit_bounds AS (
 			SELECT
@@ -72,16 +79,17 @@ func attendancePerCareSlotUp(ctx context.Context, db *bun.DB) error {
 			JOIN schedule.activity_instances AS instance
 				ON instance.tenant_id = visit.tenant_id
 				AND instance.active_group_id = visit.active_group_id
+				AND (visit.entry_time AT TIME ZONE 'Europe/Berlin')::date = instance.date
 			GROUP BY instance.id, visit.student_id
 		)
 		UPDATE schedule.instance_students AS attendance
 		SET status = 'present',
-			substatus = NULL,
 			checked_in_at = COALESCE(attendance.checked_in_at, bounds.checked_in_at),
 			checked_out_at = bounds.checked_out_at
 		FROM visit_bounds AS bounds
 		WHERE attendance.instance_id = bounds.instance_id
-			AND attendance.student_id = bounds.student_id;
+			AND attendance.student_id = bounds.student_id
+			AND attendance.status <> 'absent';
 
 		WITH visit_bounds AS (
 			SELECT
@@ -97,6 +105,7 @@ func attendancePerCareSlotUp(ctx context.Context, db *bun.DB) error {
 			JOIN schedule.activity_instances AS instance
 				ON instance.tenant_id = visit.tenant_id
 				AND instance.active_group_id = visit.active_group_id
+				AND (visit.entry_time AT TIME ZONE 'Europe/Berlin')::date = instance.date
 			GROUP BY instance.tenant_id, instance.id, visit.student_id
 		)
 		INSERT INTO schedule.instance_students

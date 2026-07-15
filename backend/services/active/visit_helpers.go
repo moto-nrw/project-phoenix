@@ -65,7 +65,12 @@ func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *active.Vi
 	return s.createAttendanceRecord(ctx, visit, staffID, deviceID, visitDate)
 }
 
-// createAttendanceRecord creates a new attendance record for first visit of the day
+// createAttendanceRecord creates a new attendance record for first visit of the day.
+// CheckInTime is deliberately visit.EntryTime — the slot-attendance mirror
+// (schedule.AttendanceSyncService) stamps instance_students.checked_in_at from
+// the same instant, and history/export session-to-slot matching relies on the
+// two timestamps being identical. Never replace either side with an
+// independent time.Now().
 func (s *service) createAttendanceRecord(ctx context.Context, visit *active.Visit, staffID, deviceID int64, visitDate timezone.Date) error {
 	resolvedStaffID := s.resolveStaffIDForAttendance(ctx, staffID, deviceID)
 	resolvedDeviceID := s.resolveDeviceIDForAttendance(ctx, deviceID)

@@ -37,17 +37,16 @@ type studentHistoryService struct {
 }
 
 // NewStudentHistoryService creates a StudentHistoryService backed by the
-// attendance, visit, and data-access-log repositories.
-func NewStudentHistoryService(attendanceRepo activeModels.AttendanceRepository, visitRepo activeModels.VisitRepository, accessLogRepo auditModels.DataAccessLogRepository, slotRepos ...scheduleModels.InstanceStudentRepository) StudentHistoryService {
-	service := &studentHistoryService{
+// attendance, visit, data-access-log, and slot-attendance repositories.
+// slotRepo may be nil (tests without a timetable), in which case slot
+// attendance reads return empty.
+func NewStudentHistoryService(attendanceRepo activeModels.AttendanceRepository, visitRepo activeModels.VisitRepository, accessLogRepo auditModels.DataAccessLogRepository, slotRepo scheduleModels.InstanceStudentRepository) StudentHistoryService {
+	return &studentHistoryService{
 		attendanceRepo: attendanceRepo,
 		visitRepo:      visitRepo,
 		accessLogRepo:  accessLogRepo,
+		slotRepo:       slotRepo,
 	}
-	if len(slotRepos) > 0 {
-		service.slotRepo = slotRepos[0]
-	}
-	return service
 }
 
 func (s *studentHistoryService) GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*scheduleModels.ScheduledInstanceRow, error) {

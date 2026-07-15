@@ -54,10 +54,10 @@ type AttendanceSyncer interface {
 	// scheduled student slot. Zero or multiple matches remain unassigned.
 	MirrorCheckInAt(ctx context.Context, studentID int64, at time.Time) *AttendanceSnapshot
 
-	// LoadAttendanceForVisit is called at visit end. It stamps the slot's
+	// MirrorCheckOutForVisit is called at visit end. It stamps the slot's
 	// checkout time without changing its attendance status, then returns the
 	// current snapshot for SSE display.
-	LoadAttendanceForVisit(ctx context.Context, visit *active.Visit) *AttendanceSnapshot
+	MirrorCheckOutForVisit(ctx context.Context, visit *active.Visit) *AttendanceSnapshot
 
 	// MirrorCheckOutAt closes the most recently checked-in open slot for a
 	// roomless attendance flow.

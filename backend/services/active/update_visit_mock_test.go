@@ -28,7 +28,7 @@ func (r *recordingAttendanceSyncer) MirrorCheckInAt(context.Context, int64, time
 	return nil
 }
 
-func (r *recordingAttendanceSyncer) LoadAttendanceForVisit(_ context.Context, visit *activeModels.Visit) *AttendanceSnapshot {
+func (r *recordingAttendanceSyncer) MirrorCheckOutForVisit(_ context.Context, visit *activeModels.Visit) *AttendanceSnapshot {
 	copy := *visit
 	r.loaded = append(r.loaded, &copy)
 	return &AttendanceSnapshot{Status: "present", InstanceID: 1}

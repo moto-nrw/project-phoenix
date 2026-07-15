@@ -69,6 +69,10 @@ type attendanceSessionRecord struct {
 	DurationMinutes *int       `json:"duration_minutes,omitempty"`
 }
 
+// attendanceSlotEntry is one care-offering slot in a day's history. Synthetic
+// "Ohne Zuordnung" entries (observed sessions no slot could claim) carry a
+// NEGATIVE instance_id sentinel unique within the day — consumers must not
+// treat it as a real schedule.activity_instances ID.
 type attendanceSlotEntry struct {
 	InstanceID   int64      `json:"instance_id"`
 	Title        string     `json:"title"`
@@ -484,17 +488,17 @@ func attachSlotAttendance(
 
 // attachUnassignedAttendance exposes observed sessions that could not be
 // matched to a concrete slot. This is intentional in binary mode when zero or
-// multiple booked slots overlap: the system records "ungeplant" instead of
-// guessing an offering.
+// multiple booked slots overlap: the session stays neutrally unassigned
+// instead of the system guessing an offering (or claiming it was unbooked).
 func attachUnassignedAttendance(days []attendanceHistoryDay) []attendanceHistoryDay {
 	for dayIndex := range days {
 		day := &days[dayIndex]
 		if day.Attendance == nil {
 			continue
 		}
-		assigned := assignedSlotCheckins(day.Slots)
+		coverages := slotEntryCoverages(day.Slots)
 		for sessionIndex, session := range day.Attendance.Sessions {
-			if _, ok := assigned[session.CheckInTime.UnixNano()]; ok {
+			if sessionCoveredBySlots(coverages, session.CheckInTime) {
 				continue
 			}
 			day.Slots = append(day.Slots, unassignedSlotEntry(sessionIndex, session))
@@ -503,22 +507,62 @@ func attachUnassignedAttendance(days []attendanceHistoryDay) []attendanceHistory
 	return days
 }
 
-func assignedSlotCheckins(slots []attendanceSlotEntry) map[int64]struct{} {
-	assigned := make(map[int64]struct{}, len(slots))
+// slotCoverage describes one slot's capacity to claim an observed attendance
+// session: an exact check-in timestamp match (attendance check_in_time and
+// slot checked_in_at share the same visit.EntryTime / roomless "now" stamp),
+// or — for present slots — a scheduled wall-clock window that contains the
+// session's Berlin check-in clock. The window fallback covers re-entry into
+// the same slot, which re-stamps checked_in_at and orphans the earlier
+// session's exact match.
+type slotCoverage struct {
+	checkInNano int64
+	hasCheckIn  bool
+	present     bool
+	startClock  string // "15:04" Berlin wall clock; empty = no window
+	endClock    string
+}
+
+func slotEntryCoverages(slots []attendanceSlotEntry) []slotCoverage {
+	coverages := make([]slotCoverage, 0, len(slots))
 	for _, slot := range slots {
+		coverage := slotCoverage{
+			present:    slot.Status == scheduleModel.AttendanceStatusPresent,
+			startClock: slot.StartTime,
+			endClock:   slot.EndTime,
+		}
 		if slot.CheckedInAt != nil {
-			assigned[slot.CheckedInAt.UnixNano()] = struct{}{}
+			coverage.checkInNano = slot.CheckedInAt.UnixNano()
+			coverage.hasCheckIn = true
+		}
+		coverages = append(coverages, coverage)
+	}
+	return coverages
+}
+
+func sessionCoveredBySlots(coverages []slotCoverage, checkIn time.Time) bool {
+	nano := checkIn.UnixNano()
+	clock := checkIn.In(timezone.Berlin).Format("15:04")
+	for _, coverage := range coverages {
+		if coverage.hasCheckIn && coverage.checkInNano == nano {
+			return true
+		}
+		if coverage.present && coverage.startClock != "" && coverage.endClock != "" &&
+			coverage.startClock <= clock && clock < coverage.endClock {
+			return true
 		}
 	}
-	return assigned
+	return false
 }
 
 func unassignedSlotEntry(index int, session attendanceSessionRecord) attendanceSlotEntry {
+	// Not flagged is_unplanned: whether a booking existed is unknown here
+	// (zero or several candidate slots) — the title alone marks the row as
+	// unassigned. Persisted walk-in slot rows carry is_unplanned instead.
 	entry := attendanceSlotEntry{
 		InstanceID: -int64(index + 1), Title: "Ohne Zuordnung",
 		StartTime: session.CheckInTime.In(timezone.Berlin).Format("15:04"),
 		Status:    "present", CheckedInAt: &session.CheckInTime,
-		CheckedOutAt: session.CheckOutTime, IsUnplanned: true,
+		CheckedOutAt: session.CheckOutTime,
 	}
 	if session.CheckOutTime != nil {
 		entry.EndTime = session.CheckOutTime.In(timezone.Berlin).Format("15:04")

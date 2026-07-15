@@ -371,3 +371,61 @@ func TestAttachSlotAttendance_SlotOnlyDayRespectsRoomRetention(t *testing.T) {
 		assert.Equal(t, entry, days[0].Visits[0].EntryTime)
 	})
 }
+
+// TestAttachUnassignedAttendance_WindowMatchAndNeutralLeftover: a re-entry into
+// the same slot re-stamps the slot's checked_in_at, so the earlier session must
+// be claimed via the scheduled-window fallback. Sessions outside every window
+// stay visible as neutral "Ohne Zuordnung" entries without an is_unplanned claim.
+func TestAttachUnassignedAttendance_WindowMatchAndNeutralLeftover(t *testing.T) {
+	first := time.Date(2026, 7, 15, 8, 0, 0, 0, timezone.Berlin)
+	reentry := time.Date(2026, 7, 15, 10, 0, 0, 0, timezone.Berlin)
+	outside := time.Date(2026, 7, 15, 17, 30, 0, 0, timezone.Berlin)
+
+	days := attachUnassignedAttendance([]attendanceHistoryDay{{
+		Date: "2026-07-15",
+		Attendance: &attendanceDayRecord{
+			CheckInTime: first,
+			Sessions: []attendanceSessionRecord{
+				{CheckInTime: first},   // covered by the slot's scheduled window
+				{CheckInTime: reentry}, // exact match on the re-stamped checked_in_at
+				{CheckInTime: outside}, // after the window — stays unassigned
+			},
+		},
+		Slots: []attendanceSlotEntry{{
+			InstanceID: 301, Title: "Ganztagsbetreuung",
+			StartTime: "07:00", EndTime: "16:00",
+			Status: schedule.AttendanceStatusPresent, CheckedInAt: &reentry,
+		}},
+	}})
+
+	require.Len(t, days[0].Slots, 2, "only the out-of-window session may become a synthetic entry")
+	synthetic := days[0].Slots[1]
+	assert.Equal(t, "Ohne Zuordnung", synthetic.Title)
+	assert.Equal(t, "17:30", synthetic.StartTime)
+	assert.Negative(t, synthetic.InstanceID, "synthetic entries carry the negative sentinel")
+	assert.False(t, synthetic.IsUnplanned, "unknown booking situation must not claim 'ungeplant'")
+}
+
+// TestAttachUnassignedAttendance_AbsentSlotDoesNotAbsorbSessions: only present
+// slots may claim sessions via their scheduled window — an absence (sick) with
+// an overlapping window must not swallow observed presence.
+func TestAttachUnassignedAttendance_AbsentSlotDoesNotAbsorbSessions(t *testing.T) {
+	sick := schedule.AttendanceSubstatusSick
+	checkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
+
+	days := attachUnassignedAttendance([]attendanceHistoryDay{{
+		Date: "2026-07-15",
+		Attendance: &attendanceDayRecord{
+			CheckInTime: checkIn,
+			Sessions:    []attendanceSessionRecord{{CheckInTime: checkIn}},
+		},
+		Slots: []attendanceSlotEntry{{
+			InstanceID: 302, Title: "Morgenbetreuung",
+			StartTime: "07:00", EndTime: "12:00",
+			Status: schedule.AttendanceStatusAbsent, Substatus: &sick,
+		}},
+	}})
+
+	require.Len(t, days[0].Slots, 2, "the observed session must surface next to the absence")
+	assert.Equal(t, "Ohne Zuordnung", days[0].Slots[1].Title)
+}

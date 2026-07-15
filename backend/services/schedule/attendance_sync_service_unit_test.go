@@ -566,44 +566,44 @@ type activeSvcSnapshot struct {
 }
 
 // -----------------------------------------------------------------------------
-// LoadAttendanceForVisit — error branches
+// MirrorCheckOutForVisit — error branches
 // -----------------------------------------------------------------------------
 
 func TestLoadAttendance_NilVisit(t *testing.T) {
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{})
-	assert.Nil(t, syncer.LoadAttendanceForVisit(context.Background(), nil))
+	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), nil))
 }
 
 func TestLoadAttendance_ZeroActiveGroup(t *testing.T) {
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, &fakeInstanceStudentRepo{})
 	v := validVisit()
 	v.ActiveGroupID = 0
-	assert.Nil(t, syncer.LoadAttendanceForVisit(context.Background(), v))
+	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), v))
 }
 
 func TestLoadAttendance_InstanceLookupError(t *testing.T) {
 	instRepo := &fakeInstanceRepo{findErr: errors.New("db down")}
 	syncer := newUnitSyncer(instRepo, &fakeInstanceStudentRepo{})
-	assert.Nil(t, syncer.LoadAttendanceForVisit(context.Background(), validVisit()))
+	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), validVisit()))
 }
 
 func TestLoadAttendance_NoInstance(t *testing.T) {
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: nil}, &fakeInstanceStudentRepo{})
-	assert.Nil(t, syncer.LoadAttendanceForVisit(context.Background(), validVisit()))
+	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), validVisit()))
 }
 
 func TestLoadAttendance_InstanceStudentLookupError(t *testing.T) {
 	instRepo := &fakeInstanceRepo{instance: instanceWithID(7)}
 	isRepo := &fakeInstanceStudentRepo{findErr: errors.New("scan failed")}
 	syncer := newUnitSyncer(instRepo, isRepo)
-	assert.Nil(t, syncer.LoadAttendanceForVisit(context.Background(), validVisit()))
+	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), validVisit()))
 }
 
 func TestLoadAttendance_NoRow(t *testing.T) {
 	instRepo := &fakeInstanceRepo{instance: instanceWithID(7)}
 	isRepo := &fakeInstanceStudentRepo{findRow: nil}
 	syncer := newUnitSyncer(instRepo, isRepo)
-	assert.Nil(t, syncer.LoadAttendanceForVisit(context.Background(), validVisit()))
+	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), validVisit()))
 }
 
 func TestLoadAttendance_HappyPath(t *testing.T) {
@@ -618,7 +618,7 @@ func TestLoadAttendance_HappyPath(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{findRow: row}
 	syncer := newUnitSyncer(instRepo, isRepo)
 
-	snap := syncer.LoadAttendanceForVisit(context.Background(), validVisit())
+	snap := syncer.MirrorCheckOutForVisit(context.Background(), validVisit())
 	require.NotNil(t, snap)
 	assert.Equal(t, scheduleModel.AttendanceStatusPresent, snap.Status)
 	require.NotNil(t, snap.Substatus)
@@ -638,7 +638,7 @@ func TestLoadAttendance_RecordsCheckout(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{findRow: row}
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo)
 
-	snapshot := syncer.LoadAttendanceForVisit(context.Background(), visit)
+	snapshot := syncer.MirrorCheckOutForVisit(context.Background(), visit)
 	require.NotNil(t, snapshot)
 	assert.Equal(t, 1, isRepo.checkoutCalls)
 	assert.Equal(t, int64(7), isRepo.checkoutID)
@@ -669,7 +669,7 @@ func TestLoadAttendance_DoesNotCheckoutUnmirroredRow(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			isRepo := &fakeInstanceStudentRepo{findRow: row}
 			snapshot := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo).
-				LoadAttendanceForVisit(context.Background(), visit)
+				MirrorCheckOutForVisit(context.Background(), visit)
 
 			require.NotNil(t, snapshot)
 			assert.Zero(t, isRepo.checkoutCalls)
@@ -688,7 +688,7 @@ func TestLoadAttendance_CheckoutError(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{findRow: row, checkoutErr: errors.New("update failed")}
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo)
 
-	assert.Nil(t, syncer.LoadAttendanceForVisit(context.Background(), visit))
+	assert.Nil(t, syncer.MirrorCheckOutForVisit(context.Background(), visit))
 	assert.Equal(t, 1, isRepo.checkoutCalls)
 }
 
@@ -696,7 +696,7 @@ func TestLoadAttendance_PanicRecovery(t *testing.T) {
 	instRepo := &fakeInstanceRepo{findPanic: errors.New("kaboom")}
 	syncer := newUnitSyncer(instRepo, &fakeInstanceStudentRepo{})
 	require.NotPanics(t, func() {
-		snap := syncer.LoadAttendanceForVisit(context.Background(), validVisit())
+		snap := syncer.MirrorCheckOutForVisit(context.Background(), validVisit())
 		assert.Nil(t, snap)
 	})
 }
@@ -758,7 +758,7 @@ func TestAttendanceSync_NilLoggerUsesDefault(t *testing.T) {
 	)
 	require.NotPanics(t, func() {
 		assert.Nil(t, svc.MirrorCheckInForVisit(context.Background(), validVisit()))
-		assert.Nil(t, svc.LoadAttendanceForVisit(context.Background(), validVisit()))
+		assert.Nil(t, svc.MirrorCheckOutForVisit(context.Background(), validVisit()))
 	})
 }
 

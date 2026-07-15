@@ -604,7 +604,7 @@ func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
 		// Checkout-only update: the visit closes without a group move, so the
 		// move path above never runs. Mirror the checkout into slot attendance
 		// or the persisted slot stays open while the visit is closed.
-		s.AttendanceSyncer.LoadAttendanceForVisit(ctx, visit)
+		s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, visit)
 	}
 
 	return nil
@@ -653,7 +653,7 @@ func (s *service) syncMovedVisitAttendance(
 
 	source := *previousVisit
 	source.ExitTime = &transferAt
-	sourceSnapshot = s.AttendanceSyncer.LoadAttendanceForVisit(ctx, &source)
+	sourceSnapshot = s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, &source)
 
 	target := *movedVisit
 	target.EntryTime = transferAt
@@ -662,7 +662,7 @@ func (s *service) syncMovedVisitAttendance(
 
 	if movedVisit.ExitTime != nil {
 		target.ExitTime = movedVisit.ExitTime
-		if closedSnapshot := s.AttendanceSyncer.LoadAttendanceForVisit(ctx, &target); closedSnapshot != nil {
+		if closedSnapshot := s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, &target); closedSnapshot != nil {
 			targetSnapshot = closedSnapshot
 		}
 	}
@@ -743,7 +743,7 @@ func (s *service) endVisitWithAttendanceSync(
 
 	var snapshot *AttendanceSnapshot
 	if s.AttendanceSyncer != nil {
-		snapshot = s.AttendanceSyncer.LoadAttendanceForVisit(ctx, endedVisit)
+		snapshot = s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, endedVisit)
 	}
 	return endedVisit, snapshot, nil
 }

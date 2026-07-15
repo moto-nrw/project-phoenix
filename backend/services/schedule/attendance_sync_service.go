@@ -145,6 +145,10 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 		return snapshotFromRow(row)
 	}
 
+	// checked_in_at is stamped from visit.EntryTime — the same instant
+	// active.attendance.check_in_time gets (createAttendanceRecord). History
+	// and export session-to-slot matching relies on the two timestamps being
+	// identical; never replace either side with an independent time.Now().
 	updated, err := s.instanceStudentRepo.UpdateAttendanceFromCheckin(
 		ctx, instance.ID, visit.StudentID, visit.EntryTime,
 	)
@@ -291,9 +295,9 @@ func shouldPreserveAttendanceOnCheckin(row *scheduleModel.InstanceStudent) bool 
 	return row.Status != scheduleModel.AttendanceStatusPresent || row.CheckedOutAt == nil
 }
 
-// LoadAttendanceForVisit implements activeSvc.AttendanceSyncer. It preserves
+// MirrorCheckOutForVisit implements activeSvc.AttendanceSyncer. It preserves
 // the slot status while recording the observed checkout for history/export.
-func (s *AttendanceSyncService) LoadAttendanceForVisit(
+func (s *AttendanceSyncService) MirrorCheckOutForVisit(
 	ctx context.Context, visit *activeModel.Visit,
 ) (snapshot *activeSvc.AttendanceSnapshot) {
 	defer func() {
@@ -375,19 +379,24 @@ func (s *AttendanceSyncService) MirrorCheckOutAt(ctx context.Context, studentID 
 		)
 		return
 	}
-	for i := len(rows) - 1; i >= 0; i-- {
-		row := rows[i]
+	var latest *scheduleModel.InstanceStudent
+	for _, row := range rows {
 		if row.Status != scheduleModel.AttendanceStatusPresent || row.CheckedInAt == nil || row.CheckedOutAt != nil {
 			continue
 		}
-		if err := s.instanceStudentRepo.UpdateAttendanceCheckout(ctx, row.InstanceID, studentID, at); err != nil {
-			s.getLogger().Error("roomless attendance checkout mirror UPDATE failed",
-				slog.Int64("instance_id", row.InstanceID),
-				slog.Int64("student_id", studentID),
-				slog.String("error", err.Error()),
-			)
+		if latest == nil || row.CheckedInAt.After(*latest.CheckedInAt) {
+			latest = row
 		}
+	}
+	if latest == nil {
 		return
+	}
+	if err := s.instanceStudentRepo.UpdateAttendanceCheckout(ctx, latest.InstanceID, studentID, at); err != nil {
+		s.getLogger().Error("roomless attendance checkout mirror UPDATE failed",
+			slog.Int64("instance_id", latest.InstanceID),
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
 	}
 }
 

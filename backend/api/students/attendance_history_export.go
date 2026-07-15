@@ -116,7 +116,10 @@ func parseAttendanceExportOptions(r *http.Request, visibleDays int) (attendanceE
 			return options, errors.New("invalid to date format, expected YYYY-MM-DD")
 		}
 	}
-	if options.To.Before(options.From) || options.From.DaysUntil(options.To) >= visibleDays {
+	if options.To.Before(options.From) {
+		return options, errors.New("to date must not be before from date")
+	}
+	if options.From.DaysUntil(options.To) >= visibleDays {
 		return options, fmt.Errorf("date range cannot exceed %d days", visibleDays)
 	}
 	return options, nil
@@ -160,14 +163,21 @@ func attendanceExportRows(slots []*scheduleModel.ScheduledInstanceRow, attendanc
 		row   listexport.Row
 	}
 	entries := make([]sortableExportRow, 0, len(slots)+len(attendanceRows))
-	assigned := make(map[int64]struct{}, len(slots))
+	coverageByDate := make(map[timezone.Date][]slotCoverage, len(slots))
 	for _, row := range slots {
 		if row == nil || row.Instance == nil || row.Attendance == nil {
 			continue
 		}
-		if row.Attendance.CheckedInAt != nil {
-			assigned[row.Attendance.CheckedInAt.UnixNano()] = struct{}{}
+		coverage := slotCoverage{
+			present:    row.Attendance.Status == scheduleModel.AttendanceStatusPresent,
+			startClock: row.Instance.StartTime.Format("15:04"),
+			endClock:   row.Instance.EndTime.Format("15:04"),
 		}
+		if row.Attendance.CheckedInAt != nil {
+			coverage.checkInNano = row.Attendance.CheckedInAt.UnixNano()
+			coverage.hasCheckIn = true
+		}
+		coverageByDate[row.Instance.Date] = append(coverageByDate[row.Instance.Date], coverage)
 		entries = append(entries, sortableExportRow{
 			date:  row.Instance.Date,
 			clock: row.Instance.StartTime.Format("15:04:05"),
@@ -175,7 +185,7 @@ func attendanceExportRows(slots []*scheduleModel.ScheduledInstanceRow, attendanc
 		})
 	}
 	for _, attendance := range attendanceRows {
-		if _, ok := assigned[attendance.CheckInTime.UnixNano()]; ok {
+		if sessionCoveredBySlots(coverageByDate[attendance.Date], attendance.CheckInTime) {
 			continue
 		}
 		entries = append(entries, sortableExportRow{
@@ -211,12 +221,16 @@ func slotExportRow(row *scheduleModel.ScheduledInstanceRow) listexport.Row {
 	}}
 }
 
+// unassignedExportRow renders an observed session no slot could claim. The
+// assignment is deliberately neutral: whether a booking existed is unknown
+// here (zero or several candidate slots) — "Ungeplant, ohne Buchung" is
+// reserved for persisted walk-in slot rows (is_unplanned).
 func unassignedExportRow(attendance *activeModel.Attendance) listexport.Row {
 	return listexport.Row{Values: map[listexport.ColumnID]string{
 		attendanceColumnDate: attendance.Date.Format(attendanceExportDateLayout), attendanceColumnOffering: "Ohne Zuordnung",
 		attendanceColumnWindow: exportOptionalTime(&attendance.CheckInTime) + "–" + exportOptionalTime(attendance.CheckOutTime),
 		attendanceColumnStatus: "Anwesend", attendanceColumnCheckIn: exportOptionalTime(&attendance.CheckInTime),
-		attendanceColumnCheckOut: exportOptionalTime(attendance.CheckOutTime), attendanceColumnAssignment: "Ungeplant, ohne Buchung",
+		attendanceColumnCheckOut: exportOptionalTime(attendance.CheckOutTime), attendanceColumnAssignment: "Nicht zugeordnet",
 	}}
 }
 
@@ -233,7 +247,7 @@ func attendanceSlotStatusLabel(status string, substatus *string) string {
 		case "sick":
 			return "Krank"
 		case "excused":
-			return "Entschuldigt abwesend"
+			return "Entschuldigt"
 		case "field_trip":
 			return "Klassenfahrt"
 		}

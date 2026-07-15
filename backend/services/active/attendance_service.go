@@ -399,7 +399,7 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 			s.AttendanceSyncer.MirrorCheckOutAt(ctx, studentID, now)
 		} else if endedVisit != nil {
 			// Detailed mode has exact source provenance through the ended visit.
-			s.AttendanceSyncer.LoadAttendanceForVisit(ctx, endedVisit)
+			s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, endedVisit)
 		}
 	}
 

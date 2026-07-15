@@ -13,7 +13,7 @@
 //	B8 rowsAffected=0 race         → snapshot, no persisted change
 //	B9 happy path                  → snapshot with status=present, row flipped
 //
-// Check-out is covered via LoadAttendanceForVisit — no mutation regardless
+// Check-out is covered via MirrorCheckOutForVisit — no mutation regardless
 // of current state.
 package schedule_test
 
@@ -256,7 +256,7 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 	require.NotNil(t, s.syncer.MirrorCheckInForVisit(s.ctx, &activeModels.Visit{
 		StudentID: student.ID, ActiveGroupID: s.activeGroup.ID, EntryTime: morningCheckIn,
 	}))
-	require.NotNil(t, s.syncer.LoadAttendanceForVisit(s.ctx, &activeModels.Visit{
+	require.NotNil(t, s.syncer.MirrorCheckOutForVisit(s.ctx, &activeModels.Visit{
 		StudentID: student.ID, ActiveGroupID: s.activeGroup.ID,
 		EntryTime: morningCheckIn, ExitTime: &morningCheckOut,
 	}))
@@ -390,7 +390,7 @@ func TestAttendanceSync_MirrorCheckIn_TenantIsolation(t *testing.T) {
 	assert.Nil(t, snap, "wrong tenant — instance invisible under RLS")
 }
 
-// --- LoadAttendanceForVisit --------------------------------------------------
+// --- MirrorCheckOutForVisit --------------------------------------------------
 
 func TestAttendanceSync_LoadAttendance_ReturnsSnapshot(t *testing.T) {
 	s := buildAttendanceSyncSetup(t)
@@ -410,7 +410,7 @@ func TestAttendanceSync_LoadAttendance_ReturnsSnapshot(t *testing.T) {
 	require.NoError(t, s.isRepo.Create(s.ctx, row))
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", row.ID) })
 
-	snap := s.syncer.LoadAttendanceForVisit(s.ctx, &activeModels.Visit{
+	snap := s.syncer.MirrorCheckOutForVisit(s.ctx, &activeModels.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: s.activeGroup.ID,
 	})
@@ -432,7 +432,7 @@ func TestAttendanceSync_LoadAttendance_NoRow(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, s.db, "AS-NoRow", fmt.Sprintf("N-%d", time.Now().UnixNano()), "3a")
 	t.Cleanup(func() { testpkg.CleanupActivityFixtures(t, s.db, student.ID) })
 
-	snap := s.syncer.LoadAttendanceForVisit(s.ctx, &activeModels.Visit{
+	snap := s.syncer.MirrorCheckOutForVisit(s.ctx, &activeModels.Visit{
 		StudentID:     student.ID,
 		ActiveGroupID: s.activeGroup.ID,
 	})
