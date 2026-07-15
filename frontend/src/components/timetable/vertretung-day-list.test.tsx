@@ -194,6 +194,7 @@ describe("VertretungDayList", () => {
         instances={allInstances}
         gaps={gaps}
         acknowledged={acknowledged}
+        gapsAvailable
         staffNames={staffNames}
         mode="stoerungen"
         canManage={false}
@@ -214,6 +215,7 @@ describe("VertretungDayList", () => {
         instances={allInstances}
         gaps={gaps}
         acknowledged={acknowledged}
+        gapsAvailable
         staffNames={staffNames}
         mode="stoerungen"
         canManage={false}
@@ -234,6 +236,7 @@ describe("VertretungDayList", () => {
         instances={[undisturbedInstance]}
         gaps={[]}
         acknowledged={[]}
+        gapsAvailable
         staffNames={staffNames}
         mode="stoerungen"
         canManage={false}
@@ -253,6 +256,7 @@ describe("VertretungDayList", () => {
         instances={[]}
         gaps={[]}
         acknowledged={[]}
+        gapsAvailable
         staffNames={staffNames}
         mode="stoerungen"
         canManage={false}
@@ -265,12 +269,22 @@ describe("VertretungDayList", () => {
     ).toBeInTheDocument();
   });
 
-  it("zeigt 'Ersatz: ??' nur bei Abwesenheit ohne Ersatz", () => {
+  it("zeigt Ersatzkräfte blockweit statt sie abwesenden Personen zuzuordnen", () => {
+    const multipleAbsences = makeInstance({
+      id: "60",
+      title: "Ausflug",
+      staff: [
+        { staffId: "1", isPrimary: true, isAbsent: true, isSubstitute: false },
+        { staffId: "2", isPrimary: false, isAbsent: true, isSubstitute: false },
+        { staffId: "3", isPrimary: false, isAbsent: false, isSubstitute: true },
+      ],
+    });
     render(
       <VertretungDayList
-        instances={allInstances}
-        gaps={gaps}
-        acknowledged={acknowledged}
+        instances={[gapInstance, multipleAbsences]}
+        gaps={[]}
+        acknowledged={[]}
+        gapsAvailable
         staffNames={staffNames}
         mode="ganzer-tag"
         canManage={false}
@@ -279,15 +293,38 @@ describe("VertretungDayList", () => {
     );
 
     const uncoveredRow = screen.getByTestId("vertretung-day-list-row-10");
-    expect(within(uncoveredRow).getByText(/Ersatz: \?\?/)).toBeInTheDocument();
-
-    const coveredRow = screen.getByTestId("vertretung-day-list-row-20");
     expect(
-      within(coveredRow).getByText(/Ersatz: Clara Fischer/),
+      within(uncoveredRow).getByText("Ersatzkräfte: keine"),
+    ).toBeInTheDocument();
+
+    const coveredRow = screen.getByTestId("vertretung-day-list-row-60");
+    expect(
+      within(coveredRow).getByText("Ersatzkräfte: Clara Fischer"),
+    ).toBeInTheDocument();
+    expect(within(coveredRow).queryByText(/Ersatz:/)).not.toBeInTheDocument();
+  });
+
+  it("entwarnt und fällt ohne verfügbare Lückendaten nicht auf den ganzen Tag zurück", () => {
+    render(
+      <VertretungDayList
+        instances={[undisturbedInstance]}
+        gaps={[]}
+        acknowledged={[]}
+        gapsAvailable={false}
+        staffNames={staffNames}
+        mode="stoerungen"
+        canManage={false}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Störungslage konnte nicht vollständig geprüft werden"),
     ).toBeInTheDocument();
     expect(
-      within(coveredRow).queryByText(/Ersatz: \?\?/),
+      screen.queryByText("Keine Störungen an diesem Tag"),
     ).not.toBeInTheDocument();
+    expect(screen.queryByText("Lesen")).not.toBeInTheDocument();
   });
 
   it("löst onEdit mit der Instanz-ID aus und zeigt ohne canManage 'Details' statt 'Bearbeiten'", () => {
@@ -297,6 +334,7 @@ describe("VertretungDayList", () => {
         instances={allInstances}
         gaps={gaps}
         acknowledged={acknowledged}
+        gapsAvailable
         staffNames={staffNames}
         mode="stoerungen"
         canManage
@@ -313,6 +351,7 @@ describe("VertretungDayList", () => {
         instances={allInstances}
         gaps={gaps}
         acknowledged={acknowledged}
+        gapsAvailable
         staffNames={staffNames}
         mode="stoerungen"
         canManage={false}

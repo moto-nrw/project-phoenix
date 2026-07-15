@@ -513,6 +513,7 @@ function VertretungContent() {
             instances={dayInstances}
             gaps={dayGaps}
             acknowledged={dayAcknowledged}
+            gapsAvailable={!gapsUnavailable}
             staffNames={staffNames}
             mode={mode}
             canManage={canManageSchedules}

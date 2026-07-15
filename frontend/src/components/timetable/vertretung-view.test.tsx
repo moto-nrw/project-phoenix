@@ -74,6 +74,7 @@ vi.mock("~/lib/staff-api", () => ({
 vi.mock("~/components/timetable/vertretung-day-list", () => ({
   VertretungDayList: (props: {
     instances: Array<{ id: string }>;
+    gapsAvailable: boolean;
     mode: string;
     canManage: boolean;
     onEdit: (id: string) => void;
@@ -187,6 +188,7 @@ interface SwrState {
     acknowledged: unknown[];
   };
   gapsError?: Error;
+  gapsLoading?: boolean;
   staffData?: Array<{ id: string; name: string }>;
   staffError?: Error;
   settingsSchema?: unknown;
@@ -209,6 +211,7 @@ function setupSWR(state: SwrState = {}) {
       acknowledged: [],
     },
     gapsError,
+    gapsLoading = false,
     staffData = [{ id: "11", name: "Ada Staff" }],
     staffError,
     settingsSchema = null,
@@ -226,7 +229,8 @@ function setupSWR(state: SwrState = {}) {
       return { data: staffData, error: staffError };
     }
     if (key.startsWith("vertretung-gaps")) {
-      return { data: gapsData, error: gapsError };
+      if (gapsLoading) return { isLoading: true };
+      return { data: gapsData, error: gapsError, isLoading: gapsLoading };
     }
     if (key.startsWith("vertretung-week")) {
       return {
@@ -451,6 +455,21 @@ describe("VertretungView", () => {
     expect(screen.getByText("Quittiert: –")).toBeInTheDocument();
     expect(screen.queryByText("Offen: 0")).not.toBeInTheDocument();
     expect(screen.queryByText("Quittiert: 0")).not.toBeInTheDocument();
+    expect(mockDayListProps.mock.calls.at(-1)?.[0].gapsAvailable).toBe(false);
+  });
+
+  it("passes unavailable gaps to the list while the gaps request is still loading", () => {
+    setupSWR({ gapsLoading: true });
+    render(<VertretungView />);
+
+    expect(mockDayListProps.mock.calls.at(-1)?.[0].gapsAvailable).toBe(false);
+  });
+
+  it("passes unavailable gaps to the list when the gaps request fails", () => {
+    setupSWR({ gapsError: new Error("gaps unavailable") });
+    render(<VertretungView />);
+
+    expect(mockDayListProps.mock.calls.at(-1)?.[0].gapsAvailable).toBe(false);
   });
 
   it("renders an error surface (not an empty plan) when the week fails to load", () => {

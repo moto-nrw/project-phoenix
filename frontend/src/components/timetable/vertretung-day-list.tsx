@@ -46,9 +46,11 @@ export interface VertretungDayListProps {
   gaps: GapInstance[];
   /** Quittierte Lücken des Tages (GapsResponse.acknowledged, tagesgefiltert). */
   acknowledged: GapInstance[];
+  /** Ob offene und quittierte Lücken für den angezeigten Tag geladen wurden. */
+  gapsAvailable: boolean;
   /**
    * Anzeigenamen fürs Personal. InstanceStaffSummary trägt nur eine staffId,
-   * keinen Namen — die Zeilen "Person abwesend" / "Ersatz: Name" brauchen
+   * keinen Namen — die Zeilen "Person abwesend" / "Ersatzkräfte: Namen" brauchen
    * daher eine Namensauflösung, dasselbe Muster wie in
    * substitution-slide-over.tsx.
    */
@@ -98,9 +100,14 @@ function classify(
   instance: EnrichedInstance,
   gaps: GapInstance[],
   acknowledged: GapInstance[],
+  gapsAvailable: boolean,
 ): ClassifiedRow {
-  const gapMatch = gaps.find((g) => g.instanceId === instance.id);
-  const ackMatch = acknowledged.find((g) => g.instanceId === instance.id);
+  const gapMatch = gapsAvailable
+    ? gaps.find((g) => g.instanceId === instance.id)
+    : undefined;
+  const ackMatch = gapsAvailable
+    ? acknowledged.find((g) => g.instanceId === instance.id)
+    : undefined;
   const isCancelled = instance.status === "cancelled";
   const absentPlannedRows = instance.staff.filter(
     (row) => !row.isSubstitute && row.isAbsent,
@@ -151,33 +158,6 @@ function classify(
   };
 }
 
-/**
- * Best-effort Zuordnung abwesend -> deckender Ersatz. InstanceStaffSummary
- * verknüpft eine Ersatzperson nicht explizit mit der Position, die sie
- * deckt (nur isSubstitute/isAbsent-Flags auf einer flachen Liste) — der
- * Server kann dieselbe Ersatzperson sogar für zwei abwesende Positionen zu
- * einer einzigen deckenden Zeile zusammenfassen. Diese Funktion paart
- * abwesende geplante Zeilen positionsweise mit den aktiven (nicht
- * abwesenden) Substitut-Zeilen; reicht der Vorrat nicht, bleibt die
- * Position "??" (WebUntis-Konvention).
- */
-function substituteForAbsent(
-  staff: InstanceStaffSummary[],
-  // Die bereits in classify() berechneten abwesenden geplanten Zeilen — hier
-  // bewusst durchgereicht statt erneut gefiltert, damit das
-  // "abwesende geplante Position"-Prädikat nur an einer Stelle lebt.
-  plannedAbsent: InstanceStaffSummary[],
-): Map<string, string | null> {
-  const activeSubstitutes = staff.filter(
-    (row) => row.isSubstitute && !row.isAbsent,
-  );
-  const result = new Map<string, string | null>();
-  plannedAbsent.forEach((row, index) => {
-    result.set(row.staffId, activeSubstitutes[index]?.staffId ?? null);
-  });
-  return result;
-}
-
 function compareRows(a: ClassifiedRow, b: ClassifiedRow): number {
   if (a.instance.startTime !== b.instance.startTime) {
     return a.instance.startTime < b.instance.startTime ? -1 : 1;
@@ -189,6 +169,7 @@ export function VertretungDayList({
   instances,
   gaps,
   acknowledged,
+  gapsAvailable,
   staffNames,
   mode,
   canManage,
@@ -210,17 +191,23 @@ export function VertretungDayList({
   }
 
   const classified = instances
-    .map((instance) => classify(instance, gaps, acknowledged))
+    .map((instance) => classify(instance, gaps, acknowledged, gapsAvailable))
     .sort(compareRows);
   const disturbed = classified.filter((row) => row.isDisturbed);
-  // Ein Tag ohne jede Störung fällt unabhängig vom angeforderten Filter auf
-  // die Ganztagsdarstellung zurück (docs/07-vertretung.md 2.2).
-  const showAll = mode === "ganzer-tag" || disturbed.length === 0;
+  // Ohne Gaps kann der Client nicht wissen, ob ein ansonsten unauffälliger
+  // Block unterbesetzt ist. Deshalb weder Entwarnung noch Ganztags-Fallback.
+  const showAll =
+    mode === "ganzer-tag" || (gapsAvailable && disturbed.length === 0);
   const visibleRows = showAll ? classified : disturbed;
 
   return (
     <div className={containerClassName}>
-      {disturbed.length === 0 && (
+      {!gapsAvailable && (
+        <p className="border-b border-gray-200 p-3 text-xs font-medium text-gray-500">
+          Störungslage konnte nicht vollständig geprüft werden
+        </p>
+      )}
+      {gapsAvailable && disturbed.length === 0 && (
         <p className="border-b border-gray-200 p-3 text-xs font-medium text-gray-500">
           Keine Störungen an diesem Tag
         </p>
@@ -266,9 +253,17 @@ function VertretungDayListRow({
   // ohnehin aus, weil ihre Bedingungen für eine ungestörte Zeile nie zutreffen.
   const titleClass = isDisturbed ? "text-gray-900" : "text-gray-400";
   const timeClass = isDisturbed ? "text-gray-500" : "text-gray-400";
-  const substituteMap = hasAbsence
-    ? substituteForAbsent(instance.staff, absentPlannedRows)
-    : null;
+  // Das Datenmodell kennt nur "Ersatz für diesen Block", nicht "Ersatz für
+  // diese abwesende Person". Namen daher nur blockweit aggregiert ausgeben.
+  const substituteNames = hasAbsence
+    ? [
+        ...new Set(
+          instance.staff
+            .filter((row) => row.isSubstitute && !row.isAbsent)
+            .map((row) => staffLabel(staffNames, row.staffId)),
+        ),
+      ]
+    : [];
 
   return (
     <li
@@ -314,24 +309,24 @@ function VertretungDayListRow({
       </div>
 
       {hasAbsence && (
-        <ul className="flex flex-col gap-1">
-          {absentPlannedRows.map((staffRow) => {
-            const name = staffLabel(staffNames, staffRow.staffId);
-            const substituteId = substituteMap?.get(staffRow.staffId) ?? null;
-            const substituteName = substituteId
-              ? staffLabel(staffNames, substituteId)
-              : null;
-            return (
-              <li key={staffRow.staffId} className="text-[11px] text-gray-600">
-                <span className="font-medium text-gray-900">{name}</span>
-                {" abwesend"}
-                {staffRow.absenceReason ? ` (${staffRow.absenceReason})` : ""}
-                {" · "}
-                {substituteName ? `Ersatz: ${substituteName}` : "Ersatz: ??"}
-              </li>
-            );
-          })}
-        </ul>
+        <div className="flex flex-col gap-1 text-[11px] text-gray-600">
+          <ul className="flex flex-col gap-1">
+            {absentPlannedRows.map((staffRow) => {
+              const name = staffLabel(staffNames, staffRow.staffId);
+              return (
+                <li key={staffRow.staffId}>
+                  <span className="font-medium text-gray-900">{name}</span>
+                  {" abwesend"}
+                  {staffRow.absenceReason ? ` (${staffRow.absenceReason})` : ""}
+                </li>
+              );
+            })}
+          </ul>
+          <p>
+            Ersatzkräfte:{" "}
+            {substituteNames.length > 0 ? substituteNames.join(", ") : "keine"}
+          </p>
+        </div>
       )}
 
       {ackMatch?.understaffedNote && (
