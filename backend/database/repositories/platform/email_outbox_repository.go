@@ -121,6 +121,26 @@ func (r *EmailOutboxRepository) ClaimDuePending(ctx context.Context, limit int, 
 	return rows, nil
 }
 
+// LockSending locks a claimed row FOR UPDATE and reports whether it still
+// exists with status='sending'. Runs under phoenix_admin inside the worker's
+// send transaction — see the interface doc for the cancellation contract.
+func (r *EmailOutboxRepository) LockSending(ctx context.Context, id int64) (bool, error) {
+	var claimed int
+	err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT 1
+		FROM platform.email_outbox
+		WHERE id = ? AND status = ?
+		FOR UPDATE
+	`, id, platform.EmailOutboxStatusSending).Scan(ctx, &claimed)
+	if errors.Is(err, sql.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to lock sending email outbox row: %w", err)
+	}
+	return true, nil
+}
+
 // MarkSent transitions a claimed row to 'sent'.
 func (r *EmailOutboxRepository) MarkSent(ctx context.Context, id int64, sentAt time.Time) error {
 	res, err := base.GetDB(ctx, r.db).NewUpdate().

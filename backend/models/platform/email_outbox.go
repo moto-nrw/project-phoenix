@@ -107,6 +107,15 @@ type EmailOutboxRepository interface {
 	// app.current_tenant_id.
 	ClaimDuePending(ctx context.Context, limit int, now time.Time) ([]*EmailOutbox, error)
 
+	// LockSending locks the claimed row FOR UPDATE and reports whether it
+	// still exists with status='sending'. The worker calls it inside the
+	// same phoenix_admin transaction as the actual send: features cancel
+	// in-flight emails by deleting their outbox rows (e.g. enrollment
+	// deletion), and that delete either commits before this probe (send is
+	// skipped) or blocks on the row lock until the send transaction
+	// commits — never in between.
+	LockSending(ctx context.Context, id int64) (bool, error)
+
 	// MarkSent transitions a claimed row to 'sent' and records the
 	// timestamp. Idempotent — re-marking a sent row is a no-op.
 	MarkSent(ctx context.Context, id int64, sentAt time.Time) error
