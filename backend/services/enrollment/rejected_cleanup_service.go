@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"time"
 
+	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -50,8 +51,19 @@ type rejectedEnrollmentCleanupService struct {
 	lateInvites usedLateInviteCleaner
 	outbox      relatedOutboxCleaner
 	settings    RequestSettingsResolver
+	deletion    enrollmentModels.DeletionRepository
+	audit       auditModels.EnrollmentDeletionRepository
 	runInTx     func(context.Context, func(context.Context) error) error
 	logger      *slog.Logger
+}
+
+// RejectedEnrollmentCleanupAuditDependencies connects the retention worker to
+// the same impact calculation and append-only audit trail as manual deletion.
+// It is optional at the constructor boundary for backwards-compatible unit
+// stubs; the production factory always supplies both repositories.
+type RejectedEnrollmentCleanupAuditDependencies struct {
+	Deletion enrollmentModels.DeletionRepository
+	Audit    auditModels.EnrollmentDeletionRepository
 }
 
 func NewRejectedEnrollmentCleanupService(
@@ -62,11 +74,12 @@ func NewRejectedEnrollmentCleanupService(
 	settings RequestSettingsResolver,
 	db *bun.DB,
 	logger *slog.Logger,
+	auditDependencies ...RejectedEnrollmentCleanupAuditDependencies,
 ) RejectedEnrollmentCleaner {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &rejectedEnrollmentCleanupService{
+	service := &rejectedEnrollmentCleanupService{
 		requests:    requests,
 		children:    children,
 		lateInvites: lateInvites,
@@ -75,6 +88,11 @@ func NewRejectedEnrollmentCleanupService(
 		runInTx:     newRejectedEnrollmentCleanupTxRunner(db),
 		logger:      logger,
 	}
+	if len(auditDependencies) > 0 {
+		service.deletion = auditDependencies[0].Deletion
+		service.audit = auditDependencies[0].Audit
+	}
+	return service
 }
 
 func newRejectedEnrollmentCleanupTxRunner(db *bun.DB) func(context.Context, func(context.Context) error) error {
@@ -138,20 +156,64 @@ func (s *rejectedEnrollmentCleanupService) CleanupRejectedEnrollments(ctx contex
 			if !childrenRemainFullyRejectedBefore(children, cutoff) {
 				continue
 			}
-			deletedLateInvites, deleteLateInvitesErr := s.lateInvites.DeleteByUsedRequestID(txCtx, requestID)
-			if deleteLateInvitesErr != nil {
-				return fmt.Errorf("delete used enrollment late invites: %w", deleteLateInvitesErr)
+			var impact *enrollmentModels.DeletionImpact
+			if s.deletion != nil || s.audit != nil {
+				if s.deletion == nil || s.audit == nil {
+					return errors.New("rejected enrollment cleanup audit dependencies are incomplete")
+				}
+				var previewErr error
+				impact, previewErr = s.deletion.PreviewRequest(txCtx, requestID)
+				if previewErr != nil {
+					return fmt.Errorf("preview rejected enrollment cleanup: %w", previewErr)
+				}
+				if impact == nil || impact.Counts.Requests != 1 {
+					return fmt.Errorf("preview rejected enrollment cleanup request %d: request not found", requestID)
+				}
+				if len(impact.BlockingStudentIDs) > 0 {
+					s.logger.WarnContext(txCtx, "rejected enrollment cleanup skipped request linked to existing student",
+						slog.Int64("request_id", requestID),
+						slog.Int("blocking_students", len(impact.BlockingStudentIDs)))
+					continue
+				}
 			}
-			deletedOutbox, deleteOutboxErr := s.outbox.DeleteByRelatedEntity(txCtx, platformModels.EmailRelatedTypeEnrollmentRequest, requestID)
-			if deleteOutboxErr != nil {
-				return fmt.Errorf("delete dependent enrollment outbox rows: %w", deleteOutboxErr)
-			}
-			if deleteRequestErr := s.requests.DeleteByID(txCtx, requestID); deleteRequestErr != nil {
-				return fmt.Errorf("delete rejected enrollment request: %w", deleteRequestErr)
+			if impact != nil {
+				// Production uses the same explicit cross-schema deletion as the
+				// manual workflow. This is essential for polymorphic rows such as
+				// platform.email_outbox, which no foreign key can cascade.
+				if deleteErr := s.deletion.DeleteRequest(txCtx, requestID); deleteErr != nil {
+					return fmt.Errorf("delete rejected enrollment request dependencies: %w", deleteErr)
+				}
+				event := &auditModels.EnrollmentDeletion{
+					RequestID: requestID,
+					ActorType: auditModels.EnrollmentDeletionActorSystem,
+					Scope:     auditModels.EnrollmentDeletionScopeRequest,
+					Reason:    "Automatische Löschung nach Ablauf der Aufbewahrungsfrist",
+					Counts:    impact.Counts,
+					DeletedAt: time.Now(),
+				}
+				if auditErr := s.audit.Create(txCtx, event); auditErr != nil {
+					return fmt.Errorf("audit rejected enrollment cleanup: %w", auditErr)
+				}
+				result.DeletedLateInvites += int64(impact.Counts.LateInvites)
+				result.DeletedOutboxRows += int64(impact.Counts.EmailOutbox)
+			} else {
+				// Compatibility path for focused unit tests that construct the
+				// historical service without the production audit dependencies.
+				deletedLateInvites, deleteLateInvitesErr := s.lateInvites.DeleteByUsedRequestID(txCtx, requestID)
+				if deleteLateInvitesErr != nil {
+					return fmt.Errorf("delete used enrollment late invites: %w", deleteLateInvitesErr)
+				}
+				deletedOutbox, deleteOutboxErr := s.outbox.DeleteByRelatedEntity(txCtx, platformModels.EmailRelatedTypeEnrollmentRequest, requestID)
+				if deleteOutboxErr != nil {
+					return fmt.Errorf("delete dependent enrollment outbox rows: %w", deleteOutboxErr)
+				}
+				if deleteRequestErr := s.requests.DeleteByID(txCtx, requestID); deleteRequestErr != nil {
+					return fmt.Errorf("delete rejected enrollment request: %w", deleteRequestErr)
+				}
+				result.DeletedLateInvites += deletedLateInvites
+				result.DeletedOutboxRows += deletedOutbox
 			}
 			result.DeletedRequests++
-			result.DeletedLateInvites += deletedLateInvites
-			result.DeletedOutboxRows += deletedOutbox
 		}
 		return nil
 	})

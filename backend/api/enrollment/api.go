@@ -33,6 +33,7 @@ type Resource struct {
 	ReportService             enrollmentService.ReportService
 	RolloverService           enrollmentService.RolloverService
 	ChangeRequestService      enrollmentService.ChangeRequestService
+	DeletionService           enrollmentService.EnrollmentDeletionService
 	GuardianInvitationService authService.GuardianInvitationService
 	GuardianProfileLoader     *usersService.GuardianProfileLoader
 	SchoolService             platformSvc.SchoolService
@@ -61,6 +62,7 @@ func NewResource(
 	reportSvc enrollmentService.ReportService,
 	rolloverSvc enrollmentService.RolloverService,
 	changeRequestSvc enrollmentService.ChangeRequestService,
+	deletionSvc enrollmentService.EnrollmentDeletionService,
 	guardianInvitationSvc authService.GuardianInvitationService,
 	guardianProfileLoader *usersService.GuardianProfileLoader,
 	schoolService platformSvc.SchoolService,
@@ -77,6 +79,7 @@ func NewResource(
 		ReportService:             reportSvc,
 		RolloverService:           rolloverSvc,
 		ChangeRequestService:      changeRequestSvc,
+		DeletionService:           deletionSvc,
 		GuardianInvitationService: guardianInvitationSvc,
 		GuardianProfileLoader:     guardianProfileLoader,
 		SchoolService:             schoolService,
@@ -202,6 +205,10 @@ func (rs *Resource) Router() chi.Router {
 			r.With(authorize.RequiresPermission("config:read")).Get("/", rs.listAdminRequests)
 			r.Route("/{id}", func(r chi.Router) {
 				r.With(authorize.RequiresPermission("config:manage")).Get("/", rs.getAdminRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Get("/delete-impact", rs.getAdminRequestDeleteImpact)
+				r.With(authorize.RequiresPermission("config:manage")).Delete("/", rs.deleteAdminRequest)
+				r.With(authorize.RequiresPermission("config:manage")).Get("/children/{childId}/delete-impact", rs.getAdminChildDeleteImpact)
+				r.With(authorize.RequiresPermission("config:manage")).Delete("/children/{childId}", rs.deleteAdminChild)
 				r.With(authorize.RequiresPermission("config:manage")).Post("/children/{childId}/decide", rs.decideAdminChild)
 				r.With(authorize.RequiresPermission("config:manage")).Put("/children/{childId}/data-correction", rs.correctAdminChildData)
 				r.With(authorize.RequiresPermission("config:manage")).Put("/children/{childId}/offerings", rs.updateAdminChildOfferings)

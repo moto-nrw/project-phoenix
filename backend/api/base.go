@@ -434,6 +434,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		api.Services.EnrollmentReport,
 		api.Services.EnrollmentRollover,
 		api.Services.EnrollmentChangeRequest,
+		api.Services.EnrollmentDeletion,
 		api.Services.GuardianInvitation,
 		api.Services.GuardianProfileLoader,
 		api.Services.Schools,

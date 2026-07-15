@@ -152,6 +152,7 @@ type Factory struct {
 	EnrollmentReport          enrollment.ReportService
 	EnrollmentRollover        enrollment.RolloverService
 	EnrollmentChangeRequest   enrollment.ChangeRequestService
+	EnrollmentDeletion        enrollment.EnrollmentDeletionService
 	EnrollmentRejectedCleanup enrollment.RejectedEnrollmentCleaner
 
 	// Parent (cross-tenant guardian portal - PR 9)
@@ -1120,6 +1121,14 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		DB:                       db,
 		Logger:                   logger.With("service", "enrollment-request"),
 	})
+	enrollmentDeletionService := enrollment.NewEnrollmentDeletionService(
+		repos.Request,
+		repos.RequestChild,
+		repos.EnrollmentDeletion,
+		repos.EnrollmentDeletionAudit,
+		db,
+		logger.With("service", "enrollment-deletion"),
+	)
 	enrollmentRejectedCleanupService := enrollment.NewRejectedEnrollmentCleanupService(
 		repos.Request,
 		repos.RequestChild,
@@ -1128,6 +1137,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		settingsService,
 		db,
 		logger.With("service", "enrollment-rejected-cleanup"),
+		enrollment.RejectedEnrollmentCleanupAuditDependencies{
+			Deletion: repos.EnrollmentDeletion,
+			Audit:    repos.EnrollmentDeletionAudit,
+		},
 	)
 
 	enrollmentPhaseService := enrollment.NewPhaseService(enrollment.PhaseServiceConfig{
@@ -1519,6 +1532,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		EnrollmentReport:          enrollmentReportService,
 		EnrollmentRollover:        enrollmentRolloverService,
 		EnrollmentChangeRequest:   enrollmentChangeRequestService,
+		EnrollmentDeletion:        enrollmentDeletionService,
 		EnrollmentRejectedCleanup: enrollmentRejectedCleanupService,
 
 		Parent:             parentService,
