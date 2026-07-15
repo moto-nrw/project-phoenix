@@ -43,13 +43,19 @@ type InstanceStudent struct {
 	base.Model `bun:"schema:schedule,table:instance_students"`
 	base.TenantModel
 
-	InstanceID  int64      `bun:"instance_id,notnull" json:"instance_id"`
-	StudentID   int64      `bun:"student_id,notnull" json:"student_id"`
-	RoomID      *int64     `bun:"room_id" json:"room_id,omitempty"`
-	Status      string     `bun:"status,notnull,default:'expected'" json:"status"`
-	Substatus   *string    `bun:"substatus" json:"substatus,omitempty"`
-	Note        *string    `bun:"note" json:"note,omitempty"`
-	CheckedInAt *time.Time `bun:"checked_in_at" json:"checked_in_at,omitempty"`
+	InstanceID   int64      `bun:"instance_id,notnull" json:"instance_id"`
+	StudentID    int64      `bun:"student_id,notnull" json:"student_id"`
+	RoomID       *int64     `bun:"room_id" json:"room_id,omitempty"`
+	Status       string     `bun:"status,notnull,default:'expected'" json:"status"`
+	Substatus    *string    `bun:"substatus" json:"substatus,omitempty"`
+	Note         *string    `bun:"note" json:"note,omitempty"`
+	CheckedInAt  *time.Time `bun:"checked_in_at" json:"checked_in_at,omitempty"`
+	CheckedOutAt *time.Time `bun:"checked_out_at" json:"checked_out_at,omitempty"`
+	IsUnplanned  bool       `bun:"is_unplanned,notnull,default:false" json:"is_unplanned"`
+	// StudentStatusDayID marks a broad day status that owns the slot absence.
+	// Manual slot decisions keep this nil and therefore win over later broad
+	// status changes.
+	StudentStatusDayID *int64 `bun:"student_status_day_id" json:"-"`
 }
 
 // Validate ensures the attendance row is well-formed.
@@ -168,6 +174,12 @@ type InstanceStudentRepository interface {
 	// tap, or post-hoc PATCH) is never clobbered. Returns (updated=true)
 	// only when a row was actually changed.
 	UpdateAttendanceFromCheckin(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (bool, error)
+	CreateUnplannedPresentIfAbsent(ctx context.Context, instanceID, studentID int64, checkedInAt time.Time) (*InstanceStudent, error)
+	UpdateAttendanceCheckout(ctx context.Context, instanceID, studentID int64, checkedOutAt time.Time) error
+	FindCurrentCandidates(ctx context.Context, studentID int64, date timezone.Date, at time.Time) ([]*InstanceStudent, error)
+	ApplyStatusDay(ctx context.Context, studentID int64, date timezone.Date, statusDayID int64, substatus string) (int, error)
+	ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error)
+	ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date timezone.Date) (int, error)
 
 	// UpdateAttendanceFields writes only the fields carried by the patch.
 	// Callers (the PATCH handler) must validate cross-field invariants

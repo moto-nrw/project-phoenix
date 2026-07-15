@@ -28,7 +28,9 @@ import (
 	"context"
 	"log/slog"
 	"runtime/debug"
+	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeModel "github.com/moto-nrw/project-phoenix/models/active"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
@@ -124,11 +126,22 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 		return nil
 	}
 	if row == nil {
-		s.getLogger().Debug("attendance mirror: student not expected at instance, walk-in",
+		row, err = s.instanceStudentRepo.CreateUnplannedPresentIfAbsent(
+			ctx, instance.ID, visit.StudentID, visit.EntryTime,
+		)
+		if err != nil {
+			s.getLogger().Error("attendance mirror: persist unplanned slot attendance failed",
+				slog.Int64("instance_id", instance.ID),
+				slog.Int64("student_id", visit.StudentID),
+				slog.String("error", err.Error()),
+			)
+			return nil
+		}
+		s.getLogger().Info("attendance mirror: persisted unplanned slot attendance",
 			slog.Int64("instance_id", instance.ID),
 			slog.Int64("student_id", visit.StudentID),
 		)
-		return nil
+		return snapshotFromRow(row)
 	}
 
 	// B6: row is no longer 'expected' — respect existing state. This covers:
@@ -136,7 +149,7 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 	//   * admin marked absent before check-in via PATCH
 	//   * status=present from a prior visit today
 	// Return the snapshot we already read so SSE reflects the true state.
-	if row.Status != scheduleModel.AttendanceStatusExpected {
+	if row.Status != scheduleModel.AttendanceStatusExpected && row.StudentStatusDayID == nil {
 		s.getLogger().Debug("attendance mirror: row already past expected, not clobbering",
 			slog.Int64("instance_id", instance.ID),
 			slog.Int64("student_id", visit.StudentID),
@@ -186,16 +199,81 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 		slog.Int64("instance_id", instance.ID),
 		slog.Int64("student_id", visit.StudentID),
 	)
-	return &activeSvc.AttendanceSnapshot{
-		Status:    scheduleModel.AttendanceStatusPresent,
-		Substatus: row.Substatus,
-		Note:      row.Note,
+	row.Status = scheduleModel.AttendanceStatusPresent
+	if row.StudentStatusDayID != nil {
+		row.Substatus = nil
 	}
+	row.StudentStatusDayID = nil
+	row.CheckedOutAt = nil
+	if row.CheckedInAt == nil {
+		row.CheckedInAt = &visit.EntryTime
+	}
+	return snapshotFromRow(row)
 }
 
-// LoadAttendanceForVisit implements activeSvc.AttendanceSyncer. Read-only
-// companion to MirrorCheckInForVisit — used on the checkout SSE path.
-// Same graceful-degradation branches 1–5, no write.
+// MirrorCheckInAt resolves a roomless check-in only when exactly one booked
+// slot currently matches. Ambiguous and unbooked check-ins deliberately stay
+// unassigned; assigning either would invent business data.
+func (s *AttendanceSyncService) MirrorCheckInAt(
+	ctx context.Context, studentID int64, at time.Time,
+) (snapshot *activeSvc.AttendanceSnapshot) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.getLogger().Error("roomless attendance mirror panic",
+				slog.Any("panic", r),
+				slog.String("stack", string(debug.Stack())),
+			)
+			snapshot = nil
+		}
+	}()
+
+	rows, err := s.instanceStudentRepo.FindCurrentCandidates(
+		ctx, studentID, timezone.DateFromTime(at), at,
+	)
+	if err != nil {
+		s.getLogger().Warn("roomless attendance mirror: candidate lookup failed",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	if len(rows) != 1 {
+		s.getLogger().Debug("roomless attendance mirror: slot assignment is not unique",
+			slog.Int64("student_id", studentID),
+			slog.Int("candidate_count", len(rows)),
+		)
+		return nil
+	}
+
+	row := rows[0]
+	if row.Status != scheduleModel.AttendanceStatusExpected && row.StudentStatusDayID == nil {
+		return snapshotFromRow(row)
+	}
+	updated, err := s.instanceStudentRepo.UpdateAttendanceFromCheckin(ctx, row.InstanceID, studentID, at)
+	if err != nil {
+		s.getLogger().Error("roomless attendance mirror UPDATE failed",
+			slog.Int64("instance_id", row.InstanceID),
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		return nil
+	}
+	if updated {
+		row.Status = scheduleModel.AttendanceStatusPresent
+		if row.StudentStatusDayID != nil {
+			row.Substatus = nil
+		}
+		row.StudentStatusDayID = nil
+		row.CheckedOutAt = nil
+		if row.CheckedInAt == nil {
+			row.CheckedInAt = &at
+		}
+	}
+	return snapshotFromRow(row)
+}
+
+// LoadAttendanceForVisit implements activeSvc.AttendanceSyncer. It preserves
+// the slot status while recording the observed checkout for history/export.
 func (s *AttendanceSyncService) LoadAttendanceForVisit(
 	ctx context.Context, visit *activeModel.Visit,
 ) (snapshot *activeSvc.AttendanceSnapshot) {
@@ -237,8 +315,58 @@ func (s *AttendanceSyncService) LoadAttendanceForVisit(
 	if row == nil {
 		return nil
 	}
+	if visit.ExitTime != nil {
+		if err := s.instanceStudentRepo.UpdateAttendanceCheckout(
+			ctx, instance.ID, visit.StudentID, *visit.ExitTime,
+		); err != nil {
+			s.getLogger().Error("attendance mirror: persist slot checkout failed",
+				slog.Int64("instance_id", instance.ID),
+				slog.Int64("student_id", visit.StudentID),
+				slog.String("error", err.Error()),
+			)
+			return nil
+		}
+		row.CheckedOutAt = visit.ExitTime
+	}
 
 	return snapshotFromRow(row)
+}
+
+// MirrorCheckOutAt closes the latest open slot attendance for roomless binary
+// mode. It never changes another slot's status or history.
+func (s *AttendanceSyncService) MirrorCheckOutAt(ctx context.Context, studentID int64, at time.Time) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.getLogger().Error("roomless attendance checkout mirror panic",
+				slog.Any("panic", r),
+				slog.String("stack", string(debug.Stack())),
+			)
+		}
+	}()
+
+	day := timezone.DateFromTime(at)
+	rows, err := s.instanceStudentRepo.FindByStudentAndDateRange(ctx, studentID, day, day)
+	if err != nil {
+		s.getLogger().Warn("roomless attendance checkout mirror: slot lookup failed",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+	for i := len(rows) - 1; i >= 0; i-- {
+		row := rows[i]
+		if row.Status != scheduleModel.AttendanceStatusPresent || row.CheckedInAt == nil || row.CheckedOutAt != nil {
+			continue
+		}
+		if err := s.instanceStudentRepo.UpdateAttendanceCheckout(ctx, row.InstanceID, studentID, at); err != nil {
+			s.getLogger().Error("roomless attendance checkout mirror UPDATE failed",
+				slog.Int64("instance_id", row.InstanceID),
+				slog.Int64("student_id", studentID),
+				slog.String("error", err.Error()),
+			)
+		}
+		return
+	}
 }
 
 // snapshotFromRow is the common projection. Substatus and Note already
@@ -249,8 +377,10 @@ func snapshotFromRow(row *scheduleModel.InstanceStudent) *activeSvc.AttendanceSn
 		return nil
 	}
 	return &activeSvc.AttendanceSnapshot{
-		Status:    row.Status,
-		Substatus: row.Substatus,
-		Note:      row.Note,
+		Status:      row.Status,
+		Substatus:   row.Substatus,
+		Note:        row.Note,
+		InstanceID:  row.InstanceID,
+		IsUnplanned: row.IsUnplanned,
 	}
 }

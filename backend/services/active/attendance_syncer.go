@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -15,9 +16,11 @@ import (
 // is no cyclic-import risk — the schedule package already depends on active
 // for its bridge semantics, but active must not import schedule.
 type AttendanceSnapshot struct {
-	Status    string
-	Substatus *string
-	Note      *string
+	Status      string
+	Substatus   *string
+	Note        *string
+	InstanceID  int64
+	IsUnplanned bool
 }
 
 // AttendanceSyncer is the optional dependency active.service calls on visit
@@ -47,10 +50,18 @@ type AttendanceSyncer interface {
 	// for walk-ins, pre-start races, tenant mismatches, or any error.
 	MirrorCheckInForVisit(ctx context.Context, visit *active.Visit) *AttendanceSnapshot
 
-	// LoadAttendanceForVisit is called at visit end. It never mutates —
-	// it only returns the current attendance snapshot so the checkout SSE
-	// event can carry status/substatus/note for frontend display.
+	// MirrorCheckInAt resolves a roomless check-in to exactly one currently
+	// scheduled student slot. Zero or multiple matches remain unassigned.
+	MirrorCheckInAt(ctx context.Context, studentID int64, at time.Time) *AttendanceSnapshot
+
+	// LoadAttendanceForVisit is called at visit end. It stamps the slot's
+	// checkout time without changing its attendance status, then returns the
+	// current snapshot for SSE display.
 	LoadAttendanceForVisit(ctx context.Context, visit *active.Visit) *AttendanceSnapshot
+
+	// MirrorCheckOutAt closes the most recently checked-in open slot for a
+	// roomless attendance flow.
+	MirrorCheckOutAt(ctx context.Context, studentID int64, at time.Time)
 }
 
 // applyAttendanceSnapshot copies the three WP-B10 fields from snapshot into

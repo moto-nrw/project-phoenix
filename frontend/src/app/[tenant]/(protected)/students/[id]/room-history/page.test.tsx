@@ -567,7 +567,7 @@ describe("StudentRoomHistoryPage", () => {
     expect(screen.getByText("Ankunft")).toBeInTheDocument();
     expect(screen.getByText("Abmeldung")).toBeInTheDocument();
     expect(screen.getByText("Dauer")).toBeInTheDocument();
-    expect(screen.getByText("Räume")).toBeInTheDocument();
+    expect(screen.getByText("Angebote / Räume")).toBeInTheDocument();
   });
 
   // ─── Anwesenheitsprotokoll title ────────────────────────────────────────────

@@ -17,6 +17,7 @@ interface BackendAttendanceHistoryDay {
   status_entries?: BackendAttendanceStatusEntry[] | null;
   room_detail_available: boolean;
   visits: BackendAttendanceVisit[] | null;
+  slots?: BackendAttendanceSlot[] | null;
 }
 
 interface BackendAttendanceRecord {
@@ -26,6 +27,25 @@ interface BackendAttendanceRecord {
   checked_in_by: number;
   checked_out_by?: number | null;
   device_id: number;
+  sessions?: BackendAttendanceSession[] | null;
+}
+
+interface BackendAttendanceSession {
+  check_in_time: string;
+  check_out_time?: string | null;
+  duration_minutes?: number | null;
+}
+
+interface BackendAttendanceSlot {
+  instance_id: number;
+  title: string;
+  start_time: string;
+  end_time: string;
+  status: "expected" | "present" | "absent";
+  substatus?: string | null;
+  checked_in_at?: string | null;
+  checked_out_at?: string | null;
+  is_unplanned: boolean;
 }
 
 interface BackendAttendanceVisit {
@@ -59,6 +79,7 @@ export interface AttendanceHistoryDay {
   statusEntries: AttendanceStatusEntry[];
   roomDetailAvailable: boolean;
   visits: AttendanceVisit[];
+  slots: AttendanceSlot[];
 }
 
 interface AttendanceRecord {
@@ -68,6 +89,25 @@ interface AttendanceRecord {
   checkedInBy: number;
   checkedOutBy: number | null;
   deviceId: number;
+  sessions: AttendanceSession[];
+}
+
+interface AttendanceSession {
+  checkInTime: Date;
+  checkOutTime: Date | null;
+  durationMinutes: number | null;
+}
+
+interface AttendanceSlot {
+  instanceId: string;
+  title: string;
+  startTime: string;
+  endTime: string;
+  status: "expected" | "present" | "absent";
+  substatus: string | null;
+  checkedInAt: Date | null;
+  checkedOutAt: Date | null;
+  isUnplanned: boolean;
 }
 
 interface AttendanceVisit {
@@ -112,6 +152,7 @@ function mapAttendanceHistoryDay(
     statusEntries: (day.status_entries ?? []).map(mapAttendanceStatusEntry),
     roomDetailAvailable: day.room_detail_available,
     visits: (day.visits ?? []).map(mapAttendanceVisit),
+    slots: (day.slots ?? []).map(mapAttendanceSlot),
   };
 }
 
@@ -123,6 +164,27 @@ function mapAttendanceRecord(rec: BackendAttendanceRecord): AttendanceRecord {
     checkedInBy: rec.checked_in_by,
     checkedOutBy: rec.checked_out_by ?? null,
     deviceId: rec.device_id,
+    sessions: (rec.sessions ?? [rec]).map((session) => ({
+      checkInTime: new Date(session.check_in_time),
+      checkOutTime: session.check_out_time
+        ? new Date(session.check_out_time)
+        : null,
+      durationMinutes: session.duration_minutes ?? null,
+    })),
+  };
+}
+
+function mapAttendanceSlot(slot: BackendAttendanceSlot): AttendanceSlot {
+  return {
+    instanceId: slot.instance_id.toString(),
+    title: slot.title,
+    startTime: slot.start_time,
+    endTime: slot.end_time,
+    status: slot.status,
+    substatus: slot.substatus ?? null,
+    checkedInAt: slot.checked_in_at ? new Date(slot.checked_in_at) : null,
+    checkedOutAt: slot.checked_out_at ? new Date(slot.checked_out_at) : null,
+    isUnplanned: slot.is_unplanned,
   };
 }
 

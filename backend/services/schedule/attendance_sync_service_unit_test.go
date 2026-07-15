@@ -100,11 +100,16 @@ func (f *fakeInstanceRepo) MarkCompleted(context.Context, int64, time.Time) erro
 // -----------------------------------------------------------------------------
 
 type fakeInstanceStudentRepo struct {
-	findRow      *scheduleModel.InstanceStudent
-	findErr      error
-	updateResult bool
-	updateErr    error
-	updateCalls  int
+	findRow        *scheduleModel.InstanceStudent
+	findErr        error
+	updateResult   bool
+	updateErr      error
+	updateCalls    int
+	unplannedRow   *scheduleModel.InstanceStudent
+	unplannedErr   error
+	unplannedCalls int
+	candidates     []*scheduleModel.InstanceStudent
+	candidateErr   error
 }
 
 func (f *fakeInstanceStudentRepo) FindByInstanceAndStudent(_ context.Context, _, _ int64) (*scheduleModel.InstanceStudent, error) {
@@ -114,6 +119,31 @@ func (f *fakeInstanceStudentRepo) FindByInstanceAndStudent(_ context.Context, _,
 func (f *fakeInstanceStudentRepo) UpdateAttendanceFromCheckin(_ context.Context, _, _ int64, _ time.Time) (bool, error) {
 	f.updateCalls++
 	return f.updateResult, f.updateErr
+}
+
+func (f *fakeInstanceStudentRepo) CreateUnplannedPresentIfAbsent(context.Context, int64, int64, time.Time) (*scheduleModel.InstanceStudent, error) {
+	f.unplannedCalls++
+	return f.unplannedRow, f.unplannedErr
+}
+
+func (f *fakeInstanceStudentRepo) UpdateAttendanceCheckout(context.Context, int64, int64, time.Time) error {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) FindCurrentCandidates(context.Context, int64, timezone.Date, time.Time) ([]*scheduleModel.InstanceStudent, error) {
+	return f.candidates, f.candidateErr
+}
+
+func (f *fakeInstanceStudentRepo) ApplyStatusDay(context.Context, int64, timezone.Date, int64, string) (int, error) {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) ReleaseStatusDay(context.Context, int64) (int, error) {
+	panic("unused")
+}
+
+func (f *fakeInstanceStudentRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, timezone.Date) (int, error) {
+	panic("unused")
 }
 
 func (f *fakeInstanceStudentRepo) Create(context.Context, *scheduleModel.InstanceStudent) error {
@@ -260,10 +290,16 @@ func TestMirrorCheckIn_B4_InstanceStudentLookupError(t *testing.T) {
 
 func TestMirrorCheckIn_B5_NoInstanceStudentRow(t *testing.T) {
 	instRepo := &fakeInstanceRepo{instance: instanceWithID(7)}
-	isRepo := &fakeInstanceStudentRepo{findRow: nil}
+	isRepo := &fakeInstanceStudentRepo{findRow: nil, unplannedRow: &scheduleModel.InstanceStudent{
+		InstanceID: 7, StudentID: validVisit().StudentID,
+		Status: scheduleModel.AttendanceStatusPresent, IsUnplanned: true,
+	}}
 	syncer := newUnitSyncer(instRepo, isRepo)
 
-	assert.Nil(t, syncer.MirrorCheckInForVisit(context.Background(), validVisit()))
+	snap := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	require.NotNil(t, snap)
+	assert.True(t, snap.IsUnplanned)
+	assert.Equal(t, 1, isRepo.unplannedCalls)
 	assert.Equal(t, 0, isRepo.updateCalls, "no row → skip UPDATE")
 }
 
@@ -287,6 +323,30 @@ func TestMirrorCheckIn_B6_AlreadyPresent_NoClobber(t *testing.T) {
 	require.NotNil(t, snap.Note)
 	assert.Equal(t, "bus late", *snap.Note)
 	assert.Equal(t, 0, isRepo.updateCalls, "must NOT UPDATE when row is already past expected")
+}
+
+func TestMirrorCheckInAt_AssignsOnlyOneCurrentBookedSlot(t *testing.T) {
+	row := expectedRow(11)
+	row.InstanceID = 77
+	isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{row}, updateResult: true}
+	syncer := newUnitSyncer(&fakeInstanceRepo{}, isRepo)
+
+	snapshot := syncer.MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
+
+	require.NotNil(t, snapshot)
+	assert.Equal(t, int64(77), snapshot.InstanceID)
+	assert.Equal(t, scheduleModel.AttendanceStatusPresent, snapshot.Status)
+	assert.Equal(t, 1, isRepo.updateCalls)
+}
+
+func TestMirrorCheckInAt_AmbiguousSlotsStayUnassigned(t *testing.T) {
+	first := expectedRow(12)
+	second := expectedRow(13)
+	isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{first, second}}
+	syncer := newUnitSyncer(&fakeInstanceRepo{}, isRepo)
+
+	assert.Nil(t, syncer.MirrorCheckInAt(context.Background(), first.StudentID, time.Now()))
+	assert.Equal(t, 0, isRepo.updateCalls)
 }
 
 func TestMirrorCheckIn_B6_Absent_NoClobber(t *testing.T) {

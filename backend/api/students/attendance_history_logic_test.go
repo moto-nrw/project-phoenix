@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
+	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -249,7 +250,8 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_Consolidated(t *testing.
 	assert.Equal(t, afternoonOut, *day.Attendance.CheckOutTime, "latest check-out wins")
 	assert.Equal(t, int64(42), day.Attendance.CheckedInBy, "checked_in_by from earliest row")
 	require.NotNil(t, day.Attendance.DurationMinutes)
-	assert.Equal(t, 480, *day.Attendance.DurationMinutes, "duration spans earliest check-in to latest check-out")
+	assert.Equal(t, 420, *day.Attendance.DurationMinutes, "duration sums sessions without counting the school-time gap")
+	require.Len(t, day.Attendance.Sessions, 2)
 }
 
 func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_OneOpenSession(t *testing.T) {
@@ -298,4 +300,35 @@ func TestBuildAttendanceHistoryDays_OutsideRoomCap_HidesVisits(t *testing.T) {
 	assert.False(t, days[0].RoomDetailAvailable, "older-than-room-cap day must hide visits")
 	assert.Empty(t, days[0].Visits)
 	assert.Nil(t, days[0].Attendance.DurationMinutes, "duration is nil when check_out_time is nil")
+}
+
+func TestAttachSlotAttendance_KeepsOpposingStatusesOnSameDay(t *testing.T) {
+	date := timezone.NewDate(2026, 7, 15)
+	morning := &schedule.ActivityInstance{
+		Date: date, Title: "Morgenbetreuung",
+		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
+	}
+	morning.ID = 101
+	afternoon := &schedule.ActivityInstance{
+		Date: date, Title: "Nachmittagsbetreuung",
+		StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+	}
+	afternoon.ID = 102
+	sick := schedule.AttendanceSubstatusSick
+
+	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{
+		{Instance: morning, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}},
+		{Instance: afternoon, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusAbsent, Substatus: &sick}},
+	})
+
+	require.Len(t, days, 1)
+	require.Len(t, days[0].Slots, 2)
+	assert.Equal(t, "Morgenbetreuung", days[0].Slots[0].Title)
+	assert.Equal(t, schedule.AttendanceStatusPresent, days[0].Slots[0].Status)
+	assert.Equal(t, "Nachmittagsbetreuung", days[0].Slots[1].Title)
+	assert.Equal(t, schedule.AttendanceStatusAbsent, days[0].Slots[1].Status)
+	require.NotNil(t, days[0].Slots[1].Substatus)
+	assert.Equal(t, schedule.AttendanceSubstatusSick, *days[0].Slots[1].Substatus)
 }

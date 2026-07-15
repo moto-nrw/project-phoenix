@@ -14,6 +14,7 @@ import {
 import { useTenantRouter } from "~/lib/tenant-router";
 import { BackButton } from "~/components/ui/back-button";
 import { Alert } from "~/components/ui/alert";
+import { Button } from "~/components/ui/button";
 import { useStudentHistoryBreadcrumb } from "~/lib/breadcrumb-context";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
 import { createLogger } from "~/lib/logger";
@@ -27,7 +28,6 @@ import {
   formatTime,
   mapAttendanceHistoryResponse,
 } from "~/lib/attendance-history-helpers";
-import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { RoomHistorySkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "StudentRoomHistoryPage" });
@@ -364,6 +364,40 @@ function DayCard({
 
       {expanded && (
         <div className="border-t border-gray-50 bg-gray-50/50 px-4 py-3">
+          {day.slots.length > 0 && (
+            <div className="mb-3 space-y-2">
+              <p className="text-xs font-semibold text-gray-700">
+                Betreuungsangebote
+              </p>
+              {day.slots.map((slot) => (
+                <div
+                  key={slot.instanceId}
+                  className="flex items-center justify-between text-xs"
+                >
+                  <div>
+                    <span className="font-medium text-gray-800">
+                      {slot.title}
+                    </span>
+                    <span className="ml-2 text-gray-500">
+                      {slot.startTime}–{slot.endTime}
+                    </span>
+                    {slot.isUnplanned && (
+                      <span className="ml-2 text-amber-700">ungeplant</span>
+                    )}
+                  </div>
+                  <span className="font-medium text-gray-600">
+                    {slot.status === "present"
+                      ? "Anwesend"
+                      : slot.substatus === "sick"
+                        ? "Krank"
+                        : slot.status === "absent"
+                          ? "Abwesend"
+                          : "Erwartet"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
           {day.statusEntries.length > 0 && (
             <div className="mb-3 space-y-1">
               {day.statusEntries.map((entry) => (
@@ -468,7 +502,7 @@ function HistoryTable({
                   <th className="px-6 py-3">Ankunft</th>
                   <th className="px-6 py-3">Abmeldung</th>
                   <th className="px-6 py-3">Dauer</th>
-                  <th className="px-6 py-3">Räume</th>
+                  <th className="px-6 py-3">Angebote / Räume</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
@@ -523,9 +557,9 @@ function HistoryTable({
                           )}
                         </td>
                         <td className="px-6 py-3 text-gray-500">
-                          {day.roomDetailAvailable
-                            ? `${day.visits.length} Raum${day.visits.length !== 1 ? "wechsel" : ""}`
-                            : "–"}
+                          {`${day.slots.length} Angebot${day.slots.length !== 1 ? "e" : ""}`}
+                          {day.roomDetailAvailable &&
+                            ` · ${day.visits.length} Raum${day.visits.length !== 1 ? "wechsel" : ""}`}
                         </td>
                       </tr>
 
@@ -652,15 +686,8 @@ function HistoryTable({
 
 // ─── Page ────────────────────────────────────────────────────────────────────
 
-// Binary-mode tenants don't record room visits, so the history chart is
-// always empty. Guard here so the tab 404s instead of rendering a charts
-// page with zero data.
 export default function StudentRoomHistoryPage() {
-  return (
-    <BinaryModeGuard>
-      <StudentRoomHistoryPageContent />
-    </BinaryModeGuard>
-  );
+  return <StudentRoomHistoryPageContent />;
 }
 
 function StudentRoomHistoryPageContent() {
@@ -808,6 +835,23 @@ function StudentRoomHistoryPageContent() {
 
       {history && (
         <>
+          <div className="mb-4 flex flex-wrap justify-end gap-2">
+            {(["pdf", "docx", "xlsx"] as const).map((format) => (
+              <Button
+                key={format}
+                type="button"
+                variant="outline"
+                size="compact"
+                onClick={() =>
+                  window.location.assign(
+                    `/api/students/${studentId}/attendance-history/export?format=${format}`,
+                  )
+                }
+              >
+                {format.toUpperCase()} exportieren
+              </Button>
+            ))}
+          </div>
           {/* Charts */}
           <div className="mb-4 md:mb-6">
             <HistoryCharts days={history.days} />

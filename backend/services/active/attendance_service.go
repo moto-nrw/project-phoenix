@@ -323,6 +323,9 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 	s.autoClearStudentSickness(ctx, studentID)
 	s.autoClearStudentExcused(ctx, studentID)
 	s.autoClearPlannedStudentStatuses(ctx, studentID)
+	if s.GetPresenceMode(ctx) == "binary" && s.AttendanceSyncer != nil {
+		s.AttendanceSyncer.MirrorCheckInAt(ctx, studentID, now)
+	}
 
 	s.trackProductEvent(ctx, "student_checked_in", map[string]any{
 		"method": attendanceMethod(ctx),
@@ -390,6 +393,9 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID int64,
 			StudentID: studentID,
 			Timestamp: now,
 		}, nil
+	}
+	if s.GetPresenceMode(ctx) == "binary" && s.AttendanceSyncer != nil {
+		s.AttendanceSyncer.MirrorCheckOutAt(ctx, studentID, now)
 	}
 
 	s.trackProductEvent(ctx, "student_checked_out", map[string]any{

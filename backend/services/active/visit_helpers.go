@@ -54,13 +54,15 @@ func (s *service) ensureOrUpdateAttendance(ctx context.Context, visit *active.Vi
 		return &ActiveError{Op: "CreateVisit", Err: err}
 	}
 
-	if len(attendanceRecords) == 0 {
-		return s.createAttendanceRecord(ctx, visit, staffID, deviceID, visitDate)
+	for _, attendance := range attendanceRecords {
+		if attendance.CheckOutTime == nil {
+			return nil
+		}
 	}
 
-	// Attendance exists - handle re-entry case
-	s.clearCheckoutOnReentry(ctx, visit.StudentID, attendanceRecords)
-	return nil
+	// Every completed stay remains immutable. A later return creates a new
+	// session instead of reopening and corrupting the earlier checkout.
+	return s.createAttendanceRecord(ctx, visit, staffID, deviceID, visitDate)
 }
 
 // createAttendanceRecord creates a new attendance record for first visit of the day
@@ -103,25 +105,6 @@ func (s *service) resolveDeviceIDForAttendance(ctx context.Context, deviceID int
 	)
 
 	return 0
-}
-
-// clearCheckoutOnReentry clears checkout time for re-entry after daily checkout
-func (s *service) clearCheckoutOnReentry(ctx context.Context, studentID int64, attendanceRecords []*active.Attendance) {
-	for _, attendance := range attendanceRecords {
-		if attendance.CheckOutTime == nil {
-			continue
-		}
-
-		attendance.CheckOutTime = nil
-		attendance.CheckedOutBy = nil
-		if err := s.AttendanceRepo.Update(ctx, attendance); err != nil {
-			s.getLogger().Warn("failed to clear check_out_time on re-entry",
-				slog.Int64("student_id", studentID),
-				slog.Int64("attendance_id", attendance.ID),
-				slog.String("error", err.Error()),
-			)
-		}
-	}
 }
 
 // resolveClearMode resolves the configured clear mode for a status flag,

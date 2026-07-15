@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/database/repositories/base"
+	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -19,13 +21,18 @@ const tableExprActiveStudentStatusDaysAsStatusDay = `active.student_status_days 
 
 type StudentStatusDayRepository struct {
 	*base.Repository[*active.StudentStatusDay]
-	db *bun.DB
+	db       *bun.DB
+	slotRepo scheduleModels.InstanceStudentRepository
 }
 
 func NewStudentStatusDayRepository(db *bun.DB) active.StudentStatusDayRepository {
 	repo := base.NewRepository[*active.StudentStatusDay](db, "active.student_status_days", "StudentStatusDay")
 	repo.TenantScoped = true
-	return &StudentStatusDayRepository{Repository: repo, db: db}
+	return &StudentStatusDayRepository{
+		Repository: repo,
+		db:         db,
+		slotRepo:   scheduleRepo.NewInstanceStudentRepository(db),
+	}
 }
 
 func (r *StudentStatusDayRepository) UpsertReported(ctx context.Context, entry *active.StudentStatusDay) error {
@@ -41,7 +48,7 @@ func (r *StudentStatusDayRepository) UpsertReported(ctx context.Context, entry *
 		return fmt.Errorf("student status day date is required")
 	}
 
-	_, err := base.GetDB(ctx, r.db).NewInsert().
+	err := base.GetDB(ctx, r.db).NewInsert().
 		Model(entry).
 		ModelTableExpr("active.student_status_days").
 		On("CONFLICT (tenant_id, student_id, date, status) DO UPDATE").
@@ -60,14 +67,33 @@ func (r *StudentStatusDayRepository) UpsertReported(ctx context.Context, entry *
 			THEN COALESCE(EXCLUDED.note, student_status_days.note)
 			ELSE EXCLUDED.note
 		END`).
-		Exec(ctx)
+		Returning("id").
+		Scan(ctx)
 	if err != nil {
 		return &modelBase.DatabaseError{Op: "upsert student status day", Err: err}
 	}
-	return nil
+	_, err = r.slotRepo.ApplyStatusDay(ctx, entry.StudentID, entry.Date, entry.ID, attendanceSubstatus(entry.Status))
+	return err
+}
+
+func attendanceSubstatus(status string) string {
+	switch status {
+	case active.StudentStatusDaySick:
+		return scheduleModels.AttendanceSubstatusSick
+	case active.StudentStatusDayExcused:
+		return scheduleModels.AttendanceSubstatusExcused
+	case active.StudentStatusDayClassTrip:
+		return scheduleModels.AttendanceSubstatusFieldTrip
+	default:
+		return scheduleModels.AttendanceSubstatusOther
+	}
 }
 
 func (r *StudentStatusDayRepository) MarkCleared(ctx context.Context, studentID int64, status string, date timezone.Date, clearedAt time.Time, source string) error {
+	ids, err := r.findActiveIDs(ctx, studentID, status, []timezone.Date{date})
+	if err != nil {
+		return err
+	}
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*active.StudentStatusDay)(nil)).
 		ModelTableExpr("active.student_status_days").
@@ -85,7 +111,7 @@ func (r *StudentStatusDayRepository) MarkCleared(ctx context.Context, studentID 
 	if _, err := query.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "mark student status day cleared", Err: err}
 	}
-	return nil
+	return r.releaseStatusDays(ctx, ids)
 }
 
 func (r *StudentStatusDayRepository) MarkClearedByID(ctx context.Context, id int64, clearedAt time.Time, source string) error {
@@ -104,7 +130,8 @@ func (r *StudentStatusDayRepository) MarkClearedByID(ctx context.Context, id int
 	if _, err := query.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "mark student status day cleared by id", Err: err}
 	}
-	return nil
+	_, err := r.slotRepo.ReleaseStatusDay(ctx, id)
+	return err
 }
 
 func (r *StudentStatusDayRepository) MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []timezone.Date, clearedAt time.Time, source string) error {
@@ -120,6 +147,10 @@ func (r *StudentStatusDayRepository) MarkClearedForDates(ctx context.Context, st
 		}
 		seen[date] = struct{}{}
 		dateOnly = append(dateOnly, date)
+	}
+	ids, err := r.findActiveIDs(ctx, studentID, status, dateOnly)
+	if err != nil {
+		return err
 	}
 
 	query := base.GetDB(ctx, r.db).NewUpdate().
@@ -138,6 +169,36 @@ func (r *StudentStatusDayRepository) MarkClearedForDates(ctx context.Context, st
 
 	if _, err := query.Exec(ctx); err != nil {
 		return &modelBase.DatabaseError{Op: "mark student status days cleared for dates", Err: err}
+	}
+	return r.releaseStatusDays(ctx, ids)
+}
+
+func (r *StudentStatusDayRepository) findActiveIDs(
+	ctx context.Context, studentID int64, status string, dates []timezone.Date,
+) ([]int64, error) {
+	if len(dates) == 0 {
+		return []int64{}, nil
+	}
+	var ids []int64
+	query := base.GetDB(ctx, r.db).NewSelect().
+		TableExpr(tableExprActiveStudentStatusDaysAsStatusDay).
+		ColumnExpr(`"student_status_day".id`).
+		Where(`"student_status_day".student_id = ?`, studentID).
+		Where(`"student_status_day".status = ?`, status).
+		Where(`"student_status_day".date IN (?)`, bun.List(dates)).
+		Where(`"student_status_day".cleared_at IS NULL`)
+	query = base.WithTenantFilter(ctx, query, "student_status_day")
+	if err := query.Scan(ctx, &ids); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find active student status day ids", Err: err}
+	}
+	return ids, nil
+}
+
+func (r *StudentStatusDayRepository) releaseStatusDays(ctx context.Context, ids []int64) error {
+	for _, id := range ids {
+		if _, err := r.slotRepo.ReleaseStatusDay(ctx, id); err != nil {
+			return err
+		}
 	}
 	return nil
 }

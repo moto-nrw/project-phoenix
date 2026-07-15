@@ -874,7 +874,7 @@ export function StudentHistorySection({
             readOnly
               ? "Nur für Gruppenbetreuer"
               : attendanceLogEnabled
-                ? "Anwesenheit und besuchte Räume"
+                ? "Anwesenheit je Betreuungsangebot und besuchte Räume"
                 : "Für Ihre Schule deaktiviert"
           }
           bgColor="bg-[#5080D8]"

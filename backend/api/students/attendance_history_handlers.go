@@ -1,6 +1,7 @@
 package students
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/active"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
@@ -48,15 +50,35 @@ type attendanceHistoryDay struct {
 	StatusEntries       []attendanceStatusEntry `json:"status_entries"`
 	RoomDetailAvailable bool                    `json:"room_detail_available"`
 	Visits              []attendanceVisitEntry  `json:"visits"`
+	Slots               []attendanceSlotEntry   `json:"slots"`
 }
 
 type attendanceDayRecord struct {
+	CheckInTime     time.Time                 `json:"check_in_time"`
+	CheckOutTime    *time.Time                `json:"check_out_time,omitempty"`
+	DurationMinutes *int                      `json:"duration_minutes,omitempty"`
+	CheckedInBy     int64                     `json:"checked_in_by"`
+	CheckedOutBy    *int64                    `json:"checked_out_by,omitempty"`
+	DeviceID        int64                     `json:"device_id"`
+	Sessions        []attendanceSessionRecord `json:"sessions"`
+}
+
+type attendanceSessionRecord struct {
 	CheckInTime     time.Time  `json:"check_in_time"`
 	CheckOutTime    *time.Time `json:"check_out_time,omitempty"`
 	DurationMinutes *int       `json:"duration_minutes,omitempty"`
-	CheckedInBy     int64      `json:"checked_in_by"`
-	CheckedOutBy    *int64     `json:"checked_out_by,omitempty"`
-	DeviceID        int64      `json:"device_id"`
+}
+
+type attendanceSlotEntry struct {
+	InstanceID   int64      `json:"instance_id"`
+	Title        string     `json:"title"`
+	StartTime    string     `json:"start_time"`
+	EndTime      string     `json:"end_time"`
+	Status       string     `json:"status"`
+	Substatus    *string    `json:"substatus,omitempty"`
+	CheckedInAt  *time.Time `json:"checked_in_at,omitempty"`
+	CheckedOutAt *time.Time `json:"checked_out_at,omitempty"`
+	IsUnplanned  bool       `json:"is_unplanned"`
 }
 
 type attendanceVisitEntry struct {
@@ -72,6 +94,12 @@ type attendanceStatusEntry struct {
 	Label      string     `json:"label"`
 	ReportedAt time.Time  `json:"reported_at"`
 	ClearedAt  *time.Time `json:"cleared_at,omitempty"`
+}
+
+type attendanceHistorySources struct {
+	Attendance []*active.Attendance
+	Statuses   []*active.StudentStatusDay
+	Slots      []*scheduleModel.ScheduledInstanceRow
 }
 
 // getStudentAttendanceHistory returns the daily attendance log and (conditionally)
@@ -132,27 +160,14 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 	// days of the requested instant range)
 	startDay := timezone.DateFromTime(start)
 	endDay := timezone.DateFromTime(end)
-	attendanceRows, err := rs.StudentHistoryService.GetAttendanceByStudentAndDateRange(ctx, student.ID, startDay, endDay)
+	sources, err := rs.loadAttendanceHistorySources(ctx, student.ID, startDay, endDay)
 	if err != nil {
-		logger.Error("attendance history query failed",
+		logger.Error("attendance history source query failed",
 			slog.Int64("student_id", student.ID),
 			slog.String("error", err.Error()),
 		)
 		renderError(w, r, common.ErrorInternalServerWrap("failed to load attendance history", err))
 		return
-	}
-
-	statusRows := []*active.StudentStatusDay{}
-	if rs.StudentStatusDayService != nil {
-		statusRows, err = rs.StudentStatusDayService.GetByStudentAndDateRange(ctx, student.ID, startDay, endDay)
-		if err != nil {
-			logger.Error("student status history query failed",
-				slog.Int64("student_id", student.ID),
-				slog.String("error", err.Error()),
-			)
-			renderError(w, r, common.ErrorInternalServerWrap("failed to load student status history", err))
-			return
-		}
 	}
 
 	// 6. Conditionally load visits for days within the room-detail cap
@@ -180,7 +195,9 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 	}
 
 	// 7. Assemble per-day response
-	days := buildAttendanceHistoryDays(attendanceRows, statusRows, visitsByDate, roomCutoff, visitQueryFailed)
+	days := buildAttendanceHistoryDays(sources.Attendance, sources.Statuses, visitsByDate, roomCutoff, visitQueryFailed)
+	days = attachSlotAttendance(days, sources.Slots)
+	days = attachUnassignedAttendance(days)
 
 	resp := attendanceHistoryResponse{
 		StudentID: strconv.FormatInt(student.ID, 10),
@@ -198,6 +215,25 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 	}
 
 	common.Respond(w, r, http.StatusOK, resp, "Attendance history retrieved successfully")
+}
+
+func (rs *Resource) loadAttendanceHistorySources(
+	ctx context.Context, studentID int64, from, to timezone.Date,
+) (attendanceHistorySources, error) {
+	sources := attendanceHistorySources{Statuses: []*active.StudentStatusDay{}}
+	var err error
+	sources.Attendance, err = rs.StudentHistoryService.GetAttendanceByStudentAndDateRange(ctx, studentID, from, to)
+	if err != nil {
+		return sources, err
+	}
+	if rs.StudentStatusDayService != nil {
+		sources.Statuses, err = rs.StudentStatusDayService.GetByStudentAndDateRange(ctx, studentID, from, to)
+		if err != nil {
+			return sources, err
+		}
+	}
+	sources.Slots, err = rs.StudentHistoryService.GetSlotAttendanceByStudentAndDateRange(ctx, studentID, from, to)
+	return sources, err
 }
 
 // attendanceHistoryLogger returns a scoped logger, falling back to slog.Default.
@@ -277,13 +313,16 @@ func buildAttendanceHistoryDays(rows []*active.Attendance, statusRows []*active.
 					CheckedInBy:  row.CheckedInBy,
 					CheckedOutBy: row.CheckedOutBy,
 					DeviceID:     row.DeviceID,
+					Sessions:     []attendanceSessionRecord{newAttendanceSession(row)},
 				},
 				StatusEntries: []attendanceStatusEntry{},
 				Visits:        []attendanceVisitEntry{},
+				Slots:         []attendanceSlotEntry{},
 			}
 			dayMap[dateKey] = day
 			dayOrder = append(dayOrder, dateKey)
 		} else {
+			existing.Attendance.Sessions = append(existing.Attendance.Sessions, newAttendanceSession(row))
 			// Consolidate: earliest check-in wins.
 			if row.CheckInTime.Before(existing.Attendance.CheckInTime) {
 				existing.Attendance.CheckInTime = row.CheckInTime
@@ -311,6 +350,7 @@ func buildAttendanceHistoryDays(rows []*active.Attendance, statusRows []*active.
 				Date:          dateKey,
 				StatusEntries: []attendanceStatusEntry{},
 				Visits:        []attendanceVisitEntry{},
+				Slots:         []attendanceSlotEntry{},
 			}
 			dayMap[dateKey] = day
 			dayOrder = append(dayOrder, dateKey)
@@ -332,10 +372,7 @@ func buildAttendanceHistoryDays(rows []*active.Attendance, statusRows []*active.
 	for _, dateKey := range dayOrder {
 		day := dayMap[dateKey]
 
-		if day.Attendance != nil && day.Attendance.CheckOutTime != nil {
-			mins := int(day.Attendance.CheckOutTime.Sub(day.Attendance.CheckInTime).Minutes())
-			day.Attendance.DurationMinutes = &mins
-		}
+		calculateAttendanceDuration(day.Attendance)
 
 		// Room detail cap: only include visits if this day is on/after the cutoff
 		// and the visit query succeeded.
@@ -367,6 +404,106 @@ func buildAttendanceHistoryDays(rows []*active.Attendance, statusRows []*active.
 		days = append(days, *day)
 	}
 	return days
+}
+
+func newAttendanceSession(row *active.Attendance) attendanceSessionRecord {
+	return attendanceSessionRecord{CheckInTime: row.CheckInTime, CheckOutTime: row.CheckOutTime}
+}
+
+func calculateAttendanceDuration(attendance *attendanceDayRecord) {
+	if attendance == nil || attendance.CheckOutTime == nil {
+		return
+	}
+	minutes := 0
+	for i := range attendance.Sessions {
+		session := &attendance.Sessions[i]
+		if session.CheckOutTime == nil {
+			continue
+		}
+		duration := int(session.CheckOutTime.Sub(session.CheckInTime).Minutes())
+		session.DurationMinutes = &duration
+		minutes += duration
+	}
+	attendance.DurationMinutes = &minutes
+}
+
+func attachSlotAttendance(days []attendanceHistoryDay, rows []*scheduleModel.ScheduledInstanceRow) []attendanceHistoryDay {
+	index := make(map[string]int, len(days))
+	for i := range days {
+		index[days[i].Date] = i
+	}
+	for _, row := range rows {
+		if row == nil || row.Instance == nil || row.Attendance == nil {
+			continue
+		}
+		date := row.Instance.Date.String()
+		i, ok := index[date]
+		if !ok {
+			days = append(days, attendanceHistoryDay{
+				Date: date, StatusEntries: []attendanceStatusEntry{},
+				Visits: []attendanceVisitEntry{}, Slots: []attendanceSlotEntry{},
+			})
+			i = len(days) - 1
+			index[date] = i
+		}
+		days[i].Slots = append(days[i].Slots, attendanceSlotEntry{
+			InstanceID:   row.Instance.ID,
+			Title:        row.Instance.Title,
+			StartTime:    row.Instance.StartTime.Format("15:04"),
+			EndTime:      row.Instance.EndTime.Format("15:04"),
+			Status:       row.Attendance.Status,
+			Substatus:    row.Attendance.Substatus,
+			CheckedInAt:  row.Attendance.CheckedInAt,
+			CheckedOutAt: row.Attendance.CheckedOutAt,
+			IsUnplanned:  row.Attendance.IsUnplanned,
+		})
+	}
+	sort.SliceStable(days, func(i, j int) bool { return days[i].Date > days[j].Date })
+	return days
+}
+
+// attachUnassignedAttendance exposes observed sessions that could not be
+// matched to a concrete slot. This is intentional in binary mode when zero or
+// multiple booked slots overlap: the system records "ungeplant" instead of
+// guessing an offering.
+func attachUnassignedAttendance(days []attendanceHistoryDay) []attendanceHistoryDay {
+	for dayIndex := range days {
+		day := &days[dayIndex]
+		if day.Attendance == nil {
+			continue
+		}
+		assigned := assignedSlotCheckins(day.Slots)
+		for sessionIndex, session := range day.Attendance.Sessions {
+			if _, ok := assigned[session.CheckInTime.UnixNano()]; ok {
+				continue
+			}
+			day.Slots = append(day.Slots, unassignedSlotEntry(sessionIndex, session))
+		}
+	}
+	return days
+}
+
+func assignedSlotCheckins(slots []attendanceSlotEntry) map[int64]struct{} {
+	assigned := make(map[int64]struct{}, len(slots))
+	for _, slot := range slots {
+		if slot.CheckedInAt != nil {
+			assigned[slot.CheckedInAt.UnixNano()] = struct{}{}
+		}
+	}
+	return assigned
+}
+
+func unassignedSlotEntry(index int, session attendanceSessionRecord) attendanceSlotEntry {
+	entry := attendanceSlotEntry{
+		InstanceID: -int64(index + 1), Title: "Ohne Zuordnung",
+		StartTime: session.CheckInTime.In(timezone.Berlin).Format("15:04"),
+		Status:    "present", CheckedInAt: &session.CheckInTime,
+		CheckedOutAt: session.CheckOutTime, IsUnplanned: true,
+	}
+	if session.CheckOutTime != nil {
+		entry.EndTime = session.CheckOutTime.In(timezone.Berlin).Format("15:04")
+	}
+	return entry
 }
 
 func studentStatusLabel(status string) string {

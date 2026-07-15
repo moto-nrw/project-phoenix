@@ -1473,7 +1473,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		CareRequests:         careRequestService,
 		ExcusedRequests:      excusedRequestService,
 		StudentStatusDays:    active.NewStudentStatusDayService(repos.StudentStatusDay),
-		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog),
+		StudentHistory:       active.NewStudentHistoryService(repos.Attendance, repos.ActiveVisit, repos.DataAccessLog, repos.InstanceStudent),
 		TimetableData: schedule.NewTimetableDataService(schedule.TimetableDataDependencies{
 			InstanceStudentRepo:        repos.InstanceStudent,
 			ActivityInstanceRepo:       repos.ActivityInstance,

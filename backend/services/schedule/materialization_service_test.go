@@ -963,6 +963,10 @@ func (r *materializationCountingStudentRepo) Create(_ context.Context, row *sche
 	return nil
 }
 
+func (r *materializationCountingStudentRepo) ApplyActiveStatusDaysForInstance(context.Context, int64, timezone.Date) (int, error) {
+	return 0, nil
+}
+
 type materializationCountingStaffRepo struct {
 	schedule.InstanceStaffRepository
 	rows []*schedule.InstanceStaff

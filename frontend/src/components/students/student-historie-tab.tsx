@@ -30,6 +30,15 @@ interface AttendanceHistoryDay {
   attendance: AttendanceDayRecord | null;
   room_detail_available: boolean;
   visits: AttendanceVisitEntry[];
+  slots?: Array<{
+    instance_id: number;
+    title: string;
+    start_time: string;
+    end_time: string;
+    status: "expected" | "present" | "absent";
+    substatus?: string | null;
+    is_unplanned: boolean;
+  }>;
 }
 
 interface AttendanceHistoryResponse {
@@ -108,8 +117,7 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
         );
       }
       const payload = (await response.json()) as
-        | { data: AttendanceHistoryResponse }
-        | AttendanceHistoryResponse;
+        { data: AttendanceHistoryResponse } | AttendanceHistoryResponse;
       const data =
         "data" in payload && payload.data
           ? payload.data
@@ -174,7 +182,9 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
   }
 
   const { data } = state;
-  const daysWithData = data.days.filter((day) => day.attendance !== null);
+  const daysWithData = data.days.filter(
+    (day) => day.attendance !== null || (day.slots?.length ?? 0) > 0,
+  );
 
   return (
     <div className="space-y-3">
@@ -218,6 +228,31 @@ export function StudentHistorieTab({ studentId }: StudentHistorieTabProps) {
                     : null}
                 </div>
               </div>
+              {(day.slots?.length ?? 0) > 0 ? (
+                <ul className="mt-2 space-y-1 border-t border-gray-100 pt-2">
+                  {day.slots?.map((slot) => (
+                    <li
+                      key={slot.instance_id}
+                      className="flex items-center justify-between text-xs text-gray-600"
+                    >
+                      <span>
+                        {slot.title}
+                        {slot.is_unplanned ? " · ungeplant" : ""}
+                      </span>
+                      <span>
+                        {slot.start_time}–{slot.end_time} ·{" "}
+                        {slot.status === "present"
+                          ? "anwesend"
+                          : slot.substatus === "sick"
+                            ? "krank"
+                            : slot.status === "absent"
+                              ? "abwesend"
+                              : "erwartet"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
               {day.room_detail_available && day.visits.length > 0 ? (
                 <ul className="mt-2 space-y-1 border-t border-gray-100 pt-2">
                   {day.visits.map((visit, index) => (

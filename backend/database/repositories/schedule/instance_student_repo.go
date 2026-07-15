@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -197,11 +198,9 @@ func (r *InstanceStudentRepository) FindByInstanceAndStudent(ctx context.Context
 	return &row, nil
 }
 
-// UpdateAttendanceFromCheckin is the mirror-path write (WP-B10). It flips
-// status 'expected' → 'present' and stamps checked_in_at, but ONLY when the
-// current row is still 'expected'. The status='expected' predicate in the
-// WHERE clause enforces monotonicity: a row that has been marked present
-// (by a prior check-in or a staff PATCH) is never overwritten here.
+// UpdateAttendanceFromCheckin flips an expected row, or an absence owned by a
+// broad day status, to observed presence. Independent manual slot decisions
+// have no provenance and are never clobbered here.
 //
 // Returns (updated=true) when exactly one row was modified. A zero-rows
 // result means either (a) the row doesn't exist in this tenant, or
@@ -215,11 +214,14 @@ func (r *InstanceStudentRepository) UpdateAttendanceFromCheckin(
 		Model((*schedule.InstanceStudent)(nil)).
 		ModelTableExpr(modelTblInstanceStudent).
 		Set(`status = ?`, schedule.AttendanceStatusPresent).
-		Set(`checked_in_at = ?`, checkedInAt).
+		Set(`substatus = CASE WHEN "instance_student".student_status_day_id IS NOT NULL THEN NULL ELSE "instance_student".substatus END`).
+		Set(`student_status_day_id = NULL`).
+		Set(`checked_in_at = COALESCE("instance_student".checked_in_at, ?)`, checkedInAt).
+		Set(`checked_out_at = NULL`).
 		Set(`updated_at = ?`, time.Now().UTC()).
 		Where(`"instance_student".instance_id = ?`, instanceID).
 		Where(`"instance_student".student_id = ?`, studentID).
-		Where(`"instance_student".status = ?`, schedule.AttendanceStatusExpected)
+		Where(`("instance_student".status = ? OR "instance_student".student_status_day_id IS NOT NULL)`, schedule.AttendanceStatusExpected)
 
 	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 
@@ -232,6 +234,144 @@ func (r *InstanceStudentRepository) UpdateAttendanceFromCheckin(
 	}
 	n, _ := res.RowsAffected()
 	return n > 0, nil
+}
+
+func (r *InstanceStudentRepository) CreateUnplannedPresentIfAbsent(
+	ctx context.Context, instanceID, studentID int64, checkedInAt time.Time,
+) (*schedule.InstanceStudent, error) {
+	if _, err := base.GetDB(ctx, r.db).NewRaw(`
+		INSERT INTO schedule.instance_students
+			(tenant_id, instance_id, student_id, status, checked_in_at, is_unplanned)
+		VALUES (?, ?, ?, ?, ?, TRUE)
+		ON CONFLICT (instance_id, student_id) DO NOTHING
+	`, tenant.FromContext(ctx), instanceID, studentID, schedule.AttendanceStatusPresent, checkedInAt).Exec(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "create unplanned slot attendance", Err: err}
+	}
+	return r.FindByInstanceAndStudent(ctx, instanceID, studentID)
+}
+
+func (r *InstanceStudentRepository) UpdateAttendanceCheckout(
+	ctx context.Context, instanceID, studentID int64, checkedOutAt time.Time,
+) error {
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.InstanceStudent)(nil)).
+		ModelTableExpr(modelTblInstanceStudent).
+		Set(`checked_out_at = CASE
+			WHEN "instance_student".checked_out_at IS NULL OR "instance_student".checked_out_at < ? THEN ?
+			ELSE "instance_student".checked_out_at END`, checkedOutAt, checkedOutAt).
+		Set(`updated_at = ?`, time.Now().UTC()).
+		Where(`"instance_student".instance_id = ?`, instanceID).
+		Where(`"instance_student".student_id = ?`, studentID)
+	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
+	if _, err := q.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "update slot attendance checkout", Err: err}
+	}
+	return nil
+}
+
+func (r *InstanceStudentRepository) FindCurrentCandidates(
+	ctx context.Context, studentID int64, date timezone.Date, at time.Time,
+) ([]*schedule.InstanceStudent, error) {
+	var rows []*schedule.InstanceStudent
+	clock := at.In(timezone.Berlin).Format("15:04:05")
+	q := base.GetDB(ctx, r.db).NewSelect().
+		Model(&rows).
+		ModelTableExpr(modelTblInstanceStudent).
+		Join(`JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id AND "activity_instance".tenant_id = "instance_student".tenant_id`).
+		Where(`"instance_student".student_id = ?`, studentID).
+		Where(`"activity_instance".date = ?`, date).
+		Where(`"activity_instance".status <> ?`, schedule.InstanceStatusCancelled).
+		Where(`"activity_instance".start_time <= ?::time`, clock).
+		Where(`"activity_instance".end_time > ?::time`, clock).
+		OrderExpr(`"activity_instance".start_time ASC, "activity_instance".id ASC`)
+	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
+	if err := q.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "find current student slot candidates", Err: err}
+	}
+	return rows, nil
+}
+
+func (r *InstanceStudentRepository) ApplyStatusDay(
+	ctx context.Context, studentID int64, date timezone.Date, statusDayID int64, substatus string,
+) (int, error) {
+	res, err := base.GetDB(ctx, r.db).NewRaw(`
+		UPDATE schedule.instance_students AS attendance
+		SET status = ?, substatus = ?, student_status_day_id = ?, updated_at = ?
+		FROM schedule.activity_instances AS instance
+		WHERE attendance.tenant_id = ?
+			AND attendance.student_id = ?
+			AND attendance.status = ?
+			AND instance.id = attendance.instance_id
+			AND instance.tenant_id = attendance.tenant_id
+			AND instance.date = ?
+			AND instance.status <> ?
+	`, schedule.AttendanceStatusAbsent, substatus, statusDayID, time.Now().UTC(),
+		tenant.FromContext(ctx), studentID, schedule.AttendanceStatusExpected, date, schedule.InstanceStatusCancelled).Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "apply student status day to slots", Err: err}
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
+func (r *InstanceStudentRepository) ReleaseStatusDay(ctx context.Context, statusDayID int64) (int, error) {
+	res, err := base.GetDB(ctx, r.db).NewRaw(`
+		UPDATE schedule.instance_students AS attendance
+		SET status = CASE WHEN instance.status = ? THEN ? ELSE ? END,
+			substatus = NULL,
+			student_status_day_id = NULL,
+			updated_at = ?
+		FROM schedule.activity_instances AS instance
+		WHERE attendance.tenant_id = ?
+			AND attendance.student_status_day_id = ?
+			AND instance.id = attendance.instance_id
+			AND instance.tenant_id = attendance.tenant_id
+	`, schedule.InstanceStatusCompleted, schedule.AttendanceStatusAbsent, schedule.AttendanceStatusExpected,
+		time.Now().UTC(), tenant.FromContext(ctx), statusDayID).Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "release student status day from slots", Err: err}
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
+}
+
+// ApplyActiveStatusDaysForInstance restores broad day-status provenance after
+// materialization or re-planning created fresh expected rows. The latest
+// active report wins if corrupt legacy data contains competing statuses.
+func (r *InstanceStudentRepository) ApplyActiveStatusDaysForInstance(
+	ctx context.Context, instanceID int64, date timezone.Date,
+) (int, error) {
+	res, err := base.GetDB(ctx, r.db).NewRaw(`
+		WITH latest_status AS (
+			SELECT DISTINCT ON (student_id) id, student_id, status
+			FROM active.student_status_days
+			WHERE tenant_id = ? AND date = ? AND cleared_at IS NULL
+			ORDER BY student_id, reported_at DESC, id DESC
+		)
+		UPDATE schedule.instance_students AS attendance
+		SET status = ?,
+			substatus = CASE latest_status.status
+				WHEN 'sick' THEN ?
+				WHEN 'excused' THEN ?
+				WHEN 'class_trip' THEN ?
+				ELSE NULL
+			END,
+			student_status_day_id = latest_status.id,
+			updated_at = ?
+		FROM latest_status
+		WHERE attendance.tenant_id = ?
+			AND attendance.instance_id = ?
+			AND attendance.student_id = latest_status.student_id
+			AND attendance.status = ?
+	`, tenant.FromContext(ctx), date, schedule.AttendanceStatusAbsent,
+		schedule.AttendanceSubstatusSick, schedule.AttendanceSubstatusExcused,
+		schedule.AttendanceSubstatusFieldTrip, time.Now().UTC(),
+		tenant.FromContext(ctx), instanceID, schedule.AttendanceStatusExpected).Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{Op: "apply active status days to instance", Err: err}
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
 }
 
 // UpdateAttendanceFields writes only the fields the patch carries. Pointer-nil
@@ -260,12 +400,15 @@ func (r *InstanceStudentRepository) UpdateAttendanceFields(
 
 	if patch.Status != nil {
 		q = q.Set(`status = ?`, *patch.Status)
+		q = q.Set(`student_status_day_id = NULL`)
 	}
 	switch {
 	case patch.SubstatusClear:
 		q = q.Set(`substatus = NULL`)
+		q = q.Set(`student_status_day_id = NULL`)
 	case patch.Substatus != nil:
 		q = q.Set(`substatus = ?`, *patch.Substatus)
+		q = q.Set(`student_status_day_id = NULL`)
 	}
 	switch {
 	case patch.NoteClear:

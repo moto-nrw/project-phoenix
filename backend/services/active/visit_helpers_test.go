@@ -77,7 +77,7 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 	service := setupVisitHelperService(t, db)
 	ctx := testpkg.TenantContext(1)
 
-	t.Run("clears checkout time on re-entry", func(t *testing.T) {
+	t.Run("keeps the completed session and creates a new one on re-entry", func(t *testing.T) {
 		// ARRANGE: Create fixtures
 		activity := testpkg.CreateTestActivityGroup(t, db, "reentry-test")
 		room := testpkg.CreateTestRoom(t, db, "Reentry Room")
@@ -109,10 +109,18 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotZero(t, visit.ID, "Visit should have been created with an ID")
 
-		// Verify checkout time was cleared
+		// The latest row is a new open session.
 		attendance := getAttendanceForStudent(t, db, student.ID)
 		require.NotNil(t, attendance, "Attendance record should exist")
-		assert.Nil(t, attendance.CheckOutTime, "Checkout time should be cleared on re-entry")
+		assert.NotEqual(t, existingAttendance.ID, attendance.ID)
+		assert.Nil(t, attendance.CheckOutTime)
+
+		// The earlier session stays immutable so history does not lose its
+		// checkout or count the school-time gap as attendance.
+		var completed activeModels.Attendance
+		require.NoError(t, db.NewSelect().Model(&completed).ModelTableExpr(`active.attendance`).Where("id = ?", existingAttendance.ID).Scan(context.Background()))
+		require.NotNil(t, completed.CheckOutTime)
+		assert.WithinDuration(t, checkoutTime, *completed.CheckOutTime, time.Second)
 	})
 }
 

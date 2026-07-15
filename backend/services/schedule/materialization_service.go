@@ -592,6 +592,12 @@ func (s *materializationService) copyEnrollments(
 		}
 		result.InstanceStudentsCreated++
 	}
+	if len(seen) == 0 {
+		return nil
+	}
+	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, date); err != nil {
+		return &ScheduleError{Op: "materialize template: apply student status days", Err: err}
+	}
 	return nil
 }
 
