@@ -1,4 +1,5 @@
 import { trackEvent } from "~/lib/analytics";
+import { berlinTodayISO } from "~/lib/date-helpers";
 
 export type StudentExportFormat = "pdf" | "docx" | "xlsx";
 
@@ -75,9 +76,14 @@ export const BIRTHDAY_MONTH_OPTIONS: BirthdayMonthOption[] = Array.from(
   }),
 );
 
-/** The current month, pre-selected when a birthday list is opened. */
+/**
+ * The current month in the school's timezone, pre-selected when a birthday list
+ * is opened. Derived from Berlin — not the browser calendar — so a staff member
+ * abroad does not silently export the neighbouring month around a month
+ * boundary.
+ */
 export function currentBirthdayMonth(): string {
-  return String(new Date().getMonth() + 1).padStart(2, "0");
+  return berlinTodayISO().slice(5, 7);
 }
 
 export interface StudentExportRequest {
