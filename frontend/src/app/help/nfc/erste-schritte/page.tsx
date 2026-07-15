@@ -4,14 +4,12 @@ import {
   KeyRound,
   Nfc,
   PlugZap,
-  QrCode,
   ShieldCheck,
   Wrench,
 } from "lucide-react";
 import { HelpHeader } from "~/components/help/guide-components";
 import { HelpSearchInline } from "~/components/help/help-search";
 
-const fullGuideUrl = "https://moto-ogs.de/help/nfc";
 const quickstartPdf = {
   href: "/help/pdfs/nfc-erste-schritte.pdf",
   download: "moto Anleitung - NFC Erste Schritte.pdf",
@@ -58,19 +56,19 @@ export const metadata = {
 
 export default function NfcQuickstartPage() {
   return (
-    <main className="moto-dotted-background moto-dotted-background--guide min-h-screen overflow-x-hidden px-4 py-8 text-gray-950 print:p-0">
-      <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-8 print:block print:max-w-none">
+    <main className="moto-dotted-background moto-dotted-background--guide min-h-screen overflow-x-hidden px-4 py-8 text-gray-950 print:min-h-0 print:w-[210mm] print:p-0">
+      <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-8 print:block print:w-[210mm]">
         <HelpHeader pdf={quickstartPdf} />
         <div className="print:hidden">
           <HelpSearchInline />
         </div>
-        <section className="relative mx-auto flex min-h-[297mm] w-full max-w-[210mm] flex-col overflow-hidden rounded-[28px] print:h-[297mm] print:min-h-0 print:max-w-none">
+        <section className="relative mx-auto flex min-h-[297mm] w-full max-w-[210mm] flex-col overflow-hidden rounded-[28px] print:h-[296mm] print:min-h-0 print:w-[210mm]">
           <header className="relative overflow-hidden rounded-[28px] bg-[#17231F] text-white">
             <div
-              className="absolute right-0 bottom-0 h-full w-[42%] bg-[#F3F4F6]"
+              className="absolute right-0 bottom-0 hidden h-full w-[42%] bg-[#F3F4F6] sm:block"
               aria-hidden="true"
             />
-            <div className="relative grid min-h-[168px] grid-cols-[1fr_290px] gap-8 px-10 pt-9 pb-8 print:min-h-[142px] print:grid-cols-[1fr_240px] print:px-8 print:pt-6 print:pb-6">
+            <div className="relative grid min-h-[168px] grid-cols-1 gap-5 px-6 pt-7 pb-7 sm:grid-cols-[1fr_240px] sm:gap-7 sm:px-8 md:grid-cols-[1fr_290px] md:gap-8 md:px-10 md:pt-9 md:pb-8 print:min-h-[142px] print:grid-cols-[1fr_240px] print:px-8 print:pt-6 print:pb-6">
               <div className="max-w-[430px]">
                 <div className="flex items-center gap-3">
                   <span className="flex h-12 w-12 items-center justify-center">
@@ -87,10 +85,10 @@ export default function NfcQuickstartPage() {
                     moto
                   </p>
                 </div>
-                <h1 className="mt-5 text-[44px] leading-[0.98] font-semibold tracking-normal print:mt-4 print:text-[38px]">
+                <h1 className="mt-5 text-4xl leading-[0.98] font-semibold tracking-normal sm:text-[44px] print:mt-4 print:text-[38px]">
                   Erste Schritte
                 </h1>
-                <p className="mt-4 max-w-[390px] text-base leading-7 text-white/78 print:mt-3 print:max-w-[360px] print:text-sm print:leading-6">
+                <p className="mt-4 max-w-[390px] text-sm leading-6 text-white/78 sm:text-base sm:leading-7 print:mt-3 print:max-w-[360px] print:text-sm print:leading-6">
                   NFC-Tablet in drei kurzen Schritten einsatzbereit machen und
                   die ersten Armbänder den Kindern zuweisen.
                 </p>
@@ -101,7 +99,7 @@ export default function NfcQuickstartPage() {
                   alt=""
                   width={960}
                   height={960}
-                  className="relative z-10 w-[286px] max-w-none -translate-y-5 object-contain print:w-[238px] print:-translate-y-4"
+                  className="relative z-10 w-[220px] max-w-full object-contain sm:w-[250px] sm:-translate-y-4 md:w-[286px] md:max-w-none md:-translate-y-5 print:w-[238px] print:-translate-y-4"
                   priority
                 />
               </div>
@@ -174,10 +172,10 @@ export default function NfcQuickstartPage() {
                     >
                       <div
                         className={[
-                          "absolute top-5 print:top-4",
+                          "mb-4 sm:absolute sm:top-5 sm:mb-0 print:absolute print:top-4 print:mb-0",
                           isRight
-                            ? "right-5 print:right-4"
-                            : "left-5 print:left-4",
+                            ? "sm:right-5 print:right-4"
+                            : "sm:left-5 print:left-4",
                         ].join(" ")}
                       >
                         {marker}
@@ -185,7 +183,9 @@ export default function NfcQuickstartPage() {
                       <div
                         className={[
                           "min-w-0",
-                          isRight ? "pr-32 print:pr-24" : "pl-32 print:pl-24",
+                          isRight
+                            ? "sm:pr-32 print:pr-24"
+                            : "sm:pl-32 print:pl-24",
                         ].join(" ")}
                       >
                         <h2 className="text-[22px] leading-tight font-semibold tracking-normal print:text-[19px]">
@@ -204,39 +204,7 @@ export default function NfcQuickstartPage() {
               })}
             </div>
 
-            <section className="mt-7 grid grid-cols-[1fr_190px] gap-5 rounded-[28px] bg-[#5080D8]/10 p-5 print:mt-4 print:grid-cols-[1fr_150px] print:gap-4 print:rounded-2xl print:p-4">
-              <div>
-                <div className="flex items-center gap-2 text-[#315C9B]">
-                  <QrCode className="h-5 w-5" aria-hidden="true" />
-                  <h2 className="text-lg font-semibold tracking-normal print:text-base">
-                    Ausführliche Anleitung öffnen
-                  </h2>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-gray-700 print:mt-2 print:text-xs print:leading-5">
-                  Dort finden Sie die vollständige Schritt-für-Schritt-Anleitung
-                  mit Bildern: Geräte anmelden, Armbänder zuweisen, Check-in und
-                  Check-out nutzen und typische Fehler schnell beheben.
-                </p>
-                <p className="mt-4 text-xs font-semibold text-gray-500">
-                  {fullGuideUrl.replace("https://", "")}
-                </p>
-              </div>
-
-              <div className="rounded-3xl border border-gray-200 bg-white p-4 text-center print:rounded-2xl print:p-3">
-                <Image
-                  src="/help/quickstart/nfc-guide-qr.svg"
-                  alt=""
-                  width={128}
-                  height={128}
-                  className="mx-auto h-32 w-32 print:h-24 print:w-24"
-                />
-                <p className="mt-2 text-[11px] leading-4 font-semibold text-gray-700">
-                  QR-Code scannen
-                </p>
-              </div>
-            </section>
-
-            <section className="mt-6 grid grid-cols-3 gap-3 print:hidden">
+            <section className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3 print:hidden">
               {hints.map((hint, index) => {
                 const Icon =
                   index === 0 ? ShieldCheck : index === 1 ? BadgeCheck : Wrench;
@@ -257,7 +225,7 @@ export default function NfcQuickstartPage() {
               })}
             </section>
 
-            <footer className="mt-auto flex items-end justify-between gap-6 pt-5 text-xs text-gray-500 print:pt-3 print:text-[11px]">
+            <footer className="mt-auto flex items-end justify-between gap-6 pt-5 text-xs text-gray-500 print:hidden">
               <p className="max-w-[620px]">
                 Für OGS-Teams im Alltag. Persönliche Daten werden nicht auf den
                 Armbändern gespeichert.

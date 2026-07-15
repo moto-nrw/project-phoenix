@@ -129,7 +129,7 @@ for (const guide of GUIDES) {
       printBackground: true,
       displayHeaderFooter: false,
       margin: onePager ? ONE_PAGER_MARGIN : PDF_MARGIN,
-      scale: onePager ? 0.88 : 1,
+      scale: 1,
       omitBackground: true,
     } as Parameters<typeof page.pdf>[0] & { omitBackground: boolean };
     await page.pdf(pdfOptions);
