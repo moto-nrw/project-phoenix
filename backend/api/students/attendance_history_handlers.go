@@ -196,7 +196,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 
 	// 7. Assemble per-day response
 	days := buildAttendanceHistoryDays(sources.Attendance, sources.Statuses, visitsByDate, roomCutoff, visitQueryFailed)
-	days = attachSlotAttendance(days, sources.Slots)
+	days = attachSlotAttendance(days, sources.Slots, visitsByDate, roomCutoff, visitQueryFailed)
 	days = attachUnassignedAttendance(days)
 
 	resp := attendanceHistoryResponse{
@@ -379,31 +379,36 @@ func buildAttendanceHistoryDays(rows []*active.Attendance, statusRows []*active.
 		date, _ := time.Parse("2006-01-02", dateKey)
 		if !visitQueryFailed && !timezone.DateOf(date).Before(timezone.DateOf(roomCutoff)) {
 			day.RoomDetailAvailable = true
-			if vs, ok := visitsByDate[dateKey]; ok {
-				for _, v := range vs {
-					entry := attendanceVisitEntry{
-						EntryTime: v.EntryTime,
-						ExitTime:  v.ExitTime,
-					}
-					if v.ActiveGroup != nil {
-						roomID := v.ActiveGroup.RoomID
-						entry.RoomID = &roomID
-						if v.ActiveGroup.Room != nil {
-							entry.RoomName = v.ActiveGroup.Room.Name
-						}
-					}
-					if v.ExitTime != nil {
-						mins := int(v.ExitTime.Sub(v.EntryTime).Minutes())
-						entry.DurationMinutes = &mins
-					}
-					day.Visits = append(day.Visits, entry)
-				}
-			}
+			day.Visits = append(day.Visits, attendanceVisitEntries(visitsByDate[dateKey])...)
 		}
 
 		days = append(days, *day)
 	}
 	return days
+}
+
+// attendanceVisitEntries maps visit rows to their response shape.
+func attendanceVisitEntries(visits []*active.Visit) []attendanceVisitEntry {
+	entries := make([]attendanceVisitEntry, 0, len(visits))
+	for _, v := range visits {
+		entry := attendanceVisitEntry{
+			EntryTime: v.EntryTime,
+			ExitTime:  v.ExitTime,
+		}
+		if v.ActiveGroup != nil {
+			roomID := v.ActiveGroup.RoomID
+			entry.RoomID = &roomID
+			if v.ActiveGroup.Room != nil {
+				entry.RoomName = v.ActiveGroup.Room.Name
+			}
+		}
+		if v.ExitTime != nil {
+			mins := int(v.ExitTime.Sub(v.EntryTime).Minutes())
+			entry.DurationMinutes = &mins
+		}
+		entries = append(entries, entry)
+	}
+	return entries
 }
 
 func newAttendanceSession(row *active.Attendance) attendanceSessionRecord {
@@ -427,11 +432,18 @@ func calculateAttendanceDuration(attendance *attendanceDayRecord) {
 	attendance.DurationMinutes = &minutes
 }
 
-func attachSlotAttendance(days []attendanceHistoryDay, rows []*scheduleModel.ScheduledInstanceRow) []attendanceHistoryDay {
+func attachSlotAttendance(
+	days []attendanceHistoryDay,
+	rows []*scheduleModel.ScheduledInstanceRow,
+	visitsByDate map[string][]*active.Visit,
+	roomCutoff time.Time,
+	visitQueryFailed bool,
+) []attendanceHistoryDay {
 	index := make(map[string]int, len(days))
 	for i := range days {
 		index[days[i].Date] = i
 	}
+	cutoffDay := timezone.DateFromTime(roomCutoff)
 	for _, row := range rows {
 		if row == nil || row.Instance == nil || row.Attendance == nil {
 			continue
@@ -439,10 +451,18 @@ func attachSlotAttendance(days []attendanceHistoryDay, rows []*scheduleModel.Sch
 		date := row.Instance.Date.String()
 		i, ok := index[date]
 		if !ok {
-			days = append(days, attendanceHistoryDay{
+			day := attendanceHistoryDay{
 				Date: date, StatusEntries: []attendanceStatusEntry{},
 				Visits: []attendanceVisitEntry{}, Slots: []attendanceSlotEntry{},
-			})
+			}
+			// Slot-only days obey the same room-detail retention rule as
+			// attendance-backed days — within the window, room details are
+			// available (and any visits for the date get attached).
+			if !visitQueryFailed && !row.Instance.Date.Before(cutoffDay) {
+				day.RoomDetailAvailable = true
+				day.Visits = append(day.Visits, attendanceVisitEntries(visitsByDate[date])...)
+			}
+			days = append(days, day)
 			i = len(days) - 1
 			index[date] = i
 		}

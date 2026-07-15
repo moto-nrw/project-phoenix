@@ -216,6 +216,11 @@ type InstanceStudentRepository interface {
 	// active.groups. Used by the scheduler's daily session-end bridge.
 	MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time) error
 
+	// CloseOpenCheckoutsByActiveGroupIDs stamps checked_out_at on open
+	// present rows whose instance is bridged to the given active.groups.
+	// Mirrors the daily session-end bulk visit close into slot attendance.
+	CloseOpenCheckoutsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, checkedOutAt time.Time) (int, error)
+
 	// ListStudentInstanceRefsBefore returns (student_id, instance_id) pairs
 	// for attendance rows whose instance date is before the cutoff, ordered
 	// by student then instance. Custom projection (join on activity_instances)

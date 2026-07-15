@@ -203,6 +203,12 @@ func (r *InstanceStudentRepository) FindByInstanceAndStudent(ctx context.Context
 // presence. Independent manual slot decisions and already-open present rows
 // have no matching predicate and are never clobbered here.
 //
+// Reopening a checked-out present row re-stamps checked_in_at with the new
+// check-in: (checked_in_at, checked_out_at) always describes the CURRENT
+// presence interval. This is the session boundary that lets
+// UpdateAttendanceCheckout reject superseded checkouts — a delayed checkout
+// timestamped before the re-entry no longer closes the reopened slot.
+//
 // Returns (updated=true) when exactly one row was modified. A zero-rows
 // result means either (a) the row doesn't exist in this tenant, or
 // (b) it already moved out of 'expected' between the caller's read and
@@ -217,7 +223,9 @@ func (r *InstanceStudentRepository) UpdateAttendanceFromCheckin(
 		Set(`status = ?`, schedule.AttendanceStatusPresent).
 		Set(`substatus = CASE WHEN "instance_student".student_status_day_id IS NOT NULL THEN NULL ELSE "instance_student".substatus END`).
 		Set(`student_status_day_id = NULL`).
-		Set(`checked_in_at = COALESCE("instance_student".checked_in_at, ?)`, checkedInAt).
+		Set(`checked_in_at = CASE
+			WHEN "instance_student".checked_out_at IS NOT NULL THEN ?
+			ELSE COALESCE("instance_student".checked_in_at, ?) END`, checkedInAt, checkedInAt).
 		Set(`checked_out_at = NULL`).
 		Set(`updated_at = ?`, time.Now().UTC()).
 		Where(`"instance_student".instance_id = ?`, instanceID).
@@ -553,6 +561,46 @@ func (r *InstanceStudentRepository) MarkExpectedAbsentByActiveGroupIDs(ctx conte
 		}
 	}
 	return nil
+}
+
+// CloseOpenCheckoutsByActiveGroupIDs stamps checked_out_at on every open
+// present row (checked in, not yet checked out) whose instance is bridged to
+// one of the given active.groups. Mirrors the daily session-end bulk visit
+// close (EndVisitsByActiveGroupIDs) into slot attendance so history and
+// exports never show children as still checked in after the nightly cleanup.
+// Custom method (backend-conventions Rule 2): the subquery join on
+// activity_instances is not expressible through the generic filter shape.
+func (r *InstanceStudentRepository) CloseOpenCheckoutsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, checkedOutAt time.Time) (int, error) {
+	if len(activeGroupIDs) == 0 {
+		return 0, nil
+	}
+
+	q := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*schedule.InstanceStudent)(nil)).
+		ModelTableExpr(modelTblInstanceStudent).
+		Set(`checked_out_at = ?`, checkedOutAt).
+		Set(`updated_at = ?`, time.Now().UTC()).
+		Where(`"instance_student".status = ?`, schedule.AttendanceStatusPresent).
+		Where(`"instance_student".checked_in_at IS NOT NULL`).
+		Where(`"instance_student".checked_in_at <= ?`, checkedOutAt).
+		Where(`"instance_student".checked_out_at IS NULL`).
+		Where(`"instance_student".instance_id IN (
+			SELECT "instance".id
+			FROM schedule.activity_instances AS "instance"
+			WHERE "instance".active_group_id IN (?)
+		)`, bun.List(activeGroupIDs))
+
+	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
+
+	res, err := q.Exec(ctx)
+	if err != nil {
+		return 0, &modelBase.DatabaseError{
+			Op:  "close open checkouts by active group ids",
+			Err: err,
+		}
+	}
+	n, _ := res.RowsAffected()
+	return int(n), nil
 }
 
 // ListStudentInstanceRefsBefore returns (student_id, instance_id) pairs for

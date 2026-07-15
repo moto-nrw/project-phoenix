@@ -600,6 +600,11 @@ func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
 		sourceSnapshot, targetSnapshot := s.syncMovedVisitAttendance(ctx, existing, visit, transferAt)
 		s.broadcastVisitMoved(ctx, existing, visit, sourceSnapshot, targetSnapshot)
 		s.trackProductEvent(ctx, "room_transfer", nil)
+	} else if existing.ExitTime == nil && visit.ExitTime != nil && s.AttendanceSyncer != nil {
+		// Checkout-only update: the visit closes without a group move, so the
+		// move path above never runs. Mirror the checkout into slot attendance
+		// or the persisted slot stays open while the visit is closed.
+		s.AttendanceSyncer.LoadAttendanceForVisit(ctx, visit)
 	}
 
 	return nil
@@ -723,7 +728,9 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 
 // endVisitWithAttendanceSync closes one visit and mirrors its exact persisted
 // checkout timestamp into slot attendance. Session-end and timeout paths use
-// this helper too, so no visit-ending path can bypass care-slot checkout sync.
+// this helper too. The one visit-ending path that bypasses it — the nightly
+// bulk close in EndDailySessions — mirrors its checkouts via the scheduler's
+// session-end bridge (CloseOpenCheckoutsByActiveGroupIDs).
 // AttendanceSyncer owns graceful degradation: a missing bridge or sync failure
 // returns a nil snapshot without undoing the successfully ended visit.
 func (s *service) endVisitWithAttendanceSync(

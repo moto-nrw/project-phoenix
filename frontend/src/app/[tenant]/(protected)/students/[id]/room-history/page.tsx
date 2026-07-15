@@ -558,6 +558,50 @@ function HistoryTable({
                         </td>
                       </tr>
 
+                      {/* Expanded care-offering slots */}
+                      {isExpanded &&
+                        day.slots.map((slot) => (
+                          <tr
+                            key={`${day.date}-slot-${slot.instanceId}`}
+                            className="bg-gray-50/70 text-xs"
+                          >
+                            <td className="py-2 pr-6 pl-12">
+                              <div className="flex items-center gap-2">
+                                <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#83CD2D]" />
+                                <span className="font-medium text-gray-700">
+                                  {slot.title}
+                                </span>
+                                <span className="text-gray-400 tabular-nums">
+                                  {slot.startTime}
+                                  {slot.endTime && <>–{slot.endTime}</>}
+                                </span>
+                                {slot.isUnplanned && (
+                                  <span className="text-amber-700">
+                                    ungeplant
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-2 text-gray-500 tabular-nums">
+                              {slot.checkedInAt
+                                ? formatTime(slot.checkedInAt)
+                                : "–"}
+                            </td>
+                            <td className="px-6 py-2 text-gray-500 tabular-nums">
+                              {slot.checkedOutAt
+                                ? formatTime(slot.checkedOutAt)
+                                : "–"}
+                            </td>
+                            <td className="px-6 py-2 text-gray-600">
+                              {formatAttendanceSlotStatus(
+                                slot.status,
+                                slot.substatus,
+                              )}
+                            </td>
+                            <td className="px-6 py-2" />
+                          </tr>
+                        ))}
+
                       {/* Expanded room visits */}
                       {isExpanded &&
                         (!day.roomDetailAvailable ? (

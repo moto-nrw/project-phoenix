@@ -595,6 +595,10 @@ func (f *fakeRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, 
 	panic("unused")
 }
 
+func (f *fakeRepo) CloseOpenCheckoutsByActiveGroupIDs(context.Context, []int64, time.Time) (int, error) {
+	panic("unused")
+}
+
 func (f *fakeRepo) ListStudentInstanceRefsBefore(context.Context, timezone.Date) ([]schedule.StudentInstanceRef, error) {
 	panic("unused")
 }

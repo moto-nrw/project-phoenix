@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -149,8 +150,16 @@ func attendanceExportColumns() []listexport.Column {
 	}
 }
 
+// attendanceExportRows merges slot rows and unassigned observed sessions into
+// one chronologically sorted list (date, then start clock time) so multi-day
+// exports read in order regardless of which source a row came from.
 func attendanceExportRows(slots []*scheduleModel.ScheduledInstanceRow, attendanceRows []*activeModel.Attendance) []listexport.Row {
-	rows := make([]listexport.Row, 0, len(slots)+len(attendanceRows))
+	type sortableExportRow struct {
+		date  timezone.Date
+		clock string // HH:MM:SS in Berlin, orders rows within a day
+		row   listexport.Row
+	}
+	entries := make([]sortableExportRow, 0, len(slots)+len(attendanceRows))
 	assigned := make(map[int64]struct{}, len(slots))
 	for _, row := range slots {
 		if row == nil || row.Instance == nil || row.Attendance == nil {
@@ -159,12 +168,31 @@ func attendanceExportRows(slots []*scheduleModel.ScheduledInstanceRow, attendanc
 		if row.Attendance.CheckedInAt != nil {
 			assigned[row.Attendance.CheckedInAt.UnixNano()] = struct{}{}
 		}
-		rows = append(rows, slotExportRow(row))
+		entries = append(entries, sortableExportRow{
+			date:  row.Instance.Date,
+			clock: row.Instance.StartTime.Format("15:04:05"),
+			row:   slotExportRow(row),
+		})
 	}
 	for _, attendance := range attendanceRows {
-		if _, ok := assigned[attendance.CheckInTime.UnixNano()]; !ok {
-			rows = append(rows, unassignedExportRow(attendance))
+		if _, ok := assigned[attendance.CheckInTime.UnixNano()]; ok {
+			continue
 		}
+		entries = append(entries, sortableExportRow{
+			date:  attendance.Date,
+			clock: attendance.CheckInTime.In(timezone.Berlin).Format("15:04:05"),
+			row:   unassignedExportRow(attendance),
+		})
+	}
+	sort.SliceStable(entries, func(i, j int) bool {
+		if entries[i].date != entries[j].date {
+			return entries[i].date.Before(entries[j].date)
+		}
+		return entries[i].clock < entries[j].clock
+	})
+	rows := make([]listexport.Row, len(entries))
+	for i, entry := range entries {
+		rows[i] = entry.row
 	}
 	return rows
 }

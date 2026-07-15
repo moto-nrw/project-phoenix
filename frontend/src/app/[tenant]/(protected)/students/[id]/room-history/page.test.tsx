@@ -555,6 +555,53 @@ describe("StudentRoomHistoryPage", () => {
     });
   });
 
+  it("shows care-offering slots in expanded desktop rows", async () => {
+    const slotDay = {
+      ...fullDay,
+      slots: [
+        {
+          instance_id: 501,
+          title: "Morgenbetreuung",
+          start_time: "07:00",
+          end_time: "08:00",
+          status: "present",
+          checked_in_at: "2026-04-06T07:05:00Z",
+          checked_out_at: "2026-04-06T07:55:00Z",
+          is_unplanned: false,
+        },
+        {
+          instance_id: 502,
+          title: "Nachmittagsbetreuung",
+          start_time: "12:00",
+          end_time: "16:00",
+          status: "absent",
+          substatus: "sick",
+          is_unplanned: true,
+        },
+      ],
+    };
+    setupFetch(mockAttendanceHistoryResponse([slotDay]));
+    render(<StudentRoomHistoryPage />);
+
+    await waitFor(() => {
+      expect(screen.getAllByText("7 h 30 min").length).toBeGreaterThan(0);
+    });
+    expect(screen.getByText(/2 Angebote/)).toBeInTheDocument();
+    expect(screen.queryByText("Morgenbetreuung")).not.toBeInTheDocument();
+
+    const dateElement = screen.getByText(/Montag, 06/);
+    fireEvent.click(dateElement.closest("tr")!);
+
+    await waitFor(() => {
+      expect(screen.getByText("Morgenbetreuung")).toBeInTheDocument();
+    });
+    expect(screen.getByText("Nachmittagsbetreuung")).toBeInTheDocument();
+    expect(screen.getByText("Krank")).toBeInTheDocument();
+    expect(screen.getByText("ungeplant")).toBeInTheDocument();
+    // Room visits still render alongside the slots
+    expect(screen.getByText("Gruppenraum A")).toBeInTheDocument();
+  });
+
   // ─── Table header ───────────────────────────────────────────────────────────
 
   it("renders table column headers", async () => {

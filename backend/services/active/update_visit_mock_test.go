@@ -276,3 +276,70 @@ func TestUpdateVisitMoveSynchronizesSourceAndTargetWithoutBroadcaster(t *testing
 	assert.Nil(t, syncer.mirrored[0].ExitTime)
 	assert.WithinDuration(t, *syncer.loaded[0].ExitTime, syncer.mirrored[0].EntryTime, time.Millisecond)
 }
+
+func TestUpdateVisitCheckoutOnlySynchronizesSlotAttendance(t *testing.T) {
+	ctx := context.Background()
+	entryTime := time.Now().Add(-time.Hour)
+	exitTime := time.Now()
+	existingVisit := &activeModels.Visit{
+		Model:         base.Model{ID: 100},
+		StudentID:     200,
+		ActiveGroupID: 300,
+		EntryTime:     entryTime,
+	}
+	updatedVisit := &activeModels.Visit{
+		Model:         base.Model{ID: existingVisit.ID},
+		StudentID:     existingVisit.StudentID,
+		ActiveGroupID: existingVisit.ActiveGroupID,
+		EntryTime:     entryTime,
+		ExitTime:      &exitTime,
+	}
+	syncer := &recordingAttendanceSyncer{}
+	svc := &service{ServiceDependencies: ServiceDependencies{
+		VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return existingVisit, nil
+			},
+			updateFunc: func(context.Context, *activeModels.Visit) error { return nil },
+		},
+		AttendanceSyncer: syncer,
+	}}
+
+	require.NoError(t, svc.UpdateVisit(ctx, updatedVisit))
+	require.Len(t, syncer.loaded, 1, "checkout-only update must sync slot attendance")
+	assert.Equal(t, existingVisit.ActiveGroupID, syncer.loaded[0].ActiveGroupID)
+	require.NotNil(t, syncer.loaded[0].ExitTime)
+	assert.Equal(t, exitTime, *syncer.loaded[0].ExitTime)
+	assert.Empty(t, syncer.mirrored, "no group move, no check-in mirror")
+}
+
+func TestUpdateVisitWithoutCheckoutSkipsSlotSync(t *testing.T) {
+	ctx := context.Background()
+	entryTime := time.Now().Add(-time.Hour)
+	existingVisit := &activeModels.Visit{
+		Model:         base.Model{ID: 100},
+		StudentID:     200,
+		ActiveGroupID: 300,
+		EntryTime:     entryTime,
+	}
+	updatedVisit := &activeModels.Visit{
+		Model:         base.Model{ID: existingVisit.ID},
+		StudentID:     existingVisit.StudentID,
+		ActiveGroupID: existingVisit.ActiveGroupID,
+		EntryTime:     entryTime.Add(-time.Minute),
+	}
+	syncer := &recordingAttendanceSyncer{}
+	svc := &service{ServiceDependencies: ServiceDependencies{
+		VisitRepo: &mockVisitRepository{
+			findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+				return existingVisit, nil
+			},
+			updateFunc: func(context.Context, *activeModels.Visit) error { return nil },
+		},
+		AttendanceSyncer: syncer,
+	}}
+
+	require.NoError(t, svc.UpdateVisit(ctx, updatedVisit))
+	assert.Empty(t, syncer.loaded, "an update that keeps the visit open must not stamp a checkout")
+	assert.Empty(t, syncer.mirrored)
+}

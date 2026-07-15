@@ -726,6 +726,13 @@ func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Conte
 
 	now := time.Now()
 
+	// The bulk visit close in EndDailySessions bypasses the per-visit
+	// attendance syncer, so mirror the checkout into slot attendance here —
+	// otherwise history/exports keep showing children as still checked in.
+	if _, err := s.instanceStudentRepo.CloseOpenCheckoutsByActiveGroupIDs(ctx, result.EndedActiveGroupIDs, now); err != nil {
+		return 0, fmt.Errorf("close open timetable checkouts: %w", err)
+	}
+
 	if err := s.instanceStudentRepo.MarkExpectedAbsentByActiveGroupIDs(ctx, result.EndedActiveGroupIDs, now); err != nil {
 		return 0, fmt.Errorf("mark expected timetable students absent: %w", err)
 	}

@@ -45,12 +45,13 @@ func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T
 	})
 
 	require.Len(t, rows, 3)
+	// Chronological within the day: 07:00 slot, 09:00 unassigned session, 12:00 slot.
 	assert.Equal(t, "Morgenbetreuung", rows[0].Values[attendanceColumnOffering])
 	assert.Equal(t, "Anwesend", rows[0].Values[attendanceColumnStatus])
-	assert.Equal(t, "Nachmittagsbetreuung", rows[1].Values[attendanceColumnOffering])
-	assert.Equal(t, "Krank", rows[1].Values[attendanceColumnStatus])
-	assert.Equal(t, "Ohne Zuordnung", rows[2].Values[attendanceColumnOffering])
-	assert.Equal(t, "Ungeplant, ohne Buchung", rows[2].Values[attendanceColumnAssignment])
+	assert.Equal(t, "Ohne Zuordnung", rows[1].Values[attendanceColumnOffering])
+	assert.Equal(t, "Ungeplant, ohne Buchung", rows[1].Values[attendanceColumnAssignment])
+	assert.Equal(t, "Nachmittagsbetreuung", rows[2].Values[attendanceColumnOffering])
+	assert.Equal(t, "Krank", rows[2].Values[attendanceColumnStatus])
 }
 
 func TestAttendanceExportDocument_RendersEverySupportedFormat(t *testing.T) {
@@ -70,4 +71,42 @@ func TestAttendanceExportDocument_RendersEverySupportedFormat(t *testing.T) {
 			assert.True(t, strings.HasSuffix(file.Filename, "."+string(format)))
 		})
 	}
+}
+
+func TestAttendanceExportRows_SortsChronologicallyAcrossSources(t *testing.T) {
+	day1 := timezone.NewDate(2026, 7, 14)
+	day2 := timezone.NewDate(2026, 7, 15)
+	day1Unassigned := time.Date(2026, 7, 14, 9, 30, 0, 0, timezone.Berlin)
+	day2CheckIn := time.Date(2026, 7, 15, 12, 5, 0, 0, timezone.Berlin)
+
+	rows := attendanceExportRows([]*scheduleModel.ScheduledInstanceRow{
+		{
+			Instance: &scheduleModel.ActivityInstance{
+				Date: day2, Title: "Nachmittagsbetreuung",
+				StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
+				EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+			},
+			Attendance: &scheduleModel.InstanceStudent{
+				Status: scheduleModel.AttendanceStatusPresent, CheckedInAt: &day2CheckIn,
+			},
+		},
+		{
+			Instance: &scheduleModel.ActivityInstance{
+				Date: day1, Title: "Morgenbetreuung",
+				StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
+				EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
+			},
+			Attendance: &scheduleModel.InstanceStudent{Status: scheduleModel.AttendanceStatusAbsent},
+		},
+	}, []*activeModel.Attendance{
+		{Date: day1, CheckInTime: day1Unassigned},
+	})
+
+	require.Len(t, rows, 3)
+	assert.Equal(t, "14.07.2026", rows[0].Values[attendanceColumnDate])
+	assert.Equal(t, "Morgenbetreuung", rows[0].Values[attendanceColumnOffering])
+	assert.Equal(t, "14.07.2026", rows[1].Values[attendanceColumnDate])
+	assert.Equal(t, "Ohne Zuordnung", rows[1].Values[attendanceColumnOffering])
+	assert.Equal(t, "15.07.2026", rows[2].Values[attendanceColumnDate])
+	assert.Equal(t, "Nachmittagsbetreuung", rows[2].Values[attendanceColumnOffering])
 }

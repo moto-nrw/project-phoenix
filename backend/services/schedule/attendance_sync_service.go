@@ -191,10 +191,12 @@ func (s *AttendanceSyncService) MirrorCheckInForVisit(
 		row.Substatus = nil
 	}
 	row.StudentStatusDayID = nil
-	row.CheckedOutAt = nil
-	if row.CheckedInAt == nil {
+	// A reopen (checked-out row) re-stamps checked_in_at with the re-entry
+	// time — mirrors the repo UPDATE's session boundary.
+	if row.CheckedOutAt != nil || row.CheckedInAt == nil {
 		row.CheckedInAt = &visit.EntryTime
 	}
+	row.CheckedOutAt = nil
 	return snapshotFromRow(row)
 }
 
@@ -274,10 +276,10 @@ func (s *AttendanceSyncService) MirrorCheckInAt(
 			row.Substatus = nil
 		}
 		row.StudentStatusDayID = nil
-		row.CheckedOutAt = nil
-		if row.CheckedInAt == nil {
+		if row.CheckedOutAt != nil || row.CheckedInAt == nil {
 			row.CheckedInAt = &at
 		}
+		row.CheckedOutAt = nil
 	}
 	return snapshotFromRow(row)
 }

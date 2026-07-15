@@ -321,9 +321,10 @@ func TestAttachSlotAttendance_KeepsOpposingStatusesOnSameDay(t *testing.T) {
 	days := attachSlotAttendance(nil, []*schedule.ScheduledInstanceRow{
 		{Instance: morning, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}},
 		{Instance: afternoon, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusAbsent, Substatus: &sick}},
-	})
+	}, nil, date.BerlinMidnight(), false)
 
 	require.Len(t, days, 1)
+	assert.True(t, days[0].RoomDetailAvailable, "slot-only day within the retention window must expose room details")
 	require.Len(t, days[0].Slots, 2)
 	assert.Equal(t, "Morgenbetreuung", days[0].Slots[0].Title)
 	assert.Equal(t, schedule.AttendanceStatusPresent, days[0].Slots[0].Status)
@@ -331,4 +332,42 @@ func TestAttachSlotAttendance_KeepsOpposingStatusesOnSameDay(t *testing.T) {
 	assert.Equal(t, schedule.AttendanceStatusAbsent, days[0].Slots[1].Status)
 	require.NotNil(t, days[0].Slots[1].Substatus)
 	assert.Equal(t, schedule.AttendanceSubstatusSick, *days[0].Slots[1].Substatus)
+}
+
+func TestAttachSlotAttendance_SlotOnlyDayRespectsRoomRetention(t *testing.T) {
+	date := timezone.NewDate(2026, 7, 10)
+	instance := &schedule.ActivityInstance{
+		Date: date, Title: "Morgenbetreuung",
+		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
+		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
+	}
+	instance.ID = 201
+	rows := []*schedule.ScheduledInstanceRow{
+		{Instance: instance, Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent}},
+	}
+
+	t.Run("outside window stays unavailable", func(t *testing.T) {
+		cutoff := date.AddDays(2).BerlinMidnight()
+		days := attachSlotAttendance(nil, rows, nil, cutoff, false)
+		require.Len(t, days, 1)
+		assert.False(t, days[0].RoomDetailAvailable)
+	})
+
+	t.Run("failed visit query stays unavailable", func(t *testing.T) {
+		days := attachSlotAttendance(nil, rows, nil, date.BerlinMidnight(), true)
+		require.Len(t, days, 1)
+		assert.False(t, days[0].RoomDetailAvailable)
+	})
+
+	t.Run("within window attaches visits for the date", func(t *testing.T) {
+		entry := time.Date(2026, 7, 10, 9, 0, 0, 0, timezone.Berlin)
+		visits := map[string][]*active.Visit{
+			date.String(): {{StudentID: 1, EntryTime: entry}},
+		}
+		days := attachSlotAttendance(nil, rows, visits, date.BerlinMidnight(), false)
+		require.Len(t, days, 1)
+		assert.True(t, days[0].RoomDetailAvailable)
+		require.Len(t, days[0].Visits, 1)
+		assert.Equal(t, entry, days[0].Visits[0].EntryTime)
+	})
 }

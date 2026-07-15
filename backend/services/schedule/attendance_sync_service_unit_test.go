@@ -358,13 +358,17 @@ func TestMirrorCheckIn_ReopensCheckedOutPresentRow(t *testing.T) {
 	isRepo := &fakeInstanceStudentRepo{findRow: row, updateResult: true}
 	syncer := newUnitSyncer(&fakeInstanceRepo{instance: instanceWithID(7)}, isRepo)
 
-	snap := syncer.MirrorCheckInForVisit(context.Background(), validVisit())
+	visit := validVisit()
+	snap := syncer.MirrorCheckInForVisit(context.Background(), visit)
 
 	require.NotNil(t, snap)
 	assert.Equal(t, scheduleModel.AttendanceStatusPresent, snap.Status)
 	assert.Equal(t, 1, isRepo.updateCalls)
 	assert.Nil(t, row.CheckedOutAt, "re-entry must reopen the slot observation")
-	assert.Equal(t, checkedIn, *row.CheckedInAt, "first observed check-in must be preserved")
+	// The reopen re-stamps checked_in_at (session boundary): a delayed
+	// checkout from the superseded interval must not close the reopened slot.
+	require.NotNil(t, row.CheckedInAt)
+	assert.Equal(t, visit.EntryTime, *row.CheckedInAt, "reopen must re-stamp check-in with the re-entry time")
 }
 
 func TestMirrorCheckInAt_AssignsOnlyOneCurrentBookedSlot(t *testing.T) {
@@ -382,19 +386,24 @@ func TestMirrorCheckInAt_AssignsOnlyOneCurrentBookedSlot(t *testing.T) {
 }
 
 func TestMirrorCheckInAt_ReopensCheckedOutPresentRow(t *testing.T) {
+	checkedIn := time.Now().Add(-2 * time.Hour)
 	checkedOut := time.Now().Add(-time.Hour)
 	row := expectedRow(17)
 	row.InstanceID = 78
 	row.Status = scheduleModel.AttendanceStatusPresent
+	row.CheckedInAt = &checkedIn
 	row.CheckedOutAt = &checkedOut
 	isRepo := &fakeInstanceStudentRepo{candidates: []*scheduleModel.InstanceStudent{row}, updateResult: true}
 	syncer := newUnitSyncer(&fakeInstanceRepo{}, isRepo)
 
-	snapshot := syncer.MirrorCheckInAt(context.Background(), row.StudentID, time.Now())
+	reentry := time.Now()
+	snapshot := syncer.MirrorCheckInAt(context.Background(), row.StudentID, reentry)
 
 	require.NotNil(t, snapshot)
 	assert.Equal(t, 1, isRepo.updateCalls)
 	assert.Nil(t, row.CheckedOutAt, "binary-mode re-entry must reopen the slot")
+	require.NotNil(t, row.CheckedInAt)
+	assert.Equal(t, reentry, *row.CheckedInAt, "reopen must re-stamp check-in with the re-entry time")
 }
 
 func TestMirrorCheckInAt_AmbiguousSlotsStayUnassigned(t *testing.T) {
@@ -773,6 +782,10 @@ func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, timezone.Dat
 
 func (f *fakeInstanceStudentRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time) error {
 	return nil
+}
+
+func (f *fakeInstanceStudentRepo) CloseOpenCheckoutsByActiveGroupIDs(context.Context, []int64, time.Time) (int, error) {
+	return 0, nil
 }
 
 func (f *fakeInstanceStudentRepo) ListStudentInstanceRefsBefore(context.Context, timezone.Date) ([]scheduleModel.StudentInstanceRef, error) {

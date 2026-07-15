@@ -425,7 +425,7 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 		assert.WithinDuration(t, firstCheckin, *got.CheckedInAt, time.Second)
 	})
 
-	t.Run("reopens a checked-out present row and preserves first check-in", func(t *testing.T) {
+	t.Run("reopen re-stamps check-in and blocks superseded checkouts", func(t *testing.T) {
 		other := testpkg.CreateTestStudent(t, db, "Ria", fmt.Sprintf("Reentry-%d", time.Now().UnixNano()), "3a")
 		defer testpkg.CleanupActivityFixtures(t, db, other.ID)
 
@@ -442,7 +442,10 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 		require.NoError(t, repo.Create(ctx, row))
 		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
 
-		updated, err := repo.UpdateAttendanceFromCheckin(ctx, inst.ID, other.ID, firstCheckout.Add(time.Hour))
+		// Re-entry two hours after the first checkout reopens the slot and
+		// re-stamps checked_in_at (session boundary).
+		reentry := firstCheckout.Add(2 * time.Hour)
+		updated, err := repo.UpdateAttendanceFromCheckin(ctx, inst.ID, other.ID, reentry)
 		require.NoError(t, err)
 		assert.True(t, updated)
 
@@ -450,7 +453,22 @@ func TestInstanceStudentRepository_UpdateAttendanceFromCheckin(t *testing.T) {
 		require.NoError(t, err)
 		assert.Nil(t, got.CheckedOutAt)
 		require.NotNil(t, got.CheckedInAt)
-		assert.WithinDuration(t, firstCheckin, *got.CheckedInAt, time.Second)
+		assert.WithinDuration(t, reentry, *got.CheckedInAt, time.Second)
+
+		// A delayed checkout from the superseded interval (before the
+		// re-entry) must NOT close the reopened slot.
+		require.NoError(t, repo.UpdateAttendanceCheckout(ctx, inst.ID, other.ID, firstCheckout.Add(30*time.Minute)))
+		got, err = repo.FindByID(ctx, row.ID)
+		require.NoError(t, err)
+		assert.Nil(t, got.CheckedOutAt, "superseded checkout must not corrupt the reopened slot")
+
+		// A genuine checkout after the re-entry closes it.
+		finalCheckout := reentry.Add(time.Hour)
+		require.NoError(t, repo.UpdateAttendanceCheckout(ctx, inst.ID, other.ID, finalCheckout))
+		got, err = repo.FindByID(ctx, row.ID)
+		require.NoError(t, err)
+		require.NotNil(t, got.CheckedOutAt)
+		assert.WithinDuration(t, finalCheckout, *got.CheckedOutAt, time.Second)
 	})
 
 	t.Run("no-op when no matching row (walk-in)", func(t *testing.T) {
