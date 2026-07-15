@@ -277,9 +277,9 @@ function computeIstForRange(
  * Soll/Ist/Saldo for one period (a week, a month).
  *
  * `soll` is the FULL period target (so "12h von 40h" reads as the whole
- * contracted week), while `delta` prices Ist against the target up to
- * `effectiveEnd` only — otherwise a Tuesday afternoon would read "-30h
- * Minusstunden" merely because Wed–Fri have not happened yet.
+ * contracted week), while `ist` and `delta` stop at `effectiveEnd` —
+ * otherwise a Tuesday afternoon would read "-30h Minusstunden" merely
+ * because Wed–Fri have not happened yet.
  */
 export interface PeriodTotals {
   readonly soll: number;
@@ -297,8 +297,12 @@ function computeRangeMetrics(
 ): PeriodTotals {
   const soll = sumTargets(targetFor, start, fullEnd);
   const effectiveSoll = sumTargets(targetFor, start, effectiveEnd);
+  // Ist stops at effectiveEnd, like the Soll it is priced against: the admin
+  // API allows future-dated sessions, and counting one against a Soll that
+  // deliberately stops at today would invent Überstunden the Monatskarte,
+  // which excludes future sessions server-side, does not show.
   const ist =
-    computeIstForRange(sessions, start, fullEnd) +
+    computeIstForRange(sessions, start, effectiveEnd) +
     computeAbsenceCreditForRange(targetFor, absences, start, effectiveEnd);
 
   return { soll, ist, delta: ist - effectiveSoll };

@@ -247,6 +247,27 @@ describe("computePeriodTotalsFromTargets", () => {
     expect(totals.delta).toBe(0);
   });
 
+  it("excludes future-dated sessions from Ist and delta", () => {
+    // Admins may date a session later in the week. Its minutes must not read
+    // as Überstunden against a Soll that deliberately stops at today.
+    const tuesday = new Date(2026, 7, 4);
+    const totals = computePeriodTotalsFromTargets(
+      targets,
+      [
+        session({ date: "2026-08-03" }),
+        session({ date: "2026-08-04" }),
+        session({ date: "2026-08-06", net_minutes: 240 }),
+      ],
+      [],
+      weekStart,
+      weekEnd,
+      tuesday,
+    );
+
+    expect(totals.ist).toBe(960);
+    expect(totals.delta).toBe(0);
+  });
+
   it("credits an absence with the date-valid target of that day", () => {
     // Wednesday is a 4h day after the contract change, so Krank credits 240.
     const totals = computePeriodTotalsFromTargets(
