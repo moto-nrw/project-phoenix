@@ -2944,3 +2944,44 @@ func TestWSApplyCustomScheduleRows_ExistingStaffAnchorWins(t *testing.T) {
 	require.NotNil(t, staff.RotationAnchorDate)
 	assert.Equal(t, existing, *staff.RotationAnchorDate)
 }
+
+// recalcBreakMinutes must cache ENDED breaks only. A still-running break is
+// live data that every reader re-derives against its own clock (netMinutes +
+// runningBreakMinutes in the month service, the live session card). Folding
+// its elapsed time into the cache made the Monatskarte subtract the same break
+// twice — once from the cache, once live — which under-reported Ist and Saldo
+// until the break was closed. Reachable whenever a recalc runs while a break
+// is open: editing an ended break on a session whose second break still runs.
+func TestWSRecalcBreakMinutes_ExcludesRunningBreak(t *testing.T) {
+	svc, sessionRepo, breakRepo, _, _ := wsCreateTestService()
+	ctx := context.Background()
+	sessionID := int64(42)
+	endedAt := time.Now().Add(-60 * time.Minute)
+
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{
+			{
+				Model:           base.Model{ID: 1},
+				SessionID:       sessionID,
+				StartedAt:       endedAt.Add(-30 * time.Minute),
+				EndedAt:         &endedAt,
+				DurationMinutes: 30,
+			},
+			{
+				Model:     base.Model{ID: 2},
+				SessionID: sessionID,
+				StartedAt: time.Now().Add(-20 * time.Minute), // still running
+			},
+		}, nil
+	}
+
+	var cached int
+	sessionRepo.updateBreakMinutesFunc = func(_ context.Context, _ int64, breakMinutes int) error {
+		cached = breakMinutes
+		return nil
+	}
+
+	require.NoError(t, svc.recalcBreakMinutes(ctx, sessionID))
+	assert.Equal(t, 30, cached,
+		"only the ended break belongs in the cache; the running break's 20 minutes would be double-counted by readers")
+}

@@ -820,7 +820,15 @@ func (s *workSessionService) GetSessionBreaks(ctx context.Context, staffID, sess
 	return breaks, nil
 }
 
-// recalcBreakMinutes sums all break durations for a session and updates the cache
+// recalcBreakMinutes sums the ENDED break durations for a session and updates
+// the cache. A still-running break contributes nothing: its elapsed time is
+// live data, and readers that need it add it themselves against their own
+// clock (netMinutes + runningBreakMinutes in the month service, the live
+// session card). Folding the running duration in here would double-count it —
+// once from the cache, once from the reader — for every recalc that happens
+// while a break is open (editing an ended break on a session whose second
+// break is still running), and would leave a stale snapshot in the cache the
+// moment the recalc returned.
 func (s *workSessionService) recalcBreakMinutes(ctx context.Context, sessionID int64) error {
 	breaks, err := s.breakRepo.GetBySessionID(ctx, sessionID)
 	if err != nil {
@@ -831,9 +839,6 @@ func (s *workSessionService) recalcBreakMinutes(ctx context.Context, sessionID i
 	for _, brk := range breaks {
 		if brk.EndedAt != nil {
 			totalMinutes += brk.DurationMinutes
-		} else {
-			// Active break: compute live duration
-			totalMinutes += int(math.Round(time.Since(brk.StartedAt).Minutes()))
 		}
 	}
 

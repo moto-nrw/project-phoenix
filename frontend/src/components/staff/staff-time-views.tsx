@@ -65,8 +65,14 @@ export function KpiCard({
 
 export function KpiCards({
   metrics,
+  accountBalanceMinutes,
 }: {
   readonly metrics: ReturnType<typeof computeStaffMetrics>;
+  // Date-valid Saldo from the backend month model (useAccountBalance, #1842).
+  // Never metrics.accountBalance: that one prices historical days at the
+  // CURRENT schedule and contradicts the Monatskarte after a contract change.
+  // null = still loading or unavailable.
+  readonly accountBalanceMinutes: number | null;
 }) {
   const weekPct =
     metrics.weekSoll > 0 ? (metrics.weekIst / metrics.weekSoll) * 100 : 0;
@@ -74,7 +80,10 @@ export function KpiCards({
     metrics.monthSoll > 0 ? (metrics.monthIst / metrics.monthSoll) * 100 : 0;
 
   const monthDeltaColor = getDeltaStatus(metrics.monthDelta);
-  const accountColor = getDeltaStatus(metrics.accountBalance);
+  const accountColor =
+    accountBalanceMinutes === null
+      ? "gray"
+      : getDeltaStatus(accountBalanceMinutes);
 
   // Localized "seit 13. Mai 2026" hint under the Stundenkonto card so users
   // see *which* anchor the cumulative balance is based on. Without it the
@@ -125,11 +134,17 @@ export function KpiCards({
         />
         <KpiCard
           label="Stundenkonto"
-          primary={formatSignedDuration(metrics.accountBalance)}
+          primary={
+            accountBalanceMinutes === null
+              ? "–"
+              : formatSignedDuration(accountBalanceMinutes)
+          }
           secondary={
-            metrics.accountBalance === 0
-              ? `Soll und Ist ausgeglichen seit ${accountStartLabel}`
-              : `seit ${accountStartLabel}`
+            accountBalanceMinutes === null
+              ? `seit ${accountStartLabel}`
+              : accountBalanceMinutes === 0
+                ? `Soll und Ist ausgeglichen seit ${accountStartLabel}`
+                : `seit ${accountStartLabel}`
           }
           color={accountColor}
         />

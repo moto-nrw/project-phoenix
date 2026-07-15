@@ -29,6 +29,7 @@ import {
   getWeekNumber,
   OPEN_MONTH_REFRESH_MS,
 } from "~/lib/time-tracking-helpers";
+import { useAccountBalance } from "~/lib/hooks/use-account-balance";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import { useSWRAuth } from "~/lib/swr";
 
@@ -92,6 +93,12 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
       timeTrackingConfig?.accountStartDate,
     ],
   );
+
+  // Stundenkonto comes from the server-computed month model, not from
+  // `metrics`: only the backend resolves each day against the schedule that
+  // was valid on that day, so this is the one figure that can never contradict
+  // the Monatskarte below (#1842).
+  const { balanceMinutes: accountBalanceMinutes } = useAccountBalance(staffId);
 
   const visibleFrom = useMemo(
     () =>
@@ -219,7 +226,12 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
 
   return (
     <div className="space-y-5">
-      {metrics && <KpiCards metrics={metrics} />}
+      {metrics && (
+        <KpiCards
+          metrics={metrics}
+          accountBalanceMinutes={accountBalanceMinutes}
+        />
+      )}
 
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">

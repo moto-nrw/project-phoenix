@@ -49,6 +49,7 @@ import {
   toDateKey,
   toIsoDayOfWeek,
 } from "~/lib/staff-metrics-helpers";
+import { useAccountBalance } from "~/lib/hooks/use-account-balance";
 import { useSWRAuth } from "~/lib/swr";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 
@@ -149,6 +150,11 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
   >(`staff-absences-account-${staffId}-${accountStartKey}-${yearEndKey}`, () =>
     staffAbsenceService.getAbsences(staffId, accountStartKey, yearEndKey),
   );
+
+  // Date-valid Stundenkonto from the server-computed month model (#1842) —
+  // `metrics.accountBalance` re-prices historical days at the CURRENT
+  // schedule and would contradict the Monatskarte after a contract change.
+  const { balanceMinutes: accountBalanceMinutes } = useAccountBalance(staffId);
 
   const metrics = useMemo(
     () =>
@@ -253,7 +259,10 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
     year: "numeric",
   });
 
-  const accountColor = getDeltaStatus(metrics.accountBalance);
+  const accountColor =
+    accountBalanceMinutes === null
+      ? "gray"
+      : getDeltaStatus(accountBalanceMinutes);
 
   return (
     <div className="space-y-5">
@@ -261,9 +270,13 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
         <KpiCard
           label="Stundenkonto"
-          primary={formatSignedDuration(metrics.accountBalance)}
+          primary={
+            accountBalanceMinutes === null
+              ? "–"
+              : formatSignedDuration(accountBalanceMinutes)
+          }
           secondary={
-            metrics.accountBalance === 0
+            accountBalanceMinutes === 0
               ? `Soll und Ist ausgeglichen seit ${yearStartLabel}`
               : `seit ${yearStartLabel}`
           }

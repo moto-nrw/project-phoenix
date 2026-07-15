@@ -48,8 +48,11 @@ const baseMetrics: StaffMetrics = {
   accountBalance: 120,
 };
 
+// accountBalanceMinutes is the date-valid Saldo the real screens read from the
+// backend month model (useAccountBalance, #1842) — it no longer comes from
+// `metrics`, so the stories pass it explicitly.
 export const Cards: Story = {
-  render: () => <KpiCards metrics={baseMetrics} />,
+  render: () => <KpiCards metrics={baseMetrics} accountBalanceMinutes={120} />,
 };
 
 export const CardsBalanced: Story = {
@@ -58,10 +61,16 @@ export const CardsBalanced: Story = {
       metrics={{
         ...baseMetrics,
         monthDelta: 0,
-        accountBalance: 0,
       }}
+      accountBalanceMinutes={0}
     />
   ),
+};
+
+// The Saldo request has not resolved yet: the card must degrade to "–" rather
+// than render a stale or client-computed number.
+export const CardsBalanceLoading: Story = {
+  render: () => <KpiCards metrics={baseMetrics} accountBalanceMinutes={null} />,
 };
 
 export const Toggle: Story = {

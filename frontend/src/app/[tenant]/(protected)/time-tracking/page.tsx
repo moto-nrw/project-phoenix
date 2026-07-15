@@ -47,6 +47,7 @@ import type { StaffShift } from "~/lib/shift-helpers";
 import { toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useToast } from "~/contexts/ToastContext";
+import { useAccountBalance } from "~/lib/hooks/use-account-balance";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { staffScheduleService } from "~/lib/staff-api";
 import {
@@ -581,6 +582,7 @@ function ClockInCard({
   weeklyMinutes,
   onAddAbsence,
   metrics,
+  accountBalanceMinutes,
   plannedShifts,
   cancelledShifts,
 }: {
@@ -593,6 +595,8 @@ function ClockInCard({
   readonly weeklyMinutes: number;
   readonly onAddAbsence: () => void;
   readonly metrics?: ReturnType<typeof computeStaffMetrics> | null;
+  // Date-valid Saldo from the backend month model (#1842); null = loading.
+  readonly accountBalanceMinutes: number | null;
   readonly plannedShifts?: readonly StaffShift[];
   readonly cancelledShifts?: readonly StaffShift[];
 }) {
@@ -1151,7 +1155,10 @@ function ClockInCard({
             damit die Card defensiv lesbar bleibt. */}
         {metrics ? (
           <div className="mt-5 border-t border-gray-100 pt-4">
-            <ClockInStatsStrip metrics={metrics} />
+            <ClockInStatsStrip
+              metrics={metrics}
+              accountBalanceMinutes={accountBalanceMinutes}
+            />
             {/* Herkunfts-Chip am Soll-Wert (Planung-Redesign, docs/04 6.2):
                 genau einer pro Oberfläche, solange die Soll-Quellen-Frage
                 offen ist. */}
@@ -1190,8 +1197,14 @@ function ClockInCard({
 
 function ClockInStatsStrip({
   metrics,
+  accountBalanceMinutes,
 }: {
   readonly metrics: ReturnType<typeof computeStaffMetrics>;
+  // Date-valid Saldo from the backend month model (useAccountBalance, #1842).
+  // Never metrics.accountBalance: that one prices historical days at the
+  // CURRENT schedule and contradicts the Monatskarte after a contract change.
+  // null = still loading or unavailable.
+  readonly accountBalanceMinutes: number | null;
 }) {
   const weekPct =
     metrics.weekSoll > 0 ? (metrics.weekIst / metrics.weekSoll) * 100 : 0;
@@ -1199,11 +1212,13 @@ function ClockInStatsStrip({
     metrics.monthSoll > 0 ? (metrics.monthIst / metrics.monthSoll) * 100 : 0;
 
   const accountTone: StatusTone =
-    metrics.accountBalance > 0
-      ? "amber"
-      : metrics.accountBalance < -60
-        ? "gray"
-        : "green";
+    accountBalanceMinutes === null
+      ? "gray"
+      : accountBalanceMinutes > 0
+        ? "amber"
+        : accountBalanceMinutes < -60
+          ? "gray"
+          : "green";
 
   return (
     <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3 sm:gap-4">
@@ -1223,7 +1238,11 @@ function ClockInStatsStrip({
       />
       <InlineStat
         label="Stundenkonto"
-        primary={formatSignedDuration(metrics.accountBalance)}
+        primary={
+          accountBalanceMinutes === null
+            ? "–"
+            : formatSignedDuration(accountBalanceMinutes)
+        }
         secondary={`seit ${metrics.accountStart.toLocaleDateString("de-DE", {
           day: "numeric",
           month: "short",
@@ -3272,6 +3291,12 @@ function TimeTrackingContent() {
     [accountAbsenceData],
   );
 
+  // Stundenkonto comes from the server-computed month model, not from
+  // `ownMetrics`: only the backend prices each day against the schedule that
+  // was valid on that day, so this is the one figure that can never contradict
+  // the Monatskarte further down the page (#1842).
+  const { balanceMinutes: ownAccountBalanceMinutes } = useAccountBalance();
+
   const ownMetrics = useMemo(() => {
     if (!ownSchedule) return null;
     return computeStaffMetrics(
@@ -3782,6 +3807,7 @@ function TimeTrackingContent() {
           weeklyMinutes={weeklyCompletedMinutes}
           onAddAbsence={() => setAbsenceModalOpen(true)}
           metrics={ownMetrics ?? null}
+          accountBalanceMinutes={ownAccountBalanceMinutes}
           plannedShifts={todayShifts}
           cancelledShifts={todayCancelledShifts}
         />
