@@ -71,7 +71,11 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-in", rs.checkIn)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-out", rs.checkOut)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/current", rs.getCurrent)
-		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/config", rs.getConfig)
+		// The Stundenkonto anchor is a tenant-wide setting, not caller-scoped
+		// data. Admin views resolve a staff member's Monatskarte from it, so a
+		// manage-only role must be able to read it — the staff summary
+		// endpoints it pairs with gate on TimeTrackingManage alone.
+		r.With(authorize.RequiresAnyPermission(permissions.TimeTrackingOwn, permissions.TimeTrackingManage), withTx).Get("/config", rs.getConfig)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/history", rs.getHistory)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Put("/{id}", rs.updateSession)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/{id}/edits", rs.getSessionEdits)
