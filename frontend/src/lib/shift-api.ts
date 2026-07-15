@@ -27,13 +27,28 @@ interface ShiftPayload {
   breakMinutes: number;
   /** Id of the linked shift type (Schichtart), or null if untyped */
   shiftTypeId: string | null;
+  /** Optional free-form shift note. Omitted updates preserve the stored note. */
+  notes?: string;
   /** The shift does not take place (staff absent / gap left open, #1841). */
   cancelled?: boolean;
   /** Optional "why" for a flexible daily change (#1841). Sent verbatim, so the
-   *  saved value always matches what the admin sees; "" clears a stored reason. */
-  changeReason?: string;
+   *  saved value always matches what the admin sees; "" or null clears it. */
+  changeReason?: string | null;
   /** Id of the shift this one covers as a replacement (#1841). Create-only. */
   originShiftId?: string | null;
+}
+
+interface MoveShiftPayload {
+  sourceStaffId: string;
+  targetStaffId: string;
+  /** "YYYY-MM-DD" */
+  date: string;
+  /** "HH:MM" */
+  startTime: string;
+  /** "HH:MM" */
+  endTime: string;
+  breakMinutes: number;
+  shiftTypeId: string | null;
 }
 
 /** One replacement (Vertretung) covering part of a cancelled shift's gap. */
@@ -138,6 +153,7 @@ function toBackendBody(payload: ShiftPayload) {
       payload.shiftTypeId != null
         ? Number.parseInt(payload.shiftTypeId, 10)
         : null,
+    ...(payload.notes !== undefined ? { notes: payload.notes } : {}),
     ...(payload.cancelled ? { cancelled: true } : {}),
     ...(payload.changeReason !== undefined
       ? { change_reason: payload.changeReason }
@@ -249,6 +265,30 @@ class StaffShiftService {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(toBackendBody(payload)),
+    });
+    return readShift(response);
+  }
+
+  /** Atomically move one concrete shift while preserving its row identity. */
+  async moveShift(
+    shiftId: string,
+    payload: MoveShiftPayload,
+  ): Promise<StaffShift> {
+    const response = await sessionFetch(`/api/staff/shifts/${shiftId}/move`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source_staff_id: Number.parseInt(payload.sourceStaffId, 10),
+        target_staff_id: Number.parseInt(payload.targetStaffId, 10),
+        date: payload.date,
+        start_time: payload.startTime,
+        end_time: payload.endTime,
+        break_minutes: payload.breakMinutes,
+        shift_type_id:
+          payload.shiftTypeId != null
+            ? Number.parseInt(payload.shiftTypeId, 10)
+            : null,
+      }),
     });
     return readShift(response);
   }

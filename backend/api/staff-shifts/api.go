@@ -60,6 +60,7 @@ func (rs *Resource) Router() chi.Router {
 		).Get("/overview", rs.overview)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/", rs.create)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}", rs.update)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/move", rs.move)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Put("/{id}/cancellation", rs.cancellation)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Delete("/{id}", rs.delete)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Post("/series", rs.createSeries)
@@ -303,7 +304,7 @@ func (rs *Resource) editorStaffID(ctx context.Context) (int64, error) {
 
 func renderServiceError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
-	case errors.Is(err, scheduleSvc.ErrShiftOverlap):
+	case errors.Is(err, scheduleSvc.ErrShiftOverlap), errors.Is(err, scheduleSvc.ErrShiftConflict):
 		common.RenderError(w, r, common.ErrorConflict(err))
 	case errors.Is(err, scheduleSvc.ErrShiftNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
@@ -434,6 +435,71 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, ToShiftResponse(saved), "Staff shift updated")
+}
+
+// MoveShiftRequest is the complete desired slot for PUT /{id}/move. The
+// source owner makes cross-person retries distinguishable from stale moves.
+type MoveShiftRequest struct {
+	SourceStaffID int64      `json:"source_staff_id"`
+	TargetStaffID int64      `json:"target_staff_id"`
+	Date          string     `json:"date"`
+	StartTime     string     `json:"start_time"`
+	EndTime       string     `json:"end_time"`
+	BreakMinutes  int        `json:"break_minutes"`
+	ShiftTypeID   optionalID `json:"shift_type_id"`
+}
+
+func (rs *Resource) move(w http.ResponseWriter, r *http.Request) {
+	id, err := common.ParseID(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	var req MoveShiftRequest
+	if err := render.DecodeJSON(r.Body, &req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	if !req.ShiftTypeID.Present {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("shift_type_id is required")))
+		return
+	}
+	date, err := timezone.ParseDate(req.Date)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("date must be YYYY-MM-DD")))
+		return
+	}
+	start, end, err := ParseShiftTimes(req.StartTime, req.EndTime)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	editorID, err := rs.editorStaffID(r.Context())
+	if err != nil {
+		common.RenderError(w, r, common.ErrorUnauthorized(err))
+		return
+	}
+
+	saved, err := rs.Service.MoveShift(r.Context(), scheduleSvc.MoveShiftInput{
+		ShiftID:       id,
+		SourceStaffID: req.SourceStaffID,
+		TargetStaffID: req.TargetStaffID,
+		Date:          date,
+		StartTime:     start,
+		EndTime:       end,
+		BreakMinutes:  req.BreakMinutes,
+		ShiftTypeID:   req.ShiftTypeID.Value,
+		ActorStaffID:  editorID,
+	})
+	if err != nil {
+		// A series exception may already have been written before a later
+		// validation/persistence failure. Roll back every part of the move even
+		// when the client-facing result is a 4xx.
+		tenant.MarkRollback(r.Context())
+		renderServiceError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, ToShiftResponse(saved), "Staff shift moved")
 }
 
 // CancellationRequest is the payload for PUT /{id}/cancellation: flip the

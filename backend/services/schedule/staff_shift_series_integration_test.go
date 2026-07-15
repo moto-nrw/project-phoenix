@@ -349,6 +349,8 @@ func TestStaffShiftSeries_EditDetachesAndDeleteRecordsException(t *testing.T) {
 	assert.True(t, detached.Detached)
 	require.NotNil(t, detached.SeriesID)
 	assert.Equal(t, series.ID, *detached.SeriesID)
+	require.NotNil(t, detached.SeriesOccurrenceDate)
+	assert.Equal(t, editDate, *detached.SeriesOccurrenceDate)
 
 	// Deleting a series row through the EXISTING delete path records a series
 	// exception so re-plans never regenerate the occurrence.
@@ -360,6 +362,166 @@ func TestStaffShiftSeries_EditDetachesAndDeleteRecordsException(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, exceptionDates, 1)
 	assert.Equal(t, deleteDate, exceptionDates[0])
+}
+
+func TestStaffShiftSeries_MoveConsumesOriginalDateBeforeRematerialization(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	originalDate := today.AddDays(1)
+	for originalDate.Weekday() != time.Monday {
+		originalDate = originalDate.AddDays(1)
+	}
+	periodID := env.createPeriod(t, today, originalDate.AddDays(21), 1, nil)
+	series := env.buildSeries(t, periodID, today, nil, scheduleModels.WeekPatternEvery)
+	series.Weekdays = []int16{1}
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, series)
+		return err
+	})
+
+	originalRows := env.shiftsInRange(t, originalDate, originalDate)
+	require.Len(t, originalRows, 1)
+	original := originalRows[0]
+	movedDate := originalDate.AddDays(1)
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.shifts.MoveShift(ctx, scheduleSvc.MoveShiftInput{
+			ShiftID:       original.ID,
+			SourceStaffID: original.StaffID,
+			TargetStaffID: original.StaffID,
+			Date:          movedDate,
+			StartTime:     original.StartTime,
+			EndTime:       original.EndTime,
+			BreakMinutes:  original.BreakMinutes,
+			ShiftTypeID:   original.ShiftTypeID,
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+
+	assert.Empty(t, env.shiftsInRange(t, originalDate, originalDate))
+	movedRows := env.shiftsInRange(t, movedDate, movedDate)
+	require.Len(t, movedRows, 1)
+	assert.Equal(t, original.ID, movedRows[0].ID)
+	assert.True(t, movedRows[0].Detached)
+
+	// Splitting re-plans the successor segment. The exception written for the
+	// vacated Monday must prevent that original occurrence from coming back.
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
+			SeriesID:      series.ID,
+			EffectiveDate: originalDate,
+			StartTime:     series.StartTime,
+			EndTime:       series.EndTime,
+			BreakMinutes:  series.BreakMinutes,
+			ShiftTypeID:   series.ShiftTypeID,
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+
+	assert.Empty(t, env.shiftsInRange(t, originalDate, originalDate),
+		"re-plan must not recreate the vacated series occurrence")
+	after := env.shiftsInRange(t, movedDate, movedDate)
+	require.Len(t, after, 1)
+	assert.Equal(t, original.ID, after[0].ID)
+}
+
+func TestStaffShiftSeries_RepeatedMoveKeepsOriginalOccurrenceIdentity(t *testing.T) {
+	env := setupSeriesTest(t)
+	today := timezone.TodayDate()
+	originalMonday := today.AddDays(1)
+	for originalMonday.Weekday() != time.Monday {
+		originalMonday = originalMonday.AddDays(1)
+	}
+	periodID := env.createPeriod(t, today, originalMonday.AddDays(21), 1, nil)
+	series := env.buildSeries(t, periodID, today, nil, scheduleModels.WeekPatternEvery)
+	series.Weekdays = []int16{1, 2}
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.series.CreateSeries(ctx, series)
+		return err
+	})
+
+	mondayRows := env.shiftsInRange(t, originalMonday, originalMonday)
+	require.Len(t, mondayRows, 1)
+	moved := mondayRows[0]
+	tuesday := originalMonday.AddDays(1)
+	wednesday := originalMonday.AddDays(2)
+
+	// Move Monday's occurrence onto a second, non-overlapping Tuesday slot.
+	// The genuine Tuesday occurrence must remain independently owned by Tuesday.
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.shifts.MoveShift(ctx, scheduleSvc.MoveShiftInput{
+			ShiftID:       moved.ID,
+			SourceStaffID: moved.StaffID,
+			TargetStaffID: moved.StaffID,
+			Date:          tuesday,
+			StartTime:     seriesClock(t, "11:00"),
+			EndTime:       seriesClock(t, "12:00"),
+			BreakMinutes:  moved.BreakMinutes,
+			ShiftTypeID:   moved.ShiftTypeID,
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+	tuesdayRows := env.shiftsInRange(t, tuesday, tuesday)
+	require.Len(t, tuesdayRows, 2)
+
+	var movedOnTuesday *scheduleModels.StaffShift
+	for _, row := range tuesdayRows {
+		if row.ID == moved.ID {
+			movedOnTuesday = row
+			break
+		}
+	}
+	require.NotNil(t, movedOnTuesday)
+	require.NotNil(t, movedOnTuesday.SeriesOccurrenceDate)
+	assert.Equal(t, originalMonday, *movedOnTuesday.SeriesOccurrenceDate)
+
+	// Moving the same detached row again must record the same Monday exception
+	// idempotently, never an exception for the genuine Tuesday occurrence.
+	env.inTx(t, func(ctx context.Context) error {
+		_, err := env.shifts.MoveShift(ctx, scheduleSvc.MoveShiftInput{
+			ShiftID:       movedOnTuesday.ID,
+			SourceStaffID: movedOnTuesday.StaffID,
+			TargetStaffID: movedOnTuesday.StaffID,
+			Date:          wednesday,
+			StartTime:     movedOnTuesday.StartTime,
+			EndTime:       movedOnTuesday.EndTime,
+			BreakMinutes:  movedOnTuesday.BreakMinutes,
+			ShiftTypeID:   movedOnTuesday.ShiftTypeID,
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+	exceptionDates, err := env.repos.StaffShiftSeriesException.FindDatesBySeriesID(env.scope.Context(), series.ID)
+	require.NoError(t, err)
+	require.Equal(t, []timezone.Date{originalMonday}, exceptionDates)
+
+	// A split forces re-materialization. Monday stays consumed, Tuesday is
+	// regenerated, and the moved row survives on Wednesday as Monday's deviation.
+	var splitResult *scheduleSvc.SeriesResult
+	env.inTx(t, func(ctx context.Context) error {
+		var err error
+		splitResult, err = env.series.SplitSeries(ctx, scheduleSvc.SplitSeriesInput{
+			SeriesID:      series.ID,
+			EffectiveDate: originalMonday,
+			StartTime:     series.StartTime,
+			EndTime:       series.EndTime,
+			BreakMinutes:  series.BreakMinutes,
+			ShiftTypeID:   series.ShiftTypeID,
+			ActorStaffID:  env.staff.ID,
+		})
+		return err
+	})
+	require.NotNil(t, splitResult)
+	assert.Empty(t, env.shiftsInRange(t, originalMonday, originalMonday))
+	require.Len(t, env.shiftsInRange(t, tuesday, tuesday), 1,
+		"the genuine Tuesday occurrence must survive re-materialization")
+	wednesdayRows := env.shiftsInRange(t, wednesday, wednesday)
+	require.Len(t, wednesdayRows, 1)
+	assert.Equal(t, moved.ID, wednesdayRows[0].ID)
+	require.NotNil(t, wednesdayRows[0].SeriesOccurrenceDate)
+	assert.Equal(t, originalMonday, *wednesdayRows[0].SeriesOccurrenceDate)
 }
 
 func TestStaffShiftSeries_SplitPreservesDeviationsOnSuccessor(t *testing.T) {

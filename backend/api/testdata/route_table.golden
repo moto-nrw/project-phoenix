@@ -713,6 +713,7 @@ PUT /api/shift-types/{id}
 PUT /api/staff-shifts/series/{id}/split
 PUT /api/staff-shifts/{id}
 PUT /api/staff-shifts/{id}/cancellation
+PUT /api/staff-shifts/{id}/move
 PUT /api/staff/pin
 PUT /api/staff/{id}
 PUT /api/staff/{id}/schedule

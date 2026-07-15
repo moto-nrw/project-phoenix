@@ -304,6 +304,68 @@ describe("staffShiftService requests", () => {
     });
   });
 
+  it("serializes an atomic move with explicit source and target owners", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json({ data: { ...backendShift, staff_id: 8 } }),
+    );
+
+    await staffShiftService.moveShift("42", {
+      sourceStaffId: "7",
+      targetStaffId: "8",
+      date: "2026-07-07",
+      startTime: "09:00",
+      endTime: "15:00",
+      breakMinutes: 20,
+      shiftTypeId: "5",
+    });
+
+    expect(mockSessionFetch).toHaveBeenCalledWith("/api/staff/shifts/42/move", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source_staff_id: 7,
+        target_staff_id: 8,
+        date: "2026-07-07",
+        start_time: "09:00",
+        end_time: "15:00",
+        break_minutes: 20,
+        shift_type_id: 5,
+      }),
+    });
+  });
+
+  it("serializes notes and a nullable change reason when supplied", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json({ data: backendShift }, { status: 201 }),
+    );
+
+    await staffShiftService.createShift({
+      staffId: "7",
+      date: "2026-07-06",
+      startTime: "08:00",
+      endTime: "16:00",
+      breakMinutes: 30,
+      shiftTypeId: null,
+      notes: "Nur Hintereingang",
+      changeReason: null,
+    });
+
+    expect(mockSessionFetch).toHaveBeenCalledWith("/api/staff/shifts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        staff_id: 7,
+        date: "2026-07-06",
+        start_time: "08:00",
+        end_time: "16:00",
+        break_minutes: 30,
+        shift_type_id: null,
+        notes: "Nur Hintereingang",
+        change_reason: null,
+      }),
+    });
+  });
+
   it("returns cleanly after successful deletes", async () => {
     mockSessionFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
 

@@ -52,3 +52,25 @@ export const Small: Story = {
     size: "sm",
   },
 };
+
+export const WeeklySumUnder: Story = {
+  args: {
+    state: "covered",
+    current: undefined,
+    total: undefined,
+    label: "18/20,25 h",
+    tone: "under",
+    size: "sm",
+  },
+};
+
+export const WeeklySumOver: Story = {
+  args: {
+    state: "covered",
+    current: undefined,
+    total: undefined,
+    label: "22/20,25 h",
+    tone: "over",
+    size: "sm",
+  },
+};

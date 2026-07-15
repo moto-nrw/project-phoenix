@@ -424,6 +424,40 @@ func TestShiftService_UpdateKeepsStaffAssignment(t *testing.T) {
 	assert.Equal(t, int64(3), saved.CreatedBy, "original creator must be preserved")
 }
 
+func TestShiftService_UpdateRejectsConcurrentSameStaffMove(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	existing := validShift(7)
+	existing.ID = 5
+	moved := *existing
+	moved.Date = moved.Date.AddDays(1)
+	moved.StartTime = wall(9, 0)
+	moved.EndTime = wall(17, 0)
+
+	reads := 0
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		reads++
+		if reads == 1 {
+			return existing, nil
+		}
+		return &moved, nil
+	}
+	updates := 0
+	repo.updateFunc = func(_ context.Context, _ *scheduleModels.StaffShift) error {
+		updates++
+		return nil
+	}
+
+	staleEdit := validShift(7)
+	staleEdit.ID = existing.ID
+	staleEdit.Notes = "stale edit"
+	_, err := svc.UpdateShift(context.Background(), staleEdit)
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftConflict)
+	assert.Zero(t, updates, "a stale edit must not overwrite the moved slot")
+}
+
 func TestShiftService_UpdateClearsSickProvenanceWhenAdminKeepsCancellation(t *testing.T) {
 	svc, repo, _ := shiftServiceFixture()
 	absenceID := int64(91)

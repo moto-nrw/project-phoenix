@@ -13,6 +13,12 @@
 
 export type CoverageState = "covered" | "gap" | "acknowledged";
 type CoverageIndicatorSize = "sm" | "md";
+/**
+ * Delta-Tönung des Freitext-`label` (Wochensummen): neutral hält die
+ * zustandsabhängige Graufärbung, `under` färbt rot (Unterdeckung), `over`
+ * amber (Überdeckung). Wirkt ausschließlich auf die Freitext-Label-Farbe.
+ */
+type CoverageTone = "neutral" | "under" | "over";
 
 interface CoverageIndicatorProps {
   /** Deckungszustand, vom Aufrufer aus Fachdaten abgeleitet. */
@@ -26,6 +32,11 @@ interface CoverageIndicatorProps {
    * "19,5/20,25 h". Hat Vorrang vor `current`/`total`, wenn beides gesetzt ist.
    */
   readonly label?: string;
+  /**
+   * Delta-Tönung des Freitext-`label`. Nur wirksam, wenn `label` gesetzt ist;
+   * `neutral` (Default) ändert nichts am Bestandsverhalten.
+   */
+  readonly tone?: CoverageTone;
   /** Zusatzvermerk für state="acknowledged", z. B. "bewusst unbesetzt". */
   readonly note?: string;
   readonly size?: CoverageIndicatorSize;
@@ -59,6 +70,12 @@ const NUMBER_COLOR_CLASS: Record<CoverageState, string> = {
 /** Understaffing-red for the "Ist" figure — only ever used as text color. */
 const UNDERSTAFFED_TEXT_COLOR = "#FF3130";
 
+/** Delta tint of the free-form label — text color only, never a fill. */
+const TONE_TEXT_COLOR: Record<Exclude<CoverageTone, "neutral">, string> = {
+  under: "#FF3130",
+  over: "#EAB308",
+};
+
 function defaultDescription({
   state,
   current,
@@ -88,6 +105,7 @@ export function CoverageIndicator({
   current,
   total,
   label,
+  tone = "neutral",
   note,
   size = "md",
   title,
@@ -100,8 +118,12 @@ export function CoverageIndicator({
 
   let numberContent: React.ReactNode = null;
   if (label !== undefined) {
+    const toneColor = tone === "neutral" ? undefined : TONE_TEXT_COLOR[tone];
     numberContent = (
-      <span className={`${numberSizeClass} tabular-nums ${numberColorClass}`}>
+      <span
+        className={`${numberSizeClass} tabular-nums ${numberColorClass}`}
+        style={toneColor ? { color: toneColor } : undefined}
+      >
         {label}
       </span>
     );

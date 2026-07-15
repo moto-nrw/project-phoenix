@@ -74,6 +74,13 @@ const ganzjahrOhneZyklus: CalendarPeriod = {
   isActive: true,
 } as CalendarPeriod;
 
+const halbjahrVersetzt: CalendarPeriod = {
+  ...halbjahr,
+  id: "7",
+  name: "Versetzter A/B-Zyklus",
+  weekCycleAnchor: "2026-08-10",
+} as CalendarPeriod;
+
 const seriesShift: StaffShift = {
   id: "9",
   staffId: "7",
@@ -178,7 +185,7 @@ describe("ShiftEditModal series creation", () => {
     await screen.findByText("1. Halbjahr 2026/27");
     // Enable A/B on the cycle period, then switch to a period without a
     // cycle: the hidden biweekly flag must not leak into the payload.
-    fireEvent.click(screen.getByRole("button", { name: "Alle 2 Wochen" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Alle 2 Wochen" }));
     fireEvent.click(screen.getByLabelText("Kalenderzeitraum"));
     fireEvent.click(
       screen.getByRole("option", { name: "Ganzjahr ohne Zyklus" }),
@@ -191,6 +198,28 @@ describe("ShiftEditModal series creation", () => {
         expect.objectContaining({ calendarPeriodId: "6", weekPattern: 0 }),
       );
     });
+  });
+
+  it("keeps an explicitly reselected A week when the period default changes", async () => {
+    listPeriods.mockResolvedValue([halbjahr, halbjahrVersetzt]);
+    renderModal({ date: "2026-09-14" });
+
+    fireEvent.click(screen.getByLabelText("Als Serie wiederholen"));
+    await screen.findByText("1. Halbjahr 2026/27");
+    fireEvent.click(screen.getByRole("radio", { name: "Alle 2 Wochen" }));
+
+    const weekA = screen.getByRole("radio", { name: "Woche A" });
+    await waitFor(() => expect(weekA).toBeChecked());
+    // Native radios do not emit change when the checked option is clicked. The
+    // click still represents an explicit choice and must stop future defaults.
+    fireEvent.click(weekA);
+    fireEvent.click(screen.getByLabelText("Kalenderzeitraum"));
+    fireEvent.click(
+      screen.getByRole("option", { name: "Versetzter A/B-Zyklus" }),
+    );
+
+    expect(weekA).toBeChecked();
+    expect(screen.getByRole("radio", { name: "Woche B" })).not.toBeChecked();
   });
 
   it("sends the inclusive 'Gültig bis' date as the exclusive valid_until", async () => {

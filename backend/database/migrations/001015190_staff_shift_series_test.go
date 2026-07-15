@@ -105,8 +105,9 @@ func TestStaffShiftSeriesSchema(t *testing.T) {
 		var shiftID int64
 		require.NoError(t, db.NewRaw(`
 			INSERT INTO schedule.staff_shifts (
-				tenant_id, staff_id, date, start_time, end_time, break_minutes, created_by, series_id, detached
-			) VALUES (?, ?, '2026-09-04', '09:00', '12:00', 0, ?, ?, FALSE)
+				tenant_id, staff_id, date, start_time, end_time, break_minutes,
+				created_by, series_id, series_occurrence_date, detached
+			) VALUES (?, ?, '2026-09-04', '09:00', '12:00', 0, ?, ?, '2026-09-04', FALSE)
 			RETURNING id
 		`, tenantID, staff.ID, staff.ID, orphanSeriesID).Scan(ctx, &shiftID))
 

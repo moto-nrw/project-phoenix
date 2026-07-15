@@ -180,14 +180,16 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 		return 0, nil, err
 	}
 	existingByDate := make(map[timezone.Date][]*scheduleModels.StaffShift, len(existing))
-	// Dates that already carry a row of THIS series (detached survivors of a
-	// re-plan, or split re-points) are owned: the user deviated that day, the
-	// series must not add a second shift there — regardless of overlap.
+	// Recurrence slots that already have a row of THIS series (detached survivors
+	// of a re-plan, or split re-points) are owned: the user deviated that
+	// occurrence, so the series must not add a second shift there. A moved row's
+	// current Date may be another genuine occurrence; ownership follows the
+	// immutable source slot instead.
 	ownedDates := make(map[timezone.Date]bool)
 	for _, shift := range existing {
 		existingByDate[shift.Date] = append(existingByDate[shift.Date], shift)
 		if shift.SeriesID != nil && *shift.SeriesID == series.ID {
-			ownedDates[shift.Date] = true
+			ownedDates[seriesOccurrenceDate(shift)] = true
 		}
 	}
 
@@ -207,16 +209,18 @@ func (s *staffShiftSeriesService) materializeSeries(ctx context.Context, series 
 			continue
 		}
 		seriesID := series.ID
+		occurrenceDate := d
 		candidate := &scheduleModels.StaffShift{
-			StaffID:      series.StaffID,
-			Date:         d,
-			StartTime:    startTime,
-			EndTime:      endTime,
-			BreakMinutes: series.BreakMinutes,
-			ShiftTypeID:  series.ShiftTypeID,
-			Notes:        series.Notes,
-			SeriesID:     &seriesID,
-			CreatedBy:    series.CreatedBy,
+			StaffID:              series.StaffID,
+			Date:                 d,
+			StartTime:            startTime,
+			EndTime:              endTime,
+			BreakMinutes:         series.BreakMinutes,
+			ShiftTypeID:          series.ShiftTypeID,
+			Notes:                series.Notes,
+			SeriesID:             &seriesID,
+			SeriesOccurrenceDate: &occurrenceDate,
+			CreatedBy:            series.CreatedBy,
 		}
 		overlaps := false
 		for _, other := range existingByDate[d] {

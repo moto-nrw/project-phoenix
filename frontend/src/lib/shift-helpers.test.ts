@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  formatColumnDate,
   formatDeltaHours,
   formatPlannedHours,
   formatShiftLabel,
@@ -8,9 +9,12 @@ import {
   mapOwnAssignment,
   mapStaffScheduleOverview,
   mapStaffShift,
+  summaryLabel,
+  summaryTone,
   type BackendOwnAssignment,
   type BackendStaffScheduleOverview,
   type BackendStaffShift,
+  type SummaryDelta,
 } from "./shift-helpers";
 
 describe("mapStaffShift", () => {
@@ -395,6 +399,68 @@ describe("formatShiftLabel", () => {
       break_minutes: 30,
     });
     expect(formatShiftLabel(shift)).toBe("08:00–16:00");
+  });
+});
+
+describe("formatColumnDate", () => {
+  it("formats an ISO date as the day.month. column sublabel", () => {
+    expect(formatColumnDate("2026-07-13")).toBe("13.07.");
+    expect(formatColumnDate("2026-09-01")).toBe("01.09.");
+  });
+});
+
+describe("summaryTone", () => {
+  function delta(overrides: Partial<SummaryDelta> = {}): SummaryDelta {
+    return {
+      plannedMinutes: 1080,
+      targetMinutes: 1215,
+      deltaMinutes: -135,
+      ...overrides,
+    };
+  }
+
+  it("returns 'under' for a negative delta", () => {
+    expect(summaryTone(delta({ deltaMinutes: -135 }))).toBe("under");
+  });
+
+  it("returns 'over' for a positive delta", () => {
+    expect(
+      summaryTone(delta({ plannedMinutes: 1350, deltaMinutes: 135 })),
+    ).toBe("over");
+  });
+
+  it("returns 'neutral' for an exact match", () => {
+    expect(summaryTone(delta({ plannedMinutes: 1215, deltaMinutes: 0 }))).toBe(
+      "neutral",
+    );
+  });
+
+  it("returns 'neutral' when there is no target or delta", () => {
+    expect(
+      summaryTone(delta({ targetMinutes: null, deltaMinutes: null })),
+    ).toBe("neutral");
+  });
+});
+
+describe("summaryLabel", () => {
+  it("renders planned/target hours when a target exists", () => {
+    expect(
+      summaryLabel({
+        plannedMinutes: 1080,
+        targetMinutes: 1215,
+        deltaMinutes: -135,
+      }),
+    ).toBe("18/20,25 h");
+  });
+
+  it("renders only the planned sum without a target", () => {
+    expect(
+      summaryLabel({
+        plannedMinutes: 270,
+        targetMinutes: null,
+        deltaMinutes: null,
+      }),
+    ).toBe("4,5 h");
   });
 });
 

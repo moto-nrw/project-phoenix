@@ -9,6 +9,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DatePicker } from "~/components/ui/date-picker";
 import { Modal } from "~/components/ui/modal";
+import { Radio } from "~/components/ui/radio";
 import { getApiErrorMessage } from "~/lib/api-error-message";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import {
@@ -931,19 +932,41 @@ export function ShiftEditModal({
                     <FieldGroup label="Wochenrhythmus">
                       <div className="space-y-2">
                         <div className="flex flex-wrap gap-2">
-                          <RhythmButton
-                            active={!biweekly}
-                            onClick={() => setBiweekly(false)}
+                          <label
+                            htmlFor="shift-series-rhythm-weekly"
+                            className="flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1.5"
                           >
-                            Jede Woche
-                          </RhythmButton>
-                          <RhythmButton
-                            active={biweekly}
-                            onClick={() => setBiweekly(true)}
-                            disabled={!periodHasCycle}
+                            <Radio
+                              id="shift-series-rhythm-weekly"
+                              name="shift-series-rhythm"
+                              value="weekly"
+                              checked={!biweekly}
+                              onChange={() => setBiweekly(false)}
+                            />
+                            <span className="text-xs font-medium text-gray-700">
+                              Jede Woche
+                            </span>
+                          </label>
+                          <label
+                            htmlFor="shift-series-rhythm-biweekly"
+                            className={
+                              periodHasCycle
+                                ? "flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1.5"
+                                : "flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1.5 opacity-50"
+                            }
                           >
-                            Alle 2 Wochen
-                          </RhythmButton>
+                            <Radio
+                              id="shift-series-rhythm-biweekly"
+                              name="shift-series-rhythm"
+                              value="biweekly"
+                              checked={biweekly}
+                              onChange={() => setBiweekly(true)}
+                              disabled={!periodHasCycle}
+                            />
+                            <span className="text-xs font-medium text-gray-700">
+                              Alle 2 Wochen
+                            </span>
+                          </label>
                         </div>
                         {!periodHasCycle && (
                           <p className="text-xs text-gray-500">
@@ -954,24 +977,38 @@ export function ShiftEditModal({
                         {biweekly && periodHasCycle && (
                           <div className="space-y-1">
                             <div className="flex flex-wrap gap-2">
-                              <RhythmButton
-                                active={abPattern === 1}
-                                onClick={() => {
-                                  setAbPattern(1);
-                                  setAbTouched(true);
-                                }}
+                              <label
+                                htmlFor="shift-series-ab-pattern-a"
+                                className="flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1.5"
                               >
-                                Woche A
-                              </RhythmButton>
-                              <RhythmButton
-                                active={abPattern === 2}
-                                onClick={() => {
-                                  setAbPattern(2);
-                                  setAbTouched(true);
-                                }}
+                                <Radio
+                                  id="shift-series-ab-pattern-a"
+                                  name="shift-series-ab-pattern"
+                                  value="a"
+                                  checked={abPattern === 1}
+                                  onClick={() => setAbTouched(true)}
+                                  onChange={() => setAbPattern(1)}
+                                />
+                                <span className="text-xs font-medium text-gray-700">
+                                  Woche A
+                                </span>
+                              </label>
+                              <label
+                                htmlFor="shift-series-ab-pattern-b"
+                                className="flex items-center gap-1.5 rounded-md border border-gray-200 px-2 py-1.5"
                               >
-                                Woche B
-                              </RhythmButton>
+                                <Radio
+                                  id="shift-series-ab-pattern-b"
+                                  name="shift-series-ab-pattern"
+                                  value="b"
+                                  checked={abPattern === 2}
+                                  onClick={() => setAbTouched(true)}
+                                  onChange={() => setAbPattern(2)}
+                                />
+                                <span className="text-xs font-medium text-gray-700">
+                                  Woche B
+                                </span>
+                              </label>
                             </div>
                             {defaultAbPattern !== null && (
                               <p className="text-xs text-gray-500">
@@ -1092,34 +1129,6 @@ export function ShiftEditModal({
 function submitLabel(mode: ShiftEditMode, repeatEnabled: boolean): string {
   if (mode === "edit") return "Änderungen speichern";
   return repeatEnabled ? "Serie anlegen" : "Schicht anlegen";
-}
-
-function RhythmButton({
-  active,
-  onClick,
-  disabled,
-  children,
-}: {
-  readonly active: boolean;
-  readonly onClick: () => void;
-  readonly disabled?: boolean;
-  readonly children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-pressed={active}
-      className={
-        active
-          ? "rounded-md bg-gray-900 px-3 py-1.5 text-xs font-semibold text-white"
-          : "rounded-md border border-gray-200 px-3 py-1.5 text-xs font-medium text-gray-700 disabled:opacity-50"
-      }
-    >
-      {children}
-    </button>
-  );
 }
 
 function Field({

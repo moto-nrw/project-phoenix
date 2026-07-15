@@ -959,3 +959,41 @@ func TestShiftService_ApplyCancellation_LocksDroppedCoverStaff(t *testing.T) {
 	assert.Equal(t, []int64{3, 7, 8}, lockSets[0],
 		"the dropped cover's staff (3) must be folded into the cancellation lock set")
 }
+
+func TestShiftService_ApplyCancellation_RejectsCoverMovedAfterDiscovery(t *testing.T) {
+	svc, repo, _ := shiftServiceFixture()
+
+	origin := validShift(7)
+	origin.ID = 5
+	repo.findByIDFunc = func(_ context.Context, _ any) (*scheduleModels.StaffShift, error) {
+		return origin, nil
+	}
+	staleCover := validShift(3)
+	staleCover.ID = 11
+	staleCover.OriginShiftID = int64Ptr(origin.ID)
+	movedCover := *staleCover
+	movedCover.StaffID = 4
+	coverReads := 0
+	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*scheduleModels.StaffShift, error) {
+		coverReads++
+		if coverReads == 1 {
+			return []*scheduleModels.StaffShift{staleCover}, nil
+		}
+		return []*scheduleModels.StaffShift{&movedCover}, nil
+	}
+	deletes := 0
+	repo.deleteFunc = func(_ context.Context, _ any) error {
+		deletes++
+		return nil
+	}
+
+	_, err := svc.ApplyCancellation(context.Background(), CancelShiftInput{
+		ShiftID:      origin.ID,
+		Cancelled:    true,
+		ActorStaffID: 1,
+	})
+
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrShiftConflict)
+	assert.Zero(t, deletes, "stale lock ownership must be rejected before mutating covers")
+}

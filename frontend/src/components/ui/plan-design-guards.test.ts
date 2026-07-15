@@ -15,8 +15,9 @@ import { describe, expect, it } from "vitest";
  *       exempt — semantic color always routes through LOCATION_COLORS hex
  *       or a color prop, per .claude/rules/frontend-ui-kit.md.
  *
- * Scope: the new planning kit primitives (`ui/plan*.tsx`, `ui/coverage*.tsx`)
- * PLUS every `.tsx` file under `components/timetable/`. The new primitive
+ * Scope: the new planning kit primitives (`ui/plan*.tsx`, `ui/coverage*.tsx`,
+ * `ui/resource*.tsx`, `ui/capacity*.tsx`) PLUS every `.tsx` file under
+ * `components/timetable/`. The new primitive
  * files get a ZERO-tolerance check — no allowlist entries, ever. The
  * pre-existing timetable files may carry violations that existed before
  * this guard was introduced; those are captured in a shrink-only allowlist
@@ -28,6 +29,19 @@ import { describe, expect, it } from "vitest";
 
 const UI_DIR = path.dirname(fileURLToPath(import.meta.url));
 const TIMETABLE_DIR = path.resolve(UI_DIR, "../timetable");
+const STAFF_DIR = path.resolve(UI_DIR, "../staff");
+
+// Additive zero-tolerance scope (Planung-Redesign Inkrement 3, Dienstplan):
+// these screen files consume PlanBlock/ResourceGrid end-to-end and probed
+// clean against both patterns before being added here — same zero-tolerance
+// bar as the kit primitives below, no allowlist. Explicit file list, not a
+// directory glob: components/staff/ also holds unrelated screens that were
+// never audited for this guard.
+const DIENSTPLAN_PLANNING_FILES = [
+  "dienstplan-halbjahr-grid.tsx",
+  "dienstplan-resource-grid.tsx",
+  "shift-move-dialog.tsx",
+];
 
 const GRADIENT_PATTERN = /bg-gradient|from-\[|to-\[/g;
 const BRIGHT_COLOR_PATTERN =
@@ -64,19 +78,24 @@ function listTsxFiles(dir: string): string[] {
 }
 
 function planPrimitiveFiles(): string[] {
-  return listTsxFiles(UI_DIR).filter((name) => /^(plan|coverage)/.test(name));
+  return listTsxFiles(UI_DIR).filter((name) =>
+    /^(plan|coverage|resource|capacity)/.test(name),
+  );
 }
 
 describe("plan-design-guards", () => {
-  describe("new planning kit primitives (ui/plan*.tsx, ui/coverage*.tsx)", () => {
+  describe("new planning kit primitives (ui/plan*.tsx, ui/coverage*.tsx, ui/resource*.tsx, ui/capacity*.tsx)", () => {
     const files = planPrimitiveFiles();
 
-    it("found the three new primitive source files (sanity check on the glob)", () => {
+    it("found the new primitive source files (sanity check on the glob)", () => {
       expect(files).toEqual(
         expect.arrayContaining([
+          "capacity-strip.tsx",
           "coverage-indicator.tsx",
           "plan-block.tsx",
+          "plan-legend.tsx",
           "planning-context-bar.tsx",
+          "resource-grid.tsx",
         ]),
       );
     });
@@ -98,6 +117,34 @@ describe("plan-design-guards", () => {
     );
   });
 
+  describe("Dienstplan planning screens (components/staff/)", () => {
+    const files = DIENSTPLAN_PLANNING_FILES;
+
+    it("found the Dienstplan planning source files (sanity check on the list)", () => {
+      for (const file of files) {
+        expect(() =>
+          readFileSync(path.join(STAFF_DIR, file), "utf-8"),
+        ).not.toThrow();
+      }
+    });
+
+    it.each(files)(
+      "%s has zero gradient violations (bg-gradient|from-[|to-[)",
+      (file) => {
+        const source = readFileSync(path.join(STAFF_DIR, file), "utf-8");
+        expect(countMatches(source, GRADIENT_PATTERN)).toBe(0);
+      },
+    );
+
+    it.each(files)(
+      "%s uses zero generic Tailwind bright-color classes",
+      (file) => {
+        const source = readFileSync(path.join(STAFF_DIR, file), "utf-8");
+        expect(countMatches(source, BRIGHT_COLOR_PATTERN)).toBe(0);
+      },
+    );
+  });
+
   describe("repeating-linear-gradient hatch encapsulation", () => {
     // Only production source files are checked here — .test.tsx/.stories.tsx
     // siblings legitimately reference the same literal to verify it, which
@@ -113,6 +160,7 @@ describe("plan-design-guards", () => {
       ...listTsxFiles(TIMETABLE_DIR)
         .filter(isProductionSourceFile)
         .map((file) => ({ file, dir: TIMETABLE_DIR })),
+      ...DIENSTPLAN_PLANNING_FILES.map((file) => ({ file, dir: STAFF_DIR })),
     ];
 
     it("only plan-block.tsx references repeating-linear-gradient", () => {

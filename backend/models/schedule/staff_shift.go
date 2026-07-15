@@ -42,6 +42,14 @@ type StaffShift struct {
 	// re-plans delete and regenerate only non-detached rows.
 	SeriesID *int64 `bun:"series_id" json:"series_id,omitempty"`
 	Detached bool   `bun:"detached,notnull,default:false" json:"detached"`
+	// SeriesOccurrenceDate is the concrete recurrence slot this row originally
+	// materialized for. It deliberately does not follow Date when an occurrence
+	// is moved: exceptions, re-plans, and splits must keep addressing the source
+	// slot rather than accidentally consuming the moved row's current date.
+	// Rows created as standalone leave it nil. A series hard-delete may leave the
+	// now-standalone row's old value behind, but all consumers ignore it when
+	// SeriesID is nil. This is persistence metadata, not an API field.
+	SeriesOccurrenceDate *timezone.Date `bun:"series_occurrence_date,type:date" json:"-"`
 	// Cancelled marks a shift that does not take place: the staff member is
 	// absent or the position is deliberately left open (#1841). The row is kept
 	// for the plan/history but excluded from planned minutes and auto-checkout.

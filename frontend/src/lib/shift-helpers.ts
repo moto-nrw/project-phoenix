@@ -330,6 +330,51 @@ export function formatShiftLabel(shift: StaffShift): string {
   return `${shift.startTime}–${shift.endTime}`;
 }
 
+/** "2026-07-13" → "13.07." — the day/month sublabel of a grid column. */
+export function formatColumnDate(isoDate: string): string {
+  const [, m, d] = isoDate.split("-");
+  return `${d}.${m}.`;
+}
+
+/**
+ * Delta tone of a weekly summary label: under contract → "under" (red), over →
+ * "over" (amber), exact or no target → "neutral". Structurally identical to the
+ * ui kit's `CoverageTone` — the grids pass this value straight to
+ * `CoverageIndicator`'s `tone` — but declared here so lib never imports from
+ * components (the dependency direction must stay one-way).
+ */
+export type SummaryTone = "neutral" | "under" | "over";
+
+/**
+ * The minimal delta shape shared by the week-view row-header summary
+ * (`StaffWeeklySummary`) and the half-year cell summary. Both satisfy it
+ * structurally, so `summaryTone`/`summaryLabel` work for either.
+ */
+export interface SummaryDelta {
+  plannedMinutes: number;
+  targetMinutes: number | null;
+  deltaMinutes: number | null;
+}
+
+// Under contract → red, over → amber, exact/no target → neutral (docs/05
+// Abschnitt 2.3). Only the free-text label of the CoverageIndicator is tinted.
+export function summaryTone(summary: SummaryDelta): SummaryTone {
+  if (summary.targetMinutes === null || summary.deltaMinutes === null) {
+    return "neutral";
+  }
+  if (summary.deltaMinutes < 0) return "under";
+  if (summary.deltaMinutes > 0) return "over";
+  return "neutral";
+}
+
+// "18/20,25 h" with a target, "18 h" without one (docs/05 Abschnitt 2.3).
+export function summaryLabel(summary: SummaryDelta): string {
+  const planned = formatPlannedHours(summary.plannedMinutes);
+  if (summary.targetMinutes === null) return planned;
+  const plannedValue = planned.replace(/\s*h$/, "");
+  return `${plannedValue}/${formatPlannedHours(summary.targetMinutes)}`;
+}
+
 /**
  * Groups shifts for the week grid: staffId -> date ("YYYY-MM-DD") -> shifts
  * (sorted by start time, as delivered by the backend).

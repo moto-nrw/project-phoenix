@@ -230,15 +230,17 @@ func (r *StaffShiftRepository) DeleteNonDetachedBySeriesFrom(ctx context.Context
 	return rows, nil
 }
 
-// RepointDetachedSeriesFrom moves a series' detached rows on or after from to
-// the successor series created by a split, preserving the deviations.
+// RepointDetachedSeriesFrom moves a series' detached occurrences on or after
+// from to the successor series created by a split, preserving the deviations.
+// A moved row's current date is not its recurrence slot; use the immutable
+// source date so a cross-boundary move remains attached to the right segment.
 func (r *StaffShiftRepository) RepointDetachedSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from timezone.Date) (int64, error) {
 	query := base.GetDB(ctx, r.db).NewUpdate().
 		Table("schedule.staff_shifts").
 		Set("series_id = ?", toSeriesID).
 		Where("series_id = ?", fromSeriesID).
 		Where("detached = TRUE").
-		Where("date >= ?", from)
+		Where("series_occurrence_date >= ?", from)
 
 	if tenantID := tenant.FromContext(ctx); tenantID > 0 {
 		query = query.Where("tenant_id = ?", tenantID)
