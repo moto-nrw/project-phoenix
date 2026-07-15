@@ -50,6 +50,7 @@ interface StudentModalConfig {
   heading: string;
   /** Omitted for the general-purpose child list, which offers every template. */
   lockedPreset?: StudentExportPreset;
+  hiddenPresets?: readonly StudentExportPreset[];
 }
 
 /**
@@ -106,8 +107,14 @@ export default function DatabaseExportsPage() {
               <Button
                 type="button"
                 size="md"
+                variant="outline"
                 onClick={() =>
-                  setStudentModal({ heading: "Kinderliste exportieren" })
+                  setStudentModal({
+                    heading: "Kinderliste exportieren",
+                    // The birthday list has its own card here, so offering it
+                    // in the grid too would be a second route to one list.
+                    hiddenPresets: ["birthday_list"],
+                  })
                 }
               >
                 <Download className="mr-2 h-4 w-4" aria-hidden />
@@ -128,6 +135,7 @@ export default function DatabaseExportsPage() {
               <Button
                 type="button"
                 size="md"
+                variant="outline"
                 onClick={() =>
                   setStudentModal({
                     heading: "Geburtstagsliste exportieren",
@@ -153,6 +161,7 @@ export default function DatabaseExportsPage() {
               <Button
                 type="button"
                 size="md"
+                variant="outline"
                 disabled={busy === "emergency-download"}
                 onClick={() =>
                   void runExport("emergency-download", () =>
@@ -186,12 +195,12 @@ export default function DatabaseExportsPage() {
               Momentaufnahme.
             </ExportDescription>
             <ExportActions>
-              {ROOM_FORMATS.map(({ format, label, icon }, index) => (
+              {ROOM_FORMATS.map(({ format, label, icon }) => (
                 <Button
                   key={format}
                   type="button"
                   size="md"
-                  variant={index === 0 ? "primary" : "outline"}
+                  variant="outline"
                   disabled={busy === `rooms-${format}`}
                   onClick={() =>
                     void runExport(`rooms-${format}`, () =>
@@ -238,6 +247,7 @@ export default function DatabaseExportsPage() {
         filters={{}}
         heading={studentModal?.heading}
         lockedPreset={studentModal?.lockedPreset}
+        hiddenPresets={studentModal?.hiddenPresets}
         onClose={() => setStudentModal(null)}
       />
     </div>

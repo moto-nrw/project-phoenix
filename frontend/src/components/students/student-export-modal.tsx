@@ -46,6 +46,12 @@ interface StudentExportModalProps {
    * general-purpose export that lets users pick any template.
    */
   readonly lockedPreset?: StudentExportPreset;
+  /**
+   * Templates to leave out of the grid. Use it where a template already has its
+   * own entry point, so the same list is not offered twice. Ignored when
+   * lockedPreset is set (there is no grid then).
+   */
+  readonly hiddenPresets?: readonly StudentExportPreset[];
   readonly onClose: () => void;
 }
 
@@ -69,6 +75,7 @@ export function StudentExportModal({
   resultCount,
   heading = "Kindersuche exportieren",
   lockedPreset,
+  hiddenPresets,
   onClose,
 }: StudentExportModalProps) {
   const [mounted, setMounted] = useState(false);
@@ -128,6 +135,13 @@ export function StudentExportModal({
     () => STUDENT_EXPORT_PRESETS.find((item) => item.id === preset),
     [preset],
   );
+
+  const visiblePresets = useMemo(() => {
+    if (!hiddenPresets?.length) return STUDENT_EXPORT_PRESETS;
+    return STUDENT_EXPORT_PRESETS.filter(
+      (item) => !hiddenPresets.includes(item.id),
+    );
+  }, [hiddenPresets]);
 
   // A locked dialog offers only the columns its list is made of; the full
   // catalog would put a weekly matrix on a birthday list.
@@ -244,7 +258,7 @@ export function StudentExportModal({
             <section>
               <p className="text-sm font-medium text-gray-900">Vorlage</p>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {STUDENT_EXPORT_PRESETS.map((item) => (
+                {visiblePresets.map((item) => (
                   <button
                     key={item.id}
                     type="button"

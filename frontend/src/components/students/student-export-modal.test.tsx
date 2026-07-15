@@ -425,8 +425,8 @@ describe("StudentExportModal", () => {
       });
     });
 
-    // The general-purpose dialog keeps every template, so the birthday list
-    // stays reachable from the Kindersuche too.
+    // The Kindersuche has no birthday card of its own, so its export dialog
+    // stays the only route there for staff without Datenverwaltung access.
     it("keeps the full template grid when not locked", async () => {
       await openModal();
 
@@ -437,6 +437,22 @@ describe("StudentExportModal", () => {
       expect(
         screen.getByRole("button", { name: /^OGS Wochenliste/ }),
       ).toBeInTheDocument();
+    });
+
+    // On the export page the birthday list has its own card, so leaving it in
+    // the grid would be a second route to the same list.
+    it("drops hidden templates from the grid but keeps the rest", async () => {
+      await openModal({ hiddenPresets: ["birthday_list"] });
+
+      expect(screen.getByText("Vorlage")).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: /^Geburtstagsliste/ }),
+      ).not.toBeInTheDocument();
+      for (const kept of ["OGS Wochenliste", "Klassenliste", "Checkliste"]) {
+        expect(
+          screen.getByRole("button", { name: new RegExp(`^${kept}`) }),
+        ).toBeInTheDocument();
+      }
     });
 
     // Without a filtered list behind it, reporting "0 Kinder" would be a lie.
