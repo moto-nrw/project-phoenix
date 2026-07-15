@@ -107,11 +107,28 @@ export default function NfcQuickstartPage() {
               const Icon = step.icon;
               const isRight = index === 1;
               const marker = (
-                <div className="flex flex-col items-center gap-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#315C9B] text-sm font-bold text-white print:h-7 print:w-7 print:text-xs">
+                <div
+                  className={[
+                    "flex items-center gap-2",
+                    isRight ? "justify-end" : "justify-start",
+                  ].join(" ")}
+                >
+                  <span
+                    className={[
+                      "flex h-8 w-9 items-center justify-center bg-[#315C9B] text-sm font-bold text-white print:h-7 print:w-8 print:text-xs",
+                      isRight
+                        ? "order-2 [clip-path:polygon(0_0,100%_0,100%_100%,0_100%,18%_50%)]"
+                        : "order-1 [clip-path:polygon(0_0,100%_0,82%_50%,100%_100%,0_100%)]",
+                    ].join(" ")}
+                  >
                     {step.number}
                   </span>
-                  <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-[#83CD2D]/16 text-[#3F6F12] print:h-12 print:w-12 print:rounded-2xl">
+                  <div
+                    className={[
+                      "flex h-16 w-16 items-center justify-center rounded-3xl bg-[#83CD2D]/16 text-[#3F6F12] print:h-12 print:w-12 print:rounded-2xl",
+                      isRight ? "order-1" : "order-2",
+                    ].join(" ")}
+                  >
                     <Icon
                       className="h-8 w-8 print:h-6 print:w-6"
                       aria-hidden="true"
@@ -140,15 +157,26 @@ export default function NfcQuickstartPage() {
 
                   <div
                     className={[
-                      "relative grid w-full gap-5 rounded-3xl border border-gray-200 bg-white p-5 md:w-[78%] print:w-[78%] print:gap-4 print:rounded-2xl print:p-4",
-                      isRight
-                        ? "grid-cols-[1fr_76px] print:grid-cols-[1fr_60px]"
-                        : "grid-cols-[76px_1fr] print:grid-cols-[60px_1fr]",
+                      "relative w-full rounded-3xl border border-gray-200 bg-white p-5 md:w-[78%] print:w-[78%] print:rounded-2xl print:p-4",
                       isRight ? "md:mr-0 print:mr-0" : "",
                     ].join(" ")}
                   >
-                    {!isRight ? marker : null}
-                    <div className="min-w-0">
+                    <div
+                      className={[
+                        "absolute top-5 print:top-4",
+                        isRight
+                          ? "right-5 print:right-4"
+                          : "left-5 print:left-4",
+                      ].join(" ")}
+                    >
+                      {marker}
+                    </div>
+                    <div
+                      className={[
+                        "min-w-0",
+                        isRight ? "pr-32 print:pr-24" : "pl-32 print:pl-24",
+                      ].join(" ")}
+                    >
                       <h2 className="text-[22px] leading-tight font-semibold tracking-normal print:text-[19px]">
                         {step.title}
                       </h2>
@@ -159,7 +187,6 @@ export default function NfcQuickstartPage() {
                         {step.detail}
                       </p>
                     </div>
-                    {isRight ? marker : null}
                   </div>
                 </article>
               );
