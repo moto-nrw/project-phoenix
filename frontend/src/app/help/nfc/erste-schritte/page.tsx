@@ -32,9 +32,9 @@ const steps = [
     number: "3",
     title: "Armbänder zuweisen",
     icon: Nfc,
-    text: "Im Menü Armband identifizieren öffnen, Scan starten tippen, Armband ruhig an das Lesegerät halten, Person auswählen, Kind auswählen und mit Armband zuweisen bestätigen.",
+    text: "Auf dem Startbildschirm Armband identifizieren tippen, dann Scan starten. Armband ruhig an das Lesegerät halten, Person auswählen tippen, Kind auswählen und mit Armband zuweisen bestätigen.",
     detail:
-      "Dafür müssen die Armbänder angekommen sein und die Kinder bereits in moto angelegt sein.",
+      "Falls das Armband schon vergeben ist, heißt der Button Anderer Person zuweisen. Die Armbänder müssen angekommen sein und die Kinder müssen in moto angelegt sein.",
   },
 ] as const;
 
@@ -54,9 +54,9 @@ export default function NfcQuickstartPage() {
   return (
     <main className="moto-dotted-background moto-dotted-background--guide min-h-screen overflow-x-hidden px-4 py-8 text-gray-950 print:p-0">
       <section className="relative mx-auto flex min-h-[297mm] w-full max-w-[210mm] flex-col overflow-hidden rounded-[28px] print:h-[297mm] print:min-h-0 print:max-w-none">
-        <header className="relative overflow-hidden rounded-[28px] bg-gray-950 text-white">
+        <header className="relative overflow-hidden rounded-[28px] bg-[#17231F] text-white">
           <div
-            className="absolute right-0 bottom-0 h-full w-[42%] bg-[#83CD2D]"
+            className="absolute right-0 bottom-0 h-full w-[42%] bg-[#F3F4F6]"
             aria-hidden="true"
           />
           <div className="relative grid min-h-[168px] grid-cols-[1fr_290px] gap-8 px-10 pt-9 pb-8 print:min-h-[142px] print:grid-cols-[1fr_240px] print:px-8 print:pt-6 print:pb-6">
@@ -90,7 +90,7 @@ export default function NfcQuickstartPage() {
                 alt=""
                 width={960}
                 height={960}
-                className="relative z-10 mt-2 w-[300px] max-w-none object-contain drop-shadow-[0_18px_34px_rgba(15,23,42,0.18)] print:w-[245px]"
+                className="relative z-10 w-[286px] max-w-none -translate-y-5 object-contain print:w-[238px] print:-translate-y-4"
                 priority
               />
             </div>
@@ -100,12 +100,26 @@ export default function NfcQuickstartPage() {
         <div className="flex flex-1 flex-col px-10 py-9 print:px-8 print:py-6">
           <div className="relative grid gap-4 print:gap-3">
             <div
-              className="absolute top-10 bottom-10 left-1/2 hidden w-px -translate-x-1/2 bg-gray-200 md:block print:block"
+              className="absolute top-10 bottom-10 left-1/2 hidden w-[2px] -translate-x-1/2 rounded-full bg-[#CBD5E1] md:block print:block"
               aria-hidden="true"
             />
             {steps.map((step, index) => {
               const Icon = step.icon;
               const isRight = index === 1;
+              const marker = (
+                <div className="flex flex-col items-center gap-2">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#315C9B] text-sm font-bold text-white print:h-7 print:w-7 print:text-xs">
+                    {step.number}
+                  </span>
+                  <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-[#83CD2D]/16 text-[#3F6F12] print:h-12 print:w-12 print:rounded-2xl">
+                    <Icon
+                      className="h-8 w-8 print:h-6 print:w-6"
+                      aria-hidden="true"
+                    />
+                  </div>
+                </div>
+              );
+
               return (
                 <article
                   key={step.number}
@@ -126,25 +140,18 @@ export default function NfcQuickstartPage() {
 
                   <div
                     className={[
-                      "relative grid w-full grid-cols-[76px_1fr] gap-5 rounded-3xl border border-gray-200 bg-white p-5 md:w-[78%] print:w-[78%] print:grid-cols-[60px_1fr] print:gap-4 print:rounded-2xl print:p-4",
+                      "relative grid w-full gap-5 rounded-3xl border border-gray-200 bg-white p-5 md:w-[78%] print:w-[78%] print:gap-4 print:rounded-2xl print:p-4",
+                      isRight
+                        ? "grid-cols-[1fr_76px] print:grid-cols-[1fr_60px]"
+                        : "grid-cols-[76px_1fr] print:grid-cols-[60px_1fr]",
                       isRight ? "md:mr-0 print:mr-0" : "",
                     ].join(" ")}
                   >
-                    <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-[#83CD2D]/16 text-[#3F6F12] print:h-12 print:w-12 print:rounded-2xl">
-                      <Icon
-                        className="h-8 w-8 print:h-6 print:w-6"
-                        aria-hidden="true"
-                      />
-                    </div>
+                    {!isRight ? marker : null}
                     <div className="min-w-0">
-                      <div className="flex items-center gap-3">
-                        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gray-950 text-sm font-bold text-white">
-                          {step.number}
-                        </span>
-                        <h2 className="text-[22px] leading-tight font-semibold tracking-normal print:text-[19px]">
-                          {step.title}
-                        </h2>
-                      </div>
+                      <h2 className="text-[22px] leading-tight font-semibold tracking-normal print:text-[19px]">
+                        {step.title}
+                      </h2>
                       <p className="mt-3 text-[15px] leading-6 text-gray-700 print:mt-2 print:text-[13px] print:leading-5">
                         {step.text}
                       </p>
@@ -152,6 +159,7 @@ export default function NfcQuickstartPage() {
                         {step.detail}
                       </p>
                     </div>
+                    {isRight ? marker : null}
                   </div>
                 </article>
               );
