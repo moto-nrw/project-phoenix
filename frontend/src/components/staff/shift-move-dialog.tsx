@@ -452,6 +452,10 @@ export function ShiftMoveDialog({
         title="Verschieben bestätigen"
         confirmText="Verschieben"
         isConfirmLoading={isMoving}
+        // Opt-in dismissal lock: the cross-person move is POST + DELETE; a
+        // dismissal between the two calls would leave the shift duplicated
+        // without the recovery instruction, so the dialog must finish in place.
+        isDismissDisabled={isMoving}
       >
         <div className="space-y-2 text-sm text-gray-700">
           <p>Die Schicht wird verschoben:</p>

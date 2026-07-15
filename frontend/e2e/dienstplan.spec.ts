@@ -663,6 +663,16 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
     page,
   }) => {
     if (!access) return;
+    // Beide Teilflüsse hängen am echten Heute: 6a navigiert nach
+    // /vertretung?d=heute, 6b storniert die heutige Schicht per Krankmeldung
+    // und erwartet den "Fällt aus"-Block im Wochenraster. Das Raster rendert
+    // nur Mo-Fr — am Wochenende hat die heutige Schicht keine Spalte, der
+    // Block kann nie erscheinen. Deshalb Skip statt Datums-Verbiegung.
+    const todayWeekday = parseISODate(TODAY).getDay();
+    test.skip(
+      todayWeekday === 0 || todayWeekday === 6,
+      "Krank-Flow braucht ein Heute innerhalb Mo-Fr (Wochenraster ohne Sa/So)",
+    );
     // Flow 6a wechselt auf /vertretung — der erste Kompiliervorgang dieser Route
     // im Next-Dev-Server kann kalt spürbar dauern, daher großzügiges Budget.
     test.setTimeout(180000);

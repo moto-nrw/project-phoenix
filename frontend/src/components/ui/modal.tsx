@@ -307,6 +307,13 @@ interface ConfirmationModalProps {
   readonly cancelText?: string;
   readonly isConfirmLoading?: boolean;
   readonly isConfirmDisabled?: boolean;
+  /**
+   * Lock every dismissal path (Escape, backdrop, X, Abbrechen) while the
+   * confirm operation runs — opt-in, off by default so a stalled request can
+   * still be cancelled. Use only when abandoning mid-flight would leave
+   * inconsistent state (e.g. a multi-request operation).
+   */
+  readonly isDismissDisabled?: boolean;
   readonly confirmButtonClass?: string;
 }
 
@@ -320,6 +327,7 @@ export function ConfirmationModal({
   cancelText = "Abbrechen",
   isConfirmLoading = false,
   isConfirmDisabled = false,
+  isDismissDisabled = false,
   confirmButtonClass = "bg-gray-900 hover:bg-gray-700",
 }: ConfirmationModalProps) {
   const modalFooter = (
@@ -327,7 +335,7 @@ export function ConfirmationModal({
       <button
         type="button"
         onClick={onClose}
-        disabled={isConfirmLoading}
+        disabled={isDismissDisabled}
         className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-700 transition-all duration-200 hover:scale-105 hover:border-gray-400 hover:bg-gray-50 hover:shadow-md active:scale-100 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:scale-100 disabled:hover:border-gray-300 disabled:hover:bg-transparent disabled:hover:shadow-none"
       >
         {cancelText}
@@ -375,7 +383,7 @@ export function ConfirmationModal({
       onClose={onClose}
       title={title}
       footer={modalFooter}
-      isDismissDisabled={isConfirmLoading}
+      isDismissDisabled={isDismissDisabled}
     >
       {children}
     </Modal>
