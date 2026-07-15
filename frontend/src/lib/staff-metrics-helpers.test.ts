@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type {
   StaffAbsenceRow,
@@ -199,6 +199,10 @@ describe("computeStaffMetrics account start", () => {
   });
 });
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
 describe("computePeriodTotalsFromTargets", () => {
   // Mon 2026-08-03 .. Sun 2026-08-09. The contract drops from 8h to 4h on
   // Wednesday — exactly the case computeStaffMetrics gets wrong, because it
@@ -286,6 +290,60 @@ describe("computePeriodTotalsFromTargets", () => {
     );
 
     expect(totals.ist).toBe(240);
+  });
+
+  it("subtracts a running break from Ist", () => {
+    // `net_minutes` is server-computed at request time and deducts ENDED
+    // breaks only, so it keeps growing while someone is on a break. The
+    // Monatskarte deducts the running break server-side; without the same
+    // correction here the week card would climb while the month card holds.
+    vi.setSystemTime(new Date("2026-08-03T12:00:00Z"));
+    const totals = computePeriodTotalsFromTargets(
+      targets,
+      [
+        session({
+          date: "2026-08-03",
+          net_minutes: 120, // 10:00 -> now, break not in the cache yet
+          check_in_time: "2026-08-03T10:00:00Z",
+          check_out_time: null,
+          break_minutes: 0,
+          breaks: [{ started_at: "2026-08-03T11:30:00Z", ended_at: null }],
+        }),
+      ],
+      [],
+      weekStart,
+      weekEnd,
+      new Date(2026, 7, 3),
+    );
+
+    expect(totals.ist).toBe(90);
+  });
+
+  it("does not subtract an ended break twice", () => {
+    // An ended break is already deducted in `net_minutes`.
+    vi.setSystemTime(new Date("2026-08-03T12:00:00Z"));
+    const totals = computePeriodTotalsFromTargets(
+      targets,
+      [
+        session({
+          date: "2026-08-03",
+          net_minutes: 450,
+          break_minutes: 30,
+          breaks: [
+            {
+              started_at: "2026-08-03T11:00:00Z",
+              ended_at: "2026-08-03T11:30:00Z",
+            },
+          ],
+        }),
+      ],
+      [],
+      weekStart,
+      weekEnd,
+      new Date(2026, 7, 3),
+    );
+
+    expect(totals.ist).toBe(450);
   });
 
   it("counts days outside the fetched range as zero Soll", () => {

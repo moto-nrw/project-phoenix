@@ -253,13 +253,44 @@ function isHalfAbsenceBoundary(
 }
 
 /**
+ * Elapsed minutes of a break that has started but not ended yet.
+ *
+ * The server's `net_minutes` deducts `break_minutes`, which caches ENDED
+ * breaks only: starting a break records no duration, and the cache is written
+ * when the break ends or is auto-ended. So while someone is on a break, every
+ * minute of it still counts as worked time in `net_minutes`. The Monatskarte
+ * corrects for this server-side (`runningBreakMinutes` in
+ * work_time_month_service.go); without the same correction here the week card
+ * would keep climbing during a break while the month card holds still, and the
+ * two would contradict each other on the same screen.
+ *
+ * Only open sessions can have one: closing a session ends its break.
+ */
+function runningBreakMinutes(
+  session: StaffHistorySession,
+  now: number,
+): number {
+  if (session.check_out_time) return 0;
+  let sum = 0;
+  for (const brk of session.breaks ?? []) {
+    if (brk.ended_at) continue;
+    const startedAt = Date.parse(brk.started_at);
+    if (Number.isNaN(startedAt)) continue;
+    const elapsed = Math.floor((now - startedAt) / 60_000);
+    if (elapsed > 0) sum += elapsed;
+  }
+  return sum;
+}
+
+/**
  * Sum the actual net minutes of all sessions falling into [from, to]
- * (inclusive).
+ * (inclusive), with any running break deducted.
  */
 function computeIstForRange(
   sessions: readonly StaffHistorySession[],
   from: Date,
   to: Date,
+  now: number = Date.now(),
 ): number {
   const fromKey = toDateKey(from);
   const toKey = toDateKey(to);
@@ -267,7 +298,9 @@ function computeIstForRange(
   for (const session of sessions) {
     const key = session.date.slice(0, 10);
     if (key >= fromKey && key <= toKey) {
-      sum += session.net_minutes ?? 0;
+      const net =
+        (session.net_minutes ?? 0) - runningBreakMinutes(session, now);
+      sum += Math.max(0, net);
     }
   }
   return sum;
@@ -515,6 +548,10 @@ export function adaptHistorySessionForMetrics(
     check_in_time: session.checkInTime,
     check_out_time: session.checkOutTime,
     break_minutes: session.breakMinutes,
+    breaks: session.breaks?.map((brk) => ({
+      started_at: brk.startedAt,
+      ended_at: brk.endedAt,
+    })),
     auto_checked_out: session.autoCheckedOut,
     notes: session.notes || undefined,
     edit_count: session.editCount,

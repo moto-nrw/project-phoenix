@@ -359,7 +359,7 @@ func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int
 		if !ok {
 			continue
 		}
-		minutes := netMinutes(session, now)
+		minutes := workedMinutesUpTo(session, now)
 		running, err := s.runningBreakMinutes(ctx, session, now)
 		if err != nil {
 			return err
@@ -370,6 +370,22 @@ func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int
 		agg.actual += minutes
 	}
 	return nil
+}
+
+// workedMinutesUpTo is netMinutes with the session end clamped at now. The
+// admin correction API accepts a check_out_time later than the current instant
+// as long as the session is dated today, and that row passes the date guard in
+// addActualMinutes — netMinutes would then bill the whole planned shift as Ist
+// the moment it is saved, against a target that is deliberately only accrued up
+// to today. The phantom plus lands in this month's balance and, through the
+// carry chain, in every later one.
+func workedMinutesUpTo(session *activeModels.WorkSession, now time.Time) int {
+	if session.CheckOutTime != nil && session.CheckOutTime.After(now) {
+		capped := *session
+		capped.CheckOutTime = nil // netMinutes then measures up to now
+		return netMinutes(&capped, now)
+	}
+	return netMinutes(session, now)
 }
 
 // runningBreakMinutes is the elapsed duration of a break that has started but

@@ -656,6 +656,13 @@ class WorkTimeModelService {
 }
 
 // Staff history types (reuses time-tracking-helpers types)
+// One break of a work session. Narrowed to the fields the metric helpers read
+// from the wire (SessionResponse.Breaks); the payload carries more.
+export interface StaffSessionBreak {
+  started_at: string;
+  ended_at: string | null;
+}
+
 export interface StaffHistorySession {
   id?: number;
   date: string;
@@ -668,6 +675,9 @@ export interface StaffHistorySession {
   check_in_time: string;
   check_out_time: string | null;
   break_minutes: number;
+  // `net_minutes` deducts ENDED breaks only, so a running break has to be
+  // subtracted from it separately — see `computeIstForRange`.
+  breaks?: readonly StaffSessionBreak[] | null;
   auto_checked_out?: boolean;
   notes?: string;
   edit_count?: number;

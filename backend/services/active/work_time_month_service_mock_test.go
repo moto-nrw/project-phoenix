@@ -570,3 +570,28 @@ func TestWTMMonthSummary_EndedBreakNotDeductedTwice(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 480, summary.ActualMinutes)
 }
+
+// The admin correction API accepts a check_out_time later than the current
+// instant, and the date guard passes such a row as long as it is dated today
+// or earlier. Counting the whole shift the moment it is saved would credit Ist
+// against a target that only accrues up to today.
+func TestWTMMonthSummary_FutureCheckOutClampedAtNow(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+
+	now := time.Now()
+	checkOut := now.Add(120 * time.Minute)
+	f.sessions.sessions = []*activeModels.WorkSession{{
+		Model:        base.Model{ID: 88},
+		StaffID:      wtmStaffID,
+		Date:         timezone.NewDate(2026, time.July, 13), // on or before today
+		Status:       activeModels.WorkSessionStatusPresent,
+		CheckInTime:  now.Add(-60 * time.Minute),
+		CheckOutTime: &checkOut,
+	}}
+
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	assert.InDelta(t, 60, summary.ActualMinutes, 1,
+		"only the minutes worked up to now count, not the future part of the checkout")
+}

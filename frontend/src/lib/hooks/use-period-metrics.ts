@@ -113,16 +113,37 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
   // different payload shapes would leave whichever consumer lost the race
   // reading the other's shape. So each key keeps its portal's native shape and
   // the adapting happens below, after the cache.
+  //
+  // While a session is open, /history computes its net_minutes at request time
+  // only — the number is stale the second the response lands. The month card
+  // and the Stundenkonto both poll, so without the same cadence here the week
+  // card freezes at check-in time while the other two keep climbing, and the
+  // screen shows contradicting live totals until the next mutation. Polling is
+  // gated on an actually open session: a week of closed sessions is final and
+  // refetching it every minute would be pure noise. The keys are shared with
+  // the Zeiterfassung table, which shows the same open session and benefits.
+  const refreshInterval = (
+    latest: readonly StaffHistorySession[] | undefined,
+  ) => (latest?.some((s) => !s.check_out_time) ? OPEN_MONTH_REFRESH_MS : 0);
+
   const { data: adminSessions } = useSWRAuth<readonly StaffHistorySession[]>(
     staffId ? `staff-history-${staffId}-${weekFromKey}-${weekToKey}` : null,
     () =>
       staffHistoryService.getHistory(staffId as string, weekFromKey, weekToKey),
+    { refreshInterval },
   );
   const { data: ownHistory } = useSWRAuth<{
     sessions: WorkSessionHistory[];
     weeklySummaries: WeeklySummary[];
-  }>(staffId ? null : `time-tracking-table-${weekFromKey}-${weekToKey}`, () =>
-    timeTrackingService.getHistory(weekFromKey, weekToKey),
+  }>(
+    staffId ? null : `time-tracking-table-${weekFromKey}-${weekToKey}`,
+    () => timeTrackingService.getHistory(weekFromKey, weekToKey),
+    {
+      refreshInterval: (latest) =>
+        latest?.sessions.some((s) => !s.checkOutTime)
+          ? OPEN_MONTH_REFRESH_MS
+          : 0,
+    },
   );
 
   const { data: adminAbsences } = useSWRAuth<readonly StaffAbsenceRow[]>(

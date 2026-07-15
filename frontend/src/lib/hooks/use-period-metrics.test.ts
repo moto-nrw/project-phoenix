@@ -56,41 +56,52 @@ const SUMMARY = {
   closingBalanceMinutes: 300,
 };
 
-/** Routes each useSWRAuth call by key and records the keys it was asked for. */
+type SWROptions = { refreshInterval?: (latest: unknown) => number };
+
+/**
+ * Routes each useSWRAuth call by key and records the keys it was asked for
+ * plus the options each key was requested with.
+ */
 function mockSWR(
   data: Partial<
     Record<"summary" | "targets" | "sessions" | "absences", unknown>
   >,
 ) {
   const keys: string[] = [];
-  mockUseSWRAuth.mockImplementation((key: string | null) => {
-    if (typeof key === "string") keys.push(key);
-    if (key === "time-tracking-config") {
-      return { data: { accountStartDate: "2026-05-13" }, isLoading: false };
-    }
-    if (typeof key === "string" && key.includes("month-summary")) {
-      return { data: data.summary, isLoading: false };
-    }
-    if (typeof key === "string" && key.includes("schedule-targets")) {
-      return { data: data.targets, isLoading: false };
-    }
-    if (typeof key === "string" && key.includes("absences")) {
-      // Own portal: raw camelCase StaffAbsence[]; admin: StaffAbsenceRow[].
-      return { data: data.absences ?? [], isLoading: false };
-    }
-    // The own history key is SHARED with the Zeiterfassung table and carries
-    // that table's shape; the admin key carries a flat session array.
-    if (typeof key === "string" && key.startsWith("time-tracking-table-")) {
-      return {
-        data: data.sessions
-          ? { sessions: data.sessions, weeklySummaries: [] }
-          : undefined,
-        isLoading: false,
-      };
-    }
-    return { data: data.sessions, isLoading: false };
-  });
-  return { keys };
+  const configs = new Map<string, SWROptions>();
+  mockUseSWRAuth.mockImplementation(
+    (key: string | null, ...rest: unknown[]) => {
+      if (typeof key === "string") {
+        keys.push(key);
+        configs.set(key, (rest[1] ?? {}) as SWROptions);
+      }
+      if (key === "time-tracking-config") {
+        return { data: { accountStartDate: "2026-05-13" }, isLoading: false };
+      }
+      if (typeof key === "string" && key.includes("month-summary")) {
+        return { data: data.summary, isLoading: false };
+      }
+      if (typeof key === "string" && key.includes("schedule-targets")) {
+        return { data: data.targets, isLoading: false };
+      }
+      if (typeof key === "string" && key.includes("absences")) {
+        // Own portal: raw camelCase StaffAbsence[]; admin: StaffAbsenceRow[].
+        return { data: data.absences ?? [], isLoading: false };
+      }
+      // The own history key is SHARED with the Zeiterfassung table and carries
+      // that table's shape; the admin key carries a flat session array.
+      if (typeof key === "string" && key.startsWith("time-tracking-table-")) {
+        return {
+          data: data.sessions
+            ? { sessions: data.sessions, weeklySummaries: [] }
+            : undefined,
+          isLoading: false,
+        };
+      }
+      return { data: data.sessions, isLoading: false };
+    },
+  );
+  return { keys, configs };
 }
 
 beforeEach(() => {
@@ -186,6 +197,37 @@ describe("usePeriodMetrics", () => {
 
     // 300 only survives the camelCase -> snake_case adapter.
     expect(result.current.week?.ist).toBe(300);
+  });
+
+  // /history computes an open session's net_minutes at request time only. The
+  // month card and the Stundenkonto poll every minute, so an unpolled week card
+  // would freeze at check-in time and contradict them on the same screen.
+  it("polls the week history while a session is open, and not otherwise", () => {
+    const swr = mockSWR({ summary: SUMMARY, targets: new Map(), sessions: [] });
+
+    renderHook(() => usePeriodMetrics("42"));
+
+    const refresh = swr.configs.get(
+      "staff-history-42-2026-08-03-2026-08-09",
+    )?.refreshInterval;
+    expect(refresh?.([{ check_out_time: null }])).toBe(60_000);
+    expect(refresh?.([{ check_out_time: "2026-08-03T16:00:00Z" }])).toBe(0);
+    expect(refresh?.(undefined)).toBe(0);
+  });
+
+  it("polls the own week history under the table's shape", () => {
+    const swr = mockSWR({ summary: SUMMARY, targets: new Map(), sessions: [] });
+
+    renderHook(() => usePeriodMetrics());
+
+    const refresh = swr.configs.get(
+      "time-tracking-table-2026-08-03-2026-08-09",
+    )?.refreshInterval;
+    // camelCase, as the own /history endpoint returns it.
+    expect(refresh?.({ sessions: [{ checkOutTime: null }] })).toBe(60_000);
+    expect(
+      refresh?.({ sessions: [{ checkOutTime: "2026-08-03T16:00:00Z" }] }),
+    ).toBe(0);
   });
 
   it("reports no week rather than pricing Ist against a missing Soll", () => {
