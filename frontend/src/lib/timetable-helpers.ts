@@ -7,7 +7,7 @@
  * /api/timetable/instances endpoint.
  */
 
-import { toISODate } from "./date-helpers";
+import { parseISODate, toISODate } from "./date-helpers";
 import { LOCATION_COLORS } from "./location-helper";
 import type {
   ActivityType,
@@ -21,7 +21,6 @@ import type {
   BackendGapInstance,
   BackendGapsResponse,
   BackendDeviationHistoryResponse,
-  BackendAcknowledgeUnderstaffedResponse,
   BackendApplyDeviationsResponse,
   BackendInstanceStatusResult,
   BackendMaterializeResult,
@@ -42,7 +41,6 @@ import type {
   GapsResponse,
   DeviationHistoryEvent,
   DeviationHistoryResponse,
-  AcknowledgeUnderstaffedResponse,
   ApplyDeviationsResponse,
   InstanceStaffSummary,
   InstanceStudentSummary,
@@ -56,6 +54,16 @@ import type {
   TimetableTemplate,
   WeeklyInstancesResponse,
 } from "./timetable-types";
+
+/**
+ * SWR-Key-Präfixe der Vertretungs-Ansicht. Producer (vertretung-view) und
+ * Invalidatoren (Krankmeldungs-Kaskade #1843 in dienstplan-view und
+ * abwesenheiten-tab) MÜSSEN dieselben Konstanten verwenden:
+ * useTenantMutateMatching ist ein stiller No-op, wenn kein Key matcht — ein
+ * umbenannter String-Literal fällt in keinem Test auf.
+ */
+export const VERTRETUNG_WEEK_KEY_PREFIX = "vertretung-week-";
+export const VERTRETUNG_GAPS_KEY_PREFIX = "vertretung-gaps-";
 
 /**
  * Brand-colour key per activity type. Mirrors the timetable RFC §5.5
@@ -284,6 +292,18 @@ export function getWeekdays(from: Date): Date[] {
     days.push(d);
   }
   return days;
+}
+
+/**
+ * Snappt ein Wochenend-Datum auf den folgenden Montag; Mo–Fr unverändert.
+ * OGS-Betrieb ist Mo–Fr — die Vertretung zeigt nie einen Wochenendtag an.
+ */
+export function nextWorkdayISO(iso: string): string {
+  const d = parseISODate(iso);
+  const day = d.getDay(); // 0 = So, 6 = Sa
+  if (day === 6) d.setDate(d.getDate() + 2);
+  else if (day === 0) d.setDate(d.getDate() + 1);
+  return toISODate(d);
 }
 
 export function getMonthRange(ref: Date): { from: Date; to: Date } {
@@ -538,6 +558,8 @@ export function mapDeviationHistory(
     actorAccountId:
       ev.actor_account_id != null ? String(ev.actor_account_id) : undefined,
     actorName: ev.actor_name ?? undefined,
+    oldValue: ev.old_value ?? undefined,
+    newValue: ev.new_value ?? undefined,
     reason: ev.reason ?? undefined,
     occurredAt: ev.occurred_at,
   }));
@@ -553,15 +575,16 @@ export function mapGaps(raw: BackendGapsResponse): GapsResponse {
   };
 }
 
-export function mapAcknowledgeUnderstaffed(
-  raw: BackendAcknowledgeUnderstaffedResponse,
-): AcknowledgeUnderstaffedResponse {
-  return {
-    instanceId: String(raw.instance_id),
-    status: raw.status,
-    understaffedAck: raw.understaffed_ack,
-    understaffedNote: raw.understaffed_note ?? undefined,
-  };
+/**
+ * Anzeigename einer Personalzeile mit einheitlichem Fallback, wenn die Person
+ * nicht (mehr) in der Namensauflösung steht — Liste und Editor des
+ * Vertretungsbereichs zeigen denselben Text für denselben Fehlfall.
+ */
+export function staffLabel(
+  staffNames: Map<string, string>,
+  staffId: string,
+): string {
+  return staffNames.get(staffId) ?? `Personal #${staffId}`;
 }
 
 export function mapExceptionConflicts(

@@ -133,9 +133,7 @@ describe("SickReportModal", () => {
     const jump = await screen.findByRole("button", { name: "Zur Vertretung" });
     fireEvent.click(jump);
 
-    expect(mocks.push).toHaveBeenCalledWith(
-      "/vertretung?view=day&day=2026-07-20",
-    );
+    expect(mocks.push).toHaveBeenCalledWith("/vertretung?d=2026-07-20");
     expect(onClose).toHaveBeenCalled();
   });
 

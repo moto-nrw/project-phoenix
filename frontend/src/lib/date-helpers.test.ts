@@ -8,6 +8,7 @@ import {
   getStartDateForTimeRange,
   toISODate,
   parseISODate,
+  isValidISODate,
   todayISO,
   berlinTodayISO,
   formatChatTime,
@@ -46,6 +47,28 @@ describe("parseISODate", () => {
   it("roundtrips toISODate(parseISODate(s)) === s", () => {
     for (const s of ["2026-01-01", "2026-06-10", "2025-12-31", "2024-02-29"]) {
       expect(toISODate(parseISODate(s))).toBe(s);
+    }
+  });
+});
+
+describe("isValidISODate", () => {
+  it("accepts real YYYY-MM-DD calendar dates", () => {
+    for (const s of ["2026-01-01", "2026-06-10", "2024-02-29"]) {
+      expect(isValidISODate(s)).toBe(true);
+    }
+  });
+
+  it("rejects strings that are not shaped like an ISO date", () => {
+    for (const s of ["foo", "", "2026-7-1", "2026-07-01T00:00:00Z", "<x>"]) {
+      expect(isValidISODate(s)).toBe(false);
+    }
+  });
+
+  it("rejects shape-valid but impossible dates (no silent rollover)", () => {
+    // parseISODate("2026-02-31") rolls over to March 3 — the round-trip
+    // check must catch that instead of accepting the rolled-over date.
+    for (const s of ["2026-02-31", "2026-13-01", "2025-02-29", "2026-00-10"]) {
+      expect(isValidISODate(s)).toBe(false);
     }
   });
 });

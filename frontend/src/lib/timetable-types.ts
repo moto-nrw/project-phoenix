@@ -258,6 +258,10 @@ export interface DeviationHistoryEvent {
   relatedStaffName?: string;
   actorAccountId?: string;
   actorName?: string;
+  // Vorher-/Nachher-Zustand, ereignistypabhängig (z. B. Anwesenheits- oder
+  // Besetzungsstatus); nicht bei jedem Ereignistyp gesetzt.
+  oldValue?: unknown;
+  newValue?: unknown;
   reason?: string;
   occurredAt: string; // RFC3339
 }
@@ -279,6 +283,9 @@ interface BackendDeviationHistoryEvent {
   related_staff_name?: string;
   actor_account_id?: number;
   actor_name?: string;
+  // json.RawMessage im Backend (beliebiges JSON oder fehlend, omitempty).
+  old_value?: unknown;
+  new_value?: unknown;
   reason?: string;
   occurred_at: string;
 }
@@ -633,21 +640,6 @@ interface BackendSubstituteAffectedInstance {
   title: string;
   start_time: string;
   action: SubstituteAction;
-}
-
-/** #1840: POST /instances/{id}/acknowledge-understaffed result. */
-export interface AcknowledgeUnderstaffedResponse {
-  instanceId: string;
-  status: InstanceStatus;
-  understaffedAck: boolean;
-  understaffedNote?: string;
-}
-
-export interface BackendAcknowledgeUnderstaffedResponse {
-  instance_id: number;
-  status: InstanceStatus;
-  understaffed_ack: boolean;
-  understaffed_note?: string | null;
 }
 
 /**

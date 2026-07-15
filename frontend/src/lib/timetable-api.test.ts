@@ -805,55 +805,6 @@ describe("timetableService", () => {
     );
   });
 
-  it("flips the understaffed acknowledgement (#1840)", async () => {
-    fetchMock
-      .mockResolvedValueOnce(
-        jsonResponse({
-          data: {
-            instance_id: 42,
-            status: "planned",
-            understaffed_ack: true,
-            understaffed_note: "keine Vertretung",
-          },
-        }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          data: {
-            instance_id: 42,
-            status: "planned",
-            understaffed_ack: false,
-            understaffed_note: null,
-          },
-        }),
-      );
-
-    await expect(
-      timetableService.acknowledgeUnderstaffed("42", true, "keine Vertretung"),
-    ).resolves.toMatchObject({
-      instanceId: "42",
-      understaffedAck: true,
-      understaffedNote: "keine Vertretung",
-    });
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      1,
-      "/api/timetable/instances/42/acknowledge-understaffed",
-      expect.objectContaining({
-        method: "POST",
-        body: JSON.stringify({ ack: true, note: "keine Vertretung" }),
-      }),
-    );
-
-    await timetableService.acknowledgeUnderstaffed("42", false);
-    expect(fetchMock).toHaveBeenNthCalledWith(
-      2,
-      "/api/timetable/instances/42/acknowledge-understaffed",
-      expect.objectContaining({
-        body: JSON.stringify({ ack: false }),
-      }),
-    );
-  });
-
   it("applies a cancel-only deviation, ignoring the other edits (#1840)", async () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse({

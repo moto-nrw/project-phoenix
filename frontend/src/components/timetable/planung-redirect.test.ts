@@ -54,6 +54,12 @@ describe("resolvePlanungRedirect", () => {
       expected: "/betreuungsplan?d=2026-09-01",
     },
     {
+      name: "impossible day (2026-02-31) is rejected and falls through to week",
+      query: "day=2026-02-31&week=1",
+      target: "betreuungsplan",
+      expected: "/betreuungsplan?d=2026-07-20",
+    },
+    {
       name: "negative week offset",
       query: "week=-2",
       target: "betreuungsplan",
@@ -178,5 +184,50 @@ describe("resolvePlanungRedirect", () => {
       // Höchstens drei Parameter pro Bereich (Synthese 1.3).
       expect([...emitted.keys()].length).toBeLessThanOrEqual(3);
     }
+  });
+});
+
+// Der `?week=N`-Offset muss auf den MONTAG der Zielwoche zeigen (docs/07 §1,
+// invers zu weekOffsetForISO), nicht N*7 Tage auf den heutigen Wochentag
+// addieren. Das Haupt-Fixture TODAY="2026-07-13" ist selbst ein Montag, dort
+// ändert der Snap nichts; erst ein nicht-montägliches "heute" deckt den Bug ab.
+describe("resolvePlanungRedirect week offset snaps to Monday", () => {
+  // Mittwoch — Montag dieser Woche ist 2026-07-13.
+  const WED = "2026-07-15";
+
+  const cases: Array<{
+    name: string;
+    query: string;
+    target: "betreuungsplan" | "dienstplan" | "vertretung";
+    expected: string;
+  }> = [
+    {
+      name: "week=1 anchors to next week's Monday, not Wednesday + 7",
+      query: "week=1",
+      target: "vertretung",
+      expected: "/vertretung?d=2026-07-20",
+    },
+    {
+      name: "week=0 anchors to the current week's Monday, not today",
+      query: "week=0",
+      target: "vertretung",
+      expected: "/vertretung?d=2026-07-13",
+    },
+    {
+      name: "negative offset anchors to a past Monday",
+      query: "week=-1",
+      target: "vertretung",
+      expected: "/vertretung?d=2026-07-06",
+    },
+    {
+      name: "betreuungsplan week offset snaps to Monday too",
+      query: "view=week&week=1",
+      target: "betreuungsplan",
+      expected: "/betreuungsplan?d=2026-07-20&view=woche",
+    },
+  ];
+
+  it.each(cases)("$name", ({ query, target, expected }) => {
+    expect(resolvePlanungRedirect(params(query), WED, target)).toBe(expected);
   });
 });

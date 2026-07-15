@@ -27,6 +27,10 @@ import {
   type StaffVacationQuotaSummary,
 } from "~/lib/staff-api";
 import { useTenantMutateMatching } from "~/lib/swr";
+import {
+  VERTRETUNG_GAPS_KEY_PREFIX,
+  VERTRETUNG_WEEK_KEY_PREFIX,
+} from "~/lib/timetable-helpers";
 
 const logger = createLogger({ component: "AbwesenheitenTab" });
 
@@ -241,8 +245,8 @@ export function AbwesenheitenTab({
   const refreshPlanCaches = useTenantMutateMatching([
     "dienstplan-overview-",
     "dienstplan-shifts-",
-    "vertretungsplan-week-",
-    "vertretungsplan-gaps-",
+    VERTRETUNG_WEEK_KEY_PREFIX,
+    VERTRETUNG_GAPS_KEY_PREFIX,
   ]);
 
   // silent skips the loading flag: the loading boundary unmounts the

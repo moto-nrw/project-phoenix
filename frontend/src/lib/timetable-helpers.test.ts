@@ -27,7 +27,6 @@ import {
   getYearMonths,
   getYearRange,
   groupInstancesByDate,
-  mapAcknowledgeUnderstaffed,
   mapApplyDeviations,
   mapAttendance,
   mapConflictCheckResult,
@@ -44,6 +43,7 @@ import {
   mapShiftCoverageCheckResult,
   mapTemplates,
   mapWeeklyInstances,
+  nextWorkdayISO,
   parseTimeToMinutes,
   resolveTemplateCalendarPeriodId,
   toISODate,
@@ -168,6 +168,16 @@ describe("date and range helpers", () => {
     expect(weekdayDatesInRange("2026-04-06", "2026-04-08", [0, 8])).toEqual([]);
   });
 
+  it("snaps weekend dates to the following Monday, weekdays pass through", () => {
+    expect(nextWorkdayISO("2026-07-18")).toBe("2026-07-20"); // Sa -> Mo
+    expect(nextWorkdayISO("2026-07-19")).toBe("2026-07-20"); // So -> Mo
+    expect(nextWorkdayISO("2026-07-15")).toBe("2026-07-15"); // Mi bleibt
+    expect(nextWorkdayISO("2026-07-20")).toBe("2026-07-20"); // Mo bleibt
+    expect(nextWorkdayISO("2026-07-17")).toBe("2026-07-17"); // Fr bleibt
+    expect(nextWorkdayISO("2026-08-01")).toBe("2026-08-03"); // Monatswechsel
+    expect(nextWorkdayISO("2027-01-03")).toBe("2027-01-04"); // Jahreswechsel
+  });
+
   it("formats German labels", () => {
     const monday = new Date("2026-05-04T00:00:00");
     const sunday = new Date("2026-05-10T00:00:00");
@@ -269,6 +279,57 @@ describe("backend mappers", () => {
       ],
     });
     expect(mapDeviationHistory({ events: null }).events).toEqual([]);
+  });
+
+  it("maps deviation history old_value/new_value when the backend sends them", () => {
+    expect(
+      mapDeviationHistory({
+        events: [
+          {
+            id: 44,
+            activity_group_id: 7,
+            occurrence_date: "2026-05-04",
+            start_time: "12:00:00",
+            event_type: "substitution",
+            old_value: { is_absent: false },
+            new_value: { is_absent: true, substitute_staff_id: 12 },
+            occurred_at: "2026-05-03T12:00:00Z",
+          },
+        ],
+      }),
+    ).toEqual({
+      events: [
+        expect.objectContaining({
+          id: "44",
+          oldValue: { is_absent: false },
+          newValue: { is_absent: true, substitute_staff_id: 12 },
+        }),
+      ],
+    });
+  });
+
+  it("maps deviation history events without old_value/new_value to undefined", () => {
+    expect(
+      mapDeviationHistory({
+        events: [
+          {
+            id: 45,
+            occurrence_date: "2026-05-05",
+            start_time: "13:00:00",
+            event_type: "deviation_dropped_by_replan",
+            occurred_at: "2026-05-03T13:00:00Z",
+          },
+        ],
+      }),
+    ).toEqual({
+      events: [
+        expect.objectContaining({
+          id: "45",
+          oldValue: undefined,
+          newValue: undefined,
+        }),
+      ],
+    });
   });
 
   it("maps weekly instances, preferring detailed student rows over id fallback", () => {
@@ -604,36 +665,6 @@ describe("backend mappers", () => {
         acknowledged: undefined,
       }),
     ).toMatchObject({ gaps: [], acknowledged: [] });
-  });
-
-  it("maps the acknowledge-understaffed result, with and without a note (#1840)", () => {
-    expect(
-      mapAcknowledgeUnderstaffed({
-        instance_id: 42,
-        status: "planned",
-        understaffed_ack: true,
-        understaffed_note: "keine Vertretung",
-      }),
-    ).toEqual({
-      instanceId: "42",
-      status: "planned",
-      understaffedAck: true,
-      understaffedNote: "keine Vertretung",
-    });
-
-    expect(
-      mapAcknowledgeUnderstaffed({
-        instance_id: 42,
-        status: "planned",
-        understaffed_ack: false,
-        understaffed_note: null,
-      }),
-    ).toEqual({
-      instanceId: "42",
-      status: "planned",
-      understaffedAck: false,
-      understaffedNote: undefined,
-    });
   });
 
   it("maps an applied-deviations result with affected instances and warnings (#1840)", () => {

@@ -709,27 +709,26 @@ export const appChapters: readonly GuideChapter[] = [
       },
       {
         id: "vertretungsplan",
-        title: "Vertretungsplan",
+        title: "Vertretung",
         icon: Users,
         summary:
-          "Führt kurzfristige Abweichungen vom Betreuungsplan für eine Woche oder einen Tag: Abwesenheiten, Ersatz sowie ausfallende oder bewusst unbesetzte Blöcke (nur für Admins).",
+          "Zeigt für den heutigen Tag alle gestörten Positionen des Betreuungsplans und öffnet für jeden Block einen Editor für Abwesenheit, Ersatz, bewusst unbesetzte Blöcke oder eine Absage (nur für Admins).",
         steps: [
-          "`Vertretung` in der Seitenleiste öffnen. Die Ansicht zeigt dieselben Termine wie der Betreuungsplan, hier jedoch zum Anpassen kurzfristiger Vertretungen. Darunter zwischen `Woche` und `Tag` wechseln und mit den Pfeilen oder `Heute` zum passenden Zeitraum springen.",
-          "Im Überblick `Vertretungsplan im Blick` zeigen `Offene Lücken` und `Bewusst unbesetzt`, wie viele Blöcke ohne Personal sind bzw. bewusst offen gelassen wurden.",
-          "Einen Termin anklicken, um die Vertretungsansicht des Blocks zu öffnen. `Geplantes Personal` zeigt die Besetzung aus dem Betreuungsplan.",
-          "Über `Abwesend melden` eine Person für den ganzen Tag als abwesend markieren, optional mit einem `Grund` (zum Beispiel `krank`). Anschließend unter `Ersatz eintragen` eine Ersatzperson wählen.",
-          "Meldet die Leitung im Dienstplan oder im Mitarbeiterprofil eine Person krank, erscheinen die betroffenen Blöcke hier direkt als abwesend und lassen sich mit `Ersatz eintragen` neu besetzen.",
-          "Ist keine Ersatzperson verfügbar, den Block unter `Bewusst unbesetzt` mit optionalem Grund markieren; er zählt dann nicht mehr als offene Lücke.",
-          "Einen Termin über `Block absagen` streichen, optional mit einem `Grund`. Der Regeltermin im Betreuungsplan bleibt dabei unverändert.",
-          "Über `Verlauf` in der Vertretungsansicht das Änderungsprotokoll öffnen: Es zeigt für den Block oder den ganzen Tag, wer wann Abwesenheiten, Vertretungen, Absagen oder bewusst offene Lücken eingetragen oder geändert hat, samt Begründung.",
+          "`Vertretung` in der Seitenleiste öffnen. Die Seite zeigt zunächst den heutigen Tag (am Wochenende den nächsten Montag).",
+          "Links steht die Störungsliste des Tages: jede betroffene Position mit dem Soll/Ist/Abwesend-Tripel. Eine abwesende Person ohne eingetragenen Ersatz zeigt `Ersatz: ??`, eine bewusst unbesetzte Position `bewusst unbesetzt`, ein abgesagter Termin `abgesagt` mit Grund. Rechts zeigt der Tageskalender denselben Tag zur Orientierung; auf schmalen Bildschirmen entfällt die Kalenderspalte, die Liste bleibt allein bedienbar.",
+          "Oben in der Wochenleiste (Montag bis Freitag) zeigt jeder Tages-Chip die Zahl offener Lücken dieses Tages; ein Klick wechselt den Tag, die Pfeile springen wochenweise, `Heute` kehrt zum aktuellen Tag zurück. Daneben zeigen zwei Zähler `Offen` und `Quittiert` die offenen bzw. bewusst unbesetzten Lücken des angezeigten Tages; für vergangene Tage oder bei einem Ladefehler erscheint ein Strich statt einer erfundenen Null.",
+          "Mit dem Umschalter `Nur Störungen | Ganzer Tag` zwischen der reinen Störungsliste und allen Terminen des Tages wechseln. Ein Tag ohne Störungen zeigt automatisch alle Termine mit dem Hinweis `Keine Störungen an diesem Tag`.",
+          "Bei einer Position `Bearbeiten` anklicken, um den Editor zu öffnen. Unter `Aktion` zwischen zwei Zweigen wählen: `Besetzung bearbeiten` markiert eine Person als abwesend, öffnet dafür eine Ersatzauswahl und erlaubt, den Block als `Bewusst unbesetzt` zu markieren, wenn keine Ersatzperson verfügbar ist; `Block absagen` sagt den Termin ab, optional mit einem Grund. Beide Zweige schließen sich gegenseitig aus.",
+          "Ein einziges `Speichern` überträgt Abwesenheit, Ersatz, `Bewusst unbesetzt` oder Absage gemeinsam als eine Änderung. Der Regeltermin im Betreuungsplan bleibt dabei unverändert.",
+          "Im Editor den Reiter `Verlauf` öffnen, um das Änderungsprotokoll zu sehen: wer wann Abwesenheiten, Vertretungen, Absagen oder bewusst offene Lücken eingetragen hat, samt Begründung. Bei Blöcken aus dem Betreuungsplan zwischen `Dieser Block` und `Ganzer Tag` wechseln.",
         ],
         callout: {
           title: "Abweichung statt neue Vorlage",
-          body: "Änderungen im Vertretungsplan gelten nur für die gewählte Woche bzw. den Tag und überschreiben den Betreuungsplan nicht. Wer dauerhaft etwas ändern will, passt den Regeltermin im Betreuungsplan an.",
+          body: "Änderungen in der Vertretung gelten nur für den bearbeiteten Tag und überschreiben den Betreuungsplan nicht. Wer dauerhaft etwas ändern will, passt den Regeltermin im Betreuungsplan an.",
           tone: "blue",
         },
         screenshot:
-          "Vertretungsplan-Wochenansicht mit Personallücken und markierten Abweichungen.",
+          "Vertretung-Tagesansicht mit Störungsliste, Wochenleiste und Tageskalender.",
         image: "/help/screens/vertretungsplan.webp",
       },
       {
