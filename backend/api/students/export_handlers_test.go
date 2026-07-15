@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -11,6 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// testExportDate is the fixed "today" row building is evaluated against, so
+// age cells stay deterministic instead of drifting with the wall clock.
+var testExportDate = timezone.NewDate(2026, time.July, 15)
 
 func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
 	params := exportRequestToListParams(studentExportRequest{
@@ -89,7 +94,7 @@ func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := applyExportFilters(students, tt.filters)
+			got := applyExportFilters(students, tt.filters, listexport.PresetOGSWeekly)
 			gotIDs := make([]int64, 0, len(got))
 			for _, student := range got {
 				gotIDs = append(gotIDs, student.ID)
@@ -107,7 +112,7 @@ func TestApplyExportFiltersClassTripStatus(t *testing.T) {
 		{ID: 104, Location: "Zuhause"},
 	}
 
-	got := applyExportFilters(students, studentExportFilters{Status: "klassenfahrt"})
+	got := applyExportFilters(students, studentExportFilters{Status: "klassenfahrt"}, listexport.PresetOGSWeekly)
 
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(101), got[0].ID)
@@ -131,11 +136,11 @@ func TestPopulateExportPhotoConsentFilterDataSupportsFeatureOffResponses(t *test
 	require.NotNil(t, responses[1].PhotoConsentGiven)
 	assert.False(t, *responses[1].PhotoConsentGiven)
 
-	yes := applyExportFilters(responses, studentExportFilters{PhotoConsent: "yes"})
+	yes := applyExportFilters(responses, studentExportFilters{PhotoConsent: "yes"}, listexport.PresetOGSWeekly)
 	require.Len(t, yes, 1)
 	assert.Equal(t, int64(101), yes[0].ID)
 
-	no := applyExportFilters(responses, studentExportFilters{PhotoConsent: "no"})
+	no := applyExportFilters(responses, studentExportFilters{PhotoConsent: "no"}, listexport.PresetOGSWeekly)
 	require.Len(t, no, 1)
 	assert.Equal(t, int64(102), no[0].ID)
 }
@@ -218,7 +223,7 @@ func TestApplyExportFiltersCombinedWithDayStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := applyExportFilters(students, tt.filters)
+			got := applyExportFilters(students, tt.filters, listexport.PresetOGSWeekly)
 			gotIDs := make([]int64, 0, len(got))
 			for _, student := range got {
 				gotIDs = append(gotIDs, student.ID)
@@ -352,7 +357,7 @@ func TestBuildExportRowsIncludesDailyStatus(t *testing.T) {
 
 	rows := buildExportRows(students, map[int64]weeklySchedule{}, map[int64]string{
 		101: "Angemeldet: OGS",
-	})
+	}, testExportDate)
 
 	require.Len(t, rows, len(students))
 	assert.Equal(t, "Angemeldet: OGS", rows[0].Values[listexport.ColumnEnrollmentSummary])

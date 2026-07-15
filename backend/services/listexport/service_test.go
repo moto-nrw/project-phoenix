@@ -298,6 +298,39 @@ func TestColumnCatalogIncludesDailyStatus(t *testing.T) {
 	}
 }
 
+// ResolveColumns drops unknown column IDs silently, so a preset whose columns
+// are missing from the catalog would render as a shorter list rather than an
+// error. Pin both entries so that failure mode cannot reappear unnoticed.
+func TestColumnCatalogIncludesBirthdayColumns(t *testing.T) {
+	catalog := ColumnCatalog()
+	for columnID, wantLabel := range map[ColumnID]string{
+		ColumnBirthday: "Geburtstag",
+		ColumnAge:      "Alter",
+	} {
+		column, ok := catalog[columnID]
+		if !ok {
+			t.Fatalf("column catalog missing %q", columnID)
+		}
+		if column.Label != wantLabel {
+			t.Fatalf("%q label = %q, want %q", columnID, column.Label, wantLabel)
+		}
+	}
+}
+
+func TestResolveColumnsKeepsBirthdayPresetColumns(t *testing.T) {
+	got := ResolveColumns(nil, PresetBirthdayList)
+
+	want := DefaultColumnsForPreset(PresetBirthdayList)
+	if len(got) != len(want) {
+		t.Fatalf("ResolveColumns(nil, birthday_list) len = %d, want %d — a column was dropped by the catalog", len(got), len(want))
+	}
+	for i, column := range got {
+		if column.ID != want[i] {
+			t.Fatalf("column %d = %q, want %q", i, column.ID, want[i])
+		}
+	}
+}
+
 func TestDefaultColumnsForPreset(t *testing.T) {
 	tests := []struct {
 		preset Preset
@@ -309,6 +342,7 @@ func TestDefaultColumnsForPreset(t *testing.T) {
 		{PresetAttendanceSnapshot, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCurrentLocation, ColumnPlannedPickup}},
 		{PresetPickupList, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnDeparture, ColumnPlannedPickup, ColumnDailyNotes}},
 		{PresetBlankChecklist, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup}},
+		{PresetBirthdayList, []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnBirthday, ColumnAge}},
 		{Preset("unknown"), []ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnWeeklyMonday, ColumnWeeklyTuesday, ColumnWeeklyWednesday, ColumnWeeklyThursday, ColumnWeeklyFriday}},
 	}
 

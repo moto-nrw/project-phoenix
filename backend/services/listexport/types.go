@@ -46,6 +46,8 @@ const (
 	ColumnContactName       ColumnID = "contact_name"
 	ColumnContactPhone      ColumnID = "contact_phone"
 	ColumnGuardianContacts  ColumnID = "guardian_contacts"
+	ColumnBirthday          ColumnID = "birthday"
+	ColumnAge               ColumnID = "age"
 )
 
 type Preset string
@@ -58,6 +60,7 @@ const (
 	PresetAttendanceSnapshot Preset = "attendance_snapshot"
 	PresetPickupList         Preset = "pickup_list"
 	PresetBlankChecklist     Preset = "blank_checklist"
+	PresetBirthdayList       Preset = "birthday_list"
 )
 
 type Column struct {
