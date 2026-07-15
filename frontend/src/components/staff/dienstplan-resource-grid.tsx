@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  ArrowRightLeft,
   CalendarOff,
   Clock,
   MapPin,
@@ -9,8 +10,9 @@ import {
   Thermometer,
   TriangleAlert,
 } from "lucide-react";
-import { useId, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
+import { ShiftMoveDialog } from "~/components/staff/shift-move-dialog";
 import { CapacityStrip } from "~/components/ui/capacity-strip";
 import {
   CoverageIndicator,
@@ -37,6 +39,7 @@ import {
   type StaffWeeklySummary,
 } from "~/lib/shift-helpers";
 import type { ShiftType } from "~/lib/shift-type-helpers";
+import { useTenantMutateMatching } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 
 // Week matrix built on the generic kit ResourceGrid (docs/05-dienstplan.md
@@ -280,6 +283,19 @@ export function DienstplanResourceGrid({
   const router = useTenantRouter();
   const scrollHintId = useId();
 
+  // "Verschieben nach" (docs/05 Abschnitt 2.7): the move dialog lives here so the
+  // Dienstplan view needs no new prop. After a successful move both data paths
+  // are revalidated directly — the same invalidation set the sick-report flow
+  // uses (overview + reduced-path shifts).
+  const [moveTarget, setMoveTarget] = useState<{
+    member: StaffScheduleStaff;
+    shift: StaffShift;
+  } | null>(null);
+  const refreshAfterMove = useTenantMutateMatching([
+    "dienstplan-overview-",
+    "dienstplan-shifts-",
+  ]);
+
   const columns: ResourceGridColumn[] = weekDays.map((date, i) => ({
     key: date,
     label: DAY_LABELS[i] ?? "",
@@ -422,18 +438,44 @@ export function DienstplanResourceGrid({
       if (dayIsAbsent) ariaParts.push("abwesend");
     }
 
+    // "Verschieben nach" only on non-cancelled shifts: moving an ausgefallene
+    // Schicht is pointless (Ersatz-Schichten are real shifts and keep the menu).
+    // The trigger is a DOM sibling of the PlanBlock, never nested inside its
+    // <button> — a button inside a button is invalid HTML — and always visible
+    // (no hover) so it is reachable by touch and keyboard.
+    const moveMenuItems: OverflowMenuEntry[] = shift.cancelled
+      ? []
+      : [
+          {
+            label: "Verschieben nach",
+            icon: <ArrowRightLeft className="h-4 w-4" aria-hidden />,
+            onClick: () => setMoveTarget({ member, shift }),
+          },
+        ];
+
     return (
       <div key={shift.id} className="space-y-0.5">
-        <PlanBlock
-          size="compact"
-          status={status}
-          timeRange={timeRange}
-          label={label}
-          color={resolveShiftColor(shift, typesById)}
-          statusIcon={statusIcon}
-          onClick={() => onCellClick(member, date, shift)}
-          aria-label={ariaParts.join(", ")}
-        />
+        <div className="flex items-center gap-0.5">
+          <div className="min-w-0 flex-1">
+            <PlanBlock
+              size="compact"
+              status={status}
+              timeRange={timeRange}
+              label={label}
+              color={resolveShiftColor(shift, typesById)}
+              statusIcon={statusIcon}
+              onClick={() => onCellClick(member, date, shift)}
+              aria-label={ariaParts.join(", ")}
+            />
+          </div>
+          {moveMenuItems.length > 0 && (
+            <OverflowMenu
+              items={moveMenuItems}
+              triggerSize="sm"
+              ariaLabel={`Aktionen zur Schicht ${timeRange}`}
+            />
+          )}
+        </div>
         {shift.cancelled ? (
           <p
             className="text-[11px] font-medium"
@@ -570,6 +612,19 @@ export function DienstplanResourceGrid({
         entries={legendEntries}
         aria-label="Legende Schichtarten und Zustände"
       />
+      {moveTarget && (
+        <ShiftMoveDialog
+          isOpen
+          shift={moveTarget.shift}
+          sourceMember={moveTarget.member}
+          staff={staff}
+          shiftTypes={shiftTypes}
+          onClose={() => setMoveTarget(null)}
+          onDataChanged={() => {
+            void refreshAfterMove();
+          }}
+        />
+      )}
     </div>
   );
 }

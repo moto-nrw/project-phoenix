@@ -19,6 +19,30 @@ describe("OverflowMenu", () => {
     ).toBeInTheDocument();
   });
 
+  it("uses the full-size trigger by default and a compact one for triggerSize='sm'", () => {
+    const { rerender } = render(
+      <OverflowMenu items={[{ label: "Export", onClick: () => undefined }]} />,
+    );
+    const defaultTrigger = screen.getByRole("button", {
+      name: /Weitere Aktionen/i,
+    });
+    expect(defaultTrigger.className).toContain("size-9");
+    expect(defaultTrigger.className).toContain("text-gray-600");
+
+    rerender(
+      <OverflowMenu
+        triggerSize="sm"
+        items={[{ label: "Export", onClick: () => undefined }]}
+      />,
+    );
+    const smallTrigger = screen.getByRole("button", {
+      name: /Weitere Aktionen/i,
+    });
+    expect(smallTrigger.className).toContain("size-6");
+    expect(smallTrigger.className).toContain("text-gray-400");
+    expect(smallTrigger.className).not.toContain("size-9");
+  });
+
   it("opens the menu on trigger click and renders items", () => {
     render(
       <OverflowMenu

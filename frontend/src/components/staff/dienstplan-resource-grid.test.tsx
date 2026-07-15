@@ -391,6 +391,34 @@ describe("DienstplanResourceGrid reduced path", () => {
   });
 });
 
+describe("DienstplanResourceGrid move menu", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("opens the move dialog from a non-cancelled shift's context menu", () => {
+    renderGrid({ shiftsByStaff: shiftMap("2026-07-06", [baseShift()]) });
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Aktionen zur Schicht 08:00–12:00" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Verschieben nach" }));
+
+    expect(screen.getByText("Schicht verschieben")).toBeInTheDocument();
+  });
+
+  it("offers no move menu on a cancelled shift", () => {
+    renderGrid({
+      shiftsByStaff: shiftMap("2026-07-06", [
+        baseShift({ cancelled: true, changeReason: "Krankheit" }),
+      ]),
+    });
+
+    expect(screen.getByText("Fällt aus · Krankheit")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Aktionen zur Schicht/ }),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe("DienstplanResourceGrid scroll hint", () => {
   beforeEach(() => vi.clearAllMocks());
 
