@@ -6,6 +6,7 @@ import { useSession } from "next-auth/react";
 
 import { Settings2 } from "lucide-react";
 
+import { DienstplanHalbjahrGrid } from "~/components/staff/dienstplan-halbjahr-grid";
 import { DienstplanResourceGrid } from "~/components/staff/dienstplan-resource-grid";
 import {
   ShiftEditModal,
@@ -228,6 +229,29 @@ function DienstplanContent() {
     return <DienstplanPageSkeleton />;
   }
 
+  // Leerzustand "keine Mitarbeitenden" (docs/05 Abschnitt 4) — geteilt zwischen
+  // Wochen- und Halbjahres-Zweig, damit ohne Staff beide Ansichten denselben
+  // Hinweis statt eines Rasters zeigen. Kein Artwork, kein Marketing-Ton.
+  const noStaffEmptyState = (
+    <div className="flex flex-col items-center gap-3 py-10 text-center">
+      <p className="text-sm font-semibold text-gray-900">
+        Noch keine Mitarbeitenden angelegt
+      </p>
+      <p className="max-w-md text-sm leading-relaxed text-gray-600">
+        Sobald Mitarbeitende angelegt sind, erscheinen sie hier als Zeilen im
+        Dienstplan.
+      </p>
+      <Button
+        type="button"
+        variant="outline"
+        size="md"
+        onClick={() => router.push("/staff")}
+      >
+        Zu den Mitarbeitenden
+      </Button>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       <PlanningContextBar
@@ -264,12 +288,23 @@ function DienstplanContent() {
       />
 
       {view === "halbjahr" ? (
-        // Chunk 7 (dienstplan-halbjahr-grid.tsx) ersetzt diesen Platzhalter
-        // durch die Halbjahres-Sicht (Personen × Kalenderwochen). Der
-        // Leerzustand "Kein Planungszeitraum" gehört dann dorthin, nicht hierher.
-        <div className="moto-content-surface rounded-2xl border p-6 text-sm text-gray-500 shadow-sm sm:p-8">
-          Halbjahresansicht folgt.
-        </div>
+        // Halbjahres-Sicht (Personen × Kalenderwochen, docs/05 Abschnitt 3).
+        // Ohne Staff ist auch sie leer — derselbe Leerzustand wie im Wochen-
+        // Zweig. Der Leerzustand "Kein Planungszeitraum" lebt in der Grid-
+        // Komponente selbst.
+        sortedStaff.length === 0 ? (
+          <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+            {noStaffEmptyState}
+          </div>
+        ) : (
+          <DienstplanHalbjahrGrid
+            dayISO={dayISO}
+            staff={sortedStaff}
+            reducedPath={reducedPath}
+            todayIso={today}
+            onWeekClick={(monday) => updateUrlParams({ d: monday, view: null })}
+          />
+        )
       ) : (
         <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
           {shiftTypesError && (
@@ -293,26 +328,7 @@ function DienstplanContent() {
               </button>
             </div>
           ) : sortedStaff.length === 0 ? (
-            // Leerzustand: keine Mitarbeitenden (docs/05 Abschnitt 4). Kein
-            // Artwork, kein Marketing-Ton — nur der Hinweis plus Sprung zur
-            // Mitarbeiterverwaltung.
-            <div className="flex flex-col items-center gap-3 py-10 text-center">
-              <p className="text-sm font-semibold text-gray-900">
-                Noch keine Mitarbeitenden angelegt
-              </p>
-              <p className="max-w-md text-sm leading-relaxed text-gray-600">
-                Sobald Mitarbeitende angelegt sind, erscheinen sie hier als
-                Zeilen im Dienstplan.
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                onClick={() => router.push("/staff")}
-              >
-                Zu den Mitarbeitenden
-              </Button>
-            </div>
+            noStaffEmptyState
           ) : (
             <>
               {allShifts.length === 0 && (

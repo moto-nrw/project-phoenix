@@ -70,6 +70,33 @@ vi.mock("~/components/staff/dienstplan-resource-grid", () => ({
   ),
 }));
 
+vi.mock("~/components/staff/dienstplan-halbjahr-grid", () => ({
+  DienstplanHalbjahrGrid: ({
+    dayISO,
+    reducedPath,
+    todayIso,
+    onWeekClick,
+  }: {
+    dayISO: string;
+    reducedPath: boolean;
+    todayIso: string;
+    onWeekClick: (mondayISO: string) => void;
+  }) => (
+    <div data-testid="halbjahr-grid">
+      <span data-testid="halbjahr-day">{dayISO}</span>
+      <span data-testid="halbjahr-today">{todayIso}</span>
+      <span data-testid="halbjahr-reduced">{String(reducedPath)}</span>
+      <button
+        type="button"
+        data-testid="halbjahr-week-click"
+        onClick={() => onWeekClick("2026-09-14")}
+      >
+        open week
+      </button>
+    </div>
+  ),
+}));
+
 vi.mock("~/components/staff/shift-edit-modal", () => ({
   ShiftEditModal: () => <div data-testid="shift-modal" />,
 }));
@@ -387,15 +414,20 @@ describe("DienstplanView", () => {
     expect(screen.getByRole("button", { name: "Heute" })).toBeInTheDocument();
   });
 
-  it("renders the Halbjahr placeholder for view=halbjahr and writes the param on switch", async () => {
+  it("renders the Halbjahr grid for view=halbjahr and writes the param on switch", async () => {
     mocks.useBerlinToday.mockReturnValue("2026-07-06");
     mockOverviewLoaded();
 
-    // Render-Seite: Deep-Link auf Halbjahr zeigt den Platzhalter statt des Rasters.
+    // Render-Seite: Deep-Link auf Halbjahr zeigt das Halbjahres-Grid statt des
+    // Wochenrasters; der Anker-Tag und heute werden durchgereicht.
     mocks.search.value = "view=halbjahr";
     const { unmount } = render(<DienstplanView />);
-    expect(screen.getByText("Halbjahresansicht folgt.")).toBeInTheDocument();
+    expect(screen.getByTestId("halbjahr-grid")).toBeInTheDocument();
     expect(screen.queryByTestId("dienstplan-grid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("halbjahr-day")).toHaveTextContent("2026-07-06");
+    expect(screen.getByTestId("halbjahr-today")).toHaveTextContent(
+      "2026-07-06",
+    );
     unmount();
 
     // Schreib-Seite: aus der Wochenansicht schreibt der Umschalter view=halbjahr.
@@ -411,5 +443,21 @@ describe("DienstplanView", () => {
         "halbjahr",
       ),
     );
+  });
+
+  it("writes the Monday to d and clears view when a half-year cell jumps into a week", async () => {
+    mocks.useBerlinToday.mockReturnValue("2026-07-06");
+    mocks.search.value = "view=halbjahr";
+    window.history.replaceState(null, "", "/acme/dienstplan?view=halbjahr");
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+    fireEvent.click(screen.getByTestId("halbjahr-week-click"));
+
+    await waitFor(() => {
+      const params = new URLSearchParams(window.location.search);
+      expect(params.get("d")).toBe("2026-09-14");
+      expect(params.get("view")).toBeNull();
+    });
   });
 });
