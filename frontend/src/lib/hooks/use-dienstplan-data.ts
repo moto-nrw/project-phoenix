@@ -51,6 +51,11 @@ export interface UseDienstplanDataResult {
    *  context action; the caller uses it to decide whether to wire up
    *  `onSickReport`. */
   canManageAbsences: boolean;
+  /** True when the caller lacks the full overview permission set
+   *  (`schedules:read` + `users:read` on top of `time_tracking:manage`), i.e.
+   *  the reduced staff/shifts-only path. Inverse of `canUseAssignmentOverview`;
+   *  the grid collapses each row header to the name only on this path. */
+  reducedPath: boolean;
   /** Staff rows for the grid, alphabetical by last name (German collation). */
   sortedStaff: StaffScheduleStaff[];
   shiftsByStaff: Map<string, Map<string, StaffShift[]>>;
@@ -77,10 +82,6 @@ export interface UseDienstplanDataResult {
   /** Mutates whichever data path backs the grid — used after a shift is
    *  saved or a shift type changes. */
   mutateScheduleData: () => Promise<unknown>;
-  /** Raw overview mutate. Revalidated after a sick report regardless of
-   *  which data path is active (matches the pre-refactor behavior — the
-   *  reduced path's SWR key is `null`, so this is a harmless no-op there). */
-  mutateOverview: KeyedMutator<StaffScheduleOverview>;
   /** Invalidates every cache a sick report can affect: this week's
    *  Dienstplan, the Vertretungsplan, and the absence lists surfaced
    *  elsewhere (#1843). */
@@ -238,6 +239,7 @@ export function useDienstplanData(
 
   return {
     canManageAbsences,
+    reducedPath: !canUseAssignmentOverview,
     sortedStaff,
     shiftsByStaff,
     assignmentsByStaff,
@@ -252,7 +254,6 @@ export function useDienstplanData(
     scheduleLoading,
     retryLoad,
     mutateScheduleData,
-    mutateOverview,
     refreshPlanCaches,
   };
 }

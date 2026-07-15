@@ -12,10 +12,7 @@ import {
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import {
-  CoverageIndicator,
-  type CoverageTone,
-} from "~/components/ui/coverage-indicator";
+import { CoverageIndicator } from "~/components/ui/coverage-indicator";
 import {
   ResourceGrid,
   type ResourceGridColumn,
@@ -29,14 +26,18 @@ import {
 import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { staffShiftService } from "~/lib/shift-api";
 import {
-  formatPlannedHours,
+  formatColumnDate,
+  summaryLabel,
+  summaryTone,
   type StaffScheduleOverview,
   type StaffScheduleStaff,
   type StaffShift,
 } from "~/lib/shift-helpers";
+import { startOfWeek } from "~/lib/staff-metrics-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
+import { parseTimeToMinutes } from "~/lib/timetable-helpers";
 
 // Half-year view (docs/05-dienstplan.md Abschnitt 3): rows are staff, columns
 // are the calendar weeks of the planning period containing the anchor date `d`.
@@ -117,37 +118,17 @@ interface WeekMeta {
   kw: number;
 }
 
-// ─── Delta coloring (duplicated 1:1 from dienstplan-resource-grid.tsx, Chunk 4)
-// The parallel agent owns that file, so importing from it would be a merge
-// hazard; per the Chunk 7 brief these ~10 lines are duplicated with this
-// origin note and Chunk 10 may consolidate them. Under contract → red, over →
-// amber, exact/no target → neutral (docs/05 Abschnitt 2.3). Only the free-text
-// label of the CoverageIndicator is tinted.
-function summaryTone(cell: WeekSummaryCell): CoverageTone {
-  if (cell.targetMinutes === null || cell.deltaMinutes === null) {
-    return "neutral";
-  }
-  if (cell.deltaMinutes < 0) return "under";
-  if (cell.deltaMinutes > 0) return "over";
-  return "neutral";
-}
-
-// "18/20,25 h" with a target, "18 h" without one (docs/05 Abschnitt 2.3).
-function summaryLabel(cell: WeekSummaryCell): string {
-  const planned = formatPlannedHours(cell.plannedMinutes);
-  if (cell.targetMinutes === null) return planned;
-  const plannedValue = planned.replace(/\s*h$/, "");
-  return `${plannedValue}/${formatPlannedHours(cell.targetMinutes)}`;
-}
-
-function timeToMinutes(hhmm: string): number {
-  const [h, m] = hhmm.split(":");
-  return Number(h) * 60 + Number(m);
-}
+// summaryTone / summaryLabel are shared with the week grid via
+// ~/lib/shift-helpers (both operate on the {planned,target,delta}Minutes shape
+// WeekSummaryCell satisfies). Under contract → red, over → amber, exact/no
+// target → neutral (docs/05 Abschnitt 2.3).
 
 // Net minutes of a single shift: span minus break, never negative.
+// parseTimeToMinutes returns NaN for malformed "HH:MM" (guarded via Math.max
+// only for valid data — shifts always carry valid wall-clock times here).
 function shiftNetMinutes(shift: StaffShift): number {
-  const span = timeToMinutes(shift.endTime) - timeToMinutes(shift.startTime);
+  const span =
+    parseTimeToMinutes(shift.endTime) - parseTimeToMinutes(shift.startTime);
   return Math.max(0, span - shift.breakMinutes);
 }
 
@@ -191,19 +172,6 @@ function summariesFromOverview(
     });
   }
   return byStaff;
-}
-
-function startOfWeek(d: Date): Date {
-  const monday = new Date(d);
-  const day = (monday.getDay() + 6) % 7; // Mon = 0
-  monday.setDate(monday.getDate() - day);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
-}
-
-function formatColumnDate(isoDate: string): string {
-  const [, m, d] = isoDate.split("-");
-  return `${d}.${m}.`;
 }
 
 // All week columns of the period: the Monday of the week containing the period

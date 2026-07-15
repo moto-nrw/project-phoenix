@@ -6,6 +6,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DatePicker } from "~/components/ui/date-picker";
+import { Input } from "~/components/ui/input";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { getApiErrorMessage } from "~/lib/api-error-message";
 import { parseISODate, toISODate } from "~/lib/date-helpers";
@@ -355,32 +356,32 @@ export function ShiftMoveDialog({
             </FieldGroup>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Beginn">
-                <input
+                <Input
                   type="time"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                  className="tabular-nums"
                 />
               </Field>
               <Field label="Ende">
-                <input
+                <Input
                   type="time"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                  className="tabular-nums"
                 />
               </Field>
             </div>
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <Field label="Pause (Minuten)">
-                <input
+                <Input
                   type="number"
                   min={0}
                   max={breakMax}
                   inputMode="numeric"
                   value={breakMinutesStr}
                   onChange={(e) => setBreakMinutesStr(e.target.value)}
-                  className="w-full rounded-md border border-gray-200 px-3 py-2 tabular-nums focus:border-[#83CD2D] focus:outline-none"
+                  className="tabular-nums"
                 />
               </Field>
             </div>

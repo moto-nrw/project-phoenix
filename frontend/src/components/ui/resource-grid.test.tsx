@@ -111,15 +111,6 @@ describe("ResourceGrid", () => {
     );
   });
 
-  it("applies an optional status edge color to the row header", () => {
-    renderGrid({
-      rowEdgeColor: (row) => (row.id === "r2" ? "#EAB308" : undefined),
-    });
-
-    const edged = screen.getByText("B. Yilmaz").closest("th");
-    expect(edged).toHaveStyle({ borderLeft: "2px solid #EAB308" });
-  });
-
   it("renders the footer slot inside a tfoot (CapacityStrip interplay)", () => {
     renderGrid({
       footer: (

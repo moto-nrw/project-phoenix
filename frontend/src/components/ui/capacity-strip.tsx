@@ -52,9 +52,7 @@ export function CapacityStrip({
     >
       <th
         scope="row"
-        className={`${
-          stickyLabel ? "sticky left-0 z-10" : ""
-        }min-w-[180px] bg-gray-50 px-2 py-1.5 text-left text-xs font-medium text-gray-500`}
+        className={`${stickyLabel ? "sticky left-0 z-10" : ""} min-w-[180px] bg-gray-50 px-2 py-1.5 text-left text-xs font-medium text-gray-500`}
       >
         {rowLabel}
       </th>

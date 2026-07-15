@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { redirect, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -18,18 +18,22 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { hasPermission, isAdmin } from "~/lib/auth-utils";
+import { isAdmin } from "~/lib/auth-utils";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
 import { createLogger } from "~/lib/logger";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
+import { startOfWeek } from "~/lib/staff-metrics-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 
-import { DienstplanPageSkeleton } from "./dienstplan-skeleton";
+import {
+  DienstplanGridSkeleton,
+  DienstplanPageSkeleton,
+} from "./dienstplan-skeleton";
 
 const logger = createLogger({ component: "DienstplanView" });
 
@@ -48,14 +52,6 @@ type DienstplanView = "woche" | "halbjahr";
 // updateUrlParams baut die URL aus dieser Allowlist neu auf, damit fremde
 // Params (?utm_source=…) nicht jeden Wochen-/Ansichtswechsel überleben.
 const ALLOWED_URL_PARAMS = ["d", "view"] as const;
-
-function startOfWeek(d: Date): Date {
-  const monday = new Date(d);
-  const day = (monday.getDay() + 6) % 7; // Mon = 0
-  monday.setDate(monday.getDate() - day);
-  monday.setHours(0, 0, 0, 0);
-  return monday;
-}
 
 interface ModalState {
   mode: ShiftEditMode;
@@ -123,7 +119,7 @@ function DienstplanContent() {
     scheduleLoading,
     retryLoad,
     mutateScheduleData,
-    mutateOverview,
+    reducedPath,
     refreshPlanCaches,
   } = useDienstplanData(weekFrom, weekTo);
 
@@ -137,14 +133,6 @@ function DienstplanContent() {
     { revalidateOnFocus: false },
   );
   const currentStaffId = ownStaff?.id ?? null;
-
-  // Reduced permission path (only time_tracking:manage): mirrors the hook's
-  // overview branch so the row header collapses to the name only.
-  const reducedPath = !(
-    canManageAbsences &&
-    hasPermission(session, "schedules:read") &&
-    hasPermission(session, "users:read")
-  );
 
   const isOnCurrentWeek =
     toISODate(startOfWeek(parseISODate(today))) === toISODate(weekAnchor);
@@ -222,13 +210,6 @@ function DienstplanContent() {
     return <DienstplanPageSkeleton />;
   }
 
-  // Ein einziges Ladebild für Session- UND Daten-Laden (docs/05 Abschnitt 5):
-  // während scheduleLoading rendert die View das Skeleton, statt das Grid mit
-  // isLoading zu mounten.
-  if (scheduleLoading) {
-    return <DienstplanPageSkeleton />;
-  }
-
   // Leerzustand "keine Mitarbeitenden" (docs/05 Abschnitt 4) — geteilt zwischen
   // Wochen- und Halbjahres-Zweig, damit ohne Staff beide Ansichten denselben
   // Hinweis statt eines Rasters zeigen. Kein Artwork, kein Marketing-Ton.
@@ -251,6 +232,98 @@ function DienstplanContent() {
       </Button>
     </div>
   );
+
+  // Inhaltsbereich als Zustandskaskade, damit die PlanningContextBar (oben)
+  // IMMER sichtbar bleibt — auch beim Daten-Laden und im Fehlerfall. Reihenfolge:
+  // Fehler → Laden → keine Mitarbeitenden → Ansicht. Fehler- und Ladezustand
+  // gelten für BEIDE Ansichten (K1/K2): ein fehlgeschlagener Staff-/Overview-Load
+  // darf im Halbjahr nicht mehr als Leerzustand erscheinen, und beim Laden zeigt
+  // der Inhaltsbereich das Grid-Skeleton statt die ganze Seite zu verwerfen.
+  let content: ReactNode;
+  if (scheduleError) {
+    content = (
+      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+        <div className="space-y-3">
+          <Alert
+            type="error"
+            message="Der Dienstplan konnte nicht vollständig geladen werden. Bearbeiten ist deaktiviert, bis die Daten erfolgreich geladen wurden."
+          />
+          <button
+            type="button"
+            onClick={retryLoad}
+            className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
+          >
+            Erneut laden
+          </button>
+        </div>
+      </div>
+    );
+  } else if (scheduleLoading) {
+    content = <DienstplanGridSkeleton />;
+  } else if (sortedStaff.length === 0) {
+    content = (
+      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+        {noStaffEmptyState}
+      </div>
+    );
+  } else if (view === "halbjahr") {
+    // Halbjahres-Sicht (Personen × Kalenderwochen, docs/05 Abschnitt 3). Der
+    // Leerzustand "Kein Planungszeitraum" lebt in der Grid-Komponente selbst.
+    content = (
+      <DienstplanHalbjahrGrid
+        dayISO={dayISO}
+        staff={sortedStaff}
+        reducedPath={reducedPath}
+        todayIso={today}
+        onWeekClick={(monday) => updateUrlParams({ d: monday, view: null })}
+      />
+    );
+  } else {
+    content = (
+      <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
+        {shiftTypesError && (
+          <Alert
+            type="warning"
+            message="Schichtarten konnten nicht geladen werden. Der Dienstplan wird mit neutralen Schichtfarben angezeigt; die Schichtartenverwaltung ist vorübergehend deaktiviert."
+          />
+        )}
+        {allShifts.length === 0 && (
+          // Leerzustand: Mitarbeitende vorhanden, aber keine Schichten in
+          // der Woche (docs/05 Abschnitt 4) — dezente Hinweiszeile über dem
+          // Raster, keine Alert-Box.
+          <p className="mb-3 text-sm text-gray-500">
+            In dieser Woche sind keine Schichten geplant.
+          </p>
+        )}
+        <DienstplanResourceGrid
+          staff={sortedStaff}
+          shiftsByStaff={shiftsByStaff}
+          assignmentsByStaff={assignmentsByStaff}
+          summaryByStaff={summaryByStaff}
+          weekDays={weekDays}
+          todayIso={today}
+          typesById={typesById}
+          shiftTypes={shiftTypes ?? []}
+          reducedPath={reducedPath}
+          currentStaffId={currentStaffId}
+          onCellClick={(member, date, shift) =>
+            setModal({
+              mode: shift ? "edit" : "create",
+              staff: member,
+              date,
+              shift,
+              replacements: shift
+                ? allShifts.filter((s) => s.originShiftId === shift.id)
+                : [],
+            })
+          }
+          onSickReport={
+            canManageAbsences ? (member) => setSickModal(member) : undefined
+          }
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -287,90 +360,7 @@ function DienstplanContent() {
         }
       />
 
-      {view === "halbjahr" ? (
-        // Halbjahres-Sicht (Personen × Kalenderwochen, docs/05 Abschnitt 3).
-        // Ohne Staff ist auch sie leer — derselbe Leerzustand wie im Wochen-
-        // Zweig. Der Leerzustand "Kein Planungszeitraum" lebt in der Grid-
-        // Komponente selbst.
-        sortedStaff.length === 0 ? (
-          <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-            {noStaffEmptyState}
-          </div>
-        ) : (
-          <DienstplanHalbjahrGrid
-            dayISO={dayISO}
-            staff={sortedStaff}
-            reducedPath={reducedPath}
-            todayIso={today}
-            onWeekClick={(monday) => updateUrlParams({ d: monday, view: null })}
-          />
-        )
-      ) : (
-        <div className="moto-content-surface rounded-2xl border p-4 shadow-sm sm:p-6">
-          {shiftTypesError && (
-            <Alert
-              type="warning"
-              message="Schichtarten konnten nicht geladen werden. Der Dienstplan wird mit neutralen Schichtfarben angezeigt; die Schichtartenverwaltung ist vorübergehend deaktiviert."
-            />
-          )}
-          {scheduleError ? (
-            <div className="space-y-3">
-              <Alert
-                type="error"
-                message="Der Dienstplan konnte nicht vollständig geladen werden. Bearbeiten ist deaktiviert, bis die Daten erfolgreich geladen wurden."
-              />
-              <button
-                type="button"
-                onClick={retryLoad}
-                className="rounded-md border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
-              >
-                Erneut laden
-              </button>
-            </div>
-          ) : sortedStaff.length === 0 ? (
-            noStaffEmptyState
-          ) : (
-            <>
-              {allShifts.length === 0 && (
-                // Leerzustand: Mitarbeitende vorhanden, aber keine Schichten in
-                // der Woche (docs/05 Abschnitt 4) — dezente Hinweiszeile über dem
-                // Raster, keine Alert-Box.
-                <p className="mb-3 text-sm text-gray-500">
-                  In dieser Woche sind keine Schichten geplant.
-                </p>
-              )}
-              <DienstplanResourceGrid
-                staff={sortedStaff}
-                shiftsByStaff={shiftsByStaff}
-                assignmentsByStaff={assignmentsByStaff}
-                summaryByStaff={summaryByStaff}
-                weekDays={weekDays}
-                todayIso={today}
-                typesById={typesById}
-                shiftTypes={shiftTypes ?? []}
-                reducedPath={reducedPath}
-                currentStaffId={currentStaffId}
-                onCellClick={(member, date, shift) =>
-                  setModal({
-                    mode: shift ? "edit" : "create",
-                    staff: member,
-                    date,
-                    shift,
-                    replacements: shift
-                      ? allShifts.filter((s) => s.originShiftId === shift.id)
-                      : [],
-                  })
-                }
-                onSickReport={
-                  canManageAbsences
-                    ? (member) => setSickModal(member)
-                    : undefined
-                }
-              />
-            </>
-          )}
-        </div>
-      )}
+      {content}
 
       {modal && (
         <ShiftEditModal
@@ -404,13 +394,14 @@ function DienstplanContent() {
           staff={sickModal}
           onClose={() => setSickModal(null)}
           onCreated={() => {
-            Promise.all([refreshPlanCaches(), mutateOverview()]).catch(
-              (err: unknown) => {
-                logger.error("post_sick_report_refresh_failed", {
-                  error: err instanceof Error ? err.message : String(err),
-                });
-              },
-            );
+            // refreshPlanCaches invalidiert per Präfix "dienstplan-overview-"
+            // bereits den Overview-Key mit — ein separater Overview-Mutate wäre
+            // redundant.
+            refreshPlanCaches().catch((err: unknown) => {
+              logger.error("post_sick_report_refresh_failed", {
+                error: err instanceof Error ? err.message : String(err),
+              });
+            });
           }}
         />
       )}

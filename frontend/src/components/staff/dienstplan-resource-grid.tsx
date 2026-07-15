@@ -10,14 +10,11 @@ import {
   Thermometer,
   TriangleAlert,
 } from "lucide-react";
-import { useId, useState, type ReactNode } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 
 import { ShiftMoveDialog } from "~/components/staff/shift-move-dialog";
 import { CapacityStrip } from "~/components/ui/capacity-strip";
-import {
-  CoverageIndicator,
-  type CoverageTone,
-} from "~/components/ui/coverage-indicator";
+import { CoverageIndicator } from "~/components/ui/coverage-indicator";
 import {
   OverflowMenu,
   type OverflowMenuEntry,
@@ -31,8 +28,11 @@ import {
 import { Tooltip } from "~/components/ui/tooltip";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
+  formatColumnDate,
   formatPlannedHours,
   formatShiftLabel,
+  summaryLabel,
+  summaryTone,
   type StaffScheduleAssignment,
   type StaffScheduleStaff,
   type StaffShift,
@@ -105,9 +105,34 @@ interface DienstplanResourceGridProps {
   readonly onSickReport?: (staff: StaffScheduleStaff) => void;
 }
 
-function formatColumnDate(isoDate: string): string {
-  const [, m, d] = isoDate.split("-");
-  return `${d}.${m}.`;
+// Row-header "krank" note: any absent assignment this week, or a cancelled
+// shift stamped with the sick-cascade reason (Abgleich B2 — covers people
+// without assignments). Full path only; pure so it can be precomputed once per
+// data change instead of on every render (memoized in the component).
+function absenceNoteForStaff(
+  staffId: string,
+  assignmentsByStaff: Map<string, Map<string, StaffScheduleAssignment[]>>,
+  shiftsByStaff: Map<string, Map<string, StaffShift[]>>,
+): string | null {
+  const assignmentDays = assignmentsByStaff.get(staffId);
+  if (assignmentDays) {
+    for (const dayAssignments of assignmentDays.values()) {
+      for (const assignment of dayAssignments) {
+        if (assignment.isAbsent) return assignment.absenceReason ?? "krank";
+      }
+    }
+  }
+  const shiftDays = shiftsByStaff.get(staffId);
+  if (shiftDays) {
+    for (const dayShifts of shiftDays.values()) {
+      for (const shift of dayShifts) {
+        if (shift.cancelled && shift.changeReason === SICK_CHANGE_REASON) {
+          return "krank";
+        }
+      }
+    }
+  }
+  return null;
 }
 
 // Ported 1:1 from the retired per-cell week grid (pure, prop-only) — the accent color
@@ -190,26 +215,8 @@ function AssignmentCard({
   );
 }
 
-// Under contract → red, over → amber, exact/no target → neutral (docs/05
-// Abschnitt 2.3). Only the free-text label of the CoverageIndicator is tinted.
-function summaryTone(summary: StaffWeeklySummary): CoverageTone {
-  if (summary.targetMinutes === null || summary.deltaMinutes === null) {
-    return "neutral";
-  }
-  if (summary.deltaMinutes < 0) return "under";
-  if (summary.deltaMinutes > 0) return "over";
-  return "neutral";
-}
-
-// "18/20,25 h" with a target, "18 h" without one (docs/05 Abschnitt 2.3).
-function summaryLabel(summary: StaffWeeklySummary): string {
-  const planned = formatPlannedHours(summary.plannedMinutes);
-  if (summary.targetMinutes === null) return planned;
-  const plannedValue = planned.replace(/\s*h$/, "");
-  return `${plannedValue}/${formatPlannedHours(summary.targetMinutes)}`;
-}
-
-// Tooltip naming the Soll source ("Arbeitszeitmodell") until the R7 model
+// summaryTone / summaryLabel now live in ~/lib/shift-helpers (shared with the
+// half-year grid). Tooltip naming the Soll source ("Arbeitszeitmodell") until the R7 model
 // question is decided (docs/05 Abschnitt 2.3, Fertig-Kriterium 4).
 function summaryTooltip(summary: StaffWeeklySummary): string {
   const planned = formatPlannedHours(summary.plannedMinutes);
@@ -296,12 +303,51 @@ export function DienstplanResourceGrid({
     "dienstplan-shifts-",
   ]);
 
-  const columns: ResourceGridColumn[] = weekDays.map((date, i) => ({
-    key: date,
-    label: DAY_LABELS[i] ?? "",
-    sublabel: formatColumnDate(date),
-    isCurrent: date === todayIso,
-  }));
+  const columns: ResourceGridColumn[] = useMemo(
+    () =>
+      weekDays.map((date, i) => ({
+        key: date,
+        label: DAY_LABELS[i] ?? "",
+        sublabel: formatColumnDate(date),
+        isCurrent: date === todayIso,
+      })),
+    [weekDays, todayIso],
+  );
+
+  // Per-day capacity (12–16 window), computed once per data change instead of
+  // per footer cell, so opening/closing the move dialog does not re-scan every
+  // person × day.
+  const capacityByDay = useMemo(() => {
+    const byDay = new Map<string, number>();
+    for (const date of weekDays) {
+      let count = 0;
+      for (const member of staff) {
+        const dayShifts = shiftsByStaff.get(member.id)?.get(date) ?? [];
+        const staffed = dayShifts.some(
+          (shift) =>
+            !shift.cancelled &&
+            shift.startTime < CAPACITY_WINDOW_END &&
+            shift.endTime > CAPACITY_WINDOW_START,
+        );
+        if (staffed) count += 1;
+      }
+      byDay.set(date, count);
+    }
+    return byDay;
+  }, [staff, shiftsByStaff, weekDays]);
+
+  // Row-header "krank" note per person, precomputed so a pure UI-state change
+  // (opening the move dialog) does not re-walk every assignment/shift.
+  const absenceNoteByStaff = useMemo(() => {
+    const byStaff = new Map<string, string | null>();
+    for (const member of staff) {
+      byStaff.set(
+        member.id,
+        absenceNoteForStaff(member.id, assignmentsByStaff, shiftsByStaff),
+      );
+    }
+    return byStaff;
+  }, [staff, assignmentsByStaff, shiftsByStaff]);
 
   // "Für heute abwesend melden" jumps to Vertretung for today if it is in the
   // visible week, otherwise the Monday of that week (docs/05 Abschnitt 2.6).
@@ -316,31 +362,6 @@ export function DienstplanResourceGrid({
     currentStaffId != null && member.id === currentStaffId
       ? "/time-tracking"
       : `/staff/${member.id}?tab=zeiterfassung`;
-
-  // Row-header "krank" note: any absent assignment this week, or a cancelled
-  // shift stamped with the sick-cascade reason (Abgleich B2 — covers people
-  // without assignments). Full path only.
-  const absenceNoteFor = (member: StaffScheduleStaff): string | null => {
-    const assignmentDays = assignmentsByStaff.get(member.id);
-    if (assignmentDays) {
-      for (const dayAssignments of assignmentDays.values()) {
-        for (const assignment of dayAssignments) {
-          if (assignment.isAbsent) return assignment.absenceReason ?? "krank";
-        }
-      }
-    }
-    const shiftDays = shiftsByStaff.get(member.id);
-    if (shiftDays) {
-      for (const dayShifts of shiftDays.values()) {
-        for (const shift of dayShifts) {
-          if (shift.cancelled && shift.changeReason === SICK_CHANGE_REASON) {
-            return "krank";
-          }
-        }
-      }
-    }
-    return null;
-  };
 
   const buildMenuItems = (member: StaffScheduleStaff): OverflowMenuEntry[] => {
     const items: OverflowMenuEntry[] = [];
@@ -371,7 +392,9 @@ export function DienstplanResourceGrid({
 
   const renderRowHeader = (member: StaffScheduleStaff): ReactNode => {
     const summary = reducedPath ? undefined : summaryByStaff.get(member.id);
-    const absenceNote = reducedPath ? null : absenceNoteFor(member);
+    const absenceNote = reducedPath
+      ? null
+      : (absenceNoteByStaff.get(member.id) ?? null);
     const menuItems = buildMenuItems(member);
     return (
       <div className="flex items-start justify-between gap-2">
@@ -520,7 +543,7 @@ export function DienstplanResourceGrid({
     );
 
     return (
-      <div className="flex min-h-14 flex-col gap-1">
+      <div className="group flex min-h-14 flex-col gap-1">
         {sortedShifts.map((shift) =>
           renderShiftEntry(member, date, shift, dayIsAbsent),
         )}
@@ -530,11 +553,15 @@ export function DienstplanResourceGrid({
             assignment={assignment}
           />
         ))}
+        {/* Add-shift affordance in a FILLED cell: hidden until the cell is
+            hovered on hover-capable pointers (matches the retired week grid),
+            but always visible on touch and reachable by keyboard
+            (focus / focus-visible force it back to full opacity). */}
         <button
           type="button"
           onClick={() => onCellClick(member, date, null)}
           aria-label={createShiftAriaLabel(member, column)}
-          className="flex h-7 w-full items-center justify-center rounded-md border border-dashed border-gray-200 text-gray-400 transition-colors hover:bg-gray-50 hover:text-gray-600 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none"
+          className="flex h-7 w-full items-center justify-center rounded-md border border-dashed border-gray-200 text-gray-400 opacity-100 transition hover:bg-gray-50 hover:text-gray-600 focus:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none [@media(hover:hover)_and_(pointer:fine)]:opacity-0 [@media(hover:hover)_and_(pointer:fine)]:group-hover:opacity-100"
         >
           <Plus className="h-4 w-4" aria-hidden />
         </button>
@@ -542,37 +569,25 @@ export function DienstplanResourceGrid({
     );
   };
 
-  const capacityForDay = (date: string): number => {
-    let count = 0;
-    for (const member of staff) {
-      const dayShifts = shiftsByStaff.get(member.id)?.get(date) ?? [];
-      const staffed = dayShifts.some(
-        (shift) =>
-          !shift.cancelled &&
-          shift.startTime < CAPACITY_WINDOW_END &&
-          shift.endTime > CAPACITY_WINDOW_START,
-      );
-      if (staffed) count += 1;
-    }
-    return count;
-  };
-
-  const legendEntries: PlanLegendEntry[] = [
-    ...shiftTypes.map((type) => ({
-      key: `type-${type.id}`,
-      label: type.name,
-      color: type.color,
-      variant: "bar" as const,
-    })),
-    { key: "state-absent", label: "Abwesend", variant: "hatched" },
-    { key: "state-cancelled", label: "Fällt aus", variant: "cancelled" },
-    {
-      key: "state-substitute",
-      label: "Vertretung",
-      color: LOCATION_COLORS.OTHER_ROOM,
-      variant: "bar",
-    },
-  ];
+  const legendEntries: PlanLegendEntry[] = useMemo(
+    () => [
+      ...shiftTypes.map((type) => ({
+        key: `type-${type.id}`,
+        label: type.name,
+        color: type.color,
+        variant: "bar" as const,
+      })),
+      { key: "state-absent", label: "Abwesend", variant: "hatched" },
+      { key: "state-cancelled", label: "Fällt aus", variant: "cancelled" },
+      {
+        key: "state-substitute",
+        label: "Vertretung",
+        color: LOCATION_COLORS.OTHER_ROOM,
+        variant: "bar",
+      },
+    ],
+    [shiftTypes],
+  );
 
   return (
     <div>
@@ -601,7 +616,7 @@ export function DienstplanResourceGrid({
             }
             cells={weekDays.map((date) => ({
               key: date,
-              content: capacityForDay(date),
+              content: capacityByDay.get(date) ?? 0,
             }))}
           />
         }

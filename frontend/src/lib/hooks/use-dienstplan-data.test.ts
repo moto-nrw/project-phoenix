@@ -215,6 +215,8 @@ describe("useDienstplanData", () => {
     expect(mocks.getShifts).not.toHaveBeenCalled();
 
     expect(result.current.canManageAbsences).toBe(true);
+    // Full permission set → not the reduced path.
+    expect(result.current.reducedPath).toBe(false);
     // Sorted by last name, German collation: Abel before Lovelace.
     expect(result.current.sortedStaff.map((s) => s.id)).toEqual(["3", "7"]);
     expect(result.current.allShifts).toEqual(overviewData.shifts);
@@ -231,9 +233,8 @@ describe("useDienstplanData", () => {
     expect(result.current.scheduleError).toBeUndefined();
     expect(result.current.scheduleLoading).toBe(false);
 
-    // mutateScheduleData/mutateOverview both resolve to the overview mutator.
+    // mutateScheduleData resolves to the overview mutator on the full path.
     expect(result.current.mutateScheduleData).toBe(mutateOverview);
-    expect(result.current.mutateOverview).toBe(mutateOverview);
     result.current.retryLoad();
     expect(mutateOverview).toHaveBeenCalledTimes(1);
   });
@@ -270,6 +271,8 @@ describe("useDienstplanData", () => {
     expect(mocks.getOverview).not.toHaveBeenCalled();
 
     expect(result.current.canManageAbsences).toBe(true);
+    // Missing schedules:read/users:read → the reduced path.
+    expect(result.current.reducedPath).toBe(true);
     expect(result.current.sortedStaff).toEqual([
       { id: "7", firstName: "Ada", lastName: "Lovelace" },
     ]);

@@ -460,4 +460,35 @@ describe("DienstplanView", () => {
       expect(params.get("view")).toBeNull();
     });
   });
+
+  it("shows the blocking load error in the Halbjahr view when the schedule fails", () => {
+    // Regression K1: the half-year branch used to only check for empty staff, so
+    // a failed staff/overview load rendered "keine Mitarbeitenden" instead of the
+    // error card. The error state now precedes the view split for both views.
+    mocks.search.value = "view=halbjahr";
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key?.startsWith("dienstplan-overview-")) {
+        return {
+          data: undefined,
+          error: new Error("server down"),
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      return { data: [], error: undefined, isLoading: false, mutate: vi.fn() };
+    });
+
+    render(<DienstplanView />);
+
+    expect(
+      screen.getByText(
+        /Der Dienstplan konnte nicht vollständig geladen werden/,
+      ),
+    ).toBeInTheDocument();
+    // Neither the half-year grid nor the empty-staff hint is shown.
+    expect(screen.queryByTestId("halbjahr-grid")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Noch keine Mitarbeitenden angelegt"),
+    ).not.toBeInTheDocument();
+  });
 });

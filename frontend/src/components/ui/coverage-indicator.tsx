@@ -18,7 +18,7 @@ type CoverageIndicatorSize = "sm" | "md";
  * zustandsabhängige Graufärbung, `under` färbt rot (Unterdeckung), `over`
  * amber (Überdeckung). Wirkt ausschließlich auf die Freitext-Label-Farbe.
  */
-export type CoverageTone = "neutral" | "under" | "over";
+type CoverageTone = "neutral" | "under" | "over";
 
 interface CoverageIndicatorProps {
   /** Deckungszustand, vom Aufrufer aus Fachdaten abgeleitet. */

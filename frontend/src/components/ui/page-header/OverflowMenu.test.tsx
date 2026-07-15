@@ -264,6 +264,46 @@ describe("OverflowMenu", () => {
     }
   });
 
+  it("flips the menu above the trigger when it sits near the viewport bottom", () => {
+    // A trigger low in the viewport (little room below it) must anchor the menu
+    // by `bottom` (above the trigger) instead of `top`, so it never drops below
+    // the fold where the scroll listener would immediately close it.
+    const triggerTop = window.innerHeight - 18;
+    const triggerBottom = window.innerHeight - 8;
+    const originalGetRect = window.HTMLElement.prototype.getBoundingClientRect;
+    window.HTMLElement.prototype.getBoundingClientRect = () =>
+      ({
+        left: 600,
+        right: 640,
+        top: triggerTop,
+        bottom: triggerBottom,
+        width: 40,
+        height: 10,
+        x: 600,
+        y: triggerTop,
+        toJSON: () => ({}),
+      }) as DOMRect;
+
+    try {
+      render(
+        <OverflowMenu
+          items={[{ label: "Export", onClick: () => undefined }]}
+        />,
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: /Weitere Aktionen/i }),
+      );
+      const menu = screen.getByRole("menu");
+      // Anchored by bottom (above the trigger), never by top.
+      expect(menu.style.bottom).toBe(
+        `${window.innerHeight - triggerTop + 4}px`,
+      );
+      expect(menu.style.top).toBe("");
+    } finally {
+      window.HTMLElement.prototype.getBoundingClientRect = originalGetRect;
+    }
+  });
+
   it("closes on outside click", () => {
     render(
       <div>

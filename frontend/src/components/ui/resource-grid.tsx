@@ -51,8 +51,6 @@ interface ResourceGridProps<TRow> {
   readonly columnMode?: ResourceGridColumnMode;
   /** Top-left corner header above the sticky row-header column. */
   readonly cornerHeader?: ReactNode;
-  /** Optional 2px status edge (hex) on a row header, e.g. an absence accent. */
-  readonly rowEdgeColor?: (row: TRow) => string | undefined;
   /** aria-label of the empty-cell button — the caller supplies the wording. */
   readonly emptyCellLabel?: (row: TRow, column: ResourceGridColumn) => string;
   readonly onEmptyCellClick?: (row: TRow, column: ResourceGridColumn) => void;
@@ -82,7 +80,6 @@ export function ResourceGrid<TRow>({
   renderCell,
   columnMode = "days",
   cornerHeader,
-  rowEdgeColor,
   emptyCellLabel,
   onEmptyCellClick,
   footer,
@@ -137,16 +134,10 @@ export function ResourceGrid<TRow>({
         </thead>
         <tbody>
           {rows.map((row) => {
-            const edgeColor = rowEdgeColor?.(row);
             return (
               <tr key={getRowKey(row)} className="border-t border-gray-100">
                 <th
                   scope="row"
-                  style={
-                    edgeColor
-                      ? { borderLeft: `2px solid ${edgeColor}` }
-                      : undefined
-                  }
                   className="sticky left-0 z-10 min-w-[180px] bg-white px-2 py-1.5 text-left align-top font-normal"
                 >
                   {renderRowHeader(row)}

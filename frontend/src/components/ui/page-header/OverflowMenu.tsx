@@ -72,7 +72,8 @@ interface OverflowMenuProps {
 
 /**
  * Generic kebab (⋮) overflow menu. Anchored bottom-right of the trigger by
- * default; flips to bottom-left if the page edge is too close on the right.
+ * default; flips to bottom-left if the page edge is too close on the right, and
+ * flips ABOVE the trigger when it sits too close to the viewport bottom.
  *
  * Closes on outside click, Escape key, or item activation. Built without a
  * popover library to avoid adding a Radix dep just for one use site — the
@@ -148,8 +149,18 @@ export function OverflowMenu({
   const handleOpen = () => {
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect != null) {
-      // 4px gap below the trigger (matches the old mt-1).
-      const top = rect.bottom + 4;
+      const gap = 4; // matches the old mt-1
+      // Vertical anchoring: below the trigger by default, flipped ABOVE it when
+      // there is not enough room below for the (conservatively estimated) menu
+      // height. Without the flip, a trigger near the viewport bottom (e.g. the
+      // last table row) drops the menu below the fold, where the first scroll
+      // attempt immediately closes it via the scroll listener. Anchoring by
+      // `bottom` needs no exact height — only the flip decision estimates one.
+      const estimatedMenuHeight = items.length * 40 + 16;
+      const flipUp = window.innerHeight - rect.bottom < estimatedMenuHeight;
+      const vertical: CSSProperties = flipUp
+        ? { bottom: window.innerHeight - rect.top + gap }
+        : { top: rect.bottom + gap };
       // Container-stretch mode: when an ancestor selector is given, size the
       // menu to that ancestor (8px inset both sides) so it sits cleanly INSIDE
       // a narrow container instead of poking out the side. The trigger only
@@ -161,7 +172,7 @@ export function OverflowMenu({
         const cr = container.getBoundingClientRect();
         const inset = 8;
         setMenuStyle({
-          top,
+          ...vertical,
           left: cr.left + inset,
           width: cr.width - inset * 2,
         });
@@ -171,8 +182,8 @@ export function OverflowMenu({
         // the left edge for the menu to extend leftward.
         const style: CSSProperties =
           rect.left >= 220
-            ? { top, right: window.innerWidth - rect.right }
-            : { top, left: rect.left };
+            ? { ...vertical, right: window.innerWidth - rect.right }
+            : { ...vertical, left: rect.left };
         setMenuStyle(style);
       }
     }
