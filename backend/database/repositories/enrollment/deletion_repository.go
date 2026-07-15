@@ -231,6 +231,10 @@ func (r *DeletionRepository) DeleteChild(ctx context.Context, requestID, childID
 		return err
 	}
 	db := base.GetDB(ctx, r.db)
+	// audit.enrollment_offering_adjustments rows are NOT deleted here:
+	// phoenix_tenant only holds SELECT/INSERT on that append-only table.
+	// Its request_child_id FK is ON DELETE CASCADE, so deleting the
+	// request_children row below removes them.
 	statements := []struct {
 		name string
 		sql  string
@@ -238,7 +242,6 @@ func (r *DeletionRepository) DeleteChild(ctx context.Context, requestID, childID
 	}{
 		{"change request messages", `DELETE FROM enrollment.change_request_messages WHERE tenant_id = ? AND change_request_id IN (SELECT id FROM enrollment.change_requests WHERE tenant_id = ? AND request_id = ? AND request_child_id = ?)`, []any{tenantID, tenantID, requestID, childID}},
 		{"change requests", `DELETE FROM enrollment.change_requests WHERE tenant_id = ? AND request_id = ? AND request_child_id = ?`, []any{tenantID, requestID, childID}},
-		{"offering adjustments", `DELETE FROM audit.enrollment_offering_adjustments WHERE tenant_id = ? AND request_id = ? AND request_child_id = ?`, []any{tenantID, requestID, childID}},
 		{"child offerings", `DELETE FROM enrollment.request_child_offerings WHERE tenant_id = ? AND request_child_id = ?`, []any{tenantID, childID}},
 		{"request child", `DELETE FROM enrollment.request_children WHERE tenant_id = ? AND request_id = ? AND id = ?`, []any{tenantID, requestID, childID}},
 	}
@@ -256,6 +259,10 @@ func (r *DeletionRepository) DeleteRequest(ctx context.Context, requestID int64)
 		return err
 	}
 	db := base.GetDB(ctx, r.db)
+	// audit.enrollment_offering_adjustments rows are NOT deleted here:
+	// phoenix_tenant only holds SELECT/INSERT on that append-only table.
+	// Its request_id / request_child_id FKs are ON DELETE CASCADE, so
+	// deleting the request_children and requests rows below removes them.
 	statements := []struct {
 		name string
 		sql  string
@@ -264,7 +271,6 @@ func (r *DeletionRepository) DeleteRequest(ctx context.Context, requestID int64)
 		{"change request messages", `DELETE FROM enrollment.change_request_messages WHERE tenant_id = ? AND change_request_id IN (SELECT id FROM enrollment.change_requests WHERE tenant_id = ? AND request_id = ?)`, []any{tenantID, tenantID, requestID}},
 		{"change requests", `DELETE FROM enrollment.change_requests WHERE tenant_id = ? AND request_id = ?`, []any{tenantID, requestID}},
 		{"late invites", `DELETE FROM enrollment.late_invites WHERE tenant_id = ? AND used_request_id = ?`, []any{tenantID, requestID}},
-		{"offering adjustments", `DELETE FROM audit.enrollment_offering_adjustments WHERE tenant_id = ? AND request_id = ?`, []any{tenantID, requestID}},
 		{"child offerings", `DELETE FROM enrollment.request_child_offerings WHERE tenant_id = ? AND request_child_id IN (SELECT id FROM enrollment.request_children WHERE tenant_id = ? AND request_id = ?)`, []any{tenantID, tenantID, requestID}},
 		{"request guardians", `DELETE FROM enrollment.request_guardians WHERE tenant_id = ? AND request_id = ?`, []any{tenantID, requestID}},
 		{"request children", `DELETE FROM enrollment.request_children WHERE tenant_id = ? AND request_id = ?`, []any{tenantID, requestID}},
