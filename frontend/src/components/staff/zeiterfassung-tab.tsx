@@ -140,6 +140,21 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
       ),
   );
 
+  // Date-valid Soll for the visible range (#1842) — the same source the
+  // Monatskarte is computed from. Without it the table applies the CURRENT
+  // schedule to historical dates, so card and rows disagree the moment a
+  // staff member's contracted hours change.
+  const { data: dailyTargets } = useSWRAuth<ReadonlyMap<string, number>>(
+    `staff-schedule-targets-${staffId}-${visibleFromKey}-${visibleToKey}`,
+    () =>
+      staffMonthSummaryService.getScheduleTargets(
+        staffId,
+        visibleFromKey,
+        visibleToKey,
+      ),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
   // Monatskarte (#1842): server-computed month aggregate, only fetched in
   // month mode. Everything is live — the Übertrag recomputes automatically
   // when past months are corrected. Edits and backfills invalidate this key
@@ -262,6 +277,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               sessions={visibleSessions ?? []}
               absences={visibleAbsences ?? []}
               schedule={schedule ?? null}
+              dailyTargets={dailyTargets}
               today={today}
               isAdminView
               plannedShifts={visibleShifts ?? []}

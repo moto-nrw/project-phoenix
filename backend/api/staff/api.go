@@ -93,6 +93,7 @@ func (rs *Resource) Router() chi.Router {
 
 		// Monatskarte (#1842)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/month-summary", rs.getStaffMonthSummary)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/schedule-targets", rs.getStaffScheduleTargets)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingManage), withTx).Get("/{id}/time-tracking/export", rs.exportStaffSessions)
 
 		// Vacation workflow admin-side (Tranche 4)

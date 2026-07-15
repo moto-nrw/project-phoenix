@@ -27,18 +27,24 @@ const (
 type StaffWorkSchedule struct {
 	bun.BaseModel `bun:"table:config.staff_work_schedules,alias:staff_work_schedule"`
 
-	ID             int64          `bun:"id,pk,autoincrement" json:"id"`
-	TenantID       int64          `bun:"tenant_id,notnull" json:"tenant_id"`
-	StaffID        int64          `bun:"staff_id,notnull" json:"staff_id"`
-	WeekIndex      int            `bun:"week_index,notnull,default:0" json:"week_index"`
-	RotationLength int            `bun:"rotation_length,notnull,default:1" json:"rotation_length"`
-	DayOfWeek      int            `bun:"day_of_week,notnull" json:"day_of_week"`
-	TargetMinutes  int            `bun:"target_minutes,notnull" json:"target_minutes"`
-	StartTime      *time.Time     `bun:"start_time" json:"start_time,omitempty"`
-	ValidFrom      timezone.Date  `bun:"valid_from,notnull,type:date" json:"valid_from"`
-	ValidUntil     *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
-	CreatedAt      time.Time      `bun:"created_at,notnull,default:now()" json:"created_at"`
-	UpdatedAt      time.Time      `bun:"updated_at,notnull,default:now()" json:"updated_at"`
+	ID             int64      `bun:"id,pk,autoincrement" json:"id"`
+	TenantID       int64      `bun:"tenant_id,notnull" json:"tenant_id"`
+	StaffID        int64      `bun:"staff_id,notnull" json:"staff_id"`
+	WeekIndex      int        `bun:"week_index,notnull,default:0" json:"week_index"`
+	RotationLength int        `bun:"rotation_length,notnull,default:1" json:"rotation_length"`
+	DayOfWeek      int        `bun:"day_of_week,notnull" json:"day_of_week"`
+	TargetMinutes  int        `bun:"target_minutes,notnull" json:"target_minutes"`
+	StartTime      *time.Time `bun:"start_time" json:"start_time,omitempty"`
+	// RotationAnchorDate is the rotation anchor this schedule version was
+	// written with (#1842). It is immutable: a schedule change closes these
+	// rows and inserts a new version carrying its own anchor, so past weeks
+	// keep the A/B parity they were computed with. NULL only on rows written
+	// before 1.15.199 with no staff-level anchor to backfill from.
+	RotationAnchorDate *timezone.Date `bun:"rotation_anchor_date,type:date" json:"rotation_anchor_date,omitempty"`
+	ValidFrom          timezone.Date  `bun:"valid_from,notnull,type:date" json:"valid_from"`
+	ValidUntil         *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`
+	CreatedAt          time.Time      `bun:"created_at,notnull,default:now()" json:"created_at"`
+	UpdatedAt          time.Time      `bun:"updated_at,notnull,default:now()" json:"updated_at"`
 }
 
 func (s *StaffWorkSchedule) Validate() error {
@@ -85,6 +91,10 @@ type StaffWorkScheduleRepository interface {
 	// filter-based List.
 	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*StaffWorkSchedule, error)
 
-	// ReplaceSchedule atomically replaces all current schedule entries for a staff member
-	ReplaceSchedule(ctx context.Context, staffID int64, entries []*StaffWorkSchedule) error
+	// ReplaceSchedule atomically replaces all current schedule entries for a
+	// staff member. anchor is the rotation anchor the new version is written
+	// with and is stamped onto every inserted row (#1842) — the closed-out
+	// rows keep theirs, so a schedule change can no longer re-parity the past.
+	// A zero anchor leaves the column NULL (rotation_length 1 has no parity).
+	ReplaceSchedule(ctx context.Context, staffID int64, entries []*StaffWorkSchedule, anchor timezone.Date) error
 }

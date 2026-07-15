@@ -2132,12 +2132,12 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 	}
 
 	entries := modelEntriesToScheduleRows(model.Entries, model.RotationLength)
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
+	anchor := model.RotationAnchorDate
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, anchor); err != nil {
 		return fmt.Errorf("write assigned schedule snapshot: %w", err)
 	}
 
 	staff.WorkTimeModelID = &model.ID
-	anchor := model.RotationAnchorDate
 	staff.RotationAnchorDate = &anchor
 	if err := s.staffRepo.Update(ctx, staff); err != nil {
 		return fmt.Errorf("bind template to staff: %w", err)
@@ -2148,7 +2148,14 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 // ApplyCustomScheduleRows replaces the schedule with custom rows and unbinds
 // any assigned template.
 func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *userModels.Staff, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
+	// An omitted anchor keeps the staff-level one; the new version must be
+	// stamped with that same effective anchor, or it would silently re-parity
+	// once the staff anchor moves.
+	effective := anchor
+	if effective.IsZero() && staff.RotationAnchorDate != nil {
+		effective = *staff.RotationAnchorDate
+	}
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, effective); err != nil {
 		return fmt.Errorf("write custom schedule: %w", err)
 	}
 
@@ -2178,7 +2185,7 @@ func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, s
 		return err
 	}
 	scheduleRows := modelEntriesToScheduleRows(entries, rotation)
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows); err != nil {
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows, anchor); err != nil {
 		return fmt.Errorf("write saved template schedule snapshot: %w", err)
 	}
 

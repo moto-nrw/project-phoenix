@@ -872,8 +872,10 @@ class StaffAbsenceService {
 // so an admin can pull the audit trail for any staff member's session in
 // the tenant.
 import {
+  mapDailyTargetsResponse,
   mapMonthSummaryResponse,
   mapWorkSessionEditResponse,
+  type BackendDailyTarget,
   type BackendMonthSummary,
   type BackendWorkSessionEdit,
   type MonthSummary,
@@ -931,6 +933,29 @@ class StaffMonthSummaryService {
     }
     const json = (await response.json()) as { data: BackendMonthSummary };
     return mapMonthSummaryResponse(json.data);
+  }
+
+  // Admin counterpart to timeTrackingService.getScheduleTargets — the same
+  // date-valid Soll the Monatskarte is computed from, so card and table can
+  // never disagree after a schedule change (#1842).
+  async getScheduleTargets(
+    staffId: string,
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, number>> {
+    const params = new URLSearchParams({ from, to });
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/schedule-targets?${params}`,
+    );
+    if (!response.ok) {
+      throw new Error(
+        `Failed to fetch schedule targets: ${response.statusText}`,
+      );
+    }
+    const json = (await response.json()) as {
+      data: BackendDailyTarget[] | null;
+    };
+    return mapDailyTargetsResponse(json.data);
   }
 }
 

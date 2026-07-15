@@ -88,6 +88,7 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/shifts", rs.getOwnShifts)
 		// Own Monatskarte (#1842)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/month-summary", rs.getOwnMonthSummary)
+		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/schedule-targets", rs.getOwnScheduleTargets)
 		// Own Betreuungsplan blocks for the day (Ort/Aufgabe + Vertretungen, #1844)
 		r.With(authorize.RequiresPermission(permissions.TimeTrackingOwn), withTx).Get("/assignments", rs.getOwnAssignments)
 

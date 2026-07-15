@@ -43,9 +43,22 @@ func ScheduleRotationLength(entries []*StaffWorkSchedule) int {
 }
 
 // ResolveScheduleAnchor returns the rotation anchor for a staff member's
-// schedule entries: an explicit staff-level anchor wins, otherwise the
-// earliest valid_from among the entries.
+// schedule entries, in descending order of historical truth (#1842):
+//
+//  1. the anchor persisted on the entries themselves — the one the version was
+//     actually written with, immune to later schedule edits;
+//  2. the staff-level anchor — the live value, which every schedule change
+//     overwrites, so it is only correct for the CURRENT version;
+//  3. the earliest valid_from among the entries.
+//
+// Entries reaching step 2 predate migration 1.15.199 and had no staff anchor
+// to backfill; step 2 then reproduces the pre-1.15.199 behaviour exactly.
 func ResolveScheduleAnchor(staffAnchor *timezone.Date, entries []*StaffWorkSchedule) timezone.Date {
+	for _, e := range entries {
+		if e != nil && e.RotationAnchorDate != nil && !e.RotationAnchorDate.IsZero() {
+			return *e.RotationAnchorDate
+		}
+	}
 	if staffAnchor != nil {
 		return *staffAnchor
 	}

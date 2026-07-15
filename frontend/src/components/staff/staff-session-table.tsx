@@ -54,6 +54,7 @@ export function StaffSessionTable({
   sessions,
   absences,
   schedule,
+  dailyTargets,
   today,
   isAdminView,
   plannedShifts,
@@ -66,6 +67,12 @@ export function StaffSessionTable({
   readonly sessions: readonly StaffHistorySession[];
   readonly absences?: readonly StaffAbsenceRow[];
   readonly schedule: StaffSchedule | null;
+  // Server-resolved Soll je Tag (#1842), keyed YYYY-MM-DD. Wenn gesetzt, ist
+  // das die Quelle für die Soll-Spalte: `schedule` beschreibt NUR den heute
+  // gültigen Plan, angewendet auf vergangene Tage widerspricht er der
+  // Monatskarte, sobald jemand seine Stunden ändert. Der Plan bleibt der
+  // Fallback, solange die Targets laden oder deren Fetch fehlschlägt.
+  readonly dailyTargets?: ReadonlyMap<string, number>;
   readonly today: Date;
   readonly isAdminView: boolean;
   // Planned Dienstplan shifts for the visible range. When provided (admin
@@ -220,7 +227,9 @@ export function StaffSessionTable({
             const dow = toIsoDayOfWeek(day);
             const session = sessionsByDate.get(key);
             const absence = absencesByDate.get(key);
-            const target = schedule ? resolveTargetForDate(schedule, day) : 0;
+            const target =
+              dailyTargets?.get(key) ??
+              (schedule ? resolveTargetForDate(schedule, day) : 0);
             const isFuture = day > today;
             const isToday = sameDay(day, today);
             const ist = session?.net_minutes ?? 0;

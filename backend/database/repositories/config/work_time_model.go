@@ -267,17 +267,23 @@ func (r *WorkTimeModelRepository) RefreshAssignedStaffSchedules(ctx context.Cont
 	rows := make([]*config.StaffWorkSchedule, 0, len(staffIDs)*len(model.Entries))
 	for _, staffID := range staffIDs {
 		for _, entry := range model.Entries {
+			// Stamp the model's anchor onto the new version (#1842). The
+			// staff-level anchor was just overwritten above, so without this
+			// the fresh rows would inherit a moving anchor — the very thing
+			// that let a template edit re-parity closed weeks.
+			versionAnchor := model.RotationAnchorDate
 			row := &config.StaffWorkSchedule{
-				StaffID:        staffID,
-				WeekIndex:      entry.WeekIndex,
-				RotationLength: model.RotationLength,
-				DayOfWeek:      entry.DayOfWeek,
-				TargetMinutes:  entry.TargetMinutes,
-				StartTime:      entry.StartTime,
-				ValidFrom:      today,
-				ValidUntil:     nil,
-				CreatedAt:      now,
-				UpdatedAt:      now,
+				StaffID:            staffID,
+				WeekIndex:          entry.WeekIndex,
+				RotationLength:     model.RotationLength,
+				DayOfWeek:          entry.DayOfWeek,
+				TargetMinutes:      entry.TargetMinutes,
+				StartTime:          entry.StartTime,
+				RotationAnchorDate: &versionAnchor,
+				ValidFrom:          today,
+				ValidUntil:         nil,
+				CreatedAt:          now,
+				UpdatedAt:          now,
 			}
 			if tenantID > 0 {
 				row.SetTenantID(tenantID)

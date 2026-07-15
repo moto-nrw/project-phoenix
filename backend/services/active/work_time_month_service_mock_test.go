@@ -347,3 +347,117 @@ func TestWTMMonthSummary_InvalidMonth(t *testing.T) {
 	_, err = f.svc.GetMonthSummary(context.Background(), wtmStaffID, 1999, 1)
 	assert.Error(t, err)
 }
+
+// A future-dated session (the admin correction service accepts them) must not
+// enter the balance: targets and credits are clamped at today, so counting its
+// Ist would invent a plus in the current month and carry it forward forever.
+func TestWTMMonthSummary_FutureSessionExcludedFromActual(t *testing.T) {
+	f := newWTMFixture()
+
+	// today = 2026-07-15; July Mondays up to today: 6, 13 → 960 target_to_date.
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(timezone.NewDate(2026, time.July, 13), 8, 480, 0),
+		// Dated after today — must be ignored entirely.
+		wtmSession(timezone.NewDate(2026, time.July, 20), 8, 480, 0),
+	}
+
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	assert.Equal(t, 480, summary.ActualMinutes, "only the session on or before today counts")
+	assert.Equal(t, 2*480, summary.TargetMinutesToDate)
+	assert.Equal(t, 480-2*480, summary.BalanceMinutes)
+}
+
+// The future-dated session must not leak into a later month's Übertrag either
+// — the carry sums the same per-month balances.
+func TestWTMMonthSummary_FutureSessionExcludedFromCarry(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(timezone.NewDate(2026, time.July, 20), 8, 480, 0),
+	}
+
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 8)
+	require.NoError(t, err)
+	// July: target_to_date 960 (Mondays 6, 13), actual 0 → carry −960.
+	assert.Equal(t, -960, summary.CarryInMinutes, "future session must not inflate the carry")
+}
+
+// Editing a schedule overwrites users.staff.rotation_anchor_date. A historical
+// version carrying its own anchor must keep the parity it was written with,
+// instead of being re-parityed by the current anchor (#1842).
+func TestWTMMonthSummary_HistoricalRowAnchorWinsOverStaffAnchor(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-06-01"
+
+	// The staff-level anchor now sits one week off the version's own anchor,
+	// which flips A/B parity for every June week if it is applied.
+	staffAnchor := timezone.NewDate(2026, time.June, 8)
+	versionAnchor := timezone.NewDate(2026, time.June, 1)
+	svc := NewWorkTimeMonthService(f.sessions, f.absences,
+		&wtmMockStaffReader{staff: &userModels.Staff{Model: base.Model{ID: wtmStaffID}, RotationAnchorDate: &staffAnchor}},
+		f.schedules, f.models, f.shifts, f.settings, nil).(*workTimeMonthService)
+	svc.todayFunc = func() timezone.Date { return timezone.NewDate(2026, time.July, 15) }
+
+	// 2-week rotation: week A Mondays = 480, week B Mondays = 0.
+	f.schedules.entries = []*configModels.StaffWorkSchedule{
+		{
+			StaffID: wtmStaffID, DayOfWeek: configModels.DayMonday, TargetMinutes: 480,
+			WeekIndex: 0, RotationLength: 2,
+			ValidFrom:          timezone.NewDate(2020, time.January, 1),
+			RotationAnchorDate: &versionAnchor,
+		},
+	}
+
+	summary, err := svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 6)
+	require.NoError(t, err)
+	// Anchored on Jun 1: week A Mondays are Jun 1, 15, 29 → 3 × 480.
+	// Under the staff anchor (Jun 8) it would be Jun 8, 22 → 2 × 480.
+	assert.Equal(t, 3*480, summary.TargetMinutes, "the version's own anchor must decide the parity")
+}
+
+// GetDailyTargets is what the daily table reads, and it must resolve each day
+// against the schedule version valid ON that day — the card and the rows
+// beneath it are otherwise free to disagree.
+func TestWTMDailyTargets_UsesDateValidScheduleVersion(t *testing.T) {
+	f := newWTMFixture()
+
+	// Old version: Mondays 480, closed on 2026-07-01. New version: Mondays 240.
+	closedAt := timezone.NewDate(2026, time.July, 1)
+	f.schedules.entries = []*configModels.StaffWorkSchedule{
+		{
+			StaffID: wtmStaffID, DayOfWeek: configModels.DayMonday, TargetMinutes: 480, RotationLength: 1,
+			ValidFrom: timezone.NewDate(2020, time.January, 1), ValidUntil: &closedAt,
+		},
+		{
+			StaffID: wtmStaffID, DayOfWeek: configModels.DayMonday, TargetMinutes: 240, RotationLength: 1,
+			ValidFrom: closedAt,
+		},
+	}
+
+	targets, err := f.svc.GetDailyTargets(context.Background(), wtmStaffID,
+		timezone.NewDate(2026, time.June, 29), timezone.NewDate(2026, time.July, 6))
+	require.NoError(t, err)
+	require.Len(t, targets, 8)
+
+	byDate := make(map[timezone.Date]int, len(targets))
+	for _, target := range targets {
+		byDate[target.Date] = target.TargetMinutes
+	}
+	assert.Equal(t, 480, byDate[timezone.NewDate(2026, time.June, 29)], "Monday under the old version")
+	assert.Equal(t, 240, byDate[timezone.NewDate(2026, time.July, 6)], "Monday under the new version")
+	assert.Equal(t, 0, byDate[timezone.NewDate(2026, time.June, 30)], "Tuesday is a planned day off")
+}
+
+func TestWTMDailyTargets_RejectsInvalidRange(t *testing.T) {
+	f := newWTMFixture()
+	ctx := context.Background()
+
+	_, err := f.svc.GetDailyTargets(ctx, wtmStaffID,
+		timezone.NewDate(2026, time.July, 10), timezone.NewDate(2026, time.July, 1))
+	assert.Error(t, err, "to before from")
+
+	_, err = f.svc.GetDailyTargets(ctx, wtmStaffID,
+		timezone.NewDate(2020, time.January, 1), timezone.NewDate(2026, time.July, 1))
+	assert.Error(t, err, "range beyond the cap")
+}

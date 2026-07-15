@@ -1606,6 +1606,16 @@ function OwnZeiterfassungSection({
     { keepPreviousData: true, revalidateOnFocus: false },
   );
 
+  // Date-valid Soll for the visible range (#1842). Fetched in BOTH view modes:
+  // the table's `schedule` prop only ever describes the CURRENT plan, so after
+  // a contract change it would print today's hours onto historical rows and
+  // contradict the Monatskarte above it.
+  const { data: dailyTargets } = useSWRAuth(
+    `time-tracking-schedule-targets-${visibleFromKey}-${visibleToKey}`,
+    () => timeTrackingService.getScheduleTargets(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
   // Monatskarte (#1842): server-computed month aggregate, read-only for the
   // staff member. Only fetched in month mode. Check-ins, checkouts and
   // absence changes invalidate this key (refreshTableData); the poll on top
@@ -1825,6 +1835,7 @@ function OwnZeiterfassungSection({
             sessions={adaptedSessions}
             absences={adaptedAbsences}
             schedule={schedule}
+            dailyTargets={dailyTargets}
             today={today}
             isAdminView={ownStaffId !== null}
             onEditDay={(date) => handleEdit(date)}

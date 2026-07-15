@@ -58,6 +58,17 @@ type MonthSummary struct {
 // with its own dependency set.
 type WorkTimeMonthService interface {
 	GetMonthSummary(ctx context.Context, staffID int64, year, month int) (*MonthSummary, error)
+	GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error)
+}
+
+// DailyTarget is the contractual Soll of one calendar day, resolved against
+// the schedule version that was valid ON that day (#1842). The daily table
+// reads these instead of applying the current schedule to historical dates —
+// otherwise the rows contradict the Monatskarte sitting above them the moment
+// a staff member's hours change.
+type DailyTarget struct {
+	Date          timezone.Date `json:"date"`
+	TargetMinutes int           `json:"target_minutes"`
 }
 
 // The narrow dependency surfaces below are exactly what the month math
@@ -168,6 +179,11 @@ func (k monthKey) next() monthKey {
 func (k monthKey) before(o monthKey) bool {
 	return k.Year < o.Year || (k.Year == o.Year && k.Month < o.Month)
 }
+
+// maxDailyTargetRangeDays bounds GetDailyTargets: the table never shows more
+// than a month, and an unbounded range would let a caller walk years of
+// calendar days per request.
+const maxDailyTargetRangeDays = 366
 
 func validateMonth(year, month int) error {
 	if year < 2000 || year > 2100 || month < 1 || month > 12 {
@@ -280,7 +296,7 @@ func (s *workTimeMonthService) computeAggregates(ctx context.Context, staffID in
 		}
 	}
 
-	if err := s.addActualMinutes(ctx, staffID, first, last, aggregates); err != nil {
+	if err := s.addActualMinutes(ctx, staffID, first, last, today, aggregates); err != nil {
 		return nil, err
 	}
 	if err := s.addAbsenceCredits(ctx, staffID, first, last, today, resolver, aggregates); err != nil {
@@ -292,13 +308,22 @@ func (s *workTimeMonthService) computeAggregates(ctx context.Context, staffID in
 	return aggregates, nil
 }
 
-func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int64, first, last timezone.Date, aggregates map[monthKey]*monthAggregates) error {
+// addActualMinutes sums the net worked minutes per month, skipping sessions
+// dated after today. Targets and absence credits are both clamped at today, so
+// counting a future-dated session (the admin correction service accepts them)
+// would credit Ist against a Soll that is deliberately not there yet and show
+// a phantom plus in the current month — and, via the carry chain, in every
+// later one.
+func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int64, first, last, today timezone.Date, aggregates map[monthKey]*monthAggregates) error {
 	sessions, err := s.sessionRepo.GetHistoryByStaffID(ctx, staffID, first, last)
 	if err != nil {
 		return fmt.Errorf("failed to load work sessions: %w", err)
 	}
 	now := time.Now()
 	for _, session := range sessions {
+		if session.Date.After(today) {
+			continue
+		}
 		if agg, ok := aggregates[monthOf(session.Date)]; ok {
 			agg.actual += netMinutes(session, now)
 		}
@@ -502,6 +527,32 @@ func (s *workTimeMonthService) GetMonthSummary(ctx context.Context, staffID int6
 	}
 	summary.ClosingBalanceMinutes = summary.CarryInMinutes + summary.BalanceMinutes
 	return summary, nil
+}
+
+// GetDailyTargets resolves the contractual Soll for every day in [from, to]
+// through the same resolver the Monatskarte uses, so card and table can never
+// disagree. Days with no target are returned as 0 rather than omitted: the
+// caller must be able to tell "planned day off" from "range not covered".
+func (s *workTimeMonthService) GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error) {
+	if from.IsZero() || to.IsZero() {
+		return nil, fmt.Errorf("from and to are required")
+	}
+	if to.Before(from) {
+		return nil, fmt.Errorf("to must be on or after from")
+	}
+	if from.DaysUntil(to) > maxDailyTargetRangeDays {
+		return nil, fmt.Errorf("range must not exceed %d days", maxDailyTargetRangeDays)
+	}
+
+	resolver, err := s.buildTargetResolver(ctx, staffID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	targets := make([]DailyTarget, 0, from.DaysUntil(to)+1)
+	for d := from; !d.After(to); d = d.AddDays(1) {
+		targets = append(targets, DailyTarget{Date: d, TargetMinutes: resolver.targetFor(d)})
+	}
+	return targets, nil
 }
 
 func (s *workTimeMonthService) getLogger() *slog.Logger {

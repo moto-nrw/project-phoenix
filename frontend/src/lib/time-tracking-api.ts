@@ -3,6 +3,7 @@
 import { getSession } from "next-auth/react";
 import { buildApiError } from "./auth-api";
 import type {
+  BackendDailyTarget,
   BackendMonthSummary,
   MonthSummary,
   StaffAbsence,
@@ -13,6 +14,7 @@ import type {
   WorkSessionHistory,
 } from "./time-tracking-helpers";
 import {
+  mapDailyTargetsResponse,
   mapHistoryResponse,
   mapMonthSummaryResponse,
   mapStaffAbsenceResponse,
@@ -215,6 +217,23 @@ class TimeTrackingService {
       "Failed to get month summary",
     );
     return mapMonthSummaryResponse(result.data);
+  }
+
+  // Date-valid Soll per day (#1842). The daily table must not derive Soll from
+  // the CURRENT schedule: after a contract change that would show historical
+  // rows with today's hours while the Monatskarte above them reports the
+  // hours that actually applied.
+  async getScheduleTargets(
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, number>> {
+    const params = new URLSearchParams({ from, to });
+    const result = await this.request<BackendDailyTarget[] | null>(
+      `/schedule-targets?${params}`,
+      "GET",
+      "Failed to get schedule targets",
+    );
+    return mapDailyTargetsResponse(result.data);
   }
 
   async updateSession(

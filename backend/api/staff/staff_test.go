@@ -1273,7 +1273,7 @@ func TestUpdateSchedule_SaveAsTemplateMaterializesAssignedSnapshot(t *testing.T)
 			DayOfWeek:      configModels.DayMonday,
 			TargetMinutes:  300,
 		},
-	}))
+	}, timezone.Date{}))
 
 	claims := testutil.DefaultTestClaims()
 	claims.Permissions = []string{"time_tracking:manage"}
@@ -1331,7 +1331,7 @@ func TestGetSchedule_AllowsOwnStaffWithTimeTrackingOwn(t *testing.T) {
 			DayOfWeek:      configModels.DayMonday,
 			TargetMinutes:  300,
 		},
-	}))
+	}, timezone.Date{}))
 
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(account.ID)

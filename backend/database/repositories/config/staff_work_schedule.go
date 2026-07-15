@@ -98,7 +98,7 @@ func (r *StaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx context.Con
 
 // ReplaceSchedule atomically replaces all current schedule entries for a staff member.
 // It sets valid_until on existing entries and inserts the new ones.
-func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*config.StaffWorkSchedule) error {
+func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staffID int64, entries []*config.StaffWorkSchedule, anchor timezone.Date) error {
 	db := repoBase.GetDB(ctx, r.db)
 	tenantID := tenant.FromContext(ctx)
 	now := time.Now()
@@ -110,6 +110,11 @@ func (r *StaffWorkScheduleRepository) ReplaceSchedule(ctx context.Context, staff
 		e.ValidUntil = nil
 		e.CreatedAt = now
 		e.UpdatedAt = now
+		e.RotationAnchorDate = nil
+		if !anchor.IsZero() {
+			versionAnchor := anchor
+			e.RotationAnchorDate = &versionAnchor
+		}
 		if tenantID > 0 {
 			e.SetTenantID(tenantID)
 		}
