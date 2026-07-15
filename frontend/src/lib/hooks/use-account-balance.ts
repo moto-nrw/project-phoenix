@@ -1,5 +1,6 @@
 "use client";
 
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { staffMonthSummaryService } from "~/lib/staff-api";
 import { useSWRAuth } from "~/lib/swr";
 import { timeTrackingService } from "~/lib/time-tracking-api";
@@ -36,16 +37,47 @@ export interface AccountBalance {
  * Pass a `staffId` for the admin (`time_tracking:manage`) endpoint; omit it to
  * read the caller's own account. The keys deliberately match the Monatskarte's
  * current-month keys so SWR dedupes both widgets into one request.
+ *
+ * The month is the BERLIN month, not the browser's: the backend derives its
+ * "current month" from `timezone.TodayDate()`, so a browser in another
+ * timezone would ask for the wrong month around a month boundary (shortly
+ * after Berlin midnight on Aug 1, a UTC browser still says July) and print
+ * last month's closing balance under a key that no longer matches the
+ * Monatskarte. `useBerlinToday` also re-renders on the rollover itself.
+ *
+ * A configured account start in a FUTURE month yields no balance. The backend
+ * summarizes months before the anchor standalone (full month, no carry), so
+ * `closingBalanceMinutes` is then this month's own Saldo — not a cumulative
+ * account balance — and labelling it "Stundenkonto seit <future date>" would
+ * be materially wrong. Consumers already render `null` as "–". The anchor is
+ * required input, so a failed config read is surfaced rather than swallowed,
+ * mirroring the backend's `chainAnchor`.
  */
 export function useAccountBalance(staffId?: string): AccountBalance {
-  const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
+  const today = useBerlinToday();
+  const year = Number(today.slice(0, 4));
+  const month = Number(today.slice(5, 7));
+
+  const {
+    data: config,
+    isLoading: configLoading,
+    error: configError,
+  } = useSWRAuth("time-tracking-config", () => timeTrackingService.getConfig());
+
+  // ISO "YYYY-MM" compares lexicographically. An empty setting means "no
+  // anchor configured" — the backend then starts the chain on January 1st.
+  const anchor = config?.accountStartDate ?? "";
+  const anchorIsFutureMonth =
+    anchor !== "" && anchor.slice(0, 7) > today.slice(0, 7);
+  const canResolveAccount =
+    !configLoading && !configError && !anchorIsFutureMonth;
 
   const { data, isLoading, error } = useSWRAuth<MonthSummary>(
-    staffId
-      ? `staff-month-summary-${staffId}-${year}-${month}`
-      : `time-tracking-month-summary-${year}-${month}`,
+    !canResolveAccount
+      ? null
+      : staffId
+        ? `staff-month-summary-${staffId}-${year}-${month}`
+        : `time-tracking-month-summary-${year}-${month}`,
     () =>
       staffId
         ? staffMonthSummaryService.getMonthSummary(staffId, year, month)
@@ -56,8 +88,10 @@ export function useAccountBalance(staffId?: string): AccountBalance {
   );
 
   return {
-    balanceMinutes: data?.closingBalanceMinutes ?? null,
-    isLoading,
-    error,
+    balanceMinutes: canResolveAccount
+      ? (data?.closingBalanceMinutes ?? null)
+      : null,
+    isLoading: configLoading || (canResolveAccount && isLoading),
+    error: configError ?? error,
   };
 }
