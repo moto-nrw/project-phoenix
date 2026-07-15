@@ -81,9 +81,13 @@ function DienstplanContent() {
   const searchParams = useSearchParams();
   const canEdit = isAdmin(session);
   // Die Halbjahres-Sicht lädt die Planungszeiträume (/api/timetable/periods),
-  // die das Backend mit `schedules:read` schützt — ohne die Berechtigung liefe
-  // jeder Öffnungsversuch in einen 403. Tab und Deep-Link sind darum gegated.
-  const canViewHalbjahr = hasPermission(session, "schedules:read");
+  // die das Backend mit `schedules:read` schützt, und je nach Datenpfad
+  // /api/staff-shifts oder /overview. Beide verlangen zusätzlich
+  // `time_tracking:manage`; Tab und Deep-Link sind darum auf beide
+  // Berechtigungen gegated.
+  const canViewHalbjahr =
+    hasPermission(session, "time_tracking:manage") &&
+    hasPermission(session, "schedules:read");
   const today = useBerlinToday();
 
   // URL-State: der angezeigte Tag und die Ansicht werden bei jedem Render aus
@@ -129,10 +133,17 @@ function DienstplanContent() {
     scheduleError,
     scheduleLoading,
     retryLoad,
-    mutateScheduleData,
     reducedPath,
     refreshPlanCaches,
   } = useDienstplanData(weekFrom, weekTo);
+
+  const refreshAfterPlanMutation = useCallback(() => {
+    refreshPlanCaches().catch((err: unknown) => {
+      logger.error("post_plan_mutation_refresh_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }, [refreshPlanCaches]);
 
   // Own staff identity for the "Zeiterfassung öffnen" row-header target (own
   // person → /time-tracking, others → the staff detail page). Reuses the
@@ -393,7 +404,7 @@ function DienstplanContent() {
           staffOptions={sortedStaff}
           existingReplacements={modal.replacements}
           onClose={() => setModal(null)}
-          onSaved={() => mutateScheduleData()}
+          onSaved={refreshAfterPlanMutation}
         />
       )}
       <ShiftTypeManageModal
@@ -404,7 +415,7 @@ function DienstplanContent() {
         onClose={() => setManageOpen(false)}
         onChanged={() => {
           mutateShiftTypes();
-          mutateScheduleData();
+          refreshAfterPlanMutation();
         }}
       />
       {sickModal && (

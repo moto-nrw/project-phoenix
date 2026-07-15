@@ -233,8 +233,6 @@ describe("useDienstplanData", () => {
     expect(result.current.scheduleError).toBeUndefined();
     expect(result.current.scheduleLoading).toBe(false);
 
-    // mutateScheduleData resolves to the overview mutator on the full path.
-    expect(result.current.mutateScheduleData).toBe(mutateOverview);
     result.current.retryLoad();
     expect(mutateOverview).toHaveBeenCalledTimes(1);
   });
@@ -281,7 +279,6 @@ describe("useDienstplanData", () => {
     expect(result.current.assignmentsByStaff.size).toBe(0);
     expect(result.current.summaryByStaff.size).toBe(0);
 
-    expect(result.current.mutateScheduleData).toBe(mutateLegacyShifts);
     result.current.retryLoad();
     expect(mutateLegacyStaff).toHaveBeenCalledTimes(1);
     expect(mutateLegacyShifts).toHaveBeenCalledTimes(1);

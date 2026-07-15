@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   isAdmin: vi.fn(),
   hasPermission: vi.fn(),
   useBerlinToday: vi.fn(),
+  refreshPlanCaches: vi.fn().mockResolvedValue(undefined),
   // URL-State (d/view) wird über useSearchParams gelesen; der Stub liefert die
   // aktuell gesetzten Params. Ein leerer Wert bedeutet: keine Params -> Defaults.
   search: { value: "" },
@@ -33,10 +34,7 @@ vi.mock("~/lib/auth-utils", () => ({
 
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: mocks.useSWRAuth,
-  // #1843: the view now revalidates plan caches after a sick report. The hook
-  // is only invoked from the sick modal (never opened in these tests), so a
-  // no-op stand-in keeps the render working without new assertions.
-  useTenantMutateMatching: () => () => Promise.resolve(undefined),
+  useTenantMutateMatching: () => mocks.refreshPlanCaches,
 }));
 
 vi.mock("~/lib/hooks/use-berlin-today", () => ({
@@ -48,6 +46,7 @@ vi.mock("~/components/staff/dienstplan-resource-grid", () => ({
     weekDays,
     todayIso,
     assignmentsByStaff,
+    onCellClick,
   }: {
     weekDays: string[];
     todayIso: string;
@@ -55,6 +54,11 @@ vi.mock("~/components/staff/dienstplan-resource-grid", () => ({
       string,
       Map<string, Array<{ activityTitle: string }>>
     >;
+    onCellClick: (
+      staff: { id: string; firstName: string; lastName: string },
+      date: string,
+      shift: null,
+    ) => void;
   }) => (
     <div data-testid="dienstplan-grid">
       <span data-testid="dienstplan-week-days">{weekDays.join(",")}</span>
@@ -66,6 +70,18 @@ vi.mock("~/components/staff/dienstplan-resource-grid", () => ({
           .map((assignment) => assignment.activityTitle)
           .join(",")}
       </span>
+      <button
+        type="button"
+        onClick={() =>
+          onCellClick(
+            { id: "7", firstName: "Ada", lastName: "Lovelace" },
+            "2026-07-06",
+            null,
+          )
+        }
+      >
+        Schicht öffnen
+      </button>
     </div>
   ),
 }));
@@ -98,7 +114,11 @@ vi.mock("~/components/staff/dienstplan-halbjahr-grid", () => ({
 }));
 
 vi.mock("~/components/staff/shift-edit-modal", () => ({
-  ShiftEditModal: () => <div data-testid="shift-modal" />,
+  ShiftEditModal: ({ onSaved }: { onSaved: () => void }) => (
+    <button type="button" data-testid="shift-modal" onClick={onSaved}>
+      Schicht speichern
+    </button>
+  ),
 }));
 
 vi.mock("~/components/ui/loading", () => ({
@@ -346,6 +366,17 @@ describe("DienstplanView", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("invalidates all loaded plan caches after a shift is saved", () => {
+    mocks.useBerlinToday.mockReturnValue("2026-07-06");
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+    fireEvent.click(screen.getByRole("button", { name: "Schicht öffnen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Schicht speichern" }));
+
+    expect(mocks.refreshPlanCaches).toHaveBeenCalledTimes(1);
+  });
+
   it("shows the KW of the week containing d for ?d=2026-09-14&view=woche", () => {
     mocks.search.value = "d=2026-09-14&view=woche";
     mockOverviewLoaded();
@@ -503,6 +534,32 @@ describe("DienstplanView", () => {
     render(<DienstplanView />);
 
     expect(screen.getByRole("tab", { name: "Halbjahr" })).toBeInTheDocument();
+  });
+
+  it("hides the Halbjahr tab without time_tracking:manage", () => {
+    mocks.hasPermission.mockImplementation(
+      (_session: unknown, permission: string) =>
+        permission !== "time_tracking:manage",
+    );
+    mocks.search.value = "view=halbjahr";
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key === "dienstplan-staff") {
+        return {
+          data: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      return { data: [], error: undefined, isLoading: false, mutate: vi.fn() };
+    });
+
+    render(<DienstplanView />);
+
+    expect(screen.queryByTestId("halbjahr-grid")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "Halbjahr" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the blocking load error in the Halbjahr view when the schedule fails", () => {

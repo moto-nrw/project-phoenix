@@ -100,9 +100,6 @@ export interface UseDienstplanDataResult {
   scheduleLoading: boolean;
   /** Re-fetches whichever data path is currently active. */
   retryLoad: () => void;
-  /** Mutates whichever data path backs the grid — used after a shift is
-   *  saved or a shift type changes. */
-  mutateScheduleData: () => Promise<unknown>;
   /** Invalidates every cache a sick report can affect: this week's
    *  Dienstplan, the Vertretungsplan, and the absence lists surfaced
    *  elsewhere (#1843). */
@@ -245,10 +242,6 @@ export function useDienstplanData(
         : [mutateLegacyStaff(), mutateLegacyShifts()],
     );
   };
-  const mutateScheduleData: () => Promise<unknown> = canUseAssignmentOverview
-    ? mutateOverview
-    : mutateLegacyShifts;
-
   return {
     canManageAbsences,
     reducedPath: !canUseAssignmentOverview,
@@ -265,7 +258,6 @@ export function useDienstplanData(
     scheduleError,
     scheduleLoading,
     retryLoad,
-    mutateScheduleData,
     refreshPlanCaches,
   };
 }
