@@ -27,16 +27,24 @@ const (
 	breakLongRequiredMinutes = 45
 )
 
-// netMinutes calculates net work time in minutes (gross minus breaks) for a work
-// session. For an open session (no check-out) it measures against now. Net is
-// floored at 0.
-func netMinutes(ws *activeModels.WorkSession, now time.Time) int {
+// grossMinutes is the wall-clock span of a session. For an open session (no
+// check-out) it measures against now.
+func grossMinutes(ws *activeModels.WorkSession, now time.Time) int {
 	end := now
 	if ws.CheckOutTime != nil {
 		end = *ws.CheckOutTime
 	}
-	gross := int(end.Sub(ws.CheckInTime).Minutes())
-	net := gross - ws.BreakMinutes
+	return int(end.Sub(ws.CheckInTime).Minutes())
+}
+
+// netMinutes calculates net work time in minutes (gross minus the ENDED breaks
+// cached in BreakMinutes) for a work session. For an open session (no
+// check-out) it measures against now. Net is floored at 0.
+//
+// A running break is NOT deducted here — callers reporting net time to a
+// reader want netMinutesWithBreaks instead.
+func netMinutes(ws *activeModels.WorkSession, now time.Time) int {
+	net := grossMinutes(ws, now) - ws.BreakMinutes
 	if net < 0 {
 		return 0
 	}
@@ -60,20 +68,33 @@ func runningBreakElapsedMinutes(brk *activeModels.WorkSessionBreak, now time.Tim
 	return elapsed
 }
 
-// netMinutesWithBreaks is netMinutes minus the elapsed time of a still-running
-// break in `breaks`. Use this wherever net work time is reported to a reader
-// that also sees the Monatskarte: netMinutes alone keeps climbing while a
-// staff member is on break, so Ist and Saldo would contradict the card, which
-// deducts the running break server-side. A checked-out session cannot have a
-// running break (checkout ends it), so it is left untouched.
-func netMinutesWithBreaks(ws *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, now time.Time) int {
-	net := netMinutes(ws, now)
+// totalBreakMinutes is ALL break time of a session as of `now`: the ended
+// breaks cached in WorkSession.BreakMinutes plus the elapsed part of a break
+// that is still running. It is the complement of netMinutesWithBreaks — the
+// two always satisfy gross = net + totalBreak — so any rule that weighs work
+// time against break time must take both from this pair, never mixing one with
+// the raw BreakMinutes cache (#1842).
+//
+// A checked-out session cannot have a running break (checkout ends it), so its
+// cache is already complete.
+func totalBreakMinutes(ws *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, now time.Time) int {
+	total := ws.BreakMinutes
 	if ws.CheckOutTime != nil {
-		return net
+		return total
 	}
 	for _, brk := range breaks {
-		net -= runningBreakElapsedMinutes(brk, now)
+		total += runningBreakElapsedMinutes(brk, now)
 	}
+	return total
+}
+
+// netMinutesWithBreaks is gross work time minus totalBreakMinutes. Use this
+// wherever net work time is reported to a reader that also sees the
+// Monatskarte: netMinutes alone keeps climbing while a staff member is on
+// break, so Ist and Saldo would contradict the card, which deducts the running
+// break server-side. Floored at 0.
+func netMinutesWithBreaks(ws *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, now time.Time) int {
+	net := grossMinutes(ws, now) - totalBreakMinutes(ws, breaks, now)
 	if net < 0 {
 		return 0
 	}
@@ -81,21 +102,30 @@ func netMinutesWithBreaks(ws *activeModels.WorkSession, breaks []*activeModels.W
 }
 
 // isOvertime reports whether net work time exceeds the statutory overtime
-// threshold (10 hours).
-func isOvertime(ws *activeModels.WorkSession, now time.Time) bool {
-	return netMinutes(ws, now) > overtimeThresholdMinutes
+// threshold (10 hours). It measures the same net time that is reported to the
+// reader (netMinutesWithBreaks), so the flag cannot contradict the displayed
+// value while a break is running.
+func isOvertime(ws *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, now time.Time) bool {
+	return netMinutesWithBreaks(ws, breaks, now) > overtimeThresholdMinutes
 }
 
 // isBreakCompliant reports whether the recorded breaks comply with German labor
 // law (§4 ArbZG) given the session's net work time.
-func isBreakCompliant(ws *activeModels.WorkSession, now time.Time) bool {
-	net := netMinutes(ws, now)
+//
+// Both sides of the comparison come from the same as-of-now picture: the net
+// time is the one the reader sees, and the break taken includes the elapsed
+// part of a running break. Judging the requirement against the ended-breaks
+// cache alone would flag a staff member as non-compliant *while* they are
+// taking the very break that makes them compliant.
+func isBreakCompliant(ws *activeModels.WorkSession, breaks []*activeModels.WorkSessionBreak, now time.Time) bool {
+	net := netMinutesWithBreaks(ws, breaks, now)
+	taken := totalBreakMinutes(ws, breaks, now)
 	if net <= breakNoneThresholdMinutes { // <= 6h: no break required
 		return true
 	}
 	if net <= breakShortThresholdMinutes { // <= 9h: 30 min break required
-		return ws.BreakMinutes >= breakShortRequiredMinutes
+		return taken >= breakShortRequiredMinutes
 	}
 	// > 9h: 45 min break required
-	return ws.BreakMinutes >= breakLongRequiredMinutes
+	return taken >= breakLongRequiredMinutes
 }

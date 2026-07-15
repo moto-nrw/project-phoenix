@@ -292,18 +292,18 @@ describe("computePeriodTotalsFromTargets", () => {
     expect(totals.ist).toBe(240);
   });
 
-  it("subtracts a running break from Ist", () => {
-    // `net_minutes` is server-computed at request time and deducts ENDED
-    // breaks only, so it keeps growing while someone is on a break. The
-    // Monatskarte deducts the running break server-side; without the same
-    // correction here the week card would climb while the month card holds.
+  it("does not subtract a running break that net_minutes already deducts", () => {
+    // /history computes `net_minutes` at request time and already deducts a
+    // running break (netMinutesWithBreaks), the same math the Monatskarte
+    // uses. Deducting it a second time here would count it twice and make the
+    // week card understate Ist against the month card and the day row.
     vi.setSystemTime(new Date("2026-08-03T12:00:00Z"));
     const totals = computePeriodTotalsFromTargets(
       targets,
       [
         session({
           date: "2026-08-03",
-          net_minutes: 120, // 10:00 -> now, break not in the cache yet
+          net_minutes: 90, // 10:00 -> now (120) minus 30 min of running break
           check_in_time: "2026-08-03T10:00:00Z",
           check_out_time: null,
           break_minutes: 0,

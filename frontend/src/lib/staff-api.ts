@@ -675,8 +675,8 @@ export interface StaffHistorySession {
   check_in_time: string;
   check_out_time: string | null;
   break_minutes: number;
-  // `net_minutes` deducts ENDED breaks only, so a running break has to be
-  // subtracted from it separately — see `computeIstForRange`.
+  // Break rows for display. NOT needed to correct `net_minutes`: the server
+  // already deducts a running break from it (#1842).
   breaks?: readonly StaffSessionBreak[] | null;
   auto_checked_out?: boolean;
   notes?: string;

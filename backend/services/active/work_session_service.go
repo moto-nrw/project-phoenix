@@ -1284,8 +1284,8 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 			// deduct it) stand still (#1842). The breaks are already loaded
 			// above — no extra query.
 			NetMinutes:       netMinutesWithBreaks(session, breaks, now),
-			IsOvertime:       isOvertime(session, now),
-			IsBreakCompliant: isBreakCompliant(session, now),
+			IsOvertime:       isOvertime(session, breaks, now),
+			IsBreakCompliant: isBreakCompliant(session, breaks, now),
 			Breaks:           breaks,
 			EditCount:        editCounts[session.ID],
 			AuditCount:       auditCounts[session.ID],
