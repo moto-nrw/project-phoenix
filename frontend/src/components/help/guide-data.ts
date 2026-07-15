@@ -789,8 +789,19 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Dienstplan-Wochenansicht mit Schicht-Blöcken, Betreuungsplan-Einsätzen, Wochensummen im Zeilenkopf, Kapazitätszeile und Legende.",
-        image: "/help/screens/dienstplan.webp",
+          "Dienstplan-Wochenansicht mit Schicht-Blöcken, Betreuungsplan-Einsätzen, Wochensummen im Zeilenkopf, Kapazitätszeile und Legende sowie die Halbjahres-Sicht mit Kalenderwochen-Spalten.",
+        gallery: [
+          {
+            image: "/help/screens/dienstplan.webp",
+            caption:
+              "Wochenansicht: pro Person die Schicht-Blöcke der Woche, im Zeilenkopf die geplante Wochenzeit im Verhältnis zum Soll, darunter die Kapazitätszeile und die Legende.",
+          },
+          {
+            image: "/help/screens/dienstplan-halbjahr.webp",
+            caption:
+              "Halbjahres-Sicht: die Spalten sind die Kalenderwochen des Planungszeitraums, jede Zelle die Wochenstundensumme mit derselben Rot-/Gelb-Färbung; ein Klick springt in die Wochenansicht der Woche.",
+          },
+        ],
       },
       {
         id: "zeiterfassung",
