@@ -38,6 +38,7 @@ import {
 import { StaffSessionTable } from "~/components/staff/staff-session-table";
 import { StaffExportButton } from "~/components/staff/staff-export-button";
 import { BetreuungsplanHeuteCard } from "~/components/time-tracking/betreuungsplan-heute-card";
+import { Monatskarte } from "~/components/time-tracking/monatskarte";
 import { LeaveRequestsCard } from "~/components/time-tracking/leave-requests-card";
 import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
 import { ownShiftService } from "~/lib/shift-api";
@@ -64,6 +65,7 @@ import { userContextService } from "~/lib/usercontext-api";
 import type { ApiError } from "~/lib/auth-api";
 import {
   type AbsenceType,
+  type MonthSummary,
   type StaffAbsence,
   type WorkSession,
   type WorkSessionBreak,
@@ -1588,6 +1590,37 @@ function OwnZeiterfassungSection({
     [tableAbsences],
   );
 
+  // Own Dienstplan shifts for the visible range → the "Plan (Schicht)"
+  // column, same as the admin view (#1842 AC1).
+  const { data: tableShifts } = useSWRAuth(
+    `time-tracking-table-shifts-${visibleFromKey}-${visibleToKey}`,
+    () => ownShiftService.getOwnShifts(visibleFromKey, visibleToKey),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
+  // Monatskarte (#1842): server-computed month aggregate, read-only for the
+  // staff member. Only fetched in month mode.
+  const monthYear = monthAnchor.getFullYear();
+  const monthNumber = monthAnchor.getMonth() + 1;
+  const {
+    data: monthSummary,
+    isLoading: monthSummaryLoading,
+    error: monthSummaryError,
+  } = useSWRAuth<MonthSummary>(
+    viewMode === "month"
+      ? `time-tracking-month-summary-${monthYear}-${monthNumber}`
+      : null,
+    () => timeTrackingService.getMonthSummary(monthYear, monthNumber),
+  );
+
+  // Self-scoped audit-trail fetcher so staff read their own Abweichungsgründe
+  // without time_tracking:manage (#1842 AC8).
+  const fetchOwnEdits = useCallback(
+    (_staffId: string, sessionId: string) =>
+      timeTrackingService.getSessionEdits(sessionId),
+    [],
+  );
+
   const handleEdit = (date: Date) => {
     const dateKey = toISODate(date);
     const session = tableHistory.find((h) => h.date === dateKey) ?? null;
@@ -1749,6 +1782,20 @@ function OwnZeiterfassungSection({
           </button>
         </div>
       </div>
+      {viewMode === "month" && (
+        <div className="mb-4">
+          <Monatskarte
+            summary={monthSummary ?? null}
+            isLoading={monthSummaryLoading}
+            error={
+              monthSummaryError
+                ? "Die Monatskarte konnte nicht geladen werden."
+                : null
+            }
+            isCurrentMonth={isOnCurrent}
+          />
+        </div>
+      )}
       {tableLoading && tableHistory.length === 0 ? (
         <div className="py-10 text-center text-sm text-gray-400">...</div>
       ) : (
@@ -1762,6 +1809,8 @@ function OwnZeiterfassungSection({
           today={today}
           isAdminView={ownStaffId !== null}
           onEditDay={(date) => handleEdit(date)}
+          plannedShifts={tableShifts ?? []}
+          fetchEdits={fetchOwnEdits}
         />
       )}
     </div>

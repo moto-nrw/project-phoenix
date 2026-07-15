@@ -61,10 +61,66 @@ func ResolveScheduleAnchor(staffAnchor *timezone.Date, entries []*StaffWorkSched
 	return earliest
 }
 
+// DailyTargetFromSchedule resolves the target minutes a staff member's
+// schedule entries yield for one calendar day. Entries apply when
+// valid_from <= day and valid_until is unset or after the day (valid_until
+// is exclusive, matching the repository predicate). The boolean reports
+// whether an entry MATCHED the day's rotation week + weekday (the historical
+// WeeklyTargetFromSchedule semantics) — a date-valid schedule that simply
+// has no row for this day/rotation returns (0, false), so callers can
+// distinguish "day off per plan" from a plain zero.
+func DailyTargetFromSchedule(entries []*StaffWorkSchedule, staffAnchor *timezone.Date, date timezone.Date) (int, bool) {
+	dayEntries := make([]*StaffWorkSchedule, 0, len(entries))
+	for _, e := range entries {
+		if e == nil || e.ValidFrom.After(date) {
+			continue
+		}
+		if e.ValidUntil != nil && !e.ValidUntil.After(date) {
+			continue
+		}
+		dayEntries = append(dayEntries, e)
+	}
+	if len(dayEntries) == 0 {
+		return 0, false
+	}
+	anchor := ResolveScheduleAnchor(staffAnchor, dayEntries)
+	rotationWeek := ResolveWeekIndex(ScheduleRotationLength(dayEntries), MondayOf(anchor), MondayOf(date))
+	dayIndex := ISODayIndex(date)
+	total := 0
+	matched := false
+	for _, e := range dayEntries {
+		if e.WeekIndex == rotationWeek && e.DayOfWeek == dayIndex {
+			total += e.TargetMinutes
+			matched = true
+		}
+	}
+	return total, matched
+}
+
+// DailyTargetFromModel resolves the target minutes a work-time model yields
+// for one calendar day, honouring the model's rotation. The boolean is false
+// when the model is nil or has no entries.
+func DailyTargetFromModel(model *WorkTimeModel, anchor timezone.Date, date timezone.Date) (int, bool) {
+	if model == nil || len(model.Entries) == 0 {
+		return 0, false
+	}
+	rotation := model.RotationLength
+	if rotation < 1 {
+		rotation = 1
+	}
+	rotationWeek := ResolveWeekIndex(rotation, MondayOf(anchor), MondayOf(date))
+	dayIndex := ISODayIndex(date)
+	total := 0
+	for _, e := range model.Entries {
+		if e != nil && e.WeekIndex == rotationWeek && e.DayOfWeek == dayIndex {
+			total += e.TargetMinutes
+		}
+	}
+	return total, true
+}
+
 // WeeklyTargetFromSchedule sums the target minutes a staff member's schedule
-// entries yield for the week starting at weekStart (a Monday). Entries apply
-// per day when valid_from <= day and valid_until is unset or after the day
-// (valid_until is exclusive, matching the repository predicate). The boolean
+// entries yield for the week starting at weekStart (a Monday). The boolean
 // reports whether any entry applied at all, so callers can distinguish a
 // zero-minute week from "no schedule".
 func WeeklyTargetFromSchedule(entries []*StaffWorkSchedule, staffAnchor *timezone.Date, weekStart timezone.Date) (int, bool) {
@@ -72,28 +128,12 @@ func WeeklyTargetFromSchedule(entries []*StaffWorkSchedule, staffAnchor *timezon
 	found := false
 	for offset := 0; offset < 7; offset++ {
 		date := weekStart.AddDays(offset)
-		dayEntries := make([]*StaffWorkSchedule, 0, len(entries))
-		for _, e := range entries {
-			if e == nil || e.ValidFrom.After(date) {
-				continue
-			}
-			if e.ValidUntil != nil && !e.ValidUntil.After(date) {
-				continue
-			}
-			dayEntries = append(dayEntries, e)
-		}
-		if len(dayEntries) == 0 {
+		dayTarget, matched := DailyTargetFromSchedule(entries, staffAnchor, date)
+		if !matched {
 			continue
 		}
-		anchor := ResolveScheduleAnchor(staffAnchor, dayEntries)
-		rotationWeek := ResolveWeekIndex(ScheduleRotationLength(dayEntries), MondayOf(anchor), MondayOf(date))
-		dayIndex := ISODayIndex(date)
-		for _, e := range dayEntries {
-			if e.WeekIndex == rotationWeek && e.DayOfWeek == dayIndex {
-				total += e.TargetMinutes
-				found = true
-			}
-		}
+		total += dayTarget
+		found = true
 	}
 	return total, found
 }

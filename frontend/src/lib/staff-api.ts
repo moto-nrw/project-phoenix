@@ -872,8 +872,11 @@ class StaffAbsenceService {
 // so an admin can pull the audit trail for any staff member's session in
 // the tenant.
 import {
+  mapMonthSummaryResponse,
   mapWorkSessionEditResponse,
+  type BackendMonthSummary,
   type BackendWorkSessionEdit,
+  type MonthSummary,
   type WorkSessionEdit,
 } from "./time-tracking-helpers";
 
@@ -905,6 +908,29 @@ class StaffSessionEditsService {
       data: BackendWorkSessionEdit[] | null;
     };
     return (json.data ?? []).map(mapWorkSessionEditResponse);
+  }
+}
+
+// Monatskarte (#1842), live-computed. Admin counterpart to
+// timeTrackingService.getMonthSummary.
+class StaffMonthSummaryService {
+  async getMonthSummary(
+    staffId: string,
+    year: number,
+    month: number,
+  ): Promise<MonthSummary> {
+    const params = new URLSearchParams({
+      year: String(year),
+      month: String(month),
+    });
+    const response = await sessionFetch(
+      `/api/staff/${staffId}/time-tracking/month-summary?${params}`,
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch month summary: ${response.statusText}`);
+    }
+    const json = (await response.json()) as { data: BackendMonthSummary };
+    return mapMonthSummaryResponse(json.data);
   }
 }
 
@@ -962,3 +988,4 @@ export const staffHistoryService = new StaffHistoryService();
 export const staffAbsenceService = new StaffAbsenceService();
 export const staffSessionEditsService = new StaffSessionEditsService();
 export const staffSessionService = new StaffSessionService();
+export const staffMonthSummaryService = new StaffMonthSummaryService();

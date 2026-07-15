@@ -477,3 +477,70 @@ export function calculateNetMinutes(
     return null;
   }
 }
+
+/**
+ * Backend shape of the Monatskarte aggregate (#1842).
+ */
+export interface BackendMonthSummary {
+  staff_id: number;
+  year: number;
+  month: number;
+  carry_in_minutes: number;
+  target_minutes: number;
+  target_minutes_to_date: number;
+  actual_minutes: number;
+  credited_sick_minutes: number;
+  credited_vacation_minutes: number;
+  credited_other_minutes: number;
+  sick_days: number;
+  vacation_days: number;
+  planned_shift_minutes?: number | null;
+  balance_minutes: number;
+  closing_balance_minutes: number;
+}
+
+/**
+ * Monatskarte aggregate for one staff member and month (#1842), computed
+ * live by the backend — the Übertrag updates automatically when past months
+ * are corrected. plannedShiftMinutes is null when no Dienstplan rows exist
+ * for the month ("kein Dienstplan gepflegt").
+ */
+export interface MonthSummary {
+  staffId: string;
+  year: number;
+  month: number;
+  carryInMinutes: number;
+  targetMinutes: number;
+  targetMinutesToDate: number;
+  actualMinutes: number;
+  creditedSickMinutes: number;
+  creditedVacationMinutes: number;
+  creditedOtherMinutes: number;
+  sickDays: number;
+  vacationDays: number;
+  plannedShiftMinutes: number | null;
+  balanceMinutes: number;
+  closingBalanceMinutes: number;
+}
+
+export function mapMonthSummaryResponse(
+  data: BackendMonthSummary,
+): MonthSummary {
+  return {
+    staffId: data.staff_id.toString(),
+    year: data.year,
+    month: data.month,
+    carryInMinutes: data.carry_in_minutes,
+    targetMinutes: data.target_minutes,
+    targetMinutesToDate: data.target_minutes_to_date,
+    actualMinutes: data.actual_minutes,
+    creditedSickMinutes: data.credited_sick_minutes,
+    creditedVacationMinutes: data.credited_vacation_minutes,
+    creditedOtherMinutes: data.credited_other_minutes,
+    sickDays: data.sick_days,
+    vacationDays: data.vacation_days,
+    plannedShiftMinutes: data.planned_shift_minutes ?? null,
+    balanceMinutes: data.balance_minutes,
+    closingBalanceMinutes: data.closing_balance_minutes,
+  };
+}

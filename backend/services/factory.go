@@ -61,6 +61,7 @@ type Factory struct {
 	Active                   active.Service
 	ActiveCleanup            active.CleanupService
 	WorkSession              active.WorkSessionService
+	WorkTimeMonth            active.WorkTimeMonthService
 	StaffAbsence             active.StaffAbsenceService
 	Activities               activities.ActivityService
 	Education                education.Service
@@ -333,6 +334,19 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	workSessionService := active.NewWorkSessionService(repos.WorkSession, repos.WorkSessionBreak, repos.WorkSessionEdit, repos.StaffAbsence, repos.GroupSupervisor, repos.Staff, repos.StaffWorkSchedule, repos.WorkTimeModel, settingsService, activeLogger)
 	// Planned-shift lookups for the auto-checkout job (#1798).
 	workSessionService.SetStaffShiftRepo(repos.StaffShift)
+
+	// Monatskarte read model (#1842) — everything computed on read, the
+	// Übertrag is live.
+	workTimeMonthService := active.NewWorkTimeMonthService(
+		repos.WorkSession,
+		repos.StaffAbsence,
+		repos.Staff,
+		repos.StaffWorkSchedule,
+		repos.WorkTimeModel,
+		repos.StaffShift,
+		settingsService,
+		activeLogger,
+	)
 
 	// Initialize staff absence service
 	staffAbsenceService := active.NewStaffAbsenceService(repos.StaffAbsence, repos.WorkSession, repos.StaffVacationQuota, repos.StaffAbsenceAudit)
@@ -1405,6 +1419,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Active:                   activeService,
 		ActiveCleanup:            activeCleanupService,
 		WorkSession:              workSessionService,
+		WorkTimeMonth:            workTimeMonthService,
 		StaffAbsence:             staffAbsenceService,
 		Activities:               activitiesService,
 		Education:                educationService,

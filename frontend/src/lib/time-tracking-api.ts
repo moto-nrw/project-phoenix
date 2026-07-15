@@ -3,6 +3,8 @@
 import { getSession } from "next-auth/react";
 import { buildApiError } from "./auth-api";
 import type {
+  BackendMonthSummary,
+  MonthSummary,
   StaffAbsence,
   WeeklySummary,
   WorkSession,
@@ -12,6 +14,7 @@ import type {
 } from "./time-tracking-helpers";
 import {
   mapHistoryResponse,
+  mapMonthSummaryResponse,
   mapStaffAbsenceResponse,
   mapWorkSessionResponse,
   mapWorkSessionBreakResponse,
@@ -198,6 +201,20 @@ class TimeTrackingService {
       weekly_summaries: unknown[];
     }>(`/history?${params}`, "GET", "Failed to get history");
     return mapHistoryResponse(result.data as never);
+  }
+
+  // Own Monatskarte (#1842): Summe Soll/Ist, Gutschriften, Übertrag, Saldo.
+  async getMonthSummary(year: number, month: number): Promise<MonthSummary> {
+    const params = new URLSearchParams({
+      year: String(year),
+      month: String(month),
+    });
+    const result = await this.request<BackendMonthSummary>(
+      `/month-summary?${params}`,
+      "GET",
+      "Failed to get month summary",
+    );
+    return mapMonthSummaryResponse(result.data);
   }
 
   async updateSession(

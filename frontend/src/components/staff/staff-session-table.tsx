@@ -58,6 +58,7 @@ export function StaffSessionTable({
   isAdminView,
   plannedShifts,
   onEditDay,
+  fetchEdits,
 }: {
   readonly staffId: string;
   readonly from: Date;
@@ -82,6 +83,14 @@ export function StaffSessionTable({
     session: StaffHistorySession | null,
     absence: StaffAbsenceRow | null,
   ) => void;
+  // Audit-trail fetcher for the expanded row. Defaults to the admin route
+  // (time_tracking:manage); the MA self-view passes the self-scoped
+  // /api/time-tracking/{id}/edits fetcher so staff can read their own
+  // Abweichungsgründe without manage permission (#1842 AC8).
+  readonly fetchEdits?: (
+    staffId: string,
+    sessionId: string,
+  ) => Promise<WorkSessionEdit[]>;
 }) {
   const sessionsByDate = useMemo(() => {
     const map = new Map<string, StaffHistorySession>();
@@ -340,6 +349,7 @@ export function StaffSessionTable({
                       <SessionEditHistory
                         staffId={staffId}
                         sessionId={session.id}
+                        fetchEdits={fetchEdits}
                         onEdit={
                           isAdminView
                             ? () => {
@@ -392,10 +402,15 @@ function SessionEditHistory({
   staffId,
   sessionId,
   onEdit,
+  fetchEdits,
 }: {
   readonly staffId: string;
   readonly sessionId: number | undefined;
   readonly onEdit?: () => void;
+  readonly fetchEdits?: (
+    staffId: string,
+    sessionId: string,
+  ) => Promise<WorkSessionEdit[]>;
 }) {
   const [edits, setEdits] = useState<WorkSessionEdit[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -405,8 +420,11 @@ function SessionEditHistory({
     let cancelled = false;
     setIsLoading(true);
     setEdits([]);
-    staffSessionEditsService
-      .getEdits(staffId, String(sessionId))
+    const load =
+      fetchEdits ??
+      ((sid: string, sess: string) =>
+        staffSessionEditsService.getEdits(sid, sess));
+    load(staffId, String(sessionId))
       .then((result) => {
         if (!cancelled) setEdits(result);
       })
@@ -423,7 +441,7 @@ function SessionEditHistory({
     return () => {
       cancelled = true;
     };
-  }, [staffId, sessionId]);
+  }, [staffId, sessionId, fetchEdits]);
 
   return (
     <EditHistoryAccordion edits={edits} isLoading={isLoading} onEdit={onEdit} />

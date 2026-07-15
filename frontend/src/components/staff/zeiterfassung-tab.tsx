@@ -9,9 +9,12 @@ import type { StaffShift } from "~/lib/shift-helpers";
 import {
   staffAbsenceService,
   staffHistoryService,
+  staffMonthSummaryService,
   staffScheduleService,
 } from "~/lib/staff-api";
 import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
+import { Monatskarte } from "~/components/time-tracking/monatskarte";
+import type { MonthSummary } from "~/lib/time-tracking-helpers";
 import {
   computeStaffMetrics,
   endOfMonth,
@@ -134,6 +137,25 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
       ),
   );
 
+  // Monatskarte (#1842): server-computed month aggregate, only fetched in
+  // month mode. Everything is live — the Übertrag recomputes automatically
+  // when past months are corrected.
+  const monthYear = monthAnchor.getFullYear();
+  const monthNumber = monthAnchor.getMonth() + 1;
+  const {
+    data: monthSummary,
+    isLoading: monthSummaryLoading,
+    error: monthSummaryError,
+  } = useSWRAuth<MonthSummary>(
+    viewMode === "month"
+      ? `staff-month-summary-${staffId}-${monthYear}-${monthNumber}`
+      : null,
+    () =>
+      staffMonthSummaryService.getMonthSummary(staffId, monthYear, monthNumber),
+  );
+  const isCurrentMonth =
+    monthYear === today.getFullYear() && monthNumber === today.getMonth() + 1;
+
   if (scheduleLoading) {
     return <Loading fullPage={false} />;
   }
@@ -197,6 +219,21 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
           onToday={handleGoToday}
           todayLabel={viewMode === "month" ? "Diesen Monat" : "Diese Woche"}
         />
+
+        {viewMode === "month" && (
+          <div className="mt-4">
+            <Monatskarte
+              summary={monthSummary ?? null}
+              isLoading={monthSummaryLoading}
+              error={
+                monthSummaryError
+                  ? "Die Monatskarte konnte nicht geladen werden."
+                  : null
+              }
+              isCurrentMonth={isCurrentMonth}
+            />
+          </div>
+        )}
 
         {visibleLoading || shiftsLoading ? (
           <div className="py-10">
