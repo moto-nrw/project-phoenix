@@ -107,7 +107,10 @@ func (w *OutboxWorker) SetMaxAttempts(n int) {
 //     bypasses RLS on email_outbox).
 //  2. For each claimed row, switch into the row's tenant context and
 //     call the registered Renderer.
-//  3. Mailer.Send the rendered message.
+//  3. Re-lock the row (LockSending) and Mailer.Send the rendered
+//     message inside one phoenix_admin transaction, so a concurrent
+//     cancellation (deletion of the outbox row) cannot slip between
+//     claim and send.
 //  4. Mark the row sent / retry / failed depending on outcome and
 //     attempt count.
 //
@@ -171,18 +174,46 @@ func (w *OutboxWorker) processRow(ctx context.Context, row *platformModels.Email
 		return
 	}
 
-	if sendErr := w.mailer.Send(*msg); sendErr != nil {
-		w.recordFailure(ctx, row, fmt.Sprintf("send: %v", sendErr))
-		return
-	}
-
+	// Send and MarkSent share one admin transaction that first re-locks
+	// the claimed row (FOR UPDATE). Features cancel queued emails by
+	// deleting their outbox rows (e.g. enrollment deletion wipes the rows
+	// for a deleted request), and that delete races the committed claim:
+	// without the lock the worker could still send a message built from
+	// data that is already gone. With it, a concurrent delete either
+	// committed first (the probe finds nothing, the send is skipped) or
+	// blocks until this transaction commits.
+	var cancelled bool
+	var sendFailure string
 	if err := tenant.WithAdminTx(ctx, w.db, func(adminCtx context.Context, _ bun.Tx) error {
+		stillClaimed, lockErr := w.repo.LockSending(adminCtx, row.ID)
+		if lockErr != nil {
+			return lockErr
+		}
+		if !stillClaimed {
+			cancelled = true
+			return nil
+		}
+		if sendErr := w.mailer.Send(*msg); sendErr != nil {
+			sendFailure = fmt.Sprintf("send: %v", sendErr)
+			return nil
+		}
 		return w.repo.MarkSent(adminCtx, row.ID, time.Now())
 	}); err != nil {
-		w.logger.Error("outbox: mark sent failed",
+		w.logger.Error("outbox: send transaction failed",
 			slog.Int64("outbox_id", row.ID),
 			slog.String("kind", row.Kind),
 			slog.String("error", err.Error()))
+		return
+	}
+	if cancelled {
+		w.logger.Info("outbox: send skipped, row cancelled after claim",
+			slog.Int64("outbox_id", row.ID),
+			slog.Int64("tenant_id", row.GetTenantID()),
+			slog.String("kind", row.Kind))
+		return
+	}
+	if sendFailure != "" {
+		w.recordFailure(ctx, row, sendFailure)
 		return
 	}
 	w.logger.Info("outbox: email sent",

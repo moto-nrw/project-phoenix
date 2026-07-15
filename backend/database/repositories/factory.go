@@ -154,6 +154,7 @@ type Factory struct {
 
 	// Audit domain
 	DataDeletion                 auditModels.DataDeletionRepository
+	EnrollmentDeletionAudit      auditModels.EnrollmentDeletionRepository
 	DataAccessLog                auditModels.DataAccessLogRepository
 	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
 	GuardianChange               auditModels.GuardianChangeRepository
@@ -186,6 +187,7 @@ type Factory struct {
 	// Enrollment domain (parent-enrollment PR 5+)
 	FormSchema           enrollmentModels.FormSchemaRepository
 	Request              enrollmentModels.RequestRepository
+	EnrollmentDeletion   enrollmentModels.DeletionRepository
 	RequestChild         enrollmentModels.RequestChildRepository
 	RequestGuardian      enrollmentModels.RequestGuardianRepository
 	LateInvite           enrollmentModels.LateInviteRepository
@@ -337,6 +339,7 @@ func NewFactory(db *bun.DB) *Factory {
 
 		// Audit repositories
 		DataDeletion:                 audit.NewDataDeletionRepository(db),
+		EnrollmentDeletionAudit:      audit.NewEnrollmentDeletionRepository(db),
 		DataAccessLog:                audit.NewDataAccessLogRepository(db),
 		EnrollmentOfferingAdjustment: audit.NewEnrollmentOfferingAdjustmentRepository(db),
 		GuardianChange:               audit.NewGuardianChangeRepository(db),
@@ -368,6 +371,7 @@ func NewFactory(db *bun.DB) *Factory {
 		// Enrollment repositories
 		FormSchema:           enrollment.NewFormSchemaRepository(db),
 		Request:              enrollment.NewRequestRepository(db),
+		EnrollmentDeletion:   enrollment.NewDeletionRepository(db),
 		RequestChild:         enrollment.NewRequestChildRepository(db),
 		RequestGuardian:      enrollment.NewRequestGuardianRepository(db),
 		LateInvite:           enrollment.NewLateInviteRepository(db),

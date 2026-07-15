@@ -9,6 +9,8 @@ DELETE /api/activities/{id}/students/{studentId}
 DELETE /api/activities/{id}/supervisors/{supervisorId}
 DELETE /api/admin/grade-transitions/{id}/
 DELETE /api/display/{id}/
+DELETE /api/enrollment/admin/requests/{id}/
+DELETE /api/enrollment/admin/requests/{id}/children/{childId}
 DELETE /api/enrollment/care-offerings/{id}/
 DELETE /api/enrollment/legal-documents/{filename}
 DELETE /api/enrollment/phases/{id}/
@@ -141,7 +143,9 @@ GET /api/enrollment/admin/change-requests/{id}/
 GET /api/enrollment/admin/reports/care-usage
 GET /api/enrollment/admin/requests/
 GET /api/enrollment/admin/requests/{id}/
+GET /api/enrollment/admin/requests/{id}/children/{childId}/delete-impact
 GET /api/enrollment/admin/requests/{id}/children/{childId}/offering-adjustments
+GET /api/enrollment/admin/requests/{id}/delete-impact
 GET /api/enrollment/admin/students/{studentId}/requests/
 GET /api/enrollment/captcha-config/{tenantSlug}
 GET /api/enrollment/care-offerings/
@@ -287,6 +291,7 @@ GET /api/students/school-classes
 GET /api/students/{id}
 GET /api/students/{id}/arrival-schedules
 GET /api/students/{id}/attendance-history
+GET /api/students/{id}/attendance-history/export
 GET /api/students/{id}/current-location
 GET /api/students/{id}/current-visit
 GET /api/students/{id}/enrollment-extra-fields

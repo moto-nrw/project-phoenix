@@ -15,6 +15,7 @@ import {
   Pencil,
   Phone,
   ShieldCheck,
+  Trash2,
   UserRound,
   X,
 } from "lucide-react";
@@ -37,7 +38,10 @@ import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
 import { availableCareOfferings } from "~/lib/care-offering-availability";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
+import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
+import { Button } from "~/components/ui/button";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { useTenantRouter } from "~/lib/tenant-router";
 import { createLogger } from "~/lib/logger";
 import {
   useCareOfferingsEnabled,
@@ -103,12 +107,16 @@ interface Props {
 export function AdminEnrollmentDetail({ requestId }: Props) {
   const waitlistEnabled = useWaitlistEnabled();
   const tenantPath = useTenantAwarePath();
+  const router = useTenantRouter();
   const [data, setData] = useState<AdminRequestDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [busyChildId, setBusyChildId] = useState<string | null>(null);
   const [reasons, setReasons] = useState<Record<string, string>>({});
+  const [deletionTarget, setDeletionTarget] = useState<
+    { type: "request" } | { type: "child"; id: string; label: string } | null
+  >(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -270,6 +278,13 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
                   onDecide={(status) => void handleDecide(child.id, status)}
                   onOfferingsChanged={() => void load()}
                   onDataCorrected={handleDataCorrected}
+                  onDelete={() =>
+                    setDeletionTarget({
+                      type: "child",
+                      id: child.id,
+                      label: `${child.first_name} ${child.last_name}`,
+                    })
+                  }
                 />
               ))}
             </section>
@@ -281,10 +296,32 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
               data={data}
               statusHref={statusHref}
               submittedAt={submittedAt}
+              onDeleteRequest={() => setDeletionTarget({ type: "request" })}
             />
           </aside>
         </div>
       </section>
+      <AdminEnrollmentDeletionModal
+        isOpen={deletionTarget !== null}
+        requestId={data.id}
+        childId={
+          deletionTarget?.type === "child" ? deletionTarget.id : undefined
+        }
+        childLabel={
+          deletionTarget?.type === "child" ? deletionTarget.label : undefined
+        }
+        studentHref={(studentId) => tenantPath(`/students/${studentId}`)}
+        onClose={() => setDeletionTarget(null)}
+        onDeleted={(impact) => {
+          setDeletionTarget(null);
+          if (impact.deletes_request) {
+            router.push(`/admin/enrollments/phases/${data.phase_id}`);
+            return;
+          }
+          setInfo("Kind wurde vollständig aus der Anmeldung gelöscht.");
+          void load();
+        }}
+      />
     </div>
   );
 }
@@ -411,6 +448,7 @@ function ChildInformationCard({
   onDataCorrected,
   onOfferingsChanged,
   onReasonChange,
+  onDelete,
   phaseId,
   reason,
   requestId,
@@ -425,10 +463,16 @@ function ChildInformationCard({
   onDataCorrected: (correctedChild: AdminRequestChild) => void;
   onOfferingsChanged: () => void;
   onReasonChange: (value: string) => void;
+  onDelete: () => void;
   reason: string;
   schemaFields?: AdminRequestSchemaField[];
 }>) {
   const terminal = TERMINAL.has(child.status);
+  const canDeleteFromEnrollment =
+    child.created_student_id === undefined &&
+    (child.status === "rejected" ||
+      child.status === "withdrawn" ||
+      child.status === "approved");
   const tenantPath = useTenantAwarePath();
   const studentHref = tenantPath(
     child.created_student_id
@@ -500,9 +544,22 @@ function ChildInformationCard({
         ) : null}
         <ChildExtraFields child={child} schemaFields={schemaFields} />
         {terminal ? (
-          <div className="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
-            Die Entscheidung ist final. Bei bestätigten Kindern können falsche
-            Anmeldedaten weiterhin gezielt korrigiert werden.
+          <div className="space-y-3">
+            <div className="rounded-xl border border-gray-200 bg-gray-50/70 px-3 py-2 text-sm text-gray-600">
+              Die Entscheidung ist final. Bei bestätigten Kindern können falsche
+              Anmeldedaten weiterhin gezielt korrigiert werden.
+            </div>
+            {canDeleteFromEnrollment ? (
+              <Button
+                type="button"
+                variant="outline_danger"
+                size="md"
+                onClick={onDelete}
+              >
+                <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
+                Kind aus Anmeldung löschen
+              </Button>
+            ) : null}
           </div>
         ) : (
           <DecisionPanel
@@ -524,11 +581,13 @@ function ReviewSidebar({
   data,
   statusHref,
   submittedAt,
+  onDeleteRequest,
 }: Readonly<{
   childStats: ReturnType<typeof summarizeChildren>;
   data: AdminRequestSummary;
   statusHref: string;
   submittedAt: string;
+  onDeleteRequest: () => void;
 }>) {
   return (
     <div className="space-y-4 lg:sticky lg:top-6">
@@ -576,6 +635,16 @@ function ReviewSidebar({
           Statusseite öffnen
           <ExternalLink className="h-4 w-4" aria-hidden="true" />
         </a>
+        <Button
+          type="button"
+          variant="outline_danger"
+          size="md"
+          className="mt-3 w-full"
+          onClick={onDeleteRequest}
+        >
+          <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
+          Gesamte Anmeldung löschen
+        </Button>
       </section>
 
       {data.children.map((child) => {

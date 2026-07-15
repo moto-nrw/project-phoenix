@@ -62,7 +62,16 @@ type StudentStatusCounts struct {
 	Excused int `bun:"excused_count"`
 }
 
+// StudentStatusDayRepository persists broad day statuses (sick / excused /
+// class trip) and CASCADES them into per-slot attendance: UpsertReported and
+// the MarkCleared* methods also apply/release the status on matching
+// schedule.instance_students rows (see #1913). The cascade lives here — not in
+// a service — because absence, parent, and active services call this
+// repository directly; repo placement guarantees no write path skips it.
 type StudentStatusDayRepository interface {
+	// UpsertReported inserts or refreshes a reported status day AND marks the
+	// student's still-expected slots on that date absent with status-day
+	// provenance (schedule.instance_students.student_status_day_id).
 	UpsertReported(ctx context.Context, entry *StudentStatusDay) error
 	// ArchiveAndClearStatusFlag archives a legacy boolean student flag into
 	// student_status_days for the date and clears the flag on
@@ -73,6 +82,10 @@ type StudentStatusDayRepository interface {
 	// absence buckets from live flags and status-day rows, applying the same
 	// precedence as student responses: sick wins, class trip counts as excused.
 	CountEffectiveDashboardAbsences(ctx context.Context, date timezone.Date) (*StudentStatusCounts, error)
+	// MarkCleared / MarkClearedByID / MarkClearedForDates clear status days
+	// AND release the cascade: slot absences owned by the cleared status day
+	// revert to the latest remaining active status for that date, or back to
+	// expected (absent when the instance already completed).
 	MarkCleared(ctx context.Context, studentID int64, status string, date timezone.Date, clearedAt time.Time, source string) error
 	MarkClearedByID(ctx context.Context, id int64, clearedAt time.Time, source string) error
 	MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []timezone.Date, clearedAt time.Time, source string) error

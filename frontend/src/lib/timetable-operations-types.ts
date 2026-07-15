@@ -42,6 +42,7 @@ export interface TimetableRosterRow {
   substatus: "late" | "excused" | "sick" | "field_trip" | "other" | null;
   note: string | null;
   checkedInAt: string | null;
+  checkedOutAt?: string | null;
   visitEntryTime: string | null;
   warnings: TimetableRosterWarning[];
 }
@@ -122,6 +123,7 @@ interface BackendRosterRow {
   substatus?: TimetableRosterRow["substatus"];
   note?: string | null;
   checked_in_at?: string | null;
+  checked_out_at?: string | null;
   visit_entry_time?: string | null;
   warnings?: BackendRosterWarning[];
 }
@@ -186,6 +188,7 @@ function mapRosterRow(row: BackendRosterRow): TimetableRosterRow {
     substatus: row.substatus ?? null,
     note: row.note ?? null,
     checkedInAt: row.checked_in_at ?? null,
+    checkedOutAt: row.checked_out_at ?? null,
     visitEntryTime: row.visit_entry_time ?? null,
     warnings: (row.warnings ?? []).map((warning) => ({
       kind: warning.kind,

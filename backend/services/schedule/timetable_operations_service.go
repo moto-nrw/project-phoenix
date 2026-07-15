@@ -147,6 +147,7 @@ type OperationRosterRow struct {
 	Substatus        *string                  `json:"substatus,omitempty"`
 	Note             *string                  `json:"note,omitempty"`
 	CheckedInAt      *string                  `json:"checked_in_at,omitempty"`
+	CheckedOutAt     *string                  `json:"checked_out_at,omitempty"`
 	VisitEntryTime   *string                  `json:"visit_entry_time,omitempty"`
 	Warnings         []OperationRosterWarning `json:"warnings,omitempty"`
 }
@@ -548,12 +549,25 @@ func (s *timetableOperationsService) buildRoster(ctx context.Context, instanceID
 func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *scheduleModel.InstanceStudent, visit *activeModel.Visit, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group, warnings []OperationRosterWarning) OperationRosterRow {
 	row := OperationRosterRow{
 		StudentID:        studentID,
-		Planned:          planned != nil,
-		IsUnplanned:      planned == nil && visit != nil,
+		Planned:          planned != nil && !planned.IsUnplanned,
+		IsUnplanned:      (planned != nil && planned.IsUnplanned) || (planned == nil && visit != nil),
 		CurrentlyPresent: visit != nil && visit.ExitTime == nil,
 		Status:           scheduleModel.AttendanceStatusPresent,
 		Warnings:         warnings,
 	}
+	applyPlannedRosterAttendance(&row, planned)
+
+	if visit != nil {
+		id := visit.ID
+		row.VisitID = &id
+		v := visit.EntryTime.UTC().Format(time.RFC3339)
+		row.VisitEntryTime = &v
+	}
+	applyRosterStudentIdentity(&row, studentID, students, persons, groups)
+	return row
+}
+
+func applyPlannedRosterAttendance(row *OperationRosterRow, planned *scheduleModel.InstanceStudent) {
 	if planned != nil {
 		row.Status = planned.Status
 		row.Substatus = planned.Substatus
@@ -562,13 +576,17 @@ func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *sche
 			v := planned.CheckedInAt.UTC().Format(time.RFC3339)
 			row.CheckedInAt = &v
 		}
+		if planned.CheckedOutAt != nil {
+			v := planned.CheckedOutAt.UTC().Format(time.RFC3339)
+			row.CheckedOutAt = &v
+		}
+		if planned.Status == scheduleModel.AttendanceStatusPresent && planned.CheckedInAt != nil && planned.CheckedOutAt == nil {
+			row.CurrentlyPresent = true
+		}
 	}
-	if visit != nil {
-		id := visit.ID
-		row.VisitID = &id
-		v := visit.EntryTime.UTC().Format(time.RFC3339)
-		row.VisitEntryTime = &v
-	}
+}
+
+func applyRosterStudentIdentity(row *OperationRosterRow, studentID int64, students map[int64]*usersModel.Student, persons map[int64]*usersModel.Person, groups map[int64]*educationModel.Group) {
 	if st := students[studentID]; st != nil {
 		row.SchoolClass = st.SchoolClass
 		if st.GroupID != nil {
@@ -580,7 +598,6 @@ func (s *timetableOperationsService) mapRosterRow(studentID int64, planned *sche
 			row.StudentName = p.GetFullName()
 		}
 	}
-	return row
 }
 
 func (s *timetableOperationsService) loadRosterTemplateGroup(ctx context.Context, activityGroupID *int64) (*activitiesModel.Group, error) {

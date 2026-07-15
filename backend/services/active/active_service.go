@@ -587,33 +587,102 @@ func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
 		return &ActiveError{Op: "UpdateVisit", Err: ErrVisitNotFound}
 	}
 
-	isActiveGroupMove := existing.ExitTime == nil && existing.ActiveGroupID != visit.ActiveGroupID
-	if isActiveGroupMove {
-		targetGroup, err := s.GroupRepo.FindByID(ctx, visit.ActiveGroupID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
-			}
-			return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
-		}
-		if targetGroup == nil {
-			return &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
-		}
-		if !targetGroup.IsActive() {
-			return &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
-		}
+	isActiveGroupMove, transferAt, err := s.prepareVisitTransfer(ctx, existing, visit)
+	if err != nil {
+		return err
 	}
+	intervalChanged := visitIntervalChanged(existing, visit)
 
 	if s.VisitRepo.Update(ctx, visit) != nil {
 		return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
 	}
 
+	if intervalChanged {
+		if err := s.syncAttendanceForVisitRevision(ctx, existing, visit); err != nil {
+			return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+		}
+	}
+
 	if isActiveGroupMove {
-		s.broadcastVisitMoved(ctx, existing, visit)
+		sourceSnapshot, targetSnapshot := s.syncMovedVisitAttendance(ctx, existing, visit, transferAt)
+		s.broadcastVisitMoved(ctx, existing, visit, sourceSnapshot, targetSnapshot)
 		s.trackProductEvent(ctx, "room_transfer", nil)
+	} else if intervalChanged {
+		if s.AttendanceSyncer != nil {
+			s.AttendanceSyncer.MirrorVisitRevision(ctx, existing, visit)
+		}
 	}
 
 	return nil
+}
+
+func visitIntervalChanged(previous, updated *active.Visit) bool {
+	if previous == nil || updated == nil || !previous.EntryTime.Equal(updated.EntryTime) {
+		return true
+	}
+	if previous.ExitTime == nil || updated.ExitTime == nil {
+		return previous.ExitTime != updated.ExitTime
+	}
+	return !previous.ExitTime.Equal(*updated.ExitTime)
+}
+
+func (s *service) prepareVisitTransfer(
+	ctx context.Context,
+	existing, updated *active.Visit,
+) (bool, time.Time, error) {
+	if existing.ExitTime != nil || existing.ActiveGroupID == updated.ActiveGroupID {
+		return false, time.Time{}, nil
+	}
+
+	targetGroup, err := s.GroupRepo.FindByID(ctx, updated.ActiveGroupID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
+		}
+		return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+	}
+	if targetGroup == nil || !targetGroup.IsActive() {
+		return false, time.Time{}, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
+	}
+
+	transferAt := time.Now()
+	if updated.ExitTime != nil {
+		// A combined transfer/checkout has no separate transfer timestamp in the
+		// request. Use checkout as the boundary so target check-in precedes close.
+		transferAt = *updated.ExitTime
+	}
+	return true, transferAt, nil
+}
+
+// syncMovedVisitAttendance mirrors a transfer independently of SSE. The
+// pre-update visit identifies the source slot; a transfer-time copy identifies
+// the target slot. This avoids resolving checkout against the already-mutated
+// target group.
+func (s *service) syncMovedVisitAttendance(
+	ctx context.Context,
+	previousVisit, movedVisit *active.Visit,
+	transferAt time.Time,
+) (sourceSnapshot, targetSnapshot *AttendanceSnapshot) {
+	if s.AttendanceSyncer == nil || previousVisit == nil || movedVisit == nil {
+		return nil, nil
+	}
+
+	source := *previousVisit
+	source.ExitTime = &transferAt
+	sourceSnapshot = s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, &source)
+
+	target := *movedVisit
+	target.EntryTime = transferAt
+	target.ExitTime = nil
+	targetSnapshot = s.AttendanceSyncer.MirrorCheckInForVisit(ctx, &target)
+
+	if movedVisit.ExitTime != nil {
+		target.ExitTime = movedVisit.ExitTime
+		if closedSnapshot := s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, &target); closedSnapshot != nil {
+			targetSnapshot = closedSnapshot
+		}
+	}
+	return sourceSnapshot, targetSnapshot
 }
 
 func (s *service) DeleteVisit(ctx context.Context, id int64) error {
@@ -661,7 +730,7 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 		return nil
 	}
 
-	endedVisit, err := s.endVisitRecord(ctx, id)
+	endedVisit, snapshot, err := s.endVisitWithAttendanceSync(ctx, id)
 	if err != nil {
 		if activeErr, ok := err.(*ActiveError); ok {
 			return activeErr
@@ -669,15 +738,30 @@ func (s *service) EndVisit(ctx context.Context, id int64) error {
 		return &ActiveError{Op: "EndVisit", Err: ErrDatabaseOperation}
 	}
 
-	// WP-B10: load (not mutate) attendance snapshot for SSE enrichment.
-	// Per spec: check-out does NOT change instance_students.status.
-	var snapshot *AttendanceSnapshot
-	if s.AttendanceSyncer != nil {
-		snapshot = s.AttendanceSyncer.LoadAttendanceForVisit(ctx, endedVisit)
-	}
-
 	s.broadcastVisitCheckout(ctx, endedVisit, snapshot)
 	return nil
+}
+
+// endVisitWithAttendanceSync closes one visit and mirrors its exact persisted
+// checkout timestamp into slot attendance. Session-end and timeout paths use
+// this helper too. The one visit-ending path that bypasses it — the nightly
+// bulk close in EndDailySessions — mirrors its checkouts via the scheduler's
+// session-end bridge (CloseOpenCheckoutsByActiveGroupIDs).
+// AttendanceSyncer owns graceful degradation: a missing bridge or sync failure
+// returns a nil snapshot without undoing the successfully ended visit.
+func (s *service) endVisitWithAttendanceSync(
+	ctx context.Context, id int64,
+) (*active.Visit, *AttendanceSnapshot, error) {
+	endedVisit, err := s.endVisitRecord(ctx, id)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var snapshot *AttendanceSnapshot
+	if s.AttendanceSyncer != nil {
+		snapshot = s.AttendanceSyncer.MirrorCheckOutForVisit(ctx, endedVisit)
+	}
+	return endedVisit, snapshot, nil
 }
 
 // endVisitRecord ends the visit record and returns the updated visit
@@ -739,22 +823,20 @@ func (s *service) broadcastVisitCheckout(ctx context.Context, endedVisit *active
 	s.broadcastActiveSupervisionChanged(ctx, activeGroupID, studentID, activeSupervisionReasonStudentMoved)
 }
 
-// broadcastVisitMoved mirrors a room/session transfer as a checkout from the
-// source active group and a checkin into the target active group. Attendance is
-// not mutated here; the snapshot only enriches SSE payloads for clients that
-// display timetable attendance state alongside visit rows.
-func (s *service) broadcastVisitMoved(ctx context.Context, previousVisit, movedVisit *active.Visit) {
+// broadcastVisitMoved publishes a checkout from the source active group and a
+// checkin into the target active group. Attendance mutation happens before this
+// helper so synchronization does not depend on a broadcaster being configured.
+func (s *service) broadcastVisitMoved(
+	ctx context.Context,
+	previousVisit, movedVisit *active.Visit,
+	sourceSnapshot, targetSnapshot *AttendanceSnapshot,
+) {
 	if s.Broadcaster == nil || previousVisit == nil || movedVisit == nil {
 		return
 	}
 
-	var snapshot *AttendanceSnapshot
-	if s.AttendanceSyncer != nil {
-		snapshot = s.AttendanceSyncer.LoadAttendanceForVisit(ctx, movedVisit)
-	}
-
-	s.broadcastVisitCheckout(ctx, previousVisit, snapshot)
-	s.broadcastVisitCreated(ctx, movedVisit, snapshot)
+	s.broadcastVisitCheckout(ctx, previousVisit, sourceSnapshot)
+	s.broadcastVisitCreated(ctx, movedVisit, targetSnapshot)
 }
 
 // broadcastToEducationalGroup mirrors active-group broadcasts to the student's OGS group topic
@@ -785,9 +867,9 @@ func (s *service) broadcastToEducationalGroup(ctx context.Context, student *user
 // one to the active-group topic carrying every student, and one per distinct
 // educational group carrying that group's students. SSE events are triggers,
 // not payloads (the client refetches via bulk endpoints), so the per-student
-// attendance snapshot the old loop computed — at a cost of 2N schedule queries
-// — is dropped; only the student IDs are carried, to drive the client's
-// per-student detail-cache invalidation.
+// attendance snapshot is not carried in this bulk event; only the student IDs
+// drive the client's per-student detail-cache invalidation. Slot-attendance
+// checkout persistence still runs before this helper for every ended visit.
 func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDStr string, visitsToNotify []visitSSEData) {
 	if len(visitsToNotify) == 0 {
 		return

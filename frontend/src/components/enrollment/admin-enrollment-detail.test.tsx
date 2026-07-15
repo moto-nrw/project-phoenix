@@ -16,6 +16,11 @@ const mocks = vi.hoisted(() => ({
   listCareOfferings: vi.fn(),
   listAdminChildOfferingAdjustments: vi.fn(),
   updateAdminChildOfferings: vi.fn(),
+  routerPush: vi.fn(),
+}));
+
+vi.mock("~/lib/tenant-router", () => ({
+  useTenantRouter: () => ({ push: mocks.routerPush }),
 }));
 
 vi.mock("~/lib/care-offering-api", () => ({

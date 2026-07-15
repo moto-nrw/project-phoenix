@@ -27,7 +27,7 @@ func TestEndOpenVisitForStudent_LookupErrorPropagates(t *testing.T) {
 	}},
 	}
 
-	err := svc.endOpenVisitForStudent(context.Background(), 4711)
+	_, err := svc.endOpenVisitForStudent(context.Background(), 4711)
 
 	require.Error(t, err, "a non-NotFound lookup failure must propagate so the checkout transaction rolls back")
 	assert.False(t, errors.Is(err, ErrVisitNotFound))
@@ -56,9 +56,10 @@ func TestEndOpenVisitForStudent_AlreadyEndedIsTolerated(t *testing.T) {
 	}},
 	}
 
-	err := svc.endOpenVisitForStudent(context.Background(), 4711)
+	result, err := svc.endOpenVisitForStudent(context.Background(), 4711)
 
 	require.NoError(t, err, "a visit ended by a concurrent caller is the desired end state, not an error")
+	assert.Same(t, endedVisit, result)
 }
 
 func TestEndOpenVisitForStudent_BinaryModeStillEndsStaleVisit(t *testing.T) {
@@ -78,12 +79,18 @@ func TestEndOpenVisitForStudent_BinaryModeStillEndsStaleVisit(t *testing.T) {
 			endCalled = true
 			return nil
 		},
+		findByIDFunc: func(context.Context, interface{}) (*activeModels.Visit, error) {
+			ended := *openVisit
+			exitTime := time.Now()
+			ended.ExitTime = &exitTime
+			return &ended, nil
+		},
 	}}, settings: &stubSettingsResolver{
 		stringValues: map[string]string{"operations.presence_mode": "binary"},
 	},
 	}
 
-	err := svc.endOpenVisitForStudent(context.Background(), 4711)
+	_, err := svc.endOpenVisitForStudent(context.Background(), 4711)
 
 	require.NoError(t, err)
 	assert.True(t, endCalled, "checkout stale-visit healing must bypass the binary-mode EndVisit no-op")
@@ -109,7 +116,7 @@ func TestEndOpenVisitForStudent_EndVisitErrorPropagates(t *testing.T) {
 	}},
 	}
 
-	err := svc.endOpenVisitForStudent(context.Background(), 4711)
+	_, err := svc.endOpenVisitForStudent(context.Background(), 4711)
 
 	require.Error(t, err, "an EndVisit failure must propagate so attendance close and visit end stay atomic")
 	assert.False(t, errors.Is(err, ErrVisitAlreadyEnded))

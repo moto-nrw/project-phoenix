@@ -820,7 +820,7 @@ func (s *service) EndActivitySession(ctx context.Context, activeGroupID int64) e
 
 	// End all active visits
 	for _, visitData := range visitsToNotify {
-		if err := s.VisitRepo.EndVisit(ctx, visitData.VisitID); err != nil {
+		if _, _, err := s.endVisitWithAttendanceSync(ctx, visitData.VisitID); err != nil {
 			return &ActiveError{Op: "EndActivitySession", Err: err}
 		}
 	}
@@ -904,7 +904,7 @@ func (s *service) checkoutActiveVisits(ctx context.Context, sessionID int64) (in
 		if !visit.IsActive() {
 			continue
 		}
-		if err := s.VisitRepo.EndVisit(ctx, visit.ID); err != nil {
+		if _, _, err := s.endVisitWithAttendanceSync(ctx, visit.ID); err != nil {
 			return 0, err
 		}
 		studentsCheckedOut++

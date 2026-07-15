@@ -843,6 +843,53 @@ func TestInstance_Create_AssignsUniqueStaffAndStudents(t *testing.T) {
 	assert.Equal(t, 2, studentRows, "duplicate and non-positive student ids must be ignored")
 }
 
+func TestInstance_CreateAndUpdatePlanned_ReapplyActiveStatusDays(t *testing.T) {
+	s := buildLifecycle(t)
+	createdDate := timezone.NewDate(2026, 5, 12)
+	updatedDate := timezone.NewDate(2026, 5, 13)
+
+	sick := &activeModels.StudentStatusDay{
+		StudentID: s.student1, Date: createdDate, Status: activeModels.StudentStatusDaySick,
+		ReportedAt: time.Now(), Source: activeModels.StudentStatusSourcePlanned,
+	}
+	excused := &activeModels.StudentStatusDay{
+		StudentID: s.student2, Date: updatedDate, Status: activeModels.StudentStatusDayExcused,
+		ReportedAt: time.Now().Add(time.Minute), Source: activeModels.StudentStatusSourcePlanned,
+	}
+	require.NoError(t, s.repos.StudentStatusDay.UpsertReported(s.ctx, sick))
+	require.NoError(t, s.repos.StudentStatusDay.UpsertReported(s.ctx, excused))
+
+	inst, err := s.svc.Create(s.ctx, scheduleSvc.CreateInstanceInput{
+		Date: createdDate, StartTime: time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC),
+		EndTime: time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC), Title: "Status provenance create",
+		RoomID: s.roomID, ActivityGroupID: &s.tmplID, StudentIDs: []int64{s.student1},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+
+	createdRow := fetchAttendance(t, s, inst.ID, s.student1)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, createdRow.Status)
+	require.NotNil(t, createdRow.Substatus)
+	assert.Equal(t, scheduleModels.AttendanceSubstatusSick, *createdRow.Substatus)
+	require.NotNil(t, createdRow.StudentStatusDayID)
+	assert.Equal(t, sick.ID, *createdRow.StudentStatusDayID)
+
+	updated, err := s.svc.UpdatePlanned(s.ctx, inst.ID, scheduleSvc.UpdateInstanceInput{
+		Date: updatedDate, StartTime: time.Date(1, 1, 1, 11, 0, 0, 0, time.UTC),
+		EndTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC), Title: "Status provenance update",
+		RoomID: s.roomID, ActivityGroupID: &s.tmplID, StudentIDs: []int64{s.student2},
+	}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, updatedDate, updated.Date)
+
+	updatedRow := fetchAttendance(t, s, inst.ID, s.student2)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, updatedRow.Status)
+	require.NotNil(t, updatedRow.Substatus)
+	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *updatedRow.Substatus)
+	require.NotNil(t, updatedRow.StudentStatusDayID)
+	assert.Equal(t, excused.ID, *updatedRow.StudentStatusDayID)
+}
+
 func TestInstance_Create_RejectsCrossTenantReferences(t *testing.T) {
 	s := buildLifecycle(t)
 	const foreignTenantID int64 = 99002
