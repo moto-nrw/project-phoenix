@@ -255,14 +255,43 @@ describe("DatabasePage", () => {
     render(<DatabasePage />);
 
     await waitFor(() => {
-      const studentsLink = screen.getByRole("link", { name: /Kinder/i });
-      expect(studentsLink).toHaveAttribute("href", "/database/students");
+      // Match on each card's description: the bare section titles are
+      // ambiguous now that the Exporte card mentions "Kinder-" and
+      // "Raumlisten" in its own description.
+      const studentsLink = screen.getByRole("link", {
+        name: /Kinderdaten verwalten/,
+      });
+      expect(studentsLink).toHaveAttribute(
+        "href",
+        "/test-tenant/database/students",
+      );
 
-      const teachersLink = screen.getByRole("link", { name: /Personal/i });
-      expect(teachersLink).toHaveAttribute("href", "/database/personal");
+      const teachersLink = screen.getByRole("link", {
+        name: /Personaldaten und Zuordnungen/,
+      });
+      expect(teachersLink).toHaveAttribute(
+        "href",
+        "/test-tenant/database/personal",
+      );
 
-      const roomsLink = screen.getByRole("link", { name: /Räume/i });
-      expect(roomsLink).toHaveAttribute("href", "/database/rooms");
+      const roomsLink = screen.getByRole("link", {
+        name: /Räume und Ausstattung/,
+      });
+      expect(roomsLink).toHaveAttribute("href", "/test-tenant/database/rooms");
+    });
+  });
+
+  it("keeps the tenant slug on the Exporte link in path routing", async () => {
+    render(<DatabasePage />);
+
+    await waitFor(() => {
+      const exportsLink = screen.getByRole("link", {
+        name: /Geburtstags-, Notfall- und Raumlisten/,
+      });
+      expect(exportsLink).toHaveAttribute(
+        "href",
+        "/test-tenant/database/exports",
+      );
     });
   });
 

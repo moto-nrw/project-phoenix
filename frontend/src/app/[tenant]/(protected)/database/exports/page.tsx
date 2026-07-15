@@ -29,6 +29,7 @@ import {
   type RoomSnapshotExportFormat,
 } from "~/lib/room-export-api";
 import type { StudentExportPreset } from "~/lib/student-export-api";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "DatabaseExportsPage" });
 
@@ -266,9 +267,10 @@ function ExportLink({
   href,
   children,
 }: Readonly<{ href: string; children: ReactNode }>) {
+  const tenantPath = useTenantAwarePath();
   return (
     <Link
-      href={href}
+      href={tenantPath(href)}
       className="group inline-flex items-center pt-1 text-sm font-medium text-gray-700 transition-colors hover:text-gray-950"
     >
       {children}
