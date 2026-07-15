@@ -398,16 +398,20 @@ func (r *InstanceStudentRepository) UpdateAttendanceFields(
 
 	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 
+	clearStatusDayProvenance := false
 	if patch.Status != nil {
 		q = q.Set(`status = ?`, *patch.Status)
-		q = q.Set(`student_status_day_id = NULL`)
+		clearStatusDayProvenance = true
 	}
 	switch {
 	case patch.SubstatusClear:
 		q = q.Set(`substatus = NULL`)
-		q = q.Set(`student_status_day_id = NULL`)
+		clearStatusDayProvenance = true
 	case patch.Substatus != nil:
 		q = q.Set(`substatus = ?`, *patch.Substatus)
+		clearStatusDayProvenance = true
+	}
+	if clearStatusDayProvenance {
 		q = q.Set(`student_status_day_id = NULL`)
 	}
 	switch {

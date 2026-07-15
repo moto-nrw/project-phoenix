@@ -20,7 +20,26 @@ describe("mapAttendanceHistoryResponse", () => {
           checked_in_by: 11,
           checked_out_by: 11,
           device_id: 3,
+          sessions: [
+            {
+              check_in_time: "2026-04-06T08:00:00Z",
+              check_out_time: "2026-04-06T09:00:00Z",
+              duration_minutes: 60,
+            },
+          ],
         },
+        slots: [
+          {
+            instance_id: 101,
+            title: "Morgenbetreuung",
+            start_time: "07:00",
+            end_time: "08:00",
+            status: "present",
+            checked_in_at: "2026-04-06T08:00:00Z",
+            checked_out_at: "2026-04-06T09:00:00Z",
+            is_unplanned: false,
+          },
+        ],
         room_detail_available: true,
         visits: [
           {
@@ -90,6 +109,22 @@ describe("mapAttendanceHistoryResponse", () => {
     expect(day1.attendance!.durationMinutes).toBe(450);
     expect(day1.attendance!.checkedInBy).toBe(11);
     expect(day1.attendance!.deviceId).toBe(3);
+
+    expect(day1.attendance!.sessions).toHaveLength(1);
+    expect(day1.attendance!.sessions[0]!.checkInTime).toBeInstanceOf(Date);
+    expect(day1.attendance!.sessions[0]!.checkOutTime).toBeInstanceOf(Date);
+    expect(day1.attendance!.sessions[0]!.durationMinutes).toBe(60);
+
+    expect(day1.slots).toHaveLength(1);
+    expect(day1.slots[0]).toMatchObject({
+      instanceId: "101",
+      title: "Morgenbetreuung",
+      status: "present",
+      substatus: null,
+      isUnplanned: false,
+    });
+    expect(day1.slots[0]!.checkedInAt).toBeInstanceOf(Date);
+    expect(day1.slots[0]!.checkedOutAt).toBeInstanceOf(Date);
 
     expect(day1.visits).toHaveLength(1);
     expect(day1.visits[0]!.roomName).toBe("Gruppenraum A");
