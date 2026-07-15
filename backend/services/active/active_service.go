@@ -591,19 +591,23 @@ func (s *service) UpdateVisit(ctx context.Context, visit *active.Visit) error {
 	if err != nil {
 		return err
 	}
+	intervalChanged := visitIntervalChanged(existing, visit)
 
 	if s.VisitRepo.Update(ctx, visit) != nil {
 		return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+	}
+
+	if intervalChanged {
+		if err := s.syncAttendanceForVisitRevision(ctx, existing, visit); err != nil {
+			return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+		}
 	}
 
 	if isActiveGroupMove {
 		sourceSnapshot, targetSnapshot := s.syncMovedVisitAttendance(ctx, existing, visit, transferAt)
 		s.broadcastVisitMoved(ctx, existing, visit, sourceSnapshot, targetSnapshot)
 		s.trackProductEvent(ctx, "room_transfer", nil)
-	} else if visitIntervalChanged(existing, visit) {
-		if err := s.syncAttendanceForVisitRevision(ctx, existing, visit); err != nil {
-			return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
-		}
+	} else if intervalChanged {
 		if s.AttendanceSyncer != nil {
 			s.AttendanceSyncer.MirrorVisitRevision(ctx, existing, visit)
 		}

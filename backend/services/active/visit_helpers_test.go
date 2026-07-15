@@ -138,6 +138,47 @@ func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
 	assert.Nil(t, attendance.CheckedOutBy)
 }
 
+func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupVisitHelperService(t, db)
+	ctx := testpkg.TenantContext(1)
+	activity := testpkg.CreateTestActivityGroup(t, db, "moved-visit-checkout")
+	sourceRoom := testpkg.CreateTestRoom(t, db, "Moved Visit Source Room")
+	targetRoom := testpkg.CreateTestRoom(t, db, "Moved Visit Target Room")
+	sourceGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, sourceRoom.ID)
+	targetGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, targetRoom.ID)
+	student := testpkg.CreateTestStudent(t, db, "Moved", "Visit", "2a")
+	staff := testpkg.CreateTestStaff(t, db, "Moved", "Staff")
+	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-MOVED-VISIT-001")
+	defer testpkg.CleanupActivityFixtures(
+		t, db, activity.ID, sourceRoom.ID, targetRoom.ID, sourceGroup.ID,
+		targetGroup.ID, student.ID, staff.ID, rfidDevice.ID,
+	)
+
+	staffCtx := context.WithValue(ctx, device.CtxStaff, staff)
+	deviceCtx := context.WithValue(staffCtx, device.CtxDevice, rfidDevice)
+	entryTime := time.Now().Add(-2 * time.Hour)
+	visit := &activeModels.Visit{
+		StudentID: student.ID, ActiveGroupID: sourceGroup.ID, EntryTime: entryTime,
+	}
+	require.NoError(t, service.CreateVisit(deviceCtx, visit))
+	defer testpkg.CleanupTableRecords(t, db, "active.visits", visit.ID)
+
+	exitTime := entryTime.Add(time.Hour)
+	visit.ActiveGroupID = targetGroup.ID
+	visit.ExitTime = &exitTime
+	require.NoError(t, service.UpdateVisit(deviceCtx, visit))
+
+	attendance := getAttendanceForStudent(t, db, student.ID)
+	require.NotNil(t, attendance)
+	defer testpkg.CleanupTableRecords(t, db, "active.attendance", attendance.ID)
+	require.NotNil(t, attendance.CheckOutTime,
+		"a combined group move and checkout must not leave daily attendance open")
+	assert.WithinDuration(t, exitTime, *attendance.CheckOutTime, time.Second)
+}
+
 // =============================================================================
 // Re-entry Tests (Student already has attendance for today)
 // =============================================================================
