@@ -61,6 +61,9 @@ func init() {
 				END $$;
 
 				GRANT SELECT, INSERT ON audit.enrollment_deletions TO phoenix_tenant;
+				-- The schema-wide default ACL from 1.14.1 auto-grants phoenix_tenant
+				-- UPDATE/DELETE on new audit tables; revoke to keep this append-only.
+				REVOKE UPDATE, DELETE ON audit.enrollment_deletions FROM phoenix_tenant;
 				GRANT USAGE ON SEQUENCE audit.enrollment_deletions_id_seq TO phoenix_tenant;
 			`).Exec(ctx); err != nil {
 				return fmt.Errorf("create audit.enrollment_deletions: %w", err)
