@@ -28,8 +28,27 @@ const Icon: React.FC<{ path: string; className?: string }> = ({
   </svg>
 );
 
+interface DataSection {
+  id: string;
+  title: string;
+  description: string;
+  href: string;
+  icon: string;
+  iconColor: string;
+  /**
+   * Permission flag from /api/database/counts gating this card. Defaults to the
+   * `canView{Id}` flag derived from the section id; set it where the section has
+   * no flag of its own.
+   */
+  permissionKey?: string;
+  /** Replaces the entry-count badge for sections that count nothing. */
+  badge?: string;
+  /** Call to action on the card. Defaults to "Verwalten". */
+  cta?: string;
+}
+
 // Base data sections configuration with inline color styles
-const baseDataSections = [
+const baseDataSections: DataSection[] = [
   {
     id: "students",
     title: "Kinder",
@@ -93,6 +112,19 @@ const baseDataSections = [
     href: "/database/permissions",
     icon: "M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1 1 21 9z",
     iconColor: LOCATION_COLORS.HOME,
+  },
+  {
+    id: "exports",
+    title: "Exporte",
+    description: "Kinder-, Geburtstags-, Notfall- und Raumlisten erstellen",
+    href: "/database/exports",
+    icon: "M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4",
+    iconColor: LOCATION_COLORS.EXCUSED,
+    // Every export on that page reads child data, so it rides on the same
+    // visibility as the Kinder section rather than inventing a flag.
+    permissionKey: "canViewStudents",
+    badge: "Listen",
+    cta: "Öffnen",
   },
 ];
 
@@ -260,8 +292,8 @@ function DatabaseContent() {
             }
 
             // Check permissions for this section
-            const permissionKey =
-              `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}` as keyof typeof permissions;
+            const permissionKey = (section.permissionKey ??
+              `canView${section.id.charAt(0).toUpperCase() + section.id.slice(1)}`) as keyof typeof permissions;
             if (!permissions?.[permissionKey]) {
               return null;
             }
@@ -270,9 +302,10 @@ function DatabaseContent() {
               section.id === "permissions" ? "permissionCount" : section.id;
             const count = counts[countKey as keyof typeof counts] ?? 0;
             const entryLabel = count === 1 ? "Eintrag" : "Einträge";
-            const countText = countsLoading
-              ? "Lade..."
-              : `${count} ${entryLabel}`;
+            const countText =
+              section.badge ??
+              (countsLoading ? "Lade..." : `${count} ${entryLabel}`);
+            const badgeLoading = section.badge === undefined && countsLoading;
 
             return (
               <Link
@@ -293,7 +326,7 @@ function DatabaseContent() {
                     </div>
                     <span
                       className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors duration-200 ${
-                        countsLoading
+                        badgeLoading
                           ? "animate-pulse bg-gray-200 text-gray-400"
                           : "bg-gray-100 text-gray-600"
                       }`}
@@ -310,7 +343,9 @@ function DatabaseContent() {
                   </p>
 
                   <div className="flex items-center text-gray-400 transition-colors group-hover:text-gray-700">
-                    <span className="text-sm font-medium">Verwalten</span>
+                    <span className="text-sm font-medium">
+                      {section.cta ?? "Verwalten"}
+                    </span>
                     <Icon
                       path="M9 5l7 7-7 7"
                       className="ml-2 h-4 w-4 transition-transform duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] group-hover:translate-x-0.5 motion-reduce:transition-none motion-reduce:group-hover:translate-x-0"

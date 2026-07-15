@@ -12,8 +12,10 @@ import {
   X,
 } from "lucide-react";
 import {
+  BIRTHDAY_MONTH_OPTIONS,
   STUDENT_EXPORT_COLUMNS,
   STUDENT_EXPORT_PRESETS,
+  currentBirthdayMonth,
   exportStudents,
   type StudentExportColumn,
   type StudentExportColumnOption,
@@ -29,7 +31,16 @@ const logger = createLogger({ component: "StudentExportModal" });
 interface StudentExportModalProps {
   readonly isOpen: boolean;
   readonly filters: StudentExportFilters;
-  readonly resultCount: number;
+  /**
+   * Number of children the caller's filtering produced. Omit where there is no
+   * filtered list to speak of (the central export page), so the modal describes
+   * the scope honestly instead of reporting "0 Kinder".
+   */
+  readonly resultCount?: number;
+  /** Modal heading. Defaults to the Kindersuche wording. */
+  readonly heading?: string;
+  /** Preset to open on, overriding the filter-derived default. */
+  readonly initialPreset?: StudentExportPreset;
   readonly onClose: () => void;
 }
 
@@ -51,6 +62,8 @@ export function StudentExportModal({
   isOpen,
   filters,
   resultCount,
+  heading = "Kindersuche exportieren",
+  initialPreset,
   onClose,
 }: StudentExportModalProps) {
   const [mounted, setMounted] = useState(false);
@@ -61,6 +74,7 @@ export function StudentExportModal({
     STUDENT_EXPORT_PRESETS[0]?.columns ?? [],
   );
   const [groupByClass, setGroupByClass] = useState(false);
+  const [months, setMonths] = useState<string[]>([]);
   const [exporting, setExporting] = useState(false);
   const toast = useToast();
 
@@ -70,8 +84,16 @@ export function StudentExportModal({
 
   useEffect(() => {
     if (!isOpen) return;
-    setPreset(filters.school_class ? "class_roster" : "ogs_weekly");
-  }, [filters.school_class, isOpen]);
+    setPreset(
+      initialPreset ?? (filters.school_class ? "class_roster" : "ogs_weekly"),
+    );
+  }, [filters.school_class, initialPreset, isOpen]);
+
+  // The month a birthday list is most often wanted for is the current one.
+  useEffect(() => {
+    if (!isOpen) return;
+    setMonths([currentBirthdayMonth()]);
+  }, [isOpen]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -112,6 +134,14 @@ export function StudentExportModal({
     );
   };
 
+  const toggleMonth = (month: string) => {
+    setMonths((current) =>
+      current.includes(month)
+        ? current.filter((item) => item !== month)
+        : [...current, month].sort((a, b) => a.localeCompare(b)),
+    );
+  };
+
   const handleExport = async () => {
     if (columns.length === 0) {
       toast.error("Bitte wähle mindestens eine Spalte aus.");
@@ -128,6 +158,9 @@ export function StudentExportModal({
           ...(groupByClass && !filters.school_class
             ? { group_by_class: true }
             : {}),
+          // A birthday list is only readable in calendar order, so the preset
+          // carries its own sort rather than inheriting the page's.
+          ...(preset === "birthday_list" ? { months, sort: "birthday" } : {}),
         },
         columns,
       });
@@ -160,10 +193,12 @@ export function StudentExportModal({
               id="student-export-title"
               className="text-base font-semibold text-gray-950"
             >
-              Kindersuche exportieren
+              {heading}
             </h2>
             <p className="mt-1 text-sm text-gray-500">
-              {resultCount} Kinder aus der aktuellen Filterung.
+              {resultCount === undefined
+                ? "Alle Kinder der Schule."
+                : `${resultCount} Kinder aus der aktuellen Filterung.`}
             </p>
           </div>
           <button
@@ -241,6 +276,56 @@ export function StudentExportModal({
               ))}
             </div>
           </section>
+
+          {preset === "birthday_list" && (
+            <section>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-900">
+                    Geburtsmonate
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {months.length === 0
+                      ? "Alle Geburtstage des Jahres werden aufgelistet."
+                      : "Nur Kinder, die in den gewählten Monaten Geburtstag haben."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setMonths([])}
+                  aria-pressed={months.length === 0}
+                  className={`inline-flex h-8 shrink-0 items-center rounded-md border px-2.5 text-xs font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                    months.length === 0
+                      ? "border-gray-900 bg-gray-950 text-white"
+                      : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  Ganzes Jahr
+                </button>
+              </div>
+              <div className="mt-2 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                {BIRTHDAY_MONTH_OPTIONS.map((month) => {
+                  const selected = months.includes(month.value);
+                  return (
+                    <button
+                      key={month.value}
+                      type="button"
+                      onClick={() => toggleMonth(month.value)}
+                      aria-label={month.label}
+                      aria-pressed={selected}
+                      className={`inline-flex h-9 items-center justify-center rounded-lg border text-sm font-medium shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
+                        selected
+                          ? "border-gray-900 bg-gray-950 text-white"
+                          : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+                      }`}
+                    >
+                      {month.label.slice(0, 3)}
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+          )}
 
           {!filters.school_class && (
             <section>

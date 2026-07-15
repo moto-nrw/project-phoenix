@@ -301,6 +301,7 @@ const DATABASE_SUB_PAGES = [
   { href: "/database/roles", label: "Rollen" },
   { href: "/database/devices", label: "Geräte" },
   { href: "/database/permissions", label: "Berechtigungen" },
+  { href: "/database/exports", label: "Exporte" },
 ];
 
 const NFC_ONLY_HREFS = new Set<string>([

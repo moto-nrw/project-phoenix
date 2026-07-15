@@ -5,7 +5,12 @@ export type RoomSnapshotExportFormat = "pdf" | "docx" | "xlsx";
 export interface RoomSnapshotExportRequest {
   format: RoomSnapshotExportFormat;
   title: string;
-  room_ids: number[];
+  /**
+   * Rooms to include. Omit the key entirely to export every room — the backend
+   * models this as a pointer and distinguishes an absent key (no filter) from
+   * an empty list (matches nothing, so the document comes out empty).
+   */
+  room_ids?: number[];
   include_transit: boolean;
 }
 

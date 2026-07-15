@@ -96,6 +96,7 @@ function getDatabasePageTitle(pathname: string): string {
     roles: "Rollen",
     devices: "Geräte",
     permissions: "Berechtigungen",
+    exports: "Exporte",
   };
 
   for (const [key, title] of Object.entries(databasePages)) {

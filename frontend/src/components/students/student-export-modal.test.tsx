@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { StudentExportModal } from "./student-export-modal";
 
 const { mockExportStudents, mockToastError, mockToastSuccess } = vi.hoisted(
@@ -228,5 +228,143 @@ describe("StudentExportModal", () => {
     });
     expect(onClose).not.toHaveBeenCalled();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
+  });
+
+  describe("birthday list", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      vi.setSystemTime(new Date("2026-09-15T10:00:00Z"));
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    const selectBirthdayPreset = () =>
+      fireEvent.click(
+        screen.getByRole("button", { name: /^Geburtstagsliste/ }),
+      );
+
+    it("offers month selection only for the birthday preset", async () => {
+      await openModal();
+
+      expect(
+        screen.queryByRole("button", { name: "September" }),
+      ).not.toBeInTheDocument();
+
+      selectBirthdayPreset();
+
+      expect(
+        await screen.findByRole("button", { name: "September" }),
+      ).toBeInTheDocument();
+      expect(screen.getByText("Geburtsmonate")).toBeInTheDocument();
+    });
+
+    it("preselects the current month", async () => {
+      await openModal();
+      selectBirthdayPreset();
+
+      const september = await screen.findByRole("button", {
+        name: "September",
+      });
+      expect(september).toHaveAttribute("aria-pressed", "true");
+      expect(screen.getByRole("button", { name: "Januar" })).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    });
+
+    // A birthday recurs annually, so the export has to sort by calendar day —
+    // the page's own sort mode would order by birth year.
+    it("exports the current month sorted by birthday", async () => {
+      await openModal();
+      selectBirthdayPreset();
+      await screen.findByRole("button", { name: "September" });
+
+      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+
+      await waitFor(() => {
+        expect(mockExportStudents).toHaveBeenCalledWith({
+          format: "pdf",
+          preset: "birthday_list",
+          title: "Geburtstagsliste",
+          filters: {
+            search: "mila",
+            group_id: "5",
+            months: ["09"],
+            sort: "birthday",
+          },
+          columns: ["name", "school_class", "group", "birthday", "age"],
+        });
+      });
+    });
+
+    it("sends the months a user picked, in calendar order", async () => {
+      await openModal();
+      selectBirthdayPreset();
+
+      // Deselect September, then pick December before January to prove the
+      // request is ordered rather than click-ordered.
+      fireEvent.click(await screen.findByRole("button", { name: "September" }));
+      fireEvent.click(screen.getByRole("button", { name: "Dezember" }));
+      fireEvent.click(screen.getByRole("button", { name: "Januar" }));
+      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+
+      await waitFor(() => {
+        expect(mockExportStudents).toHaveBeenCalledWith(
+          expect.objectContaining({
+            filters: expect.objectContaining({ months: ["01", "12"] }),
+          }),
+        );
+      });
+    });
+
+    it("exports the whole year when the month filter is cleared", async () => {
+      await openModal();
+      selectBirthdayPreset();
+
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Ganzes Jahr" }),
+      );
+
+      expect(
+        screen.getByText("Alle Geburtstage des Jahres werden aufgelistet."),
+      ).toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Exportieren" }));
+
+      await waitFor(() => {
+        expect(mockExportStudents).toHaveBeenCalledWith(
+          expect.objectContaining({
+            filters: expect.objectContaining({ months: [], sort: "birthday" }),
+          }),
+        );
+      });
+    });
+
+    it("opens directly on the birthday preset when asked to", async () => {
+      renderModal({
+        filters: {},
+        resultCount: undefined,
+        heading: "Geburtstagsliste exportieren",
+        initialPreset: "birthday_list",
+      });
+
+      await screen.findByRole("dialog", {
+        name: "Geburtstagsliste exportieren",
+      });
+      expect(screen.getByLabelText("Titel")).toHaveValue("Geburtstagsliste");
+      expect(
+        await screen.findByRole("button", { name: "September" }),
+      ).toBeInTheDocument();
+    });
+
+    // Without a filtered list behind it, reporting "0 Kinder" would be a lie.
+    it("describes the scope instead of a count when no count is given", async () => {
+      renderModal({ filters: {}, resultCount: undefined });
+
+      await screen.findByRole("dialog", { name: "Kindersuche exportieren" });
+      expect(screen.getByText("Alle Kinder der Schule.")).toBeInTheDocument();
+    });
   });
 });

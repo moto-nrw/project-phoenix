@@ -392,6 +392,7 @@ export const appChapters: readonly GuideChapter[] = [
           "Bei Bedarf nach Klasse, Gruppe, Stufe oder Status filtern.",
           "Für aktuelle Klassenlisten im Filter `Klasse` den Klassenverband wählen und über `Exportieren` die Vorlage `Klassenliste` ausgeben. Ohne Klassenfilter erzeugt die Option `Nach Klassen getrennt` alle Klassenlisten auf einmal: jede Klasse erhält eine eigene Überschrift, im PDF beginnt jede Klasse auf einer neuen Seite. Phasebezogene Listen für Klassenlehrkräfte erstellst du in der jeweiligen `Anmeldephase`.",
           "Die Vorlage `Tagesliste` enthält den `Tagesstatus`, damit `Krank`, `Entschuldigt` und `Klassenfahrt` direkt auf der Liste stehen.",
+          "Die Vorlage `Geburtstagsliste` gibt die Geburtstage der gefilterten Kinder nach Kalender sortiert aus, voreingestellt für den aktuellen Monat. Alle Listen der Schule gebündelt findest du unter `Datenverwaltung` -> `Exporte`.",
           "Auf jeder Karte rechts die `Aktivitäts-Indikatoren` ablesen: ein grüner Haken bedeutet, das Kind war heute schon im genannten Bereich (z. B. `Mensa`, `Hausaufgaben`), ein grauer Kreis steht für noch ausstehend.",
           "Ein Kind öffnen, um Details, Raum und Zeiten zu sehen.",
         ],
@@ -865,9 +866,32 @@ export const appChapters: readonly GuideChapter[] = [
           "Den gewünschten Bereich wählen: `Kinder`, `Personal`, `Räume`, `Gruppen`, `Rollen` oder `Berechtigungen`.",
           "Wenn NFC oder Tablets genutzt werden, zusätzlich `Aktivitäten` und `Geräte` öffnen.",
           "Einträge anlegen, bearbeiten oder prüfen.",
+          "Unter `Exporte` liegen alle Listen der Schule gebündelt, siehe nächster Abschnitt.",
         ],
         screenshot: "Datenverwaltung mit allen Bereichen und Eintragszahlen.",
         image: "/help/screens/datenverwaltung.webp",
+      },
+      {
+        id: "listen-exportieren",
+        title: "Listen exportieren",
+        icon: Download,
+        summary:
+          "Der zentrale Einstieg für alle Listen der Schule: Kinderlisten, die Geburtstagsliste, die Notfallliste und die Raumbelegung - an einer Stelle statt verstreut über die einzelnen Seiten.",
+        steps: [
+          "`Datenverwaltung` -> `Exporte` öffnen.",
+          "`Kinderliste` erstellt dieselben Listen wie der Export in der `Kindersuche`: Vorlage wählen (zum Beispiel `OGS Wochenliste`, `Klassenliste`, `Tagesliste` oder `Abholliste`), Format festlegen und bei Bedarf einzelne Spalten an- oder abwählen.",
+          "`Geburtstagsliste` gibt die Geburtstage nach Kalender sortiert aus. Voreingestellt ist der aktuelle Monat; über die Monatsfelder wählst du weitere Monate dazu oder ab, mit `Ganzes Jahr` erhältst du alle Geburtstage des Jahres.",
+          "`Notfallliste` erzeugt die Liste aller aktuell anwesenden Kinder mit den Kontaktdaten der Erziehungsberechtigten, wahlweise als PDF oder direkt zum Drucken.",
+          "`Wer ist wo` gibt die aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl aus.",
+          "`Anmeldungen` und `Zeitnachweis` führen auf die Seite, zu der der jeweilige Export gehört: Anmeldungen werden je Anmeldephase exportiert, Zeitnachweise je Person.",
+        ],
+        callout: {
+          title: "Kinder ohne Geburtsdatum fehlen in der Geburtstagsliste",
+          body: "Die Liste zeigt nur Kinder, bei denen ein Geburtsdatum hinterlegt ist. Fehlt jemand, ergänze das Geburtsdatum in der Kinddetailansicht unter `Stammdaten`. Die Geburtstagsliste findest du auch in der `Kindersuche` unter `Exportieren` als Vorlage `Geburtstagsliste`, dann bezogen auf die gerade gefilterten Kinder, zum Beispiel nur die eigene Gruppe.",
+          tone: "blue",
+        },
+        screenshot:
+          "Exporte-Seite der Datenverwaltung mit den Karten Kinderliste, Geburtstagsliste, Notfallliste und Wer ist wo.",
       },
       {
         id: "anmeldungen-einrichten",
