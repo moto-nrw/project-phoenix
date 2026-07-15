@@ -88,7 +88,7 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	require.NoError(t, repos.StaffAbsence.Create(ctx, absence))
 
 	svc := active.NewWorkTimeMonthService(
-		repos.WorkSession, repos.StaffAbsence, repos.Staff,
+		repos.WorkSession, repos.WorkSessionBreak, repos.StaffAbsence, repos.Staff,
 		repos.StaffWorkSchedule, repos.WorkTimeModel, repos.StaffShift,
 		wtmIntSettings{accountStart: "2026-06-01"}, nil,
 	)

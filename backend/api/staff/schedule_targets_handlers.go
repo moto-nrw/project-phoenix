@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	timetracking "github.com/moto-nrw/project-phoenix/api/time-tracking"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // getStaffScheduleTargets handles
@@ -29,6 +30,10 @@ func (rs *Resource) getStaffScheduleTargets(w http.ResponseWriter, r *http.Reque
 	}
 	targets, err := rs.WorkTimeMonthService.GetDailyTargets(r.Context(), staffID, from, to)
 	if err != nil {
+		if errors.Is(err, activeSvc.ErrInvalidTargetRange) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
 		rs.getLogger().Error("failed to get staff schedule targets",
 			"staff_id", staffID,
 			"error", err.Error(),

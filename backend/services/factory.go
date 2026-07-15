@@ -339,6 +339,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 	// Übertrag is live.
 	workTimeMonthService := active.NewWorkTimeMonthService(
 		repos.WorkSession,
+		repos.WorkSessionBreak,
 		repos.StaffAbsence,
 		repos.Staff,
 		repos.StaffWorkSchedule,

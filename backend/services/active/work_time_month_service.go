@@ -2,6 +2,7 @@ package active
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -90,6 +91,11 @@ type monthSessionReader interface {
 	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.WorkSession, error)
 }
 
+// monthBreakReader is implemented by active.WorkSessionBreakRepository.
+type monthBreakReader interface {
+	GetActiveBySessionID(ctx context.Context, sessionID int64) (*activeModels.WorkSessionBreak, error)
+}
+
 // monthAbsenceReader is implemented by active.StaffAbsenceRepository.
 type monthAbsenceReader interface {
 	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*activeModels.StaffAbsence, error)
@@ -103,6 +109,7 @@ type monthStaffReader interface {
 // monthScheduleReader is implemented by config.StaffWorkScheduleRepository.
 type monthScheduleReader interface {
 	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*configModels.StaffWorkSchedule, error)
+	HasScheduleHistory(ctx context.Context, staffID int64) (bool, error)
 }
 
 // monthModelReader is implemented by config.WorkTimeModelRepository.
@@ -112,6 +119,7 @@ type monthModelReader interface {
 
 type workTimeMonthService struct {
 	sessionRepo   monthSessionReader
+	breakRepo     monthBreakReader
 	absenceRepo   monthAbsenceReader
 	staffRepo     monthStaffReader
 	scheduleRepo  monthScheduleReader
@@ -126,6 +134,7 @@ type workTimeMonthService struct {
 
 func NewWorkTimeMonthService(
 	sessionRepo monthSessionReader,
+	breakRepo monthBreakReader,
 	absenceRepo monthAbsenceReader,
 	staffRepo monthStaffReader,
 	scheduleRepo monthScheduleReader,
@@ -136,6 +145,7 @@ func NewWorkTimeMonthService(
 ) WorkTimeMonthService {
 	return &workTimeMonthService{
 		sessionRepo:   sessionRepo,
+		breakRepo:     breakRepo,
 		absenceRepo:   absenceRepo,
 		staffRepo:     staffRepo,
 		scheduleRepo:  scheduleRepo,
@@ -184,6 +194,12 @@ func (k monthKey) before(o monthKey) bool {
 // than a month, and an unbounded range would let a caller walk years of
 // calendar days per request.
 const maxDailyTargetRangeDays = 366
+
+// ErrInvalidTargetRange marks a GetDailyTargets range the caller got wrong:
+// missing, inverted, or longer than the cap. The range comes straight from the
+// query string, so handlers map this to HTTP 400 — an oversized window is the
+// caller's mistake, not an internal failure.
+var ErrInvalidTargetRange = errors.New("invalid target range")
 
 func validateMonth(year, month int) error {
 	if year < 2000 || year > 2100 || month < 1 || month > 12 {
@@ -256,6 +272,21 @@ func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID 
 		return resolver, nil
 	}
 
+	// No snapshot is valid in this range. The assigned work-time model may only
+	// stand in when the staff member has NO snapshot at all: if versions exist
+	// but none covers these days, the range lies before the first one (or after
+	// the schedule was emptied) and the Soll is genuinely zero. Applying the
+	// current model there would charge Soll for days the schedule didn't exist
+	// yet — and would make the answer depend on the query window, since a range
+	// that also touches the first snapshot resolves the very same days to zero.
+	hasHistory, err := s.scheduleRepo.HasScheduleHistory(ctx, staffID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check schedule history: %w", err)
+	}
+	if hasHistory {
+		return resolver, nil
+	}
+
 	model, err := s.workModelRepo.FindByID(ctx, *staff.WorkTimeModelID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load work time model: %w", err)
@@ -324,11 +355,45 @@ func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int
 		if session.Date.After(today) {
 			continue
 		}
-		if agg, ok := aggregates[monthOf(session.Date)]; ok {
-			agg.actual += netMinutes(session, now)
+		agg, ok := aggregates[monthOf(session.Date)]
+		if !ok {
+			continue
 		}
+		minutes := netMinutes(session, now)
+		running, err := s.runningBreakMinutes(ctx, session, now)
+		if err != nil {
+			return err
+		}
+		if minutes -= running; minutes < 0 {
+			minutes = 0
+		}
+		agg.actual += minutes
 	}
 	return nil
+}
+
+// runningBreakMinutes is the elapsed duration of a break that has started but
+// not ended yet. WorkSession.BreakMinutes caches ENDED breaks only — StartBreak
+// records no duration and the cache is refreshed when the break ends or is
+// auto-ended — so netMinutes counts every minute of a running break as worked
+// time. Without this correction the polled Monatskarte inflates Ist and Saldo
+// for as long as the staff member is on break.
+func (s *workTimeMonthService) runningBreakMinutes(ctx context.Context, session *activeModels.WorkSession, now time.Time) (int, error) {
+	if s.breakRepo == nil || session.CheckOutTime != nil {
+		return 0, nil
+	}
+	brk, err := s.breakRepo.GetActiveBySessionID(ctx, session.ID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to load active break: %w", err)
+	}
+	if brk == nil || !brk.IsActive() {
+		return 0, nil
+	}
+	elapsed := int(now.Sub(brk.StartedAt).Minutes())
+	if elapsed < 0 {
+		return 0, nil
+	}
+	return elapsed, nil
 }
 
 // addAbsenceCredits credits sick/vacation/training days with the day's
@@ -535,13 +600,13 @@ func (s *workTimeMonthService) GetMonthSummary(ctx context.Context, staffID int6
 // caller must be able to tell "planned day off" from "range not covered".
 func (s *workTimeMonthService) GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error) {
 	if from.IsZero() || to.IsZero() {
-		return nil, fmt.Errorf("from and to are required")
+		return nil, fmt.Errorf("%w: from and to are required", ErrInvalidTargetRange)
 	}
 	if to.Before(from) {
-		return nil, fmt.Errorf("to must be on or after from")
+		return nil, fmt.Errorf("%w: to must be on or after from", ErrInvalidTargetRange)
 	}
 	if from.DaysUntil(to) > maxDailyTargetRangeDays {
-		return nil, fmt.Errorf("range must not exceed %d days", maxDailyTargetRangeDays)
+		return nil, fmt.Errorf("%w: range must not exceed %d days", ErrInvalidTargetRange, maxDailyTargetRangeDays)
 	}
 
 	resolver, err := s.buildTargetResolver(ctx, staffID, from, to)

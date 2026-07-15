@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // ParseDateRangeQuery extracts and validates the from/to query parameters of a
@@ -48,6 +49,10 @@ func (rs *Resource) getOwnScheduleTargets(w http.ResponseWriter, r *http.Request
 
 	targets, err := rs.WorkTimeMonthService.GetDailyTargets(r.Context(), staffID, from, to)
 	if err != nil {
+		if errors.Is(err, activeSvc.ErrInvalidTargetRange) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

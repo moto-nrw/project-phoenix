@@ -153,6 +153,7 @@ type wsMockStaffWorkScheduleRepository struct {
 	getByStaffIDAndDateFunc        func(ctx context.Context, staffID int64, date timezone.Date) ([]*configModels.StaffWorkSchedule, error)
 	replaceScheduleFunc            func(ctx context.Context, staffID int64, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error
 	findByStaffIDsValidInRangeFunc func(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*configModels.StaffWorkSchedule, error)
+	hasScheduleHistoryFunc         func(ctx context.Context, staffID int64) (bool, error)
 }
 
 func (m *wsMockStaffWorkScheduleRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) ([]*configModels.StaffWorkSchedule, error) {
@@ -181,6 +182,13 @@ func (m *wsMockStaffWorkScheduleRepository) FindByStaffIDsValidInRange(ctx conte
 		return m.findByStaffIDsValidInRangeFunc(ctx, staffIDs, from, to)
 	}
 	return nil, nil
+}
+
+func (m *wsMockStaffWorkScheduleRepository) HasScheduleHistory(ctx context.Context, staffID int64) (bool, error) {
+	if m.hasScheduleHistoryFunc != nil {
+		return m.hasScheduleHistoryFunc(ctx, staffID)
+	}
+	return false, nil
 }
 
 type wsMockWorkTimeModelRepository struct {
@@ -2848,4 +2856,91 @@ func TestWSUpdateSession_TimeChangeNotesGate(t *testing.T) {
 			require.NotNil(t, session)
 		})
 	}
+}
+
+// ============================================================================
+// ApplyCustomScheduleRows anchor persistence (#1842)
+// ============================================================================
+
+// A staff member saving a multi-week custom schedule with no anchor anywhere
+// must still get one stamped onto the rows. Left NULL, the rows fall back to
+// the staff-level anchor at read time — and a later template assignment writes
+// exactly that, re-paritying these historical A/B weeks and moving the carry.
+func TestWSApplyCustomScheduleRows_StampsAnchorForFirstRotation(t *testing.T) {
+	svc, _, _, _, _ := wsCreateTestService()
+	staff := &userModels.Staff{Model: base.Model{ID: 100}}
+
+	var written timezone.Date
+	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
+		replaceScheduleFunc: func(_ context.Context, _ int64, _ []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
+			written = anchor
+			return nil
+		},
+	}
+	svc.staffRepo = &testpkg.StaffRepoMock{
+		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
+	}
+
+	entries := []*configModels.StaffWorkSchedule{
+		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 2, DayOfWeek: configModels.DayMonday, TargetMinutes: 480},
+		{StaffID: staff.ID, WeekIndex: 1, RotationLength: 2, DayOfWeek: configModels.DayMonday, TargetMinutes: 240},
+	}
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date{}))
+
+	assert.Equal(t, timezone.TodayDate(), written, "rotational rows must carry the version's own anchor")
+	require.NotNil(t, staff.RotationAnchorDate)
+	assert.Equal(t, timezone.TodayDate(), *staff.RotationAnchorDate)
+}
+
+// A single-week schedule has no A/B parity, so it keeps a NULL anchor.
+func TestWSApplyCustomScheduleRows_SingleWeekKeepsAnchorUnset(t *testing.T) {
+	svc, _, _, _, _ := wsCreateTestService()
+	staff := &userModels.Staff{Model: base.Model{ID: 100}}
+
+	var written timezone.Date
+	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
+		replaceScheduleFunc: func(_ context.Context, _ int64, _ []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
+			written = anchor
+			return nil
+		},
+	}
+	svc.staffRepo = &testpkg.StaffRepoMock{
+		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
+	}
+
+	entries := []*configModels.StaffWorkSchedule{
+		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModels.DayMonday, TargetMinutes: 480},
+	}
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date{}))
+
+	assert.True(t, written.IsZero(), "single-week rows have no parity to anchor")
+	assert.Nil(t, staff.RotationAnchorDate)
+}
+
+// An existing staff anchor still wins over today: the rows must be stamped
+// with the anchor the schedule was actually being planned against.
+func TestWSApplyCustomScheduleRows_ExistingStaffAnchorWins(t *testing.T) {
+	svc, _, _, _, _ := wsCreateTestService()
+	existing := timezone.NewDate(2026, 6, 1)
+	staff := &userModels.Staff{Model: base.Model{ID: 100}, RotationAnchorDate: &existing}
+
+	var written timezone.Date
+	svc.scheduleRepo = &wsMockStaffWorkScheduleRepository{
+		replaceScheduleFunc: func(_ context.Context, _ int64, _ []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
+			written = anchor
+			return nil
+		},
+	}
+	svc.staffRepo = &testpkg.StaffRepoMock{
+		UpdateFn: func(_ context.Context, _ *userModels.Staff) error { return nil },
+	}
+
+	entries := []*configModels.StaffWorkSchedule{
+		{StaffID: staff.ID, WeekIndex: 0, RotationLength: 2, DayOfWeek: configModels.DayMonday, TargetMinutes: 480},
+	}
+	require.NoError(t, svc.ApplyCustomScheduleRows(context.Background(), staff, entries, timezone.Date{}))
+
+	assert.Equal(t, existing, written)
+	require.NotNil(t, staff.RotationAnchorDate)
+	assert.Equal(t, existing, *staff.RotationAnchorDate)
 }

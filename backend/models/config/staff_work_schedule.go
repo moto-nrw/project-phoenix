@@ -91,6 +91,13 @@ type StaffWorkScheduleRepository interface {
 	// filter-based List.
 	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) ([]*StaffWorkSchedule, error)
 
+	// HasScheduleHistory reports whether the staff member has ever had a
+	// schedule snapshot, closed-out versions included. It separates "no
+	// schedule was ever written" — where the assigned work-time model may
+	// stand in — from "no version is valid in the queried range", where the
+	// Soll is genuinely zero.
+	HasScheduleHistory(ctx context.Context, staffID int64) (bool, error)
+
 	// ReplaceSchedule atomically replaces all current schedule entries for a
 	// staff member. anchor is the rotation anchor the new version is written
 	// with and is stamped onto every inserted row (#1842) — the closed-out

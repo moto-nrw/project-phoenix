@@ -32,6 +32,14 @@ func (m *wtmMockSessionReader) GetHistoryByStaffID(_ context.Context, _ int64, f
 	return result, nil
 }
 
+type wtmMockBreakReader struct {
+	activeBreaks map[int64]*activeModels.WorkSessionBreak
+}
+
+func (m *wtmMockBreakReader) GetActiveBySessionID(_ context.Context, sessionID int64) (*activeModels.WorkSessionBreak, error) {
+	return m.activeBreaks[sessionID], nil
+}
+
 type wtmMockAbsenceReader struct {
 	absences []*activeModels.StaffAbsence
 }
@@ -56,10 +64,17 @@ func (m *wtmMockStaffReader) FindByID(_ context.Context, _ any) (*userModels.Sta
 
 type wtmMockScheduleReader struct {
 	entries []*configModels.StaffWorkSchedule
+	// hasHistory models snapshots that exist outside the queried range; the
+	// reader above ignores the range and always returns `entries`.
+	hasHistory bool
 }
 
 func (m *wtmMockScheduleReader) FindByStaffIDsValidInRange(_ context.Context, _ []int64, _, _ timezone.Date) ([]*configModels.StaffWorkSchedule, error) {
 	return m.entries, nil
+}
+
+func (m *wtmMockScheduleReader) HasScheduleHistory(_ context.Context, _ int64) (bool, error) {
+	return m.hasHistory || len(m.entries) > 0, nil
 }
 
 type wtmMockModelReader struct {
@@ -105,6 +120,7 @@ const wtmStaffID = int64(42)
 type wtmFixture struct {
 	svc       *workTimeMonthService
 	sessions  *wtmMockSessionReader
+	breaks    *wtmMockBreakReader
 	absences  *wtmMockAbsenceReader
 	shifts    *wtmMockShiftReader
 	schedules *wtmMockScheduleReader
@@ -117,6 +133,7 @@ type wtmFixture struct {
 func newWTMFixture() *wtmFixture {
 	f := &wtmFixture{
 		sessions: &wtmMockSessionReader{},
+		breaks:   &wtmMockBreakReader{activeBreaks: map[int64]*activeModels.WorkSessionBreak{}},
 		absences: &wtmMockAbsenceReader{},
 		shifts:   &wtmMockShiftReader{},
 		schedules: &wtmMockScheduleReader{entries: []*configModels.StaffWorkSchedule{
@@ -125,7 +142,7 @@ func newWTMFixture() *wtmFixture {
 		models:   &wtmMockModelReader{},
 		settings: &wtmMockSettings{accountStart: "2026-06-01"},
 	}
-	svc := NewWorkTimeMonthService(f.sessions, f.absences,
+	svc := NewWorkTimeMonthService(f.sessions, f.breaks, f.absences,
 		&wtmMockStaffReader{staff: &userModels.Staff{Model: base.Model{ID: wtmStaffID}}},
 		f.schedules, f.models, f.shifts, f.settings, nil).(*workTimeMonthService)
 	svc.todayFunc = func() timezone.Date { return timezone.NewDate(2026, time.July, 15) }
@@ -394,7 +411,7 @@ func TestWTMMonthSummary_HistoricalRowAnchorWinsOverStaffAnchor(t *testing.T) {
 	// which flips A/B parity for every June week if it is applied.
 	staffAnchor := timezone.NewDate(2026, time.June, 8)
 	versionAnchor := timezone.NewDate(2026, time.June, 1)
-	svc := NewWorkTimeMonthService(f.sessions, f.absences,
+	svc := NewWorkTimeMonthService(f.sessions, f.breaks, f.absences,
 		&wtmMockStaffReader{staff: &userModels.Staff{Model: base.Model{ID: wtmStaffID}, RotationAnchorDate: &staffAnchor}},
 		f.schedules, f.models, f.shifts, f.settings, nil).(*workTimeMonthService)
 	svc.todayFunc = func() timezone.Date { return timezone.NewDate(2026, time.July, 15) }
@@ -460,4 +477,96 @@ func TestWTMDailyTargets_RejectsInvalidRange(t *testing.T) {
 	_, err = f.svc.GetDailyTargets(ctx, wtmStaffID,
 		timezone.NewDate(2020, time.January, 1), timezone.NewDate(2026, time.July, 1))
 	assert.Error(t, err, "range beyond the cap")
+}
+
+// Every range rejection is the caller's mistake and must be recognizable as
+// one: the handlers render ErrInvalidTargetRange as 400 and everything else as
+// 500, so an oversized window must not reach the internal-error branch.
+func TestWTMDailyTargets_InvalidRangeIsTyped(t *testing.T) {
+	f := newWTMFixture()
+	ctx := context.Background()
+
+	cases := map[string]struct{ from, to timezone.Date }{
+		"missing from": {timezone.Date{}, timezone.NewDate(2026, time.July, 1)},
+		"missing to":   {timezone.NewDate(2026, time.July, 1), timezone.Date{}},
+		"inverted":     {timezone.NewDate(2026, time.July, 10), timezone.NewDate(2026, time.July, 1)},
+		"over the cap": {timezone.NewDate(2020, time.January, 1), timezone.NewDate(2026, time.July, 1)},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := f.svc.GetDailyTargets(ctx, wtmStaffID, tc.from, tc.to)
+			require.Error(t, err)
+			assert.ErrorIs(t, err, ErrInvalidTargetRange)
+		})
+	}
+}
+
+// The work-time model may only stand in when no schedule was EVER written.
+// With snapshots on record but none valid in the queried range, the days are
+// genuinely zero — applying the current model would charge Soll for days the
+// schedule didn't exist yet, and would contradict a wider query, which loads
+// the snapshot rows and resolves those same days to zero.
+func TestWTMMonthSummary_NoModelFallbackBeforeFirstSnapshot(t *testing.T) {
+	f := newWTMFixture()
+	f.schedules.entries = nil
+	f.schedules.hasHistory = true
+	modelID := int64(9)
+	f.svc.staffRepo = &wtmMockStaffReader{staff: &userModels.Staff{Model: base.Model{ID: wtmStaffID}, WorkTimeModelID: &modelID}}
+	f.models.model = &configModels.WorkTimeModel{
+		RotationLength:     1,
+		RotationAnchorDate: timezone.NewDate(2020, time.January, 1),
+		Entries: []*configModels.WorkTimeModelEntry{
+			{WeekIndex: 0, DayOfWeek: configModels.DayMonday, TargetMinutes: 300},
+		},
+	}
+
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 6)
+	require.NoError(t, err)
+	assert.False(t, f.models.called, "a range outside the snapshots must not fall back to the model")
+	assert.Equal(t, 0, summary.TargetMinutes)
+}
+
+// An open session with a running break: WorkSession.BreakMinutes caches ended
+// breaks only, so the live card would count the break as worked time and show
+// a growing plus until the break is closed.
+func TestWTMMonthSummary_ActiveBreakDeductedFromLiveActual(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+
+	today := timezone.NewDate(2026, time.July, 13) // a Monday, before today (Jul 15)
+	now := time.Now()
+	session := &activeModels.WorkSession{
+		Model:        base.Model{ID: 77},
+		StaffID:      wtmStaffID,
+		Date:         today,
+		Status:       activeModels.WorkSessionStatusPresent,
+		CheckInTime:  now.Add(-120 * time.Minute),
+		BreakMinutes: 0, // break still running → not in the cache yet
+	}
+	f.sessions.sessions = []*activeModels.WorkSession{session}
+	f.breaks.activeBreaks[session.ID] = &activeModels.WorkSessionBreak{
+		Model:     base.Model{ID: 5},
+		SessionID: session.ID,
+		StartedAt: now.Add(-30 * time.Minute),
+	}
+
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	// 120 minutes since check-in, 30 of them on break → 90 worked.
+	assert.InDelta(t, 90, summary.ActualMinutes, 1,
+		"the running break must not count as worked time")
+}
+
+// An ended break is already in the session cache; deducting it again would
+// halve the recorded break.
+func TestWTMMonthSummary_EndedBreakNotDeductedTwice(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+	f.sessions.sessions = []*activeModels.WorkSession{
+		wtmSession(timezone.NewDate(2026, time.July, 13), 8, 480, 30),
+	}
+
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	assert.Equal(t, 480, summary.ActualMinutes)
 }

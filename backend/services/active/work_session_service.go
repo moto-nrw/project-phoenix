@@ -2155,13 +2155,21 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 	if effective.IsZero() && staff.RotationAnchorDate != nil {
 		effective = *staff.RotationAnchorDate
 	}
+	// First rotational schedule of a staff member who has no anchor anywhere:
+	// stamp today, which is the version's valid_from. Leaving the column NULL
+	// would let a later template assignment write a staff-level anchor that
+	// these rows then fall back to, re-paritying their A/B weeks and moving a
+	// historical Saldo.
+	if effective.IsZero() && isRotationalSchedule(entries) {
+		effective = timezone.TodayDate()
+	}
 	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, effective); err != nil {
 		return fmt.Errorf("write custom schedule: %w", err)
 	}
 
 	staff.WorkTimeModelID = nil
-	if !anchor.IsZero() {
-		staff.RotationAnchorDate = &anchor
+	if !effective.IsZero() {
+		staff.RotationAnchorDate = &effective
 	}
 	if err := s.staffRepo.Update(ctx, staff); err != nil {
 		return fmt.Errorf("unbind template: %w", err)
@@ -2195,6 +2203,18 @@ func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, s
 		return fmt.Errorf("bind freshly created template: %w", err)
 	}
 	return nil
+}
+
+// isRotationalSchedule reports whether the rows span more than one week, i.e.
+// whether their parity depends on a rotation anchor at all. Single-week
+// schedules have no parity, so they keep a NULL anchor.
+func isRotationalSchedule(entries []*configModels.StaffWorkSchedule) bool {
+	for _, e := range entries {
+		if e != nil && (e.RotationLength > 1 || e.WeekIndex > 0) {
+			return true
+		}
+	}
+	return false
 }
 
 // modelEntriesToScheduleRows converts work-time-model entries into schedule
