@@ -149,7 +149,7 @@ describe("ShiftMoveDialog same person", () => {
 describe("ShiftMoveDialog person change", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("deletes the source shift before creating it for the target person", async () => {
+  it("creates the shift for the target person before deleting the source", async () => {
     vi.mocked(staffShiftService.deleteShift).mockResolvedValue(undefined);
     vi.mocked(staffShiftService.createShift).mockResolvedValue(baseShift());
     const { onDataChanged, onClose } = renderDialog();
@@ -158,15 +158,16 @@ describe("ShiftMoveDialog person change", () => {
     await confirmMove();
 
     await waitFor(() =>
-      expect(staffShiftService.createShift).toHaveBeenCalledTimes(1),
+      expect(staffShiftService.deleteShift).toHaveBeenCalledTimes(1),
     );
     expect(staffShiftService.deleteShift).toHaveBeenCalledWith("1");
-    // DELETE strictly before POST.
+    // POST strictly before DELETE: the loss-free order — every validation that
+    // can reject the move fires before anything is destroyed.
     const deleteOrder = vi.mocked(staffShiftService.deleteShift).mock
       .invocationCallOrder[0]!;
     const createOrder = vi.mocked(staffShiftService.createShift).mock
       .invocationCallOrder[0]!;
-    expect(deleteOrder).toBeLessThan(createOrder);
+    expect(createOrder).toBeLessThan(deleteOrder);
     // The create carries the target person, target day, and times.
     expect(staffShiftService.createShift).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -181,8 +182,7 @@ describe("ShiftMoveDialog person change", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("keeps the dialog open with a restore instruction when the create fails after the delete", async () => {
-    vi.mocked(staffShiftService.deleteShift).mockResolvedValue(undefined);
+  it("shows a plain error and touches nothing when the create fails", async () => {
     vi.mocked(staffShiftService.createShift).mockRejectedValue(
       new ShiftApiError(500, "boom"),
     );
@@ -191,21 +191,82 @@ describe("ShiftMoveDialog person change", () => {
     selectPerson("Zielperson", "Yilmaz, Bo");
     await confirmMove();
 
-    await waitFor(() =>
-      expect(
-        screen.getByText(/ursprüngliche Schicht wurde gelöscht/i),
-      ).toBeInTheDocument(),
+    // moveErrorMessage falls through to the raw detail for a 500.
+    await waitFor(() => expect(screen.getByText("boom")).toBeInTheDocument());
+    // Nothing was deleted, no recovery view, form still shown.
+    expect(staffShiftService.deleteShift).not.toHaveBeenCalled();
+    expect(
+      screen.queryByText(/existiert jetzt doppelt/i),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("combobox", { name: "Zielperson" }),
+    ).toBeInTheDocument();
+    expect(onDataChanged).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("keeps the dialog open with a manual-delete instruction when the delete fails after the create", async () => {
+    vi.mocked(staffShiftService.createShift).mockResolvedValue(baseShift());
+    vi.mocked(staffShiftService.deleteShift).mockRejectedValue(
+      new ShiftApiError(500, "boom"),
     );
-    // The full source data is shown so the admin can restore it by hand.
+    const { onDataChanged, onClose } = renderDialog();
+
+    selectPerson("Zielperson", "Yilmaz, Bo");
+    await confirmMove();
+
+    await waitFor(() =>
+      expect(screen.getByText(/existiert jetzt doppelt/i)).toBeInTheDocument(),
+    );
+    // The full source data is shown so the admin can find and delete the
+    // still-present original shift.
     expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
     expect(screen.getByText("08:00–12:00")).toBeInTheDocument();
     expect(screen.getByText("Montag, 06. Juli 2026")).toBeInTheDocument();
-    // Dialog is still open; the caller was told to revalidate (the DELETE
-    // went through, so the source shift must vanish from the grid) but the
-    // dialog itself was not closed.
+    // Dialog is still open; the caller was told to revalidate (the POST went
+    // through, so the grid must show the new shift alongside the source) but
+    // the dialog itself was not closed.
     expect(screen.getByText("Schicht verschieben")).toBeInTheDocument();
     expect(onDataChanged).toHaveBeenCalledTimes(1);
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("forwards originShiftId when moving a replacement shift to another person", async () => {
+    vi.mocked(staffShiftService.deleteShift).mockResolvedValue(undefined);
+    vi.mocked(staffShiftService.createShift).mockResolvedValue(baseShift());
+    renderDialog({ shift: baseShift({ originShiftId: "42" }) });
+
+    selectPerson("Zielperson", "Yilmaz, Bo");
+    await confirmMove();
+
+    await waitFor(() =>
+      expect(staffShiftService.createShift).toHaveBeenCalledTimes(1),
+    );
+    // The Vertretung keeps covering its cancelled origin across the move.
+    expect(staffShiftService.createShift).toHaveBeenCalledWith(
+      expect.objectContaining({ originShiftId: "42" }),
+    );
+  });
+
+  it("maps an origin-link 400 to the Vertretung-specific message", async () => {
+    vi.mocked(staffShiftService.createShift).mockRejectedValue(
+      new ShiftApiError(
+        400,
+        "replacement must be on the same date as the shift it covers",
+      ),
+    );
+    renderDialog({ shift: baseShift({ originShiftId: "42" }) });
+
+    selectPerson("Zielperson", "Yilmaz, Bo");
+    await confirmMove();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/kann nur innerhalb des Tages und Zeitfensters/i),
+      ).toBeInTheDocument(),
+    );
+    // Nothing was deleted — the rejection happened before the DELETE.
+    expect(staffShiftService.deleteShift).not.toHaveBeenCalled();
   });
 });
 

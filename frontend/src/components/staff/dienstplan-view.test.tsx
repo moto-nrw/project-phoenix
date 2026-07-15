@@ -461,6 +461,50 @@ describe("DienstplanView", () => {
     });
   });
 
+  it("hides the Halbjahr tab and falls back to Woche without schedules:read", () => {
+    // Die Halbjahres-Sicht lädt /api/timetable/periods (backend-seitig mit
+    // schedules:read geschützt) — ohne die Berechtigung liefe sie in einen 403.
+    // Ohne schedules:read greift zugleich der reduzierte Datenpfad, daher der
+    // Legacy-Stub (dienstplan-staff) statt mockOverviewLoaded.
+    mocks.hasPermission.mockImplementation(
+      (_session: unknown, permission: string) =>
+        permission !== "schedules:read",
+    );
+    mocks.search.value = "view=halbjahr";
+    mocks.useSWRAuth.mockImplementation((key: string | null) => {
+      if (key === "dienstplan-staff") {
+        return {
+          data: [{ id: "7", firstName: "Ada", lastName: "Lovelace" }],
+          error: undefined,
+          isLoading: false,
+          mutate: vi.fn(),
+        };
+      }
+      return { data: [], error: undefined, isLoading: false, mutate: vi.fn() };
+    });
+
+    render(<DienstplanView />);
+
+    // Deep-Link fällt still auf die Wochenansicht zurück; der Umschalter
+    // entfällt komplett (ein Ein-Tab-Umschalter wäre sinnlos).
+    expect(screen.queryByTestId("halbjahr-grid")).not.toBeInTheDocument();
+    expect(screen.getByTestId("dienstplan-grid")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "Halbjahr" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "Woche" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows the Halbjahr tab with schedules:read", () => {
+    mockOverviewLoaded();
+
+    render(<DienstplanView />);
+
+    expect(screen.getByRole("tab", { name: "Halbjahr" })).toBeInTheDocument();
+  });
+
   it("shows the blocking load error in the Halbjahr view when the schedule fails", () => {
     // Regression K1: the half-year branch used to only check for empty staff, so
     // a failed staff/overview load rendered "keine Mitarbeitenden" instead of the

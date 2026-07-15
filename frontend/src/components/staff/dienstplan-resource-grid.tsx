@@ -26,6 +26,7 @@ import {
   type ResourceGridColumn,
 } from "~/components/ui/resource-grid";
 import { Tooltip } from "~/components/ui/tooltip";
+import { PLAN_CACHE_KEY_PREFIXES } from "~/lib/hooks/use-dienstplan-data";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import {
   formatColumnDate,
@@ -290,18 +291,17 @@ export function DienstplanResourceGrid({
   const router = useTenantRouter();
   const scrollHintId = useId();
 
-  // "Verschieben nach" (docs/05 Abschnitt 2.7): the move dialog lives here so the
-  // Dienstplan view needs no new prop. After a successful move both data paths
-  // are revalidated directly — the same invalidation set the sick-report flow
-  // uses (overview + reduced-path shifts).
+  // "Verschieben nach" (docs/05 Abschnitt 2.7): the move dialog lives here so
+  // the Dienstplan view needs no new prop. After a move (success, or the
+  // POST-succeeded/DELETE-failed recovery case) refresh every cache a shift
+  // change can affect — the same PLAN_CACHE_KEY_PREFIXES set the sick-report
+  // flow uses: a moved shift can shift Vertretung coverage/gaps too, not just
+  // the two Dienstplan data paths.
   const [moveTarget, setMoveTarget] = useState<{
     member: StaffScheduleStaff;
     shift: StaffShift;
   } | null>(null);
-  const refreshAfterMove = useTenantMutateMatching([
-    "dienstplan-overview-",
-    "dienstplan-shifts-",
-  ]);
+  const refreshAfterMove = useTenantMutateMatching(PLAN_CACHE_KEY_PREFIXES);
 
   const columns: ResourceGridColumn[] = useMemo(
     () =>

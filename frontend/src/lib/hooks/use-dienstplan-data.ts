@@ -23,6 +23,25 @@ import {
   VERTRETUNG_WEEK_KEY_PREFIX,
 } from "~/lib/timetable-helpers";
 
+/**
+ * Every SWR cache-key prefix a shift or absence change on the Dienstplan can
+ * affect: this week's Dienstplan (both permission paths), the Vertretungsplan
+ * (coverage/gaps derive from shifts), and the absence lists surfaced on the
+ * staff detail and time-tracking surfaces (#1843). Shared by the sick-report
+ * flow (refreshPlanCaches) and the resource grid's post-move refresh so both
+ * invalidate the identical set.
+ */
+export const PLAN_CACHE_KEY_PREFIXES = [
+  "dienstplan-overview-",
+  "dienstplan-shifts-",
+  VERTRETUNG_WEEK_KEY_PREFIX,
+  VERTRETUNG_GAPS_KEY_PREFIX,
+  "staff-pending-absences-",
+  "time-tracking-absences-",
+  "time-tracking-table-absences-",
+  "time-tracking-own-absences-",
+] as const;
+
 // Groups Betreuungsplan assignments (only present via the full overview
 // path) by staff and calendar day, mirroring groupShiftsByStaffAndDate for
 // shifts. Kept file-local: nothing outside the hook needs this shape.
@@ -117,16 +136,7 @@ export function useDienstplanData(
   // absent (Vertretungsplan) server-side, so revalidate every cache that
   // renders those rows plus the absence lists on the staff detail /
   // self-service surfaces (#1843).
-  const refreshPlanCaches = useTenantMutateMatching([
-    "dienstplan-overview-",
-    "dienstplan-shifts-",
-    VERTRETUNG_WEEK_KEY_PREFIX,
-    VERTRETUNG_GAPS_KEY_PREFIX,
-    "staff-pending-absences-",
-    "time-tracking-absences-",
-    "time-tracking-table-absences-",
-    "time-tracking-own-absences-",
-  ]);
+  const refreshPlanCaches = useTenantMutateMatching(PLAN_CACHE_KEY_PREFIXES);
 
   const {
     data: overview,

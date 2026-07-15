@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import { redirect, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -18,7 +24,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
@@ -74,6 +80,10 @@ function DienstplanContent() {
   const router = useTenantRouter();
   const searchParams = useSearchParams();
   const canEdit = isAdmin(session);
+  // Die Halbjahres-Sicht lädt die Planungszeiträume (/api/timetable/periods),
+  // die das Backend mit `schedules:read` schützt — ohne die Berechtigung liefe
+  // jeder Öffnungsversuch in einen 403. Tab und Deep-Link sind darum gegated.
+  const canViewHalbjahr = hasPermission(session, "schedules:read");
   const today = useBerlinToday();
 
   // URL-State: der angezeigte Tag und die Ansicht werden bei jedem Render aus
@@ -83,7 +93,8 @@ function DienstplanContent() {
   const rawDay = searchParams.get("d");
   const dayISO = rawDay !== null && isValidISODate(rawDay) ? rawDay : today;
   const rawView = searchParams.get("view");
-  const view: DienstplanView = rawView === "halbjahr" ? "halbjahr" : "woche";
+  const view: DienstplanView =
+    rawView === "halbjahr" && canViewHalbjahr ? "halbjahr" : "woche";
 
   const [modal, setModal] = useState<ModalState | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
@@ -201,12 +212,16 @@ function DienstplanContent() {
     [updateUrlParams],
   );
 
-  if (sessionStatus === "loading") {
-    return <DienstplanPageSkeleton />;
-  }
+  // Nicht-Admins landen auf /staff. Der Redirect ist ein Effekt, kein
+  // Render-Nebeneffekt (Strict Mode rendert doppelt); während er läuft zeigt
+  // der Render unten das Skeleton (Muster wie planung-redirect.tsx).
+  useEffect(() => {
+    if (sessionStatus !== "loading" && !canEdit) {
+      router.replace("/staff");
+    }
+  }, [sessionStatus, canEdit, router]);
 
-  if (!canEdit) {
-    router.replace("/staff");
+  if (sessionStatus === "loading" || !canEdit) {
     return <DienstplanPageSkeleton />;
   }
 
@@ -336,15 +351,19 @@ function DienstplanContent() {
         dateLabel={weekLabel}
         onToday={isOnCurrentWeek ? undefined : goToToday}
         viewSwitcher={
-          <Tabs
-            value={view}
-            onValueChange={(v) => setView(v as DienstplanView)}
-          >
-            <TabsList variant="default">
-              <TabsTrigger value="woche">Woche</TabsTrigger>
-              <TabsTrigger value="halbjahr">Halbjahr</TabsTrigger>
-            </TabsList>
-          </Tabs>
+          // Ohne schedules:read gibt es nur die Wochenansicht — ein
+          // Ein-Tab-Umschalter wäre sinnlos, also entfällt er ganz.
+          canViewHalbjahr ? (
+            <Tabs
+              value={view}
+              onValueChange={(v) => setView(v as DienstplanView)}
+            >
+              <TabsList variant="default">
+                <TabsTrigger value="woche">Woche</TabsTrigger>
+                <TabsTrigger value="halbjahr">Halbjahr</TabsTrigger>
+              </TabsList>
+            </Tabs>
+          ) : undefined
         }
         actions={
           <Button

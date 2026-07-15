@@ -27,13 +27,19 @@ const STAFF_SHIFT_MAX_BREAK_MINUTES = 300;
 //    (date and times are updatable; the backend ignores staff_id on update,
 //    which is harmless here because the person stays the same). No delete/create.
 //  - Person changes → the backend has NO atomic re-hang endpoint (a PUT cannot
-//    move a shift to another person). Transitional two-call solution: DELETE the
-//    source shift, then POST it for the target person. For a series-backed row
+//    move a shift to another person). Transitional two-call solution: CREATE the
+//    shift for the target person FIRST, then DELETE the source. Create-first is
+//    the loss-free order: overlap validation on create only checks the target
+//    person's own shifts, so creating while the source still exists is safe —
+//    and every validation that can reject the move (including the origin-link
+//    check on a Vertretungs-Schicht) fires before anything is destroyed. If the
+//    POST fails, nothing changed. If the DELETE fails after the POST succeeded,
+//    the shift exists twice; the dialog stays open and shows the source shift's
+//    data with the instruction to delete it manually. For a series-backed row
 //    the single DELETE records a `staff_shift_series_exceptions` row and leaves
-//    the series intact — never a series DELETE. If the POST fails after the
-//    DELETE already succeeded the move is half-applied (not atomic); the dialog
-//    stays open and shows a recovery instruction with the full source data so
-//    the admin can re-create the original shift by hand.
+//    the series intact — never a series DELETE. A replacement shift keeps its
+//    `originShiftId` across the move (the backend re-validates the cover link
+//    on create: same date, within the cancelled origin's window).
 
 interface ShiftMoveDialogProps {
   readonly isOpen: boolean;
@@ -49,9 +55,9 @@ interface ShiftMoveDialogProps {
   readonly shiftTypes: readonly ShiftType[];
   readonly onClose: () => void;
   /** Fired whenever server data changed — after a successful move, and also
-   *  when a cross-person move is left half-applied (DELETE succeeded, POST
-   *  failed) — so the caller revalidates its Dienstplan caches instead of
-   *  keeping the already-deleted source shift on screen. */
+   *  when a cross-person move is left half-applied (POST succeeded, DELETE
+   *  failed, the shift exists twice) — so the caller revalidates its
+   *  Dienstplan caches and shows both rows while the admin cleans up. */
   readonly onDataChanged: () => void;
 }
 
@@ -60,6 +66,12 @@ function moveErrorMessage(err: unknown): string {
     const detail = err.detail.toLowerCase();
     if (err.status === 409 || detail.includes("overlap")) {
       return "Diese Schicht überschneidet sich mit einer bestehenden Schicht.";
+    }
+    // Origin-link rejections from validateOriginLink (all contain "replacement"):
+    // a Vertretungs-Schicht must stay on the day of the cancelled shift it
+    // covers, inside its window, and the origin must still be cancelled.
+    if (err.status === 400 && detail.includes("replacement")) {
+      return "Diese Vertretungs-Schicht kann nur innerhalb des Tages und Zeitfensters der ausgefallenen Schicht verschoben werden, die sie abdeckt.";
     }
     if (err.status === 400) {
       return "Ungültige Schichtdaten. Bitte prüfen Sie Beginn, Ende und Pause.";
@@ -103,8 +115,8 @@ export function ShiftMoveDialog({
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [isMoving, setIsMoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Set only when the source DELETE succeeded but the target POST failed: the
-  // form is replaced by the manual-restore instruction.
+  // Set only when the target POST succeeded but the source DELETE failed (the
+  // shift exists twice): the form is replaced by the manual-delete instruction.
   const [recovery, setRecovery] = useState(false);
 
   const personOptions = useMemo(
@@ -206,13 +218,23 @@ export function ShiftMoveDialog({
 
   const moveOtherPerson = async (resolvedShiftTypeId: string | null) => {
     try {
-      // A series-backed row's single DELETE records an exception and leaves the
-      // series intact — never a series DELETE.
-      await staffShiftService.deleteShift(shift.id);
+      await staffShiftService.createShift({
+        staffId: targetStaffId,
+        date: targetDate,
+        startTime,
+        endTime,
+        breakMinutes: breakMinutes ?? 0,
+        shiftTypeId: resolvedShiftTypeId,
+        // A replacement keeps covering its origin across the move; the backend
+        // re-validates the link (same date, within the cancelled origin's
+        // window) and rejects the whole move here, before anything is deleted.
+        originShiftId: shift.originShiftId,
+      });
     } catch (err: unknown) {
-      // The source shift still exists → a plain error, no recovery needed.
-      logger.error("shift_move_delete_failed", {
+      // Nothing was deleted yet → a plain error, source untouched, no recovery.
+      logger.error("shift_move_create_failed", {
         shift_id: shift.id,
+        target_staff_id: targetStaffId,
         error: err instanceof Error ? err.message : String(err),
       });
       setError(moveErrorMessage(err));
@@ -221,20 +243,15 @@ export function ShiftMoveDialog({
       return;
     }
     try {
-      await staffShiftService.createShift({
-        staffId: targetStaffId,
-        date: targetDate,
-        startTime,
-        endTime,
-        breakMinutes: breakMinutes ?? 0,
-        shiftTypeId: resolvedShiftTypeId,
-      });
+      // A series-backed row's single DELETE records an exception and leaves the
+      // series intact — never a series DELETE.
+      await staffShiftService.deleteShift(shift.id);
       finishSuccess();
     } catch (err: unknown) {
-      // The DELETE already removed the source shift but the POST failed: the
-      // move is half-applied (the atomic re-hang endpoint is the missing piece).
-      // Keep the dialog open and show the manual-restore instruction.
-      logger.error("shift_move_create_failed", {
+      // The POST already created the target shift but the DELETE failed: the
+      // shift exists twice (the atomic re-hang endpoint is the missing piece).
+      // Keep the dialog open and show the manual-delete instruction.
+      logger.error("shift_move_delete_failed", {
         shift_id: shift.id,
         target_staff_id: targetStaffId,
         error: err instanceof Error ? err.message : String(err),
@@ -243,8 +260,8 @@ export function ShiftMoveDialog({
       setRecovery(true);
       setConfirmOpen(false);
       setIsMoving(false);
-      // The DELETE went through, so the grid must stop showing the source
-      // shift while the admin follows the restore instruction.
+      // The POST went through, so the grid must show the new shift alongside
+      // the still-present source while the admin follows the instruction.
       onDataChanged();
     }
   };
@@ -304,9 +321,10 @@ export function ShiftMoveDialog({
           <div className="space-y-3 text-sm">
             {error && <Alert type="error" message={error} />}
             <p className="text-gray-700">
-              Die ursprüngliche Schicht wurde gelöscht, aber die verschobene
-              Schicht konnte nicht angelegt werden. Bitte legen Sie die
-              ursprüngliche Schicht manuell neu an:
+              Die Schicht wurde für die Zielperson bereits angelegt, aber die
+              ursprüngliche Schicht konnte nicht gelöscht werden. Die Schicht
+              existiert jetzt doppelt. Bitte löschen Sie die folgende
+              ursprüngliche Schicht manuell:
             </p>
             <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-md border border-gray-200 bg-gray-50 p-3">
               <dt className="font-semibold text-gray-500">Person</dt>
