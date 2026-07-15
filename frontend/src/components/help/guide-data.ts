@@ -892,6 +892,7 @@ export const appChapters: readonly GuideChapter[] = [
         },
         screenshot:
           "Exporte-Seite der Datenverwaltung mit den Karten Kinderliste, Geburtstagsliste, Notfallliste und Wer ist wo.",
+        image: "/help/screens/exporte.webp",
       },
       {
         id: "anmeldungen-einrichten",
