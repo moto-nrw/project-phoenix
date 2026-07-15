@@ -32,9 +32,9 @@ export function BrandLink({
         <Image
           src="/images/moto_transparent.webp"
           alt=""
-          width={44}
-          height={32}
-          className="h-6 w-9 object-contain sm:h-8 sm:w-11"
+          width={56}
+          height={40}
+          className="h-8 w-11 object-contain sm:h-10 sm:w-14"
           priority
         />
       </div>
