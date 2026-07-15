@@ -30,6 +30,9 @@ var (
 	ErrShiftNotFound = errors.New("shift not found")
 	// ErrShiftInvalid wraps model/input validation failures (maps to 400).
 	ErrShiftInvalid = errors.New("invalid shift")
+	// ErrShiftConflict signals that a move was based on a stale source owner.
+	// It maps to 409 so the client can reload instead of overwriting a newer move.
+	ErrShiftConflict = errors.New("shift changed concurrently")
 	// ErrShiftTypeInactive signals an attempt to assign a deactivated shift type
 	// to a shift (maps to 400). Existing shifts keep their already-attached type.
 	ErrShiftTypeInactive = errors.New("shift type is inactive")
@@ -47,6 +50,9 @@ type StaffShiftService interface {
 	UpdateShift(ctx context.Context, shift *scheduleModels.StaffShift) (*scheduleModels.StaffShift, error)
 	// UpdateShiftWithOptions validates and persists changes with update-specific merge options.
 	UpdateShiftWithOptions(ctx context.Context, shift *scheduleModels.StaffShift, opts StaffShiftUpdateOptions) (*scheduleModels.StaffShift, error)
+	// MoveShift atomically and retry-safely moves one concrete shift to another
+	// person and/or slot while preserving its identity and metadata.
+	MoveShift(ctx context.Context, input MoveShiftInput) (*scheduleModels.StaffShift, error)
 	// DeleteShift removes a shift.
 	DeleteShift(ctx context.Context, id int64) error
 	// ApplyCancellation atomically cancels (or reactivates) a shift and replaces
@@ -523,6 +529,22 @@ func (s *staffShiftService) UpdateShiftWithOptions(ctx context.Context, shift *s
 	if err := s.lockStaffWritesOrdered(ctx, lockIDs); err != nil {
 		return nil, err
 	}
+	// StaffID is mutable only through MoveShift. A normal edit that loaded the
+	// row before a concurrent move must not write the stale owner back after it
+	// finally acquires the old owner's lock.
+	lockedExisting, err := s.repo.FindByID(ctx, shift.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrShiftNotFound
+		}
+		return nil, fmt.Errorf("reload staff shift after lock: %w", err)
+	}
+	if lockedExisting == nil {
+		return nil, ErrShiftNotFound
+	}
+	if lockedExisting.StaffID != existing.StaffID {
+		return nil, fmt.Errorf("%w: staff assignment changed", ErrShiftConflict)
+	}
 	if revalidateOrigin {
 		if err := s.validateOriginLink(ctx, shift); err != nil {
 			return nil, err
@@ -587,19 +609,30 @@ func (s *staffShiftService) DeleteShift(ctx context.Context, id int64) error {
 	if err := s.lockShiftWrites(ctx, existing.StaffID); err != nil {
 		return err
 	}
+	// MoveShift may have changed the owner while this delete waited for the old
+	// owner's lock. Refuse the stale delete instead of mutating the new owner's
+	// schedule without holding that owner's lock.
+	lockedExisting, err := s.repo.FindByID(ctx, id)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrShiftNotFound
+		}
+		return fmt.Errorf("reload staff shift before delete: %w", err)
+	}
+	if lockedExisting == nil {
+		return ErrShiftNotFound
+	}
+	if lockedExisting.StaffID != existing.StaffID {
+		return fmt.Errorf("%w: staff assignment changed", ErrShiftConflict)
+	}
+	existing = lockedExisting
 	if err := s.repo.Delete(ctx, id); err != nil {
 		return err
 	}
 	// Deleting a series-backed row records the date as a series exception so
 	// re-plans and splits never regenerate the removed occurrence (#1889).
 	if existing.SeriesID != nil && s.exceptionRepo != nil {
-		exception := &scheduleModels.StaffShiftSeriesException{
-			SeriesID:  *existing.SeriesID,
-			Date:      existing.Date,
-			CreatedBy: existing.CreatedBy,
-		}
-		exception.TenantID = existing.TenantID
-		if err := s.exceptionRepo.Create(ctx, exception); err != nil {
+		if err := s.recordSeriesException(ctx, existing, existing.Date); err != nil {
 			return fmt.Errorf("record series exception for deleted shift: %w", err)
 		}
 	}
@@ -676,6 +709,7 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 	if existing == nil {
 		return nil, ErrShiftNotFound
 	}
+	lockedStaffID := existing.StaffID
 	// A replacement is not itself a cancellable gap: it covers one. Cancelling a
 	// cover would orphan the notion of "who covers the origin".
 	if existing.OriginShiftID != nil {
@@ -728,6 +762,11 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 	}
 	if existing == nil {
 		return nil, ErrShiftNotFound
+	}
+	if existing.StaffID != lockedStaffID {
+		// MoveShift won while this cancellation waited for the source owner's
+		// lock. The new owner was not part of this operation's lock contract.
+		return nil, fmt.Errorf("%w: staff assignment changed", ErrShiftConflict)
 	}
 
 	// Re-read the cover set under the lock — the pre-lock discovery read above only

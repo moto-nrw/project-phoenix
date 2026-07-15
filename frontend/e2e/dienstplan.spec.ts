@@ -25,9 +25,9 @@ import { getWeekNumber } from "../src/lib/time-tracking-helpers";
 // Testdaten werden über die Next.js-Proxy-Routen (/api/staff/shifts …)
 // angelegt und wieder entfernt; die Requests laufen über den Browser-Context,
 // teilen also die NextAuth-Session des UI-Logins. Die Dev-DB gehört dem Nutzer:
-// jeder Test merkt sich die IDs seiner Datensätze und einen Baseline-Snapshot
-// seiner leeren Testbereiche. finally + afterEach entfernen ausschließlich
-// Datensätze, die nach dieser Baseline entstanden sind.
+// jeder Test merkt sich die IDs seiner eigenen Datensätze. finally + afterEach
+// entfernen ausschließlich diese IDs; ein paralleler Nutzer oder Testlauf kann
+// deshalb nie über einen Bereichsvergleich mit aufgeräumt werden.
 //
 // Login/Tenant-Herkunft wie bei den Nachbar-Specs: Slug + Admin-Zugang aus
 // backend/.seed-state.json (regeneriert bei jedem Seed); E2E_TENANT_SLUG /
@@ -106,17 +106,8 @@ interface StaffLite {
   last_name: string;
 }
 
-interface CleanupScope {
-  staffId: number;
-  from: string;
-  to: string;
-  baselineIds: ReadonlySet<number>;
-}
-
 let ownedShiftIds = new Set<number>();
-let ownedAbsenceIds = new Set<number>();
-let shiftCleanupScopes: CleanupScope[] = [];
-let absenceCleanupScopes: CleanupScope[] = [];
+let ownedAbsences = new Map<number, number>();
 
 async function fetchNonAdminStaff(
   request: APIRequestContext,
@@ -216,77 +207,25 @@ async function findStaffWithEmptyRange(
   return available;
 }
 
-async function registerShiftCleanupScope(
-  request: APIRequestContext,
-  staffId: number,
-  from: string,
-  to: string,
-): Promise<void> {
-  const rows = await listShifts(request, staffId, from, to);
-  shiftCleanupScopes.push({
-    staffId,
-    from,
-    to,
-    baselineIds: new Set(rows.map((row) => row.id)),
-  });
-}
-
-async function registerAbsenceCleanupScope(
-  request: APIRequestContext,
-  staffId: number,
-  from: string,
-  to: string,
-): Promise<void> {
-  const rows = await listAbsences(request, staffId, from, to);
-  absenceCleanupScopes.push({
-    staffId,
-    from,
-    to,
-    baselineIds: new Set(rows.map((row) => row.id)),
-  });
-}
-
 async function cleanupOwnedRecords(request: APIRequestContext): Promise<void> {
   // Abwesenheiten zuerst entfernen: der Backend-DELETE nimmt die
   // Krankmeldungs-Kaskade zurück, bevor die zugehörige Schicht gelöscht wird.
-  for (const scope of absenceCleanupScopes) {
-    const rows = await listAbsences(
-      request,
-      scope.staffId,
-      scope.from,
-      scope.to,
-    ).catch(() => []);
-    for (const row of rows) {
-      if (!scope.baselineIds.has(row.id) || ownedAbsenceIds.has(row.id)) {
-        await request
-          .delete(`${base}/api/staff/${scope.staffId}/absences/${row.id}`)
-          .catch(() => undefined);
-      }
-    }
+  for (const [absenceId, staffId] of ownedAbsences) {
+    await request
+      .delete(`${base}/api/staff/${staffId}/absences/${absenceId}`)
+      .catch(() => undefined);
   }
 
-  for (const scope of shiftCleanupScopes) {
-    const rows = await listShifts(
-      request,
-      scope.staffId,
-      scope.from,
-      scope.to,
-    ).catch(() => []);
-    for (const row of rows) {
-      if (!scope.baselineIds.has(row.id) || ownedShiftIds.has(row.id)) {
-        await request
-          .delete(`${base}/api/staff/shifts/${row.id}`)
-          .catch(() => undefined);
-      }
-    }
+  for (const shiftId of ownedShiftIds) {
+    await request
+      .delete(`${base}/api/staff/shifts/${shiftId}`)
+      .catch(() => undefined);
   }
 }
 
 function resetCleanupRegistry(): void {
   ownedShiftIds = new Set<number>();
-  ownedAbsenceIds = new Set<number>();
-  shiftCleanupScopes = [];
-  absenceCleanupScopes = [];
+  ownedAbsences = new Map<number, number>();
 }
 
 async function captureCreatedShift(
@@ -323,7 +262,7 @@ async function captureCreatedAbsence(
   const response = await responsePromise;
   if (!response.ok()) return;
   const json = (await response.json()) as { data?: { id?: number } };
-  if (json.data?.id != null) ownedAbsenceIds.add(json.data.id);
+  if (json.data?.id != null) ownedAbsences.set(json.data.id, staffId);
 }
 
 async function login(page: Page, email: string, password: string) {
@@ -481,7 +420,6 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
     );
     if (!person) return;
 
-    await registerShiftCleanupScope(page.request, person.id, day, day);
     try {
       await openWeek(page, day);
       const dialog = page.getByRole("dialog");
@@ -541,8 +479,6 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
     );
     if (!source || !target) return;
 
-    await registerShiftCleanupScope(page.request, source.id, day, day);
-    await registerShiftCleanupScope(page.request, target.id, day, day);
     try {
       await createShift(page.request, {
         staffId: source.id,
@@ -576,9 +512,7 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
       await expect(
         page.getByRole("heading", { name: "Verschieben bestätigen" }),
       ).toBeVisible();
-      await captureCreatedShift(page, () =>
-        page.getByRole("button", { name: "Verschieben" }).click(),
-      );
+      await page.getByRole("button", { name: "Verschieben" }).click();
 
       // Ziel gefüllt, Quelle leer.
       await expect(
@@ -617,12 +551,6 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
     );
     if (!person) return;
 
-    await registerShiftCleanupScope(
-      page.request,
-      person.id,
-      kwMonday,
-      kwFriday,
-    );
     try {
       await createShift(page.request, {
         staffId: person.id,
@@ -698,8 +626,6 @@ test.describe("Dienstplan UI-Flow (Inkrement 3, docs/05-dienstplan.md §12)", ()
     );
     if (!person) return;
 
-    await registerShiftCleanupScope(page.request, person.id, from, to);
-    await registerAbsenceCleanupScope(page.request, person.id, from, to);
     try {
       await createShift(page.request, {
         staffId: person.id,

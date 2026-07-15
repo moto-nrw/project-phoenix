@@ -85,6 +85,7 @@ function overview(
   from: string,
   to: string,
   summaries: StaffWeeklySummary[],
+  shifts: StaffShift[] = [],
 ): StaffScheduleOverview {
   return {
     from,
@@ -92,7 +93,7 @@ function overview(
     dienstplanInUse: true,
     dienstplanUsedWeeks: [],
     staff: [],
-    shifts: [],
+    shifts,
     assignments: [],
     weeklySummaries: summaries,
   };
@@ -263,6 +264,41 @@ describe("DienstplanHalbjahrGrid", () => {
     // No week beyond the period end.
     expect(screen.queryByText("KW 43")).not.toBeInTheDocument();
     expect(screen.queryByText("KW 36")).not.toBeInTheDocument();
+  });
+
+  it("clamps boundary-week requests and totals to the planning period", async () => {
+    const partialPeriod: CalendarPeriod = {
+      ...PERIOD_6W,
+      startDate: "2026-09-09", // Wednesday of KW 37
+      endDate: "2026-09-16", // Wednesday of KW 38
+    };
+    const firstBoundary = ovKey("2026-09-09", "2026-09-11");
+    const secondBoundary = ovKey("2026-09-14", "2026-09-16");
+    configureSWR({
+      periods: [partialPeriod],
+      overviewByKey: {
+        [firstBoundary]: overview(
+          "2026-09-09",
+          "2026-09-11",
+          // The backend summary covers the complete week and includes an
+          // out-of-period Monday shift (8 h total). The viewport payload only
+          // contains Wednesday's in-period 4 h shift.
+          [summary("1", "2026-09-07", 480, null)],
+          [shift({ id: "boundary", staffId: "1", date: "2026-09-09" })],
+        ),
+        [secondBoundary]: overview("2026-09-14", "2026-09-16", []),
+      },
+    });
+
+    renderGrid({ staff: STAFF_ADA });
+
+    const keys = mocks.useSWRAuth.mock.calls.map(([key]) => key);
+    expect(keys).toContain(ovKey("2026-09-09", "2026-09-11"));
+    expect(keys).toContain(ovKey("2026-09-14", "2026-09-16"));
+    expect(keys).not.toContain(ovKey("2026-09-07", "2026-09-11"));
+    expect(keys).not.toContain(ovKey("2026-09-14", "2026-09-18"));
+    expect(await screen.findByText("4 h")).toBeInTheDocument();
+    expect(screen.queryByText("8 h")).not.toBeInTheDocument();
   });
 
   it("colors the cell sum by delta and shows only the sum without a target", async () => {

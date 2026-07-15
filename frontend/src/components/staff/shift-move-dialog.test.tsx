@@ -22,6 +22,7 @@ vi.mock("~/lib/shift-api", async (importOriginal) => {
   return {
     ...actual,
     staffShiftService: {
+      moveShift: vi.fn(),
       updateShift: vi.fn(),
       deleteShift: vi.fn(),
       createShift: vi.fn(),
@@ -140,19 +141,20 @@ describe("ShiftMoveDialog prefill", () => {
 describe("ShiftMoveDialog same person", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("issues exactly one updateShift and never deletes or creates", async () => {
-    vi.mocked(staffShiftService.updateShift).mockResolvedValue(baseShift());
+  it("issues exactly one atomic move and never uses CRUD composition", async () => {
+    vi.mocked(staffShiftService.moveShift).mockResolvedValue(baseShift());
     const { onDataChanged, onClose } = renderDialog();
 
     await confirmMove();
 
     await waitFor(() =>
-      expect(staffShiftService.updateShift).toHaveBeenCalledTimes(1),
+      expect(staffShiftService.moveShift).toHaveBeenCalledTimes(1),
     );
-    expect(staffShiftService.updateShift).toHaveBeenCalledWith(
+    expect(staffShiftService.moveShift).toHaveBeenCalledWith(
       "1",
       expect.objectContaining({
-        staffId: "7",
+        sourceStaffId: "7",
+        targetStaffId: "7",
         date: "2026-07-06",
         startTime: "08:00",
         endTime: "12:00",
@@ -169,49 +171,37 @@ describe("ShiftMoveDialog same person", () => {
 describe("ShiftMoveDialog person change", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("creates the shift for the target person before deleting the source", async () => {
-    vi.mocked(staffShiftService.deleteShift).mockResolvedValue(undefined);
-    vi.mocked(staffShiftService.createShift).mockResolvedValue(baseShift());
-    const { onDataChanged, onClose } = renderDialog({
-      shift: baseShift({
-        notes: "Nur Hintereingang",
-        changeReason: "Zeiten angepasst",
-      }),
-    });
+  it("sends source and target to one atomic move request", async () => {
+    vi.mocked(staffShiftService.moveShift).mockResolvedValue(
+      baseShift({ staffId: other.id }),
+    );
+    const { onDataChanged, onClose } = renderDialog();
 
     selectPerson("Zielperson", "Yilmaz, Bo");
     await confirmMove();
 
     await waitFor(() =>
-      expect(staffShiftService.deleteShift).toHaveBeenCalledTimes(1),
+      expect(staffShiftService.moveShift).toHaveBeenCalledTimes(1),
     );
-    expect(staffShiftService.deleteShift).toHaveBeenCalledWith("1");
-    // POST strictly before DELETE: the loss-free order — every validation that
-    // can reject the move fires before anything is destroyed.
-    const deleteOrder = vi.mocked(staffShiftService.deleteShift).mock
-      .invocationCallOrder[0]!;
-    const createOrder = vi.mocked(staffShiftService.createShift).mock
-      .invocationCallOrder[0]!;
-    expect(createOrder).toBeLessThan(deleteOrder);
-    // The create carries the target person, target day, times, and fields that
-    // would otherwise be lost when the source row is deleted.
-    expect(staffShiftService.createShift).toHaveBeenCalledWith(
+    expect(staffShiftService.moveShift).toHaveBeenCalledWith(
+      "1",
       expect.objectContaining({
-        staffId: "8",
+        sourceStaffId: "7",
+        targetStaffId: "8",
         date: "2026-07-06",
         startTime: "08:00",
         endTime: "12:00",
-        notes: "Nur Hintereingang",
-        changeReason: "Zeiten angepasst",
       }),
     );
     expect(staffShiftService.updateShift).not.toHaveBeenCalled();
+    expect(staffShiftService.createShift).not.toHaveBeenCalled();
+    expect(staffShiftService.deleteShift).not.toHaveBeenCalled();
     expect(onDataChanged).toHaveBeenCalledTimes(1);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it("shows a plain error and touches nothing when the create fails", async () => {
-    vi.mocked(staffShiftService.createShift).mockRejectedValue(
+  it("shows an error without reporting a data change when the move fails", async () => {
+    vi.mocked(staffShiftService.moveShift).mockRejectedValue(
       new ShiftApiError(500, "boom"),
     );
     const { onDataChanged, onClose } = renderDialog();
@@ -221,11 +211,9 @@ describe("ShiftMoveDialog person change", () => {
 
     // moveErrorMessage falls through to the raw detail for a 500.
     await waitFor(() => expect(screen.getByText("boom")).toBeInTheDocument());
-    // Nothing was deleted, no recovery view, form still shown.
+    expect(staffShiftService.moveShift).toHaveBeenCalledTimes(1);
     expect(staffShiftService.deleteShift).not.toHaveBeenCalled();
-    expect(
-      screen.queryByText(/existiert jetzt doppelt/i),
-    ).not.toBeInTheDocument();
+    expect(staffShiftService.createShift).not.toHaveBeenCalled();
     expect(
       screen.getByRole("combobox", { name: "Zielperson" }),
     ).toBeInTheDocument();
@@ -233,51 +221,8 @@ describe("ShiftMoveDialog person change", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  it("keeps the dialog open with a manual-delete instruction when the delete fails after the create", async () => {
-    vi.mocked(staffShiftService.createShift).mockResolvedValue(baseShift());
-    vi.mocked(staffShiftService.deleteShift).mockRejectedValue(
-      new ShiftApiError(500, "boom"),
-    );
-    const { onDataChanged, onClose } = renderDialog();
-
-    selectPerson("Zielperson", "Yilmaz, Bo");
-    await confirmMove();
-
-    await waitFor(() =>
-      expect(screen.getByText(/existiert jetzt doppelt/i)).toBeInTheDocument(),
-    );
-    // The full source data is shown so the admin can find and delete the
-    // still-present original shift.
-    expect(screen.getByText("Ada Lovelace")).toBeInTheDocument();
-    expect(screen.getByText("08:00–12:00")).toBeInTheDocument();
-    expect(screen.getByText("Montag, 06. Juli 2026")).toBeInTheDocument();
-    // Dialog is still open; the caller was told to revalidate (the POST went
-    // through, so the grid must show the new shift alongside the source) but
-    // the dialog itself was not closed.
-    expect(screen.getByText("Schicht verschieben")).toBeInTheDocument();
-    expect(onDataChanged).toHaveBeenCalledTimes(1);
-    expect(onClose).not.toHaveBeenCalled();
-  });
-
-  it("forwards originShiftId when moving a replacement shift to another person", async () => {
-    vi.mocked(staffShiftService.deleteShift).mockResolvedValue(undefined);
-    vi.mocked(staffShiftService.createShift).mockResolvedValue(baseShift());
-    renderDialog({ shift: baseShift({ originShiftId: "42" }) });
-
-    selectPerson("Zielperson", "Yilmaz, Bo");
-    await confirmMove();
-
-    await waitFor(() =>
-      expect(staffShiftService.createShift).toHaveBeenCalledTimes(1),
-    );
-    // The Vertretung keeps covering its cancelled origin across the move.
-    expect(staffShiftService.createShift).toHaveBeenCalledWith(
-      expect.objectContaining({ originShiftId: "42" }),
-    );
-  });
-
   it("maps an origin-link 400 to the Vertretung-specific message", async () => {
-    vi.mocked(staffShiftService.createShift).mockRejectedValue(
+    vi.mocked(staffShiftService.moveShift).mockRejectedValue(
       new ShiftApiError(
         400,
         "replacement must be on the same date as the shift it covers",
@@ -293,8 +238,22 @@ describe("ShiftMoveDialog person change", () => {
         screen.getByText(/kann nur innerhalb des Tages und Zeitfensters/i),
       ).toBeInTheDocument(),
     );
-    // Nothing was deleted — the rejection happened before the DELETE.
+    expect(staffShiftService.moveShift).toHaveBeenCalledTimes(1);
     expect(staffShiftService.deleteShift).not.toHaveBeenCalled();
+  });
+
+  it("maps a stale-move conflict to a reload message", async () => {
+    vi.mocked(staffShiftService.moveShift).mockRejectedValue(
+      new ShiftApiError(409, "shift changed concurrently"),
+    );
+    renderDialog();
+
+    selectPerson("Zielperson", "Yilmaz, Bo");
+    await confirmMove();
+
+    expect(
+      await screen.findByText(/zwischenzeitlich geändert/i),
+    ).toBeInTheDocument();
   });
 
   it("requires an active or empty shift type when the person changes", () => {
@@ -309,18 +268,17 @@ describe("ShiftMoveDialog person change", () => {
       "Diese Schichtart ist inaktiv",
     );
     expect(screen.getByRole("button", { name: "Verschieben" })).toBeDisabled();
-    expect(staffShiftService.createShift).not.toHaveBeenCalled();
+    expect(staffShiftService.moveShift).not.toHaveBeenCalled();
   });
 
   it("executes only once for two confirmations in the same render", async () => {
-    let resolveCreate: ((shift: StaffShift) => void) | undefined;
-    vi.mocked(staffShiftService.createShift).mockImplementation(
+    let resolveMove: ((shift: StaffShift) => void) | undefined;
+    vi.mocked(staffShiftService.moveShift).mockImplementation(
       () =>
         new Promise<StaffShift>((resolve) => {
-          resolveCreate = resolve;
+          resolveMove = resolve;
         }),
     );
-    vi.mocked(staffShiftService.deleteShift).mockResolvedValue(undefined);
     renderDialog();
     selectPerson("Zielperson", "Yilmaz, Bo");
 
@@ -329,35 +287,34 @@ describe("ShiftMoveDialog person change", () => {
     fireEvent.click(confirm);
     fireEvent.click(confirm);
 
-    expect(staffShiftService.createShift).toHaveBeenCalledTimes(1);
+    expect(staffShiftService.moveShift).toHaveBeenCalledTimes(1);
 
     await act(async () => {
-      resolveCreate?.(baseShift());
+      resolveMove?.(baseShift());
       await Promise.resolve();
     });
-    await waitFor(() =>
-      expect(staffShiftService.deleteShift).toHaveBeenCalledTimes(1),
-    );
+    expect(staffShiftService.moveShift).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("ShiftMoveDialog series shift", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("uses the single-shift DELETE (never a series endpoint) for a series row", async () => {
-    vi.mocked(staffShiftService.deleteShift).mockResolvedValue(undefined);
-    vi.mocked(staffShiftService.createShift).mockResolvedValue(baseShift());
+  it("uses the atomic concrete-shift move endpoint for a series row", async () => {
+    vi.mocked(staffShiftService.moveShift).mockResolvedValue(baseShift());
     renderDialog({ shift: baseShift({ seriesId: "5" }) });
 
     selectPerson("Zielperson", "Yilmaz, Bo");
     await confirmMove();
 
     await waitFor(() =>
-      expect(staffShiftService.createShift).toHaveBeenCalledTimes(1),
+      expect(staffShiftService.moveShift).toHaveBeenCalledTimes(1),
     );
-    // Single-shift delete by the concrete shift id — the service exposes no
-    // series-delete here, so the series stays intact via a server exception.
-    expect(staffShiftService.deleteShift).toHaveBeenCalledWith("1");
-    expect(staffShiftService.deleteShift).toHaveBeenCalledTimes(1);
+    expect(staffShiftService.moveShift).toHaveBeenCalledWith(
+      "1",
+      expect.objectContaining({ sourceStaffId: "7", targetStaffId: "8" }),
+    );
+    expect(staffShiftService.createShift).not.toHaveBeenCalled();
+    expect(staffShiftService.deleteShift).not.toHaveBeenCalled();
   });
 });

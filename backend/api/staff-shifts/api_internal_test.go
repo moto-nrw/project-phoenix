@@ -22,6 +22,7 @@ import (
 // without a database.
 type fakeShiftService struct {
 	applyFn func(ctx context.Context, input scheduleSvc.CancelShiftInput) (*scheduleSvc.CancelShiftResult, error)
+	moveFn  func(ctx context.Context, input scheduleSvc.MoveShiftInput) (*scheduleModel.StaffShift, error)
 }
 
 func (f *fakeShiftService) ListShifts(context.Context, timezone.Date, timezone.Date) ([]*scheduleModel.StaffShift, error) {
@@ -42,6 +43,13 @@ func (f *fakeShiftService) UpdateShift(context.Context, *scheduleModel.StaffShif
 
 func (f *fakeShiftService) UpdateShiftWithOptions(context.Context, *scheduleModel.StaffShift, scheduleSvc.StaffShiftUpdateOptions) (*scheduleModel.StaffShift, error) {
 	return nil, nil
+}
+
+func (f *fakeShiftService) MoveShift(ctx context.Context, input scheduleSvc.MoveShiftInput) (*scheduleModel.StaffShift, error) {
+	if f.moveFn != nil {
+		return f.moveFn(ctx, input)
+	}
+	return &scheduleModel.StaffShift{}, nil
 }
 
 func (f *fakeShiftService) DeleteShift(context.Context, int64) error { return nil }
@@ -79,6 +87,57 @@ func cancellationRouter(resource *Resource) chi.Router {
 	router := chi.NewRouter()
 	router.Put("/{id}/cancellation", resource.cancellation)
 	return router
+}
+
+func moveRouter(resource *Resource) chi.Router {
+	router := chi.NewRouter()
+	router.Put("/{id}/move", resource.move)
+	return router
+}
+
+func TestMoveHandler_MapsAtomicMovePayload(t *testing.T) {
+	var got scheduleSvc.MoveShiftInput
+	service := &fakeShiftService{
+		moveFn: func(_ context.Context, input scheduleSvc.MoveShiftInput) (*scheduleModel.StaffShift, error) {
+			got = input
+			return &scheduleModel.StaffShift{}, nil
+		},
+	}
+	body := `{"source_staff_id":7,"target_staff_id":8,"date":"2026-07-07",` +
+		`"start_time":"09:00","end_time":"15:00","break_minutes":20,"shift_type_id":5}`
+	recorder := httptest.NewRecorder()
+	request := seriesRequestCtx(httptest.NewRequest(http.MethodPut, "/9/move", strings.NewReader(body)))
+	moveRouter(shiftTestResource(service)).ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusOK, recorder.Code, recorder.Body.String())
+
+	assert.Equal(t, int64(9), got.ShiftID)
+	assert.Equal(t, int64(7), got.SourceStaffID)
+	assert.Equal(t, int64(8), got.TargetStaffID)
+	assert.Equal(t, "2026-07-07", got.Date.String())
+	assert.Equal(t, "09:00", timezone.WallClock(got.StartTime).Format("15:04"))
+	assert.Equal(t, "15:00", timezone.WallClock(got.EndTime).Format("15:04"))
+	assert.Equal(t, 20, got.BreakMinutes)
+	require.NotNil(t, got.ShiftTypeID)
+	assert.Equal(t, int64(5), *got.ShiftTypeID)
+	assert.Equal(t, int64(42), got.ActorStaffID)
+}
+
+func TestMoveHandler_RequiresExplicitShiftType(t *testing.T) {
+	called := false
+	service := &fakeShiftService{
+		moveFn: func(context.Context, scheduleSvc.MoveShiftInput) (*scheduleModel.StaffShift, error) {
+			called = true
+			return &scheduleModel.StaffShift{}, nil
+		},
+	}
+	body := `{"source_staff_id":7,"target_staff_id":8,"date":"2026-07-07",` +
+		`"start_time":"09:00","end_time":"15:00","break_minutes":20}`
+	recorder := httptest.NewRecorder()
+	request := seriesRequestCtx(httptest.NewRequest(http.MethodPut, "/9/move", strings.NewReader(body)))
+	moveRouter(shiftTestResource(service)).ServeHTTP(recorder, request)
+
+	assert.Equal(t, http.StatusBadRequest, recorder.Code, recorder.Body.String())
+	assert.False(t, called)
 }
 
 // A full origin payload (the admin modal always sends it) maps every field onto

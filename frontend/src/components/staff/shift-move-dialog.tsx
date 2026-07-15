@@ -21,34 +21,17 @@ const INACTIVE_TYPE_MOVE_MESSAGE =
   "Diese Schichtart ist inaktiv. Bitte wählen Sie für die andere Person eine aktive Schichtart oder „Keine Schichtart“.";
 
 // "Verschieben nach" (docs/05-dienstplan.md Abschnitt 2.7, US-D6): move one
-// materialized shift to another person and/or day in a single confirmed
-// operation. Two call strategies, decided by whether the person changes
-// (Spec-Abgleich Inkrement 3, Abschnitt B7):
-//
-//  - Same person, only day/time/type change → ONE atomic `PUT /staff-shifts/{id}`
-//    (date and times are updatable; the backend ignores staff_id on update,
-//    which is harmless here because the person stays the same). No delete/create.
-//  - Person changes → the backend has NO atomic re-hang endpoint (a PUT cannot
-//    move a shift to another person). Transitional two-call solution: CREATE the
-//    shift for the target person FIRST, then DELETE the source. Create-first is
-//    the loss-free order: overlap validation on create only checks the target
-//    person's own shifts, so creating while the source still exists is safe —
-//    and every validation that can reject the move (including the origin-link
-//    check on a Vertretungs-Schicht) fires before anything is destroyed. If the
-//    POST fails, nothing changed. If the DELETE fails after the POST succeeded,
-//    the shift exists twice; the dialog stays open and shows the source shift's
-//    data with the instruction to delete it manually. For a series-backed row
-//    the single DELETE records a `staff_shift_series_exceptions` row and leaves
-//    the series intact — never a series DELETE. A replacement shift keeps its
-//    `originShiftId` across the move (the backend re-validates the cover link
-//    on create: same date, within the cancelled origin's window).
+// materialized shift to another person and/or day in one confirmed, atomic
+// PUT. The backend keeps the row ID, so a retry after a lost response cannot
+// create duplicates. A moved series occurrence consumes its original slot;
+// cross-person targets become standalone because the series belongs to the
+// original staff member.
 
 interface ShiftMoveDialogProps {
   readonly isOpen: boolean;
   /** The concrete shift being moved (source). */
   readonly shift: StaffShift;
-  /** The shift's current owner — prefills the target person and labels the
-   *  confirmation / recovery views. */
+  /** The shift's current owner — prefills and labels the target person. */
   readonly sourceMember: StaffScheduleStaff;
   /** All staff, offered as move targets. */
   readonly staff: readonly StaffScheduleStaff[];
@@ -56,18 +39,18 @@ interface ShiftMoveDialogProps {
    *  one currently attached to this shift (even if inactive). */
   readonly shiftTypes: readonly ShiftType[];
   readonly onClose: () => void;
-  /** Fired whenever server data changed — after a successful move, and also
-   *  when a cross-person move is left half-applied (POST succeeded, DELETE
-   *  failed, the shift exists twice) — so the caller revalidates its
-   *  Dienstplan caches and shows both rows while the admin cleans up. */
+  /** Fired after a successful move so the caller revalidates plan caches. */
   readonly onDataChanged: () => void;
 }
 
 function moveErrorMessage(err: unknown): string {
   if (err instanceof ShiftApiError) {
     const detail = err.detail.toLowerCase();
-    if (err.status === 409 || detail.includes("overlap")) {
+    if (detail.includes("overlap")) {
       return "Diese Schicht überschneidet sich mit einer bestehenden Schicht.";
+    }
+    if (err.status === 409) {
+      return "Die Schicht wurde zwischenzeitlich geändert. Bitte laden Sie den Dienstplan neu.";
     }
     // Origin-link rejections from validateOriginLink (all contain "replacement"):
     // a Vertretungs-Schicht must stay on the day of the cancelled shift it
@@ -120,9 +103,6 @@ export function ShiftMoveDialog({
   // double-click / double-Enter window before the loading render commits.
   const moveInFlightRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
-  // Set only when the target POST succeeded but the source DELETE failed (the
-  // shift exists twice): the form is replaced by the manual-delete instruction.
-  const [recovery, setRecovery] = useState(false);
 
   const personOptions = useMemo(
     () =>
@@ -174,11 +154,6 @@ export function ShiftMoveDialog({
   const targetName = targetMember
     ? `${targetMember.firstName} ${targetMember.lastName}`
     : sourceName;
-  const sourceTypeName =
-    shift.shiftTypeName ??
-    shiftTypes.find((type) => type.id === shift.shiftTypeId)?.name ??
-    "Keine Schichtart";
-
   const handleSubmit = () => {
     setError(null);
     if (targetStaffId === "") {
@@ -209,12 +184,11 @@ export function ShiftMoveDialog({
     onClose();
   };
 
-  const moveSamePerson = async (resolvedShiftTypeId: string | null) => {
+  const moveShift = async (resolvedShiftTypeId: string | null) => {
     try {
-      await staffShiftService.updateShift(shift.id, {
-        // Same person → staff_id is unchanged (and ignored on update anyway);
-        // only date / times / break / type move.
-        staffId: shift.staffId,
+      await staffShiftService.moveShift(shift.id, {
+        sourceStaffId: shift.staffId,
+        targetStaffId,
         date: targetDate,
         startTime,
         endTime,
@@ -223,36 +197,7 @@ export function ShiftMoveDialog({
       });
       finishSuccess();
     } catch (err: unknown) {
-      logger.error("shift_move_update_failed", {
-        shift_id: shift.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setError(moveErrorMessage(err));
-      setConfirmOpen(false);
-      moveInFlightRef.current = false;
-      setIsMoving(false);
-    }
-  };
-
-  const moveOtherPerson = async (resolvedShiftTypeId: string | null) => {
-    try {
-      await staffShiftService.createShift({
-        staffId: targetStaffId,
-        date: targetDate,
-        startTime,
-        endTime,
-        breakMinutes: breakMinutes ?? 0,
-        shiftTypeId: resolvedShiftTypeId,
-        notes: shift.notes,
-        changeReason: shift.changeReason,
-        // A replacement keeps covering its origin across the move; the backend
-        // re-validates the link (same date, within the cancelled origin's
-        // window) and rejects the whole move here, before anything is deleted.
-        originShiftId: shift.originShiftId,
-      });
-    } catch (err: unknown) {
-      // Nothing was deleted yet → a plain error, source untouched, no recovery.
-      logger.error("shift_move_create_failed", {
+      logger.error("shift_move_failed", {
         shift_id: shift.id,
         target_staff_id: targetStaffId,
         error: err instanceof Error ? err.message : String(err),
@@ -261,30 +206,6 @@ export function ShiftMoveDialog({
       setConfirmOpen(false);
       moveInFlightRef.current = false;
       setIsMoving(false);
-      return;
-    }
-    try {
-      // A series-backed row's single DELETE records an exception and leaves the
-      // series intact — never a series DELETE.
-      await staffShiftService.deleteShift(shift.id);
-      finishSuccess();
-    } catch (err: unknown) {
-      // The POST already created the target shift but the DELETE failed: the
-      // shift exists twice (the atomic re-hang endpoint is the missing piece).
-      // Keep the dialog open and show the manual-delete instruction.
-      logger.error("shift_move_delete_failed", {
-        shift_id: shift.id,
-        target_staff_id: targetStaffId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      setError(moveErrorMessage(err));
-      setRecovery(true);
-      setConfirmOpen(false);
-      moveInFlightRef.current = false;
-      setIsMoving(false);
-      // The POST went through, so the grid must show the new shift alongside
-      // the still-present source while the admin follows the instruction.
-      onDataChanged();
     }
   };
 
@@ -294,21 +215,13 @@ export function ShiftMoveDialog({
     setIsMoving(true);
     setError(null);
     const resolvedShiftTypeId = shiftTypeId === "" ? null : shiftTypeId;
-    if (targetStaffId === shift.staffId) {
-      await moveSamePerson(resolvedShiftTypeId);
-    } else {
-      await moveOtherPerson(resolvedShiftTypeId);
-    }
+    await moveShift(resolvedShiftTypeId);
   };
 
   const breakSuffix =
     breakMinutes && breakMinutes > 0 ? `, Pause ${breakMinutes} min` : "";
 
-  const footer = recovery ? (
-    <Button type="button" variant="primary" size="md" onClick={onClose}>
-      Schließen
-    </Button>
-  ) : (
+  const footer = (
     <>
       <Button
         type="button"
@@ -341,109 +254,81 @@ export function ShiftMoveDialog({
         title="Schicht verschieben"
         footer={footer}
       >
-        {recovery ? (
-          <div className="space-y-3 text-sm">
-            {error && <Alert type="error" message={error} />}
-            <p className="text-gray-700">
-              Die Schicht wurde für die Zielperson bereits angelegt, aber die
-              ursprüngliche Schicht konnte nicht gelöscht werden. Die Schicht
-              existiert jetzt doppelt. Bitte löschen Sie die folgende
-              ursprüngliche Schicht manuell:
-            </p>
-            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 rounded-md border border-gray-200 bg-gray-50 p-3">
-              <dt className="font-semibold text-gray-500">Person</dt>
-              <dd className="text-gray-900">{sourceName}</dd>
-              <dt className="font-semibold text-gray-500">Tag</dt>
-              <dd className="text-gray-900">{formatLongDate(shift.date)}</dd>
-              <dt className="font-semibold text-gray-500">Zeit</dt>
-              <dd className="text-gray-900 tabular-nums">
-                {shift.startTime}–{shift.endTime}
-              </dd>
-              <dt className="font-semibold text-gray-500">Pause</dt>
-              <dd className="text-gray-900">
-                {shift.breakMinutes > 0 ? `${shift.breakMinutes} min` : "keine"}
-              </dd>
-              <dt className="font-semibold text-gray-500">Schichtart</dt>
-              <dd className="text-gray-900">{sourceTypeName}</dd>
-            </dl>
-          </div>
-        ) : (
-          <div className="space-y-4 text-sm">
-            <p className="text-gray-600">
-              Verschiebt die Schicht von{" "}
-              <span className="font-medium text-gray-900">{sourceName}</span> am{" "}
-              {formatLongDate(shift.date)}.
-            </p>
-            <Field label="Zielperson">
-              <CustomSelect
-                value={targetStaffId}
-                options={personOptions}
-                onChange={setTargetStaffId}
-                ariaLabel="Zielperson"
-                placeholder="Person auswählen"
-              />
-            </Field>
-            {/* FieldGroup (div), not Field (label): the DatePicker trigger and
+        <div className="space-y-4 text-sm">
+          <p className="text-gray-600">
+            Verschiebt die Schicht von{" "}
+            <span className="font-medium text-gray-900">{sourceName}</span> am{" "}
+            {formatLongDate(shift.date)}.
+          </p>
+          <Field label="Zielperson">
+            <CustomSelect
+              value={targetStaffId}
+              options={personOptions}
+              onChange={setTargetStaffId}
+              ariaLabel="Zielperson"
+              placeholder="Person auswählen"
+            />
+          </Field>
+          {/* FieldGroup (div), not Field (label): the DatePicker trigger and
                 calendar are buttons; inside a <label> a click would re-dispatch
                 onto the first labelable descendant. */}
-            <FieldGroup label="Zieltag">
-              <DatePicker
-                value={targetDate === "" ? null : parseISODate(targetDate)}
-                onChange={(picked) =>
-                  setTargetDate(picked ? toISODate(picked) : "")
-                }
-                dropdownPlacement="down"
-                placeholder="Datum auswählen"
+          <FieldGroup label="Zieltag">
+            <DatePicker
+              value={targetDate === "" ? null : parseISODate(targetDate)}
+              onChange={(picked) =>
+                setTargetDate(picked ? toISODate(picked) : "")
+              }
+              dropdownPlacement="down"
+              placeholder="Datum auswählen"
+            />
+          </FieldGroup>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Beginn">
+              <Input
+                type="time"
+                value={startTime}
+                onChange={(e) => setStartTime(e.target.value)}
+                className="tabular-nums"
               />
-            </FieldGroup>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Beginn">
-                <Input
-                  type="time"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                  className="tabular-nums"
-                />
-              </Field>
-              <Field label="Ende">
-                <Input
-                  type="time"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                  className="tabular-nums"
-                />
-              </Field>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <Field label="Pause (Minuten)">
-                <Input
-                  type="number"
-                  min={0}
-                  max={breakMax}
-                  inputMode="numeric"
-                  value={breakMinutesStr}
-                  onChange={(e) => setBreakMinutesStr(e.target.value)}
-                  className="tabular-nums"
-                />
-              </Field>
-            </div>
-            {typeOptions.length > 1 && (
-              <Field label="Schichtart">
-                <CustomSelect
-                  value={shiftTypeId}
-                  options={typeOptions}
-                  onChange={setShiftTypeId}
-                  ariaLabel="Schichtart"
-                  placeholder="Keine Schichtart"
-                />
-              </Field>
-            )}
-            {inactiveTypeBlocksMove && (
-              <Alert type="warning" message={INACTIVE_TYPE_MOVE_MESSAGE} />
-            )}
-            {error && <Alert type="error" message={error} />}
+            </Field>
+            <Field label="Ende">
+              <Input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                className="tabular-nums"
+              />
+            </Field>
           </div>
-        )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Pause (Minuten)">
+              <Input
+                type="number"
+                min={0}
+                max={breakMax}
+                inputMode="numeric"
+                value={breakMinutesStr}
+                onChange={(e) => setBreakMinutesStr(e.target.value)}
+                className="tabular-nums"
+              />
+            </Field>
+          </div>
+          {typeOptions.length > 1 && (
+            <Field label="Schichtart">
+              <CustomSelect
+                value={shiftTypeId}
+                options={typeOptions}
+                onChange={setShiftTypeId}
+                ariaLabel="Schichtart"
+                placeholder="Keine Schichtart"
+              />
+            </Field>
+          )}
+          {inactiveTypeBlocksMove && (
+            <Alert type="warning" message={INACTIVE_TYPE_MOVE_MESSAGE} />
+          )}
+          {error && <Alert type="error" message={error} />}
+        </div>
       </Modal>
       <ConfirmationModal
         isOpen={isOpen && confirmOpen}
@@ -452,9 +337,7 @@ export function ShiftMoveDialog({
         title="Verschieben bestätigen"
         confirmText="Verschieben"
         isConfirmLoading={isMoving}
-        // Opt-in dismissal lock: the cross-person move is POST + DELETE; a
-        // dismissal between the two calls would leave the shift duplicated
-        // without the recovery instruction, so the dialog must finish in place.
+        // Keep the confirmation stable while the atomic request is in flight.
         isDismissDisabled={isMoving}
       >
         <div className="space-y-2 text-sm text-gray-700">

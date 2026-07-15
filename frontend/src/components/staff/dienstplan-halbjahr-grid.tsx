@@ -111,10 +111,13 @@ interface WeekColumnState {
 }
 
 interface WeekMeta {
-  /** Monday of the week as "YYYY-MM-DD" — the column key and SWR key `from`. */
+  /** Monday of the week as "YYYY-MM-DD" — stable column/summary key. */
   monday: string;
-  /** Friday of the week as "YYYY-MM-DD" — the SWR key `to`. */
-  friday: string;
+  /** Fetch bounds clamped to the selected planning period. */
+  from: string;
+  to: string;
+  /** The column covers only part of its Monday-Friday viewport. */
+  isBoundaryClamped: boolean;
   kw: number;
 }
 
@@ -160,23 +163,47 @@ function summariesFromShifts(
 // weeklySummaries; keep only the summary for this exact week window.
 function summariesFromOverview(
   overview: StaffScheduleOverview | undefined,
-  weekFrom: string,
+  weekStart: string,
+  scopePlannedToViewport: boolean,
 ): Map<string, WeekSummaryCell> {
   const byStaff = new Map<string, WeekSummaryCell>();
   for (const summary of overview?.weeklySummaries ?? []) {
-    if (summary.weekStart !== weekFrom) continue;
+    if (summary.weekStart !== weekStart) continue;
     byStaff.set(summary.staffId, {
       plannedMinutes: summary.plannedMinutes,
       targetMinutes: summary.targetMinutes,
       deltaMinutes: summary.deltaMinutes,
     });
   }
+  if (!scopePlannedToViewport) return byStaff;
+
+  // Overview summaries deliberately cover the complete Monday-Sunday week,
+  // even when the requested viewport is shorter. Boundary columns must instead
+  // count only the shifts returned inside the clamped planning-period range.
+  // Keep the server-resolved weekly target, then recompute planned and delta.
+  const viewportPlanned = summariesFromShifts(overview?.shifts ?? []);
+  const staffIds = new Set([...byStaff.keys(), ...viewportPlanned.keys()]);
+  for (const staffId of staffIds) {
+    const server = byStaff.get(staffId);
+    const plannedMinutes = viewportPlanned.get(staffId)?.plannedMinutes ?? 0;
+    const targetMinutes = server?.targetMinutes ?? null;
+    if (plannedMinutes === 0 && targetMinutes === null) {
+      byStaff.delete(staffId);
+      continue;
+    }
+    byStaff.set(staffId, {
+      plannedMinutes,
+      targetMinutes,
+      deltaMinutes:
+        targetMinutes === null ? null : plannedMinutes - targetMinutes,
+    });
+  }
   return byStaff;
 }
 
-// All week columns of the period: the Monday of the week containing the period
-// start, stepping +7 until the Monday passes the period end. Monday iteration
-// is pure Date arithmetic (no toISOString date extraction).
+// All week columns of the period. Boundary columns retain their Monday as the
+// stable week key, but fetch only the intersection with the planning period so
+// shifts from an adjacent period never leak into the weekly total.
 function weeksInPeriod(period: CalendarPeriod): WeekMeta[] {
   const weeks: WeekMeta[] = [];
   const cursor = startOfWeek(parseISODate(period.startDate));
@@ -186,9 +213,14 @@ function weeksInPeriod(period: CalendarPeriod): WeekMeta[] {
   while (toISODate(cursor) <= period.endDate && guard < 400) {
     const friday = new Date(cursor);
     friday.setDate(friday.getDate() + 4);
+    const monday = toISODate(cursor);
+    const fridayISO = toISODate(friday);
     weeks.push({
-      monday: toISODate(cursor),
-      friday: toISODate(friday),
+      monday,
+      from: monday < period.startDate ? period.startDate : monday,
+      to: fridayISO > period.endDate ? period.endDate : fridayISO,
+      isBoundaryClamped:
+        monday < period.startDate || fridayISO > period.endDate,
       kw: getWeekNumber(cursor),
     });
     cursor.setDate(cursor.getDate() + 7);
@@ -204,13 +236,17 @@ function weeksInPeriod(period: CalendarPeriod): WeekMeta[] {
 // progressivity without breaking the rules-of-hooks (the parent can't call a
 // variable number of useSWRAuth for a variable number of columns).
 function HalbjahrColumnData({
+  weekKey,
   weekFrom,
   weekTo,
+  isBoundaryClamped,
   reducedPath,
   onState,
 }: {
+  readonly weekKey: string;
   readonly weekFrom: string;
   readonly weekTo: string;
+  readonly isBoundaryClamped: boolean;
   readonly reducedPath: boolean;
   readonly onState: (weekKey: string, state: WeekColumnState) => void;
 }) {
@@ -236,8 +272,8 @@ function HalbjahrColumnData({
     () =>
       reducedPath
         ? summariesFromShifts(shifts ?? [])
-        : summariesFromOverview(overview, weekFrom),
-    [reducedPath, shifts, overview, weekFrom],
+        : summariesFromOverview(overview, weekKey, isBoundaryClamped),
+    [reducedPath, shifts, overview, weekKey, isBoundaryClamped],
   );
 
   const error = reducedPath ? shiftsError : overviewError;
@@ -246,8 +282,8 @@ function HalbjahrColumnData({
   const status: WeekStatus = error ? "error" : hasData ? "ready" : "loading";
 
   useEffect(() => {
-    onState(weekFrom, { status, summaryByStaff, retry });
-  }, [weekFrom, status, summaryByStaff, retry, onState]);
+    onState(weekKey, { status, summaryByStaff, retry });
+  }, [weekKey, status, summaryByStaff, retry, onState]);
 
   return null;
 }
@@ -366,8 +402,10 @@ function HalbjahrGridInner({
       {weeks.map((week) => (
         <HalbjahrColumnData
           key={week.monday}
-          weekFrom={week.monday}
-          weekTo={week.friday}
+          weekKey={week.monday}
+          weekFrom={week.from}
+          weekTo={week.to}
+          isBoundaryClamped={week.isBoundaryClamped}
           reducedPath={reducedPath}
           onState={reportWeekState}
         />

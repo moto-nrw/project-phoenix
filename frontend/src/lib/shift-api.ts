@@ -38,6 +38,19 @@ interface ShiftPayload {
   originShiftId?: string | null;
 }
 
+interface MoveShiftPayload {
+  sourceStaffId: string;
+  targetStaffId: string;
+  /** "YYYY-MM-DD" */
+  date: string;
+  /** "HH:MM" */
+  startTime: string;
+  /** "HH:MM" */
+  endTime: string;
+  breakMinutes: number;
+  shiftTypeId: string | null;
+}
+
 /** One replacement (Vertretung) covering part of a cancelled shift's gap. */
 interface ReplacementPayload {
   staffId: string;
@@ -252,6 +265,30 @@ class StaffShiftService {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(toBackendBody(payload)),
+    });
+    return readShift(response);
+  }
+
+  /** Atomically move one concrete shift while preserving its row identity. */
+  async moveShift(
+    shiftId: string,
+    payload: MoveShiftPayload,
+  ): Promise<StaffShift> {
+    const response = await sessionFetch(`/api/staff/shifts/${shiftId}/move`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source_staff_id: Number.parseInt(payload.sourceStaffId, 10),
+        target_staff_id: Number.parseInt(payload.targetStaffId, 10),
+        date: payload.date,
+        start_time: payload.startTime,
+        end_time: payload.endTime,
+        break_minutes: payload.breakMinutes,
+        shift_type_id:
+          payload.shiftTypeId != null
+            ? Number.parseInt(payload.shiftTypeId, 10)
+            : null,
+      }),
     });
     return readShift(response);
   }
