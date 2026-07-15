@@ -34,6 +34,7 @@ import { Button } from "~/components/ui/button";
 import { useModal } from "~/components/dashboard/modal-context";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { OriginChip } from "~/components/ui/origin-chip";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
@@ -134,6 +135,29 @@ function germanFullDate(iso: string): string {
   const day = String(d.getDate()).padStart(2, "0");
   const month = String(d.getMonth() + 1).padStart(2, "0");
   return `${getGermanWeekdayLong(d)}, ${day}.${month}.${d.getFullYear()}`;
+}
+
+/**
+ * Regeltermin-Herkunftstext für den OriginChip im Slide-Over
+ * (docs/planung-redesign/docs/06-betreuungsplan.md Abschnitt 3.2: "aus
+ * Regeltermin {Titel}, montags 12:00"). Die Instanz trägt keinen separaten
+ * Template-Titel — materialisierte Instanzen erben den Titel des
+ * Regeltermins 1:1 (timetable-helpers.ts Mapper), daher genügt
+ * `instance.title`. Der Wochentag wird aus dem Instanzdatum abgeleitet
+ * (materialisierte Instanzen liegen exakt auf dem Regeltermin-Wochentag)
+ * und als Adverb kleingeschrieben ("Montag" -> "montags").
+ */
+function regelterminOriginLabel(instance: EnrichedInstance): string {
+  const d = new Date(`${instance.date}T00:00:00`);
+  const weekdayLong = getGermanWeekdayLong(d);
+  const weekdayAdverb = weekdayLong ? `${weekdayLong.toLowerCase()}s` : "";
+  return [
+    `aus Regeltermin ${instance.title},`,
+    weekdayAdverb,
+    instance.startTime,
+  ]
+    .filter(Boolean)
+    .join(" ");
 }
 
 interface StatusBadgeProps {
@@ -526,6 +550,12 @@ export function InstanceDetailSlideOver({
                   {germanFullDate(instance.date)} • {instance.startTime} –{" "}
                   {instance.endTime}
                 </SlideOverDescription>
+                {instance.activityGroupId && (
+                  <OriginChip
+                    label={regelterminOriginLabel(instance)}
+                    className="mt-1.5"
+                  />
+                )}
               </div>
               <SlideOverCloseButton />
             </div>
@@ -626,7 +656,7 @@ export function InstanceDetailSlideOver({
                     className="inline-flex items-center gap-2 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
                   >
                     <UserCog className="h-4 w-4" />
-                    Vertretung regeln
+                    Vertretung bearbeiten
                   </Link>
                 )}
               {instance.status === "planned" && !editDeferred && onEdit && (

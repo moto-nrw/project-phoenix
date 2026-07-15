@@ -530,6 +530,61 @@ describe("InstanceDetailSlideOver", () => {
     expect(screen.getByText(/Sonstiges/)).toBeInTheDocument();
   });
 
+  it("shows the Regeltermin OriginChip only when the instance stems from one", () => {
+    const { rerender } = render(
+      <InstanceDetailSlideOver
+        instance={instance({
+          activityGroupId: "9",
+          date: "2026-05-04", // Monday
+          startTime: "12:00",
+          title: "Mensa",
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("aus Regeltermin Mensa, montags 12:00"),
+    ).toBeInTheDocument();
+
+    rerender(
+      <InstanceDetailSlideOver
+        instance={instance({ activityGroupId: undefined })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByText(/aus Regeltermin/)).not.toBeInTheDocument();
+  });
+
+  it("labels the substitution jump action 'Vertretung bearbeiten' and links to /vertretung", () => {
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({
+          status: "planned",
+          staff: [
+            {
+              staffId: "11",
+              isPrimary: true,
+              isAbsent: true,
+              isSubstitute: false,
+            },
+          ],
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+      />,
+    );
+
+    const link = screen.getByRole("link", { name: /Vertretung bearbeiten/ });
+    expect(link).toHaveAttribute(
+      "href",
+      expect.stringContaining("/vertretung?d=2026-05-04&block=42"),
+    );
+  });
+
   it("can back out of cancelled instance deletion confirmation", () => {
     const onDeleteCancelled = vi.fn();
 
