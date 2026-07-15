@@ -277,6 +277,63 @@ describe("VertretungView", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("renders exactly the five Mo–Fr chips, never Sa/So", () => {
+    render(<VertretungView />);
+
+    for (const label of [
+      "Mo 13.07.",
+      "Di 14.07.",
+      "Mi 15.07.",
+      "Do 16.07.",
+      "Fr 17.07.",
+    ]) {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    }
+    expect(
+      screen.queryByRole("button", { name: "Sa 18.07." }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "So 19.07." }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("snaps a weekend deep link to the following Monday", () => {
+    mockSearch.value = "d=2026-07-18"; // Samstag
+    render(<VertretungView />);
+
+    // Angezeigt wird Montag der Folgewoche, dessen Chip ist selektiert.
+    expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveClass(
+      "bg-gray-900",
+    );
+    const props = mockDayListProps.mock.calls.at(-1)?.[0];
+    expect(props.instances).toEqual([]);
+  });
+
+  it("defaults to next Monday on a weekend and hides the Heute button", () => {
+    // Samstag 2026-07-18, Berlin (Sommerzeit UTC+2).
+    vi.setSystemTime(new Date("2026-07-18T12:00:00Z"));
+    render(<VertretungView />);
+
+    expect(screen.getByRole("button", { name: "Mo 20.07." })).toHaveClass(
+      "bg-gray-900",
+    );
+    // dayISO == Heute-Ziel (nächster Montag) -> kein Heute-Button.
+    expect(
+      screen.queryByRole("button", { name: "Heute" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("navigates to next Monday when Heute is clicked on a weekend", () => {
+    vi.setSystemTime(new Date("2026-07-18T12:00:00Z")); // Samstag
+    mockSearch.value = "d=2026-07-15";
+    render(<VertretungView />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Heute" }));
+    expect(new URLSearchParams(window.location.search).get("d")).toBe(
+      "2026-07-20",
+    );
+  });
+
   it("respects d, opens the editor for block, and starts on the Verlauf tab for verlauf=1", () => {
     mockSearch.value = "d=2026-07-16&block=43&verlauf=1";
     render(<VertretungView />);

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { berlinTodayISO } from "../src/lib/date-helpers";
+import { nextWorkdayISO } from "../src/lib/timetable-helpers";
 
 // Chunk 8 des Planung-Redesigns Inkrement 2
 // (docs/planung-redesign/docs/07-vertretung.md Abschnitt 12/13): der Zweiteiler
@@ -149,7 +150,9 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
     test.setTimeout(90000);
 
     // --- Testdaten anlegen (spontaner Termin mit genau einer Person) --------
-    const day = berlinTodayISO();
+    // Die View zeigt nur Mo–Fr und snappt Wochenendtage auf den nächsten
+    // Montag — Testdaten also immer auf einen Werktag legen.
+    const day = nextWorkdayISO(berlinTodayISO());
     const rooms = (await (
       await page.request.get(`${base}/api/rooms`)
     ).json()) as
@@ -366,8 +369,9 @@ test.describe("Vertretung UI-Flow (#1886, Inkrement 2)", () => {
 });
 
 /**
- * Ein anderer Tag derselben Mo-So-Woche wie `iso` (für den Tag-Chip-Klick).
- * Sonntag weicht rückwärts aus, alle anderen Tage vorwärts.
+ * Ein anderer Tag derselben Mo–Fr-Leiste wie `iso` (für den Tag-Chip-Klick).
+ * `iso` ist immer ein Werktag (nextWorkdayISO); Freitag weicht rückwärts aus,
+ * alle anderen Tage vorwärts.
  */
 function adjacentDayInSameWeek(iso: string): {
   iso: string;
@@ -375,7 +379,7 @@ function adjacentDayInSameWeek(iso: string): {
   mm: string;
 } {
   const noon = new Date(`${iso}T12:00:00`);
-  const delta = noon.getDay() === 0 ? -1 : 1; // 0 = Sonntag
+  const delta = noon.getDay() === 5 ? -1 : 1; // 5 = Freitag
   noon.setDate(noon.getDate() + delta);
   const pad = (n: number) => String(n).padStart(2, "0");
   const dd = pad(noon.getDate());

@@ -155,7 +155,7 @@ export function PlanningDayChip({
       onClick={onClick}
       aria-label={ariaLabel}
       className={[
-        "flex flex-col items-center rounded-md px-2 py-1 text-center focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none",
+        "flex flex-col items-center rounded-md px-1 py-1 text-center focus-visible:ring-2 focus-visible:ring-gray-900 focus-visible:outline-none sm:px-2",
         selected
           ? "bg-gray-900 text-white"
           : "text-gray-600 hover:bg-gray-100 hover:text-gray-900",

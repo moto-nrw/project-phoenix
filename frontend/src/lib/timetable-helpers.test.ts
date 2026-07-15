@@ -43,6 +43,7 @@ import {
   mapShiftCoverageCheckResult,
   mapTemplates,
   mapWeeklyInstances,
+  nextWorkdayISO,
   parseTimeToMinutes,
   resolveTemplateCalendarPeriodId,
   toISODate,
@@ -165,6 +166,16 @@ describe("date and range helpers", () => {
     expect(weekdayDatesInRange("bad", "2026-04-08", [1])).toEqual([]);
     expect(weekdayDatesInRange("2026-04-09", "2026-04-08", [1])).toEqual([]);
     expect(weekdayDatesInRange("2026-04-06", "2026-04-08", [0, 8])).toEqual([]);
+  });
+
+  it("snaps weekend dates to the following Monday, weekdays pass through", () => {
+    expect(nextWorkdayISO("2026-07-18")).toBe("2026-07-20"); // Sa -> Mo
+    expect(nextWorkdayISO("2026-07-19")).toBe("2026-07-20"); // So -> Mo
+    expect(nextWorkdayISO("2026-07-15")).toBe("2026-07-15"); // Mi bleibt
+    expect(nextWorkdayISO("2026-07-20")).toBe("2026-07-20"); // Mo bleibt
+    expect(nextWorkdayISO("2026-07-17")).toBe("2026-07-17"); // Fr bleibt
+    expect(nextWorkdayISO("2026-08-01")).toBe("2026-08-03"); // Monatswechsel
+    expect(nextWorkdayISO("2027-01-03")).toBe("2027-01-04"); // Jahreswechsel
   });
 
   it("formats German labels", () => {

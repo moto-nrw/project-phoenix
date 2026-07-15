@@ -7,7 +7,7 @@
  * /api/timetable/instances endpoint.
  */
 
-import { toISODate } from "./date-helpers";
+import { parseISODate, toISODate } from "./date-helpers";
 import { LOCATION_COLORS } from "./location-helper";
 import type {
   ActivityType,
@@ -282,6 +282,18 @@ export function getWeekdays(from: Date): Date[] {
     days.push(d);
   }
   return days;
+}
+
+/**
+ * Snappt ein Wochenend-Datum auf den folgenden Montag; Mo–Fr unverändert.
+ * OGS-Betrieb ist Mo–Fr — die Vertretung zeigt nie einen Wochenendtag an.
+ */
+export function nextWorkdayISO(iso: string): string {
+  const d = parseISODate(iso);
+  const day = d.getDay(); // 0 = So, 6 = Sa
+  if (day === 6) d.setDate(d.getDate() + 2);
+  else if (day === 0) d.setDate(d.getDate() + 1);
+  return toISODate(d);
 }
 
 export function getMonthRange(ref: Date): { from: Date; to: Date } {

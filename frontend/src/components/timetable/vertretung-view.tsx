@@ -10,8 +10,10 @@
  * atomaren Deviations-Pfad. Es gibt keine eigene Vertretungs-Entität.
  *
  * URL-Vokabular: höchstens `d`, `block`, `verlauf` (Abschnitt 1). `d` ist der
- * angezeigte Berlin-Kalendertag (ohne `d` gilt heute), `block` öffnet den
- * Editor für die materialisierte Instanz mit dieser ID, `verlauf=1` schaltet
+ * angezeigte Berlin-Kalendertag (ohne `d` gilt heute; Wochenendtage werden auf
+ * den folgenden Montag normalisiert, die Leiste zeigt nur Mo–Fr), `block`
+ * öffnet den Editor für die materialisierte Instanz mit dieser ID,
+ * `verlauf=1` schaltet
  * den Editor auf den Verlaufs-Reiter. Der Filterzustand "Nur Störungen |
  * Ganzer Tag" ist lokaler State, kein URL-Parameter.
  *
@@ -60,6 +62,7 @@ import {
   getGermanWeekdayShort,
   getWeekRange,
   getWeekdays,
+  nextWorkdayISO,
 } from "~/lib/timetable-helpers";
 import type { ApplyDeviationsInput } from "~/lib/timetable-types";
 
@@ -92,19 +95,28 @@ function VertretungContent() {
   const canManageSchedules = hasPermission(session, "schedules:manage");
 
   // URL-Vokabular: d / block / verlauf — sonst nichts (Abschnitt 1).
-  const dayISO = searchParams.get("d") ?? berlinTodayISO();
+  // Wochenendtage (Erstaufruf am Sa/So oder ?d=-Deeplink) snappen auf den
+  // folgenden Montag — der eine Guard am Lese-Ort deckt alle Pfade ab, weil
+  // dayISO nach jedem replaceState hier re-derived wird.
+  const dayISO = nextWorkdayISO(searchParams.get("d") ?? berlinTodayISO());
   const selectedInstanceId = searchParams.get("block");
   const historyOpen = searchParams.get("verlauf") === "1";
 
   const today = berlinTodayISO();
+  // Ziel des Heute-Buttons: am Wochenende der nächste Montag. `today` selbst
+  // bleibt überall sonst der echte Kalendertag (isPast, Gaps-Klemmung).
+  const todayTarget = nextWorkdayISO(today);
 
-  // Woche (Mo-So), die `d` enthält. Immer über den Montag ankern, nie
-  // getWeekdays(parseISODate(d)) direkt: getWeekdays validiert nicht, dass sein
-  // Argument ein Montag ist.
+  // Woche, die `d` enthält (Fetch-Fenster bleibt Mo-So, die Leiste zeigt nur
+  // Mo-Fr). Immer über den Montag ankern, nie getWeekdays(parseISODate(d))
+  // direkt: getWeekdays validiert nicht, dass sein Argument ein Montag ist.
   const range = useMemo(() => getWeekRange(parseISODate(dayISO), 0), [dayISO]);
   const fromISO = toISODate(range.from);
   const toISO = toISODate(range.to);
-  const weekDays = useMemo(() => getWeekdays(range.from), [range.from]);
+  const weekDays = useMemo(
+    () => getWeekdays(range.from).slice(0, 5),
+    [range.from],
+  );
 
   const updateUrlParams = useCallback(
     (updates: Record<string, string | null>) => {
@@ -373,7 +385,9 @@ function VertretungContent() {
         onNext={() => goToDay(shiftDayISO(dayISO, 7))}
         previousLabel="Vorherige Woche"
         nextLabel="Nächste Woche"
-        onToday={dayISO !== today ? () => goToDay(today) : undefined}
+        onToday={
+          dayISO !== todayTarget ? () => goToDay(todayTarget) : undefined
+        }
         navigationSlot={
           <div className="flex items-center gap-0.5">
             {weekDays.map((day) => {
