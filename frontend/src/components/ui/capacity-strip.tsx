@@ -76,6 +76,13 @@ interface CapacityStripProps {
    * flipped (docs/04-designsprache.md Abschnitt 6.2).
    */
   readonly position?: "footer" | "header";
+  /**
+   * Width utility class for the leading label cell. Default `min-w-[180px]`
+   * matches the ResourceGrid sticky person column. A narrow parent column
+   * (e.g. the 64px time gutter of the Betreuungsplan day header) overrides
+   * this so the label cell stops forcing extra width onto the grid.
+   */
+  readonly labelWidthClassName?: string;
 }
 
 /** Understaffing-red — only ever used as a text color, never as a fill. */
@@ -114,6 +121,7 @@ export function CapacityStrip({
   as = "tr",
   gridTemplateColumns,
   position = "footer",
+  labelWidthClassName = "min-w-[180px]",
 }: CapacityStripProps) {
   const borderClass =
     position === "header"
@@ -129,7 +137,7 @@ export function CapacityStrip({
       >
         <div
           role="cell"
-          className={`${stickyLabel ? "sticky left-0 z-10" : ""} min-w-[180px] bg-gray-50 px-2 py-1.5 text-left text-xs font-medium text-gray-500`}
+          className={`${stickyLabel ? "sticky left-0 z-10" : ""} ${labelWidthClassName} bg-gray-50 px-2 py-1.5 text-left text-xs font-medium text-gray-500`}
         >
           {rowLabel}
         </div>
@@ -151,7 +159,7 @@ export function CapacityStrip({
     <tr className={`${borderClass} bg-gray-50 ${className ?? ""}`.trim()}>
       <th
         scope="row"
-        className={`${stickyLabel ? "sticky left-0 z-10" : ""} min-w-[180px] bg-gray-50 px-2 py-1.5 text-left text-xs font-medium text-gray-500`}
+        className={`${stickyLabel ? "sticky left-0 z-10" : ""} ${labelWidthClassName} bg-gray-50 px-2 py-1.5 text-left text-xs font-medium text-gray-500`}
       >
         {rowLabel}
       </th>

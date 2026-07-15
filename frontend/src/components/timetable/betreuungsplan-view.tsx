@@ -1134,6 +1134,7 @@ function TimetablesContent() {
                   dayStartHour={dayStartHour}
                   dayEndHour={dayEndHour}
                   hourHeightPx={hourHeightPx}
+                  showDayHeader
                   emptyState={
                     instances.length === 0 && !error
                       ? {

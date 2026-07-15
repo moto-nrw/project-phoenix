@@ -5,6 +5,7 @@ import {
   chunkDateRange,
   computeTimetableSetup,
   countPlanned,
+  countPlannedStaff,
   countUnderstaffedInstances,
   countUnderstaffedTemplates,
   deviationEventLabel,
@@ -1358,6 +1359,57 @@ describe("countUnderstaffedTemplates", () => {
         fakeTemplate(0, 0),
       ]),
     ).toBe(2);
+  });
+});
+
+describe("countPlannedStaff", () => {
+  function staffMember(
+    staffId: string,
+    isAbsent = false,
+  ): EnrichedInstance["staff"][number] {
+    return { staffId, isPrimary: false, isAbsent, isSubstitute: false };
+  }
+
+  it("unions staff across blocks so a person in two blocks counts once", () => {
+    expect(
+      countPlannedStaff([
+        planInstance({
+          id: "a",
+          staff: [staffMember("s1"), staffMember("s2")],
+        }),
+        planInstance({
+          id: "b",
+          staff: [staffMember("s2"), staffMember("s3")],
+        }),
+      ]),
+    ).toBe(3);
+  });
+
+  it("excludes absent staff", () => {
+    expect(
+      countPlannedStaff([
+        planInstance({
+          id: "a",
+          staff: [staffMember("s1", true), staffMember("s2")],
+        }),
+      ]),
+    ).toBe(1);
+  });
+
+  it("excludes staff of cancelled instances", () => {
+    expect(
+      countPlannedStaff([
+        planInstance({
+          id: "a",
+          status: "cancelled",
+          staff: [staffMember("s1")],
+        }),
+      ]),
+    ).toBe(0);
+  });
+
+  it("returns 0 for an empty list", () => {
+    expect(countPlannedStaff([])).toBe(0);
   });
 });
 

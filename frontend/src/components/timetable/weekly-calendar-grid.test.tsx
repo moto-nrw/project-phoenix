@@ -79,3 +79,57 @@ describe("WeeklyCalendarGrid gapInstanceIds", () => {
     expect(screen.queryByLabelText("Offene Lücke")).not.toBeInTheDocument();
   });
 });
+
+/**
+ * Guards the optional `showDayHeader` prop (06-betreuungsplan.md Abschnitt
+ * 3.1): opt-in, default off — the Vertretung single-day usage of this grid
+ * never sets it and keeps rendering without a day-header capacity row.
+ */
+describe("WeeklyCalendarGrid showDayHeader", () => {
+  const staffedInstance: EnrichedInstance = {
+    ...instance,
+    id: "staffed",
+    staff: [
+      { staffId: "s1", isPrimary: true, isAbsent: false, isSubstitute: false },
+    ],
+  };
+
+  it("renders no day-header capacity row without the prop (Vertretung regression)", () => {
+    render(
+      <WeeklyCalendarGrid
+        weekDays={weekDays}
+        instances={[staffedInstance]}
+        selectedId={null}
+        onInstanceClick={vi.fn()}
+        todayISO="2026-05-04"
+        dayStartHour={9}
+        dayEndHour={17}
+        hourHeightPx={90}
+      />,
+    );
+
+    expect(screen.queryByText("1 P.")).not.toBeInTheDocument();
+  });
+
+  it("shows the planned person count per day, only 'N P.' without a child value", () => {
+    render(
+      <WeeklyCalendarGrid
+        weekDays={weekDays}
+        instances={[staffedInstance]}
+        selectedId={null}
+        onInstanceClick={vi.fn()}
+        todayISO="2026-05-04"
+        dayStartHour={9}
+        dayEndHour={17}
+        hourHeightPx={90}
+        showDayHeader
+      />,
+    );
+
+    // The staffed day shows "1 P.", the four empty days show "0 P." — no
+    // child value (no "~") is rendered anywhere (Kriterium 10 Übergang).
+    expect(screen.getByText("1 P.")).toBeInTheDocument();
+    expect(screen.getAllByText("0 P.")).toHaveLength(4);
+    expect(screen.queryByText(/~/)).not.toBeInTheDocument();
+  });
+});

@@ -1019,6 +1019,27 @@ export function countUnderstaffedTemplates(
 }
 
 /**
+ * Betreuungsplan-Tageskopfzeile (docs/06-betreuungsplan.md Abschnitt 3.1):
+ * eingeplante Personenzahl eines Tages als Vereinigung der zugeordneten,
+ * nicht abwesenden Personen über alle Blöcke des Tages — eine Person zählt
+ * unabhängig von der Anzahl ihrer Blöcke einmal, abgesagte Instanzen zählen
+ * nicht. Erwartet bereits auf einen Kalendertag gefilterte Instanzen (z. B.
+ * ein Eintrag von `groupInstancesByDate`).
+ */
+export function countPlannedStaff(instances: EnrichedInstance[]): number {
+  const staffIds = new Set<string>();
+  for (const instance of instances) {
+    if (instance.status === "cancelled") continue;
+    for (const member of instance.staff) {
+      if (!member.isAbsent) {
+        staffIds.add(member.staffId);
+      }
+    }
+  }
+  return staffIds.size;
+}
+
+/**
  * Whether any active care offering points at a Betreuungsplan-Regeltermin.
  * "unknown" means the linkage could not be read (no enrollment permission).
  */

@@ -16,8 +16,10 @@
 
 import { useEffect, useState } from "react";
 
+import { CapacityStrip } from "~/components/ui/capacity-strip";
 import {
   assignBlockLanes,
+  countPlannedStaff,
   formatDayHeader,
   getCurrentTimeOffset,
   getEventBlockPosition,
@@ -70,6 +72,14 @@ interface WeeklyCalendarGridProps {
     title: string;
     description: string;
   };
+  /**
+   * Betreuungsplan-Tageskopfzeile (06-betreuungsplan.md Abschnitt 3.1): zeigt
+   * pro Wochentagsspalte die eingeplante Personenzahl als CapacityStrip-Zeile
+   * unter dem Sticky-Tagesheader. Default aus (false) — die
+   * Vertretungs-Einzeltagesnutzung dieses Grids bleibt unverändert ohne
+   * Kopfzeile.
+   */
+  showDayHeader?: boolean;
 }
 
 export function WeeklyCalendarGrid({
@@ -84,6 +94,7 @@ export function WeeklyCalendarGrid({
   onSlotClick,
   gapInstanceIds,
   emptyState,
+  showDayHeader = false,
 }: WeeklyCalendarGridProps) {
   const gridColsClass =
     weekDays.length === 1 ? GRID_COLS_CLASS_DAY : GRID_COLS_CLASS_WEEK;
@@ -209,6 +220,30 @@ export function WeeklyCalendarGrid({
           );
         })}
       </div>
+
+      {/* Day-header capacity strip (Betreuungsplan opt-in, 06-betreuungsplan.md
+          Abschnitt 3.1) — sm+ only, matches the desktop day-header columns;
+          on mobile the day strip above already shows one day at a time. */}
+      {showDayHeader && (
+        <div className="hidden sm:block">
+          <CapacityStrip
+            as="div"
+            position="header"
+            stickyLabel={false}
+            labelWidthClassName="w-[64px]"
+            rowLabel=""
+            gridTemplateColumns={`64px repeat(${weekDays.length}, minmax(0,1fr))`}
+            cells={weekDays.map((day) => {
+              const iso = toISODate(day);
+              const count = countPlannedStaff(grouped.get(iso) ?? []);
+              return {
+                key: iso,
+                content: `${count} P.`,
+              };
+            })}
+          />
+        </div>
+      )}
 
       {/* Scrollable body */}
       <div className="relative max-h-[720px] overflow-y-auto">
