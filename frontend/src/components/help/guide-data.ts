@@ -943,6 +943,28 @@ export const appChapters: readonly GuideChapter[] = [
         image: "/help/screens/anmeldungen-exportieren.webp",
       },
       {
+        id: "anmeldungen-bereinigen",
+        title: "Fehlerhafte Anmeldungen sicher löschen",
+        icon: CircleStop,
+        summary:
+          "Abgelehnte, zurückgezogene oder nicht mehr benötigte Anmeldungen kontrolliert entfernen, ohne bestehende Kinder oder Elternkonten mitzulöschen.",
+        steps: [
+          "Die betroffene Anmeldung öffnen. Für ein einzelnes abgelehntes oder zurückgezogenes Kind `Kind aus Anmeldung löschen` wählen. Ein bestätigtes Kind kann erst bereinigt werden, nachdem sein Kind-Datensatz separat in der Datenverwaltung gelöscht wurde.",
+          "Für die gesamte Anmeldung unten in der Seitenleiste `Anmeldung löschen` wählen.",
+          "Die Auswirkungs-Vorschau vollständig prüfen. Sie zeigt die zu löschenden Anmeldedaten und weist auf Erziehungsberechtigtenprofile oder Elternkonten hin, die ausdrücklich erhalten bleiben.",
+          "Wenn ein bestehender Kind-Datensatz verknüpft ist, dem Link zur Kindverwaltung folgen und dort den eigenen Löschablauf verwenden. Die Anmeldung kann erst danach gelöscht werden.",
+          "Einen kurzen, sachlichen Löschgrund eintragen und die Löschung bestätigen. Bleibt bei einer Mehrkind-Anmeldung noch mindestens ein Kind übrig, bleiben die gemeinsamen Anmeldedaten erhalten.",
+        ],
+        callout: {
+          title: "Keine Sammellöschung von Personen",
+          body: "moto löscht über diesen Ablauf weder bestehende Kind-Datensätze noch Erziehungsberechtigtenprofile oder Elternkonten. Diese Datensätze haben eigene, getrennte Löschabläufe.",
+          tone: "orange",
+        },
+        screenshot:
+          "Löschdialog einer Anmeldung mit Auswirkungs-Vorschau, Schutz bestehender Kind-Datensätze und Pflichtfeld für den Löschgrund.",
+        image: "/help/screens/anmeldung-loeschen.png",
+      },
+      {
         id: "anmeldephasen",
         title: "Anmeldephasen",
         icon: CalendarRange,
