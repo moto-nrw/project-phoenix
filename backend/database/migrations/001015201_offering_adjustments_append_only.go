@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	offeringAdjustmentsAppendOnlyVersion     = "1.15.200"
+	offeringAdjustmentsAppendOnlyVersion     = "1.15.201"
 	offeringAdjustmentsAppendOnlyDescription = "Revoke tenant UPDATE/DELETE on enrollment offering adjustments audit to keep it append-only."
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.200: Making audit.enrollment_offering_adjustments append-only for phoenix_tenant...")
+			fmt.Println("Migration 1.15.201: Making audit.enrollment_offering_adjustments append-only for phoenix_tenant...")
 			// The schema-wide default ACL from 1.14.1 auto-granted phoenix_tenant
 			// UPDATE/DELETE on this table when 1.15.140 created it; the explicit
 			// GRANT SELECT, INSERT there was additive, not restrictive. Row removal
@@ -35,7 +35,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.200: Re-granting tenant UPDATE/DELETE on audit.enrollment_offering_adjustments...")
+			fmt.Println("Rolling back migration 1.15.201: Re-granting tenant UPDATE/DELETE on audit.enrollment_offering_adjustments...")
 			if _, err := db.NewRaw(`
 				GRANT UPDATE, DELETE ON audit.enrollment_offering_adjustments TO phoenix_tenant;
 			`).Exec(ctx); err != nil {
