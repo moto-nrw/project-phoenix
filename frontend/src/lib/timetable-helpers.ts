@@ -978,47 +978,6 @@ export function assignBlockLanes(
 }
 
 /**
- * KPI + onboarding helpers for the planner overview zone.
- *
- * These are intentionally pure and instance/template-driven so the
- * "Geplant" / "Unterbesetzt" headline cards work in every view
- * (week/month/year/series) without hitting the 14-day-capped, week-only
- * /api/timetable/gaps endpoint.
- */
-
-/** Count non-cancelled instances in the given list. */
-export function countPlanned(instances: EnrichedInstance[]): number {
-  return instances.filter((inst) => inst.status !== "cancelled").length;
-}
-
-/** Whether a non-cancelled appointment falls short of its staffing ratio. */
-export function isInstanceUnderstaffed(instance: EnrichedInstance): boolean {
-  return (
-    instance.status !== "cancelled" &&
-    instance.requiredStaffCount > 0 &&
-    instance.assignedStaffCount < instance.requiredStaffCount
-  );
-}
-
-/** Count appointments that fall short of their staffing ratio. */
-export function countUnderstaffedInstances(
-  instances: EnrichedInstance[],
-): number {
-  return instances.filter(isInstanceUnderstaffed).length;
-}
-
-/** Count recurring series (Regeltermine) below their staffing requirement. */
-export function countUnderstaffedTemplates(
-  templates: TimetableTemplate[],
-): number {
-  return templates.filter(
-    (template) =>
-      template.requiredStaffCount > 0 &&
-      template.assignedStaffCount < template.requiredStaffCount,
-  ).length;
-}
-
-/**
  * Betreuungsplan-Tageskopfzeile (docs/06-betreuungsplan.md Abschnitt 3.1):
  * eingeplante Personenzahl eines Tages als Vereinigung der zugeordneten,
  * nicht abwesenden Personen über alle Blöcke des Tages — eine Person zählt
@@ -1097,14 +1056,13 @@ export function computeTimetableSetup(input: {
 
 /**
  * Ansichts-Typ und Dichte-Konstanten des Betreuungsplans. Wohnten früher in
- * `components/timetable/timetable-toolbar.tsx`; die Toolbar wird mit dem
- * Chrome-Abbau (Planung-Redesign Inkrement 4) entfernt, deshalb leben die
- * noch gebrauchten Typen/Konstanten hier im Helper-Modul. `timetable-toolbar`
- * re-exportiert sie bis zur Toolbar-Löschung (Chunk 8) für Altverbraucher.
+ * `components/timetable/timetable-toolbar.tsx`; die Toolbar wurde mit dem
+ * Chrome-Abbau (Planung-Redesign Inkrement 4, Chunk 8) entfernt, deshalb
+ * leben die noch gebrauchten Typen/Konstanten hier im Helper-Modul.
  *
  * `TimetableView` behält "year", obwohl die Jahresansicht nicht mehr
- * verlinkbar ist: der Wert existiert weiterhin als toter Zweig in Skeleton
- * und Grid-Typen und wird erst beim Aufräumen entfernt.
+ * verlinkbar ist: der Wert existiert weiterhin als toter Zweig in
+ * `period-switcher-dropdown.tsx` und `betreuungsplan-skeleton.tsx`.
  */
 export type TimetableView = "week" | "month" | "year" | "series";
 

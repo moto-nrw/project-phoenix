@@ -298,7 +298,7 @@ type ExceptionConflictKind =
   | "cancelled_instance_with_scheduled_arrivals"
   | "modified_instance_time_mismatch";
 
-export interface ExceptionConflict {
+interface ExceptionConflict {
   kind: ExceptionConflictKind;
   date: string;
   activityGroupId: string;

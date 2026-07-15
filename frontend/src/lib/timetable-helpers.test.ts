@@ -4,10 +4,7 @@ import {
   assignBlockLanes,
   chunkDateRange,
   computeTimetableSetup,
-  countPlanned,
   countPlannedStaff,
-  countUnderstaffedInstances,
-  countUnderstaffedTemplates,
   deviationEventLabel,
   formatDayHeader,
   formatMonthLabel,
@@ -1286,81 +1283,6 @@ function planInstance(
     ...overrides,
   } as unknown as EnrichedInstance;
 }
-
-function fakeTemplate(
-  requiredStaffCount: number,
-  assignedStaffCount: number,
-): TimetableTemplate {
-  return {
-    requiredStaffCount,
-    assignedStaffCount,
-  } as unknown as TimetableTemplate;
-}
-
-describe("countPlanned", () => {
-  it("counts non-cancelled instances", () => {
-    expect(
-      countPlanned([
-        planInstance({ id: "a", status: "planned" }),
-        planInstance({ id: "b", status: "active" }),
-        planInstance({ id: "c", status: "completed" }),
-        planInstance({ id: "d", status: "cancelled" }),
-      ]),
-    ).toBe(3);
-  });
-
-  it("returns 0 for an empty list", () => {
-    expect(countPlanned([])).toBe(0);
-  });
-});
-
-describe("countUnderstaffedInstances", () => {
-  it("counts ratio shortfalls while ignoring cancelled and zero-requirement appointments", () => {
-    expect(
-      countUnderstaffedInstances([
-        planInstance({
-          id: "partially-staffed",
-          requiredStaffCount: 3,
-          assignedStaffCount: 1,
-        }),
-        planInstance({
-          id: "unstaffed",
-          requiredStaffCount: 2,
-          assignedStaffCount: 0,
-        }),
-        planInstance({
-          id: "staffed",
-          requiredStaffCount: 2,
-          assignedStaffCount: 2,
-        }),
-        planInstance({
-          id: "no-requirement",
-          requiredStaffCount: 0,
-          assignedStaffCount: 0,
-        }),
-        planInstance({
-          id: "cancelled-gap",
-          status: "cancelled",
-          requiredStaffCount: 2,
-          assignedStaffCount: 0,
-        }),
-      ]),
-    ).toBe(2);
-  });
-});
-
-describe("countUnderstaffedTemplates", () => {
-  it("counts partial and empty staffing only when the series has a requirement", () => {
-    expect(
-      countUnderstaffedTemplates([
-        fakeTemplate(3, 1),
-        fakeTemplate(2, 0),
-        fakeTemplate(2, 2),
-        fakeTemplate(0, 0),
-      ]),
-    ).toBe(2);
-  });
-});
 
 describe("countPlannedStaff", () => {
   function staffMember(
