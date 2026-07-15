@@ -82,6 +82,20 @@ export interface MonatskarteProps {
   readonly error?: string | null;
   /** True while the viewed month is the current calendar month. */
   readonly isCurrentMonth?: boolean;
+  /**
+   * True when the viewed month lies entirely BEFORE the configured account
+   * start. The backend then summarizes the month standalone — full month Soll,
+   * zero carry — and deliberately keeps its closing value out of the account
+   * chain, so the carry rows describe nothing and must not be shown.
+   */
+  readonly isPreAccountMonth?: boolean;
+  /** Configured account start ("YYYY-MM-DD"), for the pre-account note. */
+  readonly accountStartDate?: string;
+}
+
+function formatIsoDateGerman(iso: string): string {
+  const [year, month, day] = iso.slice(0, 10).split("-");
+  return year && month && day ? `${day}.${month}.${year}` : iso;
 }
 
 export function Monatskarte({
@@ -89,6 +103,8 @@ export function Monatskarte({
   isLoading,
   error,
   isCurrentMonth = false,
+  isPreAccountMonth = false,
+  accountStartDate,
 }: MonatskarteProps) {
   if (isLoading) {
     return (
@@ -132,11 +148,13 @@ export function Monatskarte({
       </h3>
 
       <div className="divide-y divide-gray-100">
-        <SummaryRow
-          label="Übertrag Vormonat"
-          value={formatSignedDuration(summary.carryInMinutes)}
-          valueClass={deltaClass(summary.carryInMinutes)}
-        />
+        {!isPreAccountMonth && (
+          <SummaryRow
+            label="Übertrag Vormonat"
+            value={formatSignedDuration(summary.carryInMinutes)}
+            valueClass={deltaClass(summary.carryInMinutes)}
+          />
+        )}
         <SummaryRow
           label="Summe Soll"
           hint={
@@ -188,14 +206,34 @@ export function Monatskarte({
           label={isCurrentMonth ? "Saldo Monat (bis heute)" : "Saldo Monat"}
           value={formatSignedDuration(summary.balanceMinutes)}
           valueClass={deltaClass(summary.balanceMinutes)}
+          emphasis={isPreAccountMonth}
         />
-        <SummaryRow
-          label={isCurrentMonth ? "Stundenkonto Stand" : "Übertrag Monatsende"}
-          value={formatSignedDuration(summary.closingBalanceMinutes)}
-          valueClass={deltaClass(summary.closingBalanceMinutes)}
-          emphasis
-        />
+        {/* For a pre-account month closingBalanceMinutes is just this month's
+            own Saldo repeated — it carries nothing in and feeds nothing on.
+            Printing it as "Übertrag Monatsende" or "Stundenkonto Stand" would
+            present a standalone monthly delta as a cumulative balance. */}
+        {!isPreAccountMonth && (
+          <SummaryRow
+            label={
+              isCurrentMonth ? "Stundenkonto Stand" : "Übertrag Monatsende"
+            }
+            value={formatSignedDuration(summary.closingBalanceMinutes)}
+            valueClass={deltaClass(summary.closingBalanceMinutes)}
+            emphasis
+          />
+        )}
       </div>
+
+      {isPreAccountMonth && (
+        <p className="mt-3 text-xs text-gray-500">
+          Dieser Monat liegt vor dem Beginn des Stundenkontos
+          {accountStartDate
+            ? ` (${formatIsoDateGerman(accountStartDate)})`
+            : ""}{" "}
+          und wird eigenständig gerechnet. Der Saldo fließt nicht in das
+          Stundenkonto ein.
+        </p>
+      )}
     </div>
   );
 }

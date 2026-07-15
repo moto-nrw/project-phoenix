@@ -6,6 +6,7 @@ import type {
   StaffSchedule,
 } from "./staff-api";
 import {
+  computePeriodTotalsFromTargets,
   computeStaffMetrics,
   getDeltaStatus,
   resolveWeekIndex,
@@ -195,6 +196,89 @@ describe("computeStaffMetrics account start", () => {
     expect(metrics.accountSoll).toBe(2400);
     expect(metrics.accountIst).toBe(960);
     expect(metrics.accountBalance).toBe(-1440);
+  });
+});
+
+describe("computePeriodTotalsFromTargets", () => {
+  // Mon 2026-08-03 .. Sun 2026-08-09. The contract drops from 8h to 4h on
+  // Wednesday — exactly the case computeStaffMetrics gets wrong, because it
+  // would price the whole week at whichever single schedule it was handed.
+  const weekStart = new Date(2026, 7, 3);
+  const weekEnd = new Date(2026, 7, 9);
+  const targets = new Map([
+    ["2026-08-03", 480],
+    ["2026-08-04", 480],
+    ["2026-08-05", 240],
+    ["2026-08-06", 240],
+    ["2026-08-07", 240],
+    ["2026-08-08", 0],
+    ["2026-08-09", 0],
+  ]);
+
+  it("prices each day at the Soll that was valid on that day", () => {
+    const totals = computePeriodTotalsFromTargets(
+      targets,
+      [session({ date: "2026-08-03" }), session({ date: "2026-08-04" })],
+      [],
+      weekStart,
+      weekEnd,
+      weekEnd,
+    );
+
+    // 480+480+240+240+240 — not 5x480 and not 5x240.
+    expect(totals.soll).toBe(1680);
+    expect(totals.ist).toBe(960);
+    expect(totals.delta).toBe(960 - 1680);
+  });
+
+  it("prices the delta against the Soll up to today, but Soll for the full week", () => {
+    // Tuesday: Wed-Fri have not happened yet and must not read as Minusstunden.
+    const tuesday = new Date(2026, 7, 4);
+    const totals = computePeriodTotalsFromTargets(
+      targets,
+      [session({ date: "2026-08-03" }), session({ date: "2026-08-04" })],
+      [],
+      weekStart,
+      weekEnd,
+      tuesday,
+    );
+
+    expect(totals.soll).toBe(1680);
+    expect(totals.delta).toBe(0);
+  });
+
+  it("credits an absence with the date-valid target of that day", () => {
+    // Wednesday is a 4h day after the contract change, so Krank credits 240.
+    const totals = computePeriodTotalsFromTargets(
+      targets,
+      [],
+      [
+        absence({
+          absence_type: "sick",
+          date_start: "2026-08-05",
+          date_end: "2026-08-05",
+        }),
+      ],
+      weekStart,
+      weekEnd,
+      weekEnd,
+    );
+
+    expect(totals.ist).toBe(240);
+  });
+
+  it("counts days outside the fetched range as zero Soll", () => {
+    const totals = computePeriodTotalsFromTargets(
+      new Map(),
+      [],
+      [],
+      weekStart,
+      weekEnd,
+      weekEnd,
+    );
+
+    expect(totals.soll).toBe(0);
+    expect(totals.delta).toBe(0);
   });
 });
 

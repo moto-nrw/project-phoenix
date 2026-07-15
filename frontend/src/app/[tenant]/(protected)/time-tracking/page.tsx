@@ -44,17 +44,19 @@ import { LeaveRequestsCard } from "~/components/time-tracking/leave-requests-car
 import type { StaffHistorySession, StaffAbsenceRow } from "~/lib/staff-api";
 import { ownShiftService } from "~/lib/shift-api";
 import type { StaffShift } from "~/lib/shift-helpers";
-import { toISODate } from "~/lib/date-helpers";
+import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useToast } from "~/contexts/ToastContext";
-import { useAccountBalance } from "~/lib/hooks/use-account-balance";
+import {
+  usePeriodMetrics,
+  type PeriodMetrics,
+} from "~/lib/hooks/use-period-metrics";
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { staffScheduleService } from "~/lib/staff-api";
 import {
-  computeStaffMetrics,
-  resolveAccountStartDate,
+  adaptAbsenceForMetrics,
+  adaptHistorySessionForMetrics,
   startOfYear,
-  toDateKey,
 } from "~/lib/staff-metrics-helpers";
 import {
   DEVIATION_REASON_REQUIRED_CODE,
@@ -85,46 +87,6 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "TimeTrackingPage" });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function adaptHistorySessionForMetrics(
-  session: WorkSessionHistory,
-): StaffHistorySession {
-  return {
-    id: session.id ? Number(session.id) : undefined,
-    date: session.date,
-    status: session.status,
-    source: undefined,
-    net_minutes: session.netMinutes,
-    check_in_time: session.checkInTime,
-    check_out_time: session.checkOutTime,
-    break_minutes: session.breakMinutes,
-    auto_checked_out: session.autoCheckedOut,
-    notes: session.notes || undefined,
-    edit_count: session.editCount,
-    audit_count: session.auditCount,
-  };
-}
-
-function adaptAbsenceForMetrics(absence: StaffAbsence): StaffAbsenceRow {
-  return {
-    id: Number(absence.id),
-    staff_id: Number(absence.staffId),
-    absence_type: absence.absenceType,
-    date_start: absence.dateStart,
-    date_end: absence.dateEnd,
-    half_day: absence.halfDay,
-    start_half_day: absence.startHalfDay,
-    end_half_day: absence.endHalfDay,
-    note: absence.note,
-    status: absence.status,
-    approved_by: absence.approvedBy ? Number(absence.approvedBy) : null,
-    approved_at: absence.approvedAt,
-    working_days: absence.workingDays,
-    decision_note: absence.decisionNote,
-    requested_at: absence.requestedAt,
-    duration_days: absence.durationDays,
-  };
-}
 
 function formatDateGerman(date: Date): string {
   const day = date.getDate().toString().padStart(2, "0");
@@ -582,7 +544,6 @@ function ClockInCard({
   weeklyMinutes,
   onAddAbsence,
   metrics,
-  accountBalanceMinutes,
   plannedShifts,
   cancelledShifts,
 }: {
@@ -594,9 +555,7 @@ function ClockInCard({
   readonly onEndBreak: () => Promise<void>;
   readonly weeklyMinutes: number;
   readonly onAddAbsence: () => void;
-  readonly metrics?: ReturnType<typeof computeStaffMetrics> | null;
-  // Date-valid Saldo from the backend month model (#1842); null = loading.
-  readonly accountBalanceMinutes: number | null;
+  readonly metrics?: PeriodMetrics | null;
   readonly plannedShifts?: readonly StaffShift[];
   readonly cancelledShifts?: readonly StaffShift[];
 }) {
@@ -1155,10 +1114,7 @@ function ClockInCard({
             damit die Card defensiv lesbar bleibt. */}
         {metrics ? (
           <div className="mt-5 border-t border-gray-100 pt-4">
-            <ClockInStatsStrip
-              metrics={metrics}
-              accountBalanceMinutes={accountBalanceMinutes}
-            />
+            <ClockInStatsStrip metrics={metrics} />
             {/* Herkunfts-Chip am Soll-Wert (Planung-Redesign, docs/04 6.2):
                 genau einer pro Oberfläche, solange die Soll-Quellen-Frage
                 offen ist. */}
@@ -1197,19 +1153,17 @@ function ClockInCard({
 
 function ClockInStatsStrip({
   metrics,
-  accountBalanceMinutes,
 }: {
-  readonly metrics: ReturnType<typeof computeStaffMetrics>;
-  // Date-valid Saldo from the backend month model (useAccountBalance, #1842).
-  // Never metrics.accountBalance: that one prices historical days at the
-  // CURRENT schedule and contradicts the Monatskarte after a contract change.
-  // null = still loading or unavailable.
-  readonly accountBalanceMinutes: number | null;
+  // Every figure is date-valid, straight from the backend month model
+  // (usePeriodMetrics, #1842). Never computeStaffMetrics: that one prices
+  // historical days at the CURRENT schedule and contradicts the Monatskarte
+  // further down the page after a contract change. null = loading.
+  readonly metrics: PeriodMetrics;
 }) {
-  const weekPct =
-    metrics.weekSoll > 0 ? (metrics.weekIst / metrics.weekSoll) * 100 : 0;
-  const monthPct =
-    metrics.monthSoll > 0 ? (metrics.monthIst / metrics.monthSoll) * 100 : 0;
+  const { week, month, accountBalanceMinutes } = metrics;
+
+  const weekPct = week && week.soll > 0 ? (week.ist / week.soll) * 100 : 0;
+  const monthPct = month && month.soll > 0 ? (month.ist / month.soll) * 100 : 0;
 
   const accountTone: StatusTone =
     accountBalanceMinutes === null
@@ -1224,16 +1178,20 @@ function ClockInStatsStrip({
     <div className="grid grid-cols-1 gap-3 min-[420px]:grid-cols-3 sm:gap-4">
       <InlineStat
         label="Diese Woche"
-        primary={formatDuration(metrics.weekIst)}
-        secondary={`von ${formatDuration(metrics.weekSoll)}`}
-        progressPct={weekPct}
+        primary={week === null ? "–" : formatDuration(week.ist)}
+        secondary={
+          week === null ? undefined : `von ${formatDuration(week.soll)}`
+        }
+        progressPct={week === null ? undefined : weekPct}
         tone="green"
       />
       <InlineStat
         label="Dieser Monat"
-        primary={formatDuration(metrics.monthIst)}
-        secondary={`von ${formatDuration(metrics.monthSoll)}`}
-        progressPct={monthPct}
+        primary={month === null ? "–" : formatDuration(month.ist)}
+        secondary={
+          month === null ? undefined : `von ${formatDuration(month.soll)}`
+        }
+        progressPct={month === null ? undefined : monthPct}
         tone="green"
       />
       <InlineStat
@@ -1543,19 +1501,23 @@ function OwnZeiterfassungSection({
     absence: StaffAbsence | null,
   ) => void;
 }) {
-  const today = useMemo(() => new Date(), []);
+  // The Berlin day, not the browser's, and re-rendered on the rollover: this
+  // section stays mounted all day, and `new Date()` frozen at mount would keep
+  // "Diesen Monat" and the open-month poll pointing at yesterday's month after
+  // midnight — and at the wrong month entirely from a non-Berlin browser
+  // (#1842). The backend derives its month from timezone.TodayDate().
+  const todayISO = useBerlinToday();
+  const today = useMemo(() => parseISODate(todayISO), [todayISO]);
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [weekAnchor, setWeekAnchor] = useState<Date>(() => {
-    const d = new Date();
+    const d = parseISODate(berlinTodayISO());
     const day = (d.getDay() + 6) % 7; // Mon = 0
     d.setDate(d.getDate() - day);
-    d.setHours(0, 0, 0, 0);
     return d;
   });
   const [monthAnchor, setMonthAnchor] = useState<Date>(() => {
-    const d = new Date();
+    const d = parseISODate(berlinTodayISO());
     d.setDate(1);
-    d.setHours(0, 0, 0, 0);
     return d;
   });
 
@@ -1654,6 +1616,21 @@ function OwnZeiterfassungSection({
     () => timeTrackingService.getMonthSummary(monthYear, monthNumber),
     { refreshInterval: isCurrentMonth ? OPEN_MONTH_REFRESH_MS : 0 },
   );
+
+  const { data: timeTrackingConfig } = useSWRAuth(
+    "time-tracking-config",
+    () => timeTrackingService.getConfig(),
+    { revalidateOnFocus: false },
+  );
+  // A month wholly before the configured account start is summarized standalone
+  // by the backend (full month, zero carry) and its closing value never enters
+  // the account chain — so the Monatskarte must not sell it as a carry or as
+  // the Stundenkonto (#1842).
+  const accountStartDate = timeTrackingConfig?.accountStartDate ?? "";
+  const isPreAccountMonth =
+    accountStartDate !== "" &&
+    `${monthYear}-${String(monthNumber).padStart(2, "0")}` <
+      accountStartDate.slice(0, 7);
 
   // Self-scoped audit-trail fetcher so staff read their own Abweichungsgründe
   // without time_tracking:manage (#1842 AC8).
@@ -1832,6 +1809,8 @@ function OwnZeiterfassungSection({
                 : null
             }
             isCurrentMonth={isCurrentMonth}
+            isPreAccountMonth={isPreAccountMonth}
+            accountStartDate={accountStartDate}
           />
         </div>
       )}
@@ -3221,22 +3200,12 @@ function TimeTrackingContent() {
 
   // --- MA-Saldo-Widget (Tranche 1.5) ----------------------------------------
   //
-  // The user's own staff id comes from the user-context endpoint; we then
-  // fetch the staff-scoped schedule/history/absence endpoints over the
-  // cumulative range and feed them into
-  // computeStaffMetrics, the same helper the admin staff-detail view uses.
-  // KpiCards then renders Diese Woche / Dieser Monat / Überstunden / Stundenkonto.
-  //
-  // Note: history is already fetched up there for the chart, but only over
-  // 2 weeks. The Stundenkonto card needs the full account range.
-  // So we issue a parallel, wider fetch keyed by the cumulative range; SWR
-  // dedupes anything that overlaps.
-  const todayMidnight = useMemo(() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    return d;
-  }, []);
-
+  // Diese Woche / Dieser Monat / Stundenkonto all come from the server-computed
+  // model (usePeriodMetrics, #1842), which prices every day against the
+  // schedule that was valid on that day. The old path fed the CURRENT schedule
+  // plus a history fetch over the whole account range into computeStaffMetrics,
+  // which re-priced historical days at today's hours and contradicted the
+  // Monatskarte further down this very page.
   const { data: ownStaff } = useSWRAuth(
     "time-tracking-own-staff",
     () => userContextService.getCurrentStaff(),
@@ -3250,69 +3219,7 @@ function TimeTrackingContent() {
     { revalidateOnFocus: false },
   );
 
-  const { data: timeTrackingConfig } = useSWRAuth(
-    "time-tracking-config",
-    () => timeTrackingService.getConfig(),
-    { revalidateOnFocus: false },
-  );
-
-  const accountAnchor = useMemo(() => {
-    return resolveAccountStartDate(
-      todayMidnight,
-      timeTrackingConfig?.accountStartDate,
-    );
-  }, [timeTrackingConfig?.accountStartDate, todayMidnight]);
-  const accountFrom = toDateKey(accountAnchor);
-  const accountTo = toDateKey(todayMidnight);
-  const { data: accountHistoryData } = useSWRAuth<{
-    sessions: WorkSessionHistory[];
-    weeklySummaries: WeeklySummary[];
-  }>(
-    ownStaffId
-      ? `time-tracking-own-history-${ownStaffId}-${accountFrom}-${accountTo}`
-      : null,
-    () => timeTrackingService.getHistory(accountFrom, accountTo),
-    { revalidateOnFocus: false },
-  );
-  const accountSessions = useMemo<StaffHistorySession[]>(
-    () =>
-      (accountHistoryData?.sessions ?? []).map(adaptHistorySessionForMetrics),
-    [accountHistoryData],
-  );
-  const { data: accountAbsenceData } = useSWRAuth<StaffAbsence[]>(
-    ownStaffId
-      ? `time-tracking-own-absences-${ownStaffId}-${accountFrom}-${accountTo}`
-      : null,
-    () => timeTrackingService.getAbsences(accountFrom, accountTo),
-    { revalidateOnFocus: false },
-  );
-  const accountAbsences = useMemo<StaffAbsenceRow[]>(
-    () => (accountAbsenceData ?? []).map(adaptAbsenceForMetrics),
-    [accountAbsenceData],
-  );
-
-  // Stundenkonto comes from the server-computed month model, not from
-  // `ownMetrics`: only the backend prices each day against the schedule that
-  // was valid on that day, so this is the one figure that can never contradict
-  // the Monatskarte further down the page (#1842).
-  const { balanceMinutes: ownAccountBalanceMinutes } = useAccountBalance();
-
-  const ownMetrics = useMemo(() => {
-    if (!ownSchedule) return null;
-    return computeStaffMetrics(
-      ownSchedule,
-      accountSessions,
-      accountAbsences,
-      todayMidnight,
-      timeTrackingConfig?.accountStartDate,
-    );
-  }, [
-    ownSchedule,
-    accountSessions,
-    accountAbsences,
-    todayMidnight,
-    timeTrackingConfig?.accountStartDate,
-  ]);
+  const ownMetrics = usePeriodMetrics();
 
   // Fetch breaks for current session
   const fetchBreaks = useCallback(async () => {
@@ -3806,8 +3713,7 @@ function TimeTrackingContent() {
           onEndBreak={handleEndBreak}
           weeklyMinutes={weeklyCompletedMinutes}
           onAddAbsence={() => setAbsenceModalOpen(true)}
-          metrics={ownMetrics ?? null}
-          accountBalanceMinutes={ownAccountBalanceMinutes}
+          metrics={ownMetrics}
           plannedShifts={todayShifts}
           cancelledShifts={todayCancelledShifts}
         />

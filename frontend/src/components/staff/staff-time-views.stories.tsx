@@ -3,7 +3,7 @@ import { useState } from "react";
 
 import { KpiCard, KpiCards, ViewToggle } from "./staff-time-views";
 import type { ViewMode } from "./staff-time-views";
-import type { StaffMetrics } from "~/lib/staff-metrics-helpers";
+import type { PeriodMetrics } from "~/lib/hooks/use-period-metrics";
 
 const meta = {
   title: "components/staff/StaffTimeViews",
@@ -35,24 +35,18 @@ export const CardOvertime: Story = {
   ),
 };
 
-const baseMetrics: StaffMetrics = {
-  weekSoll: 2310,
-  weekIst: 1935,
-  weekDelta: -15,
-  monthSoll: 9200,
-  monthIst: 9450,
-  monthDelta: 250,
+// Every figure the real screens render here is date-valid and comes from the
+// backend month model (usePeriodMetrics, #1842), never from the current
+// schedule — so the stories hand KpiCards that same shape.
+const baseMetrics: PeriodMetrics = {
+  week: { soll: 2310, ist: 1935, delta: -15 },
+  month: { soll: 9200, ist: 9450, delta: 250 },
   accountStart: new Date(2026, 4, 13),
-  accountSoll: 30000,
-  accountIst: 30120,
-  accountBalance: 120,
+  accountBalanceMinutes: 120,
 };
 
-// accountBalanceMinutes is the date-valid Saldo the real screens read from the
-// backend month model (useAccountBalance, #1842) — it no longer comes from
-// `metrics`, so the stories pass it explicitly.
 export const Cards: Story = {
-  render: () => <KpiCards metrics={baseMetrics} accountBalanceMinutes={120} />,
+  render: () => <KpiCards metrics={baseMetrics} />,
 };
 
 export const CardsBalanced: Story = {
@@ -60,17 +54,26 @@ export const CardsBalanced: Story = {
     <KpiCards
       metrics={{
         ...baseMetrics,
-        monthDelta: 0,
+        month: { ...baseMetrics.month!, delta: 0 },
+        accountBalanceMinutes: 0,
       }}
-      accountBalanceMinutes={0}
     />
   ),
 };
 
-// The Saldo request has not resolved yet: the card must degrade to "–" rather
-// than render a stale or client-computed number.
-export const CardsBalanceLoading: Story = {
-  render: () => <KpiCards metrics={baseMetrics} accountBalanceMinutes={null} />,
+// Nothing has resolved yet: every card must degrade to "–" rather than render a
+// stale or client-computed number.
+export const CardsLoading: Story = {
+  render: () => (
+    <KpiCards
+      metrics={{
+        week: null,
+        month: null,
+        accountStart: new Date(2026, 4, 13),
+        accountBalanceMinutes: null,
+      }}
+    />
+  ),
 };
 
 export const Toggle: Story = {

@@ -364,6 +364,7 @@ import { useSWRAuth } from "~/lib/swr";
 import { useToast } from "~/contexts/ToastContext";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import type {
+  MonthSummary,
   WorkSession,
   WorkSessionHistory,
   StaffAbsence,
@@ -519,6 +520,8 @@ function setupDefaultMocks(overrides?: {
   absences?: StaffAbsence[];
   historyLoading?: boolean;
   configLoading?: boolean;
+  scheduleTargets?: ReadonlyMap<string, number>;
+  monthSummary?: MonthSummary;
 }) {
   vi.mocked(useSession).mockReturnValue({
     data: { user: { id: "1", token: "test-token" } },
@@ -531,6 +534,9 @@ function setupDefaultMocks(overrides?: {
   const absences = overrides?.absences ?? [];
   const historyLoading = overrides?.historyLoading ?? false;
   const configLoading = overrides?.configLoading ?? false;
+  const scheduleTargets =
+    overrides?.scheduleTargets ?? new Map<string, number>();
+  const monthSummary = overrides?.monthSummary;
 
   vi.mocked(useSWRAuth).mockImplementation((key: string | null) => {
     if (key === null) {
@@ -554,6 +560,26 @@ function setupDefaultMocks(overrides?: {
       return {
         data: { sessions: history, weeklySummaries: [] },
         isLoading: historyLoading,
+        mutate: mockMutate,
+        isValidating: false,
+        error: undefined,
+      } as never;
+      // Date-valid Soll per day (#1842) — a Map, keyed by ISO day. The
+      // catch-all below hands back an array, which is not what any
+      // schedule-targets consumer reads.
+    } else if (key?.startsWith("time-tracking-schedule-targets")) {
+      return {
+        data: scheduleTargets,
+        isLoading: false,
+        mutate: mockMutate,
+        isValidating: false,
+        error: undefined,
+      } as never;
+      // Monatskarte / period-KPI aggregate (#1842).
+    } else if (key?.startsWith("time-tracking-month-summary")) {
+      return {
+        data: monthSummary,
+        isLoading: false,
         mutate: mockMutate,
         isValidating: false,
         error: undefined,

@@ -60,6 +60,54 @@ describe("Monatskarte", () => {
     expect(screen.getByText("Stundenkonto Stand")).toBeInTheDocument();
   });
 
+  // A month before the account start is summarized standalone by the backend
+  // (full month, zero carry) and its closing value never joins the account
+  // chain — so neither carry row may claim it does.
+  describe("pre-account month", () => {
+    it("suppresses the carry rows instead of presenting the month Saldo as one", () => {
+      render(
+        <Monatskarte
+          summary={makeSummary({
+            carryInMinutes: 0,
+            closingBalanceMinutes: -960,
+          })}
+          isLoading={false}
+          isPreAccountMonth
+          accountStartDate="2026-08-01"
+        />,
+      );
+
+      expect(screen.queryByText("Übertrag Vormonat")).not.toBeInTheDocument();
+      expect(screen.queryByText("Übertrag Monatsende")).not.toBeInTheDocument();
+      expect(screen.queryByText("Stundenkonto Stand")).not.toBeInTheDocument();
+      // The month's own Saldo is still the honest headline figure.
+      expect(screen.getByText("Saldo Monat")).toBeInTheDocument();
+      expect(
+        screen.getByText(
+          /liegt vor dem Beginn des Stundenkontos \(01\.08\.2026\)/,
+        ),
+      ).toBeInTheDocument();
+    });
+
+    it("suppresses 'Stundenkonto Stand' for the current month before a future anchor", () => {
+      render(
+        <Monatskarte
+          summary={makeSummary({
+            carryInMinutes: 0,
+            closingBalanceMinutes: 480,
+          })}
+          isLoading={false}
+          isCurrentMonth
+          isPreAccountMonth
+          accountStartDate="2026-09-01"
+        />,
+      );
+
+      expect(screen.queryByText("Stundenkonto Stand")).not.toBeInTheDocument();
+      expect(screen.getByText("Saldo Monat (bis heute)")).toBeInTheDocument();
+    });
+  });
+
   it("renders nothing without a summary and an error state on failure", () => {
     const { container, rerender } = render(
       <Monatskarte summary={null} isLoading={false} />,
