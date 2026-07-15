@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 
 import { Settings2 } from "lucide-react";
 
-import { DienstplanWeekGrid } from "~/components/staff/dienstplan-week-grid";
+import { DienstplanResourceGrid } from "~/components/staff/dienstplan-resource-grid";
 import {
   ShiftEditModal,
   type ShiftEditMode,
@@ -17,14 +17,16 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { PlanningContextBar } from "~/components/ui/planning-context-bar";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { isAdmin } from "~/lib/auth-utils";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
 import { createLogger } from "~/lib/logger";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
+import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
+import { userContextService } from "~/lib/usercontext-api";
 
 import { DienstplanPageSkeleton } from "./dienstplan-skeleton";
 
@@ -123,6 +125,25 @@ function DienstplanContent() {
     mutateOverview,
     refreshPlanCaches,
   } = useDienstplanData(weekFrom, weekTo);
+
+  // Own staff identity for the "Zeiterfassung öffnen" row-header target (own
+  // person → /time-tracking, others → the staff detail page). Reuses the
+  // time-tracking page's SWR key so the request is deduped; null when the
+  // account is not linked to a staff person.
+  const { data: ownStaff } = useSWRAuth(
+    "time-tracking-own-staff",
+    () => userContextService.getCurrentStaff(),
+    { revalidateOnFocus: false },
+  );
+  const currentStaffId = ownStaff?.id ?? null;
+
+  // Reduced permission path (only time_tracking:manage): mirrors the hook's
+  // overview branch so the row header collapses to the name only.
+  const reducedPath = !(
+    canManageAbsences &&
+    hasPermission(session, "schedules:read") &&
+    hasPermission(session, "users:read")
+  );
 
   const isOnCurrentWeek =
     toISODate(startOfWeek(parseISODate(today))) === toISODate(weekAnchor);
@@ -302,7 +323,7 @@ function DienstplanContent() {
                   In dieser Woche sind keine Schichten geplant.
                 </p>
               )}
-              <DienstplanWeekGrid
+              <DienstplanResourceGrid
                 staff={sortedStaff}
                 shiftsByStaff={shiftsByStaff}
                 assignmentsByStaff={assignmentsByStaff}
@@ -310,7 +331,9 @@ function DienstplanContent() {
                 weekDays={weekDays}
                 todayIso={today}
                 typesById={typesById}
-                isLoading={false}
+                shiftTypes={shiftTypes ?? []}
+                reducedPath={reducedPath}
+                currentStaffId={currentStaffId}
                 onCellClick={(member, date, shift) =>
                   setModal({
                     mode: shift ? "edit" : "create",

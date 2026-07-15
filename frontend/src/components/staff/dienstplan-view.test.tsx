@@ -43,8 +43,8 @@ vi.mock("~/lib/hooks/use-berlin-today", () => ({
   useBerlinToday: mocks.useBerlinToday,
 }));
 
-vi.mock("~/components/staff/dienstplan-week-grid", () => ({
-  DienstplanWeekGrid: ({
+vi.mock("~/components/staff/dienstplan-resource-grid", () => ({
+  DienstplanResourceGrid: ({
     weekDays,
     todayIso,
     assignmentsByStaff,
