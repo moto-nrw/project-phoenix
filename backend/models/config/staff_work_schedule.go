@@ -39,7 +39,7 @@ type StaffWorkSchedule struct {
 	// written with (#1842). It is immutable: a schedule change closes these
 	// rows and inserts a new version carrying its own anchor, so past weeks
 	// keep the A/B parity they were computed with. NULL only on rows written
-	// before 1.15.199 with no staff-level anchor to backfill from.
+	// before 1.15.203 with no staff-level anchor to backfill from.
 	RotationAnchorDate *timezone.Date `bun:"rotation_anchor_date,type:date" json:"rotation_anchor_date,omitempty"`
 	ValidFrom          timezone.Date  `bun:"valid_from,notnull,type:date" json:"valid_from"`
 	ValidUntil         *timezone.Date `bun:"valid_until,type:date" json:"valid_until,omitempty"`

@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	staffScheduleRotationAnchorVersion     = "1.15.199"
+	staffScheduleRotationAnchorVersion     = "1.15.203"
 	staffScheduleRotationAnchorDescription = "Add rotation_anchor_date to config.staff_work_schedules (#1842): the rotation anchor lived only on users.staff and was overwritten on every schedule change, so editing a multi-week schedule retroactively flipped the A/B parity of already-closed weeks. Each schedule version now carries the anchor it was written with."
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.199: Adding rotation_anchor_date to config.staff_work_schedules (#1842)...")
+			fmt.Println("Migration 1.15.203: Adding rotation_anchor_date to config.staff_work_schedules (#1842)...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE config.staff_work_schedules
 					ADD COLUMN IF NOT EXISTS rotation_anchor_date DATE;
@@ -76,7 +76,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.199...")
+			fmt.Println("Rolling back migration 1.15.203...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE config.staff_work_schedules
 					DROP COLUMN IF EXISTS rotation_anchor_date;

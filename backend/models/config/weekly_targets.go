@@ -51,8 +51,8 @@ func ScheduleRotationLength(entries []*StaffWorkSchedule) int {
 //     overwrites, so it is only correct for the CURRENT version;
 //  3. the earliest valid_from among the entries.
 //
-// Entries reaching step 2 predate migration 1.15.199 and had no staff anchor
-// to backfill; step 2 then reproduces the pre-1.15.199 behaviour exactly.
+// Entries reaching step 2 predate migration 1.15.203 and had no staff anchor
+// to backfill; step 2 then reproduces the pre-1.15.203 behaviour exactly.
 func ResolveScheduleAnchor(staffAnchor *timezone.Date, entries []*StaffWorkSchedule) timezone.Date {
 	for _, e := range entries {
 		if e != nil && e.RotationAnchorDate != nil && !e.RotationAnchorDate.IsZero() {
