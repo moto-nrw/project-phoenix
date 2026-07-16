@@ -81,6 +81,14 @@ func (r stubStaffAccountRepo) FindByEmail(context.Context, string) (*authModels.
 func (r stubStaffAccountRepo) FindByUsername(context.Context, string) (*authModels.Account, error) {
 	panic("not implemented")
 }
+
+func (r stubStaffAccountRepo) FindByCalendarFeedToken(context.Context, string) (*authModels.Account, error) {
+	panic("not implemented")
+}
+
+func (r stubStaffAccountRepo) SetCalendarFeedToken(context.Context, int64, string) error {
+	panic("not implemented")
+}
 func (r stubStaffAccountRepo) Update(context.Context, *authModels.Account) error {
 	panic("not implemented")
 }

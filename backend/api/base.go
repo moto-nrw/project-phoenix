@@ -612,7 +612,9 @@ func (a *API) registerRoutesWithRateLimiting() {
 				http.Error(w, "not found", http.StatusNotFound)
 				return
 			}
-			slog.Error("calendar feed failed", "error", err.Error())
+			slog.Error("calendar feed failed",
+				"error", err.Error(),
+			)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}

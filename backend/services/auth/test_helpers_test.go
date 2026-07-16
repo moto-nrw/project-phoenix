@@ -151,6 +151,14 @@ func (noopAccountRepository) FindByUsername(context.Context, string) (*authModel
 	panic("FindByUsername not implemented")
 }
 
+func (noopAccountRepository) FindByCalendarFeedToken(context.Context, string) (*authModel.Account, error) {
+	panic("FindByCalendarFeedToken not implemented")
+}
+
+func (noopAccountRepository) SetCalendarFeedToken(context.Context, int64, string) error {
+	panic("SetCalendarFeedToken not implemented")
+}
+
 func (noopAccountRepository) Update(context.Context, *authModel.Account) error {
 	panic("Update not implemented")
 }
@@ -272,6 +280,14 @@ func (r *stubAccountRepository) FindByEmail(_ context.Context, email string) (*a
 		return &clone, nil
 	}
 	return nil, sql.ErrNoRows
+}
+
+func (r *stubAccountRepository) FindByCalendarFeedToken(context.Context, string) (*authModel.Account, error) {
+	return nil, sql.ErrNoRows
+}
+
+func (r *stubAccountRepository) SetCalendarFeedToken(context.Context, int64, string) error {
+	return nil
 }
 
 func (r *stubAccountRepository) FindByID(_ context.Context, id interface{}) (*authModel.Account, error) {
