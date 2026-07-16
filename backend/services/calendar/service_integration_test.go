@@ -247,6 +247,126 @@ func TestCalendarServiceIntegration_InformationalAppointmentCannotBeAnswered(t *
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 }
 
+func TestCalendarServiceIntegration_UpdateCancelDeleteLifecycle(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Lifecycle", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Lifecycle", "Invitee")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Original title",
+		Location:     testpkg.StrPtr("Room 1"),
+		StartDate:    timezone.NewDate(2026, 3, 2),
+		EndDate:      timezone.NewDate(2026, 3, 2),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeRSVPRequired,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	// A non-organizer may not edit the appointment.
+	_, err = service.UpdateStaffAppointment(calendarContext(invitedAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
+		Title:     "Hijack",
+		StartDate: timezone.NewDate(2026, 3, 2),
+		EndDate:   timezone.NewDate(2026, 3, 2),
+		StartTime: wallClock(9, 0),
+		EndTime:   wallClock(10, 0),
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, calendarSvc.ErrForbidden))
+
+	// The organizer edits event details; recipients (RSVP audience) are preserved.
+	updated, err := service.UpdateStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
+		Title:     "Updated title",
+		Location:  testpkg.StrPtr("Room 2"),
+		StartDate: timezone.NewDate(2026, 3, 3),
+		EndDate:   timezone.NewDate(2026, 3, 3),
+		StartTime: wallClock(11, 0),
+		EndTime:   wallClock(12, 0),
+	})
+	require.NoError(t, err)
+	assert.Equal(t, "Updated title", updated.Appointment.Title)
+	require.Len(t, updated.Recipients, 1)
+
+	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 3, 1), timezone.NewDate(2026, 3, 10))
+	require.NoError(t, err)
+	require.NotEmpty(t, events)
+	assert.Equal(t, "Updated title", events[0].Title)
+	assert.Equal(t, "2026-03-03", events[0].StartDate)
+	assert.False(t, events[0].Cancelled)
+
+	// Cancelling marks the event but keeps it visible so parents/staff see it.
+	_, err = service.CancelStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+	events, err = service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 3, 1), timezone.NewDate(2026, 3, 10))
+	require.NoError(t, err)
+	require.NotEmpty(t, events)
+	assert.True(t, events[0].Cancelled)
+
+	// Deleting removes it from every reader.
+	require.NoError(t, service.DeleteStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID))
+	events, err = service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 3, 1), timezone.NewDate(2026, 3, 10))
+	require.NoError(t, err)
+	assert.Empty(t, eventDates(events, calModels.EventSourceAppointment))
+}
+
+func TestCalendarServiceIntegration_CancelSingleOccurrence(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Occurrence", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Occurrence", "Invitee")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	endsOn := timezone.NewDate(2026, 1, 19)
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Weekly standup",
+		StartDate:    timezone.NewDate(2026, 1, 5), // Monday
+		EndDate:      timezone.NewDate(2026, 1, 5),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(9, 30),
+		DeliveryMode: calModels.DeliveryModeRSVPRequired,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{"monday"},
+			EndsOn:        &endsOn,
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 19))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2026-01-05", "2026-01-12", "2026-01-19"}, eventDates(events, calModels.EventSourceAppointment))
+
+	// Cancel the middle occurrence.
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
+	events, err = service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 19))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2026-01-05", "2026-01-19"}, eventDates(events, calModels.EventSourceAppointment))
+
+	// Cancelling the same occurrence again is idempotent.
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
+}
+
 func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })

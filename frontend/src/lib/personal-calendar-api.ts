@@ -29,6 +29,8 @@ export interface CalendarEvent {
   readonly start_time: string;
   readonly end_time: string;
   readonly all_day: boolean;
+  readonly cancelled?: boolean;
+  readonly recurring?: boolean;
   readonly delivery_mode?: CalendarDeliveryMode;
   readonly response_status?: CalendarResponseStatus;
   readonly recipient_id?: string;
@@ -80,6 +82,21 @@ export interface CreateCalendarAppointmentRequest {
   readonly overview_visibility?: CalendarOverviewVisibility;
   readonly recurrence?: CalendarRecurrenceRequest;
   readonly targets: CalendarTarget[];
+}
+
+// Editing an appointment cannot change its audience (targets) or delivery mode:
+// re-resolving recipients would discard the RSVP responses already collected.
+export interface UpdateCalendarAppointmentRequest {
+  readonly title: string;
+  readonly description?: string;
+  readonly location?: string;
+  readonly start_date: string;
+  readonly end_date: string;
+  readonly start_time: string;
+  readonly end_time: string;
+  readonly all_day: boolean;
+  readonly overview_visibility?: CalendarOverviewVisibility;
+  readonly recurrence?: CalendarRecurrenceRequest;
 }
 
 interface CalendarAttendee {
@@ -203,6 +220,64 @@ export function createStaffAppointment(body: CreateCalendarAppointmentRequest) {
     method: "POST",
     body: JSON.stringify(body),
   });
+}
+
+// Minimal shape of the staff appointment-detail response, used to prefill the
+// edit modal with recurrence + visibility that the per-occurrence event omits.
+export interface CalendarAppointmentDetail {
+  readonly appointment: {
+    readonly overview_visibility: CalendarOverviewVisibility;
+    readonly delivery_mode: CalendarDeliveryMode;
+  };
+  readonly recurrence?: {
+    readonly frequency: "daily" | "weekly" | "monthly" | "yearly";
+    readonly interval_count: number;
+    readonly weekdays?: string[];
+    readonly ends_on?: string;
+  } | null;
+}
+
+export function getStaffAppointmentDetail(appointmentId: string) {
+  return fetchJSON<CalendarAppointmentDetail>(
+    `/api/calendar/appointments/${encodeURIComponent(appointmentId)}`,
+  );
+}
+
+export function updateStaffAppointment(
+  appointmentId: string,
+  body: UpdateCalendarAppointmentRequest,
+) {
+  return fetchJSON(
+    `/api/calendar/appointments/${encodeURIComponent(appointmentId)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+export function cancelStaffAppointment(appointmentId: string) {
+  return fetchJSON(
+    `/api/calendar/appointments/${encodeURIComponent(appointmentId)}/cancel`,
+    { method: "POST" },
+  );
+}
+
+export function deleteStaffAppointment(appointmentId: string) {
+  return fetchJSON(
+    `/api/calendar/appointments/${encodeURIComponent(appointmentId)}`,
+    { method: "DELETE" },
+  );
+}
+
+export function cancelStaffAppointmentOccurrence(
+  appointmentId: string,
+  occurrenceDate: string,
+) {
+  return fetchJSON(
+    `/api/calendar/appointments/${encodeURIComponent(appointmentId)}/occurrences/${encodeURIComponent(occurrenceDate)}/cancel`,
+    { method: "POST" },
+  );
 }
 
 export function getCalendarRecipientOptions(query: string) {

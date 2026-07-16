@@ -45,6 +45,11 @@ func (rs *Resource) Router() chi.Router {
 		r.With(own, withTx).Get("/my", rs.listMy)
 		r.With(own, withTx).Get("/appointments/{appointmentId}/overview", rs.appointmentOverview)
 		r.With(manage, withTx).Post("/appointments", rs.createAppointment)
+		r.With(manage, withTx).Get("/appointments/{appointmentId}", rs.getAppointmentDetail)
+		r.With(manage, withTx).Put("/appointments/{appointmentId}", rs.updateAppointment)
+		r.With(manage, withTx).Delete("/appointments/{appointmentId}", rs.deleteAppointment)
+		r.With(manage, withTx).Post("/appointments/{appointmentId}/cancel", rs.cancelAppointment)
+		r.With(manage, withTx).Post("/appointments/{appointmentId}/occurrences/{occurrenceDate}/cancel", rs.cancelOccurrence)
 		r.With(own, withTx).Post("/recipients/{recipientId}/response", rs.respond)
 		r.With(manage, withTx).Get("/recipient-options", rs.recipientOptions)
 	})
@@ -64,6 +69,19 @@ type createAppointmentRequest struct {
 	OverviewVisibility string                             `json:"overview_visibility"`
 	Recurrence         *calendarService.RecurrenceRequest `json:"recurrence,omitempty"`
 	Targets            []appointmentTargetRequest         `json:"targets"`
+}
+
+type updateAppointmentRequest struct {
+	Title              string                             `json:"title"`
+	Description        *string                            `json:"description,omitempty"`
+	Location           *string                            `json:"location,omitempty"`
+	StartDate          timezone.Date                      `json:"start_date"`
+	EndDate            timezone.Date                      `json:"end_date"`
+	StartTime          string                             `json:"start_time"`
+	EndTime            string                             `json:"end_time"`
+	AllDay             bool                               `json:"all_day"`
+	OverviewVisibility string                             `json:"overview_visibility"`
+	Recurrence         *calendarService.RecurrenceRequest `json:"recurrence,omitempty"`
 }
 
 type requestID int64
@@ -171,6 +189,100 @@ func (rs *Resource) createAppointment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, detail, "Appointment created")
+}
+
+func (rs *Resource) getAppointmentDetail(w http.ResponseWriter, r *http.Request) {
+	appointmentID, ok := common.ParsePositiveInt64IDWithError(w, r, "appointmentId", "invalid appointment ID")
+	if !ok {
+		return
+	}
+	detail, err := rs.service.GetStaffAppointmentDetail(r.Context(), appointmentID)
+	if err != nil {
+		renderCalendarError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, detail, "Appointment detail retrieved")
+}
+
+func (rs *Resource) updateAppointment(w http.ResponseWriter, r *http.Request) {
+	appointmentID, ok := common.ParsePositiveInt64IDWithError(w, r, "appointmentId", "invalid appointment ID")
+	if !ok {
+		return
+	}
+	var req updateAppointmentRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	startTime, err := parseClock(req.StartTime)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	endTime, err := parseClock(req.EndTime)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	detail, err := rs.service.UpdateStaffAppointment(r.Context(), appointmentID, calendarService.UpdateAppointmentRequest{
+		Title:              req.Title,
+		Description:        req.Description,
+		Location:           req.Location,
+		StartDate:          req.StartDate,
+		EndDate:            req.EndDate,
+		StartTime:          startTime,
+		EndTime:            endTime,
+		AllDay:             req.AllDay,
+		OverviewVisibility: req.OverviewVisibility,
+		Recurrence:         req.Recurrence,
+	})
+	if err != nil {
+		renderCalendarError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, detail, "Appointment updated")
+}
+
+func (rs *Resource) cancelAppointment(w http.ResponseWriter, r *http.Request) {
+	appointmentID, ok := common.ParsePositiveInt64IDWithError(w, r, "appointmentId", "invalid appointment ID")
+	if !ok {
+		return
+	}
+	detail, err := rs.service.CancelStaffAppointment(r.Context(), appointmentID)
+	if err != nil {
+		renderCalendarError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, detail, "Appointment cancelled")
+}
+
+func (rs *Resource) deleteAppointment(w http.ResponseWriter, r *http.Request) {
+	appointmentID, ok := common.ParsePositiveInt64IDWithError(w, r, "appointmentId", "invalid appointment ID")
+	if !ok {
+		return
+	}
+	if err := rs.service.DeleteStaffAppointment(r.Context(), appointmentID); err != nil {
+		renderCalendarError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]string{"status": "deleted"}, "Appointment deleted")
+}
+
+func (rs *Resource) cancelOccurrence(w http.ResponseWriter, r *http.Request) {
+	appointmentID, ok := common.ParsePositiveInt64IDWithError(w, r, "appointmentId", "invalid appointment ID")
+	if !ok {
+		return
+	}
+	occurrenceDate, err := timezone.ParseDate(chi.URLParam(r, "occurrenceDate"))
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid occurrence date")))
+		return
+	}
+	if err := rs.service.CancelStaffAppointmentOccurrence(r.Context(), appointmentID, occurrenceDate); err != nil {
+		renderCalendarError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]string{"status": "cancelled"}, "Occurrence cancelled")
 }
 
 func (rs *Resource) appointmentOverview(w http.ResponseWriter, r *http.Request) {

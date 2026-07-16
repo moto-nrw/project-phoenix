@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  Ban,
   CalendarDays,
   Check,
   ChevronLeft,
@@ -8,7 +9,9 @@ import {
   Clock,
   Loader2,
   MapPin,
+  Pencil,
   Plus,
+  Trash2,
   Users,
   X,
 } from "lucide-react";
@@ -48,6 +51,25 @@ interface PersonalCalendarProps {
     status: "accepted" | "declined",
   ) => void;
   readonly respondingRecipientId?: string | null;
+  // Organizer-only management actions. Passed by the staff calendar page and
+  // omitted by the parents portal, so parents never see edit/cancel/delete.
+  readonly onEdit?: (event: CalendarEvent) => void;
+  readonly onCancel?: (event: CalendarEvent) => void;
+  readonly onDelete?: (event: CalendarEvent) => void;
+  readonly busyAppointmentId?: string | null;
+}
+
+interface CalendarEventActions {
+  readonly onShowOverview?: (appointmentId: string) => void;
+  readonly onRespond?: (
+    recipientId: string,
+    status: "accepted" | "declined",
+  ) => void;
+  readonly respondingRecipientId?: string | null;
+  readonly onEdit?: (event: CalendarEvent) => void;
+  readonly onCancel?: (event: CalendarEvent) => void;
+  readonly onDelete?: (event: CalendarEvent) => void;
+  readonly busyAppointmentId?: string | null;
 }
 
 const sourceTone = {
@@ -196,7 +218,20 @@ export function PersonalCalendar({
   onShowOverview,
   onRespond,
   respondingRecipientId,
+  onEdit,
+  onCancel,
+  onDelete,
+  busyAppointmentId,
 }: PersonalCalendarProps) {
+  const actions: CalendarEventActions = {
+    onShowOverview,
+    onRespond,
+    respondingRecipientId,
+    onEdit,
+    onCancel,
+    onDelete,
+    busyAppointmentId,
+  };
   const referenceDate = rawReferenceDate ?? weekStart ?? new Date();
   const handleDateChange = onDateChange ?? onWeekChange ?? (() => undefined);
   const handleViewModeChange = onViewModeChange ?? (() => undefined);
@@ -300,9 +335,7 @@ export function PersonalCalendar({
             <CalendarDayColumn
               day={referenceDate}
               events={eventsForDay(events, referenceDate)}
-              onShowOverview={onShowOverview}
-              onRespond={onRespond}
-              respondingRecipientId={respondingRecipientId}
+              actions={actions}
               className="min-h-96"
             />
           </div>
@@ -315,9 +348,7 @@ export function PersonalCalendar({
                 key={toISODate(day)}
                 day={day}
                 events={eventsForDay(events, day)}
-                onShowOverview={onShowOverview}
-                onRespond={onRespond}
-                respondingRecipientId={respondingRecipientId}
+                actions={actions}
                 className="min-h-96 border-r border-gray-200 last:border-r-0"
               />
             ))}
@@ -333,9 +364,7 @@ export function PersonalCalendar({
                   key={toISODate(day)}
                   day={day}
                   events={eventsForDay(events, day)}
-                  onShowOverview={onShowOverview}
-                  onRespond={onRespond}
-                  respondingRecipientId={respondingRecipientId}
+                  actions={actions}
                   compact
                   muted={!inMonth}
                   className="min-h-44 border-r border-b border-gray-200 last:border-r-0"
@@ -353,9 +382,7 @@ export function PersonalCalendar({
               <CalendarEventItem
                 key={event.id}
                 event={event}
-                onShowOverview={onShowOverview}
-                onRespond={onRespond}
-                respondingRecipientId={respondingRecipientId}
+                actions={actions}
               />
             ))
           )}
@@ -374,18 +401,14 @@ export function PersonalCalendar({
 function CalendarDayColumn({
   day,
   events,
-  onShowOverview,
-  onRespond,
-  respondingRecipientId,
+  actions,
   compact = false,
   muted = false,
   className = "",
 }: Readonly<{
   day: Date;
   events: readonly CalendarEvent[];
-  onShowOverview?: (appointmentId: string) => void;
-  onRespond?: (recipientId: string, status: "accepted" | "declined") => void;
-  respondingRecipientId?: string | null;
+  actions: CalendarEventActions;
   compact?: boolean;
   muted?: boolean;
   className?: string;
@@ -414,9 +437,7 @@ function CalendarDayColumn({
           <CalendarEventItem
             key={`${event.id}-${toISODate(day)}`}
             event={event}
-            onShowOverview={onShowOverview}
-            onRespond={onRespond}
-            respondingRecipientId={respondingRecipientId}
+            actions={actions}
           />
         ))}
       </div>
@@ -426,22 +447,37 @@ function CalendarDayColumn({
 
 function CalendarEventItem({
   event,
-  onShowOverview,
-  onRespond,
-  respondingRecipientId,
+  actions,
 }: Readonly<{
   event: CalendarEvent;
-  onShowOverview?: (appointmentId: string) => void;
-  onRespond?: (recipientId: string, status: "accepted" | "declined") => void;
-  respondingRecipientId?: string | null;
+  actions: CalendarEventActions;
 }>) {
+  const {
+    onShowOverview,
+    onRespond,
+    respondingRecipientId,
+    onEdit,
+    onCancel,
+    onDelete,
+    busyAppointmentId,
+  } = actions;
   const tone = sourceTone[event.source];
   const recipientId = event.recipient_id;
+  const cancelled = event.cancelled === true;
   const responding =
     Boolean(recipientId) && respondingRecipientId === recipientId;
+  const canManage =
+    event.source === "appointment" &&
+    event.can_edit &&
+    Boolean(event.appointment_id) &&
+    Boolean(onEdit ?? onCancel ?? onDelete);
+  const managing =
+    Boolean(event.appointment_id) && busyAppointmentId === event.appointment_id;
   return (
     <article
-      className="rounded-lg border border-gray-200 bg-white p-3 shadow-sm"
+      className={`rounded-lg border border-gray-200 bg-white p-3 shadow-sm ${
+        cancelled ? "opacity-70" : ""
+      }`}
       style={{ borderLeft: `4px solid ${tone.bar}`, backgroundColor: tone.bg }}
     >
       <div className="flex items-start justify-between gap-2">
@@ -450,13 +486,22 @@ function CalendarEventItem({
             <span className="rounded-md bg-white/80 px-1.5 py-0.5 text-[11px] font-semibold text-gray-700">
               {tone.label}
             </span>
-            {event.response_status ? (
+            {cancelled ? (
+              <span className="rounded-md bg-[#FF3130]/10 px-1.5 py-0.5 text-[11px] font-semibold text-[#CC2626]">
+                Abgesagt
+              </span>
+            ) : null}
+            {!cancelled && event.response_status ? (
               <span className="rounded-md bg-white/80 px-1.5 py-0.5 text-[11px] font-semibold text-gray-700">
                 {responseLabel[event.response_status] ?? event.response_status}
               </span>
             ) : null}
           </div>
-          <h2 className="mt-1 truncate text-sm font-semibold text-gray-950">
+          <h2
+            className={`mt-1 truncate text-sm font-semibold text-gray-950 ${
+              cancelled ? "line-through" : ""
+            }`}
+          >
             {event.title}
           </h2>
         </div>
@@ -497,7 +542,7 @@ function CalendarEventItem({
           Teilnehmer
         </Button>
       ) : null}
-      {event.can_respond && recipientId && onRespond ? (
+      {!cancelled && event.can_respond && recipientId && onRespond ? (
         <div className="mt-3 grid gap-1.5">
           <Button
             type="button"
@@ -521,6 +566,49 @@ function CalendarEventItem({
             <X className="h-4 w-4" aria-hidden />
             Absagen
           </Button>
+        </div>
+      ) : null}
+      {canManage ? (
+        <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/60 pt-2.5">
+          {onEdit ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              className="bg-white/50"
+              disabled={managing}
+              onClick={() => onEdit(event)}
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+              Bearbeiten
+            </Button>
+          ) : null}
+          {onCancel && !cancelled ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              className="bg-white/50 text-[#CC2626]"
+              disabled={managing}
+              onClick={() => onCancel(event)}
+            >
+              <Ban className="h-4 w-4" aria-hidden />
+              Absagen
+            </Button>
+          ) : null}
+          {onDelete ? (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              className="bg-white/50 text-[#CC2626]"
+              disabled={managing}
+              onClick={() => onDelete(event)}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+              Löschen
+            </Button>
+          ) : null}
         </div>
       ) : null}
     </article>

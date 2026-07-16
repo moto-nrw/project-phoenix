@@ -124,6 +124,42 @@ func (r *AppointmentRepository) ListOrganizedByStaff(ctx context.Context, staffI
 	return rows, nil
 }
 
+// Update overrides the generic repository Update. The appointment carries two
+// TIME columns (start_time/end_time) modeled as time.Time; bun's full-model
+// UPDATE re-binds those as year-0 timestamptz literals, which PostgreSQL rejects
+// ("date/time field value out of range") even though the equivalent INSERT
+// coerces them fine. We set the wall-clock columns as HH:MM:SS strings so there
+// is no date/year to shift, mirroring the explicit-column TIME update used
+// elsewhere in the codebase.
+func (r *AppointmentRepository) Update(ctx context.Context, appointment *calModels.Appointment) error {
+	appointment.UpdatedAt = time.Now()
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		TableExpr(tableExprAppointmentsAsAppointment).
+		Set(`title = ?`, appointment.Title).
+		Set(`description = ?`, appointment.Description).
+		Set(`location = ?`, appointment.Location).
+		Set(`start_date = ?`, appointment.StartDate).
+		Set(`end_date = ?`, appointment.EndDate).
+		Set(`start_time = ?`, timezone.WallClock(appointment.StartTime).Format("15:04:05")).
+		Set(`end_time = ?`, timezone.WallClock(appointment.EndTime).Format("15:04:05")).
+		Set(`all_day = ?`, appointment.AllDay).
+		Set(`delivery_mode = ?`, appointment.DeliveryMode).
+		Set(`overview_visibility = ?`, appointment.OverviewVisibility).
+		Set(`cancelled_at = ?`, appointment.CancelledAt).
+		Set(`updated_at = ?`, appointment.UpdatedAt).
+		Where(`"appointment".id = ?`, appointment.ID)
+
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		q = q.Where(where, val)
+	}
+
+	result, err := q.Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("update appointment: %w", err)
+	}
+	return base.AssertRowsAffected(result, 1, "update Appointment")
+}
+
 func applyAppointmentWindow(query *bun.SelectQuery, from, to timezone.Date) *bun.SelectQuery {
 	return query.Where(`(
 		("appointment".end_date >= ? AND "appointment".start_date <= ?)

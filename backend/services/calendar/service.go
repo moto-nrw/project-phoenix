@@ -44,6 +44,11 @@ type Service interface {
 	ListMyStaffEvents(ctx context.Context, from, to timezone.Date) ([]Event, error)
 	ListMyParentEvents(ctx context.Context, accountID int64, from, to timezone.Date) ([]Event, error)
 	CreateStaffAppointment(ctx context.Context, req CreateAppointmentRequest) (*AppointmentDetail, error)
+	GetStaffAppointmentDetail(ctx context.Context, appointmentID int64) (*AppointmentDetail, error)
+	UpdateStaffAppointment(ctx context.Context, appointmentID int64, req UpdateAppointmentRequest) (*AppointmentDetail, error)
+	CancelStaffAppointment(ctx context.Context, appointmentID int64) (*AppointmentDetail, error)
+	DeleteStaffAppointment(ctx context.Context, appointmentID int64) error
+	CancelStaffAppointmentOccurrence(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date) error
 	GetStaffAppointmentOverview(ctx context.Context, appointmentID int64) (*AppointmentOverview, error)
 	GetParentAppointmentOverview(ctx context.Context, accountID, appointmentID int64) (*AppointmentOverview, error)
 	RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error
@@ -97,6 +102,8 @@ type Event struct {
 	StartTime        string  `json:"start_time"`
 	EndTime          string  `json:"end_time"`
 	AllDay           bool    `json:"all_day"`
+	Cancelled        bool    `json:"cancelled"`
+	Recurring        bool    `json:"recurring"`
 	DeliveryMode     *string `json:"delivery_mode,omitempty"`
 	ResponseStatus   *string `json:"response_status,omitempty"`
 	RecipientID      *string `json:"recipient_id,omitempty"`
@@ -126,6 +133,24 @@ type CreateAppointmentRequest struct {
 	OverviewVisibility string              `json:"overview_visibility"`
 	Recurrence         *RecurrenceRequest  `json:"recurrence,omitempty"`
 	Targets            []AppointmentTarget `json:"targets"`
+}
+
+// UpdateAppointmentRequest carries the editable fields of an existing
+// appointment. Targeting (recipients) and delivery_mode are intentionally
+// immutable after creation: re-resolving the audience on every edit would wipe
+// the RSVP responses already collected. Changing the audience means cancelling
+// and re-creating the appointment.
+type UpdateAppointmentRequest struct {
+	Title              string             `json:"title"`
+	Description        *string            `json:"description,omitempty"`
+	Location           *string            `json:"location,omitempty"`
+	StartDate          timezone.Date      `json:"start_date"`
+	EndDate            timezone.Date      `json:"end_date"`
+	StartTime          time.Time          `json:"start_time"`
+	EndTime            time.Time          `json:"end_time"`
+	AllDay             bool               `json:"all_day"`
+	OverviewVisibility string             `json:"overview_visibility"`
+	Recurrence         *RecurrenceRequest `json:"recurrence,omitempty"`
 }
 
 type AppointmentOverview struct {
@@ -362,6 +387,171 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		Recipients:  recipients,
 		Targets:     targets,
 	}, nil
+}
+
+// loadOrganizedAppointment fetches an appointment and asserts the current staff
+// member is its organizer. Only the organizer may edit, cancel, or delete an
+// appointment. Returns ErrNotFound for missing rows and ErrForbidden when the
+// caller is not the organizer.
+func (s *service) loadOrganizedAppointment(ctx context.Context, appointmentID int64) (*calModels.Appointment, error) {
+	if appointmentID <= 0 {
+		return nil, fmt.Errorf("%w: appointment id is required", ErrInvalidRequest)
+	}
+	staff, err := s.cfg.UserContext.GetCurrentStaff(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("%w: current staff required", ErrForbidden)
+	}
+	appointment, err := s.cfg.AppointmentRepo.FindByID(ctx, appointmentID)
+	if err != nil {
+		return nil, err
+	}
+	if appointment == nil {
+		return nil, ErrNotFound
+	}
+	if appointment.OrganizerStaffID != staff.ID {
+		return nil, fmt.Errorf("%w: only the organizer may modify this appointment", ErrForbidden)
+	}
+	return appointment, nil
+}
+
+// appointmentDetail reloads the full detail (recurrence, recipients, targets)
+// for an appointment. Used by the lifecycle operations so callers (and the
+// notification layer in Phase B) get the same shape as CreateStaffAppointment.
+func (s *service) appointmentDetail(ctx context.Context, appointment *calModels.Appointment) (*AppointmentDetail, error) {
+	recurrence, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, appointment.ID)
+	if err != nil {
+		return nil, err
+	}
+	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
+	if err != nil {
+		return nil, err
+	}
+	targets, err := s.cfg.TargetRepo.FindByAppointmentID(ctx, appointment.ID)
+	if err != nil {
+		return nil, err
+	}
+	return &AppointmentDetail{
+		Appointment: appointment,
+		Recurrence:  recurrence,
+		Recipients:  recipients,
+		Targets:     targets,
+	}, nil
+}
+
+func (s *service) GetStaffAppointmentDetail(ctx context.Context, appointmentID int64) (*AppointmentDetail, error) {
+	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return nil, err
+	}
+	return s.appointmentDetail(ctx, appointment)
+}
+
+func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int64, req UpdateAppointmentRequest) (*AppointmentDetail, error) {
+	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return nil, err
+	}
+	if req.OverviewVisibility == "" {
+		req.OverviewVisibility = appointment.OverviewVisibility
+	}
+	if req.EndDate.IsZero() {
+		req.EndDate = req.StartDate
+	}
+
+	appointment.Title = req.Title
+	appointment.Description = req.Description
+	appointment.Location = req.Location
+	appointment.StartDate = req.StartDate
+	appointment.EndDate = req.EndDate
+	appointment.StartTime = timezone.WallClock(req.StartTime)
+	appointment.EndTime = timezone.WallClock(req.EndTime)
+	appointment.AllDay = req.AllDay
+	appointment.OverviewVisibility = req.OverviewVisibility
+	if err := appointment.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
+	}
+
+	recurrence := recurrenceRuleFromRequest(req.Recurrence)
+	if recurrence != nil {
+		recurrence.AppointmentID = appointment.ID
+		if err := recurrence.Validate(); err != nil {
+			return nil, fmt.Errorf("%w: %v", ErrInvalidRequest, err)
+		}
+		if recurrence.EndsOn != nil && recurrence.EndsOn.Before(appointment.StartDate) {
+			return nil, fmt.Errorf("%w: recurrence end must be on or after start date", ErrInvalidRequest)
+		}
+	}
+
+	if err := s.cfg.AppointmentRepo.Update(ctx, appointment); err != nil {
+		return nil, err
+	}
+	// Replace the recurrence rule wholesale: the DB enforces one rule per
+	// appointment, so drop the old row and recreate if the edit still recurs.
+	if err := s.cfg.RecurrenceRepo.DeleteByAppointmentID(ctx, appointment.ID); err != nil {
+		return nil, err
+	}
+	if recurrence != nil {
+		if err := s.cfg.RecurrenceRepo.Create(ctx, recurrence); err != nil {
+			return nil, err
+		}
+	}
+
+	return s.appointmentDetail(ctx, appointment)
+}
+
+func (s *service) CancelStaffAppointment(ctx context.Context, appointmentID int64) (*AppointmentDetail, error) {
+	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return nil, err
+	}
+	if appointment.CancelledAt == nil {
+		now := time.Now()
+		appointment.CancelledAt = &now
+		if err := s.cfg.AppointmentRepo.Update(ctx, appointment); err != nil {
+			return nil, err
+		}
+	}
+	return s.appointmentDetail(ctx, appointment)
+}
+
+func (s *service) DeleteStaffAppointment(ctx context.Context, appointmentID int64) error {
+	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return err
+	}
+	// Child rows (recurrence, recipients, recipient-students, targets, occurrence
+	// overrides) are removed by ON DELETE CASCADE on the appointment FK.
+	return s.cfg.AppointmentRepo.Delete(ctx, appointment.ID)
+}
+
+func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date) error {
+	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
+	if err != nil {
+		return err
+	}
+	if occurrenceDate.IsZero() {
+		return fmt.Errorf("%w: occurrence date is required", ErrInvalidRequest)
+	}
+	// Reuse an existing override for this date (e.g. from a prior single-occurrence
+	// edit) so cancelling stays idempotent and respects the (appointment, date)
+	// uniqueness constraint.
+	existing, err := s.cfg.OverrideRepo.FindByAppointmentIDsAndOccurrenceDates(ctx, []int64{appointment.ID}, []timezone.Date{occurrenceDate})
+	if err != nil {
+		return err
+	}
+	if len(existing) > 0 {
+		override := existing[0]
+		if override.Cancelled {
+			return nil
+		}
+		override.Cancelled = true
+		return s.cfg.OverrideRepo.Update(ctx, override)
+	}
+	return s.cfg.OverrideRepo.Create(ctx, &calModels.AppointmentOccurrenceOverride{
+		AppointmentID:  appointment.ID,
+		OccurrenceDate: occurrenceDate,
+		Cancelled:      true,
+	})
 }
 
 func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID int64) (*AppointmentOverview, error) {
@@ -718,6 +908,7 @@ func (s *service) expandAppointmentEvents(ctx context.Context, appointments []*c
 				continue
 			}
 			event := appointmentEvent(appointment, occurrence, status, recipientID, staffID)
+			event.Recurring = true
 			applyOverride(&event, override)
 			events = append(events, event)
 		}
@@ -775,6 +966,7 @@ func (s *service) expandGuardianAppointmentEvents(ctx context.Context, appointme
 			}
 			event := appointmentEvent(appointment, occurrence, status, recipientID, 0)
 			event.CanViewOverview = canParentViewOverview(appointment, recipientID != nil)
+			event.Recurring = true
 			applyOverride(&event, override)
 			events = append(events, event)
 		}
@@ -1180,6 +1372,7 @@ func appointmentEvent(appointment *calModels.Appointment, occurrenceDate timezon
 		StartTime:        formatClock(appointment.StartTime),
 		EndTime:          formatClock(appointment.EndTime),
 		AllDay:           appointment.AllDay,
+		Cancelled:        appointment.CancelledAt != nil,
 		DeliveryMode:     &deliveryMode,
 		ResponseStatus:   responseStatus,
 		RecipientID:      recipientIDString,
