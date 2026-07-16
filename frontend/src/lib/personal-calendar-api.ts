@@ -82,6 +82,7 @@ export interface CreateCalendarAppointmentRequest {
   readonly overview_visibility?: CalendarOverviewVisibility;
   readonly recurrence?: CalendarRecurrenceRequest;
   readonly targets: CalendarTarget[];
+  readonly send_email?: boolean;
 }
 
 // Editing an appointment cannot change its audience (targets) or delivery mode:
@@ -97,6 +98,7 @@ export interface UpdateCalendarAppointmentRequest {
   readonly all_day: boolean;
   readonly overview_visibility?: CalendarOverviewVisibility;
   readonly recurrence?: CalendarRecurrenceRequest;
+  readonly send_email?: boolean;
 }
 
 interface CalendarAttendee {

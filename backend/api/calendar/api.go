@@ -69,6 +69,7 @@ type createAppointmentRequest struct {
 	OverviewVisibility string                             `json:"overview_visibility"`
 	Recurrence         *calendarService.RecurrenceRequest `json:"recurrence,omitempty"`
 	Targets            []appointmentTargetRequest         `json:"targets"`
+	SendEmail          bool                               `json:"send_email"`
 }
 
 type updateAppointmentRequest struct {
@@ -82,6 +83,7 @@ type updateAppointmentRequest struct {
 	AllDay             bool                               `json:"all_day"`
 	OverviewVisibility string                             `json:"overview_visibility"`
 	Recurrence         *calendarService.RecurrenceRequest `json:"recurrence,omitempty"`
+	SendEmail          bool                               `json:"send_email"`
 }
 
 type requestID int64
@@ -183,6 +185,7 @@ func (rs *Resource) createAppointment(w http.ResponseWriter, r *http.Request) {
 		OverviewVisibility: req.OverviewVisibility,
 		Recurrence:         req.Recurrence,
 		Targets:            serviceTargets(req.Targets),
+		SendEmail:          req.SendEmail,
 	})
 	if err != nil {
 		renderCalendarError(w, r, err)
@@ -235,6 +238,7 @@ func (rs *Resource) updateAppointment(w http.ResponseWriter, r *http.Request) {
 		AllDay:             req.AllDay,
 		OverviewVisibility: req.OverviewVisibility,
 		Recurrence:         req.Recurrence,
+		SendEmail:          req.SendEmail,
 	})
 	if err != nil {
 		renderCalendarError(w, r, err)

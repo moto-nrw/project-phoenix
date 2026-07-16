@@ -266,6 +266,7 @@ export default function StaffCalendarPage() {
     useState<CalendarDeliveryMode>("rsvp_required");
   const [overviewVisibility, setOverviewVisibility] =
     useState<CalendarOverviewVisibility>("organizer");
+  const [sendEmail, setSendEmail] = useState(false);
   const [targetSearch, setTargetSearch] = useState("");
   const [targets, setTargets] = useState<DraftTarget[]>([]);
   const [overview, setOverview] = useState<CalendarAppointmentOverview | null>(
@@ -348,6 +349,7 @@ export default function StaffCalendarPage() {
     setIntervalCount(1);
     setOverviewVisibility("organizer");
     setDeliveryMode("rsvp_required");
+    setSendEmail(false);
     setEditingId(null);
     setFormOpen(false);
   };
@@ -378,6 +380,7 @@ export default function StaffCalendarPage() {
       setStartTime(event.all_day ? "09:00" : event.start_time);
       setEndTime(event.all_day ? "10:00" : event.end_time);
       setOverviewVisibility(detail.appointment.overview_visibility);
+      setSendEmail(false);
       if (detail.recurrence) {
         setFrequency(detail.recurrence.frequency);
         setIntervalCount(detail.recurrence.interval_count);
@@ -513,6 +516,7 @@ export default function StaffCalendarPage() {
           all_day: allDay,
           overview_visibility: overviewVisibility,
           recurrence,
+          send_email: sendEmail,
         });
         toast.success("Termin wurde aktualisiert.");
       } else {
@@ -529,6 +533,7 @@ export default function StaffCalendarPage() {
           overview_visibility: overviewVisibility,
           recurrence,
           targets: targets.map(serializeTarget),
+          send_email: sendEmail,
         });
         toast.success("Termin wurde erstellt.");
       }
@@ -667,6 +672,25 @@ export default function StaffCalendarPage() {
               disabled={submitting}
             />
             Ganztägig
+          </label>
+
+          <label
+            htmlFor="calendar-send-email"
+            className="flex items-start gap-2 text-sm font-medium text-gray-700"
+          >
+            <Checkbox
+              id="calendar-send-email"
+              checked={sendEmail}
+              onChange={(event) => setSendEmail(event.target.checked)}
+              disabled={submitting}
+            />
+            <span>
+              Eltern per E-Mail benachrichtigen
+              <span className="mt-0.5 block text-xs font-normal text-gray-500">
+                Sendet eine E-Mail mit Titel und Termin an die eingeladenen
+                Eltern. Ohne Haken erscheint der Termin nur im Eltern-Portal.
+              </span>
+            </span>
           </label>
 
           <label className="block">

@@ -15,8 +15,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	calendarSvc "github.com/moto-nrw/project-phoenix/services/calendar"
+	platformService "github.com/moto-nrw/project-phoenix/services/platform"
 	usercontextSvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -24,9 +26,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupCalendarService(t *testing.T, db *bun.DB) calendarSvc.Service {
-	t.Helper()
-
+func calendarTestConfig(db *bun.DB) calendarSvc.Config {
 	repos := repositories.NewFactory(db)
 	userContext := usercontextSvc.NewUserContextServiceWithRepos(
 		usercontextSvc.UserContextRepositories{
@@ -46,7 +46,7 @@ func setupCalendarService(t *testing.T, db *bun.DB) calendarSvc.Service {
 		slog.Default(),
 	)
 
-	return calendarSvc.NewService(calendarSvc.Config{
+	return calendarSvc.Config{
 		AppointmentRepo:      repos.CalendarAppointment,
 		RecurrenceRepo:       repos.CalendarRecurrenceRule,
 		RecipientRepo:        repos.CalendarAppointmentRecipient,
@@ -64,7 +64,35 @@ func setupCalendarService(t *testing.T, db *bun.DB) calendarSvc.Service {
 		ActivityInstanceRepo: repos.ActivityInstance,
 		UserContext:          userContext,
 		DB:                   db,
-	})
+	}
+}
+
+func setupCalendarService(t *testing.T, db *bun.DB) calendarSvc.Service {
+	t.Helper()
+	return calendarSvc.NewService(calendarTestConfig(db))
+}
+
+func setupCalendarServiceWithOutbox(t *testing.T, db *bun.DB, outbox calendarSvc.OutboxEnqueuer) calendarSvc.Service {
+	t.Helper()
+	cfg := calendarTestConfig(db)
+	cfg.Outbox = outbox
+	cfg.ParentsURL = "https://parents.test"
+	return calendarSvc.NewService(cfg)
+}
+
+type recordingOutbox struct {
+	enqueued  []platformService.EnqueueRequest
+	cancelled int
+}
+
+func (r *recordingOutbox) Enqueue(_ context.Context, req platformService.EnqueueRequest) (*platformModels.EmailOutbox, error) {
+	r.enqueued = append(r.enqueued, req)
+	return &platformModels.EmailOutbox{}, nil
+}
+
+func (r *recordingOutbox) CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error) {
+	r.cancelled++
+	return 0, nil
 }
 
 func calendarContext(accountID int64) context.Context {
@@ -318,6 +346,68 @@ func TestCalendarServiceIntegration_UpdateCancelDeleteLifecycle(t *testing.T) {
 	events, err = service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 3, 1), timezone.NewDate(2026, 3, 10))
 	require.NoError(t, err)
 	assert.Empty(t, eventDates(events, calModels.EventSourceAppointment))
+}
+
+func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	outbox := &recordingOutbox{}
+	service := setupCalendarServiceWithOutbox(t, db, outbox)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Notify", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	// Create WITHOUT send_email: no mail is queued.
+	silent, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Silent",
+		StartDate:    timezone.NewDate(2026, 4, 1),
+		EndDate:      timezone.NewDate(2026, 4, 1),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, silent.Appointment.ID) })
+	assert.Empty(t, outbox.enqueued, "no email should be queued without send_email")
+
+	// Create WITH send_email: one published mail to the guardian.
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Elternabend",
+		Location:     testpkg.StrPtr("Aula"),
+		StartDate:    timezone.NewDate(2026, 4, 2),
+		EndDate:      timezone.NewDate(2026, 4, 2),
+		StartTime:    wallClock(18, 0),
+		EndTime:      wallClock(19, 30),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		SendEmail:    true,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+	require.Len(t, outbox.enqueued, 1)
+	published := outbox.enqueued[0]
+	assert.Equal(t, platformModels.EmailKindAppointmentPublished, published.Kind)
+	assert.Equal(t, platformModels.EmailRelatedTypeAppointment, published.RelatedEntityType)
+	assert.Equal(t, detail.Appointment.ID, published.RelatedEntityID)
+	assert.Equal(t, "Elternabend", published.Payload["title"])
+	assert.NotEmpty(t, published.Payload["recipient_email"])
+
+	// Cancelling queues a cancellation notice and clears pending mail.
+	_, err = service.CancelStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+	assert.Equal(t, 1, outbox.cancelled, "cancel should clear pending mail once")
+	require.Len(t, outbox.enqueued, 2)
+	assert.Equal(t, platformModels.EmailKindAppointmentCancelled, outbox.enqueued[1].Kind)
 }
 
 func TestCalendarServiceIntegration_CancelSingleOccurrence(t *testing.T) {

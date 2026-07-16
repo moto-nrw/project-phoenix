@@ -854,6 +854,18 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			DefaultFrom: defaultFrom,
 		})),
 	)
+	// Calendar appointment (Termine) notifications — one renderer, all four kinds.
+	appointmentRenderer := platform.RendererFunc(calendarService.NewAppointmentRenderer(calendarService.EmailConfig{
+		DefaultFrom: defaultFrom,
+	}))
+	for _, kind := range []string{
+		platformModels.EmailKindAppointmentPublished,
+		platformModels.EmailKindAppointmentUpdated,
+		platformModels.EmailKindAppointmentCancelled,
+		platformModels.EmailKindAppointmentReminder,
+	} {
+		emailTemplateRegistry.Register(kind, appointmentRenderer)
+	}
 	// Enrollment outbox renderers, one per EmailKind sharing the same config.
 	// Per-status decision emails (PR 8 slice 2) keep one renderer per kind so
 	// subjects + templates stay independent and copy updates stay contained.
@@ -1325,6 +1337,10 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActivityInstanceRepo: repos.ActivityInstance,
 		UserContext:          userContextService,
 		DB:                   db,
+		Outbox:               emailOutboxService,
+		SchoolRepo:           repos.School,
+		Settings:             settingsService,
+		ParentsURL:           parentsURL,
 	})
 
 	parentService := parent.NewService(parent.ServiceConfig{

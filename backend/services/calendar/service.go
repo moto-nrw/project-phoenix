@@ -14,6 +14,7 @@ import (
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	educationModels "github.com/moto-nrw/project-phoenix/models/education"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/services/usercontext"
@@ -74,6 +75,13 @@ type Config struct {
 	ActivityInstanceRepo scheduleModels.ActivityInstanceRepository
 	UserContext          usercontext.UserContextService
 	DB                   *bun.DB
+
+	// Notification dependencies (all optional — nil disables e-mail; the in-app
+	// calendar is unaffected).
+	Outbox     OutboxEnqueuer
+	SchoolRepo platformModels.SchoolRepository
+	Settings   LogoResolver
+	ParentsURL string
 }
 
 type service struct {
@@ -133,6 +141,7 @@ type CreateAppointmentRequest struct {
 	OverviewVisibility string              `json:"overview_visibility"`
 	Recurrence         *RecurrenceRequest  `json:"recurrence,omitempty"`
 	Targets            []AppointmentTarget `json:"targets"`
+	SendEmail          bool                `json:"send_email"`
 }
 
 // UpdateAppointmentRequest carries the editable fields of an existing
@@ -151,6 +160,7 @@ type UpdateAppointmentRequest struct {
 	AllDay             bool               `json:"all_day"`
 	OverviewVisibility string             `json:"overview_visibility"`
 	Recurrence         *RecurrenceRequest `json:"recurrence,omitempty"`
+	SendEmail          bool               `json:"send_email"`
 }
 
 type AppointmentOverview struct {
@@ -381,6 +391,12 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		return nil, err
 	}
 
+	if req.SendEmail {
+		if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentPublished); err != nil {
+			return nil, err
+		}
+	}
+
 	return &AppointmentDetail{
 		Appointment: appointment,
 		Recurrence:  recurrence,
@@ -496,6 +512,12 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 		}
 	}
 
+	if req.SendEmail {
+		if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentUpdated); err != nil {
+			return nil, err
+		}
+	}
+
 	return s.appointmentDetail(ctx, appointment)
 }
 
@@ -510,6 +532,14 @@ func (s *service) CancelStaffAppointment(ctx context.Context, appointmentID int6
 		if err := s.cfg.AppointmentRepo.Update(ctx, appointment); err != nil {
 			return nil, err
 		}
+		// Kill any queued reminders/notices for this appointment, then send a
+		// single cancellation notice.
+		if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment cancelled"); err != nil {
+			return nil, err
+		}
+		if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentCancelled); err != nil {
+			return nil, err
+		}
 	}
 	return s.appointmentDetail(ctx, appointment)
 }
@@ -517,6 +547,11 @@ func (s *service) CancelStaffAppointment(ctx context.Context, appointmentID int6
 func (s *service) DeleteStaffAppointment(ctx context.Context, appointmentID int64) error {
 	appointment, err := s.loadOrganizedAppointment(ctx, appointmentID)
 	if err != nil {
+		return err
+	}
+	// Deleting removes the appointment silently (no notice); kill any queued
+	// e-mails first so the worker doesn't send a mail for a row that's gone.
+	if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment deleted"); err != nil {
 		return err
 	}
 	// Child rows (recurrence, recipients, recipient-students, targets, occurrence
