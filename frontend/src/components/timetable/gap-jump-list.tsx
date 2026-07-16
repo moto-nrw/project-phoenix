@@ -111,8 +111,10 @@ export function GapJumpList({
           </p>
           <ul className="max-h-72 divide-y divide-gray-100 overflow-y-auto">
             {sorted.map((gap) => {
-              const planned = gap.plannedStaffCount ?? gap.assignedStaffCount;
-              const present = gap.presentStaffCount ?? gap.assignedStaffCount;
+              const hasCoveragePair =
+                gap.plannedStaffCount !== undefined &&
+                gap.plannedStaffCount > 0 &&
+                gap.presentStaffCount !== undefined;
               return (
                 <li key={gap.instanceId}>
                   <button
@@ -135,8 +137,12 @@ export function GapJumpList({
                       <CoverageIndicator
                         size="sm"
                         state="gap"
-                        current={present}
-                        total={planned}
+                        current={
+                          hasCoveragePair ? gap.presentStaffCount : undefined
+                        }
+                        total={
+                          hasCoveragePair ? gap.plannedStaffCount : undefined
+                        }
                       />
                       <span className="text-[11px] text-gray-400 tabular-nums">
                         {formatDate(gap.date)}
