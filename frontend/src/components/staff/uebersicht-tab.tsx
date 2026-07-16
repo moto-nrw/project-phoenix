@@ -44,7 +44,9 @@ import {
   toDateKey,
   toIsoDayOfWeek,
 } from "~/lib/staff-metrics-helpers";
+import { parseISODate } from "~/lib/date-helpers";
 import { useAccountBalance } from "~/lib/hooks/use-account-balance";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useSWRAuth } from "~/lib/swr";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 
@@ -141,7 +143,13 @@ function DistributionCenterLabel({
 //
 // Period-bound KPIs (this week, this month) live on the Zeiterfassung tab.
 export function UebersichtTab({ staffId }: { readonly staffId: string }) {
-  const today = useMemo(() => new Date(), []);
+  // The Berlin day, not the browser's, and re-rendered on the rollover: the
+  // overview's target range and account balance both derive from "today", and
+  // the server-computed Stundenkonto uses the Berlin month. A non-Berlin
+  // browser (or one crossing midnight) would otherwise range its charts against
+  // a different day than the headline balance and drift apart (#1842).
+  const todayISO = useBerlinToday();
+  const today = useMemo(() => parseISODate(todayISO), [todayISO]);
 
   const { data: timeTrackingConfig } = useSWRAuth("time-tracking-config", () =>
     timeTrackingService.getConfig(),

@@ -34,6 +34,12 @@ vi.mock("~/lib/time-tracking-api", () => ({
   timeTrackingService: { getConfig: vi.fn() },
 }));
 
+// A fixed Berlin day distinct from the real browser date, so a regression to
+// `new Date()` would key the target range against a different day (#1842).
+vi.mock("~/lib/hooks/use-berlin-today", () => ({
+  useBerlinToday: () => "2025-03-10",
+}));
+
 import { UebersichtTab } from "./uebersicht-tab";
 
 describe("UebersichtTab Soll-Quelle", () => {
@@ -56,5 +62,19 @@ describe("UebersichtTab Soll-Quelle", () => {
 
     // Kein Plan-Key => keine Möglichkeit, ihn auf historische Tage anzuwenden.
     expect(swrKeys).not.toContain("staff-schedule-1");
+  });
+
+  it("leitet 'heute' aus der Berliner Zeit ab, nicht aus der Browser-Zeitzone", () => {
+    render(<UebersichtTab staffId="1" />);
+
+    // yearEndKey = toDateKey(berlinToday): der Kontozeitraum-Key endet auf dem
+    // Berliner Tag (2025-03-10), nicht auf dem lokalen new Date().
+    expect(
+      swrKeys.some(
+        (k) =>
+          k.startsWith("staff-schedule-targets-account-1-") &&
+          k.endsWith("-2025-03-10"),
+      ),
+    ).toBe(true);
   });
 });

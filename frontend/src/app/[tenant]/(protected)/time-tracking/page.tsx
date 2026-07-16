@@ -1638,6 +1638,12 @@ function OwnZeiterfassungSection({
     accountStartDate !== "" &&
     `${monthYear}-${String(monthNumber).padStart(2, "0")}` <
       accountStartDate.slice(0, 7);
+  // A start later THIS month (same month, future day) is not "pre-account" by
+  // the month comparison above, but the account still hasn't begun — the card
+  // must not print a "Stundenkonto Stand" for it (#1842). ISO dates compare
+  // lexicographically; both are "YYYY-MM-DD".
+  const accountStartsInFuture =
+    accountStartDate !== "" && accountStartDate > todayISO;
 
   // Self-scoped audit-trail fetcher so staff read their own Abweichungsgründe
   // without time_tracking:manage (#1842 AC8).
@@ -1817,6 +1823,7 @@ function OwnZeiterfassungSection({
             }
             isCurrentMonth={isCurrentMonth}
             isPreAccountMonth={isPreAccountMonth}
+            accountStartsInFuture={accountStartsInFuture}
             accountStartDate={accountStartDate}
           />
         </div>

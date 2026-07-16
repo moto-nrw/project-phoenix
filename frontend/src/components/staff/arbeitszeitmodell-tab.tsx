@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSWRConfig } from "swr";
 
 import { Loading } from "~/components/ui/loading";
 import { Modal } from "~/components/ui/modal";
@@ -22,6 +23,21 @@ import { useSWRAuth } from "~/lib/swr";
 import { formatDuration } from "~/lib/time-tracking-helpers";
 
 const logger = createLogger({ component: "ArbeitszeitmodellTab" });
+
+// A work-time model save rewrites the contractual Soll, so every cache that
+// prices days against it — the date-valid targets and the month aggregate the
+// sibling Zeiterfassung / Übersicht tabs hold — goes stale. Both are recomputed
+// live on the server, so a plain invalidation suffices. useSWRAuth prefixes
+// keys with the tenant slug, so we match with includes, not startsWith — the
+// same convention as staff-session-table's handleSaved (#1842).
+export function isStaleAfterModelSave(key: unknown): boolean {
+  return (
+    typeof key === "string" &&
+    (key.includes("staff-schedule-targets-") ||
+      key.includes("staff-month-summary-") ||
+      key.includes("time-tracking-month-summary-"))
+  );
+}
 
 const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr"] as const;
 const WORK_DAYS: readonly number[] = [0, 1, 2, 3, 4];
@@ -64,6 +80,8 @@ export function ArbeitszeitmodellTab({
     staffScheduleService.getSchedule(staffId),
   );
 
+  const { mutate } = useSWRConfig();
+
   if (isLoading || !schedule) {
     return <Loading fullPage={false} />;
   }
@@ -78,6 +96,7 @@ export function ArbeitszeitmodellTab({
     schedule.rotationLength > 0 ? weeklyTotal / schedule.rotationLength : 0;
   const handleScheduleSaved = () => {
     mutateSchedule();
+    void mutate(isStaleAfterModelSave);
   };
 
   return (

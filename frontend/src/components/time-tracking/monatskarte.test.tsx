@@ -108,6 +108,31 @@ describe("Monatskarte", () => {
     });
   });
 
+  // A start LATER this month is not "pre-account" by the month comparison in
+  // the tab (same YYYY-MM), yet the account has not begun — the backend answers
+  // a clean 0 for the empty span before the start day, which must not surface
+  // as "Stundenkonto Stand: 0:00" (#1842).
+  describe("same-month future account start", () => {
+    it("suppresses 'Stundenkonto Stand' and explains when the account begins", () => {
+      render(
+        <Monatskarte
+          summary={makeSummary({ carryInMinutes: 0, closingBalanceMinutes: 0 })}
+          isLoading={false}
+          isCurrentMonth
+          accountStartsInFuture
+          accountStartDate="2026-06-20"
+        />,
+      );
+
+      expect(screen.queryByText("Stundenkonto Stand")).not.toBeInTheDocument();
+      // The month's own figures are still shown honestly.
+      expect(screen.getByText("Saldo Monat (bis heute)")).toBeInTheDocument();
+      expect(
+        screen.getByText(/Das Stundenkonto beginnt am 20\.06\.2026/),
+      ).toBeInTheDocument();
+    });
+  });
+
   it("renders nothing without a summary and an error state on failure", () => {
     const { container, rerender } = render(
       <Monatskarte summary={null} isLoading={false} />,

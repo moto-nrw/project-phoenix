@@ -223,6 +223,22 @@ const maxFutureMonths = 12
 // HTTP 400.
 var ErrMonthOutOfRange = errors.New("month out of range")
 
+// maxCarryChainMonths bounds how far BACK the live carry chain may reach. The
+// requested month sizes the future work (maxFutureMonths); the account start
+// setting sizes the past work, and unlike the request it is not sanitized by a
+// range check — a tenant admin can set operations.time_tracking_account_start_date
+// to any valid date. A value years or decades back would make every
+// current-month card (re)aggregate and (re)query every intervening day, and the
+// open-month poll would trigger that decades-wide walk on a fixed interval.
+//
+// The chain therefore never starts earlier than this many months before the
+// requested month, capping the per-request work at a constant regardless of the
+// configured start. Ten years is far beyond any real Stundenkonto this product
+// can hold (schools onboard within its lifetime), so a legitimate account is
+// never clamped; only a misconfigured start hits the bound, and its carry is
+// then computed from the floor rather than from an impossible date.
+const maxCarryChainMonths = 120
+
 func validateMonth(year, month int) error {
 	if year < 2000 || year > 2100 || month < 1 || month > 12 {
 		return fmt.Errorf("invalid month %d-%d", year, month)
@@ -593,6 +609,19 @@ func (s *workTimeMonthService) GetMonthSummary(ctx context.Context, staffID int6
 	startKey, first := monthOf(anchor), anchor
 	if key.before(startKey) {
 		startKey, first = key, key.firstDay()
+	}
+
+	// Bound how far back the chain reaches so a stale/misconfigured account
+	// start can't make each poll aggregate and query decades of days. A
+	// realistic account never predates the floor, so this clamps only absurd
+	// settings; when it fires the carry is computed from the floor.
+	if floorKey := key.addMonths(-maxCarryChainMonths); startKey.before(floorKey) {
+		s.getLogger().Warn("account start older than carry-chain bound, clamping",
+			"account_start", first.String(),
+			"floor", floorKey.firstDay().String(),
+			"max_carry_chain_months", maxCarryChainMonths,
+		)
+		startKey, first = floorKey, floorKey.firstDay()
 	}
 
 	aggregates, err := s.computeAggregates(ctx, staffID, first, key, today)

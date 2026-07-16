@@ -21,10 +21,12 @@ import (
 type wtmMockSessionReader struct {
 	sessions []*activeModels.WorkSession
 	calls    int
+	lastFrom timezone.Date
 }
 
 func (m *wtmMockSessionReader) GetHistoryByStaffID(_ context.Context, _ int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
 	m.calls++
+	m.lastFrom = from
 	var result []*activeModels.WorkSession
 	for _, s := range m.sessions {
 		if !s.Date.Before(from) && !s.Date.After(to) {
@@ -204,6 +206,41 @@ func TestWTMMonthSummary_AcceptsMonthWithinFutureBound(t *testing.T) {
 
 	_, err = f.svc.GetMonthSummary(ctx, wtmStaffID, 2027, 8)
 	require.ErrorIs(t, err, ErrMonthOutOfRange, "one month past the bound is rejected")
+}
+
+// The account start setting is not range-checked (any valid date is accepted),
+// so a stale/misconfigured value years back would otherwise make every
+// current-month card aggregate and query every intervening day — on a poll.
+// The carry chain must not reach further back than maxCarryChainMonths before
+// the requested month regardless of how old the setting is (#1842).
+func TestWTMMonthSummary_ClampsAncientAccountStart(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2000-01-01" // 26 years before the requested month
+	ctx := context.Background()
+
+	// today = 2026-07-15; requesting the current month. The floor is
+	// 2026-07 minus 120 months = 2016-07-01; the walk must start no earlier.
+	_, err := f.svc.GetMonthSummary(ctx, wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+
+	floor := timezone.NewDate(2016, time.July, 1)
+	assert.Falsef(t, f.sessions.lastFrom.Before(floor),
+		"session query started at %s, before the carry-chain floor %s",
+		f.sessions.lastFrom.String(), floor.String())
+}
+
+// A realistic account start (well within the bound) is never clamped: the chain
+// still begins exactly on the configured date, so the bound cannot silently
+// drop carry for a legitimate Stundenkonto.
+func TestWTMMonthSummary_RealisticAccountStartNotClamped(t *testing.T) {
+	f := newWTMFixture() // account start 2026-06-01, today 2026-07-15
+	ctx := context.Background()
+
+	_, err := f.svc.GetMonthSummary(ctx, wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+
+	assert.Equal(t, timezone.NewDate(2026, time.June, 1), f.sessions.lastFrom,
+		"an account start within the bound must not be clamped")
 }
 
 // June 2026 Mondays: 1, 8, 15, 22, 29 → 5 × 480 = 2400 target minutes.

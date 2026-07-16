@@ -89,6 +89,16 @@ export interface MonatskarteProps {
    * chain, so the carry rows describe nothing and must not be shown.
    */
   readonly isPreAccountMonth?: boolean;
+  /**
+   * True when the configured account start lies in the FUTURE (a later day of
+   * the current month, so the month is NOT wholly pre-account). The account
+   * hasn't begun, so its closing value is not yet a real Stundenkonto — the
+   * backend answers a clean 0 for the empty span before the start day, which
+   * must not be printed as "Stundenkonto Stand: 0:00" before the account
+   * exists (#1842). Distinct from `isPreAccountMonth`, which covers a month
+   * lying entirely before the start.
+   */
+  readonly accountStartsInFuture?: boolean;
   /** Configured account start ("YYYY-MM-DD"), for the pre-account note. */
   readonly accountStartDate?: string;
 }
@@ -104,6 +114,7 @@ export function Monatskarte({
   error,
   isCurrentMonth = false,
   isPreAccountMonth = false,
+  accountStartsInFuture = false,
   accountStartDate,
 }: MonatskarteProps) {
   if (isLoading) {
@@ -210,9 +221,11 @@ export function Monatskarte({
         />
         {/* For a pre-account month closingBalanceMinutes is just this month's
             own Saldo repeated — it carries nothing in and feeds nothing on.
-            Printing it as "Übertrag Monatsende" or "Stundenkonto Stand" would
-            present a standalone monthly delta as a cumulative balance. */}
-        {!isPreAccountMonth && (
+            And before a same-month future start the account has not begun, so
+            the value is a clean 0 for an empty span. Printing either as
+            "Übertrag Monatsende" or "Stundenkonto Stand" would present a
+            non-cumulative figure as a real balance. */}
+        {!isPreAccountMonth && !accountStartsInFuture && (
           <SummaryRow
             label={
               isCurrentMonth ? "Stundenkonto Stand" : "Übertrag Monatsende"
@@ -232,6 +245,16 @@ export function Monatskarte({
             : ""}{" "}
           und wird eigenständig gerechnet. Der Saldo fließt nicht in das
           Stundenkonto ein.
+        </p>
+      )}
+
+      {!isPreAccountMonth && accountStartsInFuture && (
+        <p className="mt-3 text-xs text-gray-500">
+          Das Stundenkonto beginnt
+          {accountStartDate
+            ? ` am ${formatIsoDateGerman(accountStartDate)}`
+            : " später in diesem Monat"}
+          . Bis dahin wird noch kein Stundenkonto-Stand geführt.
         </p>
       )}
     </div>

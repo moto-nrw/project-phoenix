@@ -164,6 +164,12 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     accountStartDate !== "" &&
     `${monthYear}-${String(monthNumber).padStart(2, "0")}` <
       accountStartDate.slice(0, 7);
+  // A start later THIS month (same month, future day) is not "pre-account" by
+  // the month comparison above, but the account still hasn't begun — the card
+  // must not print a "Stundenkonto Stand" for it (#1842). ISO dates compare
+  // lexicographically; both are "YYYY-MM-DD".
+  const accountStartsInFuture =
+    accountStartDate !== "" && accountStartDate > todayISO;
   const {
     data: monthSummary,
     isLoading: monthSummaryLoading,
@@ -253,6 +259,7 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               }
               isCurrentMonth={isCurrentMonth}
               isPreAccountMonth={isPreAccountMonth}
+              accountStartsInFuture={accountStartsInFuture}
               accountStartDate={accountStartDate}
             />
           </div>

@@ -974,9 +974,9 @@ class StaffMonthSummaryService {
    * Same date-valid Soll as `getScheduleTargets`, for a range that may be
    * longer than the endpoint's MAX_TARGET_RANGE_DAYS window. The Übersicht
    * charts reach back to the configured account start ("Gesamt"), which can be
-   * years — one request would simply 400. The windows are fetched in parallel
-   * and merged; days repeat across no two windows, so the merge is a plain
-   * union.
+   * years — one request would simply 400. The windows are fetched with bounded
+   * concurrency and merged; days repeat across no two windows, so the merge is
+   * a plain union.
    */
   async getScheduleTargetsRange(
     staffId: string,
@@ -1001,8 +1001,15 @@ class StaffMonthSummaryService {
       });
     }
 
-    const chunks = await Promise.all(
-      windows.map((w) => this.getScheduleTargets(staffId, w.from, w.to)),
+    // Bound the fan-out: a "Gesamt" range on a years-old account produces one
+    // window per ~year, and a plain Promise.all would fire them all at once —
+    // one overview render then opens dozens of simultaneous DB-backed requests
+    // per staff member. A small pool keeps the endpoint (and its RLS-scoped
+    // queries) from being hammered while still overlapping the round-trips.
+    const chunks = await mapWithConcurrency(
+      windows,
+      MAX_TARGET_RANGE_CONCURRENCY,
+      (w) => this.getScheduleTargets(staffId, w.from, w.to),
     );
     const merged = new Map<string, number>();
     for (const chunk of chunks) {
@@ -1010,6 +1017,36 @@ class StaffMonthSummaryService {
     }
     return merged;
   }
+}
+
+// Upper bound on schedule-target windows fetched at once by
+// getScheduleTargetsRange. Four keeps the round-trips overlapping without
+// letting a long-lived account open a dozen+ concurrent DB-backed requests.
+const MAX_TARGET_RANGE_CONCURRENCY = 4;
+
+// Runs `worker` over `items` with at most `limit` in flight at any time,
+// preserving input order in the result. A fixed pool of `limit` runners pulls
+// from a shared cursor, so the total number of concurrent calls never exceeds
+// `limit` regardless of how many items there are.
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const run = async (): Promise<void> => {
+    for (;;) {
+      const index = next++;
+      if (index >= items.length) return;
+      results[index] = await worker(items[index]!);
+    }
+  };
+  const runners = Array.from({ length: Math.min(limit, items.length) }, () =>
+    run(),
+  );
+  await Promise.all(runners);
+  return results;
 }
 
 function addDays(d: Date, days: number): Date {

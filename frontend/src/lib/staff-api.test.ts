@@ -1492,6 +1492,49 @@ describe("staff-api", () => {
       expect(result.size).toBe(3);
     });
 
+    // A "Gesamt" range on a years-old account fans out into one window per
+    // ~year. A plain Promise.all would fire every window at once — dozens of
+    // simultaneous DB-backed requests from a single overview render. The pool
+    // caps how many are in flight (#1842).
+    it("bounds how many window requests run at once", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      let inFlight = 0;
+      let peak = 0;
+      mockFetch.mockImplementation((url: string) => {
+        inFlight += 1;
+        peak = Math.max(peak, inFlight);
+        return new Promise((resolve) => {
+          setTimeout(() => {
+            inFlight -= 1;
+            resolve({
+              ok: true,
+              json: () =>
+                Promise.resolve({
+                  data: [
+                    {
+                      date: new URL(url, "http://x").searchParams.get("from"),
+                      target_minutes: 480,
+                    },
+                  ],
+                }),
+            } as unknown as Response);
+          }, 0);
+        });
+      });
+
+      // ~15 years -> 15 windows, far more than the pool of 4.
+      const result = await staffMonthSummaryService.getScheduleTargetsRange(
+        "1",
+        "2011-01-01",
+        "2026-01-01",
+      );
+
+      expect(mockFetch.mock.calls.length).toBeGreaterThan(4);
+      expect(peak).toBeLessThanOrEqual(4);
+      // Every window still resolves and merges — nothing is dropped by the pool.
+      expect(result.get("2011-01-01")).toBe(480);
+    });
+
     it("asks once when the range fits the window", async () => {
       const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
       mockFetch.mockResolvedValueOnce({
