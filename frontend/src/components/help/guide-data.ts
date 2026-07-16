@@ -119,7 +119,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
     searchable: false,
     points: [
       "Für den Versandkarton und den schnellen Start",
-      "QR-Code zur ausführlichen NFC-Anleitung",
+      "Mit Link zur ausführlichen NFC-Anleitung",
       "Als druckfertige A4-Seite aufgebaut",
     ],
   },
