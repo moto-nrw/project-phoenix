@@ -231,7 +231,6 @@ export function useEventForm({
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletingSeries, setDeletingSeries] = useState(false);
   const [expanded, setExpanded] = useState(variant === "full");
-  const [moreOpen, setMoreOpen] = useState(false);
   // Validated room id stashed while the Dreifach-Frage dialog (US-5) is open.
   const [pendingSeriesEdit, setPendingSeriesEdit] = useState<{
     roomId: number;
@@ -420,7 +419,6 @@ export function useEventForm({
     setDeleteError(null);
     setDeletingSeries(false);
     setExpanded(variant === "full");
-    setMoreOpen(false);
     setPendingSeriesEdit(null);
     setLostEdits(null);
     setConflictWarnings([]);
@@ -515,7 +513,6 @@ export function useEventForm({
         if (!isCurrentStudentLoad()) return;
         setStudents([]);
         setStudentLoadError(STUDENT_LOAD_ERROR);
-        setMoreOpen(true);
       })
       .finally(() => {
         if (isCurrentStudentLoad()) setLoadingStudents(false);
@@ -539,7 +536,6 @@ export function useEventForm({
         if (!isCurrentStaffLoad()) return;
         setStaff([]);
         setStaffLoadError(STAFF_LOAD_ERROR);
-        setMoreOpen(true);
       })
       .finally(() => {
         if (isCurrentStaffLoad()) setLoadingStaff(false);
@@ -1848,7 +1844,6 @@ export function useEventForm({
       if (!isCurrentStudentLoad()) return;
       setStudents([]);
       setStudentLoadError(STUDENT_LOAD_ERROR);
-      setMoreOpen(true);
     } finally {
       if (isCurrentStudentLoad()) setLoadingStudents(false);
     }
@@ -1873,7 +1868,6 @@ export function useEventForm({
       if (!isCurrentStaffLoad()) return;
       setStaff([]);
       setStaffLoadError(STAFF_LOAD_ERROR);
-      setMoreOpen(true);
     } finally {
       if (isCurrentStaffLoad()) setLoadingStaff(false);
     }
@@ -1929,9 +1923,6 @@ export function useEventForm({
     openSeriesDeleteConfirm,
     handleConfirmSeriesDelete,
     expanded,
-    setExpanded,
-    moreOpen,
-    setMoreOpen,
     choiceDialogOpen,
     setPendingSeriesEdit,
     handleScopeSelect,

@@ -22,7 +22,7 @@ import { WizardStepper } from "~/components/ui/wizard-stepper";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { Field } from "./event-form/field";
-import type { RepeatMode } from "./event-form/form-model";
+import type { EventFormState, RepeatMode } from "./event-form/form-model";
 import { StepPersonalKinder } from "./event-form/step-personal-kinder";
 import { StepTermin } from "./event-form/step-termin";
 import { StepWiederholung } from "./event-form/step-wiederholung";
@@ -55,7 +55,7 @@ const WIZARD_STEPS = ["Termin", "Wiederholung", "Personal und Kinder"] as const;
  * step that actually shows the offending error. The rules themselves stay in
  * the hook's validateForm — this is only a mapping.
  */
-const STEP_FIELDS: readonly (readonly string[])[] = [
+const STEP_FIELDS: readonly (readonly (keyof EventFormState)[])[] = [
   ["title", "date", "startTime", "endTime", "roomId", "categoryId"],
   ["weekdays", "calendarPeriodId", "weekPattern"],
   ["targetGradeLevel", "targetSchoolClass", "educationGroupId"],
@@ -209,7 +209,10 @@ export function TimetableEventModal({
   const [step, setStep] = useState(0);
   const submitAttempted = useRef(false);
   useEffect(() => {
-    if (isOpen) setStep(convertInstance ? 1 : 0);
+    if (isOpen) {
+      setStep(convertInstance ? 1 : 0);
+      submitAttempted.current = false;
+    }
   }, [isOpen, convertInstance]);
 
   const stepHasError = (index: number, errors: Record<string, string>) =>
@@ -288,7 +291,15 @@ export function TimetableEventModal({
           id="timetable-event-form"
           noValidate
           onSubmit={(event) => {
-            submitAttempted.current = true;
+            // Mirror handleSubmit's early-return guards: on those paths no
+            // validation runs, so the flag would stay set and a later,
+            // unrelated fieldErrors change could trigger a spurious step jump.
+            if (
+              !submitting &&
+              !(isEditingInstance && initialInstance?.status !== "planned")
+            ) {
+              submitAttempted.current = true;
+            }
             void handleSubmit(event);
           }}
           className="flex-1 overflow-y-auto px-5 py-4"
@@ -378,6 +389,17 @@ export function TimetableEventModal({
                 requiredStaffTouched={requiredStaffTouched}
                 staffRosterTouched={staffRosterTouched}
               />
+            )}
+
+            {/* Roster load failures must be visible right away, not only on
+                step 3 (the old single-page form auto-expanded to reveal
+                them). Step 3 renders its own detailed panels with retry
+                buttons, so skip the duplicate alerts there. */}
+            {step !== 2 && studentLoadError && (
+              <Alert type="warning" message={studentLoadError} />
+            )}
+            {step !== 2 && staffLoadError && (
+              <Alert type="warning" message={staffLoadError} />
             )}
 
             {validationError && (

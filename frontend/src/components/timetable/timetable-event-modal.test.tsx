@@ -645,16 +645,16 @@ describe("TimetableEventModal", () => {
     renderModal({ variant: "quick" });
 
     // Die frühere "Weitere Optionen"-Disclosure gibt es im Wizard nicht mehr:
-    // die Kinderzuordnung IST Schritt 3. Statt aria-expanded wird deshalb
-    // geprüft, dass der Ladefehler dort ohne Umweg steht — die fachliche
-    // Aussage (Fehler sichtbar, erneut laden möglich, Speichern nicht
-    // blockiert) bleibt unverändert.
-    await goToStep(3);
+    // der Ladefehler muss trotzdem SOFORT sichtbar sein (Alert in der
+    // Wizard-Hülle auf Schritt 1), der Erneut-laden-Button liegt in
+    // Schritt 3 — die fachliche Aussage (Fehler sichtbar, erneut laden
+    // möglich, Speichern nicht blockiert) bleibt unverändert.
     expect(
       await screen.findByText(
         "Die Kinderliste konnte nicht vollständig geladen werden. Die Kinderzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.",
       ),
     ).toBeInTheDocument();
+    await goToStep(3);
     expect(
       screen.getByRole("button", { name: "Kinder erneut laden" }),
     ).toBeVisible();
