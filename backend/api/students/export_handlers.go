@@ -12,6 +12,7 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -71,17 +72,9 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := exportRequestToListParams(req)
-	students, totalCount, err := rs.fetchStudentsForList(r, params)
-	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	// The list query returns a single page of studentExportPageSize rows. A
-	// larger selection would silently drop everyone past the cap and hand back a
-	// list that looks complete but is not, so refuse loudly and tell the user to
-	// narrow the selection instead.
-	if exportSelectionTooLarge(totalCount) {
-		renderError(w, r, common.ErrorInvalidRequest(errExportSelectionTooLarge(totalCount)))
+	students, errResp := rs.fetchStudentsForExport(r, params)
+	if errResp != nil {
+		renderError(w, r, errResp)
 		return
 	}
 
@@ -198,6 +191,23 @@ func parseExportMonths(values []string) (map[time.Month]bool, error) {
 		months[time.Month(number)] = true
 	}
 	return months, nil
+}
+
+// fetchStudentsForExport loads the students for an export and enforces the
+// single-page cap. It returns a ready-to-render error rather than writing the
+// response so the handler keeps a single error branch. The list query fetches
+// one page of studentExportPageSize rows, so a larger selection would silently
+// drop everyone past the cap and hand back a list that looks complete but is
+// not; refuse loudly and tell the user to narrow the selection instead.
+func (rs *Resource) fetchStudentsForExport(r *http.Request, params *studentListParams) ([]*users.Student, render.Renderer) {
+	students, totalCount, err := rs.fetchStudentsForList(r, params)
+	if err != nil {
+		return nil, common.ErrorInternalServer(err)
+	}
+	if exportSelectionTooLarge(totalCount) {
+		return nil, common.ErrorInvalidRequest(errExportSelectionTooLarge(totalCount))
+	}
+	return students, nil
 }
 
 // exportSelectionTooLarge reports whether a selection exceeds what a single-pass
