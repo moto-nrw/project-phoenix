@@ -394,18 +394,24 @@ export default function StaffCalendarPage() {
     if (!event.appointment_id) return;
     setBusyAppointmentId(event.appointment_id);
     try {
-      // Prefill clean per-occurrence fields from the event, then load the
-      // appointment detail for recurrence + visibility the event omits.
+      // Editing is series-scoped (UpdateStaffAppointment rewrites the whole
+      // appointment), so prefill from the persisted appointment DETAIL — its
+      // base title/dates/etc. — NOT from the clicked occurrence. Otherwise
+      // opening a later occurrence and saving would re-anchor the series to that
+      // occurrence's date and drop earlier occurrences. Times don't shift per
+      // occurrence (only dates do), so the occurrence event's clean HH:MM values
+      // match the base and are safe to reuse.
       const detail = await getStaffAppointmentDetail(event.appointment_id);
-      setTitle(event.title);
-      setDescription(event.description ?? "");
-      setLocation(event.location ?? "");
-      setStartDate(event.start_date);
-      setEndDate(event.end_date);
-      setAllDay(event.all_day);
-      setStartTime(event.all_day ? "09:00" : event.start_time);
-      setEndTime(event.all_day ? "10:00" : event.end_time);
-      setOverviewVisibility(detail.appointment.overview_visibility);
+      const base = detail.appointment;
+      setTitle(base.title);
+      setDescription(base.description ?? "");
+      setLocation(base.location ?? "");
+      setStartDate(base.start_date);
+      setEndDate(base.end_date);
+      setAllDay(base.all_day);
+      setStartTime(base.all_day ? "09:00" : event.start_time);
+      setEndTime(base.all_day ? "10:00" : event.end_time);
+      setOverviewVisibility(base.overview_visibility);
       setSendEmail(false);
       if (detail.recurrence) {
         setFrequency(detail.recurrence.frequency);

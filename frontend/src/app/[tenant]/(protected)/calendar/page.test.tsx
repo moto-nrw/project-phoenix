@@ -4,6 +4,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
   mockUseSWRAuth,
   mockCreateStaffAppointment,
+  mockUpdateStaffAppointment,
+  mockGetStaffAppointmentDetail,
   mockRespondStaffCalendar,
   mockToastSuccess,
   mockToastError,
@@ -13,6 +15,8 @@ const {
 } = vi.hoisted(() => ({
   mockUseSWRAuth: vi.fn(),
   mockCreateStaffAppointment: vi.fn(),
+  mockUpdateStaffAppointment: vi.fn(),
+  mockGetStaffAppointmentDetail: vi.fn(),
   mockRespondStaffCalendar: vi.fn(),
   mockToastSuccess: vi.fn(),
   mockToastError: vi.fn(),
@@ -46,6 +50,8 @@ vi.mock("~/lib/personal-calendar-api", async () => {
     getStaffCalendar: vi.fn(),
     getCalendarRecipientOptions: vi.fn(),
     createStaffAppointment: mockCreateStaffAppointment,
+    updateStaffAppointment: mockUpdateStaffAppointment,
+    getStaffAppointmentDetail: mockGetStaffAppointmentDetail,
     respondStaffCalendar: mockRespondStaffCalendar,
   };
 });
@@ -113,7 +119,89 @@ describe("StaffCalendarPage", () => {
     });
     mockRespondStaffCalendar.mockResolvedValue(undefined);
     mockCreateStaffAppointment.mockResolvedValue({ appointment: { id: "1" } });
+    mockUpdateStaffAppointment.mockResolvedValue({ appointment: { id: "5" } });
     mockMutate.mockResolvedValue(undefined);
+  });
+
+  it("edits a recurring appointment using the series base date, not the clicked occurrence", async () => {
+    // A recurring appointment opened from its THIRD weekly occurrence
+    // (2026-01-19); the persisted series anchor is 2026-01-05.
+    mockUseSWRAuth.mockImplementation((key: unknown) => {
+      const cacheKey = typeof key === "string" ? key : "";
+      if (cacheKey.startsWith("calendar-recipient-options")) {
+        return { data: recipientOptions, isLoading: false };
+      }
+      if (cacheKey.startsWith("staff-calendar")) {
+        return {
+          data: {
+            from: "2026-01-19",
+            to: "2026-01-25",
+            events: [
+              {
+                id: "appointment:5:2026-01-19",
+                source: "appointment",
+                appointment_id: "5",
+                occurrence_date: "2026-01-19",
+                title: "Wöchentliche AG",
+                start_date: "2026-01-19",
+                end_date: "2026-01-19",
+                start_time: "14:00",
+                end_time: "15:00",
+                all_day: false,
+                recurring: true,
+                can_respond: false,
+                can_edit: true,
+              },
+            ],
+          },
+          error: null,
+          isLoading: false,
+          mutate: mockMutate,
+        };
+      }
+      return { data: undefined, error: null, isLoading: false, mutate: vi.fn() };
+    });
+    mockGetStaffAppointmentDetail.mockResolvedValue({
+      appointment: {
+        title: "Wöchentliche AG",
+        start_date: "2026-01-05",
+        end_date: "2026-01-05",
+        all_day: false,
+        overview_visibility: "organizer",
+        delivery_mode: "informational",
+      },
+      recurrence: {
+        frequency: "weekly",
+        interval_count: 1,
+        weekdays: ["monday"],
+      },
+    });
+
+    render(<StaffCalendarPage />);
+
+    fireEvent.click(screen.getAllByRole("button", { name: "Bearbeiten" })[0]!);
+    // The modal opens once the detail resolves; the date input shows the BASE
+    // series date, not the clicked occurrence date.
+    const startInput = (await screen.findByLabelText(
+      "Startdatum",
+    )) as HTMLInputElement;
+    expect(startInput.value).toBe("2026-01-05");
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    await waitFor(() =>
+      expect(mockUpdateStaffAppointment).toHaveBeenCalledWith(
+        "5",
+        expect.objectContaining({ start_date: "2026-01-05" }),
+      ),
+    );
+    // Never sends the occurrence date as the new series anchor.
+    expect(mockUpdateStaffAppointment).not.toHaveBeenCalledWith(
+      "5",
+      expect.objectContaining({ start_date: "2026-01-19" }),
+    );
   });
 
   it("renders events and stores RSVP responses", async () => {

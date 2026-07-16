@@ -244,6 +244,15 @@ export function createStaffAppointment(body: CreateCalendarAppointmentRequest) {
 // edit modal with recurrence + visibility that the per-occurrence event omits.
 export interface CalendarAppointmentDetail {
   readonly appointment: {
+    readonly title: string;
+    readonly description?: string;
+    readonly location?: string;
+    // Persisted SERIES base dates ("YYYY-MM-DD") — for a recurring appointment
+    // these are the anchor, not the clicked occurrence, so an edit doesn't
+    // re-anchor the series.
+    readonly start_date: string;
+    readonly end_date: string;
+    readonly all_day: boolean;
     readonly overview_visibility: CalendarOverviewVisibility;
     readonly delivery_mode: CalendarDeliveryMode;
   };
