@@ -50,6 +50,7 @@ export type CalendarTargetType =
   | "staff"
   | "guardian_profile"
   | "all_staff"
+  | "all_school_parents"
   | "parents_by_class"
   | "parents_by_group"
   | "parents_by_student";

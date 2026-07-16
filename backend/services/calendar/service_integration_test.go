@@ -535,6 +535,51 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	require.Error(t, err)
 }
 
+func TestCalendarServiceIntegration_AllSchoolParentsTarget(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "School", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Schulfest",
+		StartDate:    timezone.NewDate(2026, 6, 20),
+		EndDate:      timezone.NewDate(2026, 6, 20),
+		StartTime:    wallClock(10, 0),
+		EndTime:      wallClock(14, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeAllSchoolParents},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	// The whole-school target resolved to the seeded guardian.
+	require.Len(t, detail.Targets, 1)
+	assert.Equal(t, calModels.TargetTypeAllSchoolParents, detail.Targets[0].TargetType)
+	id := findOptionalRecipientByGuardian(detail, parentChain.GuardianProfileID)
+	assert.NotZero(t, id, "all_school_parents should reach the school's guardian")
+
+	// The parent sees it in their calendar.
+	events, err := service.ListMyParentEvents(
+		testpkg.TenantContext(1),
+		parentChain.AccountID,
+		timezone.NewDate(2026, 6, 20),
+		timezone.NewDate(2026, 6, 20),
+	)
+	require.NoError(t, err)
+	require.NotEmpty(t, events)
+	assert.Equal(t, "Schulfest", events[0].Title)
+}
+
 func TestCalendarServiceIntegration_CancelSingleOccurrence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })

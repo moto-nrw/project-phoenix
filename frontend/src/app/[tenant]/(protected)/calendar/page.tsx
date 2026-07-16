@@ -68,6 +68,7 @@ const targetTypeLabels: Record<CalendarTargetType, string> = {
   staff: "Mitarbeitende",
   guardian_profile: "Einzelne Eltern",
   all_staff: "Alle Mitarbeitenden",
+  all_school_parents: "Alle Eltern der Schule",
   parents_by_class: "Eltern nach Klasse",
   parents_by_group: "Eltern nach Gruppe",
   parents_by_student: "Eltern nach Kind",
@@ -118,6 +119,7 @@ function targetKey(
   value?: string,
 ): string {
   if (type === "all_staff") return "all_staff";
+  if (type === "all_school_parents") return "all_school_parents";
   return `${type}:${id ?? value ?? ""}`;
 }
 
@@ -125,7 +127,9 @@ function serializeTarget(target: DraftTarget): CalendarTarget {
   if (target.type === "parents_by_class") {
     return { type: target.type, value: target.value };
   }
-  if (target.type === "all_staff") return { type: target.type };
+  if (target.type === "all_staff" || target.type === "all_school_parents") {
+    return { type: target.type };
+  }
   return { type: target.type, id: target.id };
 }
 
@@ -136,6 +140,17 @@ function isCoveredByAggregate(
 ): boolean {
   if (choice.type === "staff") {
     return targets.some((target) => target.type === "all_staff");
+  }
+  // Any parent-scoped choice is already covered once the whole school is targeted.
+  if (
+    choice.type === "parents_by_class" ||
+    choice.type === "parents_by_group" ||
+    choice.type === "parents_by_student" ||
+    choice.type === "guardian_profile"
+  ) {
+    if (targets.some((target) => target.type === "all_school_parents")) {
+      return true;
+    }
   }
   if (choice.type === "parents_by_student") {
     const student = options.students.find((item) => item.id === choice.id);
@@ -182,6 +197,17 @@ function buildTargetGroups(
         id: staff.id,
         label: staff.name,
       })),
+    },
+    {
+      type: "all_school_parents",
+      label: targetTypeLabels.all_school_parents,
+      choices: [
+        {
+          key: "all_school_parents",
+          type: "all_school_parents",
+          label: "Alle Eltern der Schule",
+        },
+      ],
     },
     {
       type: "parents_by_class",

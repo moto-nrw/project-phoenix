@@ -31,6 +31,7 @@ const (
 	TargetTypeStaff            = "staff"
 	TargetTypeGuardianProfile  = "guardian_profile"
 	TargetTypeAllStaff         = "all_staff"
+	TargetTypeAllSchoolParents = "all_school_parents"
 	TargetTypeParentsByClass   = "parents_by_class"
 	TargetTypeParentsByGroup   = "parents_by_group"
 	TargetTypeParentsByStudent = "parents_by_student"

@@ -1219,6 +1219,25 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			if !visible {
 				return nil, nil, nil, fmt.Errorf("%w: guardian target is not portal-visible", ErrInvalidRequest)
 			}
+		case calModels.TargetTypeAllSchoolParents:
+			// Every portal-active guardian of the school. Reuse addStudentGuardians
+			// per student so the same portal-access + active-account filtering as
+			// the narrower parent targets applies.
+			students, err := s.cfg.StudentRepo.List(ctx, nil)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+			added := 0
+			for _, student := range students {
+				count, err := addStudentGuardians(student.ID)
+				if err != nil {
+					return nil, nil, nil, err
+				}
+				added += count
+			}
+			if added == 0 {
+				return nil, nil, nil, fmt.Errorf("%w: no reachable guardians at this school", ErrInvalidRequest)
+			}
 		case calModels.TargetTypeParentsByStudent:
 			if target.ID == nil || *target.ID <= 0 {
 				return nil, nil, nil, fmt.Errorf("%w: student target requires id", ErrInvalidRequest)
