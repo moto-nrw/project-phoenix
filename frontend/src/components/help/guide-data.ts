@@ -1770,20 +1770,21 @@ export const nfcChapters: readonly GuideChapter[] = [
         id: "nfc-einstellungen-geraete",
         title: "Geräte-Einstellungen anpassen",
         summary:
-          "PIN und die Auswahl-Buttons des Tablets legen Sie im Browser unter `Einstellungen` fest.",
+          "PIN, Auswahl-Buttons und Detailmeldungen bei vollen Räumen oder Aktivitäten legen Sie im Browser unter `Einstellungen` fest.",
         steps: [
           "Im Browser die `Einstellungen` öffnen und den Tab `Geräte` wählen.",
           "Unter `OGS Geräte-PIN` die 4-stellige PIN setzen, mit der sich das Team am Tablet anmeldet.",
           "Mit `Raumwechsel-Button anzeigen`, `Schulhof-Button anzeigen` und `Toilette-Button anzeigen` festlegen, welche Ziele beim Auschecken (`Wohin geht ...?`) erscheinen.",
+          "Mit `Details bei voller Aktivität anzeigen` und `Details bei vollem Raum anzeigen` steuern Sie, ob das Tablet bei erreichten Kapazitäten den Namen und die Belegung nennt oder nur einen allgemeinen Hinweis zeigt.",
           "Änderungen werden automatisch gespeichert und beim nächsten Start vom Tablet übernommen.",
         ],
         callout: {
           title: "Weniger ist mehr",
-          body: "`Schulhof` und `Toilette` legen automatisch einen passenden Raum an. Aktivieren Sie nur die Buttons, die Ihre Einrichtung wirklich nutzt - weniger Auswahl ist für die Kinder am Tablet einfacher.",
+          body: "`Schulhof` und `Toilette` legen automatisch einen passenden Raum an. Aktivieren Sie nur die Buttons und Detailmeldungen, die Ihre Einrichtung wirklich nutzt - weniger Auswahl und klar dosierte Fehlermeldungen sind für Kinder und Team am Tablet einfacher.",
           tone: "blue",
         },
         screenshot:
-          "Einstellungen, Tab `Geräte` mit OGS Geräte-PIN und Button-Schaltern.",
+          "Einstellungen, Tab `Geräte` mit OGS Geräte-PIN, Button-Schaltern und Kapazitätsdetail-Schaltern.",
         image: "/help/screens/nfc-einstellungen-geraete.webp",
       },
       {
