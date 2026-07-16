@@ -4,11 +4,14 @@ import {
   KeyRound,
   Nfc,
   PlugZap,
+  QrCode,
   ShieldCheck,
   Wrench,
 } from "lucide-react";
 import { HelpHeader } from "~/components/help/guide-components";
 import { HelpSearchInline } from "~/components/help/help-search";
+
+const fullGuideUrl = "https://moto-ogs.de/help/nfc";
 
 const quickstartPdf = {
   href: "/help/pdfs/nfc-erste-schritte.pdf",
@@ -124,13 +127,20 @@ export default function NfcQuickstartPage() {
                   >
                     <span
                       className={[
-                        "flex h-8 w-9 items-center justify-center bg-[#315C9B] text-sm font-bold text-white print:h-7 print:w-8 print:text-xs",
+                        "flex h-8 w-9 items-center justify-center bg-[#17231F] text-sm font-bold text-white print:h-7 print:w-8 print:text-xs",
                         isRight
                           ? "order-2 [clip-path:polygon(0_0,100%_0,100%_100%,0_100%,18%_50%)]"
                           : "order-1 [clip-path:polygon(0_0,100%_0,82%_50%,100%_100%,0_100%)]",
                       ].join(" ")}
                     >
-                      {step.number}
+                      <span
+                        className={[
+                          "inline-block leading-none",
+                          isRight ? "translate-x-0.5" : "-translate-x-0.5",
+                        ].join(" ")}
+                      >
+                        {step.number}
+                      </span>
                     </span>
                     <div
                       className={[
@@ -204,6 +214,38 @@ export default function NfcQuickstartPage() {
               })}
             </div>
 
+            <section className="mt-6 grid grid-cols-1 gap-4 rounded-[28px] bg-[#5080D8]/10 p-5 sm:grid-cols-[1fr_190px] print:mt-4 print:grid-cols-[1fr_150px] print:gap-4 print:rounded-2xl print:p-4">
+              <div>
+                <div className="flex items-center gap-2 text-[#315C9B]">
+                  <QrCode className="h-5 w-5" aria-hidden="true" />
+                  <h2 className="text-lg font-semibold tracking-normal print:text-base">
+                    Ausführliche Anleitung öffnen
+                  </h2>
+                </div>
+                <p className="mt-3 text-sm leading-6 text-gray-700 print:mt-2 print:text-xs print:leading-5">
+                  Dort finden Sie die vollständige Schritt-für-Schritt-Anleitung
+                  mit Bildern: Geräte anmelden, Armbänder zuweisen, Check-in und
+                  Check-out nutzen und typische Fehler schnell beheben.
+                </p>
+                <p className="mt-4 text-xs font-semibold text-gray-500">
+                  {fullGuideUrl.replace("https://", "")}
+                </p>
+              </div>
+
+              <div className="rounded-3xl border border-gray-200 bg-white p-4 text-center print:rounded-2xl print:p-3">
+                <Image
+                  src="/help/quickstart/nfc-guide-qr.svg"
+                  alt=""
+                  width={128}
+                  height={128}
+                  className="mx-auto h-32 w-32 print:h-24 print:w-24"
+                />
+                <p className="mt-2 text-[11px] leading-4 font-semibold text-gray-700">
+                  QR-Code scannen
+                </p>
+              </div>
+            </section>
+
             <section className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3 print:hidden">
               {hints.map((hint, index) => {
                 const Icon =
@@ -225,7 +267,7 @@ export default function NfcQuickstartPage() {
               })}
             </section>
 
-            <footer className="mt-auto flex items-end justify-between gap-6 pt-5 text-xs text-gray-500 print:hidden">
+            <footer className="mt-auto flex items-end justify-between gap-6 pt-5 text-xs text-gray-500 print:pt-3 print:text-[11px]">
               <p className="max-w-[620px]">
                 Für OGS-Teams im Alltag. Persönliche Daten werden nicht auf den
                 Armbändern gespeichert.
