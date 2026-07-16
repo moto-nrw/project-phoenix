@@ -662,10 +662,14 @@ func TestWTMMonthSummary_NoModelFallbackBeforeFirstSnapshot(t *testing.T) {
 // a growing plus until the break is closed.
 func TestWTMMonthSummary_ActiveBreakDeductedFromLiveActual(t *testing.T) {
 	f := newWTMFixture()
-	f.settings.accountStart = "2026-07-01"
-
-	today := timezone.NewDate(2026, time.July, 13) // a Monday, before today (Jul 15)
 	now := time.Now()
+	// A live open session belongs to the current day; pin today to the real
+	// calendar date so the now-relative timestamps stay on the session's own
+	// day and the day cap does not clamp the still-running span.
+	today := timezone.DateFromTime(now)
+	f.svc.todayFunc = func() timezone.Date { return today }
+	f.settings.accountStart = today.String()
+
 	session := &activeModels.WorkSession{
 		Model:        base.Model{ID: 77},
 		StaffID:      wtmStaffID,
@@ -681,7 +685,7 @@ func TestWTMMonthSummary_ActiveBreakDeductedFromLiveActual(t *testing.T) {
 		StartedAt: now.Add(-30 * time.Minute),
 	}
 
-	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, today.Year, int(today.Month))
 	require.NoError(t, err)
 	// 120 minutes since check-in, 30 of them on break → 90 worked.
 	assert.InDelta(t, 90, summary.ActualMinutes, 1,
@@ -703,26 +707,81 @@ func TestWTMMonthSummary_EndedBreakNotDeductedTwice(t *testing.T) {
 }
 
 // The admin correction API accepts a check_out_time later than the current
-// instant, and the date guard passes such a row as long as it is dated today
-// or earlier. Counting the whole shift the moment it is saved would credit Ist
-// against a target that only accrues up to today.
-func TestWTMMonthSummary_FutureCheckOutClampedAtNow(t *testing.T) {
+// instant. On TODAY's session the now cap keeps only the minutes already
+// worked from counting; the future tail must not credit Ist against a target
+// that only accrues up to today. The fixture pins today to the real calendar
+// day so the session's own day does not clamp the span before now does.
+func TestWTMMonthSummary_TodayFutureCheckOutClampedAtNow(t *testing.T) {
 	f := newWTMFixture()
-	f.settings.accountStart = "2026-07-01"
-
 	now := time.Now()
+	todayDate := timezone.DateFromTime(now)
+	f.svc.todayFunc = func() timezone.Date { return todayDate }
+	f.settings.accountStart = todayDate.String() // single month, no long chain
+
 	checkOut := now.Add(120 * time.Minute)
 	f.sessions.sessions = []*activeModels.WorkSession{{
 		Model:        base.Model{ID: 88},
 		StaffID:      wtmStaffID,
-		Date:         timezone.NewDate(2026, time.July, 13), // on or before today
+		Date:         todayDate,
 		Status:       activeModels.WorkSessionStatusPresent,
 		CheckInTime:  now.Add(-60 * time.Minute),
 		CheckOutTime: &checkOut,
 	}}
 
-	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, todayDate.Year, int(todayDate.Month))
 	require.NoError(t, err)
 	assert.InDelta(t, 60, summary.ActualMinutes, 1,
 		"only the minutes worked up to now count, not the future part of the checkout")
+}
+
+// A historical session an admin corrected with a check-out later than its own
+// day (or a future instant) must count only up to that day's end, never
+// through now. Without the day cap the whole span since check-in bills as Ist
+// and, via the carry chain, inflates every later balance.
+func TestWTMMonthSummary_PastFutureCheckOutClampedAtDayEnd(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+
+	sessionDay := timezone.NewDate(2026, time.July, 10) // well before today (07-15)
+	checkIn := time.Date(2026, time.July, 10, 8, 0, 0, 0, timezone.Berlin)
+	checkOut := time.Date(2030, time.January, 1, 0, 0, 0, 0, timezone.Berlin) // absurd future
+	f.sessions.sessions = []*activeModels.WorkSession{{
+		Model:        base.Model{ID: 88},
+		StaffID:      wtmStaffID,
+		Date:         sessionDay,
+		Status:       activeModels.WorkSessionStatusPresent,
+		CheckInTime:  checkIn,
+		CheckOutTime: &checkOut,
+	}}
+
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	expected := int(sessionDay.EndOfDay().Sub(checkIn).Minutes())
+	assert.Equal(t, expected, summary.ActualMinutes,
+		"a past session's Ist is capped at its own day's end, not counted through now")
+}
+
+// A session left open on a past day must not bill every minute since check-in
+// through now — that would add days or months of presence that never happened.
+// The day cap bounds it at the session day's end.
+func TestWTMMonthSummary_PastUnclosedSessionClampedAtDayEnd(t *testing.T) {
+	f := newWTMFixture()
+	f.settings.accountStart = "2026-07-01"
+
+	sessionDay := timezone.NewDate(2026, time.July, 10)
+	checkIn := time.Date(2026, time.July, 10, 8, 0, 0, 0, timezone.Berlin)
+	f.sessions.sessions = []*activeModels.WorkSession{{
+		Model:       base.Model{ID: 88},
+		StaffID:     wtmStaffID,
+		Date:        sessionDay,
+		Status:      activeModels.WorkSessionStatusPresent,
+		CheckInTime: checkIn,
+		// CheckOutTime nil: never checked out.
+	}}
+
+	summary, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2026, 7)
+	require.NoError(t, err)
+	expected := int(sessionDay.EndOfDay().Sub(checkIn).Minutes())
+	assert.Equal(t, expected, summary.ActualMinutes,
+		"an unclosed past session's Ist is bounded at its own day's end")
 }

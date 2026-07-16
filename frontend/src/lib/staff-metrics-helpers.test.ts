@@ -9,6 +9,7 @@ import {
   computePeriodTotalsFromTargets,
   computeStaffMetrics,
   getDeltaStatus,
+  indexAbsenceCreditByDay,
   resolveWeekIndex,
   toDateKey,
 } from "./staff-metrics-helpers";
@@ -427,5 +428,85 @@ describe("getDeltaStatus", () => {
     expect(getDeltaStatus(15)).toBe("green");
     expect(getDeltaStatus(16)).toBe("amber");
     expect(getDeltaStatus(-16)).toBe("gray");
+  });
+});
+
+describe("indexAbsenceCreditByDay", () => {
+  // Mon–Fri, 480 min/day across the test week. A weekend / unknown day is 0.
+  const targets = new Map<string, number>([
+    ["2026-06-01", 480], // Mon
+    ["2026-06-02", 480], // Tue
+    ["2026-06-03", 480], // Wed
+    ["2026-06-04", 480], // Thu
+    ["2026-06-05", 480], // Fri
+  ]);
+
+  it("credits only reported/approved absences, ignoring requested/declined/canceled", () => {
+    const byDay = indexAbsenceCreditByDay(targets, [
+      absence({ date_start: "2026-06-01", date_end: "2026-06-01" }),
+      absence({
+        id: 200,
+        date_start: "2026-06-02",
+        date_end: "2026-06-02",
+        status: "requested",
+      }),
+      absence({
+        id: 201,
+        date_start: "2026-06-03",
+        date_end: "2026-06-03",
+        status: "declined",
+      }),
+      absence({
+        id: 202,
+        date_start: "2026-06-04",
+        date_end: "2026-06-04",
+        status: "canceled",
+      }),
+    ]);
+
+    expect(byDay.get("2026-06-01")).toBe(480);
+    expect(byDay.has("2026-06-02")).toBe(false);
+    expect(byDay.has("2026-06-03")).toBe(false);
+    expect(byDay.has("2026-06-04")).toBe(false);
+  });
+
+  it("credits a half-day boundary with half the day's target", () => {
+    const byDay = indexAbsenceCreditByDay(targets, [
+      absence({
+        date_start: "2026-06-01",
+        date_end: "2026-06-01",
+        half_day: true,
+      }),
+    ]);
+
+    expect(byDay.get("2026-06-01")).toBe(240);
+  });
+
+  it("credits an overlapping day once with the lowest-ID absence", () => {
+    const byDay = indexAbsenceCreditByDay(targets, [
+      // Higher ID, half day — must NOT win.
+      absence({
+        id: 300,
+        date_start: "2026-06-02",
+        date_end: "2026-06-02",
+        half_day: true,
+      }),
+      // Lower ID, full day — wins the overlap, mirroring the server.
+      absence({
+        id: 5,
+        date_start: "2026-06-02",
+        date_end: "2026-06-02",
+      }),
+    ]);
+
+    expect(byDay.get("2026-06-02")).toBe(480);
+  });
+
+  it("credits 0 for a day without a target", () => {
+    const byDay = indexAbsenceCreditByDay(targets, [
+      absence({ date_start: "2026-06-06", date_end: "2026-06-06" }), // Sat, no target
+    ]);
+
+    expect(byDay.get("2026-06-06")).toBe(0);
   });
 });

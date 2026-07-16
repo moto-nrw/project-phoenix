@@ -421,20 +421,34 @@ func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int
 	return nil
 }
 
-// workedMinutesUpTo is netMinutes with the session end clamped at now. The
-// admin correction API accepts a check_out_time later than the current instant
-// as long as the session is dated today, and that row passes the date guard in
-// addActualMinutes — netMinutes would then bill the whole planned shift as Ist
-// the moment it is saved, against a target that is deliberately only accrued up
-// to today. The phantom plus lands in this month's balance and, through the
-// carry chain, in every later one.
+// workedMinutesUpTo is netMinutes with the session end clamped at both the
+// session's own calendar day and now. netMinutes otherwise measures gross work
+// time up to the check-out (or, for an open session, up to now), so two kinds
+// of bad data inflate Ist without bound and both pass the date guard in
+// addActualMinutes:
+//
+//   - a session left open on a PAST day bills every minute since check-in
+//     through now — potentially days or months of fictitious presence, and via
+//     the carry chain every later balance; and
+//   - a historical session an admin corrected with a check-out later than its
+//     day (the correction API accepts a future check_out_time) bills the whole
+//     span the moment it is saved.
+//
+// The day cap bounds those past cases; the now cap additionally keeps a future
+// check-out on TODAY's session from counting past the current instant, against
+// a target that is deliberately only accrued up to today. A consistent, closed
+// past session is unaffected: its check-out already precedes both caps.
 func workedMinutesUpTo(session *activeModels.WorkSession, now time.Time) int {
-	if session.CheckOutTime != nil && session.CheckOutTime.After(now) {
-		capped := *session
-		capped.CheckOutTime = nil // netMinutes then measures up to now
-		return netMinutes(&capped, now)
+	end := now
+	if session.CheckOutTime != nil && session.CheckOutTime.Before(end) {
+		end = *session.CheckOutTime
 	}
-	return netMinutes(session, now)
+	if dayEnd := session.Date.EndOfDay(); dayEnd.Before(end) {
+		end = dayEnd
+	}
+	capped := *session
+	capped.CheckOutTime = &end // netMinutes measures gross up to the capped end
+	return netMinutes(&capped, end)
 }
 
 // runningBreakMinutes is the elapsed duration of a break that has started but

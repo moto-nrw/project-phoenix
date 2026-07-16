@@ -151,7 +151,7 @@ function sumTargets(targetFor: TargetResolver, from: Date, to: Date): number {
  * two cards on the same screen disagreed (#1842). Sorting by ID here is what
  * makes "first one wins" mean the same thing on both sides.
  */
-export function sortAbsencesById(
+function sortAbsencesById(
   absences: readonly StaffAbsenceRow[],
 ): readonly StaffAbsenceRow[] {
   return [...absences].sort((a, b) => a.id - b.id);
@@ -265,6 +265,41 @@ function isHalfAbsenceBoundary(
     return key === startKey && (startHalf || endHalf);
   }
   return (key === startKey && startHalf) || (key === endKey && endHalf);
+}
+
+/**
+ * Effektiv gutgeschriebene Abwesenheits-Minuten je Kalendertag, gespiegelt zum
+ * Server (`addAbsenceCredits`): nur reported/approved zählen, ein Tag wird nur
+ * einmal gutgeschrieben (niedrigste ID gewinnt), Halbtags-Ränder schreiben das
+ * halbe Tagessoll gut, und ein Tag ohne Soll ist 0 wert.
+ *
+ * Per-Tag/-Woche-Serien lesen diese Map, statt die Gutschrift inline
+ * herzuleiten. Die Inline-Variante schrieb jeder Abwesenheit — auch noch
+ * nicht reported/approved (requested/declined/canceled) und Halbtagen — das
+ * volle Tagessoll gut und widersprach damit Monatskarte und Stundenkonto
+ * (#1842).
+ */
+export function indexAbsenceCreditByDay(
+  targets: ReadonlyMap<string, number>,
+  absences: readonly StaffAbsenceRow[] | undefined,
+): Map<string, number> {
+  const byDay = new Map<string, number>();
+  if (!absences || absences.length === 0) return byDay;
+  const targetFor = dailyTargetResolver(targets);
+  const seen = new Set<string>();
+  for (const absence of sortAbsencesById(absences)) {
+    const range = parseEffectiveAbsenceRange(absence);
+    if (!range) continue;
+    for (let i = 0; i < range.totalDays; i++) {
+      const day = new Date(range.start);
+      day.setDate(day.getDate() + i);
+      const key = toDateKey(day);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      byDay.set(key, absenceCreditForDay(targetFor, absence, day, key, range));
+    }
+  }
+  return byDay;
 }
 
 /**

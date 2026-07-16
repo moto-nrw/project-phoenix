@@ -39,8 +39,8 @@ import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
 import {
   endOfWeek,
   getDeltaStatus,
+  indexAbsenceCreditByDay,
   resolveAccountStartDate,
-  sortAbsencesById,
   startOfWeek,
   toDateKey,
   toIsoDayOfWeek,
@@ -60,31 +60,6 @@ import { formatSignedDuration, KpiCard } from "./staff-time-views";
 type TargetsByDay = ReadonlyMap<string, number>;
 
 const EMPTY_TARGETS: TargetsByDay = new Map<string, number>();
-
-/**
- * Maps every covered day to the absence that prices it. Overlapping absences
- * credit a day once and the LOWEST ID wins — the rule the server applies in
- * `addAbsenceCredits`; reading them in API (date) order made these charts
- * credit a day from a different absence than the Monatskarte (#1842).
- */
-function indexAbsencesByDay(
-  absences: readonly StaffAbsenceRow[],
-): Map<string, StaffAbsenceRow> {
-  const byDate = new Map<string, StaffAbsenceRow>();
-  for (const a of sortAbsencesById(absences)) {
-    const startDate = new Date(`${a.date_start.slice(0, 10)}T00:00:00`);
-    const endDate = new Date(`${a.date_end.slice(0, 10)}T00:00:00`);
-    const days =
-      Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
-    for (let i = 0; i < days; i++) {
-      const cursor = new Date(startDate);
-      cursor.setDate(cursor.getDate() + i);
-      const key = toDateKey(cursor);
-      if (!byDate.has(key)) byDate.set(key, a);
-    }
-  }
-  return byDate;
-}
 
 type DistributionCenterLabelProps = {
   readonly total: number;
@@ -785,7 +760,7 @@ function buildWeeklyBalanceSeriesRange(
   const points: TrendPoint[] = [];
   const sessionsByDate = new Map<string, StaffHistorySession>();
   for (const s of sessions) sessionsByDate.set(s.date.slice(0, 10), s);
-  const absenceByDate = indexAbsencesByDay(absences);
+  const creditByDate = indexAbsenceCreditByDay(targets, absences);
 
   const firstWeekStart = startOfWeek(from);
   const lastWeekStart = startOfWeek(to);
@@ -805,7 +780,7 @@ function buildWeeklyBalanceSeriesRange(
     const weekDelta = computeWeekDelta(
       targets,
       sessionsByDate,
-      absenceByDate,
+      creditByDate,
       clippedStart,
       clippedEnd,
     );
@@ -821,7 +796,7 @@ function buildWeeklyBalanceSeriesRange(
 function computeWeekDelta(
   targets: TargetsByDay,
   sessionsByDate: Map<string, StaffHistorySession>,
-  absenceByDate: Map<string, StaffAbsenceRow>,
+  creditByDate: ReadonlyMap<string, number>,
   weekStart: Date,
   weekEnd: Date,
 ): number {
@@ -833,13 +808,12 @@ function computeWeekDelta(
     const day = new Date(weekStart);
     day.setDate(day.getDate() + i);
     const key = toDateKey(day);
-    const dayTarget = targets.get(key) ?? 0;
-    soll += dayTarget;
+    soll += targets.get(key) ?? 0;
     const session = sessionsByDate.get(key);
     if (session) {
       ist += session.net_minutes;
-    } else if (absenceByDate.has(key)) {
-      ist += dayTarget;
+    } else {
+      ist += creditByDate.get(key) ?? 0;
     }
   }
   return ist - soll;
@@ -865,8 +839,9 @@ interface DailyTrendPoint {
 }
 
 // Per-working-day Ist vs Soll across [from, to]. Same absence-credit semantics
-// as the weekly series: Krank/Urlaub/Fortbildung credit the day's Soll so the
-// Ist line stays meaningful during legitimate absences.
+// as the weekly series and the Monatskarte: reported/approved
+// Krank/Urlaub/Fortbildung credit the day's Soll (half on half-day boundaries)
+// so the Ist line stays meaningful during legitimate absences.
 function buildDailyIstSollSeriesRange(
   targets: TargetsByDay,
   sessions: readonly StaffHistorySession[],
@@ -876,7 +851,7 @@ function buildDailyIstSollSeriesRange(
 ): DailyTrendPoint[] {
   const sessionsByDate = new Map<string, StaffHistorySession>();
   for (const s of sessions) sessionsByDate.set(s.date.slice(0, 10), s);
-  const absenceByDate = indexAbsencesByDay(absences);
+  const creditByDate = indexAbsenceCreditByDay(targets, absences);
 
   const result: DailyTrendPoint[] = [];
   // Cap at 120 entries to keep the chart readable; wider ranges get truncated.
@@ -895,8 +870,8 @@ function buildDailyIstSollSeriesRange(
       let ist = 0;
       if (session) {
         ist = session.net_minutes;
-      } else if (absenceByDate.has(key)) {
-        ist = soll;
+      } else {
+        ist = creditByDate.get(key) ?? 0;
       }
       result.push({
         dayLabel: day.toLocaleDateString("de-DE", {
