@@ -3,6 +3,7 @@ package api
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"log/slog"
 	"net/http"
 	"os"
@@ -50,6 +51,7 @@ import (
 	usercontextAPI "github.com/moto-nrw/project-phoenix/api/usercontext"
 	usersAPI "github.com/moto-nrw/project-phoenix/api/users"
 	worktimemodelsAPI "github.com/moto-nrw/project-phoenix/api/work-time-models"
+	calendarService "github.com/moto-nrw/project-phoenix/services/calendar"
 
 	announcementAPI "github.com/moto-nrw/project-phoenix/api/announcement"
 	messagingAPI "github.com/moto-nrw/project-phoenix/api/messaging"
@@ -592,6 +594,32 @@ func (a *API) registerRoutesWithRateLimiting() {
 	a.Router.Get("/public/enrollment-form-legal-documents/{filename}", func(w http.ResponseWriter, r *http.Request) {
 		filename := chi.URLParam(r, "filename")
 		apiCommon.ServeFile(w, r, "public/uploads/enrollment-form-legal-documents", filename, "public, max-age=86400")
+	})
+
+	// Public parent calendar subscription feed (no auth — the token in the URL
+	// is the capability). Calendar apps (Apple/Google/Outlook) poll this to keep
+	// the parent's Termine in sync. The service resolves the account by token and
+	// aggregates across the parent's tenants.
+	a.Router.Get("/public/calendar/{token}", func(w http.ResponseWriter, r *http.Request) {
+		if a.Services.Calendar == nil {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		token := chi.URLParam(r, "token")
+		filename, content, err := a.Services.Calendar.ParentCalendarFeedByToken(r.Context(), token)
+		if err != nil {
+			if errors.Is(err, calendarService.ErrNotFound) {
+				http.Error(w, "not found", http.StatusNotFound)
+				return
+			}
+			slog.Error("calendar feed failed", "error", err.Error())
+			http.Error(w, "internal error", http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
+		w.Header().Set("Content-Disposition", "inline; filename=\""+filename+"\"")
+		w.Header().Set("Cache-Control", "private, max-age=3600")
+		_, _ = w.Write([]byte(content))
 	})
 
 	a.Router.With(observability.MetricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", observability.MetricsHandler())

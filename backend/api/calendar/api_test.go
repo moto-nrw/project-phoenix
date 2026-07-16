@@ -104,6 +104,18 @@ func (f *fakeCalendarService) ParentAppointmentICS(context.Context, int64, int64
 	return "", "", nil
 }
 
+func (f *fakeCalendarService) ParentCalendarFeedURL(context.Context, int64) (string, string, error) {
+	return "", "", nil
+}
+
+func (f *fakeCalendarService) RotateParentCalendarFeed(context.Context, int64) (string, string, error) {
+	return "", "", nil
+}
+
+func (f *fakeCalendarService) ParentCalendarFeedByToken(context.Context, string) (string, string, error) {
+	return "", "", nil
+}
+
 func (f *fakeCalendarService) GetStaffAppointmentOverview(context.Context, int64) (*calendarSvc.AppointmentOverview, error) {
 	return nil, nil
 }

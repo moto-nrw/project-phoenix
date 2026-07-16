@@ -109,6 +109,46 @@ func (rs *Resource) calendarAppointmentICS(w http.ResponseWriter, r *http.Reques
 	_, _ = w.Write([]byte(content))
 }
 
+func (rs *Resource) calendarFeedURL(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	if rs.CalendarService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("calendar service is not configured")))
+		return
+	}
+	httpsURL, webcalURL, err := rs.CalendarService.ParentCalendarFeedURL(r.Context(), accountID)
+	if err != nil {
+		renderParentCalendarError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]string{
+		"url":        httpsURL,
+		"webcal_url": webcalURL,
+	}, "Calendar feed URL retrieved")
+}
+
+func (rs *Resource) rotateCalendarFeed(w http.ResponseWriter, r *http.Request) {
+	accountID, ok := rs.parentAccountID(w, r)
+	if !ok {
+		return
+	}
+	if rs.CalendarService == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("calendar service is not configured")))
+		return
+	}
+	httpsURL, webcalURL, err := rs.CalendarService.RotateParentCalendarFeed(r.Context(), accountID)
+	if err != nil {
+		renderParentCalendarError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, map[string]string{
+		"url":        httpsURL,
+		"webcal_url": webcalURL,
+	}, "Calendar feed URL rotated")
+}
+
 func parseParentCalendarRange(w http.ResponseWriter, r *http.Request) (timezone.Date, timezone.Date, bool) {
 	fromRaw := r.URL.Query().Get("from")
 	toRaw := r.URL.Query().Get("to")

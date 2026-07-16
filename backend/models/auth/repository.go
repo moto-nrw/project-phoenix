@@ -12,6 +12,11 @@ type AccountRepository interface {
 	base.CRUDRepository[*Account]
 	FindByEmail(ctx context.Context, email string) (*Account, error)
 	FindByUsername(ctx context.Context, username string) (*Account, error)
+	// FindByCalendarFeedToken resolves the account owning an iCalendar
+	// subscription token. Returns (nil, nil) when no account matches.
+	FindByCalendarFeedToken(ctx context.Context, token string) (*Account, error)
+	// SetCalendarFeedToken sets (or rotates) the account's calendar feed token.
+	SetCalendarFeedToken(ctx context.Context, accountID int64, token string) error
 	UpdateLastLogin(ctx context.Context, id int64) error
 	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error

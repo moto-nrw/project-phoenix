@@ -7,6 +7,7 @@ import {
   PersonalCalendar,
   type CalendarViewMode,
 } from "~/components/calendar/personal-calendar";
+import { CalendarSubscribePanel } from "~/components/calendar/calendar-subscribe-panel";
 import { Modal } from "~/components/ui/modal";
 import { useToast } from "~/contexts/ToastContext";
 import {
@@ -161,6 +162,9 @@ export default function ParentCalendarPage() {
         respondingRecipientId={respondingRecipientId}
         icsHrefBase="/api/parent/calendar/appointments"
       />
+      <div className="mt-6">
+        <CalendarSubscribePanel />
+      </div>
       <Modal
         isOpen={overview !== null || overviewLoading}
         onClose={() => {

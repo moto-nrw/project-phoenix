@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 	"sort"
+	"strings"
 	"strconv"
 	"testing"
 	"time"
@@ -469,6 +470,69 @@ func TestCalendarServiceIntegration_AppointmentICS(t *testing.T) {
 	_, _, err = service.StaffAppointmentICS(calendarContext(otherAccount.ID), detail.Appointment.ID)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
+}
+
+func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	cfg := calendarTestConfig(db)
+	repos := repositories.NewFactory(db)
+	cfg.AccountRepo = repos.Account
+	cfg.ParentsURL = "https://parents.test"
+	service := calendarSvc.NewService(cfg)
+
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Sommerfest",
+		StartDate:    timezone.TodayDate().AddDays(7),
+		EndDate:      timezone.TodayDate().AddDays(7),
+		StartTime:    wallClock(15, 0),
+		EndTime:      wallClock(18, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	// First request generates a stable token + subscription URLs.
+	httpsURL, webcalURL, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
+	require.NoError(t, err)
+	assert.True(t, strings.HasPrefix(httpsURL, "https://parents.test/api/calendar-feed/"))
+	assert.True(t, strings.HasPrefix(webcalURL, "webcal://parents.test/api/calendar-feed/"))
+
+	// Idempotent: the URL is stable on a second request.
+	httpsURL2, _, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
+	require.NoError(t, err)
+	assert.Equal(t, httpsURL, httpsURL2)
+
+	token := strings.TrimPrefix(httpsURL, "https://parents.test/api/calendar-feed/")
+	filename, content, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	require.NoError(t, err)
+	assert.Equal(t, "moto-kalender.ics", filename)
+	assert.Contains(t, content, "BEGIN:VCALENDAR")
+	assert.Contains(t, content, "SUMMARY:Sommerfest")
+
+	// An unknown token is a plain not-found.
+	_, _, err = service.ParentCalendarFeedByToken(testpkg.TenantContext(1), "nope-not-a-real-token")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
+
+	// Rotation invalidates the old token.
+	httpsURL3, _, err := service.RotateParentCalendarFeed(testpkg.TenantContext(1), parentChain.AccountID)
+	require.NoError(t, err)
+	assert.NotEqual(t, httpsURL, httpsURL3)
+	_, _, err = service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	require.Error(t, err)
 }
 
 func TestCalendarServiceIntegration_CancelSingleOccurrence(t *testing.T) {

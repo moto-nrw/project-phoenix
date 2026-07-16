@@ -31,6 +31,12 @@ type fakeParentCalendarService struct {
 	icsErr            error
 	gotICSAccount     int64
 	gotICSAppointment int64
+
+	feedURL          string
+	feedWebcal       string
+	feedErr          error
+	gotFeedAccount   int64
+	gotRotateAccount int64
 }
 
 func (f *fakeParentCalendarService) ListMyStaffEvents(context.Context, timezone.Date, timezone.Date) ([]calendarSvc.Event, error) {
@@ -76,6 +82,20 @@ func (f *fakeParentCalendarService) ParentAppointmentICS(_ context.Context, acco
 	f.gotICSAccount = accountID
 	f.gotICSAppointment = appointmentID
 	return f.icsFilename, f.icsContent, f.icsErr
+}
+
+func (f *fakeParentCalendarService) ParentCalendarFeedURL(_ context.Context, accountID int64) (string, string, error) {
+	f.gotFeedAccount = accountID
+	return f.feedURL, f.feedWebcal, f.feedErr
+}
+
+func (f *fakeParentCalendarService) RotateParentCalendarFeed(_ context.Context, accountID int64) (string, string, error) {
+	f.gotRotateAccount = accountID
+	return f.feedURL, f.feedWebcal, f.feedErr
+}
+
+func (f *fakeParentCalendarService) ParentCalendarFeedByToken(context.Context, string) (string, string, error) {
+	return "", "", nil
 }
 
 func (f *fakeParentCalendarService) GetStaffAppointmentOverview(context.Context, int64) (*calendarSvc.AppointmentOverview, error) {
@@ -127,6 +147,38 @@ func TestCalendarAppointmentICSStreamsDownload(t *testing.T) {
 	assert.Contains(t, w.Body.String(), "BEGIN:VCALENDAR")
 	assert.Equal(t, int64(77), service.gotICSAccount)
 	assert.Equal(t, int64(5), service.gotICSAppointment)
+}
+
+func TestCalendarFeedURLReturnsURLs(t *testing.T) {
+	service := &fakeParentCalendarService{
+		feedURL:    "https://parents.test/api/calendar-feed/abc",
+		feedWebcal: "webcal://parents.test/api/calendar-feed/abc",
+	}
+	rs := &Resource{CalendarService: service}
+	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/calendar/feed", nil), 77)
+	w := httptest.NewRecorder()
+
+	rs.calendarFeedURL(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, int64(77), service.gotFeedAccount)
+	assert.Contains(t, w.Body.String(), "webcal://parents.test/api/calendar-feed/abc")
+}
+
+func TestRotateCalendarFeedPassesAccount(t *testing.T) {
+	service := &fakeParentCalendarService{
+		feedURL:    "https://parents.test/api/calendar-feed/new",
+		feedWebcal: "webcal://parents.test/api/calendar-feed/new",
+	}
+	rs := &Resource{CalendarService: service}
+	req := withClaims(httptest.NewRequest(http.MethodPost, "/me/calendar/feed/rotate", nil), 77)
+	w := httptest.NewRecorder()
+
+	rs.rotateCalendarFeed(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, int64(77), service.gotRotateAccount)
+	assert.Contains(t, w.Body.String(), "calendar-feed/new")
 }
 
 func TestListMyCalendarRejectsMissingClaims(t *testing.T) {

@@ -211,6 +211,21 @@ export function getStaffAppointmentOverview(appointmentId: string) {
   );
 }
 
+export interface CalendarFeedInfo {
+  readonly url: string;
+  readonly webcal_url: string;
+}
+
+export function getParentCalendarFeed() {
+  return fetchJSON<CalendarFeedInfo>("/api/parent/calendar/feed");
+}
+
+export function rotateParentCalendarFeed() {
+  return fetchJSON<CalendarFeedInfo>("/api/parent/calendar/feed/rotate", {
+    method: "POST",
+  });
+}
+
 export function getParentAppointmentOverview(appointmentId: string) {
   return fetchJSON<CalendarAppointmentOverview>(
     `/api/parent/calendar/appointments/${encodeURIComponent(appointmentId)}/overview`,

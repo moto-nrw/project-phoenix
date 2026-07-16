@@ -54,6 +54,9 @@ type Service interface {
 	GetParentAppointmentOverview(ctx context.Context, accountID, appointmentID int64) (*AppointmentOverview, error)
 	StaffAppointmentICS(ctx context.Context, appointmentID int64) (filename, content string, err error)
 	ParentAppointmentICS(ctx context.Context, accountID, appointmentID int64) (filename, content string, err error)
+	ParentCalendarFeedURL(ctx context.Context, accountID int64) (httpsURL, webcalURL string, err error)
+	RotateParentCalendarFeed(ctx context.Context, accountID int64) (httpsURL, webcalURL string, err error)
+	ParentCalendarFeedByToken(ctx context.Context, token string) (filename, content string, err error)
 	RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error
 	RespondToParentInvitation(ctx context.Context, accountID, recipientID int64, status string) error
 	RecipientOptions(ctx context.Context, query string, limit int) (*RecipientOptions, error)
@@ -80,10 +83,11 @@ type Config struct {
 
 	// Notification dependencies (all optional — nil disables e-mail; the in-app
 	// calendar is unaffected).
-	Outbox     OutboxEnqueuer
-	SchoolRepo platformModels.SchoolRepository
-	Settings   LogoResolver
-	ParentsURL string
+	Outbox      OutboxEnqueuer
+	SchoolRepo  platformModels.SchoolRepository
+	Settings    LogoResolver
+	AccountRepo FeedAccountRepo
+	ParentsURL  string
 }
 
 type service struct {

@@ -1340,6 +1340,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Outbox:               emailOutboxService,
 		SchoolRepo:           repos.School,
 		Settings:             settingsService,
+		AccountRepo:          repos.Account,
 		ParentsURL:           parentsURL,
 	})
 

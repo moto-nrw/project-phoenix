@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -48,6 +50,41 @@ func (r *AccountRepository) FindByEmail(ctx context.Context, email string) (*aut
 	}
 
 	return account, nil
+}
+
+// FindByCalendarFeedToken resolves the account owning an iCalendar
+// subscription token. Returns (nil, nil) when no account matches so the public
+// feed endpoint can answer 404 without leaking whether a token exists.
+func (r *AccountRepository) FindByCalendarFeedToken(ctx context.Context, token string) (*auth.Account, error) {
+	if token == "" {
+		return nil, nil
+	}
+	account := new(auth.Account)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		ModelTableExpr(accountTable).
+		Where("calendar_feed_token = ?", token).
+		Scan(ctx, account)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, nil
+		}
+		return nil, &modelBase.DatabaseError{Op: "find by calendar feed token", Err: err}
+	}
+	return account, nil
+}
+
+// SetCalendarFeedToken sets or rotates the account's calendar feed token.
+func (r *AccountRepository) SetCalendarFeedToken(ctx context.Context, accountID int64, token string) error {
+	_, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.Account)(nil)).
+		ModelTableExpr(accountTable).
+		Set("calendar_feed_token = ?", token).
+		Where(whereID, accountID).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "set calendar feed token", Err: err}
+	}
+	return nil
 }
 
 // FindByUsername retrieves an account by username
