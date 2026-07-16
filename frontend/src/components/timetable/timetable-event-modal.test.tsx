@@ -2651,6 +2651,39 @@ describe("TimetableEventModal", () => {
     expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
   });
 
+  it("shows conflict hints already on step 1, where Speichern is possible", async () => {
+    mockCheckConflicts.mockResolvedValue({
+      date: "2026-05-04",
+      startTime: "12:00",
+      endTime: "13:00",
+      warnings: [
+        {
+          kind: "room",
+          resourceId: "3",
+          message: "Raum Mensa ist 12:00–13:00 bereits belegt",
+          conflictingInstanceId: "99",
+          conflictingTitle: "Mensa",
+        },
+      ],
+    });
+    renderModal();
+
+    await screen.findByText("Haus A - Mensa");
+    fireEvent.change(screen.getByLabelText("Raum*"), {
+      target: { value: "3" },
+    });
+
+    // Without any step navigation the advisory hint appears on step 1.
+    expect(
+      await screen.findByText(
+        "Hinweis: Raum Mensa ist 12:00–13:00 bereits belegt",
+        undefined,
+        { timeout: 2000 },
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+  });
+
   it("shows uncovered-shift warnings without blocking save", async () => {
     mockCheckShiftCoverage.mockResolvedValue({
       coverageWarnings: [

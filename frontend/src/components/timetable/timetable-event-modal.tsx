@@ -402,6 +402,44 @@ export function TimetableEventModal({
               <Alert type="warning" message={staffLoadError} />
             )}
 
+            {/* Speichern works from every step, so conflict and coverage
+                hints must too — otherwise a direct save from step 1 hides
+                room/staff/student overlaps. Step 3 keeps its own detailed
+                panels (with the expandable coverage list); here only the
+                compact advisory form is shown. */}
+            {step !== 2 &&
+              (conflictWarnings.length > 0 ||
+                coverageWarningCount > 0 ||
+                coverageCheckError) && (
+                <div className="flex flex-col gap-2">
+                  <p className="sr-only" aria-live="polite">
+                    {`${conflictWarnings.length} Terminüberschneidungen und ${coverageWarningCount} Dienstplan-Lücken gefunden. Speichern ist weiterhin möglich.`}
+                  </p>
+                  {conflictWarnings.map((warning, index) => (
+                    <Alert
+                      key={`${warning.kind}-${warning.resourceId}-${index}`}
+                      type="warning"
+                      message={`Hinweis: ${warning.message}`}
+                      announce="off"
+                    />
+                  ))}
+                  {coverageWarningCount > 0 && (
+                    <Alert
+                      type="warning"
+                      message={`${coverageWarningCount} Dienstplan-${coverageWarningCount === 1 ? "Lücke" : "Lücken"} gefunden. Details im Schritt „Personal und Kinder“. Speichern ist weiterhin möglich.`}
+                      announce="off"
+                    />
+                  )}
+                  {coverageCheckError && (
+                    <Alert
+                      type="warning"
+                      message={`Hinweis: ${coverageCheckError}`}
+                      announce="off"
+                    />
+                  )}
+                </div>
+              )}
+
             {validationError && (
               <Alert type="error" message={validationError} />
             )}
