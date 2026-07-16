@@ -3,6 +3,7 @@
 import {
   Ban,
   CalendarDays,
+  CalendarPlus,
   Check,
   ChevronLeft,
   ChevronRight,
@@ -57,6 +58,9 @@ interface PersonalCalendarProps {
   readonly onCancel?: (event: CalendarEvent) => void;
   readonly onDelete?: (event: CalendarEvent) => void;
   readonly busyAppointmentId?: string | null;
+  // Base path for the .ics download route, e.g. "/api/parent/calendar/appointments".
+  // When set, appointment cards show a "Zum Kalender hinzufügen" download link.
+  readonly icsHrefBase?: string;
 }
 
 interface CalendarEventActions {
@@ -70,6 +74,7 @@ interface CalendarEventActions {
   readonly onCancel?: (event: CalendarEvent) => void;
   readonly onDelete?: (event: CalendarEvent) => void;
   readonly busyAppointmentId?: string | null;
+  readonly icsHrefBase?: string;
 }
 
 const sourceTone = {
@@ -222,6 +227,7 @@ export function PersonalCalendar({
   onCancel,
   onDelete,
   busyAppointmentId,
+  icsHrefBase,
 }: PersonalCalendarProps) {
   const actions: CalendarEventActions = {
     onShowOverview,
@@ -231,6 +237,7 @@ export function PersonalCalendar({
     onCancel,
     onDelete,
     busyAppointmentId,
+    icsHrefBase,
   };
   const referenceDate = rawReferenceDate ?? weekStart ?? new Date();
   const handleDateChange = onDateChange ?? onWeekChange ?? (() => undefined);
@@ -460,6 +467,7 @@ function CalendarEventItem({
     onCancel,
     onDelete,
     busyAppointmentId,
+    icsHrefBase,
   } = actions;
   const tone = sourceTone[event.source];
   const recipientId = event.recipient_id;
@@ -541,6 +549,19 @@ function CalendarEventItem({
           <Users className="h-4 w-4" aria-hidden />
           Teilnehmer
         </Button>
+      ) : null}
+      {!cancelled &&
+      event.source === "appointment" &&
+      event.appointment_id &&
+      icsHrefBase ? (
+        <a
+          href={`${icsHrefBase}/${encodeURIComponent(event.appointment_id)}/ics`}
+          download
+          className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-md bg-white/50 px-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-white"
+        >
+          <CalendarPlus className="h-4 w-4" aria-hidden />
+          Zum Kalender hinzufügen
+        </a>
       ) : null}
       {!cancelled && event.can_respond && recipientId && onRespond ? (
         <div className="mt-3 grid gap-1.5">

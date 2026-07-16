@@ -410,6 +410,67 @@ func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
 	assert.Equal(t, platformModels.EmailKindAppointmentCancelled, outbox.enqueued[1].Kind)
 }
 
+func TestCalendarServiceIntegration_AppointmentICS(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "ICS", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	endsOn := timezone.NewDate(2026, 5, 25)
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Wöchentliche AG",
+		Location:     testpkg.StrPtr("Turnhalle"),
+		StartDate:    timezone.NewDate(2026, 5, 4), // Monday
+		EndDate:      timezone.NewDate(2026, 5, 4),
+		StartTime:    wallClock(14, 0),
+		EndTime:      wallClock(15, 30),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{"monday"},
+			EndsOn:        &endsOn,
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	// Organizer can export.
+	filename, content, err := service.StaffAppointmentICS(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Wchentliche-AG.ics", filename)
+	assert.Contains(t, content, "BEGIN:VEVENT")
+	assert.Contains(t, content, "SUMMARY:Wöchentliche AG")
+	assert.Contains(t, content, "LOCATION:Turnhalle")
+	assert.Contains(t, content, "DTSTART;TZID=Europe/Berlin:20260504T140000")
+	assert.Contains(t, content, "RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20260525T")
+
+	// The invited guardian can export.
+	_, parentContent, err := service.ParentAppointmentICS(testpkg.TenantContext(1), parentChain.AccountID, detail.Appointment.ID)
+	require.NoError(t, err)
+	assert.Contains(t, parentContent, "SUMMARY:Wöchentliche AG")
+
+	// A stranger staff member cannot.
+	other, otherAccount := testpkg.CreateTestCalendarStaff(t, db, "ICS", "Stranger")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, other.ID)
+		testpkg.CleanupAuthFixtures(t, db, otherAccount.ID)
+	})
+	_, _, err = service.StaffAppointmentICS(calendarContext(otherAccount.ID), detail.Appointment.ID)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
+}
+
 func TestCalendarServiceIntegration_CancelSingleOccurrence(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	t.Cleanup(func() { _ = db.Close() })

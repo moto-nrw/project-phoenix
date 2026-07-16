@@ -39,6 +39,11 @@ type fakeCalendarService struct {
 	gotCancelOccID  int64
 	gotCancelOccDay timezone.Date
 
+	icsFilename string
+	icsContent  string
+	icsErr      error
+	gotICSID    int64
+
 	respondErr       error
 	gotRespondID     int64
 	gotRespondStatus string
@@ -88,6 +93,15 @@ func (f *fakeCalendarService) CancelStaffAppointmentOccurrence(_ context.Context
 	f.gotCancelOccID = appointmentID
 	f.gotCancelOccDay = occurrenceDate
 	return f.cancelOccErr
+}
+
+func (f *fakeCalendarService) StaffAppointmentICS(_ context.Context, appointmentID int64) (string, string, error) {
+	f.gotICSID = appointmentID
+	return f.icsFilename, f.icsContent, f.icsErr
+}
+
+func (f *fakeCalendarService) ParentAppointmentICS(context.Context, int64, int64) (string, string, error) {
+	return "", "", nil
 }
 
 func (f *fakeCalendarService) GetStaffAppointmentOverview(context.Context, int64) (*calendarSvc.AppointmentOverview, error) {
@@ -341,6 +355,27 @@ func TestCancelOccurrenceRejectsBadDate(t *testing.T) {
 	rs.cancelOccurrence(w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestAppointmentICSStreamsDownload(t *testing.T) {
+	service := &fakeCalendarService{
+		icsFilename: "planning.ics",
+		icsContent:  "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n",
+	}
+	rs := &Resource{service: service}
+	req := requestWithURLParam(
+		httptest.NewRequest(http.MethodGet, "/appointments/7/ics", nil),
+		"appointmentId", "7",
+	)
+	w := httptest.NewRecorder()
+
+	rs.appointmentICS(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "text/calendar; charset=utf-8", w.Header().Get("Content-Type"))
+	assert.Contains(t, w.Header().Get("Content-Disposition"), "planning.ics")
+	assert.Contains(t, w.Body.String(), "BEGIN:VCALENDAR")
+	assert.Equal(t, int64(7), service.gotICSID)
 }
 
 func TestRespondPassesRecipientAndStatus(t *testing.T) {

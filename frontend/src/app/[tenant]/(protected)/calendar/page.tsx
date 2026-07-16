@@ -582,6 +582,7 @@ export default function StaffCalendarPage() {
         onCancel={canManageCalendar ? handleCancel : undefined}
         onDelete={canManageCalendar ? handleDelete : undefined}
         busyAppointmentId={busyAppointmentId}
+        icsHrefBase="/api/calendar/appointments"
       />
 
       <Modal

@@ -25,6 +25,12 @@ type fakeParentCalendarService struct {
 	gotRespondAccount int64
 	gotRespondID      int64
 	gotRespondStatus  string
+
+	icsFilename       string
+	icsContent        string
+	icsErr            error
+	gotICSAccount     int64
+	gotICSAppointment int64
 }
 
 func (f *fakeParentCalendarService) ListMyStaffEvents(context.Context, timezone.Date, timezone.Date) ([]calendarSvc.Event, error) {
@@ -40,6 +46,36 @@ func (f *fakeParentCalendarService) ListMyParentEvents(_ context.Context, accoun
 
 func (f *fakeParentCalendarService) CreateStaffAppointment(context.Context, calendarSvc.CreateAppointmentRequest) (*calendarSvc.AppointmentDetail, error) {
 	return nil, nil
+}
+
+func (f *fakeParentCalendarService) GetStaffAppointmentDetail(context.Context, int64) (*calendarSvc.AppointmentDetail, error) {
+	return nil, nil
+}
+
+func (f *fakeParentCalendarService) UpdateStaffAppointment(context.Context, int64, calendarSvc.UpdateAppointmentRequest) (*calendarSvc.AppointmentDetail, error) {
+	return nil, nil
+}
+
+func (f *fakeParentCalendarService) CancelStaffAppointment(context.Context, int64) (*calendarSvc.AppointmentDetail, error) {
+	return nil, nil
+}
+
+func (f *fakeParentCalendarService) DeleteStaffAppointment(context.Context, int64) error {
+	return nil
+}
+
+func (f *fakeParentCalendarService) CancelStaffAppointmentOccurrence(context.Context, int64, timezone.Date) error {
+	return nil
+}
+
+func (f *fakeParentCalendarService) StaffAppointmentICS(context.Context, int64) (string, string, error) {
+	return "", "", nil
+}
+
+func (f *fakeParentCalendarService) ParentAppointmentICS(_ context.Context, accountID, appointmentID int64) (string, string, error) {
+	f.gotICSAccount = accountID
+	f.gotICSAppointment = appointmentID
+	return f.icsFilename, f.icsContent, f.icsErr
 }
 
 func (f *fakeParentCalendarService) GetStaffAppointmentOverview(context.Context, int64) (*calendarSvc.AppointmentOverview, error) {
@@ -69,6 +105,28 @@ func parentRequestWithURLParam(req *http.Request, key, value string) *http.Reque
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add(key, value)
 	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+}
+
+func TestCalendarAppointmentICSStreamsDownload(t *testing.T) {
+	service := &fakeParentCalendarService{
+		icsFilename: "elternabend.ics",
+		icsContent:  "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n",
+	}
+	rs := &Resource{CalendarService: service}
+	req := parentRequestWithURLParam(
+		withClaims(httptest.NewRequest(http.MethodGet, "/me/calendar/appointments/5/ics", nil), 77),
+		"appointmentId", "5",
+	)
+	w := httptest.NewRecorder()
+
+	rs.calendarAppointmentICS(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "text/calendar; charset=utf-8", w.Header().Get("Content-Type"))
+	assert.Contains(t, w.Header().Get("Content-Disposition"), "elternabend.ics")
+	assert.Contains(t, w.Body.String(), "BEGIN:VCALENDAR")
+	assert.Equal(t, int64(77), service.gotICSAccount)
+	assert.Equal(t, int64(5), service.gotICSAppointment)
 }
 
 func TestListMyCalendarRejectsMissingClaims(t *testing.T) {

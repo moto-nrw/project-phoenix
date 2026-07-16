@@ -1,0 +1,159 @@
+package calendar
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/moto-nrw/project-phoenix/internal/ical"
+	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
+)
+
+// StaffAppointmentICS renders an appointment the current staff member can see
+// (organizer or invited) as an iCalendar document for import into an external
+// calendar. Returns a download filename and the text/calendar body.
+func (s *service) StaffAppointmentICS(ctx context.Context, appointmentID int64) (string, string, error) {
+	if appointmentID <= 0 {
+		return "", "", fmt.Errorf("%w: appointment id is required", ErrInvalidRequest)
+	}
+	staff, err := s.cfg.UserContext.GetCurrentStaff(ctx)
+	if err != nil {
+		return "", "", fmt.Errorf("%w: current staff required", ErrForbidden)
+	}
+	appointment, err := s.cfg.AppointmentRepo.FindByID(ctx, appointmentID)
+	if err != nil {
+		return "", "", err
+	}
+	if appointment == nil {
+		return "", "", ErrNotFound
+	}
+	recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(ctx, appointment.ID)
+	if err != nil {
+		return "", "", err
+	}
+	_, recipientID := staffRecipientStatus(recipients, staff.ID)
+	if appointment.OrganizerStaffID != staff.ID && recipientID == nil {
+		return "", "", ErrNotFound
+	}
+	return s.renderAppointmentICS(ctx, appointment)
+}
+
+// ParentAppointmentICS renders an appointment a guardian can see (their linked
+// child is a recipient) as an iCalendar document. Scans the parent's tenants
+// exactly like the parent overview path.
+func (s *service) ParentAppointmentICS(ctx context.Context, accountID, appointmentID int64) (string, string, error) {
+	if accountID <= 0 {
+		return "", "", fmt.Errorf("%w: account id is required", ErrForbidden)
+	}
+	if appointmentID <= 0 {
+		return "", "", fmt.Errorf("%w: appointment id is required", ErrInvalidRequest)
+	}
+	children, err := s.parentChildren(ctx, accountID)
+	if err != nil {
+		return "", "", err
+	}
+	var filename, content string
+	for tenantID, tenantChildren := range groupChildrenByTenant(children) {
+		tenantID := tenantID
+		tenantChildren := tenantChildren
+		if err := tenant.WithTenantTx(ctx, s.cfg.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+			appointment, err := s.cfg.AppointmentRepo.FindByID(txCtx, appointmentID)
+			if err != nil {
+				return err
+			}
+			if appointment == nil {
+				return nil
+			}
+			recipients, err := s.cfg.RecipientRepo.FindByAppointmentID(txCtx, appointment.ID)
+			if err != nil {
+				return err
+			}
+			guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
+			studentIDs := distinctChildStudentIDs(tenantChildren)
+			_, recipientID, err := s.guardianRecipientStatusForStudents(txCtx, recipients, guardianProfileIDs, studentIDs)
+			if err != nil {
+				return err
+			}
+			if recipientID == nil {
+				return nil
+			}
+			filename, content, err = s.renderAppointmentICS(txCtx, appointment)
+			return err
+		}); err != nil {
+			return "", "", err
+		}
+		if content != "" {
+			return filename, content, nil
+		}
+	}
+	return "", "", ErrNotFound
+}
+
+func (s *service) renderAppointmentICS(ctx context.Context, appointment *calModels.Appointment) (string, string, error) {
+	recurrence, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, appointment.ID)
+	if err != nil {
+		return "", "", err
+	}
+	event := appointmentICSEvent(appointment, recurrence)
+	content := ical.Render(appointment.Title, []ical.Event{event})
+	return icsFilename(appointment.Title), content, nil
+}
+
+func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calModels.RecurrenceRule) ical.Event {
+	description := ""
+	if appointment.Description != nil {
+		description = *appointment.Description
+	}
+	location := ""
+	if appointment.Location != nil {
+		location = *appointment.Location
+	}
+	event := ical.Event{
+		UID:         fmt.Sprintf("appointment-%d@moto-app.de", appointment.ID),
+		Summary:     appointment.Title,
+		Description: description,
+		Location:    location,
+		StartDate:   appointment.StartDate,
+		EndDate:     appointment.EndDate,
+		StartClock:  appointment.StartTime,
+		EndClock:    appointment.EndTime,
+		AllDay:      appointment.AllDay,
+		Cancelled:   appointment.CancelledAt != nil,
+		Stamp:       appointment.UpdatedAt,
+	}
+	if recurrence != nil {
+		event.Recurrence = &ical.Recurrence{
+			Freq:      recurrence.Frequency,
+			Interval:  recurrence.IntervalCount,
+			Weekdays:  recurrence.Weekdays,
+			MonthDays: recurrence.MonthDays,
+			Until:     recurrence.EndsOn,
+			Count:     recurrence.OccurrenceCount,
+		}
+	}
+	return event
+}
+
+// icsFilename builds a safe download filename from the appointment title.
+func icsFilename(title string) string {
+	slug := strings.Map(func(r rune) rune {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			return r
+		case r == ' ' || r == '-' || r == '_':
+			return '-'
+		default:
+			return -1
+		}
+	}, title)
+	slug = strings.Trim(slug, "-")
+	if slug == "" {
+		slug = "termin"
+	}
+	if len(slug) > 60 {
+		slug = slug[:60]
+	}
+	return slug + ".ics"
+}

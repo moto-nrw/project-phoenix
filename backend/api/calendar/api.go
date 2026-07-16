@@ -44,6 +44,7 @@ func (rs *Resource) Router() chi.Router {
 		manage := authorize.RequiresPermission(permissions.CalendarManage)
 		r.With(own, withTx).Get("/my", rs.listMy)
 		r.With(own, withTx).Get("/appointments/{appointmentId}/overview", rs.appointmentOverview)
+		r.With(own, withTx).Get("/appointments/{appointmentId}/ics", rs.appointmentICS)
 		r.With(manage, withTx).Post("/appointments", rs.createAppointment)
 		r.With(manage, withTx).Get("/appointments/{appointmentId}", rs.getAppointmentDetail)
 		r.With(manage, withTx).Put("/appointments/{appointmentId}", rs.updateAppointment)
@@ -300,6 +301,27 @@ func (rs *Resource) appointmentOverview(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	common.Respond(w, r, http.StatusOK, overview, "Appointment overview retrieved")
+}
+
+func (rs *Resource) appointmentICS(w http.ResponseWriter, r *http.Request) {
+	appointmentID, ok := common.ParsePositiveInt64IDWithError(w, r, "appointmentId", "invalid appointment ID")
+	if !ok {
+		return
+	}
+	filename, content, err := rs.service.StaffAppointmentICS(r.Context(), appointmentID)
+	if err != nil {
+		renderCalendarError(w, r, err)
+		return
+	}
+	writeICS(w, filename, content)
+}
+
+// writeICS streams an iCalendar document as a downloadable attachment.
+func writeICS(w http.ResponseWriter, filename, content string) {
+	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%q", filename))
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write([]byte(content))
 }
 
 func (rs *Resource) respond(w http.ResponseWriter, r *http.Request) {

@@ -159,6 +159,7 @@ export default function ParentCalendarPage() {
         onShowOverview={handleShowOverview}
         onRespond={handleRespond}
         respondingRecipientId={respondingRecipientId}
+        icsHrefBase="/api/parent/calendar/appointments"
       />
       <Modal
         isOpen={overview !== null || overviewLoading}
