@@ -235,9 +235,20 @@ var ErrMonthOutOfRange = errors.New("month out of range")
 // requested month, capping the per-request work at a constant regardless of the
 // configured start. Ten years is far beyond any real Stundenkonto this product
 // can hold (schools onboard within its lifetime), so a legitimate account is
-// never clamped; only a misconfigured start hits the bound, and its carry is
-// then computed from the floor rather than from an impossible date.
+// never affected; a start older than the bound is a misconfiguration and is
+// rejected (ErrAccountStartTooOld) rather than silently clamped — clamping would
+// drop the balance of every month before the floor and present a materially
+// wrong opening/closing Stundenkonto as authoritative.
 const maxCarryChainMonths = 120
+
+// ErrAccountStartTooOld marks an account-start setting so far back that the live
+// carry chain would exceed maxCarryChainMonths. Rather than clamp the chain to
+// the floor — which silently discards the Soll/Ist/credits of every earlier
+// month and yields a wrong opening and closing balance — the request fails so
+// the misconfiguration surfaces and gets corrected. No real Stundenkonto reaches
+// back this far, so a legitimate account never triggers it. Handlers map this to
+// HTTP 500: it is a server-side configuration fault, not a caller mistake.
+var ErrAccountStartTooOld = errors.New("account start predates the carry-chain bound")
 
 func validateMonth(year, month int) error {
 	if year < 2000 || year > 2100 || month < 1 || month > 12 {
@@ -613,15 +624,18 @@ func (s *workTimeMonthService) GetMonthSummary(ctx context.Context, staffID int6
 
 	// Bound how far back the chain reaches so a stale/misconfigured account
 	// start can't make each poll aggregate and query decades of days. A
-	// realistic account never predates the floor, so this clamps only absurd
-	// settings; when it fires the carry is computed from the floor.
+	// realistic account never predates the floor; when it does, the setting is
+	// wrong, and we fail loudly instead of clamping — a clamp would drop the
+	// balance of every month before the floor and quietly present a wrong
+	// opening/closing Stundenkonto (#1842).
 	if floorKey := key.addMonths(-maxCarryChainMonths); startKey.before(floorKey) {
-		s.getLogger().Warn("account start older than carry-chain bound, clamping",
+		s.getLogger().Error("account start older than carry-chain bound, rejecting",
 			"account_start", first.String(),
 			"floor", floorKey.firstDay().String(),
 			"max_carry_chain_months", maxCarryChainMonths,
 		)
-		startKey, first = floorKey, floorKey.firstDay()
+		return nil, fmt.Errorf("%w: %s is more than %d months before %d-%02d",
+			ErrAccountStartTooOld, first.String(), maxCarryChainMonths, key.Year, key.Month)
 	}
 
 	aggregates, err := s.computeAggregates(ctx, staffID, first, key, today)

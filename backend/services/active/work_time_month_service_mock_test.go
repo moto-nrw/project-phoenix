@@ -211,22 +211,24 @@ func TestWTMMonthSummary_AcceptsMonthWithinFutureBound(t *testing.T) {
 // The account start setting is not range-checked (any valid date is accepted),
 // so a stale/misconfigured value years back would otherwise make every
 // current-month card aggregate and query every intervening day — on a poll.
-// The carry chain must not reach further back than maxCarryChainMonths before
-// the requested month regardless of how old the setting is (#1842).
-func TestWTMMonthSummary_ClampsAncientAccountStart(t *testing.T) {
+// A start older than maxCarryChainMonths is rejected rather than silently
+// clamped to the floor: clamping would drop the balance of every month before
+// the floor and present a wrong opening/closing Stundenkonto as authoritative
+// (#1842). No real Stundenkonto reaches back this far.
+func TestWTMMonthSummary_RejectsAncientAccountStart(t *testing.T) {
 	f := newWTMFixture()
 	f.settings.accountStart = "2000-01-01" // 26 years before the requested month
 	ctx := context.Background()
 
 	// today = 2026-07-15; requesting the current month. The floor is
-	// 2026-07 minus 120 months = 2016-07-01; the walk must start no earlier.
+	// 2026-07 minus 120 months = 2016-07-01; a start of 2000-01-01 is older.
 	_, err := f.svc.GetMonthSummary(ctx, wtmStaffID, 2026, 7)
-	require.NoError(t, err)
+	require.ErrorIs(t, err, ErrAccountStartTooOld)
 
-	floor := timezone.NewDate(2016, time.July, 1)
-	assert.Falsef(t, f.sessions.lastFrom.Before(floor),
-		"session query started at %s, before the carry-chain floor %s",
-		f.sessions.lastFrom.String(), floor.String())
+	// The chain must not even query when it rejects: no decades-wide walk.
+	assert.True(t, f.sessions.lastFrom.IsZero(),
+		"rejected request must not query sessions, but walked from %s",
+		f.sessions.lastFrom.String())
 }
 
 // A realistic account start (well within the bound) is never clamped: the chain

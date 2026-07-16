@@ -22,6 +22,7 @@ import {
   YAxis,
 } from "recharts";
 
+import { Alert } from "~/components/ui/alert";
 import {
   type ChartConfig,
   ChartContainer,
@@ -178,16 +179,19 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
   // contract change (8h -> 4h) the Saldo line re-priced months of history at
   // today's hours and drifted away from the "Stundenkonto" headline right
   // above it. Chunked: "Gesamt" can outrun the endpoint's 366-day window.
-  const { data: accountTargets, isLoading: targetsLoading } =
-    useSWRAuth<TargetsByDay>(
-      `staff-schedule-targets-account-${staffId}-${accountStartKey}-${yearEndKey}`,
-      () =>
-        staffMonthSummaryService.getScheduleTargetsRange(
-          staffId,
-          accountStartKey,
-          yearEndKey,
-        ),
-    );
+  const {
+    data: accountTargets,
+    isLoading: targetsLoading,
+    error: targetsError,
+  } = useSWRAuth<TargetsByDay>(
+    `staff-schedule-targets-account-${staffId}-${accountStartKey}-${yearEndKey}`,
+    () =>
+      staffMonthSummaryService.getScheduleTargetsRange(
+        staffId,
+        accountStartKey,
+        yearEndKey,
+      ),
+  );
 
   // Date-valid Stundenkonto from the server-computed month model (#1842).
   const { balanceMinutes: accountBalanceMinutes } = useAccountBalance(staffId);
@@ -272,6 +276,21 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
   // the real map arrives.
   if (sessionsLoading || absencesLoading || targetsLoading) {
     return <UebersichtTabSkeleton />;
+  }
+
+  // A failed targets fetch must NOT fall through to EMPTY_TARGETS: that would
+  // price every contractual day at 0 Soll and render a Saldo line that reads as
+  // a huge surplus. The Soll is the axis the whole view hangs on, so surface the
+  // error instead of drawing a confidently-wrong chart (#1842).
+  if (targetsError) {
+    return (
+      <div className="space-y-5">
+        <Alert
+          type="error"
+          message="Die Sollzeiten konnten nicht geladen werden. Die Auswertung wird nicht angezeigt, um keine falschen Soll- und Saldo-Werte darzustellen. Bitte lade die Seite neu."
+        />
+      </div>
+    );
   }
 
   const yearStartLabel = accountAnchor.toLocaleDateString("de-DE", {

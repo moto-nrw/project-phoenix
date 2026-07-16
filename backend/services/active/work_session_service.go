@@ -2034,7 +2034,13 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 		ende = sess.CheckOutTime.Format("15:04")
 	}
 
-	pauseMin := strconv.Itoa(sess.BreakMinutes)
+	// Read the pause from the response-level total, not the model cache: for an
+	// open session with a running break the cache (sess.BreakMinutes) still holds
+	// only ENDED breaks and would print "Pause 0" next to a Netto that already
+	// deducts the running break (sr.NetMinutes). sr.BreakMinutes is the live
+	// total that pairs with that Netto, so the export row stays internally
+	// consistent (#1842).
+	pauseMin := strconv.Itoa(sr.BreakMinutes)
 
 	// Net as "Xh YYmin"
 	netMins := sr.NetMinutes

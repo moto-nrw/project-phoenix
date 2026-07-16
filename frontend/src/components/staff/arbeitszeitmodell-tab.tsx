@@ -25,16 +25,23 @@ import { formatDuration } from "~/lib/time-tracking-helpers";
 const logger = createLogger({ component: "ArbeitszeitmodellTab" });
 
 // A work-time model save rewrites the contractual Soll, so every cache that
-// prices days against it — the date-valid targets and the month aggregate the
-// sibling Zeiterfassung / Übersicht tabs hold — goes stale. Both are recomputed
-// live on the server, so a plain invalidation suffices. useSWRAuth prefixes
-// keys with the tenant slug, so we match with includes, not startsWith — the
-// same convention as staff-session-table's handleSaved (#1842).
+// prices days against it goes stale. Two portals read the same staff member's
+// targets: the admin staff-detail tabs key them by staff id
+// (staff-schedule-targets- / staff-month-summary-), while a manager editing
+// their OWN model also has the own-service portal's caches open, which key
+// WITHOUT an id (time-tracking-schedule-targets- for the daily table and the
+// weekly KPI, time-tracking-month-summary- for the Monatskarte). Both sets must
+// be invalidated, or the self-service daily table keeps showing the old
+// Soll/Saldo while the monthly summary has already updated (#1842). Everything
+// is recomputed live on the server, so a plain invalidation suffices. useSWRAuth
+// prefixes keys with the tenant slug, so we match with includes, not startsWith
+// — the same convention as staff-session-table's handleSaved.
 export function isStaleAfterModelSave(key: unknown): boolean {
   return (
     typeof key === "string" &&
     (key.includes("staff-schedule-targets-") ||
       key.includes("staff-month-summary-") ||
+      key.includes("time-tracking-schedule-targets-") ||
       key.includes("time-tracking-month-summary-"))
   );
 }
