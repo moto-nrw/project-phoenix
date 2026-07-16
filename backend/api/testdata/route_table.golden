@@ -280,6 +280,8 @@ GET /api/staff/{id}/schedule
 GET /api/staff/{id}/substitutions
 GET /api/staff/{id}/time-tracking/export
 GET /api/staff/{id}/time-tracking/history
+GET /api/staff/{id}/time-tracking/month-summary
+GET /api/staff/{id}/time-tracking/schedule-targets
 GET /api/staff/{id}/time-tracking/sessions/{sessionId}/edits
 GET /api/staff/{id}/vacation/quota
 GET /api/students/
@@ -315,7 +317,9 @@ GET /api/time-tracking/config
 GET /api/time-tracking/current
 GET /api/time-tracking/export
 GET /api/time-tracking/history
+GET /api/time-tracking/month-summary
 GET /api/time-tracking/presence-map
+GET /api/time-tracking/schedule-targets
 GET /api/time-tracking/shifts
 GET /api/time-tracking/vacation/quota
 GET /api/time-tracking/{id}/edits

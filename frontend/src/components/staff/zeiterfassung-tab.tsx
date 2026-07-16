@@ -9,20 +9,27 @@ import type { StaffShift } from "~/lib/shift-helpers";
 import {
   staffAbsenceService,
   staffHistoryService,
+  staffMonthSummaryService,
   staffScheduleService,
 } from "~/lib/staff-api";
 import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
+import { Monatskarte } from "~/components/time-tracking/monatskarte";
+import type { MonthSummary } from "~/lib/time-tracking-helpers";
 import {
-  computeStaffMetrics,
   endOfMonth,
   endOfWeek,
-  resolveAccountStartDate,
   startOfMonth,
   startOfWeek,
   startOfYear,
   toDateKey,
 } from "~/lib/staff-metrics-helpers";
-import { getWeekNumber } from "~/lib/time-tracking-helpers";
+import {
+  getWeekNumber,
+  OPEN_MONTH_REFRESH_MS,
+} from "~/lib/time-tracking-helpers";
+import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import { usePeriodMetrics } from "~/lib/hooks/use-period-metrics";
 import { timeTrackingService } from "~/lib/time-tracking-api";
 import { useSWRAuth } from "~/lib/swr";
 
@@ -36,13 +43,21 @@ import { KpiCards, ViewToggle, type ViewMode } from "./staff-time-views";
 // corrections and backfills go through the time_tracking:manage endpoints
 // with a mandatory audit reason.
 export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
-  const today = useMemo(() => new Date(), []);
+  // The Berlin day, not the browser's, and re-rendered on the rollover: this
+  // tab stays mounted for hours, and `new Date()` frozen at mount would keep
+  // pointing "Dieser Monat" and the open-month poll at yesterday's month after
+  // midnight — and at the wrong month entirely from a non-Berlin browser
+  // (#1842). The backend derives its month from timezone.TodayDate().
+  const todayISO = useBerlinToday();
+  const today = useMemo(() => parseISODate(todayISO), [todayISO]);
 
   const [viewMode, setViewMode] = useState<ViewMode>("week");
   const [monthAnchor, setMonthAnchor] = useState(() =>
-    startOfMonth(new Date()),
+    startOfMonth(parseISODate(berlinTodayISO())),
   );
-  const [weekAnchor, setWeekAnchor] = useState(() => startOfWeek(new Date()));
+  const [weekAnchor, setWeekAnchor] = useState(() =>
+    startOfWeek(parseISODate(berlinTodayISO())),
+  );
 
   const { data: schedule, isLoading: scheduleLoading } = useSWRAuth(
     `staff-schedule-${staffId}`,
@@ -53,39 +68,11 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
     timeTrackingService.getConfig(),
   );
 
-  const accountAnchor = useMemo(() => {
-    return resolveAccountStartDate(today, timeTrackingConfig?.accountStartDate);
-  }, [timeTrackingConfig?.accountStartDate, today]);
-  const accountFromKey = toDateKey(accountAnchor);
-  const accountToKey = toDateKey(today);
-  const { data: accountSessions } = useSWRAuth<StaffHistorySession[]>(
-    `staff-history-account-${staffId}-${accountFromKey}-${accountToKey}`,
-    () => staffHistoryService.getHistory(staffId, accountFromKey, accountToKey),
-  );
-  const { data: accountAbsences } = useSWRAuth<StaffAbsenceRow[]>(
-    `staff-absences-account-${staffId}-${accountFromKey}-${accountToKey}`,
-    () =>
-      staffAbsenceService.getAbsences(staffId, accountFromKey, accountToKey),
-  );
-  const metrics = useMemo(
-    () =>
-      schedule
-        ? computeStaffMetrics(
-            schedule,
-            accountSessions ?? [],
-            accountAbsences ?? [],
-            today,
-            timeTrackingConfig?.accountStartDate,
-          )
-        : null,
-    [
-      schedule,
-      accountSessions,
-      accountAbsences,
-      today,
-      timeTrackingConfig?.accountStartDate,
-    ],
-  );
+  // Week, month and Stundenkonto all come from the server-computed model: only
+  // the backend resolves each day against the schedule that was valid on that
+  // day, so these cards can never contradict the Monatskarte and the daily
+  // rows below them after a contract change (#1842).
+  const metrics = usePeriodMetrics(staffId);
 
   const visibleFrom = useMemo(
     () =>
@@ -102,15 +89,18 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
 
   const visibleFromKey = toDateKey(visibleFrom);
   const visibleToKey = toDateKey(visibleTo);
+  // Keyed by range only (no "visible" qualifier): usePeriodMetrics asks for the
+  // current week under the same scheme, so while the table shows that week SWR
+  // dedupes both into one request instead of fetching it twice.
   const { data: visibleSessions, isLoading: visibleLoading } = useSWRAuth<
-    StaffHistorySession[]
-  >(`staff-history-visible-${staffId}-${visibleFromKey}-${visibleToKey}`, () =>
+    readonly StaffHistorySession[]
+  >(`staff-history-${staffId}-${visibleFromKey}-${visibleToKey}`, () =>
     staffHistoryService.getHistory(staffId, visibleFromKey, visibleToKey),
   );
   // Absences are loaded in parallel with sessions so the table can show Krank/
   // Urlaub badges next to "Vor Ort"/"Homeoffice" (matches the MA-Sicht).
-  const { data: visibleAbsences } = useSWRAuth<StaffAbsenceRow[]>(
-    `staff-absences-visible-${staffId}-${visibleFromKey}-${visibleToKey}`,
+  const { data: visibleAbsences } = useSWRAuth<readonly StaffAbsenceRow[]>(
+    `staff-absences-${staffId}-${visibleFromKey}-${visibleToKey}`,
     () =>
       staffAbsenceService.getAbsences(staffId, visibleFromKey, visibleToKey),
   );
@@ -132,6 +122,65 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
         visibleFromKey,
         visibleToKey,
       ),
+  );
+
+  // Date-valid Soll for the visible range (#1842) — the same source the
+  // Monatskarte is computed from. Without it the table applies the CURRENT
+  // schedule to historical dates, so card and rows disagree the moment a
+  // staff member's contracted hours change.
+  // `isLoading` is the staleness signal, not a spinner: with keepPreviousData
+  // SWR serves the PREVIOUS range's map while the new one is in flight, and the
+  // table must not fall back to today's plan for the days it doesn't cover.
+  const {
+    data: dailyTargets,
+    error: dailyTargetsError,
+    isLoading: dailyTargetsLoading,
+  } = useSWRAuth<ReadonlyMap<string, number>>(
+    `staff-schedule-targets-${staffId}-${visibleFromKey}-${visibleToKey}`,
+    () =>
+      staffMonthSummaryService.getScheduleTargets(
+        staffId,
+        visibleFromKey,
+        visibleToKey,
+      ),
+    { keepPreviousData: true, revalidateOnFocus: false },
+  );
+
+  // Monatskarte (#1842): server-computed month aggregate, only fetched in
+  // month mode. Everything is live — the Übertrag recomputes automatically
+  // when past months are corrected. Edits and backfills invalidate this key
+  // (staff-session-table handleSaved); the poll on top covers the current
+  // month, whose Ist grows while a session is still running.
+  const monthYear = monthAnchor.getFullYear();
+  const monthNumber = monthAnchor.getMonth() + 1;
+  const isCurrentMonth =
+    monthYear === today.getFullYear() && monthNumber === today.getMonth() + 1;
+  // A month wholly before the configured account start is summarized standalone
+  // by the backend (full month, zero carry) and its closing value never enters
+  // the account chain — so the Monatskarte must not sell it as a carry or as
+  // the Stundenkonto (#1842).
+  const accountStartDate = timeTrackingConfig?.accountStartDate ?? "";
+  const isPreAccountMonth =
+    accountStartDate !== "" &&
+    `${monthYear}-${String(monthNumber).padStart(2, "0")}` <
+      accountStartDate.slice(0, 7);
+  // A start later THIS month (same month, future day) is not "pre-account" by
+  // the month comparison above, but the account still hasn't begun — the card
+  // must not print a "Stundenkonto Stand" for it (#1842). ISO dates compare
+  // lexicographically; both are "YYYY-MM-DD".
+  const accountStartsInFuture =
+    accountStartDate !== "" && accountStartDate > todayISO;
+  const {
+    data: monthSummary,
+    isLoading: monthSummaryLoading,
+    error: monthSummaryError,
+  } = useSWRAuth<MonthSummary>(
+    viewMode === "month"
+      ? `staff-month-summary-${staffId}-${monthYear}-${monthNumber}`
+      : null,
+    () =>
+      staffMonthSummaryService.getMonthSummary(staffId, monthYear, monthNumber),
+    { refreshInterval: isCurrentMonth ? OPEN_MONTH_REFRESH_MS : 0 },
   );
 
   if (scheduleLoading) {
@@ -166,15 +215,15 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
   };
   const handleGoToday = () => {
     if (viewMode === "month") {
-      setMonthAnchor(startOfMonth(new Date()));
+      setMonthAnchor(startOfMonth(today));
     } else {
-      setWeekAnchor(startOfWeek(new Date()));
+      setWeekAnchor(startOfWeek(today));
     }
   };
 
   return (
     <div className="space-y-5">
-      {metrics && <KpiCards metrics={metrics} />}
+      <KpiCards metrics={metrics} />
 
       <div className="rounded-3xl border border-gray-100/50 bg-white/90 p-6 shadow-[0_8px_30px_rgb(0,0,0,0.12)]">
         <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
@@ -198,6 +247,24 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
           todayLabel={viewMode === "month" ? "Diesen Monat" : "Diese Woche"}
         />
 
+        {viewMode === "month" && (
+          <div className="mt-4">
+            <Monatskarte
+              summary={monthSummary ?? null}
+              isLoading={monthSummaryLoading}
+              error={
+                monthSummaryError
+                  ? "Die Monatskarte konnte nicht geladen werden."
+                  : null
+              }
+              isCurrentMonth={isCurrentMonth}
+              isPreAccountMonth={isPreAccountMonth}
+              accountStartsInFuture={accountStartsInFuture}
+              accountStartDate={accountStartDate}
+            />
+          </div>
+        )}
+
         {visibleLoading || shiftsLoading ? (
           <div className="py-10">
             <Loading fullPage={false} />
@@ -219,6 +286,9 @@ export function ZeiterfassungTab({ staffId }: { readonly staffId: string }) {
               sessions={visibleSessions ?? []}
               absences={visibleAbsences ?? []}
               schedule={schedule ?? null}
+              dailyTargets={dailyTargets}
+              dailyTargetsError={dailyTargetsError != null}
+              dailyTargetsPending={dailyTargetsLoading}
               today={today}
               isAdminView
               plannedShifts={visibleShifts ?? []}

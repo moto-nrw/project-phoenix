@@ -73,6 +73,15 @@ type AdminCreateSessionRequest struct {
 // SessionResponse wraps a work session with calculated fields
 type SessionResponse struct {
 	*activeModels.WorkSession
+	// BreakMinutes SHADOWS WorkSession.BreakMinutes on the wire — the outer
+	// field is at the shallower depth, so encoding/json emits this one for
+	// "break_minutes". That is deliberate: the model field caches ENDED breaks
+	// only, while NetMinutes below already deducts a RUNNING one, so serializing
+	// the raw cache would print "Pause 0:00" next to an Ist that has visibly
+	// stopped growing. Both numbers come from the same as-of-now pair
+	// (totalBreakMinutes / netMinutesWithBreaks), which keeps
+	// gross = net + break true for the reader (#1842).
+	BreakMinutes     int                              `json:"break_minutes"`
 	NetMinutes       int                              `json:"net_minutes"`
 	IsOvertime       bool                             `json:"is_overtime"`
 	IsBreakCompliant bool                             `json:"is_break_compliant"`
@@ -820,7 +829,15 @@ func (s *workSessionService) GetSessionBreaks(ctx context.Context, staffID, sess
 	return breaks, nil
 }
 
-// recalcBreakMinutes sums all break durations for a session and updates the cache
+// recalcBreakMinutes sums the ENDED break durations for a session and updates
+// the cache. A still-running break contributes nothing: its elapsed time is
+// live data, and readers that need it add it themselves against their own
+// clock (netMinutes + runningBreakMinutes in the month service, the live
+// session card). Folding the running duration in here would double-count it —
+// once from the cache, once from the reader — for every recalc that happens
+// while a break is open (editing an ended break on a session whose second
+// break is still running), and would leave a stale snapshot in the cache the
+// moment the recalc returned.
 func (s *workSessionService) recalcBreakMinutes(ctx context.Context, sessionID int64) error {
 	breaks, err := s.breakRepo.GetBySessionID(ctx, sessionID)
 	if err != nil {
@@ -831,9 +848,6 @@ func (s *workSessionService) recalcBreakMinutes(ctx context.Context, sessionID i
 	for _, brk := range breaks {
 		if brk.EndedAt != nil {
 			totalMinutes += brk.DurationMinutes
-		} else {
-			// Active break: compute live duration
-			totalMinutes += int(math.Round(time.Since(brk.StartedAt).Minutes()))
 		}
 	}
 
@@ -1272,10 +1286,16 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 		}
 
 		responses[i] = &SessionResponse{
-			WorkSession:      session,
-			NetMinutes:       netMinutes(session, now),
-			IsOvertime:       isOvertime(session, now),
-			IsBreakCompliant: isBreakCompliant(session, now),
+			WorkSession: session,
+			// A running break is NOT in the BreakMinutes cache, so netMinutes
+			// alone would keep counting it as worked time and the day rows
+			// would climb while the Monatskarte and the week KPI (which both
+			// deduct it) stand still (#1842). The breaks are already loaded
+			// above — no extra query.
+			BreakMinutes:     totalBreakMinutes(session, breaks, now),
+			NetMinutes:       netMinutesWithBreaks(session, breaks, now),
+			IsOvertime:       isOvertime(session, breaks, now),
+			IsBreakCompliant: isBreakCompliant(session, breaks, now),
 			Breaks:           breaks,
 			EditCount:        editCounts[session.ID],
 			AuditCount:       auditCounts[session.ID],
@@ -2014,7 +2034,13 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 		ende = sess.CheckOutTime.Format("15:04")
 	}
 
-	pauseMin := strconv.Itoa(sess.BreakMinutes)
+	// Read the pause from the response-level total, not the model cache: for an
+	// open session with a running break the cache (sess.BreakMinutes) still holds
+	// only ENDED breaks and would print "Pause 0" next to a Netto that already
+	// deducts the running break (sr.NetMinutes). sr.BreakMinutes is the live
+	// total that pairs with that Netto, so the export row stays internally
+	// consistent (#1842).
+	pauseMin := strconv.Itoa(sr.BreakMinutes)
 
 	// Net as "Xh YYmin"
 	netMins := sr.NetMinutes
@@ -2132,12 +2158,12 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 	}
 
 	entries := modelEntriesToScheduleRows(model.Entries, model.RotationLength)
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
+	anchor := model.RotationAnchorDate
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, anchor); err != nil {
 		return fmt.Errorf("write assigned schedule snapshot: %w", err)
 	}
 
 	staff.WorkTimeModelID = &model.ID
-	anchor := model.RotationAnchorDate
 	staff.RotationAnchorDate = &anchor
 	if err := s.staffRepo.Update(ctx, staff); err != nil {
 		return fmt.Errorf("bind template to staff: %w", err)
@@ -2148,13 +2174,28 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 // ApplyCustomScheduleRows replaces the schedule with custom rows and unbinds
 // any assigned template.
 func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *userModels.Staff, entries []*configModels.StaffWorkSchedule, anchor timezone.Date) error {
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries); err != nil {
+	// An omitted anchor keeps the staff-level one; the new version must be
+	// stamped with that same effective anchor, or it would silently re-parity
+	// once the staff anchor moves.
+	effective := anchor
+	if effective.IsZero() && staff.RotationAnchorDate != nil {
+		effective = *staff.RotationAnchorDate
+	}
+	// First rotational schedule of a staff member who has no anchor anywhere:
+	// stamp today, which is the version's valid_from. Leaving the column NULL
+	// would let a later template assignment write a staff-level anchor that
+	// these rows then fall back to, re-paritying their A/B weeks and moving a
+	// historical Saldo.
+	if effective.IsZero() && isRotationalSchedule(entries) {
+		effective = timezone.TodayDate()
+	}
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, entries, effective); err != nil {
 		return fmt.Errorf("write custom schedule: %w", err)
 	}
 
 	staff.WorkTimeModelID = nil
-	if !anchor.IsZero() {
-		staff.RotationAnchorDate = &anchor
+	if !effective.IsZero() {
+		staff.RotationAnchorDate = &effective
 	}
 	if err := s.staffRepo.Update(ctx, staff); err != nil {
 		return fmt.Errorf("unbind template: %w", err)
@@ -2178,7 +2219,7 @@ func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, s
 		return err
 	}
 	scheduleRows := modelEntriesToScheduleRows(entries, rotation)
-	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows); err != nil {
+	if err := s.scheduleRepo.ReplaceSchedule(ctx, staff.ID, scheduleRows, anchor); err != nil {
 		return fmt.Errorf("write saved template schedule snapshot: %w", err)
 	}
 
@@ -2188,6 +2229,18 @@ func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, s
 		return fmt.Errorf("bind freshly created template: %w", err)
 	}
 	return nil
+}
+
+// isRotationalSchedule reports whether the rows span more than one week, i.e.
+// whether their parity depends on a rotation anchor at all. Single-week
+// schedules have no parity, so they keep a NULL anchor.
+func isRotationalSchedule(entries []*configModels.StaffWorkSchedule) bool {
+	for _, e := range entries {
+		if e != nil && (e.RotationLength > 1 || e.WeekIndex > 0) {
+			return true
+		}
+	}
+	return false
 }
 
 // modelEntriesToScheduleRows converts work-time-model entries into schedule
