@@ -285,6 +285,11 @@ export function useEventForm({
   // survives switching the repeat mode away and back within the same modal
   // session. null = no manual pick yet (defaults apply).
   const manualWeekPattern = useRef<1 | 2 | null>(null);
+  // Mirror of the last validateForm() result, readable synchronously right
+  // after the call (the fieldErrors state only lands on the next render). The
+  // wizard shell uses it to decide whether the CURRENT step is clean without
+  // re-implementing any validation rule.
+  const lastValidationErrors = useRef<Record<string, string>>({});
 
   const isEditingInstance = initialInstance !== null;
   const isEditingSeries = initialSeries !== null;
@@ -932,6 +937,7 @@ export function useEventForm({
       }
     }
     setFieldErrors(errors);
+    lastValidationErrors.current = errors;
     if (Object.keys(errors).length > 0) {
       // Quick mode hides the series controls; expand so an inline error on
       // a hidden field (Kategorie, Planungszeitraum, Wochentage) is visible.
@@ -1911,6 +1917,8 @@ export function useEventForm({
     retryStaffLoad,
     submitting,
     handleSubmit,
+    validateForm,
+    lastValidationErrors,
     deleteConfirmOpen,
     setDeleteConfirmOpen,
     deleteEffectiveDate,

@@ -69,9 +69,15 @@ const PLAN_BLOCK_FILE = "plan-block.tsx";
 // 2026-07-16: timetable-event-modal.tsx's extraction moved `Field` (and its
 // one `text-red-600` violation) to event-form/field.tsx — the allowlist
 // entries were split accordingly, total unchanged (14).
+// 2026-07-16: the wizard split moved the same JSX onto the three step files:
+// the three inline `text-red-600` error paragraphs went to
+// step-wiederholung.tsx, the yellow coverage panel to step-personal-kinder.tsx,
+// and the modal keeps only the delete-confirm `bg-red-600/700`. Total still 14.
 const TIMETABLE_BRIGHT_COLOR_ALLOWLIST: Readonly<Record<string, number>> = {
-  "timetable-event-modal.tsx": 13,
+  "timetable-event-modal.tsx": 2,
   "event-form/field.tsx": 1,
+  "event-form/step-wiederholung.tsx": 3,
+  "event-form/step-personal-kinder.tsx": 8,
 };
 
 function countMatches(source: string, pattern: RegExp): number {

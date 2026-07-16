@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronDown, Repeat, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import { useModal } from "~/components/dashboard/modal-context";
 import { Alert } from "~/components/ui/alert";
@@ -17,29 +18,19 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
-import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { WizardStepper } from "~/components/ui/wizard-stepper";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
-import {
-  getActivityColor,
-  getGermanWeekdayShort,
-} from "~/lib/timetable-helpers";
 import { Field } from "./event-form/field";
-import { isoWeekday } from "./event-form/form-model";
 import type { RepeatMode } from "./event-form/form-model";
-import { MultiSelectField } from "./event-form/multi-select-field";
-import { useEventForm, WEEKDAYS } from "./event-form/use-event-form";
+import { StepPersonalKinder } from "./event-form/step-personal-kinder";
+import { StepTermin } from "./event-form/step-termin";
+import { StepWiederholung } from "./event-form/step-wiederholung";
+import { useEventForm } from "./event-form/use-event-form";
 import type { TimetableEventModalResult } from "./event-form/use-event-form";
-import {
-  timetableRequiredMark,
-  timetableSelectClass,
-  timetableTextAreaClass,
-} from "./timetable-style";
 import type {
-  ActivityType,
   EditedChange,
   EnrichedInstance,
-  TargetGroupType,
   TimetableTemplate,
 } from "~/lib/timetable-types";
 
@@ -55,6 +46,22 @@ const EDIT_CHANGE_LABELS: Record<EditedChange, string> = {
   students: "Kinder",
   deleted: "Gelöschter Termin",
 };
+
+const WIZARD_STEPS = ["Termin", "Wiederholung", "Personal und Kinder"] as const;
+
+/**
+ * Which validateForm() field errors belong to which wizard step. "Weiter" only
+ * blocks on the current step's fields; a failed Speichern jumps to the first
+ * step that actually shows the offending error. The rules themselves stay in
+ * the hook's validateForm — this is only a mapping.
+ */
+const STEP_FIELDS: readonly (readonly string[])[] = [
+  ["title", "date", "startTime", "endTime", "roomId", "categoryId"],
+  ["weekdays", "calendarPeriodId", "weekPattern"],
+  ["targetGradeLevel", "targetSchoolClass", "educationGroupId"],
+];
+
+const LAST_STEP = WIZARD_STEPS.length - 1;
 
 interface TimetableEventModalProps {
   isOpen: boolean;
@@ -75,47 +82,14 @@ interface TimetableEventModalProps {
   ) => Promise<void>;
   defaultRepeat?: RepeatMode;
   /**
-   * "quick" starts collapsed with only Titel, Datum/Zeiten, Raum and a
-   * plain-language repeat select (US-1 quick create). "Benutzerdefiniert"
-   * in that select expands to the full form. Default "full".
+   * "quick" starts collapsed: the repeat step offers a plain-language preset
+   * select instead of the full series controls, and Typ/Kategorie/Zielgruppe
+   * stay hidden until "Benutzerdefiniert" expands the form. Default "full".
    */
   variant?: "full" | "quick";
   defaultStartTime?: string;
   defaultEndTime?: string;
   canCheckShiftCoverage: boolean;
-}
-
-const FORM_SELECT_CLASS = timetableSelectClass;
-
-const TYPE_OPTIONS: Array<{
-  value: ActivityType;
-  label: string;
-  hint: string;
-}> = [
-  { value: "care", label: "Betreuung", hint: "Mensa, Lernzeit, Freispiel" },
-  { value: "activity", label: "AG", hint: "Yoga, Bouldern, …" },
-  { value: "external", label: "Extern", hint: "DAZ, Musikschule" },
-];
-
-const REPEAT_OPTIONS: Array<{ value: RepeatMode; label: string }> = [
-  { value: "none", label: "Nie" },
-  { value: "weekly", label: "Jede Woche" },
-  { value: "biweekly", label: "Alle 2 Wochen" },
-];
-
-/** Zielgruppe (target group) tab options, issue #1838. */
-const TARGET_GROUP_OPTIONS: Array<{ value: TargetGroupType; label: string }> = [
-  { value: "none", label: "Keine" },
-  { value: "jahrgang", label: "Jahrgang" },
-  { value: "klasse", label: "Klasse" },
-  { value: "gruppe", label: "Gruppe" },
-  { value: "angebot", label: "Angebotsauswahl" },
-];
-
-function weekdayLabel(iso: number): string {
-  const ref = new Date(2024, 0, 1);
-  ref.setDate(ref.getDate() + (iso - 1));
-  return getGermanWeekdayShort(ref);
 }
 
 export function TimetableEventModal({
@@ -161,6 +135,8 @@ export function TimetableEventModal({
     retryStaffLoad,
     submitting,
     handleSubmit,
+    validateForm,
+    lastValidationErrors,
     deleteConfirmOpen,
     setDeleteConfirmOpen,
     deleteEffectiveDate,
@@ -171,8 +147,6 @@ export function TimetableEventModal({
     openSeriesDeleteConfirm,
     handleConfirmSeriesDelete,
     expanded,
-    setMoreOpen,
-    moreOpen,
     choiceDialogOpen,
     setPendingSeriesEdit,
     handleScopeSelect,
@@ -229,183 +203,40 @@ export function TimetableEventModal({
     canCheckShiftCoverage,
   });
 
-  let studentRosterField: React.ReactNode;
-  if (loadingStudents) {
-    studentRosterField = (
-      <Alert
-        type="info"
-        message="Kinderliste wird geladen … Die bestehende Kinderzuordnung bleibt beim Speichern unverändert."
-      />
-    );
-  } else if (studentLoadError) {
-    studentRosterField = (
-      <div className="flex flex-col gap-2">
-        <Alert type="warning" message={studentLoadError} />
-        <Button
-          type="button"
-          variant="outline"
-          size="compact"
-          className="self-start"
-          onClick={() => void retryStudentLoad()}
-        >
-          Kinder erneut laden
-        </Button>
-      </div>
-    );
-  } else {
-    studentRosterField = (
-      <MultiSelectField
-        label="Kinder"
-        options={students}
-        value={form.studentIds}
-        onChange={(ids) => update("studentIds", ids)}
-        metadata="student"
-        bulkOptions={studentBulkOptions}
-      />
-    );
-  }
+  // Converting a one-off into a Regeltermin is a repeat decision — that entry
+  // opens on step 2. Every other entry (quick create, "+ Neu → Regeltermin",
+  // instance edit, series edit) starts at step 1 with all steps reachable.
+  const [step, setStep] = useState(0);
+  const submitAttempted = useRef(false);
+  useEffect(() => {
+    if (isOpen) setStep(convertInstance ? 1 : 0);
+  }, [isOpen, convertInstance]);
 
-  let staffRosterField: React.ReactNode;
-  if (loadingStaff) {
-    staffRosterField = (
-      <Alert
-        type="info"
-        message="Personalliste wird geladen … Die bestehende Personalzuordnung bleibt beim Speichern unverändert."
-      />
-    );
-  } else if (staffLoadError) {
-    staffRosterField = (
-      <div className="flex flex-col gap-2">
-        <Alert type="warning" message={staffLoadError} />
-        <Button
-          type="button"
-          variant="outline"
-          size="compact"
-          className="self-start"
-          onClick={() => void retryStaffLoad()}
-        >
-          Personal erneut laden
-        </Button>
-      </div>
-    );
-  } else {
-    staffRosterField = (
-      <>
-        <MultiSelectField
-          label="Personal"
-          options={staff}
-          value={form.staffIds}
-          onChange={(ids) => {
-            staffRosterTouched.current = true;
-            update("staffIds", ids);
-            if (form.primaryStaffId && !ids.includes(form.primaryStaffId)) {
-              update("primaryStaffId", "");
-            }
-          }}
-          metadata="staff"
-        />
+  const stepHasError = (index: number, errors: Record<string, string>) =>
+    (STEP_FIELDS[index] ?? []).some((field) => errors[field] !== undefined);
 
-        {isSeriesFlow && form.staffIds.length > 0 && (
-          <Field label="Zuständige Person" htmlFor="event_primary_staff">
-            <select
-              id="event_primary_staff"
-              value={form.primaryStaffId}
-              onChange={(event) => {
-                staffRosterTouched.current = true;
-                update("primaryStaffId", event.target.value);
-              }}
-              className={FORM_SELECT_CLASS}
-            >
-              <option value="">Keine Auswahl</option>
-              {staff
-                .filter((person) => form.staffIds.includes(person.id))
-                .map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {person.name}
-                  </option>
-                ))}
-            </select>
-          </Field>
-        )}
-      </>
-    );
-  }
+  const goNext = () => {
+    // Reuses the hook's unchanged validateForm and only looks at the fields of
+    // the current step — no separate rule set.
+    validateForm();
+    if (stepHasError(step, lastValidationErrors.current)) return;
+    setStep((current) => Math.min(current + 1, LAST_STEP));
+  };
 
-  // Personal renders before Kinder in every mode (Streichliste 8); the
-  // quick variant tucks all of this behind the "Weitere Optionen" row.
-  const peopleFields = (
-    <>
-      {staffRosterField}
-
-      <Field label="Benötigtes Personal" htmlFor="event_required_staff">
-        <Input
-          id="event_required_staff"
-          type="number"
-          min={0}
-          step={1}
-          inputMode="numeric"
-          value={form.requiredStaff}
-          onChange={(event) => {
-            requiredStaffTouched.current = true;
-            update("requiredStaff", event.target.value);
-          }}
-          placeholder="automatisch aus Betreuungsschlüssel"
-          controlSize="compact"
-        />
-        <p className="mt-1 text-xs text-gray-500">
-          Leer = automatisch: Es gilt der Wert der Terminreihe, sonst die
-          Berechnung aus dem Betreuungsschlüssel (Kinderzahl). Eine Zahl legt
-          den Bedarf fest und überschreibt beides.
-        </p>
-      </Field>
-
-      {studentRosterField}
-
-      {isSeriesFlow ? (
-        <Field label="Wochennotiz" htmlFor="event_series_notes">
-          <textarea
-            id="event_series_notes"
-            value={form.seriesNotes}
-            onChange={(event) => update("seriesNotes", event.target.value)}
-            rows={3}
-            className={timetableTextAreaClass}
-            placeholder="z. B. Raum erst ab 14 Uhr offen"
-          />
-          <p className="mt-1 text-xs text-gray-500">
-            Gilt dauerhaft für die ganze Terminreihe und erscheint an jedem
-            Termin. Bleibt bei Re-Plan und Serienänderungen erhalten.
-          </p>
-        </Field>
-      ) : (
-        <>
-          {form.seriesNotes.trim() !== "" && (
-            <div className="rounded-lg border border-[#5080D8]/30 bg-[#5080D8]/10 p-3">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-[#5080D8]">
-                <Repeat className="h-3.5 w-3.5" aria-hidden="true" />
-                Wochennotiz der Terminreihe
-              </div>
-              <p className="mt-1 text-sm whitespace-pre-wrap text-gray-700">
-                {form.seriesNotes}
-              </p>
-              <p className="mt-1 text-xs text-gray-500">
-                Wird über den Regeltermin gepflegt und gilt für alle Termine.
-              </p>
-            </div>
-          )}
-          <Field label="Tagesnotiz" htmlFor="event_notes">
-            <textarea
-              id="event_notes"
-              value={form.notes}
-              onChange={(event) => update("notes", event.target.value)}
-              rows={3}
-              className={timetableTextAreaClass}
-              placeholder="Nur für diesen einen Termin"
-            />
-          </Field>
-        </>
-      )}
-    </>
-  );
+  // Speichern works from every step. When the full validation fails on a field
+  // the user cannot see, surface it by jumping to its step.
+  useEffect(() => {
+    if (!submitAttempted.current) return;
+    submitAttempted.current = false;
+    if (!stepHasError(step, fieldErrors)) {
+      const target = STEP_FIELDS.findIndex((_, index) =>
+        stepHasError(index, fieldErrors),
+      );
+      if (target >= 0) setStep(target);
+    }
+    // `step` is read, not tracked: only a fresh validation result may move it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fieldErrors]);
 
   return (
     <SlideOver
@@ -449,10 +280,17 @@ export function TimetableEventModal({
           </div>
         </SlideOverHeader>
 
+        <div className="border-b border-gray-200 px-5 py-3">
+          <WizardStepper steps={[...WIZARD_STEPS]} current={step} />
+        </div>
+
         <form
           id="timetable-event-form"
           noValidate
-          onSubmit={(event) => void handleSubmit(event)}
+          onSubmit={(event) => {
+            submitAttempted.current = true;
+            void handleSubmit(event);
+          }}
           className="flex-1 overflow-y-auto px-5 py-4"
         >
           <div className="flex flex-col gap-5">
@@ -469,555 +307,76 @@ export function TimetableEventModal({
               </p>
             )}
 
-            <Field label="Titel" htmlFor="event_title" required>
-              <Input
-                id="event_title"
-                value={form.title}
-                onChange={(event) => update("title", event.target.value)}
-                placeholder="z. B. Mensa, Lernzeit 1a, Yoga AG"
-                maxLength={255}
-                controlSize="compact"
-                error={fieldErrors.title}
-                autoFocus
-                required
+            {step === 0 && (
+              <StepTermin
+                form={form}
+                update={update}
+                fieldErrors={fieldErrors}
+                rooms={rooms}
+                categories={categories}
+                loadingRefs={loadingRefs}
+                expanded={expanded}
+                isSeriesFlow={isSeriesFlow}
+                quickPreset={quickPreset}
               />
-            </Field>
-
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              <Field label="Datum" htmlFor="event_date" required>
-                <Input
-                  id="event_date"
-                  type="date"
-                  value={form.date}
-                  controlSize="compact"
-                  error={fieldErrors.date}
-                  onChange={(event) => {
-                    const nextDate = event.target.value;
-                    const nextWeekday = isoWeekday(nextDate);
-                    update("date", nextDate);
-                    // One-off events follow the date; the quick preset
-                    // "Wöchentlich am <Tag>" retargets to the new weekday.
-                    const followsDate =
-                      !isSeriesFlow ||
-                      (!expanded && quickPreset === "woechentlich-am");
-                    if (followsDate && nextWeekday >= 1 && nextWeekday <= 5) {
-                      update("weekdays", [nextWeekday]);
-                    }
-                  }}
-                  required
-                />
-              </Field>
-              <Field label="Start" htmlFor="event_start" required>
-                <Input
-                  id="event_start"
-                  type="time"
-                  value={form.startTime}
-                  controlSize="compact"
-                  error={fieldErrors.startTime}
-                  onChange={(event) => update("startTime", event.target.value)}
-                  required
-                />
-              </Field>
-              <Field label="Ende" htmlFor="event_end" required>
-                <Input
-                  id="event_end"
-                  type="time"
-                  value={form.endTime}
-                  controlSize="compact"
-                  error={fieldErrors.endTime}
-                  onChange={(event) => update("endTime", event.target.value)}
-                  required
-                />
-              </Field>
-            </div>
-
-            <Field
-              label="Raum"
-              htmlFor="event_room"
-              required
-              error={fieldErrors.roomId}
-            >
-              <select
-                id="event_room"
-                value={form.roomId}
-                onChange={(event) => update("roomId", event.target.value)}
-                disabled={loadingRefs}
-                required
-                aria-invalid={fieldErrors.roomId ? true : undefined}
-                aria-describedby={
-                  fieldErrors.roomId ? "event_room_error" : undefined
-                }
-                className={FORM_SELECT_CLASS}
-              >
-                <option value="">
-                  {loadingRefs ? "Lade Räume …" : "Raum auswählen …"}
-                </option>
-                {rooms.map((room) => (
-                  <option key={room.id} value={room.id}>
-                    {room.building
-                      ? `${room.building} - ${room.name}`
-                      : room.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            {expanded ? (
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-semibold text-gray-700">
-                  Wiederholt sich
-                </span>
-                <Tabs
-                  value={form.repeat}
-                  onValueChange={(value) => {
-                    const nextRepeat = value as RepeatMode;
-                    updateRepeat(nextRepeat);
-                    if (nextRepeat !== "none" && form.weekdays.length === 0) {
-                      const weekday = isoWeekday(form.date);
-                      update(
-                        "weekdays",
-                        weekday >= 1 && weekday <= 5 ? [weekday] : [1],
-                      );
-                    }
-                  }}
-                >
-                  <TabsList aria-label="Wiederholung" className="w-fit">
-                    {REPEAT_OPTIONS.map((option) => (
-                      <TabsTrigger
-                        key={option.value}
-                        value={option.value}
-                        disabled={
-                          (isEditingSeries && option.value === "none") ||
-                          (!isEditingSeries &&
-                            option.value === "biweekly" &&
-                            biweeklyUnavailable)
-                        }
-                      >
-                        {option.label}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                </Tabs>
-              </div>
-            ) : (
-              <Field label="Wiederholt sich" htmlFor="event_quick_repeat">
-                <select
-                  id="event_quick_repeat"
-                  value={quickPreset}
-                  onChange={(event) =>
-                    handleQuickPresetChange(event.target.value)
-                  }
-                  className={FORM_SELECT_CLASS}
-                >
-                  <option value="einmalig">Einmalig</option>
-                  {/* On Sa/So a weekly preset would silently save a Monday
-                      series (weekdays are Mo–Fr) — omit it instead. */}
-                  {dateWeekday >= 1 && dateWeekday <= 5 && (
-                    <option value="woechentlich-am">
-                      {`Wöchentlich am ${dateWeekdayName}`}
-                    </option>
-                  )}
-                  <option value="jeden-wochentag">
-                    Jeden Wochentag (Mo–Fr)
-                  </option>
-                  <option value="benutzerdefiniert">Benutzerdefiniert …</option>
-                </select>
-              </Field>
             )}
 
-            {expanded && form.repeat === "biweekly" && (
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-semibold text-gray-700">
-                  Wochenrhythmus
-                </span>
-                <Tabs
-                  value={form.weekPattern === 1 ? "A" : "B"}
-                  onValueChange={(value) => {
-                    manualWeekPattern.current = value === "A" ? 1 : 2;
-                    update("weekPattern", value === "A" ? 1 : 2);
-                  }}
-                >
-                  <TabsList aria-label="A/B-Woche" className="w-fit">
-                    <TabsTrigger value="A">Woche A</TabsTrigger>
-                    <TabsTrigger value="B">Woche B</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-                <p className="text-xs text-gray-500">{abWeekHint}</p>
-                {fieldErrors.weekPattern && (
-                  <p role="alert" className="mt-1 text-xs text-red-600">
-                    {fieldErrors.weekPattern}
-                  </p>
-                )}
-              </div>
+            {step === 1 && (
+              <StepWiederholung
+                form={form}
+                update={update}
+                updateRepeat={updateRepeat}
+                toggleWeekday={toggleWeekday}
+                fieldErrors={fieldErrors}
+                calendarPeriods={calendarPeriods}
+                showPeriodField={showPeriodField}
+                expanded={expanded}
+                isSeriesFlow={isSeriesFlow}
+                isEditingSeries={isEditingSeries}
+                biweeklyUnavailable={biweeklyUnavailable}
+                abWeekHint={abWeekHint}
+                quickPreset={quickPreset}
+                handleQuickPresetChange={handleQuickPresetChange}
+                dateWeekday={dateWeekday}
+                dateWeekdayName={dateWeekdayName}
+                manualWeekPattern={manualWeekPattern}
+              />
             )}
 
-            {expanded && isSeriesFlow && (
-              <>
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-semibold text-gray-700">
-                    Typ <span className={timetableRequiredMark}>*</span>
-                  </span>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                    {TYPE_OPTIONS.map((option) => {
-                      const isActive = form.type === option.value;
-                      const color = getActivityColor(option.value);
-                      return (
-                        <button
-                          key={option.value}
-                          type="button"
-                          onClick={() => update("type", option.value)}
-                          className={`flex flex-col items-start gap-0.5 rounded-lg border border-l-[3px] px-3 py-2 text-left shadow-sm transition-colors focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none ${
-                            isActive
-                              ? "border-gray-300 bg-white"
-                              : "border-gray-200 bg-white hover:bg-gray-50"
-                          }`}
-                          style={{ borderLeftColor: color }}
-                        >
-                          <span
-                            className="text-sm font-semibold"
-                            style={{ color: isActive ? color : "#374151" }}
-                          >
-                            {option.label}
-                          </span>
-                          <span className="text-[10px] text-gray-500">
-                            {option.hint}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-semibold text-gray-700">
-                    Wochentage <span className={timetableRequiredMark}>*</span>
-                  </span>
-                  <div className="flex flex-wrap gap-1.5">
-                    {WEEKDAYS.map((iso) => {
-                      const isActive = form.weekdays.includes(iso);
-                      return (
-                        <Button
-                          key={iso}
-                          type="button"
-                          variant={isActive ? "primary" : "outline"}
-                          size="compact"
-                          className="min-w-[44px]"
-                          onClick={() => toggleWeekday(iso)}
-                          aria-pressed={isActive}
-                        >
-                          {weekdayLabel(iso)}
-                        </Button>
-                      );
-                    })}
-                  </div>
-                  {fieldErrors.weekdays && (
-                    <p role="alert" className="mt-1 text-xs text-red-600">
-                      {fieldErrors.weekdays}
-                    </p>
-                  )}
-                </div>
-
-                <Field
-                  label="Kategorie"
-                  htmlFor="event_category"
-                  required
-                  error={fieldErrors.categoryId}
-                >
-                  <select
-                    id="event_category"
-                    value={form.categoryId}
-                    onChange={(event) =>
-                      update("categoryId", event.target.value)
-                    }
-                    required
-                    disabled={loadingRefs}
-                    aria-invalid={fieldErrors.categoryId ? true : undefined}
-                    aria-describedby={
-                      fieldErrors.categoryId
-                        ? "event_category_error"
-                        : undefined
-                    }
-                    className={FORM_SELECT_CLASS}
-                  >
-                    <option value="">
-                      {loadingRefs ? "Lade Kategorien …" : "Kategorie wählen …"}
-                    </option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id}>
-                        {category.name}
-                      </option>
-                    ))}
-                  </select>
-                </Field>
-
-                <div className="flex flex-col gap-1">
-                  <span className="text-xs font-semibold text-gray-700">
-                    Zielgruppe
-                  </span>
-                  <Tabs
-                    value={form.targetGroupType}
-                    onValueChange={(value) =>
-                      changeTargetGroupType(value as TargetGroupType)
-                    }
-                  >
-                    <TabsList aria-label="Zielgruppe" className="w-fit">
-                      {TARGET_GROUP_OPTIONS.map((option) => (
-                        <TabsTrigger key={option.value} value={option.value}>
-                          {option.label}
-                        </TabsTrigger>
-                      ))}
-                    </TabsList>
-                  </Tabs>
-
-                  {form.targetGroupType === "jahrgang" && (
-                    <div className="mt-1">
-                      <Field
-                        label="Jahrgang"
-                        htmlFor="event_target_grade_level"
-                        required
-                        error={fieldErrors.targetGradeLevel}
-                      >
-                        <select
-                          id="event_target_grade_level"
-                          value={form.targetGradeLevel}
-                          onChange={(event) =>
-                            update("targetGradeLevel", event.target.value)
-                          }
-                          required
-                          aria-invalid={
-                            fieldErrors.targetGradeLevel ? true : undefined
-                          }
-                          aria-describedby={
-                            fieldErrors.targetGradeLevel
-                              ? "event_target_grade_level_error"
-                              : undefined
-                          }
-                          className={FORM_SELECT_CLASS}
-                        >
-                          <option value="">Jahrgang wählen …</option>
-                          {targetGradeOptions.map((option) => (
-                            <option
-                              key={option.value}
-                              value={option.value}
-                              disabled={option.disabled}
-                            >
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      {preservesGradeAboveTenantCap ? (
-                        <p className="mt-1 text-xs text-gray-500" role="status">
-                          Jahrgang {form.targetGradeLevel} liegt über der
-                          aktuell konfigurierten Höchststufe {gradeLevelMax}.
-                          Die bestehende Zielgruppe bleibt beim Speichern
-                          erhalten.
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-
-                  {form.targetGroupType === "klasse" && (
-                    <div className="mt-1">
-                      <Field
-                        label="Klasse"
-                        htmlFor="event_target_school_class"
-                        required
-                        error={fieldErrors.targetSchoolClass}
-                      >
-                        <select
-                          id="event_target_school_class"
-                          value={form.targetSchoolClass}
-                          onChange={(event) =>
-                            update("targetSchoolClass", event.target.value)
-                          }
-                          disabled={
-                            loadingStudents || studentLoadError !== null
-                          }
-                          required
-                          aria-invalid={
-                            fieldErrors.targetSchoolClass ? true : undefined
-                          }
-                          aria-describedby={
-                            targetClassDescriptionIDs || undefined
-                          }
-                          className={FORM_SELECT_CLASS}
-                        >
-                          <option value="">Klasse wählen …</option>
-                          {targetClassOptions.map((schoolClass) => (
-                            <option key={schoolClass} value={schoolClass}>
-                              {schoolClass}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                      {loadingStudents || studentLoadError ? (
-                        <p
-                          id="event_target_school_class_availability"
-                          className="mt-1 text-xs text-gray-500"
-                          role="status"
-                        >
-                          {studentLoadError
-                            ? "Die Klassenliste ist nicht verfügbar. Eine bestehende Klassen-Zielgruppe bleibt unverändert."
-                            : "Klassenliste wird geladen …"}
-                        </p>
-                      ) : null}
-                    </div>
-                  )}
-
-                  {form.targetGroupType === "gruppe" && (
-                    <div className="mt-1">
-                      <Field
-                        label="Gruppe"
-                        htmlFor="event_target_gruppe"
-                        required
-                        error={fieldErrors.educationGroupId}
-                      >
-                        <select
-                          id="event_target_gruppe"
-                          value={form.educationGroupId}
-                          onChange={(event) =>
-                            update("educationGroupId", event.target.value)
-                          }
-                          disabled={loadingRefs}
-                          required
-                          aria-invalid={
-                            fieldErrors.educationGroupId ? true : undefined
-                          }
-                          aria-describedby={
-                            fieldErrors.educationGroupId
-                              ? "event_target_gruppe_error"
-                              : undefined
-                          }
-                          className={FORM_SELECT_CLASS}
-                        >
-                          <option value="">Gruppe wählen …</option>
-                          {groups.map((group) => (
-                            <option key={group.id} value={group.id}>
-                              {group.name}
-                            </option>
-                          ))}
-                        </select>
-                      </Field>
-                    </div>
-                  )}
-
-                  {form.targetGroupType === "angebot" && (
-                    <p className="mt-1 text-xs text-gray-500">
-                      Kinder kommen automatisch über ein Betreuungsangebot
-                      hinzu. Die Verknüpfung wird unter „Angebote“ beim
-                      jeweiligen Angebot gepflegt (Feld „Regeltermin“).
-                    </p>
-                  )}
-
-                  {targetCohort.label &&
-                    !loadingStudents &&
-                    !studentLoadError && (
-                      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gray-200 bg-white/70 p-3">
-                        <p className="min-w-0 flex-1 text-xs leading-5 text-gray-600">
-                          Die Zielgruppe beschreibt den Regeltermin. Übernimm
-                          die passenden Kinder mit einem Klick; die Auswahl
-                          bleibt danach anpassbar.
-                        </p>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="compact"
-                          onClick={addTargetCohort}
-                          disabled={
-                            targetCohort.memberIds.length === 0 ||
-                            missingTargetCohortCount === 0
-                          }
-                        >
-                          {targetCohortButtonLabel}
-                        </Button>
-                      </div>
-                    )}
-                </div>
-
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                  {showPeriodField ? (
-                    <Field
-                      label="Planungszeitraum"
-                      htmlFor="event_period"
-                      required
-                      error={fieldErrors.calendarPeriodId}
-                    >
-                      <select
-                        id="event_period"
-                        value={form.calendarPeriodId}
-                        onChange={(event) =>
-                          update("calendarPeriodId", event.target.value)
-                        }
-                        required
-                        aria-invalid={
-                          fieldErrors.calendarPeriodId ? true : undefined
-                        }
-                        aria-describedby={
-                          fieldErrors.calendarPeriodId
-                            ? "event_period_error"
-                            : undefined
-                        }
-                        className={FORM_SELECT_CLASS}
-                      >
-                        <option value="">Zeitraum auswählen …</option>
-                        {calendarPeriods.map((period) => (
-                          <option key={period.id} value={period.id}>
-                            {period.name}
-                          </option>
-                        ))}
-                      </select>
-                    </Field>
-                  ) : (
-                    <div className="flex flex-col justify-end gap-1">
-                      <span className="text-xs font-semibold text-gray-700">
-                        Planungszeitraum
-                      </span>
-                      <div className="flex h-10 items-center rounded-lg border border-gray-200 bg-gray-50 px-3 text-sm text-gray-600">
-                        <span className="truncate">
-                          Gilt in{" "}
-                          <span className="font-semibold text-gray-800">
-                            {calendarPeriods.find(
-                              (p) => p.id === form.calendarPeriodId,
-                            )?.name ?? "dem aktuellen Planungszeitraum"}
-                          </span>
-                        </span>
-                      </div>
-                      {fieldErrors.calendarPeriodId && (
-                        <p role="alert" className="mt-1 text-xs text-red-600">
-                          {fieldErrors.calendarPeriodId}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {expanded ? (
-              peopleFields
-            ) : (
-              <div className="flex flex-col gap-5">
-                <button
-                  type="button"
-                  onClick={() => setMoreOpen((open) => !open)}
-                  aria-expanded={moreOpen}
-                  className="flex w-fit items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-                >
-                  <ChevronDown
-                    className={`h-4 w-4 transition-transform ${moreOpen ? "rotate-180" : ""}`}
-                    aria-hidden
-                  />
-                  Weitere Optionen
-                </button>
-                {moreOpen && peopleFields}
-              </div>
-            )}
-
-            {isSeriesFlow && calendarPeriods.length === 0 && (
-              <Alert
-                type="error"
-                message="Für diese Woche gibt es keinen aktiven Planungszeitraum. Lege zuerst oben im Plan einen Zeitraum an."
+            {step === 2 && (
+              <StepPersonalKinder
+                form={form}
+                update={update}
+                changeTargetGroupType={changeTargetGroupType}
+                fieldErrors={fieldErrors}
+                groups={groups}
+                students={students}
+                staff={staff}
+                loadingRefs={loadingRefs}
+                loadingStudents={loadingStudents}
+                studentLoadError={studentLoadError}
+                loadingStaff={loadingStaff}
+                staffLoadError={staffLoadError}
+                retryStudentLoad={retryStudentLoad}
+                retryStaffLoad={retryStaffLoad}
+                expanded={expanded}
+                isSeriesFlow={isSeriesFlow}
+                gradeLevelMax={gradeLevelMax}
+                targetGradeOptions={targetGradeOptions}
+                preservesGradeAboveTenantCap={preservesGradeAboveTenantCap}
+                studentBulkOptions={studentBulkOptions}
+                targetClassOptions={targetClassOptions}
+                targetClassDescriptionIDs={targetClassDescriptionIDs}
+                targetCohort={targetCohort}
+                missingTargetCohortCount={missingTargetCohortCount}
+                targetCohortButtonLabel={targetCohortButtonLabel}
+                addTargetCohort={addTargetCohort}
+                conflictWarnings={conflictWarnings}
+                coverageWarnings={coverageWarnings}
+                coverageWarningCount={coverageWarningCount}
+                coverageCheckError={coverageCheckError}
+                requiredStaffTouched={requiredStaffTouched}
+                staffRosterTouched={staffRosterTouched}
               />
             )}
 
@@ -1026,70 +385,6 @@ export function TimetableEventModal({
             )}
           </div>
         </form>
-
-        {(conflictWarnings.length > 0 ||
-          coverageWarnings.length > 0 ||
-          coverageCheckError) && (
-          // Advisory pre-save hints (QA M7): visible in quick and expanded
-          // mode, pinned above the footer. Never disables Speichern.
-          <div className="flex max-h-[40vh] flex-col gap-2 overflow-y-auto overscroll-contain border-t border-gray-200 px-5 py-3">
-            <p className="sr-only" aria-live="polite">
-              {`${conflictWarnings.length} Terminüberschneidungen und ${coverageWarningCount} Dienstplan-Lücken gefunden. Speichern ist weiterhin möglich.`}
-            </p>
-            {conflictWarnings.map((warning, index) => (
-              <Alert
-                key={`${warning.kind}-${warning.resourceId}-${index}`}
-                type="warning"
-                message={`Hinweis: ${warning.message}`}
-                announce="off"
-              />
-            ))}
-            {coverageWarningCount > 0 && (
-              <Alert
-                type="warning"
-                message={`${coverageWarningCount} Dienstplan-${coverageWarningCount === 1 ? "Lücke" : "Lücken"} gefunden. Speichern ist weiterhin möglich.`}
-                announce="off"
-              />
-            )}
-            {coverageWarnings.slice(0, 3).map((warning, index) => (
-              <p
-                key={`shift-coverage-example-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${index}`}
-                className="rounded-lg border border-yellow-100 bg-yellow-50/50 px-3 py-2 text-sm text-yellow-800"
-              >
-                {warning.message}
-              </p>
-            ))}
-            {coverageWarningCount > 3 && (
-              <details className="rounded-lg border border-yellow-100 bg-yellow-50/40 px-3 py-2 text-sm text-yellow-800">
-                <summary className="cursor-pointer font-medium focus-visible:ring-2 focus-visible:ring-yellow-600 focus-visible:outline-none">
-                  {coverageWarningCount - 3} weitere Lücken anzeigen
-                </summary>
-                <div className="mt-2 max-h-48 space-y-2 overflow-y-auto overscroll-contain pr-1">
-                  {coverageWarnings.slice(3).map((warning, index) => (
-                    <p
-                      key={`shift-coverage-detail-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${index}`}
-                      className="border-t border-yellow-100 pt-2 first:border-t-0 first:pt-0"
-                    >
-                      {warning.message}
-                    </p>
-                  ))}
-                  {coverageWarningCount > coverageWarnings.length && (
-                    <p className="border-t border-yellow-100 pt-2 font-medium">
-                      Es werden höchstens 100 Beispiele angezeigt.
-                    </p>
-                  )}
-                </div>
-              </details>
-            )}
-            {coverageCheckError && (
-              <Alert
-                type="warning"
-                message={`Hinweis: ${coverageCheckError}`}
-                announce="off"
-              />
-            )}
-          </div>
-        )}
 
         <SlideOverFooter className="items-stretch gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="order-2 sm:order-1">
@@ -1119,6 +414,28 @@ export function TimetableEventModal({
             >
               Abbrechen
             </Button>
+            {step > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => setStep((current) => Math.max(current - 1, 0))}
+                disabled={submitting || deletingSeries}
+              >
+                Zurück
+              </Button>
+            )}
+            {step < LAST_STEP && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="md"
+                onClick={goNext}
+                disabled={submitting || deletingSeries}
+              >
+                Weiter
+              </Button>
+            )}
             <Button
               type="submit"
               form="timetable-event-form"
