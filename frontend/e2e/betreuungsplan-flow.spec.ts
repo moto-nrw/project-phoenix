@@ -358,6 +358,13 @@ test.describe("Betreuungsplan UI-Flow (Inkrement 4)", () => {
     const modal = page.getByRole("dialog");
     await expect(modal.locator("#event_title")).toBeVisible(DATA);
 
+    // Das Formular ist ein Drei-Schritt-Wizard: der Stepper steht sichtbar über
+    // den Feldern und beginnt auf Schritt 1 ("Termin"). Alles, was danach
+    // ausgefüllt wird, gehört zu Schritt 1 — der anschließende Speichern-Klick
+    // ist damit der Beleg, dass Speichern schon aus Schritt 1 möglich ist
+    // (Kriterium 1), ohne "Weiter" durch die Schritte 2 und 3.
+    await expect(modal.getByText("Schritt 1 von 3")).toBeVisible();
+
     await modal.locator("#event_title").fill(title);
     await modal.locator("#event_date").fill(day);
     await modal.locator("#event_start").fill("14:00");
@@ -387,5 +394,61 @@ test.describe("Betreuungsplan UI-Flow (Inkrement 4)", () => {
       page.getByRole("button", { name: `${title}, 14:00 bis 15:00` }),
     ).toBeVisible(DATA);
     assertUrlVocabulary(page, "nach Neu-Anlage");
+  });
+
+  test('"Wiederholen" öffnet den Wizard direkt auf Schritt 2', async ({
+    page,
+  }) => {
+    if (!access) return;
+    test.setTimeout(90000);
+
+    // Ein per API angelegter Einzeltermin (status "planned", keine
+    // activityGroupId) ist genau der Fall, für den der Slide-Over die Aktion
+    // "Wiederholen" anbietet: die Konvertierung Einzeltermin -> Serie.
+    const day = nextWorkdayISO(berlinTodayISO());
+    const title = `Playwright Wiederholen ${Date.now()}`;
+    const { startTime, endTime } = await createGapInstance(page, day, title);
+
+    await page.goto(`${base}/betreuungsplan?d=${day}`, {
+      waitUntil: "domcontentloaded",
+    });
+
+    // Erst warten, bis die Planungszeiträume geladen sind: "Wiederholen" prüft
+    // sie (leere Liste -> Hinweis-Toast statt Wizard), und solange der SWR-Load
+    // läuft, ist die Liste noch leer. Der Zeitraum-Umschalter erscheint genau
+    // dann, wenn die Daten da sind — vorher steht dort ein Skeleton.
+    await expect(
+      page.locator('button[title="Planungszeitraum wechseln"]'),
+    ).toBeVisible(DATA);
+
+    const block = page.getByRole("button", {
+      name: `${title}, ${startTime} bis ${endTime}`,
+    });
+    await expect(block).toBeVisible(DATA);
+    await block.click();
+
+    const slideOver = page.getByRole("dialog", { name: title });
+    await expect(slideOver).toBeVisible(DATA);
+
+    await slideOver.getByRole("button", { name: "Wiederholen" }).click();
+
+    // Kern der Zusicherung: die Konvertierung überspringt Schritt 1 ("Termin",
+    // die Eckdaten stehen ja schon) und öffnet den Wizard direkt auf Schritt 2
+    // ("Wiederholung"). Der Speicherteil der Konvertierung ist per Vitest
+    // abgedeckt — hier zählt nur der Einstiegspunkt.
+    const modal = page.getByRole("dialog", { name: "Termin wiederholen" });
+    await expect(modal).toBeVisible(DATA);
+    await expect(modal.getByText("Schritt 2 von 3")).toBeVisible();
+    // Die volle Variante rendert "Wiederholt sich" als Überschrift über einer
+    // Tab-Gruppe (kein <label> an einem Feld) — daher über die Rolle greifen.
+    await expect(modal.getByText("Wiederholt sich")).toBeVisible();
+    await expect(
+      modal.getByRole("tablist", { name: "Wiederholung" }),
+    ).toBeVisible();
+
+    // Gegenprobe, dass wirklich Schritt 2 offen ist und nicht Schritt 1:
+    // das Titelfeld aus Schritt 1 ist nicht gerendert, "Zurück" dagegen schon.
+    await expect(modal.locator("#event_title")).toHaveCount(0);
+    await expect(modal.getByRole("button", { name: "Zurück" })).toBeVisible();
   });
 });
