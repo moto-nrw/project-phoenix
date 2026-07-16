@@ -598,31 +598,8 @@ func (a *API) registerRoutesWithRateLimiting() {
 
 	// Public parent calendar subscription feed (no auth — the token in the URL
 	// is the capability). Calendar apps (Apple/Google/Outlook) poll this to keep
-	// the parent's Termine in sync. The service resolves the account by token and
-	// aggregates across the parent's tenants.
-	a.Router.Get("/public/calendar/{token}", func(w http.ResponseWriter, r *http.Request) {
-		if a.Services.Calendar == nil {
-			http.Error(w, "not found", http.StatusNotFound)
-			return
-		}
-		token := chi.URLParam(r, "token")
-		filename, content, err := a.Services.Calendar.ParentCalendarFeedByToken(r.Context(), token)
-		if err != nil {
-			if errors.Is(err, calendarService.ErrNotFound) {
-				http.Error(w, "not found", http.StatusNotFound)
-				return
-			}
-			slog.Error("calendar feed failed",
-				"error", err.Error(),
-			)
-			http.Error(w, "internal error", http.StatusInternalServerError)
-			return
-		}
-		w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
-		w.Header().Set("Content-Disposition", "inline; filename=\""+filename+"\"")
-		w.Header().Set("Cache-Control", "private, max-age=3600")
-		_, _ = w.Write([]byte(content))
-	})
+	// the parent's Termine in sync.
+	a.Router.Get("/public/calendar/{token}", a.servePublicCalendarFeed)
 
 	a.Router.With(observability.MetricsAuthMiddleware(a.metricsBearerToken)).Handle("/internal/metrics", observability.MetricsHandler())
 
@@ -756,4 +733,31 @@ func (a *API) registerRoutesWithRateLimiting() {
 	// whitelisted triggers (parent_message) for the tenants of the guardian's
 	// children.
 	a.Router.Mount("/parent-sse", a.SSE.ParentRouter())
+}
+
+// servePublicCalendarFeed serves the parent iCalendar subscription feed. There
+// is no auth — the token in the URL is the capability; the service resolves the
+// account by token and aggregates across the parent's tenants.
+func (a *API) servePublicCalendarFeed(w http.ResponseWriter, r *http.Request) {
+	if a.Services.Calendar == nil {
+		http.Error(w, "not found", http.StatusNotFound)
+		return
+	}
+	token := chi.URLParam(r, "token")
+	filename, content, err := a.Services.Calendar.ParentCalendarFeedByToken(r.Context(), token)
+	if err != nil {
+		if errors.Is(err, calendarService.ErrNotFound) {
+			http.Error(w, "not found", http.StatusNotFound)
+			return
+		}
+		slog.Error("calendar feed failed",
+			"error", err.Error(),
+		)
+		http.Error(w, "internal error", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/calendar; charset=utf-8")
+	w.Header().Set("Content-Disposition", "inline; filename=\""+filename+"\"")
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	_, _ = w.Write([]byte(content))
 }

@@ -51,7 +51,6 @@ var repoMethodZeroCallerAllowlist = map[string]string{
 	"DeleteAllByAccount":         "test helper: branch-independent MFA-override test teardown",
 	"FindByFamilyID":             "test helper: verifies live DeleteByFamilyID tests",
 	"ListOrganizedByStaff":       "test helper: repository-coverage assertion in services/calendar/service_integration_test.go; no production caller yet (personal-calendar feature, issue #1833)",
-	"DeleteByAppointmentID":      "test helper: repository-coverage assertion in services/calendar/service_integration_test.go; no production caller yet (personal-calendar feature, issue #1833)",
 
 	// Parked endpoint verticals (owner decision 2026-07-05: keep, do not delete)
 	"FindByDescription": "parked: legacy /api/schedules vertical (Timeframe)",
