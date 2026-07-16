@@ -254,15 +254,15 @@ func TestUpdateAppointmentParsesPayload(t *testing.T) {
 		"overview_visibility":"all"
 	}`
 	req := requestWithURLParam(
-		httptest.NewRequest(http.MethodPut, "/appointments/7", strings.NewReader(body)),
-		"appointmentId", "7",
+		httptest.NewRequest(http.MethodPut, "/appointments/41", strings.NewReader(body)),
+		"appointmentId", "41",
 	)
 	w := httptest.NewRecorder()
 
 	rs.updateAppointment(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, int64(7), service.gotUpdateID)
+	assert.Equal(t, int64(41), service.gotUpdateID)
 	assert.Equal(t, "Planning v2", service.gotUpdate.Title)
 	assert.Equal(t, timezone.NewDate(2026, 1, 6), service.gotUpdate.StartDate)
 	assert.Equal(t, "10:00", service.gotUpdate.StartTime.Format("15:04"))
@@ -273,8 +273,8 @@ func TestUpdateAppointmentRejectsBadClock(t *testing.T) {
 	rs := &Resource{service: &fakeCalendarService{}}
 	body := `{"title":"x","start_date":"2026-01-06","end_date":"2026-01-06","start_time":"nope","end_time":"11:00"}`
 	req := requestWithURLParam(
-		httptest.NewRequest(http.MethodPut, "/appointments/7", strings.NewReader(body)),
-		"appointmentId", "7",
+		httptest.NewRequest(http.MethodPut, "/appointments/41", strings.NewReader(body)),
+		"appointmentId", "41",
 	)
 	w := httptest.NewRecorder()
 
@@ -287,8 +287,8 @@ func TestUpdateAppointmentMapsNotFound(t *testing.T) {
 	rs := &Resource{service: &fakeCalendarService{updateErr: calendarSvc.ErrNotFound}}
 	body := `{"title":"x","start_date":"2026-01-06","end_date":"2026-01-06","start_time":"10:00","end_time":"11:00"}`
 	req := requestWithURLParam(
-		httptest.NewRequest(http.MethodPut, "/appointments/7", strings.NewReader(body)),
-		"appointmentId", "7",
+		httptest.NewRequest(http.MethodPut, "/appointments/41", strings.NewReader(body)),
+		"appointmentId", "41",
 	)
 	w := httptest.NewRecorder()
 
@@ -301,22 +301,22 @@ func TestCancelAppointmentPassesID(t *testing.T) {
 	service := &fakeCalendarService{cancelDetail: &calendarSvc.AppointmentDetail{Appointment: &calModels.Appointment{}}}
 	rs := &Resource{service: service}
 	req := requestWithURLParam(
-		httptest.NewRequest(http.MethodPost, "/appointments/9/cancel", nil),
-		"appointmentId", "9",
+		httptest.NewRequest(http.MethodPost, "/appointments/42/cancel", nil),
+		"appointmentId", "42",
 	)
 	w := httptest.NewRecorder()
 
 	rs.cancelAppointment(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, int64(9), service.gotCancelID)
+	assert.Equal(t, int64(42), service.gotCancelID)
 }
 
 func TestCancelAppointmentMapsForbidden(t *testing.T) {
 	rs := &Resource{service: &fakeCalendarService{cancelErr: calendarSvc.ErrForbidden}}
 	req := requestWithURLParam(
-		httptest.NewRequest(http.MethodPost, "/appointments/9/cancel", nil),
-		"appointmentId", "9",
+		httptest.NewRequest(http.MethodPost, "/appointments/42/cancel", nil),
+		"appointmentId", "42",
 	)
 	w := httptest.NewRecorder()
 
@@ -377,7 +377,7 @@ func TestAppointmentICSStreamsDownload(t *testing.T) {
 	rs := &Resource{service: service}
 	req := requestWithURLParam(
 		httptest.NewRequest(http.MethodGet, "/appointments/7/ics", nil),
-		"appointmentId", "7",
+		"appointmentId", "41",
 	)
 	w := httptest.NewRecorder()
 
@@ -387,7 +387,7 @@ func TestAppointmentICSStreamsDownload(t *testing.T) {
 	assert.Equal(t, "text/calendar; charset=utf-8", w.Header().Get("Content-Type"))
 	assert.Contains(t, w.Header().Get("Content-Disposition"), "planning.ics")
 	assert.Contains(t, w.Body.String(), "BEGIN:VCALENDAR")
-	assert.Equal(t, int64(7), service.gotICSID)
+	assert.Equal(t, int64(41), service.gotICSID)
 }
 
 func TestRespondPassesRecipientAndStatus(t *testing.T) {

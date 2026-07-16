@@ -134,8 +134,8 @@ func TestCalendarAppointmentICSStreamsDownload(t *testing.T) {
 	}
 	rs := &Resource{CalendarService: service}
 	req := parentRequestWithURLParam(
-		withClaims(httptest.NewRequest(http.MethodGet, "/me/calendar/appointments/5/ics", nil), 77),
-		"appointmentId", "5",
+		withClaims(httptest.NewRequest(http.MethodGet, "/me/calendar/appointments/45/ics", nil), 77),
+		"appointmentId", "45",
 	)
 	w := httptest.NewRecorder()
 
@@ -146,7 +146,7 @@ func TestCalendarAppointmentICSStreamsDownload(t *testing.T) {
 	assert.Contains(t, w.Header().Get("Content-Disposition"), "elternabend.ics")
 	assert.Contains(t, w.Body.String(), "BEGIN:VCALENDAR")
 	assert.Equal(t, int64(77), service.gotICSAccount)
-	assert.Equal(t, int64(5), service.gotICSAppointment)
+	assert.Equal(t, int64(45), service.gotICSAppointment)
 }
 
 func TestCalendarFeedURLReturnsURLs(t *testing.T) {
