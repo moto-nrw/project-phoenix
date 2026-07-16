@@ -599,3 +599,41 @@ func TestAccountRepository_UpdateValidation(t *testing.T) {
 		assert.Contains(t, err.Error(), "cannot be nil")
 	})
 }
+
+func TestAccountRepository_CalendarFeedToken(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Account
+	ctx := testpkg.TenantContext(1)
+
+	account := testpkg.CreateTestAccount(t, db, "feedtoken")
+	defer cleanupAccountRecords(t, db, account.ID)
+
+	t.Run("unknown token resolves to nil without error", func(t *testing.T) {
+		found, err := repo.FindByCalendarFeedToken(ctx, "does-not-exist")
+		require.NoError(t, err)
+		assert.Nil(t, found)
+	})
+
+	t.Run("empty token resolves to nil", func(t *testing.T) {
+		found, err := repo.FindByCalendarFeedToken(ctx, "")
+		require.NoError(t, err)
+		assert.Nil(t, found)
+	})
+
+	t.Run("set then resolve round-trips", func(t *testing.T) {
+		require.NoError(t, repo.SetCalendarFeedToken(ctx, account.ID, "feed-token-abc"))
+
+		found, err := repo.FindByCalendarFeedToken(ctx, "feed-token-abc")
+		require.NoError(t, err)
+		require.NotNil(t, found)
+		assert.Equal(t, account.ID, found.ID)
+
+		// Rotating invalidates the old token.
+		require.NoError(t, repo.SetCalendarFeedToken(ctx, account.ID, "feed-token-xyz"))
+		old, err := repo.FindByCalendarFeedToken(ctx, "feed-token-abc")
+		require.NoError(t, err)
+		assert.Nil(t, old)
+	})
+}

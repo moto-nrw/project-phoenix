@@ -85,6 +85,30 @@ func TestRenderRecurrence(t *testing.T) {
 	}
 }
 
+func TestRenderFoldsLongLines(t *testing.T) {
+	// A long, multibyte summary forces RFC 5545 line folding (continuation
+	// lines start with a space) without splitting a UTF-8 rune.
+	long := "Sehr langer Terminname mit Umlauten äöü und vielen Wörtern zur Prüfung der Zeilenfaltung über fünfundsiebzig Oktette hinaus"
+	out := Render("", []Event{{
+		UID:       "appt-fold@moto",
+		Summary:   long,
+		StartDate: timezone.NewDate(2026, 5, 4),
+		EndDate:   timezone.NewDate(2026, 5, 4),
+		AllDay:    true,
+		Stamp:     stamp(),
+	}})
+
+	// Folded continuation lines exist, and no output line exceeds ~75 octets.
+	if !strings.Contains(out, "\r\n ") {
+		t.Errorf("expected folded continuation line\n%s", out)
+	}
+	for _, line := range strings.Split(out, "\r\n") {
+		if len(line) > 76 {
+			t.Errorf("line exceeds fold limit (%d): %q", len(line), line)
+		}
+	}
+}
+
 func TestRenderCancelledAndEscaping(t *testing.T) {
 	out := Render("", []Event{{
 		UID:         "appt-4@moto",

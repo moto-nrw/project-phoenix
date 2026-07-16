@@ -327,6 +327,16 @@ func TestCalendarServiceIntegration_UpdateCancelDeleteLifecycle(t *testing.T) {
 	assert.Equal(t, "Updated title", updated.Appointment.Title)
 	require.Len(t, updated.Recipients, 1)
 
+	// The organizer can re-read the full detail (used to prefill the edit modal).
+	detailAfter, err := service.GetStaffAppointmentDetail(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Updated title", detailAfter.Appointment.Title)
+	assert.Equal(t, "Room 2", *detailAfter.Appointment.Location)
+	// A non-organizer is refused.
+	_, err = service.GetStaffAppointmentDetail(calendarContext(invitedAccount.ID), detail.Appointment.ID)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, calendarSvc.ErrForbidden))
+
 	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 3, 1), timezone.NewDate(2026, 3, 10))
 	require.NoError(t, err)
 	require.NotEmpty(t, events)
