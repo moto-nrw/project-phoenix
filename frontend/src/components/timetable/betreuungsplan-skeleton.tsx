@@ -37,44 +37,6 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
     );
   }
 
-  if (view === "year") {
-    return (
-      <div
-        role="status"
-        aria-live="polite"
-        aria-busy="true"
-        aria-label="Jahresplan wird geladen"
-        data-testid="timetable-content-skeleton"
-        className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"
-      >
-        {Array.from({ length: 12 }, (_, month) => (
-          <section
-            key={month}
-            className={`${timetableSurface} overflow-hidden`}
-          >
-            <div className="flex items-center justify-between gap-3 border-b border-gray-200 px-3 py-3">
-              <div className="space-y-2">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-3 w-16" />
-              </div>
-              <Skeleton className="h-6 w-12 rounded-full" />
-            </div>
-            <div className="grid grid-cols-7 border-b border-gray-100 px-2 pt-2">
-              {Array.from({ length: 7 }, (_, day) => (
-                <Skeleton key={day} className="mx-auto mb-1 h-2 w-4" />
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1 p-2">
-              {Array.from({ length: 35 }, (_, day) => (
-                <Skeleton key={day} className="aspect-square min-h-8" />
-              ))}
-            </div>
-          </section>
-        ))}
-      </div>
-    );
-  }
-
   if (view === "week") {
     const weekSkeletonEvents = [
       [

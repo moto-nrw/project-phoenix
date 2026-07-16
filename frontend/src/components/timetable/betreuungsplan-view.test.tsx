@@ -857,7 +857,12 @@ describe("BetreuungsplanView", () => {
     render(<BetreuungsplanView />);
 
     const chip = screen.getByText("Bedarf: keine Anmeldung verknüpft");
-    expect(chip.closest("a")).toHaveAttribute("href", "/enrollment-phases");
+    // Tenant-bewusster Pfad (useTenantAwarePath) — im Pfad-Routing-Modus
+    // muss der Slug vorangestellt sein.
+    expect(chip.closest("a")).toHaveAttribute(
+      "href",
+      "/test-tenant/enrollment-phases",
+    );
   });
 
   it("names the single matching phase in the demand-origin chip", () => {

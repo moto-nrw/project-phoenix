@@ -1059,12 +1059,8 @@ export function computeTimetableSetup(input: {
  * `components/timetable/timetable-toolbar.tsx`; die Toolbar wurde mit dem
  * Chrome-Abbau (Planung-Redesign Inkrement 4, Chunk 8) entfernt, deshalb
  * leben die noch gebrauchten Typen/Konstanten hier im Helper-Modul.
- *
- * `TimetableView` behält "year", obwohl die Jahresansicht nicht mehr
- * verlinkbar ist: der Wert existiert weiterhin als toter Zweig in
- * `period-switcher-dropdown.tsx` und `betreuungsplan-skeleton.tsx`.
  */
-export type TimetableView = "week" | "month" | "year" | "series";
+export type TimetableView = "week" | "month" | "series";
 
 /**
  * Drei diskrete Zoomstufen des Wochenrasters. Die Pixel-pro-Stunde-Werte

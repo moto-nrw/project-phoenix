@@ -82,7 +82,7 @@ export function PlanBlock({
   size = "default",
   status = "default",
   tinted = true,
-  selected = false,
+  selected,
   statusIcon,
   footer,
   interactive = true,
@@ -164,6 +164,7 @@ export function PlanBlock({
       className={containerClassName}
       style={style}
       onClick={onClick}
+      aria-pressed={selected}
       aria-label={ariaLabel}
     >
       {content}

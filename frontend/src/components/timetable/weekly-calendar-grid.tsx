@@ -14,7 +14,7 @@
  * positioning by time is the whole point of a week view.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { CapacityStrip } from "~/components/ui/capacity-strip";
 import {
@@ -42,6 +42,12 @@ const GRID_COLS_CLASS_WEEK =
   "grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_repeat(7,minmax(0,1fr))]";
 const GRID_COLS_CLASS_DAY =
   "grid-cols-[40px_minmax(0,1fr)] sm:grid-cols-[64px_minmax(0,1fr)]";
+// Inline-Style-Pendant zu den sm+-Klassen oben (die Tageskopfzeile rendert
+// nur ab sm). Muss mit Gutter-Breite und Spaltenbasis der Klassen-Strings
+// übereinstimmen — bei Änderungen BEIDE Stellen anpassen.
+const SM_TIME_GUTTER_PX = 64;
+const smGridTemplate = (dayCount: number) =>
+  `${SM_TIME_GUTTER_PX}px repeat(${dayCount}, minmax(0,1fr))`;
 
 interface WeeklyCalendarGridProps {
   weekDays: Date[]; // Mo-So (7 dates)
@@ -98,7 +104,20 @@ export function WeeklyCalendarGrid({
 }: WeeklyCalendarGridProps) {
   const gridColsClass =
     weekDays.length === 1 ? GRID_COLS_CLASS_DAY : GRID_COLS_CLASS_WEEK;
-  const grouped = groupInstancesByDate(instances);
+  const grouped = useMemo(() => groupInstancesByDate(instances), [instances]);
+  // Zellen der Tageskopfzeile nur bei Daten-/Wochenwechsel neu ableiten —
+  // nicht bei jedem unabhängigen Re-Render (Popover, Selektion, Modals).
+  const dayHeaderCells = useMemo(
+    () =>
+      showDayHeader
+        ? weekDays.map((day) => {
+            const iso = toISODate(day);
+            const count = countPlannedStaff(grouped.get(iso) ?? []);
+            return { key: iso, content: `${count} P.` };
+          })
+        : [],
+    [showDayHeader, weekDays, grouped],
+  );
   const eventStarts = instances
     .map((instance) => parseTimeToMinutes(instance.startTime))
     .filter((minutes) => Number.isFinite(minutes));
@@ -232,15 +251,8 @@ export function WeeklyCalendarGrid({
             stickyLabel={false}
             labelWidthClassName="w-[64px]"
             rowLabel=""
-            gridTemplateColumns={`64px repeat(${weekDays.length}, minmax(0,1fr))`}
-            cells={weekDays.map((day) => {
-              const iso = toISODate(day);
-              const count = countPlannedStaff(grouped.get(iso) ?? []);
-              return {
-                key: iso,
-                content: `${count} P.`,
-              };
-            })}
+            gridTemplateColumns={smGridTemplate(weekDays.length)}
+            cells={dayHeaderCells}
           />
         </div>
       )}

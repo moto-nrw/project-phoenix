@@ -40,7 +40,7 @@ import { getGermanWeekdayShort, toISODate } from "~/lib/timetable-helpers";
 interface PeriodSwitcherDropdownProps {
   periods: CalendarPeriod[];
   weekDays: Date[];
-  view?: "week" | "month" | "year" | "series";
+  view?: "week" | "month" | "series";
   selectedPeriodId?: string | null;
   isLoading?: boolean;
   /** Open the create modal. */
@@ -79,7 +79,7 @@ export function PeriodSwitcherDropdown({
     [assignments],
   );
   const hasMissingDays = assignments.some((a) => a.period === null);
-  const showContextAssignments = view !== "year" && view !== "series";
+  const showContextAssignments = view !== "series";
   const contextLabel = view === "month" ? "Dieser Monat" : "Diese Woche";
   const selectedPeriod = selectedPeriodId
     ? (periods.find((period) => period.id === selectedPeriodId) ?? null)
@@ -87,19 +87,17 @@ export function PeriodSwitcherDropdown({
 
   // Headline label on the trigger pill.
   const triggerLabel =
-    view === "year"
-      ? "Zeiträume"
-      : view === "series" && selectedPeriod
-        ? selectedPeriod.name
-        : view === "series"
-          ? "Zeiträume"
-          : assignedPeriods.length === 0
-            ? "Zeitraum anlegen"
-            : assignedPeriods.length === 1 && !hasMissingDays
-              ? assignedPeriods[0]!.name
-              : view === "week"
-                ? "Übergangswoche"
-                : "Mehrere Zeiträume";
+    view === "series" && selectedPeriod
+      ? selectedPeriod.name
+      : view === "series"
+        ? "Zeiträume"
+        : assignedPeriods.length === 0
+          ? "Zeitraum anlegen"
+          : assignedPeriods.length === 1 && !hasMissingDays
+            ? assignedPeriods[0]!.name
+            : view === "week"
+              ? "Übergangswoche"
+              : "Mehrere Zeiträume";
 
   // Group all periods for the list section.
   const grouped = useMemo<PeriodGroup[]>(() => {

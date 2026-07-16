@@ -50,6 +50,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { parseISODate } from "~/lib/date-helpers";
 import {
   getActivityTypeBadge,
   getGermanWeekdayLong,
@@ -148,8 +149,7 @@ function germanFullDate(iso: string): string {
  * und als Adverb kleingeschrieben ("Montag" -> "montags").
  */
 function regelterminOriginLabel(instance: EnrichedInstance): string {
-  const d = new Date(`${instance.date}T00:00:00`);
-  const weekdayLong = getGermanWeekdayLong(d);
+  const weekdayLong = getGermanWeekdayLong(parseISODate(instance.date));
   const weekdayAdverb = weekdayLong ? `${weekdayLong.toLowerCase()}s` : "";
   return [
     `aus Regeltermin ${instance.title},`,

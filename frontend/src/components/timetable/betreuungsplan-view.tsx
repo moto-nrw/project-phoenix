@@ -61,6 +61,7 @@ import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import {
   SETTINGS_SCHEMA_SWR_KEY,
   fetchSettingsSchema,
@@ -207,6 +208,7 @@ function TimetablesContent() {
     hasPermission(session, "users:read");
   const toast = useToast();
   const tenantMutate = useTenantMutate();
+  const tenantPath = useTenantAwarePath();
 
   // Sichtbares Datum, Ansicht und geöffneter Block werden bei jedem Render aus
   // den Search-Params abgeleitet (keine Offset-Arithmetik, kein weekOffset-State
@@ -360,11 +362,7 @@ function TimetablesContent() {
   // Monatsansicht eine falsche "Keine Lücken"-Aussage.
   const gapsFromISO = fetchFromISO < todayISO ? todayISO : fetchFromISO;
   const shouldLoadGaps = view === "week" && fetchToISO >= todayISO;
-  // Ausnahmekonflikte nur für die Wochenansicht (einziger Abnehmer:
-  // PlanQualityPanel).
-  const shouldLoadConflicts = view === "week" && toISO >= todayISO;
   const gapsSWRKey = `timetable-gaps-${gapsFromISO}-${fetchToISO}`;
-  const exceptionConflictsSWRKey = `timetable-exception-conflicts-${gapsFromISO}-${toISO}`;
   const { data, error, isLoading } = useSWRAuth(
     status === "authenticated" && shouldLoadInstances ? swrKey : null,
     () => timetableService.getWeek(fetchFromISO, fetchToISO),
@@ -372,15 +370,6 @@ function TimetablesContent() {
   const { data: gapsData, error: gapsError } = useSWRAuth(
     status === "authenticated" && shouldLoadGaps ? gapsSWRKey : null,
     () => timetableService.getGaps(gapsFromISO, fetchToISO),
-  );
-  // Ausnahmekonflikte speisen kein Panel mehr (PlanQualityPanel entfällt), der
-  // Abruf bleibt nur als Fehlerquelle für den Planstatus-Toast und als
-  // invalidierbarer SWR-Key der Lifecycle-Aktionen erhalten.
-  const { error: conflictsError } = useSWRAuth(
-    status === "authenticated" && shouldLoadConflicts
-      ? exceptionConflictsSWRKey
-      : null,
-    () => timetableService.getExceptionConflicts(gapsFromISO, toISO),
   );
   const { data: staffData } = useSWRAuth(
     status === "authenticated" ? "timetable-staff-list" : null,
@@ -432,19 +421,9 @@ function TimetablesContent() {
       ? gapsError.message
       : String(gapsError)
     : null;
-  const conflictsErrorMessage = conflictsError
-    ? conflictsError instanceof Error
-      ? conflictsError.message
-      : String(conflictsError)
+  const planQualityErrorMessage = gapsErrorMessage
+    ? `Personal-Lücken konnten nicht geprüft werden: ${gapsErrorMessage}`
     : null;
-  const planQualityErrorMessage =
-    gapsErrorMessage && conflictsErrorMessage
-      ? `Personal-Lücken und Ausnahmen konnten nicht geprüft werden: ${gapsErrorMessage}; ${conflictsErrorMessage}`
-      : gapsErrorMessage
-        ? `Personal-Lücken konnten nicht geprüft werden: ${gapsErrorMessage}`
-        : conflictsErrorMessage
-          ? `Ausnahmen konnten nicht geprüft werden: ${conflictsErrorMessage}`
-          : null;
 
   useEffect(() => {
     if (!errorMessage) return;
@@ -630,7 +609,6 @@ function TimetablesContent() {
         }
         await tenantMutate(swrKey);
         await tenantMutate(gapsSWRKey);
-        await tenantMutate(exceptionConflictsSWRKey);
       } catch (err) {
         logger.error("lifecycle_action_failed", {
           action,
@@ -645,14 +623,7 @@ function TimetablesContent() {
         throw err;
       }
     },
-    [
-      selectedInstance,
-      swrKey,
-      gapsSWRKey,
-      exceptionConflictsSWRKey,
-      tenantMutate,
-      toast,
-    ],
+    [selectedInstance, swrKey, gapsSWRKey, tenantMutate, toast],
   );
 
   const handleAttendancePatch = useCallback(
@@ -665,7 +636,6 @@ function TimetablesContent() {
         await timetableService.patchAttendance(instanceId, studentId, body);
         toast.success("Kinderstatus aktualisiert");
         await tenantMutate(swrKey);
-        await tenantMutate(exceptionConflictsSWRKey);
       } catch (err) {
         logger.error("attendance_patch_failed", {
           instance_id: instanceId,
@@ -680,7 +650,7 @@ function TimetablesContent() {
         throw err;
       }
     },
-    [exceptionConflictsSWRKey, swrKey, tenantMutate, toast],
+    [swrKey, tenantMutate, toast],
   );
 
   const handleDeleteCancelledInstance = useCallback(
@@ -691,7 +661,6 @@ function TimetablesContent() {
         updateUrlParams({ block: null });
         await tenantMutate(swrKey);
         await tenantMutate(gapsSWRKey);
-        await tenantMutate(exceptionConflictsSWRKey);
       } catch (err) {
         logger.error("instance_delete_failed", {
           instance_id: instance.id,
@@ -705,14 +674,7 @@ function TimetablesContent() {
         throw err;
       }
     },
-    [
-      exceptionConflictsSWRKey,
-      gapsSWRKey,
-      swrKey,
-      tenantMutate,
-      toast,
-      updateUrlParams,
-    ],
+    [gapsSWRKey, swrKey, tenantMutate, toast, updateUrlParams],
   );
 
   const handleDeleteFollowingInstances = useCallback(
@@ -734,7 +696,6 @@ function TimetablesContent() {
         }
         await tenantMutate(swrKey);
         await tenantMutate(gapsSWRKey);
-        await tenantMutate(exceptionConflictsSWRKey);
       } catch (err) {
         logger.error("template_end_failed", {
           template_id: instance.activityGroupId,
@@ -751,7 +712,6 @@ function TimetablesContent() {
       }
     },
     [
-      exceptionConflictsSWRKey,
       gapsSWRKey,
       swrKey,
       templatePeriodID,
@@ -779,7 +739,6 @@ function TimetablesContent() {
         }
         await tenantMutate(swrKey);
         await tenantMutate(gapsSWRKey);
-        await tenantMutate(exceptionConflictsSWRKey);
       } catch (err) {
         logger.error("template_delete_failed", {
           template_id: template.id,
@@ -794,14 +753,7 @@ function TimetablesContent() {
         throw err;
       }
     },
-    [
-      exceptionConflictsSWRKey,
-      gapsSWRKey,
-      swrKey,
-      templatePeriodID,
-      tenantMutate,
-      toast,
-    ],
+    [gapsSWRKey, swrKey, templatePeriodID, tenantMutate, toast],
   );
 
   const openEventCreate = useCallback(() => {
@@ -905,7 +857,6 @@ function TimetablesContent() {
         }
         await tenantMutate(swrKey);
         await tenantMutate(gapsSWRKey);
-        await tenantMutate(exceptionConflictsSWRKey);
       } catch (err) {
         logger.error("template_apply_failed", {
           template_id: template.id,
@@ -921,7 +872,6 @@ function TimetablesContent() {
     [
       calendarPeriods,
       visiblePeriod,
-      exceptionConflictsSWRKey,
       gapsSWRKey,
       openPeriodCreate,
       swrKey,
@@ -943,7 +893,6 @@ function TimetablesContent() {
       }
       await tenantMutate(swrKey);
       await tenantMutate(gapsSWRKey);
-      await tenantMutate(exceptionConflictsSWRKey);
     } catch (err) {
       const message =
         err instanceof Error
@@ -959,7 +908,6 @@ function TimetablesContent() {
     }
   }, [
     archivingTemplate,
-    exceptionConflictsSWRKey,
     gapsSWRKey,
     swrKey,
     templatePeriodID,
@@ -992,7 +940,7 @@ function TimetablesContent() {
   const showTodayButton = view !== "series" && !isOnToday;
 
   const demandOriginChip = demandOrigin.href ? (
-    <Link href={demandOrigin.href} className="inline-flex">
+    <Link href={tenantPath(demandOrigin.href)} className="inline-flex">
       <OriginChip label={demandOrigin.label} />
     </Link>
   ) : (
@@ -1239,7 +1187,6 @@ function TimetablesContent() {
         onSaved={(result) => {
           void tenantMutate(swrKey);
           void tenantMutate(gapsSWRKey);
-          void tenantMutate(exceptionConflictsSWRKey);
           if (templatePeriodID) {
             void tenantMutate(`timetable-templates-${templatePeriodID}`);
           }
