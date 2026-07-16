@@ -1,12 +1,11 @@
 "use client";
 
-import { ChevronDown, Repeat, Search, Trash2 } from "lucide-react";
+import { ChevronDown, Repeat, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useModal } from "~/components/dashboard/modal-context";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
-import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceModal } from "~/components/ui/choice-modal";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -34,7 +33,6 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
-import { fetchStudents } from "~/lib/student-api";
 import { getSchoolYear } from "~/lib/student-helpers";
 import { staffService } from "~/lib/staff-api";
 import { useTenant } from "~/lib/tenant-context";
@@ -48,11 +46,29 @@ import {
   resolveTemplateCalendarPeriodId,
   weekdayDatesInRange,
 } from "~/lib/timetable-helpers";
+import { Field } from "./event-form/field";
 import {
-  timetableMutedSurface,
-  timetableNestedSurface,
+  emptyForm,
+  fetchAllStudentOptions,
+  formFromInstance,
+  formFromSeries,
+  initialPrimaryStaffID,
+  initialStaffIDs,
+  initialStudentIDs,
+  isoWeekday,
+  parseRequiredStaffOverride,
+  schoolClassLabel,
+  sortPeople,
+  targetCohortActionLabel,
+} from "./event-form/form-model";
+import type {
+  EventFormState,
+  PersonOption,
+  RepeatMode,
+} from "./event-form/form-model";
+import { MultiSelectField } from "./event-form/multi-select-field";
+import {
   timetableRequiredMark,
-  timetableSearchClass,
   timetableSelectClass,
   timetableTextAreaClass,
 } from "./timetable-style";
@@ -77,20 +93,11 @@ interface RoomOption {
   building?: string;
 }
 
-interface PersonOption {
-  id: string;
-  name: string;
-  schoolClass?: string;
-  groupId?: string;
-  groupName?: string;
-}
-
 interface GroupOption {
   id: string;
   name: string;
 }
 
-const STUDENT_PAGE_SIZE = 500;
 const MAX_SUPPORTED_TARGET_GRADE_LEVEL = 13;
 const STUDENT_LOAD_ERROR =
   "Die Kinderliste konnte nicht vollständig geladen werden. Die Kinderzuordnung kann deshalb nicht bearbeitet werden und bleibt beim Speichern unverändert.";
@@ -145,55 +152,6 @@ interface BackendGroupsEnvelope {
   }>;
 }
 
-type RepeatMode = "none" | "weekly" | "biweekly";
-
-interface EventFormState {
-  title: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  roomId: string;
-  type: ActivityType;
-  categoryId: string;
-  educationGroupId: string;
-  /**
-   * Tagesnotiz — the one-off note on a single occurrence
-   * (schedule.activity_instances.notes). Editable only in the single-instance
-   * scope; series-wide scopes never write it.
-   */
-  notes: string;
-  /**
-   * Wochennotiz — the durable series note on the Regeltermin
-   * (activities.groups.notes, #1837 follow-up). Shows on every occurrence and
-   * survives Re-Plan/Split. Editable in the series-create/edit flow; shown
-   * read-only on a single occurrence that belongs to a series.
-   */
-  seriesNotes: string;
-  repeat: RepeatMode;
-  weekPattern: 0 | 1 | 2;
-  weekdays: number[];
-  calendarPeriodId: string;
-  studentIds: string[];
-  staffIds: string[];
-  primaryStaffId: string;
-  /**
-   * Manual Personalbedarf override (issue #1839). Empty = automatic: a single
-   * occurrence inherits the series value, otherwise the Betreuungsschlüssel
-   * derivation applies. A non-negative integer overrides both (on a single
-   * occurrence it becomes a pin that survives series edits). Held as a string
-   * because it is an <input> value; parsed via parseRequiredStaffOverride.
-   */
-  requiredStaff: string;
-  /**
-   * Zielgruppe (target group, issue #1838). "gruppe" reuses educationGroupId
-   * above as its value rather than a separate field — switching away from
-   * "gruppe" clears educationGroupId so the two never disagree.
-   */
-  targetGroupType: TargetGroupType;
-  targetGradeLevel: string; // "" | configured grade, only meaningful for "jahrgang"
-  targetSchoolClass: string; // "", only meaningful for "klasse"
-}
-
 type TimetableEventModalResult =
   | { kind: "instance"; instance: EnrichedInstance }
   | { kind: "series"; seriesId: string; linkedInstanceId?: string };
@@ -229,7 +187,6 @@ interface TimetableEventModalProps {
 
 const logger = createLogger({ component: "TimetableEventModal" });
 const FORM_SELECT_CLASS = timetableSelectClass;
-const FORM_SEARCH_CLASS = timetableSearchClass;
 
 const WEEKDAYS = [1, 2, 3, 4, 5] as const;
 
@@ -277,13 +234,6 @@ const TARGET_GROUP_OPTIONS: Array<{ value: TargetGroupType; label: string }> = [
   { value: "angebot", label: "Angebotsauswahl" },
 ];
 
-function isoWeekday(dateISO: string): number {
-  const d = new Date(`${dateISO}T00:00:00`);
-  const day = d.getDay();
-  if (day === 0) return 7;
-  return day;
-}
-
 function mondayOfWeekISO(dateISO: string): string {
   const date = parseISODate(dateISO);
   date.setDate(date.getDate() - (isoWeekday(dateISO) - 1));
@@ -294,232 +244,6 @@ function weekdayLabel(iso: number): string {
   const ref = new Date(2024, 0, 1);
   ref.setDate(ref.getDate() + (iso - 1));
   return getGermanWeekdayShort(ref);
-}
-
-function emptyForm(
-  defaultDate: string,
-  defaultCalendarPeriodId?: string | null,
-  defaultRepeat: RepeatMode = "none",
-  defaultStartTime = "12:00",
-  defaultEndTime = "13:00",
-): EventFormState {
-  const weekday = isoWeekday(defaultDate);
-  return {
-    title: "",
-    date: defaultDate,
-    startTime: defaultStartTime,
-    endTime: defaultEndTime,
-    roomId: "",
-    type: "care",
-    categoryId: "",
-    educationGroupId: "",
-    notes: "",
-    seriesNotes: "",
-    repeat: defaultRepeat,
-    weekPattern: defaultRepeat === "biweekly" ? 2 : 0,
-    weekdays: weekday >= 1 && weekday <= 5 ? [weekday] : [1],
-    calendarPeriodId: defaultCalendarPeriodId ?? "",
-    studentIds: [],
-    staffIds: [],
-    primaryStaffId: "",
-    requiredStaff: "",
-    targetGroupType: "none",
-    targetGradeLevel: "",
-    targetSchoolClass: "",
-  };
-}
-
-function formFromInstance(
-  instance: EnrichedInstance,
-  defaultCalendarPeriodId?: string | null,
-  repeat: RepeatMode = "none",
-): EventFormState {
-  const weekday = isoWeekday(instance.date);
-  return {
-    title: instance.title,
-    date: instance.date,
-    startTime: instance.startTime,
-    endTime: instance.endTime,
-    roomId: instance.roomId,
-    type: instance.activityType,
-    categoryId: "",
-    educationGroupId: "",
-    notes: instance.notes ?? "",
-    // Read-only on a single occurrence: the series note is edited via the
-    // Regeltermin, not here. Prefilled so it can be shown as a fixed hint.
-    seriesNotes: instance.seriesNotes ?? "",
-    repeat,
-    weekPattern: repeat === "biweekly" ? 2 : 0,
-    weekdays: weekday >= 1 && weekday <= 5 ? [weekday] : [1],
-    calendarPeriodId: defaultCalendarPeriodId ?? "",
-    studentIds: instance.studentIds,
-    staffIds: instance.staff.map((item) => item.staffId),
-    primaryStaffId:
-      instance.staff.find((item) => item.isPrimary)?.staffId ?? "",
-    requiredStaff:
-      instance.requiredStaffOverride !== undefined
-        ? String(instance.requiredStaffOverride)
-        : "",
-    targetGroupType: "none",
-    targetGradeLevel: "",
-    targetSchoolClass: "",
-  };
-}
-
-function formFromSeries(
-  series: TimetableTemplate,
-  defaultDate: string,
-  defaultCalendarPeriodId?: string | null,
-): EventFormState {
-  const firstSchedule = series.schedules[0];
-  const weekdays = series.schedules.map((schedule) => schedule.weekday);
-  const weekPattern =
-    firstSchedule?.weekPattern === 1 || firstSchedule?.weekPattern === 2
-      ? firstSchedule.weekPattern
-      : 0;
-  // Both A (1) and B (2) are biweekly series. Mapping A to "weekly" here used
-  // to hide the A-ness and silently reset it on the next repeat-tab touch.
-  const repeat: RepeatMode = weekPattern === 0 ? "weekly" : "biweekly";
-  return {
-    title: series.name,
-    date: defaultDate,
-    startTime: firstSchedule?.startTime ?? "12:00",
-    endTime: firstSchedule?.endTime ?? "13:00",
-    roomId: series.roomId ?? "",
-    type: series.type,
-    categoryId: series.categoryId,
-    educationGroupId: series.educationGroupId ?? "",
-    notes: "",
-    seriesNotes: series.notes ?? "",
-    repeat,
-    weekPattern,
-    weekdays: weekdays.length > 0 ? weekdays : [1],
-    calendarPeriodId:
-      resolveTemplateCalendarPeriodId(series) ?? defaultCalendarPeriodId ?? "",
-    studentIds: series.studentIds,
-    staffIds: series.staffIds,
-    primaryStaffId: series.primaryStaffId ?? "",
-    requiredStaff:
-      series.requiredStaffOverride !== undefined
-        ? String(series.requiredStaffOverride)
-        : "",
-    targetGroupType: series.targetGroupType,
-    targetGradeLevel:
-      series.targetGradeLevel !== undefined && series.targetGradeLevel !== null
-        ? String(series.targetGradeLevel)
-        : "",
-    targetSchoolClass: series.targetSchoolClass?.trim() ?? "",
-  };
-}
-
-// parseRequiredStaffOverride maps the "Benötigtes Personal" input to the
-// override wire value (#1839): empty/invalid → null (clear the override, derive
-// from the Betreuungsschlüssel); a whole non-negative integer → manual
-// override. Only plain digit strings are accepted — Number.parseInt would
-// silently coerce "1e2" → 1 or "2.5" → 2 and persist the wrong requirement.
-function parseRequiredStaffOverride(value: string): number | null {
-  const trimmed = value.trim();
-  if (!/^\d+$/.test(trimmed)) return null;
-  const parsed = Number(trimmed);
-  return Number.isSafeInteger(parsed) ? parsed : null;
-}
-
-function sortPeople<T extends PersonOption>(items: T[]): T[] {
-  return [...items].sort((a, b) => {
-    const classCompare = (a.schoolClass ?? "").localeCompare(
-      b.schoolClass ?? "",
-      "de",
-    );
-    if (classCompare !== 0) return classCompare;
-    const groupCompare = (a.groupName ?? "").localeCompare(
-      b.groupName ?? "",
-      "de",
-    );
-    if (groupCompare !== 0) return groupCompare;
-    return a.name.localeCompare(b.name, "de");
-  });
-}
-
-function schoolClassLabel(schoolClass: string): string {
-  const trimmed = schoolClass.trim();
-  return /^klasse(?:\s|$)/i.test(trimmed) ? trimmed : `Klasse ${trimmed}`;
-}
-
-function targetCohortActionLabel(
-  label: string,
-  memberCount: number,
-  missingMemberCount: number,
-): string {
-  if (memberCount === 0) return `Keine Kinder aus ${label} gefunden`;
-  if (missingMemberCount === 0) {
-    return `Alle Kinder aus ${label} übernommen`;
-  }
-  const childLabel = memberCount === 1 ? "Kind" : "Kinder";
-  return `Alle ${memberCount} ${childLabel} aus ${label} übernehmen`;
-}
-
-function initialStudentIDs(
-  initialInstance: EnrichedInstance | null,
-  initialSeries: TimetableTemplate | null,
-  convertInstance: EnrichedInstance | null,
-): string[] {
-  if (initialSeries) return initialSeries.studentIds;
-  if (convertInstance) return convertInstance.studentIds;
-  if (initialInstance) return initialInstance.studentIds;
-  return [];
-}
-
-function initialStaffIDs(
-  initialInstance: EnrichedInstance | null,
-  initialSeries: TimetableTemplate | null,
-  convertInstance: EnrichedInstance | null,
-): string[] {
-  if (initialSeries) return initialSeries.staffIds;
-  const instance = convertInstance ?? initialInstance;
-  return instance?.staff.map((item) => item.staffId) ?? [];
-}
-
-function initialPrimaryStaffID(
-  initialInstance: EnrichedInstance | null,
-  initialSeries: TimetableTemplate | null,
-  convertInstance: EnrichedInstance | null,
-): string {
-  if (initialSeries) return initialSeries.primaryStaffId ?? "";
-  const instance = convertInstance ?? initialInstance;
-  return instance?.staff.find((item) => item.isPrimary)?.staffId ?? "";
-}
-
-async function fetchAllStudentOptions(): Promise<PersonOption[]> {
-  const firstPage = await fetchStudents({
-    page: 1,
-    page_size: STUDENT_PAGE_SIZE,
-  });
-  const totalPages = Math.max(1, firstPage.pagination?.total_pages ?? 1);
-  const remainingPages =
-    totalPages > 1
-      ? await Promise.all(
-          Array.from({ length: totalPages - 1 }, (_, index) =>
-            fetchStudents({
-              page: index + 2,
-              page_size: STUDENT_PAGE_SIZE,
-            }),
-          ),
-        )
-      : [];
-
-  const byID = new Map<string, PersonOption>();
-  for (const page of [firstPage, ...remainingPages]) {
-    for (const student of page.students) {
-      byID.set(student.id, {
-        id: student.id,
-        name: student.name,
-        schoolClass: student.school_class,
-        groupId: student.group_id,
-        groupName: student.group_name,
-      });
-    }
-  }
-  return [...byID.values()];
 }
 
 export function TimetableEventModal({
@@ -1678,7 +1402,11 @@ export function TimetableEventModal({
           });
         }
         if (lost) {
-          setLostEdits({ scope: "all", result: lost, onConfirm: runSeriesEdit });
+          setLostEdits({
+            scope: "all",
+            result: lost,
+            onConfirm: runSeriesEdit,
+          });
           setSubmitting(false);
           return;
         }
@@ -3276,319 +3004,5 @@ export function TimetableEventModal({
         </ConfirmationModal>
       </SlideOverContent>
     </SlideOver>
-  );
-}
-
-function Field({
-  label,
-  htmlFor,
-  required = false,
-  error,
-  children,
-}: {
-  label: string;
-  htmlFor: string;
-  required?: boolean;
-  error?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label htmlFor={htmlFor} className="text-xs font-semibold text-gray-700">
-        {label}
-        {required && <span className={timetableRequiredMark}>*</span>}
-      </label>
-      {children}
-      {error && (
-        <p
-          id={`${htmlFor}_error`}
-          role="alert"
-          className="mt-1 text-xs text-red-600"
-        >
-          {error}
-        </p>
-      )}
-    </div>
-  );
-}
-
-function MultiSelectField({
-  label,
-  options,
-  value,
-  onChange,
-  metadata,
-  bulkOptions,
-}: {
-  label: string;
-  options: PersonOption[];
-  value: string[];
-  onChange: (value: string[]) => void;
-  metadata: "student" | "staff";
-  /**
-   * Whole-cohort entries (e.g. "Klasse 1a") rendered as a select in the
-   * action row; choosing one unions its memberIds into the selection.
-   */
-  bulkOptions?: Array<{ key: string; label: string; memberIds: string[] }>;
-}) {
-  const [query, setQuery] = useState("");
-  const [gradeFilter, setGradeFilter] = useState("all");
-  const [classFilter, setClassFilter] = useState("all");
-  const [groupFilter, setGroupFilter] = useState("all");
-  const selected = useMemo(() => new Set(value), [value]);
-  const normalizedQuery = query.trim().toLocaleLowerCase("de");
-
-  const classOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          options
-            .map((option) => option.schoolClass?.trim())
-            .filter((item): item is string => Boolean(item)),
-        ),
-      ).sort((a, b) => a.localeCompare(b, "de")),
-    [options],
-  );
-
-  const gradeOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          options
-            .map((option) => getSchoolYear(option.schoolClass?.trim() ?? ""))
-            .filter((item): item is string => Boolean(item)),
-        ),
-      ).sort((a, b) => a.localeCompare(b, "de", { numeric: true })),
-    [options],
-  );
-
-  const groupOptions = useMemo(
-    () =>
-      Array.from(
-        new Set(
-          options
-            .map((option) => option.groupName?.trim())
-            .filter((item): item is string => Boolean(item)),
-        ),
-      ).sort((a, b) => a.localeCompare(b, "de")),
-    [options],
-  );
-
-  const filteredOptions = useMemo(
-    () =>
-      options.filter((option) => {
-        const matchesQuery =
-          normalizedQuery === "" ||
-          [option.name, option.schoolClass, option.groupName]
-            .filter(Boolean)
-            .join(" ")
-            .toLocaleLowerCase("de")
-            .includes(normalizedQuery);
-        const matchesClass =
-          classFilter === "all" || option.schoolClass?.trim() === classFilter;
-        const matchesGrade =
-          gradeFilter === "all" ||
-          getSchoolYear(option.schoolClass?.trim() ?? "") === gradeFilter;
-        const matchesGroup =
-          groupFilter === "all" || option.groupName?.trim() === groupFilter;
-        return matchesQuery && matchesGrade && matchesClass && matchesGroup;
-      }),
-    [classFilter, gradeFilter, groupFilter, normalizedQuery, options],
-  );
-
-  const toggle = (id: string) => {
-    const next = selected.has(id)
-      ? value.filter((item) => item !== id)
-      : [...value, id];
-    onChange(next);
-  };
-  const visibleIds = filteredOptions.map((option) => option.id);
-  const selectedVisibleCount = visibleIds.filter((id) =>
-    selected.has(id),
-  ).length;
-  const allVisibleSelected =
-    visibleIds.length > 0 && selectedVisibleCount === visibleIds.length;
-  const hasFilters =
-    query.trim() !== "" ||
-    gradeFilter !== "all" ||
-    classFilter !== "all" ||
-    groupFilter !== "all";
-
-  const selectVisible = () => {
-    const next = Array.from(new Set([...value, ...visibleIds]));
-    onChange(next);
-  };
-
-  const clearVisible = () => {
-    const visibleSet = new Set(visibleIds);
-    onChange(value.filter((id) => !visibleSet.has(id)));
-  };
-
-  return (
-    <div className={`${timetableMutedSurface} flex flex-col gap-2 p-3`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs font-semibold text-gray-700">{label}</span>
-        <span className="text-[11px] text-gray-500">
-          {value.length} ausgewählt
-        </span>
-      </div>
-
-      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_auto]">
-        <label className="relative">
-          <span className="sr-only">{label} suchen</span>
-          <Search
-            className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-gray-400"
-            aria-hidden
-          />
-          <input
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={`${label} suchen …`}
-            className={FORM_SEARCH_CLASS}
-          />
-        </label>
-        {metadata === "student" && gradeOptions.length > 0 && (
-          <select
-            value={gradeFilter}
-            onChange={(event) => setGradeFilter(event.target.value)}
-            className={FORM_SELECT_CLASS}
-            aria-label="Nach Jahrgang filtern"
-          >
-            <option value="all">Alle Jahrgänge</option>
-            {gradeOptions.map((gradeLevel) => (
-              <option key={gradeLevel} value={gradeLevel}>
-                Jahrgang {gradeLevel}
-              </option>
-            ))}
-          </select>
-        )}
-        {metadata === "student" && classOptions.length > 0 && (
-          <select
-            value={classFilter}
-            onChange={(event) => setClassFilter(event.target.value)}
-            className={FORM_SELECT_CLASS}
-            aria-label="Nach Klasse filtern"
-          >
-            <option value="all">Alle Klassen</option>
-            {classOptions.map((schoolClass) => (
-              <option key={schoolClass} value={schoolClass}>
-                {schoolClass}
-              </option>
-            ))}
-          </select>
-        )}
-        {metadata === "student" && groupOptions.length > 0 && (
-          <select
-            value={groupFilter}
-            onChange={(event) => setGroupFilter(event.target.value)}
-            className={FORM_SELECT_CLASS}
-            aria-label="Nach Gruppe filtern"
-          >
-            <option value="all">Alle Gruppen</option>
-            {groupOptions.map((groupName) => (
-              <option key={groupName} value={groupName}>
-                {groupName}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
-          onClick={allVisibleSelected ? clearVisible : selectVisible}
-          disabled={visibleIds.length === 0}
-          className="rounded-lg border border-gray-200 bg-white px-2.5 py-1.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {allVisibleSelected ? "Sichtbare abwählen" : "Sichtbare auswählen"}
-        </button>
-        {bulkOptions && bulkOptions.length > 0 && (
-          // Pinned to "" so picking an entry adds its members and the
-          // select snaps back to the placeholder.
-          <select
-            value=""
-            onChange={(event) => {
-              const entry = bulkOptions.find(
-                (option) => option.key === event.target.value,
-              );
-              if (!entry) return;
-              onChange(Array.from(new Set([...value, ...entry.memberIds])));
-            }}
-            aria-label="Jahrgang, Klasse oder Gruppe komplett hinzufügen"
-            className="moto-select rounded-lg border border-gray-200 bg-white py-1.5 pr-7 pl-2.5 text-xs font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-100 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            <option value="" disabled>
-              Jahrgang/Klasse/Gruppe komplett hinzufügen …
-            </option>
-            {bulkOptions.map((option) => (
-              <option key={option.key} value={option.key}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-        )}
-        {value.length > 0 && (
-          <button
-            type="button"
-            onClick={() => onChange([])}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            Auswahl leeren
-          </button>
-        )}
-        {hasFilters && (
-          <button
-            type="button"
-            onClick={() => {
-              setQuery("");
-              setGradeFilter("all");
-              setClassFilter("all");
-              setGroupFilter("all");
-            }}
-            className="rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none"
-          >
-            Filter zurücksetzen
-          </button>
-        )}
-      </div>
-
-      <div className={`${timetableNestedSurface} max-h-72 overflow-y-auto p-2`}>
-        {options.length === 0 ? (
-          <div className="px-2 py-3 text-xs text-gray-500">
-            Keine Einträge gefunden
-          </div>
-        ) : filteredOptions.length === 0 ? (
-          <div className="px-2 py-3 text-xs text-gray-500">
-            Keine passenden Einträge gefunden
-          </div>
-        ) : (
-          <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredOptions.map((option) => (
-              <label
-                key={option.id}
-                className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-700 [contain-intrinsic-size:auto_36px] [content-visibility:auto] hover:bg-gray-50"
-              >
-                <Checkbox
-                  checked={selected.has(option.id)}
-                  onChange={() => toggle(option.id)}
-                />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate">{option.name}</span>
-                  {(option.schoolClass || option.groupName) && (
-                    <span className="block truncate text-[11px] text-gray-400">
-                      {[option.schoolClass, option.groupName]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                  )}
-                </span>
-              </label>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
   );
 }

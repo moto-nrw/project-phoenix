@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -63,18 +63,36 @@ const PLAN_BLOCK_FILE = "plan-block.tsx";
 // altlast, not an endorsement — fix and remove the entry when you touch the
 // file. New files, and new violations in already-listed files, are NOT
 // covered: the guard fails the moment a file's count exceeds what's here.
+// Keys are paths relative to components/timetable/ (subdirectories included,
+// e.g. "event-form/field.tsx") since the scan below is recursive.
+//
+// 2026-07-16: timetable-event-modal.tsx's extraction moved `Field` (and its
+// one `text-red-600` violation) to event-form/field.tsx — the allowlist
+// entries were split accordingly, total unchanged (14).
 const TIMETABLE_BRIGHT_COLOR_ALLOWLIST: Readonly<Record<string, number>> = {
-  "timetable-event-modal.tsx": 14,
+  "timetable-event-modal.tsx": 13,
+  "event-form/field.tsx": 1,
 };
 
 function countMatches(source: string, pattern: RegExp): number {
   return [...source.matchAll(pattern)].length;
 }
 
-function listTsxFiles(dir: string): string[] {
-  return readdirSync(dir)
-    .filter((name) => name.endsWith(".tsx"))
-    .sort();
+/** Recursively lists .tsx files under `dir`, returning paths relative to `dir` (posix-style). */
+function listTsxFiles(dir: string, relativeTo: string = dir): string[] {
+  const entries = readdirSync(dir);
+  const results: string[] = [];
+  for (const name of entries) {
+    const fullPath = path.join(dir, name);
+    if (statSync(fullPath).isDirectory()) {
+      results.push(...listTsxFiles(fullPath, relativeTo));
+    } else if (name.endsWith(".tsx")) {
+      results.push(
+        path.relative(relativeTo, fullPath).split(path.sep).join("/"),
+      );
+    }
+  }
+  return results.sort();
 }
 
 function planPrimitiveFiles(): string[] {
