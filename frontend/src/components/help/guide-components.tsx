@@ -210,7 +210,14 @@ export function HelpHeader({
 }) {
   return (
     <header className="sticky top-3 z-30 print:hidden">
-      <div className="flex flex-col gap-3 rounded-2xl border border-gray-200 bg-white/92 p-3 shadow-sm backdrop-blur-md sm:relative sm:flex-row sm:items-center sm:justify-between sm:p-4">
+      <div
+        className={[
+          "rounded-2xl border border-gray-200 bg-white/92 p-3 shadow-sm backdrop-blur-md sm:relative sm:p-4",
+          pdf
+            ? "flex items-center justify-between gap-3"
+            : "flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between",
+        ].join(" ")}
+      >
         <div className="flex w-full min-w-0 items-center justify-between gap-3">
           {pdf ? (
             <Link href="/help" className={helpBackButtonClassName}>
@@ -243,7 +250,7 @@ export function HelpHeader({
         </div>
 
         {pdf ? (
-          <div className="flex min-h-10 w-full items-center sm:w-fit">
+          <div className="flex min-h-10 w-fit shrink-0 items-center">
             <GuidePdfButton href={pdf.href} download={pdf.download} />
           </div>
         ) : null}
