@@ -92,7 +92,9 @@ function cellDisplay(cell: CapacityStripCell): {
   content: ReactNode;
   title?: string;
 } {
-  if (cell.reductions) {
+  // Bei 0 Abmeldungen ist der Wert ungemindert — kein "davon 0
+  // abgemeldet"-Tooltip.
+  if (cell.reductions && cell.reductions.excused + cell.reductions.sick > 0) {
     const totalReduction = cell.reductions.excused + cell.reductions.sick;
     return {
       // Bei inkonsistenten Daten (mehr Abmeldungen als Anmeldungen) nie eine

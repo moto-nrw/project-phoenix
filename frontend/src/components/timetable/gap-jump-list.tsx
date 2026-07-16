@@ -26,9 +26,20 @@ interface GapJumpListProps {
   gaps: GapInstance[];
   /** Springt zum Block der Lücke — der Aufrufer setzt `d` und `block`. */
   onJump: (gap: GapInstance) => void;
+  /**
+   * Solange die Lücken-Abfrage läuft, zeigt der Chip einen neutralen
+   * Prüf-Hinweis statt der Entwarnung "Keine Lücken" — ein leeres Array vor
+   * Datenankunft ist keine bestätigte Aussage. Den Fehlerfall blendet der
+   * Aufrufer aus (der Fehler wird dort getoastet).
+   */
+  state?: "ready" | "loading";
 }
 
-export function GapJumpList({ gaps, onJump }: GapJumpListProps) {
+export function GapJumpList({
+  gaps,
+  onJump,
+  state = "ready",
+}: GapJumpListProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
   useClickOutside(containerRef, () => setOpen(false), open);
@@ -45,6 +56,20 @@ export function GapJumpList({ gaps, onJump }: GapJumpListProps) {
 
   const count = sorted.length;
   const label = count === 1 ? "1 Lücke" : `${count} Lücken`;
+
+  // Während die Abfrage läuft, keine Entwarnung vortäuschen — neutraler
+  // Prüf-Hinweis in derselben ruhigen Optik wie der "Keine Lücken"-Zustand.
+  if (state === "loading") {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-gray-500"
+        title="Personal-Lücken werden geprüft"
+      >
+        <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#9CA3AF]" />
+        Lücken werden geprüft …
+      </span>
+    );
+  }
 
   // Ohne offene Lücken bleibt der Chip als ruhige "Keine Lücken"-Anzeige
   // stehen (grauer Punkt), aber ohne Popover — es gäbe nichts anzuspringen.

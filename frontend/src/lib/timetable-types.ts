@@ -294,50 +294,6 @@ export interface BackendDeviationHistoryResponse {
   events: BackendDeviationHistoryEvent[] | null;
 }
 
-type ExceptionConflictKind =
-  | "cancelled_instance_with_scheduled_arrivals"
-  | "modified_instance_time_mismatch";
-
-interface ExceptionConflict {
-  kind: ExceptionConflictKind;
-  date: string;
-  activityGroupId: string;
-  instanceId: string;
-  activityTitle: string;
-  studentId: string;
-  expectedArrival?: string;
-  arrivalSource: string;
-  cancellationReason?: string;
-  originalStartTime?: string;
-  modifiedStartTime?: string;
-}
-
-export interface ExceptionConflictsResponse {
-  from: string;
-  to: string;
-  conflicts: ExceptionConflict[];
-}
-
-interface BackendExceptionConflict {
-  kind: ExceptionConflictKind;
-  date: string;
-  activity_group_id: number;
-  instance_id: number;
-  activity_title: string;
-  student_id: number;
-  expected_arrival?: string;
-  arrival_source: string;
-  cancellation_reason?: string;
-  original_start_time?: string;
-  modified_start_time?: string;
-}
-
-export interface BackendExceptionConflictsResponse {
-  from: string;
-  to: string;
-  conflicts: BackendExceptionConflict[];
-}
-
 interface TemplateSchedule {
   id: string;
   weekday: number;

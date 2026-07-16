@@ -85,6 +85,7 @@ import { timetableService } from "~/lib/timetable-api";
 import {
   DENSITY_TO_HOUR_HEIGHT_PX,
   chunkDateRange,
+  firstSchoolDayInPeriod,
   formatWeekLabel,
   formatMonthLabel,
   getMonthDays,
@@ -381,7 +382,7 @@ function TimetablesContent() {
   );
   // Bedarfsquellen-Chip (06 §3.2): die Anmeldephasen für die clientseitige
   // Zuordnung.
-  const { data: phasesData } = useSWRAuth(
+  const { data: phasesData, error: phasesError } = useSWRAuth(
     status === "authenticated" ? PHASES_SWR_KEY : null,
     () => listPhases(),
     { revalidateOnFocus: false },
@@ -536,7 +537,7 @@ function TimetablesContent() {
     [calendarPeriods, dayISO],
   );
   const templatePeriodID = visiblePeriod?.id ?? assignedPeriods[0]?.id;
-  const focusedPeriodID = visiblePeriod?.id ?? assignedPeriods[0]?.id ?? null;
+  const focusedPeriodID = templatePeriodID ?? null;
   const { data: templateData, isLoading: templatesLoading } = useSWRAuth(
     status === "authenticated" && templatePeriodID
       ? `timetable-templates-${templatePeriodID}`
@@ -789,15 +790,19 @@ function TimetablesContent() {
 
   // Zeitraum-Chip: Sprung in einen anderen Planungszeitraum setzt `d` auf ein
   // Datum innerhalb des Zeitraums (heute, falls es hineinfällt, sonst der
-  // Start). In der Serienansicht wechselt so die angezeigte Regeltermin-Liste,
-  // in Woche/Monat springt der Kalender.
+  // Start; Wochenendtage werden auf den nächsten Schultag im Zeitraum
+  // gehoben). In der Serienansicht wechselt so die angezeigte
+  // Regeltermin-Liste, in Woche/Monat springt der Kalender.
   const jumpToPeriod = useCallback(
     (period: CalendarPeriod) => {
       const target =
         todayISO >= period.startDate && todayISO <= period.endDate
           ? todayISO
           : period.startDate;
-      updateUrlParams({ d: target, block: null });
+      updateUrlParams({
+        d: firstSchoolDayInPeriod(period.startDate, period.endDate, target),
+        block: null,
+      });
     },
     [todayISO, updateUrlParams],
   );
@@ -939,7 +944,13 @@ function TimetablesContent() {
           visibleDate.getMonth() === todayDate.getMonth();
   const showTodayButton = view !== "series" && !isOnToday;
 
-  const demandOriginChip = demandOrigin.href ? (
+  // Solange die Phasen laden, keine bestätigte Negativ-Aussage ("keine
+  // Anmeldung verknüpft") aus dem leeren Zwischenstand ableiten — neutraler
+  // Platzhalter. Schlägt der Fetch fehl, entfällt der Chip (keine Aussage
+  // ist ehrlicher als eine falsche).
+  const demandOriginChip = phasesError ? null : phasesData === undefined ? (
+    <OriginChip label="Bedarf wird ermittelt …" />
+  ) : demandOrigin.href ? (
     <Link href={tenantPath(demandOrigin.href)} className="inline-flex">
       <OriginChip label={demandOrigin.label} />
     </Link>
@@ -1020,9 +1031,10 @@ function TimetablesContent() {
           />
         )}
         {demandOriginChip}
-        {shouldLoadGaps && (
+        {shouldLoadGaps && !gapsError && (
           <GapJumpList
             gaps={gaps}
+            state={gapsData === undefined ? "loading" : "ready"}
             onJump={(gap) =>
               updateUrlParams({ d: gap.date, block: gap.instanceId })
             }

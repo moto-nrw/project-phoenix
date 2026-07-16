@@ -17,7 +17,6 @@ import type {
   BackendCreateTemplateResult,
   BackendAttendanceResponse,
   BackendEndTemplateResult,
-  BackendExceptionConflictsResponse,
   BackendEnrichedInstance,
   BackendGapsResponse,
   BackendDeviationHistoryResponse,
@@ -41,7 +40,6 @@ import type {
   EndTemplateBody,
   EndTemplateResult,
   EnrichedInstance,
-  ExceptionConflictsResponse,
   GapsResponse,
   DeviationHistoryResponse,
   InstanceStatusResult,
@@ -66,7 +64,6 @@ import {
   mapCreateTemplateResult,
   mapEndTemplateResult,
   mapAttendance,
-  mapExceptionConflicts,
   mapGaps,
   mapDeviationHistory,
   mapApplyDeviations,
@@ -618,24 +615,6 @@ class TimetableService {
 
     const raw = await unwrap<BackendDeviationHistoryResponse>(response);
     return mapDeviationHistory(raw);
-  }
-
-  async getExceptionConflicts(
-    from: string,
-    to: string,
-  ): Promise<ExceptionConflictsResponse> {
-    const params = new URLSearchParams({ date: from, date_to: to });
-    const response = await fetch(
-      `/api/timetable/exception-conflicts?${params}`,
-      {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        credentials: "include",
-      },
-    );
-
-    const raw = await unwrap<BackendExceptionConflictsResponse>(response);
-    return mapExceptionConflicts(raw);
   }
 
   /**

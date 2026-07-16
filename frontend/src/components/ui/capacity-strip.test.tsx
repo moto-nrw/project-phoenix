@@ -141,6 +141,19 @@ describe("CapacityStrip", () => {
       );
     });
 
+    it("shows the unreduced value with no tooltip when reductions total zero", () => {
+      renderStrip([
+        {
+          key: "mo",
+          content: 42,
+          reductions: { excused: 0, sick: 0 },
+        },
+      ]);
+
+      const cell = screen.getByText("42");
+      expect(cell.closest("td")).not.toHaveAttribute("title");
+    });
+
     it("sums excused and sick into the tooltip breakdown and the reduced value", () => {
       renderStrip([
         {

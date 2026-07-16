@@ -16,7 +16,6 @@ import type {
   BackendCreateTemplateResult,
   BackendAttendanceResponse,
   BackendEndTemplateResult,
-  BackendExceptionConflictsResponse,
   BackendEnrichedInstance,
   BackendGapInstance,
   BackendGapsResponse,
@@ -36,7 +35,6 @@ import type {
   CreateTemplateResult,
   EndTemplateResult,
   EnrichedInstance,
-  ExceptionConflictsResponse,
   GapInstance,
   GapsResponse,
   DeviationHistoryEvent,
@@ -304,6 +302,36 @@ export function nextWorkdayISO(iso: string): string {
   if (day === 6) d.setDate(d.getDate() + 2);
   else if (day === 0) d.setDate(d.getDate() + 1);
   return toISODate(d);
+}
+
+/**
+ * Snappt ein Wochenend-Sprungziel innerhalb eines Planungszeitraums auf den
+ * nächsten Schultag: Sa/So heben auf den folgenden Montag, sofern der noch im
+ * Zeitraum liegt, sonst zurück auf den vorangehenden Freitag, sofern der im
+ * Zeitraum liegt. Mo–Fr (oder ein Zeitraum, der nur das Wochenende umfasst)
+ * bleibt unverändert. Verhindert, dass der Zeitraumsprung bei einem
+ * Samstag-Start eine Woche fast vollständig VOR dem Zeitraum anzeigt.
+ */
+export function firstSchoolDayInPeriod(
+  periodStartISO: string,
+  periodEndISO: string,
+  targetISO: string,
+): string {
+  const target = parseISODate(targetISO);
+  const day = target.getDay(); // 0 = So, 6 = Sa
+  if (day !== 6 && day !== 0) return targetISO;
+
+  const nextMonday = new Date(target);
+  nextMonday.setDate(target.getDate() + (day === 6 ? 2 : 1));
+  const nextMondayISO = toISODate(nextMonday);
+  if (nextMondayISO <= periodEndISO) return nextMondayISO;
+
+  const previousFriday = new Date(target);
+  previousFriday.setDate(target.getDate() - (day === 6 ? 1 : 2));
+  const previousFridayISO = toISODate(previousFriday);
+  if (previousFridayISO >= periodStartISO) return previousFridayISO;
+
+  return targetISO;
 }
 
 export function getMonthRange(ref: Date): { from: Date; to: Date } {
@@ -585,28 +613,6 @@ export function staffLabel(
   staffId: string,
 ): string {
   return staffNames.get(staffId) ?? `Personal #${staffId}`;
-}
-
-export function mapExceptionConflicts(
-  raw: BackendExceptionConflictsResponse,
-): ExceptionConflictsResponse {
-  return {
-    from: raw.from,
-    to: raw.to,
-    conflicts: (raw.conflicts ?? []).map((conflict) => ({
-      kind: conflict.kind,
-      date: conflict.date,
-      activityGroupId: String(conflict.activity_group_id),
-      instanceId: String(conflict.instance_id),
-      activityTitle: conflict.activity_title,
-      studentId: String(conflict.student_id),
-      expectedArrival: conflict.expected_arrival,
-      arrivalSource: conflict.arrival_source,
-      cancellationReason: conflict.cancellation_reason,
-      originalStartTime: conflict.original_start_time,
-      modifiedStartTime: conflict.modified_start_time,
-    })),
-  };
 }
 
 export function mapAttendance(

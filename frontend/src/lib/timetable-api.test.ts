@@ -564,27 +564,6 @@ describe("timetableService", () => {
             ],
           },
         }),
-      )
-      .mockResolvedValueOnce(
-        jsonResponse({
-          data: {
-            from: "2026-05-04",
-            to: "2026-05-08",
-            conflicts: [
-              {
-                kind: "modified_instance_time_mismatch",
-                date: "2026-05-04",
-                activity_group_id: 7,
-                instance_id: 42,
-                activity_title: "Mensa",
-                student_id: 21,
-                arrival_source: "schedule",
-                original_start_time: "12:00",
-                modified_start_time: "12:30",
-              },
-            ],
-          },
-        }),
       );
 
     await expect(timetableService.start("42")).resolves.toMatchObject({
@@ -604,11 +583,6 @@ describe("timetableService", () => {
     await expect(
       timetableService.getGaps("2026-05-04", "2026-05-08"),
     ).resolves.toMatchObject({ gaps: [{ instanceId: "42" }] });
-    await expect(
-      timetableService.getExceptionConflicts("2026-05-04", "2026-05-08"),
-    ).resolves.toMatchObject({
-      conflicts: [{ instanceId: "42", studentId: "21" }],
-    });
 
     expect(fetchMock).toHaveBeenNthCalledWith(
       1,

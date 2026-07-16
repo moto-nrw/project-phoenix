@@ -94,7 +94,6 @@ vi.mock("~/lib/timetable-api", () => ({
     getWeek: vi.fn(),
     getTemplates: vi.fn(),
     getGaps: vi.fn(),
-    getExceptionConflicts: vi.fn(),
     materialize: mockMaterialize,
     replanWeek: vi.fn(),
     start: mockStart,
@@ -609,7 +608,9 @@ function setupSWR({
   settingsSchemaLoading = false,
   careOfferingLink = null,
   gaps = [] as GapInstance[],
+  gapsState = "ready" as "ready" | "loading" | "error",
   phases = [] as Array<Record<string, unknown>>,
+  phasesState = "ready" as "ready" | "loading" | "error",
 }: {
   periods?: Array<typeof period>;
   templates?: TimetableTemplate[];
@@ -618,7 +619,9 @@ function setupSWR({
   /** null = the planner admin cannot read enrollment (status "unknown"). */
   careOfferingLink?: { total: number; linked: number } | null;
   gaps?: GapInstance[];
+  gapsState?: "ready" | "loading" | "error";
   phases?: Array<Record<string, unknown>>;
+  phasesState?: "ready" | "loading" | "error";
 } = {}) {
   mockUseSWRAuth.mockImplementation((key: string | null) => {
     if (key === null) return {};
@@ -634,6 +637,10 @@ function setupSWR({
       return { data: periods, isLoading: false };
     }
     if (key === "timetable-enrollment-phases") {
+      if (phasesState === "loading") return { isLoading: true };
+      if (phasesState === "error") {
+        return { error: new Error("phases kaputt"), isLoading: false };
+      }
       return { data: phases, isLoading: false };
     }
     if (key === "timetable-staff-list") {
@@ -656,10 +663,11 @@ function setupSWR({
       return { data: { students: [{ id: "21", name: "Max Kind" }] } };
     }
     if (key.startsWith("timetable-gaps")) {
+      if (gapsState === "loading") return { isLoading: true };
+      if (gapsState === "error") {
+        return { error: new Error("gaps kaputt"), isLoading: false };
+      }
       return { data: { gaps, acknowledged: [] }, isLoading: false };
-    }
-    if (key.startsWith("timetable-exception-conflicts")) {
-      return { data: { conflicts: [] }, isLoading: false };
     }
     if (key.startsWith("timetable-templates")) {
       return { data: { templates }, isLoading: false };
@@ -851,6 +859,43 @@ describe("BetreuungsplanView", () => {
     await waitFor(() => expect(screen.getByText("detail-close")).toBeVisible());
     expect(urlParams().get("d")).toBe("2026-05-04");
     expect(urlParams().get("block")).toBe("42");
+  });
+
+  it("shows a neutral checking chip while gaps load instead of 'Keine Lücken'", () => {
+    setupSWR({ gapsState: "loading" });
+    setUrl("view=woche");
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("Lücken werden geprüft …")).toBeInTheDocument();
+    expect(screen.queryByText("Keine Lücken")).not.toBeInTheDocument();
+  });
+
+  it("hides the gap chip when the gaps request fails", () => {
+    setupSWR({ gapsState: "error" });
+    setUrl("view=woche");
+    render(<BetreuungsplanView />);
+
+    expect(screen.queryByText("Keine Lücken")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Lücken werden geprüft …"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a neutral chip while phases load instead of 'keine Anmeldung verknüpft'", () => {
+    setupSWR({ phasesState: "loading" });
+    render(<BetreuungsplanView />);
+
+    expect(screen.getByText("Bedarf wird ermittelt …")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Bedarf: keine Anmeldung verknüpft"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the demand-origin chip when the phases request fails", () => {
+    setupSWR({ phasesState: "error" });
+    render(<BetreuungsplanView />);
+
+    expect(screen.queryByText(/^Bedarf/)).not.toBeInTheDocument();
   });
 
   it("shows the demand-origin chip, linked to enrollment-phases when unresolved", () => {
