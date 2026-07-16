@@ -4,14 +4,11 @@ import {
   KeyRound,
   Nfc,
   PlugZap,
-  QrCode,
   ShieldCheck,
   Wrench,
 } from "lucide-react";
 import { HelpHeader } from "~/components/help/guide-components";
 import { HelpSearchInline } from "~/components/help/help-search";
-
-const fullGuideUrl = "https://moto-ogs.de/help/nfc";
 
 const quickstartPdf = {
   href: "/help/pdfs/nfc-erste-schritte.pdf",
@@ -213,38 +210,6 @@ export default function NfcQuickstartPage() {
                 );
               })}
             </div>
-
-            <section className="hidden rounded-[28px] bg-[#5080D8]/10 p-5 print:mt-4 print:grid print:grid-cols-[1fr_150px] print:gap-4 print:rounded-2xl print:p-4">
-              <div>
-                <div className="flex items-center gap-2 text-[#315C9B]">
-                  <QrCode className="h-5 w-5" aria-hidden="true" />
-                  <h2 className="text-lg font-semibold tracking-normal print:text-base">
-                    Ausführliche Anleitung öffnen
-                  </h2>
-                </div>
-                <p className="mt-3 text-sm leading-6 text-gray-700 print:mt-2 print:text-xs print:leading-5">
-                  Dort finden Sie die vollständige Schritt-für-Schritt-Anleitung
-                  mit Bildern: Geräte anmelden, Armbänder zuweisen, Check-in und
-                  Check-out nutzen und typische Fehler schnell beheben.
-                </p>
-                <p className="mt-4 text-xs font-semibold text-gray-500">
-                  {fullGuideUrl.replace("https://", "")}
-                </p>
-              </div>
-
-              <div className="rounded-3xl border border-gray-200 bg-white p-4 text-center print:rounded-2xl print:p-3">
-                <Image
-                  src="/help/quickstart/nfc-guide-qr.svg"
-                  alt=""
-                  width={128}
-                  height={128}
-                  className="mx-auto h-32 w-32 print:h-24 print:w-24"
-                />
-                <p className="mt-2 text-[11px] leading-4 font-semibold text-gray-700">
-                  QR-Code scannen
-                </p>
-              </div>
-            </section>
 
             <section className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3 print:hidden">
               {hints.map((hint, index) => {

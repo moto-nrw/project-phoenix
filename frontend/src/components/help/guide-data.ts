@@ -119,7 +119,7 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
     searchable: false,
     points: [
       "Für den Versandkarton und den schnellen Start",
-      "Mit Link zur ausführlichen NFC-Anleitung",
+      "Drei Schritte kompakt zusammengefasst",
       "Als druckfertige A4-Seite aufgebaut",
     ],
   },
