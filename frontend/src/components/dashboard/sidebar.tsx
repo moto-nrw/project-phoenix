@@ -301,6 +301,7 @@ const DATABASE_SUB_PAGES = [
   { href: "/database/roles", label: "Rollen" },
   { href: "/database/devices", label: "Geräte" },
   { href: "/database/permissions", label: "Berechtigungen" },
+  { href: "/database/exports", label: "Exporte" },
 ];
 
 const NFC_ONLY_HREFS = new Set<string>([
@@ -1425,7 +1426,11 @@ function SidebarContent({ className = "" }: SidebarProps) {
               {databaseSubPages.map((page) => (
                 <SidebarSubItem
                   key={page.href}
-                  href={page.href}
+                  // Tenant-scoped [tenant]/… routes: in path-routing mode a
+                  // bare "/database/exports" makes the router read "database"
+                  // as the tenant slug, so prefix via tenantPath like the
+                  // Eltern accordion. No-op in subdomain mode.
+                  href={tenantPath(page.href)}
                   label={page.label}
                   isActive={pathname === page.href}
                 />

@@ -161,4 +161,21 @@ describe("exportStudents", () => {
 
     await expect(exportStudents(request)).rejects.toThrow("keine Berechtigung");
   });
+
+  it("unwraps the JSON error envelope from the export proxy", async () => {
+    globalThis.fetch = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error:
+              "die Auswahl umfasst 6000 Kinder, ein Export ist auf höchstens 5000 Kinder begrenzt",
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        ),
+    );
+
+    await expect(exportStudents(request)).rejects.toThrow(
+      "die Auswahl umfasst 6000 Kinder",
+    );
+  });
 });

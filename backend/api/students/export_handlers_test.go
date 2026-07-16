@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -11,6 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// testExportDate is the fixed "today" row building is evaluated against, so
+// age cells stay deterministic instead of drifting with the wall clock.
+var testExportDate = timezone.NewDate(2026, time.July, 15)
 
 func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
 	params := exportRequestToListParams(studentExportRequest{
@@ -29,6 +34,47 @@ func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
 	assert.Equal(t, studentExportPageSize, params.pageSize)
 	assert.True(t, params.includePickupTimes)
 	assert.True(t, params.includeArrivalTimes)
+}
+
+func TestExportSelectionTooLarge(t *testing.T) {
+	// The cap is inclusive: a full page still exports, one over does not.
+	assert.False(t, exportSelectionTooLarge(0))
+	assert.False(t, exportSelectionTooLarge(studentExportPageSize-1))
+	assert.False(t, exportSelectionTooLarge(studentExportPageSize))
+	assert.True(t, exportSelectionTooLarge(studentExportPageSize+1))
+
+	// The message names the actual count and the cap so a school knows how far
+	// over it is and what to do about it.
+	msg := errExportSelectionTooLarge(studentExportPageSize + 1).Error()
+	assert.Contains(t, msg, "5001")
+	assert.Contains(t, msg, "eingrenzen")
+}
+
+// The export must fetch every SQL-matching row even when no in-memory filter is
+// active (the whole-school birthday list): the month filter runs after the
+// fetch, so a paginated page would silently drop matching children past the
+// boundary. buildQueryOptions must therefore leave pagination off.
+func TestExportRequestToListParamsFetchesAllRows(t *testing.T) {
+	params := exportRequestToListParams(studentExportRequest{
+		Preset: listexport.PresetBirthdayList,
+		// No search / group / class: without fetchAll this would paginate.
+		Filters: studentExportFilters{Months: []string{"09"}},
+	})
+
+	assert.True(t, params.fetchAll)
+	assert.False(t, params.hasInMemoryFilters(),
+		"a month-only birthday export has no in-memory list filter, so only fetchAll keeps pagination off")
+	assert.Nil(t, params.buildQueryOptions().Pagination,
+		"the export query must be unpaginated so the in-memory month filter sees every child")
+}
+
+// The cap is decided on the filtered result, so exportSelectionCapError returns
+// nil for anything that fits and a ready-to-render error only once the document
+// would exceed the row cap.
+func TestExportSelectionCapError(t *testing.T) {
+	assert.Nil(t, exportSelectionCapError(0))
+	assert.Nil(t, exportSelectionCapError(studentExportPageSize))
+	require.NotNil(t, exportSelectionCapError(studentExportPageSize+1))
 }
 
 func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {
@@ -89,7 +135,7 @@ func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := applyExportFilters(students, tt.filters)
+			got := applyExportFilters(students, tt.filters, listexport.PresetOGSWeekly)
 			gotIDs := make([]int64, 0, len(got))
 			for _, student := range got {
 				gotIDs = append(gotIDs, student.ID)
@@ -107,7 +153,7 @@ func TestApplyExportFiltersClassTripStatus(t *testing.T) {
 		{ID: 104, Location: "Zuhause"},
 	}
 
-	got := applyExportFilters(students, studentExportFilters{Status: "klassenfahrt"})
+	got := applyExportFilters(students, studentExportFilters{Status: "klassenfahrt"}, listexport.PresetOGSWeekly)
 
 	require.Len(t, got, 1)
 	assert.Equal(t, int64(101), got[0].ID)
@@ -131,11 +177,11 @@ func TestPopulateExportPhotoConsentFilterDataSupportsFeatureOffResponses(t *test
 	require.NotNil(t, responses[1].PhotoConsentGiven)
 	assert.False(t, *responses[1].PhotoConsentGiven)
 
-	yes := applyExportFilters(responses, studentExportFilters{PhotoConsent: "yes"})
+	yes := applyExportFilters(responses, studentExportFilters{PhotoConsent: "yes"}, listexport.PresetOGSWeekly)
 	require.Len(t, yes, 1)
 	assert.Equal(t, int64(101), yes[0].ID)
 
-	no := applyExportFilters(responses, studentExportFilters{PhotoConsent: "no"})
+	no := applyExportFilters(responses, studentExportFilters{PhotoConsent: "no"}, listexport.PresetOGSWeekly)
 	require.Len(t, no, 1)
 	assert.Equal(t, int64(102), no[0].ID)
 }
@@ -218,7 +264,7 @@ func TestApplyExportFiltersCombinedWithDayStatus(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := applyExportFilters(students, tt.filters)
+			got := applyExportFilters(students, tt.filters, listexport.PresetOGSWeekly)
 			gotIDs := make([]int64, 0, len(got))
 			for _, student := range got {
 				gotIDs = append(gotIDs, student.ID)
@@ -352,7 +398,7 @@ func TestBuildExportRowsIncludesDailyStatus(t *testing.T) {
 
 	rows := buildExportRows(students, map[int64]weeklySchedule{}, map[int64]string{
 		101: "Angemeldet: OGS",
-	})
+	}, testExportDate)
 
 	require.Len(t, rows, len(students))
 	assert.Equal(t, "Angemeldet: OGS", rows[0].Values[listexport.ColumnEnrollmentSummary])

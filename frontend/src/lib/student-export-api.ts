@@ -1,4 +1,5 @@
 import { trackEvent } from "~/lib/analytics";
+import { berlinTodayISO } from "~/lib/date-helpers";
 
 export type StudentExportFormat = "pdf" | "docx" | "xlsx";
 
@@ -9,7 +10,8 @@ export type StudentExportPreset =
   | "daily_planning"
   | "attendance_snapshot"
   | "pickup_list"
-  | "blank_checklist";
+  | "blank_checklist"
+  | "birthday_list";
 
 export type StudentExportColumn =
   | "name"
@@ -27,7 +29,9 @@ export type StudentExportColumn =
   | "daily_status"
   | "departure"
   | "daily_notes"
-  | "current_location";
+  | "current_location"
+  | "birthday"
+  | "age";
 
 export interface StudentExportFilters {
   search?: string;
@@ -44,6 +48,42 @@ export interface StudentExportFilters {
   arrival_time?: string;
   sort?: string;
   group_by_class?: boolean;
+  /**
+   * Birth months ("01".."12") a birthday list is limited to. Empty means every
+   * month. A birthday recurs every year, so this matches on the month alone and
+   * never on the birth year.
+   */
+  months?: string[];
+}
+
+export interface BirthdayMonthOption {
+  value: string;
+  label: string;
+}
+
+/**
+ * The twelve months as picker options, labelled via the same de-DE formatting
+ * the rest of the date helpers use rather than a hand-kept name list.
+ */
+export const BIRTHDAY_MONTH_OPTIONS: BirthdayMonthOption[] = Array.from(
+  { length: 12 },
+  (_, index) => ({
+    value: String(index + 1).padStart(2, "0"),
+    label: new Date(Date.UTC(2000, index, 1)).toLocaleDateString("de-DE", {
+      month: "long",
+      timeZone: "UTC",
+    }),
+  }),
+);
+
+/**
+ * The current month in the school's timezone, pre-selected when a birthday list
+ * is opened. Derived from Berlin — not the browser calendar — so a staff member
+ * abroad does not silently export the neighbouring month around a month
+ * boundary.
+ */
+export function currentBirthdayMonth(): string {
+  return berlinTodayISO().slice(5, 7);
 }
 
 export interface StudentExportRequest {
@@ -150,6 +190,19 @@ export const STUDENT_EXPORT_COLUMNS: StudentExportColumnOption[] = [
     description:
       "Aktueller Aufenthaltsort aus der Live-Anwesenheit. Nur als Momentaufnahme geeignet.",
   },
+  {
+    id: "birthday",
+    label: "Geburtstag",
+    group: "base",
+    description: "Geburtsdatum des Kindes aus den Stammdaten.",
+  },
+  {
+    id: "age",
+    label: "Alter",
+    group: "base",
+    description:
+      "Alter in Jahren am heutigen Tag, berechnet aus dem Geburtsdatum.",
+  },
 ];
 
 export const STUDENT_EXPORT_PRESETS: Array<{
@@ -250,6 +303,13 @@ export const STUDENT_EXPORT_PRESETS: Array<{
     description: "Einfache Liste zum manuellen Abhaken.",
     columns: ["name", "school_class", "group"],
   },
+  {
+    id: "birthday_list",
+    label: "Geburtstagsliste",
+    description:
+      "Geburtstage nach Kalender sortiert. Kinder ohne hinterlegtes Geburtsdatum fehlen in dieser Liste.",
+    columns: ["name", "school_class", "group", "birthday", "age"],
+  },
 ];
 
 export async function exportStudents(
@@ -262,7 +322,7 @@ export async function exportStudents(
   });
 
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw new Error(await readExportError(response));
   }
 
   trackEvent("data_exported", {
@@ -280,6 +340,23 @@ export async function exportStudents(
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+// The export proxy returns errors as {"error":"..."}; older/plain responses may
+// send a bare text body. Prefer the JSON message, fall back to the raw text, and
+// only then to a generic label, so the toast never shows an empty string.
+async function readExportError(response: Response): Promise<string> {
+  const text = await response.text();
+  if (!text) return "Export fehlgeschlagen";
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown };
+    if (typeof parsed.error === "string" && parsed.error.trim()) {
+      return parsed.error;
+    }
+  } catch {
+    // Not JSON — use the raw text body.
+  }
+  return text;
 }
 
 function filenameFromDisposition(response: Response): string | null {
