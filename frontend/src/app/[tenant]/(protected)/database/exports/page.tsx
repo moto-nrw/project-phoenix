@@ -243,15 +243,22 @@ export default function DatabaseExportsPage() {
         </ExportSection>
 
         <ExportSection title="Auf anderen Seiten">
-          <InfoCard title="Anmeldungen" icon={<FileText className="h-5 w-5" />}>
-            <ExportDescription>
-              Eingegangene Anmeldungen einer Anmeldephase. Der Export gehört zur
-              jeweiligen Phase.
-            </ExportDescription>
-            <ExportLink href="/admin/enrollments">
-              Zu den Anmeldephasen
-            </ExportLink>
-          </InfoCard>
+          {/* /admin/enrollments redirects non-admins to /dashboard (useRequireAdmin),
+              so only offer the link to admins rather than send others to a dead end. */}
+          {isAdmin(session) && (
+            <InfoCard
+              title="Anmeldungen"
+              icon={<FileText className="h-5 w-5" />}
+            >
+              <ExportDescription>
+                Eingegangene Anmeldungen einer Anmeldephase. Der Export gehört
+                zur jeweiligen Phase.
+              </ExportDescription>
+              <ExportLink href="/admin/enrollments">
+                Zu den Anmeldephasen
+              </ExportLink>
+            </InfoCard>
+          )}
 
           <InfoCard title="Zeitnachweis" icon={<Clock className="h-5 w-5" />}>
             <ExportDescription>

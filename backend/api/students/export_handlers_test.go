@@ -50,6 +50,33 @@ func TestExportSelectionTooLarge(t *testing.T) {
 	assert.Contains(t, msg, "eingrenzen")
 }
 
+// The export must fetch every SQL-matching row even when no in-memory filter is
+// active (the whole-school birthday list): the month filter runs after the
+// fetch, so a paginated page would silently drop matching children past the
+// boundary. buildQueryOptions must therefore leave pagination off.
+func TestExportRequestToListParamsFetchesAllRows(t *testing.T) {
+	params := exportRequestToListParams(studentExportRequest{
+		Preset: listexport.PresetBirthdayList,
+		// No search / group / class: without fetchAll this would paginate.
+		Filters: studentExportFilters{Months: []string{"09"}},
+	})
+
+	assert.True(t, params.fetchAll)
+	assert.False(t, params.hasInMemoryFilters(),
+		"a month-only birthday export has no in-memory list filter, so only fetchAll keeps pagination off")
+	assert.Nil(t, params.buildQueryOptions().Pagination,
+		"the export query must be unpaginated so the in-memory month filter sees every child")
+}
+
+// The cap is decided on the filtered result, so exportSelectionCapError returns
+// nil for anything that fits and a ready-to-render error only once the document
+// would exceed the row cap.
+func TestExportSelectionCapError(t *testing.T) {
+	assert.Nil(t, exportSelectionCapError(0))
+	assert.Nil(t, exportSelectionCapError(studentExportPageSize))
+	require.NotNil(t, exportSelectionCapError(studentExportPageSize+1))
+}
+
 func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {
 	consentYes := true
 	consentNo := false

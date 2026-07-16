@@ -23,6 +23,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
+// studentExportPageSize caps how many child rows a single export document may
+// carry. The cap is applied to the FINAL, filtered result (see exportStudents),
+// not to the raw school size — a narrow birthday or search list still exports at
+// a large school. It also bounds the initial fetch page for callers that still
+// paginate.
 const studentExportPageSize = 5000
 
 type studentExportRequest struct {
@@ -90,11 +95,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	if exportNeedsPhotoConsentFilter(req.Filters) {
 		populateExportPhotoConsentFilterData(responses, students)
 	}
-	for i := range responses {
-		if responses[i].HasFullAccess {
-			applyActualTimesFromSnapshot(&responses[i], dataSnapshot)
-		}
-	}
+	applyFullAccessActualTimes(responses, dataSnapshot)
 
 	fullAccessIDs := collectFullAccessStudentIDs(responses)
 	today := rs.Now()
@@ -107,6 +108,13 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, today)
 
 	responses = applyExportFilters(responses, req.Filters, req.Preset)
+	// The cap is applied to the rows that actually land in the document, after
+	// every requested filter has run — so a narrow list still exports at a large
+	// school and only a genuinely oversized result is refused.
+	if errResp := exportSelectionCapError(len(responses)); errResp != nil {
+		renderError(w, r, errResp)
+		return
+	}
 	sortExportResponses(responses, exportSortMode(req))
 	if req.Filters.GroupByClass {
 		groupExportResponsesByClass(responses)
@@ -193,26 +201,35 @@ func parseExportMonths(values []string) (map[time.Month]bool, error) {
 	return months, nil
 }
 
-// fetchStudentsForExport loads the students for an export and enforces the
-// single-page cap. It returns a ready-to-render error rather than writing the
-// response so the handler keeps a single error branch. The list query fetches
-// one page of studentExportPageSize rows, so a larger selection would silently
-// drop everyone past the cap and hand back a list that looks complete but is
-// not; refuse loudly and tell the user to narrow the selection instead.
+// fetchStudentsForExport loads every student matching the SQL-level filters for
+// an export. It returns a ready-to-render error rather than writing the response
+// so the handler keeps a single error branch. params.fetchAll is set, so the
+// query is unpaginated: the in-memory birthday-month and search filters that run
+// afterward see the whole set, and the size cap is enforced on the FINAL,
+// filtered result in exportStudents — not here on the raw school size.
 func (rs *Resource) fetchStudentsForExport(r *http.Request, params *studentListParams) ([]*users.Student, render.Renderer) {
-	students, totalCount, err := rs.fetchStudentsForList(r, params)
+	students, _, err := rs.fetchStudentsForList(r, params)
 	if err != nil {
 		return nil, common.ErrorInternalServer(err)
-	}
-	if exportSelectionTooLarge(totalCount) {
-		return nil, common.ErrorInvalidRequest(errExportSelectionTooLarge(totalCount))
 	}
 	return students, nil
 }
 
-// exportSelectionTooLarge reports whether a selection exceeds what a single-pass
-// export can carry. The list query fetches one page of studentExportPageSize
-// rows, so anything larger cannot be exported completely.
+// exportSelectionCapError returns a ready-to-render error when a filtered export
+// exceeds what one document can carry, or nil when it fits. It is checked
+// against the rows that actually land in the file, after every requested filter
+// has run: a narrow birthday or search list still exports at a large school, and
+// only a genuinely oversized result is refused. Because the fetch is complete
+// (params.fetchAll), refusing here is never silent truncation.
+func exportSelectionCapError(count int) render.Renderer {
+	if exportSelectionTooLarge(count) {
+		return common.ErrorInvalidRequest(errExportSelectionTooLarge(count))
+	}
+	return nil
+}
+
+// exportSelectionTooLarge reports whether a filtered export exceeds what a single
+// document can carry (studentExportPageSize rows).
 func exportSelectionTooLarge(total int) bool {
 	return total > studentExportPageSize
 }
@@ -233,6 +250,10 @@ func exportRequestToListParams(req studentExportRequest) *studentListParams {
 		includeArrivalTimes: true,
 		dayStatus:           parseDayStatusParam(req.Filters.DayStatus),
 		schoolClass:         strings.TrimSpace(req.Filters.SchoolClass),
+		// The birthday-month and search filters run in memory after the fetch,
+		// so pull every SQL-matching row: a paginated page would drop matching
+		// children past the boundary and silently shorten the list.
+		fetchAll: true,
 	}
 	if req.Filters.GroupID != "" {
 		if groupID, err := strconv.ParseInt(req.Filters.GroupID, 10, 64); err == nil {
@@ -245,6 +266,17 @@ func exportRequestToListParams(req studentExportRequest) *studentListParams {
 		}
 	}
 	return params
+}
+
+// applyFullAccessActualTimes overlays the snapshot's actual arrival/pickup times
+// onto every response the caller has full access to; redacted rows are left
+// untouched so GDPR-scoped exports never carry times the caller may not see.
+func applyFullAccessActualTimes(responses []StudentResponse, dataSnapshot *common.StudentDataSnapshot) {
+	for i := range responses {
+		if responses[i].HasFullAccess {
+			applyActualTimesFromSnapshot(&responses[i], dataSnapshot)
+		}
+	}
 }
 
 func exportNeedsPhotoConsentFilter(filters studentExportFilters) bool {

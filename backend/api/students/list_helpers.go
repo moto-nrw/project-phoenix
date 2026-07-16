@@ -47,6 +47,11 @@ type studentListParams struct {
 	// set, buildBaseFilter adds `student.id IN (...)` so the standard
 	// school_class / guardian_name / pagination pipeline still applies.
 	studentIDs []int64
+	// fetchAll disables SQL pagination so the query returns every row matching
+	// the SQL-level filters. Exports set this: the birthday-month and search
+	// filters run in memory after the fetch, so a paginated page would hide
+	// matching children past the page boundary and silently shorten the list.
+	fetchAll bool
 }
 
 // studentAccessContext is an alias for the shared common.StudentAccessContext
@@ -174,8 +179,10 @@ func (p *studentListParams) buildQueryOptions() *base.QueryOptions {
 	queryOptions := base.NewQueryOptions()
 	queryOptions.Filter = p.buildBaseFilter()
 
-	// Add pagination only if no person-based filters
-	if !p.hasInMemoryFilters() {
+	// Add pagination only if no person-based filters and the caller wants a
+	// page. Exports (fetchAll) take every row so their in-memory filters see
+	// the whole set.
+	if !p.fetchAll && !p.hasInMemoryFilters() {
 		queryOptions.WithPagination(p.page, p.pageSize)
 	}
 
