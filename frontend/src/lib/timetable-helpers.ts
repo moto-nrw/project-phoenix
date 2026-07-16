@@ -16,7 +16,6 @@ import type {
   BackendCreateTemplateResult,
   BackendAttendanceResponse,
   BackendEndTemplateResult,
-  BackendExceptionConflictsResponse,
   BackendEnrichedInstance,
   BackendGapInstance,
   BackendGapsResponse,
@@ -36,7 +35,6 @@ import type {
   CreateTemplateResult,
   EndTemplateResult,
   EnrichedInstance,
-  ExceptionConflictsResponse,
   GapInstance,
   GapsResponse,
   DeviationHistoryEvent,
@@ -304,6 +302,36 @@ export function nextWorkdayISO(iso: string): string {
   if (day === 6) d.setDate(d.getDate() + 2);
   else if (day === 0) d.setDate(d.getDate() + 1);
   return toISODate(d);
+}
+
+/**
+ * Snappt ein Wochenend-Sprungziel innerhalb eines Planungszeitraums auf den
+ * nächsten Schultag: Sa/So heben auf den folgenden Montag, sofern der noch im
+ * Zeitraum liegt, sonst zurück auf den vorangehenden Freitag, sofern der im
+ * Zeitraum liegt. Mo–Fr (oder ein Zeitraum, der nur das Wochenende umfasst)
+ * bleibt unverändert. Verhindert, dass der Zeitraumsprung bei einem
+ * Samstag-Start eine Woche fast vollständig VOR dem Zeitraum anzeigt.
+ */
+export function firstSchoolDayInPeriod(
+  periodStartISO: string,
+  periodEndISO: string,
+  targetISO: string,
+): string {
+  const target = parseISODate(targetISO);
+  const day = target.getDay(); // 0 = So, 6 = Sa
+  if (day !== 6 && day !== 0) return targetISO;
+
+  const nextMonday = new Date(target);
+  nextMonday.setDate(target.getDate() + (day === 6 ? 2 : 1));
+  const nextMondayISO = toISODate(nextMonday);
+  if (nextMondayISO <= periodEndISO) return nextMondayISO;
+
+  const previousFriday = new Date(target);
+  previousFriday.setDate(target.getDate() - (day === 6 ? 1 : 2));
+  const previousFridayISO = toISODate(previousFriday);
+  if (previousFridayISO >= periodStartISO) return previousFridayISO;
+
+  return targetISO;
 }
 
 export function getMonthRange(ref: Date): { from: Date; to: Date } {
@@ -585,28 +613,6 @@ export function staffLabel(
   staffId: string,
 ): string {
   return staffNames.get(staffId) ?? `Personal #${staffId}`;
-}
-
-export function mapExceptionConflicts(
-  raw: BackendExceptionConflictsResponse,
-): ExceptionConflictsResponse {
-  return {
-    from: raw.from,
-    to: raw.to,
-    conflicts: (raw.conflicts ?? []).map((conflict) => ({
-      kind: conflict.kind,
-      date: conflict.date,
-      activityGroupId: String(conflict.activity_group_id),
-      instanceId: String(conflict.instance_id),
-      activityTitle: conflict.activity_title,
-      studentId: String(conflict.student_id),
-      expectedArrival: conflict.expected_arrival,
-      arrivalSource: conflict.arrival_source,
-      cancellationReason: conflict.cancellation_reason,
-      originalStartTime: conflict.original_start_time,
-      modifiedStartTime: conflict.modified_start_time,
-    })),
-  };
 }
 
 export function mapAttendance(
@@ -978,44 +984,24 @@ export function assignBlockLanes(
 }
 
 /**
- * KPI + onboarding helpers for the planner overview zone.
- *
- * These are intentionally pure and instance/template-driven so the
- * "Geplant" / "Unterbesetzt" headline cards work in every view
- * (week/month/year/series) without hitting the 14-day-capped, week-only
- * /api/timetable/gaps endpoint.
+ * Betreuungsplan-Tageskopfzeile (docs/06-betreuungsplan.md Abschnitt 3.1):
+ * eingeplante Personenzahl eines Tages als Vereinigung der zugeordneten,
+ * nicht abwesenden Personen über alle Blöcke des Tages — eine Person zählt
+ * unabhängig von der Anzahl ihrer Blöcke einmal, abgesagte Instanzen zählen
+ * nicht. Erwartet bereits auf einen Kalendertag gefilterte Instanzen (z. B.
+ * ein Eintrag von `groupInstancesByDate`).
  */
-
-/** Count non-cancelled instances in the given list. */
-export function countPlanned(instances: EnrichedInstance[]): number {
-  return instances.filter((inst) => inst.status !== "cancelled").length;
-}
-
-/** Whether a non-cancelled appointment falls short of its staffing ratio. */
-export function isInstanceUnderstaffed(instance: EnrichedInstance): boolean {
-  return (
-    instance.status !== "cancelled" &&
-    instance.requiredStaffCount > 0 &&
-    instance.assignedStaffCount < instance.requiredStaffCount
-  );
-}
-
-/** Count appointments that fall short of their staffing ratio. */
-export function countUnderstaffedInstances(
-  instances: EnrichedInstance[],
-): number {
-  return instances.filter(isInstanceUnderstaffed).length;
-}
-
-/** Count recurring series (Regeltermine) below their staffing requirement. */
-export function countUnderstaffedTemplates(
-  templates: TimetableTemplate[],
-): number {
-  return templates.filter(
-    (template) =>
-      template.requiredStaffCount > 0 &&
-      template.assignedStaffCount < template.requiredStaffCount,
-  ).length;
+export function countPlannedStaff(instances: EnrichedInstance[]): number {
+  const staffIds = new Set<string>();
+  for (const instance of instances) {
+    if (instance.status === "cancelled") continue;
+    for (const member of instance.staff) {
+      if (!member.isAbsent) {
+        staffIds.add(member.staffId);
+      }
+    }
+  }
+  return staffIds.size;
 }
 
 /**
@@ -1073,3 +1059,25 @@ export function computeTimetableSetup(input: {
     setupComplete: periodDone && planDone,
   };
 }
+
+/**
+ * Ansichts-Typ und Dichte-Konstanten des Betreuungsplans. Wohnten früher in
+ * `components/timetable/timetable-toolbar.tsx`; die Toolbar wurde mit dem
+ * Chrome-Abbau (Planung-Redesign Inkrement 4, Chunk 8) entfernt, deshalb
+ * leben die noch gebrauchten Typen/Konstanten hier im Helper-Modul.
+ */
+export type TimetableView = "week" | "month" | "series";
+
+/**
+ * Drei diskrete Zoomstufen des Wochenrasters. Die Pixel-pro-Stunde-Werte
+ * werden daraus abgeleitet — nie rohe Pixel in der UI zeigen (semantische
+ * Labels nach Apple/Google/Outlook-Konvention: Zoom nach Absicht, nicht
+ * Betrag).
+ */
+export type WeekDensity = "compact" | "normal" | "comfortable";
+
+export const DENSITY_TO_HOUR_HEIGHT_PX: Record<WeekDensity, number> = {
+  compact: 60,
+  normal: 90,
+  comfortable: 120,
+};

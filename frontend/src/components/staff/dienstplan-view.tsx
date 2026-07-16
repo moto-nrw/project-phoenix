@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { redirect, useSearchParams } from "next/navigation";
+import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 import { Settings2 } from "lucide-react";
@@ -28,6 +28,7 @@ import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
+import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import { startOfWeek } from "~/lib/staff-metrics-helpers";
@@ -78,7 +79,8 @@ function DienstplanContent() {
     },
   });
   const router = useTenantRouter();
-  const searchParams = useSearchParams();
+  const { params, updateParams: updateUrlParams } =
+    useUrlParams(ALLOWED_URL_PARAMS);
   const canEdit = isAdmin(session);
   // Die Halbjahres-Sicht lädt die Planungszeiträume (/api/timetable/periods),
   // die das Backend mit `schedules:read` schützt, und je nach Datenpfad
@@ -94,9 +96,9 @@ function DienstplanContent() {
   // den Search-Params abgeleitet (kein weekAnchor-useState mehr). Ein ungültiges
   // `d` (?d=foo oder ?d=2026-02-31) fällt auf heute zurück, ein unbekanntes
   // `view` auf "woche" — still, kein Fehlerzustand.
-  const rawDay = searchParams.get("d");
+  const rawDay = params.d;
   const dayISO = rawDay !== null && isValidISODate(rawDay) ? rawDay : today;
-  const rawView = searchParams.get("view");
+  const rawView = params.view;
   const view: DienstplanView =
     rawView === "halbjahr" && canViewHalbjahr ? "halbjahr" : "woche";
 
@@ -174,31 +176,6 @@ function DienstplanContent() {
     });
     return `KW ${getWeekNumber(weekAnchor)}: ${startLabel} bis ${endLabel}`;
   }, [weekAnchor]);
-
-  // Rebuild the URL from the allowlist (mirrors vertretung-view): a bare
-  // window.history.replaceState, no router.replace, so a week/view change never
-  // triggers a server roundtrip.
-  const updateUrlParams = useCallback(
-    (updates: Record<string, string | null>) => {
-      const current = new URLSearchParams(window.location.search);
-      const params = new URLSearchParams();
-      for (const key of ALLOWED_URL_PARAMS) {
-        const value = current.get(key);
-        if (value !== null) params.set(key, value);
-      }
-      for (const [key, value] of Object.entries(updates)) {
-        if (value === null) params.delete(key);
-        else params.set(key, value);
-      }
-      const qs = params.toString();
-      window.history.replaceState(
-        null,
-        "",
-        qs ? `?${qs}` : window.location.pathname,
-      );
-    },
-    [],
-  );
 
   // Wochen-Navigation schreibt den Montag der Zielwoche nach `d`.
   const goToWeek = useCallback(

@@ -27,7 +27,6 @@
  */
 
 import { CalendarOff } from "lucide-react";
-import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 
@@ -55,6 +54,7 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
+import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
 import {
   SETTINGS_SCHEMA_SWR_KEY,
@@ -97,7 +97,8 @@ function dayChipLabel(d: Date): string {
 
 function VertretungContent() {
   const { data: session, status } = useSession();
-  const searchParams = useSearchParams();
+  const { params, updateParams: updateUrlParams } =
+    useUrlParams(ALLOWED_URL_PARAMS);
   const toast = useToast();
   const tenantMutate = useTenantMutate();
   const { dayStartHour, dayEndHour } = useTimetableDayHours();
@@ -113,12 +114,12 @@ function VertretungContent() {
   // dayISO nach jedem replaceState hier re-derived wird. Ein ungültiges `d`
   // (?d=foo oder ?d=2026-02-31) fällt auf heute zurück, statt NaN-Datumsketten
   // bzw. einen stillen Monats-Überlauf in die Fetch-Fenster zu speisen.
-  const rawDay = searchParams.get("d");
+  const rawDay = params.d;
   const dayISO = nextWorkdayISO(
     rawDay !== null && isValidISODate(rawDay) ? rawDay : berlinTodayISO(),
   );
-  const selectedInstanceId = searchParams.get("block");
-  const historyOpen = searchParams.get("verlauf") === "1";
+  const selectedInstanceId = params.block;
+  const historyOpen = params.verlauf === "1";
 
   const today = berlinTodayISO();
   // Ziel des Heute-Buttons: am Wochenende der nächste Montag. `today` selbst
@@ -134,28 +135,6 @@ function VertretungContent() {
   const weekDays = useMemo(
     () => getWeekdays(range.from).slice(0, 5),
     [range.from],
-  );
-
-  const updateUrlParams = useCallback(
-    (updates: Record<string, string | null>) => {
-      const current = new URLSearchParams(window.location.search);
-      const params = new URLSearchParams();
-      for (const key of ALLOWED_URL_PARAMS) {
-        const value = current.get(key);
-        if (value !== null) params.set(key, value);
-      }
-      for (const [key, value] of Object.entries(updates)) {
-        if (value === null) params.delete(key);
-        else params.set(key, value);
-      }
-      const qs = params.toString();
-      window.history.replaceState(
-        null,
-        "",
-        qs ? `?${qs}` : window.location.pathname,
-      );
-    },
-    [],
   );
 
   const weekSwrKey = `${VERTRETUNG_WEEK_KEY_PREFIX}${fromISO}-${toISO}`;
@@ -281,6 +260,13 @@ function VertretungContent() {
   const dayAcknowledged = useMemo(
     () => (gapsData?.acknowledged ?? []).filter((g) => g.date === dayISO),
     [gapsData?.acknowledged, dayISO],
+  );
+  // Instanz-IDs der offenen (NICHT quittierten) Lücken des Tages für die
+  // Block-Markierung im Kalender. Quittierte liegen in `acknowledged` und
+  // bekommen kein Lücken-Icon (sie sind bewusst unbesetzt).
+  const dayGapInstanceIds = useMemo(
+    () => new Set(dayGaps.map((g) => g.instanceId)),
+    [dayGaps],
   );
   // Pro-Tag-Zahlen der Wochenleiste durch Client-Gruppierung der `gaps`.
   const gapsByDate = useMemo(() => {
@@ -527,6 +513,7 @@ function VertretungContent() {
               instances={dayInstances}
               selectedId={selectedInstanceId}
               onInstanceClick={(inst) => openEditor(inst.id)}
+              gapInstanceIds={dayGapInstanceIds}
               todayISO={today}
               dayStartHour={dayStartHour}
               dayEndHour={dayEndHour}

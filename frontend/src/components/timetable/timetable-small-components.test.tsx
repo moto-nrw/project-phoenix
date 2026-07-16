@@ -7,9 +7,7 @@ import { TemplateCard } from "./template-card";
 import { TemplateList } from "./template-list";
 import { TimetableAddMenu } from "./timetable-add-menu";
 import { TimetableRatioPill } from "./timetable-ratio-pill";
-import { TimetableToolbar } from "./timetable-toolbar";
 import { WeeklyCalendarGrid } from "./weekly-calendar-grid";
-import { YearPlannerGrid } from "./year-planner-grid";
 import type {
   EnrichedInstance,
   TimetableTemplate,
@@ -339,146 +337,9 @@ describe("small timetable components", () => {
     ).toBeInTheDocument();
   });
 
-  it("handles toolbar view, navigation, add, and density controls", () => {
-    const onViewChange = vi.fn();
-    const onPrev = vi.fn();
-    const onNext = vi.fn();
-    const onToday = vi.fn();
-    const onAddInstance = vi.fn();
-    const onDensityChange = vi.fn();
-
-    render(
-      <TimetableToolbar
-        view="week"
-        onViewChange={onViewChange}
-        rangeLabel="KW 19"
-        onPrev={onPrev}
-        onNext={onNext}
-        onToday={onToday}
-        density="normal"
-        onDensityChange={onDensityChange}
-        onAddInstance={onAddInstance}
-        planWeekAction={<span>Plan action</span>}
-      />,
-    );
-
-    fireEvent.mouseDown(screen.getByRole("tab", { name: "Monat" }), {
-      button: 0,
-    });
-    fireEvent.click(screen.getByLabelText("Vorheriger Zeitraum"));
-    fireEvent.click(screen.getByLabelText("Nächster Zeitraum"));
-    fireEvent.click(screen.getByRole("button", { name: "Heute" }));
-    fireEvent.click(screen.getByRole("button", { name: "Termin" }));
-    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
-    fireEvent.click(screen.getByRole("menuitemradio", { name: "Komfortabel" }));
-
-    expect(onViewChange).toHaveBeenCalledWith("month");
-    expect(onPrev).toHaveBeenCalledOnce();
-    expect(onNext).toHaveBeenCalledOnce();
-    expect(onToday).toHaveBeenCalledOnce();
-    expect(onAddInstance).toHaveBeenCalledOnce();
-    expect(onDensityChange).toHaveBeenCalledWith("comfortable");
-  });
-
-  it("closes the toolbar density menu from keyboard and outside clicks", () => {
-    render(
-      <TimetableToolbar
-        view="week"
-        onViewChange={vi.fn()}
-        rangeLabel="KW 19"
-        onPrev={vi.fn()}
-        onNext={vi.fn()}
-        onToday={vi.fn()}
-        density="normal"
-        onDensityChange={vi.fn()}
-      />,
-    );
-
-    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-
-    fireEvent.keyDown(document, { key: "Escape" });
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-
-    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
-    expect(screen.getByRole("menu")).toBeInTheDocument();
-
-    fireEvent.mouseDown(document.body);
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-  });
-
-  it("offers period management in the toolbar overflow menu in every view", () => {
-    const onManagePeriods = vi.fn();
-    const sharedProps = {
-      onViewChange: vi.fn(),
-      rangeLabel: "Mai 2026",
-      onPrev: vi.fn(),
-      onNext: vi.fn(),
-      onToday: vi.fn(),
-      onManagePeriods,
-    };
-
-    const { rerender } = render(
-      <TimetableToolbar view="month" {...sharedProps} />,
-    );
-
-    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
-    // Density only applies to the week view; outside it the menu carries
-    // just the Verwaltung section.
-    expect(screen.queryByText("Zeilenhöhe")).not.toBeInTheDocument();
-    fireEvent.click(
-      screen.getByRole("menuitem", { name: /schuljahre & ferien/i }),
-    );
-    expect(onManagePeriods).toHaveBeenCalledOnce();
-    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
-
-    rerender(<TimetableToolbar view="series" {...sharedProps} navDisabled />);
-    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
-    expect(
-      screen.getByRole("menuitem", { name: /schuljahre & ferien/i }),
-    ).toBeInTheDocument();
-    fireEvent.keyDown(document, { key: "Escape" });
-
-    rerender(
-      <TimetableToolbar
-        view="week"
-        {...sharedProps}
-        density="normal"
-        onDensityChange={vi.fn()}
-      />,
-    );
-    fireEvent.click(screen.getByLabelText("Weitere Optionen"));
-    expect(screen.getByText("Zeilenhöhe")).toBeInTheDocument();
-    expect(screen.getByText("Verwaltung")).toBeInTheDocument();
-  });
-
-  it("hides irrelevant toolbar controls for series and today states", () => {
-    render(
-      <TimetableToolbar
-        view="series"
-        onViewChange={vi.fn()}
-        rangeLabel="Regeltermine"
-        onPrev={vi.fn()}
-        onNext={vi.fn()}
-        onToday={vi.fn()}
-        isOnToday
-        navDisabled
-      />,
-    );
-
-    expect(
-      screen.queryByLabelText("Vorheriger Zeitraum"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Heute" }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByLabelText("Weitere Optionen")).not.toBeInTheDocument();
-  });
-
-  it("renders week/month/year grids and forwards date selections", () => {
+  it("renders week/month grids and forwards date selections", () => {
     const onInstanceClick = vi.fn();
     const onDayClick = vi.fn();
-    const onMonthClick = vi.fn();
     const weekDays = [
       new Date("2026-05-04T00:00:00"),
       new Date("2026-05-05T00:00:00"),
@@ -516,52 +377,6 @@ describe("small timetable components", () => {
     );
     fireEvent.click(screen.getByRole("button", { name: /4/i }));
     expect(onDayClick).toHaveBeenCalledWith("2026-05-04");
-
-    rerender(
-      <YearPlannerGrid
-        months={[new Date("2026-05-01T00:00:00")]}
-        instances={[instance]}
-        todayISO="2026-05-04"
-        onMonthClick={onMonthClick}
-        onDayClick={onDayClick}
-      />,
-    );
-    fireEvent.click(screen.getByRole("button", { name: /mai/i }));
-    fireEvent.click(screen.getByRole("button", { name: /2026-05-04/ }));
-
-    expect(onMonthClick).toHaveBeenCalledWith(new Date("2026-05-01T00:00:00"));
-    expect(onDayClick).toHaveBeenCalledWith("2026-05-04");
-  });
-
-  it("includes annual staffing and conflict status in day labels", () => {
-    render(
-      <YearPlannerGrid
-        months={[new Date("2026-05-01T00:00:00")]}
-        instances={[
-          {
-            ...instance,
-            requiredStaffCount: 3,
-            assignedStaffCount: 1,
-          },
-          {
-            ...instance,
-            id: "cancelled",
-            status: "cancelled",
-            requiredStaffCount: 2,
-            assignedStaffCount: 0,
-            conflictWarnings: [],
-          },
-        ]}
-        onMonthClick={vi.fn()}
-        onDayClick={vi.fn()}
-      />,
-    );
-
-    expect(
-      screen.getByRole("button", {
-        name: "2026-05-04: 2 Termine, 1 unterbesetzter Termin, 1 Konflikt",
-      }),
-    ).toBeInTheDocument();
   });
 
   it("keeps week events outside configured hours reachable", () => {

@@ -157,6 +157,12 @@ describe("resolvePlanungRedirect", () => {
       query: "tab=betreuung&view=week&week=1&instance=42",
       expected: "/betreuungsplan?d=2026-07-20&view=woche&block=42",
     },
+    // --- Kriterium 13 (06-betreuungsplan.md Abschnitt 13), wortgetreu ---
+    {
+      name: "criterion 13: /planung?tab=betreuung&instance=123 lands on /betreuungsplan?block=123",
+      query: "tab=betreuung&instance=123",
+      expected: "/betreuungsplan?block=123",
+    },
   ];
 
   it.each(cases)("$name", ({ query, target, expected }) => {

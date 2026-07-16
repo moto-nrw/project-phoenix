@@ -1,6 +1,6 @@
 "use client";
 
-import type { MouseEventHandler, ReactNode } from "react";
+import type { CSSProperties, MouseEventHandler, ReactNode } from "react";
 
 /**
  * PlanBlock is the shift/occupancy card of the planning redesign — the
@@ -45,6 +45,13 @@ interface PlanBlockProps {
   readonly interactive?: boolean;
   readonly onClick?: MouseEventHandler<HTMLButtonElement>;
   readonly className?: string;
+  /**
+   * Positionierungs-Stile des Aufrufers (z. B. absolute `top`/`left`/`height`
+   * einer Kalenderspalte). Wird UNTER die Block-Rezeptur gemergt: die
+   * Rezeptur-Keys (`borderLeft`, `backgroundColor`, `backgroundImage`) bleiben
+   * autoritativ und lassen sich hierüber nicht überschreiben.
+   */
+  readonly style?: CSSProperties;
   readonly "aria-label"?: string;
 }
 
@@ -75,12 +82,13 @@ export function PlanBlock({
   size = "default",
   status = "default",
   tinted = true,
-  selected = false,
+  selected,
   statusIcon,
   footer,
   interactive = true,
   onClick,
   className,
+  style: positionStyle,
   "aria-label": ariaLabel,
 }: PlanBlockProps) {
   const isCancelled = status === "cancelled";
@@ -89,7 +97,10 @@ export function PlanBlock({
     : (color ?? UNTYPED_EDGE_COLOR);
   const showTint = tinted && !isCancelled;
 
+  // Aufrufer-Positionierung UNTER die Rezeptur mergen: die Rezeptur-Keys sind
+  // autoritativ und dürfen nicht per style-Prop überschrieben werden.
   const style = {
+    ...positionStyle,
     borderLeft: `3px solid ${edgeColor}`,
     backgroundColor: showTint ? `${edgeColor}1A` : undefined,
     backgroundImage: status === "hatched" ? HATCH_BACKGROUND_IMAGE : undefined,
@@ -153,6 +164,7 @@ export function PlanBlock({
       className={containerClassName}
       style={style}
       onClick={onClick}
+      aria-pressed={selected}
       aria-label={ariaLabel}
     >
       {content}
