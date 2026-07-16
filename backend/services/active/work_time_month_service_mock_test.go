@@ -20,9 +20,11 @@ import (
 
 type wtmMockSessionReader struct {
 	sessions []*activeModels.WorkSession
+	calls    int
 }
 
 func (m *wtmMockSessionReader) GetHistoryByStaffID(_ context.Context, _ int64, from, to timezone.Date) ([]*activeModels.WorkSession, error) {
+	m.calls++
 	var result []*activeModels.WorkSession
 	for _, s := range m.sessions {
 		if !s.Date.Before(from) && !s.Date.After(to) {
@@ -175,6 +177,34 @@ func wtmShift(date timezone.Date, minutes int, cancelled bool) *scheduleModels.S
 }
 
 // ---- tests ------------------------------------------------------------------
+
+// The Übertrag chain walks every month from the account start to the requested
+// one, so the request sizes the work. A card for 2100 would make the server
+// aggregate — and query — seven decades of days for a reader that cannot
+// exist; the bound turns that into a 400 before the first query (#1842).
+func TestWTMMonthSummary_RejectsFarFutureMonth(t *testing.T) {
+	f := newWTMFixture()
+
+	_, err := f.svc.GetMonthSummary(context.Background(), wtmStaffID, 2100, 12)
+
+	require.ErrorIs(t, err, ErrMonthOutOfRange)
+	assert.Zero(t, f.sessions.calls, "the bound must reject before touching the repositories")
+}
+
+// The bound is a year of headroom, not a ban on the future: month-by-month
+// forward navigation stays usable against planned shifts and absences.
+func TestWTMMonthSummary_AcceptsMonthWithinFutureBound(t *testing.T) {
+	f := newWTMFixture()
+	ctx := context.Background()
+
+	// today = 2026-07-15, so +12 months is 2027-07: the last accepted month.
+	summary, err := f.svc.GetMonthSummary(ctx, wtmStaffID, 2027, 7)
+	require.NoError(t, err)
+	assert.Equal(t, 2027, summary.Year)
+
+	_, err = f.svc.GetMonthSummary(ctx, wtmStaffID, 2027, 8)
+	require.ErrorIs(t, err, ErrMonthOutOfRange, "one month past the bound is rejected")
+}
 
 // June 2026 Mondays: 1, 8, 15, 22, 29 → 5 × 480 = 2400 target minutes.
 func TestWTMMonthSummary_PastMonthComputation(t *testing.T) {

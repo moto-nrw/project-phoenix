@@ -32,6 +32,7 @@ import { getCachedSession } from "./session-cache";
 import {
   staffAbsenceService,
   staffHistoryService,
+  staffMonthSummaryService,
   staffScheduleService,
   staffService,
   staffSessionEditsService,
@@ -1441,6 +1442,74 @@ describe("staff-api", () => {
       const result = await workTimeModelService.list();
 
       expect(result[0]?.entries[0]?.startTime).toBe("09:00");
+    });
+  });
+
+  describe("staffMonthSummaryService.getScheduleTargetsRange", () => {
+    // The Übersicht charts price history against these targets and reach back
+    // to the account start ("Gesamt"), which can be years — while the endpoint
+    // rejects anything over MAX_TARGET_RANGE_DAYS. One request would 400 and
+    // the charts would show no Soll at all (#1842).
+    it("splits a range longer than the endpoint window and merges the answers", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockImplementation((url: string) =>
+        Promise.resolve({
+          ok: true,
+          json: () =>
+            Promise.resolve({
+              data: [
+                {
+                  date: new URL(url, "http://x").searchParams.get("from"),
+                  target_minutes: 480,
+                },
+              ],
+            }),
+        } as unknown as Response),
+      );
+
+      const result = await staffMonthSummaryService.getScheduleTargetsRange(
+        "1",
+        "2024-01-01",
+        "2026-06-01",
+      );
+
+      const requested = mockFetch.mock.calls.map((c) => {
+        const params = new URL(c[0] as string, "http://x").searchParams;
+        return `${params.get("from")}..${params.get("to")}`;
+      });
+      // 2.5 years -> three 366-day windows, contiguous and gapless, the last
+      // one clipped at `to`. 2024 is a leap year, so window one ends 12-31.
+      expect(requested).toEqual([
+        "2024-01-01..2024-12-31",
+        "2025-01-01..2026-01-01",
+        "2026-01-02..2026-06-01",
+      ]);
+      // Every window's answer lands in one map — the stub echoes each
+      // window's first day back.
+      expect(result.get("2024-01-01")).toBe(480);
+      expect(result.get("2025-01-01")).toBe(480);
+      expect(result.get("2026-01-02")).toBe(480);
+      expect(result.size).toBe(3);
+    });
+
+    it("asks once when the range fits the window", async () => {
+      const mockFetch = globalThis.fetch as ReturnType<typeof vi.fn>;
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [{ date: "2026-06-01", target_minutes: 240 }],
+          }),
+      } as Response);
+
+      const result = await staffMonthSummaryService.getScheduleTargetsRange(
+        "1",
+        "2026-06-01",
+        "2026-06-30",
+      );
+
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+      expect(result.get("2026-06-01")).toBe(240);
     });
   });
 

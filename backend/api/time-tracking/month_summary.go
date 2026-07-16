@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // ParseYearMonthQuery extracts and validates the year/month query parameters
@@ -45,6 +46,10 @@ func (rs *Resource) getOwnMonthSummary(w http.ResponseWriter, r *http.Request) {
 
 	summary, err := rs.WorkTimeMonthService.GetMonthSummary(r.Context(), staffID, year, month)
 	if err != nil {
+		if errors.Is(err, activeSvc.ErrMonthOutOfRange) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

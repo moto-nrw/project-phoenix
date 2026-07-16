@@ -486,6 +486,15 @@ export function calculateNetMinutes(
 // fetched once at mount would freeze at the check-in minute.
 export const OPEN_MONTH_REFRESH_MS = 60_000;
 
+/**
+ * Largest [from, to] window the `schedule-targets` endpoint accepts, mirroring
+ * `maxDailyTargetRangeDays` in `services/active/work_time_month_service.go` —
+ * asking for more is a 400, not a truncated answer. Callers whose range is
+ * user-controlled (the Übersicht charts reach back to the account start) must
+ * split it into windows of at most this many days.
+ */
+export const MAX_TARGET_RANGE_DAYS = 366;
+
 export interface BackendDailyTarget {
   date: string;
   target_minutes: number;

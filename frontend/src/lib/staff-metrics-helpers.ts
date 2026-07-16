@@ -143,6 +143,21 @@ function sumTargets(targetFor: TargetResolver, from: Date, to: Date): number {
 }
 
 /**
+ * Overlapping absences credit a day only ONCE, so the iteration order decides
+ * WHICH of them prices it — and a half day pays half of what a full day pays.
+ * The server resolves this by lowest absence ID (`addAbsenceCredits`), the API
+ * returns absences by date, so consuming them as they arrive let the weekly
+ * KPI credit a day from a different absence than the Monatskarte did and the
+ * two cards on the same screen disagreed (#1842). Sorting by ID here is what
+ * makes "first one wins" mean the same thing on both sides.
+ */
+export function sortAbsencesById(
+  absences: readonly StaffAbsenceRow[],
+): readonly StaffAbsenceRow[] {
+  return [...absences].sort((a, b) => a.id - b.id);
+}
+
+/**
  * Sum the Soll-Minutes that count as "erfüllt durch Abwesenheit" in
  * [from, to] (inclusive). Krank/Urlaub/Fortbildung sind bezahlte Ausfallzeit
  * (ArbZG §3, BUrlG) und füllen das Soll-Konto auf, damit der Saldo am
@@ -163,7 +178,7 @@ function computeAbsenceCreditForRange(
   const toKey = toDateKey(to);
   let credit = 0;
   const seen = new Set<string>();
-  for (const absence of absences) {
+  for (const absence of sortAbsencesById(absences)) {
     const range = parseEffectiveAbsenceRange(absence);
     if (!range) continue;
     for (let i = 0; i < range.totalDays; i++) {

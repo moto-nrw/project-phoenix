@@ -32,19 +32,14 @@ import { UebersichtTabSkeleton } from "~/components/staff/uebersicht-tab-skeleto
 import {
   staffAbsenceService,
   staffHistoryService,
-  staffScheduleService,
+  staffMonthSummaryService,
 } from "~/lib/staff-api";
-import type {
-  StaffAbsenceRow,
-  StaffHistorySession,
-  StaffSchedule,
-} from "~/lib/staff-api";
+import type { StaffAbsenceRow, StaffHistorySession } from "~/lib/staff-api";
 import {
-  computeStaffMetrics,
   endOfWeek,
   getDeltaStatus,
-  resolveTargetForDate,
   resolveAccountStartDate,
+  sortAbsencesById,
   startOfWeek,
   toDateKey,
   toIsoDayOfWeek,
@@ -55,15 +50,38 @@ import { timeTrackingService } from "~/lib/time-tracking-api";
 
 import { formatSignedDuration, KpiCard } from "./staff-time-views";
 
-const EMPTY_SCHEDULE: StaffSchedule = {
-  mode: "custom",
-  model: null,
-  rotationLength: 1,
-  rotationAnchorDate: "",
-  entries: [],
-  weeklyTotals: [],
-  validFrom: "",
-};
+/**
+ * Soll-Minuten je Kalendertag, aufgelöst gegen den Plan, der AN diesem Tag
+ * galt (#1842). Ein Tag außerhalb des geladenen Fensters ist 0 wert.
+ */
+type TargetsByDay = ReadonlyMap<string, number>;
+
+const EMPTY_TARGETS: TargetsByDay = new Map<string, number>();
+
+/**
+ * Maps every covered day to the absence that prices it. Overlapping absences
+ * credit a day once and the LOWEST ID wins — the rule the server applies in
+ * `addAbsenceCredits`; reading them in API (date) order made these charts
+ * credit a day from a different absence than the Monatskarte (#1842).
+ */
+function indexAbsencesByDay(
+  absences: readonly StaffAbsenceRow[],
+): Map<string, StaffAbsenceRow> {
+  const byDate = new Map<string, StaffAbsenceRow>();
+  for (const a of sortAbsencesById(absences)) {
+    const startDate = new Date(`${a.date_start.slice(0, 10)}T00:00:00`);
+    const endDate = new Date(`${a.date_end.slice(0, 10)}T00:00:00`);
+    const days =
+      Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+    for (let i = 0; i < days; i++) {
+      const cursor = new Date(startDate);
+      cursor.setDate(cursor.getDate() + i);
+      const key = toDateKey(cursor);
+      if (!byDate.has(key)) byDate.set(key, a);
+    }
+  }
+  return byDate;
+}
 
 type DistributionCenterLabelProps = {
   readonly total: number;
@@ -125,11 +143,6 @@ function DistributionCenterLabel({
 export function UebersichtTab({ staffId }: { readonly staffId: string }) {
   const today = useMemo(() => new Date(), []);
 
-  const { data: schedule, isLoading: scheduleLoading } = useSWRAuth(
-    `staff-schedule-${staffId}`,
-    () => staffScheduleService.getSchedule(staffId),
-  );
-
   const { data: timeTrackingConfig } = useSWRAuth("time-tracking-config", () =>
     timeTrackingService.getConfig(),
   );
@@ -151,28 +164,25 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
     staffAbsenceService.getAbsences(staffId, accountStartKey, yearEndKey),
   );
 
-  // Date-valid Stundenkonto from the server-computed month model (#1842) —
-  // `metrics.accountBalance` re-prices historical days at the CURRENT
-  // schedule and would contradict the Monatskarte after a contract change.
-  const { balanceMinutes: accountBalanceMinutes } = useAccountBalance(staffId);
+  // Date-valid Soll for the whole account range — the same map the Monatskarte
+  // and the daily rows are priced against (#1842). The charts used to resolve
+  // every historical day against the CURRENT StaffSchedule, so after a
+  // contract change (8h -> 4h) the Saldo line re-priced months of history at
+  // today's hours and drifted away from the "Stundenkonto" headline right
+  // above it. Chunked: "Gesamt" can outrun the endpoint's 366-day window.
+  const { data: accountTargets, isLoading: targetsLoading } =
+    useSWRAuth<TargetsByDay>(
+      `staff-schedule-targets-account-${staffId}-${accountStartKey}-${yearEndKey}`,
+      () =>
+        staffMonthSummaryService.getScheduleTargetsRange(
+          staffId,
+          accountStartKey,
+          yearEndKey,
+        ),
+    );
 
-  const metrics = useMemo(
-    () =>
-      computeStaffMetrics(
-        schedule ?? EMPTY_SCHEDULE,
-        accountSessions ?? [],
-        accountAbsences ?? [],
-        today,
-        timeTrackingConfig?.accountStartDate,
-      ),
-    [
-      schedule,
-      accountSessions,
-      accountAbsences,
-      today,
-      timeTrackingConfig?.accountStartDate,
-    ],
-  );
+  // Date-valid Stundenkonto from the server-computed month model (#1842).
+  const { balanceMinutes: accountBalanceMinutes } = useAccountBalance(staffId);
 
   // Three independent date-range states — each chart has its own picker so the
   // user can compare timeframes (e.g. "Mai" in the donut vs "letzte 12 Wochen"
@@ -225,35 +235,38 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
   const weeklyTrendData = useMemo(
     () =>
       buildWeeklyBalanceSeriesRange(
-        schedule ?? EMPTY_SCHEDULE,
+        accountTargets ?? EMPTY_TARGETS,
         accountSessions ?? [],
         accountAbsences ?? [],
         saldoFrom,
         saldoTo,
       ),
-    [schedule, accountSessions, accountAbsences, saldoFrom, saldoTo],
+    [accountTargets, accountSessions, accountAbsences, saldoFrom, saldoTo],
   );
 
   const dailyTrendData = useMemo(
     () =>
       buildDailyIstSollSeriesRange(
-        schedule ?? EMPTY_SCHEDULE,
+        accountTargets ?? EMPTY_TARGETS,
         accountSessions ?? [],
         accountAbsences ?? [],
         dailyFrom,
         dailyTo,
       ),
-    [schedule, accountSessions, accountAbsences, dailyFrom, dailyTo],
+    [accountTargets, accountSessions, accountAbsences, dailyFrom, dailyTo],
   );
 
   const hasAnyTrendData =
     (accountSessions?.length ?? 0) + (accountAbsences?.length ?? 0) > 0;
 
-  if (scheduleLoading || sessionsLoading || absencesLoading) {
+  // The Soll is a chart axis here, not a decoration: rendering before the
+  // targets land would draw a 0-Soll baseline and a Saldo line that jumps once
+  // the real map arrives.
+  if (sessionsLoading || absencesLoading || targetsLoading) {
     return <UebersichtTabSkeleton />;
   }
 
-  const yearStartLabel = metrics.accountStart.toLocaleDateString("de-DE", {
+  const yearStartLabel = accountAnchor.toLocaleDateString("de-DE", {
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -736,7 +749,7 @@ interface TrendPoint {
 // at the first week of `from` — caller can shift the anchor by widening the
 // range. Weeks beyond `to` are skipped; the final week is clipped at `to`.
 function buildWeeklyBalanceSeriesRange(
-  schedule: StaffSchedule,
+  targets: TargetsByDay,
   sessions: readonly StaffHistorySession[],
   absences: readonly StaffAbsenceRow[],
   from: Date,
@@ -745,22 +758,7 @@ function buildWeeklyBalanceSeriesRange(
   const points: TrendPoint[] = [];
   const sessionsByDate = new Map<string, StaffHistorySession>();
   for (const s of sessions) sessionsByDate.set(s.date.slice(0, 10), s);
-
-  const absenceByDate = new Map<string, StaffAbsenceRow>();
-  for (const a of absences) {
-    const start = a.date_start.slice(0, 10);
-    const end = a.date_end.slice(0, 10);
-    const startDate = new Date(`${start}T00:00:00`);
-    const endDate = new Date(`${end}T00:00:00`);
-    const days =
-      Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
-    for (let i = 0; i < days; i++) {
-      const cursor = new Date(startDate);
-      cursor.setDate(cursor.getDate() + i);
-      const key = toDateKey(cursor);
-      if (!absenceByDate.has(key)) absenceByDate.set(key, a);
-    }
-  }
+  const absenceByDate = indexAbsencesByDay(absences);
 
   const firstWeekStart = startOfWeek(from);
   const lastWeekStart = startOfWeek(to);
@@ -778,7 +776,7 @@ function buildWeeklyBalanceSeriesRange(
     const clippedStart = weekStart < from ? from : weekStart;
     const clippedEnd = weekEnd > to ? to : weekEnd;
     const weekDelta = computeWeekDelta(
-      schedule,
+      targets,
       sessionsByDate,
       absenceByDate,
       clippedStart,
@@ -794,7 +792,7 @@ function buildWeeklyBalanceSeriesRange(
 }
 
 function computeWeekDelta(
-  schedule: StaffSchedule,
+  targets: TargetsByDay,
   sessionsByDate: Map<string, StaffHistorySession>,
   absenceByDate: Map<string, StaffAbsenceRow>,
   weekStart: Date,
@@ -808,7 +806,7 @@ function computeWeekDelta(
     const day = new Date(weekStart);
     day.setDate(day.getDate() + i);
     const key = toDateKey(day);
-    const dayTarget = resolveTargetForDate(schedule, day);
+    const dayTarget = targets.get(key) ?? 0;
     soll += dayTarget;
     const session = sessionsByDate.get(key);
     if (session) {
@@ -843,7 +841,7 @@ interface DailyTrendPoint {
 // as the weekly series: Krank/Urlaub/Fortbildung credit the day's Soll so the
 // Ist line stays meaningful during legitimate absences.
 function buildDailyIstSollSeriesRange(
-  schedule: StaffSchedule,
+  targets: TargetsByDay,
   sessions: readonly StaffHistorySession[],
   absences: readonly StaffAbsenceRow[],
   from: Date,
@@ -851,22 +849,7 @@ function buildDailyIstSollSeriesRange(
 ): DailyTrendPoint[] {
   const sessionsByDate = new Map<string, StaffHistorySession>();
   for (const s of sessions) sessionsByDate.set(s.date.slice(0, 10), s);
-
-  const absenceByDate = new Map<string, StaffAbsenceRow>();
-  for (const a of absences) {
-    const start = a.date_start.slice(0, 10);
-    const end = a.date_end.slice(0, 10);
-    const startDate = new Date(`${start}T00:00:00`);
-    const endDate = new Date(`${end}T00:00:00`);
-    const days =
-      Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
-    for (let i = 0; i < days; i++) {
-      const cursor = new Date(startDate);
-      cursor.setDate(cursor.getDate() + i);
-      const key = toDateKey(cursor);
-      if (!absenceByDate.has(key)) absenceByDate.set(key, a);
-    }
-  }
+  const absenceByDate = indexAbsencesByDay(absences);
 
   const result: DailyTrendPoint[] = [];
   // Cap at 120 entries to keep the chart readable; wider ranges get truncated.
@@ -880,7 +863,7 @@ function buildDailyIstSollSeriesRange(
     const dow = toIsoDayOfWeek(day);
     if (dow < 5) {
       const key = toDateKey(day);
-      const soll = resolveTargetForDate(schedule, day);
+      const soll = targets.get(key) ?? 0;
       const session = sessionsByDate.get(key);
       let ist = 0;
       if (session) {

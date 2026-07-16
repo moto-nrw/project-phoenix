@@ -73,6 +73,15 @@ type AdminCreateSessionRequest struct {
 // SessionResponse wraps a work session with calculated fields
 type SessionResponse struct {
 	*activeModels.WorkSession
+	// BreakMinutes SHADOWS WorkSession.BreakMinutes on the wire — the outer
+	// field is at the shallower depth, so encoding/json emits this one for
+	// "break_minutes". That is deliberate: the model field caches ENDED breaks
+	// only, while NetMinutes below already deducts a RUNNING one, so serializing
+	// the raw cache would print "Pause 0:00" next to an Ist that has visibly
+	// stopped growing. Both numbers come from the same as-of-now pair
+	// (totalBreakMinutes / netMinutesWithBreaks), which keeps
+	// gross = net + break true for the reader (#1842).
+	BreakMinutes     int                              `json:"break_minutes"`
 	NetMinutes       int                              `json:"net_minutes"`
 	IsOvertime       bool                             `json:"is_overtime"`
 	IsBreakCompliant bool                             `json:"is_break_compliant"`
@@ -1283,6 +1292,7 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 			// would climb while the Monatskarte and the week KPI (which both
 			// deduct it) stand still (#1842). The breaks are already loaded
 			// above — no extra query.
+			BreakMinutes:     totalBreakMinutes(session, breaks, now),
 			NetMinutes:       netMinutesWithBreaks(session, breaks, now),
 			IsOvertime:       isOvertime(session, breaks, now),
 			IsBreakCompliant: isBreakCompliant(session, breaks, now),

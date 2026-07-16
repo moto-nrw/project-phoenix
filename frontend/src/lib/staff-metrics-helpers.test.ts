@@ -292,6 +292,37 @@ describe("computePeriodTotalsFromTargets", () => {
     expect(totals.ist).toBe(240);
   });
 
+  it("lets the lowest absence ID price an overlapping day, like the server", () => {
+    // Wednesday is covered twice. The server credits it from the lowest
+    // absence ID (`addAbsenceCredits`), so the half sick day wins and pays
+    // 120 — half of the day's 240. The API returns absences by date, which
+    // put the full vacation day first: crediting in arrival order paid the
+    // full 240 and the week card drifted away from the Monatskarte (#1842).
+    const totals = computePeriodTotalsFromTargets(
+      targets,
+      [],
+      [
+        absence({
+          id: 2,
+          date_start: "2026-08-05",
+          date_end: "2026-08-05",
+        }),
+        absence({
+          id: 1,
+          absence_type: "sick",
+          half_day: true,
+          date_start: "2026-08-05",
+          date_end: "2026-08-05",
+        }),
+      ],
+      weekStart,
+      weekEnd,
+      weekEnd,
+    );
+
+    expect(totals.ist).toBe(120);
+  });
+
   it("does not subtract a running break that net_minutes already deducts", () => {
     // /history computes `net_minutes` at request time and already deducts a
     // running break (netMinutesWithBreaks), the same math the Monatskarte

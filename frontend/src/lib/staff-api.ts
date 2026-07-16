@@ -881,7 +881,9 @@ class StaffAbsenceService {
 // ownership against the JWT subject). Routes via /api/staff/{id}/.../edits
 // so an admin can pull the audit trail for any staff member's session in
 // the tenant.
+import { parseISODate, toISODate } from "./date-helpers";
 import {
+  MAX_TARGET_RANGE_DAYS,
   mapDailyTargetsResponse,
   mapMonthSummaryResponse,
   mapWorkSessionEditResponse,
@@ -967,6 +969,53 @@ class StaffMonthSummaryService {
     };
     return mapDailyTargetsResponse(json.data);
   }
+
+  /**
+   * Same date-valid Soll as `getScheduleTargets`, for a range that may be
+   * longer than the endpoint's MAX_TARGET_RANGE_DAYS window. The Übersicht
+   * charts reach back to the configured account start ("Gesamt"), which can be
+   * years — one request would simply 400. The windows are fetched in parallel
+   * and merged; days repeat across no two windows, so the merge is a plain
+   * union.
+   */
+  async getScheduleTargetsRange(
+    staffId: string,
+    from: string,
+    to: string,
+  ): Promise<ReadonlyMap<string, number>> {
+    // Windows are MAX_TARGET_RANGE_DAYS calendar days INCLUSIVE — one day
+    // inside the endpoint's cap, which counts the gap between the bounds
+    // rather than the days. Nothing rides on the last day of headroom, and a
+    // whole-window stride keeps the arithmetic obvious.
+    const windows: { from: string; to: string }[] = [];
+    const end = parseISODate(to);
+    for (
+      let cursor = parseISODate(from);
+      cursor <= end;
+      cursor = addDays(cursor, MAX_TARGET_RANGE_DAYS)
+    ) {
+      const windowEnd = addDays(cursor, MAX_TARGET_RANGE_DAYS - 1);
+      windows.push({
+        from: toISODate(cursor),
+        to: toISODate(windowEnd > end ? end : windowEnd),
+      });
+    }
+
+    const chunks = await Promise.all(
+      windows.map((w) => this.getScheduleTargets(staffId, w.from, w.to)),
+    );
+    const merged = new Map<string, number>();
+    for (const chunk of chunks) {
+      for (const [day, minutes] of chunk) merged.set(day, minutes);
+    }
+    return merged;
+  }
+}
+
+function addDays(d: Date, days: number): Date {
+  const next = new Date(d);
+  next.setDate(next.getDate() + days);
+  return next;
 }
 
 class StaffSessionService {

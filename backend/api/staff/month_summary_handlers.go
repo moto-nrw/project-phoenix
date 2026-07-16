@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	timetracking "github.com/moto-nrw/project-phoenix/api/time-tracking"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 // getStaffMonthSummary handles GET /api/staff/{id}/time-tracking/month-summary?year=&month=
@@ -28,6 +29,10 @@ func (rs *Resource) getStaffMonthSummary(w http.ResponseWriter, r *http.Request)
 	}
 	summary, err := rs.WorkTimeMonthService.GetMonthSummary(r.Context(), staffID, year, month)
 	if err != nil {
+		if errors.Is(err, activeSvc.ErrMonthOutOfRange) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return
+		}
 		rs.getLogger().Error("failed to get staff month summary",
 			"staff_id", staffID,
 			"error", err.Error(),

@@ -179,6 +179,11 @@ func (k monthKey) lastDay() timezone.Date {
 	return timezone.NewDate(k.Year, time.Month(k.Month)+1, 1).AddDays(-1)
 }
 
+// addMonths shifts a key by n whole months, normalizing via time.Date.
+func (k monthKey) addMonths(n int) monthKey {
+	return monthOf(timezone.NewDate(k.Year, time.Month(k.Month+n), 1))
+}
+
 func (k monthKey) next() monthKey {
 	if k.Month == 12 {
 		return monthKey{Year: k.Year + 1, Month: 1}
@@ -200,6 +205,23 @@ const maxDailyTargetRangeDays = 366
 // query string, so handlers map this to HTTP 400 — an oversized window is the
 // caller's mistake, not an internal failure.
 var ErrInvalidTargetRange = errors.New("invalid target range")
+
+// maxFutureMonths bounds how far ahead a Monatskarte may be requested. The
+// carry chain walks every month from the account start up to the requested
+// one, so the request itself sizes the work: without this bound a caller
+// asking for 2100-12 makes the server aggregate — and query — every day since
+// the account start, decades of them, for a card nobody can read.
+//
+// The bound is in the FUTURE direction only. A month before the account start
+// is summarized standalone (one month, no chain), and the current month is the
+// last one that holds real data; the year of headroom exists so month-by-month
+// forward navigation keeps working against planned shifts and absences.
+const maxFutureMonths = 12
+
+// ErrMonthOutOfRange marks a Monatskarte request too far in the future. Like
+// ErrInvalidTargetRange it comes from the query string, so handlers map it to
+// HTTP 400.
+var ErrMonthOutOfRange = errors.New("month out of range")
 
 func validateMonth(year, month int) error {
 	if year < 2000 || year > 2100 || month < 1 || month > 12 {
@@ -558,6 +580,9 @@ func (s *workTimeMonthService) GetMonthSummary(ctx context.Context, staffID int6
 	}
 	key := monthKey{Year: year, Month: month}
 	today := s.today()
+	if monthOf(today).addMonths(maxFutureMonths).before(key) {
+		return nil, fmt.Errorf("%w: %d-%02d is more than %d months ahead", ErrMonthOutOfRange, year, month, maxFutureMonths)
+	}
 
 	anchor, err := s.chainAnchor(ctx, key)
 	if err != nil {

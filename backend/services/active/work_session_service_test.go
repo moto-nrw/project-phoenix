@@ -3,6 +3,7 @@ package active
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"testing"
 	"time"
@@ -1650,6 +1651,53 @@ func TestWSGetHistory_DeductsRunningBreakFromNetMinutes(t *testing.T) {
 		"the running break must be deducted, exactly as the Monatskarte does")
 	assert.InDelta(t, 190, historyResp.WeeklySummaries[0].TotalNetMinutes, 1,
 		"the weekly summary aggregates the corrected value")
+	// The reader must be able to add the row up: the Ist above already stopped
+	// growing, so reporting the raw ENDED-breaks cache (30) as the pause would
+	// print "Pause 0:30" against 20 minutes of deducted time and break
+	// gross = net + Pause on screen (#1842).
+	assert.InDelta(t, 50, historyResp.Sessions[0].BreakMinutes, 1,
+		"the displayed pause must include the running break")
+}
+
+// The pause total is what the day row prints, so it has to survive JSON: the
+// response embeds *WorkSession, whose own break_minutes tag would win if the
+// shadowing field were ever removed — and the row would silently fall back to
+// the ENDED-breaks cache while NetMinutes stayed corrected (#1842).
+func TestWSGetHistory_SerializesRunningBreakInBreakMinutes(t *testing.T) {
+	svc, sessionRepo, breakRepo, auditRepo, _ := wsCreateTestService()
+	staffID := int64(100)
+	checkIn := time.Now().Add(-2 * time.Hour)
+
+	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*activeModels.WorkSession, error) {
+		return []*activeModels.WorkSession{
+			{Model: base.Model{ID: 1}, StaffID: staffID, Date: timezone.TodayDate(), CheckInTime: checkIn},
+		}, nil
+	}
+	auditRepo.countManualBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	auditRepo.countBySessionIDsFunc = func(_ context.Context, _ []int64) (map[int64]int, error) {
+		return map[int64]int{}, nil
+	}
+	breakRepo.getBySessionIDFunc = func(_ context.Context, _ int64) ([]*activeModels.WorkSessionBreak, error) {
+		return []*activeModels.WorkSessionBreak{
+			{Model: base.Model{ID: 1}, SessionID: 1, StartedAt: time.Now().Add(-15 * time.Minute)},
+		}, nil
+	}
+
+	historyResp, err := svc.GetHistory(context.Background(), staffID, timezone.TodayDate(), timezone.TodayDate())
+	require.NoError(t, err)
+	require.Len(t, historyResp.Sessions, 1)
+
+	encoded, err := json.Marshal(historyResp.Sessions[0])
+	require.NoError(t, err)
+	var wire struct {
+		BreakMinutes int `json:"break_minutes"`
+		NetMinutes   int `json:"net_minutes"`
+	}
+	require.NoError(t, json.Unmarshal(encoded, &wire))
+	assert.InDelta(t, 15, wire.BreakMinutes, 1, "break_minutes must carry the running break")
+	assert.InDelta(t, 105, wire.NetMinutes, 1)
 }
 
 // A checked-out session is final: its breaks are all ended and folded into the
