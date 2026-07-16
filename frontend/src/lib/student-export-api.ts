@@ -322,7 +322,7 @@ export async function exportStudents(
   });
 
   if (!response.ok) {
-    throw new Error(await response.text());
+    throw new Error(await readExportError(response));
   }
 
   trackEvent("data_exported", {
@@ -340,6 +340,23 @@ export async function exportStudents(
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
+}
+
+// The export proxy returns errors as {"error":"..."}; older/plain responses may
+// send a bare text body. Prefer the JSON message, fall back to the raw text, and
+// only then to a generic label, so the toast never shows an empty string.
+async function readExportError(response: Response): Promise<string> {
+  const text = await response.text();
+  if (!text) return "Export fehlgeschlagen";
+  try {
+    const parsed = JSON.parse(text) as { error?: unknown };
+    if (typeof parsed.error === "string" && parsed.error.trim()) {
+      return parsed.error;
+    }
+  } catch {
+    // Not JSON — use the raw text body.
+  }
+  return text;
 }
 
 function filenameFromDisposition(response: Response): string | null {

@@ -71,9 +71,17 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	params := exportRequestToListParams(req)
-	students, _, err := rs.fetchStudentsForList(r, params)
+	students, totalCount, err := rs.fetchStudentsForList(r, params)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	// The list query returns a single page of studentExportPageSize rows. A
+	// larger selection would silently drop everyone past the cap and hand back a
+	// list that looks complete but is not, so refuse loudly and tell the user to
+	// narrow the selection instead.
+	if exportSelectionTooLarge(totalCount) {
+		renderError(w, r, common.ErrorInvalidRequest(errExportSelectionTooLarge(totalCount)))
 		return
 	}
 
@@ -190,6 +198,20 @@ func parseExportMonths(values []string) (map[time.Month]bool, error) {
 		months[time.Month(number)] = true
 	}
 	return months, nil
+}
+
+// exportSelectionTooLarge reports whether a selection exceeds what a single-pass
+// export can carry. The list query fetches one page of studentExportPageSize
+// rows, so anything larger cannot be exported completely.
+func exportSelectionTooLarge(total int) bool {
+	return total > studentExportPageSize
+}
+
+// errExportSelectionTooLarge is the user-facing message shown when the selection
+// is over the cap. Lowercase and unpunctuated to satisfy Go error-string linting
+// while still reading as a full sentence in the frontend toast.
+func errExportSelectionTooLarge(total int) error {
+	return fmt.Errorf("die Auswahl umfasst %d Kinder, ein Export ist auf höchstens %d Kinder begrenzt, bitte die Auswahl eingrenzen (etwa nach Gruppe oder Klasse)", total, studentExportPageSize)
 }
 
 func exportRequestToListParams(req studentExportRequest) *studentListParams {

@@ -36,6 +36,20 @@ func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
 	assert.True(t, params.includeArrivalTimes)
 }
 
+func TestExportSelectionTooLarge(t *testing.T) {
+	// The cap is inclusive: a full page still exports, one over does not.
+	assert.False(t, exportSelectionTooLarge(0))
+	assert.False(t, exportSelectionTooLarge(studentExportPageSize-1))
+	assert.False(t, exportSelectionTooLarge(studentExportPageSize))
+	assert.True(t, exportSelectionTooLarge(studentExportPageSize+1))
+
+	// The message names the actual count and the cap so a school knows how far
+	// over it is and what to do about it.
+	msg := errExportSelectionTooLarge(studentExportPageSize + 1).Error()
+	assert.Contains(t, msg, "5001")
+	assert.Contains(t, msg, "eingrenzen")
+}
+
 func TestApplyExportFiltersAdministrativeFilters(t *testing.T) {
 	consentYes := true
 	consentNo := false
