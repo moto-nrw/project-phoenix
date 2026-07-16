@@ -109,6 +109,38 @@ func TestRenderFoldsLongLines(t *testing.T) {
 	}
 }
 
+func TestRenderRecurrenceWithExDates(t *testing.T) {
+	out := Render("", []Event{{
+		UID:        "appt-ex@moto",
+		Summary:    "Wöchentliche AG",
+		StartDate:  timezone.NewDate(2026, 4, 6),
+		EndDate:    timezone.NewDate(2026, 4, 6),
+		StartClock: timezone.WallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
+		EndClock:   timezone.WallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
+		Stamp:      stamp(),
+		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}},
+		ExDates:    []timezone.Date{timezone.NewDate(2026, 4, 20)},
+	}})
+	// The excluded occurrence matches the DTSTART time in Berlin.
+	if !strings.Contains(out, "EXDATE;TZID=Europe/Berlin:20260420T140000") {
+		t.Errorf("missing timed EXDATE\n%s", out)
+	}
+
+	allDay := Render("", []Event{{
+		UID:        "appt-ex-allday@moto",
+		Summary:    "Ganztägige Reihe",
+		StartDate:  timezone.NewDate(2026, 4, 6),
+		EndDate:    timezone.NewDate(2026, 4, 6),
+		AllDay:     true,
+		Stamp:      stamp(),
+		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}},
+		ExDates:    []timezone.Date{timezone.NewDate(2026, 4, 20)},
+	}})
+	if !strings.Contains(allDay, "EXDATE;VALUE=DATE:20260420") {
+		t.Errorf("missing all-day EXDATE\n%s", allDay)
+	}
+}
+
 func TestRenderCancelledAndEscaping(t *testing.T) {
 	out := Render("", []Event{{
 		UID:         "appt-4@moto",

@@ -465,11 +465,21 @@ func TestCalendarServiceIntegration_AppointmentICS(t *testing.T) {
 	assert.Contains(t, content, "LOCATION:Turnhalle")
 	assert.Contains(t, content, "DTSTART;TZID=Europe/Berlin:20260504T140000")
 	assert.Contains(t, content, "RRULE:FREQ=WEEKLY;BYDAY=MO;UNTIL=20260525T")
+	assert.NotContains(t, content, "EXDATE", "no exclusions before any occurrence is cancelled")
 
-	// The invited guardian can export.
+	// Cancelling a single occurrence emits an EXDATE so subscribed calendars
+	// drop that date (matching the in-app view).
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(
+		calendarContext(organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 5, 11)))
+	_, contentAfter, err := service.StaffAppointmentICS(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+	assert.Contains(t, contentAfter, "EXDATE;TZID=Europe/Berlin:20260511T140000")
+
+	// The invited guardian can export, and also sees the exclusion.
 	_, parentContent, err := service.ParentAppointmentICS(testpkg.TenantContext(1), parentChain.AccountID, detail.Appointment.ID)
 	require.NoError(t, err)
 	assert.Contains(t, parentContent, "SUMMARY:Wöchentliche AG")
+	assert.Contains(t, parentContent, "EXDATE;TZID=Europe/Berlin:20260511T140000")
 
 	// A stranger staff member cannot.
 	other, otherAccount := testpkg.CreateTestCalendarStaff(t, db, "ICS", "Stranger")
@@ -531,6 +541,38 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	assert.Equal(t, "moto-kalender.ics", filename)
 	assert.Contains(t, content, "BEGIN:VCALENDAR")
 	assert.Contains(t, content, "SUMMARY:Sommerfest")
+	assert.NotContains(t, content, "EXDATE")
+
+	// A recurring appointment with a cancelled single occurrence emits an EXDATE
+	// in the feed, so subscribers drop that date.
+	recurStart := timezone.TodayDate().AddDays(7)
+	recurEnd := recurStart.AddDays(28)
+	recurring, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Wöchentliches Treffen",
+		StartDate:    recurStart,
+		EndDate:      recurStart,
+		StartTime:    wallClock(16, 0),
+		EndTime:      wallClock(17, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{strings.ToLower(recurStart.Weekday().String())},
+			EndsOn:        &recurEnd,
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, recurring.Appointment.ID) })
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(
+		calendarContext(organizerAccount.ID), recurring.Appointment.ID, recurStart.AddDays(7)))
+
+	_, contentWithExdate, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	require.NoError(t, err)
+	assert.Contains(t, contentWithExdate, "SUMMARY:Wöchentliches Treffen")
+	assert.Contains(t, contentWithExdate, "EXDATE;TZID=Europe/Berlin:")
 
 	// An unknown token is a plain not-found.
 	_, _, err = service.ParentCalendarFeedByToken(testpkg.TenantContext(1), "nope-not-a-real-token")

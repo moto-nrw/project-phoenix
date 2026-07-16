@@ -455,6 +455,26 @@ func NewAppointmentOccurrenceOverrideRepository(db *bun.DB) calModels.Appointmen
 	return &AppointmentOccurrenceOverrideRepository{Repository: repo}
 }
 
+func (r *AppointmentOccurrenceOverrideRepository) FindCancelledByAppointmentIDs(ctx context.Context, appointmentIDs []int64) ([]*calModels.AppointmentOccurrenceOverride, error) {
+	if len(appointmentIDs) == 0 {
+		return []*calModels.AppointmentOccurrenceOverride{}, nil
+	}
+	var rows []*calModels.AppointmentOccurrenceOverride
+	query := base.GetDB(ctx, r.DB).NewSelect().
+		Model(&rows).
+		ModelTableExpr(`calendar.appointment_occurrence_overrides AS "appointment_occurrence_override"`).
+		Where(`"appointment_occurrence_override".appointment_id IN (?)`, bun.List(appointmentIDs)).
+		Where(`"appointment_occurrence_override".cancelled = ?`, true).
+		OrderExpr(`"appointment_occurrence_override".occurrence_date ASC, "appointment_occurrence_override".id ASC`)
+	if where, val, ok := base.TenantWhere(ctx, "appointment_occurrence_override"); ok {
+		query = query.Where(where, val)
+	}
+	if err := query.Scan(ctx); err != nil {
+		return nil, fmt.Errorf("find cancelled calendar occurrence overrides: %w", err)
+	}
+	return rows, nil
+}
+
 func (r *AppointmentOccurrenceOverrideRepository) FindByAppointmentIDsAndOccurrenceDates(ctx context.Context, appointmentIDs []int64, occurrenceDates []timezone.Date) ([]*calModels.AppointmentOccurrenceOverride, error) {
 	if len(appointmentIDs) == 0 || len(occurrenceDates) == 0 {
 		return []*calModels.AppointmentOccurrenceOverride{}, nil

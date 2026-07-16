@@ -137,8 +137,18 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 			for _, recurrence := range recurrences {
 				recurrenceByID[recurrence.AppointmentID] = recurrence
 			}
+			// Cancelled single occurrences become EXDATEs so subscribers drop
+			// them from the RRULE expansion.
+			cancelledOverrides, err := s.cfg.OverrideRepo.FindCancelledByAppointmentIDs(txCtx, ids)
+			if err != nil {
+				return err
+			}
+			overridesByID := make(map[int64][]*calModels.AppointmentOccurrenceOverride, len(cancelledOverrides))
+			for _, override := range cancelledOverrides {
+				overridesByID[override.AppointmentID] = append(overridesByID[override.AppointmentID], override)
+			}
 			for _, appointment := range appointments {
-				events = append(events, appointmentICSEvent(appointment, recurrenceByID[appointment.ID]))
+				events = append(events, appointmentICSEvent(appointment, recurrenceByID[appointment.ID], overridesByID[appointment.ID]))
 			}
 			return nil
 		}); err != nil {

@@ -49,6 +49,10 @@ type Event struct {
 	Sequence    int
 	Stamp       time.Time // DTSTAMP — pass a fixed value so output is stable
 	Recurrence  *Recurrence
+	// ExDates are recurrence exceptions (single occurrences cancelled via an
+	// occurrence override). Emitted as EXDATE lines so subscribed calendars drop
+	// those dates from the RRULE expansion. Only meaningful when Recurrence is set.
+	ExDates []timezone.Date
 }
 
 var weekdayToICS = map[string]string{
@@ -99,6 +103,15 @@ func writeEvent(b *strings.Builder, event Event) {
 
 	if rrule := formatRRULE(event.Recurrence); rrule != "" {
 		writeLine(b, "RRULE:"+rrule)
+		// EXDATEs only make sense alongside an RRULE; emit one line per excluded
+		// occurrence so clients that don't merge comma-lists still drop each date.
+		for _, ex := range event.ExDates {
+			if event.AllDay {
+				writeLine(b, "EXDATE;VALUE=DATE:"+formatDate(ex))
+			} else {
+				writeLine(b, "EXDATE;TZID="+berlinTZID+":"+formatLocal(ex, event.StartClock))
+			}
+		}
 	}
 
 	writeLine(b, "SUMMARY:"+escapeText(event.Summary))

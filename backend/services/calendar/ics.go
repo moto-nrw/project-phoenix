@@ -96,12 +96,19 @@ func (s *service) renderAppointmentICS(ctx context.Context, appointment *calMode
 	if err != nil {
 		return "", "", err
 	}
-	event := appointmentICSEvent(appointment, recurrence)
+	var cancelled []*calModels.AppointmentOccurrenceOverride
+	if recurrence != nil {
+		cancelled, err = s.cfg.OverrideRepo.FindCancelledByAppointmentIDs(ctx, []int64{appointment.ID})
+		if err != nil {
+			return "", "", err
+		}
+	}
+	event := appointmentICSEvent(appointment, recurrence, cancelled)
 	content := ical.Render(appointment.Title, []ical.Event{event})
 	return icsFilename(appointment.Title), content, nil
 }
 
-func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calModels.RecurrenceRule) ical.Event {
+func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calModels.RecurrenceRule, cancelledOverrides []*calModels.AppointmentOccurrenceOverride) ical.Event {
 	description := ""
 	if appointment.Description != nil {
 		description = *appointment.Description
@@ -131,6 +138,11 @@ func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calMode
 			MonthDays: recurrence.MonthDays,
 			Until:     recurrence.EndsOn,
 			Count:     recurrence.OccurrenceCount,
+		}
+		// Single occurrences cancelled via "Nur diesen Termin" become EXDATEs so
+		// subscribed external calendars drop them from the RRULE expansion.
+		for _, override := range cancelledOverrides {
+			event.ExDates = append(event.ExDates, override.OccurrenceDate)
 		}
 	}
 	return event
