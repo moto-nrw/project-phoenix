@@ -879,11 +879,10 @@ export const appChapters: readonly GuideChapter[] = [
           "Der zentrale Einstieg für alle Listen der Schule: Kinderlisten, die Geburtstagsliste, die Notfallliste und die Raumbelegung - an einer Stelle statt verstreut über die einzelnen Seiten.",
         steps: [
           "`Datenverwaltung` -> `Exporte` öffnen.",
-          "`Kinderliste` erstellt dieselben Listen wie der Export in der `Kindersuche`: Vorlage wählen (zum Beispiel `OGS Wochenliste`, `Klassenliste`, `Tagesliste` oder `Abholliste`), Format festlegen und bei Bedarf einzelne Spalten an- oder abwählen.",
-          "`Geburtstagsliste` gibt die Geburtstage nach Kalender sortiert aus. Voreingestellt ist der aktuelle Monat; über die Monatsfelder wählst du weitere Monate dazu oder ab, mit `Ganzes Jahr` erhältst du alle Geburtstage des Jahres.",
-          "`Notfallliste` erzeugt die Liste aller aktuell anwesenden Kinder mit den Kontaktdaten der Erziehungsberechtigten, wahlweise als PDF oder direkt zum Drucken.",
-          "`Wer ist wo` gibt die aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl aus.",
-          "`Anmeldungen` und `Zeitnachweis` führen auf die Seite, zu der der jeweilige Export gehört: Anmeldungen werden je Anmeldephase exportiert, Zeitnachweise je Person.",
+          "Unter `Kinderlisten` hat jede Liste eine eigene Karte (`OGS Wochenliste`, `Klassenliste`, `Tagesliste`, `Abholliste`, `Checkliste`, `Geburtstagsliste` und weitere). `Liste erstellen` öffnet den Export direkt mit der passenden Vorlage; dort legst du nur noch das Format fest. Die freie Kombination aus beliebiger Vorlage und einzeln zu- oder abgewählten Spalten findest du weiterhin in der `Kindersuche` unter `Exportieren`.",
+          "Die Karte `Geburtstagsliste` gibt die Geburtstage nach Kalender sortiert aus. Voreingestellt ist der aktuelle Monat; über die Monatsfelder wählst du weitere Monate dazu oder ab, mit `Ganzes Jahr` erhältst du alle Geburtstage des Jahres.",
+          "Unter `Momentaufnahmen` erzeugt `Notfallliste` die Liste aller aktuell anwesenden Kinder mit den Kontaktdaten der Erziehungsberechtigten, wahlweise als PDF oder direkt zum Drucken. `Wer ist wo` gibt die aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl aus.",
+          "Unter `Auf anderen Seiten` führen `Anmeldungen` und `Zeitnachweis` auf die Seite, zu der der jeweilige Export gehört: Anmeldungen werden je Anmeldephase exportiert, Zeitnachweise je Person.",
         ],
         callout: {
           title: "Kinder ohne Geburtsdatum fehlen in der Geburtstagsliste",
@@ -891,7 +890,7 @@ export const appChapters: readonly GuideChapter[] = [
           tone: "blue",
         },
         screenshot:
-          "Exporte-Seite der Datenverwaltung mit den Karten Kinderliste, Geburtstagsliste, Notfallliste und Wer ist wo.",
+          "Exporte-Seite der Datenverwaltung mit den Abschnitten Kinderlisten, Momentaufnahmen und Auf anderen Seiten.",
         image: "/help/screens/exporte.webp",
       },
       {
