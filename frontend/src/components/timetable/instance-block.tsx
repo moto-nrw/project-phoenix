@@ -194,6 +194,9 @@ export function InstanceBlock({
       label={instance.title}
       color={edgeColor}
       tinted={!isUnderstaffedAck}
+      // Sehr niedrige Blöcke (<=30px) einzeilig rendern — das zweizeilige
+      // Default-Layout (Zeitzeile + Titel) würde in der Höhe abgeschnitten.
+      size={isTiny ? "compact" : "default"}
       status={isCancelled ? "cancelled" : "default"}
       selected={isSelected}
       statusIcon={statusIcon}

@@ -95,7 +95,9 @@ function cellDisplay(cell: CapacityStripCell): {
   if (cell.reductions) {
     const totalReduction = cell.reductions.excused + cell.reductions.sick;
     return {
-      content: cell.content - totalReduction,
+      // Bei inkonsistenten Daten (mehr Abmeldungen als Anmeldungen) nie eine
+      // negative Kopfzahl anzeigen.
+      content: Math.max(0, cell.content - totalReduction),
       title: `${cell.content} angemeldet, davon ${totalReduction} abgemeldet`,
     };
   }
