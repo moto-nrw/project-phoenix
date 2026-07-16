@@ -439,22 +439,6 @@ describe("StudentExportModal", () => {
       ).toBeInTheDocument();
     });
 
-    // On the export page the birthday list has its own card, so leaving it in
-    // the grid would be a second route to the same list.
-    it("drops hidden templates from the grid but keeps the rest", async () => {
-      await openModal({ hiddenPresets: ["birthday_list"] });
-
-      expect(screen.getByText("Vorlage")).toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", { name: /^Geburtstagsliste/ }),
-      ).not.toBeInTheDocument();
-      for (const kept of ["OGS Wochenliste", "Klassenliste", "Checkliste"]) {
-        expect(
-          screen.getByRole("button", { name: new RegExp(`^${kept}`) }),
-        ).toBeInTheDocument();
-      }
-    });
-
     // Without a filtered list behind it, reporting "0 Kinder" would be a lie.
     it("describes the scope instead of a count when no count is given", async () => {
       renderModal({ filters: {}, resultCount: undefined });

@@ -14,7 +14,7 @@ export function InfoCard({
   icon: React.ReactNode;
 }>) {
   return (
-    <div className="moto-content-surface rounded-2xl border p-4 shadow-sm backdrop-blur sm:p-6">
+    <div className="moto-content-surface flex h-full flex-col rounded-2xl border p-4 shadow-sm backdrop-blur sm:p-6">
       <div className="mb-4 flex items-center gap-3">
         <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-[#5080D8]/10 text-[#5080D8] sm:h-10 sm:w-10">
           {icon}
@@ -23,7 +23,9 @@ export function InfoCard({
           {title}
         </h2>
       </div>
-      <div className="space-y-3">{children}</div>
+      {/* flex-1 lets a child opt into bottom-pinning via mt-auto (e.g. an action
+          row that should align across cards of different content length). */}
+      <div className="flex flex-1 flex-col space-y-3">{children}</div>
     </div>
   );
 }

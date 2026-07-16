@@ -6,14 +6,20 @@ import Link from "next/link";
 import {
   ArrowRight,
   Cake,
+  CalendarClock,
+  CalendarDays,
+  Car,
   ClipboardList,
   Clock,
   Download,
   DoorOpen,
   FileSpreadsheet,
   FileText,
+  GraduationCap,
+  LayoutList,
+  ListChecks,
   Printer,
-  Users,
+  UserCheck,
 } from "lucide-react";
 
 import { StudentExportModal } from "~/components/students/student-export-modal";
@@ -28,7 +34,10 @@ import {
   exportRoomSnapshot,
   type RoomSnapshotExportFormat,
 } from "~/lib/room-export-api";
-import type { StudentExportPreset } from "~/lib/student-export-api";
+import {
+  STUDENT_EXPORT_PRESETS,
+  type StudentExportPreset,
+} from "~/lib/student-export-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
 const logger = createLogger({ component: "DatabaseExportsPage" });
@@ -49,10 +58,23 @@ const ROOM_FORMATS: Array<{
 
 interface StudentModalConfig {
   heading: string;
-  /** Omitted for the general-purpose child list, which offers every template. */
-  lockedPreset?: StudentExportPreset;
-  hiddenPresets?: readonly StudentExportPreset[];
+  lockedPreset: StudentExportPreset;
 }
+
+/**
+ * One icon per child-list template. Each list is its own card here, so the
+ * template picker inside the modal only appears in the Kindersuche.
+ */
+const STUDENT_LIST_ICONS: Record<StudentExportPreset, ReactNode> = {
+  ogs_weekly: <CalendarDays className="h-5 w-5" />,
+  ogs_compact: <LayoutList className="h-5 w-5" />,
+  class_roster: <GraduationCap className="h-5 w-5" />,
+  daily_planning: <CalendarClock className="h-5 w-5" />,
+  attendance_snapshot: <UserCheck className="h-5 w-5" />,
+  pickup_list: <Car className="h-5 w-5" />,
+  blank_checklist: <ListChecks className="h-5 w-5" />,
+  birthday_list: <Cake className="h-5 w-5" />,
+};
 
 /**
  * Central export entry point for the Datenverwaltung. It collects the exports
@@ -105,58 +127,35 @@ export default function DatabaseExportsPage() {
           erzeugten Dateien wie jede andere personenbezogene Unterlage.
         </p>
 
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          <InfoCard title="Kinderliste" icon={<Users className="h-5 w-5" />}>
-            <ExportDescription>
-              Wochen-, Klassen-, Tages- oder Abholliste. Vorlage, Format und
-              Spalten sind frei wählbar.
-            </ExportDescription>
-            <ExportActions>
-              <Button
-                type="button"
-                size="md"
-                variant="outline"
-                onClick={() =>
-                  setStudentModal({
-                    heading: "Kinderliste exportieren",
-                    // The birthday list has its own card here, so offering it
-                    // in the grid too would be a second route to one list.
-                    hiddenPresets: ["birthday_list"],
-                  })
-                }
-              >
-                <Download className="mr-2 h-4 w-4" aria-hidden />
-                Liste erstellen
-              </Button>
-            </ExportActions>
-          </InfoCard>
+        <ExportSection title="Kinderlisten">
+          {STUDENT_EXPORT_PRESETS.map((preset) => (
+            <InfoCard
+              key={preset.id}
+              title={preset.label}
+              icon={STUDENT_LIST_ICONS[preset.id]}
+            >
+              <ExportDescription>{preset.description}</ExportDescription>
+              <ExportActions>
+                <Button
+                  type="button"
+                  size="md"
+                  variant="outline"
+                  onClick={() =>
+                    setStudentModal({
+                      heading: `${preset.label} exportieren`,
+                      lockedPreset: preset.id,
+                    })
+                  }
+                >
+                  <Download className="mr-2 h-4 w-4" aria-hidden />
+                  Liste erstellen
+                </Button>
+              </ExportActions>
+            </InfoCard>
+          ))}
+        </ExportSection>
 
-          <InfoCard
-            title="Geburtstagsliste"
-            icon={<Cake className="h-5 w-5" />}
-          >
-            <ExportDescription>
-              Geburtstage nach Kalender sortiert, wahlweise für einzelne Monate
-              oder das ganze Jahr.
-            </ExportDescription>
-            <ExportActions>
-              <Button
-                type="button"
-                size="md"
-                variant="outline"
-                onClick={() =>
-                  setStudentModal({
-                    heading: "Geburtstagsliste exportieren",
-                    lockedPreset: "birthday_list",
-                  })
-                }
-              >
-                <Download className="mr-2 h-4 w-4" aria-hidden />
-                Liste erstellen
-              </Button>
-            </ExportActions>
-          </InfoCard>
-
+        <ExportSection title="Momentaufnahmen">
           <InfoCard
             title="Notfallliste"
             icon={<ClipboardList className="h-5 w-5" />}
@@ -229,7 +228,9 @@ export default function DatabaseExportsPage() {
               ))}
             </ExportActions>
           </InfoCard>
+        </ExportSection>
 
+        <ExportSection title="Auf anderen Seiten">
           <InfoCard title="Anmeldungen" icon={<FileText className="h-5 w-5" />}>
             <ExportDescription>
               Eingegangene Anmeldungen einer Anmeldephase. Der Export gehört zur
@@ -247,7 +248,7 @@ export default function DatabaseExportsPage() {
             </ExportDescription>
             <ExportLink href="/database/personal">Zum Personal</ExportLink>
           </InfoCard>
-        </div>
+        </ExportSection>
       </div>
 
       <StudentExportModal
@@ -255,10 +256,23 @@ export default function DatabaseExportsPage() {
         filters={{}}
         heading={studentModal?.heading}
         lockedPreset={studentModal?.lockedPreset}
-        hiddenPresets={studentModal?.hiddenPresets}
         onClose={() => setStudentModal(null)}
       />
     </div>
+  );
+}
+
+function ExportSection({
+  title,
+  children,
+}: Readonly<{ title: string; children: ReactNode }>) {
+  return (
+    <section className="space-y-3">
+      <h2 className="text-base font-semibold text-gray-950">{title}</h2>
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        {children}
+      </div>
+    </section>
   );
 }
 
@@ -267,7 +281,9 @@ function ExportDescription({ children }: Readonly<{ children: ReactNode }>) {
 }
 
 function ExportActions({ children }: Readonly<{ children: ReactNode }>) {
-  return <div className="flex flex-wrap gap-2 pt-1">{children}</div>;
+  // mt-auto pins the action row to the card bottom so buttons line up across a
+  // row regardless of how long each card's description runs.
+  return <div className="mt-auto flex flex-wrap gap-2 pt-1">{children}</div>;
 }
 
 function ExportLink({
@@ -278,7 +294,7 @@ function ExportLink({
   return (
     <Link
       href={tenantPath(href)}
-      className="group inline-flex items-center pt-1 text-sm font-medium text-gray-700 transition-colors hover:text-gray-950"
+      className="group mt-auto inline-flex items-center pt-1 text-sm font-medium text-gray-700 transition-colors hover:text-gray-950"
     >
       {children}
       <ArrowRight
