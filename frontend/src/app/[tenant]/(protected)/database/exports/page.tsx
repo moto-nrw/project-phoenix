@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { useSession } from "next-auth/react";
 import {
   ArrowRight,
   Cake,
@@ -23,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { StudentExportModal } from "~/components/students/student-export-modal";
+import { hasPermission, isAdmin } from "~/lib/auth-utils";
 import { Button } from "~/components/ui/button";
 import { InfoCard } from "~/components/ui/info-card";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -89,6 +91,11 @@ const STUDENT_LIST_ICONS: Record<StudentExportPreset, ReactNode> = {
 export default function DatabaseExportsPage() {
   const isMobile = useIsMobile();
   const toast = useToast();
+  const { data: session } = useSession();
+  // "Wer ist wo" hits POST /api/rooms/export, which requires rooms:read on top
+  // of the users:read that gates this page. Without rooms:read the export 403s,
+  // so hide the card rather than offer a button that always fails.
+  const canReadRooms = isAdmin(session) || hasPermission(session, "rooms:read");
   const [studentModal, setStudentModal] = useState<StudentModalConfig | null>(
     null,
   );
@@ -196,38 +203,43 @@ export default function DatabaseExportsPage() {
             </ExportActions>
           </InfoCard>
 
-          <InfoCard title="Wer ist wo" icon={<DoorOpen className="h-5 w-5" />}>
-            <ExportDescription>
-              Aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl.
-              Momentaufnahme.
-            </ExportDescription>
-            <ExportActions>
-              {ROOM_FORMATS.map(({ format, label, icon }) => (
-                <Button
-                  key={format}
-                  type="button"
-                  size="md"
-                  variant="outline"
-                  disabled={busy.has(`rooms-${format}`)}
-                  onClick={() =>
-                    void runExport(`rooms-${format}`, () =>
-                      exportRoomSnapshot({
-                        format,
-                        title: "Wer ist wo",
-                        // room_ids stays omitted on purpose: every room. An
-                        // empty array would select nothing and render an
-                        // empty file.
-                        include_transit: true,
-                      }),
-                    )
-                  }
-                >
-                  <span className="mr-2">{icon}</span>
-                  {label}
-                </Button>
-              ))}
-            </ExportActions>
-          </InfoCard>
+          {canReadRooms && (
+            <InfoCard
+              title="Wer ist wo"
+              icon={<DoorOpen className="h-5 w-5" />}
+            >
+              <ExportDescription>
+                Aktuelle Belegung aller Räume mit Aufsicht und Kinderzahl.
+                Momentaufnahme.
+              </ExportDescription>
+              <ExportActions>
+                {ROOM_FORMATS.map(({ format, label, icon }) => (
+                  <Button
+                    key={format}
+                    type="button"
+                    size="md"
+                    variant="outline"
+                    disabled={busy.has(`rooms-${format}`)}
+                    onClick={() =>
+                      void runExport(`rooms-${format}`, () =>
+                        exportRoomSnapshot({
+                          format,
+                          title: "Wer ist wo",
+                          // room_ids stays omitted on purpose: every room. An
+                          // empty array would select nothing and render an
+                          // empty file.
+                          include_transit: true,
+                        }),
+                      )
+                    }
+                  >
+                    <span className="mr-2">{icon}</span>
+                    {label}
+                  </Button>
+                ))}
+              </ExportActions>
+            </InfoCard>
+          )}
         </ExportSection>
 
         <ExportSection title="Auf anderen Seiten">
