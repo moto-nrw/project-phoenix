@@ -1,14 +1,21 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
+  cancelStaffAppointment,
+  cancelStaffAppointmentOccurrence,
   createStaffAppointment,
+  deleteStaffAppointment,
   getCalendarRecipientOptions,
   getParentAppointmentOverview,
   getParentCalendar,
+  getParentCalendarFeed,
+  getStaffAppointmentDetail,
   getStaffAppointmentOverview,
   getStaffCalendar,
   respondParentCalendar,
   respondStaffCalendar,
+  rotateParentCalendarFeed,
+  updateStaffAppointment,
 } from "./personal-calendar-api";
 
 function jsonResponse(body: unknown, init: ResponseInit = {}): Response {
@@ -216,6 +223,95 @@ describe("personal calendar API", () => {
       1,
       "/api/calendar/recipient-options?limit=30",
       expect.any(Object),
+    );
+  });
+
+  it("edits, cancels, deletes and reads appointment detail", async () => {
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ data: { appointment: {} } }))
+      .mockResolvedValueOnce(jsonResponse({ data: { appointment: {} } }))
+      .mockResolvedValueOnce(jsonResponse({ data: { status: "cancelled" } }))
+      .mockResolvedValueOnce(jsonResponse({ data: { status: "deleted" } }))
+      .mockResolvedValueOnce(jsonResponse({ data: { status: "cancelled" } }));
+
+    await getStaffAppointmentDetail("15");
+    await updateStaffAppointment("15", {
+      title: "New",
+      start_date: "2026-01-06",
+      end_date: "2026-01-06",
+      start_time: "10:00",
+      end_time: "11:00",
+      all_day: false,
+    });
+    await cancelStaffAppointment("15");
+    await deleteStaffAppointment("15");
+    await cancelStaffAppointmentOccurrence("15", "2026-01-12");
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/calendar/appointments/15",
+      expect.objectContaining({ credentials: "include" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/calendar/appointments/15",
+      expect.objectContaining({
+        method: "PUT",
+        body: expect.stringContaining('"title":"New"'),
+      }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      3,
+      "/api/calendar/appointments/15/cancel",
+      expect.objectContaining({ method: "POST" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      4,
+      "/api/calendar/appointments/15",
+      expect.objectContaining({ method: "DELETE" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      5,
+      "/api/calendar/appointments/15/occurrences/2026-01-12/cancel",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("reads and rotates the parent calendar subscription feed", async () => {
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            url: "https://parents.test/api/calendar-feed/abc",
+            webcal_url: "webcal://parents.test/api/calendar-feed/abc",
+          },
+        }),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse({
+          data: {
+            url: "https://parents.test/api/calendar-feed/new",
+            webcal_url: "webcal://parents.test/api/calendar-feed/new",
+          },
+        }),
+      );
+
+    await expect(getParentCalendarFeed()).resolves.toMatchObject({
+      webcal_url: "webcal://parents.test/api/calendar-feed/abc",
+    });
+    await expect(rotateParentCalendarFeed()).resolves.toMatchObject({
+      url: "https://parents.test/api/calendar-feed/new",
+    });
+
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "/api/parent/calendar/feed",
+      expect.objectContaining({ credentials: "include" }),
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "/api/parent/calendar/feed/rotate",
+      expect.objectContaining({ method: "POST" }),
     );
   });
 
