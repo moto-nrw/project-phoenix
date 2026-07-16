@@ -17,6 +17,7 @@ const quickstartPdf = {
 
 const steps = [
   {
+    id: "tablet-montieren-und-einschalten",
     number: "1",
     title: "Tablet montieren und einschalten",
     icon: PlugZap,
@@ -25,6 +26,7 @@ const steps = [
       "Das Gerät startet automatisch und verbindet sich mit dem hinterlegten WLAN.",
   },
   {
+    id: "mit-geraete-pin-anmelden",
     number: "2",
     title: "Mit Geräte-PIN anmelden",
     icon: KeyRound,
@@ -33,6 +35,7 @@ const steps = [
       "Wir empfehlen, die Standard-PIN nach der ersten Anmeldung unter Einstellungen, Geräte, OGS Geräte-PIN zu ändern.",
   },
   {
+    id: "armbaender-zuweisen",
     number: "3",
     title: "Armbänder zuweisen",
     icon: Nfc,
@@ -155,6 +158,7 @@ export default function NfcQuickstartPage() {
 
                 return (
                   <article
+                    id={step.id}
                     key={step.number}
                     className={[
                       "relative flex",

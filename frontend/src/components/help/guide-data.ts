@@ -116,7 +116,6 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
     title: "NFC Erste Schritte",
     body: "Das kompakte Einlegeblatt für neue NFC-Tablets: montieren, anmelden und die ersten Armbänder zuweisen.",
     icon: PlugZap,
-    searchable: false,
     points: [
       "Für den Versandkarton und den schnellen Start",
       "Drei Schritte kompakt zusammengefasst",
@@ -142,6 +141,67 @@ export const guideEntryPoints: readonly GuideEntryPoint[] = [
  * room), rooms + staff before activities, groups before the child import (so
  * the import can map children to groups), data before the go-live test.
  */
+export const nfcQuickstartChapters: readonly GuideChapter[] = [
+  {
+    id: "nfc-erste-schritte",
+    title: "NFC Erste Schritte",
+    description:
+      "Drei kurze Schritte, um ein neues NFC-Tablet einsatzbereit zu machen und die ersten Armbänder den Kindern zuzuweisen.",
+    icon: PlugZap,
+    tone: "green",
+    steps: [
+      {
+        id: "tablet-montieren-und-einschalten",
+        title: "Tablet montieren und einschalten",
+        summary:
+          "Passenden Platz mit Strom und guter WLAN-Reichweite wählen, optional montieren und Strom einstecken.",
+        steps: [
+          "Vor der Montage einen Platz mit Strom und guter WLAN-Reichweite wählen.",
+          "Optional mit Wand- oder Standhalterung montieren und die Angaben des Herstellers beachten.",
+          "Danach Strom einstecken. Das Gerät startet automatisch und verbindet sich mit dem hinterlegten WLAN.",
+        ],
+        screenshot:
+          "Das NFC-Tablet zeigt nach dem Start den moto-Startbildschirm.",
+      },
+      {
+        id: "mit-geraete-pin-anmelden",
+        title: "Mit Geräte-PIN anmelden",
+        summary: "Auf Anmelden tippen und die 4-stellige Geräte-PIN eingeben.",
+        steps: [
+          "Auf dem Startbildschirm auf Anmelden tippen.",
+          "Die 4-stellige PIN eingeben. Die Standard-PIN bei Auslieferung ist 1234.",
+          "Nach der vierten Ziffer prüft das Tablet die Eingabe automatisch.",
+        ],
+        callout: {
+          title: "Empfehlung",
+          body: "Die Standard-PIN nach der ersten Anmeldung unter Einstellungen, Geräte, OGS Geräte-PIN ändern.",
+          tone: "green",
+        },
+        screenshot:
+          "Das Tablet prüft die Geräte-PIN automatisch nach der vierten Ziffer.",
+      },
+      {
+        id: "armbaender-zuweisen",
+        title: "Armbänder zuweisen",
+        summary:
+          "Armband identifizieren, Scan starten, Armband an das Lesegerät halten und dem Kind zuweisen.",
+        steps: [
+          "Auf dem Startbildschirm Armband identifizieren tippen und Scan starten.",
+          "Armband ruhig an das Lesegerät halten.",
+          "Person auswählen tippen, Kind auswählen und mit Armband zuweisen bestätigen.",
+        ],
+        callout: {
+          title: "Voraussetzung",
+          body: "Die Armbänder müssen angekommen sein und die Kinder müssen in moto angelegt sein.",
+          tone: "green",
+        },
+        screenshot:
+          "Die Zuweisung verbindet ein angekommenes Armband mit einem bereits angelegten Kind.",
+      },
+    ],
+  },
+];
+
 export const setupChapters: readonly GuideChapter[] = [
   {
     id: "zugang-und-team",
