@@ -354,10 +354,12 @@ function TimetablesContent() {
   const shouldLoadInstances = view !== "series";
   // Lücken sind vorwärtsgerichtet: der Endpunkt lehnt ein vergangenes `date`
   // ab, also den Fensterstart auf heute klemmen und vollständig vergangene
-  // Fenster überspringen. Der Lückenzähler braucht sie in Woche UND Monat.
+  // Fenster überspringen. Nur die Wochenansicht lädt Lücken ("wie heute",
+  // Spec 06 §5.2): GET /gaps begrenzt das Fenster hart auf 14 Tage und lehnt
+  // das Monatsfenster mit 400 ab — ein leerer Zähler wäre in der
+  // Monatsansicht eine falsche "Keine Lücken"-Aussage.
   const gapsFromISO = fetchFromISO < todayISO ? todayISO : fetchFromISO;
-  const shouldLoadGaps =
-    (view === "week" || view === "month") && fetchToISO >= todayISO;
+  const shouldLoadGaps = view === "week" && fetchToISO >= todayISO;
   // Ausnahmekonflikte nur für die Wochenansicht (einziger Abnehmer:
   // PlanQualityPanel).
   const shouldLoadConflicts = view === "week" && toISO >= todayISO;
