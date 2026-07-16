@@ -214,7 +214,7 @@ export default function NfcQuickstartPage() {
               })}
             </div>
 
-            <section className="mt-6 grid grid-cols-1 gap-4 rounded-[28px] bg-[#5080D8]/10 p-5 sm:grid-cols-[1fr_190px] print:mt-4 print:grid-cols-[1fr_150px] print:gap-4 print:rounded-2xl print:p-4">
+            <section className="hidden rounded-[28px] bg-[#5080D8]/10 p-5 print:mt-4 print:grid print:grid-cols-[1fr_150px] print:gap-4 print:rounded-2xl print:p-4">
               <div>
                 <div className="flex items-center gap-2 text-[#315C9B]">
                   <QrCode className="h-5 w-5" aria-hidden="true" />
