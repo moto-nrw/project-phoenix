@@ -444,27 +444,27 @@ export function StepPersonalKinder({
           {coverageWarnings.slice(0, 3).map((warning, index) => (
             <p
               key={`shift-coverage-example-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${index}`}
-              className="rounded-lg border border-yellow-100 bg-yellow-50/50 px-3 py-2 text-sm text-yellow-800"
+              className="rounded-lg border border-[#EAB308]/20 bg-[#EAB308]/5 px-3 py-2 text-sm text-gray-700"
             >
               {warning.message}
             </p>
           ))}
           {coverageWarningCount > 3 && (
-            <details className="rounded-lg border border-yellow-100 bg-yellow-50/40 px-3 py-2 text-sm text-yellow-800">
-              <summary className="cursor-pointer font-medium focus-visible:ring-2 focus-visible:ring-yellow-600 focus-visible:outline-none">
+            <details className="rounded-lg border border-[#EAB308]/20 bg-[#EAB308]/5 px-3 py-2 text-sm text-gray-700">
+              <summary className="cursor-pointer font-medium focus-visible:ring-2 focus-visible:ring-[#EAB308] focus-visible:outline-none">
                 {coverageWarningCount - 3} weitere Lücken anzeigen
               </summary>
               <div className="mt-2 max-h-48 space-y-2 overflow-y-auto overscroll-contain pr-1">
                 {coverageWarnings.slice(3).map((warning, index) => (
                   <p
                     key={`shift-coverage-detail-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${index}`}
-                    className="border-t border-yellow-100 pt-2 first:border-t-0 first:pt-0"
+                    className="border-t border-[#EAB308]/20 pt-2 first:border-t-0 first:pt-0"
                   >
                     {warning.message}
                   </p>
                 ))}
                 {coverageWarningCount > coverageWarnings.length && (
-                  <p className="border-t border-yellow-100 pt-2 font-medium">
+                  <p className="border-t border-[#EAB308]/20 pt-2 font-medium">
                     Es werden höchstens 100 Beispiele angezeigt.
                   </p>
                 )}

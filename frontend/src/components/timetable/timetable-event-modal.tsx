@@ -465,7 +465,7 @@ export function TimetableEventModal({
             confirmText="Löschen"
             cancelText="Abbrechen"
             isConfirmLoading={deletingSeries}
-            confirmButtonClass="bg-red-600 hover:bg-red-700"
+            confirmButtonClass="bg-[#FF3130] hover:bg-[#CC2626]"
           >
             <div className="flex flex-col gap-4">
               <p className="text-sm leading-relaxed text-gray-600">
