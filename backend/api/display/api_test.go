@@ -80,7 +80,7 @@ func newDisplayRouter(t *testing.T, db *bun.DB) http.Handler {
 		ActivityGroupRepo: repos.ActivityGroup,
 		InstanceRepo:      repos.ActivityInstance,
 		AttendanceRepo:    repos.Attendance,
-		PickupSchedule:    schedule.NewPickupScheduleService(repos.StudentPickupSchedule, repos.StudentPickupException, repos.StudentPickupNote),
+		PickupSchedule:    schedule.NewPickupScheduleService(repos.StudentPickupSchedule, repos.StudentPickupException, repos.StudentPickupNote, db),
 		SettingsService:   settingsService,
 		DB:                db,
 	})

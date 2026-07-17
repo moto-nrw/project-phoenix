@@ -580,6 +580,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentPickupSchedule,
 		repos.StudentPickupException,
 		repos.StudentPickupNote,
+		db,
 	)
 
 	// Initialize display service (info-point dashboards, issue #1325).
