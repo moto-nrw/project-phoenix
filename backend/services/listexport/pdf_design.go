@@ -148,6 +148,37 @@ func renderPDFDesigned(doc Document) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
+// pdfColumnWidths distributes the usable width across columns by
+// per-column weight.
+func pdfColumnWidths(cols []Column, total float64) []float64 {
+	weights := make([]float64, len(cols))
+	sum := 0.0
+	for i, col := range cols {
+		weight := 1.0
+		switch col.ID {
+		case ColumnName:
+			weight = 1.4
+		case ColumnSchoolClass:
+			weight = 0.65
+		case ColumnGroup:
+			weight = 1.2
+		case ColumnWeeklyMonday, ColumnWeeklyTuesday, ColumnWeeklyWednesday, ColumnWeeklyThursday, ColumnWeeklyFriday:
+			weight = 0.9
+		case ColumnDeparture:
+			weight = 1.5
+		case ColumnGuardianContacts:
+			weight = 2.7
+		}
+		weights[i] = weight
+		sum += weight
+	}
+	widths := make([]float64, len(cols))
+	for i, weight := range weights {
+		widths[i] = total * weight / sum
+	}
+	return widths
+}
+
 // bodyTop is the y where page content starts, below the header block;
 // bodyBottom is the last usable y above the footer.
 func (c *pageChrome) bodyTop() float64    { return pageMargin + 104 }

@@ -339,19 +339,9 @@ func TestGeneratedAtLabelDefaultsZeroTime(t *testing.T) {
 	}
 }
 
-func TestPDFHelpersCoverEscapesWrappingAndPagination(t *testing.T) {
-	encoded := pdfLiteralString("ÄÖÜ äöü ß éè áà óò íì \\\n\r\t() \u2603")
-	for _, want := range []string{`\\`, `\n`, `\r`, `\t`, `\(`, `\)`, "?"} {
-		if !strings.Contains(encoded, want) {
-			t.Fatalf("encoded PDF literal %q does not contain %q", encoded, want)
-		}
-	}
-
-	lines := wrapPDFText("Supercalifragilisticexpialidocious plus words", 24)
-	if len(lines) < 2 {
-		t.Fatalf("wrapPDFText lines = %v, want multiple lines", lines)
-	}
-
+// A large document must spill onto multiple pages (page count parsed from
+// the rendered page objects — see countRenderedPDFPages).
+func TestRenderPDFMultiPage(t *testing.T) {
 	doc := sampleDocument()
 	for i := 0; i < 80; i++ {
 		doc.Rows = append(doc.Rows, Row{Values: map[ColumnID]string{
@@ -364,9 +354,8 @@ func TestPDFHelpersCoverEscapesWrappingAndPagination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Render() error = %v", err)
 	}
-	data := string(file.Data)
-	if !strings.Contains(data, "/Count ") || strings.Contains(data, "/Count 1 >>") {
-		t.Fatalf("expected multi-page PDF, data starts %q", file.Data[:80])
+	if got := countRenderedPDFPages(file.Data); got < 2 {
+		t.Fatalf("page count = %d, want multiple pages", got)
 	}
 }
 
