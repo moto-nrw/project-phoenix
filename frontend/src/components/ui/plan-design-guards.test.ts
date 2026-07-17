@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
@@ -63,18 +63,36 @@ const PLAN_BLOCK_FILE = "plan-block.tsx";
 // altlast, not an endorsement — fix and remove the entry when you touch the
 // file. New files, and new violations in already-listed files, are NOT
 // covered: the guard fails the moment a file's count exceeds what's here.
-const TIMETABLE_BRIGHT_COLOR_ALLOWLIST: Readonly<Record<string, number>> = {
-  "timetable-event-modal.tsx": 14,
-};
+// Keys are paths relative to components/timetable/ (subdirectories included,
+// e.g. "event-form/field.tsx") since the scan below is recursive.
+//
+// 2026-07-16: all 14 remaining violations (timetable-event-modal.tsx,
+// event-form/field.tsx, event-form/step-wiederholung.tsx,
+// event-form/step-personal-kinder.tsx) were replaced with the kit-sanctioned
+// `LOCATION_COLORS` hex equivalents (#FF3130 for field-error text and the
+// series-delete confirm button, #EAB308 for the Dienstplan coverage warning
+// panel). Allowlist is empty — zero tolerance restored.
+const TIMETABLE_BRIGHT_COLOR_ALLOWLIST: Readonly<Record<string, number>> = {};
 
 function countMatches(source: string, pattern: RegExp): number {
   return [...source.matchAll(pattern)].length;
 }
 
-function listTsxFiles(dir: string): string[] {
-  return readdirSync(dir)
-    .filter((name) => name.endsWith(".tsx"))
-    .sort();
+/** Recursively lists .tsx files under `dir`, returning paths relative to `dir` (posix-style). */
+function listTsxFiles(dir: string, relativeTo: string = dir): string[] {
+  const entries = readdirSync(dir);
+  const results: string[] = [];
+  for (const name of entries) {
+    const fullPath = path.join(dir, name);
+    if (statSync(fullPath).isDirectory()) {
+      results.push(...listTsxFiles(fullPath, relativeTo));
+    } else if (name.endsWith(".tsx")) {
+      results.push(
+        path.relative(relativeTo, fullPath).split(path.sep).join("/"),
+      );
+    }
+  }
+  return results.sort();
 }
 
 function planPrimitiveFiles(): string[] {
