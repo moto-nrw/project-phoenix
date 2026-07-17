@@ -37,6 +37,7 @@ import {
 import { type CareOffering, listCareOfferings } from "~/lib/care-offering-api";
 import { availableCareOfferings } from "~/lib/care-offering-availability";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
+import { formatCalendarDate } from "~/lib/localized-date-format";
 import { AdminChildDataCorrection } from "~/components/enrollment/admin-child-data-correction";
 import { AdminEnrollmentDeletionModal } from "~/components/enrollment/admin-enrollment-deletion-modal";
 import { Button } from "~/components/ui/button";
@@ -809,12 +810,7 @@ export function formatDateTime(
 }
 
 export function formatPlainDate(value: string): string {
-  return new Date(`${value}T00:00:00`).toLocaleDateString("de-DE", {
-    timeZone: "Europe/Berlin",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+  return formatCalendarDate(value, "de-DE");
 }
 
 const CONSENT_LABELS: Record<string, string> = {

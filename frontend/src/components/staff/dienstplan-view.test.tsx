@@ -378,21 +378,30 @@ describe("DienstplanView", () => {
   });
 
   it("shows the KW of the week containing d for ?d=2026-09-14&view=woche", () => {
+    const originalTZ = process.env.TZ;
+    process.env.TZ = "Asia/Tokyo";
     mocks.search.value = "d=2026-09-14&view=woche";
     mockOverviewLoaded();
 
-    render(<DienstplanView />);
+    try {
+      render(<DienstplanView />);
 
-    // 14.09.2026 ist ein Montag; die Woche ist KW 38.
-    expect(screen.getByText(/KW 38:/)).toBeInTheDocument();
-    expect(screen.getByTestId("dienstplan-week-days")).toHaveTextContent(
-      "2026-09-14,2026-09-15,2026-09-16,2026-09-17,2026-09-18",
-    );
-    expect(
-      mocks.useSWRAuth.mock.calls.some(
-        (call) => call[0] === "dienstplan-overview-2026-09-14-2026-09-18",
-      ),
-    ).toBe(true);
+      // 14.09.2026 ist ein Montag; die Woche ist KW 38. The label must retain
+      // those calendar days even when the browser is east of Berlin.
+      const label = screen.getByText(/KW 38:/);
+      expect(label).toHaveTextContent(/^KW 38: 14\./);
+      expect(label).toHaveTextContent(/bis 18\./);
+      expect(screen.getByTestId("dienstplan-week-days")).toHaveTextContent(
+        "2026-09-14,2026-09-15,2026-09-16,2026-09-17,2026-09-18",
+      );
+      expect(
+        mocks.useSWRAuth.mock.calls.some(
+          (call) => call[0] === "dienstplan-overview-2026-09-14-2026-09-18",
+        ),
+      ).toBe(true);
+    } finally {
+      process.env.TZ = originalTZ;
+    }
   });
 
   it("silently falls back to today and the Woche view for invalid d/view", () => {

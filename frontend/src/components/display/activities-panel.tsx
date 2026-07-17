@@ -26,7 +26,7 @@ export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
             <ul className="space-y-3">
               {running.map((activity) => (
                 <li
-                  key={`${activity.name}-${activity.room_name}`}
+                  key={activity.id}
                   className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4"
                 >
                   <span
@@ -64,7 +64,7 @@ export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
               <ul className="space-y-2">
                 {upcoming.map((activity) => (
                   <li
-                    key={`${activity.name}-${activity.start_time}-${activity.room_name}-${activity.category}`}
+                    key={activity.id}
                     className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4"
                   >
                     <p

@@ -25,10 +25,14 @@ function setQueryToken(token: string) {
   window.history.pushState({}, "", `/operator/invite?token=${token}`);
 }
 
+function setQueryFlow(flowID: string) {
+  window.history.pushState({}, "", `/operator/invite?flow=${flowID}`);
+}
+
 describe("InviteContent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockEstablish.mockResolvedValue(undefined);
+    mockEstablish.mockResolvedValue("flow-123");
     mockValidate.mockRejectedValue(new Error("Kein Token angegeben."));
     // Reset URL (strips any leftover ?token=... from a prior test)
     window.history.pushState({}, "", "/operator/invite");
@@ -40,7 +44,9 @@ describe("InviteContent", () => {
     await waitFor(() => {
       expect(screen.getByText("Einladung ungültig")).toBeInTheDocument();
     });
-    expect(screen.getByText("Kein Token angegeben.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Kein Einladungsvorgang angegeben."),
+    ).toBeInTheDocument();
   });
 
   it("validates token from URL query and shows form", async () => {
@@ -58,7 +64,8 @@ describe("InviteContent", () => {
     });
     expect(screen.getByText(/invited@example.com/)).toBeInTheDocument();
     expect(mockEstablish).toHaveBeenCalledWith("valid-token-123");
-    expect(mockValidate).toHaveBeenCalledWith();
+    expect(mockValidate).toHaveBeenCalledWith("flow-123");
+    expect(window.location.search).toBe("?flow=flow-123");
   });
 
   it("pre-fills display name from invitation", async () => {
@@ -79,6 +86,7 @@ describe("InviteContent", () => {
   });
 
   it("reuses the HttpOnly invitation session when the URL has no token", async () => {
+    setQueryFlow("existing-flow");
     mockValidate.mockResolvedValue({
       email: "session@example.com",
       expiresAt: "2026-04-06T00:00:00Z",
@@ -90,7 +98,7 @@ describe("InviteContent", () => {
       expect(screen.getByText("Operator-Konto erstellen")).toBeInTheDocument();
     });
     expect(mockEstablish).not.toHaveBeenCalled();
-    expect(mockValidate).toHaveBeenCalledWith();
+    expect(mockValidate).toHaveBeenCalledWith("existing-flow");
   });
 
   it("shows error state when validation fails", async () => {
@@ -188,11 +196,12 @@ describe("InviteContent", () => {
     await waitFor(() => {
       expect(screen.getByText("Konto erstellt")).toBeInTheDocument();
     });
-    expect(mockAccept).toHaveBeenCalledWith({
+    expect(mockAccept).toHaveBeenCalledWith("flow-123", {
       displayName: "New Operator",
       password: "Str0ng!Pass",
       confirmPassword: "Str0ng!Pass",
     });
+    expect(window.location.search).toBe("");
   });
 
   it("shows form error when accept fails", async () => {

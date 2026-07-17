@@ -30,6 +30,24 @@ const utcDateFormatters: Record<string, Intl.DateTimeFormat> = {
   sq: new Intl.DateTimeFormat("sq", { ...DATE_OPTIONS, timeZone: "UTC" }),
 };
 
+/**
+ * Format a DATE-column value without converting it through the viewer's
+ * timezone. UTC is used only as a neutral container for the calendar fields;
+ * the input does not represent an instant.
+ */
+export function formatCalendarDate(
+  iso: string,
+  locale: string,
+  options: Intl.DateTimeFormatOptions = DATE_OPTIONS,
+): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return iso;
+  return new Intl.DateTimeFormat(locale, {
+    ...options,
+    timeZone: "UTC",
+  }).format(date);
+}
+
 export function formatLocalizedDate(iso: string, locale: string): string {
   const isDateOnly = iso.length === 10;
   const date = new Date(isDateOnly ? `${iso}T00:00:00Z` : iso);

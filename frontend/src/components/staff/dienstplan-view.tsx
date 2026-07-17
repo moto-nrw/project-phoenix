@@ -23,6 +23,7 @@ import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
+import { formatCalendarDate } from "~/lib/localized-date-format";
 import { createLogger } from "~/lib/logger";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import { startOfWeek } from "~/lib/staff-metrics-helpers";
@@ -158,16 +159,13 @@ function DienstplanContent() {
     toISODate(startOfWeek(parseISODate(today))) === toISODate(weekAnchor);
 
   const weekLabel = useMemo(() => {
-    const start = new Date(weekAnchor);
     const end = new Date(weekAnchor);
     end.setDate(end.getDate() + 4);
-    const startLabel = start.toLocaleDateString("de-DE", {
-      timeZone: "Europe/Berlin",
+    const startLabel = formatCalendarDate(toISODate(weekAnchor), "de-DE", {
       day: "numeric",
       month: "short",
     });
-    const endLabel = end.toLocaleDateString("de-DE", {
-      timeZone: "Europe/Berlin",
+    const endLabel = formatCalendarDate(toISODate(end), "de-DE", {
       day: "numeric",
       month: "short",
       year: "numeric",

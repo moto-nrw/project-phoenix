@@ -1,7 +1,9 @@
 import { createOperatorPublicProxyPostHandler } from "~/lib/operator/route-wrapper.server";
 import {
-  OPERATOR_INVITATION_COOKIE,
+  operatorInvitationCookieName,
   operatorInvitationCookieOptions,
+  operatorInvitationFlowID,
+  operatorInvitationToken,
 } from "~/lib/operator/operator-invitation-session.server";
 
 /**
@@ -13,18 +15,21 @@ export const POST = createOperatorPublicProxyPostHandler(
   "/operator/auth/invitations/accept",
   {
     transformBody(request, body) {
-      const token = request.cookies.get(OPERATOR_INVITATION_COOKIE)?.value;
       return {
         ...(typeof body === "object" && body !== null ? body : {}),
-        token: token ?? "",
+        token: operatorInvitationToken(request),
       };
     },
-    decorateResponse(_request, response, backendSucceeded) {
+    decorateResponse(request, response, backendSucceeded) {
       if (!backendSucceeded) return;
-      response.cookies.set(OPERATOR_INVITATION_COOKIE, "", {
-        ...operatorInvitationCookieOptions,
-        maxAge: 0,
-      });
+      response.cookies.set(
+        operatorInvitationCookieName(operatorInvitationFlowID(request)),
+        "",
+        {
+          ...operatorInvitationCookieOptions,
+          maxAge: 0,
+        },
+      );
     },
   },
 );

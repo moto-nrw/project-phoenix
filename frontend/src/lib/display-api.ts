@@ -23,6 +23,7 @@ export interface DashboardRoomOccupancy {
 }
 
 export interface DashboardRunningActivity {
+  id: string;
   name: string;
   category: string;
   room_name: string;
@@ -31,6 +32,7 @@ export interface DashboardRunningActivity {
 }
 
 export interface DashboardUpcomingActivity {
+  id: string;
   name: string;
   category: string;
   start_time: string; // HH:MM

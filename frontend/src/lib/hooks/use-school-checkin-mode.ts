@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useReducer, useState } from "react";
 import { mutate as globalMutate } from "swr";
 import { useToast } from "~/contexts/ToastContext";
 import { isHomeLocation, isSchoolyardLocation } from "~/lib/location-helper";
@@ -56,6 +56,29 @@ function actionForState(state: StudentCheckinState): SchoolCheckinAction {
   return state === "anwesend" || state === "schulhof" ? "out" : "in";
 }
 
+interface CheckinModeSession {
+  isActive: boolean;
+  successCount: number;
+}
+
+type CheckinModeSessionAction = "toggle" | "deactivate" | "increment";
+
+function checkinModeSessionReducer(
+  state: CheckinModeSession,
+  action: CheckinModeSessionAction,
+): CheckinModeSession {
+  switch (action) {
+    case "toggle":
+      return state.isActive
+        ? { ...state, isActive: false }
+        : { isActive: true, successCount: 0 };
+    case "deactivate":
+      return { ...state, isActive: false };
+    case "increment":
+      return { ...state, successCount: state.successCount + 1 };
+  }
+}
+
 interface UseSchoolCheckinModeResult {
   /** Whether the page is currently in check-in/out mode. */
   isActive: boolean;
@@ -66,8 +89,8 @@ interface UseSchoolCheckinModeResult {
   deactivate: () => void;
   /** Set of student IDs whose API call is still in flight. */
   pendingIds: ReadonlySet<string>;
-  /** Successful toggles in the current active session. Resets to 0 when the
-   *  mode is freshly entered or when the user explicitly deactivates. */
+  /** Successful toggles in the current active session. Resets to 0 whenever
+   *  the mode is freshly entered. */
   successCount: number;
   /**
    * Toggle a student's attendance. Resolves the next action from their
@@ -90,20 +113,19 @@ interface UseSchoolCheckinModeResult {
  * the card's locationBadge and pendingIds converge with the backend truth.
  */
 export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
-  const [isActive, setIsActive] = useState(false);
+  const [{ isActive, successCount }, dispatchSession] = useReducer(
+    checkinModeSessionReducer,
+    { isActive: false, successCount: 0 },
+  );
   const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
-  const [successCount, setSuccessCount] = useState(0);
   const toast = useToast();
 
   const toggleActive = useCallback(() => {
-    // Entering the mode resets the per-session counter so each fresh session
-    // starts at 0. Leaving keeps the counter until the next entry.
-    if (!isActive) setSuccessCount(0);
-    setIsActive(!isActive);
-  }, [isActive]);
+    dispatchSession("toggle");
+  }, []);
 
   const deactivate = useCallback(() => {
-    setIsActive(false);
+    dispatchSession("deactivate");
   }, []);
 
   const toggle = useCallback(
@@ -134,7 +156,7 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
         // Bump the per-session counter so the ModeBar can surface "X
         // angemeldet" feedback. We count both directions equally — the
         // banner copy makes the direction unambiguous.
-        setSuccessCount((c) => c + 1);
+        dispatchSession("increment");
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         logger.error("school_checkin_toggle_failed", {

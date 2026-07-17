@@ -30,9 +30,15 @@ function extractQueryToken(): string | null {
   return new URLSearchParams(window.location.search).get("token");
 }
 
+function extractQueryFlowID(): string | null {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("flow");
+}
+
 export function InviteContent() {
   const [invitation, setInvitation] =
     useState<OperatorInvitationValidation | null>(null);
+  const [flowID, setFlowID] = useState<string | null>(null);
   const [state, setState] = useState<PageState>("loading");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -56,12 +62,22 @@ export function InviteContent() {
 
     try {
       const queryToken = extractQueryToken();
+      let nextFlowID = extractQueryFlowID();
       if (queryToken) {
-        await establishOperatorInvitationSession(queryToken);
-        window.history.replaceState({}, "", window.location.pathname);
+        nextFlowID = await establishOperatorInvitationSession(queryToken);
+        const safeURL = new URL(window.location.href);
+        safeURL.search = "";
+        safeURL.searchParams.set("flow", nextFlowID);
+        window.history.replaceState(
+          {},
+          "",
+          `${safeURL.pathname}${safeURL.search}`,
+        );
       }
+      if (!nextFlowID) throw new Error("Kein Einladungsvorgang angegeben.");
 
-      const data = await validateOperatorInvitation();
+      const data = await validateOperatorInvitation(nextFlowID);
+      setFlowID(nextFlowID);
       setInvitation(data);
       setDisplayName(data.displayName ?? "");
       setState("form");
@@ -113,11 +129,13 @@ export function InviteContent() {
       setState("submitting");
 
       try {
-        await acceptOperatorInvitation({
+        if (!flowID) throw new Error("Kein Einladungsvorgang angegeben.");
+        await acceptOperatorInvitation(flowID, {
           displayName: displayName.trim(),
           password,
           confirmPassword,
         });
+        window.history.replaceState({}, "", window.location.pathname);
         setState("success");
       } catch (err) {
         logger.error("invitation_accept_failed", {
@@ -138,6 +156,7 @@ export function InviteContent() {
       confirmPassword,
       allPasswordRulesMet,
       passwordsMatch,
+      flowID,
     ],
   );
 

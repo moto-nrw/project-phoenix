@@ -1,7 +1,8 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import {
-  OPERATOR_INVITATION_COOKIE,
+  createOperatorInvitationFlowID,
+  operatorInvitationCookieName,
   operatorInvitationCookieOptions,
 } from "~/lib/operator/operator-invitation-session.server";
 
@@ -26,9 +27,10 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     return NextResponse.json({ message: "Ungültige Anfrage" }, { status: 400 });
   }
 
-  const response = new NextResponse(null, { status: 204 });
+  const flowID = createOperatorInvitationFlowID();
+  const response = NextResponse.json({ flow_id: flowID }, { status: 201 });
   response.cookies.set(
-    OPERATOR_INVITATION_COOKIE,
+    operatorInvitationCookieName(flowID),
     token,
     operatorInvitationCookieOptions,
   );
