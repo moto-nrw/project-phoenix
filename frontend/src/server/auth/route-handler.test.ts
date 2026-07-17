@@ -8,11 +8,22 @@ const tenantSession = {
   expires: "2099-01-01T00:00:00.000Z",
 } as Session;
 
-function createRawAuth(session: Session | null, cookieName: string) {
+function createRawAuth(
+  sessionOrSessions: Session | null | Array<Session | null>,
+  cookieName: string,
+) {
+  const sessions = Array.isArray(sessionOrSessions)
+    ? sessionOrSessions
+    : [sessionOrSessions];
+  let invocation = 0;
+  const nextSession = () =>
+    sessions[Math.min(invocation++, sessions.length - 1)] ?? null;
   const rawAuth = vi.fn((handler?: unknown) => {
-    if (typeof handler !== "function") return Promise.resolve(session);
+    if (typeof handler !== "function") return Promise.resolve(nextSession());
 
     return async (request: NextRequest, context?: unknown) => {
+      const session = nextSession();
+      const currentInvocation = invocation;
       const authRequest = request as NextAuthRequest;
       authRequest.auth = session;
       const response = await (
@@ -23,7 +34,7 @@ function createRawAuth(session: Session | null, cookieName: string) {
       )(authRequest, context);
       response.headers.append(
         "Set-Cookie",
-        `${cookieName}=rotated-session; Path=/; HttpOnly; Secure; SameSite=Lax`,
+        `${cookieName}=rotated-session-${currentInvocation}; Path=/; HttpOnly; Secure; SameSite=Lax`,
       );
       return response;
     };
@@ -39,7 +50,7 @@ describe("createResponseAwareAuth", () => {
     const nestedSessions: Array<Session | null> = [];
     const route = helpers.withAuthResponse(async () => {
       nestedSessions.push(await helpers.auth());
-      nestedSessions.push(await helpers.uncachedAuth());
+      nestedSessions.push(await helpers.auth());
       return Response.json({ ok: true });
     });
 
@@ -49,12 +60,83 @@ describe("createResponseAwareAuth", () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get("set-cookie")).toContain(
-      "tenant.session-token=rotated-session",
+      "tenant.session-token=rotated-session-1",
     );
     expect(nestedSessions).toEqual([tenantSession, tenantSession]);
-    // One call installs the response-aware handler. Nested reads must use the
-    // request context and must not invoke a second JWT callback/rotation.
     expect(vi.mocked(rawAuth)).toHaveBeenCalledTimes(1);
+  });
+
+  it("forces one response-aware session reread and keeps its cookie last", async () => {
+    const refreshedSession = {
+      ...tenantSession,
+      user: { ...tenantSession.user, token: "access-3" },
+    } as Session;
+    const rawAuth = createRawAuth(
+      [tenantSession, refreshedSession],
+      "tenant.session-token",
+    );
+    const helpers = createResponseAwareAuth(rawAuth);
+    const route = helpers.withAuthResponse(async () => {
+      expect(await helpers.auth()).toBe(tenantSession);
+      const firstFreshSession = await helpers.uncachedAuth();
+      expect(firstFreshSession).toEqual(refreshedSession);
+      await expect(helpers.uncachedAuth()).resolves.toBe(firstFreshSession);
+      await expect(helpers.auth()).resolves.toBe(firstFreshSession);
+      return Response.json({ ok: true });
+    });
+
+    const response = await route(
+      new NextRequest("https://school.moto-app.de/api/students"),
+    );
+
+    expect(response.headers.getSetCookie()).toEqual([
+      expect.stringContaining("tenant.session-token=rotated-session-1"),
+      expect.stringContaining("tenant.session-token=rotated-session-2"),
+    ]);
+    expect(vi.mocked(rawAuth)).toHaveBeenCalledTimes(2);
+  });
+
+  it("retries a backend 401 with a freshly read Auth.js session", async () => {
+    const expiredSession = {
+      ...tenantSession,
+      user: { ...tenantSession.user, token: "expired-access" },
+    } as Session;
+    const refreshedSession = {
+      ...tenantSession,
+      user: { ...tenantSession.user, token: "fresh-access" },
+    } as Session;
+    const rawAuth = createRawAuth(
+      [expiredSession, refreshedSession],
+      "tenant.session-token",
+    );
+    const helpers = createResponseAwareAuth(rawAuth);
+    const backend = vi.fn(async (token: string | undefined) =>
+      token === "fresh-access"
+        ? Response.json({ ok: true })
+        : Response.json({ code: "TOKEN_EXPIRED" }, { status: 401 }),
+    );
+    const route = helpers.withAuthResponse(async () => {
+      const initial = await helpers.auth();
+      let response = await backend(initial?.user?.token);
+
+      if (response.status === 401) {
+        const fresh = await helpers.uncachedAuth();
+        response = await backend(fresh?.user?.token);
+      }
+
+      return response;
+    });
+
+    const response = await route(
+      new NextRequest("https://school.moto-app.de/api/students"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(backend).toHaveBeenNthCalledWith(1, "expired-access");
+    expect(backend).toHaveBeenNthCalledWith(2, "fresh-access");
+    expect(response.headers.getSetCookie().at(-1)).toContain(
+      "tenant.session-token=rotated-session-2",
+    );
   });
 
   it("keeps tenant and operator request contexts isolated", async () => {

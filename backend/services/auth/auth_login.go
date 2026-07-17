@@ -390,15 +390,14 @@ func (s *Service) newRefreshToken(accountID int64) *auth.Token {
 // so we switch to phoenix_admin for the token write.
 func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.Account, token *auth.Token, tenantID int64) error {
 	return tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
-
-		// Clean up old tokens (keep 5 most recent)
-		const maxTokensPerAccount = 5
-		if err := s.repos.Token.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
-			s.getLogger().Warn("failed to clean up old tokens",
-				slog.Int64("account_id", account.ID),
-				slog.Any("error", err),
-			)
+		// Updating the account first acquires its row lock for the rest of this
+		// transaction. Concurrent token issuers for the same account then enforce
+		// the session cap serially instead of deleting from identical snapshots.
+		if err := s.repos.Account.UpdateLastLogin(ctx, account.ID); err != nil {
+			return fmt.Errorf("update last login before token issuance: %w", err)
 		}
+		loginTime := time.Now()
+		account.LastLogin = &loginTime
 
 		// Set tenant ID from DB resolution (not from context — login is a public route)
 		token.SetTenantID(tenantID)
@@ -411,10 +410,21 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 			return err
 		}
 
-		// Update last login
-		loginTime := time.Now()
-		account.LastLogin = &loginTime
-		return s.repos.Account.Update(ctx, account)
+		now := time.Now()
+		if err := s.repos.Token.DeleteRotatedBeforeForAccount(ctx, account.ID, now.Add(-rotation.RecoveryGrace)); err != nil {
+			s.getLogger().Warn("failed to clean up refresh-token handoffs",
+				slog.Int64("account_id", account.ID),
+				slog.Any("error", err),
+			)
+		}
+
+		// Enforce the cap after insertion so at most five active sessions remain.
+		const maxTokensPerAccount = 5
+		if err := s.repos.Token.CleanupOldTokensForAccount(ctx, account.ID, maxTokensPerAccount); err != nil {
+			return fmt.Errorf("enforce active session cap: %w", err)
+		}
+
+		return nil
 	})
 }
 
@@ -1188,6 +1198,10 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 // not have reached the browser. Outside the grace period, reuse is replay.
 func (s *Service) resolveRefreshHandoff(ctx context.Context, presented *auth.Token, now time.Time) (*auth.Token, bool, error) {
 	current := presented
+	// The request proves possession of the token it presented. Later hops are
+	// trusted only after their persisted family/account/tenant/generation links
+	// have been validated; they were rotated under different access tokens.
+	proofValidated := false
 	for hop := 0; hop < rotation.MaxRecoveryHops; hop++ {
 		if current.RotatedAt == nil {
 			return current, current.ID != presented.ID, nil
@@ -1195,8 +1209,11 @@ func (s *Service) resolveRefreshHandoff(ctx context.Context, presented *auth.Tok
 		if current.ReplacementToken == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > rotation.RecoveryGrace {
 			return current, false, ErrInvalidToken
 		}
-		if !rotation.MatchesRecoveryProof(ctx, current.RecoveryProofHash) {
-			return current, false, ErrInvalidToken
+		if !proofValidated {
+			if !rotation.MatchesRecoveryProof(ctx, current.RecoveryProofHash) {
+				return current, false, ErrInvalidToken
+			}
+			proofValidated = true
 		}
 
 		next, err := s.repos.Token.FindByTokenForUpdate(ctx, *current.ReplacementToken)
@@ -1262,10 +1279,8 @@ func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.T
 	if err := s.repos.Token.MarkRotated(ctx, oldToken.ID, newToken.Token, rotation.RecoveryProofHash(ctx), now); err != nil {
 		return nil, err
 	}
-	if oldToken.FamilyID != "" {
-		if err := s.repos.Token.DeleteRotatedBefore(ctx, oldToken.FamilyID, now.Add(-rotation.RecoveryGrace)); err != nil {
-			return nil, err
-		}
+	if err := s.repos.Token.DeleteRotatedBeforeForAccount(ctx, accountID, now.Add(-rotation.RecoveryGrace)); err != nil {
+		return nil, err
 	}
 
 	return newToken, nil

@@ -136,6 +136,7 @@ type TokenRepository interface {
 	FindByTokenForUpdate(ctx context.Context, token string) (*Token, error)
 	MarkRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error
 	DeleteRotatedBefore(ctx context.Context, familyID string, cutoff time.Time) error
+	DeleteRotatedBeforeForAccount(ctx context.Context, accountID int64, cutoff time.Time) error
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Token, error)
 	DeleteExpiredTokens(ctx context.Context) (int, error)
 	DeleteByAccountID(ctx context.Context, accountID int64) error

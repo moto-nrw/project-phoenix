@@ -421,39 +421,110 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 
 	repo := repositories.NewFactory(db).Token
 	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "cleanupTokens")
+	defer cleanupAccountRecords(t, db, account.ID)
 
-	t.Run("keeps only specified number of tokens", func(t *testing.T) {
-		account := testpkg.CreateTestAccount(t, db, "cleanupTokens")
-		defer cleanupAccountRecords(t, db, account.ID)
-
-		// Create 5 tokens
-		var tokenIDs []int64
-		for i := 0; i < 5; i++ {
-			token := &auth.Token{
-				AccountID: account.ID,
-				Token:     fmt.Sprintf("cleanup-token-%d-%d", time.Now().UnixNano(), i),
-				Expiry:    time.Now().Add(time.Hour),
-			}
-			err := repo.Create(ctx, token)
-			require.NoError(t, err)
-			tokenIDs = append(tokenIDs, token.ID)
-			time.Sleep(10 * time.Millisecond) // Ensure different timestamps
+	var activeTokens []*auth.Token
+	for i := 0; i < 5; i++ {
+		token := &auth.Token{
+			AccountID: account.ID,
+			Token:     fmt.Sprintf("cleanup-token-%d-%d", time.Now().UnixNano(), i),
+			Expiry:    time.Now().Add(time.Hour),
 		}
-		defer func() {
-			for _, id := range tokenIDs {
-				testpkg.CleanupTableRecords(t, db, "auth.tokens", id)
-			}
-		}()
+		require.NoError(t, repo.Create(ctx, token))
+		activeTokens = append(activeTokens, token)
+	}
 
-		// Cleanup, keeping only 2
-		err := repo.CleanupOldTokensForAccount(ctx, account.ID, 2)
-		require.NoError(t, err)
+	rotated := &auth.Token{
+		AccountID: account.ID,
+		Token:     uuid.Must(uuid.NewV4()).String(),
+		Expiry:    time.Now().Add(time.Hour),
+		FamilyID:  uuid.Must(uuid.NewV4()).String(),
+	}
+	require.NoError(t, repo.Create(ctx, rotated))
+	require.NoError(t, repo.MarkRotated(ctx, rotated.ID, activeTokens[0].Token, make([]byte, 32), time.Now()))
 
-		// Verify only 2 remain
-		tokens, err := repo.FindByAccountID(ctx, account.ID)
-		require.NoError(t, err)
-		assert.LessOrEqual(t, len(tokens), 2)
-	})
+	expired := &auth.Token{
+		AccountID: account.ID,
+		Token:     uuid.Must(uuid.NewV4()).String(),
+		Expiry:    time.Now().Add(-time.Hour),
+	}
+	require.NoError(t, repo.Create(ctx, expired))
+
+	require.NoError(t, repo.CleanupOldTokensForAccount(ctx, account.ID, 5))
+	for _, token := range activeTokens {
+		_, err := repo.FindByID(ctx, token.ID)
+		require.NoError(t, err, "rotated and expired rows must not displace active sessions")
+	}
+
+	newest := &auth.Token{
+		AccountID: account.ID,
+		Token:     uuid.Must(uuid.NewV4()).String(),
+		Expiry:    time.Now().Add(time.Hour),
+	}
+	require.NoError(t, repo.Create(ctx, newest))
+	require.NoError(t, repo.CleanupOldTokensForAccount(ctx, account.ID, 5))
+
+	var currentIDs []int64
+	err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Column("id").
+		Where("account_id = ?", account.ID).
+		Where("rotated_at IS NULL").
+		Where("expiry > ?", time.Now()).
+		OrderExpr("id ASC").
+		Scan(ctx, &currentIDs)
+	require.NoError(t, err)
+	assert.Len(t, currentIDs, 5)
+	assert.NotContains(t, currentIDs, activeTokens[0].ID, "the oldest active session must be evicted")
+	assert.Contains(t, currentIDs, newest.ID, "the newly created session must survive cap enforcement")
+
+	_, err = repo.FindByID(ctx, rotated.ID)
+	require.NoError(t, err, "session-cap cleanup must leave recovery handoffs alone")
+	_, err = repo.FindByID(ctx, expired.ID)
+	require.NoError(t, err, "session-cap cleanup must leave expired-token cleanup to its own lifecycle")
+}
+
+func TestTokenRepository_DeleteRotatedBeforeForAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "cleanupAccountHandoffs")
+	defer cleanupAccountRecords(t, db, account.ID)
+
+	createHandoff := func(rotatedAt time.Time) (*auth.Token, *auth.Token) {
+		familyID := uuid.Must(uuid.NewV4()).String()
+		predecessor := &auth.Token{
+			AccountID: account.ID,
+			Token:     uuid.Must(uuid.NewV4()).String(),
+			Expiry:    time.Now().Add(time.Hour),
+			FamilyID:  familyID,
+		}
+		successor := &auth.Token{
+			AccountID:  account.ID,
+			Token:      uuid.Must(uuid.NewV4()).String(),
+			Expiry:     time.Now().Add(time.Hour),
+			FamilyID:   familyID,
+			Generation: 1,
+		}
+		require.NoError(t, repo.Create(ctx, predecessor))
+		require.NoError(t, repo.Create(ctx, successor))
+		require.NoError(t, repo.MarkRotated(ctx, predecessor.ID, successor.Token, make([]byte, 32), rotatedAt))
+		return predecessor, successor
+	}
+
+	stalePredecessor, staleSuccessor := createHandoff(time.Now().Add(-10 * time.Minute))
+	freshPredecessor, freshSuccessor := createHandoff(time.Now())
+	require.NoError(t, repo.DeleteRotatedBeforeForAccount(ctx, account.ID, time.Now().Add(-5*time.Minute)))
+
+	_, err := repo.FindByID(ctx, stalePredecessor.ID)
+	assert.Error(t, err)
+	for _, token := range []*auth.Token{staleSuccessor, freshPredecessor, freshSuccessor} {
+		_, err = repo.FindByID(ctx, token.ID)
+		require.NoError(t, err, "cleanup must preserve current sessions and in-grace handoffs")
+	}
 }
 
 func TestTokenRepository_GetLatestTokenInFamily(t *testing.T) {

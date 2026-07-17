@@ -130,6 +130,33 @@ func (r *TokenRepository) DeleteRotatedBefore(ctx context.Context, familyID stri
 	return nil
 }
 
+// DeleteRotatedBeforeForAccount removes expired predecessor handoffs across
+// all of an account's token families. Rotated rows are recovery metadata, not
+// active sessions, and are therefore cleaned independently of the session cap.
+func (r *TokenRepository) DeleteRotatedBeforeForAccount(ctx context.Context, accountID int64, cutoff time.Time) error {
+	db := base.GetDB(ctx, r.db)
+	candidates := db.NewSelect().
+		Model((*auth.Token)(nil)).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		ColumnExpr(`"token".id`).
+		Where(`"token".account_id = ?`, accountID).
+		Where(`"token".rotated_at IS NOT NULL`).
+		Where(`"token".rotated_at < ?`, cutoff)
+	candidates = base.WithTenantFilter(ctx, candidates, "token").
+		For("UPDATE SKIP LOCKED")
+
+	query := db.NewDelete().
+		Model((*auth.Token)(nil)).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".id IN (?)`, candidates)
+
+	query = base.WithTenantFilter(ctx, query, "token")
+	if _, err := query.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "delete expired account refresh-token handoffs", Err: err}
+	}
+	return nil
+}
+
 // FindByAccountID retrieves all tokens for an account
 func (r *TokenRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.Token, error) {
 	var tokens []*auth.Token
@@ -308,15 +335,18 @@ func (r *TokenRepository) applyExpiredTokenFilter(query *bun.SelectQuery, value 
 	return query
 }
 
-// CleanupOldTokensForAccount keeps only the most recent N tokens for an account
-// This is useful to allow multiple sessions while preventing unlimited token accumulation
+// CleanupOldTokensForAccount keeps only the most recent N active, unexpired
+// sessions for an account. Rotated predecessor rows are recovery metadata and
+// are cleaned separately by DeleteRotatedBeforeForAccount.
 func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error {
-	// First, get all tokens for the account ordered by creation date (newest first)
+	// First, get all active sessions for the account ordered newest first.
 	var tokens []*auth.Token
 	selectQuery := base.GetDB(ctx, r.db).NewSelect().
 		Model(&tokens).
 		ModelTableExpr(`auth.tokens AS "token"`).
 		Where(`"token".account_id = ?`, accountID).
+		Where(`"token".rotated_at IS NULL`).
+		Where(`"token".expiry > ?`, time.Now()).
 		OrderExpr(`"token".id DESC`) // Assuming ID is auto-incrementing, so higher ID = newer
 
 	selectQuery = base.WithTenantFilter(ctx, selectQuery, "token")

@@ -531,7 +531,7 @@ func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64
 		return "", "", &OperatorRefreshTokenInvalidError{}
 	}
 	if recovered {
-		s.Logger.Info("operator_refresh_rotation_recovered",
+		s.getLogger().Info("operator_refresh_rotation_recovered",
 			slog.Int64("operator_id", operatorID),
 		)
 	}
@@ -541,6 +541,10 @@ func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64
 
 func (s *operatorAuthService) resolveOperatorRefreshHandoff(ctx context.Context, presented *platform.OperatorRefreshToken, now time.Time) (*platform.OperatorRefreshToken, bool, error) {
 	current := presented
+	// The request proves possession of the token it presented. Successor hops
+	// are accepted only after validating their persisted family and generation
+	// lineage; each hop may have been rotated under a different access token.
+	proofValidated := false
 	for hop := 0; hop < rotation.MaxRecoveryHops; hop++ {
 		if current.RotatedAt == nil {
 			return current, current.ID != presented.ID, nil
@@ -548,8 +552,11 @@ func (s *operatorAuthService) resolveOperatorRefreshHandoff(ctx context.Context,
 		if current.ReplacementToken == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > rotation.RecoveryGrace {
 			return current, false, &OperatorRefreshTokenInvalidError{}
 		}
-		if !rotation.MatchesRecoveryProof(ctx, current.RecoveryProofHash) {
-			return current, false, &OperatorRefreshTokenInvalidError{}
+		if !proofValidated {
+			if !rotation.MatchesRecoveryProof(ctx, current.RecoveryProofHash) {
+				return current, false, &OperatorRefreshTokenInvalidError{}
+			}
+			proofValidated = true
 		}
 
 		next, err := s.RefreshTokenRepo.FindByTokenForUpdate(ctx, *current.ReplacementToken)
@@ -565,7 +572,7 @@ func (s *operatorAuthService) resolveOperatorRefreshHandoff(ctx context.Context,
 }
 
 func (s *operatorAuthService) logOperatorRefreshDecision(reason string, operatorID int64, generation int) {
-	s.Logger.Warn("operator_refresh_session_rejected",
+	s.getLogger().Warn("operator_refresh_session_rejected",
 		slog.String("reason", reason),
 		slog.Int64("operator_id", operatorID),
 		slog.Int("generation", generation),

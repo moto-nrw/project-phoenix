@@ -1073,6 +1073,10 @@ func (noopTokenRepository) DeleteRotatedBefore(context.Context, string, time.Tim
 	panic("DeleteRotatedBefore not implemented")
 }
 
+func (noopTokenRepository) DeleteRotatedBeforeForAccount(context.Context, int64, time.Time) error {
+	panic("DeleteRotatedBeforeForAccount not implemented")
+}
+
 func (noopTokenRepository) FindByAccountID(context.Context, int64) ([]*authModel.Token, error) {
 	panic("FindByAccountID not implemented")
 }

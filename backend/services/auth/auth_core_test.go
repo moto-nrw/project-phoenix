@@ -250,6 +250,55 @@ func TestAuthService_Login(t *testing.T) {
 	})
 }
 
+func TestAuthService_Login_ConcurrentIssuanceKeepsFiveActiveSessions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := setupAuthService(t, db)
+	email, username := uniqueTestCredentials("concurrent-session-cap")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	for range 5 {
+		_, _, err = service.Login(ctx, email, testPassword)
+		require.NoError(t, err)
+	}
+
+	const concurrency = 8
+	issuers := make([]auth.AuthService, concurrency)
+	for i := range issuers {
+		issuers[i] = setupAuthService(t, db)
+	}
+
+	var barrier sync.WaitGroup
+	barrier.Add(concurrency)
+	results := make(chan error, concurrency)
+	for _, issuer := range issuers {
+		go func() {
+			barrier.Done()
+			barrier.Wait()
+			_, _, loginErr := issuer.Login(ctx, email, testPassword)
+			results <- loginErr
+		}()
+	}
+
+	for range concurrency {
+		require.NoError(t, <-results)
+	}
+
+	activeCount, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", account.ID).
+		Where("rotated_at IS NULL").
+		Where("expiry > ?", time.Now()).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 5, activeCount, "concurrent issuers must not bypass the session cap")
+}
+
 // =============================================================================
 // ValidateToken Tests
 // =============================================================================
@@ -416,6 +465,54 @@ func TestAuthService_RefreshToken_InterruptedRotationRecovery(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []int{0, 1}, generations,
 		"recovery must reuse the committed successor instead of rotating again")
+}
+
+func TestAuthService_RefreshToken_InterruptedRotationRecoveryAcrossMultipleHandoffs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := setupAuthService(t, db)
+	email, username := uniqueTestCredentials("rotation-multi-hop-recovery")
+	account, err := service.Register(ctx, email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	_, predecessorJWT, err := service.Login(ctx, email, testPassword)
+	require.NoError(t, err)
+	firstProofCtx := rotation.WithRecoveryProof(ctx, "first-recovery-secret")
+	_, firstSuccessorJWT, err := service.RefreshToken(firstProofCtx, predecessorJWT)
+	require.NoError(t, err)
+	secondProofCtx := rotation.WithRecoveryProof(ctx, "second-recovery-secret")
+	_, secondSuccessorJWT, err := service.RefreshToken(secondProofCtx, firstSuccessorJWT)
+	require.NoError(t, err)
+
+	accessToken, recoveredRefreshJWT, err := setupAuthService(t, db).RefreshToken(firstProofCtx, predecessorJWT)
+	require.NoError(t, err)
+	assert.NotEmpty(t, accessToken)
+	assert.NotEmpty(t, secondSuccessorJWT)
+	assert.NotEmpty(t, recoveredRefreshJWT)
+
+	var generations []int
+	err = db.NewSelect().
+		TableExpr("auth.tokens").
+		Column("generation").
+		Where("account_id = ?", account.ID).
+		OrderExpr("generation ASC").
+		Scan(ctx, &generations)
+	require.NoError(t, err)
+	assert.Equal(t, []int{0, 1, 2}, generations,
+		"a delayed predecessor must follow the persisted lineage without revoking or rotating it")
+
+	currentCount, err := db.NewSelect().
+		TableExpr("auth.tokens").
+		Where("account_id = ?", account.ID).
+		Where("rotated_at IS NULL").
+		Where("generation = 2").
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, currentCount)
 }
 
 func TestAuthService_RefreshToken_ReplayAfterGraceCommitsFamilyRevocation(t *testing.T) {

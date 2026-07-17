@@ -1037,6 +1037,38 @@ func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredWithinGrac
 	assert.Equal(t, 2, countOperatorRefreshTokens(t, db, operatorID, ""))
 }
 
+func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredAcrossMultipleHandoffs(t *testing.T) {
+	withJWTSecret(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildAuthService(t, db)
+	ctx := context.Background()
+	email := fmt.Sprintf("refresh-multi-hop-%d@test.local", time.Now().UnixNano())
+	operatorID, _ := createEmailChangeTestOperator(t, db, email)
+
+	_, _, _, err := service.Login(ctx, email, testPassword, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err)
+	predecessorHandle := currentOperatorRefreshToken(t, db, operatorID)
+	firstProofCtx := rotation.WithRecoveryProof(ctx, "first-recovery-secret")
+	_, _, err = service.RefreshToken(firstProofCtx, operatorID, predecessorHandle)
+	require.NoError(t, err)
+	firstSuccessorHandle := currentOperatorRefreshToken(t, db, operatorID)
+	secondProofCtx := rotation.WithRecoveryProof(ctx, "second-recovery-secret")
+	_, _, err = service.RefreshToken(secondProofCtx, operatorID, firstSuccessorHandle)
+	require.NoError(t, err)
+	secondSuccessorHandle := currentOperatorRefreshToken(t, db, operatorID)
+
+	accessToken, refreshToken, err := service.RefreshToken(firstProofCtx, operatorID, predecessorHandle)
+	require.NoError(t, err)
+	assert.NotEmpty(t, accessToken)
+	assert.NotEmpty(t, refreshToken)
+	assert.Equal(t, secondSuccessorHandle, currentOperatorRefreshToken(t, db, operatorID),
+		"a delayed predecessor must recover the current successor without another rotation")
+	assert.Equal(t, 3, countOperatorRefreshTokens(t, db, operatorID, ""),
+		"multi-hop recovery must preserve the active family")
+}
+
 func TestOperatorAuthService_RefreshToken_ReplayAfterGraceRevokesFamily(t *testing.T) {
 	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
