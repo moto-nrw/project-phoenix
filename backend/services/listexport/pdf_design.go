@@ -1,12 +1,10 @@
 package listexport
 
-// SPIKE (issue #1568): a branded PDF renderer built on signintech/gopdf.
+// The designed PDF renderer (issue #1568), built on signintech/gopdf.
 // Renders listexport.Document in the app's design language: embedded Inter
 // (real Unicode — no transliteration), moto logo, dotted page background,
-// white content card, dark table header.
-//
-// Not wired into service.go — renderPDF (the hand-rolled writer) is still
-// the production path.
+// white content card, DataTable chrome. The shared page frame (pageChrome)
+// is also used by the record/block renderer in records_design.go.
 
 import (
 	"bytes"
@@ -14,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/signintech/gopdf"
 	"golang.org/x/text/unicode/norm"
@@ -44,27 +43,31 @@ type designPage struct {
 	rows       []Row
 }
 
-type designRenderer struct {
-	pdf    *gopdf.GoPdf
-	doc    Document
-	cols   []Column
-	widths []float64
-	w, h   float64
-	total  int
-	logo   gopdf.ImageHolder
-	bgTpl  int
+// pageChrome is the shared page frame every designed PDF draws through:
+// dotted background, logo header with title/subtitle/filter pills, and
+// the footer carrying the confidentiality note + page numbers. Both the
+// table renderer (Document) and the record/block renderer (RecordDocument)
+// use it, so the two layouts cannot drift apart.
+type pageChrome struct {
+	pdf         *gopdf.GoPdf
+	w, h        float64
+	logo        gopdf.ImageHolder
+	bgTpl       int
+	title       string
+	subtitle    string
+	generatedAt time.Time
+	filters     []string
+	footer      string
 }
 
-// newDesignRenderer prepares a renderer with fonts loaded but nothing
-// drawn — split out so pagination decisions are unit-testable.
-func newDesignRenderer(doc Document) (*designRenderer, error) {
-	cols := doc.Columns
-	if len(cols) == 0 {
-		cols = ResolveColumns(nil, PresetOGSWeekly)
+func newPageChrome(landscape bool, title, subtitle string, generatedAt time.Time, filters []string, footer string) (*pageChrome, error) {
+	size := *gopdf.PageSizeA4
+	if landscape {
+		size = *gopdf.PageSizeA4Landscape
 	}
 
 	pdf := &gopdf.GoPdf{}
-	pdf.Start(gopdf.Config{PageSize: *gopdf.PageSizeA4Landscape})
+	pdf.Start(gopdf.Config{PageSize: size})
 
 	if err := pdf.AddTTFFontData(fontFamily, interRegular); err != nil {
 		return nil, fmt.Errorf("embed Inter Regular: %w", err)
@@ -82,14 +85,41 @@ func newDesignRenderer(doc Document) (*designRenderer, error) {
 		return nil, fmt.Errorf("logo holder: %w", err)
 	}
 
-	w, h := gopdf.PageSizeA4Landscape.W, gopdf.PageSizeA4Landscape.H
-	bgTpl, err := importDotBackground(pdf, w, h)
+	bgTpl, err := importDotBackground(pdf, size.W, size.H)
 	if err != nil {
 		return nil, err
 	}
 
-	r := &designRenderer{pdf: pdf, doc: doc, cols: cols, w: w, h: h, logo: logo, bgTpl: bgTpl}
-	r.widths = pdfColumnWidths(cols, w-2*pageMargin-2*cardPadX)
+	return &pageChrome{
+		pdf: pdf, w: size.W, h: size.H, logo: logo, bgTpl: bgTpl,
+		title: title, subtitle: subtitle, generatedAt: generatedAt,
+		filters: filters, footer: footer,
+	}, nil
+}
+
+type designRenderer struct {
+	*pageChrome
+	doc    Document
+	cols   []Column
+	widths []float64
+	total  int
+}
+
+// newDesignRenderer prepares a renderer with fonts loaded but nothing
+// drawn — split out so pagination decisions are unit-testable.
+func newDesignRenderer(doc Document) (*designRenderer, error) {
+	cols := doc.Columns
+	if len(cols) == 0 {
+		cols = ResolveColumns(nil, PresetOGSWeekly)
+	}
+
+	chrome, err := newPageChrome(true, doc.Title, doc.Subtitle, doc.GeneratedAt, doc.Filters, doc.Footer)
+	if err != nil {
+		return nil, err
+	}
+
+	r := &designRenderer{pageChrome: chrome, doc: doc, cols: cols}
+	r.widths = pdfColumnWidths(cols, r.w-2*pageMargin-2*cardPadX)
 	return r, nil
 }
 
@@ -118,10 +148,10 @@ func renderPDFDesigned(doc Document) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// contentTop is the y where the card's table body starts, below the header
-// block. bodyBottom is the last usable y inside the card.
-func (r *designRenderer) cardTop() float64    { return pageMargin + 104 }
-func (r *designRenderer) bodyBottom() float64 { return r.h - pageMargin - footerHeight }
+// bodyTop is the y where page content starts, below the header block;
+// bodyBottom is the last usable y above the footer.
+func (c *pageChrome) bodyTop() float64    { return pageMargin + 104 }
+func (c *pageChrome) bodyBottom() float64 { return c.h - pageMargin - footerHeight }
 
 // paginate splits rows into pages. Group titles start a new page, mirroring
 // the current renderer's behaviour (each class gets its own sheet).
@@ -132,7 +162,7 @@ func (r *designRenderer) paginate() ([]designPage, error) {
 
 	// Rows that fit inside one card: the card's own chrome (padding, an
 	// optional group heading, the table header) comes off the top first.
-	avail := r.bodyBottom() - (r.cardTop() + 2*cardPadY + fontGroup + groupGap + tableHeaderHeight())
+	avail := r.bodyBottom() - (r.bodyTop() + 2*cardPadY + fontGroup + groupGap + tableHeaderHeight())
 	pages := []designPage{}
 	cur := designPage{}
 	used := 0.0
@@ -182,7 +212,7 @@ func (r *designRenderer) rowHeight(row Row) float64 {
 }
 
 // wrap greedily breaks text to fit maxW, measured with the current font.
-func (r *designRenderer) wrap(s string, maxW float64) []string {
+func (c *pageChrome) wrap(s string, maxW float64) []string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return []string{""}
@@ -195,7 +225,7 @@ func (r *designRenderer) wrap(s string, maxW float64) []string {
 		if cur != "" {
 			try = cur + " " + word
 		}
-		if wdt, err := r.pdf.MeasureTextWidth(try); err == nil && wdt <= maxW {
+		if wdt, err := c.pdf.MeasureTextWidth(try); err == nil && wdt <= maxW {
 			cur = try
 			continue
 		}
@@ -213,13 +243,13 @@ func (r *designRenderer) wrap(s string, maxW float64) []string {
 	return lines
 }
 
-func (r *designRenderer) setFill(c rgb)   { r.pdf.SetFillColor(c.R, c.G, c.B) }
-func (r *designRenderer) setStroke(c rgb) { r.pdf.SetStrokeColor(c.R, c.G, c.B) }
-func (r *designRenderer) setText(c rgb)   { r.pdf.SetTextColor(c.R, c.G, c.B) }
+func (c *pageChrome) setFill(col rgb)   { c.pdf.SetFillColor(col.R, col.G, col.B) }
+func (c *pageChrome) setStroke(col rgb) { c.pdf.SetStrokeColor(col.R, col.G, col.B) }
+func (c *pageChrome) setText(col rgb)   { c.pdf.SetTextColor(col.R, col.G, col.B) }
 
-func (r *designRenderer) text(x, y float64, s string) error {
-	r.pdf.SetXY(x, y)
-	return r.pdf.Text(norms(s))
+func (c *pageChrome) text(x, y float64, s string) error {
+	c.pdf.SetXY(x, y)
+	return c.pdf.Text(norms(s))
 }
 
 func (r *designRenderer) drawPage(p designPage, num int) error {
@@ -233,7 +263,7 @@ func (r *designRenderer) drawPage(p designPage, num int) error {
 	if err := r.drawCard(p); err != nil {
 		return err
 	}
-	return r.drawFooter(num)
+	return r.drawFooter(num, r.total)
 }
 
 // dotBackgroundPDF renders the page background (gray-50 + the guide's dot
@@ -285,29 +315,29 @@ func importDotBackground(pdf *gopdf.GoPdf, w, h float64) (int, error) {
 	return tpl, nil
 }
 
-func (r *designRenderer) drawBackground() error {
-	r.pdf.UseImportedTemplate(r.bgTpl, 0, 0, r.w, r.h)
+func (c *pageChrome) drawBackground() error {
+	c.pdf.UseImportedTemplate(c.bgTpl, 0, 0, c.w, c.h)
 	return nil
 }
 
-func (r *designRenderer) drawHeader() error {
-	if err := r.pdf.ImageByHolder(r.logo, pageMargin, pageMargin-6, &gopdf.Rect{
+func (c *pageChrome) drawHeader() error {
+	if err := c.pdf.ImageByHolder(c.logo, pageMargin, pageMargin-6, &gopdf.Rect{
 		W: logoHeight * logoAspect, H: logoHeight,
 	}); err != nil {
 		return fmt.Errorf("draw logo: %w", err)
 	}
 
 	// Generated-at, right aligned.
-	if err := r.pdf.SetFont(fontFamily, styleNormal, fontMeta); err != nil {
+	if err := c.pdf.SetFont(fontFamily, styleNormal, fontMeta); err != nil {
 		return err
 	}
-	r.setText(colorMuted)
-	stamp := "Erstellt: " + GeneratedAtLabel(r.doc.GeneratedAt)
-	sw, err := r.pdf.MeasureTextWidth(stamp)
+	c.setText(colorMuted)
+	stamp := "Erstellt: " + GeneratedAtLabel(c.generatedAt)
+	sw, err := c.pdf.MeasureTextWidth(stamp)
 	if err != nil {
 		return err
 	}
-	if err := r.text(r.w-pageMargin-sw, pageMargin+6, stamp); err != nil {
+	if err := c.text(c.w-pageMargin-sw, pageMargin+6, stamp); err != nil {
 		return err
 	}
 
@@ -315,66 +345,66 @@ func (r *designRenderer) drawHeader() error {
 
 	// Eyebrow — only for two-part titles; single-part titles render the
 	// headline alone instead of repeating themselves.
-	if eyebrow := docEyebrow(r.doc); eyebrow != "" {
-		if err := r.pdf.SetFont(fontFamily, styleBold, fontEyebrow); err != nil {
+	if eyebrow := titleEyebrow(c.title); eyebrow != "" {
+		if err := c.pdf.SetFont(fontFamily, styleBold, fontEyebrow); err != nil {
 			return err
 		}
-		r.setText(colorEyebrow)
-		if err := r.text(pageMargin, y, strings.ToUpper(spaceOut(eyebrow))); err != nil {
+		c.setText(colorEyebrow)
+		if err := c.text(pageMargin, y, strings.ToUpper(spaceOut(eyebrow))); err != nil {
 			return err
 		}
 		y += 16
 	}
 
 	// Title.
-	if err := r.pdf.SetFont(fontFamily, styleBold, fontTitle); err != nil {
+	if err := c.pdf.SetFont(fontFamily, styleBold, fontTitle); err != nil {
 		return err
 	}
-	r.setText(colorInk)
-	if err := r.text(pageMargin, y, docHeadline(r.doc)); err != nil {
+	c.setText(colorInk)
+	if err := c.text(pageMargin, y, titleHeadline(c.title)); err != nil {
 		return err
 	}
 	y += 14
 
 	// Subtitle.
-	if r.doc.Subtitle != "" {
-		if err := r.pdf.SetFont(fontFamily, styleNormal, fontSubtitle); err != nil {
+	if c.subtitle != "" {
+		if err := c.pdf.SetFont(fontFamily, styleNormal, fontSubtitle); err != nil {
 			return err
 		}
-		r.setText(colorMuted)
-		if err := r.text(pageMargin, y, r.doc.Subtitle); err != nil {
+		c.setText(colorMuted)
+		if err := c.text(pageMargin, y, c.subtitle); err != nil {
 			return err
 		}
 		y += 14
 	}
 
 	// Filter pills.
-	return r.drawFilterPills(pageMargin, y)
+	return c.drawFilterPills(pageMargin, y)
 }
 
-func (r *designRenderer) drawFilterPills(x, y float64) error {
-	if len(r.doc.Filters) == 0 {
+func (c *pageChrome) drawFilterPills(x, y float64) error {
+	if len(c.filters) == 0 {
 		return nil
 	}
-	if err := r.pdf.SetFont(fontFamily, styleNormal, fontMeta); err != nil {
+	if err := c.pdf.SetFont(fontFamily, styleNormal, fontMeta); err != nil {
 		return err
 	}
 	cx := x
-	for _, f := range r.doc.Filters {
+	for _, f := range c.filters {
 		f = norms(f)
-		tw, err := r.pdf.MeasureTextWidth(f)
+		tw, err := c.pdf.MeasureTextWidth(f)
 		if err != nil {
 			return err
 		}
 		pw := tw + 14
-		r.setFill(colorSurface)
-		r.setStroke(colorBorder)
-		r.pdf.SetLineWidth(0.5)
-		if err := r.pdf.Rectangle(cx, y-2, cx+pw, y+12, "FD", pillRadius, 8); err != nil {
+		c.setFill(colorSurface)
+		c.setStroke(colorBorder)
+		c.pdf.SetLineWidth(0.5)
+		if err := c.pdf.Rectangle(cx, y-2, cx+pw, y+12, "FD", pillRadius, 8); err != nil {
 			return err
 		}
-		r.setText(colorMuted)
-		if err := r.text(cx+7, y+8, f); err != nil {
+		c.setText(colorMuted)
+		if err := c.text(cx+7, y+8, f); err != nil {
 			return err
 		}
 		cx += pw + 6
@@ -383,7 +413,7 @@ func (r *designRenderer) drawFilterPills(x, y float64) error {
 }
 
 func (r *designRenderer) drawCard(p designPage) error {
-	top := r.cardTop()
+	top := r.bodyTop()
 	left := pageMargin
 	right := r.w - pageMargin
 
@@ -479,39 +509,40 @@ func (r *designRenderer) drawCard(p designPage) error {
 	return nil
 }
 
-func (r *designRenderer) drawFooter(num int) error {
-	if err := r.pdf.SetFont(fontFamily, styleNormal, fontFooter); err != nil {
+func (c *pageChrome) drawFooter(num, total int) error {
+	if err := c.pdf.SetFont(fontFamily, styleNormal, fontFooter); err != nil {
 		return err
 	}
-	r.setText(colorMuted)
-	y := r.h - pageMargin + 4
+	c.setText(colorMuted)
+	y := c.h - pageMargin + 4
 
-	// Confidentiality note, centred. renderPDF drops doc.Footer entirely —
-	// this path honours it (as xlsx.go/docx.go/records.go already do).
-	if r.doc.Footer != "" {
-		fw, err := r.pdf.MeasureTextWidth(norms(r.doc.Footer))
+	// Confidentiality note, centred. The old hand-rolled table writer
+	// dropped doc.Footer entirely — this path honours it (as
+	// xlsx.go/docx.go already do).
+	if c.footer != "" {
+		fw, err := c.pdf.MeasureTextWidth(norms(c.footer))
 		if err != nil {
 			return err
 		}
-		if err := r.text((r.w-fw)/2, y, r.doc.Footer); err != nil {
+		if err := c.text((c.w-fw)/2, y, c.footer); err != nil {
 			return err
 		}
 	}
 
-	page := fmt.Sprintf("Seite %d von %d", num, r.total)
-	pw, err := r.pdf.MeasureTextWidth(page)
+	page := fmt.Sprintf("Seite %d von %d", num, total)
+	pw, err := c.pdf.MeasureTextWidth(page)
 	if err != nil {
 		return err
 	}
-	return r.text(r.w-pageMargin-pw, y, page)
+	return c.text(c.w-pageMargin-pw, y, page)
 }
 
-// docEyebrow derives the small green kicker above the title from a
+// titleEyebrow derives the small green kicker above the title from a
 // two-part title ("Kinderliste — OGS Wochenübersicht" → "Kinderliste").
 // Production titles are usually single-part ("Klassenliste", user-supplied
 // req.Title) — those get NO eyebrow rather than repeating the title.
-func docEyebrow(doc Document) string {
-	title := strings.TrimSpace(doc.Title)
+func titleEyebrow(title string) string {
+	title = strings.TrimSpace(title)
 	for _, sep := range []string{" — ", " – ", " - "} {
 		if i := strings.Index(title, sep); i > 0 {
 			return strings.TrimSpace(title[:i])
@@ -520,10 +551,11 @@ func docEyebrow(doc Document) string {
 	return ""
 }
 
-// docHeadline is the title minus the eyebrow part, so the two don't repeat
-// each other ("Kinderliste — OGS Wochenübersicht" → "OGS Wochenübersicht").
-func docHeadline(doc Document) string {
-	title := strings.TrimSpace(doc.Title)
+// titleHeadline is the title minus the eyebrow part, so the two don't
+// repeat each other ("Kinderliste — OGS Wochenübersicht" → "OGS
+// Wochenübersicht").
+func titleHeadline(title string) string {
+	title = strings.TrimSpace(title)
 	for _, sep := range []string{" — ", " – ", " - "} {
 		if i := strings.Index(title, sep); i > 0 {
 			return strings.TrimSpace(title[i+len(sep):])

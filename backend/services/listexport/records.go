@@ -9,20 +9,23 @@ import (
 // (A4 portrait). Use this instead of the flat-table Render when each
 // record carries hierarchical/variable data (e.g. one enrollment with
 // N children, offerings, consents and per-phase custom fields) that a
-// fixed-column table can't lay out legibly. It reuses the same low-level PDF primitives as the flat-table
-// renderer (writePDFText, drawPDFRect, buildPDF, the WinAnsi font) so
-// there is a single PDF code path in this package.
+// fixed-column table can't lay out legibly. It draws through the same
+// pageChrome frame as the flat-table renderer (records_design.go), so
+// both PDF layouts share one design.
 //
-// Layout per record: a heading with an underline rule, the record's
-// own label/value fields, then each sub-record indented beneath it.
-// A record that overflows the page continues on the next page rather
-// than being clipped; the page header + footer repeat on every page.
+// Layout per record: a white card with the heading, a hairline rule,
+// the record's own label/value fields, then each sub-record indented
+// beneath it. A record taller than a page flows across pages as a bare
+// block instead; the page header + footer repeat on every page.
 func (s *RendererService) RenderRecords(doc RecordDocument, filenameBase string) (File, error) {
 	base := safeFilename(filenameBase)
 	if base == "" {
 		base = "export"
 	}
-	data := renderRecordsPDF(doc)
+	data, err := renderRecordsPDFDesigned(doc)
+	if err != nil {
+		return File{}, err
+	}
 	return File{Data: data, ContentType: "application/pdf", Filename: base + ".pdf"}, nil
 }
 
