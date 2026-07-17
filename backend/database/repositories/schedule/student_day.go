@@ -165,7 +165,9 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 //
 // Deliberately NOT filtered by student: the attendance history needs the
 // tenant-wide answer, and the walk-in exclusion keeps spontaneous drop-ins
-// from counting as care-plan usage.
+// from counting as care-plan usage. Cancelled instances are excluded as well —
+// instance_students rows survive a cancellation, and a booking on a
+// cancelled-only occurrence is no evidence of a usable care plan.
 func (r *InstanceStudentRepository) HasPlannedSlotsInRange(
 	ctx context.Context, from, to timezone.Date,
 ) (bool, error) {
@@ -173,6 +175,7 @@ func (r *InstanceStudentRepository) HasPlannedSlotsInRange(
 		TableExpr(modelTblInstanceStudent).
 		Join(`INNER JOIN schedule.activity_instances AS "activity_instance" ON "activity_instance".id = "instance_student".instance_id AND "activity_instance".tenant_id = "instance_student".tenant_id`).
 		Where(`"instance_student".is_unplanned = FALSE`).
+		Where(`"activity_instance".status <> ?`, schedule.InstanceStatusCancelled).
 		Where(`"activity_instance".date >= ?`, from).
 		Where(`"activity_instance".date <= ?`, to)
 

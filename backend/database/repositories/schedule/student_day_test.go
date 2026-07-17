@@ -191,3 +191,50 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
 		assert.Equal(t, "check planned slots in range", dbErr.Op)
 	})
 }
+
+// A cancelled instance keeps its instance_students rows, but a planned booking
+// on a cancelled-only occurrence must not count as care-plan evidence — it
+// would re-activate assignment hints and export columns without a usable slot
+// (#1920). The far-future window keeps concurrent fixtures from other packages
+// out of the tenant-wide EXISTS.
+func TestInstanceStudentRepository_HasPlannedSlotsInRange_CancelledInstance(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	student := testpkg.CreateTestStudent(t, db, "Emil", fmt.Sprintf("HPC-%d", time.Now().UnixNano()), "4c")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	from := timezone.NewDate(2033, 5, 2)
+	to := timezone.NewDate(2033, 5, 6)
+
+	inst, cleanInst := createInstanceFixture(t, db, "hpc", from)
+	defer cleanInst()
+
+	planned := &scheduleModels.InstanceStudent{
+		InstanceID: inst.ID,
+		StudentID:  student.ID,
+		Status:     scheduleModels.AttendanceStatusPresent,
+	}
+	planned.SetTenantID(1)
+	require.NoError(t, repo.Create(ctx, planned))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", planned.ID)
+
+	t.Run("planned row on a live instance counts", func(t *testing.T) {
+		has, err := repo.HasPlannedSlotsInRange(ctx, from, to)
+		require.NoError(t, err)
+		assert.True(t, has)
+	})
+
+	inst.Status = scheduleModels.InstanceStatusCancelled
+	require.NoError(t, instanceRepo.Update(ctx, inst))
+
+	t.Run("cancelled instance is no evidence despite the surviving row", func(t *testing.T) {
+		has, err := repo.HasPlannedSlotsInRange(ctx, from, to)
+		require.NoError(t, err)
+		assert.False(t, has)
+	})
+}

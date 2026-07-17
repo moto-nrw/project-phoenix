@@ -265,10 +265,13 @@ func (rs *Resource) resolveSlotExpectation(
 
 // hasPlannedSlotRow reports whether any usable slot row (instance and
 // attendance present) carries a planned booking. Walk-ins are excluded on
-// purpose — see resolveSlotExpectation.
+// purpose — see resolveSlotExpectation. Cancelled instances are excluded too:
+// their instance_students rows survive the cancellation, but a booking on a
+// cancelled-only occurrence is no usable slot to report assignments against.
 func hasPlannedSlotRow(slots []*scheduleModel.ScheduledInstanceRow) bool {
 	for _, row := range slots {
-		if row != nil && row.Instance != nil && row.Attendance != nil && !row.Attendance.IsUnplanned {
+		if row != nil && row.Instance != nil && row.Attendance != nil &&
+			!row.Attendance.IsUnplanned && row.Instance.Status != scheduleModel.InstanceStatusCancelled {
 			return true
 		}
 	}

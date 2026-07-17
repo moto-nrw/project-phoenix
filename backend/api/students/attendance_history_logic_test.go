@@ -579,7 +579,9 @@ func TestAttachUnassignedAttendance_WalkInWithoutExpectationKeepsItsSlotOnly(t *
 // TestHasPlannedSlotRow: only usable slot rows (instance + attendance) with a
 // planned booking count. Walk-in rows (is_unplanned) are no plan evidence — a
 // spontaneous drop-in also happens at schools that plan nothing — and the
-// incomplete rows the assembly skips must not count either.
+// incomplete rows the assembly skips must not count either. Cancelled
+// instances keep their assignment rows but are no evidence: a cancelled-only
+// booking was never a usable slot.
 func TestHasPlannedSlotRow(t *testing.T) {
 	date := timezone.NewDate(2026, 7, 15)
 	assert.False(t, hasPlannedSlotRow(nil))
@@ -591,6 +593,10 @@ func TestHasPlannedSlotRow(t *testing.T) {
 		Instance:   &schedule.ActivityInstance{Date: date, Title: "Spontan-AG"},
 		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent, IsUnplanned: true},
 	}}), "walk-in rows must not count as care-plan evidence")
+	assert.False(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{{
+		Instance:   &schedule.ActivityInstance{Date: date, Title: "Ausgefallene AG", Status: schedule.InstanceStatusCancelled},
+		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusExpected},
+	}}), "cancelled instances must not count as care-plan evidence")
 	assert.True(t, hasPlannedSlotRow([]*schedule.ScheduledInstanceRow{{
 		Instance:   &schedule.ActivityInstance{Date: date, Title: "Morgenbetreuung"},
 		Attendance: &schedule.InstanceStudent{Status: schedule.AttendanceStatusPresent},

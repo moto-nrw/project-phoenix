@@ -26,8 +26,9 @@ type StudentHistoryService interface {
 	GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*scheduleModels.ScheduledInstanceRow, error)
 
 	// HasPlannedSlotsInRange reports whether the tenant has any planned
-	// (non-walk-in) slot assignment within the inclusive date range — the
-	// tenant-level signal that the care plan is in use.
+	// (non-walk-in) slot assignment on a non-cancelled instance within the
+	// inclusive date range — the tenant-level signal that the care plan is
+	// in use.
 	HasPlannedSlotsInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error)
 
 	// RecordDataAccess writes a GDPR data-access log entry.
