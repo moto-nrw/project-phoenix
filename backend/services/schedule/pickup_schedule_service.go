@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // PickupScheduleService defines operations for managing student pickup schedules
@@ -40,6 +41,16 @@ type PickupScheduleService interface {
 	UpdateStudentPickupException(ctx context.Context, exception *schedule.StudentPickupException) error
 	DeleteStudentPickupException(ctx context.Context, exceptionID int64) error
 	DeleteAllStudentPickupExceptions(ctx context.Context, studentID int64) error
+
+	// CreateOrReclaimException creates a pickup exception for the day, or, when a
+	// row already exists, resolves the collision under the care-exception day lock:
+	// a guardian-authored row is reclaimed for staff (re-resolving the staff author
+	// via resolveStaffID), a staff-authored row raises ErrCareExceptionDayConflict.
+	CreateOrReclaimException(ctx context.Context, studentID int64, date timezone.Date, pickupTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*schedule.StudentPickupException, error)
+	// UpdateException updates an existing pickup exception under the day lock,
+	// applying the guardian-reclaim-on-staff-edit policy and merging the optional
+	// reason/pickup patch onto the locked row.
+	UpdateException(ctx context.Context, exceptionID, studentID int64, date timezone.Date, reason *string, pickupTime *time.Time, resolveStaffID func() (int64, error)) (*schedule.StudentPickupException, error)
 
 	// Note operations
 	GetStudentPickupNoteByID(ctx context.Context, noteID int64) (*schedule.StudentPickupNote, error)
@@ -94,6 +105,7 @@ type pickupScheduleService struct {
 	scheduleRepo  schedule.StudentPickupScheduleRepository
 	exceptionRepo schedule.StudentPickupExceptionRepository
 	noteRepo      schedule.StudentPickupNoteRepository
+	db            *bun.DB
 }
 
 // NewPickupScheduleService creates a new pickup schedule service
@@ -101,11 +113,13 @@ func NewPickupScheduleService(
 	scheduleRepo schedule.StudentPickupScheduleRepository,
 	exceptionRepo schedule.StudentPickupExceptionRepository,
 	noteRepo schedule.StudentPickupNoteRepository,
+	db *bun.DB,
 ) PickupScheduleService {
 	return &pickupScheduleService{
 		scheduleRepo:  scheduleRepo,
 		exceptionRepo: exceptionRepo,
 		noteRepo:      noteRepo,
+		db:            db,
 	}
 }
 
@@ -272,6 +286,124 @@ func (s *pickupScheduleService) UpdateStudentPickupException(ctx context.Context
 		return &ScheduleError{Op: opUpdateStudentPickupException, Err: err}
 	}
 	return nil
+}
+
+// CreateOrReclaimException creates a staff pickup exception for the day, or
+// resolves a collision with an already-existing row under the day lock. A
+// guardian-authored row is reclaimed for staff; a staff-authored row is refused
+// with ErrCareExceptionDayConflict so a concurrent staff edit is not silently
+// overwritten.
+func (s *pickupScheduleService) CreateOrReclaimException(ctx context.Context, studentID int64, date timezone.Date, pickupTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*schedule.StudentPickupException, error) {
+	var exception *schedule.StudentPickupException
+	tenantID := tenant.FromContext(ctx)
+	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := LockCareExceptionDay(txCtx, s.db, studentID, date); err != nil {
+			return err
+		}
+
+		existing, err := s.GetStudentPickupExceptionForDate(txCtx, studentID, date)
+		if err != nil {
+			return err
+		}
+		if existing != nil {
+			if existing.Source != schedule.ExceptionSourceGuardian {
+				return ErrCareExceptionDayConflict
+			}
+			sid, staffErr := resolveStaffID()
+			if staffErr != nil || sid == 0 {
+				return ErrCareExceptionStaffProfileRequired
+			}
+			updated := &schedule.StudentPickupException{
+				StudentID:     studentID,
+				ExceptionDate: date,
+				PickupTime:    pickupTime,
+				Reason:        reason,
+				Source:        schedule.ExceptionSourceStaff,
+				CreatedBy:     sid,
+			}
+			updated.ID = existing.ID
+			updated.CreatedAt = existing.CreatedAt
+			updated.SetTenantID(existing.TenantID)
+			exception = updated
+			return s.UpdateStudentPickupException(txCtx, updated)
+		}
+
+		exception = &schedule.StudentPickupException{
+			StudentID:     studentID,
+			ExceptionDate: date,
+			PickupTime:    pickupTime,
+			Reason:        reason,
+			Source:        schedule.ExceptionSourceStaff,
+			CreatedBy:     staffID,
+		}
+		return s.CreateStudentPickupException(txCtx, exception)
+	}); err != nil {
+		return nil, err
+	}
+	return exception, nil
+}
+
+// UpdateException updates an existing pickup exception under the day lock. A
+// staff edit takes ownership of the day: a guardian-authored row is reclaimed
+// (staff author stamped, guardian link dropped); staff-authored rows keep their
+// original author. The optional reason/pickup patch is merged onto the locked
+// row.
+func (s *pickupScheduleService) UpdateException(ctx context.Context, exceptionID, studentID int64, date timezone.Date, reason *string, pickupTime *time.Time, resolveStaffID func() (int64, error)) (*schedule.StudentPickupException, error) {
+	var exception *schedule.StudentPickupException
+	tenantID := tenant.FromContext(ctx)
+	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := LockCareExceptionDay(txCtx, s.db, studentID, date); err != nil {
+			return err
+		}
+		freshException, err := s.GetStudentPickupExceptionByID(txCtx, exceptionID)
+		if err != nil {
+			return err
+		}
+		if freshException == nil {
+			return ErrCareExceptionNotFound
+		}
+		if freshException.StudentID != studentID {
+			return ErrCareExceptionWrongStudent
+		}
+
+		source := freshException.Source
+		createdBy := freshException.CreatedBy
+		createdByGuardian := freshException.CreatedByGuardian
+		if freshException.Source == schedule.ExceptionSourceGuardian {
+			sid, staffErr := resolveStaffID()
+			if staffErr != nil || sid == 0 {
+				return ErrCareExceptionStaffProfileRequired
+			}
+			source = schedule.ExceptionSourceStaff
+			createdBy = sid
+			createdByGuardian = nil
+		}
+
+		updated := &schedule.StudentPickupException{
+			StudentID:         studentID,
+			ExceptionDate:     date,
+			Reason:            freshException.Reason,
+			Source:            source,
+			CreatedBy:         createdBy,
+			CreatedByGuardian: createdByGuardian,
+		}
+		updated.ID = exceptionID
+		updated.CreatedAt = freshException.CreatedAt
+		updated.SetTenantID(freshException.TenantID)
+
+		if reason != nil {
+			updated.Reason = reason
+		}
+		if pickupTime != nil {
+			updated.PickupTime = pickupTime
+		}
+
+		exception = updated
+		return s.UpdateStudentPickupException(txCtx, updated)
+	}); err != nil {
+		return nil, err
+	}
+	return exception, nil
 }
 
 // DeleteStudentPickupException deletes a pickup exception by ID
