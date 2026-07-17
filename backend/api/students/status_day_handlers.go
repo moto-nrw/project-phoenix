@@ -11,17 +11,13 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/active"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 const maxStudentStatusDayRangeDays = 31
-
-var errStudentStatusDayReassigned = errors.New("student reassigned out of caller scope")
 
 func (rs *Resource) getStudentStatusDays(w http.ResponseWriter, r *http.Request) {
 	student, ok := rs.parseAndGetStudent(w, r)
@@ -81,54 +77,8 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	now := time.Now()
-	today := timezone.TodayDate()
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
-		if err != nil {
-			return err
-		}
-		if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
-			return errStudentStatusDayReassigned
-		}
-
-		if err := rs.clearOtherStatusDaysForDates(ctx, fresh.ID, req.Status, dates, now); err != nil {
-			return err
-		}
-		notePtr := strutil.TrimPtrToNil(&req.Reason)
-		for _, date := range dates {
-			if err := rs.StudentStatusDayService.UpsertReported(ctx, &active.StudentStatusDay{
-				StudentID:  fresh.ID,
-				Date:       date,
-				Status:     req.Status,
-				ReportedAt: now,
-				Source:     active.StudentStatusSourcePlanned,
-				Note:       notePtr,
-			}); err != nil {
-				return err
-			}
-		}
-		if slices.Contains(dates, today) {
-			applyLiveStatusForToday(fresh, req.Status, now)
-			if err := rs.StudentService.Update(ctx, fresh); err != nil {
-				return err
-			}
-		}
-
-		studentID := student.ID
-		capturedTenantID := tenantID
-		tenant.RegisterAfterCommit(ctx, func() {
-			rs.broadcastStudentUpdated(capturedTenantID, studentID)
-			// Also wake the child's guardians so an open parents-app tab reflects
-			// the new/cleared absence (today_absent → the "Heute" pickup tile)
-			// live; the tenant-wide student_updated above never reaches the parent
-			// SSE stream (#1725).
-			rs.wakeChildGuardians(capturedTenantID, studentID)
-		})
-		return nil
-	}); err != nil {
-		if errors.Is(err, errStudentStatusDayReassigned) {
+	if err := rs.StudentStatusDayService.CreateForDates(r.Context(), rs.newStatusDayWriteContext(r, userPermissions), student.ID, req.Status, req.Reason, dates); err != nil {
+		if errors.Is(err, activeService.ErrStudentStatusDayReassigned) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
@@ -177,52 +127,8 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 	dates := datesBetweenInclusive(from, to)
 
 	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	now := time.Now()
-	today := timezone.TodayDate()
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		for _, studentID := range req.StudentIDs {
-			fresh, err := rs.StudentService.GetByIDForUpdate(ctx, studentID)
-			if err != nil {
-				return err
-			}
-			if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
-				return errStudentStatusDayReassigned
-			}
-			if err := rs.clearOtherStatusDaysForDates(ctx, fresh.ID, req.Status, dates, now); err != nil {
-				return err
-			}
-			notePtr := strutil.TrimPtrToNil(&req.Reason)
-			for _, date := range dates {
-				if err := rs.StudentStatusDayService.UpsertReported(ctx, &active.StudentStatusDay{
-					StudentID:  fresh.ID,
-					Date:       date,
-					Status:     req.Status,
-					ReportedAt: now,
-					Source:     active.StudentStatusSourcePlanned,
-					Note:       notePtr,
-				}); err != nil {
-					return err
-				}
-			}
-			if slices.Contains(dates, today) {
-				applyLiveStatusForToday(fresh, req.Status, now)
-				if err := rs.StudentService.Update(ctx, fresh); err != nil {
-					return err
-				}
-			}
-			studentID := fresh.ID
-			capturedTenantID := tenantID
-			tenant.RegisterAfterCommit(ctx, func() {
-				rs.broadcastStudentUpdated(capturedTenantID, studentID)
-				// Also wake the child's guardians so an open parents-app tab
-				// reflects the new/cleared absence live (#1725).
-				rs.wakeChildGuardians(capturedTenantID, studentID)
-			})
-		}
-		return nil
-	}); err != nil {
-		if errors.Is(err, errStudentStatusDayReassigned) {
+	if err := rs.StudentStatusDayService.BulkCreateForDates(r.Context(), rs.newStatusDayWriteContext(r, userPermissions), req.StudentIDs, req.Status, req.Reason, dates); err != nil {
+		if errors.Is(err, activeService.ErrStudentStatusDayReassigned) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
@@ -258,53 +164,12 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	now := time.Now()
-	today := timezone.TodayDate()
-	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		row, err := rs.StudentStatusDayService.GetActiveByID(ctx, statusDayID)
-		if err != nil {
-			return err
-		}
-		if row.StudentID != student.ID {
-			return sql.ErrNoRows
-		}
-
-		fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
-		if err != nil {
-			return err
-		}
-		if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
-			return errStudentStatusDayReassigned
-		}
-
-		if err := rs.StudentStatusDayService.MarkClearedByID(ctx, row.ID, now, active.StudentStatusSourceManual); err != nil {
-			return err
-		}
-		if row.Date == today {
-			clearLiveStatusForToday(fresh, row.Status)
-			if err := rs.StudentService.Update(ctx, fresh); err != nil {
-				return err
-			}
-		}
-
-		studentID := student.ID
-		capturedTenantID := tenantID
-		tenant.RegisterAfterCommit(ctx, func() {
-			rs.broadcastStudentUpdated(capturedTenantID, studentID)
-			// Also wake the child's guardians so an open parents-app tab reflects
-			// the new/cleared absence (today_absent → the "Heute" pickup tile)
-			// live; the tenant-wide student_updated above never reaches the parent
-			// SSE stream (#1725).
-			rs.wakeChildGuardians(capturedTenantID, studentID)
-		})
-		return nil
-	}); err != nil {
+	if err := rs.StudentStatusDayService.DeleteByID(r.Context(), rs.newStatusDayWriteContext(r, userPermissions), statusDayID, student.ID); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			renderError(w, r, common.ErrorNotFound(errors.New("student status day not found")))
 			return
 		}
-		if errors.Is(err, errStudentStatusDayReassigned) {
+		if errors.Is(err, activeService.ErrStudentStatusDayReassigned) {
 			renderError(w, r, common.ErrorForbidden(err))
 			return
 		}
@@ -313,6 +178,30 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 	}
 
 	common.Respond(w, r, http.StatusOK, map[string]bool{"deleted": true}, "Student status day deleted successfully")
+}
+
+// newStatusDayWriteContext bundles the collaborators the status-day write
+// service needs, keeping the JWT-permission decision (canUpdateStudent) and the
+// SSE fan-out at the HTTP boundary.
+func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []string) activeService.StatusDayWriteContext {
+	tenantID := tenant.FromContext(r.Context())
+	return activeService.StatusDayWriteContext{
+		DB:             rs.DB,
+		TenantID:       tenantID,
+		StudentService: rs.StudentService,
+		Authorize: func(ctx context.Context, student *users.Student) bool {
+			ok, _ := canUpdateStudent(ctx, userPermissions, student, rs.UserContextService)
+			return ok
+		},
+		AfterCommit: func(studentID int64) {
+			rs.broadcastStudentUpdated(tenantID, studentID)
+			// Also wake the child's guardians so an open parents-app tab reflects
+			// the new/cleared absence (today_absent → the "Heute" pickup tile)
+			// live; the tenant-wide student_updated above never reaches the parent
+			// SSE stream (#1725).
+			rs.wakeChildGuardians(tenantID, studentID)
+		},
+	}
 }
 
 func parseStatusDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
@@ -360,50 +249,10 @@ func datesBetweenInclusive(from, to timezone.Date) []timezone.Date {
 	return dates
 }
 
-func (rs *Resource) clearOtherStatusDaysForDates(ctx context.Context, studentID int64, status string, dates []timezone.Date, now time.Time) error {
-	for _, otherStatus := range active.StudentStatusDayStatusesExcept(status) {
-		if err := rs.StudentStatusDayService.MarkClearedForDates(ctx, studentID, otherStatus, dates, now, active.StudentStatusSourceManual); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 func applyLiveStatusForToday(student *users.Student, status string, now time.Time) {
-	trueVal := true
-	falseVal := false
-	switch status {
-	case active.StudentStatusDaySick:
-		student.Sick = &trueVal
-		student.SickSince = &now
-		student.Excused = &falseVal
-		student.ExcusedSince = nil
-	case active.StudentStatusDayExcused:
-		student.Excused = &trueVal
-		student.ExcusedSince = &now
-		student.Sick = &falseVal
-		student.SickSince = nil
-	case active.StudentStatusDayClassTrip:
-		student.Sick = &falseVal
-		student.SickSince = nil
-		student.Excused = &falseVal
-		student.ExcusedSince = nil
-	}
+	activeService.ApplyLiveStatusForToday(student, status, now)
 }
 
 func clearLiveStatusForToday(student *users.Student, status string) {
-	falseVal := false
-	switch status {
-	case active.StudentStatusDaySick:
-		student.Sick = &falseVal
-		student.SickSince = nil
-	case active.StudentStatusDayExcused:
-		student.Excused = &falseVal
-		student.ExcusedSince = nil
-	case active.StudentStatusDayClassTrip:
-		student.Sick = &falseVal
-		student.SickSince = nil
-		student.Excused = &falseVal
-		student.ExcusedSince = nil
-	}
+	activeService.ClearLiveStatusForToday(student, status)
 }

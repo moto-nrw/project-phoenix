@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/active"
+	activeService "github.com/moto-nrw/project-phoenix/services/active"
 )
 
 func newStudentStatusDayResponse(entry *active.StudentStatusDay) StudentStatusDayResponse {
@@ -101,29 +102,10 @@ func applyEffectiveStatusDays(response *StudentResponse, statusRows []*active.St
 		return
 	}
 
-	var sickRow *active.StudentStatusDay
-	var classTripRow *active.StudentStatusDay
-	var excusedRow *active.StudentStatusDay
-	for _, row := range statusRows {
-		switch row.Status {
-		case active.StudentStatusDaySick:
-			if sickRow == nil || row.ReportedAt.After(sickRow.ReportedAt) {
-				sickRow = row
-			}
-		case active.StudentStatusDayClassTrip:
-			if classTripRow == nil || row.ReportedAt.After(classTripRow.ReportedAt) {
-				classTripRow = row
-			}
-		case active.StudentStatusDayExcused:
-			if excusedRow == nil || row.ReportedAt.After(excusedRow.ReportedAt) {
-				excusedRow = row
-			}
-		}
-	}
-
-	if sickRow != nil {
+	eff := activeService.ResolveEffectiveStatus(statusRows)
+	if eff.Sick {
 		response.Sick = true
-		response.SickSince = statusDayTimePtr(sickRow.ReportedAt)
+		response.SickSince = eff.SickSince
 		response.ClassTrip = false
 		response.ClassTripSince = nil
 		response.Excused = false
@@ -131,9 +113,9 @@ func applyEffectiveStatusDays(response *StudentResponse, statusRows []*active.St
 		return
 	}
 
-	if classTripRow != nil {
+	if eff.ClassTrip {
 		response.ClassTrip = true
-		response.ClassTripSince = statusDayTimePtr(classTripRow.ReportedAt)
+		response.ClassTripSince = eff.ClassTripSince
 		response.Sick = false
 		response.SickSince = nil
 		response.Excused = false
@@ -141,12 +123,8 @@ func applyEffectiveStatusDays(response *StudentResponse, statusRows []*active.St
 		return
 	}
 
-	if excusedRow != nil && !response.Sick {
+	if eff.Excused && !response.Sick {
 		response.Excused = true
-		response.ExcusedSince = statusDayTimePtr(excusedRow.ReportedAt)
+		response.ExcusedSince = eff.ExcusedSince
 	}
-}
-
-func statusDayTimePtr(v time.Time) *time.Time {
-	return &v
 }
