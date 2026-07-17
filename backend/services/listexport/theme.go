@@ -67,6 +67,7 @@ const (
 	// Gap under the group heading — InfoCard's mb-4 (16px).
 	groupGap     = 12.0
 	pillRadius   = 7.0
+	pillRowH     = 18.0 // vertical advance between wrapped filter-pill rows
 	cellPadX     = 6.0
 	cellPadY     = 5.0
 	rowLineHt    = 10.0

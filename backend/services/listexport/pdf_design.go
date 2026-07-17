@@ -38,9 +38,21 @@ const (
 // its combining marks silently. Precomposed codepoints render correctly.
 func norms(s string) string { return norm.NFC.String(s) }
 
+// renderRow is one table row with every cell already wrapped to its
+// column width, so pagination, splitting, and drawing all work on the
+// same line counts and cannot disagree.
+type renderRow struct {
+	cells [][]string // per column: wrapped lines
+	lines int        // max line count across cells
+}
+
+func (rr renderRow) height() float64 {
+	return float64(rr.lines)*rowLineHt + 2*cellPadY
+}
+
 type designPage struct {
 	groupTitle string
-	rows       []Row
+	rows       []renderRow
 }
 
 // pageChrome is the shared page frame every designed PDF draws through:
@@ -58,6 +70,19 @@ type pageChrome struct {
 	generatedAt time.Time
 	filters     []string
 	footer      string
+
+	// Glyph fallback (see font_fallback.go): coverage of the primary and
+	// fallback fonts, plus the current font state so fallback runs can be
+	// drawn at the right size and the primary font restored afterwards.
+	primaryCov  *fontCoverage
+	fallbackCov *fontCoverage
+	curStyle    string
+	curSize     float64
+
+	// pillRows is the pre-computed filter-pill layout (computed once in
+	// newPageChrome): pills wrap onto additional rows instead of running
+	// off the right page edge, and bodyTop grows with the extra rows.
+	pillRows [][]string
 }
 
 func newPageChrome(landscape bool, title, subtitle string, generatedAt time.Time, filters []string, footer string) (*pageChrome, error) {
@@ -75,6 +100,18 @@ func newPageChrome(landscape bool, title, subtitle string, generatedAt time.Time
 	if err := pdf.AddTTFFontDataWithOption(fontFamily, interSemiBold, gopdf.TtfOption{Style: gopdf.Bold}); err != nil {
 		return nil, fmt.Errorf("embed Inter SemiBold: %w", err)
 	}
+	if err := pdf.AddTTFFontData(fallbackFontFamily, unifontRegular); err != nil {
+		return nil, fmt.Errorf("embed fallback font: %w", err)
+	}
+
+	primaryCov, err := newFontCoverage(interRegular)
+	if err != nil {
+		return nil, err
+	}
+	fallbackCov, err := newFontCoverage(unifontRegular)
+	if err != nil {
+		return nil, err
+	}
 
 	// One content-addressed holder per document: gopdf caches embedded
 	// images by holder ID (an MD5 of the bytes), so the logo XObject is
@@ -90,11 +127,65 @@ func newPageChrome(landscape bool, title, subtitle string, generatedAt time.Time
 		return nil, err
 	}
 
-	return &pageChrome{
+	c := &pageChrome{
 		pdf: pdf, w: size.W, h: size.H, logo: logo, bgTpl: bgTpl,
 		title: title, subtitle: subtitle, generatedAt: generatedAt,
 		filters: filters, footer: footer,
-	}, nil
+		primaryCov: primaryCov, fallbackCov: fallbackCov,
+	}
+	if err := c.layoutPills(); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// setFont sets the primary font and remembers style/size so fallback
+// runs (and post-fallback restores) use the same size.
+func (c *pageChrome) setFont(style string, size float64) error {
+	c.curStyle, c.curSize = style, size
+	return c.pdf.SetFont(fontFamily, style, size)
+}
+
+// applyFont switches between the primary font (current style/size) and
+// the fallback font (regular only — Unifont has a single weight).
+func (c *pageChrome) applyFont(fallback bool) error {
+	if fallback {
+		return c.pdf.SetFont(fallbackFontFamily, styleNormal, c.curSize)
+	}
+	return c.pdf.SetFont(fontFamily, c.curStyle, c.curSize)
+}
+
+// measure returns the drawn width of s: per-run widths under the font
+// each run will actually use, matching text() exactly.
+func (c *pageChrome) measure(s string) (float64, error) {
+	s = norms(s)
+	runs := splitFontRuns(s, c.primaryCov, c.fallbackCov)
+	// Fast path: pure primary-font text measures under the font already
+	// set — no state churn.
+	if len(runs) == 1 && !runs[0].fallback {
+		return c.pdf.MeasureTextWidth(runs[0].text)
+	}
+	total := 0.0
+	usedFallback := false
+	for _, run := range runs {
+		if run.fallback {
+			usedFallback = true
+		}
+		if err := c.applyFont(run.fallback); err != nil {
+			return 0, err
+		}
+		w, err := c.pdf.MeasureTextWidth(run.text)
+		if err != nil {
+			return 0, err
+		}
+		total += w
+	}
+	if usedFallback {
+		if err := c.applyFont(false); err != nil {
+			return 0, err
+		}
+	}
+	return total, nil
 }
 
 type designRenderer struct {
@@ -181,19 +272,35 @@ func pdfColumnWidths(cols []Column, total float64) []float64 {
 
 // bodyTop is the y where page content starts, below the header block;
 // bodyBottom is the last usable y above the footer.
-func (c *pageChrome) bodyTop() float64    { return pageMargin + 104 }
+func (c *pageChrome) bodyTop() float64 {
+	extra := 0.0
+	if n := len(c.pillRows); n > 1 {
+		extra = float64(n-1) * pillRowH
+	}
+	return pageMargin + 104 + extra
+}
 func (c *pageChrome) bodyBottom() float64 { return c.h - pageMargin - footerHeight }
 
-// paginate splits rows into pages. Group titles start a new page, mirroring
-// the current renderer's behaviour (each class gets its own sheet).
+// paginate wraps every cell, splits rows into pages, and slices rows
+// taller than a page body into continuation rows. Group titles start a
+// new page, mirroring the old renderer's behaviour (each class gets its
+// own sheet).
 func (r *designRenderer) paginate() ([]designPage, error) {
-	if err := r.pdf.SetFont(fontFamily, styleNormal, fontBody); err != nil {
+	if err := r.setFont(styleNormal, fontBody); err != nil {
 		return nil, err
 	}
 
 	// Rows that fit inside one card: the card's own chrome (padding, an
 	// optional group heading, the table header) comes off the top first.
 	avail := r.bodyBottom() - (r.bodyTop() + 2*cardPadY + fontGroup + groupGap + r.tableHeaderHeight())
+	// The tallest single row a fresh page can hold; taller rows are
+	// sliced so no content draws past the page body (they used to run
+	// through the footer and off the page).
+	maxRowLines := int((avail - 2*cellPadY) / rowLineHt)
+	if maxRowLines < 1 {
+		maxRowLines = 1
+	}
+
 	pages := []designPage{}
 	cur := designPage{}
 	used := 0.0
@@ -212,21 +319,64 @@ func (r *designRenderer) paginate() ([]designPage, error) {
 			used, wroteBody = 0, false
 			continue
 		}
-		hgt := r.rowHeight(row)
-		if used+hgt > avail && wroteBody {
-			pages = append(pages, cur)
-			cur = designPage{groupTitle: cur.groupTitle, rows: nil}
-			used, wroteBody = 0, false
+		for _, rr := range splitRenderRow(r.buildRow(row), maxRowLines) {
+			hgt := rr.height()
+			if used+hgt > avail && wroteBody {
+				pages = append(pages, cur)
+				cur = designPage{groupTitle: cur.groupTitle, rows: nil}
+				used, wroteBody = 0, false
+			}
+			cur.rows = append(cur.rows, rr)
+			used += hgt
+			wroteBody = true
 		}
-		cur.rows = append(cur.rows, row)
-		used += hgt
-		wroteBody = true
 	}
 	flush()
 	if len(pages) == 0 {
 		pages = []designPage{{}}
 	}
 	return pages, nil
+}
+
+// buildRow wraps every cell of row to its column width (body font).
+func (r *designRenderer) buildRow(row Row) renderRow {
+	rr := renderRow{cells: make([][]string, len(r.cols)), lines: 1}
+	for i, col := range r.cols {
+		lines := r.wrap(norms(row.Values[col.ID]), r.widths[i]-cellPadX)
+		rr.cells[i] = lines
+		if len(lines) > rr.lines {
+			rr.lines = len(lines)
+		}
+	}
+	return rr
+}
+
+// splitRenderRow slices a row taller than maxLines into continuation
+// rows of at most maxLines wrapped lines each — no line is dropped.
+func splitRenderRow(rr renderRow, maxLines int) []renderRow {
+	if rr.lines <= maxLines {
+		return []renderRow{rr}
+	}
+	out := []renderRow{}
+	for start := 0; start < rr.lines; start += maxLines {
+		part := renderRow{cells: make([][]string, len(rr.cells)), lines: 1}
+		for i, lines := range rr.cells {
+			end := start + maxLines
+			if end > len(lines) {
+				end = len(lines)
+			}
+			if start < len(lines) {
+				part.cells[i] = lines[start:end]
+			} else {
+				part.cells[i] = nil
+			}
+			if n := len(part.cells[i]); n > part.lines {
+				part.lines = n
+			}
+		}
+		out = append(out, part)
+	}
+	return out
 }
 
 // tableHeaderHeight wraps every column label to its column width (with
@@ -238,25 +388,21 @@ func (r *designRenderer) tableHeaderHeight() float64 {
 }
 
 func (r *designRenderer) headerLineCount() int {
-	_ = r.pdf.SetFont(fontFamily, styleNormal, fontTableHd)
+	// Measure with the header font, then RESTORE the caller's font —
+	// leaking fontTableHd into paginate() made body cells wrap narrower
+	// in the measuring pass than in the drawing pass (lost lines).
+	prevStyle, prevSize := r.curStyle, r.curSize
+	_ = r.setFont(styleNormal, fontTableHd)
 	maxLines := 1
 	for i, col := range r.cols {
 		if n := len(r.wrap(col.Label, r.widths[i]-cellPadX)); n > maxLines {
 			maxLines = n
 		}
 	}
-	return maxLines
-}
-
-func (r *designRenderer) rowHeight(row Row) float64 {
-	maxLines := 1
-	for i, col := range r.cols {
-		lines := r.wrap(norms(row.Values[col.ID]), r.widths[i]-cellPadX)
-		if len(lines) > maxLines {
-			maxLines = len(lines)
-		}
+	if prevSize > 0 {
+		_ = r.setFont(prevStyle, prevSize)
 	}
-	return float64(maxLines)*rowLineHt + 2*cellPadY
+	return maxLines
 }
 
 // wrap greedily breaks text to fit maxW, measured with the current font.
@@ -276,7 +422,7 @@ func (c *pageChrome) wrap(s string, maxW float64) []string {
 			if cur != "" {
 				try = cur + " " + part
 			}
-			if wdt, err := c.pdf.MeasureTextWidth(try); err == nil && wdt <= maxW {
+			if wdt, err := c.measure(try); err == nil && wdt <= maxW {
 				cur = try
 				continue
 			}
@@ -298,14 +444,14 @@ func (c *pageChrome) wrap(s string, maxW float64) []string {
 // splitLongWord chunks a word that alone exceeds maxW into rune slices
 // that fit; words that fit are returned unchanged.
 func (c *pageChrome) splitLongWord(word string, maxW float64) []string {
-	if wdt, err := c.pdf.MeasureTextWidth(word); err != nil || wdt <= maxW {
+	if wdt, err := c.measure(word); err != nil || wdt <= maxW {
 		return []string{word}
 	}
 	parts := []string{}
 	cur := ""
 	for _, r := range word {
 		try := cur + string(r)
-		if wdt, err := c.pdf.MeasureTextWidth(try); err == nil && wdt > maxW && cur != "" {
+		if wdt, err := c.measure(try); err == nil && wdt > maxW && cur != "" {
 			parts = append(parts, cur)
 			cur = string(r)
 			continue
@@ -322,9 +468,31 @@ func (c *pageChrome) setFill(col rgb)   { c.pdf.SetFillColor(col.R, col.G, col.B
 func (c *pageChrome) setStroke(col rgb) { c.pdf.SetStrokeColor(col.R, col.G, col.B) }
 func (c *pageChrome) setText(col rgb)   { c.pdf.SetTextColor(col.R, col.G, col.B) }
 
+// text draws s at (x, y), switching to the fallback font for runs the
+// primary font has no glyphs for — nothing is silently dropped.
 func (c *pageChrome) text(x, y float64, s string) error {
-	c.pdf.SetXY(x, y)
-	return c.pdf.Text(norms(s))
+	s = norms(s)
+	runs := splitFontRuns(s, c.primaryCov, c.fallbackCov)
+	if len(runs) == 1 && !runs[0].fallback {
+		c.pdf.SetXY(x, y)
+		return c.pdf.Text(runs[0].text)
+	}
+	cx := x
+	for _, run := range runs {
+		if err := c.applyFont(run.fallback); err != nil {
+			return err
+		}
+		c.pdf.SetXY(cx, y)
+		if err := c.pdf.Text(run.text); err != nil {
+			return err
+		}
+		w, err := c.pdf.MeasureTextWidth(run.text)
+		if err != nil {
+			return err
+		}
+		cx += w
+	}
+	return c.applyFont(false)
 }
 
 func (r *designRenderer) drawPage(p designPage, num int) error {
@@ -403,12 +571,12 @@ func (c *pageChrome) drawHeader() error {
 	}
 
 	// Generated-at, right aligned.
-	if err := c.pdf.SetFont(fontFamily, styleNormal, fontMeta); err != nil {
+	if err := c.setFont(styleNormal, fontMeta); err != nil {
 		return err
 	}
 	c.setText(colorMuted)
 	stamp := "Erstellt: " + GeneratedAtLabel(c.generatedAt)
-	sw, err := c.pdf.MeasureTextWidth(stamp)
+	sw, err := c.measure(stamp)
 	if err != nil {
 		return err
 	}
@@ -421,7 +589,7 @@ func (c *pageChrome) drawHeader() error {
 	// Eyebrow — only for two-part titles; single-part titles render the
 	// headline alone instead of repeating themselves.
 	if eyebrow := titleEyebrow(c.title); eyebrow != "" {
-		if err := c.pdf.SetFont(fontFamily, styleBold, fontEyebrow); err != nil {
+		if err := c.setFont(styleBold, fontEyebrow); err != nil {
 			return err
 		}
 		c.setText(colorEyebrow)
@@ -432,7 +600,7 @@ func (c *pageChrome) drawHeader() error {
 	}
 
 	// Title.
-	if err := c.pdf.SetFont(fontFamily, styleBold, fontTitle); err != nil {
+	if err := c.setFont(styleBold, fontTitle); err != nil {
 		return err
 	}
 	c.setText(colorInk)
@@ -443,7 +611,7 @@ func (c *pageChrome) drawHeader() error {
 
 	// Subtitle.
 	if c.subtitle != "" {
-		if err := c.pdf.SetFont(fontFamily, styleNormal, fontSubtitle); err != nil {
+		if err := c.setFont(styleNormal, fontSubtitle); err != nil {
 			return err
 		}
 		c.setText(colorMuted)
@@ -457,32 +625,71 @@ func (c *pageChrome) drawHeader() error {
 	return c.drawFilterPills(pageMargin, y)
 }
 
-func (c *pageChrome) drawFilterPills(x, y float64) error {
+// layoutPills packs the filter labels into rows that fit between the
+// page margins; a label too long for even a full row is pre-wrapped into
+// continuation chunks. Computed once — every page draws the same layout,
+// and bodyTop() reserves space for the extra rows.
+func (c *pageChrome) layoutPills() error {
 	if len(c.filters) == 0 {
 		return nil
 	}
-	if err := c.pdf.SetFont(fontFamily, styleNormal, fontMeta); err != nil {
+	if err := c.setFont(styleNormal, fontMeta); err != nil {
 		return err
 	}
-	cx := x
+	usable := c.w - 2*pageMargin
+	rows := [][]string{}
+	row := []string{}
+	rowW := 0.0
 	for _, f := range c.filters {
-		f = norms(f)
-		tw, err := c.pdf.MeasureTextWidth(f)
-		if err != nil {
-			return err
+		for _, chunk := range c.wrap(norms(f), usable-14) {
+			tw, err := c.measure(chunk)
+			if err != nil {
+				return err
+			}
+			pw := tw + 14
+			if rowW+pw > usable && len(row) > 0 {
+				rows = append(rows, row)
+				row, rowW = []string{}, 0
+			}
+			row = append(row, chunk)
+			rowW += pw + 6
 		}
-		pw := tw + 14
-		c.setFill(colorSurface)
-		c.setStroke(colorBorder)
-		c.pdf.SetLineWidth(0.5)
-		if err := c.pdf.Rectangle(cx, y-2, cx+pw, y+12, "FD", pillRadius, 8); err != nil {
-			return err
+	}
+	if len(row) > 0 {
+		rows = append(rows, row)
+	}
+	c.pillRows = rows
+	return nil
+}
+
+func (c *pageChrome) drawFilterPills(x, y float64) error {
+	if len(c.pillRows) == 0 {
+		return nil
+	}
+	if err := c.setFont(styleNormal, fontMeta); err != nil {
+		return err
+	}
+	for _, row := range c.pillRows {
+		cx := x
+		for _, label := range row {
+			tw, err := c.measure(label)
+			if err != nil {
+				return err
+			}
+			pw := tw + 14
+			c.setFill(colorSurface)
+			c.setStroke(colorBorder)
+			c.pdf.SetLineWidth(0.5)
+			if err := c.pdf.Rectangle(cx, y-2, cx+pw, y+12, "FD", pillRadius, 8); err != nil {
+				return err
+			}
+			c.setText(colorMuted)
+			if err := c.text(cx+7, y+8, label); err != nil {
+				return err
+			}
+			cx += pw + 6
 		}
-		c.setText(colorMuted)
-		if err := c.text(cx+7, y+8, f); err != nil {
-			return err
-		}
-		cx += pw + 6
+		y += pillRowH
 	}
 	return nil
 }
@@ -497,7 +704,7 @@ func (r *designRenderer) drawCard(p designPage) error {
 	// a mostly-empty sheet.
 	// rowHeight measures with the *current* font — pin it to the body font
 	// before measuring, or the pill font (set in drawHeader) is used.
-	if err := r.pdf.SetFont(fontFamily, styleNormal, fontBody); err != nil {
+	if err := r.setFont(styleNormal, fontBody); err != nil {
 		return err
 	}
 	content := 2*cardPadY + r.tableHeaderHeight()
@@ -505,7 +712,7 @@ func (r *designRenderer) drawCard(p designPage) error {
 		content += fontGroup + groupGap
 	}
 	for _, row := range p.rows {
-		content += r.rowHeight(row)
+		content += row.height()
 	}
 	bottom := top + content
 	if maxY := r.bodyBottom(); bottom > maxY {
@@ -528,7 +735,7 @@ func (r *designRenderer) drawCard(p designPage) error {
 	// text-gray-900" with an mb-4 gap under it. Plain text, no filled band
 	// (the app never fills one).
 	if p.groupTitle != "" {
-		if err := r.pdf.SetFont(fontFamily, styleBold, fontGroup); err != nil {
+		if err := r.setFont(styleBold, fontGroup); err != nil {
 			return err
 		}
 		r.setText(colorInk)
@@ -542,7 +749,7 @@ func (r *designRenderer) drawCard(p designPage) error {
 	// "border-b border-gray-100 text-xs font-medium text-gray-500".
 	// Labels wrap to their column width, top-aligned in the band.
 	hh := r.tableHeaderHeight()
-	if err := r.pdf.SetFont(fontFamily, styleNormal, fontTableHd); err != nil {
+	if err := r.setFont(styleNormal, fontTableHd); err != nil {
 		return err
 	}
 	r.setText(colorHeaderText)
@@ -563,17 +770,15 @@ func (r *designRenderer) drawCard(p designPage) error {
 	r.pdf.Line(textLeft, y, textRight, y)
 
 	// Body rows.
-	if err := r.pdf.SetFont(fontFamily, styleNormal, fontBody); err != nil {
+	if err := r.setFont(styleNormal, fontBody); err != nil {
 		return err
 	}
 	for _, row := range p.rows {
-		rh := r.rowHeight(row)
 		cx = textLeft
 		r.setText(colorBody)
-		for i, col := range r.cols {
-			lines := r.wrap(norms(row.Values[col.ID]), r.widths[i]-cellPadX)
+		for i := range r.cols {
 			ty := y + cellPadY + rowLineHt - 2
-			for _, ln := range lines {
+			for _, ln := range row.cells[i] {
 				if err := r.text(cx, ty, ln); err != nil {
 					return err
 				}
@@ -581,7 +786,7 @@ func (r *designRenderer) drawCard(p designPage) error {
 			}
 			cx += r.widths[i]
 		}
-		y += rh
+		y += row.height()
 		r.setStroke(colorRowLine)
 		r.pdf.SetLineWidth(0.5)
 		r.pdf.Line(textLeft, y, textRight, y)
@@ -590,7 +795,7 @@ func (r *designRenderer) drawCard(p designPage) error {
 }
 
 func (c *pageChrome) drawFooter(num, total int) error {
-	if err := c.pdf.SetFont(fontFamily, styleNormal, fontFooter); err != nil {
+	if err := c.setFont(styleNormal, fontFooter); err != nil {
 		return err
 	}
 	c.setText(colorMuted)
@@ -600,7 +805,7 @@ func (c *pageChrome) drawFooter(num, total int) error {
 	// dropped doc.Footer entirely — this path honours it (as
 	// xlsx.go/docx.go already do).
 	if c.footer != "" {
-		fw, err := c.pdf.MeasureTextWidth(norms(c.footer))
+		fw, err := c.measure(norms(c.footer))
 		if err != nil {
 			return err
 		}
@@ -610,7 +815,7 @@ func (c *pageChrome) drawFooter(num, total int) error {
 	}
 
 	page := fmt.Sprintf("Seite %d von %d", num, total)
-	pw, err := c.pdf.MeasureTextWidth(page)
+	pw, err := c.measure(page)
 	if err != nil {
 		return err
 	}

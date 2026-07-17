@@ -137,8 +137,8 @@ func TestDesignedPDFWrapKeepsAllWords(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newDesignRenderer: %v", err)
 	}
-	if err := r.pdf.SetFont(fontFamily, styleNormal, fontBody); err != nil {
-		t.Fatalf("SetFont: %v", err)
+	if err := r.setFont(styleNormal, fontBody); err != nil {
+		t.Fatalf("setFont: %v", err)
 	}
 
 	const text = "Mo, Di, Mi, Do, Fr und ein sehr langer Zusatzhinweis"
@@ -205,5 +205,140 @@ func TestNormsFoldsNFDToNFC(t *testing.T) {
 	}
 	if norms("M\u00fcller") != "M\u00fcller" {
 		t.Fatal("norms must be a no-op on already-NFC input")
+	}
+}
+
+// P1 (review): names in scripts Inter lacks (Arabic, CJK, …) must reach
+// the fallback font instead of being silently dropped by gopdf; runes no
+// embedded font covers become a visible U+FFFD.
+func TestDesignedPDFFallbackFontKeepsForeignNames(t *testing.T) {
+	r, err := newDesignRenderer(designGroupedDocument())
+	if err != nil {
+		t.Fatalf("newDesignRenderer: %v", err)
+	}
+
+	runs := splitFontRuns("Ali \u0645\u062d\u0645\u062f Wang \u738b", r.primaryCov, r.fallbackCov)
+	var gotFallback, gotPrimary bool
+	for _, run := range runs {
+		if run.fallback {
+			gotFallback = true
+			continue
+		}
+		gotPrimary = true
+	}
+	if !gotFallback || !gotPrimary {
+		t.Fatalf("expected mixed primary/fallback runs, got %+v", runs)
+	}
+
+	// A rune neither font covers (emoji, outside the BMP) must surface as
+	// U+FFFD, never vanish.
+	runs = splitFontRuns("Note \U0001F600", r.primaryCov, r.fallbackCov)
+	var joined string
+	for _, run := range runs {
+		joined += run.text
+	}
+	if !strings.ContainsRune(joined, '\uFFFD') {
+		t.Fatalf("uncovered rune not substituted visibly: %q", joined)
+	}
+
+	// End to end: an entirely Arabic name renders without error and the
+	// fallback font is embedded in the output.
+	doc := designGroupedDocument()
+	doc.Rows = []Row{{Values: map[ColumnID]string{ColumnName: "\u0645\u062d\u0645\u062f \u0627\u0644\u0623\u0645\u064a\u0646", ColumnSchoolClass: "1a"}}}
+	file, err := NewService().Render(doc, FormatPDF, "fallback")
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	if !bytes.Contains(file.Data, []byte("/BaseFont /moto-fallback")) {
+		t.Fatal("expected the fallback font to be embedded for the Arabic name")
+	}
+}
+
+// P1 (review): a single row taller than the page body must be sliced into
+// continuation rows — it used to draw straight through the footer and off
+// the page, silently losing note text.
+func TestDesignedPDFOversizedRowSplits(t *testing.T) {
+	longNote := strings.TrimSpace(strings.Repeat("sehr lange Tagesnotiz mit vielen Details ", 200))
+	doc := designGroupedDocument()
+	doc.Rows = []Row{{Values: map[ColumnID]string{
+		ColumnName:        "Kind, Eines",
+		ColumnSchoolClass: longNote,
+	}}}
+
+	r, err := newDesignRenderer(doc)
+	if err != nil {
+		t.Fatalf("newDesignRenderer: %v", err)
+	}
+	pages, err := r.paginate()
+	if err != nil {
+		t.Fatalf("paginate: %v", err)
+	}
+	if len(pages) < 2 {
+		t.Fatalf("oversized row must spill onto continuation pages, got %d page(s)", len(pages))
+	}
+
+	// No slice may exceed what a page body can hold, and no wrapped line
+	// may be lost across the slices.
+	if err := r.setFont(styleNormal, fontBody); err != nil {
+		t.Fatal(err)
+	}
+	full := r.buildRow(doc.Rows[0])
+	avail := r.bodyBottom() - (r.bodyTop() + 2*cardPadY + fontGroup + groupGap + r.tableHeaderHeight())
+	maxLines := int((avail - 2*cellPadY) / rowLineHt)
+	gotLines := 0
+	for _, p := range pages {
+		for _, rr := range p.rows {
+			if rr.lines > maxLines {
+				t.Fatalf("row slice has %d lines, page body holds %d", rr.lines, maxLines)
+			}
+			gotLines += len(rr.cells[1])
+		}
+	}
+	if wantLines := len(full.cells[1]); gotLines != wantLines {
+		t.Fatalf("lines across slices = %d, want %d (content lost)", gotLines, wantLines)
+	}
+}
+
+// P2 (review): filter pills wrap onto additional header rows instead of
+// running past the right page edge, and the body start moves down to make
+// room.
+func TestDesignedPDFFilterPillsWrapWithinPage(t *testing.T) {
+	doc := designGroupedDocument()
+	for i := 0; i < 12; i++ {
+		doc.Filters = append(doc.Filters, fmt.Sprintf("Betreuungsangebot: OGS Ganztag Variante %d", i))
+	}
+	r, err := newDesignRenderer(doc)
+	if err != nil {
+		t.Fatalf("newDesignRenderer: %v", err)
+	}
+	if len(r.pillRows) < 2 {
+		t.Fatalf("expected pills to wrap onto multiple rows, got %d", len(r.pillRows))
+	}
+
+	if err := r.setFont(styleNormal, fontMeta); err != nil {
+		t.Fatal(err)
+	}
+	usable := r.w - 2*pageMargin
+	for i, row := range r.pillRows {
+		rowW := 0.0
+		for _, label := range row {
+			tw, err := r.measure(label)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rowW += tw + 14 + 6
+		}
+		if rowW-6 > usable {
+			t.Fatalf("pill row %d width %.1f exceeds usable %.1f", i, rowW-6, usable)
+		}
+	}
+
+	// The card must start below the extra pill rows.
+	plain, err := newDesignRenderer(designGroupedDocument())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.bodyTop() <= plain.bodyTop() {
+		t.Fatalf("bodyTop = %.1f, want it below the single-row default %.1f", r.bodyTop(), plain.bodyTop())
 	}
 }

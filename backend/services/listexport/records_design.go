@@ -91,7 +91,7 @@ func (l *recordLayout) run() error {
 
 	groups := recordDocumentGroups(l.doc)
 	if recordGroupCount(groups) == 0 {
-		if err := l.pdf.SetFont(fontFamily, styleNormal, fontBody); err != nil {
+		if err := l.setFont(styleNormal, fontBody); err != nil {
 			return err
 		}
 		l.setText(colorMuted)
@@ -171,7 +171,7 @@ func (l *recordLayout) writeGroupTitle(title string) error {
 		return err
 	}
 	if l.draw {
-		if err := l.pdf.SetFont(fontFamily, styleBold, fontGroup); err != nil {
+		if err := l.setFont(styleBold, fontGroup); err != nil {
 			return err
 		}
 		l.setText(colorInk)
@@ -235,7 +235,7 @@ func (l *recordLayout) writeRecordContent(rec Record, left float64, paged bool) 
 
 	// Heading.
 	if l.draw {
-		if err := l.pdf.SetFont(fontFamily, styleBold, recTitleSize); err != nil {
+		if err := l.setFont(styleBold, recTitleSize); err != nil {
 			return err
 		}
 		l.setText(colorInk)
@@ -279,7 +279,7 @@ func (l *recordLayout) writeSub(sub SubRecord, left float64, paged bool) error {
 	}
 	l.y += recSubTopGap
 	if l.draw {
-		if err := l.pdf.SetFont(fontFamily, styleBold, recSubTitleSize); err != nil {
+		if err := l.setFont(styleBold, recSubTitleSize); err != nil {
 			return err
 		}
 		l.setText(colorInk)
@@ -304,7 +304,7 @@ func (l *recordLayout) writeField(x float64, f Field, paged bool) error {
 		return nil
 	}
 	if l.draw {
-		if err := l.pdf.SetFont(fontFamily, styleNormal, fontBody); err != nil {
+		if err := l.setFont(styleNormal, fontBody); err != nil {
 			return err
 		}
 		l.setText(colorBody)
@@ -329,7 +329,7 @@ func (l *recordLayout) writeField(x float64, f Field, paged bool) error {
 func (l *recordLayout) wrapMeasured(s string, width float64) []string {
 	// SetFont only errors on unknown family/style; the family is embedded
 	// in newPageChrome, so the error cannot fire here.
-	_ = l.pdf.SetFont(fontFamily, styleNormal, fontBody)
+	_ = l.setFont(styleNormal, fontBody)
 	return l.wrap(norms(s), width)
 }
 
