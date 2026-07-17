@@ -26,7 +26,13 @@ import type { Student, Group, Room } from "~/lib/api";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { DataTableStatusBadge } from "~/components/ui/data-table";
-import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
+import {
+  berlinTodayISO,
+  formatDate,
+  isValidISODate,
+  parseISODate,
+  toISODate,
+} from "~/lib/date-helpers";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
@@ -142,10 +148,7 @@ const DAY_STATUS_FILTER_OPTIONS_OTHER_DAY: Array<{
 const DATE_QUERY_PARAM = "date";
 
 function normalizeDateParam(value: string | null): string | null {
-  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
-  // parseISODate → toISODate round-trip rejects rolled-over values like
-  // "2026-99-99" that match the pattern but are not a real calendar day.
-  return toISODate(parseISODate(value)) === value ? value : null;
+  return value && isValidISODate(value) ? value : null;
 }
 
 const SORT_OPTIONS: Array<{ value: SortMode; label: string }> = [
@@ -766,12 +769,14 @@ function SearchPageContent() {
   const [isExportOpen, setIsExportOpen] = useState(false);
 
   // Planning date (#1939). Always read from the real URL, never from the
-  // stored-filter fallback, and defaulting to the school-local today.
-  const [selectedDate, setSelectedDate] = useState<string>(
-    () =>
-      normalizeDateParam(searchParams.get(DATE_QUERY_PARAM)) ??
-      toISODate(new Date()),
-  );
+  // stored-filter fallback. null = "follow the school-local today": the
+  // default view tracks the Berlin day as it advances past midnight, while an
+  // explicitly chosen date stays fixed. A URL date naming today collapses to
+  // the implicit default — that is also what updateSelectedDate writes.
+  const [explicitDate, setExplicitDate] = useState<string | null>(() => {
+    const fromUrl = normalizeDateParam(searchParams.get(DATE_QUERY_PARAM));
+    return fromUrl && fromUrl !== berlinTodayISO() ? fromUrl : null;
+  });
 
   const updateUrlParams = useCallback(
     (
@@ -902,8 +907,11 @@ function SearchPageContent() {
   const now = useMinuteClock();
 
   // Planning-date context (#1939). todayIso derives from the minute clock so
-  // the "Heute" anchor rolls over at local midnight without a reload.
-  const todayIso = toISODate(now);
+  // the "Heute" anchor rolls over at midnight without a reload — and it is
+  // the SCHOOL-local (Berlin) day, matching the backend's default, not the
+  // browser's timezone.
+  const todayIso = berlinTodayISO(now);
+  const selectedDate = explicitDate ?? todayIso;
   const isToday = selectedDate === todayIso;
   const tomorrowIso = useMemo(() => {
     const tomorrow = parseISODate(todayIso);
@@ -920,8 +928,10 @@ function SearchPageContent() {
 
   const updateSelectedDate = useCallback(
     (value: string) => {
-      setSelectedDate(value);
-      updateUrlParams({ date: value === toISODate(new Date()) ? "" : value });
+      // Picking the current Berlin day means "follow today", not a fixed date.
+      const explicit = value === berlinTodayISO() ? null : value;
+      setExplicitDate(explicit);
+      updateUrlParams({ date: explicit ?? "" });
     },
     [updateUrlParams],
   );
@@ -1045,7 +1055,12 @@ function SearchPageContent() {
   // applied server-side in the same in-memory pass as day_status, so the
   // backend returns correctly-filtered and correctly-counted pages. The cache
   // key just has to vary with every filter value so SWR refetches on change.
-  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedSchoolClass}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${pickupStatusFilter}`;
+  // The key carries selectedDate AND the today/non-today mode: when an
+  // explicitly selected future date becomes today at midnight, selectedDate
+  // is unchanged but the request semantics flip (date omitted, live
+  // attendance included) — without the mode in the key SWR would keep
+  // serving the stale future-planning response under live controls (#1939).
+  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedSchoolClass}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${isToday ? "today" : "planning"}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${pickupStatusFilter}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -1237,7 +1252,7 @@ function SearchPageContent() {
     setGroupMode("none");
     setSelectedRoomId("");
     setSelectedRoomName("");
-    setSelectedDate(toISODate(new Date()));
+    setExplicitDate(null);
     updateUrlParams({
       ...Object.fromEntries(FILTER_QUERY_PARAMS.map((key) => [key, ""])),
       [DATE_QUERY_PARAM]: "",

@@ -14,7 +14,7 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { parseISODate, toISODate } from "~/lib/date-helpers";
+import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 
 const { mockGetStudents, mockUseSWRAuth, mockUseImmutableSWR, mockPush } =
   vi.hoisted(() => ({
@@ -131,8 +131,11 @@ vi.mock("~/lib/student-helpers", () => ({
   getSchoolYear: () => "1",
 }));
 
+// Mutable clock so tests can advance the page across midnight via rerender.
+let clockNow = new Date();
+
 vi.mock("~/lib/pickup-helpers", () => ({
-  useMinuteClock: () => new Date(),
+  useMinuteClock: () => clockNow,
 }));
 
 vi.mock("~/lib/active-api", () => ({
@@ -201,8 +204,10 @@ vi.mock("~/components/students/student-card", () => ({
 
 import StudentSearchPage from "./page";
 
+// Anchored on the Berlin day — the page's "today" — so the tests stay stable
+// when the runner's timezone disagrees with Europe/Berlin around midnight.
 function isoDaysFromToday(days: number): string {
-  const date = parseISODate(toISODate(new Date()));
+  const date = parseISODate(berlinTodayISO());
   date.setDate(date.getDate() + days);
   return toISODate(date);
 }
@@ -217,10 +222,21 @@ const mockStudent = {
   day_planning_status: "comes_today",
 };
 
+/**
+ * An instant whose Berlin calendar day is `days` after today, independent of
+ * the runner's timezone: local midnight of the target day plus 12 hours is
+ * within the same Berlin day for any runner within UTC±10.
+ */
+function clockAtBerlinDay(days: number): Date {
+  const target = parseISODate(isoDaysFromToday(days));
+  return new Date(target.getTime() + 12 * 3600 * 1000);
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   currentSearch = new URLSearchParams();
   localStorage.clear();
+  clockNow = new Date();
 
   mockUseImmutableSWR.mockReturnValue({
     data: [],
@@ -341,5 +357,57 @@ describe("StudentSearchPage — planning date (#1939)", () => {
     expect(target.startsWith("/students/7?from=")).toBe(true);
     const fromParam = decodeURIComponent(target.split("from=")[1] ?? "");
     expect(fromParam).toContain(`date=${tomorrow}`);
+  });
+
+  it("keeps following today when the implicit view crosses midnight", async () => {
+    const { rerender } = render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+    });
+
+    clockNow = clockAtBerlinDay(1);
+    rerender(<StudentSearchPage />);
+
+    // Still the implicit today view: no date sent, no planning hint, live badge.
+    const calls = mockGetStudents.mock.calls.map(
+      (c) => c[0] as Record<string, unknown>,
+    );
+    expect(calls.every((c) => c.date === undefined)).toBe(true);
+    expect(
+      screen.queryByText(/Geplante Anwesenheit für/),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("presence-badge")).toBeInTheDocument();
+  });
+
+  it("switches to live semantics when an explicit future date becomes today", async () => {
+    const tomorrow = isoDaysFromToday(1);
+    currentSearch = new URLSearchParams({ date: tomorrow });
+
+    const { rerender } = render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("planning-badge")).toBeInTheDocument();
+    });
+    expect(
+      mockGetStudents.mock.calls.some(
+        (c) => (c[0] as Record<string, unknown>).date === tomorrow,
+      ),
+    ).toBe(true);
+
+    clockNow = clockAtBerlinDay(1);
+    rerender(<StudentSearchPage />);
+
+    // The selected day is now today: a fresh request without the date param
+    // (today semantics) and the live presence badge replace the planning view.
+    await waitFor(() => {
+      expect(
+        mockGetStudents.mock.calls.some(
+          (c) => (c[0] as Record<string, unknown>).date === undefined,
+        ),
+      ).toBe(true);
+    });
+    expect(screen.getByTestId("presence-badge")).toBeInTheDocument();
+    expect(screen.queryByTestId("planning-badge")).not.toBeInTheDocument();
   });
 });
