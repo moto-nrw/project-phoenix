@@ -70,7 +70,6 @@ var handlerComplexityAllowlist = map[string]int{
 	"api/staff/schedule_handlers.go:(*Resource).buildScheduleResponse":                         19,
 	"api/staff/staff_handlers.go:(*Resource).getStaff":                                         19,
 	"api/staff/substitution_handlers.go:(*Resource).getStaffByRole":                            17,
-	"api/staff/schedule_handlers.go:(*Resource).updateSchedule":                                20,
 	"api/students/student_handlers.go:(*Resource).createStudent":                               35,
 	"api/students/student_handlers.go:(*Resource).fetchStudentsForList":                        53,
 	"api/students/student_handlers.go:(*Resource).updateStudent":                               41,
