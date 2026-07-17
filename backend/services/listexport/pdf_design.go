@@ -12,8 +12,7 @@ import (
 	"bytes"
 	_ "embed"
 	"fmt"
-	"image"
-	_ "image/png"
+	"io"
 	"strings"
 
 	"github.com/signintech/gopdf"
@@ -52,6 +51,8 @@ type designRenderer struct {
 	widths []float64
 	w, h   float64
 	total  int
+	logo   gopdf.ImageHolder
+	bgTpl  int
 }
 
 // newDesignRenderer prepares a renderer with fonts loaded but nothing
@@ -72,8 +73,22 @@ func newDesignRenderer(doc Document) (*designRenderer, error) {
 		return nil, fmt.Errorf("embed Inter SemiBold: %w", err)
 	}
 
+	// One content-addressed holder per document: gopdf caches embedded
+	// images by holder ID (an MD5 of the bytes), so the logo XObject is
+	// written once and referenced from every page instead of being
+	// re-embedded per page (~logo-size bytes saved per page).
+	logo, err := gopdf.ImageHolderByBytes(motoLogoPNG)
+	if err != nil {
+		return nil, fmt.Errorf("logo holder: %w", err)
+	}
+
 	w, h := gopdf.PageSizeA4Landscape.W, gopdf.PageSizeA4Landscape.H
-	r := &designRenderer{pdf: pdf, doc: doc, cols: cols, w: w, h: h}
+	bgTpl, err := importDotBackground(pdf, w, h)
+	if err != nil {
+		return nil, err
+	}
+
+	r := &designRenderer{pdf: pdf, doc: doc, cols: cols, w: w, h: h, logo: logo, bgTpl: bgTpl}
 	r.widths = pdfColumnWidths(cols, w-2*pageMargin-2*cardPadX)
 	return r, nil
 }
@@ -221,33 +236,62 @@ func (r *designRenderer) drawPage(p designPage, num int) error {
 	return r.drawFooter(num)
 }
 
-// drawBackground paints gray-50 + the guide's dot grid as vector circles —
-// the same construction applyGuidePdfBackground uses in the guide pipeline.
-func (r *designRenderer) drawBackground() error {
-	r.setFill(colorPageBg)
-	r.pdf.RectFromUpperLeftWithStyle(0, 0, r.w, r.h, "F")
+// dotBackgroundPDF renders the page background (gray-50 + the guide's dot
+// grid) once, as a standalone single-page PDF held in memory. The real
+// document imports that page as a Form XObject and stamps it per page —
+// thousands of unique bezier circles compress terribly (~170 KB per page
+// when drawn inline), a referenced template costs that once per document.
+func dotBackgroundPDF(w, h float64) ([]byte, error) {
+	pdf := &gopdf.GoPdf{}
+	pdf.Start(gopdf.Config{PageSize: gopdf.Rect{W: w, H: h}})
+	pdf.AddPage()
+
+	pdf.SetFillColor(colorPageBg.R, colorPageBg.G, colorPageBg.B)
+	pdf.RectFromUpperLeftWithStyle(0, 0, w, h, "F")
 
 	// gopdf's Oval strokes only (its cache emits a bezier path ending in
 	// "S"), so a filled dot is drawn as a stroked circle of half the radius
 	// with the line width set to the full radius: the stroke then covers
 	// r=0..dotRadiusPt, giving a solid disc.
-	r.setStroke(colorDot)
-	r.pdf.SetLineWidth(dotRadiusPt)
+	pdf.SetStrokeColor(colorDot.R, colorDot.G, colorDot.B)
+	pdf.SetLineWidth(dotRadiusPt)
 	half := dotRadiusPt / 2
-	for x := dotOffsetPt; x < r.w; x += dotSpacingPt {
-		for y := dotOffsetPt; y < r.h; y += dotSpacingPt {
-			r.pdf.Oval(x-half, y-half, x+half, y+half)
+	for x := dotOffsetPt; x < w; x += dotSpacingPt {
+		for y := dotOffsetPt; y < h; y += dotSpacingPt {
+			pdf.Oval(x-half, y-half, x+half, y+half)
 		}
 	}
+
+	var buf bytes.Buffer
+	if _, err := pdf.WriteTo(&buf); err != nil {
+		return nil, fmt.Errorf("render dot background: %w", err)
+	}
+	return buf.Bytes(), nil
+}
+
+// importDotBackground registers the shared background template on pdf.
+func importDotBackground(pdf *gopdf.GoPdf, w, h float64) (int, error) {
+	bg, err := dotBackgroundPDF(w, h)
+	if err != nil {
+		return 0, err
+	}
+	rs := io.ReadSeeker(bytes.NewReader(bg))
+	// gofpdi template IDs are zero-based — the first import returns 0,
+	// negative values signal failure.
+	tpl := pdf.ImportPageStream(&rs, 1, "/MediaBox")
+	if tpl < 0 {
+		return 0, fmt.Errorf("import dot background template failed")
+	}
+	return tpl, nil
+}
+
+func (r *designRenderer) drawBackground() error {
+	r.pdf.UseImportedTemplate(r.bgTpl, 0, 0, r.w, r.h)
 	return nil
 }
 
 func (r *designRenderer) drawHeader() error {
-	img, _, err := image.Decode(bytes.NewReader(motoLogoPNG))
-	if err != nil {
-		return fmt.Errorf("decode logo: %w", err)
-	}
-	if err := r.pdf.ImageFrom(img, pageMargin, pageMargin-6, &gopdf.Rect{
+	if err := r.pdf.ImageByHolder(r.logo, pageMargin, pageMargin-6, &gopdf.Rect{
 		W: logoHeight * logoAspect, H: logoHeight,
 	}); err != nil {
 		return fmt.Errorf("draw logo: %w", err)

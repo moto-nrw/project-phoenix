@@ -71,6 +71,6 @@ const (
 	cellPadY     = 5.0
 	rowLineHt    = 10.0
 	logoHeight   = 20.0
-	logoAspect   = 3.0 // moto-logo-mit-schriftzug.png is ~1200x400
+	logoAspect   = 480.0 / 168.0 // assets/moto-logo.png pixel ratio
 	footerHeight = 26.0
 )
