@@ -63,13 +63,24 @@ export async function revokeOperatorInvitation(id: string): Promise<void> {
 
 // --- Public (unauthenticated) API functions ---
 
-export async function validateOperatorInvitation(
+export async function establishOperatorInvitationSession(
   token: string,
-): Promise<OperatorInvitationValidation> {
-  const response = await fetch("/api/operator/auth/invitations/validate", {
+): Promise<void> {
+  const response = await fetch("/api/operator/auth/invitations/session", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ token }),
+  });
+  if (!response.ok) {
+    throw new Error("Einladungstoken konnte nicht geschützt werden");
+  }
+}
+
+export async function validateOperatorInvitation(): Promise<OperatorInvitationValidation> {
+  const response = await fetch("/api/operator/auth/invitations/validate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({}),
   });
 
   if (!response.ok) {
@@ -95,7 +106,6 @@ export async function validateOperatorInvitation(
 }
 
 export async function acceptOperatorInvitation(
-  token: string,
   data: AcceptOperatorInvitationRequest,
 ): Promise<void> {
   // Convert camelCase frontend shape to the snake_case the backend expects.
@@ -103,7 +113,6 @@ export async function acceptOperatorInvitation(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      token,
       display_name: data.displayName,
       password: data.password,
       confirm_password: data.confirmPassword,

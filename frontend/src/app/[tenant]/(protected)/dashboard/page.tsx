@@ -1,9 +1,10 @@
 "use client";
 
 import { createLogger } from "~/lib/logger";
-import { useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import Link from "next/link";
 import { UserContextProvider } from "~/lib/usercontext-context";
 import { fetchDashboardAnalyticsClient } from "~/lib/dashboard-api";
@@ -252,6 +253,7 @@ const InfoCard: React.FC<InfoCardProps> = ({
 
 function DashboardContent() {
   const router = useTenantRouter();
+  const tenantPath = useTenantAwarePath();
   const nfcEnabled = useNFCEnabled();
   const presenceMode = usePresenceMode();
   const showActivitySurfaces = nfcEnabled && presenceMode !== "binary";
@@ -283,20 +285,14 @@ function DashboardContent() {
 
   const error = swrError ? "Fehler beim Laden der Dashboard-Daten" : null;
 
-  useEffect(() => {
-    if (status === "authenticated" && session) {
-      if (session.error === "RefreshTokenExpired") {
-        logger.info("session refresh token expired, redirecting to login");
-        router.push("/");
-        return;
-      }
-
-      if (!session.user?.token) {
-        logger.info("no valid token in session, redirecting to login");
-        router.push("/");
-      }
-    }
-  }, [status, session, router]);
+  if (
+    status === "authenticated" &&
+    session &&
+    (session.error === "RefreshTokenExpired" || !session.user?.token)
+  ) {
+    logger.info("invalid session, redirecting to login");
+    redirect(tenantPath("/"));
+  }
 
   const firstName = session?.user?.name?.split(" ")[0] ?? "User";
   const greeting = getTimeBasedGreeting();
@@ -513,9 +509,9 @@ function DashboardContent() {
               }
               return (
                 <div className="space-y-2">
-                  {activities.slice(0, 5).map((activity, idx) => (
+                  {activities.slice(0, 5).map((activity) => (
                     <div
-                      key={`${activity.name}-${activity.category}-${idx}`}
+                      key={`${activity.name}-${activity.category}`}
                       className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
                     >
                       <div className="min-w-0 flex-1">

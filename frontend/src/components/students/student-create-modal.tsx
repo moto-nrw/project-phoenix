@@ -401,7 +401,7 @@ export function StudentCreateModal({
                   ].filter(Boolean);
                   return (
                     <li
-                      key={`${guardian.first_name}-${guardian.last_name}-${index}`}
+                      key={`${guardian.first_name}-${guardian.last_name}-${guardian.email ?? ""}`}
                       className="flex items-start justify-between gap-2 rounded-lg border border-gray-100 bg-white p-2 md:p-3"
                     >
                       <div className="min-w-0">

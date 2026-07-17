@@ -54,6 +54,7 @@
     "react-dom": "^19.2.7",
     "react-markdown": "^10.1.0",
     "recharts": "^3.9.2",
+    "sharp": "^0.35.3",
     "swr": "^2.4.2",
     "tailwind-merge": "^3.6.0",
     "vaul": "^1.1.2",
@@ -82,7 +83,6 @@
     "postcss": "^8.5.18",
     "prettier": "^3.9.5",
     "prettier-plugin-tailwindcss": "^0.8.0",
-    "sharp": "^0.35.3",
     "storybook": "^10.5.0",
     "tailwindcss": "^4.3.2",
     "typescript": "^6.0.3",
@@ -93,27 +93,6 @@
     "initVersion": "7.39.3"
   },
   "packageManager": "pnpm@10.34.4+sha512.8768be55200ae3f2226b6527fcca2687e14bc4e5f12d7721a0f25da3df47915177058648db4177baf348120fa0ba2752d8d8d93f6beaf1fe64ae18da8de961af",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "sharp",
-      "unrs-resolver"
-    ],
-    "overrides": {
-      "@radix-ui/react-focus-scope": "^1.1.12",
-      "picomatch@<2.3.2": "2.3.2",
-      "picomatch@>=4 <4.0.4": "4.0.4",
-      "postcss@<8.5.10": "8.5.14",
-      "smol-toml@<1.6.1": "1.6.1",
-      "dompurify@<=3.4.10": "3.4.11",
-      "undici@>=7.0.0 <7.28.0": "7.28.0"
-    },
-    "peerDependencyRules": {
-      "allowedVersions": {
-        "next-auth>next": ">=14"
-      }
-    }
-  },
   "lint-staged": {
     "*.{ts,tsx,js,jsx,mdx}": [
       "prettier --write",
@@ -123,7 +102,8 @@
   "knip": {
     "includeEntryExports": true,
     "ignore": [
-      ".storybook/mocks/**"
+      ".storybook/mocks/**",
+      "doctor.config.js"
     ],
     "ignoreDependencies": [
       "sharp",

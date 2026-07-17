@@ -357,7 +357,11 @@ describe("EmptyRoomsView onClearAllFilters coverage", () => {
             />
           )}
           {onClearAllFilters && (
-            <button data-testid="clear-btn" onClick={onClearAllFilters}>
+            <button
+              type="button"
+              data-testid="clear-btn"
+              onClick={onClearAllFilters}
+            >
               Clear
             </button>
           )}

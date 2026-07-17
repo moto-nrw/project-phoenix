@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useEffect, useCallback, useRef } from "react";
+import React, { useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
 import { useModal } from "../dashboard/modal-context";
 import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
+import { useLatest } from "~/lib/hooks/use-latest";
 
 // Shared a11y contract for all modal dialogs (also consumed by form-modal).
 export const dialogAriaProps = {
@@ -67,19 +68,15 @@ export function Modal({
   const { openModal, closeModal } = useModal();
 
   // Store functions in refs to avoid effect re-runs
-  const openModalRef = useRef(openModal);
-  const closeModalRef = useRef(closeModal);
-  openModalRef.current = openModal;
-  closeModalRef.current = closeModal;
+  const openModalRef = useLatest(openModal);
+  const closeModalRef = useLatest(closeModal);
 
   // Use scroll lock hook
   useScrollLock(isOpen);
 
   // Store onClose in a ref so handleClose never changes identity
-  const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
-  const isDismissDisabledRef = useRef(isDismissDisabled);
-  isDismissDisabledRef.current = isDismissDisabled;
+  const onCloseRef = useLatest(onClose);
+  const isDismissDisabledRef = useLatest(isDismissDisabled);
 
   // Enhanced close handler with exit animation (stable — no deps on onClose)
   const handleClose = useCallback(() => {
@@ -91,17 +88,19 @@ export function Modal({
     setTimeout(() => {
       onCloseRef.current();
     }, 250);
-  }, []);
+  }, [isDismissDisabledRef, onCloseRef]);
 
   // Handle modal context state for blur overlay
   useEffect(() => {
     if (isOpen) {
-      openModalRef.current();
+      const openModal = openModalRef.current;
+      const closeModal = closeModalRef.current;
+      openModal();
       return () => {
-        closeModalRef.current();
+        closeModal();
       };
     }
-  }, [isOpen]);
+  }, [closeModalRef, isOpen, openModalRef]);
 
   // Handle escape key and animations
   useEffect(() => {

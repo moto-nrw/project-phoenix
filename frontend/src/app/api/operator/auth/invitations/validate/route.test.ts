@@ -43,14 +43,18 @@ describe("POST /api/operator/auth/invitations/validate", () => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: "abc" }),
+        body: JSON.stringify({}),
       },
     );
+    request.cookies.set("operator.invitation-token", "abc");
     await POST(request);
 
     expect(mockFetch).toHaveBeenCalledWith(
       "http://localhost:8080/operator/auth/invitations/validate",
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ token: "abc" }),
+      }),
     );
   });
 });

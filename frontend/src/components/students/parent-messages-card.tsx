@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import useSWR from "swr";
 import { MessageCircle } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -68,8 +68,9 @@ export function ParentMessagesCard({
   // Refetch-only (re-runs the student-threads projection, never advances a read
   // cursor), so fire even in a background tab — marksRead: false skips the
   // hidden-tab deferral that exists only for read-advancing chat views.
+  const refreshMessages = useCallback(() => void mutate(), [mutate]);
   useMessagesActivity({
-    onMatch: () => void mutate(),
+    onMatch: refreshMessages,
     studentId,
     debounceMs: 500,
     marksRead: false,

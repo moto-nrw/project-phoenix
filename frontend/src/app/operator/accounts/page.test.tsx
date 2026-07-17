@@ -85,6 +85,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
         <div data-testid="tabs">
           {tabs.items.map((tab: any) => (
             <button
+              type="button"
               key={tab.id}
               data-testid={`tab-${tab.id}`}
               className={tabs.activeTab === tab.id ? "active" : ""}
@@ -119,7 +120,9 @@ vi.mock("~/components/teachers/caregiver-capability-modal", () => ({
         <span>{accountId}</span>
         <span>{accountLabel}</span>
         <span>{schoolName}</span>
-        <button onClick={onClose}>Schließen</button>
+        <button type="button" onClick={onClose}>
+          Schließen
+        </button>
       </div>
     ) : null,
 }));

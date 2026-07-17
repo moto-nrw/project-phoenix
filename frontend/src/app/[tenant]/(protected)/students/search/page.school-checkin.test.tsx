@@ -65,6 +65,7 @@ vi.mock("~/components/students/school-checkin-fab", () => ({
     mockFab(props);
     return (
       <button
+        type="button"
         data-testid="school-checkin-fab"
         data-active={props.isActive}
         data-pending={props.pendingCount}
@@ -85,6 +86,7 @@ vi.mock("~/components/students/school-checkin-mode-mobile", () => ({
     pendingCount: number;
   }) => (
     <button
+      type="button"
       data-testid="school-checkin-mobile"
       data-active={props.isActive}
       onClick={props.onToggle}
@@ -108,6 +110,7 @@ vi.mock("~/components/students/student-card", () => ({
     mockStudentCard(props);
     return (
       <button
+        type="button"
         data-testid={`student-card-${props.studentId}`}
         data-checkin-mode={props.checkinMode ?? false}
         data-checkin-state={props.checkinState ?? ""}

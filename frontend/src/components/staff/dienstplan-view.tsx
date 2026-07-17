@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { useCallback, useMemo, useState, type ReactNode } from "react";
 import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
 
@@ -34,6 +28,7 @@ import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
 import { startOfWeek } from "~/lib/staff-metrics-helpers";
 import { useSWRAuth } from "~/lib/swr";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { getWeekNumber } from "~/lib/time-tracking-helpers";
 import { userContextService } from "~/lib/usercontext-api";
 
@@ -79,6 +74,7 @@ function DienstplanContent() {
     },
   });
   const router = useTenantRouter();
+  const tenantPath = useTenantAwarePath();
   const { params, updateParams: updateUrlParams } =
     useUrlParams(ALLOWED_URL_PARAMS);
   const canEdit = isAdmin(session);
@@ -166,10 +162,12 @@ function DienstplanContent() {
     const end = new Date(weekAnchor);
     end.setDate(end.getDate() + 4);
     const startLabel = start.toLocaleDateString("de-DE", {
+      timeZone: "Europe/Berlin",
       day: "numeric",
       month: "short",
     });
     const endLabel = end.toLocaleDateString("de-DE", {
+      timeZone: "Europe/Berlin",
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -200,16 +198,11 @@ function DienstplanContent() {
     [updateUrlParams],
   );
 
-  // Nicht-Admins landen auf /staff. Der Redirect ist ein Effekt, kein
-  // Render-Nebeneffekt (Strict Mode rendert doppelt); während er läuft zeigt
-  // der Render unten das Skeleton (Muster wie planung-redirect.tsx).
-  useEffect(() => {
-    if (sessionStatus !== "loading" && !canEdit) {
-      router.replace("/staff");
-    }
-  }, [sessionStatus, canEdit, router]);
+  if (sessionStatus !== "loading" && !canEdit) {
+    redirect(tenantPath("/staff"));
+  }
 
-  if (sessionStatus === "loading" || !canEdit) {
+  if (sessionStatus === "loading") {
     return <DienstplanPageSkeleton />;
   }
 

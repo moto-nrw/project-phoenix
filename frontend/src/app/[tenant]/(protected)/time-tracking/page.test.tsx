@@ -241,7 +241,7 @@ vi.mock("~/components/ui/modal", () => ({
     isOpen ? (
       <div data-testid="modal" data-title={title}>
         {title && <h3>{title}</h3>}
-        <button data-testid="modal-close" onClick={onClose}>
+        <button type="button" data-testid="modal-close" onClick={onClose}>
           close
         </button>
         <div data-testid="modal-body">{children}</div>

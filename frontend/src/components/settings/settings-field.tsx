@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useRef,
+} from "react";
 import { ExternalLink, FileText, FileUp, Pencil, Trash2 } from "lucide-react";
 import type { ResolvedSetting } from "~/lib/settings-api";
 import { useToast } from "~/contexts/ToastContext";
@@ -215,12 +221,6 @@ export function SettingsField({
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isResettingRef = useRef(false);
-  const isDirtyRef = useRef(false);
-  const localValueRef = useRef<unknown>(setting.value);
-
-  // Keep refs in sync with state
-  isDirtyRef.current = isDirty;
-  localValueRef.current = localValue;
 
   // Sync local state when setting value changes from server.
   useEffect(() => {
@@ -228,23 +228,20 @@ export function SettingsField({
     setIsDirty(false);
   }, [setting.value]);
 
-  // Save dirty values on unmount (e.g., tab change) + cleanup timers
+  const cleanupPendingSave = useEffectEvent((savedSettingKey: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    // Fire-and-forget save if user switches tab with unsaved changes.
+    if (!isDirty) return;
+    const localErr = validateLocally(setting, localValue, categoryItems);
+    if (!localErr) {
+      void onSave(savedSettingKey, localValue);
+    }
+  });
+
+  // Save dirty values on unmount (e.g., tab change) + cleanup timers.
   useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      // Fire-and-forget save if user switches tab with unsaved changes
-      if (isDirtyRef.current) {
-        const localErr = validateLocally(
-          setting,
-          localValueRef.current,
-          categoryItems,
-        );
-        if (!localErr) {
-          void onSave(setting.key, localValueRef.current);
-        }
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const savedSettingKey = setting.key;
+    return () => cleanupPendingSave(savedSettingKey);
   }, [setting.key]);
 
   const doSave = useCallback(
@@ -1332,6 +1329,7 @@ function renderField(
     case "number":
       return (
         <NumberField
+          ariaLabel={setting.label}
           value={Number(localValue ?? 0)}
           onChange={onLocalChange}
           onBlur={onBlur}
@@ -1343,6 +1341,7 @@ function renderField(
     case "time":
       return (
         <TimeField
+          ariaLabel={setting.label}
           value={toStr(localValue)}
           onChange={onLocalChange}
           onBlur={onBlur}
@@ -1353,6 +1352,7 @@ function renderField(
     case "date":
       return (
         <DateField
+          ariaLabel={setting.label}
           value={toStr(localValue)}
           onChange={onLocalChange}
           onBlur={onBlur}
@@ -1363,6 +1363,7 @@ function renderField(
     case "text":
       return (
         <TextField
+          ariaLabel={setting.label}
           value={toStr(localValue)}
           onChange={onLocalChange}
           onBlur={onBlur}
@@ -1372,6 +1373,7 @@ function renderField(
     case "textarea":
       return (
         <TextareaField
+          ariaLabel={setting.label}
           value={toStr(localValue)}
           onChange={onLocalChange}
           onBlur={onBlur}
@@ -1392,6 +1394,7 @@ function renderField(
     case "select":
       return (
         <SelectField
+          ariaLabel={setting.label}
           value={localValue}
           onChange={onImmediateSave}
           options={setting.options?.static ?? []}
@@ -1401,6 +1404,7 @@ function renderField(
     default:
       return (
         <TextField
+          ariaLabel={setting.label}
           value={toStr(localValue)}
           onChange={onLocalChange}
           onBlur={onBlur}

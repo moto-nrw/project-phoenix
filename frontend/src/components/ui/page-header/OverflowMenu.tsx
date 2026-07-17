@@ -261,7 +261,7 @@ export function OverflowMenu({
                 if ("kind" in entry && entry.kind === "header") {
                   return (
                     <div
-                      key={`header-${entry.label}-${index}`}
+                      key={`header-${entry.label}`}
                       className={`px-4 py-2 ${index > 0 ? "border-t border-gray-100" : ""}`}
                     >
                       <p className="text-[10px] font-semibold tracking-wider text-gray-500 uppercase">
@@ -274,7 +274,7 @@ export function OverflowMenu({
                 if ("kind" in entry && entry.kind === "radio") {
                   return (
                     <button
-                      key={`radio-${entry.label}-${index}`}
+                      key={`radio-${entry.label}`}
                       type="button"
                       role="menuitemradio"
                       aria-checked={entry.checked}
@@ -309,7 +309,7 @@ export function OverflowMenu({
 
                 return (
                   <button
-                    key={`${item.label}-${index}`}
+                    key={`item-${item.label}`}
                     type="button"
                     role="menuitem"
                     disabled={item.disabled}

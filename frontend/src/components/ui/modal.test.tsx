@@ -216,7 +216,7 @@ describe("Modal", () => {
           isOpen={true}
           onClose={vi.fn()}
           title="Test"
-          footer={<button>Footer Button</button>}
+          footer={<button type="button">Footer Button</button>}
         >
           <p>Content</p>
         </Modal>

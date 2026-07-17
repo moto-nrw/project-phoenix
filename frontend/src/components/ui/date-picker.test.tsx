@@ -13,6 +13,7 @@ vi.mock("react-day-picker", () => ({
   }) => (
     <div data-testid="day-picker">
       <button
+        type="button"
         onClick={() => onSelect(new Date("2024-01-15T00:00:00Z"))}
         data-testid="select-date"
       >

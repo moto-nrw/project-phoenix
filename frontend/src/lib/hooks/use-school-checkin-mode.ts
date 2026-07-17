@@ -18,10 +18,7 @@ import {
  * StudentCard for prop-type ergonomics.
  */
 export type StudentCheckinState =
-  | "anwesend"
-  | "schulhof"
-  | "abwesend"
-  | "unknown";
+  "anwesend" | "schulhof" | "abwesend" | "unknown";
 
 const logger = createLogger({ component: "useSchoolCheckinMode" });
 
@@ -99,15 +96,11 @@ export function useSchoolCheckinMode(): UseSchoolCheckinModeResult {
   const toast = useToast();
 
   const toggleActive = useCallback(() => {
-    setIsActive((prev) => {
-      // Entering the mode resets the per-session counter so each fresh
-      // session starts at 0. Leaving keeps the counter as-is until the
-      // next entry — useful for debugging but invisible to the UI which
-      // only reads it while isActive is true.
-      if (!prev) setSuccessCount(0);
-      return !prev;
-    });
-  }, []);
+    // Entering the mode resets the per-session counter so each fresh session
+    // starts at 0. Leaving keeps the counter until the next entry.
+    if (!isActive) setSuccessCount(0);
+    setIsActive(!isActive);
+  }, [isActive]);
 
   const deactivate = useCallback(() => {
     setIsActive(false);

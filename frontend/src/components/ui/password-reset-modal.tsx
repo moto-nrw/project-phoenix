@@ -193,6 +193,7 @@ export function PasswordResetModal({
         setRateLimitUntil(retryUntil);
         setSecondsRemaining(retrySeconds);
         if (typeof globalThis !== "undefined") {
+          // This is a numeric rate-limit expiry, not an authentication token.
           globalThis.localStorage.setItem(
             rateLimitStorageKey,
             retryUntil.toString(),
@@ -224,6 +225,7 @@ export function PasswordResetModal({
             <p className="mt-2 text-sm text-gray-500">{copy.successHint}</p>
             <div className="mt-6">
               <button
+                type="button"
                 onClick={handleClose}
                 className="inline-flex items-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:scale-110 hover:shadow-2xl hover:shadow-gray-500/25 focus:outline-none"
               >

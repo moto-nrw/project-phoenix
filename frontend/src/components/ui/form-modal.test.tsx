@@ -167,7 +167,7 @@ describe("FormModal", () => {
           isOpen={true}
           onClose={vi.fn()}
           title="Test"
-          footer={<button>Submit</button>}
+          footer={<button type="button">Submit</button>}
         >
           <p>Content</p>
         </FormModal>

@@ -269,6 +269,7 @@ export function UebersichtTab({ staffId }: { readonly staffId: string }) {
   }
 
   const yearStartLabel = accountAnchor.toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "numeric",
     month: "long",
     year: "numeric",
@@ -875,10 +876,12 @@ function buildDailyIstSollSeriesRange(
       }
       result.push({
         dayLabel: day.toLocaleDateString("de-DE", {
+          timeZone: "Europe/Berlin",
           day: "2-digit",
           month: "2-digit",
         }),
         fullLabel: day.toLocaleDateString("de-DE", {
+          timeZone: "Europe/Berlin",
           weekday: "short",
           day: "numeric",
           month: "long",

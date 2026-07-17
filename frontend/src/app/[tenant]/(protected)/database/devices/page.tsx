@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { Laptop } from "lucide-react";
@@ -55,7 +55,9 @@ function parseDevicesGrouping(value: string | null): DevicesGroupingMode {
 export default function DevicesPage() {
   return (
     <NfcModeGuard>
-      <DevicesPageContent />
+      <Suspense fallback={null}>
+        <DevicesPageContent />
+      </Suspense>
     </NfcModeGuard>
   );
 }

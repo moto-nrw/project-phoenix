@@ -42,8 +42,13 @@ const noteFieldClass =
   "mt-1.5 block w-full resize-none border-0 bg-transparent p-0 text-sm leading-snug text-gray-500 placeholder:text-gray-400 focus:ring-0 focus:outline-none [field-sizing:content]";
 
 interface DishDraft {
+  clientId?: string;
   dish: string;
   note: string;
+}
+
+function createDishDraft(dish = "", note = ""): DishDraft {
+  return { clientId: crypto.randomUUID(), dish, note };
 }
 
 function weekdayLabel(iso: string): string {
@@ -106,12 +111,12 @@ function draftsFromEntries(
   const byDate = new Map<string, DishDraft[]>();
   for (const e of entries) {
     const rows = byDate.get(e.date) ?? [];
-    rows.push({ dish: e.dish, note: e.note ?? "" });
+    rows.push(createDishDraft(e.dish, e.note ?? ""));
     byDate.set(e.date, rows);
   }
   const next: Record<string, DishDraft[]> = {};
   for (const date of dates) {
-    next[date] = byDate.get(date) ?? [{ dish: "", note: "" }];
+    next[date] = byDate.get(date) ?? [createDishDraft()];
   }
   return next;
 }
@@ -268,14 +273,14 @@ export default function MealPlanPage() {
   const addRow = (date: string) => {
     setDrafts((prev) => ({
       ...prev,
-      [date]: [...(prev[date] ?? []), { dish: "", note: "" }],
+      [date]: [...(prev[date] ?? []), createDishDraft()],
     }));
   };
 
   const removeRow = (date: string, idx: number) => {
     setDrafts((prev) => {
       const rows = (prev[date] ?? []).filter((_, i) => i !== idx);
-      return { ...prev, [date]: rows.length ? rows : [{ dish: "", note: "" }] };
+      return { ...prev, [date]: rows.length ? rows : [createDishDraft()] };
     });
   };
 
@@ -304,13 +309,13 @@ export default function MealPlanPage() {
   const pasteDay = (date: string) => {
     if (!clipboard) return;
     const rows = clipboard.length
-      ? clipboard.map((r) => ({ ...r }))
-      : [{ dish: "", note: "" }];
+      ? clipboard.map((row) => createDishDraft(row.dish, row.note))
+      : [createDishDraft()];
     setDrafts((prev) => ({ ...prev, [date]: rows }));
   };
 
   const clearDay = (date: string) => {
-    setDrafts((prev) => ({ ...prev, [date]: [{ dish: "", note: "" }] }));
+    setDrafts((prev) => ({ ...prev, [date]: [createDishDraft()] }));
   };
 
   // --- Week navigation (guarded against unsaved changes) ----------------
@@ -348,7 +353,7 @@ export default function MealPlanPage() {
       const byDate = new Map<string, DishDraft[]>();
       for (const e of entries) {
         const rows = byDate.get(e.date) ?? [];
-        rows.push({ dish: e.dish, note: e.note ?? "" });
+        rows.push(createDishDraft(e.dish, e.note ?? ""));
         byDate.set(e.date, rows);
       }
       setDrafts((prev) => {
@@ -357,8 +362,8 @@ export default function MealPlanPage() {
           const target = weekDates[i]!;
           const rows = byDate.get(pd);
           next[target] = rows?.length
-            ? rows.map((r) => ({ ...r }))
-            : [{ dish: "", note: "" }];
+            ? rows.map((row) => createDishDraft(row.dish, row.note))
+            : [createDishDraft()];
         });
         return next;
       });
@@ -388,8 +393,8 @@ export default function MealPlanPage() {
       for (const date of weekDates) {
         const o = originals[date] ?? [];
         next[date] = o.length
-          ? o.map((r) => ({ ...r }))
-          : [{ dish: "", note: "" }];
+          ? o.map((row) => createDishDraft(row.dish, row.note))
+          : [createDishDraft()];
       }
       return next;
     });
@@ -604,7 +609,7 @@ export default function MealPlanPage() {
                   <div className="flex flex-1 flex-col gap-3 p-3">
                     {rows.map((row, idx) => (
                       <div
-                        key={idx}
+                        key={row.clientId}
                         className="group relative min-h-20 rounded-lg border border-gray-200 bg-white p-3.5 pr-8 transition focus-within:border-gray-300 focus-within:ring-1 focus-within:ring-gray-200"
                       >
                         <textarea

@@ -15,6 +15,11 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import {
+  fetchPlannerActivityCategories,
+  fetchPlannerGroups,
+  fetchPlannerRooms,
+} from "~/lib/planner-reference-api";
 import { staffService } from "~/lib/staff-api";
 import { getSchoolYear } from "~/lib/student-helpers";
 import { useTenant } from "~/lib/tenant-context";
@@ -89,21 +94,6 @@ function checkShiftCoverageWithSignal(
     timetableService.checkShiftCoverage(probe, { signal }),
     aborted,
   ]);
-}
-
-interface BackendRoomsEnvelope {
-  data?: Array<{
-    id: number;
-    name: string;
-    building?: string;
-  }>;
-}
-
-interface BackendGroupsEnvelope {
-  data?: Array<{
-    id: number;
-    name: string;
-  }>;
 }
 
 export type TimetableEventModalResult =
@@ -434,13 +424,12 @@ export function useEventForm({
     setStaff([]);
 
     void Promise.all([
-      fetch("/api/rooms", { credentials: "include" })
-        .then((r) => r.json() as Promise<BackendRoomsEnvelope>)
-        .then((j): RoomOption[] =>
-          (j.data ?? []).map((room) => ({
-            id: room.id,
-            name: room.name,
-            building: room.building,
+      fetchPlannerRooms()
+        .then((items) =>
+          items.map((room) => ({
+            id: Number(room.id),
+            name: room.name ?? room.room_name ?? `Raum ${room.id}`,
+            building: room.building ?? undefined,
           })),
         )
         .catch((err: unknown) => {
@@ -449,22 +438,15 @@ export function useEventForm({
           });
           return [] as RoomOption[];
         }),
-      fetch("/api/activities/categories", { credentials: "include" })
-        .then((r) => r.json() as Promise<{ data?: ActivityCategory[] }>)
-        .then((j) => j.data ?? [])
-        .catch((err: unknown) => {
-          logger.error("categories_fetch_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          return [] as ActivityCategory[];
-        }),
-      fetch("/api/groups?page_size=1000", { credentials: "include" })
-        .then((r) => r.json() as Promise<BackendGroupsEnvelope>)
-        .then((j): GroupOption[] =>
-          (j.data ?? []).map((group) => ({
-            id: String(group.id),
-            name: group.name,
-          })),
+      fetchPlannerActivityCategories().catch((err: unknown) => {
+        logger.error("categories_fetch_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        return [] as ActivityCategory[];
+      }),
+      fetchPlannerGroups()
+        .then((items) =>
+          items.map((group) => ({ id: String(group.id), name: group.name })),
         )
         .catch((err: unknown) => {
           logger.error("groups_fetch_failed", {

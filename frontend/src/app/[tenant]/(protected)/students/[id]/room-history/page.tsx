@@ -1,6 +1,12 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -87,7 +93,10 @@ function formatDateShort(dateKey: string): string {
 
 function formatWeekday(dateKey: string): string {
   const d = new Date(`${dateKey}T00:00:00`);
-  return d.toLocaleDateString("de-DE", { weekday: "short" });
+  return d.toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
+    weekday: "short",
+  });
 }
 
 // ─── Shared chart tick ───────────────────────────────────────────────────────
@@ -516,6 +525,15 @@ function HistoryTable({
                         onClick={() =>
                           setExpandedDate(isExpanded ? null : day.date)
                         }
+                        onKeyDown={(event) => {
+                          if (event.key !== "Enter" && event.key !== " ")
+                            return;
+                          event.preventDefault();
+                          setExpandedDate(isExpanded ? null : day.date);
+                        }}
+                        tabIndex={0}
+                        aria-expanded={isExpanded}
+                        aria-label={`${formatDate(day.date)}: Details ${isExpanded ? "schließen" : "öffnen"}`}
                         className={`cursor-pointer text-sm transition-colors hover:bg-gray-50 ${isToday ? "bg-blue-50/50" : ""}`}
                       >
                         <td className="px-6 py-3">
@@ -729,7 +747,11 @@ function HistoryTable({
 // ─── Page ────────────────────────────────────────────────────────────────────
 
 export default function StudentRoomHistoryPage() {
-  return <StudentRoomHistoryPageContent />;
+  return (
+    <Suspense fallback={null}>
+      <StudentRoomHistoryPageContent />
+    </Suspense>
+  );
 }
 
 function StudentRoomHistoryPageContent() {
@@ -871,6 +893,7 @@ function StudentRoomHistoryPageContent() {
         <div className="flex min-h-[50vh] flex-col items-center justify-center">
           <Alert type="error" message={ERROR_MESSAGES[errorCode]} />
           <button
+            type="button"
             onClick={() => router.push(referrer)}
             className="mt-4 rounded-full bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-gray-700 active:scale-95"
           >

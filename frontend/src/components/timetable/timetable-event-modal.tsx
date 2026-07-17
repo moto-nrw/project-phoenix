@@ -415,9 +415,9 @@ export function TimetableEventModal({
                   <p className="sr-only" aria-live="polite">
                     {`${conflictWarnings.length} Terminüberschneidungen und ${coverageWarningCount} Dienstplan-Lücken gefunden. Speichern ist weiterhin möglich.`}
                   </p>
-                  {conflictWarnings.map((warning, index) => (
+                  {conflictWarnings.map((warning) => (
                     <Alert
-                      key={`${warning.kind}-${warning.resourceId}-${index}`}
+                      key={`${warning.kind}-${warning.resourceId}-${warning.conflictingInstanceId}`}
                       type="warning"
                       message={`Hinweis: ${warning.message}`}
                       announce="off"

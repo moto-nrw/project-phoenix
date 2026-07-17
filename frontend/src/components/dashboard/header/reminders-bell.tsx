@@ -120,9 +120,9 @@ export function RemindersBell() {
         ) : (
           <>
             <ul className="divide-y divide-gray-100">
-              {preview.map((reminder, index) => (
+              {preview.map((reminder) => (
                 <BellRow
-                  key={`${reminder.type}-${reminder.student_id ?? reminder.title}-${index}`}
+                  key={`${reminder.type}-${reminder.student_id ?? reminder.title}-${reminder.due_time}`}
                   reminder={reminder}
                 />
               ))}

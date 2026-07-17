@@ -632,6 +632,7 @@ function SupervisorItem({
           <>
             <p className="mt-1 text-sm text-gray-500">{supervisor.email}</p>
             <button
+              type="button"
               onClick={handleEmailClick}
               className="mt-3 inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 hover:shadow-lg active:scale-[0.98]"
             >
@@ -666,6 +667,7 @@ export function PersonalInfoReadOnly({
 }: Readonly<PersonalInfoReadOnlyProps>) {
   const birthdayDisplay = student.birthday
     ? new Date(student.birthday).toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -687,6 +689,7 @@ export function PersonalInfoReadOnly({
         </div>
         {showEditButton && onEditClick ? (
           <button
+            type="button"
             onClick={onEditClick}
             className="rounded-lg px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-100"
             title="Bearbeiten"

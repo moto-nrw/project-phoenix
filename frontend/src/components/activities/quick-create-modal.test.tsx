@@ -87,7 +87,11 @@ vi.mock("~/components/ui/button", () => ({
     variant: _variant,
     size: _size,
     ...props
-  }: MockButtonProps) => <button {...props}>{children}</button>,
+  }: MockButtonProps) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
 }));
 
 vi.mock("~/components/ui/icons", () => ({

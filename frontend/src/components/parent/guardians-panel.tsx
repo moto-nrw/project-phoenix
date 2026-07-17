@@ -299,9 +299,9 @@ function GuardianRow({
             <div className="mt-2 space-y-1.5 text-sm text-gray-600">
               {hasContact && (
                 <>
-                  {g.phones.map((p, index) => (
+                  {g.phones.map((p) => (
                     <ContactLine
-                      key={`${p.phone_number}-${p.phone_type}-${index}`}
+                      key={`${p.phone_number}-${p.phone_type}`}
                       icon={
                         <Phone className="h-3.5 w-3.5" aria-hidden="true" />
                       }

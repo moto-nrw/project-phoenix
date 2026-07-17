@@ -1,6 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 import { LOCATION_COLORS } from "~/lib/location-helper";
 
@@ -100,11 +106,9 @@ export function DataTable<T>({
   );
   // If the caller toggles pageSize on/off after mount, snap the visible window
   // back to the new page size so we never strand the user on a stale slice.
-  const lastPageSize = useRef(pageSize);
-  if (lastPageSize.current !== pageSize) {
-    lastPageSize.current = pageSize;
+  useEffect(() => {
     setVisibleCount(pageSize ?? Number.POSITIVE_INFINITY);
-  }
+  }, [pageSize]);
   const visibleRows = useMemo(() => {
     if (visibleCount >= sortedRows.length) return sortedRows;
     return sortedRows.slice(0, visibleCount);

@@ -33,10 +33,10 @@ vi.mock("~/components/ui/modal", () => ({
       <div data-testid="confirmation-modal">
         <h3>{title}</h3>
         {children}
-        <button onClick={onConfirm} data-testid="confirm-button">
+        <button type="button" onClick={onConfirm} data-testid="confirm-button">
           Widerrufen
         </button>
-        <button onClick={onClose} data-testid="cancel-button">
+        <button type="button" onClick={onClose} data-testid="cancel-button">
           Abbrechen
         </button>
       </div>

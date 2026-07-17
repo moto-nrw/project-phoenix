@@ -852,18 +852,21 @@ function ClockInCard({
             {/* Mode toggle */}
             <div className="flex flex-wrap justify-center gap-2">
               <button
+                type="button"
                 onClick={() => setMode("present")}
                 className={getModeToggleClassName("present", mode)}
               >
                 In der OGS
               </button>
               <button
+                type="button"
                 onClick={() => setMode("home_office")}
                 className={getModeToggleClassName("home_office", mode)}
               >
                 Homeoffice
               </button>
               <button
+                type="button"
                 onClick={() => setMode("absent")}
                 className={getModeToggleClassName("absent", mode)}
               >
@@ -874,6 +877,7 @@ function ClockInCard({
             {/* Action button: play (check-in) or calendar (absence) */}
             {mode === "absent" ? (
               <button
+                type="button"
                 onClick={onAddAbsence}
                 className="flex h-16 w-16 items-center justify-center rounded-full border-2 border-red-400 text-red-500 transition-all hover:bg-red-50 active:scale-95"
                 aria-label="Abwesenheit melden"
@@ -894,6 +898,7 @@ function ClockInCard({
               </button>
             ) : (
               <button
+                type="button"
                 onClick={handleCheckIn}
                 disabled={actionLoading || mode === null}
                 className={getCheckInButtonClassName(mode)}
@@ -932,6 +937,7 @@ function ClockInCard({
               <div className="relative">
                 {isOnBreak ? (
                   <button
+                    type="button"
                     onClick={handleEndBreakEarly}
                     disabled={actionLoading}
                     className={getBreakButtonClassName(true, breakMins)}
@@ -947,6 +953,7 @@ function ClockInCard({
                   </button>
                 ) : (
                   <button
+                    type="button"
                     onClick={() => setBreakMenuOpen(!breakMenuOpen)}
                     disabled={actionLoading}
                     className={getBreakButtonClassName(false, breakMins)}
@@ -1043,6 +1050,7 @@ function ClockInCard({
 
               {/* Stop / check-out button */}
               <button
+                type="button"
                 onClick={handleCheckOut}
                 disabled={actionLoading || isOnBreak}
                 className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-gray-300 text-gray-500 transition-all hover:border-red-400 hover:text-red-500 active:scale-95 disabled:opacity-50"
@@ -1202,6 +1210,7 @@ function ClockInStatsStrip({
             : formatSignedDuration(accountBalanceMinutes)
         }
         secondary={`seit ${metrics.accountStart.toLocaleDateString("de-DE", {
+          timeZone: "Europe/Berlin",
           day: "numeric",
           month: "short",
         })}`}
@@ -1397,7 +1406,7 @@ function BreakActivityLog({
     showBorder: boolean,
   ) => (
     <div
-      key={`${seg.type}-${index}`}
+      key={`${seg.type}-${seg.start.toISOString()}`}
       className={`flex items-center justify-between py-2.5 text-sm ${
         showBorder ? "border-t border-gray-50" : ""
       } ${getSegmentRowColor(seg)}`}
@@ -1453,6 +1462,7 @@ function BreakActivityLog({
       {/* Toggle button at the bottom */}
       {hasHidden && (
         <button
+          type="button"
           onClick={() => setExpanded(!expanded)}
           className="w-full border-t border-gray-50 py-1.5 text-center text-xs font-medium text-gray-400 transition-colors hover:text-gray-600"
         >
@@ -1714,16 +1724,19 @@ function OwnZeiterfassungSection({
   const labelRange = useMemo(() => {
     if (viewMode === "month") {
       return monthAnchor.toLocaleDateString("de-DE", {
+        timeZone: "Europe/Berlin",
         month: "long",
         year: "numeric",
       });
     }
     const weekNum = getWeekNumber(visibleFrom);
     const start = visibleFrom.toLocaleDateString("de-DE", {
+      timeZone: "Europe/Berlin",
       day: "numeric",
       month: "short",
     });
     const end = visibleTo.toLocaleDateString("de-DE", {
+      timeZone: "Europe/Berlin",
       day: "numeric",
       month: "short",
       year: "numeric",
@@ -2388,12 +2401,14 @@ function EditSessionModal({
   const sessionFooter = (
     <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
       <button
+        type="button"
         onClick={onClose}
         className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
       >
         Abbrechen
       </button>
       <button
+        type="button"
         onClick={handleSave}
         disabled={saving || !startTime || !notes.trim() || hasInvalidTimeRange}
         className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -2406,12 +2421,14 @@ function EditSessionModal({
   const absenceFooter = (
     <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
       <button
+        type="button"
         onClick={onClose}
         className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
       >
         Abbrechen
       </button>
       <button
+        type="button"
         onClick={handleAbsenceSave}
         disabled={absenceSaving || !absDateStart || !absDateEnd}
         className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -2522,6 +2539,7 @@ function EditSessionModal({
                           </span>
                           <div className="relative flex-1">
                             <select
+                              aria-label={`Pausendauer ab ${formatTime(brk.startedAt)}`}
                               value={(
                                 breakDurations.get(brk.id) ??
                                 brk.durationMinutes
@@ -2772,6 +2790,7 @@ function EditSessionModal({
               <button
                 type="button"
                 role="switch"
+                aria-label="Halber Tag"
                 aria-checked={absHalfDay}
                 onClick={() => setAbsHalfDay(!absHalfDay)}
                 className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${absHalfDay ? "bg-gray-900" : "bg-gray-200"}`}
@@ -2899,12 +2918,14 @@ function CreateAbsenceModal({
       footer={
         <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
           <button
+            type="button"
             onClick={onClose}
             className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
           >
             Abbrechen
           </button>
           <button
+            type="button"
             onClick={handleSave}
             disabled={saving || !dateStart || !dateEnd}
             className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"
@@ -2994,6 +3015,7 @@ function CreateAbsenceModal({
           <button
             type="button"
             role="switch"
+            aria-label="Halber Tag"
             aria-checked={halfDay}
             onClick={() => setHalfDay(!halfDay)}
             className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors ${halfDay ? "bg-gray-900" : "bg-gray-200"}`}
@@ -3788,12 +3810,14 @@ function TimeTrackingContent() {
         footer={
           <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
+              type="button"
               onClick={() => setPendingManualEditCheckIn(null)}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50"
             >
               Abbrechen
             </button>
             <button
+              type="button"
               onClick={async () => {
                 const status = pendingManualEditCheckIn;
                 setPendingManualEditCheckIn(null);
@@ -3844,12 +3868,14 @@ function TimeTrackingContent() {
         footer={
           <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
+              type="button"
               onClick={() => setPendingCheckIn(null)}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50"
             >
               Abbrechen
             </button>
             <button
+              type="button"
               onClick={async () => {
                 const status = pendingCheckIn;
                 setPendingCheckIn(null);
@@ -3897,6 +3923,7 @@ function TimeTrackingContent() {
         footer={
           <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
+              type="button"
               onClick={handleClosePendingReopenStatusChange}
               disabled={reopenStatusChangeSubmitting}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
@@ -3904,6 +3931,7 @@ function TimeTrackingContent() {
               Abbrechen
             </button>
             <button
+              type="button"
               onClick={confirmReopenStatusChange}
               disabled={
                 reopenStatusChangeSubmitting ||
@@ -3963,6 +3991,7 @@ function TimeTrackingContent() {
         footer={
           <div className="flex w-full flex-col-reverse gap-3 sm:flex-row">
             <button
+              type="button"
               onClick={handleClosePendingDeviation}
               disabled={deviationSubmitting}
               className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-gray-400 hover:bg-gray-50 disabled:opacity-50"
@@ -3970,6 +3999,7 @@ function TimeTrackingContent() {
               Abbrechen
             </button>
             <button
+              type="button"
               onClick={confirmDeviationReason}
               disabled={deviationSubmitting || deviationReason.trim() === ""}
               className="flex-1 rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:cursor-not-allowed disabled:opacity-50"

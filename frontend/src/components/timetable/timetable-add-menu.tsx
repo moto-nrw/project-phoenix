@@ -4,7 +4,7 @@
  * TimetableAddMenu: the single "+ Neu" entry point in the timetable toolbar.
  */
 
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { CalendarPlus, ChevronDown, Plus, Repeat } from "lucide-react";
 
 import { useClickOutside } from "~/lib/hooks/use-click-outside";
@@ -27,7 +27,8 @@ export function TimetableAddMenu({
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
-  useClickOutside(containerRef, () => setOpen(false), open);
+  const closeMenu = useCallback(() => setOpen(false), []);
+  useClickOutside(containerRef, closeMenu, open);
 
   return (
     <div className="relative w-full sm:w-auto" ref={containerRef}>

@@ -201,6 +201,7 @@ function DatePickerCalendar({
       <div className="mb-3 flex items-center justify-between">
         <button
           type="button"
+          aria-label="Vorheriger Monat"
           onClick={() => setMonth(subMonths(month, 1))}
           className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
         >
@@ -223,6 +224,7 @@ function DatePickerCalendar({
         </span>
         <button
           type="button"
+          aria-label="Nächster Monat"
           onClick={() => setMonth(addMonths(month, 1))}
           className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
         >
@@ -289,6 +291,7 @@ function MultipleDatePickerCalendar({
       <div className="mb-3 flex items-center justify-between">
         <button
           type="button"
+          aria-label="Vorheriger Monat"
           onClick={() => setMonth(subMonths(month, 1))}
           className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
         >
@@ -311,6 +314,7 @@ function MultipleDatePickerCalendar({
         </span>
         <button
           type="button"
+          aria-label="Nächster Monat"
           onClick={() => setMonth(addMonths(month, 1))}
           className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
         >

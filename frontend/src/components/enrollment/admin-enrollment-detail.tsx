@@ -802,11 +802,15 @@ export function formatDateTime(
   value: string,
   options?: Intl.DateTimeFormatOptions,
 ): string {
-  return new Date(value).toLocaleString("de-DE", options);
+  return new Date(value).toLocaleString("de-DE", {
+    ...options,
+    timeZone: "Europe/Berlin",
+  });
 }
 
 export function formatPlainDate(value: string): string {
   return new Date(`${value}T00:00:00`).toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -1067,24 +1071,22 @@ export function ChildOfferingAdjustment({
 
   const handleToggle = (offering: CareOffering) => {
     if (offering.is_required) return;
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(offering.id)) {
-        next.delete(offering.id);
-      } else {
-        next.add(offering.id);
-        if (
-          offering.days_of_week_mode === "parent_choice" &&
-          (days[offering.id]?.length ?? 0) === 0
-        ) {
-          setDays((current) => ({
-            ...current,
-            [offering.id]: [...offering.available_days],
-          }));
-        }
+    const next = new Set(selected);
+    if (next.has(offering.id)) {
+      next.delete(offering.id);
+    } else {
+      next.add(offering.id);
+      if (
+        offering.days_of_week_mode === "parent_choice" &&
+        (days[offering.id]?.length ?? 0) === 0
+      ) {
+        setDays((current) => ({
+          ...current,
+          [offering.id]: [...offering.available_days],
+        }));
       }
-      return next;
-    });
+    }
+    setSelected(next);
   };
 
   const handleDayToggle = (offering: CareOffering, day: string) => {

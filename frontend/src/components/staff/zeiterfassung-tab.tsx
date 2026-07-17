@@ -381,6 +381,7 @@ function formatRangeLabel(
 ): string {
   if (mode === "month") {
     return monthAnchor.toLocaleDateString("de-DE", {
+      timeZone: "Europe/Berlin",
       month: "long",
       year: "numeric",
     });
@@ -389,8 +390,14 @@ function formatRangeLabel(
   const sunday = endOfWeek(weekAnchor);
   const startDay = monday.getDate();
   const endDay = sunday.getDate();
-  const startMonth = monday.toLocaleString("de-DE", { month: "short" });
-  const endMonth = sunday.toLocaleString("de-DE", { month: "short" });
+  const startMonth = monday.toLocaleString("de-DE", {
+    timeZone: "Europe/Berlin",
+    month: "short",
+  });
+  const endMonth = sunday.toLocaleString("de-DE", {
+    timeZone: "Europe/Berlin",
+    month: "short",
+  });
   // ISO-Wochennummer voranstellen, damit auf den ersten Blick klar ist,
   // welche KW gezeigt wird. Ohne diese Information bleibt nur das Datum,
   // was bei Schichtplänen / Wochen-Soll eher umständlich zu interpretieren ist.

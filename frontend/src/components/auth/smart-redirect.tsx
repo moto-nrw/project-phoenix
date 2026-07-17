@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect } from "react";
+import { redirect } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useTenantRouter } from "~/lib/tenant-router";
 import { useSupervision } from "~/lib/supervision-context";
 import { useSmartRedirectPath } from "~/lib/redirect-utils";
 import { usePresenceMode } from "~/lib/tenant-context";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 interface SmartRedirectProps {
   readonly onRedirect?: (path: string) => void;
@@ -16,7 +17,7 @@ interface SmartRedirectProps {
  * based on their permissions and supervision state
  */
 export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
-  const router = useTenantRouter();
+  const tenantPath = useTenantAwarePath();
   const { data: session, status } = useSession();
   const presenceMode = usePresenceMode();
   const { hasGroups, isLoadingGroups, isSupervising, isLoadingSupervision } =
@@ -36,14 +37,18 @@ export function SmartRedirect({ onRedirect }: SmartRedirectProps) {
   useEffect(() => {
     // Only redirect if user is authenticated and supervision data is ready
     if (status === "authenticated" && session?.user?.token && isReady) {
-      if (onRedirect) {
-        onRedirect(redirectPath);
-      } else {
-        router.push(redirectPath);
-        router.refresh();
-      }
+      onRedirect?.(redirectPath);
     }
-  }, [status, session?.user?.token, isReady, redirectPath, router, onRedirect]);
+  }, [status, session?.user?.token, isReady, redirectPath, onRedirect]);
+
+  if (
+    !onRedirect &&
+    status === "authenticated" &&
+    session?.user?.token &&
+    isReady
+  ) {
+    redirect(tenantPath(redirectPath));
+  }
 
   // This component doesn't render anything
   return null;

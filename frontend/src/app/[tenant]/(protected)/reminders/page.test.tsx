@@ -7,9 +7,9 @@ vi.mock("~/lib/hooks/use-reminders", () => ({
   useReminders: () => mockUseReminders(),
 }));
 
-const mockReplace = vi.fn();
-vi.mock("~/lib/tenant-router", () => ({
-  useTenantRouter: () => ({ replace: mockReplace }),
+const { mockRedirect } = vi.hoisted(() => ({ mockRedirect: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  redirect: mockRedirect,
 }));
 
 import RemindersPage from "./page";
@@ -89,13 +89,13 @@ describe("RemindersPage", () => {
     expect(
       screen.getByLabelText("Erinnerungen werden geladen…"),
     ).toBeInTheDocument();
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("does not redirect while data has not loaded yet (no data)", () => {
     set({ reminders: [], count: 0 });
     render(<RemindersPage />);
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 
   it("redirects to the dashboard when the feature is disabled", () => {
@@ -104,10 +104,8 @@ describe("RemindersPage", () => {
       count: 0,
       data: { reminders: [], count: 0, enabled: false },
     });
-    const { container } = render(<RemindersPage />);
-    expect(mockReplace).toHaveBeenCalledWith("/dashboard");
-    // Nothing rendered while the redirect is in flight.
-    expect(container).toBeEmptyDOMElement();
+    render(<RemindersPage />);
+    expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/dashboard");
   });
 
   it("renders the page when the feature is enabled", () => {
@@ -118,6 +116,6 @@ describe("RemindersPage", () => {
     });
     render(<RemindersPage />);
     expect(screen.getByText("Keine aktiven Erinnerungen")).toBeInTheDocument();
-    expect(mockReplace).not.toHaveBeenCalled();
+    expect(mockRedirect).not.toHaveBeenCalled();
   });
 });

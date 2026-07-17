@@ -13,6 +13,7 @@ import { useSession } from "next-auth/react";
 import { useSearchParams } from "next/navigation";
 import { redirect } from "next/navigation";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useLatest } from "~/lib/hooks/use-latest";
 import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
@@ -782,8 +783,7 @@ function MeinRaumPageContent() {
   const [isSchulhofTabSelected, setIsSchulhofTabSelected] = useState(false);
 
   // Ref to always have latest schulhofStatus (prevents stale closure in callbacks)
-  const schulhofStatusRef = useRef<SchulhofStatusResponse | null>(null);
-  schulhofStatusRef.current = schulhofStatus;
+  const schulhofStatusRef = useLatest(schulhofStatus);
 
   // Cached active groups for UnclaimedRooms (avoids duplicate API call)
   const [cachedActiveGroups, setCachedActiveGroups] = useState<
@@ -1599,7 +1599,7 @@ function MeinRaumPageContent() {
     // the single owner of loading its visits. A second manual request can land
     // later and overwrite a fresher SSE revalidation.
     setStudents([]);
-  }, [router]);
+  }, [router, schulhofStatusRef]);
 
   const handleRosterAction = useCallback(
     async (
@@ -2397,10 +2397,12 @@ function MeinRaumPageContent() {
       {currentRoom &&
       (!isSchulhofActive || schulhofStatus?.isUserSupervising) ? (
         <div className="mb-4">
-          <TransitStudentsSection
-            fromReferrer="/active-supervisions"
-            collapsible
-          />
+          <Suspense fallback={null}>
+            <TransitStudentsSection
+              fromReferrer="/active-supervisions"
+              collapsible
+            />
+          </Suspense>
         </div>
       ) : null}
 

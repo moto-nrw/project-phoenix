@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLatest } from "~/lib/hooks/use-latest";
 
 /**
  * Shared unread-badge hook: a single localStorage-cache + concurrent-fetch +
@@ -94,24 +95,20 @@ export function useUnreadCount({
 
   // Keep the latest fetcher/onError without forcing refresh() to change
   // identity every render (callers usually pass inline closures).
-  const fetcherRef = useRef(fetcher);
-  fetcherRef.current = fetcher;
-  const onErrorRef = useRef(onError);
-  onErrorRef.current = onError;
+  const fetcherRef = useLatest(fetcher);
+  const onErrorRef = useLatest(onError);
   // Always reflects the latest `enabled`. A fetch that started while enabled can
   // resolve AFTER the gate flips off (session expiry / tenant switch); the loop
   // re-reads this before writing so the stale count never overwrites the
   // reset-to-0 (and never gets persisted to the cache).
-  const enabledRef = useRef(enabled);
-  enabledRef.current = enabled;
+  const enabledRef = useLatest(enabled);
   // Always reflects the latest cacheKey. cacheKey is per-tenant, so a fetch that
   // started under one tenant can resolve AFTER a tenant switch changed the key.
   // The loop captures the key it fetched for and, on resolve, discards the stale
   // result and re-fetches for the new key — otherwise the in-flight fetch would
   // write the previous tenant's count into the shared badge (a cross-tenant leak)
   // and the refresh the switch queued would be silently dropped.
-  const cacheKeyRef = useRef(cacheKey);
-  cacheKeyRef.current = cacheKey;
+  const cacheKeyRef = useLatest(cacheKey);
   // Tracks the cacheKey whose count is currently shown in React state. Unlike
   // the refs above it is NOT overwritten every render — it advances only when we
   // actually set a count, so refresh() can detect a tenant switch (cacheKey
@@ -211,9 +208,11 @@ export function useUnreadCount({
         }
       }
     },
-    [enabled, cacheKey],
+    [cacheKey, cacheKeyRef, enabled, enabledRef, fetcherRef, onErrorRef],
   );
-  refreshRef.current = refresh;
+  useEffect(() => {
+    refreshRef.current = refresh;
+  }, [refresh]);
 
   useEffect(() => {
     void refresh();

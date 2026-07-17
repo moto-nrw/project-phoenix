@@ -347,7 +347,12 @@ function EnrollmentStatusContent({
   const pathname = usePathname();
   const submittedDate = new Date(status.submitted_at).toLocaleDateString(
     locale,
-    { day: "2-digit", month: "long", year: "numeric" },
+    {
+      timeZone: "Europe/Berlin",
+      day: "2-digit",
+      month: "long",
+      year: "numeric",
+    },
   );
   const allEditable = status.edit_mode === "direct_edit";
   const allWithdrawn =
@@ -906,9 +911,9 @@ function GuardianDetails({ status }: Readonly<{ status: StatusResponse }>) {
           {status.guardian_phone ?? t("notProvided")}
         </dd>
       </div>
-      {status.additional_guardians?.map((guardian: StatusGuardian, index) => (
+      {status.additional_guardians?.map((guardian: StatusGuardian) => (
         <div
-          key={index}
+          key={`${guardian.first_name}-${guardian.last_name}-${guardian.email ?? ""}-${guardian.phone ?? ""}`}
           className="rounded-xl border border-gray-200 bg-white p-4 sm:col-span-3"
         >
           <dt className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
@@ -1246,6 +1251,7 @@ function ChangeRequestPill({
 
 function formatDateTime(value: string, locale: string): string {
   return new Date(value).toLocaleString(locale, {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

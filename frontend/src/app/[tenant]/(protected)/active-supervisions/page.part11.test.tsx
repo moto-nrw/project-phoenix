@@ -336,6 +336,7 @@ describe("Year filter (Klassenstufe) on active supervisions", () => {
           <div data-testid="active-filters">
             {activeFilters?.map((f) => (
               <button
+                type="button"
                 key={f.id}
                 data-testid={`active-filter-${f.id}`}
                 onClick={f.onRemove}
@@ -345,7 +346,11 @@ describe("Year filter (Klassenstufe) on active supervisions", () => {
             ))}
           </div>
           {onClearAllFilters && (
-            <button data-testid="clear-filters" onClick={onClearAllFilters}>
+            <button
+              type="button"
+              data-testid="clear-filters"
+              onClick={onClearAllFilters}
+            >
               Clear
             </button>
           )}

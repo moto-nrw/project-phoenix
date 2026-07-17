@@ -1,6 +1,7 @@
 "use client";
 
 interface TextFieldProps {
+  readonly ariaLabel?: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
   readonly onBlur?: () => void;
@@ -8,6 +9,7 @@ interface TextFieldProps {
 }
 
 export function TextField({
+  ariaLabel = "Einstellung",
   value,
   onChange,
   onBlur,
@@ -15,6 +17,7 @@ export function TextField({
 }: TextFieldProps) {
   return (
     <input
+      aria-label={ariaLabel}
       type="text"
       value={value}
       onChange={(e) => onChange(e.target.value)}

@@ -611,6 +611,7 @@ function SubstitutionPageContent() {
                                 </div>
                               </div>
                               <button
+                                type="button"
                                 onClick={() =>
                                   handleEndSubstitutionClick(
                                     substitution.id,
@@ -646,6 +647,7 @@ function SubstitutionPageContent() {
                                 </div>
                               </div>
                               <button
+                                type="button"
                                 onClick={() =>
                                   handleEndSubstitutionClick(
                                     substitution.id,
@@ -721,6 +723,7 @@ function SubstitutionPageContent() {
                       // Format end date
                       const endDateStr =
                         substitution.endDate.toLocaleDateString("de-DE", {
+                          timeZone: "Europe/Berlin",
                           day: "2-digit",
                           month: "2-digit",
                         });
@@ -755,6 +758,7 @@ function SubstitutionPageContent() {
                                 </div>
                               </div>
                               <button
+                                type="button"
                                 onClick={() =>
                                   handleEndSubstitutionClick(
                                     substitution.id,
@@ -795,6 +799,7 @@ function SubstitutionPageContent() {
                                 </div>
                               </div>
                               <button
+                                type="button"
                                 onClick={() =>
                                   handleEndSubstitutionClick(
                                     substitution.id,

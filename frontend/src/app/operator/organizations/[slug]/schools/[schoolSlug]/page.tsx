@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useMemo, useState } from "react";
+import { Suspense, use, useCallback, useMemo, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import useSWR from "swr";
 import Link from "next/link";
@@ -64,6 +64,14 @@ function isTabId(value: string | null | undefined): value is TabId {
 }
 
 export default function OperatorSchoolDetailPage({ params }: PageProps) {
+  return (
+    <Suspense fallback={null}>
+      <OperatorSchoolDetailPageContent params={params} />
+    </Suspense>
+  );
+}
+
+function OperatorSchoolDetailPageContent({ params }: PageProps) {
   const { slug, schoolSlug } = use(params);
   const { status, data: session } = useSession();
   const operatorBearerToken = session?.user?.token ?? "";

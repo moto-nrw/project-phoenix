@@ -8,11 +8,14 @@ import {
 } from "@testing-library/react";
 
 // Mock dependencies
-const { mockPush, mockSignIn, mockUseSession } = vi.hoisted(() => ({
-  mockPush: vi.fn(),
-  mockSignIn: vi.fn(),
-  mockUseSession: vi.fn(),
-}));
+const { mockPush, mockRedirect, mockSignIn, mockUseSession } = vi.hoisted(
+  () => ({
+    mockPush: vi.fn(),
+    mockRedirect: vi.fn(),
+    mockSignIn: vi.fn(),
+    mockUseSession: vi.fn(),
+  }),
+);
 
 const originalFetch = global.fetch;
 
@@ -41,6 +44,7 @@ function mockAuthenticatedResponse(): typeof global.fetch {
 }
 
 vi.mock("next/navigation", () => ({
+  redirect: mockRedirect,
   useRouter: () => ({ push: mockPush }),
 }));
 
@@ -209,7 +213,7 @@ describe("OperatorLoginPage", () => {
 
     render(<OperatorLoginPage />);
 
-    expect(mockPush).toHaveBeenCalledWith("/operator/suggestions");
+    expect(mockRedirect).toHaveBeenCalledWith("/operator/suggestions");
   });
 
   it("shows loading screen while checking auth", () => {

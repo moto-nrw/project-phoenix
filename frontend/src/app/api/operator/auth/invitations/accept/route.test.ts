@@ -44,18 +44,29 @@ describe("POST /api/operator/auth/invitations/accept", () => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          token: "abc",
           display_name: "Test",
           password: "Str0ng!Pass",
           confirm_password: "Str0ng!Pass",
         }),
       },
     );
-    await POST(request);
+    request.cookies.set("operator.invitation-token", "abc");
+    const response = await POST(request);
 
     expect(mockFetch).toHaveBeenCalledWith(
       "http://localhost:8080/operator/auth/invitations/accept",
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          display_name: "Test",
+          password: "Str0ng!Pass",
+          confirm_password: "Str0ng!Pass",
+          token: "abc",
+        }),
+      }),
+    );
+    expect(response.headers.get("set-cookie")).toContain(
+      "operator.invitation-token=",
     );
   });
 });

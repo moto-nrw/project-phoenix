@@ -90,53 +90,68 @@ function InfoDisplaysPageContent() {
     return (displays ?? []).filter((d) => d.name.toLowerCase().includes(query));
   }, [displays, searchQuery]);
 
-  const run = async (action: () => Promise<void>, failEvent: string) => {
+  const run = async <T,>(
+    action: () => Promise<T>,
+    failEvent: string,
+  ): Promise<{ ok: true; value: T } | { ok: false }> => {
     setBusy(true);
     setError("");
     try {
-      await action();
+      const value = await action();
       await mutate();
+      return { ok: true, value };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       logger.error(failEvent, { error: message });
       setError(message);
+      return { ok: false };
     } finally {
       setBusy(false);
     }
   };
 
-  const handleCreate = () =>
-    run(async () => {
-      const { display, token } = await createDisplay(nameInput);
-      setCreateOpen(false);
-      setNameInput("");
-      setTokenModal({
-        displayName: display.name,
-        url: buildDisplayUrl(token, tenantSlug),
-      });
-    }, "display_create_failed");
+  const handleCreate = async () => {
+    const result = await run(
+      () => createDisplay(nameInput),
+      "display_create_failed",
+    );
+    if (!result.ok) return;
+    const { display, token } = result.value;
+    setCreateOpen(false);
+    setNameInput("");
+    setTokenModal({
+      displayName: display.name,
+      url: buildDisplayUrl(token, tenantSlug),
+    });
+  };
 
-  const handleRename = () =>
-    run(async () => {
-      if (!renameTarget) return;
-      await updateDisplay(renameTarget.id, { name: nameInput });
-      setRenameTarget(null);
-      setNameInput("");
-    }, "display_rename_failed");
+  const handleRename = async () => {
+    if (!renameTarget) return;
+    const result = await run(
+      () => updateDisplay(renameTarget.id, { name: nameInput }),
+      "display_rename_failed",
+    );
+    if (!result.ok) return;
+    setRenameTarget(null);
+    setNameInput("");
+  };
 
   const handleToggleActive = (display: InfoDisplay) =>
     run(async () => {
       await updateDisplay(display.id, { isActive: !display.isActive });
     }, "display_toggle_failed");
 
-  const handleRegenerate = (display: InfoDisplay) =>
-    run(async () => {
-      const token = await regenerateDisplayToken(display.id);
-      setTokenModal({
-        displayName: display.name,
-        url: buildDisplayUrl(token, tenantSlug),
-      });
-    }, "display_regenerate_failed");
+  const handleRegenerate = async (display: InfoDisplay) => {
+    const result = await run(
+      () => regenerateDisplayToken(display.id),
+      "display_regenerate_failed",
+    );
+    if (!result.ok) return;
+    setTokenModal({
+      displayName: display.name,
+      url: buildDisplayUrl(result.value, tenantSlug),
+    });
+  };
 
   const handleDelete = async () => {
     if (!deleteTarget) return;

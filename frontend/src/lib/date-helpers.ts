@@ -5,6 +5,19 @@
 /** Matches a date-only string ("YYYY-MM-DD") as emitted for DATE columns. */
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+const BERLIN_DATE_PARTS_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Europe/Berlin",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+const CHAT_DAY_MONTH_FORMATTER = new Intl.DateTimeFormat("de-DE", {
+  day: "2-digit",
+  month: "2-digit",
+  timeZone: "Europe/Berlin",
+});
+
 /**
  * Serialize a Date to "YYYY-MM-DD" using LOCAL calendar fields.
  * NEVER derive it from toISOString() via split("T")[0] / slice(0, 10) —
@@ -57,12 +70,7 @@ export function todayISO(): string {
  * lint stays satisfied.
  */
 export function berlinTodayISO(): string {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Europe/Berlin",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
+  const parts = BERLIN_DATE_PARTS_FORMATTER.formatToParts(new Date());
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
@@ -156,10 +164,7 @@ export function formatTime(dateString: string): string {
 export function formatChatTime(iso: string): string {
   const date = new Date(iso);
   if (isNaN(date.getTime())) return iso;
-  const dayMonth = new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-  }).format(date);
+  const dayMonth = CHAT_DAY_MONTH_FORMATTER.format(date);
   return `${dayMonth}, ${formatTime(iso)}`;
 }
 

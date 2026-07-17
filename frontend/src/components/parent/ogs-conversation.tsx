@@ -146,6 +146,10 @@ export function OgsConversation({
   // SECOND EventSource — that duplicate doubled SSE connections + backend
   // goroutines and fired every event twice. The hook skips the refetch when the
   // event names a DIFFERENT child (a multi-child guardian gets one event per child).
+  const refreshConversation = useCallback(
+    () => void refresh().then(nudgeUnreadBadge),
+    [refresh],
+  );
   useMessagesActivity({
     eventName: "parent-conversation-refresh",
     studentId,
@@ -153,7 +157,7 @@ export function OgsConversation({
     // resolves so the sidebar count drops the message this chat just read. The
     // bridge's own pre-read badge dispatch races ahead of this and would
     // otherwise leave the badge stale (see nudgeUnreadBadge).
-    onMatch: () => void refresh().then(nudgeUnreadBadge),
+    onMatch: refreshConversation,
     // SSE is this chat's only refresh path after mount; if the bridge dropped
     // while the tab slept a message could have been missed, so refetch on return.
     refetchOnFocus: true,

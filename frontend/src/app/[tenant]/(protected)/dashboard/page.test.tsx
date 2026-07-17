@@ -315,7 +315,7 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/test-tenant/");
+      expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/");
     });
   });
 
@@ -329,7 +329,7 @@ describe("DashboardPage", () => {
     render(<DashboardPage />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/test-tenant/");
+      expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/");
     });
   });
 });
