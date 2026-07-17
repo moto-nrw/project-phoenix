@@ -59,6 +59,10 @@ func (m *mockActiveSvcForSSE) HasOpenAttendanceOn(_ context.Context, _ timezone.
 	return false, nil
 }
 
+func (m *mockActiveSvcForSSE) ConfirmDailyCheckout(_ context.Context, _, _ int64, _ string) (*activeSvc.DailyCheckoutResult, error) {
+	return nil, nil
+}
+
 func (m *mockActiveSvcForSSE) GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
 	if m.getStaffFunc != nil {
 		return m.getStaffFunc(ctx, staffID)
