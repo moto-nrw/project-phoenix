@@ -211,6 +211,16 @@ type InstanceStudentRepository interface {
 	// the handler layer enriches those via the visits-side lookup.
 	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*ScheduledInstanceRow, error)
 
+	// HasPlannedSlotsInRange reports whether the tenant has at least one
+	// planned slot assignment (is_unplanned = FALSE) on an instance dated
+	// within the inclusive range. This is the tenant-level "care plan is
+	// used" signal behind the attendance history's assignment hints: a
+	// single student's slot rows cannot answer it (a student may simply not
+	// be booked anywhere), and walk-in rows must not, because a spontaneous
+	// drop-in also happens at schools that plan nothing. Tenant-scoped via
+	// the caller's context.
+	HasPlannedSlotsInRange(ctx context.Context, from, to timezone.Date) (bool, error)
+
 	// FindPlannedStudentIDsByDate returns unique student IDs that have a
 	// non-cancelled materialized timetable row on the given date. Used by
 	// student search's "kommt heute" heuristic as an additive planning signal.

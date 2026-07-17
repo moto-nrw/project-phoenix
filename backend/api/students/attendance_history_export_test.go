@@ -133,22 +133,6 @@ func TestAttendanceExportDocument_RendersEverySupportedFormat(t *testing.T) {
 	}
 }
 
-// TestExportHasSlotExpectation: only usable slot rows (instance + attendance)
-// count as a care plan — the incomplete rows attendanceExportRows skips must
-// not flip the document into offering mode.
-func TestExportHasSlotExpectation(t *testing.T) {
-	date := timezone.NewDate(2026, 7, 15)
-	assert.False(t, exportHasSlotExpectation(nil))
-	assert.False(t, exportHasSlotExpectation([]*scheduleModel.ScheduledInstanceRow{
-		nil,
-		{Instance: &scheduleModel.ActivityInstance{Date: date}, Attendance: nil},
-	}))
-	assert.True(t, exportHasSlotExpectation([]*scheduleModel.ScheduledInstanceRow{{
-		Instance:   &scheduleModel.ActivityInstance{Date: date, Title: "Morgenbetreuung"},
-		Attendance: &scheduleModel.InstanceStudent{Status: scheduleModel.AttendanceStatusPresent},
-	}}))
-}
-
 // TestAttendanceSessionExportColumns_OmitsPlanColumns: without a care plan the
 // export lists plain sessions — no "Betreuungsangebot" and no "Zuordnung"
 // column, so no row can read as unassigned.

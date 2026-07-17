@@ -104,6 +104,9 @@ type attendanceHistorySources struct {
 	Attendance []*active.Attendance
 	Statuses   []*active.StudentStatusDay
 	Slots      []*scheduleModel.ScheduledInstanceRow
+	// SlotExpectation reports whether assignment hints apply to the loaded
+	// range at all (see resolveSlotExpectation).
+	SlotExpectation bool
 }
 
 // getStudentAttendanceHistory returns the daily attendance log and (conditionally)
@@ -200,7 +203,7 @@ func (rs *Resource) getStudentAttendanceHistory(w http.ResponseWriter, r *http.R
 	// 7. Assemble per-day response
 	days := buildAttendanceHistoryDays(sources.Attendance, sources.Statuses, visitsByDate, roomCutoff, visitQueryFailed)
 	days = attachSlotAttendance(days, sources.Slots, visitsByDate, roomCutoff, visitQueryFailed)
-	days = attachUnassignedAttendance(days)
+	days = attachUnassignedAttendance(days, sources.SlotExpectation)
 
 	resp := attendanceHistoryResponse{
 		StudentID: strconv.FormatInt(student.ID, 10),
@@ -236,7 +239,40 @@ func (rs *Resource) loadAttendanceHistorySources(
 		}
 	}
 	sources.Slots, err = rs.StudentHistoryService.GetSlotAttendanceByStudentAndDateRange(ctx, studentID, from, to)
+	if err != nil {
+		return sources, err
+	}
+	sources.SlotExpectation, err = rs.resolveSlotExpectation(ctx, sources.Slots, from, to)
 	return sources, err
+}
+
+// resolveSlotExpectation reports whether assignment hints — the synthetic
+// "Ohne Zuordnung" history entries and the export's offering/assignment
+// columns — apply to the requested range. A planned slot row of the student
+// answers it directly; otherwise the tenant-wide check decides, so a student
+// without a single booking still gets the hint at a school that maintains its
+// care plan (their observed sessions ARE valid unassigned cases there).
+// Walk-in rows (is_unplanned) never count as plan evidence: a spontaneous
+// drop-in also happens at schools that plan nothing.
+func (rs *Resource) resolveSlotExpectation(
+	ctx context.Context, slots []*scheduleModel.ScheduledInstanceRow, from, to timezone.Date,
+) (bool, error) {
+	if hasPlannedSlotRow(slots) {
+		return true, nil
+	}
+	return rs.StudentHistoryService.HasPlannedSlotsInRange(ctx, from, to)
+}
+
+// hasPlannedSlotRow reports whether any usable slot row (instance and
+// attendance present) carries a planned booking. Walk-ins are excluded on
+// purpose — see resolveSlotExpectation.
+func hasPlannedSlotRow(slots []*scheduleModel.ScheduledInstanceRow) bool {
+	for _, row := range slots {
+		if row != nil && row.Instance != nil && row.Attendance != nil && !row.Attendance.IsUnplanned {
+			return true
+		}
+	}
+	return false
 }
 
 // attendanceHistoryLogger returns a scoped logger, falling back to slog.Default.
@@ -510,13 +546,12 @@ func attachSlotAttendance(
 // multiple booked slots overlap: the session stays neutrally unassigned
 // instead of the system guessing an offering (or claiming it was unbooked).
 //
-// Synthetic entries appear only when the requested range carries at least one
-// real slot for this student (see hasSlotExpectation). Without any slot there
-// is nothing a session could have been assigned to, so "Ohne Zuordnung" would
+// Synthetic entries appear only when expectSlots is true — the caller resolves
+// it tenant-wide via resolveSlotExpectation. Without any planned slot there is
+// nothing a session could have been assigned to, so "Ohne Zuordnung" would
 // label every single day of a school that does not keep a care plan — a
 // permanent error state for a system working as configured.
-func attachUnassignedAttendance(days []attendanceHistoryDay) []attendanceHistoryDay {
-	expectSlots := hasSlotExpectation(days)
+func attachUnassignedAttendance(days []attendanceHistoryDay, expectSlots bool) []attendanceHistoryDay {
 	for dayIndex := range days {
 		day := &days[dayIndex]
 		if expectSlots && day.Attendance != nil {
@@ -537,18 +572,6 @@ func attachUnassignedAttendance(days []attendanceHistoryDay) []attendanceHistory
 		})
 	}
 	return days
-}
-
-// hasSlotExpectation reports whether the loaded range holds any real slot for
-// this student. It must run before synthetic entries are appended, while
-// day.Slots still contains materialized instances only.
-func hasSlotExpectation(days []attendanceHistoryDay) bool {
-	for i := range days {
-		if len(days[i].Slots) > 0 {
-			return true
-		}
-	}
-	return false
 }
 
 // slotCoverage describes one slot's capacity to claim an observed attendance

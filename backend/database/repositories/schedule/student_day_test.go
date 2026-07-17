@@ -111,3 +111,69 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 		assert.Empty(t, rows, "tenant 2 must not see tenant 1 rows")
 	})
 }
+
+// HasPlannedSlotsInRange is the tenant-wide care-plan signal: planned
+// assignment rows count, walk-in rows (is_unplanned) and rows outside the
+// range do not. The far-future window keeps concurrent fixtures from other
+// packages out of the tenant-wide EXISTS.
+func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	student := testpkg.CreateTestStudent(t, db, "Mila", fmt.Sprintf("HP-%d", time.Now().UnixNano()), "2b")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	from := timezone.NewDate(2032, 3, 2)
+	to := timezone.NewDate(2032, 3, 6)
+	dayOutside := timezone.NewDate(2032, 4, 1)
+
+	instIn, cleanIn := createInstanceFixture(t, db, "hp-in", from)
+	defer cleanIn()
+	instOut, cleanOut := createInstanceFixture(t, db, "hp-out", dayOutside)
+	defer cleanOut()
+
+	mkRow := func(instID int64, unplanned bool) *scheduleModels.InstanceStudent {
+		row := &scheduleModels.InstanceStudent{
+			InstanceID:  instID,
+			StudentID:   student.ID,
+			Status:      scheduleModels.AttendanceStatusPresent,
+			IsUnplanned: unplanned,
+		}
+		row.SetTenantID(1)
+		return row
+	}
+
+	walkIn := mkRow(instIn.ID, true)
+	require.NoError(t, repo.Create(ctx, walkIn))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", walkIn.ID)
+	plannedOutside := mkRow(instOut.ID, false)
+	require.NoError(t, repo.Create(ctx, plannedOutside))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", plannedOutside.ID)
+
+	t.Run("walk-in in range and planned row outside range are no evidence", func(t *testing.T) {
+		has, err := repo.HasPlannedSlotsInRange(ctx, from, to)
+		require.NoError(t, err)
+		assert.False(t, has)
+	})
+
+	// A second assignment on the same instance would collide with the walk-in
+	// row (unique instance+student) — flip the walk-in to planned instead:
+	// the signal must react to the planned state itself.
+	walkIn.IsUnplanned = false
+	require.NoError(t, repo.Update(ctx, walkIn))
+
+	t.Run("planned row in range flips the signal", func(t *testing.T) {
+		has, err := repo.HasPlannedSlotsInRange(ctx, from, to)
+		require.NoError(t, err)
+		assert.True(t, has)
+	})
+
+	t.Run("different tenant context sees no evidence", func(t *testing.T) {
+		has, err := repo.HasPlannedSlotsInRange(testpkg.TenantContext(2), from, to)
+		require.NoError(t, err)
+		assert.False(t, has)
+	})
+}

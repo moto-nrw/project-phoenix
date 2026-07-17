@@ -140,11 +140,17 @@ func (rs *Resource) buildAttendanceExportDocument(
 	if err != nil {
 		return listexport.Document{}, err
 	}
-	// Without a single slot in the range there is no care plan to report
-	// against: the document drops the offering/assignment columns and lists the
-	// observed sessions plainly instead of labelling every row "Ohne Zuordnung".
+	// Without a care plan there is nothing to report assignments against: the
+	// document drops the offering/assignment columns and lists the observed
+	// sessions plainly instead of labelling every row "Ohne Zuordnung". The
+	// expectation is resolved tenant-wide (resolveSlotExpectation), so a
+	// student without bookings at a plan-keeping school keeps the full layout.
+	expectSlots, err := rs.resolveSlotExpectation(ctx, slots, from, to)
+	if err != nil {
+		return listexport.Document{}, err
+	}
 	title, columns := "Anwesenheit je Betreuungsangebot", attendanceExportColumns()
-	if !exportHasSlotExpectation(slots) {
+	if !expectSlots {
 		title, columns = "Anwesenheit", attendanceSessionExportColumns()
 	}
 	return listexport.Document{
@@ -172,17 +178,6 @@ func attendanceSessionExportColumns() []listexport.Column {
 		{ID: attendanceColumnWindow, Label: "Zeitraum"}, {ID: attendanceColumnStatus, Label: "Status"},
 		{ID: attendanceColumnCheckIn, Label: "Anwesend ab"}, {ID: attendanceColumnCheckOut, Label: "Anwesend bis"},
 	}
-}
-
-// exportHasSlotExpectation mirrors hasSlotExpectation for the export path,
-// which works off the raw slot rows rather than assembled days.
-func exportHasSlotExpectation(slots []*scheduleModel.ScheduledInstanceRow) bool {
-	for _, row := range slots {
-		if row != nil && row.Instance != nil && row.Attendance != nil {
-			return true
-		}
-	}
-	return false
 }
 
 // attendanceExportRows merges slot rows and unassigned observed sessions into
