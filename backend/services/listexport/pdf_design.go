@@ -777,7 +777,7 @@ func (c *pageChrome) markPillOverflow(rows [][]string, chunks []pillChunk, kept 
 		rowW += ch.width + pillGap
 	}
 	for {
-		label := pillOverflowLabel(len(c.filters) - chunks[kept].filter)
+		label := pillOverflowLabel(hiddenFilters(chunks, kept, len(c.filters)))
 		w, err := c.pillWidth(label)
 		if err != nil {
 			return nil, err
@@ -792,12 +792,28 @@ func (c *pageChrome) markPillOverflow(rows [][]string, chunks []pillChunk, kept 
 	}
 }
 
-// pillOverflowLabel names the filters the header had no room for.
-func pillOverflowLabel(n int) string {
-	if n == 1 {
-		return "+1 weiterer Filter"
+// hiddenFilters counts the filters no visible chunk stands for. A filter whose
+// earlier chunks are still on the page is truncated, not hidden, so it must not
+// be counted — one long label alone never means a second filter exists.
+func hiddenFilters(chunks []pillChunk, kept, total int) int {
+	first := chunks[kept].filter
+	if kept > 0 && chunks[kept-1].filter == first {
+		first++
 	}
-	return fmt.Sprintf("+%d weitere Filter", n)
+	return total - first
+}
+
+// pillOverflowLabel names the filters the header had no room for. Zero hidden
+// filters means every filter is on the page but the last one lost a chunk.
+func pillOverflowLabel(n int) string {
+	switch {
+	case n <= 0:
+		return "Filtertext gekürzt"
+	case n == 1:
+		return "+1 weiterer Filter"
+	default:
+		return fmt.Sprintf("+%d weitere Filter", n)
+	}
 }
 
 func (c *pageChrome) drawFilterPills(x, y float64) error {

@@ -432,6 +432,26 @@ func TestDesignedPDFFilterPillsBoundedToPage(t *testing.T) {
 	}
 }
 
+// P2 (review): when a single filter wraps into more chunks than the row cap
+// allows, the marker must not claim a further filter exists — every filter is
+// on the page, the label just lost its tail.
+func TestDesignedPDFFilterPillsTruncatedSingleFilter(t *testing.T) {
+	only := "Betreuungsangebot: " + strings.Repeat("Ganztagsbetreuung ", 400)
+
+	c, err := newPageChrome(false, "Kinderliste — Nutzung", "42 Kinder", time.Now(), []string{only}, "")
+	if err != nil {
+		t.Fatalf("newPageChrome: %v", err)
+	}
+	last := c.pillRows[len(c.pillRows)-1]
+	marker := last[len(last)-1]
+	if strings.HasPrefix(marker, "+") {
+		t.Fatalf("last pill = %q, want a truncation marker for a single filter", marker)
+	}
+	if marker != pillOverflowLabel(0) {
+		t.Fatalf("last pill = %q, want %q", marker, pillOverflowLabel(0))
+	}
+}
+
 // P3 (review): a decomposed title must not have the eyebrow's letter-spacing
 // inserted between a base letter and its combining mark — text()'s NFC pass
 // can no longer recompose the glyph afterwards, so the accent renders
