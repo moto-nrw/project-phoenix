@@ -52,7 +52,6 @@ var handlerComplexityAllowlist = map[string]int{
 	"api/enrollment/schema_handlers.go:(*Resource).publishSchema":                               32,
 	"api/enrollment/schema_handlers.go:(*Resource).updateSchema":                                19,
 	"api/guardians/handlers.go:(*Resource).deleteGuardian":                                      22,
-	"api/iot/checkin/attendance_handlers.go:(*AttendanceResource).handleDailyCheckout":          18,
 	"api/iot/checkin/handlers.go:(*Resource).deviceCheckin":                                     33,
 	"api/iot/checkin/handlers.go:(*Resource).devicePickupQuery":                                 21,
 	"api/iot/checkin/helpers.go:(*Resource).isAfterCheckoutTimeGate":                            17,
