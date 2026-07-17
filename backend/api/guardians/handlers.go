@@ -862,29 +862,10 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 	force := r.URL.Query().Get("force") == "true"
 	isAdmin := authorize.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context()))
 
-	impact, err := rs.GuardianService.GetGuardianDeleteImpact(r.Context(), id)
+	hasLinks, err := rs.GuardianService.EvaluateGuardianDelete(r.Context(), id, force, isAdmin)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderGuardianDeleteError(w, r, err, isAdmin)
 		return
-	}
-	linkedNames := impact.StudentNames
-
-	if len(linkedNames) > 0 {
-		if !force {
-			message := "Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Kindern verknüpft"
-			if isAdmin {
-				message = guardianFullDeleteWarning(linkedNames)
-			}
-			common.RenderError(w, r, common.ErrorConflictMessage(message))
-			return
-		}
-		// A full delete reaches across every linked student — including siblings
-		// in groups the caller may not supervise. Restrict that blast radius to
-		// admins; group supervisors must use the per-student unlink instead.
-		if !isAdmin {
-			common.RenderError(w, r, common.ErrorForbidden(errors.New("only administrators can fully delete a guardian linked to students")))
-			return
-		}
 	}
 
 	expectedLinkIDs, err := parseExpectedGuardianLinkIDs(r)
@@ -898,33 +879,49 @@ func (rs *Resource) deleteGuardian(w http.ResponseWriter, r *http.Request) {
 	// tenant transaction so a failure leaves guardian and links intact.
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if len(linkedNames) > 0 {
+		if hasLinks {
 			return rs.GuardianService.DeleteGuardianWithLinks(ctx, id, expectedLinkIDs)
 		}
 		return rs.GuardianService.DeleteGuardian(ctx, id)
 	}); err != nil {
-		if errors.Is(err, guardianSvc.ErrGuardianDeletePreviewChanged) {
-			tenant.MarkRollback(r.Context())
-			common.RenderError(w, r, common.ErrorConflictMessage(err.Error()))
-			return
-		}
-		// Safety net: a link added between the check above and the delete trips
-		// the RESTRICT FK — surface it as the same 409 rather than a 500.
-		if common.IsConstraintViolation(err) {
-			tenant.MarkRollback(r.Context())
-			common.RenderError(w, r, common.ErrorConflictMessage("Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Kindern verknüpft"))
-			return
-		}
-		// Check for "not found" errors and return 404
-		if strings.Contains(err.Error(), "not found") {
-			common.RenderError(w, r, common.ErrorNotFound(err))
-		} else {
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-		}
+		rs.renderGuardianDeleteError(w, r, err, isAdmin)
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, nil, "Guardian deleted successfully")
+}
+
+// renderGuardianDeleteError maps the errors from EvaluateGuardianDelete and the
+// delete transaction onto their HTTP responses, preserving the two distinct
+// German conflict messages (the admin warning lists the affected children; the
+// non-admin one does not).
+func (rs *Resource) renderGuardianDeleteError(w http.ResponseWriter, r *http.Request, err error, isAdmin bool) {
+	var stillLinked *guardianSvc.GuardianStillLinkedError
+	switch {
+	case errors.As(err, &stillLinked):
+		message := "Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Kindern verknüpft"
+		if isAdmin {
+			message = guardianFullDeleteWarning(stillLinked.StudentNames)
+		}
+		common.RenderError(w, r, common.ErrorConflictMessage(message))
+	case errors.Is(err, guardianSvc.ErrGuardianForceDeleteRequiresAdmin):
+		// A full delete reaches across every linked student — including siblings
+		// in groups the caller may not supervise. Restrict that blast radius to
+		// admins; group supervisors must use the per-student unlink instead.
+		common.RenderError(w, r, common.ErrorForbidden(err))
+	case errors.Is(err, guardianSvc.ErrGuardianDeletePreviewChanged):
+		tenant.MarkRollback(r.Context())
+		common.RenderError(w, r, common.ErrorConflictMessage(err.Error()))
+	case common.IsConstraintViolation(err):
+		// Safety net: a link added between the check above and the delete trips
+		// the RESTRICT FK — surface it as the same 409 rather than a 500.
+		tenant.MarkRollback(r.Context())
+		common.RenderError(w, r, common.ErrorConflictMessage("Erziehungsberechtigte/r kann nicht gelöscht werden: Noch mit Kindern verknüpft"))
+	case strings.Contains(err.Error(), "not found"):
+		common.RenderError(w, r, common.ErrorNotFound(err))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+	}
 }
 
 // listGuardiansWithoutAccount handles listing guardians who don't have accounts

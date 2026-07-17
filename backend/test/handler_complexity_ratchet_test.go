@@ -36,10 +36,9 @@ const handlerComplexityThreshold = 15
 // Seeded 2026-07-12 from `gocognit -over 15 api/` (non-test files only), the
 // issue #575 B0 baseline. 75 functions.
 var handlerComplexityAllowlist = map[string]int{
-	"api/activities/supervisor_handlers.go:buildReplacementSupervisorIDs": 22,
-	"api/auth/invitation_handlers.go:(*Resource).createInvitation":        20,
-	"api/base.go:(*API).registerRoutesWithRateLimiting":                   20,
-	"api/base.go:setupCORS": 18,
+	"api/auth/invitation_handlers.go:(*Resource).createInvitation":                              20,
+	"api/base.go:(*API).registerRoutesWithRateLimiting":                                         20,
+	"api/base.go:setupCORS":                                                                     18,
 	"api/common/student_locations.go:(*StudentLocationSnapshot).ResolveStudentLocationWithTime": 16,
 	"api/enrollment/admin_decision_handlers.go:(*Resource).decideAdminChild":                    20,
 	"api/enrollment/admin_decision_handlers.go:(*Resource).toAdminRequestDetailSummary":         21,
@@ -55,7 +54,6 @@ var handlerComplexityAllowlist = map[string]int{
 	"api/enrollment/schema_handlers.go:(*Resource).listPublicActiveSchema":                      22,
 	"api/enrollment/schema_handlers.go:(*Resource).publishSchema":                               32,
 	"api/enrollment/schema_handlers.go:(*Resource).updateSchema":                                19,
-	"api/guardians/handlers.go:(*Resource).deleteGuardian":                                      22,
 	"api/iot/checkin/attendance_handlers.go:(*AttendanceResource).handleDailyCheckout":          18,
 	"api/iot/checkin/handlers.go:(*Resource).deviceCheckin":                                     33,
 	"api/iot/checkin/handlers.go:(*Resource).devicePickupQuery":                                 21,
