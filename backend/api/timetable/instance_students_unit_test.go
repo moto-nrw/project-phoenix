@@ -97,6 +97,10 @@ func (f *fakeRepo) FindInstancesWithAttendanceByStudentAndDateRange(context.Cont
 	panic("unused")
 }
 
+func (f *fakeRepo) HasPlannedSlotsInRange(context.Context, timezone.Date, timezone.Date) (bool, error) {
+	panic("unused")
+}
+
 func (f *fakeRepo) UpdateAttendanceFromCheckin(context.Context, int64, int64, time.Time) (bool, error) {
 	panic("unused")
 }

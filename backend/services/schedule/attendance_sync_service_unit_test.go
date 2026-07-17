@@ -239,6 +239,10 @@ func (f *fakeInstanceStudentRepo) FindInstancesWithAttendanceByStudentAndDateRan
 	panic("unused")
 }
 
+func (f *fakeInstanceStudentRepo) HasPlannedSlotsInRange(context.Context, timezone.Date, timezone.Date) (bool, error) {
+	panic("unused")
+}
+
 // -----------------------------------------------------------------------------
 // Helpers
 // -----------------------------------------------------------------------------
