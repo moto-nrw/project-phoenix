@@ -1,12 +1,14 @@
 package schedule_test
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	scheduleRepo "github.com/moto-nrw/project-phoenix/database/repositories/schedule"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -175,5 +177,17 @@ func TestInstanceStudentRepository_HasPlannedSlotsInRange(t *testing.T) {
 		has, err := repo.HasPlannedSlotsInRange(testpkg.TenantContext(2), from, to)
 		require.NoError(t, err)
 		assert.False(t, has)
+	})
+
+	t.Run("wraps driver errors in DatabaseError", func(t *testing.T) {
+		cancelledCtx, cancel := context.WithCancel(ctx)
+		cancel()
+
+		has, err := repo.HasPlannedSlotsInRange(cancelledCtx, from, to)
+		assert.False(t, has)
+		require.Error(t, err)
+		var dbErr *modelBase.DatabaseError
+		require.ErrorAs(t, err, &dbErr)
+		assert.Equal(t, "check planned slots in range", dbErr.Op)
 	})
 }
