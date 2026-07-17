@@ -143,7 +143,7 @@ func (l *recordLayout) newPage() error {
 	if err := l.drawBackground(); err != nil {
 		return err
 	}
-	if err := l.drawHeader(); err != nil {
+	if _, err := l.drawHeader(); err != nil {
 		return err
 	}
 	return l.drawFooter(l.page, l.total)

@@ -270,16 +270,42 @@ func pdfColumnWidths(cols []Column, total float64) []float64 {
 	return widths
 }
 
+// headerBottom is the y just past the header block, summing the advances
+// drawHeader() actually makes: an eyebrow only exists for two-part titles,
+// a subtitle and filter pills only when the caller supplied them. This
+// used to be a flat 104pt reserve sized for the fullest possible header,
+// which left ~2cm unused on every "Tagesliste" (no eyebrow, often no
+// filters) — the body simply started lower than the header ended.
+func (c *pageChrome) headerBottom() float64 {
+	y := pageMargin + headerFirstY
+	if titleEyebrow(c.title) != "" {
+		y += headerEyebrowAdvance
+	}
+	y += headerTitleAdvance
+	if c.subtitle != "" {
+		y += headerSubtitleAdvance
+	}
+	return y + float64(len(c.pillRows))*pillRowH
+}
+
 // bodyTop is the y where page content starts, below the header block;
 // bodyBottom is the last usable y above the footer.
-func (c *pageChrome) bodyTop() float64 {
-	extra := 0.0
-	if n := len(c.pillRows); n > 1 {
-		extra = float64(n-1) * pillRowH
-	}
-	return pageMargin + 104 + extra
-}
+func (c *pageChrome) bodyTop() float64    { return c.headerBottom() + headerBodyGap }
 func (c *pageChrome) bodyBottom() float64 { return c.h - pageMargin - footerHeight }
+
+// groupChromeHeight is the vertical cost of a group heading inside the
+// card, or 0 for an ungrouped document. Grouped documents start every
+// group on a fresh page and carry the title onto continuation pages, so
+// every page of a grouped document pays it and no page of an ungrouped
+// one does — which is exactly what drawCard draws.
+func (r *designRenderer) groupChromeHeight() float64 {
+	for _, row := range r.doc.Rows {
+		if row.GroupTitle != "" {
+			return fontGroup + groupGap
+		}
+	}
+	return 0
+}
 
 // paginate wraps every cell, splits rows into pages, and slices rows
 // taller than a page body into continuation rows. Group titles start a
@@ -292,7 +318,11 @@ func (r *designRenderer) paginate() ([]designPage, error) {
 
 	// Rows that fit inside one card: the card's own chrome (padding, an
 	// optional group heading, the table header) comes off the top first.
-	avail := r.bodyBottom() - (r.bodyTop() + 2*cardPadY + fontGroup + groupGap + r.tableHeaderHeight())
+	// The heading is only deducted when the document actually has groups —
+	// an ungrouped list (the Tagesliste builds its rows without a
+	// GroupTitle) had 24pt reserved on every page for a heading drawCard
+	// never draws, which cost a full row per page.
+	avail := r.bodyBottom() - (r.bodyTop() + 2*cardPadY + r.groupChromeHeight() + r.tableHeaderHeight())
 	// The tallest single row a fresh page can hold; taller rows are
 	// sliced so no content draws past the page body (they used to run
 	// through the footer and off the page).
@@ -500,7 +530,7 @@ func (r *designRenderer) drawPage(p designPage, num int) error {
 	if err := r.drawBackground(); err != nil {
 		return err
 	}
-	if err := r.drawHeader(); err != nil {
+	if _, err := r.drawHeader(); err != nil {
 		return err
 	}
 	if err := r.drawCard(p); err != nil {
@@ -563,66 +593,73 @@ func (c *pageChrome) drawBackground() error {
 	return nil
 }
 
-func (c *pageChrome) drawHeader() error {
+// drawHeader draws the header block and returns the y it ended at, which
+// headerBottom() predicts without drawing. Every advance below must use
+// the header* constants so the prediction cannot drift from the drawing —
+// TestDesignedPDFHeaderReserveMatchesDrawnHeader fails if it does.
+func (c *pageChrome) drawHeader() (float64, error) {
 	if err := c.pdf.ImageByHolder(c.logo, pageMargin, pageMargin-6, &gopdf.Rect{
 		W: logoHeight * logoAspect, H: logoHeight,
 	}); err != nil {
-		return fmt.Errorf("draw logo: %w", err)
+		return 0, fmt.Errorf("draw logo: %w", err)
 	}
 
 	// Generated-at, right aligned.
 	if err := c.setFont(styleNormal, fontMeta); err != nil {
-		return err
+		return 0, err
 	}
 	c.setText(colorMuted)
 	stamp := "Erstellt: " + GeneratedAtLabel(c.generatedAt)
 	sw, err := c.measure(stamp)
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if err := c.text(c.w-pageMargin-sw, pageMargin+6, stamp); err != nil {
-		return err
+		return 0, err
 	}
 
-	y := pageMargin + 32
+	y := pageMargin + headerFirstY
 
 	// Eyebrow — only for two-part titles; single-part titles render the
 	// headline alone instead of repeating themselves.
 	if eyebrow := titleEyebrow(c.title); eyebrow != "" {
 		if err := c.setFont(styleBold, fontEyebrow); err != nil {
-			return err
+			return 0, err
 		}
 		c.setText(colorEyebrow)
 		if err := c.text(pageMargin, y, strings.ToUpper(spaceOut(eyebrow))); err != nil {
-			return err
+			return 0, err
 		}
-		y += 16
+		y += headerEyebrowAdvance
 	}
 
 	// Title.
 	if err := c.setFont(styleBold, fontTitle); err != nil {
-		return err
+		return 0, err
 	}
 	c.setText(colorInk)
 	if err := c.text(pageMargin, y, titleHeadline(c.title)); err != nil {
-		return err
+		return 0, err
 	}
-	y += 14
+	y += headerTitleAdvance
 
 	// Subtitle.
 	if c.subtitle != "" {
 		if err := c.setFont(styleNormal, fontSubtitle); err != nil {
-			return err
+			return 0, err
 		}
 		c.setText(colorMuted)
 		if err := c.text(pageMargin, y, c.subtitle); err != nil {
-			return err
+			return 0, err
 		}
-		y += 14
+		y += headerSubtitleAdvance
 	}
 
 	// Filter pills.
-	return c.drawFilterPills(pageMargin, y)
+	if err := c.drawFilterPills(pageMargin, y); err != nil {
+		return 0, err
+	}
+	return y + float64(len(c.pillRows))*pillRowH, nil
 }
 
 // layoutPills packs the filter labels into rows that fit between the

@@ -65,9 +65,22 @@ const (
 	cardPadX = 18.0
 	cardPadY = 14.0
 	// Gap under the group heading — InfoCard's mb-4 (16px).
-	groupGap     = 12.0
-	pillRadius   = 7.0
-	pillRowH     = 18.0 // vertical advance between wrapped filter-pill rows
+	groupGap   = 12.0
+	pillRadius = 7.0
+	pillRowH   = 18.0 // vertical advance between wrapped filter-pill rows
+
+	// Header block geometry. drawHeader() advances by exactly these
+	// amounts and headerBottom() sums the same ones for the parts that
+	// are actually drawn, so the body starts under the real header
+	// instead of under a worst-case guess (a title without an eyebrow,
+	// or an export without filters, used to leave the reserve unused).
+	// TestDesignedPDFHeaderReserveMatchesDrawnHeader pins the two together.
+	headerFirstY          = 32.0 // first text row, below the logo
+	headerEyebrowAdvance  = 16.0
+	headerTitleAdvance    = 14.0
+	headerSubtitleAdvance = 14.0
+	headerBodyGap         = 10.0 // breathing room between header and card
+
 	cellPadX     = 6.0
 	cellPadY     = 5.0
 	rowLineHt    = 10.0

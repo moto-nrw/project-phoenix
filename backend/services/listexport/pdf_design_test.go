@@ -283,7 +283,11 @@ func TestDesignedPDFOversizedRowSplits(t *testing.T) {
 		t.Fatal(err)
 	}
 	full := r.buildRow(doc.Rows[0])
-	avail := r.bodyBottom() - (r.bodyTop() + 2*cardPadY + fontGroup + groupGap + r.tableHeaderHeight())
+	// Ask the renderer for the group chrome instead of re-deriving it: this
+	// document's rows carry no GroupTitle, so a hardcoded fontGroup+groupGap
+	// would budget for a heading drawCard never draws and make the check
+	// stricter than the page really is.
+	avail := r.bodyBottom() - (r.bodyTop() + 2*cardPadY + r.groupChromeHeight() + r.tableHeaderHeight())
 	maxLines := int((avail - 2*cellPadY) / rowLineHt)
 	gotLines := 0
 	for _, p := range pages {
@@ -340,5 +344,96 @@ func TestDesignedPDFFilterPillsWrapWithinPage(t *testing.T) {
 	}
 	if r.bodyTop() <= plain.bodyTop() {
 		t.Fatalf("bodyTop = %.1f, want it below the single-row default %.1f", r.bodyTop(), plain.bodyTop())
+	}
+}
+
+// The header reserve must equal the header actually drawn. bodyTop() used
+// to be a flat "pageMargin + 104" sized for the fullest header (eyebrow +
+// title + subtitle + one pill row); a Tagesliste has no eyebrow and often
+// no filters, so the body started up to ~58pt below where the header
+// ended. These two must never drift apart again.
+func TestDesignedPDFHeaderReserveMatchesDrawnHeader(t *testing.T) {
+	cases := []struct {
+		name     string
+		title    string
+		subtitle string
+		filters  []string
+	}{
+		{name: "full", title: "Kinderliste — OGS Wochenübersicht", subtitle: "42 Kinder", filters: []string{"Gruppe: A"}},
+		{name: "tagesliste", title: "Tagesliste", subtitle: "42 Kinder", filters: nil},
+		{name: "bare", title: "Tagesliste"},
+		{name: "eyebrow only", title: "Kinderliste — Tagesliste"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			doc := designGroupedDocument()
+			doc.Title, doc.Subtitle, doc.Filters = tc.title, tc.subtitle, tc.filters
+			r, err := newDesignRenderer(doc)
+			if err != nil {
+				t.Fatalf("newDesignRenderer: %v", err)
+			}
+			r.pdf.AddPage()
+			drawn, err := r.drawHeader()
+			if err != nil {
+				t.Fatalf("drawHeader: %v", err)
+			}
+			if got := r.headerBottom(); got != drawn {
+				t.Fatalf("headerBottom() = %.1f, but drawHeader ended at %.1f", got, drawn)
+			}
+			if r.bodyTop() <= drawn {
+				t.Fatalf("bodyTop %.1f overlaps the header ending at %.1f", r.bodyTop(), drawn)
+			}
+		})
+	}
+}
+
+// An ungrouped document must not reserve room for a group heading that
+// drawCard never draws: the card is sized from the same terms paginate()
+// budgets with, so a full page's card must reach the page body's bottom
+// to within one row.
+func TestDesignedPDFUngroupedPagesFillBody(t *testing.T) {
+	doc := Document{
+		Title:       "Tagesliste",
+		Subtitle:    "60 Kinder",
+		GeneratedAt: time.Date(2026, 7, 1, 8, 0, 0, 0, time.UTC),
+		Columns:     []Column{{ID: ColumnName, Label: "Name"}, {ID: ColumnSchoolClass, Label: "Klasse"}},
+	}
+	for i := 0; i < 60; i++ {
+		doc.Rows = append(doc.Rows, Row{Values: map[ColumnID]string{
+			ColumnName: fmt.Sprintf("Muster, Kind %d", i), ColumnSchoolClass: "1a",
+		}})
+	}
+	r, err := newDesignRenderer(doc)
+	if err != nil {
+		t.Fatalf("newDesignRenderer: %v", err)
+	}
+	if got := r.groupChromeHeight(); got != 0 {
+		t.Fatalf("ungrouped document reserves %.1fpt of group chrome, want 0", got)
+	}
+	pages, err := r.paginate()
+	if err != nil {
+		t.Fatalf("paginate: %v", err)
+	}
+	if len(pages) < 2 {
+		t.Fatalf("expected the list to spill across pages, got %d", len(pages))
+	}
+	if err := r.setFont(styleNormal, fontBody); err != nil {
+		t.Fatal(err)
+	}
+
+	// Page 1 is full by construction (more rows follow). Its card bottom
+	// must land within one row height of the body bottom — anything more
+	// is space the pagination believed it did not have.
+	used := 0.0
+	for _, rr := range pages[0].rows {
+		used += rr.height()
+	}
+	cardBottom := r.bodyTop() + 2*cardPadY + r.tableHeaderHeight() + used
+	gap := r.bodyBottom() - cardBottom
+	if gap < 0 {
+		t.Fatalf("card overruns the page body by %.1fpt", -gap)
+	}
+	if maxGap := pages[0].rows[0].height(); gap > maxGap {
+		t.Fatalf("dead space below a full card = %.1fpt, want <= one row (%.1fpt)", gap, maxGap)
 	}
 }
