@@ -358,26 +358,23 @@ func (r *designRenderer) drawCard(p designPage) error {
 
 	y := top
 
-	// Group heading inside the card.
+	// Group heading — plain text, no filled band (the app never fills one).
 	if p.groupTitle != "" {
 		gh := fontGroup + 2*cellPadY
-		r.setFill(colorGroupBg)
-		r.pdf.RectFromUpperLeftWithStyle(left+1, y+1, right-left-2, gh, "F")
 		if err := r.pdf.SetFont(fontFamily, styleBold, fontGroup); err != nil {
 			return err
 		}
 		r.setText(colorInk)
-		if err := r.text(left+cellPadX+4, y+gh-cellPadY-1, p.groupTitle); err != nil {
+		if err := r.text(left+2*cellPadX, y+gh-cellPadY-1, p.groupTitle); err != nil {
 			return err
 		}
 		y += gh
 	}
 
-	// Table header band.
+	// Table header: muted labels over a hairline — DataTable's
+	// "border-b border-gray-100 text-xs font-medium text-gray-500".
 	hh := tableHeaderHeight()
-	r.setFill(colorHeaderBg)
-	r.pdf.RectFromUpperLeftWithStyle(left+1, y, right-left-2, hh, "F")
-	if err := r.pdf.SetFont(fontFamily, styleBold, fontTableHd); err != nil {
+	if err := r.pdf.SetFont(fontFamily, styleNormal, fontTableHd); err != nil {
 		return err
 	}
 	r.setText(colorHeaderText)
@@ -389,6 +386,9 @@ func (r *designRenderer) drawCard(p designPage) error {
 		cx += r.widths[i]
 	}
 	y += hh
+	r.setStroke(colorHeaderRule)
+	r.pdf.SetLineWidth(0.7)
+	r.pdf.Line(left+cellPadX, y, right-cellPadX, y)
 
 	// Body rows.
 	if err := r.pdf.SetFont(fontFamily, styleNormal, fontBody); err != nil {
@@ -397,7 +397,7 @@ func (r *designRenderer) drawCard(p designPage) error {
 	for _, row := range p.rows {
 		rh := r.rowHeight(row)
 		cx = left + cellPadX
-		r.setText(colorInk)
+		r.setText(colorBody)
 		for i, col := range r.cols {
 			lines := r.wrap(norms(row.Values[col.ID]), r.widths[i]-2*cellPadX)
 			ty := y + cellPadY + rowLineHt - 2

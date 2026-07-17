@@ -16,14 +16,18 @@ var (
 	colorInk        = rgb{0x17, 0x23, 0x1F} // guide near-black title
 
 	// Neutrals (Tailwind gray scale, as used by xlsx.go + the guide).
-	colorPageBg     = rgb{0xF9, 0xFA, 0xFB} // gray-50
-	colorSurface    = rgb{0xFF, 0xFF, 0xFF}
-	colorBorder     = rgb{0xE5, 0xE7, 0xEB} // gray-200
-	colorRowLine    = rgb{0xF3, 0xF4, 0xF6} // gray-100
-	colorGroupBg    = rgb{0xF3, 0xF4, 0xF6} // gray-100
-	colorHeaderBg   = rgb{0x1F, 0x28, 0x37} // gray-800 — same as xlsx.go header
-	colorHeaderText = rgb{0xFF, 0xFF, 0xFF}
-	colorMuted      = rgb{0x6B, 0x72, 0x80} // gray-500
+	colorPageBg  = rgb{0xF9, 0xFA, 0xFB} // gray-50
+	colorSurface = rgb{0xFF, 0xFF, 0xFF}
+	colorBorder  = rgb{0xE5, 0xE7, 0xEB} // gray-200 — card border
+	colorMuted   = rgb{0x6B, 0x72, 0x80} // gray-500
+	colorBody    = rgb{0x11, 0x18, 0x27} // gray-900 — DataTable cell text
+
+	// Table chrome, mirroring frontend/src/components/ui/data-table.tsx:
+	// the header is NOT a filled band — it is muted gray-500 labels over a
+	// gray-100 hairline; rows separate with gray-50. No dark fill anywhere.
+	colorHeaderText = rgb{0x6B, 0x72, 0x80} // gray-500  (thead text)
+	colorHeaderRule = rgb{0xF3, 0xF4, 0xF6} // gray-100  (thead border-b)
+	colorRowLine    = rgb{0xF9, 0xFA, 0xFB} // gray-50   (row border-b)
 
 	// The guide's dotted background is #111827 at 12% over #F9FAFB. PDF
 	// alpha would need an ExtGState; the blend is constant here, so it is
