@@ -1337,3 +1337,230 @@ func TestCalendarServiceIntegration_ParentCalendarIncludesChildTimetable(t *test
 	require.NotNil(t, events[0].StudentName)
 	assert.Contains(t, *events[0].StudentName, "Felix")
 }
+
+// The public subscription feed bypasses parent auth, so a deactivated account
+// must lose feed access immediately — the token alone is not enough.
+func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	cfg := calendarTestConfig(db)
+	repos := repositories.NewFactory(db)
+	cfg.AccountRepo = repos.Account
+	cfg.ParentsURL = "https://parents.test"
+	service := calendarSvc.NewService(cfg)
+
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Inactive", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Elterninfo",
+		StartDate:    timezone.TodayDate().AddDays(3),
+		EndDate:      timezone.TodayDate().AddDays(3),
+		StartTime:    wallClock(15, 0),
+		EndTime:      wallClock(16, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	httpsURL, _, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
+	require.NoError(t, err)
+	token := strings.TrimPrefix(httpsURL, "https://parents.test/api/calendar-feed/")
+
+	// While active, the feed serves the family's appointments.
+	_, content, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	require.NoError(t, err)
+	assert.Contains(t, content, "SUMMARY:Elterninfo")
+
+	// Deactivate the account (tenant mappings stay active).
+	_, err = db.NewUpdate().
+		ModelTableExpr("auth.accounts").
+		Set("active = ?", false).
+		Where("id = ?", parentChain.AccountID).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	// The same token now behaves like an unknown token: a plain not-found, no leak.
+	_, _, err = service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, calendarSvc.ErrNotFound))
+}
+
+// Editing a recurring series is a whole-series operation: stale single-occurrence
+// cancellations from the old cadence must not survive to suppress valid dates in
+// the edited series.
+func TestCalendarServiceIntegration_SeriesEditClearsOccurrenceOverrides(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "SeriesEdit", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "SeriesEdit", "Invitee")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	endsOn := timezone.NewDate(2026, 1, 19)
+	weekly := func() *calendarSvc.RecurrenceRequest {
+		return &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{"monday"},
+			EndsOn:        &endsOn,
+		}
+	}
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Weekly standup",
+		StartDate:    timezone.NewDate(2026, 1, 5), // Monday
+		EndDate:      timezone.NewDate(2026, 1, 5),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(9, 30),
+		DeliveryMode: calModels.DeliveryModeRSVPRequired,
+		Recurrence:   weekly(),
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	// Cancel the middle occurrence, confirm it disappears.
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
+	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 19))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2026-01-05", "2026-01-19"}, eventDates(events, calModels.EventSourceAppointment))
+
+	// Edit the series (same cadence). The stale cancellation must be cleared, so
+	// 2026-01-12 reappears in the edited series.
+	_, err = service.UpdateStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
+		Title:      "Weekly standup (edited)",
+		StartDate:  timezone.NewDate(2026, 1, 5),
+		EndDate:    timezone.NewDate(2026, 1, 5),
+		StartTime:  wallClock(9, 0),
+		EndTime:    wallClock(9, 30),
+		Recurrence: weekly(),
+	})
+	require.NoError(t, err)
+
+	events, err = service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 19))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2026-01-05", "2026-01-12", "2026-01-19"}, eventDates(events, calModels.EventSourceAppointment))
+}
+
+// A weekly rule whose weekdays exclude the StartDate weekday must export a
+// DTSTART on the first matching weekday, matching the in-app expansion, so
+// external calendars don't render a phantom occurrence on the StartDate.
+func TestCalendarServiceIntegration_RecurringICSStartsAtFirstMatchingWeekday(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "FirstDay", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "FirstDay", "Invitee")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	endsOn := timezone.NewDate(2026, 5, 27)
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Mittwochs-AG",
+		StartDate:    timezone.NewDate(2026, 5, 4), // Monday — NOT a selected weekday
+		EndDate:      timezone.NewDate(2026, 5, 4),
+		StartTime:    wallClock(14, 0),
+		EndTime:      wallClock(15, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{"wednesday"},
+			EndsOn:        &endsOn,
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	// The in-app expansion starts on the first Wednesday (2026-05-06), not the
+	// Monday StartDate.
+	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 5, 4), timezone.NewDate(2026, 5, 6))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2026-05-06"}, eventDates(events, calModels.EventSourceAppointment))
+
+	// The ICS export must anchor DTSTART on that same first Wednesday.
+	_, content, err := service.StaffAppointmentICS(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+	assert.Contains(t, content, "DTSTART;TZID=Europe/Berlin:20260506T140000")
+	assert.NotContains(t, content, "20260504T140000", "must not anchor DTSTART on the non-matching StartDate")
+	assert.Contains(t, content, "RRULE:FREQ=WEEKLY;BYDAY=WE")
+}
+
+// Editing an appointment must cancel any not-yet-sent notice queued by an earlier
+// create/update, so the worker can't deliver stale details — regardless of
+// whether the edit re-sends email.
+func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	outbox := &recordingOutbox{}
+	service := setupCalendarServiceWithOutbox(t, db, outbox)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "UpdateMail", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Elternabend",
+		StartDate:    timezone.NewDate(2026, 4, 2),
+		EndDate:      timezone.NewDate(2026, 4, 2),
+		StartTime:    wallClock(18, 0),
+		EndTime:      wallClock(19, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		SendEmail:    true,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+	require.Len(t, outbox.enqueued, 1)
+
+	base := calendarSvc.UpdateAppointmentRequest{
+		Title:     "Elternabend (verschoben)",
+		StartDate: timezone.NewDate(2026, 4, 3),
+		EndDate:   timezone.NewDate(2026, 4, 3),
+		StartTime: wallClock(18, 0),
+		EndTime:   wallClock(19, 0),
+	}
+
+	// Edit WITHOUT re-sending: the stale pending mail is cancelled and no new mail
+	// is queued.
+	_, err = service.UpdateStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID, base)
+	require.NoError(t, err)
+	assert.Equal(t, 1, outbox.cancelled, "update must cancel pending mail even when not re-sending")
+	require.Len(t, outbox.enqueued, 1, "no new mail queued when send_email is off")
+
+	// Edit WITH re-sending: cancels again, then queues a single update notice.
+	resend := base
+	resend.SendEmail = true
+	_, err = service.UpdateStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID, resend)
+	require.NoError(t, err)
+	assert.Equal(t, 2, outbox.cancelled)
+	require.Len(t, outbox.enqueued, 2)
+	assert.Equal(t, platformModels.EmailKindAppointmentUpdated, outbox.enqueued[1].Kind)
+}

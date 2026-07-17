@@ -517,7 +517,20 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 			return nil, err
 		}
 	}
+	// Editing the series is a whole-series operation, so per-occurrence
+	// cancellations ("Nur diesen Termin") from the old cadence no longer apply.
+	// Drop them; otherwise a date reused by the new recurrence would be silently
+	// suppressed (and stale EXDATEs would leak into the subscription feed/ICS).
+	if err := s.cfg.OverrideRepo.DeleteByAppointmentID(ctx, appointment.ID); err != nil {
+		return nil, err
+	}
 
+	// Kill any not-yet-sent notice queued by a prior create/update so the worker
+	// can't deliver stale title/date/location (or a create notice the edit turned
+	// off), then optionally enqueue a fresh update notice — mirrors cancel/delete.
+	if err := s.cancelPendingNotifications(ctx, appointment.ID, "appointment updated"); err != nil {
+		return nil, err
+	}
 	if req.SendEmail {
 		if err := s.notifyGuardians(ctx, appointment, platformModels.EmailKindAppointmentUpdated); err != nil {
 			return nil, err
@@ -1637,6 +1650,34 @@ func expandOccurrences(appointment *calModels.Appointment, rule *calModels.Recur
 		}
 	}
 	return occurrences
+}
+
+// firstRecurrenceOccurrence returns the first calendar date on or after the
+// appointment's StartDate that satisfies the recurrence rule. For a weekly rule
+// whose selected weekdays exclude StartDate's own weekday, this is later than
+// StartDate: the in-app expansion (expandOccurrences) starts there, so ICS
+// DTSTART must too — otherwise clients render a phantom occurrence on the
+// non-matching StartDate and diverge from the app. Falls back to StartDate.
+func firstRecurrenceOccurrence(appointment *calModels.Appointment, rule *calModels.RecurrenceRule) timezone.Date {
+	if rule == nil {
+		return appointment.StartDate
+	}
+	if rule.IntervalCount <= 0 {
+		rule.IntervalCount = 1
+	}
+	// Bound the scan: the only frequency where StartDate may not match is weekly,
+	// where a matching weekday is at most 6 days out. Cap generously so a
+	// pathological rule can never loop forever.
+	limit := appointment.StartDate.AddDays(366)
+	for d := appointment.StartDate; !d.After(limit); d = d.AddDays(1) {
+		if rule.EndsOn != nil && d.After(*rule.EndsOn) {
+			break
+		}
+		if matchesRule(appointment.StartDate, d, rule) {
+			return d
+		}
+	}
+	return appointment.StartDate
 }
 
 func occurrenceDatesForAppointments(appointments []*calModels.Appointment, recurrenceByAppointment map[int64]*calModels.RecurrenceRule, from, to timezone.Date) []timezone.Date {

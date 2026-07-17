@@ -106,6 +106,12 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 	if account == nil {
 		return "", "", ErrNotFound
 	}
+	// The public feed bypasses normal parent auth — the token is the only
+	// credential. A deactivated account must lose feed access immediately, so
+	// treat an inactive account like an unknown token (plain 404, no leak).
+	if !account.IsActive() {
+		return "", "", ErrNotFound
+	}
 
 	children, err := s.parentChildren(ctx, account.ID)
 	if err != nil {

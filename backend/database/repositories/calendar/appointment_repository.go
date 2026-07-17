@@ -475,6 +475,20 @@ func (r *AppointmentOccurrenceOverrideRepository) FindCancelledByAppointmentIDs(
 	return rows, nil
 }
 
+func (r *AppointmentOccurrenceOverrideRepository) DeleteByAppointmentID(ctx context.Context, appointmentID int64) error {
+	query := base.GetDB(ctx, r.DB).NewDelete().
+		Model((*calModels.AppointmentOccurrenceOverride)(nil)).
+		ModelTableExpr(`calendar.appointment_occurrence_overrides AS "appointment_occurrence_override"`).
+		Where(`"appointment_occurrence_override".appointment_id = ?`, appointmentID)
+	if where, val, ok := base.TenantWhere(ctx, "appointment_occurrence_override"); ok {
+		query = query.Where(where, val)
+	}
+	if _, err := query.Exec(ctx); err != nil {
+		return fmt.Errorf("delete calendar occurrence overrides: %w", err)
+	}
+	return nil
+}
+
 func (r *AppointmentOccurrenceOverrideRepository) FindByAppointmentIDsAndOccurrenceDates(ctx context.Context, appointmentIDs []int64, occurrenceDates []timezone.Date) ([]*calModels.AppointmentOccurrenceOverride, error) {
 	if len(appointmentIDs) == 0 || len(occurrenceDates) == 0 {
 		return []*calModels.AppointmentOccurrenceOverride{}, nil

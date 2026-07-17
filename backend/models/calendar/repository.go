@@ -49,5 +49,10 @@ type AppointmentOccurrenceOverrideRepository interface {
 	// for the given appointments — used to emit iCalendar EXDATEs so subscribed
 	// external calendars drop occurrences cancelled via "Nur diesen Termin".
 	FindCancelledByAppointmentIDs(ctx context.Context, appointmentIDs []int64) ([]*AppointmentOccurrenceOverride, error)
+	// DeleteByAppointmentID removes every occurrence override for an appointment.
+	// Used when a series edit replaces the recurrence rule wholesale so stale
+	// per-occurrence cancellations from the old cadence cannot suppress valid
+	// occurrences (or leak EXDATEs) in the edited series.
+	DeleteByAppointmentID(ctx context.Context, appointmentID int64) error
 	Delete(ctx context.Context, id any) error
 }

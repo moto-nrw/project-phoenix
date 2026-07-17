@@ -131,6 +131,14 @@ func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calMode
 		Stamp:       appointment.UpdatedAt,
 	}
 	if recurrence != nil {
+		// DTSTART must be the first real occurrence, not the raw StartDate: for a
+		// weekly rule whose weekdays exclude StartDate's weekday the app starts on
+		// the first matching weekday, so anchor the exported series there too (and
+		// shift EndDate by the same span to preserve each occurrence's duration).
+		if first := firstRecurrenceOccurrence(appointment, recurrence); first != appointment.StartDate {
+			event.StartDate = first
+			event.EndDate = first.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate))
+		}
 		event.Recurrence = &ical.Recurrence{
 			Freq:      recurrence.Frequency,
 			Interval:  recurrence.IntervalCount,
