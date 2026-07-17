@@ -49,6 +49,10 @@ type studentExportFilters struct {
 	PhotoConsent string `json:"photo_consent"`
 	PickupStatus string `json:"pickup_status"`
 	DayStatus    string `json:"day_status"`
+	// Date is the optional planning day (YYYY-MM-DD) the day-planning status,
+	// status days, and planned arrival/pickup times are evaluated for (#1939).
+	// Empty means the school-local today.
+	Date         string `json:"date"`
 	PickupTime   string `json:"pickup_time"`
 	ArrivalTime  string `json:"arrival_time"`
 	Sort         string `json:"sort"`
@@ -95,17 +99,30 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	if exportNeedsPhotoConsentFilter(req.Filters) {
 		populateExportPhotoConsentFilterData(responses, students)
 	}
-	applyFullAccessActualTimes(responses, dataSnapshot)
+
+	now := rs.Now()
+	planningDate, isToday, dateErr := resolvePlanningDate(req.Filters.Date, now)
+	if dateErr != nil {
+		renderError(w, r, common.ErrorInvalidRequest(dateErr))
+		return
+	}
+	// Actual check-in/out times and the row-seeded Sick/Excused flags describe
+	// today; a non-today planning export starts clean and only carries the
+	// requested date's status days and plans.
+	if isToday {
+		applyFullAccessActualTimes(responses, dataSnapshot)
+	} else {
+		resetScheduledStatusFlags(responses)
+	}
 
 	fullAccessIDs := collectFullAccessStudentIDs(responses)
-	today := rs.Now()
-	rs.applyStatusDaysForDate(r.Context(), responses, today)
-	if err := rs.enrichWithDayPlanning(r.Context(), responses, today, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
+	rs.applyStatusDaysForDate(r.Context(), responses, planningDate.BerlinMidnight())
+	if err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
-	rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, today)
-	rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, today)
+	rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
+	rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
 
 	responses = applyExportFilters(responses, req.Filters, req.Preset)
 	// The cap is applied to the rows that actually land in the document, after
@@ -126,7 +143,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	columns := listexport.ResolveColumns(req.Columns, req.Preset)
-	enrollmentSummaries, err := rs.loadActiveEnrollmentSummaries(r, collectResponseIDs(responses), timezone.DateFromTime(today), columns)
+	enrollmentSummaries, err := rs.loadActiveEnrollmentSummaries(r, collectResponseIDs(responses), planningDate, columns)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -134,15 +151,15 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 
 	var rows []listexport.Row
 	if req.Filters.GroupByClass {
-		rows = buildGroupedExportRows(responses, weekly, enrollmentSummaries, timezone.DateFromTime(today))
+		rows = buildGroupedExportRows(responses, weekly, enrollmentSummaries, planningDate, isToday)
 	} else {
-		rows = buildExportRows(responses, weekly, enrollmentSummaries, timezone.DateFromTime(today))
+		rows = buildExportRows(responses, weekly, enrollmentSummaries, planningDate, isToday)
 	}
 	doc := listexport.Document{
 		Title:       exportTitle(req),
 		Subtitle:    rs.exportSubtitle(r, len(responses)),
 		GeneratedAt: time.Now(),
-		Filters:     exportFilterLabels(req.Filters),
+		Filters:     exportFilterLabelsForDate(req.Filters, planningDate, isToday),
 		Columns:     columns,
 		Rows:        rows,
 	}
@@ -500,7 +517,7 @@ func groupExportResponsesByClass(students []StudentResponse) {
 	})
 }
 
-func buildGroupedExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date) []listexport.Row {
+func buildGroupedExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) []listexport.Row {
 	rows := make([]listexport.Row, 0, len(students))
 	currentClass := ""
 	for i, student := range students {
@@ -511,15 +528,15 @@ func buildGroupedExportRows(students []StudentResponse, weekly map[int64]weeklyS
 			currentClass = class
 			rows = append(rows, listexport.Row{GroupTitle: listexport.ClassGroupTitle(class)})
 		}
-		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries, onDate))
+		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries, onDate, isToday))
 	}
 	return rows
 }
 
-func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date) []listexport.Row {
+func buildExportRows(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) []listexport.Row {
 	rows := make([]listexport.Row, 0, len(students))
 	for _, student := range students {
-		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries, onDate))
+		rows = append(rows, buildExportRow(student, weekly[student.ID], enrollmentSummaries, onDate, isToday))
 	}
 	return rows
 }
@@ -551,7 +568,7 @@ func ageExportCell(birthday string, onDate timezone.Date) string {
 	return strconv.Itoa(years)
 }
 
-func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date) listexport.Row {
+func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) listexport.Row {
 	return listexport.Row{Values: map[listexport.ColumnID]string{
 		listexport.ColumnName:              strings.TrimSpace(student.FirstName + " " + student.LastName),
 		listexport.ColumnSchoolClass:       student.SchoolClass,
@@ -563,7 +580,7 @@ func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSumm
 		listexport.ColumnWeeklyWednesday:   weeklyCell(plan, schedule.WeekdayWednesday),
 		listexport.ColumnWeeklyThursday:    weeklyCell(plan, schedule.WeekdayThursday),
 		listexport.ColumnWeeklyFriday:      weeklyCell(plan, schedule.WeekdayFriday),
-		listexport.ColumnDailyStatus:       dailyStatusExportCell(student),
+		listexport.ColumnDailyStatus:       dailyStatusExportCell(student, isToday),
 		listexport.ColumnPlannedArrival:    base.Deref(student.ArrivalTime),
 		listexport.ColumnPlannedPickup:     base.Deref(student.PickupTime),
 		listexport.ColumnDeparture:         departureExportCell(student),
@@ -574,10 +591,10 @@ func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSumm
 	}}
 }
 
-func dailyStatusExportCell(student StudentResponse) string {
+func dailyStatusExportCell(student StudentResponse, isToday bool) string {
 	switch student.DayPlanningStatus {
 	case DayPlanningStatusComesToday:
-		return "Kommt heute"
+		return dayLabel("Kommt heute", "Wird erwartet", isToday)
 	case DayPlanningStatusNotComingToday:
 		switch student.DayPlanningReason {
 		case dayPlanningReasonSick:
@@ -590,7 +607,7 @@ func dailyStatusExportCell(student StudentResponse) string {
 		if student.DayPlanningLabel != "" {
 			return sentenceCase(student.DayPlanningLabel)
 		}
-		return "Kommt heute nicht"
+		return dayLabel("Kommt heute nicht", "Wird nicht erwartet", isToday)
 	}
 
 	if student.Sick {
@@ -768,8 +785,17 @@ func exportTitle(req studentExportRequest) string {
 	}
 }
 
+// exportFilterLabels renders the printed filter header for a today-scoped
+// export; exportFilterLabelsForDate is the date-aware form the handler uses.
 func exportFilterLabels(filters studentExportFilters) []string {
+	return exportFilterLabelsForDate(filters, timezone.Date{}, true)
+}
+
+func exportFilterLabelsForDate(filters studentExportFilters, planningDate timezone.Date, isToday bool) []string {
 	labels := []string{}
+	if !isToday {
+		labels = append(labels, "Datum: "+planningDate.Format("02.01.2006"))
+	}
 	if filters.Search != "" {
 		labels = append(labels, "Suche: "+filters.Search)
 	}
@@ -795,7 +821,7 @@ func exportFilterLabels(filters studentExportFilters) []string {
 		labels = append(labels, "Abholregelung: "+exportPickupStatusLabel(filters.PickupStatus))
 	}
 	if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll {
-		labels = append(labels, "Tagesplanung: "+dayStatusExportLabel(filters.DayStatus))
+		labels = append(labels, "Tagesplanung: "+dayStatusExportLabel(filters.DayStatus, isToday))
 	}
 	if filters.GroupByClass {
 		labels = append(labels, "Nach Klassen getrennt")
@@ -877,12 +903,12 @@ func exportStatusLabel(status string) string {
 	}
 }
 
-func dayStatusExportLabel(status string) string {
+func dayStatusExportLabel(status string, isToday bool) string {
 	switch status {
 	case DayPlanningStatusComesToday:
-		return "Kommt heute"
+		return dayLabel("Kommt heute", "Wird erwartet", isToday)
 	case DayPlanningStatusNotComingToday:
-		return "Kommt heute nicht"
+		return dayLabel("Kommt heute nicht", "Wird nicht erwartet", isToday)
 	default:
 		return status
 	}

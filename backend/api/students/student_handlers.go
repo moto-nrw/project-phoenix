@@ -87,8 +87,18 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, photosEnabled)
 
 	now := rs.Now()
-	rs.applyStatusDaysForDate(r.Context(), responses, now)
-	if err := rs.enrichWithDayPlanning(r.Context(), responses, now, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
+	planningDate, isToday, dateErr := resolvePlanningDate(params.date, now)
+	if dateErr != nil {
+		renderError(w, r, common.ErrorInvalidRequest(dateErr))
+		return
+	}
+	if !isToday {
+		// The row-seeded Sick/Excused flags describe today; a non-today view
+		// must start clean and only carry the requested date's status days.
+		resetScheduledStatusFlags(responses)
+	}
+	rs.applyStatusDaysForDate(r.Context(), responses, planningDate.BerlinMidnight())
+	if err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
 		slog.Default().Error("failed to enrich student day planning", slog.String("error", err.Error()))
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
@@ -105,22 +115,27 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		responses, totalCount = applyInMemoryPagination(responses, params.page, params.pageSize)
 	}
 
-	for i := range responses {
-		if !responses[i].HasFullAccess {
-			continue
+	// Actual check-in/out times describe today's attendance; they stay off a
+	// non-today planning view so current presence is never read as a plan.
+	if isToday {
+		for i := range responses {
+			if !responses[i].HasFullAccess {
+				continue
+			}
+			applyActualTimesFromSnapshot(&responses[i], dataSnapshot)
 		}
-		applyActualTimesFromSnapshot(&responses[i], dataSnapshot)
 	}
 
-	// Optionally enrich the paginated slice with today's effective pickup times (single bulk query).
-	// Only query for students the caller has full access to. GDPR: skip redacted students.
+	// Optionally enrich the paginated slice with the planning date's effective
+	// pickup/arrival times (single bulk query). Only query for students the
+	// caller has full access to. GDPR: skip redacted students.
 	if params.includePickupTimes || params.includeArrivalTimes {
 		fullAccessIDs := collectFullAccessStudentIDs(responses)
 		if params.includePickupTimes {
-			rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, now)
+			rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
 		}
 		if params.includeArrivalTimes {
-			rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, now)
+			rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
 		}
 	}
 
@@ -301,7 +316,7 @@ func (rs *Resource) getStudent(w http.ResponseWriter, r *http.Request) {
 		}
 
 		single := []StudentResponse{response.StudentResponse}
-		if err := rs.enrichWithDayPlanning(r.Context(), single, now, map[int64]*activeService.AttendanceStatus{
+		if err := rs.enrichWithDayPlanning(r.Context(), single, timezone.DateFromTime(now), true, map[int64]*activeService.AttendanceStatus{
 			student.ID: attendanceStatus,
 		}); err != nil {
 			renderError(w, r, common.ErrorInternalServer(err))

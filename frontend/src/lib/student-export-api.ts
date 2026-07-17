@@ -44,6 +44,11 @@ export interface StudentExportFilters {
   photo_consent?: string;
   pickup_status?: string;
   day_status?: string;
+  /**
+   * Planning day (YYYY-MM-DD) the day-planning status and planned times are
+   * evaluated for (#1939). Omit for today.
+   */
+  date?: string;
   pickup_time?: string;
   arrival_time?: string;
   sort?: string;

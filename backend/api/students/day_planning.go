@@ -2,6 +2,8 @@ package students
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -30,7 +32,24 @@ const (
 	dayPlanningReasonNoPlan           = "no_plan"
 )
 
-func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []StudentResponse, now time.Time, attendances map[int64]*activeService.AttendanceStatus) error {
+// resolvePlanningDate turns the optional `date` query/filter value into the
+// calendar day the day-planning pipeline is evaluated for. Empty means the
+// school-local today (derived from now, i.e. Berlin wall clock, so the day
+// switches at local midnight, not at UTC midnight).
+func resolvePlanningDate(raw string, now time.Time) (timezone.Date, bool, error) {
+	today := timezone.DateFromTime(now)
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return today, true, nil
+	}
+	date, err := timezone.ParseDate(trimmed)
+	if err != nil {
+		return timezone.Date{}, false, fmt.Errorf("invalid date %q, expected YYYY-MM-DD", raw)
+	}
+	return date, date == today, nil
+}
+
+func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []StudentResponse, planningDate timezone.Date, isToday bool, attendances map[int64]*activeService.AttendanceStatus) error {
 	fullAccessIDs := collectFullAccessStudentIDs(responses)
 	if len(fullAccessIDs) == 0 {
 		return nil
@@ -39,7 +58,7 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 	arrivals := map[int64]*scheduleService.EffectiveArrivalTime{}
 	if rs.ArrivalScheduleService != nil {
 		var err error
-		arrivals, err = rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, fullAccessIDs, timezone.DateFromTime(now))
+		arrivals, err = rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, fullAccessIDs, planningDate)
 		if err != nil {
 			return err
 		}
@@ -48,7 +67,7 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 	pickups := map[int64]*scheduleService.EffectivePickupTime{}
 	if rs.PickupScheduleService != nil {
 		var err error
-		pickups, err = rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, fullAccessIDs, timezone.DateFromTime(now))
+		pickups, err = rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, fullAccessIDs, planningDate)
 		if err != nil {
 			return err
 		}
@@ -56,7 +75,7 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 
 	timetableIDs := map[int64]struct{}{}
 	if rs.InstanceService != nil {
-		plannedIDs, err := rs.InstanceService.GetPlannedStudentIDsByDate(ctx, fullAccessIDs, timezone.DateFromTime(now))
+		plannedIDs, err := rs.InstanceService.GetPlannedStudentIDsByDate(ctx, fullAccessIDs, planningDate)
 		if err != nil {
 			return err
 		}
@@ -79,7 +98,7 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 	if rs.ExcusedRequestService != nil &&
 		authorize.HasPermission(permissions.UsersUpdate, jwt.PermissionsFromCtx(ctx)) {
 		var err error
-		pendingExcused, err = rs.ExcusedRequestService.PendingByStudentForDate(ctx, timezone.DateFromTime(now))
+		pendingExcused, err = rs.ExcusedRequestService.PendingByStudentForDate(ctx, planningDate)
 		if err != nil {
 			return err
 		}
@@ -89,7 +108,7 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 		if !responses[i].HasFullAccess {
 			continue
 		}
-		status, reason, label := resolveDayPlanning(responses[i], arrivals[responses[i].ID], pickups[responses[i].ID], attendances[responses[i].ID], timetableIDs)
+		status, reason, label := resolveDayPlanningForDate(responses[i], arrivals[responses[i].ID], pickups[responses[i].ID], attendances[responses[i].ID], timetableIDs, isToday)
 		responses[i].DayPlanningStatus = status
 		responses[i].DayPlanningReason = reason
 		responses[i].DayPlanningLabel = label
@@ -102,6 +121,9 @@ func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []Stude
 	return nil
 }
 
+// resolveDayPlanning keeps the original today-bound shape; it exists so the
+// single computation in resolveDayPlanningForDate stays the only logic while
+// today-callers (and existing tests) keep their signature.
 func resolveDayPlanning(
 	student StudentResponse,
 	arrival *scheduleService.EffectiveArrivalTime,
@@ -109,7 +131,23 @@ func resolveDayPlanning(
 	attendance *activeService.AttendanceStatus,
 	timetableIDs map[int64]struct{},
 ) (string, string, string) {
-	if hasActualAttendanceToday(attendance) {
+	return resolveDayPlanningForDate(student, arrival, pickup, attendance, timetableIDs, true)
+}
+
+// resolveDayPlanningForDate applies the #1448 precedence to one calendar day:
+// explicit absence wins, then any planning signal for the day, otherwise the
+// child is not expected. For non-today dates the actual-attendance shortcut is
+// skipped — a child being present right now says nothing about another day
+// (#1939) — and labels avoid "heute" wording.
+func resolveDayPlanningForDate(
+	student StudentResponse,
+	arrival *scheduleService.EffectiveArrivalTime,
+	pickup *scheduleService.EffectivePickupTime,
+	attendance *activeService.AttendanceStatus,
+	timetableIDs map[int64]struct{},
+	isToday bool,
+) (string, string, string) {
+	if isToday && hasActualAttendanceToday(attendance) {
 		return DayPlanningStatusComesToday, dayPlanningReasonUnplanned, "ungeplant anwesend"
 	}
 	if student.Sick {
@@ -123,18 +161,18 @@ func resolveDayPlanning(
 	}
 	if arrival != nil && arrival.ArrivalTime != nil {
 		if arrival.IsException {
-			return DayPlanningStatusComesToday, dayPlanningReasonArrivalException, "geplante Ankunft heute"
+			return DayPlanningStatusComesToday, dayPlanningReasonArrivalException, dayLabel("geplante Ankunft heute", "geplante Ankunft", isToday)
 		}
-		return DayPlanningStatusComesToday, dayPlanningReasonArrivalSchedule, "Ankunftsplan heute"
+		return DayPlanningStatusComesToday, dayPlanningReasonArrivalSchedule, dayLabel("Ankunftsplan heute", "Ankunftsplan", isToday)
 	}
 	if pickup != nil && pickup.PickupTime != nil {
 		if pickup.IsException {
-			return DayPlanningStatusComesToday, dayPlanningReasonPickupException, "geplante Abholung heute"
+			return DayPlanningStatusComesToday, dayPlanningReasonPickupException, dayLabel("geplante Abholung heute", "geplante Abholung", isToday)
 		}
-		return DayPlanningStatusComesToday, dayPlanningReasonPickupSchedule, "Abholplan heute"
+		return DayPlanningStatusComesToday, dayPlanningReasonPickupSchedule, dayLabel("Abholplan heute", "Abholplan", isToday)
 	}
 	if _, ok := timetableIDs[student.ID]; ok {
-		return DayPlanningStatusComesToday, dayPlanningReasonTimetable, "Betreuungsplan heute"
+		return DayPlanningStatusComesToday, dayPlanningReasonTimetable, dayLabel("Betreuungsplan heute", "Betreuungsplan", isToday)
 	}
 	if arrival != nil && arrival.IsException && arrival.ArrivalTime == nil {
 		return DayPlanningStatusNotComingToday, dayPlanningReasonArrivalException, dayPlanningExceptionLabel(arrival.Notes)
@@ -142,7 +180,30 @@ func resolveDayPlanning(
 	if pickup != nil && pickup.IsException && pickup.PickupTime == nil {
 		return DayPlanningStatusNotComingToday, dayPlanningReasonPickupException, dayPlanningExceptionLabel(pickup.Notes)
 	}
-	return DayPlanningStatusNotComingToday, dayPlanningReasonNoPlan, "kein Plan für heute"
+	return DayPlanningStatusNotComingToday, dayPlanningReasonNoPlan, dayLabel("kein Plan für heute", "kein Plan für diesen Tag", isToday)
+}
+
+func dayLabel(todayLabel, otherDayLabel string, isToday bool) string {
+	if isToday {
+		return todayLabel
+	}
+	return otherDayLabel
+}
+
+// resetScheduledStatusFlags clears the Sick/ClassTrip/Excused flags that
+// buildStudentResponses seeds from the student row. Those columns mirror
+// TODAY's state; when the list is evaluated for another date they must not
+// leak into it — applyStatusDaysForDate then overlays the rows recorded for
+// the requested date.
+func resetScheduledStatusFlags(responses []StudentResponse) {
+	for i := range responses {
+		responses[i].Sick = false
+		responses[i].SickSince = nil
+		responses[i].ClassTrip = false
+		responses[i].ClassTripSince = nil
+		responses[i].Excused = false
+		responses[i].ExcusedSince = nil
+	}
 }
 
 func hasActualAttendanceToday(attendance *activeService.AttendanceStatus) bool {

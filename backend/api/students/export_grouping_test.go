@@ -32,7 +32,7 @@ func TestBuildGroupedExportRowsInsertsHeadingsAtBoundaries(t *testing.T) {
 		{ID: 4, FirstName: "Ida", LastName: "Conrad", SchoolClass: ""},
 	}
 
-	rows := buildGroupedExportRows(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate)
+	rows := buildGroupedExportRows(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true)
 
 	require.Len(t, rows, 7)
 	assert.Equal(t, "Klasse 1a", rows[0].GroupTitle)
@@ -56,7 +56,7 @@ func TestBuildGroupedExportRowsMergesClassLabelVariants(t *testing.T) {
 		{ID: 4, FirstName: "Ida", LastName: "Dreyer", SchoolClass: "1b"},
 	}
 
-	rows := buildGroupedExportRows(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate)
+	rows := buildGroupedExportRows(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true)
 
 	var headings []string
 	for _, row := range rows {
@@ -74,7 +74,7 @@ func TestBuildGroupedExportRowsSingleClassHasOneHeading(t *testing.T) {
 		{ID: 2, FirstName: "Mila", LastName: "Anders", SchoolClass: "1a"},
 	}
 
-	rows := buildGroupedExportRows(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate)
+	rows := buildGroupedExportRows(students, map[int64]weeklySchedule{}, map[int64]string{}, testExportDate, true)
 
 	require.Len(t, rows, 3)
 	headings := 0

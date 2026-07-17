@@ -23,6 +23,10 @@ import type {
 import { DetailIcons } from "~/components/ui/detail-modal-components";
 import { studentService, groupService, roomService } from "~/lib/api";
 import type { Student, Group, Room } from "~/lib/api";
+import { Button } from "~/components/ui/button";
+import { DatePicker } from "~/components/ui/date-picker";
+import { DataTableStatusBadge } from "~/components/ui/data-table";
+import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useUserContext } from "~/lib/hooks/use-user-context";
 import { StudentPresenceBadge } from "@/components/ui/student-presence-badge";
 import {
@@ -120,6 +124,29 @@ const DAY_STATUS_FILTER_OPTIONS: Array<{
   { value: "comes_today", label: "Kommt heute" },
   { value: "not_coming_today", label: "Kommt heute nicht" },
 ];
+
+// Same wire values evaluated for a non-today planning date (#1939) — the UI
+// must not say "heute" when the selection refers to another day.
+const DAY_STATUS_FILTER_OPTIONS_OTHER_DAY: Array<{
+  value: DayStatusFilter;
+  label: string;
+}> = [
+  { value: "all", label: "Alle Kinder" },
+  { value: "comes_today", label: "Wird erwartet" },
+  { value: "not_coming_today", label: "Wird nicht erwartet" },
+];
+
+// Planning-date URL param (#1939). Deliberately NOT part of
+// FILTER_QUERY_PARAMS: an absolute date restored from localStorage days later
+// would silently show a stale day, so the date only lives in the URL.
+const DATE_QUERY_PARAM = "date";
+
+function normalizeDateParam(value: string | null): string | null {
+  if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  // parseISODate → toISODate round-trip rejects rolled-over values like
+  // "2026-99-99" that match the pattern but are not a real calendar day.
+  return toISODate(parseISODate(value)) === value ? value : null;
+}
 
 const SORT_OPTIONS: Array<{ value: SortMode; label: string }> = [
   { value: "name", label: "Name A-Z" },
@@ -738,8 +765,23 @@ function SearchPageContent() {
   const [selectedRoomName, setSelectedRoomName] = useState(initialRoomName);
   const [isExportOpen, setIsExportOpen] = useState(false);
 
+  // Planning date (#1939). Always read from the real URL, never from the
+  // stored-filter fallback, and defaulting to the school-local today.
+  const [selectedDate, setSelectedDate] = useState<string>(
+    () =>
+      normalizeDateParam(searchParams.get(DATE_QUERY_PARAM)) ??
+      toISODate(new Date()),
+  );
+
   const updateUrlParams = useCallback(
-    (patch: Partial<Record<(typeof FILTER_QUERY_PARAMS)[number], string>>) => {
+    (
+      patch: Partial<
+        Record<
+          (typeof FILTER_QUERY_PARAMS)[number] | typeof DATE_QUERY_PARAM,
+          string
+        >
+      >,
+    ) => {
       if (typeof window === "undefined") return;
       const url = new URL(window.location.href);
       for (const [key, value] of Object.entries(patch)) {
@@ -859,6 +901,50 @@ function SearchPageContent() {
   // Current time for pickup urgency calculation (updates every minute)
   const now = useMinuteClock();
 
+  // Planning-date context (#1939). todayIso derives from the minute clock so
+  // the "Heute" anchor rolls over at local midnight without a reload.
+  const todayIso = toISODate(now);
+  const isToday = selectedDate === todayIso;
+  const tomorrowIso = useMemo(() => {
+    const tomorrow = parseISODate(todayIso);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return toISODate(tomorrow);
+  }, [todayIso]);
+  // Urgency coloring and time-status sorting compare against "now". For a
+  // non-today date every planned time is neutral, so compare against that
+  // day's local midnight instead of the current clock.
+  const planningNow = useMemo(
+    () => (isToday ? now : parseISODate(selectedDate)),
+    [isToday, now, selectedDate],
+  );
+
+  const updateSelectedDate = useCallback(
+    (value: string) => {
+      setSelectedDate(value);
+      updateUrlParams({ date: value === toISODate(new Date()) ? "" : value });
+    },
+    [updateUrlParams],
+  );
+
+  const dayStatusFilterOptions = isToday
+    ? DAY_STATUS_FILTER_OPTIONS
+    : DAY_STATUS_FILTER_OPTIONS_OTHER_DAY;
+
+  // Live presence data describes today. For any other planning date the
+  // realtime filters are neutralized and hidden so current whereabouts are
+  // never read as (or filtered like) a plan for that day.
+  const effectiveAttendanceFilter: StatusFilter = isToday
+    ? attendanceFilter
+    : "all";
+  const effectiveTrackingFilter: TrackingFilter = isToday
+    ? trackingFilter
+    : "all";
+  const effectiveRoomId = isToday ? selectedRoomId : "";
+  const effectiveGroupMode: GroupMode =
+    isToday || (groupMode !== "status" && groupMode !== "room")
+      ? groupMode
+      : "none";
+
   // OGS group tracking via shared BFF endpoint with SWR caching
   // This eliminates 2 separate API calls with 2 auth() calls each
   const { userContext } = useUserContext();
@@ -959,7 +1045,7 @@ function SearchPageContent() {
   // applied server-side in the same in-memory pass as day_status, so the
   // backend returns correctly-filtered and correctly-counted pages. The cache
   // key just has to vary with every filter value so SWR refetches on change.
-  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedSchoolClass}-${selectedRoomId}-${dayStatusFilter}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${pickupStatusFilter}`;
+  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedSchoolClass}-${effectiveRoomId}-${dayStatusFilter}-${selectedDate}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${pickupStatusFilter}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -973,8 +1059,11 @@ function SearchPageContent() {
         search: debouncedSearchTerm,
         groupId: selectedGroup,
         schoolClass: selectedSchoolClass || undefined,
-        roomId: selectedRoomId || undefined,
+        roomId: effectiveRoomId || undefined,
         dayStatus: dayStatusFilter === "all" ? undefined : dayStatusFilter,
+        // Planning date (#1939): omitted for today so today's requests stay
+        // byte-identical with the pre-date behavior.
+        date: isToday ? undefined : selectedDate,
         // Administrative filters (#1492) are now applied server-side, so the
         // backend returns the correctly-filtered, correctly-counted page set
         // directly, no client-side full-page fetch + filter required.
@@ -992,7 +1081,7 @@ function SearchPageContent() {
         // 1000 covers any realistic combined-group / assembly-room
         // session well above what backend ParsePagination would return
         // by default (50). General search keeps the default.
-        pageSize: selectedRoomId ? FULL_STUDENT_SEARCH_PAGE_SIZE : undefined,
+        pageSize: effectiveRoomId ? FULL_STUDENT_SEARCH_PAGE_SIZE : undefined,
         includePickupTimes: true,
         includeArrivalTimes: true,
       };
@@ -1148,9 +1237,11 @@ function SearchPageContent() {
     setGroupMode("none");
     setSelectedRoomId("");
     setSelectedRoomName("");
-    updateUrlParams(
-      Object.fromEntries(FILTER_QUERY_PARAMS.map((key) => [key, ""])),
-    );
+    setSelectedDate(toISODate(new Date()));
+    updateUrlParams({
+      ...Object.fromEntries(FILTER_QUERY_PARAMS.map((key) => [key, ""])),
+      [DATE_QUERY_PARAM]: "",
+    });
     removeStoredFilters(storageKey);
   }, [storageKey, updateUrlParams]);
 
@@ -1327,40 +1418,45 @@ function SearchPageContent() {
           ...groups.map((group) => ({ value: group.id, label: group.name })),
         ],
       },
-      {
-        id: "room",
-        label: "Raum",
-        type: "dropdown",
-        value: selectedRoomId,
-        onChange: (value: string | string[]) => {
-          const v = Array.isArray(value) ? value[0] : value;
-          if (!v) {
-            clearRoomFilter();
-            return;
-          }
-          const room = rooms.find((r) => r.id === v);
-          updateRoomFilter(
-            v,
-            room?.name ?? (v === selectedRoomId ? selectedRoomName : ""),
-          );
-        },
-        options: [
-          { value: "", label: "Alle Räume" },
-          ...orderedRoomOptions.map((room) => ({
-            value: room.id,
-            label: room.name,
-          })),
-          ...(selectedRoomId &&
-          !orderedRoomOptions.some((room) => room.id === selectedRoomId)
-            ? [
-                {
-                  value: selectedRoomId,
-                  label: selectedRoomName || `Raum #${selectedRoomId}`,
-                },
-              ]
-            : []),
-        ],
-      },
+      // The room filter reads current visits — today-only by nature (#1939).
+      ...(isToday
+        ? [
+            {
+              id: "room",
+              label: "Raum",
+              type: "dropdown" as const,
+              value: selectedRoomId,
+              onChange: (value: string | string[]) => {
+                const v = Array.isArray(value) ? value[0] : value;
+                if (!v) {
+                  clearRoomFilter();
+                  return;
+                }
+                const room = rooms.find((r) => r.id === v);
+                updateRoomFilter(
+                  v,
+                  room?.name ?? (v === selectedRoomId ? selectedRoomName : ""),
+                );
+              },
+              options: [
+                { value: "", label: "Alle Räume" },
+                ...orderedRoomOptions.map((room) => ({
+                  value: room.id,
+                  label: room.name,
+                })),
+                ...(selectedRoomId &&
+                !orderedRoomOptions.some((room) => room.id === selectedRoomId)
+                  ? [
+                      {
+                        value: selectedRoomId,
+                        label: selectedRoomName || `Raum #${selectedRoomId}`,
+                      },
+                    ]
+                  : []),
+              ],
+            },
+          ]
+        : []),
       {
         id: "pickupTime",
         label: "Gehzeit",
@@ -1407,25 +1503,31 @@ function SearchPageContent() {
         type: "dropdown",
         value: dayStatusFilter,
         onChange: (value) => updateDayStatusFilter(value as DayStatusFilter),
-        options: DAY_STATUS_FILTER_OPTIONS,
+        options: dayStatusFilterOptions,
       },
-      {
-        id: "attendance",
-        label: "Status",
-        type: "dropdown",
-        value: attendanceFilter,
-        onChange: (value) => updateAttendanceFilter(value as StatusFilter),
-        options: [
-          { value: "all", label: "Alle Status" },
-          { value: "anwesend", label: "Anwesend" },
-          { value: "abwesend", label: "Abwesend" },
-          { value: "krank", label: "Krank" },
-          { value: "klassenfahrt", label: "Klassenfahrt" },
-          { value: "entschuldigt", label: "Entschuldigt" },
-          { value: "unterwegs", label: "Unterwegs" },
-          { value: "schulhof", label: "Schulhof" },
-        ],
-      },
+      // The live status filter reads current whereabouts — today-only (#1939).
+      ...(isToday
+        ? [
+            {
+              id: "attendance",
+              label: "Status",
+              type: "dropdown" as const,
+              value: attendanceFilter,
+              onChange: (value: string | string[]) =>
+                updateAttendanceFilter(value as StatusFilter),
+              options: [
+                { value: "all", label: "Alle Status" },
+                { value: "anwesend", label: "Anwesend" },
+                { value: "abwesend", label: "Abwesend" },
+                { value: "krank", label: "Krank" },
+                { value: "klassenfahrt", label: "Klassenfahrt" },
+                { value: "entschuldigt", label: "Entschuldigt" },
+                { value: "unterwegs", label: "Unterwegs" },
+                { value: "schulhof", label: "Schulhof" },
+              ],
+            },
+          ]
+        : []),
       {
         id: "bus",
         label: "Buskind",
@@ -1468,11 +1570,16 @@ function SearchPageContent() {
         id: "groupMode",
         label: "Ansicht",
         type: "dropdown",
-        value: groupMode,
+        value: effectiveGroupMode,
         onChange: (value) => updateGroupMode(value as GroupMode),
-        options: GROUP_OPTIONS,
+        // Status/room grouping reads current whereabouts — today-only (#1939).
+        options: isToday
+          ? GROUP_OPTIONS
+          : GROUP_OPTIONS.filter(
+              (option) => option.value !== "status" && option.value !== "room",
+            ),
       },
-      ...(trackingLabels && trackingLabels.length > 0
+      ...(isToday && trackingLabels && trackingLabels.length > 0
         ? [
             {
               id: "tracking",
@@ -1517,7 +1624,6 @@ function SearchPageContent() {
       clearRoomFilter,
       updateRoomFilter,
       sortMode,
-      groupMode,
       updateSelectedYear,
       updateSelectedSchoolClass,
       updateSelectedGroup,
@@ -1531,6 +1637,9 @@ function SearchPageContent() {
       updateTrackingFilter,
       updateSortMode,
       updateGroupMode,
+      isToday,
+      dayStatusFilterOptions,
+      effectiveGroupMode,
     ],
   );
 
@@ -1572,12 +1681,12 @@ function SearchPageContent() {
       });
     }
 
-    if (selectedRoomId) {
+    if (effectiveRoomId) {
       // Fall back to "Raum #{id}" when no room_name was passed in the URL
       // (e.g. an old bookmark), better than rendering an empty chip.
       const label = selectedRoomName
         ? `Raum: ${selectedRoomName}`
-        : `Raum #${selectedRoomId}`;
+        : `Raum #${effectiveRoomId}`;
       filters.push({
         id: "room",
         label,
@@ -1585,7 +1694,7 @@ function SearchPageContent() {
       });
     }
 
-    if (attendanceFilter !== "all") {
+    if (effectiveAttendanceFilter !== "all") {
       const statusLabels: Record<Exclude<StatusFilter, "all">, string> = {
         anwesend: "Anwesend",
         abwesend: "Abwesend",
@@ -1597,7 +1706,8 @@ function SearchPageContent() {
       };
       filters.push({
         id: "attendance",
-        label: statusLabels[attendanceFilter] ?? attendanceFilter,
+        label:
+          statusLabels[effectiveAttendanceFilter] ?? effectiveAttendanceFilter,
         onRemove: () => updateAttendanceFilter("all"),
       });
     }
@@ -1636,7 +1746,7 @@ function SearchPageContent() {
       filters.push({
         id: "dayStatus",
         label:
-          DAY_STATUS_FILTER_OPTIONS.find(
+          dayStatusFilterOptions.find(
             (option) => option.value === dayStatusFilter,
           )?.label ?? dayStatusFilter,
         onRemove: () => updateDayStatusFilter("all"),
@@ -1665,7 +1775,7 @@ function SearchPageContent() {
       });
     }
 
-    if (trackingLabels) {
+    if (trackingLabels && isToday) {
       const chipLabel = trackingFilterChipLabel(trackingFilter, trackingLabels);
       if (chipLabel !== null) {
         filters.push({
@@ -1686,12 +1796,12 @@ function SearchPageContent() {
       });
     }
 
-    if (groupMode !== "none") {
+    if (effectiveGroupMode !== "none") {
       filters.push({
         id: "groupMode",
         label: `Ansicht: ${
-          GROUP_OPTIONS.find((option) => option.value === groupMode)?.label ??
-          "Ansicht"
+          GROUP_OPTIONS.find((option) => option.value === effectiveGroupMode)
+            ?.label ?? "Ansicht"
         }`,
         onRemove: () => updateGroupMode("none"),
       });
@@ -1703,7 +1813,6 @@ function SearchPageContent() {
     selectedYear,
     selectedSchoolClass,
     selectedGroup,
-    attendanceFilter,
     busFilter,
     effectivePhotoConsentFilter,
     pickupStatusFilter,
@@ -1713,10 +1822,8 @@ function SearchPageContent() {
     trackingFilter,
     trackingLabels,
     groups,
-    selectedRoomId,
     selectedRoomName,
     sortMode,
-    groupMode,
     clearRoomFilter,
     updateSelectedYear,
     updateSelectedSchoolClass,
@@ -1731,6 +1838,11 @@ function SearchPageContent() {
     updateTrackingFilter,
     updateSortMode,
     updateGroupMode,
+    isToday,
+    dayStatusFilterOptions,
+    effectiveAttendanceFilter,
+    effectiveRoomId,
+    effectiveGroupMode,
   ]);
 
   const exportFilters = useMemo(
@@ -1739,14 +1851,17 @@ function SearchPageContent() {
       group_id: selectedGroup,
       year: selectedYear,
       school_class: selectedSchoolClass,
-      status: attendanceFilter,
+      // The realtime snapshot/room filters are neutral for non-today dates —
+      // the export must mirror what the page shows (#1939).
+      status: effectiveAttendanceFilter,
       bus: busFilter,
       photo_consent: effectivePhotoConsentFilter,
       pickup_status: pickupStatusFilter,
       day_status: dayStatusFilter,
+      ...(isToday ? {} : { date: selectedDate }),
       pickup_time: pickupTimeFilter,
       arrival_time: arrivalTimeFilter,
-      room_id: selectedRoomId,
+      room_id: effectiveRoomId,
       sort: sortMode,
     }),
     [
@@ -1754,35 +1869,37 @@ function SearchPageContent() {
       selectedGroup,
       selectedYear,
       selectedSchoolClass,
-      attendanceFilter,
+      effectiveAttendanceFilter,
       busFilter,
       effectivePhotoConsentFilter,
       pickupStatusFilter,
       dayStatusFilter,
+      isToday,
+      selectedDate,
       pickupTimeFilter,
       arrivalTimeFilter,
-      selectedRoomId,
+      effectiveRoomId,
       sortMode,
     ],
   );
 
   // Apply additional client-side filtering for attendance statuses and year
   const filteredStudents: Student[] = students.filter((student) => {
-    // Apply attendance filter
-    if (attendanceFilter !== "all") {
+    // Apply attendance filter (neutralized for non-today planning dates)
+    if (effectiveAttendanceFilter !== "all") {
       const isOnSite =
         isPresentLocation(student.current_location) ||
         isTransitLocation(student.current_location) ||
         isSchoolyardLocation(student.current_location);
 
-      if (attendanceFilter === "anwesend" && !isOnSite) {
+      if (effectiveAttendanceFilter === "anwesend" && !isOnSite) {
         return false;
       }
 
       if (
-        attendanceFilter !== "anwesend" &&
+        effectiveAttendanceFilter !== "anwesend" &&
         statusLabelForStudent(student) !==
-          STATUS_FILTER_LABELS[attendanceFilter]
+          STATUS_FILTER_LABELS[effectiveAttendanceFilter]
       ) {
         return false;
       }
@@ -1827,7 +1944,9 @@ function SearchPageContent() {
       }
     }
 
-    if (!matchesTrackingFilter(student, trackingFilter, trackingData)) {
+    if (
+      !matchesTrackingFilter(student, effectiveTrackingFilter, trackingData)
+    ) {
       return false;
     }
 
@@ -1840,18 +1959,22 @@ function SearchPageContent() {
 
     return [...filteredStudents].sort((a, b) => {
       if (sortMode === "pickup") {
-        return compareByPickupTime(a, b, now);
+        return compareByPickupTime(a, b, planningNow);
       }
 
-      const aHome = isHomeLocation(a.current_location);
-      const bHome = isHomeLocation(b.current_location);
-      if (!aHome && bHome) return 1;
-      if (aHome && !bHome) return -1;
+      // Whether a child is currently at home only orders today's list; for a
+      // non-today planning date the live location is irrelevant.
+      if (isToday) {
+        const aHome = isHomeLocation(a.current_location);
+        const bHome = isHomeLocation(b.current_location);
+        if (!aHome && bHome) return 1;
+        if (aHome && !bHome) return -1;
+      }
 
       const statusA = getStudentTimeStatus({
         plannedTime: a.arrival_time,
         actualTime: a.actual_arrival_time,
-        now,
+        now: planningNow,
         sick: a.sick,
         classTrip: a.class_trip,
         excused: a.excused,
@@ -1859,7 +1982,7 @@ function SearchPageContent() {
       const statusB = getStudentTimeStatus({
         plannedTime: b.arrival_time,
         actualTime: b.actual_arrival_time,
-        now,
+        now: planningNow,
         sick: b.sick,
         classTrip: b.class_trip,
         excused: b.excused,
@@ -1874,11 +1997,11 @@ function SearchPageContent() {
       }
       return compareByName(a, b);
     });
-  }, [filteredStudents, sortMode, now]);
+  }, [filteredStudents, sortMode, planningNow, isToday]);
 
   const groupedStudents = useMemo(
-    () => groupStudents(sortedStudents, groupMode),
-    [sortedStudents, groupMode],
+    () => groupStudents(sortedStudents, effectiveGroupMode),
+    [sortedStudents, effectiveGroupMode],
   );
 
   // Fix P2: Show loading during initialization (prevents empty state flash)
@@ -1916,7 +2039,7 @@ function SearchPageContent() {
             count: filteredStudents.length,
           }}
           primaryAction={
-            isBinaryMode ? (
+            isBinaryMode && isToday ? (
               <SchoolCheckinFab
                 variant="inline"
                 isActive={schoolCheckin.isActive}
@@ -1953,6 +2076,43 @@ function SearchPageContent() {
         />
       </div>
 
+      {/* Planning-date selection (#1939): quick jump to today/tomorrow plus a
+          free date choice. The whole page — filters, count, cards, export —
+          follows this date. */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          size="compact"
+          variant={isToday ? "primary" : "ghost"}
+          onClick={() => updateSelectedDate(todayIso)}
+        >
+          Heute
+        </Button>
+        <Button
+          type="button"
+          size="compact"
+          variant={selectedDate === tomorrowIso ? "primary" : "ghost"}
+          onClick={() => updateSelectedDate(tomorrowIso)}
+        >
+          Morgen
+        </Button>
+        <div className="w-44">
+          <DatePicker
+            value={parseISODate(selectedDate)}
+            onChange={(date) =>
+              updateSelectedDate(date ? toISODate(date) : todayIso)
+            }
+            dropdownPlacement="down"
+          />
+        </div>
+        {!isToday && (
+          <span className="text-sm text-gray-600">
+            Geplante Anwesenheit für {formatDate(selectedDate, true)}; aktuelle
+            Aufenthaltsorte bleiben ausgeblendet.
+          </span>
+        )}
+      </div>
+
       {/* Mobile Error Display, outside the sticky stack so it doesn't
           push everything down on small screens. */}
       {errorMessage && (
@@ -1961,8 +2121,9 @@ function SearchPageContent() {
         </div>
       )}
 
-      {/* Mobile (<md) check-in mode trigger, inline pill / sticky bar. */}
-      {isBinaryMode && (
+      {/* Mobile (<md) check-in mode trigger, inline pill / sticky bar.
+          Check-in toggles TODAY's attendance, so it hides on other dates. */}
+      {isBinaryMode && isToday && (
         <div className="mb-3 md:hidden">
           <SchoolCheckinModeMobile
             isActive={schoolCheckin.isActive}
@@ -2046,13 +2207,14 @@ function SearchPageContent() {
           // view. Free-text search intentionally remains transient.
           const buildFromParam = (() => {
             const qs = new URLSearchParams();
-            if (selectedRoomId) {
-              qs.set("room_id", selectedRoomId);
+            if (effectiveRoomId) {
+              qs.set("room_id", effectiveRoomId);
               if (selectedRoomName) qs.set("room_name", selectedRoomName);
             }
             if (selectedGroup) qs.set("group_id", selectedGroup);
             if (selectedYear !== "all") qs.set("year", selectedYear);
-            if (attendanceFilter !== "all") qs.set("status", attendanceFilter);
+            if (effectiveAttendanceFilter !== "all")
+              qs.set("status", effectiveAttendanceFilter);
             if (busFilter !== "all") qs.set("bus", busFilter);
             if (effectivePhotoConsentFilter !== "all")
               qs.set("photo_consent", effectivePhotoConsentFilter);
@@ -2060,13 +2222,16 @@ function SearchPageContent() {
               qs.set("pickup_status", pickupStatusFilter);
             if (dayStatusFilter !== "all")
               qs.set("day_status", dayStatusFilter);
+            if (!isToday) qs.set("date", selectedDate);
             if (pickupTimeFilter !== "all")
               qs.set("pickup_time", pickupTimeFilter);
             if (arrivalTimeFilter !== "all")
               qs.set("arrival_time", arrivalTimeFilter);
-            if (trackingFilter !== "all") qs.set("tracking", trackingFilter);
+            if (effectiveTrackingFilter !== "all")
+              qs.set("tracking", effectiveTrackingFilter);
             if (sortMode !== "name") qs.set("sort", sortMode);
-            if (groupMode !== "none") qs.set("view", groupMode);
+            if (effectiveGroupMode !== "none")
+              qs.set("view", effectiveGroupMode);
             if (qs.size === 0) return "/students/search";
             return encodeURIComponent(`/students/search?${qs.toString()}`);
           })();
@@ -2083,30 +2248,40 @@ function SearchPageContent() {
                 onClick={() =>
                   router.push(`/students/${student.id}?from=${buildFromParam}`)
                 }
-                checkinMode={isBinaryMode && schoolCheckin.isActive}
+                checkinMode={isBinaryMode && isToday && schoolCheckin.isActive}
                 checkinState={checkinState}
                 isCheckinPending={schoolCheckin.pendingIds.has(studentIdStr)}
                 onCheckinClick={() =>
                   void schoolCheckin.toggle(studentIdStr, checkinState)
                 }
                 locationBadge={
-                  <StudentPresenceBadge
-                    student={(() => {
-                      const badgePlanning =
-                        getStudentPresenceBadgePlanning(student);
-                      return {
-                        ...student,
-                        not_arrival_today: badgePlanning.notArrivalToday,
-                        not_arrival_reason: badgePlanning.notArrivalReason,
-                      };
-                    })()}
-                    displayMode="contextAware"
-                    userGroups={myGroups}
-                    groupRooms={myGroupRooms}
-                    supervisedRooms={mySupervisedRooms}
-                    variant="modern"
-                    size="md"
-                  />
+                  isToday ? (
+                    <StudentPresenceBadge
+                      student={(() => {
+                        const badgePlanning =
+                          getStudentPresenceBadgePlanning(student);
+                        return {
+                          ...student,
+                          not_arrival_today: badgePlanning.notArrivalToday,
+                          not_arrival_reason: badgePlanning.notArrivalReason,
+                        };
+                      })()}
+                      displayMode="contextAware"
+                      userGroups={myGroups}
+                      groupRooms={myGroupRooms}
+                      supervisedRooms={mySupervisedRooms}
+                      variant="modern"
+                      size="md"
+                    />
+                  ) : (
+                    // Non-today dates show the planned expectation, never the
+                    // live location (#1939).
+                    <DataTableStatusBadge
+                      active={student.day_planning_status === "comes_today"}
+                      activeLabel="Erwartet"
+                      inactiveLabel="Nicht erwartet"
+                    />
+                  )
                 }
                 extraContent={
                   <>
@@ -2131,11 +2306,21 @@ function SearchPageContent() {
                           classTrip: student.class_trip,
                           excused: student.excused,
                         });
+                        const absenceWording = isToday
+                          ? undefined
+                          : "Wird nicht erwartet";
                         if (absence && !student.actual_pickup_time) {
-                          return <StudentAbsenceRow label={absence.label} />;
+                          return (
+                            <StudentAbsenceRow
+                              label={absence.label}
+                              wording={absenceWording}
+                            />
+                          );
                         }
                         const dayPlanningNotComingLabel =
-                          getDayPlanningNotComingLabel(student);
+                          getDayPlanningNotComingLabel(student, {
+                            ignoreCurrentAttendance: !isToday,
+                          });
                         if (
                           dayPlanningNotComingLabel &&
                           !student.actual_pickup_time
@@ -2143,6 +2328,7 @@ function SearchPageContent() {
                           return (
                             <StudentAbsenceRow
                               label={dayPlanningNotComingLabel}
+                              wording={absenceWording}
                             />
                           );
                         }
@@ -2159,14 +2345,15 @@ function SearchPageContent() {
                                 !student.arrival_time
                               }
                               notes={student.arrival_notes}
-                              now={now}
+                              now={planningNow}
+                              absentWording={absenceWording}
                             />
                             <PickupTimeRow
                               pickupTime={student.pickup_time ?? undefined}
                               actualTime={student.actual_pickup_time}
                               isException={student.pickup_is_exception ?? false}
                               notes={student.pickup_notes}
-                              now={now}
+                              now={planningNow}
                             />
                           </>
                         );
@@ -2174,6 +2361,7 @@ function SearchPageContent() {
                   </>
                 }
                 trackingIndicators={
+                  isToday &&
                   trackingData?.labels?.length &&
                   student.has_full_access !== false ? (
                     <TrackingIndicators
@@ -2186,7 +2374,7 @@ function SearchPageContent() {
             );
           };
 
-          if (groupMode !== "none") {
+          if (effectiveGroupMode !== "none") {
             return (
               <div className="space-y-6">
                 {groupedStudents.map((group) => (
@@ -2222,7 +2410,7 @@ function SearchPageContent() {
           desktopFiltersFrom="xl". Both the filter sheet and the FAB
           live under the same boundary so iPad Air gets the consistent
           tablet UX. */}
-      {isBinaryMode && (
+      {isBinaryMode && isToday && (
         <div className="hidden md:block xl:hidden">
           <SchoolCheckinFab
             variant="floating"
