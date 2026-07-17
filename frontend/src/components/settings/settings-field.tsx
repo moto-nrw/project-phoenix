@@ -144,6 +144,13 @@ interface SettingsFieldProps {
   readonly revealFn?: (key: string) => Promise<string | null>;
 }
 
+interface PendingSettingSave {
+  readonly setting: ResolvedSetting;
+  readonly categoryItems: ResolvedSetting[];
+  readonly localValue: unknown;
+  readonly isDirty: boolean;
+}
+
 export function SettingsField({
   setting,
   categoryItems = EMPTY_CATEGORY_ITEMS,
@@ -221,6 +228,24 @@ export function SettingsField({
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isResettingRef = useRef(false);
+  const pendingSaveRef = useRef<PendingSettingSave>({
+    setting,
+    categoryItems,
+    localValue,
+    isDirty,
+  });
+
+  // Keep the current field's complete save context together. On a setting-key
+  // change React runs the previous passive-effect cleanup before installing
+  // this render's effects, so cleanup still sees the old field and value.
+  useEffect(() => {
+    pendingSaveRef.current = {
+      setting,
+      categoryItems,
+      localValue,
+      isDirty,
+    };
+  }, [categoryItems, isDirty, localValue, setting]);
 
   // Sync local state when setting value changes from server.
   useEffect(() => {
@@ -228,20 +253,29 @@ export function SettingsField({
     setIsDirty(false);
   }, [setting.value]);
 
-  const cleanupPendingSave = useEffectEvent((savedSettingKey: string) => {
+  const cleanupPendingSave = useEffectEvent((pending: PendingSettingSave) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     // Fire-and-forget save if user switches tab with unsaved changes.
-    if (!isDirty) return;
-    const localErr = validateLocally(setting, localValue, categoryItems);
+    if (!pending.isDirty) return;
+    const localErr = validateLocally(
+      pending.setting,
+      pending.localValue,
+      pending.categoryItems,
+    );
     if (!localErr) {
-      void onSave(savedSettingKey, localValue);
+      void onSave(pending.setting.key, pending.localValue);
     }
   });
 
   // Save dirty values on unmount (e.g., tab change) + cleanup timers.
   useEffect(() => {
     const savedSettingKey = setting.key;
-    return () => cleanupPendingSave(savedSettingKey);
+    return () => {
+      const pending = pendingSaveRef.current;
+      if (pending.setting.key === savedSettingKey) {
+        cleanupPendingSave(pending);
+      }
+    };
   }, [setting.key]);
 
   const doSave = useCallback(

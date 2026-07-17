@@ -42,9 +42,13 @@ export default function ParentLoginPage() {
   const isRedirectingToParent =
     status === "authenticated" &&
     session?.user?.scope === "parent" &&
-    Boolean(session.user.token);
+    Boolean(session.user.token) &&
+    session.error === undefined;
   const isSessionSettling =
-    status === "loading" || isCleaningUp || isRedirectingToParent;
+    status === "loading" ||
+    isCleaningUp ||
+    isRedirectingToParent ||
+    (status === "authenticated" && session?.error !== undefined);
 
   // Redirect if already authenticated as parent, or clear stale sessions.
   useEffect(() => {

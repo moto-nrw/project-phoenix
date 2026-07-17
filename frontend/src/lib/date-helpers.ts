@@ -18,6 +18,12 @@ const CHAT_DAY_MONTH_FORMATTER = new Intl.DateTimeFormat("de-DE", {
   timeZone: "Europe/Berlin",
 });
 
+const CHAT_TIME_FORMATTER = new Intl.DateTimeFormat("de-DE", {
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Europe/Berlin",
+});
+
 /**
  * Serialize a Date to "YYYY-MM-DD" using LOCAL calendar fields.
  * NEVER derive it from toISOString() via split("T")[0] / slice(0, 10) —
@@ -156,16 +162,15 @@ export function formatTime(dateString: string): string {
  * Compact chat timestamp ("12.03., 14:30") for message bubbles — day/month plus
  * time, no year. Single source for the parent-OGS chat bubbles (chat-bubble,
  * ogs-conversation). Invalid ISO falls back to the raw input rather than
- * throwing, so a malformed timestamp never blanks a whole message list. The clock
- * portion reuses formatTime so the hour cycle / locale can never drift from the
- * rest of the app (the day/month part has no shared helper, hence the inline
- * formatter).
+ * throwing, so a malformed timestamp never blanks a whole message list. Both
+ * portions use the school timezone so the calendar date and clock cannot
+ * disagree for guardians viewing from another timezone.
  */
 export function formatChatTime(iso: string): string {
   const date = new Date(iso);
   if (isNaN(date.getTime())) return iso;
   const dayMonth = CHAT_DAY_MONTH_FORMATTER.format(date);
-  return `${dayMonth}, ${formatTime(iso)}`;
+  return `${dayMonth}, ${CHAT_TIME_FORMATTER.format(date)}`;
 }
 
 /**

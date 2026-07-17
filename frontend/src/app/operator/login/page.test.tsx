@@ -8,14 +8,14 @@ import {
 } from "@testing-library/react";
 
 // Mock dependencies
-const { mockPush, mockRedirect, mockSignIn, mockUseSession } = vi.hoisted(
-  () => ({
+const { mockPush, mockRedirect, mockSignIn, mockSignOut, mockUseSession } =
+  vi.hoisted(() => ({
     mockPush: vi.fn(),
     mockRedirect: vi.fn(),
     mockSignIn: vi.fn(),
+    mockSignOut: vi.fn(),
     mockUseSession: vi.fn(),
-  }),
-);
+  }));
 
 const originalFetch = global.fetch;
 
@@ -55,6 +55,7 @@ vi.mock("next/image", () => ({
 
 vi.mock("next-auth/react", () => ({
   signIn: mockSignIn,
+  signOut: mockSignOut,
   useSession: mockUseSession,
 }));
 
@@ -214,6 +215,24 @@ describe("OperatorLoginPage", () => {
     render(<OperatorLoginPage />);
 
     expect(mockRedirect).toHaveBeenCalledWith("/operator/suggestions");
+  });
+
+  it("clears an errored operator session before redirecting", async () => {
+    mockSignOut.mockResolvedValue(undefined);
+    mockUseSession.mockReturnValue({
+      status: "authenticated",
+      data: {
+        error: "RefreshTokenExpired",
+        user: { scope: "platform", token: "stale-token" },
+      },
+    });
+
+    render(<OperatorLoginPage />);
+
+    expect(mockRedirect).not.toHaveBeenCalled();
+    await waitFor(() => {
+      expect(mockSignOut).toHaveBeenCalledWith({ redirect: false });
+    });
   });
 
   it("shows loading screen while checking auth", () => {

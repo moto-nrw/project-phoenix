@@ -511,7 +511,7 @@ function DashboardContent() {
                 <div className="space-y-2">
                   {activities.slice(0, 5).map((activity) => (
                     <div
-                      key={`${activity.name}-${activity.category}`}
+                      key={activity.id}
                       className="flex items-center justify-between rounded-xl bg-gray-50/50 p-3 transition-colors hover:bg-gray-100/50"
                     >
                       <div className="min-w-0 flex-1">

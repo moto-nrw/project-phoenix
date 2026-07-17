@@ -21,6 +21,7 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { getWeekRange } from "~/lib/timetable-helpers";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 export type PlanungRedirectTarget =
   "betreuungsplan" | "dienstplan" | "vertretung";
@@ -139,8 +140,11 @@ export function PlanungRedirect({
   target?: PlanungRedirectTarget;
 }) {
   const searchParams = useSearchParams();
+  const tenantPath = useTenantAwarePath();
   const params = new URLSearchParams(searchParams.toString());
   // Berlin-Kalendertag (docs/07 §1), damit der `d`-Anker mit dem
   // serverseitigen timezone.TodayDate() übereinstimmt.
-  return redirect(resolvePlanungRedirect(params, berlinTodayISO(), target));
+  return redirect(
+    tenantPath(resolvePlanungRedirect(params, berlinTodayISO(), target)),
+  );
 }

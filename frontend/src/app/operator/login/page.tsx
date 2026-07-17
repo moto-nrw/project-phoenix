@@ -96,7 +96,8 @@ export default function OperatorLoginPage() {
   if (
     status === "authenticated" &&
     session?.user?.scope === "platform" &&
-    session.user.token
+    session.user.token &&
+    session.error === undefined
   ) {
     redirect(operatorPath("/operator/suggestions"));
   }

@@ -81,6 +81,7 @@ const mockDashboardData = {
   ],
   currentActivities: [
     {
+      id: "101",
       name: "Schach",
       category: "Sport",
       participants: 8,
@@ -535,6 +536,7 @@ describe("DashboardContent rendering states", () => {
   it("displays multiple current activities with status", async () => {
     const multipleCurrentActivities = [
       {
+        id: "201",
         name: "Schach",
         category: "Sport",
         participants: 8,
@@ -542,6 +544,7 @@ describe("DashboardContent rendering states", () => {
         status: "active",
       },
       {
+        id: "202",
         name: "Kunst",
         category: "Kreativ",
         participants: 12,

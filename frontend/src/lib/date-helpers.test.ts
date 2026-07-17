@@ -416,11 +416,12 @@ describe("getStartDateForTimeRange", () => {
 
 describe("formatChatTime", () => {
   it("returns 'dd.MM., HH:mm' format for a valid ISO timestamp", () => {
-    // Use a fixed ISO string and check the shape: "15.01., 14:30"
     const result = formatChatTime("2024-01-15T13:30:00Z");
-    // day.month format + ", " + HH:MM — the exact time depends on local TZ,
-    // so assert the structural shape rather than an exact string.
-    expect(result).toMatch(/^\d{2}\.\d{2}\., \d{2}:\d{2}$/);
+    expect(result).toBe("15.01., 14:30");
+  });
+
+  it("formats the date and clock in Berlin across midnight", () => {
+    expect(formatChatTime("2026-01-01T23:30:00Z")).toBe("02.01., 00:30");
   });
 
   it("returns the raw input string for an invalid ISO (never throws)", () => {
