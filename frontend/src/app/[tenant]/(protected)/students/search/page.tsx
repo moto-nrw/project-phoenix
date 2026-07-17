@@ -93,6 +93,7 @@ import { StudentSearchPageSkeleton } from "./page-skeleton";
 
 const logger = createLogger({ component: "StudentSearchPage" });
 const EMPTY_STRING_ARRAY: string[] = [];
+const EMPTY_STUDENT_ARRAY: Student[] = [];
 
 type StatusFilter =
   | "all"
@@ -929,11 +930,16 @@ function SearchPageContent() {
   const updateSelectedDate = useCallback(
     (value: string) => {
       // Picking the current Berlin day means "follow today", not a fixed date.
-      const explicit = value === berlinTodayISO() ? null : value;
+      // Compare against the same clock-derived todayIso the buttons pass, NOT a
+      // fresh berlinTodayISO(): near Berlin midnight the minute clock can still
+      // read yesterday for up to 60s, and mixing the two days would store
+      // yesterday as an explicit date and pin the page there when the user taps
+      // "Heute" (#1939).
+      const explicit = value === todayIso ? null : value;
       setExplicitDate(explicit);
       updateUrlParams({ date: explicit ?? "" });
     },
-    [updateUrlParams],
+    [todayIso, updateUrlParams],
   );
 
   const dayStatusFilterOptions = isToday
@@ -1067,7 +1073,7 @@ function SearchPageContent() {
     data: studentsData,
     isLoading: isSearching,
     error: studentsError,
-  } = useSWRAuth<{ students: Student[] }>(
+  } = useSWRAuth<{ students: Student[]; requestDate: string }>(
     studentsCacheKey,
     async () => {
       const filters = {
@@ -1101,7 +1107,11 @@ function SearchPageContent() {
         includeArrivalTimes: true,
       };
 
-      return await studentService.getStudents(filters);
+      const result = await studentService.getStudents(filters);
+      // Tag the response with the date it was fetched for so date-sensitive
+      // rendering can tell a fresh result apart from keepPreviousData holding
+      // the previous day's rows during a date switch (#1939).
+      return { students: result.students, requestDate: selectedDate };
     },
     {
       // Keep previous data while fetching (prevents loading flash)
@@ -1260,7 +1270,23 @@ function SearchPageContent() {
     removeStoredFilters(storageKey);
   }, [storageKey, updateUrlParams]);
 
-  const students = studentsData?.students ?? [];
+  // keepPreviousData holds the previous day's rows until the new request
+  // resolves. Gate every date-sensitive derivation on the response's own
+  // requestDate so prior-day statuses, counts, and filter options are never
+  // presented under the newly selected date (#1939). Non-date filter changes
+  // keep requestDate === selectedDate, so only date switches gate. An untagged
+  // response (requestDate absent, e.g. under test mocks) is treated as current,
+  // so this never gates a real fetch — only an in-flight date transition.
+  const isDateTransition =
+    studentsData?.requestDate !== undefined &&
+    studentsData.requestDate !== selectedDate;
+  const students = useMemo(
+    () =>
+      studentsData === undefined || isDateTransition
+        ? EMPTY_STUDENT_ARRAY
+        : studentsData.students,
+    [studentsData, isDateTransition],
+  );
   const photoConsentDataAvailable =
     photoConsentFeatureAvailable &&
     (students.length === 0 ||
@@ -1283,8 +1309,8 @@ function SearchPageContent() {
 
   // Tracking indicators for student cards
   const trackingStudentIds = useMemo(
-    () => (studentsData?.students ?? []).map((s) => s.id),
-    [studentsData],
+    () => students.map((s) => s.id),
+    [students],
   );
   const trackingStudentIdsKey = useMemo(
     () => trackingStudentIds.join(","),
@@ -1482,7 +1508,7 @@ function SearchPageContent() {
           { value: "all", label: "Alle Gehzeiten" },
           ...Array.from(
             new Set(
-              (studentsData?.students ?? [])
+              students
                 .map((s) => s.pickup_time)
                 .filter((t): t is string => !!t),
             ),
@@ -1502,7 +1528,7 @@ function SearchPageContent() {
           { value: "all", label: "Alle Ankunftszeiten" },
           ...Array.from(
             new Set(
-              (studentsData?.students ?? [])
+              students
                 .map((s) => s.arrival_time)
                 .filter((t): t is string => !!t),
             ),
@@ -1632,7 +1658,7 @@ function SearchPageContent() {
       groups,
       schoolClassOptions,
       rooms,
-      studentsData,
+      students,
       selectedRoomId,
       selectedRoomName,
       orderedRoomOptions,
@@ -2154,7 +2180,10 @@ function SearchPageContent() {
       <div className={isBinaryMode ? "pb-24 lg:pb-0" : undefined}>
         {(() => {
           // Fix P2: Show loading while first fetch is in progress (not yet hasFetchedOnce)
-          if (isSearching && !hasFetchedOnce) {
+          // or while a date switch is in flight — keepPreviousData still holds
+          // the previous day's rows, so show the skeleton instead of presenting
+          // them under the newly selected date (#1939).
+          if ((isSearching && !hasFetchedOnce) || isDateTransition) {
             return <StudentCardGridSkeleton />;
           }
           if (errorMessage) {
@@ -2290,11 +2319,17 @@ function SearchPageContent() {
                     />
                   ) : (
                     // Non-today dates show the planned expectation, never the
-                    // live location (#1939).
+                    // live location (#1939). When the caller lacks full access
+                    // the backend skips day-planning enrichment and omits
+                    // day_planning_status; render an unknown state rather than
+                    // asserting "Nicht erwartet" for a result that was never
+                    // calculated or disclosed.
                     <DataTableStatusBadge
                       active={student.day_planning_status === "comes_today"}
+                      unknown={student.day_planning_status === undefined}
                       activeLabel="Erwartet"
                       inactiveLabel="Nicht erwartet"
+                      unknownLabel="Keine Angabe"
                     />
                   )
                 }

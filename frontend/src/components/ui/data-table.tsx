@@ -286,15 +286,25 @@ interface DataTableStatusBadgeProps {
   active: boolean;
   activeLabel?: string;
   inactiveLabel?: string;
+  // Tri-state: when the underlying value is unknown / not disclosed, render a
+  // neutral badge instead of asserting the inactive state.
+  unknown?: boolean;
+  unknownLabel?: string;
 }
 
 export function DataTableStatusBadge({
   active,
   activeLabel = "Aktiv",
   inactiveLabel = "Inaktiv",
+  unknown = false,
+  unknownLabel = "Unbekannt",
 }: Readonly<DataTableStatusBadgeProps>) {
-  const label = active ? activeLabel : inactiveLabel;
-  const color = active ? LOCATION_COLORS.GROUP_ROOM : LOCATION_COLORS.HOME;
+  const label = unknown ? unknownLabel : active ? activeLabel : inactiveLabel;
+  const color = unknown
+    ? LOCATION_COLORS.UNKNOWN
+    : active
+      ? LOCATION_COLORS.GROUP_ROOM
+      : LOCATION_COLORS.HOME;
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-50 px-3 py-1 text-xs font-medium">
       <span
