@@ -277,6 +277,12 @@ func pdfColumnWidths(cols []Column, total float64) []float64 {
 // which left ~2cm unused on every "Tagesliste" (no eyebrow, often no
 // filters) — the body simply started lower than the header ended.
 func (c *pageChrome) headerBottom() float64 {
+	return c.headerTop() + float64(len(c.pillRows))*pillRowH
+}
+
+// headerTop is headerBottom() without the filter pills — the y the pills
+// start at, and the fixed part layoutPills sizes its row budget against.
+func (c *pageChrome) headerTop() float64 {
 	y := pageMargin + headerFirstY
 	if titleEyebrow(c.title) != "" {
 		y += headerEyebrowAdvance
@@ -285,7 +291,17 @@ func (c *pageChrome) headerBottom() float64 {
 	if c.subtitle != "" {
 		y += headerSubtitleAdvance
 	}
-	return y + float64(len(c.pillRows))*pillRowH
+	return y
+}
+
+// maxPillRows is how many pill rows the header may grow by before the body
+// shrinks below minBodyHeight. At least one row is always allowed.
+func (c *pageChrome) maxPillRows() int {
+	n := int((c.bodyBottom() - minBodyHeight - headerBodyGap - c.headerTop()) / pillRowH)
+	if n < 1 {
+		n = 1
+	}
+	return n
 }
 
 // bodyTop is the y where page content starts, below the header block;
@@ -662,10 +678,25 @@ func (c *pageChrome) drawHeader() (float64, error) {
 	return y + float64(len(c.pillRows))*pillRowH, nil
 }
 
-// layoutPills packs the filter labels into rows that fit between the
-// page margins; a label too long for even a full row is pre-wrapped into
+// pillChunk is one drawn pill: a filter label, or one continuation chunk
+// of a label too long for a full row. filter is the index of the label it
+// came from, which is what the overflow marker counts.
+type pillChunk struct {
+	text   string
+	width  float64 // pill width, text plus both insets
+	filter int
+}
+
+// layoutPills packs the filter labels into rows that fit between the page
+// margins; a label too long for even a full row is pre-wrapped into
 // continuation chunks. Computed once — every page draws the same layout,
 // and bodyTop() reserves space for the extra rows.
+//
+// The row count is capped at maxPillRows: filter text is unbounded (the
+// care-usage export joins every care-offering name into one label) and an
+// uncapped header eats the whole page body. Labels past the cap are
+// summarised in a trailing "+N weitere Filter" pill rather than dropped
+// without a trace.
 func (c *pageChrome) layoutPills() error {
 	if len(c.filters) == 0 {
 		return nil
@@ -674,29 +705,99 @@ func (c *pageChrome) layoutPills() error {
 		return err
 	}
 	usable := c.w - 2*pageMargin
-	rows := [][]string{}
+
+	chunks, err := c.pillChunks(usable)
+	if err != nil {
+		return err
+	}
+	rows, kept := packPills(chunks, usable, c.maxPillRows())
+	if kept < len(chunks) {
+		rows, err = c.markPillOverflow(rows, chunks, kept, usable)
+		if err != nil {
+			return err
+		}
+	}
+	c.pillRows = rows
+	return nil
+}
+
+// pillChunks wraps every filter label to at most one full row.
+func (c *pageChrome) pillChunks(usable float64) ([]pillChunk, error) {
+	chunks := []pillChunk{}
+	for i, f := range c.filters {
+		for _, text := range c.wrap(norms(f), usable-2*pillPadX) {
+			w, err := c.pillWidth(text)
+			if err != nil {
+				return nil, err
+			}
+			chunks = append(chunks, pillChunk{text: text, width: w, filter: i})
+		}
+	}
+	return chunks, nil
+}
+
+func (c *pageChrome) pillWidth(text string) (float64, error) {
+	tw, err := c.measure(text)
+	if err != nil {
+		return 0, err
+	}
+	return tw + 2*pillPadX, nil
+}
+
+// packPills greedily fills at most maxRows rows and reports how many
+// chunks made it in; the rest is the caller's overflow.
+func packPills(chunks []pillChunk, usable float64, maxRows int) (rows [][]string, kept int) {
 	row := []string{}
 	rowW := 0.0
-	for _, f := range c.filters {
-		for _, chunk := range c.wrap(norms(f), usable-14) {
-			tw, err := c.measure(chunk)
-			if err != nil {
-				return err
+	for _, ch := range chunks {
+		if rowW+ch.width > usable && len(row) > 0 {
+			if len(rows) == maxRows-1 {
+				break // the current row is the last one allowed
 			}
-			pw := tw + 14
-			if rowW+pw > usable && len(row) > 0 {
-				rows = append(rows, row)
-				row, rowW = []string{}, 0
-			}
-			row = append(row, chunk)
-			rowW += pw + 6
+			rows = append(rows, row)
+			row, rowW = []string{}, 0
 		}
+		row = append(row, ch.text)
+		rowW += ch.width + pillGap
+		kept++
 	}
 	if len(row) > 0 {
 		rows = append(rows, row)
 	}
-	c.pillRows = rows
-	return nil
+	return rows, kept
+}
+
+// markPillOverflow appends the "+N weitere Filter" marker to the last row,
+// trimming trailing pills until it fits. Each trim grows N, so the label is
+// re-measured every round instead of going stale.
+func (c *pageChrome) markPillOverflow(rows [][]string, chunks []pillChunk, kept int, usable float64) ([][]string, error) {
+	last := rows[len(rows)-1]
+	rowW := 0.0
+	for _, ch := range chunks[kept-len(last) : kept] {
+		rowW += ch.width + pillGap
+	}
+	for {
+		label := pillOverflowLabel(len(c.filters) - chunks[kept].filter)
+		w, err := c.pillWidth(label)
+		if err != nil {
+			return nil, err
+		}
+		if rowW+w <= usable || len(last) == 0 {
+			rows[len(rows)-1] = append(last, label)
+			return rows, nil
+		}
+		kept--
+		rowW -= chunks[kept].width + pillGap
+		last = last[:len(last)-1]
+	}
+}
+
+// pillOverflowLabel names the filters the header had no room for.
+func pillOverflowLabel(n int) string {
+	if n == 1 {
+		return "+1 weiterer Filter"
+	}
+	return fmt.Sprintf("+%d weitere Filter", n)
 }
 
 func (c *pageChrome) drawFilterPills(x, y float64) error {
@@ -709,11 +810,10 @@ func (c *pageChrome) drawFilterPills(x, y float64) error {
 	for _, row := range c.pillRows {
 		cx := x
 		for _, label := range row {
-			tw, err := c.measure(label)
+			pw, err := c.pillWidth(label)
 			if err != nil {
 				return err
 			}
-			pw := tw + 14
 			c.setFill(colorSurface)
 			c.setStroke(colorBorder)
 			c.pdf.SetLineWidth(0.5)
@@ -721,10 +821,10 @@ func (c *pageChrome) drawFilterPills(x, y float64) error {
 				return err
 			}
 			c.setText(colorMuted)
-			if err := c.text(cx+7, y+8, label); err != nil {
+			if err := c.text(cx+pillPadX, y+8, label); err != nil {
 				return err
 			}
-			cx += pw + 6
+			cx += pw + pillGap
 		}
 		y += pillRowH
 	}
@@ -887,7 +987,18 @@ func titleHeadline(title string) string {
 }
 
 // spaceOut letterspaces a short label (the guide's eyebrow style).
+//
+// It normalizes first and then splits on normalization boundaries, not on
+// runes. Titles are user-supplied and may arrive decomposed (NFD, common
+// from macOS): splitting "ü" per rune inserts a space between the
+// base letter and its combining diaeresis, which the NFC pass in text()
+// can no longer recompose — the accent then renders detached or drops out.
 func spaceOut(s string) string {
-	parts := strings.Split(s, "")
+	var it norm.Iter
+	it.InitString(norm.NFC, norms(s))
+	parts := []string{}
+	for !it.Done() {
+		parts = append(parts, string(it.Next()))
+	}
 	return strings.Join(parts, " ")
 }

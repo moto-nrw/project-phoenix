@@ -347,6 +347,116 @@ func TestDesignedPDFFilterPillsWrapWithinPage(t *testing.T) {
 	}
 }
 
+// P1 (review): filter metadata is caller-supplied and unbounded — the
+// care-usage export joins every care-offering name into one label. Enough
+// of it used to push bodyTop() past bodyBottom(): the record renderer then
+// returned a successful PDF whose cards lay outside the media box, and the
+// table renderer failed on invalid rectangle coordinates. The header must
+// stay bounded and say how many filters it could not show.
+func TestDesignedPDFFilterPillsBoundedToPage(t *testing.T) {
+	filters := make([]string, 0, 60)
+	for i := 0; i < 60; i++ {
+		filters = append(filters, fmt.Sprintf("Betreuungsangebot: %s %d", strings.Repeat("Ganztagsbetreuung ", 5), i))
+	}
+
+	for _, landscape := range []bool{false, true} {
+		name := "portrait"
+		if landscape {
+			name = "landscape"
+		}
+		t.Run(name, func(t *testing.T) {
+			c, err := newPageChrome(landscape, "Kinderliste — Nutzung", "42 Kinder", time.Now(), filters, "Vertraulich")
+			if err != nil {
+				t.Fatalf("newPageChrome: %v", err)
+			}
+			if got := c.bodyBottom() - c.bodyTop(); got < minBodyHeight {
+				t.Fatalf("body height = %.1f, want at least %.1f", got, minBodyHeight)
+			}
+			if len(c.pillRows) > c.maxPillRows() {
+				t.Fatalf("pill rows = %d, want at most %d", len(c.pillRows), c.maxPillRows())
+			}
+
+			// The dropped filters are accounted for, not silently gone.
+			last := c.pillRows[len(c.pillRows)-1]
+			if marker := last[len(last)-1]; !strings.HasPrefix(marker, "+") || !strings.Contains(marker, "Filter") {
+				t.Fatalf("last pill = %q, want an overflow marker", marker)
+			}
+
+			// Rows still fit the page width, marker included.
+			usable := c.w - 2*pageMargin
+			for i, row := range c.pillRows {
+				rowW := -pillGap
+				for _, label := range row {
+					pw, err := c.pillWidth(label)
+					if err != nil {
+						t.Fatal(err)
+					}
+					rowW += pw + pillGap
+				}
+				if rowW > usable {
+					t.Fatalf("pill row %d width %.1f exceeds usable %.1f", i, rowW, usable)
+				}
+			}
+		})
+	}
+
+	// Both renderers must produce a real document, not an empty-bodied one.
+	doc := designGroupedDocument()
+	doc.Filters = filters
+	if _, err := renderPDFDesigned(doc); err != nil {
+		t.Fatalf("renderPDFDesigned: %v", err)
+	}
+
+	recDoc := RecordDocument{
+		Title:       "Anmeldungen — Nutzung",
+		GeneratedAt: time.Now(),
+		Filters:     filters,
+		Records:     []Record{{Title: "Familie Muster", Fields: []Field{{Label: "E-Mail", Value: "a@example.test"}}}},
+	}
+	if _, err := renderRecordsPDFDesigned(recDoc); err != nil {
+		t.Fatalf("renderRecordsPDFDesigned: %v", err)
+	}
+	chrome, err := newPageChrome(false, recDoc.Title, "", recDoc.GeneratedAt, filters, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	l := &recordLayout{pageChrome: chrome, doc: recDoc}
+	if err := l.run(); err != nil {
+		t.Fatalf("record layout: %v", err)
+	}
+	if !traceContains(l.trace, "Familie Muster") {
+		t.Fatal("record content missing from the layout")
+	}
+	if l.y > l.bodyBottom() {
+		t.Fatalf("record content ends at %.1f, past the page body %.1f", l.y, l.bodyBottom())
+	}
+}
+
+// P3 (review): a decomposed title must not have the eyebrow's letter-spacing
+// inserted between a base letter and its combining mark — text()'s NFC pass
+// can no longer recompose the glyph afterwards, so the accent renders
+// detached or drops out.
+func TestSpaceOutKeepsCombiningMarksAttached(t *testing.T) {
+	const (
+		nfd  = "Schu\u0308ler"      // u + combining diaeresis
+		nfc  = "Sch\u00fcler"       // precomposed
+		want = "S c h \u00fc l e r" // one space per grapheme, mark intact
+	)
+	if got := spaceOut(nfd); got != want {
+		t.Fatalf("spaceOut(NFD) = %q, want %q", got, want)
+	}
+	if got := spaceOut(nfc); got != want {
+		t.Fatalf("spaceOut(NFC) = %q, want %q", got, want)
+	}
+
+	// A combining mark with no precomposed form must stay with its base
+	// letter too — NFC alone cannot rescue those.
+	const cedilla = "z\u0327" // z + combining cedilla
+	if got := spaceOut("a" + cedilla); got != "a "+cedilla {
+		t.Fatalf("spaceOut(%q) = %q, split the combining mark off its base letter", "a"+cedilla, got)
+	}
+}
+
 // The header reserve must equal the header actually drawn. bodyTop() used
 // to be a flat "pageMargin + 104" sized for the fullest header (eyebrow +
 // title + subtitle + one pill row); a Tagesliste has no eyebrow and often

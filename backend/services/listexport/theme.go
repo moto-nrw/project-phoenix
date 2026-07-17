@@ -68,6 +68,18 @@ const (
 	groupGap   = 12.0
 	pillRadius = 7.0
 	pillRowH   = 18.0 // vertical advance between wrapped filter-pill rows
+	pillPadX   = 7.0  // horizontal inset of a pill's text
+	pillGap    = 6.0  // horizontal gap between two pills
+
+	// minBodyHeight is the body area the header must always leave usable.
+	// Filter metadata is caller-supplied and unbounded (the care-usage
+	// export joins every care-offering name into one label), so without a
+	// floor here enough wrapped pill rows push bodyTop() past bodyBottom():
+	// the record renderer then emits pages whose cards sit outside the media
+	// box, and the table renderer fails on invalid rectangle coordinates.
+	// 120pt holds a card with padding, a group heading, the table header,
+	// and a body row.
+	minBodyHeight = 120.0
 
 	// Header block geometry. drawHeader() advances by exactly these
 	// amounts and headerBottom() sums the same ones for the parts that
