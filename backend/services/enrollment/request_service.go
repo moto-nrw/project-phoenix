@@ -342,6 +342,31 @@ type RequestService interface {
 	// phase's enrollment window. Caller must be inside a tenant-tx.
 	LoadPublicPhaseWithLateInvite(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.Phase, error)
 	LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error)
+
+	// LoadPublicFormBootstrap assembles everything the public enrollment
+	// form-load endpoint needs inside one tenant transaction: the gated
+	// phase, its pinned schema (degraded to nil when stale), the active
+	// care offerings, the resolved raw form capabilities, and the legal
+	// contract. Capability- and legal-resolution failures come back wrapped
+	// in *BootstrapStageError so the caller can map them to 500 instead of
+	// the public 404 gate mapping. Caller must be inside a tenant-tx.
+	LoadPublicFormBootstrap(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
+	// LoadPublicCareOfferings is the offering-only projection of the public
+	// bootstrap: phase gate + capabilities + active offerings, no schema,
+	// legal texts or captcha. Capability failures are wrapped in
+	// *BootstrapStageError. Caller must be inside a tenant-tx.
+	LoadPublicCareOfferings(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*PublicFormBootstrapData, error)
+	// LoadManualEnrollmentBootstrap mirrors LoadPublicFormBootstrap for the
+	// admin manual-enrollment flow, using the manual phase gate and legal
+	// loader. It does not wrap stage errors — the admin caller maps the raw
+	// service errors itself. Caller must be inside a tenant-tx.
+	LoadManualEnrollmentBootstrap(ctx context.Context, phaseID int64) (*PublicFormBootstrapData, error)
+
+	// CreateManualApprovedEnrollment submits a privileged admin-created
+	// enrollment (rate-limit skipped, closed window allowed, submission
+	// emails suppressed, source = AdminManual) and approves it in the same
+	// transaction. Caller must be inside a tenant-tx.
+	CreateManualApprovedEnrollment(ctx context.Context, input ManualApprovedEnrollmentInput) (*ManualApprovedEnrollmentResult, error)
 }
 
 // LegalTexts bundles the per-tenant legal texts surfaced on the public
@@ -398,10 +423,14 @@ type RequestServiceConfig struct {
 	RateLimitRepo            enrollmentModels.SubmissionRateLimitRepository
 	OutboxEnqueuer           platformModels.OutboxEnqueuer
 	Settings                 RequestSettingsResolver
-	FrontendURL              string // staff/admin URLs only (admin notification email link)
-	ParentsURL               string // parent-facing URLs (status link, logo). Falls back to FrontendURL when empty.
-	DB                       *bun.DB
-	Logger                   *slog.Logger
+	// ManualDecider approves the freshly submitted request in the manual
+	// admin-enrollment flow. Narrow slice of DecisionService so the request
+	// service does not depend on the whole decision surface.
+	ManualDecider manualEnrollmentDecider
+	FrontendURL   string // staff/admin URLs only (admin notification email link)
+	ParentsURL    string // parent-facing URLs (status link, logo). Falls back to FrontendURL when empty.
+	DB            *bun.DB
+	Logger        *slog.Logger
 }
 
 type requestService struct {

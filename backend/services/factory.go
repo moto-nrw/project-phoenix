@@ -1119,24 +1119,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:   logger.With("service", "enrollment-captcha"),
 	})
 
-	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
-		RequestRepo:              repos.Request,
-		RequestChildRepo:         repos.RequestChild,
-		RequestGuardianRepo:      repos.RequestGuardian,
-		LateInviteRepo:           repos.LateInvite,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		CareOfferingRepo:         repos.CareOffering,
-		FormSchemaRepo:           repos.FormSchema,
-		PhaseRepo:                repos.Phase,
-		SchoolRepo:               repos.School,
-		RateLimitRepo:            repos.SubmissionRateLimit,
-		OutboxEnqueuer:           emailOutboxService,
-		Settings:                 settingsService,
-		FrontendURL:              frontendURL, // admin notification email
-		ParentsURL:               parentsURL,  // parent confirmation/status emails
-		DB:                       db,
-		Logger:                   logger.With("service", "enrollment-request"),
-	})
 	enrollmentDeletionService := enrollment.NewEnrollmentDeletionService(
 		repos.Request,
 		repos.RequestChild,
@@ -1211,6 +1193,26 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
 		Logger: logger.With("service", "enrollment-decision"),
+	})
+
+	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
+		RequestRepo:              repos.Request,
+		RequestChildRepo:         repos.RequestChild,
+		RequestGuardianRepo:      repos.RequestGuardian,
+		LateInviteRepo:           repos.LateInvite,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		CareOfferingRepo:         repos.CareOffering,
+		FormSchemaRepo:           repos.FormSchema,
+		PhaseRepo:                repos.Phase,
+		SchoolRepo:               repos.School,
+		RateLimitRepo:            repos.SubmissionRateLimit,
+		OutboxEnqueuer:           emailOutboxService,
+		Settings:                 settingsService,
+		ManualDecider:            enrollmentDecisionService,
+		FrontendURL:              frontendURL, // admin notification email
+		ParentsURL:               parentsURL,  // parent confirmation/status emails
+		DB:                       db,
+		Logger:                   logger.With("service", "enrollment-request"),
 	})
 
 	enrollmentReportService := enrollment.NewReportService(enrollment.ReportServiceConfig{
