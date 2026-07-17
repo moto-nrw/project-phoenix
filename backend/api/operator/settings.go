@@ -80,18 +80,21 @@ func enforcePresenceModeSwitchGuard(ctx context.Context, activeSvc activeSvc.Ser
 }
 
 // guardOperatorWrite blocks the operator from set/reset/reveal on AccessAdminOnly settings.
-// Returns true when the handler should abort (response has already been written).
-func guardOperatorWrite(w http.ResponseWriter, r *http.Request, key string) bool {
-	def := configModel.GetDefinition(key)
-	if def == nil {
+// The access-policy decision lives in the settings service (CheckOperatorWritable);
+// this maps the returned error to the operator HTTP response. Returns true when
+// the handler should abort (response has already been written).
+func (rs *SettingsResource) guardOperatorWrite(w http.ResponseWriter, r *http.Request, key string) bool {
+	err := rs.settingsService.CheckOperatorWritable(key)
+	if err == nil {
+		return false
+	}
+	var notFound *configSvc.DefinitionNotFoundError
+	if errors.As(err, &notFound) {
 		render.Render(w, r, ErrNotFound(fmt.Sprintf("setting %q not found", key))) //nolint:errcheck
 		return true
 	}
-	if def.AccessPolicy == configModel.AccessAdminOnly {
-		render.Render(w, r, ErrForbidden(errAdminOnlyForOperator)) //nolint:errcheck
-		return true
-	}
-	return false
+	render.Render(w, r, ErrForbidden(errAdminOnlyForOperator)) //nolint:errcheck
+	return true
 }
 
 func guardOperatorDirectManagedSettingWrite(w http.ResponseWriter, r *http.Request, key string) bool {
@@ -221,7 +224,7 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 		return
 	}
 	key := chi.URLParam(r, "key")
-	if guardOperatorWrite(w, r, key) {
+	if rs.guardOperatorWrite(w, r, key) {
 		return
 	}
 	if guardOperatorDirectManagedSettingWrite(w, r, key) {
@@ -297,7 +300,7 @@ func (rs *SettingsResource) ResetSchoolSettingValue(w http.ResponseWriter, r *ht
 		return
 	}
 	key := chi.URLParam(r, "key")
-	if guardOperatorWrite(w, r, key) {
+	if rs.guardOperatorWrite(w, r, key) {
 		return
 	}
 	if guardOperatorDirectManagedSettingWrite(w, r, key) {
@@ -350,7 +353,7 @@ func (rs *SettingsResource) RevealSchoolSettingValue(w http.ResponseWriter, r *h
 		return
 	}
 	key := chi.URLParam(r, "key")
-	if guardOperatorWrite(w, r, key) {
+	if rs.guardOperatorWrite(w, r, key) {
 		return
 	}
 

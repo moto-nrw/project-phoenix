@@ -30,6 +30,7 @@ type Mock struct {
 	HasTenantOverrideFn      func(ctx context.Context, key string) (bool, error)
 	SetValueFn               func(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
 	ResetValueFn             func(ctx context.Context, key string, changedBy *int64, userPermissions []string) error
+	CheckOperatorWritableFn  func(key string) error
 	GetLoginImageURLFn       func(ctx context.Context, tenantID int64) (string, error)
 	SetLoginImageURLFn       func(ctx context.Context, tenantID int64, imageURL string) (string, error)
 	ClearLoginImageURLFn     func(ctx context.Context, tenantID int64) (string, error)
@@ -117,6 +118,13 @@ func (m *Mock) SetValue(ctx context.Context, key string, value any, changedBy *i
 func (m *Mock) ResetValue(ctx context.Context, key string, changedBy *int64, userPermissions []string) error {
 	if m.ResetValueFn != nil {
 		return m.ResetValueFn(ctx, key, changedBy, userPermissions)
+	}
+	return nil
+}
+
+func (m *Mock) CheckOperatorWritable(key string) error {
+	if m.CheckOperatorWritableFn != nil {
+		return m.CheckOperatorWritableFn(key)
 	}
 	return nil
 }
