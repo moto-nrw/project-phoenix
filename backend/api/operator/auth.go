@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
@@ -187,7 +188,8 @@ func (rs *AuthResource) RefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	accessToken, refreshToken, err := rs.authService.RefreshToken(r.Context(), int64(claims.ID), claims.Token)
+	ctx := rotation.WithRecoveryProof(r.Context(), r.Header.Get(rotation.RecoveryProofHeader))
+	accessToken, refreshToken, err := rs.authService.RefreshToken(ctx, int64(claims.ID), claims.Token)
 	if err != nil {
 		common.RenderError(w, r, AuthErrorRenderer(err))
 		return

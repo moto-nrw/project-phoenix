@@ -1,4 +1,4 @@
-import type { NextRequest, NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 import {
   type RouteContext,
   buildQueryString,
@@ -31,7 +31,7 @@ interface ProxyOptions {
 type WiredHandler = (
   request: NextRequest,
   context: RouteContext,
-) => Promise<NextResponse>;
+) => Promise<Response>;
 
 type NoBodyFactory = <T>(
   handler: (request: NextRequest, token: string, params: Params) => Promise<T>,

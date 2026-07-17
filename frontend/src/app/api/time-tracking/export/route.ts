@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -12,7 +13,7 @@ const logger = createLogger({ component: "TimeTrackingExportRoute" });
  * This bypasses route-wrapper.ts because we need to stream binary data
  * with Content-Disposition headers, not buffered JSON.
  */
-export async function GET(request: NextRequest) {
+async function GETHandler(request: NextRequest) {
   const session = await auth();
 
   if (!session?.user?.token) {
@@ -64,3 +65,5 @@ export async function GET(request: NextRequest) {
     return new Response("Internal server error", { status: 500 });
   }
 }
+
+export const GET = withTenantAuth(GETHandler);

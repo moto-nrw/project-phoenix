@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -13,6 +14,7 @@ import (
 	"github.com/gofrs/uuid"
 	jwx "github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/auth/userpass"
 	"github.com/moto-nrw/project-phoenix/internal/clientip"
 	"github.com/moto-nrw/project-phoenix/models/audit"
@@ -1066,28 +1068,81 @@ func (s *Service) parseRefreshTokenClaims(refreshTokenStr string) (*jwt.RefreshC
 // Uses WithAdminTx (BYPASSRLS) because token refresh is a pre-authentication flow
 // with no JWT/tenant context yet. The phoenix_auth connection role cannot pass RLS
 // policies on auth.tokens (same reason persistTokenInTransaction uses WithAdminTx).
-func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *jwt.RefreshClaims, ipAddress, userAgent string, tenantID int64) (*auth.Account, *auth.Token, error) {
+func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *jwt.RefreshClaims, ipAddress, userAgent string, tenantID int64) (*auth.Account, *auth.Token, bool, error) {
 	var dbToken *auth.Token
 	var account *auth.Account
 	var newToken *auth.Token
+	var recovered bool
+	var rejectAfterCommit error
 
 	err := tenant.WithAdminTx(ctx, s.db, func(ctx context.Context, tx bun.Tx) error {
 		var err error
+		now := time.Now()
 
-		// Fetch and validate token
-		dbToken, err = s.fetchAndValidateToken(ctx, refreshClaims.Token, ipAddress, userAgent)
+		dbToken, err = s.repos.Token.FindByTokenForUpdate(ctx, refreshClaims.Token)
 		if err != nil {
-			return err
+			if modelBase.IsNoRows(err) {
+				s.logRefreshDecision("refresh_session_rejected", "token_not_found", refreshClaims.ID, refreshClaims.TenantID)
+				return &AuthError{Op: "get token", Err: ErrTokenNotFound}
+			}
+			return fmt.Errorf("find refresh token: %w", err)
 		}
 
-		// Detect potential token theft
-		if err := s.detectTokenTheft(ctx, dbToken, ipAddress, userAgent); err != nil {
+		if dbToken.AccountID != int64(refreshClaims.ID) || (refreshClaims.TenantID > 0 && dbToken.TenantID != refreshClaims.TenantID) {
+			if err := s.revokeRefreshTokenFamily(ctx, dbToken); err != nil {
+				return fmt.Errorf("revoke mismatched refresh-token family: %w", err)
+			}
+			rejectAfterCommit = ErrInvalidToken
+			s.logRefreshDecision("refresh_session_rejected", "claim_mismatch", refreshClaims.ID, refreshClaims.TenantID)
+			return nil
+		}
+
+		if now.After(dbToken.Expiry) {
+			if err := s.revokeRefreshTokenFamily(ctx, dbToken); err != nil {
+				return fmt.Errorf("delete expired refresh-token family: %w", err)
+			}
+			rejectAfterCommit = ErrTokenExpired
+			s.logRefreshDecision("refresh_session_rejected", "token_expired", refreshClaims.ID, refreshClaims.TenantID)
+			return nil
+		}
+
+		dbToken, recovered, err = s.resolveRefreshHandoff(ctx, dbToken, now)
+		if err != nil {
+			if errors.Is(err, ErrInvalidToken) {
+				if revokeErr := s.revokeRefreshTokenFamily(ctx, dbToken); revokeErr != nil {
+					return fmt.Errorf("revoke replayed refresh-token family: %w", revokeErr)
+				}
+				rejectAfterCommit = ErrInvalidToken
+				s.logRefreshDecision("refresh_session_rejected", "replay_detected", refreshClaims.ID, refreshClaims.TenantID)
+				return nil
+			}
 			return err
+		}
+		if dbToken.FamilyID != "" {
+			latestToken, latestErr := s.repos.Token.GetLatestTokenInFamily(ctx, dbToken.FamilyID)
+			if latestErr != nil {
+				return fmt.Errorf("inspect refresh-token family: %w", latestErr)
+			}
+			if latestToken != nil && latestToken.Generation > dbToken.Generation {
+				if revokeErr := s.revokeRefreshTokenFamily(ctx, dbToken); revokeErr != nil {
+					return fmt.Errorf("revoke inconsistent refresh-token family: %w", revokeErr)
+				}
+				rejectAfterCommit = ErrInvalidToken
+				s.logRefreshDecision("refresh_session_rejected", "lineage_mismatch", refreshClaims.ID, refreshClaims.TenantID)
+				return nil
+			}
 		}
 
 		// Fetch and validate account
 		account, err = s.fetchAndValidateAccount(ctx, dbToken.AccountID, ipAddress, userAgent)
 		if err != nil {
+			reason := "account_lookup_failed"
+			if errors.Is(err, ErrAccountInactive) {
+				reason = "account_inactive"
+			} else if errors.Is(err, ErrAccountNotFound) {
+				reason = "account_not_found"
+			}
+			s.logRefreshDecision("refresh_session_rejected", reason, refreshClaims.ID, refreshClaims.TenantID)
 			return err
 		}
 
@@ -1102,10 +1157,14 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 			effectiveTenantID = resolved
 		}
 
-		// Create and persist new token with resolved tenant
-		newToken, err = s.createAndPersistNewToken(ctx, dbToken, account.ID, effectiveTenantID)
-		if err != nil {
-			return err
+		if recovered {
+			newToken = dbToken
+		} else {
+			// Create and persist new token with resolved tenant.
+			newToken, err = s.createAndPersistNewToken(ctx, dbToken, account.ID, effectiveTenantID, now)
+			if err != nil {
+				return err
+			}
 		}
 
 		// Update last login
@@ -1115,56 +1174,60 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 	})
 
 	if err != nil {
-		return nil, nil, &AuthError{Op: "refresh transaction", Err: err}
+		return nil, nil, false, &AuthError{Op: "refresh transaction", Err: err}
+	}
+	if rejectAfterCommit != nil {
+		return nil, nil, false, &AuthError{Op: "refresh transaction", Err: rejectAfterCommit}
 	}
 
-	return account, newToken, nil
+	return account, newToken, recovered, nil
 }
 
-// fetchAndValidateToken retrieves token and checks expiry
-func (s *Service) fetchAndValidateToken(ctx context.Context, tokenStr, ipAddress, userAgent string) (*auth.Token, error) {
-	dbToken, err := s.repos.Token.FindByTokenForUpdate(ctx, tokenStr)
-	if err != nil {
-		return nil, &AuthError{Op: "get token", Err: ErrTokenNotFound}
-	}
-
-	if time.Now().After(dbToken.Expiry) {
-		_ = s.repos.Token.Delete(ctx, dbToken.ID)
-		if ipAddress != "" && dbToken.AccountID > 0 {
-			s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeTokenExpired, false, ipAddress, userAgent, "Token expired")
+// resolveRefreshHandoff follows a bounded, validated successor chain. A chain
+// exists only when a previous rotation committed but its response cookie may
+// not have reached the browser. Outside the grace period, reuse is replay.
+func (s *Service) resolveRefreshHandoff(ctx context.Context, presented *auth.Token, now time.Time) (*auth.Token, bool, error) {
+	current := presented
+	for hop := 0; hop < rotation.MaxRecoveryHops; hop++ {
+		if current.RotatedAt == nil {
+			return current, current.ID != presented.ID, nil
 		}
-		return nil, &AuthError{Op: "check token expiry", Err: ErrTokenExpired}
+		if current.ReplacementToken == nil || current.RotatedAt.After(now) || now.Sub(*current.RotatedAt) > rotation.RecoveryGrace {
+			return current, false, ErrInvalidToken
+		}
+		if !rotation.MatchesRecoveryProof(ctx, current.RecoveryProofHash) {
+			return current, false, ErrInvalidToken
+		}
+
+		next, err := s.repos.Token.FindByTokenForUpdate(ctx, *current.ReplacementToken)
+		if err != nil {
+			if modelBase.IsNoRows(err) {
+				return current, false, ErrInvalidToken
+			}
+			return current, false, fmt.Errorf("follow refresh-token handoff: %w", err)
+		}
+		// TenantID 0 is the documented pre-tenant-claim legacy state. Its
+		// first successor is allowed to carry the resolved tenant; all modern
+		// lineage must remain pinned to the same tenant.
+		if next.FamilyID != current.FamilyID || next.AccountID != current.AccountID || (current.TenantID != 0 && next.TenantID != current.TenantID) || next.Generation != current.Generation+1 {
+			return current, false, ErrInvalidToken
+		}
+		current = next
 	}
-
-	return dbToken, nil
-}
-
-// detectTokenTheft checks for token family theft detection
-func (s *Service) detectTokenTheft(ctx context.Context, dbToken *auth.Token, ipAddress, userAgent string) error {
-	if dbToken.FamilyID == "" {
-		return nil
-	}
-
-	latestToken, err := s.repos.Token.GetLatestTokenInFamily(ctx, dbToken.FamilyID)
-	if err != nil || latestToken == nil || latestToken.Generation <= dbToken.Generation {
-		return nil
-	}
-
-	// Token theft detected - invalidate entire family
-	_ = s.repos.Token.DeleteByFamilyID(ctx, dbToken.FamilyID)
-
-	if ipAddress != "" {
-		s.logAuthEvent(ctx, dbToken.AccountID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Token theft detected - family invalidated")
-	}
-
-	return &AuthError{Op: "token theft detection", Err: ErrInvalidToken}
+	return current, false, ErrInvalidToken
 }
 
 // fetchAndValidateAccount retrieves account and checks if active
 func (s *Service) fetchAndValidateAccount(ctx context.Context, accountID int64, ipAddress, userAgent string) (*auth.Account, error) {
 	account, err := s.repos.Account.FindByID(ctx, accountID)
 	if err != nil {
-		return nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
+		if modelBase.IsNoRows(err) {
+			return nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
+		}
+		// A transient database failure is not evidence that the account was
+		// deleted. Preserve the original error so the refresh endpoint returns
+		// 5xx and the frontend retries instead of destroying a valid session.
+		return nil, &AuthError{Op: opGetAccount, Err: fmt.Errorf("account lookup failed: %w", err)}
 	}
 
 	if !account.Active {
@@ -1177,20 +1240,17 @@ func (s *Service) fetchAndValidateAccount(ctx context.Context, accountID int64, 
 	return account, nil
 }
 
-// createAndPersistNewToken creates new token and deletes old one
-func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.Token, accountID int64, tenantID int64) (*auth.Token, error) {
+// createAndPersistNewToken creates a successor and persists the bounded
+// predecessor handoff atomically.
+func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.Token, accountID int64, tenantID int64, now time.Time) (*auth.Token, error) {
 	newToken := &auth.Token{
 		Token:      uuid.Must(uuid.NewV4()).String(),
 		AccountID:  accountID,
-		Expiry:     time.Now().Add(s.jwtRefreshExpiry),
+		Expiry:     now.Add(s.jwtRefreshExpiry),
 		Mobile:     oldToken.Mobile,
 		Identifier: oldToken.Identifier,
 		FamilyID:   oldToken.FamilyID,
 		Generation: oldToken.Generation + 1,
-	}
-
-	if err := s.repos.Token.Delete(ctx, oldToken.ID); err != nil {
-		return nil, err
 	}
 
 	// Set tenant ID from refresh claims (not from context — refresh is a public route)
@@ -1199,14 +1259,43 @@ func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.T
 	if err := s.repos.Token.Create(ctx, newToken); err != nil {
 		return nil, err
 	}
+	if err := s.repos.Token.MarkRotated(ctx, oldToken.ID, newToken.Token, rotation.RecoveryProofHash(ctx), now); err != nil {
+		return nil, err
+	}
+	if oldToken.FamilyID != "" {
+		if err := s.repos.Token.DeleteRotatedBefore(ctx, oldToken.FamilyID, now.Add(-rotation.RecoveryGrace)); err != nil {
+			return nil, err
+		}
+	}
 
 	return newToken, nil
+}
+
+func (s *Service) revokeRefreshTokenFamily(ctx context.Context, token *auth.Token) error {
+	if token.FamilyID == "" {
+		// Legacy pre-family rows must never turn an empty family identifier into
+		// a cross-account bulk delete.
+		return s.repos.Token.Delete(ctx, token.ID)
+	}
+	return s.repos.Token.DeleteByFamilyID(ctx, token.FamilyID)
+}
+
+func (s *Service) logRefreshDecision(event, reason string, accountID int, tenantID int64) {
+	s.getLogger().Warn(event,
+		slog.String("reason", reason),
+		slog.Int("account_id", accountID),
+		slog.Int64("tenant_id", tenantID),
+	)
 }
 
 // refreshResult carries token pair through singleflight
 type refreshResult struct {
 	accessToken  string
 	refreshToken string
+}
+
+func refreshSingleflightKey(refreshToken string, proofHash []byte) string {
+	return refreshToken + "\x00" + hex.EncodeToString(proofHash)
 }
 
 // RefreshTokenWithAudit generates new token pair from a refresh token with audit logging.
@@ -1219,7 +1308,13 @@ func (s *Service) RefreshTokenWithAudit(ctx context.Context, refreshTokenStr, ip
 	// than completing a token rotation the client never receives (permanent logout).
 	sfCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
-	v, err, shared := s.refreshSF.Do(refreshTokenStr, func() (any, error) {
+	// A refresh token alone is not enough to join another caller's in-flight
+	// recovery. Bind singleflight to the independent proof hash as well, or a
+	// wrong/missing-proof request could receive a legitimate caller's result
+	// without reaching the constant-time handoff check.
+	proofHash := rotation.RecoveryProofHash(ctx)
+	singleflightKey := refreshSingleflightKey(refreshTokenStr, proofHash)
+	v, err, shared := s.refreshSF.Do(singleflightKey, func() (any, error) {
 		return s.doRefreshTokenWithAudit(sfCtx, refreshTokenStr, ipAddress, userAgent)
 	})
 	if shared {
@@ -1237,6 +1332,7 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 	// Parse and validate refresh token claims
 	refreshClaims, err := s.parseRefreshTokenClaims(refreshTokenStr)
 	if err != nil {
+		s.logRefreshDecision("refresh_session_rejected", "invalid_format", 0, 0)
 		return nil, err
 	}
 
@@ -1248,9 +1344,16 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 	}
 
 	// Validate and refresh token in transaction (pass tenant from old JWT for the new token)
-	account, newToken, err := s.refreshTokenInTransaction(ctx, refreshClaims, ipAddress, userAgent, refreshClaims.TenantID)
+	account, newToken, recovered, err := s.refreshTokenInTransaction(ctx, refreshClaims, ipAddress, userAgent, refreshClaims.TenantID)
 	if err != nil {
 		return nil, err
+	}
+	if recovered {
+		s.getLogger().Info("refresh_rotation_recovered",
+			slog.Int("account_id", refreshClaims.ID),
+			slog.Int64("tenant_id", refreshClaims.TenantID),
+			slog.Int("generation", newToken.Generation),
+		)
 	}
 
 	// Load account metadata (roles, permissions, person info)
@@ -1299,19 +1402,17 @@ func (s *Service) doRefreshTokenWithAudit(ctx context.Context, refreshTokenStr, 
 func (s *Service) validateTenantAccess(ctx context.Context, claims *jwt.RefreshClaims) error {
 	exists, err := s.repos.AccountTenant.ExistsByAccountAndTenant(ctx, int64(claims.ID), claims.TenantID)
 	if err != nil {
-		s.getLogger().Warn("failed to validate tenant access during refresh",
+		s.getLogger().Error("refresh_session_validation_failed",
+			slog.String("reason", "tenant_lookup_error"),
 			slog.Int("account_id", claims.ID),
 			slog.Int64("tenant_id", claims.TenantID),
 			slog.Any("error", err),
 		)
-		return &AuthError{Op: "validate tenant access", Err: ErrAccountInactive}
+		return &AuthError{Op: "validate tenant access", Err: fmt.Errorf("tenant access lookup failed: %w", err)}
 	}
 	if !exists {
-		s.getLogger().Warn("tenant access revoked, rejecting refresh",
-			slog.Int("account_id", claims.ID),
-			slog.Int64("tenant_id", claims.TenantID),
-		)
-		return &AuthError{Op: "validate tenant access", Err: fmt.Errorf("tenant access revoked")}
+		s.logRefreshDecision("refresh_session_rejected", "tenant_access_revoked", claims.ID, claims.TenantID)
+		return &AuthError{Op: "validate tenant access", Err: ErrTenantAccessDenied}
 	}
 
 	// Check that the school itself has not been soft-deleted.
@@ -1322,10 +1423,7 @@ func (s *Service) validateTenantAccess(ctx context.Context, claims *jwt.RefreshC
 		// Anything else (timeout, connection reset, etc.) → 500 so the
 		// frontend can retry instead of force-logging out the user.
 		if errors.Is(err, sql.ErrNoRows) {
-			s.getLogger().Warn("school not found during refresh validation",
-				slog.Int("account_id", claims.ID),
-				slog.Int64("tenant_id", claims.TenantID),
-			)
+			s.logRefreshDecision("refresh_session_rejected", "tenant_not_found", claims.ID, claims.TenantID)
 			return &AuthError{Op: "validate tenant access", Err: ErrTenantNotFound}
 		}
 		s.getLogger().Error("failed to look up school during refresh validation",
@@ -1336,10 +1434,7 @@ func (s *Service) validateTenantAccess(ctx context.Context, claims *jwt.RefreshC
 		return &AuthError{Op: "validate tenant access", Err: fmt.Errorf("school lookup failed: %w", err)}
 	}
 	if school == nil || school.IsDeleted() {
-		s.getLogger().Warn("school is deleted, rejecting refresh",
-			slog.Int("account_id", claims.ID),
-			slog.Int64("tenant_id", claims.TenantID),
-		)
+		s.logRefreshDecision("refresh_session_rejected", "tenant_deleted", claims.ID, claims.TenantID)
 		return &AuthError{Op: "validate tenant access", Err: ErrTenantNotFound}
 	}
 

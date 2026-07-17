@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 import {
@@ -28,7 +29,7 @@ interface RouteContext {
   params: Promise<{ tenantSlug: string; phaseId: string }>;
 }
 
-export async function GET(request: NextRequest, context: RouteContext) {
+async function GETHandler(request: NextRequest, context: RouteContext) {
   const { tenantSlug, phaseId } = await context.params;
   // Runtime env validation normally rejects this during application startup.
   // Keep the route independently fail-closed when build tooling explicitly
@@ -122,4 +123,21 @@ export async function GET(request: NextRequest, context: RouteContext) {
       { status: 500 },
     );
   }
+}
+
+const authenticatedTenantGET = withTenantAuth(GETHandler);
+
+/**
+ * The parents host deliberately bypasses tenant Auth.js. Tenant cookies are
+ * domain-scoped and may be sent to that host, but portal isolation forbids
+ * reading or refreshing them there.
+ */
+export function GET(request: NextRequest, context: RouteContext) {
+  const requestHostname = hostnameFromAuthority(
+    getOriginalRequestHost(request),
+  );
+  if (!requestHostname || requestHostname === configuredParentsHostname()) {
+    return GETHandler(request, context);
+  }
+  return authenticatedTenantGET(request, context);
 }

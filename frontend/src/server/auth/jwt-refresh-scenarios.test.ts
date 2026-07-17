@@ -10,6 +10,7 @@ vi.mock("~/env", () => ({
     NEXT_PUBLIC_API_URL: "http://localhost:8080",
     AUTH_JWT_EXPIRY: "15m",
     AUTH_JWT_REFRESH_EXPIRY: "1h",
+    NEXTAUTH_SECRET: "test-auth-secret-with-sufficient-entropy",
   },
 }));
 
@@ -344,8 +345,8 @@ describe("JWT callback — refresh scenarios", () => {
     expect(result?.needsRefresh).toBe(true);
   });
 
-  // ── Scenario 14: Post-expiry refresh failure (network timeout) ─────
-  it("scenario 14: post-expiry + timeout — error = RefreshTokenError", async () => {
+  // ── Scenario 14: Post-expiry network timeout remains retryable ─────
+  it("scenario 14: post-expiry + timeout preserves refresh session", async () => {
     const abortError = new DOMException(
       "The operation was aborted",
       "AbortError",
@@ -364,7 +365,8 @@ describe("JWT callback — refresh scenarios", () => {
 
     expect(mockFetch).toHaveBeenCalledOnce();
     expect(result?.token).toBe("expired-access"); // unchanged
-    expect(result?.error).toBe("RefreshTokenError");
-    expect(result?.needsRefresh).toBe(true);
+    expect(result?.refreshToken).toBe("valid-refresh");
+    expect(result?.error).toBeUndefined();
+    expect(result?.needsRefresh).toBeUndefined();
   });
 });

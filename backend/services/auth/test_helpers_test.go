@@ -1065,6 +1065,14 @@ func (noopTokenRepository) FindByTokenForUpdate(context.Context, string) (*authM
 	panic("FindByTokenForUpdate not implemented")
 }
 
+func (noopTokenRepository) MarkRotated(context.Context, int64, string, []byte, time.Time) error {
+	panic("MarkRotated not implemented")
+}
+
+func (noopTokenRepository) DeleteRotatedBefore(context.Context, string, time.Time) error {
+	panic("DeleteRotatedBefore not implemented")
+}
+
 func (noopTokenRepository) FindByAccountID(context.Context, int64) ([]*authModel.Token, error) {
 	panic("FindByAccountID not implemented")
 }

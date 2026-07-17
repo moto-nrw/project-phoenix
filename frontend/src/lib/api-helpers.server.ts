@@ -112,8 +112,12 @@ async function getIncomingForwardHeaders(): Promise<Record<string, string>> {
 }
 
 /**
- * Check if the current session is authenticated
- * @returns Response with error if not authenticated, null if authenticated
+ * Check authentication from inside a response-aware route wrapper.
+ *
+ * New route handlers should normally use the shared route factories instead;
+ * those factories guarantee that a refreshed session cookie reaches the
+ * browser. This helper remains for compatibility with existing callers and
+ * must not be used by an unwrapped route handler.
  */
 export async function checkAuth(): Promise<Response | null> {
   const { auth } = await import("../server/auth");

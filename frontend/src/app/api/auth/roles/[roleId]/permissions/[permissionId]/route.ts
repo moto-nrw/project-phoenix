@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -11,7 +12,7 @@ interface ErrorResponse {
 }
 
 // POST: Assign a permission to a role
-export async function POST(
+async function POSTHandler(
   request: NextRequest,
   { params }: { params: Promise<{ roleId: string; permissionId: string }> },
 ) {
@@ -69,8 +70,10 @@ export async function POST(
   }
 }
 
+export const POST = withTenantAuth(POSTHandler);
+
 // DELETE: Remove a permission from a role
-export async function DELETE(
+async function DELETEHandler(
   request: NextRequest,
   { params }: { params: Promise<{ roleId: string; permissionId: string }> },
 ) {
@@ -127,3 +130,5 @@ export async function DELETE(
     );
   }
 }
+
+export const DELETE = withTenantAuth(DELETEHandler);

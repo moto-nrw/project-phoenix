@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	authSvc "github.com/moto-nrw/project-phoenix/services/auth"
@@ -880,6 +881,7 @@ func currentOperatorRefreshToken(t *testing.T, db *bun.DB, operatorID int64) str
 		TableExpr("platform.operator_refresh_tokens").
 		Column("token").
 		Where("operator_id = ?", operatorID).
+		Where("rotated_at IS NULL").
 		Limit(1).
 		Scan(context.Background(), &token)
 	require.NoError(t, err)
@@ -981,23 +983,31 @@ func TestOperatorAuthService_RefreshToken_SuccessRotatesServerSideSession(t *tes
 	email := fmt.Sprintf("refresh-ok-%d@test.local", time.Now().UnixNano())
 	operatorID, _ := createEmailChangeTestOperator(t, db, email)
 
-	_, firstRefreshJWT, _, err := service.Login(ctx, email, testPassword, net.ParseIP("127.0.0.1"))
+	firstAccessJWT, firstRefreshJWT, _, err := service.Login(ctx, email, testPassword, net.ParseIP("127.0.0.1"))
 	require.NoError(t, err)
 	require.NotEmpty(t, firstRefreshJWT)
 	oldDBToken := currentOperatorRefreshToken(t, db, operatorID)
 
-	accessToken, secondRefreshJWT, err := service.RefreshToken(ctx, operatorID, oldDBToken)
+	recoveryCtx := rotation.WithRecoveryProof(ctx, firstAccessJWT)
+	accessToken, secondRefreshJWT, err := service.RefreshToken(recoveryCtx, operatorID, oldDBToken)
 	require.NoError(t, err)
 	assert.NotEmpty(t, accessToken)
 	assert.NotEmpty(t, secondRefreshJWT)
-	assert.Equal(t, 0, countOperatorRefreshTokens(t, db, operatorID, oldDBToken),
-		"the used refresh handle must be deleted so it cannot be replayed")
-
 	newDBToken := currentOperatorRefreshToken(t, db, operatorID)
 	assert.NotEqual(t, oldDBToken, newDBToken, "refresh must rotate to a new opaque server-side handle")
+	assert.Equal(t, 1, countOperatorRefreshTokens(t, db, operatorID, oldDBToken),
+		"the bounded recovery handoff must survive process replacement")
+	var replacement string
+	err = db.NewSelect().
+		TableExpr("platform.operator_refresh_tokens").
+		Column("replacement_token").
+		Where("token = ?", oldDBToken).
+		Scan(ctx, &replacement)
+	require.NoError(t, err)
+	assert.Equal(t, newDBToken, replacement)
 }
 
-func TestOperatorAuthService_RefreshToken_ReplayOldTokenRejected(t *testing.T) {
+func TestOperatorAuthService_RefreshToken_InterruptedRotationRecoveredWithinGrace(t *testing.T) {
 	withJWTSecret(t)
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
@@ -1007,17 +1017,80 @@ func TestOperatorAuthService_RefreshToken_ReplayOldTokenRejected(t *testing.T) {
 	email := fmt.Sprintf("refresh-replay-%d@test.local", time.Now().UnixNano())
 	operatorID, _ := createEmailChangeTestOperator(t, db, email)
 
-	_, _, _, err := service.Login(ctx, email, testPassword, net.ParseIP("127.0.0.1"))
+	predecessorAccessJWT, _, _, err := service.Login(ctx, email, testPassword, net.ParseIP("127.0.0.1"))
 	require.NoError(t, err)
 	oldDBToken := currentOperatorRefreshToken(t, db, operatorID)
+	recoveryCtx := rotation.WithRecoveryProof(ctx, predecessorAccessJWT)
 
-	_, _, err = service.RefreshToken(ctx, operatorID, oldDBToken)
+	firstAccess, firstRefresh, err := service.RefreshToken(recoveryCtx, operatorID, oldDBToken)
+	require.NoError(t, err)
+	currentToken := currentOperatorRefreshToken(t, db, operatorID)
+
+	secondAccess, secondRefresh, err := service.RefreshToken(recoveryCtx, operatorID, oldDBToken)
+	require.NoError(t, err)
+	assert.NotEmpty(t, firstAccess)
+	assert.NotEmpty(t, firstRefresh)
+	assert.NotEmpty(t, secondAccess)
+	assert.NotEmpty(t, secondRefresh)
+	assert.Equal(t, currentToken, currentOperatorRefreshToken(t, db, operatorID),
+		"recovery must return the existing successor instead of rotating again")
+	assert.Equal(t, 2, countOperatorRefreshTokens(t, db, operatorID, ""))
+}
+
+func TestOperatorAuthService_RefreshToken_ReplayAfterGraceRevokesFamily(t *testing.T) {
+	withJWTSecret(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildAuthService(t, db)
+	ctx := context.Background()
+	email := fmt.Sprintf("refresh-expired-grace-%d@test.local", time.Now().UnixNano())
+	operatorID, _ := createEmailChangeTestOperator(t, db, email)
+
+	predecessorAccessJWT, _, _, err := service.Login(ctx, email, testPassword, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err)
+	oldDBToken := currentOperatorRefreshToken(t, db, operatorID)
+	recoveryCtx := rotation.WithRecoveryProof(ctx, predecessorAccessJWT)
+	_, _, err = service.RefreshToken(recoveryCtx, operatorID, oldDBToken)
 	require.NoError(t, err)
 
-	_, _, err = service.RefreshToken(ctx, operatorID, oldDBToken)
+	_, err = db.NewUpdate().
+		Table("platform.operator_refresh_tokens").
+		Set("rotated_at = ?", time.Now().Add(-rotation.RecoveryGrace-time.Minute)).
+		Where("token = ?", oldDBToken).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, _, err = service.RefreshToken(recoveryCtx, operatorID, oldDBToken)
 	require.Error(t, err)
 	var invalidRefresh *platformSvc.OperatorRefreshTokenInvalidError
 	assert.ErrorAs(t, err, &invalidRefresh)
+	assert.Equal(t, 0, countOperatorRefreshTokens(t, db, operatorID, ""),
+		"replay outside the recovery boundary must commit family revocation")
+}
+
+func TestOperatorAuthService_RefreshToken_WrongRecoveryProofRevokesFamily(t *testing.T) {
+	withJWTSecret(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := buildAuthService(t, db)
+	ctx := context.Background()
+	email := fmt.Sprintf("refresh-wrong-proof-%d@test.local", time.Now().UnixNano())
+	operatorID, _ := createEmailChangeTestOperator(t, db, email)
+
+	predecessorAccessJWT, _, _, err := service.Login(ctx, email, testPassword, net.ParseIP("127.0.0.1"))
+	require.NoError(t, err)
+	oldDBToken := currentOperatorRefreshToken(t, db, operatorID)
+	_, _, err = service.RefreshToken(rotation.WithRecoveryProof(ctx, predecessorAccessJWT), operatorID, oldDBToken)
+	require.NoError(t, err)
+
+	_, _, err = service.RefreshToken(rotation.WithRecoveryProof(ctx, "attacker-does-not-have-the-recovery-secret"), operatorID, oldDBToken)
+	require.Error(t, err)
+	var invalidRefresh *platformSvc.OperatorRefreshTokenInvalidError
+	assert.ErrorAs(t, err, &invalidRefresh)
+	assert.Equal(t, 0, countOperatorRefreshTokens(t, db, operatorID, ""),
+		"failed possession proof must commit operator token-family revocation")
 }
 
 func TestOperatorAuthService_RefreshToken_PasswordChangeRevokesOldToken(t *testing.T) {
@@ -1168,4 +1241,53 @@ func TestOperatorAuthService_RefreshToken_RepositoryError(t *testing.T) {
 	_, _, err = service.RefreshToken(ctx, 1, "opaque-token")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to find operator")
+}
+
+func TestOperatorAuthService_RefreshToken_HandoffLookupErrorDoesNotRevokeFamily(t *testing.T) {
+	withJWTSecret(t)
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	rotatedAt := time.Now()
+	replacement := "replacement-handle"
+	recoveryCtx := rotation.WithRecoveryProof(context.Background(), "independent-recovery-secret")
+	recoveryProofHash := rotation.RecoveryProofHash(recoveryCtx)
+	familyRevoked := false
+	refreshRepo := &mockOperatorRefreshTokenRepo{
+		findByTokenForUpdateFn: func(_ context.Context, token string) (*platform.OperatorRefreshToken, error) {
+			if token == replacement {
+				return nil, fmt.Errorf("temporary database timeout")
+			}
+			return &platform.OperatorRefreshToken{
+				Model:             base.Model{ID: 10},
+				OperatorID:        1,
+				Token:             token,
+				Expiry:            time.Now().Add(time.Hour),
+				FamilyID:          "family",
+				Generation:        0,
+				RotatedAt:         &rotatedAt,
+				ReplacementToken:  &replacement,
+				RecoveryProofHash: recoveryProofHash,
+			}, nil
+		},
+		deleteByFamilyIDFn: func(context.Context, string) error {
+			familyRevoked = true
+			return nil
+		},
+	}
+
+	service, err := platformSvc.NewOperatorAuthService(platformSvc.OperatorAuthServiceConfig{
+		OperatorRepo:     &mockOperatorRepo{},
+		AuditLogRepo:     &mockAuditLogRepoShared{},
+		RefreshTokenRepo: refreshRepo,
+		DB:               db,
+		Logger:           slog.Default(),
+	})
+	require.NoError(t, err)
+
+	_, _, err = service.RefreshToken(recoveryCtx, 1, "predecessor-handle")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "temporary database timeout")
+	assert.False(t, familyRevoked,
+		"transient infrastructure errors must remain retryable and must not revoke a valid session")
 }

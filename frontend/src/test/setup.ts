@@ -142,6 +142,20 @@ vi.mock("~/env", () => ({
   },
 }));
 
+// Route-auth wrappers are exercised directly in focused unit tests. Route
+// tests mock the portal auth modules themselves, so keep their wrapper layer
+// transparent and preserve the existing one-session-read contract.
+const passthroughAuthWrapper = <Handler>(handler: Handler): Handler => handler;
+vi.mock("~/server/auth/tenant-route", () => ({
+  withTenantAuth: passthroughAuthWrapper,
+}));
+vi.mock("~/server/auth/operator-route", () => ({
+  withOperatorAuth: passthroughAuthWrapper,
+}));
+vi.mock("~/server/auth/parent-route", () => ({
+  withParentAuth: passthroughAuthWrapper,
+}));
+
 const tenantProviderMock = vi.hoisted(() => ({
   useTenant: vi.fn(() => ({
     tenantSlug: "test-tenant",

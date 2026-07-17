@@ -76,6 +76,60 @@ func (r *TokenRepository) FindByTokenForUpdate(ctx context.Context, token string
 	return authToken, nil
 }
 
+// MarkRotated records the successor of a consumed refresh handle. Keeping the
+// handoff in the database lets another frontend process recover an interrupted
+// rotation without accepting arbitrary or unbounded replay.
+func (r *TokenRepository) MarkRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error {
+	query := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*auth.Token)(nil)).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Set(`rotated_at = ?`, rotatedAt).
+		Set(`replacement_token = ?`, replacementToken).
+		Set(`recovery_proof_hash = ?`, recoveryProofHash).
+		Where(`"token".id = ?`, id).
+		Where(`"token".rotated_at IS NULL`)
+
+	query = base.WithTenantFilter(ctx, query, "token")
+	result, err := query.Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "mark refresh token rotated", Err: err}
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "count rotated refresh tokens", Err: err}
+	}
+	if affected != 1 {
+		return &modelBase.DatabaseError{Op: "mark refresh token rotated", Err: errors.New("refresh token was already rotated or not found")}
+	}
+	return nil
+}
+
+// DeleteRotatedBefore removes expired handoff rows while preserving the
+// current session row. It is called inside the same transaction as rotation.
+func (r *TokenRepository) DeleteRotatedBefore(ctx context.Context, familyID string, cutoff time.Time) error {
+	db := base.GetDB(ctx, r.db)
+	candidates := db.NewSelect().
+		Model((*auth.Token)(nil)).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		ColumnExpr(`"token".id`).
+		Where(`"token".family_id = ?`, familyID).
+		Where(`"token".rotated_at IS NOT NULL`).
+		Where(`"token".rotated_at < ?`, cutoff)
+	candidates = base.WithTenantFilter(ctx, candidates, "token").
+		For("UPDATE SKIP LOCKED")
+
+	query := db.NewDelete().
+		Model((*auth.Token)(nil)).
+		ModelTableExpr(`auth.tokens AS "token"`).
+		Where(`"token".id IN (?)`, candidates)
+
+	query = base.WithTenantFilter(ctx, query, "token")
+	if _, err := query.Exec(ctx); err != nil {
+		return &modelBase.DatabaseError{Op: "delete expired refresh-token handoffs", Err: err}
+	}
+	return nil
+}
+
 // FindByAccountID retrieves all tokens for an account
 func (r *TokenRepository) FindByAccountID(ctx context.Context, accountID int64) ([]*auth.Token, error) {
 	var tokens []*auth.Token

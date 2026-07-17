@@ -258,6 +258,51 @@ func TestTokenRepository_DeleteExpiredTokens(t *testing.T) {
 	})
 }
 
+func TestTokenRepository_RotationHandoffLifecycle(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Token
+	ctx := testpkg.TenantContext(1)
+	account := testpkg.CreateTestAccount(t, db, "rotationHandoff")
+	defer cleanupAccountRecords(t, db, account.ID)
+	familyID := uuid.Must(uuid.NewV4()).String()
+	predecessor := &auth.Token{
+		AccountID:  account.ID,
+		Token:      uuid.Must(uuid.NewV4()).String(),
+		Expiry:     time.Now().Add(time.Hour),
+		FamilyID:   familyID,
+		Generation: 0,
+	}
+	successor := &auth.Token{
+		AccountID:  account.ID,
+		Token:      uuid.Must(uuid.NewV4()).String(),
+		Expiry:     time.Now().Add(time.Hour),
+		FamilyID:   familyID,
+		Generation: 1,
+	}
+	require.NoError(t, repo.Create(ctx, predecessor))
+	require.NoError(t, repo.Create(ctx, successor))
+
+	rotatedAt := time.Now().Add(-10 * time.Minute)
+	recoveryProofHash := make([]byte, 32)
+	recoveryProofHash[0] = 1
+	require.NoError(t, repo.MarkRotated(ctx, predecessor.ID, successor.Token, recoveryProofHash, rotatedAt))
+	stored, err := repo.FindByToken(ctx, predecessor.Token)
+	require.NoError(t, err)
+	require.NotNil(t, stored.RotatedAt)
+	require.NotNil(t, stored.ReplacementToken)
+	assert.Equal(t, successor.Token, *stored.ReplacementToken)
+	assert.Equal(t, recoveryProofHash, stored.RecoveryProofHash)
+
+	require.NoError(t, repo.DeleteRotatedBefore(ctx, familyID, time.Now().Add(-5*time.Minute)))
+	_, err = repo.FindByToken(ctx, predecessor.Token)
+	assert.Error(t, err)
+	current, err := repo.FindByToken(ctx, successor.Token)
+	require.NoError(t, err)
+	assert.Equal(t, 1, current.Generation)
+}
+
 func TestTokenRepository_DeleteByAccountID(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

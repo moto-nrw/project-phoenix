@@ -1,0 +1,1 @@
+export { withParentAuth } from "./parent";

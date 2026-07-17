@@ -46,6 +46,51 @@ func (r *OperatorRefreshTokenRepository) FindByTokenForUpdate(ctx context.Contex
 	return token, nil
 }
 
+func (r *OperatorRefreshTokenRepository) MarkRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error {
+	result, err := base.GetDB(ctx, r.db).NewUpdate().
+		Model((*platform.OperatorRefreshToken)(nil)).
+		ModelTableExpr(operatorRefreshTokenTableAlias).
+		Set(`rotated_at = ?`, rotatedAt).
+		Set(`replacement_token = ?`, replacementToken).
+		Set(`recovery_proof_hash = ?`, recoveryProofHash).
+		Where(`"operator_refresh_token".id = ?`, id).
+		Where(`"operator_refresh_token".rotated_at IS NULL`).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "mark operator refresh token rotated", Err: err}
+	}
+	affected, err := result.RowsAffected()
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "count rotated operator refresh tokens", Err: err}
+	}
+	if affected != 1 {
+		return &modelBase.DatabaseError{Op: "mark operator refresh token rotated", Err: errors.New("operator refresh token was already rotated or not found")}
+	}
+	return nil
+}
+
+func (r *OperatorRefreshTokenRepository) DeleteRotatedBefore(ctx context.Context, familyID string, cutoff time.Time) error {
+	db := base.GetDB(ctx, r.db)
+	candidates := db.NewSelect().
+		Model((*platform.OperatorRefreshToken)(nil)).
+		ModelTableExpr(operatorRefreshTokenTableAlias).
+		ColumnExpr(`"operator_refresh_token".id`).
+		Where(`"operator_refresh_token".family_id = ?`, familyID).
+		Where(`"operator_refresh_token".rotated_at IS NOT NULL`).
+		Where(`"operator_refresh_token".rotated_at < ?`, cutoff).
+		For("UPDATE SKIP LOCKED")
+
+	_, err := db.NewDelete().
+		Model((*platform.OperatorRefreshToken)(nil)).
+		ModelTableExpr(operatorRefreshTokenTableAlias).
+		Where(`"operator_refresh_token".id IN (?)`, candidates).
+		Exec(ctx)
+	if err != nil {
+		return &modelBase.DatabaseError{Op: "delete expired operator refresh-token handoffs", Err: err}
+	}
+	return nil
+}
+
 func (r *OperatorRefreshTokenRepository) Delete(ctx context.Context, id any) error {
 	_, err := base.GetDB(ctx, r.db).NewDelete().
 		Model((*platform.OperatorRefreshToken)(nil)).

@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StaffPreviewRoute" });
 
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
@@ -42,3 +43,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withTenantAuth(POSTHandler);

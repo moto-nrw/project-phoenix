@@ -7,7 +7,9 @@
  */
 
 import type { DefaultSession, NextAuthConfig, User } from "next-auth";
+import { createHmac, randomBytes } from "node:crypto";
 import { env } from "~/env";
+import { canonicalForwardedFor } from "~/lib/client-headers.server";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -82,6 +84,7 @@ declare module "next-auth" {
     scope?: string;
     tokenExpiry?: number;
     refreshTokenExpiry?: number;
+    refreshRecoveryProof?: string;
     error?: "RefreshTokenExpired" | "RefreshTokenError";
     needsRefresh?: boolean;
   }
@@ -421,17 +424,54 @@ export async function performLogin(
 // ---------------------------------------------------------------------------
 
 type RefreshResult = { access_token: string; refresh_token: string };
+type RefreshAttempt =
+  | { status: "success"; result: RefreshResult; recoveryProof: string }
+  | { status: "terminal" }
+  | { status: "transient" };
 
-// Per-token maps: keyed by the OLD refresh token string so that concurrent
-// requests from different users (or the same user across tabs) never clobber
-// each other's deduplication state.
-const activeRefreshes = new Map<string, Promise<RefreshResult | null>>();
+// Per-session maps: keyed by the OLD refresh token plus its independent
+// recovery proof so unrelated or partially stolen credentials cannot join a
+// legitimate in-flight rotation.
+const activeRefreshes = new Map<string, Promise<RefreshAttempt>>();
 const refreshCacheMap = new Map<
   string,
-  { result: RefreshResult; expiresAt: number }
+  { result: RefreshResult; recoveryProof: string; expiresAt: number }
 >();
 const REFRESH_CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 100;
+
+function createRefreshRecoveryProof(): string {
+  return randomBytes(32).toString("base64url");
+}
+
+// Sessions issued before recovery proofs were introduced need a stable proof
+// across frontend process replacement. Deriving only this one-time bootstrap
+// value with the Auth.js server secret keeps it unavailable to callers that
+// stole the exposed backend access/refresh pair. Every successful refresh
+// replaces it with a fresh random proof.
+function legacyRefreshRecoveryProof(refreshToken: string): string {
+  return createHmac("sha256", env.NEXTAUTH_SECRET)
+    .update("phoenix-refresh-recovery-v1\0")
+    .update(refreshToken)
+    .digest("base64url");
+}
+
+async function getRefreshAuditHeaders(): Promise<Record<string, string>> {
+  try {
+    const { headers } = await import("next/headers");
+    const incoming = await headers();
+    const forwardedFor = canonicalForwardedFor(incoming);
+    const userAgent = incoming.get("user-agent");
+    return {
+      ...(forwardedFor && { "X-Forwarded-For": forwardedFor }),
+      ...(userAgent && { "User-Agent": userAgent }),
+    };
+  } catch {
+    // Auth callbacks can also run outside a request (for example in tests or
+    // maintenance code). Missing audit context must not break session renewal.
+    return {};
+  }
+}
 
 /** Evict expired entries so the maps don't leak memory. */
 function pruneRefreshCache(): void {
@@ -574,6 +614,7 @@ export const sharedJwtCallback: NonNullable<
     token.scope = user.scope;
     token.tokenExpiry = Date.now() + accessTokenExpiry;
     token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
+    token.refreshRecoveryProof = createRefreshRecoveryProof();
     token.error = undefined;
     token.needsRefresh = undefined;
 
@@ -626,18 +667,11 @@ export const sharedJwtCallback: NonNullable<
     return token;
   }
 
-  // Once RefreshTokenError is set (access token expired + refresh failed),
-  // stop retrying. The sharedSessionCallback treats !token.token OR
-  // token.error as a minimal session and strips both tokens from the
-  // client response. This makes any "retrying" intermediate state
-  // impossible — the client loses refreshToken and can't recover, so
-  // the only reliable path is re-authentication via the login page.
-  //
-  // A transient failure (timeout/5xx) while the access token is expired
-  // therefore forces re-login. This is a deliberate trade-off: 5 seconds
-  // of re-entering credentials beats 4-12 minutes of broken UI (401s on
-  // every API call) while waiting for an automatic retry that the session
-  // architecture can't support.
+  // RefreshTokenError is terminal and is set only after the backend has
+  // explicitly rejected the refresh session (401/403) after access expiry.
+  // Timeouts, network interruptions, and 5xx responses preserve the refresh
+  // token so a sleeping/offline tablet can retry when connectivity returns.
+  // Once terminal, the session callback strips both tokens and requires login.
   if (token.error === "RefreshTokenError") {
     return token;
   }
@@ -655,15 +689,23 @@ export const sharedJwtCallback: NonNullable<
     now < (token.refreshTokenExpiry as number)
   ) {
     const currentRefreshToken = token.refreshToken as string;
+    const currentRecoveryProof =
+      typeof token.refreshRecoveryProof === "string" &&
+      token.refreshRecoveryProof.length > 0
+        ? token.refreshRecoveryProof
+        : legacyRefreshRecoveryProof(currentRefreshToken);
+    token.refreshRecoveryProof = currentRecoveryProof;
+    const refreshKey = `${currentRefreshToken}\0${currentRecoveryProof}`;
 
     // Periodic cleanup of expired cache entries
     pruneRefreshCache();
 
     // Check per-token cache
-    const cached = refreshCacheMap.get(currentRefreshToken);
+    const cached = refreshCacheMap.get(refreshKey);
     if (cached && Date.now() < cached.expiresAt) {
       token.token = cached.result.access_token;
       token.refreshToken = cached.result.refresh_token;
+      token.refreshRecoveryProof = cached.recoveryProof;
       token.tokenExpiry = Date.now() + accessTokenExpiry;
       token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
       token.error = undefined;
@@ -677,25 +719,28 @@ export const sharedJwtCallback: NonNullable<
     }
 
     // Join in-flight refresh for the SAME token (per-token dedup)
-    const inflight = activeRefreshes.get(currentRefreshToken);
+    const inflight = activeRefreshes.get(refreshKey);
     if (inflight) {
-      const result = await inflight;
-      if (result) {
-        token.token = result.access_token;
-        token.refreshToken = result.refresh_token;
+      const attempt = await inflight;
+      if (attempt.status === "success") {
+        token.token = attempt.result.access_token;
+        token.refreshToken = attempt.result.refresh_token;
+        token.refreshRecoveryProof = attempt.recoveryProof;
         token.tokenExpiry = Date.now() + accessTokenExpiry;
         token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
         token.error = undefined;
         token.needsRefresh = undefined;
-        const inflightPayload = parseJwtPayload(result.access_token);
+        const inflightPayload = parseJwtPayload(attempt.result.access_token);
         if (inflightPayload) {
           syncTokenFromPayload(token, inflightPayload);
         }
         logger.info("proactive_token_refresh_succeeded");
-      } else if (now > tokenExpiry) {
+      } else if (attempt.status === "terminal" && now > tokenExpiry) {
         token.error = "RefreshTokenError";
         token.needsRefresh = true;
-        logger.warn("token_refresh_failed_post_expiry");
+        logger.warn("token_refresh_terminal_failure_post_expiry");
+      } else if (attempt.status === "transient") {
+        logger.warn("token_refresh_deferred_after_transient_failure");
       }
       return token;
     }
@@ -706,13 +751,16 @@ export const sharedJwtCallback: NonNullable<
       ? `${getServerApiUrl()}/operator/auth/refresh`
       : `${getServerApiUrl()}/auth/refresh`;
 
-    const refreshPromise = (async (): Promise<RefreshResult | null> => {
+    const refreshPromise = (async (): Promise<RefreshAttempt> => {
       try {
+        const auditHeaders = await getRefreshAuditHeaders();
         const response = await fetch(refreshUrl, {
           method: "POST",
           headers: {
             Authorization: `Bearer ${currentRefreshToken}`,
             "Content-Type": "application/json",
+            "X-Refresh-Recovery-Proof": currentRecoveryProof,
+            ...auditHeaders,
           },
           signal: AbortSignal.timeout(REFRESH_TIMEOUT_MS),
         });
@@ -727,47 +775,58 @@ export const sharedJwtCallback: NonNullable<
           } else {
             tokens = (await response.json()) as RefreshResult;
           }
-          refreshCacheMap.set(currentRefreshToken, {
+          const successorRecoveryProof = createRefreshRecoveryProof();
+          refreshCacheMap.set(refreshKey, {
             result: tokens,
+            recoveryProof: successorRecoveryProof,
             expiresAt: Date.now() + REFRESH_CACHE_TTL_MS,
           });
-          return tokens;
+          return {
+            status: "success",
+            result: tokens,
+            recoveryProof: successorRecoveryProof,
+          };
         }
         logger.warn("proactive_token_refresh_failed", {
           status: response.status,
           scope: token.scope,
         });
-        return null;
+        return response.status === 401 || response.status === 403
+          ? { status: "terminal" }
+          : { status: "transient" };
       } catch (err) {
         logger.warn("proactive_token_refresh_error", {
           error: err instanceof Error ? err.message : String(err),
           scope: token.scope,
         });
-        return null;
+        return { status: "transient" };
       } finally {
-        activeRefreshes.delete(currentRefreshToken);
+        activeRefreshes.delete(refreshKey);
       }
     })();
 
-    activeRefreshes.set(currentRefreshToken, refreshPromise);
+    activeRefreshes.set(refreshKey, refreshPromise);
 
-    const result = await refreshPromise;
-    if (result) {
-      token.token = result.access_token;
-      token.refreshToken = result.refresh_token;
+    const attempt = await refreshPromise;
+    if (attempt.status === "success") {
+      token.token = attempt.result.access_token;
+      token.refreshToken = attempt.result.refresh_token;
+      token.refreshRecoveryProof = attempt.recoveryProof;
       token.tokenExpiry = Date.now() + accessTokenExpiry;
       token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
       token.error = undefined;
       token.needsRefresh = undefined;
-      const refreshedPayload = parseJwtPayload(result.access_token);
+      const refreshedPayload = parseJwtPayload(attempt.result.access_token);
       if (refreshedPayload) {
         syncTokenFromPayload(token, refreshedPayload);
       }
       logger.info("proactive_token_refresh_succeeded");
-    } else if (now > tokenExpiry) {
+    } else if (attempt.status === "terminal" && now > tokenExpiry) {
       token.error = "RefreshTokenError";
       token.needsRefresh = true;
-      logger.warn("token_refresh_failed_post_expiry");
+      logger.warn("token_refresh_terminal_failure_post_expiry");
+    } else if (attempt.status === "transient") {
+      logger.warn("token_refresh_deferred_after_transient_failure");
     }
   }
 

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -21,9 +22,30 @@ import (
 	"github.com/uptrace/bun"
 )
 
+func TestRefreshSingleflightKeyBindsIndependentProof(t *testing.T) {
+	refreshToken := "same-predecessor-refresh-handle"
+	legitimateProof := rotation.RecoveryProofHash(rotation.WithRecoveryProof(context.Background(), "legitimate-recovery-secret"))
+	wrongProof := rotation.RecoveryProofHash(rotation.WithRecoveryProof(context.Background(), "wrong-recovery-secret"))
+
+	legitimateKey := refreshSingleflightKey(refreshToken, legitimateProof)
+	assert.Equal(t, legitimateKey, refreshSingleflightKey(refreshToken, legitimateProof))
+	assert.NotEqual(t, legitimateKey, refreshSingleflightKey(refreshToken, wrongProof))
+	assert.NotEqual(t, legitimateKey, refreshSingleflightKey(refreshToken, nil))
+	assert.NotContains(t, legitimateKey, "legitimate-recovery-secret")
+}
+
 type stubAuthLoginAccountTenantRepo struct {
 	findActiveFn func(context.Context, int64) ([]authModels.AccountTenant, error)
 	existsFn     func(context.Context, int64, int64) (bool, error)
+}
+
+type stubRefreshAccountRepo struct {
+	noopAccountRepository
+	findByIDFn func(context.Context, interface{}) (*authModels.Account, error)
+}
+
+func (s stubRefreshAccountRepo) FindByID(ctx context.Context, id interface{}) (*authModels.Account, error) {
+	return s.findByIDFn(ctx, id)
 }
 
 func (s stubAuthLoginAccountTenantRepo) Create(context.Context, *authModels.AccountTenant) error {
@@ -59,6 +81,44 @@ func setupInternalAuthService(t *testing.T, db *bun.DB) *Service {
 	service, err := NewService(repoFactory, cfg, db, slog.Default())
 	require.NoError(t, err)
 	return service
+}
+
+func TestFetchAndValidateAccount_TransientLookupErrorRemainsRetryable(t *testing.T) {
+	dbErr := errors.New("connection reset")
+	service := &Service{
+		repos: &repositories.Factory{
+			Account: stubRefreshAccountRepo{
+				findByIDFn: func(context.Context, interface{}) (*authModels.Account, error) {
+					return nil, dbErr
+				},
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	account, err := service.fetchAndValidateAccount(context.Background(), 42, "", "")
+	require.Nil(t, account)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, dbErr)
+	assert.NotErrorIs(t, err, ErrAccountNotFound)
+}
+
+func TestFetchAndValidateAccount_MissingAccountRemainsTerminal(t *testing.T) {
+	service := &Service{
+		repos: &repositories.Factory{
+			Account: stubRefreshAccountRepo{
+				findByIDFn: func(context.Context, interface{}) (*authModels.Account, error) {
+					return nil, sql.ErrNoRows
+				},
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	account, err := service.fetchAndValidateAccount(context.Background(), 42, "", "")
+	require.Nil(t, account)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrAccountNotFound)
 }
 
 func TestResolveAccountTenantBySlug_ReturnsTenantNotFoundWhenSchoolLookupReturnsNil(t *testing.T) {
@@ -494,6 +554,43 @@ func TestResolveAccountTenantDefault_DBErrorPropagatedWhenAllLookupsFail(t *test
 // ---------------------------------------------------------------------------
 // validateTenantAccess coverage (stub-based)
 // ---------------------------------------------------------------------------
+
+func TestValidateTenantAccess_MappingLookupDBErrorIsRetryable(t *testing.T) {
+	dbErr := fmt.Errorf("temporary connection reset")
+	service := &Service{
+		repos: &repositories.Factory{
+			AccountTenant: stubAuthLoginAccountTenantRepo{
+				existsFn: func(context.Context, int64, int64) (bool, error) { return false, dbErr },
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	err := service.validateTenantAccess(context.Background(), &jwt.RefreshClaims{ID: 99, TenantID: 49})
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, dbErr)
+	assert.NotErrorIs(t, authErr.Err, ErrAccountInactive,
+		"transient tenant lookup failures must not force a visible logout")
+}
+
+func TestValidateTenantAccess_MissingMappingIsTerminal(t *testing.T) {
+	service := &Service{
+		repos: &repositories.Factory{
+			AccountTenant: stubAuthLoginAccountTenantRepo{
+				existsFn: func(context.Context, int64, int64) (bool, error) { return false, nil },
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	err := service.validateTenantAccess(context.Background(), &jwt.RefreshClaims{ID: 98, TenantID: 48})
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, ErrTenantAccessDenied)
+}
 
 // TestValidateTenantAccess_SchoolDeletedReturnsErrTenantNotFound verifies that a
 // soft-deleted school (IsDeleted() true) causes validateTenantAccess to return
