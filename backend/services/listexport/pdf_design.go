@@ -72,7 +72,7 @@ func renderPDFDesigned(doc Document) ([]byte, error) {
 
 	w, h := gopdf.PageSizeA4Landscape.W, gopdf.PageSizeA4Landscape.H
 	r := &designRenderer{pdf: pdf, doc: doc, cols: cols, w: w, h: h}
-	r.widths = pdfColumnWidths(cols, w-2*pageMargin-2*cellPadX)
+	r.widths = pdfColumnWidths(cols, w-2*pageMargin-2*cardPadX)
 
 	pages, err := r.paginate()
 	if err != nil {
@@ -105,7 +105,9 @@ func (r *designRenderer) paginate() ([]designPage, error) {
 		return nil, err
 	}
 
-	avail := r.bodyBottom() - (r.cardTop() + tableHeaderHeight() + cellPadY)
+	// Rows that fit inside one card: the card's own chrome (padding, an
+	// optional group heading, the table header) comes off the top first.
+	avail := r.bodyBottom() - (r.cardTop() + 2*cardPadY + fontGroup + groupGap + tableHeaderHeight())
 	pages := []designPage{}
 	cur := designPage{}
 	used := 0.0
@@ -146,7 +148,7 @@ func tableHeaderHeight() float64 { return fontTableHd + 2*cellPadY + 2 }
 func (r *designRenderer) rowHeight(row Row) float64 {
 	maxLines := 1
 	for i, col := range r.cols {
-		lines := r.wrap(norms(row.Values[col.ID]), r.widths[i]-2*cellPadX)
+		lines := r.wrap(norms(row.Values[col.ID]), r.widths[i]-cellPadX)
 		if len(lines) > maxLines {
 			maxLines = len(lines)
 		}
@@ -336,9 +338,9 @@ func (r *designRenderer) drawCard(p designPage) error {
 	if err := r.pdf.SetFont(fontFamily, styleNormal, fontBody); err != nil {
 		return err
 	}
-	content := tableHeaderHeight() + cellPadY
+	content := 2*cardPadY + tableHeaderHeight()
 	if p.groupTitle != "" {
-		content += fontGroup + 2*cellPadY
+		content += fontGroup + groupGap
 	}
 	for _, row := range p.rows {
 		content += r.rowHeight(row)
@@ -356,19 +358,22 @@ func (r *designRenderer) drawCard(p designPage) error {
 		return err
 	}
 
-	y := top
+	y := top + cardPadY
+	textLeft := left + cardPadX
+	textRight := right - cardPadX
 
-	// Group heading — plain text, no filled band (the app never fills one).
+	// Group heading — the card's title: InfoCard's "text-base font-semibold
+	// text-gray-900" with an mb-4 gap under it. Plain text, no filled band
+	// (the app never fills one).
 	if p.groupTitle != "" {
-		gh := fontGroup + 2*cellPadY
 		if err := r.pdf.SetFont(fontFamily, styleBold, fontGroup); err != nil {
 			return err
 		}
 		r.setText(colorInk)
-		if err := r.text(left+2*cellPadX, y+gh-cellPadY-1, p.groupTitle); err != nil {
+		if err := r.text(textLeft, y+fontGroup-2, p.groupTitle); err != nil {
 			return err
 		}
-		y += gh
+		y += fontGroup + groupGap
 	}
 
 	// Table header: muted labels over a hairline — DataTable's
@@ -378,9 +383,9 @@ func (r *designRenderer) drawCard(p designPage) error {
 		return err
 	}
 	r.setText(colorHeaderText)
-	cx := left + cellPadX
+	cx := textLeft
 	for i, col := range r.cols {
-		if err := r.text(cx+cellPadX, y+hh-cellPadY-1, col.Label); err != nil {
+		if err := r.text(cx, y+hh-cellPadY-1, col.Label); err != nil {
 			return err
 		}
 		cx += r.widths[i]
@@ -388,7 +393,7 @@ func (r *designRenderer) drawCard(p designPage) error {
 	y += hh
 	r.setStroke(colorHeaderRule)
 	r.pdf.SetLineWidth(0.7)
-	r.pdf.Line(left+cellPadX, y, right-cellPadX, y)
+	r.pdf.Line(textLeft, y, textRight, y)
 
 	// Body rows.
 	if err := r.pdf.SetFont(fontFamily, styleNormal, fontBody); err != nil {
@@ -396,13 +401,13 @@ func (r *designRenderer) drawCard(p designPage) error {
 	}
 	for _, row := range p.rows {
 		rh := r.rowHeight(row)
-		cx = left + cellPadX
+		cx = textLeft
 		r.setText(colorBody)
 		for i, col := range r.cols {
-			lines := r.wrap(norms(row.Values[col.ID]), r.widths[i]-2*cellPadX)
+			lines := r.wrap(norms(row.Values[col.ID]), r.widths[i]-cellPadX)
 			ty := y + cellPadY + rowLineHt - 2
 			for _, ln := range lines {
-				if err := r.text(cx+cellPadX, ty, ln); err != nil {
+				if err := r.text(cx, ty, ln); err != nil {
 					return err
 				}
 				ty += rowLineHt
@@ -412,7 +417,7 @@ func (r *designRenderer) drawCard(p designPage) error {
 		y += rh
 		r.setStroke(colorRowLine)
 		r.pdf.SetLineWidth(0.5)
-		r.pdf.Line(left+cellPadX, y, right-cellPadX, y)
+		r.pdf.Line(textLeft, y, textRight, y)
 	}
 	return nil
 }

@@ -51,14 +51,21 @@ const (
 	fontMeta     = 8.0
 	fontTableHd  = 8.0
 	fontBody     = 8.5
-	fontGroup    = 9.5
-	fontFooter   = 7.0
+	// Group heading = InfoCard's title (text-base font-semibold, 16px).
+	// px -> pt is 0.75.
+	fontGroup  = 12.0
+	fontFooter = 7.0
 )
 
 // Layout (pt). A4 landscape.
 const (
-	pageMargin   = 30.0
-	cardRadius   = 12.0
+	pageMargin = 30.0
+	cardRadius = 12.0
+	// Card inner padding — InfoCard is p-4/sm:p-6 (16/24px). 18pt = 24px.
+	cardPadX = 18.0
+	cardPadY = 14.0
+	// Gap under the group heading — InfoCard's mb-4 (16px).
+	groupGap     = 12.0
 	pillRadius   = 7.0
 	cellPadX     = 6.0
 	cellPadY     = 5.0
