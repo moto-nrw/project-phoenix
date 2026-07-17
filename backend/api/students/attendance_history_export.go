@@ -140,10 +140,17 @@ func (rs *Resource) buildAttendanceExportDocument(
 	if err != nil {
 		return listexport.Document{}, err
 	}
+	// Without a single slot in the range there is no care plan to report
+	// against: the document drops the offering/assignment columns and lists the
+	// observed sessions plainly instead of labelling every row "Ohne Zuordnung".
+	title, columns := "Anwesenheit je Betreuungsangebot", attendanceExportColumns()
+	if !exportHasSlotExpectation(slots) {
+		title, columns = "Anwesenheit", attendanceSessionExportColumns()
+	}
 	return listexport.Document{
-		Title:       "Anwesenheit je Betreuungsangebot",
+		Title:       title,
 		Subtitle:    fmt.Sprintf("Kind-ID %d · %s bis %s", studentID, from.Format(attendanceExportDateLayout), to.Format(attendanceExportDateLayout)),
-		GeneratedAt: time.Now(), Columns: attendanceExportColumns(),
+		GeneratedAt: time.Now(), Columns: columns,
 		Rows: attendanceExportRows(slots, attendance), Footer: "Vertrauliche Anwesenheitsdaten",
 	}, nil
 }
@@ -155,6 +162,27 @@ func attendanceExportColumns() []listexport.Column {
 		{ID: attendanceColumnCheckIn, Label: "Anwesend ab"}, {ID: attendanceColumnCheckOut, Label: "Anwesend bis"},
 		{ID: attendanceColumnAssignment, Label: "Zuordnung"},
 	}
+}
+
+// attendanceSessionExportColumns is the plan-free variant: the rows still carry
+// the offering/assignment values, they are simply not rendered.
+func attendanceSessionExportColumns() []listexport.Column {
+	return []listexport.Column{
+		{ID: attendanceColumnDate, Label: "Datum"},
+		{ID: attendanceColumnWindow, Label: "Zeitraum"}, {ID: attendanceColumnStatus, Label: "Status"},
+		{ID: attendanceColumnCheckIn, Label: "Anwesend ab"}, {ID: attendanceColumnCheckOut, Label: "Anwesend bis"},
+	}
+}
+
+// exportHasSlotExpectation mirrors hasSlotExpectation for the export path,
+// which works off the raw slot rows rather than assembled days.
+func exportHasSlotExpectation(slots []*scheduleModel.ScheduledInstanceRow) bool {
+	for _, row := range slots {
+		if row != nil && row.Instance != nil && row.Attendance != nil {
+			return true
+		}
+	}
+	return false
 }
 
 // attendanceExportRows merges slot rows and unassigned observed sessions into

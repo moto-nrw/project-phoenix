@@ -509,10 +509,17 @@ func attachSlotAttendance(
 // matched to a concrete slot. This is intentional in binary mode when zero or
 // multiple booked slots overlap: the session stays neutrally unassigned
 // instead of the system guessing an offering (or claiming it was unbooked).
+//
+// Synthetic entries appear only when the requested range carries at least one
+// real slot for this student (see hasSlotExpectation). Without any slot there
+// is nothing a session could have been assigned to, so "Ohne Zuordnung" would
+// label every single day of a school that does not keep a care plan — a
+// permanent error state for a system working as configured.
 func attachUnassignedAttendance(days []attendanceHistoryDay) []attendanceHistoryDay {
+	expectSlots := hasSlotExpectation(days)
 	for dayIndex := range days {
 		day := &days[dayIndex]
-		if day.Attendance != nil {
+		if expectSlots && day.Attendance != nil {
 			coverages := slotEntryCoverages(day.Slots)
 			for sessionIndex, session := range day.Attendance.Sessions {
 				if sessionCoveredBySlots(coverages, session.CheckInTime) {
@@ -530,6 +537,18 @@ func attachUnassignedAttendance(days []attendanceHistoryDay) []attendanceHistory
 		})
 	}
 	return days
+}
+
+// hasSlotExpectation reports whether the loaded range holds any real slot for
+// this student. It must run before synthetic entries are appended, while
+// day.Slots still contains materialized instances only.
+func hasSlotExpectation(days []attendanceHistoryDay) bool {
+	for i := range days {
+		if len(days[i].Slots) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // slotCoverage describes one slot's capacity to claim an observed attendance

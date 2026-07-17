@@ -477,6 +477,73 @@ func TestAttachUnassignedAttendance_SortsMergedSlotsByDisplayedTime(t *testing.T
 	assert.Equal(t, "Ohne Zuordnung", days[0].Slots[0].Title)
 }
 
+// TestAttachUnassignedAttendance_NoSlotsInRangeStaysNeutral: a school that does
+// not keep a care plan has no slot anywhere in the range, so every session would
+// otherwise be labelled "Ohne Zuordnung". The history must stay neutral — the
+// day keeps its check-in/out times and gains no synthetic entries.
+func TestAttachUnassignedAttendance_NoSlotsInRangeStaysNeutral(t *testing.T) {
+	first := time.Date(2026, 7, 15, 8, 0, 0, 0, timezone.Berlin)
+	second := time.Date(2026, 7, 14, 9, 0, 0, 0, timezone.Berlin)
+
+	days := attachUnassignedAttendance([]attendanceHistoryDay{
+		{
+			Date: "2026-07-15",
+			Attendance: &attendanceDayRecord{
+				CheckInTime: first,
+				Sessions:    []attendanceSessionRecord{{CheckInTime: first}},
+			},
+			Slots: []attendanceSlotEntry{},
+		},
+		{
+			Date: "2026-07-14",
+			Attendance: &attendanceDayRecord{
+				CheckInTime: second,
+				Sessions:    []attendanceSessionRecord{{CheckInTime: second}},
+			},
+			Slots: []attendanceSlotEntry{},
+		},
+	})
+
+	assert.Empty(t, days[0].Slots)
+	assert.Empty(t, days[1].Slots)
+	assert.Equal(t, first, days[0].Attendance.CheckInTime, "session times stay untouched")
+}
+
+// TestAttachUnassignedAttendance_SlotOnAnotherDayKeepsUnassignedRow: the slot
+// expectation is range-wide, not per-day. A school with a care plan keeps its
+// "Ohne Zuordnung" rows on days that hold no slot of their own.
+func TestAttachUnassignedAttendance_SlotOnAnotherDayKeepsUnassignedRow(t *testing.T) {
+	planned := time.Date(2026, 7, 15, 7, 0, 0, 0, timezone.Berlin)
+	walkIn := time.Date(2026, 7, 14, 9, 0, 0, 0, timezone.Berlin)
+
+	days := attachUnassignedAttendance([]attendanceHistoryDay{
+		{
+			Date: "2026-07-15",
+			Attendance: &attendanceDayRecord{
+				CheckInTime: planned,
+				Sessions:    []attendanceSessionRecord{{CheckInTime: planned}},
+			},
+			Slots: []attendanceSlotEntry{{
+				InstanceID: "501", Title: "Morgenbetreuung",
+				StartTime: "07:00", EndTime: "12:00",
+				Status: schedule.AttendanceStatusPresent, CheckedInAt: &planned,
+			}},
+		},
+		{
+			Date: "2026-07-14",
+			Attendance: &attendanceDayRecord{
+				CheckInTime: walkIn,
+				Sessions:    []attendanceSessionRecord{{CheckInTime: walkIn}},
+			},
+			Slots: []attendanceSlotEntry{},
+		},
+	})
+
+	require.Len(t, days[0].Slots, 1, "the booked slot claims its own session")
+	require.Len(t, days[1].Slots, 1)
+	assert.Equal(t, "Ohne Zuordnung", days[1].Slots[0].Title)
+}
+
 func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testing.T) {
 	date := timezone.NewDate(2026, 7, 15)
 	instance := &schedule.ActivityInstance{
