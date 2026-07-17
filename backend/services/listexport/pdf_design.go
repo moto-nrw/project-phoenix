@@ -193,7 +193,7 @@ func (r *designRenderer) paginate() ([]designPage, error) {
 
 	// Rows that fit inside one card: the card's own chrome (padding, an
 	// optional group heading, the table header) comes off the top first.
-	avail := r.bodyBottom() - (r.bodyTop() + 2*cardPadY + fontGroup + groupGap + tableHeaderHeight())
+	avail := r.bodyBottom() - (r.bodyTop() + 2*cardPadY + fontGroup + groupGap + r.tableHeaderHeight())
 	pages := []designPage{}
 	cur := designPage{}
 	used := 0.0
@@ -229,7 +229,24 @@ func (r *designRenderer) paginate() ([]designPage, error) {
 	return pages, nil
 }
 
-func tableHeaderHeight() float64 { return fontTableHd + 2*cellPadY + 2 }
+// tableHeaderHeight wraps every column label to its column width (with
+// the header font pinned) and sizes the header band for the tallest one —
+// long labels ("Betreuungs-/Anmeldestatus") stack instead of overlapping
+// their neighbour column.
+func (r *designRenderer) tableHeaderHeight() float64 {
+	return float64(r.headerLineCount())*rowLineHt + 2*cellPadY + 2
+}
+
+func (r *designRenderer) headerLineCount() int {
+	_ = r.pdf.SetFont(fontFamily, styleNormal, fontTableHd)
+	maxLines := 1
+	for i, col := range r.cols {
+		if n := len(r.wrap(col.Label, r.widths[i]-cellPadX)); n > maxLines {
+			maxLines = n
+		}
+	}
+	return maxLines
+}
 
 func (r *designRenderer) rowHeight(row Row) float64 {
 	maxLines := 1
@@ -243,27 +260,31 @@ func (r *designRenderer) rowHeight(row Row) float64 {
 }
 
 // wrap greedily breaks text to fit maxW, measured with the current font.
+// A single word wider than maxW (long German compounds — "Schmetterlings-
+// gruppe" in a narrow column) is hard-split at character level so no cell
+// ever overflows into its neighbour.
 func (c *pageChrome) wrap(s string, maxW float64) []string {
 	s = strings.TrimSpace(s)
 	if s == "" {
 		return []string{""}
 	}
-	words := strings.Fields(s)
 	lines := []string{}
 	cur := ""
-	for _, word := range words {
-		try := word
-		if cur != "" {
-			try = cur + " " + word
+	for _, word := range strings.Fields(s) {
+		for _, part := range c.splitLongWord(word, maxW) {
+			try := part
+			if cur != "" {
+				try = cur + " " + part
+			}
+			if wdt, err := c.pdf.MeasureTextWidth(try); err == nil && wdt <= maxW {
+				cur = try
+				continue
+			}
+			if cur != "" {
+				lines = append(lines, cur)
+			}
+			cur = part
 		}
-		if wdt, err := c.pdf.MeasureTextWidth(try); err == nil && wdt <= maxW {
-			cur = try
-			continue
-		}
-		if cur != "" {
-			lines = append(lines, cur)
-		}
-		cur = word
 	}
 	if cur != "" {
 		lines = append(lines, cur)
@@ -272,6 +293,29 @@ func (c *pageChrome) wrap(s string, maxW float64) []string {
 		return []string{""}
 	}
 	return lines
+}
+
+// splitLongWord chunks a word that alone exceeds maxW into rune slices
+// that fit; words that fit are returned unchanged.
+func (c *pageChrome) splitLongWord(word string, maxW float64) []string {
+	if wdt, err := c.pdf.MeasureTextWidth(word); err != nil || wdt <= maxW {
+		return []string{word}
+	}
+	parts := []string{}
+	cur := ""
+	for _, r := range word {
+		try := cur + string(r)
+		if wdt, err := c.pdf.MeasureTextWidth(try); err == nil && wdt > maxW && cur != "" {
+			parts = append(parts, cur)
+			cur = string(r)
+			continue
+		}
+		cur = try
+	}
+	if cur != "" {
+		parts = append(parts, cur)
+	}
+	return parts
 }
 
 func (c *pageChrome) setFill(col rgb)   { c.pdf.SetFillColor(col.R, col.G, col.B) }
@@ -456,7 +500,7 @@ func (r *designRenderer) drawCard(p designPage) error {
 	if err := r.pdf.SetFont(fontFamily, styleNormal, fontBody); err != nil {
 		return err
 	}
-	content := 2*cardPadY + tableHeaderHeight()
+	content := 2*cardPadY + r.tableHeaderHeight()
 	if p.groupTitle != "" {
 		content += fontGroup + groupGap
 	}
@@ -496,15 +540,20 @@ func (r *designRenderer) drawCard(p designPage) error {
 
 	// Table header: muted labels over a hairline — DataTable's
 	// "border-b border-gray-100 text-xs font-medium text-gray-500".
-	hh := tableHeaderHeight()
+	// Labels wrap to their column width, top-aligned in the band.
+	hh := r.tableHeaderHeight()
 	if err := r.pdf.SetFont(fontFamily, styleNormal, fontTableHd); err != nil {
 		return err
 	}
 	r.setText(colorHeaderText)
 	cx := textLeft
 	for i, col := range r.cols {
-		if err := r.text(cx, y+hh-cellPadY-1, col.Label); err != nil {
-			return err
+		ty := y + cellPadY + fontTableHd
+		for _, ln := range r.wrap(col.Label, r.widths[i]-cellPadX) {
+			if err := r.text(cx, ty, ln); err != nil {
+				return err
+			}
+			ty += rowLineHt
 		}
 		cx += r.widths[i]
 	}
