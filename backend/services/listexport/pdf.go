@@ -14,100 +14,6 @@ type pdfObject struct {
 	data string
 }
 
-func renderPDF(doc Document) ([]byte, error) {
-	pageWidth := 842.0
-	pageHeight := 595.0
-	margin := 32.0
-
-	cols := doc.Columns
-	if len(cols) == 0 {
-		cols = ResolveColumns(nil, PresetOGSWeekly)
-	}
-	usableWidth := pageWidth - 2*margin
-	widths := pdfColumnWidths(cols, usableWidth)
-	pages := pdfPages(doc, cols, widths, pageWidth, pageHeight, margin)
-
-	objects := []pdfObject{
-		{id: 1, data: "<< /Type /Catalog /Pages 2 0 R >>"},
-		{id: 3, data: "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"},
-	}
-	pageRefs := make([]string, 0, len(pages))
-	nextID := 4
-	for _, content := range pages {
-		pageID := nextID
-		contentID := nextID + 1
-		nextID += 2
-		pageRefs = append(pageRefs, fmt.Sprintf("%d 0 R", pageID))
-		pageObj := fmt.Sprintf("<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.0f %.0f] /Resources << /Font << /F1 3 0 R >> >> /Contents %d 0 R >>", pageWidth, pageHeight, contentID)
-		contentObj := fmt.Sprintf("<< /Length %d >>\nstream\n%s\nendstream", len(content), content)
-		objects = append(objects, pdfObject{id: pageID, data: pageObj}, pdfObject{id: contentID, data: contentObj})
-	}
-	objects = append(objects[:1], append([]pdfObject{{id: 2, data: fmt.Sprintf("<< /Type /Pages /Kids [%s] /Count %d >>", strings.Join(pageRefs, " "), len(pageRefs))}}, objects[1:]...)...)
-	return buildPDF(objects), nil
-}
-
-func pdfPages(doc Document, cols []Column, widths []float64, pageWidth, pageHeight, margin float64) []string {
-	pages := make([]string, 0, 1)
-	groupTitle := ""
-	wroteBody := false
-	page, y := newPDFPage(doc, cols, widths, pageWidth, pageHeight, margin, groupTitle)
-	for _, row := range doc.Rows {
-		if row.GroupTitle != "" {
-			// Each group starts on its own page; a page without body rows
-			// (the initial page before the first group) is discarded so the
-			// export never begins with a blank page.
-			if wroteBody {
-				pages = append(pages, page.String())
-			}
-			groupTitle = row.GroupTitle
-			page, y = newPDFPage(doc, cols, widths, pageWidth, pageHeight, margin, groupTitle)
-			wroteBody = false
-			continue
-		}
-		lines := pdfRowLines(row, cols, widths)
-		rowHeight := pdfRowHeight(lines)
-		if y-rowHeight < margin+12 {
-			pages = append(pages, page.String())
-			page, y = newPDFPage(doc, cols, widths, pageWidth, pageHeight, margin, groupTitle)
-		}
-		writePDFRow(page, margin, y, widths, lines, rowHeight)
-		y -= rowHeight
-		wroteBody = true
-	}
-	pages = append(pages, page.String())
-	return pages
-}
-
-func newPDFPage(doc Document, cols []Column, widths []float64, pageWidth, pageHeight, margin float64, groupTitle string) (*strings.Builder, float64) {
-	b := &strings.Builder{}
-	y := pageHeight - margin
-	writePDFText(b, margin, y, 16, doc.Title)
-	y -= 20
-	if doc.Subtitle != "" {
-		writePDFText(b, margin, y, 9, doc.Subtitle)
-		y -= 13
-	}
-	writePDFText(b, margin, y, 8, "Erstellt: "+GeneratedAtLabel(doc.GeneratedAt))
-	y -= 12
-	for _, filter := range doc.Filters {
-		writePDFText(b, margin, y, 8, filter)
-		y -= 10
-	}
-	y -= 6
-	if groupTitle != "" {
-		writePDFText(b, margin, y, 12, groupTitle)
-		y -= 16
-	}
-
-	headerLines := pdfHeaderLines(cols, widths)
-	headerHeight := pdfRowHeight(headerLines)
-	writePDFRow(b, margin, y, widths, headerLines, headerHeight)
-	y -= headerHeight
-
-	writePDFText(b, pageWidth-margin-28, margin-8, 7, "moto")
-	return b, y
-}
-
 func pdfColumnWidths(cols []Column, total float64) []float64 {
 	weights := make([]float64, len(cols))
 	sum := 0.0
@@ -137,55 +43,8 @@ func pdfColumnWidths(cols []Column, total float64) []float64 {
 	return widths
 }
 
-func pdfHeaderLines(cols []Column, widths []float64) [][]string {
-	lines := make([][]string, len(cols))
-	for idx, column := range cols {
-		lines[idx] = wrapPDFText(column.Label, widths[idx])
-	}
-	return lines
-}
-
-func pdfRowLines(row Row, cols []Column, widths []float64) [][]string {
-	lines := make([][]string, len(cols))
-	for idx, column := range cols {
-		lines[idx] = wrapPDFText(row.Values[column.ID], widths[idx])
-	}
-	return lines
-}
-
-func pdfRowHeight(lines [][]string) float64 {
-	maxLines := 1
-	for _, cellLines := range lines {
-		if len(cellLines) > maxLines {
-			maxLines = len(cellLines)
-		}
-	}
-	height := float64(maxLines)*9.5 + 9
-	if height < 18 {
-		return 18
-	}
-	return height
-}
-
-func writePDFRow(b *strings.Builder, startX, topY float64, widths []float64, lines [][]string, rowHeight float64) {
-	x := startX
-	for idx, cellLines := range lines {
-		drawPDFRect(b, x, topY-rowHeight, widths[idx], rowHeight)
-		textY := topY - 9
-		for _, line := range cellLines {
-			writePDFText(b, x+4, textY, 7, line)
-			textY -= 9.5
-		}
-		x += widths[idx]
-	}
-}
-
 func writePDFText(b *strings.Builder, x, y, size float64, text string) {
 	fmt.Fprintf(b, "BT /F1 %.1f Tf %.1f %.1f Td %s Tj ET\n", size, x, y, pdfLiteralString(text))
-}
-
-func drawPDFRect(b *strings.Builder, x, y, w, h float64) {
-	fmt.Fprintf(b, "%.1f %.1f %.1f %.1f re S\n", x, y, w, h)
 }
 
 func pdfLiteralString(text string) string {

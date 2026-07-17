@@ -54,7 +54,9 @@ type designRenderer struct {
 	total  int
 }
 
-func renderPDFDesigned(doc Document) ([]byte, error) {
+// newDesignRenderer prepares a renderer with fonts loaded but nothing
+// drawn — split out so pagination decisions are unit-testable.
+func newDesignRenderer(doc Document) (*designRenderer, error) {
 	cols := doc.Columns
 	if len(cols) == 0 {
 		cols = ResolveColumns(nil, PresetOGSWeekly)
@@ -73,6 +75,14 @@ func renderPDFDesigned(doc Document) ([]byte, error) {
 	w, h := gopdf.PageSizeA4Landscape.W, gopdf.PageSizeA4Landscape.H
 	r := &designRenderer{pdf: pdf, doc: doc, cols: cols, w: w, h: h}
 	r.widths = pdfColumnWidths(cols, w-2*pageMargin-2*cardPadX)
+	return r, nil
+}
+
+func renderPDFDesigned(doc Document) ([]byte, error) {
+	r, err := newDesignRenderer(doc)
+	if err != nil {
+		return nil, err
+	}
 
 	pages, err := r.paginate()
 	if err != nil {
@@ -87,7 +97,7 @@ func renderPDFDesigned(doc Document) ([]byte, error) {
 	}
 
 	var buf bytes.Buffer
-	if _, err := pdf.WriteTo(&buf); err != nil {
+	if _, err := r.pdf.WriteTo(&buf); err != nil {
 		return nil, fmt.Errorf("write pdf: %w", err)
 	}
 	return buf.Bytes(), nil
@@ -259,15 +269,18 @@ func (r *designRenderer) drawHeader() error {
 
 	y := pageMargin + 32
 
-	// Eyebrow.
-	if err := r.pdf.SetFont(fontFamily, styleBold, fontEyebrow); err != nil {
-		return err
+	// Eyebrow — only for two-part titles; single-part titles render the
+	// headline alone instead of repeating themselves.
+	if eyebrow := docEyebrow(r.doc); eyebrow != "" {
+		if err := r.pdf.SetFont(fontFamily, styleBold, fontEyebrow); err != nil {
+			return err
+		}
+		r.setText(colorEyebrow)
+		if err := r.text(pageMargin, y, strings.ToUpper(spaceOut(eyebrow))); err != nil {
+			return err
+		}
+		y += 16
 	}
-	r.setText(colorEyebrow)
-	if err := r.text(pageMargin, y, strings.ToUpper(spaceOut(docEyebrow(r.doc)))); err != nil {
-		return err
-	}
-	y += 16
 
 	// Title.
 	if err := r.pdf.SetFont(fontFamily, styleBold, fontTitle); err != nil {
@@ -346,8 +359,8 @@ func (r *designRenderer) drawCard(p designPage) error {
 		content += r.rowHeight(row)
 	}
 	bottom := top + content
-	if max := r.bodyBottom(); bottom > max {
-		bottom = max
+	if maxY := r.bodyBottom(); bottom > maxY {
+		bottom = maxY
 	}
 
 	// Card surface.
@@ -449,10 +462,10 @@ func (r *designRenderer) drawFooter(num int) error {
 	return r.text(r.w-pageMargin-pw, y, page)
 }
 
-// docEyebrow derives the small green kicker above the title. The guide uses
-// the guide's own name there; an export uses the list kind — the part of the
-// title before the em dash ("Kinderliste — OGS Wochenübersicht").
-// A dedicated Document.Eyebrow field would be cleaner if this ships.
+// docEyebrow derives the small green kicker above the title from a
+// two-part title ("Kinderliste — OGS Wochenübersicht" → "Kinderliste").
+// Production titles are usually single-part ("Klassenliste", user-supplied
+// req.Title) — those get NO eyebrow rather than repeating the title.
 func docEyebrow(doc Document) string {
 	title := strings.TrimSpace(doc.Title)
 	for _, sep := range []string{" — ", " – ", " - "} {
@@ -460,10 +473,7 @@ func docEyebrow(doc Document) string {
 			return strings.TrimSpace(title[:i])
 		}
 	}
-	if title == "" {
-		return "Export"
-	}
-	return title
+	return ""
 }
 
 // docHeadline is the title minus the eyebrow part, so the two don't repeat

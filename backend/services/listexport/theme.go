@@ -5,15 +5,15 @@ package listexport
 //   - frontend/src/lib/location-helper.ts (LOCATION_COLORS)
 //   - frontend/src/styles/globals.css (guide print block)
 //
-// Nothing enforces that sync today — see theme_sync_test.go.
+// Nothing enforces that sync today — when a token here changes, check the
+// frontend sources above (and vice versa).
 
 type rgb struct{ R, G, B uint8 }
 
 var (
 	// Brand.
-	colorBrandGreen = rgb{0x83, 0xCD, 0x2D} // LOCATION_COLORS.GROUP_ROOM
-	colorEyebrow    = rgb{0x3F, 0x6F, 0x12} // guide cover eyebrow (dark green)
-	colorInk        = rgb{0x17, 0x23, 0x1F} // guide near-black title
+	colorEyebrow = rgb{0x3F, 0x6F, 0x12} // guide cover eyebrow (dark green)
+	colorInk     = rgb{0x17, 0x23, 0x1F} // guide near-black title
 
 	// Neutrals (Tailwind gray scale, as used by xlsx.go + the guide).
 	colorPageBg  = rgb{0xF9, 0xFA, 0xFB} // gray-50
