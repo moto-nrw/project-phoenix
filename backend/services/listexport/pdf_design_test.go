@@ -130,6 +130,35 @@ func TestDesignedPDFUngroupedStaysSinglePage(t *testing.T) {
 	}
 }
 
+// A group marker with no body rows — consecutive markers, or a trailing
+// one — must not produce a heading-only page.
+func TestDesignedPDFEmptyGroupsProduceNoPages(t *testing.T) {
+	doc := designGroupedDocument()
+	doc.Rows = []Row{
+		{GroupTitle: "Klasse 1a"},
+		{GroupTitle: "Klasse 2b"},
+		{Values: map[ColumnID]string{ColumnName: "Conrad, Ida", ColumnSchoolClass: "2b"}},
+		{GroupTitle: "Klasse 3c"},
+	}
+	r, err := newDesignRenderer(doc)
+	if err != nil {
+		t.Fatalf("newDesignRenderer: %v", err)
+	}
+	pages, err := r.paginate()
+	if err != nil {
+		t.Fatalf("paginate: %v", err)
+	}
+	if len(pages) != 1 {
+		t.Fatalf("page count = %d, want 1 (heading-only pages dropped)", len(pages))
+	}
+	if pages[0].groupTitle != "Klasse 2b" {
+		t.Fatalf("group title = %q, want %q", pages[0].groupTitle, "Klasse 2b")
+	}
+	if len(pages[0].rows) != 1 {
+		t.Fatalf("row count = %d, want 1", len(pages[0].rows))
+	}
+}
+
 // Ported rule: cell text wraps instead of being truncated — every word
 // survives and no ellipsis is introduced.
 func TestDesignedPDFWrapKeepsAllWords(t *testing.T) {

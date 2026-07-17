@@ -352,8 +352,11 @@ func (r *designRenderer) paginate() ([]designPage, error) {
 	used := 0.0
 	wroteBody := false
 
+	// A page is only kept once it holds a body row: a group marker followed
+	// by another marker (or by nothing) would otherwise print a heading-only
+	// sheet.
 	flush := func() {
-		if wroteBody || cur.groupTitle != "" {
+		if wroteBody {
 			pages = append(pages, cur)
 		}
 	}

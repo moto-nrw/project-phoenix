@@ -303,18 +303,20 @@ func (l *recordLayout) writeField(x float64, f Field, paged bool) error {
 	if !ok {
 		return nil
 	}
-	if l.draw {
-		if err := l.setFont(styleNormal, fontBody); err != nil {
-			return err
-		}
-		l.setText(colorBody)
-	}
 	width := l.w - pageMargin - recCardPad - x
 	for _, line := range l.wrapMeasured(text, width) {
 		if paged {
 			if err := l.ensureSpace(recFieldLineH); err != nil {
 				return err
 			}
+		}
+		// Body styling is applied per line: ensureSpace may have opened a
+		// new page, whose footer leaves the footer font and muted color set.
+		if l.draw {
+			if err := l.setFont(styleNormal, fontBody); err != nil {
+				return err
+			}
+			l.setText(colorBody)
 		}
 		if err := l.emit(x, l.y+fontBody, line); err != nil {
 			return err
