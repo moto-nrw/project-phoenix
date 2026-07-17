@@ -17,6 +17,11 @@ type AccountRepository interface {
 	FindByCalendarFeedToken(ctx context.Context, token string) (*Account, error)
 	// SetCalendarFeedToken sets (or rotates) the account's calendar feed token.
 	SetCalendarFeedToken(ctx context.Context, accountID int64, token string) error
+	// EnsureCalendarFeedToken atomically claims newToken only if the account has
+	// no token yet, then returns the persisted token. Concurrent first-time
+	// callers therefore all receive the same stored value instead of a URL a
+	// later write overwrote.
+	EnsureCalendarFeedToken(ctx context.Context, accountID int64, newToken string) (string, error)
 	UpdateLastLogin(ctx context.Context, id int64) error
 	UpdatePassword(ctx context.Context, id int64, passwordHash string) error
 	UpdateAvatar(ctx context.Context, id int64, avatar string) error

@@ -714,6 +714,16 @@ func (s *service) RespondToStaffInvitation(ctx context.Context, recipientID int6
 	if recipient.Status == calModels.ResponseStatusInfo {
 		return fmt.Errorf("%w: informational appointments cannot be answered", ErrInvalidRequest)
 	}
+	appointment, err := s.cfg.AppointmentRepo.FindByID(ctx, recipient.AppointmentID)
+	if err != nil {
+		return err
+	}
+	if appointment == nil {
+		return ErrNotFound
+	}
+	if appointment.CancelledAt != nil {
+		return fmt.Errorf("%w: appointment is cancelled", ErrInvalidRequest)
+	}
 	return s.cfg.RecipientRepo.UpdateResponse(ctx, recipientID, status)
 }
 
@@ -760,6 +770,16 @@ func (s *service) RespondToParentInvitation(ctx context.Context, accountID, reci
 			}
 			if recipient.Status == calModels.ResponseStatusInfo {
 				return fmt.Errorf("%w: informational appointments cannot be answered", ErrInvalidRequest)
+			}
+			appointment, err := s.cfg.AppointmentRepo.FindByID(txCtx, recipient.AppointmentID)
+			if err != nil {
+				return err
+			}
+			if appointment == nil {
+				return nil
+			}
+			if appointment.CancelledAt != nil {
+				return fmt.Errorf("%w: appointment is cancelled", ErrInvalidRequest)
 			}
 			if err := s.cfg.RecipientRepo.UpdateResponse(txCtx, recipientID, status); err != nil {
 				return err
@@ -1453,8 +1473,10 @@ func appointmentEvent(appointment *calModels.Appointment, occurrenceDate timezon
 		// Stay respondable for any real (non-informational) recipient, including
 		// already accepted/declined ones — the respond endpoints allow changing
 		// an existing RSVP, so users can correct an accidental answer. Only
-		// informational recipients (and non-recipients) cannot respond.
-		CanRespond:      recipientID != nil && responseStatus != nil && *responseStatus != calModels.ResponseStatusInfo,
+		// informational recipients (and non-recipients) cannot respond, and a
+		// cancelled appointment freezes RSVP entirely (matching the server-side
+		// rejection in RespondTo*Invitation).
+		CanRespond:      appointment.CancelledAt == nil && recipientID != nil && responseStatus != nil && *responseStatus != calModels.ResponseStatusInfo,
 		CanEdit:         appointment.OrganizerStaffID == staffID,
 		CanViewOverview: canStaffViewOverview(appointment, staffID, isStaffRecipient),
 	}

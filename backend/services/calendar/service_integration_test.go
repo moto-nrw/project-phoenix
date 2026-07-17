@@ -1564,3 +1564,110 @@ func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing
 	require.Len(t, outbox.enqueued, 2)
 	assert.Equal(t, platformModels.EmailKindAppointmentUpdated, outbox.enqueued[1].Kind)
 }
+
+// The notification e-mail must advertise the first real occurrence, not the raw
+// StartDate, for a weekly rule whose weekdays exclude the StartDate weekday —
+// matching the in-app calendar and ICS export.
+func TestCalendarServiceIntegration_RecurringEmailUsesFirstOccurrenceDate(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	outbox := &recordingOutbox{}
+	service := setupCalendarServiceWithOutbox(t, db, outbox)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "MailDate", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	endsOn := timezone.NewDate(2026, 5, 27)
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Mittwochs-AG",
+		StartDate:    timezone.NewDate(2026, 5, 4), // Monday — NOT a selected weekday
+		EndDate:      timezone.NewDate(2026, 5, 4),
+		StartTime:    wallClock(14, 0),
+		EndTime:      wallClock(15, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		SendEmail:    true,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{"wednesday"},
+			EndsOn:        &endsOn,
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	require.Len(t, outbox.enqueued, 1)
+	whenText, _ := outbox.enqueued[0].Payload["when_text"].(string)
+	assert.Contains(t, whenText, "06.05.2026", "e-mail must advertise the first Wednesday")
+	assert.NotContains(t, whenText, "04.05.2026", "e-mail must not advertise the non-matching Monday StartDate")
+}
+
+// A cancelled appointment must be non-respondable: the API shape flips
+// CanRespond to false and the response endpoints reject RSVP changes.
+func TestCalendarServiceIntegration_CancelledAppointmentNotRespondable(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "CancelRSVP", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "CancelRSVP", "Invitee")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Elterngespräch",
+		StartDate:    timezone.NewDate(2026, 6, 3),
+		EndDate:      timezone.NewDate(2026, 6, 3),
+		StartTime:    wallClock(16, 0),
+		EndTime:      wallClock(16, 30),
+		DeliveryMode: calModels.DeliveryModeRSVPRequired,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	staffRecipientID := findRecipientByStaff(t, detail, invitedStaff.ID)
+	parentRecipientID := findRecipientByGuardian(t, detail, parentChain.GuardianProfileID)
+
+	// While active, responses are accepted and CanRespond is true.
+	require.NoError(t, service.RespondToStaffInvitation(calendarContext(invitedAccount.ID), staffRecipientID, calModels.ResponseStatusAccepted))
+	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 6, 3), timezone.NewDate(2026, 6, 3))
+	require.NoError(t, err)
+	require.NotEmpty(t, events)
+	assert.True(t, events[0].CanRespond)
+
+	// Cancel the appointment.
+	_, err = service.CancelStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+
+	// The API shape now forbids responding.
+	events, err = service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 6, 3), timezone.NewDate(2026, 6, 3))
+	require.NoError(t, err)
+	require.NotEmpty(t, events)
+	assert.True(t, events[0].Cancelled)
+	assert.False(t, events[0].CanRespond, "cancelled appointment must not be respondable")
+
+	// Both response endpoints reject RSVP changes after cancellation.
+	err = service.RespondToStaffInvitation(calendarContext(invitedAccount.ID), staffRecipientID, calModels.ResponseStatusDeclined)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
+
+	err = service.RespondToParentInvitation(testpkg.TenantContext(1), parentChain.AccountID, parentRecipientID, calModels.ResponseStatusDeclined)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
+}

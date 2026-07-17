@@ -29,6 +29,7 @@ type FeedAccountRepo interface {
 	FindByID(ctx context.Context, id any) (*authModels.Account, error)
 	FindByCalendarFeedToken(ctx context.Context, token string) (*authModels.Account, error)
 	SetCalendarFeedToken(ctx context.Context, accountID int64, token string) error
+	EnsureCalendarFeedToken(ctx context.Context, accountID int64, newToken string) (string, error)
 }
 
 // ParentCalendarFeedURL returns the parent's iCalendar subscription URLs,
@@ -83,10 +84,9 @@ func (s *service) ensureFeedToken(ctx context.Context, accountID int64) (string,
 	if err != nil {
 		return "", err
 	}
-	if err := s.cfg.AccountRepo.SetCalendarFeedToken(ctx, accountID, token); err != nil {
-		return "", err
-	}
-	return token, nil
+	// Atomic first-writer-wins: if two initial requests race, both get whichever
+	// token actually persisted, never a URL a later write silently overwrote.
+	return s.cfg.AccountRepo.EnsureCalendarFeedToken(ctx, accountID, token)
 }
 
 // ParentCalendarFeedByToken renders the subscription feed for the account that

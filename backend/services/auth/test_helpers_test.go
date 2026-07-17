@@ -159,6 +159,10 @@ func (noopAccountRepository) SetCalendarFeedToken(context.Context, int64, string
 	panic("SetCalendarFeedToken not implemented")
 }
 
+func (noopAccountRepository) EnsureCalendarFeedToken(context.Context, int64, string) (string, error) {
+	panic("EnsureCalendarFeedToken not implemented")
+}
+
 func (noopAccountRepository) Update(context.Context, *authModel.Account) error {
 	panic("Update not implemented")
 }
@@ -284,6 +288,10 @@ func (r *stubAccountRepository) FindByEmail(_ context.Context, email string) (*a
 
 func (r *stubAccountRepository) FindByCalendarFeedToken(context.Context, string) (*authModel.Account, error) {
 	return nil, sql.ErrNoRows
+}
+
+func (r *stubAccountRepository) EnsureCalendarFeedToken(context.Context, int64, string) (string, error) {
+	return "", nil
 }
 
 func (r *stubAccountRepository) SetCalendarFeedToken(context.Context, int64, string) error {

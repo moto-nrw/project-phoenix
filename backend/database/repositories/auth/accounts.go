@@ -73,6 +73,44 @@ func (r *AccountRepository) FindByCalendarFeedToken(ctx context.Context, token s
 	return account, nil
 }
 
+// EnsureCalendarFeedToken atomically claims newToken for the account only if it
+// has no token yet, then returns whatever token is persisted. The conditional
+// UPDATE takes a row lock, so of two concurrent first-time callers exactly one
+// wins the write; the loser matches no row and reads back the winner's token via
+// the follow-up SELECT. Nobody is ever handed a token a later write overwrote.
+func (r *AccountRepository) EnsureCalendarFeedToken(ctx context.Context, accountID int64, newToken string) (string, error) {
+	db := base.GetDB(ctx, r.db)
+	res, err := db.NewUpdate().
+		Model((*auth.Account)(nil)).
+		ModelTableExpr(accountTable).
+		Set("calendar_feed_token = ?", newToken).
+		Where(whereID, accountID).
+		Where("(calendar_feed_token IS NULL OR calendar_feed_token = '')").
+		Exec(ctx)
+	if err != nil {
+		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: err}
+	}
+	if n, err := res.RowsAffected(); err == nil && n > 0 {
+		return newToken, nil
+	}
+	// Row already had a token, or a concurrent request won the write: return the
+	// persisted value.
+	account := new(auth.Account)
+	if err := db.NewSelect().
+		ModelTableExpr(accountTable).
+		Where(whereID, accountID).
+		Scan(ctx, account); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return "", nil
+		}
+		return "", &modelBase.DatabaseError{Op: "ensure calendar feed token", Err: err}
+	}
+	if account.CalendarFeedToken == nil {
+		return "", nil
+	}
+	return *account.CalendarFeedToken, nil
+}
+
 // SetCalendarFeedToken sets or rotates the account's calendar feed token.
 func (r *AccountRepository) SetCalendarFeedToken(ctx context.Context, accountID int64, token string) error {
 	_, err := base.GetDB(ctx, r.db).NewUpdate().

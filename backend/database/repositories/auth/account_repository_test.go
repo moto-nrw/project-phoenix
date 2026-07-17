@@ -637,3 +637,36 @@ func TestAccountRepository_CalendarFeedToken(t *testing.T) {
 		assert.Nil(t, old)
 	})
 }
+
+func TestAccountRepository_EnsureCalendarFeedToken(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	repo := repositories.NewFactory(db).Account
+	ctx := testpkg.TenantContext(1)
+
+	account := testpkg.CreateTestAccount(t, db, "ensurefeedtoken")
+	defer cleanupAccountRecords(t, db, account.ID)
+
+	// First caller claims the token.
+	first, err := repo.EnsureCalendarFeedToken(ctx, account.ID, "ensure-token-1")
+	require.NoError(t, err)
+	assert.Equal(t, "ensure-token-1", first)
+
+	// A second caller with a different token does NOT overwrite it — it gets the
+	// already-persisted token back. This is what prevents a racing first-time
+	// caller from being handed a URL that a later write overwrote.
+	second, err := repo.EnsureCalendarFeedToken(ctx, account.ID, "ensure-token-2")
+	require.NoError(t, err)
+	assert.Equal(t, "ensure-token-1", second)
+
+	// The persisted token still resolves; the losing token never does.
+	found, err := repo.FindByCalendarFeedToken(ctx, "ensure-token-1")
+	require.NoError(t, err)
+	require.NotNil(t, found)
+	assert.Equal(t, account.ID, found.ID)
+
+	loser, err := repo.FindByCalendarFeedToken(ctx, "ensure-token-2")
+	require.NoError(t, err)
+	assert.Nil(t, loser)
+}

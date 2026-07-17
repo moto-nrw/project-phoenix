@@ -67,7 +67,25 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *calModels.Ap
 	schoolName := s.resolveSchoolName(ctx, appointment.TenantID)
 	logoURL := s.resolveSchoolLogo(ctx, appointment.TenantID)
 	motoLogoURL := emailbranding.MotoLogoURL(s.cfg.ParentsURL)
-	whenText := appointmentWhenText(appointment)
+
+	// The e-mail advertises the appointment's FIRST occurrence. For a weekly rule
+	// whose weekdays exclude the StartDate weekday, that is a later date than
+	// StartDate — use the same first-occurrence anchor as the calendar/ICS export
+	// so the mail and the calendar never disagree.
+	whenAppointment := appointment
+	recurrence, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, appointment.ID)
+	if err != nil {
+		return err
+	}
+	if recurrence != nil {
+		if first := firstRecurrenceOccurrence(appointment, recurrence); first != appointment.StartDate {
+			adjusted := *appointment
+			adjusted.EndDate = first.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate))
+			adjusted.StartDate = first
+			whenAppointment = &adjusted
+		}
+	}
+	whenText := appointmentWhenText(whenAppointment)
 	location := ""
 	if appointment.Location != nil {
 		location = *appointment.Location

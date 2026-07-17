@@ -86,6 +86,10 @@ func (r stubStaffAccountRepo) FindByCalendarFeedToken(context.Context, string) (
 	panic("not implemented")
 }
 
+func (r stubStaffAccountRepo) EnsureCalendarFeedToken(context.Context, int64, string) (string, error) {
+	panic("not implemented")
+}
+
 func (r stubStaffAccountRepo) SetCalendarFeedToken(context.Context, int64, string) error {
 	panic("not implemented")
 }
