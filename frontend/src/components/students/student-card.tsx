@@ -529,8 +529,8 @@ export function StudentAbsenceRow({
   label: string;
   /**
    * Leading phrase before the reason. The default fits the today view; a
-   * non-today planning date (#1939) passes "Wird nicht erwartet" so the card
-   * never says "heute" about another day.
+   * non-today planning date (#1939) passes "Kommt nicht" so the card never
+   * says "heute" about another day.
    */
   wording?: string;
 }>) {

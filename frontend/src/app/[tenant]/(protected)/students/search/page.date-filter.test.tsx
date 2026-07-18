@@ -343,7 +343,7 @@ describe("StudentSearchPage — planning date (#1939)", () => {
       expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
     });
 
-    expect(screen.getByTestId("planning-badge")).toHaveTextContent("Erwartet");
+    expect(screen.getByTestId("planning-badge")).toHaveTextContent("Kommt");
     expect(screen.queryByTestId("presence-badge")).not.toBeInTheDocument();
 
     // The date-context hint names the selected day, never "heute".

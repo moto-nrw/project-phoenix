@@ -133,14 +133,15 @@ const DAY_STATUS_FILTER_OPTIONS: Array<{
 ];
 
 // Same wire values evaluated for a non-today planning date (#1939) — the UI
-// must not say "heute" when the selection refers to another day.
+// must not say "heute" when the selection refers to another day, so the label
+// drops it ("Kommt" / "Kommt nicht") while staying the same Kommt/-nicht filter.
 const DAY_STATUS_FILTER_OPTIONS_OTHER_DAY: Array<{
   value: DayStatusFilter;
   label: string;
 }> = [
   { value: "all", label: "Alle Kinder" },
-  { value: "comes_today", label: "Wird erwartet" },
-  { value: "not_coming_today", label: "Wird nicht erwartet" },
+  { value: "comes_today", label: "Kommt" },
+  { value: "not_coming_today", label: "Kommt nicht" },
 ];
 
 // Planning-date URL param (#1939). Deliberately NOT part of
@@ -1452,7 +1453,7 @@ function SearchPageContent() {
       {
         title: "Anwesenheit",
         icon: DetailIcons.check,
-        filterIds: ["dayStatus", "attendance", "tracking"],
+        filterIds: ["planningDate", "dayStatus", "attendance", "tracking"],
       },
       {
         title: "Zeiten & Abholung",
@@ -1594,9 +1595,60 @@ function SearchPageContent() {
           { value: "none", label: "Keine Ankunftszeit" },
         ],
       },
+      // Planning-day chooser (#1939). A custom filter so it lives *inside* the
+      // "Anwesenheit" section, directly above the Kommt/Kommt-nicht filter it
+      // scopes — the date is the reference day for that filter, not a separate
+      // mode. Spans both grid columns so the inline calendar has room. Empty
+      // value/onChange/options are the required-but-unused stubs for a custom
+      // filter (see FilterConfig.render).
+      {
+        id: "planningDate",
+        label: "Tag",
+        type: "custom" as const,
+        value: "",
+        onChange: () => undefined,
+        options: [],
+        className: "md:col-span-2",
+        render: (
+          <div className="space-y-2">
+            <div className="flex flex-wrap gap-1.5">
+              <Button
+                type="button"
+                size="compact"
+                variant={isToday ? "primary" : "outline"}
+                onClick={() => updateSelectedDate(todayIso)}
+              >
+                Heute
+              </Button>
+              <Button
+                type="button"
+                size="compact"
+                variant={selectedDate === tomorrowIso ? "primary" : "outline"}
+                onClick={() => updateSelectedDate(tomorrowIso)}
+              >
+                Morgen
+              </Button>
+            </div>
+            <DatePicker
+              value={parseISODate(selectedDate)}
+              minDate={parseISODate(todayIso)}
+              calendarLayout="inline"
+              onChange={(date) =>
+                updateSelectedDate(date ? toISODate(date) : todayIso)
+              }
+            />
+            {!isToday && (
+              <p className="text-xs text-gray-500">
+                Geplante Anwesenheit für {formatDate(selectedDate, true)}.
+                Aktuelle Aufenthaltsorte und Live-Filter bleiben ausgeblendet.
+              </p>
+            )}
+          </div>
+        ),
+      },
       {
         id: "dayStatus",
-        label: "Tagesplanung",
+        label: isToday ? "Tagesplanung" : "Kommt / Kommt nicht",
         type: "dropdown",
         value: dayStatusFilter,
         onChange: (value) => updateDayStatusFilter(value as DayStatusFilter),
@@ -1737,6 +1789,10 @@ function SearchPageContent() {
       isToday,
       dayStatusFilterOptions,
       effectiveGroupMode,
+      selectedDate,
+      todayIso,
+      tomorrowIso,
+      updateSelectedDate,
     ],
   );
 
@@ -1749,6 +1805,18 @@ function SearchPageContent() {
         id: "search",
         label: `"${searchTerm}"`,
         onRemove: () => setSearchTerm(""),
+      });
+    }
+
+    // A non-today planning day is an active filter state (#1939): it re-scopes
+    // the Kommt/Kommt-nicht filter and the whole list to another day. Surface
+    // it so the filter-count badge accounts for it; removing it returns to
+    // today.
+    if (!isToday) {
+      filters.push({
+        id: "planningDate",
+        label: `Tag: ${formatDate(selectedDate, true)}`,
+        onRemove: () => updateSelectedDate(todayIso),
       });
     }
 
@@ -1940,6 +2008,9 @@ function SearchPageContent() {
     effectiveAttendanceFilter,
     effectiveRoomId,
     effectiveGroupMode,
+    selectedDate,
+    todayIso,
+    updateSelectedDate,
   ]);
 
   const exportFilters = useMemo(
@@ -2173,43 +2244,23 @@ function SearchPageContent() {
         />
       </div>
 
-      {/* Planning-date selection (#1939): quick jump to today/tomorrow plus a
-          free date choice. The whole page — filters, count, cards, export —
-          follows this date. */}
-      <div className="mb-3 flex flex-wrap items-center gap-2">
-        <Button
-          type="button"
-          size="compact"
-          variant={isToday ? "primary" : "ghost"}
-          onClick={() => updateSelectedDate(todayIso)}
-        >
-          Heute
-        </Button>
-        <Button
-          type="button"
-          size="compact"
-          variant={selectedDate === tomorrowIso ? "primary" : "ghost"}
-          onClick={() => updateSelectedDate(tomorrowIso)}
-        >
-          Morgen
-        </Button>
-        <div className="w-44">
-          <DatePicker
-            value={parseISODate(selectedDate)}
-            minDate={parseISODate(todayIso)}
-            onChange={(date) =>
-              updateSelectedDate(date ? toISODate(date) : todayIso)
-            }
-            dropdownPlacement="down"
-          />
+      {/* Planning-date context banner (#1939). The day chooser itself lives in
+          the filter panel, in the "Anwesenheit" section right above the
+          Kommt/Kommt-nicht filter it scopes. This banner only appears for a
+          non-today date so nobody mistakes a plan view for live presence. */}
+      {!isToday && (
+        <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+          Geplante Anwesenheit für {formatDate(selectedDate, true)}; aktuelle
+          Aufenthaltsorte bleiben ausgeblendet.{" "}
+          <button
+            type="button"
+            onClick={() => updateSelectedDate(todayIso)}
+            className="font-medium text-gray-900 underline underline-offset-2 hover:text-gray-700"
+          >
+            Zurück zu heute
+          </button>
         </div>
-        {!isToday && (
-          <span className="text-sm text-gray-600">
-            Geplante Anwesenheit für {formatDate(selectedDate, true)}; aktuelle
-            Aufenthaltsorte bleiben ausgeblendet.
-          </span>
-        )}
-      </div>
+      )}
 
       {/* Mobile Error Display, outside the sticky stack so it doesn't
           push everything down on small screens. */}
@@ -2386,13 +2437,13 @@ function SearchPageContent() {
                     // live location (#1939). When the caller lacks full access
                     // the backend skips day-planning enrichment and omits
                     // day_planning_status; render an unknown state rather than
-                    // asserting "Nicht erwartet" for a result that was never
+                    // asserting "Kommt nicht" for a result that was never
                     // calculated or disclosed.
                     <DataTableStatusBadge
                       active={student.day_planning_status === "comes_today"}
                       unknown={student.day_planning_status === undefined}
-                      activeLabel="Erwartet"
-                      inactiveLabel="Nicht erwartet"
+                      activeLabel="Kommt"
+                      inactiveLabel="Kommt nicht"
                       unknownLabel="Keine Angabe"
                     />
                   )
@@ -2422,7 +2473,7 @@ function SearchPageContent() {
                         });
                         const absenceWording = isToday
                           ? undefined
-                          : "Wird nicht erwartet";
+                          : "Kommt nicht";
                         if (absence && !student.actual_pickup_time) {
                           return (
                             <StudentAbsenceRow

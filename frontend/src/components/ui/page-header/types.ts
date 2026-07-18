@@ -137,12 +137,23 @@ interface TabItem {
 export interface FilterConfig {
   readonly id: string;
   readonly label: string;
-  readonly type: "buttons" | "grid" | "dropdown";
+  readonly type: "buttons" | "grid" | "dropdown" | "custom";
   readonly value: string | string[];
   readonly onChange: (value: string | string[]) => void;
   readonly options: FilterOption[];
   readonly multiSelect?: boolean;
   readonly className?: string;
+  /**
+   * For `type: "custom"` — the control rendered in place of the option
+   * buttons/select, below the field label. Lets a consumer drop a bespoke
+   * control (e.g. the Kindersuche planning-date chooser) into the filter set
+   * so it lives *with* the other filters — in the quiet panel and grouped by
+   * {@link FilterSection} — instead of as a stray row. `value`/`onChange`/
+   * `options` are unused for custom filters; pass empty stubs. Only the quiet
+   * `FilterPanel` renders custom filters; the inline `DesktopFilters` skips
+   * them (no inline-variant consumer needs one today).
+   */
+  readonly render?: React.ReactNode;
 }
 
 export interface FilterOption {
