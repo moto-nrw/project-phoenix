@@ -117,6 +117,9 @@ describe("planning-date export copy (#1939)", () => {
       "planned_pickup",
       "daily_status",
       "daily_notes",
+      // Age is calculated against the selected day too, so its description must
+      // name that day rather than claim "heute" (#1939).
+      "age",
     ]);
     for (const column of columns) {
       if (dayScoped.has(column.id)) {

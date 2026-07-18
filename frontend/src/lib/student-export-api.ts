@@ -355,6 +355,7 @@ export function buildStudentExportColumns(
     planned_pickup: `Geplante Abholung für den ${day}, inklusive Tagesausnahmen.`,
     daily_status: `Ob das Kind am ${day} erwartet wird oder als Krank, Entschuldigt bzw. Klassenfahrt markiert ist.`,
     daily_notes: `Hinweise zur Ankunft oder Abholung am ${day}, zum Beispiel Ausnahme-Notizen.`,
+    age: `Alter in Jahren am ${day}, berechnet aus dem Geburtsdatum.`,
   };
   return STUDENT_EXPORT_COLUMNS.filter(
     (column) => !SNAPSHOT_COLUMNS.has(column.id),
