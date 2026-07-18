@@ -436,15 +436,36 @@ func (r *designRenderer) tableHeaderHeight() float64 {
 	return float64(r.headerLineCount())*rowLineHt + 2*cellPadY + 2
 }
 
+// maxHeaderLines caps how many wrapped lines the table header may occupy so
+// the header band always leaves room for at least one body row. Column
+// labels are administratively configured and unbounded: a label long enough
+// to wrap past this cap in a narrow column would push the header past the
+// footer and clip every row drawn beneath it (avail in paginate() goes
+// negative). The header wraps freely up to the cap and only truncates in
+// that pathological case — a normal header stays far below it.
+func (r *designRenderer) maxHeaderLines() int {
+	// The card region below the header band that the header and the first
+	// body row must share (mirrors paginate()'s avail decomposition).
+	region := r.bodyBottom() - r.bodyTop() - 2*cardPadY - r.groupChromeHeight()
+	// Reserve the header band's own vertical padding (2*cellPadY + 2) plus one
+	// body row (rowLineHt + 2*cellPadY); the rest is the header's line budget.
+	n := int((region - (2*cellPadY + 2) - (rowLineHt + 2*cellPadY)) / rowLineHt)
+	if n < 1 {
+		n = 1
+	}
+	return n
+}
+
 func (r *designRenderer) headerLineCount() int {
 	// Measure with the header font, then RESTORE the caller's font —
 	// leaking fontTableHd into paginate() made body cells wrap narrower
 	// in the measuring pass than in the drawing pass (lost lines).
 	prevStyle, prevSize := r.curStyle, r.curSize
 	_ = r.setFont(styleNormal, fontTableHd)
+	lineCap := r.maxHeaderLines()
 	maxLines := 1
 	for i, col := range r.cols {
-		if n := len(r.wrap(col.Label, r.widths[i]-cellPadX)); n > maxLines {
+		if n := len(r.wrapCapped(col.Label, r.widths[i]-cellPadX, lineCap)); n > maxLines {
 			maxLines = n
 		}
 	}
@@ -511,6 +532,38 @@ func (c *pageChrome) splitLongWord(word string, maxW float64) []string {
 		parts = append(parts, cur)
 	}
 	return parts
+}
+
+// wrapCapped wraps like wrap() but never returns more than maxLines lines.
+// When the label needs more, the last kept line ends in an ellipsis so the
+// dropped text reads as deliberately cut, not silently gone — the same "no
+// silent content loss" contract the body cells hold, applied to a header band
+// that must stay bounded so it cannot draw past the footer.
+func (c *pageChrome) wrapCapped(s string, maxW float64, maxLines int) []string {
+	if maxLines < 1 {
+		maxLines = 1
+	}
+	lines := c.wrap(s, maxW)
+	if len(lines) <= maxLines {
+		return lines
+	}
+	lines = lines[:maxLines]
+	lines[maxLines-1] = c.ellipsize(lines[maxLines-1], maxW)
+	return lines
+}
+
+// ellipsize trims runes off the end of line until it plus a trailing ellipsis
+// fits maxW. A wrapped line already fills close to maxW, so the appended
+// ellipsis usually needs a rune or two dropped to fit.
+func (c *pageChrome) ellipsize(line string, maxW float64) string {
+	runes := []rune(strings.TrimRight(line, " "))
+	for {
+		candidate := string(runes) + "…"
+		if wdt, err := c.measure(candidate); err != nil || wdt <= maxW || len(runes) == 0 {
+			return candidate
+		}
+		runes = runes[:len(runes)-1]
+	}
 }
 
 func (c *pageChrome) setFill(col rgb)   { c.pdf.SetFillColor(col.R, col.G, col.B) }
@@ -909,10 +962,14 @@ func (r *designRenderer) drawCard(p designPage) error {
 		return err
 	}
 	r.setText(colorHeaderText)
+	// Cap the drawn labels at the same budget the band was sized with, or a
+	// label that wrapped past the cap would draw more lines than the header
+	// reserved and spill onto the rows below.
+	lineCap := r.maxHeaderLines()
 	cx := textLeft
 	for i, col := range r.cols {
 		ty := y + cellPadY + fontTableHd
-		for _, ln := range r.wrap(col.Label, r.widths[i]-cellPadX) {
+		for _, ln := range r.wrapCapped(col.Label, r.widths[i]-cellPadX, lineCap) {
 			if err := r.text(cx, ty, ln); err != nil {
 				return err
 			}

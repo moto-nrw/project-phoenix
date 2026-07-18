@@ -332,6 +332,98 @@ func TestDesignedPDFOversizedRowSplits(t *testing.T) {
 	}
 }
 
+// Review: column labels are administratively configured and unbounded. A
+// label long enough to wrap past the header's line budget in a narrow column
+// used to make tableHeaderHeight() exceed the whole card body — avail in
+// paginate() went negative, the header drew through the footer and off the
+// page, and the rows beneath it were clipped. The header band must stay
+// bounded, leave room for at least one body row, and mark the truncated label
+// with an ellipsis instead of losing it silently.
+func TestDesignedPDFOversizedHeaderStaysBounded(t *testing.T) {
+	doc := designGroupedDocument()
+	longLabel := strings.TrimSpace(strings.Repeat("Betreuungsanmeldestatuskategorie ", 60))
+	doc.Columns = []Column{
+		{ID: ColumnName, Label: "Name"},
+		{ID: ColumnSchoolClass, Label: longLabel},
+	}
+	r, err := newDesignRenderer(doc)
+	if err != nil {
+		t.Fatalf("newDesignRenderer: %v", err)
+	}
+	if err := r.setFont(styleNormal, fontBody); err != nil {
+		t.Fatal(err)
+	}
+
+	// The header plus at least one body row must fit the card region.
+	region := r.bodyBottom() - r.bodyTop() - 2*cardPadY - r.groupChromeHeight()
+	oneRow := rowLineHt + 2*cellPadY
+	if hh := r.tableHeaderHeight(); hh+oneRow > region {
+		t.Fatalf("header height %.1f + one row %.1f exceeds card region %.1f", hh, oneRow, region)
+	}
+
+	// paginate() must therefore leave real room for rows (avail positive) and
+	// still place every body row.
+	avail := r.bodyBottom() - (r.bodyTop() + 2*cardPadY + r.groupChromeHeight() + r.tableHeaderHeight())
+	if avail < oneRow {
+		t.Fatalf("avail for rows = %.1f, want at least one row (%.1f)", avail, oneRow)
+	}
+	pages, err := r.paginate()
+	if err != nil {
+		t.Fatalf("paginate: %v", err)
+	}
+	got := 0
+	for _, p := range pages {
+		got += len(p.rows)
+	}
+	if got != 3 {
+		t.Fatalf("rows placed = %d, want 3 (none clipped by an oversized header)", got)
+	}
+
+	// The truncated label is marked, not silently dropped.
+	lineCap := r.maxHeaderLines()
+	_ = r.setFont(styleNormal, fontTableHd)
+	drawn := r.wrapCapped(longLabel, r.widths[1]-cellPadX, lineCap)
+	if len(drawn) > lineCap {
+		t.Fatalf("drawn header lines = %d, exceed cap %d", len(drawn), lineCap)
+	}
+	if !strings.HasSuffix(drawn[len(drawn)-1], "…") {
+		t.Fatalf("truncated header label = %q, want a trailing ellipsis", drawn[len(drawn)-1])
+	}
+
+	// End to end: a real render succeeds and stays a bounded document.
+	if _, err := NewService().Render(doc, FormatPDF, "oversized-header"); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+}
+
+// A header that fits comfortably must not be touched — no ellipsis, every
+// line intact. The cap only bites the pathological case above.
+func TestDesignedPDFNormalHeaderNotTruncated(t *testing.T) {
+	doc := designGroupedDocument()
+	doc.Columns = []Column{
+		{ID: ColumnName, Label: "Name"},
+		{ID: ColumnSchoolClass, Label: "Betreuungs- und Anmeldestatus"},
+	}
+	r, err := newDesignRenderer(doc)
+	if err != nil {
+		t.Fatalf("newDesignRenderer: %v", err)
+	}
+	lineCap := r.maxHeaderLines()
+	if err := r.setFont(styleNormal, fontTableHd); err != nil {
+		t.Fatal(err)
+	}
+	for i, col := range r.cols {
+		capped := r.wrapCapped(col.Label, r.widths[i]-cellPadX, lineCap)
+		free := r.wrap(col.Label, r.widths[i]-cellPadX)
+		if len(capped) != len(free) {
+			t.Fatalf("label %q capped to %d lines, free wrap gives %d", col.Label, len(capped), len(free))
+		}
+		if strings.HasSuffix(capped[len(capped)-1], "…") {
+			t.Fatalf("label %q gained an ellipsis it did not need", col.Label)
+		}
+	}
+}
+
 // P2 (review): filter pills wrap onto additional header rows instead of
 // running past the right page edge, and the body start moves down to make
 // room.
