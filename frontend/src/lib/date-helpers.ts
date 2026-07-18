@@ -18,6 +18,13 @@ const CHAT_DAY_MONTH_FORMATTER = new Intl.DateTimeFormat("de-DE", {
   timeZone: "Europe/Berlin",
 });
 
+const CHAT_DATE_FORMATTER = new Intl.DateTimeFormat("de-DE", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "Europe/Berlin",
+});
+
 const CHAT_TIME_FORMATTER = new Intl.DateTimeFormat("de-DE", {
   hour: "2-digit",
   minute: "2-digit",
@@ -177,13 +184,14 @@ export function formatChatTime(iso: string): string {
  * Full chat timestamp with year ("12.03.2026, 14:30") for the message list and
  * thread headers. Returns "" for missing input; invalid ISO falls back to the
  * raw input. Single source for the staff inbox/thread pages and the parents
- * messages list. Composes the existing date + time formatters rather than
- * spinning up a third Intl path that could drift from the rest of the app.
+ * messages list. Both portions use the school timezone so full and compact
+ * chat timestamps cannot disagree for viewers outside Europe/Berlin.
  */
 export function formatChatDateTime(iso: string | undefined): string {
   if (!iso) return "";
-  if (isNaN(new Date(iso).getTime())) return iso;
-  return `${formatDate(iso)}, ${formatTime(iso)}`;
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return iso;
+  return `${CHAT_DATE_FORMATTER.format(date)}, ${CHAT_TIME_FORMATTER.format(date)}`;
 }
 
 /**
