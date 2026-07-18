@@ -175,7 +175,7 @@ export function formatTime(dateString: string): string {
  */
 export function formatChatTime(iso: string): string {
   const date = new Date(iso);
-  if (isNaN(date.getTime())) return iso;
+  if (Number.isNaN(date.getTime())) return iso;
   const dayMonth = CHAT_DAY_MONTH_FORMATTER.format(date);
   return `${dayMonth}, ${CHAT_TIME_FORMATTER.format(date)}`;
 }
@@ -190,7 +190,7 @@ export function formatChatTime(iso: string): string {
 export function formatChatDateTime(iso: string | undefined): string {
   if (!iso) return "";
   const date = new Date(iso);
-  if (isNaN(date.getTime())) return iso;
+  if (Number.isNaN(date.getTime())) return iso;
   return `${CHAT_DATE_FORMATTER.format(date)}, ${CHAT_TIME_FORMATTER.format(date)}`;
 }
 
