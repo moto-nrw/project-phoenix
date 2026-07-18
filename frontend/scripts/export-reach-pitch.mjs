@@ -18,6 +18,10 @@ function readOption(name) {
   return process.argv[index + 1];
 }
 
+function readFlag(name) {
+  return process.argv.includes(`--${name}`);
+}
+
 function readNumberOption(name, defaultValue) {
   const rawValue = readOption(name);
   if (rawValue === undefined) return defaultValue;
@@ -40,6 +44,7 @@ function readStringOption(name, defaultValue) {
 }
 
 const config = {
+  flat: readFlag("flat"),
   from: readNumberOption("from", defaults.from),
   outDir: path.resolve(readStringOption("out-dir", defaults.outDir)),
   scale: readNumberOption("scale", defaults.scale),
@@ -80,10 +85,52 @@ await page.addStyleTag({
       display: none !important;
     }
 
-    .pitch-slide {
-      border: 0 !important;
-      border-radius: 0 !important;
-      box-shadow: none !important;
+    ${
+      config.flat
+        ? `
+          .pitch-slide {
+            border: 0 !important;
+            border-radius: 0 !important;
+            box-shadow: none !important;
+          }
+        `
+        : `
+          html,
+          body {
+            height: 100% !important;
+            margin: 0 !important;
+            overflow: hidden !important;
+            background: #f3f4f6 !important;
+          }
+
+          main {
+            min-height: 100vh !important;
+            padding: 0 !important;
+            background: #f3f4f6 !important;
+          }
+
+          main > div {
+            min-height: 100vh !important;
+            width: 100vw !important;
+            max-width: none !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 0 !important;
+          }
+
+          .pitch-slide {
+            display: none !important;
+            width: calc(100vw - 128px) !important;
+            max-width: none !important;
+            border-radius: 28px !important;
+            border: 1px solid rgb(229 231 235) !important;
+            box-shadow: 0 18px 38px rgb(15 23 42 / 0.12) !important;
+          }
+
+          .pitch-slide[data-export-active="true"] {
+            display: grid !important;
+          }
+        `
     }
   `,
 });
@@ -100,6 +147,20 @@ const pdf = await PDFDocument.create();
 for (let index = firstSlideIndex; index < lastSlideNumber; index += 1) {
   const slideNumber = index + 1;
   const slide = page.locator(".pitch-slide").nth(index);
+  if (!config.flat) {
+    await page.evaluate((slideIndex) => {
+      document
+        .querySelectorAll(".pitch-slide")
+        .forEach((currentSlide, currentIndex) => {
+          if (currentIndex === slideIndex) {
+            currentSlide.setAttribute("data-export-active", "true");
+          } else {
+            currentSlide.removeAttribute("data-export-active");
+          }
+        });
+      window.scrollTo(0, 0);
+    }, index);
+  }
   await slide.scrollIntoViewIfNeeded();
   await page.evaluate(async (slideIndex) => {
     const currentSlide = document.querySelectorAll(".pitch-slide")[slideIndex];
@@ -117,14 +178,24 @@ for (let index = firstSlideIndex; index < lastSlideNumber; index += 1) {
     );
   }, index);
 
-  const screenshot = await slide.screenshot({
-    animations: "disabled",
-    path: path.join(
-      qaDir,
-      `slide-${String(slideNumber).padStart(2, "0")}@${config.scale}x.png`,
-    ),
-    type: "png",
-  });
+  const screenshotPath = path.join(
+    qaDir,
+    `slide-${String(slideNumber).padStart(2, "0")}@${config.scale}x${
+      config.flat ? "-flat" : "-framed"
+    }.png`,
+  );
+  const screenshot = config.flat
+    ? await slide.screenshot({
+        animations: "disabled",
+        path: screenshotPath,
+        type: "png",
+      })
+    : await page.screenshot({
+        animations: "disabled",
+        fullPage: false,
+        path: screenshotPath,
+        type: "png",
+      });
   const image = await pdf.embedPng(screenshot);
   const pdfPage = pdf.addPage([pdfPageWidth, pdfPageHeight]);
   pdfPage.drawImage(image, {
@@ -139,7 +210,9 @@ const range =
   config.from === 1 && lastSlideNumber === slideCount
     ? "all"
     : `${config.from}-${lastSlideNumber}`;
-const fileBaseName = `moto-reach-pitch-slides-${range}-${config.scale}x`;
+const fileBaseName = `moto-reach-pitch-slides-${range}-${config.scale}x${
+  config.flat ? "-flat" : "-framed"
+}`;
 const pdfPath = path.join(config.outDir, `${fileBaseName}.pdf`);
 
 await fs.writeFile(pdfPath, await pdf.save());
