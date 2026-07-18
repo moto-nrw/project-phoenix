@@ -21,6 +21,12 @@ type UserContextService interface {
 	// GetCurrentStaff retrieves the staff member linked to the currently authenticated user
 	GetCurrentStaff(ctx context.Context) (*users.Staff, error)
 
+	// ResolveSSESubscription resolves the SSE topic subscription (staff
+	// resolution + supervised/active groups + educational groups) for the
+	// authenticated caller. Returns an *SSESetupError carrying an HTTP status
+	// when a non-admin caller has no staff record.
+	ResolveSSESubscription(ctx context.Context) (*SSESubscription, error)
+
 	// GetCurrentTeacher retrieves the teacher linked to the currently authenticated user
 	GetCurrentTeacher(ctx context.Context) (*users.Teacher, error)
 

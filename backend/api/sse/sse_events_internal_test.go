@@ -47,10 +47,7 @@ func setupEventsTestContext(t *testing.T) *eventsTestContext {
 
 	resource := NewResource(
 		hub,
-		svc.Active,
-		svc.Users,
 		svc.UserContext,
-		svc.Settings,
 		db,
 		slog.Default(),
 	)

@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	"github.com/moto-nrw/project-phoenix/services/facilities"
+	usercontextsvc "github.com/moto-nrw/project-phoenix/services/usercontext"
 )
 
 // =============================================================================
@@ -92,6 +93,10 @@ func (m *mockUserContextService) GetCurrentTeacher(ctx context.Context) (*users.
 }
 
 func (m *mockUserContextService) GetMyGroups(ctx context.Context) ([]*education.Group, error) {
+	return nil, errors.New("not implemented")
+}
+
+func (m *mockUserContextService) ResolveSSESubscription(context.Context) (*usercontextsvc.SSESubscription, error) {
 	return nil, errors.New("not implemented")
 }
 
