@@ -135,10 +135,15 @@ func resolveDayPlanning(
 }
 
 // resolveDayPlanningForDate applies the #1448 precedence to one calendar day:
-// explicit absence wins, then any planning signal for the day, otherwise the
-// child is not expected. For non-today dates the actual-attendance shortcut is
-// skipped — a child being present right now says nothing about another day
-// (#1939) — and labels avoid "heute" wording.
+// explicit absence wins, then a day-specific no-time exception that clears the
+// child's arrival/pickup (also an absence signal), then any positive planning
+// signal for the day, otherwise the child is not expected. Absence must be
+// evaluated before presence: a no-time exception means "not here this day" and
+// has to win even when the child also carries an unrelated presence signal
+// (a regular pickup time, a timetable placement) for the same date (#1939).
+// For non-today dates the actual-attendance shortcut is skipped — a child being
+// present right now says nothing about another day (#1939) — and labels avoid
+// "heute" wording.
 func resolveDayPlanningForDate(
 	student StudentResponse,
 	arrival *scheduleService.EffectiveArrivalTime,
@@ -153,10 +158,10 @@ func resolveDayPlanningForDate(
 	if status, reason, label, ok := scheduledAbsencePlanning(student); ok {
 		return status, reason, label
 	}
-	if status, reason, label, ok := plannedPresencePlanning(student, arrival, pickup, timetableIDs, isToday); ok {
+	if status, reason, label, ok := plannedAbsencePlanning(arrival, pickup); ok {
 		return status, reason, label
 	}
-	if status, reason, label, ok := plannedAbsencePlanning(arrival, pickup); ok {
+	if status, reason, label, ok := plannedPresencePlanning(student, arrival, pickup, timetableIDs, isToday); ok {
 		return status, reason, label
 	}
 	return DayPlanningStatusNotComingToday, dayPlanningReasonNoPlan, dayLabel("kein Plan für heute", "kein Plan für diesen Tag", isToday)
