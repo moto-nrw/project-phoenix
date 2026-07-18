@@ -37,7 +37,6 @@ const handlerComplexityThreshold = 15
 // issue #575 B0 baseline. 75 functions.
 var handlerComplexityAllowlist = map[string]int{
 	"api/activities/supervisor_handlers.go:buildReplacementSupervisorIDs": 22,
-	"api/auth/invitation_handlers.go:(*Resource).createInvitation":        20,
 	"api/base.go:(*API).registerRoutesWithRateLimiting":                   20,
 	"api/base.go:setupCORS": 18,
 	"api/common/student_locations.go:(*StudentLocationSnapshot).ResolveStudentLocationWithTime": 16,
@@ -63,13 +62,9 @@ var handlerComplexityAllowlist = map[string]int{
 	"api/operator/api.go:(*Resource).Router":                                                    20,
 	"api/operator/settings.go:(*SettingsResource).ResetSchoolSettingValue":                      17,
 	"api/operator/settings.go:(*SettingsResource).SetSchoolSettingValue":                        19,
-	"api/parent/enrollment_handlers.go:(*Resource).submitParentEnrollment":                      20,
 	"api/server.go:NewServer":                                                                  35,
 	"api/sse/api.go:(*Resource).eventsHandler":                                                 17,
 	"api/sse/sse_helpers.go:(*Resource).resolveSupervisions":                                   16,
-	"api/staff/schedule_handlers.go:(*Resource).buildScheduleResponse":                         19,
-	"api/staff/staff_handlers.go:(*Resource).getStaff":                                         19,
-	"api/staff/substitution_handlers.go:(*Resource).getStaffByRole":                            17,
 	"api/staff/schedule_handlers.go:(*Resource).updateSchedule":                                20,
 	"api/students/student_handlers.go:(*Resource).createStudent":                               35,
 	"api/students/student_handlers.go:(*Resource).fetchStudentsForList":                        53,
@@ -104,7 +99,6 @@ var handlerComplexityAllowlist = map[string]int{
 	"api/timetable/templates_create.go:(*Resource).createTemplate":                             33,
 	"api/timetable/templates_update.go:(*Resource).updateTemplate":                             27,
 	"api/timetable/understaffed.go:(*Resource).acknowledgeUnderstaffed":                        37,
-	"api/work-time-models/api.go:buildModelAndEntries":                                         16,
 }
 
 func TestHandlerComplexityRatchet(t *testing.T) {

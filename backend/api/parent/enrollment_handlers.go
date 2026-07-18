@@ -111,76 +111,105 @@ func (rs *Resource) submitParentEnrollment(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Reuse the public submit wire shape. The parent path has no captcha
-	// (the JWT is the trust signal) and never sends child ids; both extra
-	// fields decode inertly. Bind() defaults nil maps/slices.
-	wireReq := &enrollmentAPI.SubmitEnrollmentRequest{}
-	if err := json.NewDecoder(r.Body).Decode(wireReq); err != nil {
+	wireReq, err := decodeParentEnrollmentBody(r)
+	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
+	}
+
+	out := rs.runParentEnrollmentSubmit(r, accountID, slug, wireReq)
+	rs.respondParentEnrollment(w, r, out)
+}
+
+// decodeParentEnrollmentBody reuses the public submit wire shape. The parent
+// path has no captcha (the JWT is the trust signal) and never sends child ids;
+// both extra fields decode inertly. Bind() defaults nil maps/slices.
+func decodeParentEnrollmentBody(r *http.Request) (*enrollmentAPI.SubmitEnrollmentRequest, error) {
+	wireReq := &enrollmentAPI.SubmitEnrollmentRequest{}
+	if err := json.NewDecoder(r.Body).Decode(wireReq); err != nil {
+		return nil, err
 	}
 	_ = wireReq.Bind(r)
 	if wireReq.LateInviteToken == "" {
 		wireReq.LateInviteToken = strings.TrimSpace(r.URL.Query().Get("late_invite"))
 	}
+	return wireReq, nil
+}
 
-	var (
-		result    *enrollmentService.SubmitResult
-		submitErr error
-		forbidden bool
-	)
-	resolveErr := tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
+// parentSubmitOutcome captures the four mutually-distinguished results of the
+// admin-tx submit closure so the post-tx mapping can pick the right response.
+type parentSubmitOutcome struct {
+	result     *enrollmentService.SubmitResult
+	submitErr  error
+	forbidden  bool
+	resolveErr error
+}
+
+// runParentEnrollmentSubmit resolves the slug to a tenant, verifies the caller
+// is mapped to it, and runs the submit — all inside one admin-tx so the
+// service's inner TxHandler reuses this transaction. Failures inside the submit
+// (parse/submit) are captured in submitErr but do not roll the closure back,
+// matching the pre-existing behavior; only tenant-resolve failures return an
+// error from the closure.
+func (rs *Resource) runParentEnrollmentSubmit(r *http.Request, accountID int64, slug string, wireReq *enrollmentAPI.SubmitEnrollmentRequest) parentSubmitOutcome {
+	var out parentSubmitOutcome
+	out.resolveErr = tenant.WithAdminTx(r.Context(), rs.db, func(adminCtx context.Context, _ bun.Tx) error {
 		school, err := rs.SchoolService.GetSchoolBySlug(adminCtx, slug)
 		if err != nil || school == nil || school.IsDeleted() {
 			return errors.New("tenant not found")
 		}
 
 		// Tenant-mapping check: the parent JWT identifies the actor but
-		// does NOT prove they belong at this school. Without this
-		// guard, any authenticated parent could stamp
-		// guardian_account_id on requests for arbitrary tenants.
+		// does NOT prove they belong at this school. Without this guard,
+		// any authenticated parent could stamp guardian_account_id on
+		// requests for arbitrary tenants.
 		mapped, mapErr := rs.AuthService.VerifyAccountTenantMembership(adminCtx, accountID, school.ID)
 		if mapErr != nil {
 			return fmt.Errorf("verify tenant membership: %w", mapErr)
 		}
 		if !mapped {
-			forbidden = true
+			out.forbidden = true
 			return nil
 		}
 
-		tenantCtx := tenant.WithTenantID(adminCtx, school.ID)
-
-		serviceReq, parseErr := enrollmentAPI.BuildServiceRequest(wireReq, school.ID, getClientIP(r))
-		if parseErr != nil {
-			submitErr = parseErr
-			return nil
-		}
-		serviceReq.GuardianAccountID = &accountID
-		res, err := rs.RequestService.Submit(tenantCtx, serviceReq)
-		if err != nil {
-			submitErr = err
-			return nil
-		}
-		result = res
+		out.result, out.submitErr = rs.submitEnrollmentForTenant(adminCtx, school.ID, accountID, wireReq, getClientIP(r))
 		return nil
 	})
-	if resolveErr != nil {
-		common.RenderError(w, r, common.ErrorNotFound(resolveErr))
+	return out
+}
+
+// submitEnrollmentForTenant binds the wire request for the resolved tenant,
+// stamps the guardian account id, and forwards to RequestService.Submit under
+// the tenant context. A parse failure returns before the service call.
+func (rs *Resource) submitEnrollmentForTenant(adminCtx context.Context, schoolID, accountID int64, wireReq *enrollmentAPI.SubmitEnrollmentRequest, clientIP string) (*enrollmentService.SubmitResult, error) {
+	serviceReq, parseErr := enrollmentAPI.BuildServiceRequest(wireReq, schoolID, clientIP)
+	if parseErr != nil {
+		return nil, parseErr
+	}
+	serviceReq.GuardianAccountID = &accountID
+	return rs.RequestService.Submit(tenant.WithTenantID(adminCtx, schoolID), serviceReq)
+}
+
+// respondParentEnrollment maps the submit outcome to the HTTP response. The
+// priority (resolve → forbidden → submit → success) matches the original flow.
+func (rs *Resource) respondParentEnrollment(w http.ResponseWriter, r *http.Request, out parentSubmitOutcome) {
+	if out.resolveErr != nil {
+		common.RenderError(w, r, common.ErrorNotFound(out.resolveErr))
 		return
 	}
-	if forbidden {
+	if out.forbidden {
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("account is not a member of this school")))
 		return
 	}
-	if submitErr != nil {
-		enrollmentAPI.MapSubmitError(w, r, submitErr)
+	if out.submitErr != nil {
+		enrollmentAPI.MapSubmitError(w, r, out.submitErr)
 		return
 	}
 
 	resp := enrollmentAPI.SubmitEnrollmentResponse{
-		RequestID: strconv.FormatInt(result.Request.ID, 10),
-		StatusURL: result.StatusURL,
-		Warnings:  result.Warnings,
+		RequestID: strconv.FormatInt(out.result.Request.ID, 10),
+		StatusURL: out.result.StatusURL,
+		Warnings:  out.result.Warnings,
 	}
 	common.Respond(w, r, http.StatusCreated, resp, "Enrollment submitted")
 }

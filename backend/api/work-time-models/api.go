@@ -6,7 +6,6 @@ package worktimemodels
 
 import (
 	"errors"
-	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -126,7 +125,7 @@ func (rs *Resource) create(w http.ResponseWriter, r *http.Request) {
 	}
 	saved, err := rs.Service.CreateModel(r.Context(), model, entries)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderSaveError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toResponse(saved), "Work time model created")
@@ -151,7 +150,7 @@ func (rs *Resource) update(w http.ResponseWriter, r *http.Request) {
 	model.ID = id
 	saved, err := rs.Service.UpdateModel(r.Context(), model, entries)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		rs.renderSaveError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toResponse(saved), "Work time model updated")
@@ -170,19 +169,29 @@ func (rs *Resource) delete(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, map[string]any{"id": id}, "Work time model deleted")
 }
 
+// renderSaveError maps a create/update service error to its HTTP response:
+// caller-input validation failures become 400, everything else 500.
+func (rs *Resource) renderSaveError(w http.ResponseWriter, r *http.Request, err error) {
+	var vErr *configSvc.WorkTimeModelValidationError
+	if errors.As(err, &vErr) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+	common.RenderError(w, r, common.ErrorInternalServer(err))
+}
+
+// buildModelAndEntries binds the wire request into domain structs. It only
+// parses the wire format (anchor date, per-entry start time) and drops
+// zero-minute entries; the business rules are enforced by the service via
+// WorkTimeModelService.ValidateModelWithEntries.
 func buildModelAndEntries(req ModelRequest) (*config.WorkTimeModel, []*config.WorkTimeModelEntry, error) {
-	if req.Name == "" {
-		return nil, nil, errors.New("name is required")
-	}
-	if req.RotationLength < 1 || req.RotationLength > config.WorkTimeModelMaxRotation {
-		return nil, nil, errors.New("rotation_length must be between 1 and 4")
-	}
-	if req.RotationAnchorDate == "" {
-		return nil, nil, errors.New("rotation_anchor_date is required")
-	}
-	anchor, err := timezone.ParseDate(req.RotationAnchorDate)
-	if err != nil {
-		return nil, nil, errors.New("rotation_anchor_date must be YYYY-MM-DD")
+	anchor := timezone.Date{}
+	if req.RotationAnchorDate != "" {
+		parsed, err := timezone.ParseDate(req.RotationAnchorDate)
+		if err != nil {
+			return nil, nil, errors.New("rotation_anchor_date must be YYYY-MM-DD")
+		}
+		anchor = parsed
 	}
 	model := &config.WorkTimeModel{
 		Name:               req.Name,
@@ -190,7 +199,6 @@ func buildModelAndEntries(req ModelRequest) (*config.WorkTimeModel, []*config.Wo
 		RotationAnchorDate: anchor,
 	}
 	entries := make([]*config.WorkTimeModelEntry, 0, len(req.Entries))
-	seenSlots := make(map[string]struct{}, len(req.Entries))
 	for _, e := range req.Entries {
 		if e.TargetMinutes == 0 {
 			continue
@@ -199,24 +207,12 @@ func buildModelAndEntries(req ModelRequest) (*config.WorkTimeModel, []*config.Wo
 		if err != nil {
 			return nil, nil, err
 		}
-		entry := &config.WorkTimeModelEntry{
+		entries = append(entries, &config.WorkTimeModelEntry{
 			WeekIndex:     e.WeekIndex,
 			DayOfWeek:     e.DayOfWeek,
 			TargetMinutes: e.TargetMinutes,
 			StartTime:     startTime,
-		}
-		if err := entry.Validate(); err != nil {
-			return nil, nil, err
-		}
-		if entry.WeekIndex >= req.RotationLength {
-			return nil, nil, errors.New("entry week_index outside rotation_length")
-		}
-		slot := fmt.Sprintf("%d:%d", entry.WeekIndex, entry.DayOfWeek)
-		if _, exists := seenSlots[slot]; exists {
-			return nil, nil, errors.New("duplicate entry for week_index and day_of_week")
-		}
-		seenSlots[slot] = struct{}{}
-		entries = append(entries, entry)
+		})
 	}
 	return model, entries, nil
 }
