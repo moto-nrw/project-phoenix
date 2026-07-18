@@ -1,7 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useLatest } from "~/lib/hooks/use-latest";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 
 /**
  * Shared unread-badge hook: a single localStorage-cache + concurrent-fetch +
@@ -13,6 +18,22 @@ import { useLatest } from "~/lib/hooks/use-latest";
  */
 
 const CACHE_DURATION_MS = 60 * 1000; // 1 minute cache
+
+// Client components can still render on the server. Use a layout effect in the
+// browser so tenant guards advance before paint, without triggering the server
+// warning from useLayoutEffect.
+const useCommitEffect =
+  typeof window !== "undefined" ? useLayoutEffect : useEffect;
+
+function useCommittedLatest<T>(value: T) {
+  const ref = useRef(value);
+
+  useCommitEffect(() => {
+    ref.current = value;
+  }, [value]);
+
+  return ref;
+}
 
 interface CachedData {
   count: number;
@@ -92,23 +113,14 @@ export function useUnreadCount({
   // writeCache its now-stale pre-event count with a fresh timestamp and later
   // refreshes would treat it as valid for the full cache window (stale badge).
   const pendingForceRef = useRef(false);
-
-  // Keep the latest fetcher/onError without forcing refresh() to change
-  // identity every render (callers usually pass inline closures).
-  const fetcherRef = useLatest(fetcher);
-  const onErrorRef = useLatest(onError);
-  // Always reflects the latest `enabled`. A fetch that started while enabled can
-  // resolve AFTER the gate flips off (session expiry / tenant switch); the loop
-  // re-reads this before writing so the stale count never overwrites the
-  // reset-to-0 (and never gets persisted to the cache).
-  const enabledRef = useLatest(enabled);
-  // Always reflects the latest cacheKey. cacheKey is per-tenant, so a fetch that
-  // started under one tenant can resolve AFTER a tenant switch changed the key.
-  // The loop captures the key it fetched for and, on resolve, discards the stale
-  // result and re-fetches for the new key — otherwise the in-flight fetch would
-  // write the previous tenant's count into the shared badge (a cross-tenant leak)
-  // and the refresh the switch queued would be silently dropped.
-  const cacheKeyRef = useLatest(cacheKey);
+  // Update the async request inputs during commit, before the browser paints a
+  // new tenant/session. Passive updates leave a window where an old request can
+  // publish after the UI has switched. Updating the fetcher at the same time
+  // also prevents a retry from pairing a new cache key with an old closure.
+  const fetcherRef = useCommittedLatest(fetcher);
+  const onErrorRef = useCommittedLatest(onError);
+  const enabledRef = useCommittedLatest(enabled);
+  const cacheKeyRef = useCommittedLatest(cacheKey);
   // Tracks the cacheKey whose count is currently shown in React state. Unlike
   // the refs above it is NOT overwritten every render — it advances only when we
   // actually set a count, so refresh() can detect a tenant switch (cacheKey
@@ -117,11 +129,22 @@ export function useUnreadCount({
   // that would otherwise persist forever if the new tenant's fetch fails).
   const displayedKeyRef = useRef(cacheKey);
   // Latest refresh(), so the error-path reconciliation below can re-fetch for the
-  // CURRENT tenant without listing refresh in its own deps (self-reference). It is
-  // reassigned right after the useCallback, mirroring fetcherRef/onErrorRef above.
+  // CURRENT tenant without listing refresh in its own deps (self-reference).
   const refreshRef = useRef<((skipCache?: boolean) => Promise<void>) | null>(
     null,
   );
+
+  useCommitEffect(() => {
+    if (!enabled) {
+      setUnreadCount(0);
+      setIsLoading(false);
+      return;
+    }
+    if (displayedKeyRef.current !== cacheKey) {
+      setUnreadCount(0);
+      setIsLoading(true);
+    }
+  }, [enabled, cacheKey]);
 
   const refresh = useCallback(
     async (skipCache = false) => {
@@ -157,6 +180,7 @@ export function useUnreadCount({
         }
       }
 
+      let fetchKey = cacheKeyRef.current;
       try {
         isFetchingRef.current = true;
         // Drain any forced refresh that arrives while a fetch is in flight, so
@@ -166,11 +190,11 @@ export function useUnreadCount({
           // The key this iteration is fetching for. A tenant switch mid-flight
           // changes cacheKeyRef; the resolved count then belongs to the previous
           // tenant and must not be shown or cached under the new key.
-          const fetchKey = cacheKeyRef.current;
+          fetchKey = cacheKeyRef.current;
           const count = await fetcherRef.current();
           // The gate may have flipped off while this fetch was in flight; the
-          // effect already reset the count to 0, so a stale non-zero count here
-          // must NOT win (and must not be cached). Bail and let the reset stand.
+          // layout effect already reset the count to 0, so a stale non-zero count
+          // here must NOT win (and must not be cached).
           if (!enabledRef.current) return;
           // Tenant switched mid-flight (cacheKey changed): discard this stale
           // result and re-fetch for the new key, so the badge never retains the
@@ -185,7 +209,12 @@ export function useUnreadCount({
           if (fetchKey) writeCache(fetchKey, count);
         } while (pendingForceRef.current);
       } catch (error) {
-        onErrorRef.current?.(error);
+        // Do not report an error from a request that no longer belongs to the
+        // committed tenant/session. The reconciliation below retries the new
+        // tenant, while logout simply discards the rejected request.
+        if (enabledRef.current && cacheKeyRef.current === fetchKey) {
+          onErrorRef.current?.(error);
+        }
       } finally {
         isFetchingRef.current = false;
         pendingForceRef.current = false;
@@ -194,10 +223,8 @@ export function useUnreadCount({
         // switch's own refresh() return early on the in-flight guard above. On the
         // SUCCESS path the do-while re-loop already re-fetched for the new key; but
         // if this fetch FAILED (e.g. the JWT was re-scoped by the switch and the
-        // request 401'd), nothing else reconciles the badge and it would keep
-        // showing the previous tenant's count — the exact cross-tenant leak the
-        // displayedKeyRef logic exists to prevent. When the displayed count no
-        // longer belongs to the current tenant, clear it and re-fetch.
+        // request 401'd), nothing else reconciles the badge. Re-fetch for the
+        // current tenant when the displayed count still belongs to the old key.
         if (
           enabledRef.current &&
           displayedKeyRef.current !== cacheKeyRef.current
@@ -210,7 +237,7 @@ export function useUnreadCount({
     },
     [cacheKey, cacheKeyRef, enabled, enabledRef, fetcherRef, onErrorRef],
   );
-  useEffect(() => {
+  useCommitEffect(() => {
     refreshRef.current = refresh;
   }, [refresh]);
 
