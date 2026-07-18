@@ -43,7 +43,11 @@ vi.mock("~/components/ui/drawer", () => ({
     onOpenChange: (open: boolean) => void;
   }) => (
     <div data-testid="drawer" data-open={open}>
-      <button onClick={() => onOpenChange(false)} data-testid="drawer-close">
+      <button
+        type="button"
+        onClick={() => onOpenChange(false)}
+        data-testid="drawer-close"
+      >
         Close
       </button>
       {open && children}

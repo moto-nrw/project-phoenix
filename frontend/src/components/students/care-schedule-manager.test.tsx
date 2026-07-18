@@ -354,7 +354,7 @@ describe("CareScheduleManager", () => {
     expect(screen.getAllByText("Abholung:").length).toBeGreaterThan(0);
   });
 
-  it("reports the visible week range", async () => {
+  it("reports the newly visible week range when navigating", async () => {
     const onVisibleDateRangeChange = vi.fn();
 
     render(
@@ -365,10 +365,11 @@ describe("CareScheduleManager", () => {
       />,
     );
     await screen.findByText("Betreuungsplan");
+    fireEvent.click(screen.getAllByLabelText("Nächste Woche")[0]!);
 
     expect(onVisibleDateRangeChange).toHaveBeenCalledWith(
-      "2026-05-25",
-      "2026-05-29",
+      "2026-06-01",
+      "2026-06-05",
     );
   });
 

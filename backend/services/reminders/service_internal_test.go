@@ -363,6 +363,8 @@ func TestActivityReminders(t *testing.T) {
 		active := plannedInstance("Kochen", 1, 605, 700)
 		active.Status = scheduleModel.InstanceStatusActive
 		instances = append(instances, active)
+		instances[0].ID = 101
+		instances[1].ID = 102
 
 		svc := &service{Dependencies: Dependencies{Instance: fakeInstance{instances: instances}, Room: fakeRoom{}}}
 		out, _, err := svc.activityReminders(context.Background(), adminScope, nil, timezone.TodayDate(), nowMin, lead, overdueThreshold, true, true)
@@ -376,10 +378,14 @@ func TestActivityReminders(t *testing.T) {
 		require.Contains(t, byTitle, "Schach")
 		assert.Equal(t, TypeActivityStart, byTitle["Schach"].Type)
 		assert.Equal(t, 5, byTitle["Schach"].MinutesAway)
+		require.NotNil(t, byTitle["Schach"].ActivityInstanceID)
+		assert.Equal(t, "101", *byTitle["Schach"].ActivityInstanceID)
 		require.Contains(t, byTitle, "Fußball")
 		assert.Equal(t, TypeActivityOverdue, byTitle["Fußball"].Type)
 		assert.Equal(t, -10, byTitle["Fußball"].MinutesAway)
 		assert.Equal(t, "09:50", byTitle["Fußball"].DueTime)
+		require.NotNil(t, byTitle["Fußball"].ActivityInstanceID)
+		assert.Equal(t, "102", *byTitle["Fußball"].ActivityInstanceID)
 	})
 
 	t.Run("toggles gate each variant independently", func(t *testing.T) {
@@ -859,5 +865,5 @@ func TestPureHelpers(t *testing.T) {
 	assert.Equal(t, "00:00", formatMinutes(0))
 	assert.Equal(t, "09:55", formatMinutes(595))
 	assert.Equal(t, 605, minutesOfDay(wallClock(605)))
-	assert.Equal(t, "7", *studentIDString(7))
+	assert.Equal(t, "7", *int64String(7))
 }

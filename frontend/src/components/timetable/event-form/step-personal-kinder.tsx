@@ -426,9 +426,9 @@ export function StepPersonalKinder({
           <p className="sr-only" aria-live="polite">
             {`${conflictWarnings.length} Terminüberschneidungen und ${coverageWarningCount} Dienstplan-Lücken gefunden. Speichern ist weiterhin möglich.`}
           </p>
-          {conflictWarnings.map((warning, index) => (
+          {conflictWarnings.map((warning) => (
             <Alert
-              key={`${warning.kind}-${warning.resourceId}-${index}`}
+              key={`${warning.kind}-${warning.resourceId}-${warning.conflictingInstanceId}`}
               type="warning"
               message={`Hinweis: ${warning.message}`}
               announce="off"
@@ -441,9 +441,9 @@ export function StepPersonalKinder({
               announce="off"
             />
           )}
-          {coverageWarnings.slice(0, 3).map((warning, index) => (
+          {coverageWarnings.slice(0, 3).map((warning) => (
             <p
-              key={`shift-coverage-example-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${index}`}
+              key={`shift-coverage-example-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${warning.uncoveredEndTime}`}
               className="rounded-lg border border-[#EAB308]/20 bg-[#EAB308]/5 px-3 py-2 text-sm text-gray-700"
             >
               {warning.message}
@@ -455,9 +455,9 @@ export function StepPersonalKinder({
                 {coverageWarningCount - 3} weitere Lücken anzeigen
               </summary>
               <div className="mt-2 max-h-48 space-y-2 overflow-y-auto overscroll-contain pr-1">
-                {coverageWarnings.slice(3).map((warning, index) => (
+                {coverageWarnings.slice(3).map((warning) => (
                   <p
-                    key={`shift-coverage-detail-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${index}`}
+                    key={`shift-coverage-detail-${warning.staffId}-${warning.date}-${warning.uncoveredStartTime}-${warning.uncoveredEndTime}`}
                     className="border-t border-[#EAB308]/20 pt-2 first:border-t-0 first:pt-0"
                   >
                     {warning.message}

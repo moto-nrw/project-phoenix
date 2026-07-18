@@ -64,7 +64,7 @@ vi.mock("./header/session-warning", () => ({
 
 vi.mock("./header/profile-dropdown", () => ({
   ProfileTrigger: ({ onClick }: { onClick: () => void }) => (
-    <button data-testid="profile-trigger" onClick={onClick}>
+    <button type="button" data-testid="profile-trigger" onClick={onClick}>
       Profile
     </button>
   ),
@@ -79,10 +79,10 @@ vi.mock("./header/profile-dropdown", () => ({
   }) =>
     isOpen ? (
       <div data-testid="profile-dropdown">
-        <button data-testid="close-dropdown" onClick={onClose}>
+        <button type="button" data-testid="close-dropdown" onClick={onClose}>
           Close
         </button>
-        <button data-testid="logout-button" onClick={onLogout}>
+        <button type="button" data-testid="logout-button" onClick={onLogout}>
           Logout
         </button>
       </div>

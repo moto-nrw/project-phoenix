@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useCallback, useState, useRef, useId } from "react";
+import { useEffect, useCallback, useState, useId } from "react";
 import type { ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
 import { useModal } from "../dashboard/modal-context";
 import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
 import { dialogAriaProps } from "./modal";
+import { useLatest } from "~/lib/hooks/use-latest";
 
 interface FormModalProps {
   readonly isOpen: boolean;
@@ -35,10 +36,8 @@ export function FormModal({
   const { openModal, closeModal } = useModal();
 
   // Store functions in refs to avoid effect re-runs
-  const openModalRef = useRef(openModal);
-  const closeModalRef = useRef(closeModal);
-  openModalRef.current = openModal;
-  closeModalRef.current = closeModal;
+  const openModalRef = useLatest(openModal);
+  const closeModalRef = useLatest(closeModal);
 
   // Use scroll lock hook (handles overflow:hidden and event blocking)
   useScrollLock(isOpen);
@@ -65,15 +64,18 @@ export function FormModal({
   // Handle modal context state for blur overlay
   useEffect(() => {
     if (isOpen) {
-      openModalRef.current();
+      const openModal = openModalRef.current;
+      const closeModal = closeModalRef.current;
+      openModal();
       return () => {
-        closeModalRef.current();
+        closeModal();
       };
     }
-  }, [isOpen]);
+  }, [closeModalRef, isOpen, openModalRef]);
 
   // Close on escape key press and handle animations
   useEffect(() => {
+    let animationTimer: ReturnType<typeof setTimeout> | undefined;
     const handleEscKey = (event: KeyboardEvent) => {
       if (event.key === "Escape" && isOpen) {
         handleClose();
@@ -84,7 +86,7 @@ export function FormModal({
       document.addEventListener("keydown", handleEscKey);
       globalThis.dispatchEvent(new CustomEvent("mobile-modal-open"));
 
-      setTimeout(() => {
+      animationTimer = setTimeout(() => {
         setIsAnimating(true);
       }, 10);
     } else {
@@ -93,6 +95,7 @@ export function FormModal({
 
     return () => {
       document.removeEventListener("keydown", handleEscKey);
+      if (animationTimer) clearTimeout(animationTimer);
       if (!isOpen) {
         setIsAnimating(false);
         setIsExiting(false);
@@ -175,6 +178,7 @@ export function FormModal({
               </h3>
             )}
             <button
+              type="button"
               onClick={handleClose}
               className="group relative flex-shrink-0 rounded-xl p-2 text-gray-400 transition-all duration-200 hover:scale-105 hover:bg-gray-100 hover:text-gray-600 active:scale-95"
               aria-label="Modal schließen"

@@ -385,3 +385,117 @@ describe("useUnreadCount — concurrency guard", () => {
     await waitFor(() => expect(result.current.unreadCount).toBe(3));
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tenant/session isolation
+// ---------------------------------------------------------------------------
+
+describe("useUnreadCount — tenant/session isolation", () => {
+  it("discards an old tenant result and retries with the new tenant fetcher", async () => {
+    const oldKey = "unread:school-a";
+    const newKey = "unread:school-b";
+    localStorage.setItem(
+      oldKey,
+      JSON.stringify({ count: 4, timestamp: Date.now() }),
+    );
+
+    let resolveOld: (count: number) => void = () => undefined;
+    const oldFetcher = vi.fn(
+      () =>
+        new Promise<number>((resolve) => {
+          resolveOld = resolve;
+        }),
+    );
+    const newFetcher = vi.fn().mockResolvedValue(9);
+
+    const { result, rerender } = renderHook(
+      ({ cacheKey, fetcher }) =>
+        useUnreadCount({ enabled: true, cacheKey, fetcher }),
+      { initialProps: { cacheKey: oldKey, fetcher: oldFetcher } },
+    );
+
+    expect(result.current.unreadCount).toBe(4);
+    await waitFor(() => expect(oldFetcher).toHaveBeenCalledTimes(1));
+
+    rerender({ cacheKey: newKey, fetcher: newFetcher });
+
+    // The old tenant's cached count is cleared during the switch commit, before
+    // either request resolves.
+    expect(result.current.unreadCount).toBe(0);
+
+    resolveOld(7);
+
+    await waitFor(() => expect(result.current.unreadCount).toBe(9));
+    expect(oldFetcher).toHaveBeenCalledTimes(1);
+    expect(newFetcher).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(localStorage.getItem(oldKey)!).count).toBe(4);
+    expect(JSON.parse(localStorage.getItem(newKey)!).count).toBe(9);
+  });
+
+  it("retries the new tenant when the old tenant request rejects", async () => {
+    let rejectOld: (error: Error) => void = () => undefined;
+    const oldFetcher = vi.fn(
+      () =>
+        new Promise<number>((_resolve, reject) => {
+          rejectOld = reject;
+        }),
+    );
+    const newFetcher = vi.fn().mockResolvedValue(6);
+    const onError = vi.fn();
+
+    const { result, rerender } = renderHook(
+      ({ cacheKey, fetcher }) =>
+        useUnreadCount({ enabled: true, cacheKey, fetcher, onError }),
+      {
+        initialProps: {
+          cacheKey: "unread:school-a",
+          fetcher: oldFetcher,
+        },
+      },
+    );
+
+    await waitFor(() => expect(oldFetcher).toHaveBeenCalledTimes(1));
+    rerender({ cacheKey: "unread:school-b", fetcher: newFetcher });
+
+    rejectOld(new Error("old tenant request rejected"));
+
+    await waitFor(() => expect(result.current.unreadCount).toBe(6));
+    expect(newFetcher).toHaveBeenCalledTimes(1);
+    expect(onError).not.toHaveBeenCalled();
+  });
+
+  it("does not publish or cache an in-flight result after logout", async () => {
+    const cacheKey = "unread:logout";
+    let resolveAfterLogout: (count: number) => void = () => undefined;
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(5)
+      .mockImplementationOnce(
+        () =>
+          new Promise<number>((resolve) => {
+            resolveAfterLogout = resolve;
+          }),
+      );
+
+    const { result, rerender } = renderHook(
+      ({ enabled }) => useUnreadCount({ enabled, cacheKey, fetcher }),
+      { initialProps: { enabled: true } },
+    );
+
+    await waitFor(() => expect(result.current.unreadCount).toBe(5));
+    act(() => {
+      void result.current.refresh(true);
+    });
+    await waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2));
+
+    rerender({ enabled: false });
+    expect(result.current.unreadCount).toBe(0);
+    expect(result.current.isLoading).toBe(false);
+
+    resolveAfterLogout(12);
+
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+    expect(result.current.unreadCount).toBe(0);
+    expect(JSON.parse(localStorage.getItem(cacheKey)!).count).toBe(5);
+  });
+});

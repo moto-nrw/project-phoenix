@@ -665,6 +665,7 @@ function summarizeChangeRequests(rows: AdminEnrollmentChangeRequest[]) {
 
 function formatDateTime(value: string): string {
   return new Date(value).toLocaleString("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

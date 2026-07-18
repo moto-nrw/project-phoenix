@@ -14,7 +14,7 @@ const optionalString = z.preprocess(
 );
 
 export const serverEnvSchema = {
-  API_URL: z.string().url(),
+  API_URL: z.url(),
   AUTH_JWT_EXPIRY: z.string().min(1),
   AUTH_JWT_REFRESH_EXPIRY: z.string().min(1),
   NODE_ENV: z

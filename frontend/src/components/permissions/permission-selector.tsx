@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useLatest } from "~/lib/hooks/use-latest";
 
 // Resource definitions with German labels
 const RESOURCES = [
@@ -89,8 +90,7 @@ export function PermissionSelector({
   const [action, setAction] = useState(value?.action ?? "");
 
   // Use ref to store onChange to avoid dependency issues
-  const onChangeRef = useRef(onChange);
-  onChangeRef.current = onChange;
+  const onChangeRef = useLatest(onChange);
 
   // Track if we're syncing from external value to prevent loops
   const isSyncingRef = useRef(false);
@@ -145,7 +145,7 @@ export function PermissionSelector({
         onChangeRef.current({ resource, action: newAction });
       }
     },
-    [resource],
+    [onChangeRef, resource],
   );
 
   // Also notify when resource changes and action is already set
@@ -153,7 +153,7 @@ export function PermissionSelector({
     if (resource && action && !isSyncingRef.current) {
       onChangeRef.current({ resource, action });
     }
-  }, [resource, action]);
+  }, [resource, action, onChangeRef]);
 
   const baseSelectClasses =
     "w-full rounded-lg border border-gray-300 px-3 py-2 text-sm transition-all duration-200 focus:ring-2 focus:ring-pink-500 focus:outline-none appearance-none pr-10";

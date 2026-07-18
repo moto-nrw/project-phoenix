@@ -173,6 +173,7 @@ export const devicesConfig = defineEntityConfig<Device>({
                 <div className="space-y-2">
                   <div className="flex items-center space-x-2">
                     <input
+                      aria-label={`API-Schlüssel für ${device.name}`}
                       type="password"
                       value={device.api_key}
                       readOnly
@@ -181,6 +182,7 @@ export const devicesConfig = defineEntityConfig<Device>({
                       onClick={(e) => (e.target as HTMLInputElement).select()}
                     />
                     <button
+                      type="button"
                       onClick={(e) => {
                         const input = document.getElementById(
                           `api-key-${device.id}`,
@@ -200,6 +202,7 @@ export const devicesConfig = defineEntityConfig<Device>({
                       Anzeigen
                     </button>
                     <button
+                      type="button"
                       onClick={(e) => {
                         void navigator.clipboard.writeText(device.api_key!);
                         // Simple feedback - could be enhanced with toast

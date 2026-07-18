@@ -5,6 +5,32 @@
 /** Matches a date-only string ("YYYY-MM-DD") as emitted for DATE columns. */
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
+const BERLIN_DATE_PARTS_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Europe/Berlin",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+const CHAT_DAY_MONTH_FORMATTER = new Intl.DateTimeFormat("de-DE", {
+  day: "2-digit",
+  month: "2-digit",
+  timeZone: "Europe/Berlin",
+});
+
+const CHAT_DATE_FORMATTER = new Intl.DateTimeFormat("de-DE", {
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  timeZone: "Europe/Berlin",
+});
+
+const CHAT_TIME_FORMATTER = new Intl.DateTimeFormat("de-DE", {
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: "Europe/Berlin",
+});
+
 /**
  * Serialize a Date to "YYYY-MM-DD" using LOCAL calendar fields.
  * NEVER derive it from toISOString() via split("T")[0] / slice(0, 10) —
@@ -57,12 +83,7 @@ export function todayISO(): string {
  * lint stays satisfied.
  */
 export function berlinTodayISO(): string {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: "Europe/Berlin",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
+  const parts = BERLIN_DATE_PARTS_FORMATTER.formatToParts(new Date());
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
@@ -148,32 +169,29 @@ export function formatTime(dateString: string): string {
  * Compact chat timestamp ("12.03., 14:30") for message bubbles — day/month plus
  * time, no year. Single source for the parent-OGS chat bubbles (chat-bubble,
  * ogs-conversation). Invalid ISO falls back to the raw input rather than
- * throwing, so a malformed timestamp never blanks a whole message list. The clock
- * portion reuses formatTime so the hour cycle / locale can never drift from the
- * rest of the app (the day/month part has no shared helper, hence the inline
- * formatter).
+ * throwing, so a malformed timestamp never blanks a whole message list. Both
+ * portions use the school timezone so the calendar date and clock cannot
+ * disagree for guardians viewing from another timezone.
  */
 export function formatChatTime(iso: string): string {
   const date = new Date(iso);
-  if (isNaN(date.getTime())) return iso;
-  const dayMonth = new Intl.DateTimeFormat("de-DE", {
-    day: "2-digit",
-    month: "2-digit",
-  }).format(date);
-  return `${dayMonth}, ${formatTime(iso)}`;
+  if (Number.isNaN(date.getTime())) return iso;
+  const dayMonth = CHAT_DAY_MONTH_FORMATTER.format(date);
+  return `${dayMonth}, ${CHAT_TIME_FORMATTER.format(date)}`;
 }
 
 /**
  * Full chat timestamp with year ("12.03.2026, 14:30") for the message list and
  * thread headers. Returns "" for missing input; invalid ISO falls back to the
  * raw input. Single source for the staff inbox/thread pages and the parents
- * messages list. Composes the existing date + time formatters rather than
- * spinning up a third Intl path that could drift from the rest of the app.
+ * messages list. Both portions use the school timezone so full and compact
+ * chat timestamps cannot disagree for viewers outside Europe/Berlin.
  */
 export function formatChatDateTime(iso: string | undefined): string {
   if (!iso) return "";
-  if (isNaN(new Date(iso).getTime())) return iso;
-  return `${formatDate(iso)}, ${formatTime(iso)}`;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return iso;
+  return `${CHAT_DATE_FORMATTER.format(date)}, ${CHAT_TIME_FORMATTER.format(date)}`;
 }
 
 /**

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -32,9 +32,19 @@ import { createLogger } from "~/lib/logger";
 const logger = createLogger({ component: "DatabasePermissionsPage" });
 
 export default function PermissionsPage() {
+  return (
+    <Suspense fallback={null}>
+      <PermissionsPageContent />
+    </Suspense>
+  );
+}
+
+function PermissionsPageContent() {
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 
+  // The query value only selects an already-loaded row; it never authorizes or
+  // pre-fills a permission mutation.
   const selectedId = searchParams.get("permission");
   const [searchTerm, setSearchTerm] = useState("");
   const isMobile = useIsMobile();

@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import {
   useCallback,
   useEffect,
+  useId,
   useMemo,
   useRef,
   useState,
@@ -34,7 +35,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useToast } from "~/contexts/ToastContext";
-import { ConfirmationModal } from "~/components/ui/modal";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
 import { FormModal } from "~/components/ui/form-modal";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -69,6 +70,10 @@ import {
 import { listPhases, type Phase } from "~/lib/enrollment-phase-api";
 import { createLogger } from "~/lib/logger";
 import { useTenantSlugSafe } from "~/lib/tenant-context";
+import {
+  copyStableObjectKey,
+  getStableObjectKey,
+} from "~/lib/stable-object-key";
 
 const logger = createLogger({ component: "EnrollmentFormEditor" });
 
@@ -398,11 +403,9 @@ export function EnrollmentFormEditor() {
 
   const setDraftDocumentURLs = useCallback(
     (updater: (urls: Set<string>) => Set<string>) => {
-      setUploadedDraftDocumentURLs((urls) => {
-        const next = updater(new Set(urls));
-        uploadedDraftDocumentURLsRef.current = next;
-        return next;
-      });
+      const next = updater(new Set(uploadedDraftDocumentURLsRef.current));
+      uploadedDraftDocumentURLsRef.current = next;
+      setUploadedDraftDocumentURLs(next);
     },
     [],
   );
@@ -581,7 +584,11 @@ export function EnrollmentFormEditor() {
 
   const updateField = (index: number, patch: Partial<FormField>) => {
     setFields((prev) =>
-      prev.map((f, i) => (i === index ? { ...f, ...patch } : f)),
+      prev.map((field, i) =>
+        i === index
+          ? copyStableObjectKey(field, { ...field, ...patch })
+          : field,
+      ),
     );
   };
 
@@ -611,7 +618,9 @@ export function EnrollmentFormEditor() {
     setFields((prev) =>
       prev
         .filter((_, i) => i !== index)
-        .map((f, i) => ({ ...f, sort_order: i })),
+        .map((field, i) =>
+          copyStableObjectKey(field, { ...field, sort_order: i }),
+        ),
     );
   };
 
@@ -623,7 +632,9 @@ export function EnrollmentFormEditor() {
       const tmp = next[index];
       next[index] = next[target]!;
       next[target] = tmp!;
-      return next.map((f, i) => ({ ...f, sort_order: i }));
+      return next.map((field, i) =>
+        copyStableObjectKey(field, { ...field, sort_order: i }),
+      );
     });
   };
 
@@ -1037,7 +1048,7 @@ export function EnrollmentFormEditor() {
                 <div className="space-y-3">
                   {fields.map((field, index) => (
                     <FieldEditorRow
-                      key={`custom-field-${index}`}
+                      key={getStableObjectKey(field, "custom-field")}
                       field={field}
                       index={index}
                       total={fields.length}
@@ -1956,94 +1967,68 @@ function UnsavedChangesDialog({
   onDiscard: () => void;
   onSave: () => void;
 }>) {
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
-  useEffect(() => {
-    if (!pendingNavigation) return;
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") onCancel();
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
-  }, [onCancel, pendingNavigation]);
-
-  if (!mounted || !pendingNavigation) return null;
+  if (!pendingNavigation) return null;
 
   const isPreview = pendingNavigation === "preview";
-  const dialog = (
-    <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-gray-950/35 p-4 backdrop-blur-sm"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onCancel();
-      }}
-    >
-      <section
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="unsaved-form-dialog-title"
-        className="moto-content-surface w-full max-w-lg rounded-2xl border p-5 shadow-xl"
+  const footer = (
+    <>
+      <button
+        type="button"
+        onClick={onCancel}
+        disabled={saving}
+        className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
       >
-        <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
-          Ungespeicherte Änderungen
-        </p>
-        <h2
-          id="unsaved-form-dialog-title"
-          className="mt-1 text-lg font-semibold text-gray-900"
+        Abbrechen
+      </button>
+      {!isPreview ? (
+        <button
+          type="button"
+          onClick={onDiscard}
+          disabled={saving}
+          className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         >
-          Änderungen speichern?
-        </h2>
-        <p className="mt-2 text-sm leading-6 text-gray-600">
-          {isPreview
-            ? "Für die externe Vorschau muss die Vorlage zuerst gespeichert werden."
-            : "Du hast Änderungen an dieser Vorlage. Speichere sie, bevor du den Bereich verlässt, oder verwirf sie bewusst."}
-        </p>
-        {saveBlockedMessage ? (
-          <div className="mt-4 rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm font-medium text-[#9F1F1E]">
-            {saveBlockedMessage}
-          </div>
-        ) : null}
-        <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={saving}
-            className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Abbrechen
-          </button>
-          {!isPreview ? (
-            <button
-              type="button"
-              onClick={onDiscard}
-              disabled={saving}
-              className="inline-flex h-9 items-center justify-center rounded-lg border border-gray-300 bg-white px-3 text-sm font-medium text-gray-700 shadow-sm transition-colors hover:bg-gray-50 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Verwerfen
-            </button>
-          ) : null}
-          <button
-            type="button"
-            onClick={onSave}
-            disabled={saving || Boolean(saveBlockedMessage)}
-            className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {saving
-              ? "Speichert..."
-              : isPreview
-                ? "Speichern und Vorschau öffnen"
-                : "Speichern und fortfahren"}
-          </button>
-        </div>
-      </section>
-    </div>
+          Verwerfen
+        </button>
+      ) : null}
+      <button
+        type="button"
+        onClick={onSave}
+        disabled={saving || Boolean(saveBlockedMessage)}
+        className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-900 px-3 text-sm font-medium text-white shadow-sm transition-colors hover:bg-gray-700 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        {saving
+          ? "Speichert..."
+          : isPreview
+            ? "Speichern und Vorschau öffnen"
+            : "Speichern und fortfahren"}
+      </button>
+    </>
   );
 
-  return createPortal(dialog, document.body);
+  return (
+    <Modal
+      isOpen
+      onClose={onCancel}
+      title="Änderungen speichern?"
+      widthClass="mx-4 w-[calc(100%-2rem)] max-w-lg"
+      isDismissDisabled={saving}
+      footer={footer}
+    >
+      <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase">
+        Ungespeicherte Änderungen
+      </p>
+      <p className="mt-2 text-sm leading-6 text-gray-600">
+        {isPreview
+          ? "Für die externe Vorschau muss die Vorlage zuerst gespeichert werden."
+          : "Du hast Änderungen an dieser Vorlage. Speichere sie, bevor du den Bereich verlässt, oder verwirf sie bewusst."}
+      </p>
+      {saveBlockedMessage ? (
+        <div className="mt-4 rounded-lg border border-[#FF3130]/20 bg-[#FF3130]/10 px-3 py-2 text-sm font-medium text-[#9F1F1E]">
+          {saveBlockedMessage}
+        </div>
+      ) : null}
+    </Modal>
+  );
 }
 
 function FormBuilderIntro() {
@@ -2162,7 +2147,9 @@ function BuilderTemplateSummary({
       {currentSchema ? (
         <div className="mt-4 flex flex-wrap gap-2 text-xs text-gray-600">
           <span className="rounded-full bg-gray-100 px-2.5 py-1 font-medium text-gray-700">
-            {new Date(currentSchema.created_at).toLocaleString("de-DE")}
+            {new Date(currentSchema.created_at).toLocaleString("de-DE", {
+              timeZone: "Europe/Berlin",
+            })}
           </span>
         </div>
       ) : null}
@@ -3131,6 +3118,22 @@ interface FieldEditorRowProps {
   readonly disabled: boolean;
 }
 
+interface AllowedTimeRow {
+  readonly id: string;
+  readonly value: string;
+}
+
+function createAllowedTimeRows(
+  values: readonly string[],
+  idPrefix: string,
+  sequence: { current: number },
+): AllowedTimeRow[] {
+  return values.map((value) => {
+    sequence.current += 1;
+    return { id: `${idPrefix}-${sequence.current}`, value };
+  });
+}
+
 function FieldEditorRow({
   field,
   index,
@@ -3142,6 +3145,8 @@ function FieldEditorRow({
   onMoveDown,
   disabled,
 }: FieldEditorRowProps) {
+  const allowedTimeIdPrefix = useId();
+  const allowedTimeSequence = useRef(0);
   const target = field.target || null;
   const isTargetField = target !== null;
   const isInfo = field.type === "information";
@@ -3178,8 +3183,13 @@ function FieldEditorRow({
   // time picker. Kept separate from field.allowed_times so a half-filled
   // (empty) row can stay on screen while the admin picks a time; only the
   // trimmed, de-duplicated, non-empty values are pushed up to the field.
-  const [allowedTimesRows, setAllowedTimesRows] = useState<string[]>(
-    () => field.allowed_times ?? [],
+  const [allowedTimesRows, setAllowedTimesRows] = useState<AllowedTimeRow[]>(
+    () =>
+      createAllowedTimeRows(
+        field.allowed_times ?? [],
+        allowedTimeIdPrefix,
+        allowedTimeSequence,
+      ),
   );
   // Signature of the allowed_times we last pushed up via onChange. Used to
   // tell an *external* change (a schema/template switch reusing this row at
@@ -3197,15 +3207,21 @@ function FieldEditorRow({
     const incomingSig = incoming.join("\n");
     if (incomingSig !== lastCommittedSig.current) {
       lastCommittedSig.current = incomingSig;
-      setAllowedTimesRows(incoming);
+      setAllowedTimesRows(
+        createAllowedTimeRows(
+          incoming,
+          allowedTimeIdPrefix,
+          allowedTimeSequence,
+        ),
+      );
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [field.key, field.type, field.allowed_times]);
 
-  const commitAllowedTimes = (rows: string[]) => {
+  const commitAllowedTimes = (rows: AllowedTimeRow[]) => {
     setAllowedTimesRows(rows);
     const allowed_times = Array.from(
-      new Set(rows.map((time) => time.trim()).filter(Boolean)),
+      new Set(rows.map((row) => row.value.trim()).filter(Boolean)),
     );
     lastCommittedSig.current = allowed_times.join("\n");
     onChange({ allowed_times });
@@ -3213,11 +3229,20 @@ function FieldEditorRow({
 
   const updateAllowedTime = (index: number, value: string) => {
     const rows = [...allowedTimesRows];
-    rows[index] = value;
+    const row = rows[index];
+    if (!row) return;
+    rows[index] = { ...row, value };
     commitAllowedTimes(rows);
   };
 
-  const addAllowedTime = () => commitAllowedTimes([...allowedTimesRows, ""]);
+  const addAllowedTime = () => {
+    const [row] = createAllowedTimeRows(
+      [""],
+      allowedTimeIdPrefix,
+      allowedTimeSequence,
+    );
+    if (row) commitAllowedTimes([...allowedTimesRows, row]);
+  };
 
   const removeAllowedTime = (index: number) =>
     commitAllowedTimes(allowedTimesRows.filter((_, i) => i !== index));
@@ -3478,11 +3503,11 @@ function FieldEditorRow({
                   </button>
                   {allowedTimesRows.length > 0 ? (
                     <ul className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      {allowedTimesRows.map((time, index) => (
-                        <li key={index} className="flex items-center gap-2">
+                      {allowedTimesRows.map((row, index) => (
+                        <li key={row.id} className="flex items-center gap-2">
                           <input
                             type="time"
-                            value={time}
+                            value={row.value}
                             onChange={(event) =>
                               updateAllowedTime(index, event.target.value)
                             }
@@ -4108,9 +4133,9 @@ function FormPreview({
               </div>
             ) : (
               <div className="space-y-3">
-                {fields.map((field, index) => (
+                {fields.map((field) => (
                   <PreviewCustomField
-                    key={`${field.key || "preview"}-${index}`}
+                    key={getStableObjectKey(field, "preview-field")}
                     field={field}
                   />
                 ))}
@@ -4816,6 +4841,7 @@ function getSchemaDraftValidationMessage({
 
 function formatSchemaDate(value: string): string {
   return new Date(value).toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",

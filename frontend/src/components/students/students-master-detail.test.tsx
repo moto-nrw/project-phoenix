@@ -77,6 +77,7 @@ vi.mock("~/components/database/detail-panel", () => ({
       <div>
         {props.tabs.map((tab) => (
           <button
+            type="button"
             key={tab.id}
             data-testid={`tab-trigger-${tab.id}`}
             onClick={() => props.onTabChange(tab.id)}

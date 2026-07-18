@@ -216,7 +216,7 @@ describe("Modal", () => {
           isOpen={true}
           onClose={vi.fn()}
           title="Test"
-          footer={<button>Footer Button</button>}
+          footer={<button type="button">Footer Button</button>}
         >
           <p>Content</p>
         </Modal>
@@ -230,6 +230,40 @@ describe("Modal", () => {
     expect(
       screen.getByRole("button", { name: "Footer Button" }),
     ).toBeInTheDocument();
+  });
+
+  it("bounds the whole dialog to the viewport and scrolls only the content", async () => {
+    render(
+      <TestWrapper>
+        <Modal
+          isOpen={true}
+          onClose={vi.fn()}
+          title="Scrollable modal"
+          footer={<button type="button">Footer Button</button>}
+        >
+          <div>Long content</div>
+        </Modal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Scrollable modal" });
+    const content = document.querySelector('[data-modal-content="true"]');
+
+    expect(dialog).toHaveClass("flex", "max-h-[calc(100dvh-2rem)]");
+    expect(content).toHaveClass(
+      "min-h-0",
+      "flex-1",
+      "overflow-y-auto",
+      "overscroll-contain",
+    );
+    expect(screen.getByRole("heading").parentElement).toHaveClass("shrink-0");
+    expect(
+      screen.getByRole("button", { name: "Footer Button" }).parentElement,
+    ).toHaveClass("shrink-0");
   });
 
   it("should have data-modal-content attribute for scroll lock", async () => {

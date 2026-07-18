@@ -403,6 +403,7 @@ function FieldGroup({
 function formatLongDate(isoDate: string): string {
   if (isoDate === "") return "";
   return parseISODate(isoDate).toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
     weekday: "long",
     day: "2-digit",
     month: "long",

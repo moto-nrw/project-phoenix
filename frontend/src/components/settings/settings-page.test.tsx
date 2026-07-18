@@ -182,7 +182,9 @@ function HookWrapper({
   readonly onResult: (r: TabsResult | null) => void;
 }) {
   const result = useSettingsTabs();
-  onResult(result);
+  useEffect(() => {
+    onResult(result);
+  }, [onResult, result]);
   return null;
 }
 

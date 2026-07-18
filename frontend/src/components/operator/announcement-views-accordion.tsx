@@ -118,6 +118,7 @@ export function AnnouncementViewsAccordion({
                             dateTime={detail.seenAt}
                             title={new Date(detail.seenAt).toLocaleString(
                               "de-DE",
+                              { timeZone: "Europe/Berlin" },
                             )}
                             className="text-xs text-gray-400"
                           >

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
+import { useLatest } from "~/lib/hooks/use-latest";
 
 /**
  * Subscribe to a messaging window event (the app-wide `messages-activity`
@@ -81,8 +82,7 @@ export function useMessagesActivity({
    */
   refetchOnFocus?: boolean;
 }): void {
-  const onMatchRef = useRef(onMatch);
-  onMatchRef.current = onMatch;
+  const onMatchRef = useLatest(onMatch);
 
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -154,5 +154,13 @@ export function useMessagesActivity({
       if (refetchOnFocus) window.removeEventListener("focus", onFocus);
       if (timer) clearTimeout(timer);
     };
-  }, [threadId, studentId, debounceMs, eventName, marksRead, refetchOnFocus]);
+  }, [
+    threadId,
+    studentId,
+    debounceMs,
+    eventName,
+    marksRead,
+    refetchOnFocus,
+    onMatchRef,
+  ]);
 }

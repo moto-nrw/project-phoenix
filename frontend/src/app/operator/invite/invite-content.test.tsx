@@ -2,12 +2,14 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
-const { mockValidate, mockAccept } = vi.hoisted(() => ({
+const { mockEstablish, mockValidate, mockAccept } = vi.hoisted(() => ({
+  mockEstablish: vi.fn(),
   mockValidate: vi.fn(),
   mockAccept: vi.fn(),
 }));
 
 vi.mock("~/lib/operator/operator-invitation-api", () => ({
+  establishOperatorInvitationSession: mockEstablish,
   validateOperatorInvitation: mockValidate,
   acceptOperatorInvitation: mockAccept,
 }));
@@ -23,11 +25,15 @@ function setQueryToken(token: string) {
   window.history.pushState({}, "", `/operator/invite?token=${token}`);
 }
 
+function setQueryFlow(flowID: string) {
+  window.history.pushState({}, "", `/operator/invite?flow=${flowID}`);
+}
+
 describe("InviteContent", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    // Reset sessionStorage
-    sessionStorage.clear();
+    mockEstablish.mockResolvedValue("flow-123");
+    mockValidate.mockRejectedValue(new Error("Kein Token angegeben."));
     // Reset URL (strips any leftover ?token=... from a prior test)
     window.history.pushState({}, "", "/operator/invite");
   });
@@ -38,7 +44,9 @@ describe("InviteContent", () => {
     await waitFor(() => {
       expect(screen.getByText("Einladung ungültig")).toBeInTheDocument();
     });
-    expect(screen.getByText("Kein Token angegeben.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Kein Einladungsvorgang angegeben."),
+    ).toBeInTheDocument();
   });
 
   it("validates token from URL query and shows form", async () => {
@@ -55,7 +63,9 @@ describe("InviteContent", () => {
       expect(screen.getByText("Operator-Konto erstellen")).toBeInTheDocument();
     });
     expect(screen.getByText(/invited@example.com/)).toBeInTheDocument();
-    expect(mockValidate).toHaveBeenCalledWith("valid-token-123");
+    expect(mockEstablish).toHaveBeenCalledWith("valid-token-123");
+    expect(mockValidate).toHaveBeenCalledWith("flow-123");
+    expect(window.location.search).toBe("?flow=flow-123");
   });
 
   it("pre-fills display name from invitation", async () => {
@@ -75,8 +85,8 @@ describe("InviteContent", () => {
     expect(input.value).toBe("Pre-filled Name");
   });
 
-  it("falls back to sessionStorage token", async () => {
-    sessionStorage.setItem("operator_invite_token", "session-token");
+  it("reuses the HttpOnly invitation session when the URL has no token", async () => {
+    setQueryFlow("existing-flow");
     mockValidate.mockResolvedValue({
       email: "session@example.com",
       expiresAt: "2026-04-06T00:00:00Z",
@@ -87,7 +97,8 @@ describe("InviteContent", () => {
     await waitFor(() => {
       expect(screen.getByText("Operator-Konto erstellen")).toBeInTheDocument();
     });
-    expect(mockValidate).toHaveBeenCalledWith("session-token");
+    expect(mockEstablish).not.toHaveBeenCalled();
+    expect(mockValidate).toHaveBeenCalledWith("existing-flow");
   });
 
   it("shows error state when validation fails", async () => {
@@ -185,11 +196,12 @@ describe("InviteContent", () => {
     await waitFor(() => {
       expect(screen.getByText("Konto erstellt")).toBeInTheDocument();
     });
-    expect(mockAccept).toHaveBeenCalledWith("valid-token", {
+    expect(mockAccept).toHaveBeenCalledWith("flow-123", {
       displayName: "New Operator",
       password: "Str0ng!Pass",
       confirmPassword: "Str0ng!Pass",
     });
+    expect(window.location.search).toBe("");
   });
 
   it("shows form error when accept fails", async () => {

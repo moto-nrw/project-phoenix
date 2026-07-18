@@ -59,8 +59,12 @@ vi.mock("~/components/ui/modal", () => ({
     isOpen ? (
       <div data-testid="confirmation-modal">
         {children}
-        <button onClick={onConfirm}>Confirm</button>
-        <button onClick={onClose}>Cancel</button>
+        <button type="button" onClick={onConfirm}>
+          Confirm
+        </button>
+        <button type="button" onClick={onClose}>
+          Cancel
+        </button>
       </div>
     ) : null,
 }));

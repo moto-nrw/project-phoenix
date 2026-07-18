@@ -294,6 +294,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 		assert.Equal(t, 1, bauraum.StudentCount)
 
 		require.Len(t, payload.RunningActivities, 1)
+		assert.Equal(t, fmt.Sprintf("%d", activeGroup.ID), payload.RunningActivities[0].ID)
 		assert.Equal(t, activityGroup.Name, payload.RunningActivities[0].Name)
 		assert.Equal(t, room.Name, payload.RunningActivities[0].RoomName)
 		assert.Equal(t, 1, payload.RunningActivities[0].Participants)
@@ -339,6 +340,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 		var payload displayService.DashboardPayload
 		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &payload))
 		require.Len(t, payload.UpcomingActivities, 1, "past instance must be filtered: %s", rec.Body.String())
+		assert.Equal(t, fmt.Sprintf("%d", instances[0].ID), payload.UpcomingActivities[0].ID)
 		assert.Equal(t, "Hausaufgaben", payload.UpcomingActivities[0].Name)
 		assert.Equal(t, future.In(timezone.Berlin).Format("15:04"), payload.UpcomingActivities[0].StartTime)
 	})

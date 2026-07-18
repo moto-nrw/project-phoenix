@@ -60,6 +60,7 @@ type RoomOccupancy struct {
 
 // RunningActivity is one currently running activity session.
 type RunningActivity struct {
+	ID           string `json:"id"`
 	Name         string `json:"name"`
 	Category     string `json:"category"`
 	RoomName     string `json:"room_name"`
@@ -69,6 +70,7 @@ type RunningActivity struct {
 
 // UpcomingActivity is one planned activity instance later today.
 type UpcomingActivity struct {
+	ID        string `json:"id"`
 	Name      string `json:"name"`
 	Category  string `json:"category"`
 	StartTime string `json:"start_time"` // HH:MM wall clock

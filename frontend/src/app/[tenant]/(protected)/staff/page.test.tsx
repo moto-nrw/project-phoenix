@@ -48,12 +48,17 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
         onChange={(e) => search.onChange(e.target.value)}
       />
       <button
+        type="button"
         data-testid="filter-im-raum"
         onClick={() => filters?.[0]?.onChange("im_raum")}
       >
         Im Raum
       </button>
-      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+      <button
+        type="button"
+        data-testid="clear-filters"
+        onClick={onClearAllFilters}
+      >
         Clear
       </button>
     </div>

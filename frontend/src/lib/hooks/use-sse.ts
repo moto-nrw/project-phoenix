@@ -65,6 +65,9 @@ export function useSSE(
     [onError],
   );
 
+  // connect() stores every EventSource in eventSourceRef; the cleanup below
+  // closes that ref and clears the reconnect timer. The scanner cannot follow
+  // the nested connection factory to its cleanup.
   useEffect(() => {
     if (!enabled) {
       setIsConnected(false);

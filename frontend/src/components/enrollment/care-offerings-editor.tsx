@@ -39,6 +39,10 @@ import { isSupportedGradeLevelMax } from "~/lib/grade-level";
 import { useTenant } from "~/lib/tenant-context";
 import { useToast } from "~/contexts/ToastContext";
 import {
+  copyStableObjectKey,
+  getStableObjectKey,
+} from "~/lib/stable-object-key";
+import {
   DataTable,
   DataTableStatusBadge,
   type DataTableColumn,
@@ -77,6 +81,11 @@ const ISO_WEEKDAY_LABELS: Record<number, string> = {
   6: "Sa",
   7: "So",
 };
+
+const EURO_PRICE_FORMATTER = new Intl.NumberFormat("de-DE", {
+  style: "currency",
+  currency: "EUR",
+});
 
 const KIND_LABELS: Record<Phase["kind"], string> = {
   school_year: "Schuljahr",
@@ -155,10 +164,7 @@ function offeringToInput(offering: CareOffering): CareOfferingInput {
 
 function formatPrice(cents?: number | null): string {
   if (cents == null) return "Ohne Preis";
-  return new Intl.NumberFormat("de-DE", {
-    style: "currency",
-    currency: "EUR",
-  }).format(cents / 100);
+  return EURO_PRICE_FORMATTER.format(cents / 100);
 }
 
 function formatDays(days: string[]): string {
@@ -1682,7 +1688,9 @@ function CareOfferingAvailabilityFields({
       availability_rule: {
         ...rule,
         conditions: rule.conditions.map((condition, conditionIndex) =>
-          conditionIndex === index ? { ...condition, ...patch } : condition,
+          conditionIndex === index
+            ? copyStableObjectKey(condition, { ...condition, ...patch })
+            : condition,
         ),
       },
     });
@@ -1760,7 +1768,7 @@ function CareOfferingAvailabilityFields({
           ) : null}
           {rule.conditions.map((condition, index) => (
             <div
-              key={`${condition.source}-${index}`}
+              key={getStableObjectKey(condition, "availability-condition")}
               className="rounded-lg border border-gray-200 bg-gray-50/70 p-3"
             >
               <div className="flex items-center justify-between gap-2">

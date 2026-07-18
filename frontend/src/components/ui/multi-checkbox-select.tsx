@@ -75,14 +75,11 @@ export function MultiCheckboxSelect({
           ? selectedOptions[0]?.label
           : multipleLabel(selectedOptions.length);
 
-  useClickOutside(
-    containerRef,
-    () => {
-      setOpen(false);
-      setSearchTerm("");
-    },
-    open,
-  );
+  const closeMenu = useCallback(() => {
+    setOpen(false);
+    setSearchTerm("");
+  }, []);
+  useClickOutside(containerRef, closeMenu, open);
 
   const toggleValue = useCallback(
     (optionValue: string) => {
@@ -122,11 +119,9 @@ export function MultiCheckboxSelect({
   }, [onChange, value, selectableVisible]);
 
   const toggleOpen = useCallback(() => {
-    setOpen((current) => {
-      if (current) setSearchTerm("");
-      return !current;
-    });
-  }, []);
+    if (open) setSearchTerm("");
+    setOpen(!open);
+  }, [open]);
 
   return (
     <div ref={containerRef} className="relative">
@@ -201,8 +196,6 @@ export function MultiCheckboxSelect({
           {visibleOptions.map((option) => (
             <label
               key={option.value}
-              role="menuitemcheckbox"
-              aria-checked={selectedValues.has(option.value)}
               className={cn(
                 "flex w-full cursor-pointer items-start gap-3 px-4 py-2.5 text-left text-sm text-gray-700 transition-colors hover:bg-gray-50",
                 option.disabled

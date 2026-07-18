@@ -10,7 +10,11 @@ vi.mock("./master-detail-skeleton", () => ({
 }));
 
 vi.mock("~/components/ui/mobile-back-button", () => ({
-  MobileBackButton: () => <button data-testid="mobile-back">Back</button>,
+  MobileBackButton: () => (
+    <button type="button" data-testid="mobile-back">
+      Back
+    </button>
+  ),
 }));
 
 describe("DatabasePageLayout", () => {

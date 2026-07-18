@@ -591,6 +591,7 @@ describe("Schulhof tab onTabChange callback", () => {
         <div data-testid="page-header">
           {tabs?.items.map((tab) => (
             <button
+              type="button"
               key={tab.id}
               data-testid={`tab-${tab.id}`}
               data-active={tab.id === tabs.activeTab}

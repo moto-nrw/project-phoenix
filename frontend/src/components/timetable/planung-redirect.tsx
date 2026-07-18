@@ -12,8 +12,7 @@
  * Redirect-Schleife endet.
  */
 
-import { useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { redirect, useSearchParams } from "next/navigation";
 
 import {
   berlinTodayISO,
@@ -22,7 +21,7 @@ import {
   toISODate,
 } from "~/lib/date-helpers";
 import { getWeekRange } from "~/lib/timetable-helpers";
-import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 export type PlanungRedirectTarget =
   "betreuungsplan" | "dienstplan" | "vertretung";
@@ -140,15 +139,12 @@ export function PlanungRedirect({
   /** Fixed target for the old stubs; omitted on /planung (derived from ?tab=). */
   target?: PlanungRedirectTarget;
 }) {
-  const router = useTenantRouter();
   const searchParams = useSearchParams();
-
-  useEffect(() => {
-    const params = new URLSearchParams(searchParams.toString());
-    // Berlin-Kalendertag (docs/07 §1), damit der `d`-Anker mit dem
-    // serverseitigen timezone.TodayDate() übereinstimmt.
-    router.replace(resolvePlanungRedirect(params, berlinTodayISO(), target));
-  }, [router, searchParams, target]);
-
-  return null;
+  const tenantPath = useTenantAwarePath();
+  const params = new URLSearchParams(searchParams.toString());
+  // Berlin-Kalendertag (docs/07 §1), damit der `d`-Anker mit dem
+  // serverseitigen timezone.TodayDate() übereinstimmt.
+  return redirect(
+    tenantPath(resolvePlanungRedirect(params, berlinTodayISO(), target)),
+  );
 }

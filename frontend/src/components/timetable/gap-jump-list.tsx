@@ -11,7 +11,7 @@
  * kommen als Prop; das Springen ist ein Callback.
  */
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 
 import { Button } from "~/components/ui/button";
 import { CoverageIndicator } from "~/components/ui/coverage-indicator";
@@ -42,7 +42,8 @@ export function GapJumpList({
 }: GapJumpListProps) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  useClickOutside(containerRef, () => setOpen(false), open);
+  const closeMenu = useCallback(() => setOpen(false), []);
+  useClickOutside(containerRef, closeMenu, open);
 
   const sorted = useMemo(
     () =>
@@ -93,7 +94,6 @@ export function GapJumpList({
         size="compact"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        aria-haspopup="dialog"
         title={`${label} — Sprungliste öffnen`}
       >
         <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-[#F78C10]" />
@@ -102,7 +102,7 @@ export function GapJumpList({
 
       {open && (
         <div
-          role="dialog"
+          role="region"
           aria-label="Offene Lücken"
           className={`absolute left-0 z-30 mt-2 w-[min(22rem,calc(100vw-2rem))] ${timetablePopoverSurface}`}
         >

@@ -257,6 +257,7 @@ export function GroupTransferModal({
                   </span>
                 </div>
                 <button
+                  type="button"
                   onClick={() => handleCancel(transfer.substitutionId)}
                   disabled={deletingId === transfer.substitutionId}
                   className="rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-700 transition-colors duration-200 hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-50"

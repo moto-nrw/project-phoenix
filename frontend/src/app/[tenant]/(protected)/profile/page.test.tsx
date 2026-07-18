@@ -69,8 +69,12 @@ vi.mock("~/components/ui/password-change-modal", () => ({
     <>
       {isOpen && (
         <div data-testid="password-modal">
-          <button onClick={onClose}>Close Modal</button>
-          <button onClick={onSuccess}>Success</button>
+          <button type="button" onClick={onClose}>
+            Close Modal
+          </button>
+          <button type="button" onClick={onSuccess}>
+            Success
+          </button>
         </div>
       )}
     </>
@@ -106,7 +110,7 @@ vi.mock("~/components/ui/button", () => ({
     size?: string;
     [key: string]: unknown;
   }) => (
-    <button {...props} disabled={!!props.disabled || isLoading}>
+    <button type="button" {...props} disabled={!!props.disabled || isLoading}>
       {isLoading ? loadingText : children}
     </button>
   ),

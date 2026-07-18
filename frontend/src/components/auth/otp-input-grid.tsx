@@ -7,6 +7,7 @@ import {
   useCallback,
   useEffect,
   useImperativeHandle,
+  useMemo,
   useRef,
   useState,
 } from "react";
@@ -51,6 +52,10 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
     const [digits, setDigits] = useState<string[]>(() =>
       Array.from({ length }, () => ""),
     );
+    const slots = useMemo(
+      () => Array.from({ length }, (_, position) => `otp-slot-${position}`),
+      [length],
+    );
     const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
     const submittedRef = useRef(false);
 
@@ -84,23 +89,21 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
           });
           return;
         }
-        setDigits((prev) => {
-          const next = [...prev];
-          const chars = sanitized.slice(0, length - index).split("");
-          for (let i = 0; i < chars.length; i++) {
-            next[index + i] = chars[i] ?? "";
-          }
-          const focusTarget = Math.min(index + chars.length, length - 1);
-          requestAnimationFrame(() => inputRefs.current[focusTarget]?.focus());
-          const filled = next.every((d) => d !== "");
-          if (filled && !submittedRef.current) {
-            submittedRef.current = true;
-            onComplete(next.join(""));
-          }
-          return next;
-        });
+        const next = [...digits];
+        const chars = sanitized.slice(0, length - index).split("");
+        for (let i = 0; i < chars.length; i++) {
+          next[index + i] = chars[i] ?? "";
+        }
+        setDigits(next);
+
+        const focusTarget = Math.min(index + chars.length, length - 1);
+        requestAnimationFrame(() => inputRefs.current[focusTarget]?.focus());
+        if (next.every((digit) => digit !== "") && !submittedRef.current) {
+          submittedRef.current = true;
+          onComplete(next.join(""));
+        }
       },
-      [length, onComplete],
+      [digits, length, onComplete],
     );
 
     const handleKeyDown = useCallback(
@@ -150,10 +153,9 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
         className="flex justify-center gap-2"
         aria-label={ariaLabel}
       >
-        {digits.map((digit, index) => (
+        {slots.map((slotId, index) => (
           <input
-            // eslint-disable-next-line react/no-array-index-key -- positional digit slots
-            key={index}
+            key={slotId}
             ref={(el) => {
               inputRefs.current[index] = el;
             }}
@@ -162,7 +164,7 @@ export const OTPInputGrid = forwardRef<OTPInputGridHandle, OTPInputGridProps>(
             autoComplete="one-time-code"
             pattern="[0-9]"
             maxLength={length}
-            value={digit}
+            value={digits[index] ?? ""}
             onChange={(e) => handleDigitChange(index, e.target.value)}
             onKeyDown={(e) => handleKeyDown(index, e)}
             onPaste={handlePaste}

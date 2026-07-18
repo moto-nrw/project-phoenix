@@ -18,7 +18,11 @@ vi.mock("~/components/ui/modal", () => ({
       isOpen ? (
         <div data-testid="confirmation-modal">
           {children}
-          <button onClick={onConfirm} data-testid="confirm-delete">
+          <button
+            type="button"
+            onClick={onConfirm}
+            data-testid="confirm-delete"
+          >
             Confirm
           </button>
         </div>

@@ -24,9 +24,9 @@ export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
         <div className="space-y-6">
           {running.length > 0 && (
             <ul className="space-y-3">
-              {running.map((activity, index) => (
+              {running.map((activity) => (
                 <li
-                  key={`${activity.name}-${index}`}
+                  key={activity.id}
                   className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4"
                 >
                   <span
@@ -62,9 +62,9 @@ export function ActivitiesPanel({ running, upcoming }: ActivitiesPanelProps) {
                 Später heute
               </h3>
               <ul className="space-y-2">
-                {upcoming.map((activity, index) => (
+                {upcoming.map((activity) => (
                   <li
-                    key={`${activity.name}-${activity.start_time}-${index}`}
+                    key={activity.id}
                     className="flex items-center gap-4 rounded-2xl border border-gray-200 bg-white p-4"
                   >
                     <p

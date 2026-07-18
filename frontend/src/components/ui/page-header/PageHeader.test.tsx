@@ -8,7 +8,11 @@ import { PageHeader } from "./PageHeader";
 
 describe("PageHeader", () => {
   const mockIcon = <svg data-testid="mock-icon" />;
-  const mockActionButton = <button data-testid="action-button">Action</button>;
+  const mockActionButton = (
+    <button type="button" data-testid="action-button">
+      Action
+    </button>
+  );
 
   it("renders title", () => {
     render(<PageHeader title="Test Title" />);

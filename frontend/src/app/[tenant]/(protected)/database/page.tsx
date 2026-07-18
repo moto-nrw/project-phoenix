@@ -7,7 +7,7 @@ const logger = createLogger({ component: "DatabasePage" });
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
-import { useState, useEffect } from "react";
+import useSWR from "swr";
 import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 
@@ -46,6 +46,68 @@ interface DataSection {
   badge?: string;
   /** Call to action on the card. Defaults to "Verwalten". */
   cta?: string;
+}
+
+interface DatabasePermissions {
+  canViewStudents: boolean;
+  canViewTeachers: boolean;
+  canViewRooms: boolean;
+  canViewActivities: boolean;
+  canViewGroups: boolean;
+  canViewRoles: boolean;
+  canViewDevices: boolean;
+  canViewPermissions: boolean;
+  canViewTimetables: boolean;
+}
+
+interface DatabaseCounts {
+  students: number;
+  teachers: number;
+  rooms: number;
+  activities: number;
+  groups: number;
+  roles: number;
+  devices: number;
+  permissionCount: number;
+  permissions: DatabasePermissions;
+}
+
+const EMPTY_DATABASE_PERMISSIONS: DatabasePermissions = {
+  canViewStudents: false,
+  canViewTeachers: false,
+  canViewRooms: false,
+  canViewActivities: false,
+  canViewGroups: false,
+  canViewRoles: false,
+  canViewDevices: false,
+  canViewPermissions: false,
+  canViewTimetables: false,
+};
+
+const EMPTY_DATABASE_COUNTS: DatabaseCounts = {
+  students: 0,
+  teachers: 0,
+  rooms: 0,
+  activities: 0,
+  groups: 0,
+  roles: 0,
+  devices: 0,
+  permissionCount: 0,
+  permissions: EMPTY_DATABASE_PERMISSIONS,
+};
+
+async function fetchDatabaseCounts(url: string): Promise<DatabaseCounts> {
+  const response = await fetch(url);
+  if (response.status === 401 || response.status === 403) {
+    return EMPTY_DATABASE_COUNTS;
+  }
+  if (!response.ok) {
+    throw new Error(`Database counts request failed (${response.status})`);
+  }
+  const result = (await response.json()) as {
+    data: DatabaseCounts;
+  };
+  return result.data;
 }
 
 // Base data sections configuration with inline color styles
@@ -136,145 +198,19 @@ function DatabaseContent() {
   const isMobile = useIsMobile();
   const nfcEnabled = useNFCEnabled();
   const tenantPath = useTenantAwarePath();
-  const [counts, setCounts] = useState<{
-    students: number;
-    teachers: number;
-    rooms: number;
-    activities: number;
-    groups: number;
-    roles: number;
-    devices: number;
-    permissionCount: number;
-  }>({
-    students: 0,
-    teachers: 0,
-    rooms: 0,
-    activities: 0,
-    groups: 0,
-    roles: 0,
-    devices: 0,
-    permissionCount: 0,
-  });
-  const [permissions, setPermissions] = useState<{
-    canViewStudents: boolean;
-    canViewTeachers: boolean;
-    canViewRooms: boolean;
-    canViewActivities: boolean;
-    canViewGroups: boolean;
-    canViewRoles: boolean;
-    canViewDevices: boolean;
-    canViewPermissions: boolean;
-    canViewTimetables: boolean;
-  }>({
-    canViewStudents: false,
-    canViewTeachers: false,
-    canViewRooms: false,
-    canViewActivities: false,
-    canViewGroups: false,
-    canViewRoles: false,
-    canViewDevices: false,
-    canViewPermissions: false,
-    canViewTimetables: false,
-  });
-  const [countsLoading, setCountsLoading] = useState(true);
-
-  // (removed unused local handlers to satisfy lint)
-
-  // Fetch real counts from the database via Next.js API route
-  useEffect(() => {
-    const fetchCounts = async () => {
-      try {
-        const response = await fetch("/api/database/counts");
-        if (response.ok) {
-          const result = (await response.json()) as {
-            success: boolean;
-            message: string;
-            data: {
-              students: number;
-              teachers: number;
-              rooms: number;
-              activities: number;
-              groups: number;
-              roles: number;
-              devices: number;
-              permissionCount: number;
-              permissions: {
-                canViewStudents: boolean;
-                canViewTeachers: boolean;
-                canViewRooms: boolean;
-                canViewActivities: boolean;
-                canViewGroups: boolean;
-                canViewRoles: boolean;
-                canViewDevices: boolean;
-                canViewPermissions: boolean;
-                canViewTimetables: boolean;
-              };
-            };
-          };
-          const data = result.data;
-          setCounts({
-            students: data.students,
-            teachers: data.teachers,
-            rooms: data.rooms,
-            activities: data.activities,
-            groups: data.groups,
-            roles: data.roles,
-            devices: data.devices,
-            permissionCount: data.permissionCount,
-          });
-          setPermissions(
-            data.permissions || {
-              canViewStudents: false,
-              canViewTeachers: false,
-              canViewRooms: false,
-              canViewActivities: false,
-              canViewGroups: false,
-              canViewRoles: false,
-              canViewDevices: false,
-              canViewPermissions: false,
-              canViewTimetables: false,
-            },
-          );
-        } else if (response.status === 401 || response.status === 403) {
-          // Gracefully handle unauthorized/forbidden without noisy logs
-          // Keep zeros and disable all sections via permissions
-          setCounts({
-            students: 0,
-            teachers: 0,
-            rooms: 0,
-            activities: 0,
-            groups: 0,
-            roles: 0,
-            devices: 0,
-            permissionCount: 0,
-          });
-          setPermissions({
-            canViewStudents: false,
-            canViewTeachers: false,
-            canViewRooms: false,
-            canViewActivities: false,
-            canViewGroups: false,
-            canViewRoles: false,
-            canViewDevices: false,
-            canViewPermissions: false,
-            canViewTimetables: false,
-          });
-        } else {
-          logger.error("failed to fetch counts", { status: response.status });
-        }
-      } catch (error) {
+  const { data, isLoading: countsLoading } = useSWR(
+    session?.user ? "/api/database/counts" : null,
+    fetchDatabaseCounts,
+    {
+      onError: (error: unknown) => {
         logger.error("failed to fetch counts", {
           error: error instanceof Error ? error.message : String(error),
         });
-      } finally {
-        setCountsLoading(false);
-      }
-    };
-
-    if (session?.user) {
-      void fetchCounts();
-    }
-  }, [session]);
+      },
+    },
+  );
+  const counts = data ?? EMPTY_DATABASE_COUNTS;
+  const permissions = counts.permissions;
 
   if (!session?.user) {
     redirect("/");

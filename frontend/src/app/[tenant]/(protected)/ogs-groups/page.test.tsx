@@ -122,6 +122,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
       {actionButton}
       {overflowMenu?.map((item) => (
         <button
+          type="button"
           key={item.label}
           aria-label={item.label}
           data-testid={`overflow-${item.label}`}
@@ -135,6 +136,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
         <div key={f.id} data-testid={`filter-${f.id}`} data-value={f.value}>
           {f.options.map((opt) => (
             <button
+              type="button"
               key={opt.value}
               data-testid={`filter-${f.id}-${opt.value}`}
               onClick={() => f.onChange(opt.value)}
@@ -148,13 +150,18 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
         <span key={af.id} data-testid={`active-filter-${af.id}`}>
           {af.label}
           <button
+            type="button"
             data-testid={`remove-filter-${af.id}`}
             onClick={af.onRemove}
           />
         </span>
       ))}
       {onClearAllFilters && (
-        <button data-testid="clear-all-filters" onClick={onClearAllFilters} />
+        <button
+          type="button"
+          data-testid="clear-all-filters"
+          onClick={onClearAllFilters}
+        />
       )}
     </div>
   ),

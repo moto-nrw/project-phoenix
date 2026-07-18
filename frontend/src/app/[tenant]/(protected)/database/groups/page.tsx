@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { Suspense, useCallback, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
@@ -29,6 +29,14 @@ import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 const logger = createLogger({ component: "DatabaseGroupsPage" });
 
 export default function GroupsPage() {
+  return (
+    <Suspense fallback={null}>
+      <GroupsPageContent />
+    </Suspense>
+  );
+}
+
+function GroupsPageContent() {
   const searchParams = useSearchParams();
   const updateUrlParams = useUpdateUrlParams();
 

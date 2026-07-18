@@ -248,6 +248,7 @@ type RecentActivity struct {
 
 // CurrentActivity represents current activity status
 type CurrentActivity struct {
+	ID           int64
 	Name         string
 	Category     string
 	Participants int

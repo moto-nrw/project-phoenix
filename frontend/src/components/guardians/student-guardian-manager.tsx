@@ -610,6 +610,7 @@ export default function StudentGuardianManager({
           {!readOnly && (
             <>
               <button
+                type="button"
                 onClick={() => setIsPickerOpen(true)}
                 className="inline-flex items-center gap-1 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50"
                 title="Vorhandene/n Erziehungsberechtigte/n suchen"
@@ -618,6 +619,7 @@ export default function StudentGuardianManager({
                 <span className="hidden sm:inline">Vorhandene/n suchen</span>
               </button>
               <button
+                type="button"
                 onClick={handleOpenCreateModal}
                 className="inline-flex items-center gap-1 rounded-lg bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-gray-700"
                 title="Erziehungsberechtigte/n hinzufügen"

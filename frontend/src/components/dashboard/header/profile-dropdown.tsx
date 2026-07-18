@@ -111,6 +111,7 @@ export function ProfileTrigger({
 }: ProfileTriggerProps) {
   return (
     <button
+      type="button"
       onClick={onClick}
       className="flex touch-manipulation items-center space-x-2 rounded-lg p-1.5 transition-colors duration-200 hover:bg-gray-100 active:bg-gray-200"
     >
@@ -217,6 +218,7 @@ export function ProfileDropdownMenu({
 
           {/* Logout button */}
           <button
+            type="button"
             onClick={handleLogoutClick}
             className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-red-600 transition-all duration-200 ease-out hover:bg-red-50 hover:text-red-700 active:bg-red-600 active:text-white"
           >

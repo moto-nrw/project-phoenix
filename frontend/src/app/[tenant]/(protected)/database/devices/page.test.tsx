@@ -94,7 +94,11 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
         value={search.value}
         onChange={(event) => search.onChange(event.target.value)}
       />
-      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+      <button
+        type="button"
+        data-testid="clear-filters"
+        onClick={onClearAllFilters}
+      >
         Clear
       </button>
       {actionButton}
@@ -136,12 +140,14 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
       <div data-testid="device-edit-modal">
         {error ? <span data-testid="edit-error">{error}</span> : null}
         <button
+          type="button"
           data-testid="submit-edit"
           onClick={() => submit({ name: "Updated Device" })}
         >
           Save
         </button>
         <button
+          type="button"
           data-testid="submit-edit-duplicate"
           onClick={() =>
             submit({ name: "Updated Device", device_id: "duplicate-id" })
@@ -149,7 +155,11 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
         >
           Save Duplicate
         </button>
-        <button data-testid="close-edit-modal" onClick={handleClose}>
+        <button
+          type="button"
+          data-testid="close-edit-modal"
+          onClick={handleClose}
+        >
           Close
         </button>
       </div>
@@ -157,18 +167,24 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
       <div data-testid="device-create-modal">
         {error ? <span data-testid="create-error">{error}</span> : null}
         <button
+          type="button"
           data-testid="submit-create"
           onClick={() => submit({ device_id: "new-device" })}
         >
           Submit
         </button>
         <button
+          type="button"
           data-testid="submit-create-duplicate"
           onClick={() => submit({ device_id: "duplicate-id" })}
         >
           Submit Duplicate
         </button>
-        <button data-testid="close-create-modal" onClick={handleClose}>
+        <button
+          type="button"
+          data-testid="close-create-modal"
+          onClick={handleClose}
+        >
           Close
         </button>
       </div>
@@ -207,6 +223,7 @@ vi.mock("@/components/devices/devices-master-detail", () => ({
           <span data-testid={`group-title-${group.id}`}>{group.title}</span>
           {group.items.map((device) => (
             <button
+              type="button"
               key={device.id}
               data-testid={`device-row-${device.id}`}
               onClick={() => onSelect(device.id)}
@@ -228,13 +245,25 @@ vi.mock("@/components/devices/devices-master-detail", () => ({
           {selectedDevice?.api_key ? (
             <span data-testid="detail-api-key">{selectedDevice.api_key}</span>
           ) : null}
-          <button data-testid="trigger-edit" onClick={onEditClick}>
+          <button
+            type="button"
+            data-testid="trigger-edit"
+            onClick={onEditClick}
+          >
             Edit
           </button>
-          <button data-testid="trigger-delete" onClick={onDeleteClick}>
+          <button
+            type="button"
+            data-testid="trigger-delete"
+            onClick={onDeleteClick}
+          >
             Delete
           </button>
-          <button data-testid="trigger-deselect" onClick={() => onSelect(null)}>
+          <button
+            type="button"
+            data-testid="trigger-deselect"
+            onClick={() => onSelect(null)}
+          >
             Close
           </button>
         </div>
@@ -255,10 +284,10 @@ vi.mock("~/components/ui/modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="confirmation-modal">
-        <button data-testid="confirm-delete" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
           Confirm
         </button>
-        <button data-testid="cancel-delete" onClick={onClose}>
+        <button type="button" data-testid="cancel-delete" onClick={onClose}>
           Cancel
         </button>
       </div>

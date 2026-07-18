@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 
 interface NumberFieldProps {
+  readonly ariaLabel?: string;
   readonly value: number;
   readonly onChange: (value: number) => void;
   readonly onBlur?: () => void;
@@ -12,6 +13,7 @@ interface NumberFieldProps {
 }
 
 export function NumberField({
+  ariaLabel = "Einstellung",
   value,
   onChange,
   onBlur,
@@ -29,6 +31,7 @@ export function NumberField({
 
   return (
     <input
+      aria-label={ariaLabel}
       type="number"
       value={text}
       onChange={(e) => {
