@@ -944,6 +944,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SupervisorRepo:     repos.GroupSupervisor,
 		ProfileRepo:        repos.Profile,
 		SubstitutionRepo:   repos.GroupSubstitution,
+		ActiveService:      activeService,
+		SSESettings:        settingsService,
 	}, usercontextLogger)
 
 	// Initialize database stats service
