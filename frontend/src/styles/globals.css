@@ -341,6 +341,26 @@
   );
 }
 
+@media print {
+  @page {
+    size: 16in 9in;
+    margin: 0;
+  }
+
+  .pitch-slide {
+    width: 16in;
+    height: 9in;
+    max-width: none;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .pitch-slide:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+}
+
 .moto-auth-shell-background {
   position: relative;
   overflow: hidden;
