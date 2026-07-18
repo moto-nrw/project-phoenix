@@ -1,13 +1,14 @@
 package timetable
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -80,25 +81,40 @@ func (req *updateTemplateRequest) Bind(_ *http.Request) error {
 	return nil
 }
 
-func (rs *Resource) validateTemplateEducationGroup(ctx context.Context, groupID *int64) error {
-	if groupID == nil {
-		return nil
+// parsedUpdateTemplate holds the request plus values derived from cheap format
+// validation (clock window, defaulted week pattern and cap).
+type parsedUpdateTemplate struct {
+	req             *updateTemplateRequest
+	startTime       time.Time
+	endTime         time.Time
+	weekPattern     int
+	maxParticipants int
+}
+
+// parseUpdateTemplateRequest binds and format-validates the request. Format
+// errors render precise 400 messages here rather than from the service.
+func parseUpdateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsedUpdateTemplate, bool) {
+	req := &updateTemplateRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return nil, false
 	}
-	if *groupID <= 0 {
-		return errors.New("education_group_id must be positive when set")
+	if !isValidActivityType(req.Type) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(
+			fmt.Errorf("invalid type %q (must be care, activity, or external)", req.Type)))
+		return nil, false
 	}
-	tenantID := tenant.FromContext(ctx)
-	if tenantID <= 0 {
-		return errors.New("no tenant in context")
+	timing, ok := parseTemplateTiming(w, r, req.StartTime, req.EndTime, req.WeekPattern, req.MaxParticipants)
+	if !ok {
+		return nil, false
 	}
-	exists, err := rs.TimetableData.EducationGroupExists(ctx, *groupID)
-	if err != nil {
-		return fmt.Errorf("validate education_group_id: %w", err)
-	}
-	if !exists {
-		return errors.New("education_group_id does not reference a group in this tenant")
-	}
-	return nil
+	return &parsedUpdateTemplate{
+		req:             req,
+		startTime:       timing.startTime,
+		endTime:         timing.endTime,
+		weekPattern:     timing.weekPattern,
+		maxParticipants: timing.maxParticipants,
+	}, true
 }
 
 func (rs *Resource) getTemplate(w http.ResponseWriter, r *http.Request) {
@@ -131,40 +147,9 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable resource not fully wired")))
 		return
 	}
-	req := &updateTemplateRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	parsed, ok := parseUpdateTemplateRequest(w, r)
+	if !ok {
 		return
-	}
-	if !isValidActivityType(req.Type) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid type %q (must be care, activity, or external)", req.Type)))
-		return
-	}
-	startTime, err := parseClockTime(req.StartTime)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid start_time format, expected HH:MM")))
-		return
-	}
-	endTime, err := parseClockTime(req.EndTime)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid end_time format, expected HH:MM")))
-		return
-	}
-	if !endTime.After(startTime) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("end_time must be after start_time")))
-		return
-	}
-	weekPattern := 0
-	if req.WeekPattern != nil {
-		weekPattern = *req.WeekPattern
-	}
-	if weekPattern < 0 || weekPattern > 2 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("week_pattern must be 0 (every), 1 (A), or 2 (B)")))
-		return
-	}
-	maxParticipants := 999
-	if req.MaxParticipants != nil && *req.MaxParticipants > 0 {
-		maxParticipants = *req.MaxParticipants
 	}
 	ctx := r.Context()
 	tenantID := tenant.FromContext(ctx)
@@ -172,79 +157,29 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("no tenant in context")))
 		return
 	}
-	gradeLevelMax, err := rs.resolveTemplateGradeLevelMax(ctx)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap(
-			"resolve template grade level limit failed", err))
+	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID)
+	if !ok {
 		return
 	}
-	rosterValidFrom, err := rs.templateRosterValidFrom(ctx, req.CalendarPeriodID)
-	if err != nil {
-		renderTemplatePeriodLookupError(w, r, err)
+	if err := rs.TimetableData.ValidateTemplateEducationGroup(ctx, parsed.req.EducationGroupID); err != nil {
+		renderTemplateEducationGroupError(w, r, err)
 		return
 	}
-	if err := rs.validateTemplateEducationGroup(ctx, req.EducationGroupID); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	if !rs.requireTemplateExists(w, r, id) {
 		return
 	}
-	exists, err := rs.templateExists(ctx, id)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
-		return
-	}
-	if !exists {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
-		return
-	}
-	timeframeID, err := rs.findOrCreateTimeframe(ctx, startTime, endTime, req.Name)
+	timeframeID, err := rs.TimetableData.FindOrCreateTimeframe(ctx, parsed.startTime, parsed.endTime, parsed.req.Name)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve timeframe failed", err))
 		return
 	}
-	fieldsUpdate := activitiesModel.TemplateFieldsUpdate{
-		Name:              req.Name,
-		Type:              req.Type,
-		CategoryID:        req.CategoryID,
-		RoomID:            req.RoomID,
-		EducationGroupID:  req.EducationGroupID,
-		MaxParticipants:   maxParticipants,
-		RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
-		CalendarPeriodID:  req.CalendarPeriodID,
-		TargetGroupType:   req.TargetGroupType,
-		TargetGradeLevel:  req.TargetGradeLevel,
-		TargetSchoolClass: req.TargetSchoolClass,
-		Notes:             normalizeNotes(req.Notes),
-	}
-	updateErr := rs.TimetableData.UpdateTemplate(ctx, scheduleSvc.TemplateUpdateInput{
-		TemplateID:       id,
-		Fields:           fieldsUpdate,
-		Weekdays:         req.Weekdays,
-		TimeframeID:      timeframeID,
-		WeekPattern:      weekPattern,
-		CalendarPeriodID: req.CalendarPeriodID,
-		RosterValidFrom:  rosterValidFrom,
-		StudentIDs:       req.StudentIDs,
-		StaffIDs:         req.StaffIDs,
-		PrimaryStaffID:   req.PrimaryStaffID,
-		GradeLevelMax:    gradeLevelMax,
-	})
+	updateErr := rs.TimetableData.UpdateTemplate(ctx, buildUpdateTemplateInput(id, parsed, timeframeID, gradeLevelMax, rosterValidFrom))
 	if updateErr != nil {
 		// findOrCreateTimeframe runs before the recurrence service. Tenant
 		// middleware commits 4xx responses unless explicitly marked, so every
 		// failed update must roll back a timeframe created by this request.
 		tenant.MarkRollback(ctx)
-	}
-	if errors.Is(updateErr, scheduleSvc.ErrTemplateSegmentNotEditable) {
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
-		return
-	} else if renderTemplateCareOfferingConflict(w, r, updateErr) {
-		return
-	} else if renderTemplateRosterRebaseConflict(w, r, updateErr) {
-		return
-	} else if renderTemplateTargetGradeLimit(w, r, updateErr) {
-		return
-	} else if updateErr != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("update template failed", updateErr))
+		renderUpdateTemplateError(w, r, updateErr)
 		return
 	}
 	templates, err := rs.loadTemplates(ctx, &id)
@@ -253,6 +188,75 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, templates[0], "Template updated")
+}
+
+// requireTemplateExists renders a 404 (missing) or 500 (load failure) and
+// returns false when the caller should stop.
+func (rs *Resource) requireTemplateExists(w http.ResponseWriter, r *http.Request, id int64) bool {
+	exists, err := rs.templateExists(r.Context(), id)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load template failed", err))
+		return false
+	}
+	if !exists {
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+		return false
+	}
+	return true
+}
+
+// buildUpdateTemplateInput maps the parsed request and resolved preconditions
+// into the service input.
+func buildUpdateTemplateInput(
+	id int64,
+	parsed *parsedUpdateTemplate,
+	timeframeID int64,
+	gradeLevelMax int,
+	rosterValidFrom timezone.Date,
+) scheduleSvc.TemplateUpdateInput {
+	req := parsed.req
+	return scheduleSvc.TemplateUpdateInput{
+		TemplateID: id,
+		Fields: activitiesModel.TemplateFieldsUpdate{
+			Name:              req.Name,
+			Type:              req.Type,
+			CategoryID:        req.CategoryID,
+			RoomID:            req.RoomID,
+			EducationGroupID:  req.EducationGroupID,
+			MaxParticipants:   parsed.maxParticipants,
+			RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
+			CalendarPeriodID:  req.CalendarPeriodID,
+			TargetGroupType:   req.TargetGroupType,
+			TargetGradeLevel:  req.TargetGradeLevel,
+			TargetSchoolClass: req.TargetSchoolClass,
+			Notes:             normalizeNotes(req.Notes),
+		},
+		Weekdays:         req.Weekdays,
+		TimeframeID:      timeframeID,
+		WeekPattern:      parsed.weekPattern,
+		CalendarPeriodID: req.CalendarPeriodID,
+		RosterValidFrom:  rosterValidFrom,
+		StudentIDs:       req.StudentIDs,
+		StaffIDs:         req.StaffIDs,
+		PrimaryStaffID:   req.PrimaryStaffID,
+		GradeLevelMax:    gradeLevelMax,
+	}
+}
+
+// renderUpdateTemplateError maps an UpdateTemplate failure to its HTTP response.
+// A capped/archived segment surfaces as the same 404 as the preflight lookup;
+// the care-offering, roster-rebase, and grade-cap conflicts each carry their
+// own status and code; everything else is a 500.
+func renderUpdateTemplateError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, scheduleSvc.ErrTemplateSegmentNotEditable):
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("template not found")))
+	case renderTemplateCareOfferingConflict(w, r, err):
+	case renderTemplateRosterRebaseConflict(w, r, err):
+	case renderTemplateTargetGradeLimit(w, r, err):
+	default:
+		common.RenderError(w, r, common.ErrorInternalServerWrap("update template failed", err))
+	}
 }
 
 func (rs *Resource) archiveTemplate(w http.ResponseWriter, r *http.Request) {

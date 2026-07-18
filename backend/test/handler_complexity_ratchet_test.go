@@ -68,8 +68,6 @@ var handlerComplexityAllowlist = map[string]int{
 	"api/timetable/operations.go:(*Resource).operationsCreateAndStartSpontaneous":       17,
 	"api/timetable/student_day.go:(*Resource).preloadWeek":                              28,
 	"api/timetable/student_day.go:buildStudentDayFromPreload":                           19,
-	"api/timetable/templates_create.go:(*Resource).createTemplate":                      33,
-	"api/timetable/templates_update.go:(*Resource).updateTemplate":                      27,
 	"api/work-time-models/api.go:buildModelAndEntries":                                  16,
 }
 
