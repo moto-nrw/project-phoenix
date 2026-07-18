@@ -244,7 +244,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
     hasPrivacyConsentFields(sections)
       ? initialData.id
       : null;
-  const { data: privacyConsent, isLoading: privacyConsentLoading } = useSWR(
+  const { data: privacyConsent } = useSWR(
     privacyStudentId
       ? `/api/students/${privacyStudentId}/privacy-consent`
       : null,
@@ -263,6 +263,7 @@ export function DatabaseForm<T = Record<string, unknown>>({
     {},
   );
   const loadedFieldsRef = useRef<Set<string>>(new Set());
+  const dirtyPrivacyFieldsRef = useRef<Set<string>>(new Set());
   // Track mount state to avoid setState on unmounted component
   const isMountedRef = useRef(true);
 
@@ -279,7 +280,6 @@ export function DatabaseForm<T = Record<string, unknown>>({
 
   // Initialize form data from sections
   useEffect(() => {
-    if (privacyStudentId && privacyConsentLoading) return;
     const initialFormData: Record<string, unknown> = {};
 
     // Set defaults from sections using helper
@@ -292,19 +292,27 @@ export function DatabaseForm<T = Record<string, unknown>>({
     if (initialData) {
       applyInitialData(initialFormData, initialData, sections);
     }
-    if (privacyConsent) {
-      initialFormData.privacy_consent_accepted = privacyConsent.accepted;
-      initialFormData.data_retention_days = privacyConsent.data_retention_days;
-    }
 
+    dirtyPrivacyFieldsRef.current.clear();
     setFormData(initialFormData);
-  }, [
-    initialData,
-    privacyConsent,
-    privacyConsentLoading,
-    privacyStudentId,
-    sections,
-  ]);
+  }, [initialData, sections]);
+
+  // Apply separately fetched consent without resetting unrelated form edits.
+  // Preserve consent fields too once the user has changed them locally.
+  useEffect(() => {
+    if (!privacyConsent) return;
+
+    setFormData((currentFormData) => {
+      const nextFormData = { ...currentFormData };
+      if (!dirtyPrivacyFieldsRef.current.has("privacy_consent_accepted")) {
+        nextFormData.privacy_consent_accepted = privacyConsent.accepted;
+      }
+      if (!dirtyPrivacyFieldsRef.current.has("data_retention_days")) {
+        nextFormData.data_retention_days = privacyConsent.data_retention_days;
+      }
+      return nextFormData;
+    });
+  }, [privacyConsent]);
 
   // Load async options for select fields
   useEffect(() => {
@@ -348,6 +356,9 @@ export function DatabaseForm<T = Record<string, unknown>>({
     >,
   ) => {
     const { name, value, type } = e.target as HTMLInputElement;
+    if (name === "privacy_consent_accepted" || name === "data_retention_days") {
+      dirtyPrivacyFieldsRef.current.add(name);
+    }
 
     if (type === "checkbox") {
       const { checked } = e.target as HTMLInputElement;
