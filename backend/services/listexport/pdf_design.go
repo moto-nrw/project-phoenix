@@ -552,6 +552,21 @@ func (c *pageChrome) wrapCapped(s string, maxW float64, maxLines int) []string {
 	return lines
 }
 
+// fitOneLine returns s unchanged when it already fits maxW, otherwise the
+// longest prefix that fits with a trailing ellipsis. The header title band
+// (eyebrow / headline / subtitle) reserves exactly one line each, so a
+// user-supplied req.Title long enough to overrun the page is cut deliberately
+// here rather than clipped at the page edge — the same "no silent content
+// loss" contract wrapCapped applies to the table header, kept single-line so
+// the header reserve TestDesignedPDFHeaderReserveMatchesDrawnHeader guards
+// cannot drift. The active font must already be set (measure() reads it).
+func (c *pageChrome) fitOneLine(s string, maxW float64) string {
+	if wdt, err := c.measure(s); err == nil && wdt <= maxW {
+		return s
+	}
+	return c.ellipsize(s, maxW)
+}
+
 // ellipsize trims runes off the end of line until it plus a trailing ellipsis
 // fits maxW. A wrapped line already fills close to maxW, so the appended
 // ellipsis usually needs a rune or two dropped to fit.
@@ -691,6 +706,7 @@ func (c *pageChrome) drawHeader() (float64, error) {
 	}
 
 	y := pageMargin + headerFirstY
+	usable := c.w - 2*pageMargin
 
 	// Eyebrow — only for two-part titles; single-part titles render the
 	// headline alone instead of repeating themselves.
@@ -699,7 +715,7 @@ func (c *pageChrome) drawHeader() (float64, error) {
 			return 0, err
 		}
 		c.setText(colorEyebrow)
-		if err := c.text(pageMargin, y, strings.ToUpper(spaceOut(eyebrow))); err != nil {
+		if err := c.text(pageMargin, y, c.fitOneLine(strings.ToUpper(spaceOut(eyebrow)), usable)); err != nil {
 			return 0, err
 		}
 		y += headerEyebrowAdvance
@@ -710,7 +726,7 @@ func (c *pageChrome) drawHeader() (float64, error) {
 		return 0, err
 	}
 	c.setText(colorInk)
-	if err := c.text(pageMargin, y, titleHeadline(c.title)); err != nil {
+	if err := c.text(pageMargin, y, c.fitOneLine(titleHeadline(c.title), usable)); err != nil {
 		return 0, err
 	}
 	y += headerTitleAdvance
@@ -721,7 +737,7 @@ func (c *pageChrome) drawHeader() (float64, error) {
 			return 0, err
 		}
 		c.setText(colorMuted)
-		if err := c.text(pageMargin, y, c.subtitle); err != nil {
+		if err := c.text(pageMargin, y, c.fitOneLine(c.subtitle, usable)); err != nil {
 			return 0, err
 		}
 		y += headerSubtitleAdvance

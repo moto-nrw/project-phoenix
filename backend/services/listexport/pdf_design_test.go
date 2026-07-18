@@ -638,6 +638,64 @@ func TestDesignedPDFHeaderReserveMatchesDrawnHeader(t *testing.T) {
 	}
 }
 
+// A user-supplied export title long enough to overrun the page must be cut
+// with an ellipsis, not clipped at the page edge — and it must stay a single
+// line so the header reserve keeps matching what drawHeader draws.
+func TestDesignedPDFOversizedTitleStaysBounded(t *testing.T) {
+	longTitle := strings.TrimSpace(strings.Repeat("Betreuungsanmeldeliste ", 40))
+	doc := designGroupedDocument()
+	doc.Title, doc.Subtitle, doc.Filters = longTitle, "", nil
+	r, err := newDesignRenderer(doc)
+	if err != nil {
+		t.Fatalf("newDesignRenderer: %v", err)
+	}
+
+	// The drawn headline fits the usable width and is marked as truncated.
+	if err := r.setFont(styleBold, fontTitle); err != nil {
+		t.Fatal(err)
+	}
+	usable := r.w - 2*pageMargin
+	fitted := r.fitOneLine(titleHeadline(longTitle), usable)
+	if wdt, err := r.measure(fitted); err != nil || wdt > usable {
+		t.Fatalf("fitted title width = %.1f (err %v), want <= %.1f", wdt, err, usable)
+	}
+	if !strings.HasSuffix(fitted, "…") {
+		t.Fatalf("oversized title = %q, want a trailing ellipsis", fitted)
+	}
+
+	// Single-line title keeps the header reserve honest.
+	r.pdf.AddPage()
+	drawn, err := r.drawHeader()
+	if err != nil {
+		t.Fatalf("drawHeader: %v", err)
+	}
+	if got := r.headerBottom(); got != drawn {
+		t.Fatalf("headerBottom() = %.1f, but drawHeader ended at %.1f", got, drawn)
+	}
+
+	// End to end: a real render succeeds.
+	if _, err := NewService().Render(doc, FormatPDF, "oversized-title"); err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+}
+
+// A title that fits comfortably must render verbatim — no ellipsis.
+func TestDesignedPDFNormalTitleNotTruncated(t *testing.T) {
+	doc := designGroupedDocument()
+	doc.Title, doc.Subtitle, doc.Filters = "Tagesliste", "", nil
+	r, err := newDesignRenderer(doc)
+	if err != nil {
+		t.Fatalf("newDesignRenderer: %v", err)
+	}
+	if err := r.setFont(styleBold, fontTitle); err != nil {
+		t.Fatal(err)
+	}
+	usable := r.w - 2*pageMargin
+	if fitted := r.fitOneLine(titleHeadline("Tagesliste"), usable); fitted != "Tagesliste" {
+		t.Fatalf("normal title changed to %q, want %q", fitted, "Tagesliste")
+	}
+}
+
 // An ungrouped document must not reserve room for a group heading that
 // drawCard never draws: the card is sized from the same terms paginate()
 // budgets with, so a full page's card must reach the page body's bottom
