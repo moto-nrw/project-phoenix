@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	calendarTargetAllSchoolParentsVersion     = "1.15.205"
+	calendarTargetAllSchoolParentsVersion     = "1.15.206"
 	calendarTargetAllSchoolParentsDescription = "Allow the all_school_parents calendar appointment target type"
 )
 
@@ -21,7 +21,7 @@ func init() {
 
 	Migrations.MustRegister(
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Migration 1.15.205: Adding all_school_parents to the calendar target check...")
+			fmt.Println("Migration 1.15.206: Adding all_school_parents to the calendar target check...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE calendar.appointment_targets
 					DROP CONSTRAINT IF EXISTS chk_calendar_targets_type,
@@ -42,7 +42,7 @@ func init() {
 			return nil
 		},
 		func(ctx context.Context, db *bun.DB) error {
-			fmt.Println("Rolling back migration 1.15.205: Removing all_school_parents from the calendar target check...")
+			fmt.Println("Rolling back migration 1.15.206: Removing all_school_parents from the calendar target check...")
 			if _, err := db.NewRaw(`
 				ALTER TABLE calendar.appointment_targets
 					DROP CONSTRAINT IF EXISTS chk_calendar_targets_type,

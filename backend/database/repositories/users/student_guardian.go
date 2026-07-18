@@ -120,7 +120,7 @@ func (r *StudentGuardianRepository) FindByStudentIDs(ctx context.Context, studen
 	query := base.GetDB(ctx, r.db).NewSelect().
 		Model(&relationships).
 		ModelTableExpr(`users.students_guardians AS "student_guardian"`).
-		Where(`"student_guardian".student_id IN (?)`, bun.In(studentIDs))
+		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs))
 
 	query = base.WithTenantFilter(ctx, query, "student_guardian")
 
