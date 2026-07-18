@@ -1,5 +1,6 @@
 import type { NextRequest } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -60,7 +61,7 @@ async function proxyExport(
   });
 }
 
-export async function GET(request: NextRequest, context: RouteContext) {
+async function GETHandler(request: NextRequest, context: RouteContext) {
   try {
     const session = await auth();
     if (!session?.user?.token) {
@@ -91,3 +92,5 @@ export async function GET(request: NextRequest, context: RouteContext) {
     return new Response("Internal server error", { status: 500 });
   }
 }
+
+export const GET = withTenantAuth(GETHandler);

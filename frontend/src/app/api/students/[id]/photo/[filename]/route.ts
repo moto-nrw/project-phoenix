@@ -4,12 +4,13 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { auth, uncachedAuth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "StudentPhotoServeRoute" });
 
-export async function GET(
+async function GETHandler(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; filename: string }> },
 ) {
@@ -97,3 +98,5 @@ export async function GET(
     headers,
   });
 }
+
+export const GET = withTenantAuth(GETHandler);

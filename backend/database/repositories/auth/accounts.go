@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,6 +22,25 @@ const (
 type AccountRepository struct {
 	*base.Repository[*auth.Account]
 	db *bun.DB
+}
+
+// FindByIDForUpdate retrieves an account with a row lock. Refresh uses this
+// before locking token rows so login and refresh share one lock order.
+func (r *AccountRepository) FindByIDForUpdate(ctx context.Context, id int64) (*auth.Account, error) {
+	account := new(auth.Account)
+	err := base.GetDB(ctx, r.db).NewSelect().
+		Model(account).
+		ModelTableExpr(accountTableAlias).
+		Where(`"account".id = ?`, id).
+		For("UPDATE").
+		Scan(ctx)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		return nil, &modelBase.DatabaseError{Op: "find account by id for update", Err: err}
+	}
+	return account, nil
 }
 
 // NewAccountRepository creates a new AccountRepository

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -19,7 +20,7 @@ interface DataCorrectionBody {
   reason?: string;
 }
 
-export async function PUT(request: NextRequest) {
+async function PUTHandler(request: NextRequest) {
   const session = await auth();
   const token = session?.user?.token;
   if (!token) {
@@ -74,3 +75,5 @@ export async function PUT(request: NextRequest) {
     );
   }
 }
+
+export const PUT = withTenantAuth(PUTHandler);

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/database/repositories"
 	"github.com/moto-nrw/project-phoenix/email"
 	authModels "github.com/moto-nrw/project-phoenix/models/auth"
@@ -21,9 +22,40 @@ import (
 	"github.com/uptrace/bun"
 )
 
+func TestRefreshSingleflightKeyBindsIndependentProof(t *testing.T) {
+	refreshToken := "same-predecessor-refresh-handle"
+	legitimateProof := rotation.RecoveryProofHash(rotation.WithRecoveryProof(context.Background(), "legitimate-recovery-secret"))
+	wrongProof := rotation.RecoveryProofHash(rotation.WithRecoveryProof(context.Background(), "wrong-recovery-secret"))
+
+	legitimateKey := refreshSingleflightKey(refreshToken, legitimateProof)
+	assert.Equal(t, legitimateKey, refreshSingleflightKey(refreshToken, legitimateProof))
+	assert.NotEqual(t, legitimateKey, refreshSingleflightKey(refreshToken, wrongProof))
+	assert.NotEqual(t, legitimateKey, refreshSingleflightKey(refreshToken, nil))
+	assert.NotContains(t, legitimateKey, "legitimate-recovery-secret")
+}
+
 type stubAuthLoginAccountTenantRepo struct {
 	findActiveFn func(context.Context, int64) ([]authModels.AccountTenant, error)
 	existsFn     func(context.Context, int64, int64) (bool, error)
+}
+
+type stubRefreshAccountRepo struct {
+	noopAccountRepository
+	findByIDFn func(context.Context, interface{}) (*authModels.Account, error)
+}
+
+type signalingAccountLockRepo struct {
+	authModels.AccountRepository
+	beforeLock chan<- struct{}
+}
+
+func (r signalingAccountLockRepo) FindByIDForUpdate(ctx context.Context, id int64) (*authModels.Account, error) {
+	r.beforeLock <- struct{}{}
+	return r.AccountRepository.FindByIDForUpdate(ctx, id)
+}
+
+func (s stubRefreshAccountRepo) FindByID(ctx context.Context, id interface{}) (*authModels.Account, error) {
+	return s.findByIDFn(ctx, id)
 }
 
 func (s stubAuthLoginAccountTenantRepo) Create(context.Context, *authModels.AccountTenant) error {
@@ -59,6 +91,112 @@ func setupInternalAuthService(t *testing.T, db *bun.DB) *Service {
 	service, err := NewService(repoFactory, cfg, db, slog.Default())
 	require.NoError(t, err)
 	return service
+}
+
+func TestRefreshTokenLocksAccountBeforeToken(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := setupInternalAuthService(t, db)
+	email := fmt.Sprintf("refresh-lock-order-%d@test.local", time.Now().UnixNano())
+	username := fmt.Sprintf("refresh-lock-order-%d", time.Now().UnixNano())
+	account, err := service.Register(ctx, email, username, "Test1234%", nil, 0)
+	require.NoError(t, err)
+	testpkg.EnsureAccountTenant(t, db, account.ID, 1)
+	defer testpkg.CleanupAuthFixtures(t, db, account.ID)
+
+	_, refreshJWT, err := service.Login(ctx, email, "Test1234%")
+	require.NoError(t, err)
+	tokens, err := service.repos.Token.FindByAccountID(ctx, account.ID)
+	require.NoError(t, err)
+	require.Len(t, tokens, 1)
+
+	// Model a concurrent login that already owns the account row lock.
+	accountLockTx, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	defer func() { _ = accountLockTx.Rollback() }()
+	_, err = accountLockTx.ExecContext(ctx, `UPDATE auth.accounts SET updated_at = updated_at WHERE id = ?`, account.ID)
+	require.NoError(t, err)
+
+	beforeAccountLock := make(chan struct{}, 1)
+	service.repos.Account = signalingAccountLockRepo{
+		AccountRepository: service.repos.Account,
+		beforeLock:        beforeAccountLock,
+	}
+	type refreshOutcome struct {
+		err error
+	}
+	refreshDone := make(chan refreshOutcome, 1)
+	go func() {
+		_, _, refreshErr := service.RefreshToken(rotation.WithRecoveryProof(ctx, "lock-order-proof"), refreshJWT)
+		refreshDone <- refreshOutcome{err: refreshErr}
+	}()
+
+	select {
+	case <-beforeAccountLock:
+	case <-time.After(2 * time.Second):
+		t.Fatal("refresh did not try to acquire the account lock before the token lock")
+	}
+
+	// While refresh waits for the account, the token row must still be free.
+	// A short lock timeout makes a future token-first regression fail instead of
+	// hanging the test.
+	probeTx, err := db.BeginTx(ctx, &sql.TxOptions{})
+	require.NoError(t, err)
+	_, err = probeTx.ExecContext(ctx, `SET LOCAL lock_timeout = '500ms'`)
+	require.NoError(t, err)
+	probeCtx := modelBase.ContextWithTx(ctx, &probeTx)
+	lockedToken, err := service.repos.Token.FindByTokenForUpdate(probeCtx, tokens[0].Token)
+	require.NoError(t, err)
+	require.NotNil(t, lockedToken)
+	require.NoError(t, probeTx.Rollback())
+
+	require.NoError(t, accountLockTx.Commit())
+	select {
+	case outcome := <-refreshDone:
+		require.NoError(t, outcome.err)
+	case <-time.After(2 * time.Second):
+		t.Fatal("refresh did not complete after the account lock was released")
+	}
+}
+
+func TestFetchAndValidateAccount_TransientLookupErrorRemainsRetryable(t *testing.T) {
+	dbErr := errors.New("connection reset")
+	service := &Service{
+		repos: &repositories.Factory{
+			Account: stubRefreshAccountRepo{
+				findByIDFn: func(context.Context, interface{}) (*authModels.Account, error) {
+					return nil, dbErr
+				},
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	account, err := service.fetchAndValidateAccount(context.Background(), 42, "", "")
+	require.Nil(t, account)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, dbErr)
+	assert.NotErrorIs(t, err, ErrAccountNotFound)
+}
+
+func TestFetchAndValidateAccount_MissingAccountRemainsTerminal(t *testing.T) {
+	service := &Service{
+		repos: &repositories.Factory{
+			Account: stubRefreshAccountRepo{
+				findByIDFn: func(context.Context, interface{}) (*authModels.Account, error) {
+					return nil, sql.ErrNoRows
+				},
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	account, err := service.fetchAndValidateAccount(context.Background(), 42, "", "")
+	require.Nil(t, account)
+	require.Error(t, err)
+	assert.ErrorIs(t, err, ErrAccountNotFound)
 }
 
 func TestResolveAccountTenantBySlug_ReturnsTenantNotFoundWhenSchoolLookupReturnsNil(t *testing.T) {
@@ -494,6 +632,43 @@ func TestResolveAccountTenantDefault_DBErrorPropagatedWhenAllLookupsFail(t *test
 // ---------------------------------------------------------------------------
 // validateTenantAccess coverage (stub-based)
 // ---------------------------------------------------------------------------
+
+func TestValidateTenantAccess_MappingLookupDBErrorIsRetryable(t *testing.T) {
+	dbErr := fmt.Errorf("temporary connection reset")
+	service := &Service{
+		repos: &repositories.Factory{
+			AccountTenant: stubAuthLoginAccountTenantRepo{
+				existsFn: func(context.Context, int64, int64) (bool, error) { return false, dbErr },
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	err := service.validateTenantAccess(context.Background(), &jwt.RefreshClaims{ID: 99, TenantID: 49})
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, dbErr)
+	assert.NotErrorIs(t, authErr.Err, ErrAccountInactive,
+		"transient tenant lookup failures must not force a visible logout")
+}
+
+func TestValidateTenantAccess_MissingMappingIsTerminal(t *testing.T) {
+	service := &Service{
+		repos: &repositories.Factory{
+			AccountTenant: stubAuthLoginAccountTenantRepo{
+				existsFn: func(context.Context, int64, int64) (bool, error) { return false, nil },
+			},
+		},
+		logger: slog.Default(),
+	}
+
+	err := service.validateTenantAccess(context.Background(), &jwt.RefreshClaims{ID: 98, TenantID: 48})
+	require.Error(t, err)
+	var authErr *AuthError
+	require.ErrorAs(t, err, &authErr)
+	assert.ErrorIs(t, authErr.Err, ErrTenantAccessDenied)
+}
 
 // TestValidateTenantAccess_SchoolDeletedReturnsErrTenantNotFound verifies that a
 // soft-deleted school (IsDeleted() true) causes validateTenantAccess to return

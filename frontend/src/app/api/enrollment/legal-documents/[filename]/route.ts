@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 import { apiDelete, handleApiError } from "~/lib/api-helpers.server";
 import { auth, uncachedAuth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 
 interface RouteContext {
   params: Promise<{ filename?: string }>;
@@ -44,7 +45,7 @@ async function deleteWithRetry(endpoint: string, token: string) {
   }
 }
 
-export async function DELETE(_request: NextRequest, context: RouteContext) {
+async function DELETEHandler(_request: NextRequest, context: RouteContext) {
   const session = await auth();
   const token = session?.user?.token;
   if (!token) {
@@ -69,3 +70,5 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     return handleApiError(error);
   }
 }
+
+export const DELETE = withTenantAuth(DELETEHandler);

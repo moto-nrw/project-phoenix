@@ -1,12 +1,13 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "EnrollmentSchemaPreviewRoute" });
 
-export async function GET(request: NextRequest) {
+async function GETHandler(request: NextRequest) {
   const session = await auth();
   const token = session?.user?.token;
   if (!token) {
@@ -34,3 +35,5 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export const GET = withTenantAuth(GETHandler);

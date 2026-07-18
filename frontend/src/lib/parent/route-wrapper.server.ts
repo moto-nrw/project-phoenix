@@ -1,9 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { parentAuth } from "~/server/auth/parent";
+import { withParentAuth } from "~/server/auth/parent-route";
 import { handleApiError } from "../api-helpers.server";
 import { makeProxyFactories } from "../route-proxy-factory.server";
 import {
-  type RouteContext,
   extractParams,
   parseRequestBody,
   wrapInApiResponse,
@@ -167,13 +168,9 @@ function createParentNoBodyHandler<T>(
   handler: NoBodyHandler<T>,
   formatResponse: (data: T) => NextResponse,
 ) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): Promise<NextResponse> => {
+  return withParentAuth(async (request, context): Promise<NextResponse> => {
     try {
-      const { parentAuth: auth } = await import("~/server/auth/parent");
-      const session = await auth();
+      const session = await parentAuth();
       if (!session?.user?.token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);
 
@@ -185,17 +182,13 @@ function createParentNoBodyHandler<T>(
     } catch (error) {
       return handleApiError(error);
     }
-  };
+  });
 }
 
 function createParentWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): Promise<NextResponse> => {
+  return withParentAuth(async (request, context): Promise<NextResponse> => {
     try {
-      const { parentAuth: auth } = await import("~/server/auth/parent");
-      const session = await auth();
+      const session = await parentAuth();
       if (!session?.user?.token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);
       const body = await parseRequestBody<B>(request);
@@ -208,7 +201,7 @@ function createParentWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
     } catch (error) {
       return handleApiError(error);
     }
-  };
+  });
 }
 
 const jsonResponse = <T>(data: T) => NextResponse.json(wrapInApiResponse(data));

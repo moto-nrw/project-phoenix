@@ -1,10 +1,10 @@
 import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
+import { withOperatorAuth } from "~/server/auth/operator-route";
 import { handleApiError } from "../api-helpers.server";
 import { recordBackendProxyMetric } from "../backend-proxy-metrics";
 import { makeProxyFactories } from "../route-proxy-factory.server";
 import {
-  type RouteContext,
   extractParams,
   parseRequestBody,
   wrapInApiResponse,
@@ -15,6 +15,11 @@ import {
  */
 function is401Error(error: unknown): boolean {
   return error instanceof Error && error.message.includes("API error (401)");
+}
+
+async function readOperatorSession() {
+  const { operatorAuth } = await import("~/server/auth/operator");
+  return operatorAuth();
 }
 
 /**
@@ -216,13 +221,9 @@ function createOperatorNoBodyHandler<T>(
   handler: NoBodyHandler<T>,
   formatResponse: (data: T) => NextResponse,
 ) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): Promise<NextResponse> => {
+  return withOperatorAuth(async (request, context): Promise<NextResponse> => {
     try {
-      const { operatorAuth: auth } = await import("~/server/auth/operator");
-      const session = await auth();
+      const session = await readOperatorSession();
       if (!session?.user?.token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);
 
@@ -234,17 +235,13 @@ function createOperatorNoBodyHandler<T>(
     } catch (error) {
       return handleApiError(error);
     }
-  };
+  });
 }
 
 function createOperatorWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): Promise<NextResponse> => {
+  return withOperatorAuth(async (request, context): Promise<NextResponse> => {
     try {
-      const { operatorAuth: auth } = await import("~/server/auth/operator");
-      const session = await auth();
+      const session = await readOperatorSession();
       if (!session?.user?.token) return createUnauthorizedResponse();
       const params = await extractParams(request, context);
       const body = await parseRequestBody<B>(request);
@@ -257,7 +254,7 @@ function createOperatorWithBodyHandler<T, B>(handler: WithBodyHandler<T, B>) {
     } catch (error) {
       return handleApiError(error);
     }
-  };
+  });
 }
 
 const jsonResponse = <T>(data: T) => NextResponse.json(wrapInApiResponse(data));
@@ -332,13 +329,9 @@ async function forwardBackendResponse(
  * Used for POST routes that need verbatim status/error forwarding with a JSON body.
  */
 export function createOperatorProxyPostHandler(backendEndpoint: string) {
-  return async (
-    request: NextRequest,
-    _context: RouteContext,
-  ): Promise<NextResponse> => {
+  return withOperatorAuth(async (request): Promise<NextResponse> => {
     try {
-      const { operatorAuth: auth } = await import("~/server/auth/operator");
-      const session = await auth();
+      const session = await readOperatorSession();
       if (!session?.user?.token) return createUnauthorizedResponse();
 
       let body: unknown;
@@ -389,7 +382,7 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
     } catch (error) {
       return handleApiError(error);
     }
-  };
+  });
 }
 
 /**
@@ -465,13 +458,9 @@ export function createOperatorProxyMethodHandler(
   method: string,
   endpointBuilder: (params: Record<string, unknown>) => string,
 ) {
-  return async (
-    request: NextRequest,
-    context: RouteContext,
-  ): Promise<NextResponse> => {
+  return withOperatorAuth(async (request, context): Promise<NextResponse> => {
     try {
-      const { operatorAuth: auth } = await import("~/server/auth/operator");
-      const session = await auth();
+      const session = await readOperatorSession();
       if (!session?.user?.token) {
         return NextResponse.json(
           { error: "Unauthorized", code: "TOKEN_EXPIRED" },
@@ -526,7 +515,7 @@ export function createOperatorProxyMethodHandler(
     } catch (error) {
       return handleApiError(error);
     }
-  };
+  });
 }
 
 /**

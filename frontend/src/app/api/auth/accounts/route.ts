@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { createGetHandler } from "@/lib/route-wrapper.server";
 import { apiGet, apiPut } from "~/lib/api-helpers.server";
 import { auth } from "@/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 
 export const GET = createGetHandler(async (request, token, _params) => {
   // Extract query parameters
@@ -22,7 +23,7 @@ export const GET = createGetHandler(async (request, token, _params) => {
 });
 
 // POST handler for updating accounts
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   const session = await auth();
   if (!session?.user?.token) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
@@ -47,3 +48,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withTenantAuth(POSTHandler);

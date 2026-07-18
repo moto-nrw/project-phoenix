@@ -18,6 +18,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/operator"
 	jwtPkg "github.com/moto-nrw/project-phoenix/auth/jwt"
+	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/models/platform"
 	platformSvc "github.com/moto-nrw/project-phoenix/services/platform"
 )
@@ -395,6 +396,7 @@ func TestRefreshToken_Success(t *testing.T) {
 		refreshTokenFn: func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error) {
 			assert.Equal(t, int64(42), operatorID)
 			assert.Equal(t, "opaque-refresh-handle", refreshTokenValue)
+			assert.True(t, rotation.MatchesRecoveryProof(ctx, rotation.RecoveryProofHash(rotation.WithRecoveryProof(context.Background(), "independent-recovery-secret"))))
 			return "new-access-token", "new-refresh-token", nil
 		},
 	}
@@ -410,6 +412,7 @@ func TestRefreshToken_Success(t *testing.T) {
 	})
 
 	req := httptest.NewRequest(http.MethodPost, "/auth/refresh", nil)
+	req.Header.Set(rotation.RecoveryProofHeader, "independent-recovery-secret")
 
 	// Set CtxRefreshToken in context
 	ctx := context.WithValue(req.Context(), jwtPkg.CtxRefreshToken, tokenString)
