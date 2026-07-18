@@ -127,104 +127,155 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}, "Students retrieved successfully")
 }
 
-// fetchStudentsForList fetches students based on the provided parameters
+// fetchStudentsForList fetches students based on the provided parameters. The
+// location/room/group pre-filters each resolve a set of student IDs (or a fully
+// materialized slice for the group-only fast path) before the standard query
+// path applies school_class / guardian_name / pagination on top.
 func (rs *Resource) fetchStudentsForList(r *http.Request, params *studentListParams) ([]*users.Student, int, error) {
 	ctx := r.Context()
 
-	if params.locationState != "" {
-		if params.locationState != "transit" && params.locationState != "present" {
-			return nil, 0, ErrInvalidRequest
-		}
-		if params.roomID > 0 {
-			return nil, 0, ErrInvalidRequest
-		}
-		var ids []int64
-		var err error
-		if params.locationState == "present" {
-			ids, err = rs.ActiveService.ListStudentsPresentToday(ctx)
-		} else {
-			ids, err = rs.ActiveService.ListStudentsInTransit(ctx)
-		}
+	switch {
+	case params.locationState != "":
+		nonEmpty, err := rs.resolveLocationStateFilter(ctx, params)
 		if err != nil {
 			return nil, 0, err
 		}
-		if len(ids) == 0 {
+		if !nonEmpty {
 			return []*users.Student{}, 0, nil
 		}
-		if params.groupID > 0 {
-			ids, err = rs.filterStudentIDsByGroup(ctx, ids, params.groupID)
-			if err != nil {
-				return nil, 0, err
-			}
-			if len(ids) == 0 {
-				return []*users.Student{}, 0, nil
-			}
+	case params.roomID > 0:
+		nonEmpty, err := rs.resolveRoomFilter(ctx, params)
+		if err != nil {
+			return nil, 0, err
 		}
-		params.studentIDs = ids
+		if !nonEmpty {
+			return []*users.Student{}, 0, nil
+		}
+	case params.groupID > 0:
+		students, totalCount, done, err := rs.resolveGroupFilter(ctx, params)
+		if err != nil {
+			return nil, 0, err
+		}
+		if done {
+			return students, totalCount, nil
+		}
 	}
 
-	// room_id pre-filter (#1323): resolve students currently checked-in to
-	// any active group in the room, then push the IDs through the standard
-	// query path so school_class / guardian_name / pagination still apply.
-	// The visit join lives in the active service (rule 11: services own
-	// queries, not handlers).
+	return rs.runStandardStudentQuery(ctx, params)
+}
+
+// resolveLocationStateFilter resolves the present/transit pre-filter into
+// params.studentIDs. It reports nonEmpty=false when the resolved set is empty so
+// the caller can short-circuit with an empty page.
+func (rs *Resource) resolveLocationStateFilter(ctx context.Context, params *studentListParams) (bool, error) {
+	if params.locationState != "transit" && params.locationState != "present" {
+		return false, ErrInvalidRequest
+	}
 	if params.roomID > 0 {
-		ids, err := rs.ActiveService.ListStudentsPresentInRoom(ctx, params.roomID)
-		if err != nil {
-			return nil, 0, err
-		}
-		if len(ids) == 0 {
-			return []*users.Student{}, 0, nil
-		}
-		// When both room_id and group_id are supplied, intersect with the
-		// student's group_id so the response stays consistent with the
-		// active-group chip in the search UI. group_id lives on the Student
-		// row, so a single bulk lookup is enough.
-		if params.groupID > 0 {
-			filtered, err := rs.filterStudentIDsByGroup(ctx, ids, params.groupID)
-			if err != nil {
-				return nil, 0, err
-			}
-			if len(filtered) == 0 {
-				return []*users.Student{}, 0, nil
-			}
-			ids = filtered
-		}
-		params.studentIDs = ids
-		// fall through to the standard ListWithOptions path. params.groupID is
-		// intentionally NOT cleared here even though buildBaseFilter ignores it
-		// because the room and group intersection was already computed via FindByIDs
-		// above, so re-applying group_id downstream would be redundant.
-	} else if params.groupID > 0 && params.locationState == "" && params.canUseGroupOnlyShortcut() {
-		// Fast path for true group-only requests keeps existing behavior.
-		students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, []int64{params.groupID})
-		if err != nil {
-			return nil, 0, err
-		}
-		return students, len(students), nil
-	} else if params.groupID > 0 && params.locationState == "" {
-		students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, []int64{params.groupID})
-		if err != nil {
-			return nil, 0, err
-		}
-		if len(students) == 0 {
-			return []*users.Student{}, 0, nil
-		}
-		ids := make([]int64, 0, len(students))
-		for _, student := range students {
-			if student != nil {
-				ids = append(ids, student.ID)
-			}
-		}
-		if len(ids) == 0 {
-			return []*users.Student{}, 0, nil
-		}
-		params.studentIDs = ids
+		return false, ErrInvalidRequest
 	}
 
-	// Standard path. buildBaseFilter picks up params.studentIDs (if set by
-	// the room_id branch above) and combines it with school_class /
-	// guardian_name and pagination.
+	var ids []int64
+	var err error
+	if params.locationState == "present" {
+		ids, err = rs.ActiveService.ListStudentsPresentToday(ctx)
+	} else {
+		ids, err = rs.ActiveService.ListStudentsInTransit(ctx)
+	}
+	if err != nil {
+		return false, err
+	}
+	if len(ids) == 0 {
+		return false, nil
+	}
+
+	if params.groupID > 0 {
+		ids, err = rs.filterStudentIDsByGroup(ctx, ids, params.groupID)
+		if err != nil {
+			return false, err
+		}
+		if len(ids) == 0 {
+			return false, nil
+		}
+	}
+
+	params.studentIDs = ids
+	return true, nil
+}
+
+// resolveRoomFilter resolves the room_id pre-filter (#1323): students currently
+// checked-in to any active group in the room, pushed through the standard query
+// path so school_class / guardian_name / pagination still apply. The visit join
+// lives in the active service (rule 11: services own queries, not handlers). It
+// reports nonEmpty=false when the resolved set is empty.
+func (rs *Resource) resolveRoomFilter(ctx context.Context, params *studentListParams) (bool, error) {
+	ids, err := rs.ActiveService.ListStudentsPresentInRoom(ctx, params.roomID)
+	if err != nil {
+		return false, err
+	}
+	if len(ids) == 0 {
+		return false, nil
+	}
+
+	// When both room_id and group_id are supplied, intersect with the student's
+	// group_id so the response stays consistent with the active-group chip in the
+	// search UI. group_id lives on the Student row, so a single bulk lookup is
+	// enough.
+	if params.groupID > 0 {
+		filtered, err := rs.filterStudentIDsByGroup(ctx, ids, params.groupID)
+		if err != nil {
+			return false, err
+		}
+		if len(filtered) == 0 {
+			return false, nil
+		}
+		ids = filtered
+	}
+
+	// params.groupID is intentionally NOT cleared even though buildBaseFilter
+	// ignores it, because the room and group intersection was already computed
+	// above, so re-applying group_id downstream would be redundant.
+	params.studentIDs = ids
+	return true, nil
+}
+
+// resolveGroupFilter handles the group-only path. When the request qualifies for
+// the fast path it returns the materialized slice with done=true; otherwise it
+// resolves params.studentIDs for the standard query and returns done=false.
+// done=true with an empty slice signals a short-circuit empty page.
+func (rs *Resource) resolveGroupFilter(ctx context.Context, params *studentListParams) ([]*users.Student, int, bool, error) {
+	students, err := rs.PersonService.GetStudentsByGroupIDs(ctx, []int64{params.groupID})
+	if err != nil {
+		return nil, 0, false, err
+	}
+
+	// Fast path for true group-only requests keeps existing behavior.
+	if params.canUseGroupOnlyShortcut() {
+		return students, len(students), true, nil
+	}
+
+	if len(students) == 0 {
+		return []*users.Student{}, 0, true, nil
+	}
+
+	ids := make([]int64, 0, len(students))
+	for _, student := range students {
+		if student != nil {
+			ids = append(ids, student.ID)
+		}
+	}
+	if len(ids) == 0 {
+		return []*users.Student{}, 0, true, nil
+	}
+
+	params.studentIDs = ids
+	return nil, 0, false, nil
+}
+
+// runStandardStudentQuery runs the SQL list/count path. buildBaseFilter picks up
+// params.studentIDs (if set by a pre-filter above) and combines it with
+// school_class / guardian_name and pagination.
+func (rs *Resource) runStandardStudentQuery(ctx context.Context, params *studentListParams) ([]*users.Student, int, error) {
 	queryOptions := params.buildQueryOptions()
 	countOptions := params.buildCountOptions()
 
@@ -496,6 +547,101 @@ func reconcilePickupFields(student *users.Student, status *string, days *users.P
 	}
 }
 
+// resolveScheduleStaffID resolves the acting staff for weekly schedules stamped
+// with CreatedBy. It returns (0, nil) when the request carries no schedules so
+// plain student creation is unaffected.
+//
+// Creating a student is governed by users:create, but attached weekly schedules
+// are writes to the same Betreuungszeiten records edited by the standalone PUT
+// endpoints. Keep that schedule write contract aligned: callers need
+// users:update and must resolve to a staff record so schedule rows always carry
+// a valid author. Both failure modes map to 403 at the call site.
+func (rs *Resource) resolveScheduleStaffID(r *http.Request, req *StudentRequest) (int64, error) {
+	if len(req.ArrivalSchedules) == 0 && len(req.PickupSchedules) == 0 {
+		return 0, nil
+	}
+	if !authorize.HasPermission(permissions.UsersUpdate, jwt.PermissionsFromCtx(r.Context())) {
+		return 0, errors.New("users:update permission required to create student schedules")
+	}
+	return rs.getStaffIDFromJWT(r)
+}
+
+// persistNewStudent writes the person, student, guardians, and weekly schedules
+// atomically. Runs inside the caller's tenant transaction.
+func (rs *Resource) persistNewStudent(ctx context.Context, person *users.Person, student *users.Student, guardians []userService.NewStudentGuardian, req *StudentRequest, staffID int64) error {
+	// Validate guardians BEFORE writing the student. This route runs inside
+	// TenantTxMiddleware, which only rolls back on 5xx; a guardian
+	// ValidationError renders 400, so the middleware would otherwise commit
+	// an already-created student. Validating first means a 400 commits an
+	// empty transaction — no orphaned student/person rows.
+	if len(guardians) > 0 {
+		if err := rs.GuardianService.ValidateNewGuardians(ctx, guardians); err != nil {
+			return err
+		}
+	}
+
+	// Create person - validation occurs at the model layer
+	if err := rs.PersonService.Create(ctx, person); err != nil {
+		return err
+	}
+
+	// Create student with the person ID
+	student.PersonID = person.ID
+	if err := rs.StudentService.Create(ctx, student); err != nil {
+		rs.cleanupPersonAfterStudentFailure(ctx, person.ID)
+		return err
+	}
+
+	// Create any guardians supplied with the request inside the same
+	// transaction so the student and its guardians are persisted
+	// atomically — a guardian failure rolls back the whole student.
+	if len(guardians) > 0 {
+		if err := rs.GuardianService.AddGuardiansToStudent(ctx, student.ID, guardians); err != nil {
+			return err
+		}
+	}
+
+	// Persist weekly arrival/pickup schedules in the same transaction so the
+	// student and its recurring care times are created atomically (mirrors
+	// the guardian handling above). The schedule tables FK to the student,
+	// which now exists within this transaction.
+	if len(req.ArrivalSchedules) > 0 {
+		arrivals := toArrivalScheduleModels(req.ArrivalSchedules, student.ID, staffID)
+		if err := rs.ArrivalScheduleService.UpsertBulkStudentArrivalSchedules(ctx, student.ID, arrivals); err != nil {
+			return err
+		}
+	}
+	if len(req.PickupSchedules) > 0 {
+		pickups := toPickupScheduleModels(req.PickupSchedules, student.ID, staffID)
+		if err := rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(ctx, student.ID, pickups); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// respondCreatedStudent writes the 201 response for a freshly created student.
+func (rs *Resource) respondCreatedStudent(w http.ResponseWriter, r *http.Request, student *users.Student, person *users.Person) {
+	// Get group data if student has a group
+	group := rs.fetchStudentGroup(r.Context(), student.GroupID)
+
+	// Admin users creating students can see full data including detailed location
+	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	hasFullAccess := authorize.HasAdminWildcard(userPermissions)
+
+	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
+	common.Respond(w, r, http.StatusCreated, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+		Student:       student,
+		Person:        person,
+		Group:         group,
+		HasFullAccess: hasFullAccess,
+		PhotosEnabled: photosEnabled,
+	}, StudentResponseServices{
+		ActiveService: rs.ActiveService,
+		PersonService: rs.PersonService,
+	}), "Student created successfully")
+}
+
 // createStudent handles creating a new student with their person record
 func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse request
@@ -514,82 +660,17 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 
 	// Create person and student in tenant transaction
 	student := createStudentFromRequest(req, 0) // personID set after create
-
 	guardians := guardiansAPI.ToNewStudentGuardians(req.Guardians)
 
-	// Resolve the acting staff once — weekly schedules are stamped with
-	// CreatedBy. Only required when schedules are supplied so plain student
-	// creation (no schedules) is unaffected.
-	//
-	// Creating a student is governed by users:create, but attached weekly
-	// schedules are writes to the same Betreuungszeiten records edited by the
-	// standalone PUT endpoints. Keep that schedule write contract aligned:
-	// callers need users:update and must resolve to a staff record so schedule
-	// rows always carry a valid author.
-	var staffID int64
-	if len(req.ArrivalSchedules) > 0 || len(req.PickupSchedules) > 0 {
-		if !authorize.HasPermission(permissions.UsersUpdate, jwt.PermissionsFromCtx(r.Context())) {
-			renderError(w, r, common.ErrorForbidden(errors.New("users:update permission required to create student schedules")))
-			return
-		}
-		staffID, err = rs.getStaffIDFromJWT(r)
-		if err != nil {
-			renderError(w, r, common.ErrorForbidden(err))
-			return
-		}
+	staffID, err := rs.resolveScheduleStaffID(r, req)
+	if err != nil {
+		renderError(w, r, common.ErrorForbidden(err))
+		return
 	}
 
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		// Validate guardians BEFORE writing the student. This route runs inside
-		// TenantTxMiddleware, which only rolls back on 5xx; a guardian
-		// ValidationError renders 400, so the middleware would otherwise commit
-		// an already-created student. Validating first means a 400 commits an
-		// empty transaction — no orphaned student/person rows.
-		if len(guardians) > 0 {
-			if err := rs.GuardianService.ValidateNewGuardians(ctx, guardians); err != nil {
-				return err
-			}
-		}
-
-		// Create person - validation occurs at the model layer
-		if err := rs.PersonService.Create(ctx, person); err != nil {
-			return err
-		}
-
-		// Create student with the person ID
-		student.PersonID = person.ID
-		if err := rs.StudentService.Create(ctx, student); err != nil {
-			rs.cleanupPersonAfterStudentFailure(ctx, person.ID)
-			return err
-		}
-
-		// Create any guardians supplied with the request inside the same
-		// transaction so the student and its guardians are persisted
-		// atomically — a guardian failure rolls back the whole student.
-		if len(guardians) > 0 {
-			if err := rs.GuardianService.AddGuardiansToStudent(ctx, student.ID, guardians); err != nil {
-				return err
-			}
-		}
-
-		// Persist weekly arrival/pickup schedules in the same transaction so the
-		// student and its recurring care times are created atomically (mirrors
-		// the guardian handling above). The schedule tables FK to the student,
-		// which now exists within this transaction.
-		if len(req.ArrivalSchedules) > 0 {
-			arrivals := toArrivalScheduleModels(req.ArrivalSchedules, student.ID, staffID)
-			if err := rs.ArrivalScheduleService.UpsertBulkStudentArrivalSchedules(ctx, student.ID, arrivals); err != nil {
-				return err
-			}
-		}
-		if len(req.PickupSchedules) > 0 {
-			pickups := toPickupScheduleModels(req.PickupSchedules, student.ID, staffID)
-			if err := rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(ctx, student.ID, pickups); err != nil {
-				return err
-			}
-		}
-		return nil
+		return rs.persistNewStudent(ctx, person, student, guardians, req, staffID)
 	}); err != nil {
 		// Bad guardian input (e.g. invalid email) is a client error: the
 		// transaction has already rolled back, so no partial data survives.
@@ -602,25 +683,7 @@ func (rs *Resource) createStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get group data if student has a group
-	group := rs.fetchStudentGroup(r.Context(), student.GroupID)
-
-	// Admin users creating students can see full data including detailed location
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
-	hasFullAccess := authorize.HasAdminWildcard(userPermissions)
-
-	// Return the created student with person data
-	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
-	common.Respond(w, r, http.StatusCreated, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
-		Student:       student,
-		Person:        person,
-		Group:         group,
-		HasFullAccess: hasFullAccess,
-		PhotosEnabled: photosEnabled,
-	}, StudentResponseServices{
-		ActiveService: rs.ActiveService,
-		PersonService: rs.PersonService,
-	}), "Student created successfully")
+	rs.respondCreatedStudent(w, r, student, person)
 }
 
 // cleanupPersonAfterStudentFailure removes the person record if student creation fails
@@ -918,6 +981,145 @@ func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, st
 	})
 }
 
+// In-tx sentinel: a concurrent partial update committed between the pre-tx
+// conflict check and the locked-row re-check produced the forbidden sick &&
+// excused state. Mapped to 409 + SICK_EXCUSED_CONFLICT in the outer error
+// switch so the frontend can prompt the user the same way it does for a
+// synchronous conflict. errors.Is keeps the dispatch resilient to wrapping.
+var errSickExcusedConflict = errors.New("sick and excused conflict on locked row")
+
+// In-tx sentinel: a concurrent delete removed the student row between
+// parseAndGetStudent and the locked re-read. The non-racy path returns 404;
+// bare sql.ErrNoRows would otherwise fall through to a 500 for a legitimate
+// concurrent delete.
+var errStudentNotFoundUnderLock = errors.New("student deleted between snapshot and lock")
+
+// In-tx sentinel: the pre-tx canUpdateStudent check ran on student.GroupID from
+// the snapshot. canUpdateStudent decides off group membership, so a concurrent
+// admin moving the student into a different group between snapshot and lock can
+// leave the caller without write authority on the locked row. Re-checking
+// against fresh closes that window. Mapped to 403 in the outer switch so the
+// response status matches what the pre-tx gate would emit.
+var errStudentReassigned = errors.New("student reassigned out of caller's scope mid-update")
+
+// applyStudentUpdate performs the locked-row student patch inside the caller's
+// tenant transaction. Patch is applied to a freshly FOR-UPDATE-locked row so a
+// concurrent photo upload can't have its photo_path clobbered by a stale
+// snapshot write. It returns one of the package sentinel errors for the racy
+// paths the outer switch maps to specific status codes.
+func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, student *users.Student, person *users.Person, req *UpdateStudentRequest, userPermissions []string, personUpdated bool, statusHistoryNow time.Time) error {
+	// Acquire the photo-feature advisory lock only when consent is
+	// actually toggling. Name/notes edits must not queue behind
+	// feature disable/purge.
+	consentChanging := req.PhotoConsentGiven != nil &&
+		(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
+	if consentChanging {
+		if err := rs.StudentService.LockPhotoFeature(ctx); err != nil {
+			return err
+		}
+	}
+
+	fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return errStudentNotFoundUnderLock
+		}
+		return err
+	}
+
+	// Re-check authorisation against the LOCKED row. A concurrent admin
+	// reassignment could otherwise let a non-supervisor mutate the row.
+	if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
+		return errStudentReassigned
+	}
+
+	// Re-validate sick/excused on fresh: two concurrent partial updates
+	// against a stale snapshot can otherwise merge into the forbidden
+	// sick && excused state. TenantTxMiddleware only rolls back on 5xx,
+	// so this 409-mapped sentinel must fire before any write below.
+	if err := checkSickExcusedConflict(req, fresh); err != nil {
+		return errSickExcusedConflict
+	}
+
+	if personUpdated {
+		if err := rs.PersonService.Update(ctx, person); err != nil {
+			return err
+		}
+	}
+
+	// Read pre-update flags off fresh, not the snapshot, so status
+	// history reflects the actual transition the commit will perform.
+	wasSick := boolPtrValue(fresh.Sick)
+	wasExcused := boolPtrValue(fresh.Excused)
+
+	applyStudentFieldUpdates(req, fresh)
+	effectiveConsent := reconcilePhotoConsentRequest(req.PhotoConsentGiven, student, fresh)
+	rs.StudentPhotos.ApplyConsentTransition(ctx, effectiveConsent, fresh)
+
+	if err := rs.persistStudentStatusHistory(ctx, fresh, wasSick, wasExcused, statusHistoryNow, strutil.TrimPtrToNil(req.SickReason)); err != nil {
+		rs.logStatusHistoryError(student.ID, err)
+		return err
+	}
+	if err := rs.StudentService.Update(ctx, fresh); err != nil {
+		return err
+	}
+
+	// Broadcast after the OUTER tx commits. Broadcasting now would race
+	// subscribers into refetching the still-pre-commit row.
+	rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req)
+	return nil
+}
+
+// updateStudentTxErrorRenderer maps the applyStudentUpdate transaction error to
+// the wire response. The racy-path sentinels keep their specific status codes;
+// everything else is a 500.
+func updateStudentTxErrorRenderer(err error) render.Renderer {
+	switch {
+	case errors.Is(err, errSickExcusedConflict):
+		return common.ErrorConflictWithCode(
+			errors.New("a student cannot be both sick and excused at the same time"),
+			ErrCodeSickExcusedConflict,
+		)
+	case errors.Is(err, errStudentReassigned):
+		return common.ErrorForbidden(errors.New("you can only update students in groups you supervise"))
+	case errors.Is(err, errStudentNotFoundUnderLock):
+		return common.ErrorNotFound(errors.New("student not found"))
+	// The merged plan (request modes applied onto the stored row) can violate
+	// the accompanied-requires-note invariant — e.g. a caller sets a "Mit
+	// anderem Kind" day on a child with no stored note. That is client input,
+	// so surface it as a 400 rather than the model error leaking as a 500
+	// (#1694). The binder cannot catch this on update: only here is the
+	// stored note visible to fall back on.
+	case errors.Is(err, users.ErrDepartureCompanionNoteRequired):
+		return common.ErrorInvalidRequest(err)
+	default:
+		return common.ErrorInternalServer(err)
+	}
+}
+
+// respondUpdatedStudent re-reads the student and writes the 200 response.
+func (rs *Resource) respondUpdatedStudent(w http.ResponseWriter, r *http.Request, studentID int64, person *users.Person, hasFullAccess bool) {
+	updatedStudent, err := rs.PersonService.GetStudentByID(r.Context(), studentID)
+	if err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	group := rs.getStudentGroup(r.Context(), updatedStudent)
+
+	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
+	common.Respond(w, r, http.StatusOK, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
+		Student:       updatedStudent,
+		Person:        person,
+		Group:         group,
+		HasFullAccess: hasFullAccess,
+		PhotosEnabled: photosEnabled,
+	}, StudentResponseServices{
+		ActiveService: rs.ActiveService,
+		PersonService: rs.PersonService,
+	}), "Student updated successfully")
+}
+
 // updateStudent handles updating an existing student
 func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 	// Parse ID and get student
@@ -968,150 +1170,17 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 
 	statusHistoryNow := time.Now()
 
-	// In-tx sentinel: a concurrent partial update committed between our
-	// pre-tx conflict check and the locked-row re-check below produced
-	// the forbidden sick && excused state. Mapped to 409 +
-	// SICK_EXCUSED_CONFLICT in the outer error switch so the frontend
-	// can prompt the user the same way it does for a synchronous
-	// conflict. errors.Is keeps the dispatch resilient to wrapping.
-	errSickExcusedConflict := errors.New("sick and excused conflict on locked row")
-
-	// In-tx sentinel: a concurrent delete removed the student row
-	// between parseAndGetStudent above and the locked re-read below.
-	// The non-racy path returns 404; bare sql.ErrNoRows would otherwise
-	// fall through to a 500 for a legitimate concurrent delete.
-	errStudentNotFoundUnderLock := errors.New("student deleted between snapshot and lock")
-
-	// In-tx sentinel: the pre-tx canUpdateStudent check ran on
-	// student.GroupID from the snapshot. canUpdateStudent decides off
-	// group membership, so a concurrent admin moving the student into
-	// a different group between snapshot and lock can leave the caller
-	// without write authority on the locked row. Re-checking against
-	// fresh closes that window. Mapped to 403 in the outer switch so
-	// the response status matches what the pre-tx gate would emit.
-	errStudentReassigned := errors.New("student reassigned out of caller's scope mid-update")
-
-	// Patch is applied to a freshly FOR-UPDATE-locked row inside the tx so a
-	// concurrent photo upload can't have its photo_path clobbered by a stale
-	// snapshot write.
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		// Acquire the photo-feature advisory lock only when consent is
-		// actually toggling. Name/notes edits must not queue behind
-		// feature disable/purge.
-		consentChanging := req.PhotoConsentGiven != nil &&
-			(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
-		if consentChanging {
-			if err := rs.StudentService.LockPhotoFeature(ctx); err != nil {
-				return err
-			}
-		}
-
-		fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
-		if err != nil {
-			if errors.Is(err, sql.ErrNoRows) {
-				return errStudentNotFoundUnderLock
-			}
-			return err
-		}
-
-		// Re-check authorisation against the LOCKED row. A concurrent admin
-		// reassignment could otherwise let a non-supervisor mutate the row.
-		if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
-			return errStudentReassigned
-		}
-
-		// Re-validate sick/excused on fresh: two concurrent partial updates
-		// against a stale snapshot can otherwise merge into the forbidden
-		// sick && excused state. TenantTxMiddleware only rolls back on 5xx,
-		// so this 409-mapped sentinel must fire before any write below.
-		if err := checkSickExcusedConflict(req, fresh); err != nil {
-			return errSickExcusedConflict
-		}
-
-		if personResult.updated {
-			if err := rs.PersonService.Update(ctx, person); err != nil {
-				return err
-			}
-		}
-
-		// Read pre-update flags off fresh, not the snapshot, so status
-		// history reflects the actual transition the commit will perform.
-		wasSick := boolPtrValue(fresh.Sick)
-		wasExcused := boolPtrValue(fresh.Excused)
-
-		applyStudentFieldUpdates(req, fresh)
-		effectiveConsent := reconcilePhotoConsentRequest(req.PhotoConsentGiven, student, fresh)
-		rs.StudentPhotos.ApplyConsentTransition(ctx, effectiveConsent, fresh)
-
-		if err := rs.persistStudentStatusHistory(ctx, fresh, wasSick, wasExcused, statusHistoryNow, strutil.TrimPtrToNil(req.SickReason)); err != nil {
-			rs.logStatusHistoryError(student.ID, err)
-			return err
-		}
-		if err := rs.StudentService.Update(ctx, fresh); err != nil {
-			return err
-		}
-
-		// Broadcast after the OUTER tx commits. Broadcasting now would race
-		// subscribers into refetching the still-pre-commit row.
-		rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req)
-		return nil
+		return rs.applyStudentUpdate(ctx, tenantID, student, person, req, userPermissions, personResult.updated, statusHistoryNow)
 	}); err != nil {
-		if errors.Is(err, errSickExcusedConflict) {
-			renderError(w, r, common.ErrorConflictWithCode(
-				errors.New("a student cannot be both sick and excused at the same time"),
-				ErrCodeSickExcusedConflict,
-			))
-			return
-		}
-		if errors.Is(err, errStudentReassigned) {
-			renderError(w, r, common.ErrorForbidden(errors.New("you can only update students in groups you supervise")))
-			return
-		}
-		if errors.Is(err, errStudentNotFoundUnderLock) {
-			renderError(w, r, common.ErrorNotFound(errors.New("student not found")))
-			return
-		}
-		// The merged plan (request modes applied onto the stored row) can violate
-		// the accompanied-requires-note invariant — e.g. a caller sets a "Mit
-		// anderem Kind" day on a child with no stored note. That is client input,
-		// so surface it as a 400 rather than the model error leaking as a 500
-		// (#1694). The binder cannot catch this on update: only here is the
-		// stored note visible to fall back on.
-		if errors.Is(err, users.ErrDepartureCompanionNoteRequired) {
-			renderError(w, r, common.ErrorInvalidRequest(err))
-			return
-		}
-		renderError(w, r, common.ErrorInternalServer(err))
+		renderError(w, r, updateStudentTxErrorRenderer(err))
 		return
 	}
-
-	// Get updated student with person data
-	updatedStudent, err := rs.PersonService.GetStudentByID(r.Context(), student.ID)
-	if err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
-	// Get group data if student has a group
-	group := rs.getStudentGroup(r.Context(), updatedStudent)
 
 	// Admin users and group supervisors can see full data including detailed location
-	// Explicitly verify access level based on the checks performed above
-	hasFullAccess := isAdmin || isGroupSupervisor // Explicitly check for admin or group supervisor
-
-	// Return the updated student with person data
-	photosEnabled := configService.ResolveBoolOrDefault(r.Context(), rs.SettingsService, configModel.KeyStudentPhotosEnabled, false, rs.Logger)
-	common.Respond(w, r, http.StatusOK, newStudentResponseWithOpts(r.Context(), StudentResponseOpts{
-		Student:       updatedStudent,
-		Person:        person,
-		Group:         group,
-		HasFullAccess: hasFullAccess,
-		PhotosEnabled: photosEnabled,
-	}, StudentResponseServices{
-		ActiveService: rs.ActiveService,
-		PersonService: rs.PersonService,
-	}), "Student updated successfully")
+	hasFullAccess := isAdmin || isGroupSupervisor
+	rs.respondUpdatedStudent(w, r, student.ID, person, hasFullAccess)
 }
 
 // deleteStudent handles deleting a student and their associated person record

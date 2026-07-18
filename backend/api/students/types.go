@@ -333,42 +333,23 @@ type PrivacyConsentRequest struct {
 	Details           map[string]interface{} `json:"details,omitempty"`
 }
 
-// Bind validates the student request
-func (req *StudentRequest) Bind(_ *http.Request) error {
-	// Basic validation for person fields
-	if req.FirstName == "" {
-		return errors.New("first name is required")
-	}
-	if req.LastName == "" {
-		return errors.New("last name is required")
-	}
-
-	// Basic validation for student fields
-	if req.SchoolClass == "" {
-		return errors.New("school class is required")
-	}
-
-	// Guardian fields are now optional (legacy fields - use guardian_profiles system instead)
-	// No validation required for guardian fields
-
-	// Validate guardians created alongside the student. Email/phone format and
-	// other field-level rules are enforced at the model layer on insert (which
-	// rolls back the whole transaction on failure); here we only guard the
-	// relationship type, which has no default and is required to link.
-	for i := range req.Guardians {
-		if strings.TrimSpace(req.Guardians[i].RelationshipType) == "" {
+// validateGuardianRelationships guards that every guardian created alongside the
+// student carries a relationship type. Email/phone format and other field-level
+// rules are enforced at the model layer on insert (which rolls back the whole
+// transaction on failure); the relationship type has no default and is required
+// to link.
+func validateGuardianRelationships(guardians []guardiansAPI.GuardianWithRelationshipInput) error {
+	for i := range guardians {
+		if strings.TrimSpace(guardians[i].RelationshipType) == "" {
 			return errors.New("guardian relationship_type is required")
 		}
 	}
+	return nil
+}
 
-	// Validate weekly schedules with the same rules as the bulk-update
-	// endpoints so the atomic create path cannot persist invalid times.
-	if err := validateArrivalScheduleItems(req.ArrivalSchedules); err != nil {
-		return err
-	}
-	if err := validatePickupScheduleItems(req.PickupSchedules); err != nil {
-		return err
-	}
+// normalizeDayFields validates and normalizes the per-weekday departure/pickup/bus
+// maps in place, so downstream persistence always sees canonical values.
+func (req *StudentRequest) normalizeDayFields() error {
 	if req.BusDays != nil {
 		if err := req.BusDays.Validate(); err != nil {
 			return err
@@ -396,6 +377,77 @@ func (req *StudentRequest) Bind(_ *http.Request) error {
 		}
 		normalized := req.AllowedDepartureModes.Normalize()
 		req.AllowedDepartureModes = &normalized
+	}
+	return nil
+}
+
+// normalizeDayFields validates and normalizes the per-weekday departure/pickup/bus
+// maps in place, so downstream persistence always sees canonical values.
+func (req *UpdateStudentRequest) normalizeDayFields() error {
+	if req.BusDays != nil {
+		if err := req.BusDays.Validate(); err != nil {
+			return err
+		}
+		normalized := req.BusDays.Normalize()
+		req.BusDays = &normalized
+	}
+	if req.PickupDays != nil {
+		if err := req.PickupDays.Validate(); err != nil {
+			return err
+		}
+		normalized := req.PickupDays.Normalize()
+		req.PickupDays = &normalized
+	}
+	if req.DepartureDays != nil {
+		if err := req.DepartureDays.Validate(); err != nil {
+			return err
+		}
+		normalized := req.DepartureDays.Normalize()
+		req.DepartureDays = &normalized
+	}
+	if req.AllowedDepartureModes != nil {
+		if err := req.AllowedDepartureModes.Validate(); err != nil {
+			return err
+		}
+		normalized := req.AllowedDepartureModes.Normalize()
+		req.AllowedDepartureModes = &normalized
+	}
+	return nil
+}
+
+// Bind validates the student request
+func (req *StudentRequest) Bind(_ *http.Request) error {
+	// Basic validation for person fields
+	if req.FirstName == "" {
+		return errors.New("first name is required")
+	}
+	if req.LastName == "" {
+		return errors.New("last name is required")
+	}
+
+	// Basic validation for student fields
+	if req.SchoolClass == "" {
+		return errors.New("school class is required")
+	}
+
+	// Guardian fields are now optional (legacy fields - use guardian_profiles system instead)
+	// No validation required for guardian fields
+
+	// Validate guardians created alongside the student.
+	if err := validateGuardianRelationships(req.Guardians); err != nil {
+		return err
+	}
+
+	// Validate weekly schedules with the same rules as the bulk-update
+	// endpoints so the atomic create path cannot persist invalid times.
+	if err := validateArrivalScheduleItems(req.ArrivalSchedules); err != nil {
+		return err
+	}
+	if err := validatePickupScheduleItems(req.PickupSchedules); err != nil {
+		return err
+	}
+	if err := req.normalizeDayFields(); err != nil {
+		return err
 	}
 	if err := validateDepartureCompanionNote(req.DepartureCompanionNote); err != nil {
 		return err
@@ -425,33 +477,8 @@ func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 	if req.SchoolClass != nil && *req.SchoolClass == "" {
 		return errors.New("school class cannot be empty")
 	}
-	if req.BusDays != nil {
-		if err := req.BusDays.Validate(); err != nil {
-			return err
-		}
-		normalized := req.BusDays.Normalize()
-		req.BusDays = &normalized
-	}
-	if req.PickupDays != nil {
-		if err := req.PickupDays.Validate(); err != nil {
-			return err
-		}
-		normalized := req.PickupDays.Normalize()
-		req.PickupDays = &normalized
-	}
-	if req.DepartureDays != nil {
-		if err := req.DepartureDays.Validate(); err != nil {
-			return err
-		}
-		normalized := req.DepartureDays.Normalize()
-		req.DepartureDays = &normalized
-	}
-	if req.AllowedDepartureModes != nil {
-		if err := req.AllowedDepartureModes.Validate(); err != nil {
-			return err
-		}
-		normalized := req.AllowedDepartureModes.Normalize()
-		req.AllowedDepartureModes = &normalized
+	if err := req.normalizeDayFields(); err != nil {
+		return err
 	}
 	if err := validateDepartureCompanionNote(req.DepartureCompanionNote); err != nil {
 		return err
