@@ -5,6 +5,7 @@ import path from "node:path";
 
 const defaults = {
   from: 1,
+  framePadding: 48,
   outDir: path.resolve(process.cwd(), "../outputs/reach-pitch-web"),
   scale: 4,
   url: "http://localhost:3001/reach-pitch",
@@ -45,6 +46,7 @@ function readStringOption(name, defaultValue) {
 
 const config = {
   flat: readFlag("flat"),
+  framePadding: readNumberOption("frame-padding", defaults.framePadding),
   from: readNumberOption("from", defaults.from),
   outDir: path.resolve(readStringOption("out-dir", defaults.outDir)),
   scale: readNumberOption("scale", defaults.scale),
@@ -94,43 +96,7 @@ await page.addStyleTag({
             box-shadow: none !important;
           }
         `
-        : `
-          html,
-          body {
-            height: 100% !important;
-            margin: 0 !important;
-            overflow: hidden !important;
-            background: #f3f4f6 !important;
-          }
-
-          main {
-            min-height: 100vh !important;
-            padding: 0 !important;
-            background: #f3f4f6 !important;
-          }
-
-          main > div {
-            min-height: 100vh !important;
-            width: 100vw !important;
-            max-width: none !important;
-            align-items: center !important;
-            justify-content: center !important;
-            gap: 0 !important;
-          }
-
-          .pitch-slide {
-            display: none !important;
-            width: calc(100vw - 128px) !important;
-            max-width: none !important;
-            border-radius: 28px !important;
-            border: 1px solid rgb(229 231 235) !important;
-            box-shadow: 0 18px 38px rgb(15 23 42 / 0.12) !important;
-          }
-
-          .pitch-slide[data-export-active="true"] {
-            display: grid !important;
-          }
-        `
+        : ""
     }
   `,
 });
@@ -149,16 +115,9 @@ for (let index = firstSlideIndex; index < lastSlideNumber; index += 1) {
   const slide = page.locator(".pitch-slide").nth(index);
   if (!config.flat) {
     await page.evaluate((slideIndex) => {
-      document
-        .querySelectorAll(".pitch-slide")
-        .forEach((currentSlide, currentIndex) => {
-          if (currentIndex === slideIndex) {
-            currentSlide.setAttribute("data-export-active", "true");
-          } else {
-            currentSlide.removeAttribute("data-export-active");
-          }
-        });
-      window.scrollTo(0, 0);
+      const currentSlide =
+        document.querySelectorAll(".pitch-slide")[slideIndex];
+      currentSlide?.scrollIntoView({ block: "center", inline: "center" });
     }, index);
   }
   await slide.scrollIntoViewIfNeeded();
@@ -192,6 +151,33 @@ for (let index = firstSlideIndex; index < lastSlideNumber; index += 1) {
       })
     : await page.screenshot({
         animations: "disabled",
+        clip: await page.evaluate(
+          ({ framePadding, slideIndex }) => {
+            const currentSlide =
+              document.querySelectorAll(".pitch-slide")[slideIndex];
+            if (!currentSlide)
+              throw new Error(`Slide ${slideIndex + 1} not found`);
+
+            const rect = currentSlide.getBoundingClientRect();
+            const desiredWidth = rect.width + framePadding * 2;
+            const desiredHeight = desiredWidth * (9 / 16);
+            const width = Math.min(window.innerWidth, desiredWidth);
+            const height = Math.min(window.innerHeight, desiredHeight);
+            const slideCenterX = rect.left + rect.width / 2;
+            const slideCenterY = rect.top + rect.height / 2;
+            const x = Math.max(
+              0,
+              Math.min(window.innerWidth - width, slideCenterX - width / 2),
+            );
+            const y = Math.max(
+              0,
+              Math.min(window.innerHeight - height, slideCenterY - height / 2),
+            );
+
+            return { height, width, x, y };
+          },
+          { framePadding: config.framePadding, slideIndex: index },
+        ),
         fullPage: false,
         path: screenshotPath,
         type: "png",
