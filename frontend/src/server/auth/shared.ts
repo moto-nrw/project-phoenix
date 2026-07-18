@@ -25,6 +25,8 @@ export const logger = createLogger({ component: "NextAuthConfig" });
 
 export interface JwtPayload {
   id: string | number;
+  exp?: number;
+  token?: string;
   sub?: string;
   username?: string;
   first_name?: string;
@@ -425,7 +427,12 @@ export async function performLogin(
 
 type RefreshResult = { access_token: string; refresh_token: string };
 type RefreshAttempt =
-  | { status: "success"; result: RefreshResult; recoveryProof: string }
+  | {
+      status: "success";
+      result: RefreshResult;
+      recoveryProof: string;
+      refreshTokenExpiresAt: number;
+    }
   | { status: "terminal" }
   | { status: "transient" };
 
@@ -435,7 +442,12 @@ type RefreshAttempt =
 const activeRefreshes = new Map<string, Promise<RefreshAttempt>>();
 const refreshCacheMap = new Map<
   string,
-  { result: RefreshResult; recoveryProof: string; expiresAt: number }
+  {
+    result: RefreshResult;
+    recoveryProof: string;
+    refreshTokenExpiresAt: number;
+    expiresAt: number;
+  }
 >();
 const REFRESH_CACHE_TTL_MS = 5 * 60 * 1000;
 const MAX_CACHE_ENTRIES = 100;
@@ -444,16 +456,36 @@ function createRefreshRecoveryProof(): string {
   return randomBytes(32).toString("base64url");
 }
 
-// Sessions issued before recovery proofs were introduced need a stable proof
-// across frontend process replacement. Deriving only this one-time bootstrap
-// value with the Auth.js server secret keeps it unavailable to callers that
-// stole the exposed backend access/refresh pair. Every successful refresh
-// replaces it with a fresh random proof.
-function legacyRefreshRecoveryProof(refreshToken: string): string {
+// A persisted refresh session must always map to the same recovery proof,
+// including across frontend processes. Recovery responses re-mint its JWT and
+// can therefore have different `iat` claims, so derive from the stable database
+// token claim rather than from the serialized JWT. Keying the derivation with
+// the Auth.js secret keeps the proof unavailable to callers that stole only the
+// exposed backend access/refresh pair.
+function deriveRefreshRecoveryProof(refreshToken: string): string {
+  const payload = parseJwtPayload(refreshToken);
+  const proofMaterial =
+    typeof payload?.token === "string" && payload.token.length > 0
+      ? payload.token
+      : refreshToken;
   return createHmac("sha256", env.NEXTAUTH_SECRET)
     .update("phoenix-refresh-recovery-v1\0")
-    .update(refreshToken)
+    .update(proofMaterial)
     .digest("base64url");
+}
+
+function refreshTokenExpiresAt(refreshToken: string): number | null {
+  const payload = parseJwtPayload(refreshToken);
+  if (
+    !payload ||
+    typeof payload.exp !== "number" ||
+    !Number.isSafeInteger(payload.exp) ||
+    payload.exp <= 0
+  ) {
+    logger.error("refresh token is missing a valid exp claim", {});
+    return null;
+  }
+  return payload.exp * 1000;
 }
 
 async function getRefreshAuditHeaders(): Promise<Record<string, string>> {
@@ -693,7 +725,7 @@ export const sharedJwtCallback: NonNullable<
       typeof token.refreshRecoveryProof === "string" &&
       token.refreshRecoveryProof.length > 0
         ? token.refreshRecoveryProof
-        : legacyRefreshRecoveryProof(currentRefreshToken);
+        : deriveRefreshRecoveryProof(currentRefreshToken);
     token.refreshRecoveryProof = currentRecoveryProof;
     const refreshKey = `${currentRefreshToken}\0${currentRecoveryProof}`;
 
@@ -707,7 +739,7 @@ export const sharedJwtCallback: NonNullable<
       token.refreshToken = cached.result.refresh_token;
       token.refreshRecoveryProof = cached.recoveryProof;
       token.tokenExpiry = Date.now() + accessTokenExpiry;
-      token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
+      token.refreshTokenExpiry = cached.refreshTokenExpiresAt;
       token.error = undefined;
       token.needsRefresh = undefined;
       const cachedPayload = parseJwtPayload(cached.result.access_token);
@@ -727,7 +759,7 @@ export const sharedJwtCallback: NonNullable<
         token.refreshToken = attempt.result.refresh_token;
         token.refreshRecoveryProof = attempt.recoveryProof;
         token.tokenExpiry = Date.now() + accessTokenExpiry;
-        token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
+        token.refreshTokenExpiry = attempt.refreshTokenExpiresAt;
         token.error = undefined;
         token.needsRefresh = undefined;
         const inflightPayload = parseJwtPayload(attempt.result.access_token);
@@ -775,16 +807,26 @@ export const sharedJwtCallback: NonNullable<
           } else {
             tokens = (await response.json()) as RefreshResult;
           }
-          const successorRecoveryProof = createRefreshRecoveryProof();
+          const successorRecoveryProof = deriveRefreshRecoveryProof(
+            tokens.refresh_token,
+          );
+          const successorExpiresAt = refreshTokenExpiresAt(
+            tokens.refresh_token,
+          );
+          if (successorExpiresAt === null) {
+            return { status: "transient" };
+          }
           refreshCacheMap.set(refreshKey, {
             result: tokens,
             recoveryProof: successorRecoveryProof,
+            refreshTokenExpiresAt: successorExpiresAt,
             expiresAt: Date.now() + REFRESH_CACHE_TTL_MS,
           });
           return {
             status: "success",
             result: tokens,
             recoveryProof: successorRecoveryProof,
+            refreshTokenExpiresAt: successorExpiresAt,
           };
         }
         logger.warn("proactive_token_refresh_failed", {
@@ -813,7 +855,7 @@ export const sharedJwtCallback: NonNullable<
       token.refreshToken = attempt.result.refresh_token;
       token.refreshRecoveryProof = attempt.recoveryProof;
       token.tokenExpiry = Date.now() + accessTokenExpiry;
-      token.refreshTokenExpiry = Date.now() + refreshTokenExpiry;
+      token.refreshTokenExpiry = attempt.refreshTokenExpiresAt;
       token.error = undefined;
       token.needsRefresh = undefined;
       const refreshedPayload = parseJwtPayload(attempt.result.access_token);
