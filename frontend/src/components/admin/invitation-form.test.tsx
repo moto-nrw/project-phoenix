@@ -196,10 +196,8 @@ describe("InvitationForm", () => {
   it("validates role field", async () => {
     render(<InvitationForm />);
 
-    await waitFor(() => {
-      const emailInput = screen.getByTestId("invitation-email");
-      fireEvent.change(emailInput, { target: { value: "test@example.com" } });
-    });
+    const emailInput = await screen.findByTestId("invitation-email");
+    fireEvent.change(emailInput, { target: { value: "test@example.com" } });
 
     const submitButton = screen.getByText("Einladung senden");
     fireEvent.click(submitButton);

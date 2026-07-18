@@ -415,9 +415,7 @@ describe("ProfilePage", () => {
 
       fireEvent.click(screen.getByRole("button", { name: /passwort ändern/i }));
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByRole("button", { name: "Success" }));
-      });
+      fireEvent.click(await screen.findByRole("button", { name: "Success" }));
 
       await waitFor(() => {
         expect(screen.queryByTestId("password-modal")).not.toBeInTheDocument();

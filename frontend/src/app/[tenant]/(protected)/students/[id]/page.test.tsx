@@ -1032,10 +1032,8 @@ describe("StudentDetailPage", () => {
       });
 
       // Wait for active groups to load and select one
-      await waitFor(() => {
-        const select = screen.getByRole("combobox");
-        fireEvent.change(select, { target: { value: "1" } });
-      });
+      const select = await screen.findByRole("combobox");
+      fireEvent.change(select, { target: { value: "1" } });
 
       const confirmButton = screen.getByTestId("modal-confirm");
       await act(async () => {
@@ -1064,10 +1062,8 @@ describe("StudentDetailPage", () => {
       });
 
       // Select a room first
-      await waitFor(() => {
-        const select = screen.getByRole("combobox");
-        fireEvent.change(select, { target: { value: "1" } });
-      });
+      const select = await screen.findByRole("combobox");
+      fireEvent.change(select, { target: { value: "1" } });
 
       const confirmButton = screen.getByTestId("modal-confirm");
       await act(async () => {

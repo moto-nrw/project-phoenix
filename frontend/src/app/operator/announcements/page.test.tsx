@@ -281,10 +281,7 @@ describe("OperatorAnnouncementsPage", () => {
     }
 
     // Click edit
-    await waitFor(() => {
-      const editButton = screen.getByText("Bearbeiten");
-      fireEvent.click(editButton);
-    });
+    fireEvent.click(await screen.findByText("Bearbeiten"));
 
     await waitFor(() => {
       const textInputs = screen.getAllByRole("textbox");
@@ -338,10 +335,7 @@ describe("OperatorAnnouncementsPage", () => {
     // Open create modal
     fireEvent.click(screen.getByText("Neue Ankündigung"));
 
-    await waitFor(() => {
-      const severityButton = screen.getByText("Info");
-      fireEvent.click(severityButton);
-    });
+    fireEvent.click(await screen.findByText("Info"));
 
     // Dropdown should be open
     await waitFor(() => {
@@ -420,9 +414,7 @@ describe("OperatorAnnouncementsPage", () => {
       fireEvent.click(menuButtons[0]);
     }
 
-    await waitFor(() => {
-      fireEvent.click(screen.getByText("Löschen"));
-    });
+    fireEvent.click(await screen.findByText("Löschen"));
 
     await waitFor(() => {
       expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
@@ -872,9 +864,7 @@ describe("OperatorAnnouncementsPage", () => {
         fireEvent.click(menuButtons[0]);
       }
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       await waitFor(() => {
         expect(screen.getByTestId("modal")).toBeInTheDocument();
@@ -951,9 +941,7 @@ describe("OperatorAnnouncementsPage", () => {
       const menuButtons = screen.getAllByLabelText("Menü öffnen");
       fireEvent.click(menuButtons[0]!);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       await waitFor(() => {
         expect(screen.getByTestId("modal")).toBeInTheDocument();
@@ -1159,9 +1147,7 @@ describe("OperatorAnnouncementsPage", () => {
       const menuButtons = screen.getAllByLabelText("Menü öffnen");
       fireEvent.click(menuButtons[0]!);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Löschen"));
-      });
+      fireEvent.click(await screen.findByText("Löschen"));
 
       await waitFor(() => {
         expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
@@ -1192,9 +1178,7 @@ describe("OperatorAnnouncementsPage", () => {
       const menuButtons = screen.getAllByLabelText("Menü öffnen");
       fireEvent.click(menuButtons[0]!);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Löschen"));
-      });
+      fireEvent.click(await screen.findByText("Löschen"));
 
       await waitFor(() => {
         expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
@@ -1332,9 +1316,7 @@ describe("OperatorAnnouncementsPage", () => {
       const menuButtons = screen.getAllByLabelText("Menü öffnen");
       fireEvent.click(menuButtons[0]!);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Löschen"));
-      });
+      fireEvent.click(await screen.findByText("Löschen"));
 
       await waitFor(() => {
         expect(screen.getByTestId("confirmation-modal")).toBeInTheDocument();
@@ -1415,9 +1397,7 @@ describe("OperatorAnnouncementsPage", () => {
       const menuButtons = screen.getAllByLabelText("Menü öffnen");
       fireEvent.click(menuButtons[0]!);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       await waitFor(() => {
         expect(screen.getByTestId("modal")).toBeInTheDocument();
