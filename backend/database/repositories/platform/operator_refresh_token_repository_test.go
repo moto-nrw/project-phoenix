@@ -164,7 +164,20 @@ func TestOperatorRefreshTokenRepository_RotationHandoffLifecycle(t *testing.T) {
 	assert.Equal(t, successor.Token, *stored.ReplacementToken)
 	assert.Equal(t, recoveryProofHash, stored.RecoveryProofHash)
 
-	require.NoError(t, repo.DeleteRotatedBefore(ctx, familyID, time.Now().Add(-5*time.Minute)))
+	// A handoff older than the recovery grace remains replay evidence until its
+	// refresh JWT expires.
+	require.NoError(t, repo.DeleteExpiredRotated(ctx, familyID, time.Now()))
+	stored, err = repo.FindByTokenForUpdate(ctx, predecessor.Token)
+	require.NoError(t, err)
+	require.NotNil(t, stored)
+
+	_, err = db.NewUpdate().
+		Table("platform.operator_refresh_tokens").
+		Set("expiry = ?", time.Now().Add(-time.Minute)).
+		Where("id = ?", predecessor.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+	require.NoError(t, repo.DeleteExpiredRotated(ctx, familyID, time.Now()))
 	stored, err = repo.FindByTokenForUpdate(ctx, predecessor.Token)
 	require.NoError(t, err)
 	assert.Nil(t, stored)

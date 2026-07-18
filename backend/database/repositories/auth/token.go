@@ -104,36 +104,10 @@ func (r *TokenRepository) MarkRotated(ctx context.Context, id int64, replacement
 	return nil
 }
 
-// DeleteRotatedBefore removes expired handoff rows while preserving the
-// current session row. It is called inside the same transaction as rotation.
-func (r *TokenRepository) DeleteRotatedBefore(ctx context.Context, familyID string, cutoff time.Time) error {
-	db := base.GetDB(ctx, r.db)
-	candidates := db.NewSelect().
-		Model((*auth.Token)(nil)).
-		ModelTableExpr(`auth.tokens AS "token"`).
-		ColumnExpr(`"token".id`).
-		Where(`"token".family_id = ?`, familyID).
-		Where(`"token".rotated_at IS NOT NULL`).
-		Where(`"token".rotated_at < ?`, cutoff)
-	candidates = base.WithTenantFilter(ctx, candidates, "token").
-		For("UPDATE SKIP LOCKED")
-
-	query := db.NewDelete().
-		Model((*auth.Token)(nil)).
-		ModelTableExpr(`auth.tokens AS "token"`).
-		Where(`"token".id IN (?)`, candidates)
-
-	query = base.WithTenantFilter(ctx, query, "token")
-	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "delete expired refresh-token handoffs", Err: err}
-	}
-	return nil
-}
-
-// DeleteRotatedBeforeForAccount removes expired predecessor handoffs across
-// all of an account's token families. Rotated rows are recovery metadata, not
-// active sessions, and are therefore cleaned independently of the session cap.
-func (r *TokenRepository) DeleteRotatedBeforeForAccount(ctx context.Context, accountID int64, cutoff time.Time) error {
+// DeleteExpiredRotatedForAccount removes predecessor rows only after their
+// refresh JWTs expire. Until then they are replay-detection evidence and must
+// remain attributable to their token family.
+func (r *TokenRepository) DeleteExpiredRotatedForAccount(ctx context.Context, accountID int64, now time.Time) error {
 	db := base.GetDB(ctx, r.db)
 	candidates := db.NewSelect().
 		Model((*auth.Token)(nil)).
@@ -141,7 +115,7 @@ func (r *TokenRepository) DeleteRotatedBeforeForAccount(ctx context.Context, acc
 		ColumnExpr(`"token".id`).
 		Where(`"token".account_id = ?`, accountID).
 		Where(`"token".rotated_at IS NOT NULL`).
-		Where(`"token".rotated_at < ?`, cutoff)
+		Where(`"token".expiry <= ?`, now)
 	candidates = base.WithTenantFilter(ctx, candidates, "token").
 		For("UPDATE SKIP LOCKED")
 
@@ -152,7 +126,7 @@ func (r *TokenRepository) DeleteRotatedBeforeForAccount(ctx context.Context, acc
 
 	query = base.WithTenantFilter(ctx, query, "token")
 	if _, err := query.Exec(ctx); err != nil {
-		return &modelBase.DatabaseError{Op: "delete expired account refresh-token handoffs", Err: err}
+		return &modelBase.DatabaseError{Op: "delete expired rotated account refresh tokens", Err: err}
 	}
 	return nil
 }
@@ -337,7 +311,7 @@ func (r *TokenRepository) applyExpiredTokenFilter(query *bun.SelectQuery, value 
 
 // CleanupOldTokensForAccount keeps only the most recent N active, unexpired
 // sessions for an account. Rotated predecessor rows are recovery metadata and
-// are cleaned separately by DeleteRotatedBeforeForAccount.
+// are cleaned separately after their refresh JWTs expire.
 func (r *TokenRepository) CleanupOldTokensForAccount(ctx context.Context, accountID int64, keepCount int) error {
 	// First, get all active sessions for the account ordered newest first.
 	var tokens []*auth.Token

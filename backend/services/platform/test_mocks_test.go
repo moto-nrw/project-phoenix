@@ -116,7 +116,7 @@ type mockOperatorRefreshTokenRepo struct {
 	createFn                 func(ctx context.Context, token *platform.OperatorRefreshToken) error
 	findByTokenForUpdateFn   func(ctx context.Context, token string) (*platform.OperatorRefreshToken, error)
 	markRotatedFn            func(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error
-	deleteRotatedBeforeFn    func(ctx context.Context, familyID string, cutoff time.Time) error
+	deleteExpiredRotatedFn   func(ctx context.Context, familyID string, now time.Time) error
 	deleteFn                 func(ctx context.Context, id any) error
 	deleteByOperatorIDFn     func(ctx context.Context, operatorID int64) (int, error)
 	deleteByFamilyIDFn       func(ctx context.Context, familyID string) error
@@ -147,9 +147,9 @@ func (m *mockOperatorRefreshTokenRepo) MarkRotated(ctx context.Context, id int64
 	return nil
 }
 
-func (m *mockOperatorRefreshTokenRepo) DeleteRotatedBefore(ctx context.Context, familyID string, cutoff time.Time) error {
-	if m.deleteRotatedBeforeFn != nil {
-		return m.deleteRotatedBeforeFn(ctx, familyID, cutoff)
+func (m *mockOperatorRefreshTokenRepo) DeleteExpiredRotated(ctx context.Context, familyID string, now time.Time) error {
+	if m.deleteExpiredRotatedFn != nil {
+		return m.deleteExpiredRotatedFn(ctx, familyID, now)
 	}
 	return nil
 }

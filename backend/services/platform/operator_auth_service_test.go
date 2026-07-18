@@ -1083,14 +1083,20 @@ func TestOperatorAuthService_RefreshToken_ReplayAfterGraceRevokesFamily(t *testi
 	require.NoError(t, err)
 	oldDBToken := currentOperatorRefreshToken(t, db, operatorID)
 	recoveryCtx := rotation.WithRecoveryProof(ctx, predecessorAccessJWT)
-	_, _, err = service.RefreshToken(recoveryCtx, operatorID, oldDBToken)
+	successorAccessJWT, _, err := service.RefreshToken(recoveryCtx, operatorID, oldDBToken)
 	require.NoError(t, err)
+	successorDBToken := currentOperatorRefreshToken(t, db, operatorID)
 
 	_, err = db.NewUpdate().
 		Table("platform.operator_refresh_tokens").
 		Set("rotated_at = ?", time.Now().Add(-rotation.RecoveryGrace-time.Minute)).
 		Where("token = ?", oldDBToken).
 		Exec(ctx)
+	require.NoError(t, err)
+
+	// A later rotation must not erase the expired-grace predecessor while its
+	// refresh JWT is still valid; that row is needed to revoke the family.
+	_, _, err = service.RefreshToken(rotation.WithRecoveryProof(ctx, successorAccessJWT), operatorID, successorDBToken)
 	require.NoError(t, err)
 
 	_, _, err = service.RefreshToken(recoveryCtx, operatorID, oldDBToken)

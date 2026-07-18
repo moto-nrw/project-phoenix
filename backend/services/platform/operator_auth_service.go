@@ -377,6 +377,9 @@ func (s *operatorAuthService) mintOperatorTokenPair(operator *platform.Operator,
 		ID:    int(operator.ID),
 		Token: refreshToken.Token,
 		Scope: "platform",
+		CommonClaims: jwt.CommonClaims{
+			ExpiresAt: refreshToken.Expiry.Unix(),
+		},
 	}
 	access, refresh, err := s.tokenAuth.GenTokenPair(s.operatorAccessClaims(operator), refreshClaims)
 	if err != nil {
@@ -518,7 +521,7 @@ func (s *operatorAuthService) RefreshToken(ctx context.Context, operatorID int64
 			if err := s.RefreshTokenRepo.MarkRotated(txCtx, dbToken.ID, newDBToken.Token, rotation.RecoveryProofHash(txCtx), now); err != nil {
 				return fmt.Errorf("failed to persist operator refresh-token handoff: %w", err)
 			}
-			if err := s.RefreshTokenRepo.DeleteRotatedBefore(txCtx, dbToken.FamilyID, now.Add(-rotation.RecoveryGrace)); err != nil {
+			if err := s.RefreshTokenRepo.DeleteExpiredRotated(txCtx, dbToken.FamilyID, now); err != nil {
 				return fmt.Errorf("failed to clean operator refresh-token handoffs: %w", err)
 			}
 		}

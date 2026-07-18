@@ -530,7 +530,7 @@ func TestAuthService_RefreshToken_ReplayAfterGraceCommitsFamilyRevocation(t *tes
 	_, predecessorJWT, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
 	recoveryCtx := rotation.WithRecoveryProof(ctx, "independent-recovery-secret")
-	_, _, err = service.RefreshToken(recoveryCtx, predecessorJWT)
+	_, successorJWT, err := service.RefreshToken(recoveryCtx, predecessorJWT)
 	require.NoError(t, err)
 
 	_, err = db.NewUpdate().
@@ -539,6 +539,12 @@ func TestAuthService_RefreshToken_ReplayAfterGraceCommitsFamilyRevocation(t *tes
 		Where("account_id = ?", account.ID).
 		Where("rotated_at IS NOT NULL").
 		Exec(ctx)
+	require.NoError(t, err)
+
+	// Rotate the successor after the predecessor leaves the recovery window.
+	// Cleanup must retain the predecessor until its JWT expiry so a later replay
+	// can still revoke the whole family.
+	_, _, err = service.RefreshToken(rotation.WithRecoveryProof(ctx, "successor-recovery-secret"), successorJWT)
 	require.NoError(t, err)
 
 	_, _, err = setupAuthService(t, db).RefreshToken(recoveryCtx, predecessorJWT)

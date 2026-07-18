@@ -51,9 +51,9 @@ func init() {
 					ON platform.operator_refresh_tokens(rotated_at) WHERE rotated_at IS NOT NULL;
 
 				COMMENT ON COLUMN auth.tokens.replacement_token IS
-					'Opaque successor handle retained only for bounded recovery when a rotated response is interrupted; never returned by APIs or logs.';
+					'Opaque successor handle retained until refresh expiry for bounded recovery and replay-family attribution; never returned by APIs or logs.';
 				COMMENT ON COLUMN platform.operator_refresh_tokens.replacement_token IS
-					'Opaque successor handle retained only for bounded recovery when a rotated response is interrupted; never returned by APIs or logs.';
+					'Opaque successor handle retained until refresh expiry for bounded recovery and replay-family attribution; never returned by APIs or logs.';
 				COMMENT ON COLUMN auth.tokens.recovery_proof_hash IS
 					'SHA-256 digest of the independent Auth.js recovery secret required for bounded handoff recovery; never returned by APIs or logs.';
 				COMMENT ON COLUMN platform.operator_refresh_tokens.recovery_proof_hash IS

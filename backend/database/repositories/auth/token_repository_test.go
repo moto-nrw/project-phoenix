@@ -295,9 +295,11 @@ func TestTokenRepository_RotationHandoffLifecycle(t *testing.T) {
 	assert.Equal(t, successor.Token, *stored.ReplacementToken)
 	assert.Equal(t, recoveryProofHash, stored.RecoveryProofHash)
 
-	require.NoError(t, repo.DeleteRotatedBefore(ctx, familyID, time.Now().Add(-5*time.Minute)))
+	// Rotation age alone must never erase replay evidence while the token can
+	// still be presented as a valid JWT.
+	require.NoError(t, repo.DeleteExpiredRotatedForAccount(ctx, account.ID, time.Now()))
 	_, err = repo.FindByToken(ctx, predecessor.Token)
-	assert.Error(t, err)
+	require.NoError(t, err)
 	current, err := repo.FindByToken(ctx, successor.Token)
 	require.NoError(t, err)
 	assert.Equal(t, 1, current.Generation)
@@ -485,7 +487,7 @@ func TestTokenRepository_CleanupOldTokensForAccount(t *testing.T) {
 	require.NoError(t, err, "session-cap cleanup must leave expired-token cleanup to its own lifecycle")
 }
 
-func TestTokenRepository_DeleteRotatedBeforeForAccount(t *testing.T) {
+func TestTokenRepository_DeleteExpiredRotatedForAccount(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()
 
@@ -494,12 +496,12 @@ func TestTokenRepository_DeleteRotatedBeforeForAccount(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "cleanupAccountHandoffs")
 	defer cleanupAccountRecords(t, db, account.ID)
 
-	createHandoff := func(rotatedAt time.Time) (*auth.Token, *auth.Token) {
+	createHandoff := func(expiry time.Time) (*auth.Token, *auth.Token) {
 		familyID := uuid.Must(uuid.NewV4()).String()
 		predecessor := &auth.Token{
 			AccountID: account.ID,
 			Token:     uuid.Must(uuid.NewV4()).String(),
-			Expiry:    time.Now().Add(time.Hour),
+			Expiry:    expiry,
 			FamilyID:  familyID,
 		}
 		successor := &auth.Token{
@@ -511,19 +513,19 @@ func TestTokenRepository_DeleteRotatedBeforeForAccount(t *testing.T) {
 		}
 		require.NoError(t, repo.Create(ctx, predecessor))
 		require.NoError(t, repo.Create(ctx, successor))
-		require.NoError(t, repo.MarkRotated(ctx, predecessor.ID, successor.Token, make([]byte, 32), rotatedAt))
+		require.NoError(t, repo.MarkRotated(ctx, predecessor.ID, successor.Token, make([]byte, 32), time.Now().Add(-10*time.Minute)))
 		return predecessor, successor
 	}
 
-	stalePredecessor, staleSuccessor := createHandoff(time.Now().Add(-10 * time.Minute))
-	freshPredecessor, freshSuccessor := createHandoff(time.Now())
-	require.NoError(t, repo.DeleteRotatedBeforeForAccount(ctx, account.ID, time.Now().Add(-5*time.Minute)))
+	expiredPredecessor, expiredSuccessor := createHandoff(time.Now().Add(-time.Minute))
+	validPredecessor, validSuccessor := createHandoff(time.Now().Add(time.Hour))
+	require.NoError(t, repo.DeleteExpiredRotatedForAccount(ctx, account.ID, time.Now()))
 
-	_, err := repo.FindByID(ctx, stalePredecessor.ID)
+	_, err := repo.FindByID(ctx, expiredPredecessor.ID)
 	assert.Error(t, err)
-	for _, token := range []*auth.Token{staleSuccessor, freshPredecessor, freshSuccessor} {
+	for _, token := range []*auth.Token{expiredSuccessor, validPredecessor, validSuccessor} {
 		_, err = repo.FindByID(ctx, token.ID)
-		require.NoError(t, err, "cleanup must preserve current sessions and in-grace handoffs")
+		require.NoError(t, err, "cleanup must preserve current sessions and unexpired replay evidence")
 	}
 }
 

@@ -411,7 +411,7 @@ func (s *Service) persistTokenInTransaction(ctx context.Context, account *auth.A
 		}
 
 		now := time.Now()
-		if err := s.repos.Token.DeleteRotatedBeforeForAccount(ctx, account.ID, now.Add(-rotation.RecoveryGrace)); err != nil {
+		if err := s.repos.Token.DeleteExpiredRotatedForAccount(ctx, account.ID, now); err != nil {
 			s.getLogger().Warn("failed to clean up refresh-token handoffs",
 				slog.Int64("account_id", account.ID),
 				slog.Any("error", err),
@@ -814,6 +814,9 @@ func (s *Service) buildJWTClaims(
 		Token:    token.Token,
 		TenantID: metadata.tenantID,
 		Scope:    metadata.scope,
+		CommonClaims: jwt.CommonClaims{
+			ExpiresAt: token.Expiry.Unix(),
+		},
 	}
 
 	return appClaims, refreshClaims
@@ -1089,6 +1092,29 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 		var err error
 		now := time.Now()
 
+		// Resolve the owning account without a token lock, then lock the account
+		// first. Login uses the same account -> token order when enforcing the
+		// session cap, preventing a login/refresh deadlock.
+		unlockedToken, err := s.repos.Token.FindByToken(ctx, refreshClaims.Token)
+		if err != nil {
+			if modelBase.IsNoRows(err) {
+				s.logRefreshDecision("refresh_session_rejected", "token_not_found", refreshClaims.ID, refreshClaims.TenantID)
+				return &AuthError{Op: "get token", Err: ErrTokenNotFound}
+			}
+			return fmt.Errorf("find refresh token owner: %w", err)
+		}
+		account, err = s.fetchAndValidateAccountForUpdate(ctx, unlockedToken.AccountID, ipAddress, userAgent)
+		if err != nil {
+			reason := "account_lookup_failed"
+			if errors.Is(err, ErrAccountInactive) {
+				reason = "account_inactive"
+			} else if errors.Is(err, ErrAccountNotFound) {
+				reason = "account_not_found"
+			}
+			s.logRefreshDecision("refresh_session_rejected", reason, refreshClaims.ID, refreshClaims.TenantID)
+			return err
+		}
+
 		dbToken, err = s.repos.Token.FindByTokenForUpdate(ctx, refreshClaims.Token)
 		if err != nil {
 			if modelBase.IsNoRows(err) {
@@ -1143,19 +1169,6 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 			}
 		}
 
-		// Fetch and validate account
-		account, err = s.fetchAndValidateAccount(ctx, dbToken.AccountID, ipAddress, userAgent)
-		if err != nil {
-			reason := "account_lookup_failed"
-			if errors.Is(err, ErrAccountInactive) {
-				reason = "account_inactive"
-			} else if errors.Is(err, ErrAccountNotFound) {
-				reason = "account_not_found"
-			}
-			s.logRefreshDecision("refresh_session_rejected", reason, refreshClaims.ID, refreshClaims.TenantID)
-			return err
-		}
-
 		// Backward compat: pre-migration tokens have tenantID=0 in their claims.
 		// Resolve from account_tenants so the rotated token gets the correct value.
 		effectiveTenantID := tenantID
@@ -1191,6 +1204,25 @@ func (s *Service) refreshTokenInTransaction(ctx context.Context, refreshClaims *
 	}
 
 	return account, newToken, recovered, nil
+}
+
+// fetchAndValidateAccountForUpdate locks the account before refresh locks its
+// token row. This preserves the account-first order used by login.
+func (s *Service) fetchAndValidateAccountForUpdate(ctx context.Context, accountID int64, ipAddress, userAgent string) (*auth.Account, error) {
+	account, err := s.repos.Account.FindByIDForUpdate(ctx, accountID)
+	if err != nil {
+		if modelBase.IsNoRows(err) {
+			return nil, &AuthError{Op: opGetAccount, Err: ErrAccountNotFound}
+		}
+		return nil, &AuthError{Op: opGetAccount, Err: fmt.Errorf("account lookup failed: %w", err)}
+	}
+	if !account.Active {
+		if ipAddress != "" {
+			s.logAuthEvent(ctx, account.ID, audit.EventTypeTokenRefresh, false, ipAddress, userAgent, "Account inactive")
+		}
+		return nil, &AuthError{Op: "check account status", Err: ErrAccountInactive}
+	}
+	return account, nil
 }
 
 // resolveRefreshHandoff follows a bounded, validated successor chain. A chain
@@ -1279,7 +1311,7 @@ func (s *Service) createAndPersistNewToken(ctx context.Context, oldToken *auth.T
 	if err := s.repos.Token.MarkRotated(ctx, oldToken.ID, newToken.Token, rotation.RecoveryProofHash(ctx), now); err != nil {
 		return nil, err
 	}
-	if err := s.repos.Token.DeleteRotatedBeforeForAccount(ctx, accountID, now.Add(-rotation.RecoveryGrace)); err != nil {
+	if err := s.repos.Token.DeleteExpiredRotatedForAccount(ctx, accountID, now); err != nil {
 		return nil, err
 	}
 

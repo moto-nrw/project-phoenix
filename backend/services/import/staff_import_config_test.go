@@ -75,6 +75,9 @@ func (r stubStaffAccountRepo) Create(context.Context, *authModels.Account) error
 func (r stubStaffAccountRepo) FindByID(context.Context, interface{}) (*authModels.Account, error) {
 	panic("not implemented")
 }
+func (r stubStaffAccountRepo) FindByIDForUpdate(context.Context, int64) (*authModels.Account, error) {
+	panic("not implemented")
+}
 func (r stubStaffAccountRepo) FindByEmail(context.Context, string) (*authModels.Account, error) {
 	return r.account, r.err
 }

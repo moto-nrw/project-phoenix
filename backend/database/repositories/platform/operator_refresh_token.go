@@ -69,7 +69,9 @@ func (r *OperatorRefreshTokenRepository) MarkRotated(ctx context.Context, id int
 	return nil
 }
 
-func (r *OperatorRefreshTokenRepository) DeleteRotatedBefore(ctx context.Context, familyID string, cutoff time.Time) error {
+// DeleteExpiredRotated removes predecessor rows only after their refresh JWTs
+// expire, preserving family evidence for replay detection until then.
+func (r *OperatorRefreshTokenRepository) DeleteExpiredRotated(ctx context.Context, familyID string, now time.Time) error {
 	db := base.GetDB(ctx, r.db)
 	candidates := db.NewSelect().
 		Model((*platform.OperatorRefreshToken)(nil)).
@@ -77,7 +79,7 @@ func (r *OperatorRefreshTokenRepository) DeleteRotatedBefore(ctx context.Context
 		ColumnExpr(`"operator_refresh_token".id`).
 		Where(`"operator_refresh_token".family_id = ?`, familyID).
 		Where(`"operator_refresh_token".rotated_at IS NOT NULL`).
-		Where(`"operator_refresh_token".rotated_at < ?`, cutoff).
+		Where(`"operator_refresh_token".expiry <= ?`, now).
 		For("UPDATE SKIP LOCKED")
 
 	_, err := db.NewDelete().
@@ -86,7 +88,7 @@ func (r *OperatorRefreshTokenRepository) DeleteRotatedBefore(ctx context.Context
 		Where(`"operator_refresh_token".id IN (?)`, candidates).
 		Exec(ctx)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete expired operator refresh-token handoffs", Err: err}
+		return &modelBase.DatabaseError{Op: "delete expired rotated operator refresh tokens", Err: err}
 	}
 	return nil
 }
