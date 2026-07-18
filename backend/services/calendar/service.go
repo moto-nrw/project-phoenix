@@ -1773,14 +1773,23 @@ func expandOccurrences(appointment *calModels.Appointment, rule *calModels.Recur
 	return occurrences
 }
 
+// recurrenceScanCapDays bounds the forward scan for an UNBOUNDED rule's first
+// occurrence so a pathological interval can never loop forever. ~40 years
+// generously covers any realistic interval_count (a monthly interval of 24 or a
+// weekly interval of dozens still resolves well inside it).
+const recurrenceScanCapDays = 366 * 40
+
 // firstRecurrenceOccurrence returns the first calendar date on or after the
-// appointment's StartDate that satisfies the recurrence rule, and ok=false when
-// the rule generates no occurrence at all (e.g. a weekly rule whose weekdays
-// never fall within its EndsOn window). For a weekly rule whose selected
-// weekdays exclude StartDate's own weekday the first occurrence is later than
-// StartDate: the in-app expansion (expandOccurrences) starts there, so ICS
-// DTSTART must too. When ok=false callers must NOT fall back to StartDate — that
-// would export/email a phantom appointment on a date the series never produces.
+// appointment's StartDate that satisfies the recurrence rule. ok=false ONLY when
+// the rule is bounded by EndsOn and produces no occurrence within [StartDate,
+// EndsOn] — a genuinely empty series. An unbounded or count-bounded rule always
+// eventually produces an occurrence, so it never reports ok=false even when the
+// first occurrence is far in the future (e.g. a monthly rule with a large
+// interval): rejecting those would drop valid appointments.
+//
+// For a weekly rule whose selected weekdays exclude StartDate's own weekday the
+// first occurrence is later than StartDate; the in-app expansion
+// (expandOccurrences) starts there, so ICS DTSTART must too.
 func firstRecurrenceOccurrence(appointment *calModels.Appointment, rule *calModels.RecurrenceRule) (timezone.Date, bool) {
 	if rule == nil {
 		return appointment.StartDate, false
@@ -1788,19 +1797,25 @@ func firstRecurrenceOccurrence(appointment *calModels.Appointment, rule *calMode
 	if rule.IntervalCount <= 0 {
 		rule.IntervalCount = 1
 	}
-	// Bound the scan: the only frequency where StartDate may not match is weekly,
-	// where a matching weekday is at most 6 days out. Cap generously so a
-	// pathological rule can never loop forever.
-	limit := appointment.StartDate.AddDays(366)
+	// EndsOn gives a concrete, finite scan bound; an unbounded rule is scanned up
+	// to a generous cap (it is guaranteed to have an occurrence — possibly beyond
+	// the cap for an absurd interval, in which case we still report ok=true).
+	limit := appointment.StartDate.AddDays(recurrenceScanCapDays)
+	if rule.EndsOn != nil {
+		limit = *rule.EndsOn
+	}
 	for d := appointment.StartDate; !d.After(limit); d = d.AddDays(1) {
-		if rule.EndsOn != nil && d.After(*rule.EndsOn) {
-			break
-		}
 		if matchesRule(appointment.StartDate, d, rule) {
 			return d, true
 		}
 	}
-	return appointment.StartDate, false
+	if rule.EndsOn != nil {
+		// Bounded window fully scanned with no match: the series is empty.
+		return appointment.StartDate, false
+	}
+	// Unbounded: an occurrence exists beyond the scan cap. Don't reject; fall back
+	// to StartDate as a best-effort DTSTART anchor.
+	return appointment.StartDate, true
 }
 
 func occurrenceDatesForAppointments(appointments []*calModels.Appointment, recurrenceByAppointment map[int64]*calModels.RecurrenceRule, from, to timezone.Date) []timezone.Date {

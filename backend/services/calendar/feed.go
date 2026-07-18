@@ -154,7 +154,17 @@ func (s *service) ParentCalendarFeedByToken(ctx context.Context, token string) (
 				overridesByID[override.AppointmentID] = append(overridesByID[override.AppointmentID], override)
 			}
 			for _, appointment := range appointments {
-				events = append(events, appointmentICSEvent(appointment, recurrenceByID[appointment.ID], overridesByID[appointment.ID]))
+				recurrence := recurrenceByID[appointment.ID]
+				// A count-bounded recurring series (ends_on IS NULL, occurrence_count
+				// set) can slip through applyAppointmentWindow, which treats a NULL
+				// ends_on as open-ended, even when all its occurrences are already
+				// before the feed's lookback. Skip any recurring appointment that
+				// produces no occurrence overlapping the feed window so subscribers
+				// don't receive a series outside the advertised bounds.
+				if recurrence != nil && len(expandOccurrences(appointment, recurrence, from, to)) == 0 {
+					continue
+				}
+				events = append(events, appointmentICSEvent(appointment, recurrence, overridesByID[appointment.ID]))
 			}
 			return nil
 		}); err != nil {

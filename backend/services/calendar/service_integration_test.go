@@ -1880,3 +1880,115 @@ func TestCalendarServiceIntegration_ICSRevisionSequence(t *testing.T) {
 	assert.Contains(t, content, "SEQUENCE:2")
 	assert.Contains(t, content, "EXDATE;TZID=Europe/Berlin:20261012T090000")
 }
+
+// A sparse-but-valid recurrence whose first occurrence is more than a year out
+// (unbounded, so it genuinely produces occurrences) must NOT be rejected as
+// empty.
+func TestCalendarServiceIntegration_SparseRecurrenceAccepted(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Sparse", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Sparse", "Invitee")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	// Monthly, every 24 months, on day 30. Start 2026-01-31 (day 30 in Jan is
+	// before the start), so the first real occurrence is 2028-01-30 — over a year
+	// out but perfectly valid.
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Alle zwei Jahre",
+		StartDate:    timezone.NewDate(2026, 1, 31),
+		EndDate:      timezone.NewDate(2026, 1, 31),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyMonthly,
+			IntervalCount: 24,
+			MonthDays:     []int{30},
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	// The first occurrence lands on 2028-01-30, in-app.
+	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2028, 1, 30), timezone.NewDate(2028, 1, 30))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2028-01-30"}, eventDates(events, calModels.EventSourceAppointment))
+}
+
+// The subscription feed must not export a count-bounded recurring series whose
+// occurrences are all before the feed lookback window (the SQL window treats a
+// NULL ends_on as open-ended).
+func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	cfg := calendarTestConfig(db)
+	repos := repositories.NewFactory(db)
+	cfg.AccountRepo = repos.Account
+	cfg.ParentsURL = "https://parents.test"
+	service := calendarSvc.NewService(cfg)
+
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "ExpiredFeed", "Organizer")
+	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
+	t.Cleanup(func() {
+		testpkg.CleanupParentGuardianChain(t, db, parentChain)
+		testpkg.CleanupStaffFixtures(t, db, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, organizerAccount.ID)
+	})
+
+	// A weekly series bounded by occurrence_count=3, starting 200 days ago: all
+	// three occurrences are well before the feed's 30-day lookback.
+	count := 3
+	pastStart := timezone.TodayDate().AddDays(-200)
+	expired, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Abgelaufene Reihe",
+		StartDate:    pastStart,
+		EndDate:      pastStart,
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:       calModels.RecurrenceFrequencyWeekly,
+			IntervalCount:   1,
+			OccurrenceCount: &count,
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, expired.Appointment.ID) })
+
+	// A current appointment inside the feed window.
+	current, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Aktueller Termin",
+		StartDate:    timezone.TodayDate().AddDays(5),
+		EndDate:      timezone.TodayDate().AddDays(5),
+		StartTime:    wallClock(15, 0),
+		EndTime:      wallClock(16, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeGuardianProfile, ID: &parentChain.GuardianProfileID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, current.Appointment.ID) })
+
+	httpsURL, _, err := service.ParentCalendarFeedURL(testpkg.TenantContext(1), parentChain.AccountID)
+	require.NoError(t, err)
+	token := strings.TrimPrefix(httpsURL, "https://parents.test/api/calendar-feed/")
+	_, content, err := service.ParentCalendarFeedByToken(testpkg.TenantContext(1), token)
+	require.NoError(t, err)
+
+	assert.Contains(t, content, "SUMMARY:Aktueller Termin", "current appointment must be in the feed")
+	assert.NotContains(t, content, "SUMMARY:Abgelaufene Reihe", "expired count-bounded series must be excluded")
+}
