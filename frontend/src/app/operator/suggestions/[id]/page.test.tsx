@@ -642,10 +642,7 @@ describe("OperatorSuggestionDetailPage", () => {
     const deleteButton = screen.getByLabelText("Kommentar löschen");
     fireEvent.click(deleteButton);
 
-    await waitFor(() => {
-      const confirmButton = screen.getByTestId("confirm-button");
-      fireEvent.click(confirmButton);
-    });
+    fireEvent.click(await screen.findByTestId("confirm-button"));
 
     await waitFor(() => {
       expect(consoleError).toHaveBeenCalledWith("comment_delete_failed", {

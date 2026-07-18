@@ -2179,12 +2179,8 @@ describe("TimeTrackingPage", () => {
 
       render(<TimeTrackingPage />);
 
-      await waitFor(() => {
-        const endBreakBtn = screen.queryByLabelText("Pause beenden");
-        if (endBreakBtn) {
-          fireEvent.click(endBreakBtn);
-        }
-      });
+      const endBreakBtn = await screen.findByLabelText("Pause beenden");
+      fireEvent.click(endBreakBtn);
 
       // Verify test setup was correct - breaks were loaded
       expect(timeTrackingService.getSessionBreaks).toHaveBeenCalled();
@@ -2977,12 +2973,10 @@ describe("TimeTrackingPage", () => {
       await openEditModal(pastSession, { absences: [pastAbsence] });
       fireEvent.click(screen.getByText("Abwesenheit"));
 
-      await waitFor(() => {
-        const toggle = screen.getByRole("switch");
-        expect(toggle.getAttribute("aria-checked")).toBe("false");
-        fireEvent.click(toggle);
-        expect(toggle.getAttribute("aria-checked")).toBe("true");
-      });
+      const toggle = await screen.findByRole("switch");
+      expect(toggle.getAttribute("aria-checked")).toBe("false");
+      fireEvent.click(toggle);
+      expect(toggle.getAttribute("aria-checked")).toBe("true");
     });
   });
 
