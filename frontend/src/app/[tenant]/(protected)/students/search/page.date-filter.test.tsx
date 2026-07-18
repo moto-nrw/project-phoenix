@@ -313,6 +313,26 @@ describe("StudentSearchPage — planning date (#1939)", () => {
     expect(calls.every((c) => c.date === undefined)).toBe(true);
   });
 
+  it("strips a rejected past/aged date from the address bar on mount", async () => {
+    // A bookmark or hand-edited URL carrying a past date. The initializer
+    // rejects it (planning is future-only) and the page uses today; the mount
+    // reconcile must also remove the stale param so the address bar and copied
+    // links stop advertising a date the page no longer uses (#1939).
+    const past = isoDaysFromToday(-3);
+    window.history.replaceState({}, "", `/students/search?date=${past}`);
+    currentSearch = new URLSearchParams({ date: past });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(new URLSearchParams(window.location.search).has("date")).toBe(
+        false,
+      );
+    });
+
+    window.history.replaceState({}, "", "/");
+  });
+
   it("shows the planning badge instead of the live presence badge on other days", async () => {
     const tomorrow = isoDaysFromToday(1);
     currentSearch = new URLSearchParams({ date: tomorrow });

@@ -150,37 +150,74 @@ func resolveDayPlanningForDate(
 	if isToday && hasActualAttendanceToday(attendance) {
 		return DayPlanningStatusComesToday, dayPlanningReasonUnplanned, "ungeplant anwesend"
 	}
-	if student.Sick {
-		return DayPlanningStatusNotComingToday, dayPlanningReasonSick, "krank gemeldet"
+	if status, reason, label, ok := scheduledAbsencePlanning(student); ok {
+		return status, reason, label
 	}
-	if student.ClassTrip {
-		return DayPlanningStatusNotComingToday, dayPlanningReasonClassTrip, "Klassenfahrt"
+	if status, reason, label, ok := plannedPresencePlanning(student, arrival, pickup, timetableIDs, isToday); ok {
+		return status, reason, label
 	}
-	if student.Excused {
-		return DayPlanningStatusNotComingToday, dayPlanningReasonExcused, "entschuldigt"
+	if status, reason, label, ok := plannedAbsencePlanning(arrival, pickup); ok {
+		return status, reason, label
 	}
+	return DayPlanningStatusNotComingToday, dayPlanningReasonNoPlan, dayLabel("kein Plan für heute", "kein Plan für diesen Tag", isToday)
+}
+
+// scheduledAbsencePlanning covers the explicit-absence statuses recorded for the
+// day (sick / class trip / excused). They win over any presence signal.
+func scheduledAbsencePlanning(student StudentResponse) (string, string, string, bool) {
+	switch {
+	case student.Sick:
+		return DayPlanningStatusNotComingToday, dayPlanningReasonSick, "krank gemeldet", true
+	case student.ClassTrip:
+		return DayPlanningStatusNotComingToday, dayPlanningReasonClassTrip, "Klassenfahrt", true
+	case student.Excused:
+		return DayPlanningStatusNotComingToday, dayPlanningReasonExcused, "entschuldigt", true
+	}
+	return "", "", "", false
+}
+
+// plannedPresencePlanning reports a "comes today" status when a positive plan
+// exists for the day: a scheduled/exception arrival time, a scheduled/exception
+// pickup time, or a timetable placement.
+func plannedPresencePlanning(
+	student StudentResponse,
+	arrival *scheduleService.EffectiveArrivalTime,
+	pickup *scheduleService.EffectivePickupTime,
+	timetableIDs map[int64]struct{},
+	isToday bool,
+) (string, string, string, bool) {
 	if arrival != nil && arrival.ArrivalTime != nil {
 		if arrival.IsException {
-			return DayPlanningStatusComesToday, dayPlanningReasonArrivalException, dayLabel("geplante Ankunft heute", "geplante Ankunft", isToday)
+			return DayPlanningStatusComesToday, dayPlanningReasonArrivalException, dayLabel("geplante Ankunft heute", "geplante Ankunft", isToday), true
 		}
-		return DayPlanningStatusComesToday, dayPlanningReasonArrivalSchedule, dayLabel("Ankunftsplan heute", "Ankunftsplan", isToday)
+		return DayPlanningStatusComesToday, dayPlanningReasonArrivalSchedule, dayLabel("Ankunftsplan heute", "Ankunftsplan", isToday), true
 	}
 	if pickup != nil && pickup.PickupTime != nil {
 		if pickup.IsException {
-			return DayPlanningStatusComesToday, dayPlanningReasonPickupException, dayLabel("geplante Abholung heute", "geplante Abholung", isToday)
+			return DayPlanningStatusComesToday, dayPlanningReasonPickupException, dayLabel("geplante Abholung heute", "geplante Abholung", isToday), true
 		}
-		return DayPlanningStatusComesToday, dayPlanningReasonPickupSchedule, dayLabel("Abholplan heute", "Abholplan", isToday)
+		return DayPlanningStatusComesToday, dayPlanningReasonPickupSchedule, dayLabel("Abholplan heute", "Abholplan", isToday), true
 	}
 	if _, ok := timetableIDs[student.ID]; ok {
-		return DayPlanningStatusComesToday, dayPlanningReasonTimetable, dayLabel("Betreuungsplan heute", "Betreuungsplan", isToday)
+		return DayPlanningStatusComesToday, dayPlanningReasonTimetable, dayLabel("Betreuungsplan heute", "Betreuungsplan", isToday), true
 	}
+	return "", "", "", false
+}
+
+// plannedAbsencePlanning reports a "not coming" status for a day-specific
+// exception that explicitly clears the child's arrival or pickup — a "not here
+// today" exception carrying no time.
+func plannedAbsencePlanning(
+	arrival *scheduleService.EffectiveArrivalTime,
+	pickup *scheduleService.EffectivePickupTime,
+) (string, string, string, bool) {
 	if arrival != nil && arrival.IsException && arrival.ArrivalTime == nil {
-		return DayPlanningStatusNotComingToday, dayPlanningReasonArrivalException, dayPlanningExceptionLabel(arrival.Notes)
+		return DayPlanningStatusNotComingToday, dayPlanningReasonArrivalException, dayPlanningExceptionLabel(arrival.Notes), true
 	}
 	if pickup != nil && pickup.IsException && pickup.PickupTime == nil {
-		return DayPlanningStatusNotComingToday, dayPlanningReasonPickupException, dayPlanningExceptionLabel(pickup.Notes)
+		return DayPlanningStatusNotComingToday, dayPlanningReasonPickupException, dayPlanningExceptionLabel(pickup.Notes), true
 	}
-	return DayPlanningStatusNotComingToday, dayPlanningReasonNoPlan, dayLabel("kein Plan für heute", "kein Plan für diesen Tag", isToday)
+	return "", "", "", false
 }
 
 func dayLabel(todayLabel, otherDayLabel string, isToday bool) string {

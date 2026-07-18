@@ -100,32 +100,11 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		populateExportPhotoConsentFilterData(responses, students)
 	}
 
-	now := rs.Now()
-	planningDate, isToday, dateErr := resolvePlanningDate(req.Filters.Date, now)
-	if dateErr != nil {
-		renderError(w, r, common.ErrorInvalidRequest(dateErr))
+	planningDate, isToday, errResp := rs.prepareDatedExportResponses(r, responses, dataSnapshot, req.Filters.Date)
+	if errResp != nil {
+		renderError(w, r, errResp)
 		return
 	}
-	// Actual check-in/out times and the row-seeded Sick/Excused flags describe
-	// today; a non-today planning export starts clean and only carries the
-	// requested date's status days and plans.
-	if isToday {
-		applyFullAccessActualTimes(responses, dataSnapshot)
-	} else {
-		resetScheduledStatusFlags(responses)
-	}
-
-	fullAccessIDs := collectFullAccessStudentIDs(responses)
-	if err := rs.applyStatusDaysForDate(r.Context(), responses, planningDate.BerlinMidnight()); err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	if err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
-		renderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
-	rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
 
 	responses = applyExportFilters(responses, req.Filters, req.Preset)
 	// The cap is applied to the rows that actually land in the document, after
@@ -178,6 +157,38 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", strconv.Itoa(len(file.Data)))
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(file.Data)
+}
+
+// prepareDatedExportResponses resolves the export's planning date and layers the
+// date-scoped view onto the already-built responses: today keeps live
+// check-in/out times, any other day starts from the row's clean state and
+// carries only that day's status days, plans, and effective arrival/pickup
+// times. It returns the resolved date so the row and header builders stay
+// date-aware, or a renderer when the requested date is malformed or a lookup
+// fails.
+func (rs *Resource) prepareDatedExportResponses(r *http.Request, responses []StudentResponse, dataSnapshot *common.StudentDataSnapshot, rawDate string) (timezone.Date, bool, render.Renderer) {
+	planningDate, isToday, dateErr := resolvePlanningDate(rawDate, rs.Now())
+	if dateErr != nil {
+		return timezone.Date{}, false, common.ErrorInvalidRequest(dateErr)
+	}
+	// Actual check-in/out times and the row-seeded Sick/Excused flags describe
+	// today; a non-today planning export starts clean and only carries the
+	// requested date's status days and plans.
+	if isToday {
+		applyFullAccessActualTimes(responses, dataSnapshot)
+	} else {
+		resetScheduledStatusFlags(responses)
+	}
+	if err := rs.applyStatusDaysForDate(r.Context(), responses, planningDate.BerlinMidnight()); err != nil {
+		return timezone.Date{}, false, common.ErrorInternalServer(err)
+	}
+	if err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
+		return timezone.Date{}, false, common.ErrorInternalServer(err)
+	}
+	fullAccessIDs := collectFullAccessStudentIDs(responses)
+	rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
+	rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
+	return planningDate, isToday, nil
 }
 
 func decodeStudentExportRequest(r *http.Request) (studentExportRequest, error) {
@@ -795,6 +806,14 @@ func exportFilterLabels(filters studentExportFilters) []string {
 }
 
 func exportFilterLabelsForDate(filters studentExportFilters, planningDate timezone.Date, isToday bool) []string {
+	labels := exportIdentityFilterLabels(filters, planningDate, isToday)
+	return append(labels, exportAttributeFilterLabels(filters, isToday)...)
+}
+
+// exportIdentityFilterLabels names the "who / which" filters for the printed
+// header: the planning date, free-text search, group, school year, class, and
+// the momentary status snapshot.
+func exportIdentityFilterLabels(filters studentExportFilters, planningDate timezone.Date, isToday bool) []string {
 	labels := []string{}
 	if !isToday {
 		labels = append(labels, "Datum: "+planningDate.Format("02.01.2006"))
@@ -814,6 +833,14 @@ func exportFilterLabelsForDate(filters studentExportFilters, planningDate timezo
 	if filters.Status != "" && filters.Status != "all" {
 		labels = append(labels, "Momentaufnahme: "+exportStatusLabel(filters.Status))
 	}
+	return labels
+}
+
+// exportAttributeFilterLabels names the per-child attribute filters for the
+// printed header: bus, photo consent, pickup rule, day planning, class grouping,
+// and birthday months.
+func exportAttributeFilterLabels(filters studentExportFilters, isToday bool) []string {
+	labels := []string{}
 	if label := binaryFilterLabel(filters.Bus, "Buskind", "Kein Buskind"); label != "" {
 		labels = append(labels, label)
 	}

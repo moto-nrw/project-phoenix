@@ -79,7 +79,6 @@ var handlerComplexityAllowlist = map[string]int{
 	"api/students/attendance_history_handlers.go:(*Resource).getStudentAttendanceHistory":      17,
 	"api/students/attendance_history_handlers.go:buildAttendanceHistoryDays":                   19,
 	"api/students/day_planning.go:(*Resource).enrichWithDayPlanning":                           21,
-	"api/students/day_planning.go:resolveDayPlanning":                                          17,
 	"api/students/enrollment_extra_fields.go:(*Resource).studentEnrollmentExtraFieldsForChild": 16,
 	"api/students/export_handlers.go:(*Resource).loadActiveEnrollmentSummaries":                19,
 	"api/students/export_handlers.go:applyExportFilters":                                       20,

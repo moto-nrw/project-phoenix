@@ -119,8 +119,17 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		responses, totalCount = applyInMemoryPagination(responses, params.page, params.pageSize)
 	}
 
-	// Actual check-in/out times describe today's attendance; they stay off a
-	// non-today planning view so current presence is never read as a plan.
+	rs.enrichPaginatedPlanningTimes(r, responses, params, dataSnapshot, planningDate, isToday)
+
+	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}, "Students retrieved successfully")
+}
+
+// enrichPaginatedPlanningTimes layers the planning-date time data onto the final
+// paginated slice: today's live check-in/out times (kept off any other day so
+// current presence is never read as a plan), and, when requested, the effective
+// pickup/arrival times for the date via a single bulk query per kind. Both skip
+// redacted students — only rows the caller has full access to are enriched.
+func (rs *Resource) enrichPaginatedPlanningTimes(r *http.Request, responses []StudentResponse, params *studentListParams, dataSnapshot *common.StudentDataSnapshot, planningDate timezone.Date, isToday bool) {
 	if isToday {
 		for i := range responses {
 			if !responses[i].HasFullAccess {
@@ -130,20 +139,16 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Optionally enrich the paginated slice with the planning date's effective
-	// pickup/arrival times (single bulk query). Only query for students the
-	// caller has full access to. GDPR: skip redacted students.
-	if params.includePickupTimes || params.includeArrivalTimes {
-		fullAccessIDs := collectFullAccessStudentIDs(responses)
-		if params.includePickupTimes {
-			rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
-		}
-		if params.includeArrivalTimes {
-			rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
-		}
+	if !params.includePickupTimes && !params.includeArrivalTimes {
+		return
 	}
-
-	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: params.page, PageSize: params.pageSize, Total: totalCount}, "Students retrieved successfully")
+	fullAccessIDs := collectFullAccessStudentIDs(responses)
+	if params.includePickupTimes {
+		rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
+	}
+	if params.includeArrivalTimes {
+		rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
+	}
 }
 
 // fetchStudentsForList fetches students based on the provided parameters

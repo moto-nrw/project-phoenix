@@ -956,6 +956,21 @@ function SearchPageContent() {
     [todayIso, updateUrlParams],
   );
 
+  // The explicitDate initializer rejects a URL `date` that is malformed, past,
+  // or names today (planning is future-only), collapsing it to null. When it
+  // does, the raw query param is still sitting in the address bar, so a copied
+  // link or the URL-state contract would keep advertising a date the page no
+  // longer uses. Reconcile the URL once on mount to what was actually accepted.
+  // The aging effect below only covers a date that ages out *after* mount
+  // (explicitDate is non-null there); this covers the already-rejected case.
+  useEffect(() => {
+    const rawDate = searchParams.get(DATE_QUERY_PARAM);
+    if (rawDate !== null && rawDate !== (explicitDate ?? "")) {
+      updateUrlParams({ date: explicitDate ?? "" });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Once an explicitly selected date has aged past the Berlin day (tab left
   // open across midnight), drop it so the picker, URL, and stored filters stop
   // carrying a past planning date. selectedDate above already ignores it; this
