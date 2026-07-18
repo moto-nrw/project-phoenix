@@ -1,12 +1,10 @@
 import Image from "next/image";
-import { Fragment } from "react";
 import type { ReactNode } from "react";
 import {
-  ArrowRight,
+  Building2,
   ClipboardList,
   DoorOpen,
   HeartHandshake,
-  MapPin,
   MessageCircle,
   Radar,
   ScanLine,
@@ -94,29 +92,6 @@ const marketStats = [
     value: "264k",
     label: "zusätzliche Ganztagsplätze bis 2029/30",
     tone: "orange" as Tone,
-  },
-];
-
-const categoryCards = [
-  {
-    title: "Kita",
-    body: "Kommunikation, Dokumentation und Verwaltung sind sichtbar besetzt.",
-    tone: "blue" as Tone,
-  },
-  {
-    title: "Schule",
-    body: "Unterricht, Klassen, Lernplattformen und Schulverwaltung dominieren.",
-    tone: "purple" as Tone,
-  },
-  {
-    title: "Hort",
-    body: "Betreuung wird oft aus Kita-Systemen oder Verwaltung gedacht.",
-    tone: "orange" as Tone,
-  },
-  {
-    title: "OGS",
-    body: "Räume, Aufsichten, spontane Angebote und Abholung brauchen Echtzeit.",
-    tone: "green" as Tone,
   },
 ];
 
@@ -415,7 +390,7 @@ function SoftwareGapChart() {
             Entwicklung Kinderbetreuungssoftware
           </p>
           <p className="mt-1 max-w-[24rem] text-[clamp(0.84rem,1vw,0.96rem)] leading-snug font-semibold text-gray-500">
-            Anbieter, Budgets und digitale Gewohnheit
+            Softwaremarkt und -nutzung
           </p>
         </div>
         <div className="grid gap-2">
@@ -729,13 +704,13 @@ export default function ReachPitchPage() {
               </Lead>
               <Surface className="mt-7 max-w-[29rem] p-4">
                 <p className="text-[clamp(0.9rem,1.18vw,1.1rem)] leading-snug font-semibold text-gray-800">
-                  Nachfrage steigt. Die passende Software-Kategorie entsteht
-                  erst jetzt.
+                  Ab 2026 wächst nicht nur die Zahl der Plätze. Es wächst auch
+                  der Anspruch an Planung, Nachweis und Verlässlichkeit.
                 </p>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  <Label tone="blue">Kita wächst</Label>
-                  <Label tone="orange">OGS bleibt flach</Label>
-                  <Label>ab 2026</Label>
+                <div className="mt-4 flex flex-wrap gap-1.5 [&>span]:px-2.5 [&>span]:text-[clamp(0.62rem,0.82vw,0.76rem)]">
+                  <Label tone="blue">Mehr Plätze</Label>
+                  <Label tone="orange">Mehr Dokumentation</Label>
+                  <Label>Mehr Koordination</Label>
                 </div>
               </Surface>
             </div>
@@ -743,7 +718,151 @@ export default function ReachPitchPage() {
           </div>
         </Slide>
 
-        <Slide index={5} eyebrow="Timing">
+        <Slide index={5} eyebrow="Lösung">
+          <div className="relative flex min-h-0 flex-1 flex-col justify-center">
+            <div className="pointer-events-none absolute top-[4%] right-[3%] w-[clamp(15rem,22vw,20rem)] opacity-80">
+              <Image
+                src="/pitch/reach/app-device-mockups.svg"
+                alt=""
+                width={6727}
+                height={4490}
+                className="h-auto w-full"
+              />
+            </div>
+            <Headline className="relative z-10 max-w-[17ch]">
+              moto ist das Betriebssystem für den OGS-Alltag.
+            </Headline>
+            <Lead className="relative z-10 max-w-[52rem]">
+              Ein System, das den laufenden Betreuungstag verbindet: Kinder,
+              Eltern, Team, Leitung und Träger.
+            </Lead>
+            <Surface className="relative z-10 mt-12 p-8">
+              <div>
+                <div className="grid grid-cols-5 items-start">
+                  {[
+                    { label: "Kinder", icon: Users, tone: "green" as Tone },
+                    {
+                      label: "Eltern",
+                      icon: MessageCircle,
+                      tone: "orange" as Tone,
+                    },
+                    {
+                      label: "Team",
+                      icon: ShieldCheck,
+                      tone: "purple" as Tone,
+                    },
+                    {
+                      label: "Leitung",
+                      icon: ClipboardList,
+                      tone: "red" as Tone,
+                    },
+                    {
+                      label: "Träger",
+                      icon: Building2,
+                      tone: "blue" as Tone,
+                    },
+                  ].map((node, nodeIndex, list) => (
+                    <div
+                      key={node.label}
+                      className="grid grid-rows-[44px_auto] items-start text-center"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`h-px flex-1 ${nodeIndex === 0 ? "bg-transparent" : "bg-gray-200"}`}
+                          aria-hidden="true"
+                        />
+                        <ToneIcon icon={node.icon} tone={node.tone} />
+                        <div
+                          className={`h-px flex-1 ${nodeIndex === list.length - 1 ? "bg-transparent" : "bg-gray-200"}`}
+                          aria-hidden="true"
+                        />
+                      </div>
+                      <p className="mt-3 text-[clamp(0.92rem,1.24vw,1.15rem)] font-semibold text-gray-900">
+                        {node.label}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="mx-auto mt-9 w-fit rounded-full bg-gray-950 px-6 py-3 text-[clamp(0.9rem,1.2vw,1.12rem)] font-semibold text-white">
+                Wer ist da? Wo ist das Kind? Was ändert sich jetzt?
+              </div>
+            </Surface>
+          </div>
+        </Slide>
+
+        <Slide index={6} eyebrow="Produkt">
+          <div className="flex min-h-0 flex-1 flex-col justify-center">
+            <Headline className="max-w-[18ch]">
+              Die App bildet Bewegung ab, nicht nur Stammdaten.
+            </Headline>
+            <div className="mt-9 grid grid-cols-3 gap-5">
+              {productCards.map((card) => {
+                const tone = toneClass[card.tone];
+                return (
+                  <Surface key={card.title} className={`p-4 ${tone.border}`}>
+                    <div className="relative aspect-[16/10] overflow-hidden rounded-xl border border-gray-200 bg-white">
+                      <Image
+                        src={card.image}
+                        alt={card.title}
+                        fill
+                        sizes="30vw"
+                        className="object-contain p-3"
+                      />
+                    </div>
+                    <h2 className="mt-4 text-[clamp(1.1rem,1.55vw,1.45rem)] font-semibold text-gray-950">
+                      {card.title}
+                    </h2>
+                    <p className="mt-2 text-[clamp(0.78rem,1.02vw,0.98rem)] leading-relaxed text-gray-600">
+                      {card.body}
+                    </p>
+                  </Surface>
+                );
+              })}
+            </div>
+            <p className="mx-auto mt-8 max-w-[58rem] text-center text-[clamp(1rem,1.35vw,1.25rem)] leading-relaxed font-semibold text-gray-800">
+              Ein Scan oder eine Änderung aktualisiert den gemeinsamen
+              Tageszustand. Das Team sieht sofort, was relevant ist.
+            </p>
+          </div>
+        </Slide>
+
+        <Slide index={7} eyebrow="Geschäftsmodell">
+          <div className="flex min-h-0 flex-1 flex-col justify-center">
+            <Headline className="max-w-[18ch]">
+              Modularer SaaS-Umsatz, Hardware nach Bedarf.
+            </Headline>
+            <div className="mt-10 grid grid-cols-3 gap-5">
+              {modules.map((module) => {
+                const tone = toneClass[module.tone];
+                return (
+                  <Surface key={module.title} className={`p-6 ${tone.border}`}>
+                    <p
+                      className={`text-[clamp(1rem,1.35vw,1.25rem)] font-bold ${tone.text}`}
+                    >
+                      {module.title}
+                    </p>
+                    <p className="mt-7 text-[clamp(2rem,3.3vw,3.5rem)] leading-none font-semibold text-gray-950">
+                      {module.price}
+                    </p>
+                    <p className="mt-3 text-[clamp(0.82rem,1.06vw,1rem)] text-gray-500">
+                      {module.unit}
+                    </p>
+                    <p className="mt-6 text-[clamp(0.9rem,1.16vw,1.1rem)] leading-relaxed text-gray-700">
+                      {module.body}
+                    </p>
+                  </Surface>
+                );
+              })}
+            </div>
+            <div className="mx-auto mt-9 rounded-full bg-gray-950 px-8 py-4 text-center text-[clamp(0.95rem,1.2vw,1.15rem)] font-semibold text-white">
+              Beispiel: 120 Kinder plus Personalmodul, rund 377 Euro
+              Monatsumsatz pro Standort
+            </div>
+          </div>
+        </Slide>
+
+        <Slide index={8} eyebrow="Markt">
           <div className="grid min-h-0 flex-1 grid-cols-[1.05fr_0.95fr] items-end gap-[6%]">
             <div className="pb-[2%]">
               <Headline>Betreuung wird Infrastruktur.</Headline>
@@ -786,162 +905,15 @@ export default function ReachPitchPage() {
           </div>
         </Slide>
 
-        <Slide index={6} eyebrow="Marktlücke">
+        <Slide index={9} eyebrow="Team">
           <div className="flex min-h-0 flex-1 flex-col justify-center">
             <Headline className="max-w-[18ch]">
-              Kita ist besetzt. OGS ist noch keine eigene Software-Kategorie.
-            </Headline>
-            <Lead className="max-w-[58rem]">
-              Viele Lösungen digitalisieren Kommunikation, Dokumentation und
-              Verwaltung. Der offene Ganztag braucht zusätzlich einen
-              Echtzeitbetrieb: Räume, Aufsichten, spontane Angebote und
-              Abholung.
-            </Lead>
-            <div className="mt-10 grid grid-cols-4 gap-4">
-              {categoryCards.map((card) => {
-                const tone = toneClass[card.tone];
-                return (
-                  <Surface
-                    key={card.title}
-                    className={`min-h-[10rem] p-5 ${tone.border}`}
-                  >
-                    <div className={`h-2 w-10 rounded-full ${tone.dot}`} />
-                    <h2
-                      className={`mt-5 text-[clamp(1.15rem,1.8vw,1.7rem)] font-semibold ${tone.text}`}
-                    >
-                      {card.title}
-                    </h2>
-                    <p className="mt-3 text-[clamp(0.76rem,1.04vw,0.98rem)] leading-relaxed text-gray-600">
-                      {card.body}
-                    </p>
-                  </Surface>
-                );
-              })}
-            </div>
-            <p className="mt-7 max-w-[62rem] text-[clamp(1rem,1.35vw,1.25rem)] leading-relaxed font-semibold text-gray-800">
-              30+ sichtbare Kita-Apps im DACH-Vergleich. OGS wird meist als
-              Randfall von Kita, Schule oder Verwaltung behandelt.
-            </p>
-          </div>
-        </Slide>
-
-        <Slide index={7} eyebrow="Lösung">
-          <div className="flex min-h-0 flex-1 flex-col justify-center">
-            <Headline className="max-w-[17ch]">
-              moto ist das Betriebssystem für den OGS-Alltag.
+              Team-Slide folgt als nächster Baustein.
             </Headline>
             <Lead className="max-w-[52rem]">
-              Nicht noch eine Liste. Ein gemeinsamer Live-Zustand für Kinder,
-              Räume, Eltern, Team und Leitung.
+              Platzhalter für Gründerteam, Rollen, Umsetzungskraft und die
+              wichtigsten offenen Belege.
             </Lead>
-            <Surface className="mt-12 p-8">
-              <div className="flex items-center justify-between gap-4">
-                {[
-                  { label: "Kinder", icon: Users, tone: "green" as Tone },
-                  { label: "Räume", icon: MapPin, tone: "blue" as Tone },
-                  {
-                    label: "Eltern",
-                    icon: MessageCircle,
-                    tone: "orange" as Tone,
-                  },
-                  { label: "Team", icon: ShieldCheck, tone: "purple" as Tone },
-                  {
-                    label: "Leitung",
-                    icon: ClipboardList,
-                    tone: "red" as Tone,
-                  },
-                ].map((node, nodeIndex, list) => (
-                  <Fragment key={node.label}>
-                    <div className="flex flex-col items-center text-center">
-                      <ToneIcon icon={node.icon} tone={node.tone} />
-                      <p className="mt-3 text-[clamp(0.92rem,1.24vw,1.15rem)] font-semibold text-gray-900">
-                        {node.label}
-                      </p>
-                    </div>
-                    {nodeIndex < list.length - 1 ? (
-                      <ArrowRight
-                        className="h-5 w-5 shrink-0 text-gray-300"
-                        aria-hidden="true"
-                      />
-                    ) : null}
-                  </Fragment>
-                ))}
-              </div>
-              <div className="mx-auto mt-9 w-fit rounded-full bg-gray-950 px-6 py-3 text-[clamp(0.9rem,1.2vw,1.12rem)] font-semibold text-white">
-                Wer ist da? Wo ist das Kind? Was ändert sich jetzt?
-              </div>
-            </Surface>
-          </div>
-        </Slide>
-
-        <Slide index={8} eyebrow="Produkt">
-          <div className="flex min-h-0 flex-1 flex-col justify-center">
-            <Headline className="max-w-[18ch]">
-              Die App bildet Bewegung ab, nicht nur Stammdaten.
-            </Headline>
-            <div className="mt-9 grid grid-cols-3 gap-5">
-              {productCards.map((card) => {
-                const tone = toneClass[card.tone];
-                return (
-                  <Surface key={card.title} className={`p-4 ${tone.border}`}>
-                    <div className="relative aspect-[16/10] overflow-hidden rounded-xl border border-gray-200 bg-white">
-                      <Image
-                        src={card.image}
-                        alt={card.title}
-                        fill
-                        sizes="30vw"
-                        className="object-contain p-3"
-                      />
-                    </div>
-                    <h2 className="mt-4 text-[clamp(1.1rem,1.55vw,1.45rem)] font-semibold text-gray-950">
-                      {card.title}
-                    </h2>
-                    <p className="mt-2 text-[clamp(0.78rem,1.02vw,0.98rem)] leading-relaxed text-gray-600">
-                      {card.body}
-                    </p>
-                  </Surface>
-                );
-              })}
-            </div>
-            <p className="mx-auto mt-8 max-w-[58rem] text-center text-[clamp(1rem,1.35vw,1.25rem)] leading-relaxed font-semibold text-gray-800">
-              Ein Scan oder eine Änderung aktualisiert den gemeinsamen
-              Tageszustand. Das Team sieht sofort, was relevant ist.
-            </p>
-          </div>
-        </Slide>
-
-        <Slide index={9} eyebrow="Geschäftsmodell">
-          <div className="flex min-h-0 flex-1 flex-col justify-center">
-            <Headline className="max-w-[18ch]">
-              Modularer SaaS-Umsatz, Hardware nach Bedarf.
-            </Headline>
-            <div className="mt-10 grid grid-cols-3 gap-5">
-              {modules.map((module) => {
-                const tone = toneClass[module.tone];
-                return (
-                  <Surface key={module.title} className={`p-6 ${tone.border}`}>
-                    <p
-                      className={`text-[clamp(1rem,1.35vw,1.25rem)] font-bold ${tone.text}`}
-                    >
-                      {module.title}
-                    </p>
-                    <p className="mt-7 text-[clamp(2rem,3.3vw,3.5rem)] leading-none font-semibold text-gray-950">
-                      {module.price}
-                    </p>
-                    <p className="mt-3 text-[clamp(0.82rem,1.06vw,1rem)] text-gray-500">
-                      {module.unit}
-                    </p>
-                    <p className="mt-6 text-[clamp(0.9rem,1.16vw,1.1rem)] leading-relaxed text-gray-700">
-                      {module.body}
-                    </p>
-                  </Surface>
-                );
-              })}
-            </div>
-            <div className="mx-auto mt-9 rounded-full bg-gray-950 px-8 py-4 text-center text-[clamp(0.95rem,1.2vw,1.15rem)] font-semibold text-white">
-              Beispiel: 120 Kinder plus Personalmodul, rund 377 Euro
-              Monatsumsatz pro Standort
-            </div>
           </div>
         </Slide>
 
