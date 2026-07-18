@@ -410,4 +410,33 @@ describe("StudentSearchPage — planning date (#1939)", () => {
     expect(screen.getByTestId("presence-badge")).toBeInTheDocument();
     expect(screen.queryByTestId("planning-badge")).not.toBeInTheDocument();
   });
+
+  it("drops an explicit date once it has aged into the past (tab open across midnight)", async () => {
+    const tomorrow = isoDaysFromToday(1);
+    currentSearch = new URLSearchParams({ date: tomorrow });
+
+    const { rerender } = render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("planning-badge")).toBeInTheDocument();
+    });
+
+    // Advance two Berlin days: the selected day (tomorrow) is now firmly in the
+    // past. The stale date must not keep driving the backend request or the
+    // view — the page falls back to live "Heute" semantics (#1939).
+    clockNow = clockAtBerlinDay(2);
+    rerender(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("presence-badge")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("planning-badge")).not.toBeInTheDocument();
+
+    // The last request carries no date (today semantics), so the aged past date
+    // is no longer driving the backend query.
+    const dates = mockGetStudents.mock.calls.map(
+      (c) => (c[0] as Record<string, unknown>).date,
+    );
+    expect(dates.at(-1)).toBeUndefined();
+  });
 });

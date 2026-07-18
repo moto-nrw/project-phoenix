@@ -914,7 +914,15 @@ function SearchPageContent() {
   // the SCHOOL-local (Berlin) day, matching the backend's default, not the
   // browser's timezone.
   const todayIso = berlinTodayISO(now);
-  const selectedDate = explicitDate ?? todayIso;
+  // An explicitly selected future date can age into the past if this tab stays
+  // open across the selected day and the following midnight: todayIso rolls
+  // forward on the minute clock while explicitDate stays frozen. Planning is
+  // future-only, so once the stored date has fallen behind the Berlin day,
+  // ignore it and follow "Heute" again — never send a past date to the backend
+  // or render yesterday's planning. The effect below reconciles the persisted
+  // state and URL so the picker stops showing the stale day too (#1939).
+  const selectedDate =
+    explicitDate && explicitDate >= todayIso ? explicitDate : todayIso;
   const isToday = selectedDate === todayIso;
   const tomorrowIso = useMemo(() => {
     const tomorrow = parseISODate(todayIso);
@@ -947,6 +955,17 @@ function SearchPageContent() {
     },
     [todayIso, updateUrlParams],
   );
+
+  // Once an explicitly selected date has aged past the Berlin day (tab left
+  // open across midnight), drop it so the picker, URL, and stored filters stop
+  // carrying a past planning date. selectedDate above already ignores it; this
+  // reconciles the persisted state (#1939).
+  useEffect(() => {
+    if (explicitDate && explicitDate < todayIso) {
+      setExplicitDate(null);
+      updateUrlParams({ date: "" });
+    }
+  }, [explicitDate, todayIso, updateUrlParams]);
 
   const dayStatusFilterOptions = isToday
     ? DAY_STATUS_FILTER_OPTIONS

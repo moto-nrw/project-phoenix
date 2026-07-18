@@ -322,13 +322,28 @@ export const STUDENT_EXPORT_PRESETS: Array<{
 // export (#1939). The base constants above carry the "heute" wording used by
 // the always-today central export; the builders below re-word only the
 // day-scoped descriptions so a planning-date dialog names the selected day
-// instead of misleadingly claiming "heute". Column ids, order, and preset
-// column sets are untouched — only the human-facing copy changes.
+// instead of misleadingly claiming "heute". Column order is preserved and only
+// the copy changes — the one exception is the live-location snapshot
+// column/preset, which cannot describe a future day and is dropped entirely
+// from a dated export (see SNAPSHOT_COLUMNS below).
+
+/**
+ * Live-presence snapshot columns (current whereabouts). They describe "right
+ * now", so the backend populates them from today's live location snapshot even
+ * for a dated request — meaningless and misleading on a future planning day.
+ * A dated export drops them entirely (#1939).
+ */
+const SNAPSHOT_COLUMNS: ReadonlySet<StudentExportColumn> = new Set(
+  STUDENT_EXPORT_COLUMNS.filter((column) => column.group === "snapshot").map(
+    (column) => column.id,
+  ),
+);
 
 /**
  * Student export columns worded for the given planning day. Pass the selected
  * date (YYYY-MM-DD); omit it for the today wording (identical to
- * {@link STUDENT_EXPORT_COLUMNS}).
+ * {@link STUDENT_EXPORT_COLUMNS}). A dated export also drops the live-location
+ * snapshot columns, which can only ever describe the current moment (#1939).
  */
 export function buildStudentExportColumns(
   planningDate?: string,
@@ -341,7 +356,9 @@ export function buildStudentExportColumns(
     daily_status: `Ob das Kind am ${day} erwartet wird oder als Krank, Entschuldigt bzw. Klassenfahrt markiert ist.`,
     daily_notes: `Hinweise zur Ankunft oder Abholung am ${day}, zum Beispiel Ausnahme-Notizen.`,
   };
-  return STUDENT_EXPORT_COLUMNS.map((column) => {
+  return STUDENT_EXPORT_COLUMNS.filter(
+    (column) => !SNAPSHOT_COLUMNS.has(column.id),
+  ).map((column) => {
     const description = overrides[column.id];
     return description ? { ...column, description } : column;
   });
@@ -350,7 +367,9 @@ export function buildStudentExportColumns(
 /**
  * Student export presets worded for the given planning day. Pass the selected
  * date (YYYY-MM-DD); omit it for the today wording (identical to
- * {@link STUDENT_EXPORT_PRESETS}).
+ * {@link STUDENT_EXPORT_PRESETS}). A dated export drops any preset built on the
+ * live-location snapshot columns — those describe the current moment, not the
+ * planned day (#1939).
  */
 export function buildStudentExportPresets(
   planningDate?: string,
@@ -361,7 +380,9 @@ export function buildStudentExportPresets(
     ogs_compact: `Kompakte Übersicht der Betreuungstage und der Abholung am ${day}.`,
     daily_planning: `Planungsdaten für den ${day} mit Hinweisen.`,
   };
-  return STUDENT_EXPORT_PRESETS.map((preset) => {
+  return STUDENT_EXPORT_PRESETS.filter(
+    (preset) => !preset.columns.some((column) => SNAPSHOT_COLUMNS.has(column)),
+  ).map((preset) => {
     const description = overrides[preset.id];
     return description ? { ...preset, description } : preset;
   });

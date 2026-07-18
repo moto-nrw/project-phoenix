@@ -124,10 +124,30 @@ describe("planning-date export copy (#1939)", () => {
         expect(column.description.toLowerCase()).not.toContain("heut");
       }
     }
-    // Column ids and order are preserved — only the copy changes.
+    // Order is preserved and only the copy changes — except the live-location
+    // snapshot column, which cannot describe a future day and is dropped (#1939).
     expect(columns.map((column) => column.id)).toEqual(
-      STUDENT_EXPORT_COLUMNS.map((column) => column.id),
+      STUDENT_EXPORT_COLUMNS.filter(
+        (column) => column.group !== "snapshot",
+      ).map((column) => column.id),
     );
+  });
+
+  it("drops live-location snapshot columns and presets for a dated export", () => {
+    const columns = buildStudentExportColumns("2026-07-20");
+    const presets = buildStudentExportPresets("2026-07-20");
+
+    // The current-location column reads from today's live snapshot even for a
+    // dated request, so it must not be offered on a future planning day.
+    expect(columns.some((column) => column.id === "current_location")).toBe(
+      false,
+    );
+    // The snapshot preset is built on that column — it disappears too.
+    expect(presets.some((preset) => preset.id === "attendance_snapshot")).toBe(
+      false,
+    );
+    // Non-snapshot presets still expose all their (non-snapshot) columns.
+    expect(presets.some((preset) => preset.id === "daily_planning")).toBe(true);
   });
 
   it("names the selected day in the day-scoped presets", () => {
