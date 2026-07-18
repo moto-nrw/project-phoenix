@@ -367,6 +367,15 @@ type RequestService interface {
 	// emails suppressed, source = AdminManual) and approves it in the same
 	// transaction. Caller must be inside a tenant-tx.
 	CreateManualApprovedEnrollment(ctx context.Context, input ManualApprovedEnrollmentInput) (*ManualApprovedEnrollmentResult, error)
+	// PublicActiveSchema resolves the form schema a public parent form
+	// should render for a (phase, tenant) pair. It runs the shared public
+	// phase gate first (LoadPublicPhaseWithLateInvite). A Basis phase (no
+	// pinned schema) returns ErrNoActiveSchema so the form renders core
+	// fields only — it deliberately does NOT fall back to the tenant's
+	// currently-active schema, or a custom form would leak its fields into
+	// every Basis phase. A pinned-but-deleted schema also returns
+	// ErrNoActiveSchema. Caller must be inside a tenant-tx.
+	PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.FormSchema, error)
 }
 
 // LegalTexts bundles the per-tenant legal texts surfaced on the public
@@ -2719,6 +2728,24 @@ func (s *requestService) LoadPublicPhaseWithLateInvite(ctx context.Context, phas
 
 func (s *requestService) LoadManualEnrollmentPhase(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error) {
 	return s.loadPhaseForEditableRequest(ctx, phaseID)
+}
+
+func (s *requestService) PublicActiveSchema(ctx context.Context, phaseID int64, now time.Time, lateInviteToken string) (*enrollmentModels.FormSchema, error) {
+	phase, err := s.LoadPublicPhaseWithLateInvite(ctx, phaseID, now, lateInviteToken)
+	if err != nil {
+		return nil, err
+	}
+	if phase.FormSchemaID == nil {
+		return nil, ErrNoActiveSchema
+	}
+	schema, err := s.FormSchemaRepo.FindByID(ctx, *phase.FormSchemaID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNoActiveSchema
+		}
+		return nil, err
+	}
+	return schema, nil
 }
 
 func (s *requestService) loadPhaseForEditableRequest(ctx context.Context, phaseID int64) (*enrollmentModels.Phase, error) {
