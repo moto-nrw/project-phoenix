@@ -53,7 +53,7 @@ vi.mock("~/components/ui/alert", () => ({
 // Mock BackButton component
 vi.mock("~/components/ui/back-button", () => ({
   BackButton: ({ referrer }: { referrer: string }) => (
-    <button data-testid="back-button" data-referrer={referrer}>
+    <button type="button" data-testid="back-button" data-referrer={referrer}>
       Zurück
     </button>
   ),
@@ -82,10 +82,11 @@ vi.mock("~/components/ui/modal", () => ({
       <div data-testid={`modal-${title.toLowerCase().replace(/\s+/g, "-")}`}>
         <h2>{title}</h2>
         <div data-testid="modal-content">{children}</div>
-        <button data-testid="modal-cancel" onClick={onClose}>
+        <button type="button" data-testid="modal-cancel" onClick={onClose}>
           Abbrechen
         </button>
         <button
+          type="button"
           data-testid="modal-confirm"
           onClick={onConfirm}
           disabled={isConfirmDisabled}
@@ -147,7 +148,11 @@ vi.mock("~/components/students/student-detail-components", () => ({
         {enrollmentExtraGroups?.flatMap((group) => group.fields).length ?? 0}
       </span>
       {showEditButton && onEditClick && (
-        <button data-testid="edit-personal-info" onClick={onEditClick}>
+        <button
+          type="button"
+          data-testid="edit-personal-info"
+          onClick={onEditClick}
+        >
           Bearbeiten
         </button>
       )}
@@ -183,12 +188,13 @@ vi.mock("~/components/students/personal-info-form-modal", () => ({
       <div data-testid="personal-info-modal">
         <span data-testid="modal-student-name">{student.name}</span>
         <button
+          type="button"
           data-testid="save-personal-info"
           onClick={() => void handleSave()}
         >
           Speichern
         </button>
-        <button data-testid="cancel-edit" onClick={onClose}>
+        <button type="button" data-testid="cancel-edit" onClick={onClose}>
           Abbrechen
         </button>
       </div>
@@ -211,12 +217,17 @@ vi.mock("~/components/students/planned-status-days-modal", () => ({
     isOpen ? (
       <div data-testid={`planned-status-modal-${status}`}>
         <button
+          type="button"
           data-testid="planned-status-submit"
           onClick={() => void onSubmit(["2026-05-25"])}
         >
           Speichern
         </button>
-        <button data-testid="planned-status-cancel" onClick={onClose}>
+        <button
+          type="button"
+          data-testid="planned-status-cancel"
+          onClick={onClose}
+        >
           Abbrechen
         </button>
       </div>
@@ -234,7 +245,11 @@ vi.mock("~/components/students/student-checkout-section", () => ({
     onCheckoutClick: () => void;
   }) => (
     <div data-testid="checkout-section">
-      <button data-testid="checkout-button" onClick={onCheckoutClick}>
+      <button
+        type="button"
+        data-testid="checkout-button"
+        onClick={onCheckoutClick}
+      >
         Kind abmelden
       </button>
     </div>
@@ -245,7 +260,11 @@ vi.mock("~/components/students/student-checkout-section", () => ({
     onCheckinClick: () => void;
   }) => (
     <div data-testid="checkin-section">
-      <button data-testid="checkin-button" onClick={onCheckinClick}>
+      <button
+        type="button"
+        data-testid="checkin-button"
+        onClick={onCheckinClick}
+      >
         Kind anmelden
       </button>
     </div>
@@ -259,7 +278,11 @@ vi.mock("~/components/students/student-checkout-section", () => ({
     isLoading: boolean;
   }) => (
     <div data-testid="status-actions-menu">
-      <button data-testid="class-trip-action" onClick={onPlanClassTrip}>
+      <button
+        type="button"
+        data-testid="class-trip-action"
+        onClick={onPlanClassTrip}
+      >
         Klassenfahrt planen
       </button>
     </div>
@@ -276,6 +299,7 @@ vi.mock("~/components/students/student-checkout-section", () => ({
   }) => (
     <div data-testid="sick-report-section">
       <button
+        type="button"
         data-testid="sick-toggle-button"
         onClick={onToggle}
         disabled={isLoading}
@@ -296,6 +320,7 @@ vi.mock("~/components/students/student-checkout-section", () => ({
   }) => (
     <div data-testid="excused-report-section">
       <button
+        type="button"
         data-testid="excused-toggle-button"
         onClick={onToggle}
         disabled={isLoading}
@@ -317,7 +342,7 @@ vi.mock("~/components/guardians/student-guardian-manager", () => ({
     onUpdate: () => void;
   }) => (
     <div data-testid="guardian-manager" data-student-id={studentId}>
-      <button data-testid="update-guardians" onClick={onUpdate}>
+      <button type="button" data-testid="update-guardians" onClick={onUpdate}>
         Update
       </button>
     </div>
@@ -333,7 +358,11 @@ vi.mock("~/components/students/care-schedule-manager", () => ({
     onUpdate?: () => void;
   }) => (
     <div data-testid="care-schedule-manager" data-student-id={studentId}>
-      <button data-testid="update-care-schedule" onClick={() => onUpdate?.()}>
+      <button
+        type="button"
+        data-testid="update-care-schedule"
+        onClick={() => onUpdate?.()}
+      >
         Update Care
       </button>
     </div>
@@ -1003,10 +1032,8 @@ describe("StudentDetailPage", () => {
       });
 
       // Wait for active groups to load and select one
-      await waitFor(() => {
-        const select = screen.getByRole("combobox");
-        fireEvent.change(select, { target: { value: "1" } });
-      });
+      const select = await screen.findByRole("combobox");
+      fireEvent.change(select, { target: { value: "1" } });
 
       const confirmButton = screen.getByTestId("modal-confirm");
       await act(async () => {
@@ -1035,10 +1062,8 @@ describe("StudentDetailPage", () => {
       });
 
       // Select a room first
-      await waitFor(() => {
-        const select = screen.getByRole("combobox");
-        fireEvent.change(select, { target: { value: "1" } });
-      });
+      const select = await screen.findByRole("combobox");
+      fireEvent.change(select, { target: { value: "1" } });
 
       const confirmButton = screen.getByTestId("modal-confirm");
       await act(async () => {

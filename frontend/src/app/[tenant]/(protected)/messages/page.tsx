@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import useSWR from "swr";
 import { MessageCircle } from "lucide-react";
 import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
@@ -65,8 +65,9 @@ function MessagesInboxContent() {
   // single revalidation instead of one refetch per event.
   // Refetch-only (revalidates the list, never advances a read cursor), so fire
   // even in a background tab — marksRead: false skips the hidden-tab deferral.
+  const refreshInbox = useCallback(() => void mutate(), [mutate]);
   useMessagesActivity({
-    onMatch: () => void mutate(),
+    onMatch: refreshInbox,
     debounceMs: 500,
     marksRead: false,
   });

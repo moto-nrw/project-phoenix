@@ -34,6 +34,7 @@ import { AnnouncementViewsAccordion } from "~/components/operator/announcement-v
 import { getRelativeTime } from "~/lib/format-utils";
 import { useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { useCurrentTimestamp } from "~/lib/hooks/use-current-timestamp";
 
 const logger = createLogger({ component: "OperatorAnnouncementsPage" });
 
@@ -1074,6 +1075,7 @@ function AnnouncementCard({
   readonly onDelete: (a: Announcement) => void;
   readonly onPublish: (a: Announcement) => void;
 }) {
+  const currentTimestamp = useCurrentTimestamp();
   const [menuOpen, setMenuOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [isClamped, setIsClamped] = useState(false);
@@ -1291,9 +1293,9 @@ function AnnouncementCard({
             <>
               <span className="text-gray-300">·</span>
               <span>
-                {new Date(announcement.expiresAt) < new Date()
+                {new Date(announcement.expiresAt).getTime() < currentTimestamp
                   ? `Abgelaufen ${getRelativeTime(announcement.expiresAt)}`
-                  : `Läuft ab am ${new Date(announcement.expiresAt).toLocaleDateString("de-DE")}`}
+                  : `Läuft ab am ${new Date(announcement.expiresAt).toLocaleDateString("de-DE", { timeZone: "Europe/Berlin" })}`}
               </span>
             </>
           )}

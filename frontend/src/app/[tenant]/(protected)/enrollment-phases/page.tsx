@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import { PhasesEditor } from "~/components/enrollment/phases-editor";
 import { Loading } from "~/components/ui/loading";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
@@ -13,7 +14,9 @@ export default function EnrollmentPhasesPage() {
     <div className="-mt-1.5 w-full">
       <DesktopOnlyNotice />
       <div className="hidden lg:block">
-        <PhasesEditor />
+        <Suspense fallback={<Loading fullPage={false} />}>
+          <PhasesEditor />
+        </Suspense>
       </div>
     </div>
   );

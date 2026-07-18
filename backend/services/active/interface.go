@@ -138,6 +138,12 @@ type Service interface {
 	CheckOutStudentFromDevice(ctx context.Context, studentID, deviceID int64) (*AttendanceResult, error)
 	CheckTeacherStudentAccess(ctx context.Context, teacherID, studentID int64) (bool, error)
 	BroadcastDailyCheckout(ctx context.Context, studentID int64)
+	// ConfirmDailyCheckout processes a deferred daily-checkout confirmation for
+	// an IoT device: it validates the student has today's attendance record and,
+	// when destination is "zuhause" and the student is still checked in, checks
+	// them out and broadcasts the SSE update. Returns
+	// ErrNoAttendanceRecordForCheckout when no attendance record exists today.
+	ConfirmDailyCheckout(ctx context.Context, studentID, deviceID int64, destination string) (*DailyCheckoutResult, error)
 
 	// Unclaimed groups management (deviceless claiming)
 	GetUnclaimedActiveGroups(ctx context.Context) ([]*active.Group, error)
@@ -248,6 +254,7 @@ type RecentActivity struct {
 
 // CurrentActivity represents current activity status
 type CurrentActivity struct {
+	ID           int64
 	Name         string
 	Category     string
 	Participants int
@@ -370,6 +377,14 @@ type AttendanceStatus struct {
 	YardSince    *time.Time `json:"yard_since,omitempty"`
 	CheckedInBy  string     `json:"checked_in_by"`  // Formatted as "FirstName LastName"
 	CheckedOutBy string     `json:"checked_out_by"` // Formatted as "FirstName LastName"
+}
+
+// DailyCheckoutResult represents the outcome of confirming a deferred daily
+// checkout from an IoT device.
+type DailyCheckoutResult struct {
+	// Action is "checked_out_daily" when the student went home ("zuhause") or
+	// "checked_out" when they stayed in transit ("unterwegs").
+	Action string
 }
 
 // AttendanceResult represents the result of a student attendance toggle operation

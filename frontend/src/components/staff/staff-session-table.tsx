@@ -295,6 +295,23 @@ export function StaffSessionTable({
                       if (!canExpand) return;
                       setExpandedKey((prev) => (prev === key ? null : key));
                     }}
+                    onKeyDown={(event) => {
+                      if (
+                        !canExpand ||
+                        (event.key !== "Enter" && event.key !== " ")
+                      ) {
+                        return;
+                      }
+                      event.preventDefault();
+                      setExpandedKey((prev) => (prev === key ? null : key));
+                    }}
+                    tabIndex={canExpand ? 0 : undefined}
+                    aria-expanded={canExpand ? isExpanded : undefined}
+                    aria-label={
+                      canExpand
+                        ? `${formatShortDate(day)}: Änderungshistorie ${isExpanded ? "schließen" : "öffnen"}`
+                        : undefined
+                    }
                     className={`${canExpand ? "cursor-pointer" : ""} transition-colors hover:bg-gray-50 ${
                       isExpanded
                         ? "bg-gray-50"

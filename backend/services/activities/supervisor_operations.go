@@ -246,6 +246,96 @@ func (s *Service) DeleteSupervisor(ctx context.Context, id int64) error {
 	return nil
 }
 
+// ReplaceSupervisor removes supervisorID from the activity. With no replacement
+// it delegates to DeleteSupervisor (which enforces the only-supervisor rule);
+// with a replacement it recomputes the supervisor roster — promoting/reordering
+// the primary lead and de-duplicating an already-assigned replacement — and
+// persists it via UpdateGroupSupervisors. Run inside a tenant transaction so the
+// read-compute-write commits atomically.
+func (s *Service) ReplaceSupervisor(ctx context.Context, activityID, supervisorID int64, replacementStaffID *int64) error {
+	if replacementStaffID == nil {
+		return s.DeleteSupervisor(ctx, supervisorID)
+	}
+
+	supervisors, err := s.GetGroupSupervisors(ctx, activityID)
+	if err != nil {
+		return err
+	}
+
+	nextSupervisorIDs, err := buildReplacementSupervisorIDs(supervisors, supervisorID, replacementStaffID)
+	if err != nil {
+		return err
+	}
+
+	return s.UpdateGroupSupervisors(ctx, activityID, nextSupervisorIDs)
+}
+
+// buildReplacementSupervisorIDs computes the staff-ID roster after replacing the
+// supervisor identified by supervisorID with replacementStaffID. A primary lead
+// is promoted to the front; an already-assigned replacement is de-duplicated.
+func buildReplacementSupervisorIDs(
+	supervisors []*activities.SupervisorPlanned,
+	supervisorID int64,
+	replacementStaffID *int64,
+) ([]int64, error) {
+	if len(supervisors) == 0 {
+		return nil, ErrSupervisorNotFound
+	}
+
+	var (
+		targetSupervisor  *activities.SupervisorPlanned
+		nextSupervisorIDs []int64
+	)
+	replacementAlreadyAssigned := false
+
+	for _, supervisor := range supervisors {
+		if supervisor == nil {
+			continue
+		}
+
+		if supervisor.ID == supervisorID {
+			targetSupervisor = supervisor
+			continue
+		}
+
+		if replacementStaffID != nil && supervisor.StaffID == *replacementStaffID {
+			replacementAlreadyAssigned = true
+		}
+
+		nextSupervisorIDs = append(nextSupervisorIDs, supervisor.StaffID)
+	}
+
+	if targetSupervisor == nil {
+		return nil, ErrSupervisorNotFound
+	}
+
+	if replacementStaffID == nil {
+		return nextSupervisorIDs, nil
+	}
+
+	if targetSupervisor.IsPrimary {
+		if replacementAlreadyAssigned {
+			reordered := make([]int64, 0, len(nextSupervisorIDs))
+			reordered = append(reordered, *replacementStaffID)
+			for _, staffID := range nextSupervisorIDs {
+				if staffID == *replacementStaffID {
+					continue
+				}
+				reordered = append(reordered, staffID)
+			}
+			return reordered, nil
+		}
+
+		return append([]int64{*replacementStaffID}, nextSupervisorIDs...), nil
+	}
+
+	if replacementAlreadyAssigned {
+		return nextSupervisorIDs, nil
+	}
+
+	return append(nextSupervisorIDs, *replacementStaffID), nil
+}
+
 // handlePrimaryDeletionInTx ensures a new primary is promoted when deleting a primary supervisor
 func (s *Service) handlePrimaryDeletionInTx(ctx context.Context, txService ActivityService, supervisor *activities.SupervisorPlanned, supervisorID int64) error {
 	if !supervisor.IsPrimary {

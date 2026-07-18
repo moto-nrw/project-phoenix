@@ -23,7 +23,9 @@ vi.mock("./modal", () => ({
 
     return isOpen ? (
       <div data-testid="modal">
-        <button onClick={onClose}>Close Modal</button>
+        <button type="button" onClick={onClose}>
+          Close Modal
+        </button>
         {children}
       </div>
     ) : null;

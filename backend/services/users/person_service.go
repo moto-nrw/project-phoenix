@@ -373,6 +373,20 @@ func (s *personService) GetStaffByPersonID(ctx context.Context, personID int64) 
 	return s.StaffRepo.FindByPersonID(ctx, personID)
 }
 
+// ResolveStaffIDByAccountID maps a JWT account id to its staff id via the
+// account → person → staff chain.
+func (s *personService) ResolveStaffIDByAccountID(ctx context.Context, accountID int64) (int64, error) {
+	person, err := s.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return 0, fmt.Errorf("person not found for account: %w", err)
+	}
+	staff, err := s.GetStaffByPersonID(ctx, person.ID)
+	if err != nil {
+		return 0, fmt.Errorf("staff not found for editor account: %w", err)
+	}
+	return staff.ID, nil
+}
+
 // GetStaffWithPerson retrieves a staff member with person data preloaded.
 func (s *personService) GetStaffWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {
 	return s.StaffRepo.FindWithPerson(ctx, id)

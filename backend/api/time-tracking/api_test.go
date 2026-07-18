@@ -148,6 +148,10 @@ func (m *mockWorkSessionService) GetCurrentScheduleRows(_ context.Context, _ int
 	return nil, nil
 }
 
+func (m *mockWorkSessionService) UpdateSchedule(_ context.Context, _ *userModels.Staff, _ activeSvc.ScheduleUpdateInput) error {
+	return nil
+}
+
 func (m *mockWorkSessionService) AssignScheduleTemplate(_ context.Context, _ *userModels.Staff, _ int64) error {
 	return nil
 }

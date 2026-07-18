@@ -141,6 +141,7 @@ function periodLabel(
 ): string {
   if (viewMode === "day") {
     return referenceDate.toLocaleDateString("de-DE", {
+      timeZone: "Europe/Berlin",
       weekday: "long",
       day: "2-digit",
       month: "2-digit",
@@ -149,6 +150,7 @@ function periodLabel(
   }
   if (viewMode === "month") {
     return referenceDate.toLocaleDateString("de-DE", {
+      timeZone: "Europe/Berlin",
       month: "long",
       year: "numeric",
     });
@@ -400,6 +402,7 @@ function CalendarDayColumn({
         <div className="text-sm font-semibold text-gray-900">
           {compact
             ? day.toLocaleDateString("de-DE", {
+                timeZone: "Europe/Berlin",
                 weekday: "short",
                 day: "2-digit",
               })

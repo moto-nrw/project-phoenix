@@ -40,6 +40,7 @@ type PersonServiceMock struct {
 	UnlinkFromRFIDCardFn             func(ctx context.Context, personID int64) error
 	GetStaffByIDFn                   func(ctx context.Context, id int64) (*userModels.Staff, error)
 	GetStaffByPersonIDFn             func(ctx context.Context, personID int64) (*userModels.Staff, error)
+	ResolveStaffIDByAccountIDFn      func(ctx context.Context, accountID int64) (int64, error)
 	GetStaffWithPersonFn             func(ctx context.Context, id int64) (*userModels.Staff, error)
 	GetStaffWithPersonByIDsFn        func(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error)
 	ListStaffWithPersonFn            func(ctx context.Context) ([]*userModels.Staff, error)
@@ -166,6 +167,13 @@ func (m *PersonServiceMock) GetStaffByPersonID(ctx context.Context, personID int
 		return m.GetStaffByPersonIDFn(ctx, personID)
 	}
 	return nil, nil
+}
+
+func (m *PersonServiceMock) ResolveStaffIDByAccountID(ctx context.Context, accountID int64) (int64, error) {
+	if m.ResolveStaffIDByAccountIDFn != nil {
+		return m.ResolveStaffIDByAccountIDFn(ctx, accountID)
+	}
+	return 0, nil
 }
 
 func (m *PersonServiceMock) GetStaffWithPerson(ctx context.Context, id int64) (*userModels.Staff, error) {

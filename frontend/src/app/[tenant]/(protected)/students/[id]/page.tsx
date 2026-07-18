@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { Suspense, useState, useEffect, useMemo, useCallback } from "react";
 import {
   useParams,
   usePathname,
@@ -25,6 +25,7 @@ import {
 } from "~/lib/hooks/use-student-data";
 import { useStudentEnrollmentExtraFields } from "~/lib/hooks/use-student-enrollment-extra-fields";
 import { useScrollToTop } from "~/lib/hooks/use-scroll-to-top";
+import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useSWRAuth } from "~/lib/swr";
 import type { SupervisorContact } from "~/lib/student-helpers";
 import {
@@ -244,6 +245,14 @@ function mergeStatusDays(
 // =============================================================================
 
 export default function StudentDetailPage() {
+  return (
+    <Suspense fallback={null}>
+      <StudentDetailPageContent />
+    </Suspense>
+  );
+}
+
+function StudentDetailPageContent() {
   const router = useTenantRouter();
   const params = useParams();
   const searchParams = useSearchParams();
@@ -312,15 +321,14 @@ export default function StudentDetailPage() {
 
   // Set breadcrumb data, include group/room name for 3-level breadcrumb
   // when navigating from an accordion section (e.g. Meine Gruppe > 1a > Mia Fischer)
-  const breadcrumbGroupName =
-    referrer.startsWith("/ogs-groups") && globalThis.window !== undefined
-      ? localStorage.getItem("sidebar-last-group-name")
-      : undefined;
-  const breadcrumbRoomName =
-    referrer.startsWith("/active-supervisions") &&
-    globalThis.window !== undefined
-      ? localStorage.getItem("sidebar-last-room-name")
-      : undefined;
+  const breadcrumbGroupName = useLocalStorageValue(
+    "sidebar-last-group-name",
+    referrer.startsWith("/ogs-groups"),
+  );
+  const breadcrumbRoomName = useLocalStorageValue(
+    "sidebar-last-room-name",
+    referrer.startsWith("/active-supervisions"),
+  );
 
   useSetBreadcrumb({
     studentName: student?.name,
@@ -549,6 +557,7 @@ export default function StudentDetailPage() {
       <div className="flex min-h-[80vh] flex-col items-center justify-center">
         <Alert type="error" message={error ?? "Kind nicht gefunden"} />
         <button
+          type="button"
           onClick={() => router.push(referrer)}
           className="mt-4 rounded bg-blue-100 px-4 py-2 text-blue-800 transition-colors hover:bg-blue-200"
         >

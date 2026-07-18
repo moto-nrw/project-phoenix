@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/education"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -280,4 +281,26 @@ type scheduleUpdateRequest struct {
 	RotationAnchorDate string                 `json:"rotation_anchor_date,omitempty"`
 	Entries            []ScheduleEntryRequest `json:"entries"`
 	SaveAsTemplateName string                 `json:"save_as_template,omitempty"`
+}
+
+// toServiceInput maps the api request DTO to the service-layer input struct,
+// keeping api types out of services/active.
+func (req scheduleUpdateRequest) toServiceInput() activeSvc.ScheduleUpdateInput {
+	entries := make([]activeSvc.ScheduleEntry, 0, len(req.Entries))
+	for _, e := range req.Entries {
+		entries = append(entries, activeSvc.ScheduleEntry{
+			WeekIndex:     e.WeekIndex,
+			DayOfWeek:     e.DayOfWeek,
+			TargetMinutes: e.TargetMinutes,
+			StartTime:     e.StartTime,
+		})
+	}
+	return activeSvc.ScheduleUpdateInput{
+		Mode:               req.Mode,
+		ModelID:            req.ModelID,
+		RotationLength:     req.RotationLength,
+		RotationAnchorDate: req.RotationAnchorDate,
+		Entries:            entries,
+		SaveAsTemplateName: req.SaveAsTemplateName,
+	}
 }

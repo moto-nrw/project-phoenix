@@ -80,21 +80,39 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
+	invitationReq := rs.buildInvitationRequest(r, req, claims)
 
+	invitation, err := rs.runCreateInvitation(r.Context(), invitationReq)
+	if err != nil {
+		if renderCreateInvitationError(w, r, err) {
+			return
+		}
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+
+	slog.Default().Info("invitation created",
+		slog.Int64("account_id", int64(claims.ID)),
+		slog.String("email", invitation.Email))
+
+	common.Respond(w, r, http.StatusCreated, toInvitationResponse(invitation), "Invitation created successfully")
+}
+
+// buildInvitationRequest maps the wire request into the service invitation
+// request, resolving the tenant display name for the invitation email and
+// copying the optional name/position fields.
+func (rs *Resource) buildInvitationRequest(r *http.Request, req *CreateInvitationRequest, claims jwt.AppClaims) authService.InvitationRequest {
 	invitationReq := authService.InvitationRequest{
 		Email:     req.Email,
 		RoleID:    req.RoleID,
 		CreatedBy: int64(claims.ID),
 	}
-
-	// Resolve tenant display name for the invitation email.
 	if rs.SchoolService != nil {
 		tenantID := tenant.FromContext(r.Context())
 		if school, err := rs.SchoolService.GetSchoolByID(r.Context(), tenantID); err == nil && school != nil && !school.IsDeleted() {
 			invitationReq.SchoolName = school.Name
 		}
 	}
-
 	if req.FirstName != "" {
 		first := req.FirstName
 		invitationReq.FirstName = &first
@@ -107,43 +125,40 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		position := req.Position
 		invitationReq.Position = &position
 	}
+	return invitationReq
+}
 
+// runCreateInvitation invokes the invitation service inside the tenant tx when
+// a DB is wired, or directly otherwise.
+func (rs *Resource) runCreateInvitation(ctx context.Context, invitationReq authService.InvitationRequest) (*authModels.InvitationToken, error) {
+	if rs.db == nil {
+		return rs.InvitationService.CreateInvitation(ctx, invitationReq)
+	}
 	var invitation *authModels.InvitationToken
-	ctx := r.Context()
-	var err error
-	if rs.db != nil {
-		tenantID := tenant.FromContext(ctx)
-		err = tenant.WithTenantTx(ctx, rs.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-			inv, txErr := rs.InvitationService.CreateInvitation(txCtx, invitationReq)
-			invitation = inv
-			return txErr
-		})
-	} else {
-		invitation, err = rs.InvitationService.CreateInvitation(ctx, invitationReq)
+	err := tenant.WithTenantTx(ctx, rs.db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		inv, txErr := rs.InvitationService.CreateInvitation(txCtx, invitationReq)
+		invitation = inv
+		return txErr
+	})
+	return invitation, err
+}
+
+// renderCreateInvitationError maps the create-specific conflict errors before
+// delegating to the shared invitation error renderer. Returns true if handled.
+func renderCreateInvitationError(w http.ResponseWriter, r *http.Request, err error) bool {
+	if errors.Is(err, authService.ErrEmailAlreadyExists) {
+		common.RenderError(w, r, common.ErrorConflict(authService.ErrEmailAlreadyExists))
+		return true
 	}
-	if err != nil {
-		// Check for email already exists error
-		if errors.Is(err, authService.ErrEmailAlreadyExists) {
-			common.RenderError(w, r, common.ErrorConflict(authService.ErrEmailAlreadyExists))
-			return
-		}
-
-		if errors.Is(err, authService.ErrAccountAlreadyHasTenantAccess) {
-			common.RenderError(w, r, common.ErrorConflictWithCode(authService.ErrAccountAlreadyHasTenantAccess, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS"))
-			return
-		}
-
-		if renderInvitationError(w, r, err) {
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
+	if errors.Is(err, authService.ErrAccountAlreadyHasTenantAccess) {
+		common.RenderError(w, r, common.ErrorConflictWithCode(authService.ErrAccountAlreadyHasTenantAccess, "ACCOUNT_ALREADY_HAS_TENANT_ACCESS"))
+		return true
 	}
+	return renderInvitationError(w, r, err)
+}
 
-	slog.Default().Info("invitation created",
-		slog.Int64("account_id", int64(claims.ID)),
-		slog.String("email", invitation.Email))
-
+// toInvitationResponse maps an invitation token to its wire response shape.
+func toInvitationResponse(invitation *authModels.InvitationToken) InvitationResponse {
 	resp := InvitationResponse{
 		ID:              invitation.ID,
 		Email:           invitation.Email,
@@ -159,15 +174,13 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		EmailError:      invitation.EmailError,
 		EmailRetryCount: invitation.EmailRetryCount,
 	}
-
 	if invitation.Role != nil {
 		resp.RoleName = invitation.Role.Name
 	}
 	if invitation.Creator != nil {
 		resp.Creator = invitation.Creator.Email
 	}
-
-	common.Respond(w, r, http.StatusCreated, resp, "Invitation created successfully")
+	return resp
 }
 
 func (rs *Resource) validateInvitation(w http.ResponseWriter, r *http.Request) {
@@ -334,28 +347,7 @@ func (rs *Resource) listPendingInvitations(w http.ResponseWriter, r *http.Reques
 
 	responses := make([]InvitationResponse, 0, len(invitations))
 	for _, invitation := range invitations {
-		resp := InvitationResponse{
-			ID:              invitation.ID,
-			Email:           invitation.Email,
-			RoleID:          invitation.RoleID,
-			Token:           invitation.Token,
-			ExpiresAt:       invitation.ExpiresAt,
-			FirstName:       invitation.FirstName,
-			LastName:        invitation.LastName,
-			Position:        invitation.Position,
-			CreatedBy:       invitationCreatedByValue(invitation.CreatedBy),
-			DeliveryStatus:  deriveDeliveryStatus(invitation.EmailSentAt, invitation.EmailError),
-			EmailSentAt:     invitation.EmailSentAt,
-			EmailError:      invitation.EmailError,
-			EmailRetryCount: invitation.EmailRetryCount,
-		}
-		if invitation.Role != nil {
-			resp.RoleName = invitation.Role.Name
-		}
-		if invitation.Creator != nil {
-			resp.Creator = invitation.Creator.Email
-		}
-		responses = append(responses, resp)
+		responses = append(responses, toInvitationResponse(invitation))
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, "Pending invitations retrieved successfully")

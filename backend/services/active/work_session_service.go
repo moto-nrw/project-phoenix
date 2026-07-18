@@ -264,6 +264,54 @@ type WorkSessionService interface {
 	// SaveCustomScheduleAsTemplate persists the rows as a new reusable work
 	// time model and binds it to the staff member.
 	SaveCustomScheduleAsTemplate(ctx context.Context, staff *userModels.Staff, name string, rotation int, anchor timezone.Date, entries []*configModels.WorkTimeModelEntry) error
+	// UpdateSchedule resolves the requested mode (template vs custom, with the
+	// legacy empty-mode fallback), validates and applies the change. Validation
+	// failures wrap ErrScheduleValidation so callers can map them to 400.
+	UpdateSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error
+}
+
+// scheduleEntryMaxTargetMinutes caps a single schedule day at 12 hours.
+const scheduleEntryMaxTargetMinutes = 720
+
+// ErrScheduleValidation marks a schedule-update failure caused by invalid
+// request input (bad mode, out-of-range values, duplicate slots) so callers
+// render a 400 instead of a 500.
+var ErrScheduleValidation = errors.New("schedule validation")
+
+type scheduleValidationError struct {
+	message string
+}
+
+func (e scheduleValidationError) Error() string {
+	return e.message
+}
+
+func (e scheduleValidationError) Is(target error) bool {
+	return target == ErrScheduleValidation
+}
+
+func scheduleValidationErrorf(format string, args ...any) error {
+	return scheduleValidationError{message: fmt.Sprintf(format, args...)}
+}
+
+// ScheduleEntry mirrors a single day of the schedule-update request at the
+// service boundary (no api DTO types).
+type ScheduleEntry struct {
+	WeekIndex     int
+	DayOfWeek     int
+	TargetMinutes int
+	StartTime     *string
+}
+
+// ScheduleUpdateInput mirrors the PUT /staff/{id}/schedule request body at the
+// service boundary.
+type ScheduleUpdateInput struct {
+	Mode               string
+	ModelID            *int64
+	RotationLength     int
+	RotationAnchorDate string
+	Entries            []ScheduleEntry
+	SaveAsTemplateName string
 }
 
 // workSessionService implements WorkSessionService
@@ -2228,6 +2276,126 @@ func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, s
 	if err := s.staffRepo.Update(ctx, staff); err != nil {
 		return fmt.Errorf("bind freshly created template: %w", err)
 	}
+	return nil
+}
+
+// UpdateSchedule resolves the requested mode and applies the schedule change.
+func (s *workSessionService) UpdateSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error {
+	mode := in.Mode
+	if mode == "" {
+		// Backwards compatibility: missing mode + flat entries means the
+		// caller still uses the single-week, no-rotation contract.
+		mode = "custom"
+		if in.RotationLength == 0 {
+			in.RotationLength = 1
+		}
+	}
+
+	switch mode {
+	case "template":
+		if in.ModelID == nil || *in.ModelID == 0 {
+			return scheduleValidationErrorf("model_id is required for mode=template")
+		}
+		return s.AssignScheduleTemplate(ctx, staff, *in.ModelID)
+	case "custom":
+		return s.applyCustomSchedule(ctx, staff, in)
+	default:
+		return scheduleValidationErrorf("invalid mode %q", mode)
+	}
+}
+
+func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *userModels.Staff, in ScheduleUpdateInput) error {
+	rotation := in.RotationLength
+	if rotation == 0 {
+		rotation = 1
+	}
+	if rotation < 1 || rotation > configModels.WorkTimeModelMaxRotation {
+		return scheduleValidationErrorf("rotation_length must be between 1 and %d", configModels.WorkTimeModelMaxRotation)
+	}
+
+	anchor := timezone.Date{}
+	if in.RotationAnchorDate != "" {
+		parsed, err := timezone.ParseDate(in.RotationAnchorDate)
+		if err != nil {
+			return scheduleValidationErrorf("invalid rotation_anchor_date: %v", err)
+		}
+		anchor = parsed
+	}
+
+	entries, templateEntries, err := buildScheduleEntries(in.Entries, rotation)
+	if err != nil {
+		return err
+	}
+
+	if in.SaveAsTemplateName != "" {
+		if err := s.SaveCustomScheduleAsTemplate(ctx, staff, in.SaveAsTemplateName, rotation, anchor, templateEntries); err != nil {
+			return fmt.Errorf("save as template: %w", err)
+		}
+		return nil
+	}
+
+	return s.ApplyCustomScheduleRows(ctx, staff, entries, anchor)
+}
+
+func buildScheduleEntries(reqEntries []ScheduleEntry, rotation int) ([]*configModels.StaffWorkSchedule, []*configModels.WorkTimeModelEntry, error) {
+	entries := make([]*configModels.StaffWorkSchedule, 0, len(reqEntries))
+	templateEntries := make([]*configModels.WorkTimeModelEntry, 0, len(reqEntries))
+	seenSlots := make(map[string]struct{}, len(reqEntries))
+	for _, e := range reqEntries {
+		if e.TargetMinutes <= 0 {
+			continue
+		}
+		if err := validateScheduleEntryRequest(e, rotation, seenSlots); err != nil {
+			return nil, nil, err
+		}
+		startTime, err := parseScheduleStartTime(e.StartTime)
+		if err != nil {
+			return nil, nil, err
+		}
+		entries = append(entries, &configModels.StaffWorkSchedule{
+			WeekIndex:      e.WeekIndex,
+			RotationLength: rotation,
+			DayOfWeek:      e.DayOfWeek,
+			TargetMinutes:  e.TargetMinutes,
+			StartTime:      startTime,
+		})
+		templateEntries = append(templateEntries, &configModels.WorkTimeModelEntry{
+			WeekIndex:     e.WeekIndex,
+			DayOfWeek:     e.DayOfWeek,
+			TargetMinutes: e.TargetMinutes,
+			StartTime:     startTime,
+		})
+	}
+	return entries, templateEntries, nil
+}
+
+func parseScheduleStartTime(raw *string) (*time.Time, error) {
+	if raw == nil || *raw == "" {
+		return nil, nil
+	}
+	parsed, err := time.Parse("15:04", *raw)
+	if err != nil {
+		return nil, scheduleValidationErrorf("start_time must be HH:MM")
+	}
+	wallClock := timezone.WallClock(parsed)
+	return &wallClock, nil
+}
+
+func validateScheduleEntryRequest(e ScheduleEntry, rotation int, seenSlots map[string]struct{}) error {
+	if e.WeekIndex < 0 || e.WeekIndex >= rotation {
+		return scheduleValidationErrorf("week_index %d outside rotation_length %d", e.WeekIndex, rotation)
+	}
+	if e.DayOfWeek < configModels.DayMonday || e.DayOfWeek > configModels.DaySunday {
+		return scheduleValidationErrorf("day_of_week must be between 0 and 6")
+	}
+	if e.TargetMinutes > scheduleEntryMaxTargetMinutes {
+		return scheduleValidationErrorf("target_minutes must be between 0 and %d", scheduleEntryMaxTargetMinutes)
+	}
+	slot := fmt.Sprintf("%d:%d", e.WeekIndex, e.DayOfWeek)
+	if _, ok := seenSlots[slot]; ok {
+		return scheduleValidationErrorf("duplicate schedule entry for week_index %d and day_of_week %d", e.WeekIndex, e.DayOfWeek)
+	}
+	seenSlots[slot] = struct{}{}
 	return nil
 }
 

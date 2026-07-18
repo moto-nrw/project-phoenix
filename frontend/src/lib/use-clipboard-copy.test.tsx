@@ -6,7 +6,7 @@ import { useClipboardCopy } from "./use-clipboard-copy";
 function Probe({ text }: { text: string }) {
   const { copied, copy } = useClipboardCopy("ProbeComponent", 1500);
   return (
-    <button data-testid="probe" onClick={() => void copy(text)}>
+    <button type="button" data-testid="probe" onClick={() => void copy(text)}>
       {copied ? "Kopiert" : "Kopieren"}
     </button>
   );

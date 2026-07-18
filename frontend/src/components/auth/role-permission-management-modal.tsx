@@ -368,6 +368,7 @@ export function RolePermissionManagementModal({
                               <button
                                 type="button"
                                 role="switch"
+                                aria-label={`${getPermissionDisplayName(permission)} zuweisen`}
                                 aria-checked={checked}
                                 onClick={() =>
                                   handleTogglePermission(permission.id)

@@ -150,7 +150,7 @@ func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r *http.Request) {
-	if rs.InstanceService == nil || rs.OperationsService == nil || rs.TimetableData == nil {
+	if rs.OperationsService == nil || rs.TimetableData == nil {
 		common.RenderError(w, r, common.ErrorInternalServer(errors.New("timetable operations resource not fully wired")))
 		return
 	}
@@ -166,37 +166,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids are not accepted for spontaneous operational starts")))
 		return
 	}
-	room, err := rs.TimetableData.GetRoom(r.Context(), req.RoomID)
-	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("room not found")))
-			return
-		}
-		common.RenderError(w, r, common.ErrorInternalServerWrap("load spontaneous room failed", err))
-		return
-	}
-	if room == nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("room not found")))
-		return
-	}
-	if room.Name == constants.SchulhofRoomName {
-		common.RenderError(w, r, common.ErrorConflictWithCode(
-			scheduleSvc.ErrSchulhofSupervisionRequired,
-			schulhofSupervisionRequiredCode,
-		))
-		return
-	}
-	if err := rs.lockSpontaneousStartRoom(r.Context(), req.RoomID); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("lock spontaneous start room failed", err))
-		return
-	}
-	hasRoomConflict, _, err := rs.TimetableData.CheckRoomConflict(r.Context(), req.RoomID, 0)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap("check room conflict failed", err))
-		return
-	}
-	if hasRoomConflict {
-		common.RenderError(w, r, common.ErrorConflict(activeSvc.ErrRoomConflict))
+	if !rs.validateSpontaneousRoom(w, r, req.RoomID) {
 		return
 	}
 
@@ -213,9 +183,11 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve spontaneous activity group failed", err))
 		return
 	}
+
 	isSpontaneous := true
 	window := serverSpontaneousActivityWindow(timezone.Now())
-	inst, err := rs.InstanceService.Create(r.Context(), scheduleSvc.CreateInstanceInput{
+	claims := jwt.ClaimsFromCtx(r.Context())
+	result, err := rs.OperationsService.CreateAndStartSpontaneous(r.Context(), int64(claims.ID), claims.IsAdmin, scheduleSvc.CreateInstanceInput{
 		Date:             window.date,
 		StartTime:        window.startTime,
 		EndTime:          window.endTime,
@@ -230,22 +202,16 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		CreatedByStaffID: &createdBy,
 	})
 	if err != nil {
-		// Activity/category resolution above may already have written rows.
-		// Create can still reject the roster with a 4xx, so request rollback
-		// explicitly instead of relying only on the middleware's 5xx rule.
-		tenant.MarkRollback(r.Context())
-		renderCreateInstanceError(w, r, err)
-		return
-	}
-
-	claims := jwt.ClaimsFromCtx(r.Context())
-	result, err := rs.OperationsService.Start(r.Context(), int64(claims.ID), claims.IsAdmin, inst.ID)
-	if err != nil {
-		// Create and Start share the request transaction. A non-5xx start error
-		// (for example a room renamed to Schulhof between the initial check and
-		// Start) must not commit the already-created instance or activity rows.
-		tenant.MarkRollback(r.Context())
-		rs.renderOperationsError(w, r, err)
+		// The create+start composition owns its own rollback (both phases share
+		// the request tx). A Create-phase failure is wrapped so it keeps the
+		// create-specific error mapping; a Start-phase failure uses the
+		// operations mapping.
+		var createErr *scheduleSvc.SpontaneousCreateError
+		if errors.As(err, &createErr) {
+			renderCreateInstanceError(w, r, createErr.Err)
+		} else {
+			rs.renderOperationsError(w, r, err)
+		}
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, startOperationResponse{
@@ -254,6 +220,48 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		ActiveGroupID: result.ActiveGroupID,
 		Warnings:      result.Warnings,
 	}, "Spontaneous timetable instance created and started")
+}
+
+// validateSpontaneousRoom checks the target room exists, is not the permanent
+// Schulhof room (which has its own supervision flow), and is currently
+// unoccupied — taking the spontaneous-start room lock in between so the
+// existence-vs-conflict check is serialized. Renders the appropriate error and
+// returns false on any failure.
+func (rs *Resource) validateSpontaneousRoom(w http.ResponseWriter, r *http.Request, roomID int64) bool {
+	room, err := rs.TimetableData.GetRoom(r.Context(), roomID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("room not found")))
+			return false
+		}
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load spontaneous room failed", err))
+		return false
+	}
+	if room == nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("room not found")))
+		return false
+	}
+	if room.Name == constants.SchulhofRoomName {
+		common.RenderError(w, r, common.ErrorConflictWithCode(
+			scheduleSvc.ErrSchulhofSupervisionRequired,
+			schulhofSupervisionRequiredCode,
+		))
+		return false
+	}
+	if err := rs.lockSpontaneousStartRoom(r.Context(), roomID); err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("lock spontaneous start room failed", err))
+		return false
+	}
+	hasRoomConflict, _, err := rs.TimetableData.CheckRoomConflict(r.Context(), roomID, 0)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("check room conflict failed", err))
+		return false
+	}
+	if hasRoomConflict {
+		common.RenderError(w, r, common.ErrorConflict(activeSvc.ErrRoomConflict))
+		return false
+	}
+	return true
 }
 
 type spontaneousActivityWindow struct {

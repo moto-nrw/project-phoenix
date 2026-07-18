@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 
 interface TimeFieldProps {
+  readonly ariaLabel?: string;
   readonly value: string;
   readonly onChange: (value: string) => void;
   readonly onBlur?: () => void;
@@ -17,6 +18,7 @@ interface TimeFieldProps {
  * When editing, auto-inserts the colon separator and validates on blur.
  */
 export function TimeField({
+  ariaLabel = "Einstellung",
   value,
   onChange,
   onBlur,
@@ -82,6 +84,7 @@ export function TimeField({
   if (!value && !isEditing && emptyLabel) {
     return (
       <button
+        aria-label={`${ariaLabel}: ${emptyLabel}`}
         type="button"
         onClick={handleStartEditing}
         disabled={disabled}
@@ -111,6 +114,7 @@ export function TimeField({
   return (
     <div className="flex items-center gap-2">
       <input
+        aria-label={ariaLabel}
         ref={inputRef}
         type="text"
         inputMode="numeric"

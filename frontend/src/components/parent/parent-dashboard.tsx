@@ -19,6 +19,7 @@ import {
   NewsDetailModal,
 } from "~/components/parent/news/news-components";
 import { createLogger } from "~/lib/logger";
+import { formatLocalizedDate } from "~/lib/localized-date-format";
 import { useParentNewsEnabled } from "~/lib/hooks/use-parent-news-enabled";
 
 const logger = createLogger({ component: "ParentDashboard" });
@@ -55,11 +56,7 @@ function formatDate(
   empty: string,
 ): string {
   if (!iso) return empty;
-  return new Intl.DateTimeFormat(locale, {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(new Date(iso));
+  return formatLocalizedDate(iso, locale);
 }
 
 function formatServiceRange(

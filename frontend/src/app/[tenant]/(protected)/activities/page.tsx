@@ -23,8 +23,10 @@ import { useSWRAuth } from "~/lib/swr";
 import { createLogger } from "~/lib/logger";
 import { BinaryModeGuard } from "~/components/tenant/binary-mode-guard";
 import { useTenantRouter } from "~/lib/tenant-router";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 import { NfcModeGuard } from "~/components/tenant/nfc-mode-guard";
 import { ActivitiesSkeleton } from "./page-skeleton";
+import { redirect } from "next/navigation";
 
 const logger = createLogger({ component: "ActivitiesPage" });
 
@@ -64,6 +66,7 @@ function ActivitiesPageContent() {
   const { success: toastSuccess } = useToast();
   const [isMobile, setIsMobile] = useState(false);
   const router = useTenantRouter();
+  const tenantPath = useTenantAwarePath();
 
   // useSWRAuth silently disables the fetch when there is no authenticated
   // session (data stays undefined, isLoading stays false). Require a session
@@ -80,20 +83,14 @@ function ActivitiesPageContent() {
   // token and setting session.error (expired refresh token). useSWRAuth never
   // starts without a token, so redirect instead of showing the skeleton
   // forever — same pattern as the dashboard.
-  useEffect(() => {
-    if (status === "authenticated" && session) {
-      if (session.error === "RefreshTokenExpired") {
-        logger.info("session refresh token expired, redirecting to login");
-        router.push("/");
-        return;
-      }
-
-      if (!session.user?.token) {
-        logger.info("no valid token in session, redirecting to login");
-        router.push("/");
-      }
-    }
-  }, [status, session, router]);
+  if (
+    status === "authenticated" &&
+    session &&
+    (session.error === "RefreshTokenExpired" || !session.user?.token)
+  ) {
+    logger.info("invalid session, redirecting to login");
+    redirect(tenantPath("/"));
+  }
 
   // Fetch activities, categories, and current staff with SWR
   const {
@@ -345,6 +342,7 @@ function ActivitiesPageContent() {
             actionButton={
               !isMobile && (
                 <button
+                  type="button"
                   onClick={() => setIsQuickCreateOpen(true)}
                   className="group flex h-10 w-10 items-center justify-center rounded-full bg-gray-900 text-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-gray-800 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)] active:bg-gray-950"
                   aria-label="Aktivität erstellen"
@@ -370,6 +368,7 @@ function ActivitiesPageContent() {
 
         {/* Mobile FAB Create Button - z-40 to appear below drawer modal (z-50) */}
         <button
+          type="button"
           onClick={() => setIsQuickCreateOpen(true)}
           className="group fixed right-4 bottom-24 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-gray-900 text-white shadow-[0_1px_2px_rgba(15,23,42,0.04),0_0_0_1px_rgba(15,23,42,0.02)] transition-[background-color,box-shadow] duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)] hover:bg-gray-800 hover:shadow-[0_3px_10px_rgba(15,23,42,0.045),0_0_0_1px_rgba(15,23,42,0.045)] active:bg-gray-950 md:hidden"
           aria-label="Aktivität erstellen"

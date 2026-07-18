@@ -447,70 +447,12 @@ func (rs *Resource) createStudentArrivalException(w http.ResponseWriter, r *http
 		arrivalTime = &parsed
 	}
 
-	var exception *schedule.StudentArrivalException
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, exceptionDate); err != nil {
-			return err
-		}
-
-		// A row may already exist for the day — the staff client only POSTs when
-		// its loaded view shows no exception, so an existing row means someone
-		// else wrote one after this client loaded the day. A blind second insert
-		// would hit the unique (student_id, exception_date) index and surface as
-		// a raw 500. The existing row is read under the lock, so its source is
-		// authoritative for how to resolve the collision:
-		//   - guardian-authored: reclaim it for staff (with an audit entry)
-		//     exactly as the update path does, so the common "parent set a time,
-		//     staff take over" flow just works.
-		//   - staff-authored: a concurrent staff edit. Refuse with a conflict
-		//     rather than silently overwriting a colleague's change; the client
-		//     reloads and the retry goes through the update path.
-		existing, err := rs.ArrivalScheduleService.GetStudentArrivalExceptionForDate(ctx, student.ID, exceptionDate)
-		if err != nil {
-			return err
-		}
-		if existing != nil {
-			if existing.Source != schedule.ExceptionSourceGuardian {
-				return ErrExceptionDayConflict
-			}
-			// Re-resolve the staff id against the locked source so an account
-			// without a staff profile fails as a clean 403 rather than stamping a
-			// zero author onto the reclaimed row.
-			sid, staffErr := rs.getStaffIDFromJWT(r)
-			if staffErr != nil || sid == 0 {
-				return ErrStaffProfileRequired
-			}
-			updated := &schedule.StudentArrivalException{
-				StudentID:       student.ID,
-				ExceptionDate:   exceptionDate,
-				ExpectedArrival: arrivalTime,
-				Reason:          req.Reason,
-				Source:          schedule.ExceptionSourceStaff,
-				CreatedBy:       sid,
-			}
-			updated.ID = existing.ID
-			updated.CreatedAt = existing.CreatedAt
-			updated.SetTenantID(existing.TenantID)
-			exception = updated
-			return rs.ArrivalScheduleService.UpdateStudentArrivalException(ctx, updated)
-		}
-
-		exception = &schedule.StudentArrivalException{
-			StudentID:       student.ID,
-			ExceptionDate:   exceptionDate,
-			ExpectedArrival: arrivalTime,
-			Reason:          req.Reason,
-			// Stamp the source explicitly so the in-memory object the 201
-			// response serializes is correct on its own, and so this mirrors the
-			// reclaim path above. (bun also backfills the column default via
-			// RETURNING for the zero value, but leaning on that ORM behavior for
-			// a response contract is fragile.)
-			Source:    schedule.ExceptionSourceStaff,
-			CreatedBy: staffID,
-		}
-		return rs.ArrivalScheduleService.CreateStudentArrivalException(ctx, exception)
-	}); err != nil {
+	exception, err := rs.ArrivalScheduleService.CreateOrReclaimException(
+		r.Context(), student.ID, exceptionDate, arrivalTime, req.Reason, staffID,
+		func() (int64, error) { return rs.getStaffIDFromJWT(r) },
+	)
+	if err != nil {
 		renderExceptionWriteError(w, r, err)
 		return
 	}
@@ -518,7 +460,7 @@ func (rs *Resource) createStudentArrivalException(w http.ResponseWriter, r *http
 	rs.broadcastArrivalScheduleChanged(student.ID)
 	// Wake the child's guardians so the "Heute" tile reflects a staff arrival
 	// override (a no-show arrival_absent resolves the tile as absent) live; defer
-	// to the outer request tx's commit (nested handler WithTenantTx is not
+	// to the outer request tx's commit (the service write runs in a nested tx not
 	// committed on return) (#1725 review).
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.wakeChildGuardians(tenantID, student.ID)
@@ -550,80 +492,28 @@ func (rs *Resource) updateStudentArrivalException(w http.ResponseWriter, r *http
 	}
 
 	// existingException was the ownership pre-check; the locked re-read inside the
-	// transaction below is authoritative for the source/author decision.
+	// service is authoritative for the source/author decision.
 	exceptionDate, _ := timezone.ParseDate(req.ExceptionDate)
-	var exception *schedule.StudentArrivalException
+	var arrivalTime *time.Time
+	if req.ExpectedArrival != nil && *req.ExpectedArrival != "" {
+		parsed, _ := parseTimeOnly(*req.ExpectedArrival)
+		arrivalTime = &parsed
+	}
 
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.DB, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if err := scheduleService.LockCareExceptionDay(ctx, rs.DB, student.ID, exceptionDate); err != nil {
-			return err
-		}
-		freshException, err := rs.ArrivalScheduleService.GetStudentArrivalExceptionByID(ctx, exceptionID)
-		if err != nil {
-			return err
-		}
-		if freshException == nil {
-			return ErrExceptionNotFound
-		}
-		if freshException.StudentID != student.ID {
-			return ErrExceptionWrongStudent
-		}
-
-		// A staff edit takes ownership of the day. If the row was parent-authored,
-		// reclaim it: stamp the editing staff as author and drop the guardian link
-		// so the day no longer reads as "Von Eltern" and is no longer editable from
-		// the parents portal. Staff-authored rows keep their original author.
-		//
-		// The staff id is resolved here against the LOCKED source, not the
-		// pre-lock read: it closes the race where the row flips to guardian
-		// between the two reads, and an account without a staff profile fails as
-		// a clean 403 (staff_profile_required) instead of a 500.
-		source := freshException.Source
-		createdBy := freshException.CreatedBy
-		createdByGuardian := freshException.CreatedByGuardian
-		if freshException.Source == schedule.ExceptionSourceGuardian {
-			staffID, staffErr := rs.getStaffIDFromJWT(r)
-			if staffErr != nil || staffID == 0 {
-				return ErrStaffProfileRequired
-			}
-			source = schedule.ExceptionSourceStaff
-			createdBy = staffID
-			createdByGuardian = nil
-		}
-
-		updated := &schedule.StudentArrivalException{
-			StudentID:         student.ID,
-			ExceptionDate:     exceptionDate,
-			Reason:            freshException.Reason,
-			Source:            source,
-			CreatedBy:         createdBy,
-			CreatedByGuardian: createdByGuardian,
-		}
-		updated.ID = exceptionID
-		updated.CreatedAt = freshException.CreatedAt
-		updated.SetTenantID(freshException.TenantID)
-
-		if req.Reason != nil {
-			updated.Reason = req.Reason
-		}
-
-		if req.ExpectedArrival != nil && *req.ExpectedArrival != "" {
-			arrivalTime, _ := parseTimeOnly(*req.ExpectedArrival)
-			updated.ExpectedArrival = &arrivalTime
-		}
-
-		exception = updated
-		return rs.ArrivalScheduleService.UpdateStudentArrivalException(ctx, updated)
-	}); err != nil {
+	exception, err := rs.ArrivalScheduleService.UpdateException(
+		r.Context(), exceptionID, student.ID, exceptionDate, req.Reason, arrivalTime,
+		func() (int64, error) { return rs.getStaffIDFromJWT(r) },
+	)
+	if err != nil {
 		renderExceptionWriteError(w, r, err)
 		return
 	}
 
 	rs.broadcastArrivalScheduleChanged(student.ID)
 	// Wake the child's guardians so the edited arrival override refetches live;
-	// defer to the outer request tx's commit (nested handler WithTenantTx is not
-	// committed on return) (#1725 review).
+	// defer to the outer request tx's commit (the service write runs in a nested
+	// tx not committed on return) (#1725 review).
 	tenant.RegisterAfterCommit(r.Context(), func() {
 		rs.wakeChildGuardians(tenantID, student.ID)
 	})

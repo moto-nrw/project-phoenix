@@ -31,10 +31,12 @@ function SettingsContent() {
   }
 
   return (
-    <SettingsLayout
-      tabs={settingsTabs.tabs}
-      renderTab={settingsTabs.renderTab}
-    />
+    <Suspense fallback={<Loading fullPage={false} />}>
+      <SettingsLayout
+        tabs={settingsTabs.tabs}
+        renderTab={settingsTabs.renderTab}
+      />
+    </Suspense>
   );
 }
 

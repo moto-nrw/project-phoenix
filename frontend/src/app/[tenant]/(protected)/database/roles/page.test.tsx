@@ -88,7 +88,11 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
         value={search.value}
         onChange={(event) => search.onChange(event.target.value)}
       />
-      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+      <button
+        type="button"
+        data-testid="clear-filters"
+        onClick={onClearAllFilters}
+      >
         Clear
       </button>
       {actionButton}
@@ -125,12 +129,13 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
       <div data-testid="role-edit-modal">
         {error ? <span data-testid="edit-error">{error}</span> : null}
         <button
+          type="button"
           data-testid="submit-edit"
           onClick={() => submit({ name: "Updated" })}
         >
           Save
         </button>
-        <button data-testid="close-edit-modal" onClick={onClose}>
+        <button type="button" data-testid="close-edit-modal" onClick={onClose}>
           Close
         </button>
       </div>
@@ -138,12 +143,17 @@ vi.mock("~/components/ui/database/database-form-modal", () => ({
       <div data-testid="role-create-modal">
         {error ? <span data-testid="create-error">{error}</span> : null}
         <button
+          type="button"
           data-testid="submit-create"
           onClick={() => submit({ name: "Neue Rolle" })}
         >
           Submit
         </button>
-        <button data-testid="close-create-modal" onClick={onClose}>
+        <button
+          type="button"
+          data-testid="close-create-modal"
+          onClick={onClose}
+        >
           Close
         </button>
       </div>
@@ -172,6 +182,7 @@ vi.mock("@/components/roles/roles-master-detail", () => ({
     <div data-testid="roles-master-detail">
       {roles.map((role) => (
         <button
+          type="button"
           key={role.id}
           data-testid={`role-row-${role.id}`}
           onClick={() => onSelect(role.id)}
@@ -185,19 +196,32 @@ vi.mock("@/components/roles/roles-master-detail", () => ({
           <span data-testid="detail-role-name">
             {selectedRole?.name ?? "unbekannt"}
           </span>
-          <button data-testid="trigger-edit" onClick={onEditClick}>
+          <button
+            type="button"
+            data-testid="trigger-edit"
+            onClick={onEditClick}
+          >
             Edit
           </button>
-          <button data-testid="trigger-delete" onClick={onDeleteClick}>
+          <button
+            type="button"
+            data-testid="trigger-delete"
+            onClick={onDeleteClick}
+          >
             Delete
           </button>
           <button
+            type="button"
             data-testid="trigger-permissions"
             onClick={onManagePermissions}
           >
             Permissions
           </button>
-          <button data-testid="trigger-deselect" onClick={() => onSelect(null)}>
+          <button
+            type="button"
+            data-testid="trigger-deselect"
+            onClick={() => onSelect(null)}
+          >
             Close
           </button>
         </div>
@@ -223,10 +247,10 @@ vi.mock("~/components/ui/modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="confirmation-modal">
-        <button data-testid="confirm-delete" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
           Confirm
         </button>
-        <button data-testid="cancel-delete" onClick={onClose}>
+        <button type="button" data-testid="cancel-delete" onClick={onClose}>
           Cancel
         </button>
       </div>

@@ -3336,7 +3336,11 @@ describe("Enhanced rendering: action buttons and search/filter interaction", () 
             </select>
           ))}
           {onClearAllFilters && (
-            <button data-testid="clear-btn" onClick={onClearAllFilters}>
+            <button
+              type="button"
+              data-testid="clear-btn"
+              onClick={onClearAllFilters}
+            >
               Clear
             </button>
           )}

@@ -174,10 +174,7 @@ describe("OperatorSettingsPage", () => {
   it("updates profile on save", async () => {
     render(<OperatorSettingsPage />);
 
-    await waitFor(() => {
-      const editButton = screen.getByText("Bearbeiten");
-      fireEvent.click(editButton);
-    });
+    fireEvent.click(await screen.findByText("Bearbeiten"));
 
     const displayNameInput = screen.getByLabelText("Anzeigename");
     fireEvent.change(displayNameInput, { target: { value: "Jane Doe" } });
@@ -222,9 +219,7 @@ describe("OperatorSettingsPage", () => {
 
     render(<OperatorSettingsPage />);
 
-    await waitFor(() => {
-      fireEvent.click(screen.getByText("Bearbeiten"));
-    });
+    fireEvent.click(await screen.findByText("Bearbeiten"));
 
     const saveButton = screen.getByText("Speichern");
     fireEvent.click(saveButton);
@@ -241,9 +236,7 @@ describe("OperatorSettingsPage", () => {
   it("cancels editing and restores original values", async () => {
     render(<OperatorSettingsPage />);
 
-    await waitFor(() => {
-      fireEvent.click(screen.getByText("Bearbeiten"));
-    });
+    fireEvent.click(await screen.findByText("Bearbeiten"));
 
     const displayNameInput = screen.getByLabelText("Anzeigename");
     fireEvent.change(displayNameInput, { target: { value: "Changed Name" } });
@@ -294,9 +287,7 @@ describe("OperatorSettingsPage", () => {
     it("shows email change button when editing", async () => {
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       expect(screen.getByText("E-Mail ändern")).toBeInTheDocument();
     });
@@ -314,9 +305,7 @@ describe("OperatorSettingsPage", () => {
     it("opens email change dialog with form fields", async () => {
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       fireEvent.click(screen.getByText("E-Mail ändern"));
 
@@ -335,9 +324,7 @@ describe("OperatorSettingsPage", () => {
     it("submits email change request successfully", async () => {
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       fireEvent.click(screen.getByText("E-Mail ändern"));
 
@@ -377,9 +364,7 @@ describe("OperatorSettingsPage", () => {
     it("closes dialog after successful submission", async () => {
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       fireEvent.click(screen.getByText("E-Mail ändern"));
 
@@ -425,9 +410,7 @@ describe("OperatorSettingsPage", () => {
 
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       fireEvent.click(screen.getByText("E-Mail ändern"));
 
@@ -481,9 +464,7 @@ describe("OperatorSettingsPage", () => {
 
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       fireEvent.click(screen.getByText("E-Mail ändern"));
 
@@ -528,9 +509,7 @@ describe("OperatorSettingsPage", () => {
 
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       fireEvent.click(screen.getByText("E-Mail ändern"));
 
@@ -563,9 +542,7 @@ describe("OperatorSettingsPage", () => {
     it("closes dialog and resets fields on cancel", async () => {
       render(<OperatorSettingsPage />);
 
-      await waitFor(() => {
-        fireEvent.click(screen.getByText("Bearbeiten"));
-      });
+      fireEvent.click(await screen.findByText("Bearbeiten"));
 
       fireEvent.click(screen.getByText("E-Mail ändern"));
 

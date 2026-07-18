@@ -44,6 +44,16 @@ type ArrivalScheduleService interface {
 	DeleteStudentArrivalException(ctx context.Context, exceptionID int64) error
 	DeleteAllStudentArrivalExceptions(ctx context.Context, studentID int64) error
 
+	// CreateOrReclaimException creates an arrival exception for the day, or, when a
+	// row already exists, resolves the collision under the care-exception day lock:
+	// a guardian-authored row is reclaimed for staff (re-resolving the staff author
+	// via resolveStaffID), a staff-authored row raises ErrCareExceptionDayConflict.
+	CreateOrReclaimException(ctx context.Context, studentID int64, date timezone.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*schedule.StudentArrivalException, error)
+	// UpdateException updates an existing arrival exception under the day lock,
+	// applying the guardian-reclaim-on-staff-edit policy and merging the optional
+	// reason/arrival patch onto the locked row.
+	UpdateException(ctx context.Context, exceptionID, studentID int64, date timezone.Date, reason *string, arrivalTime *time.Time, resolveStaffID func() (int64, error)) (*schedule.StudentArrivalException, error)
+
 	// Note operations
 	GetStudentArrivalNoteByID(ctx context.Context, noteID int64) (*schedule.StudentArrivalNote, error)
 	GetStudentArrivalNotes(ctx context.Context, studentID int64) ([]*schedule.StudentArrivalNote, error)
@@ -316,6 +326,131 @@ func (s *arrivalScheduleService) UpdateStudentArrivalException(ctx context.Conte
 		return &ScheduleError{Op: opUpdateStudentArrivalException, Err: err}
 	}
 	return nil
+}
+
+// CreateOrReclaimException creates a staff arrival exception for the day, or
+// resolves a collision with an already-existing row under the day lock. A
+// guardian-authored row is reclaimed for staff; a staff-authored row is refused
+// with ErrCareExceptionDayConflict so a concurrent staff edit is not silently
+// overwritten.
+func (s *arrivalScheduleService) CreateOrReclaimException(ctx context.Context, studentID int64, date timezone.Date, arrivalTime *time.Time, reason *string, staffID int64, resolveStaffID func() (int64, error)) (*schedule.StudentArrivalException, error) {
+	var exception *schedule.StudentArrivalException
+	tenantID := tenant.FromContext(ctx)
+	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := LockCareExceptionDay(txCtx, s.db, studentID, date); err != nil {
+			return err
+		}
+
+		existing, err := s.GetStudentArrivalExceptionForDate(txCtx, studentID, date)
+		if err != nil {
+			return err
+		}
+		if existing != nil {
+			if existing.Source != schedule.ExceptionSourceGuardian {
+				return ErrCareExceptionDayConflict
+			}
+			sid, staffErr := resolveStaffID()
+			if staffErr != nil || sid == 0 {
+				return ErrCareExceptionStaffProfileRequired
+			}
+			updated := &schedule.StudentArrivalException{
+				StudentID:       studentID,
+				ExceptionDate:   date,
+				ExpectedArrival: arrivalTime,
+				Reason:          reason,
+				Source:          schedule.ExceptionSourceStaff,
+				CreatedBy:       sid,
+			}
+			updated.ID = existing.ID
+			updated.CreatedAt = existing.CreatedAt
+			updated.SetTenantID(existing.TenantID)
+			exception = updated
+			return s.UpdateStudentArrivalException(txCtx, updated)
+		}
+
+		exception = &schedule.StudentArrivalException{
+			StudentID:       studentID,
+			ExceptionDate:   date,
+			ExpectedArrival: arrivalTime,
+			Reason:          reason,
+			Source:          schedule.ExceptionSourceStaff,
+			CreatedBy:       staffID,
+		}
+		return s.CreateStudentArrivalException(txCtx, exception)
+	}); err != nil {
+		return nil, err
+	}
+	return exception, nil
+}
+
+// UpdateException updates an existing arrival exception under the day lock. A
+// staff edit takes ownership of the day: a guardian-authored row is reclaimed
+// (staff author stamped, guardian link dropped); staff-authored rows keep their
+// original author. The optional reason/arrival patch is merged onto the locked
+// row.
+func (s *arrivalScheduleService) UpdateException(ctx context.Context, exceptionID, studentID int64, date timezone.Date, reason *string, arrivalTime *time.Time, resolveStaffID func() (int64, error)) (*schedule.StudentArrivalException, error) {
+	var exception *schedule.StudentArrivalException
+	tenantID := tenant.FromContext(ctx)
+	if err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		if err := LockCareExceptionDay(txCtx, s.db, studentID, date); err != nil {
+			return err
+		}
+		freshException, err := s.GetStudentArrivalExceptionByID(txCtx, exceptionID)
+		if err != nil {
+			return err
+		}
+		if freshException == nil {
+			return ErrCareExceptionNotFound
+		}
+		if freshException.StudentID != studentID {
+			return ErrCareExceptionWrongStudent
+		}
+
+		source := freshException.Source
+		createdBy := freshException.CreatedBy
+		createdByGuardian := freshException.CreatedByGuardian
+		if freshException.Source == schedule.ExceptionSourceGuardian {
+			sid, staffErr := resolveStaffID()
+			if staffErr != nil || sid == 0 {
+				return ErrCareExceptionStaffProfileRequired
+			}
+			source = schedule.ExceptionSourceStaff
+			createdBy = sid
+			createdByGuardian = nil
+		}
+
+		expectedArrival := freshException.ExpectedArrival
+		if expectedArrival != nil {
+			normalized := timezone.WallClock(*expectedArrival)
+			expectedArrival = &normalized
+		}
+
+		updated := &schedule.StudentArrivalException{
+			StudentID:         studentID,
+			ExceptionDate:     date,
+			ExpectedArrival:   expectedArrival,
+			Reason:            freshException.Reason,
+			Source:            source,
+			CreatedBy:         createdBy,
+			CreatedByGuardian: createdByGuardian,
+		}
+		updated.ID = exceptionID
+		updated.CreatedAt = freshException.CreatedAt
+		updated.SetTenantID(freshException.TenantID)
+
+		if reason != nil {
+			updated.Reason = reason
+		}
+		if arrivalTime != nil {
+			updated.ExpectedArrival = arrivalTime
+		}
+
+		exception = updated
+		return s.UpdateStudentArrivalException(txCtx, updated)
+	}); err != nil {
+		return nil, err
+	}
+	return exception, nil
 }
 
 // DeleteStudentArrivalException deletes an arrival exception by ID

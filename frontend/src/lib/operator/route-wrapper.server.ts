@@ -394,11 +394,27 @@ export function createOperatorProxyPostHandler(backendEndpoint: string) {
  * On fetch failure: 500 with a generic German internal-error message
  *                   (no error detail to prevent information leakage on public routes).
  */
-export function createOperatorPublicProxyPostHandler(backendEndpoint: string) {
+interface OperatorPublicProxyOptions {
+  transformBody?: (
+    request: NextRequest,
+    body: unknown,
+  ) => unknown | Promise<unknown>;
+  decorateResponse?: (
+    request: NextRequest,
+    response: NextResponse,
+    backendSucceeded: boolean,
+  ) => void | Promise<void>;
+}
+
+export function createOperatorPublicProxyPostHandler(
+  backendEndpoint: string,
+  options: OperatorPublicProxyOptions = {},
+) {
   return async (request: NextRequest): Promise<NextResponse> => {
     let body: unknown;
     try {
       body = await parseRequestBody(request);
+      body = (await options.transformBody?.(request, body)) ?? body;
     } catch {
       return NextResponse.json(
         { message: "Ungültige Anfrage" },
@@ -427,7 +443,9 @@ export function createOperatorPublicProxyPostHandler(backendEndpoint: string) {
         durationMs: Date.now() - startedAt,
         outcome: response.ok ? "success" : "backend_error",
       });
-      return forwardBackendResponse(response);
+      const forwardedResponse = await forwardBackendResponse(response);
+      await options.decorateResponse?.(request, forwardedResponse, response.ok);
+      return forwardedResponse;
     } catch {
       await recordOperatorBackendProxyMetric({
         method: "POST",
@@ -468,10 +486,12 @@ export function createOperatorProxyMethodHandler(
         );
       }
 
-      const params = await extractParams(request, context);
-      const { getServerApiUrl } = await import("~/lib/server-api-url");
-      const { getClientForwardHeaders } =
-        await import("~/lib/client-headers.server");
+      const [params, { getServerApiUrl }, { getClientForwardHeaders }] =
+        await Promise.all([
+          extractParams(request, context),
+          import("~/lib/server-api-url"),
+          import("~/lib/client-headers.server"),
+        ]);
       const backendEndpoint = endpointBuilder(params);
       const url = `${getServerApiUrl()}${backendEndpoint}`;
       const forwardHeaders = getClientForwardHeaders(request);

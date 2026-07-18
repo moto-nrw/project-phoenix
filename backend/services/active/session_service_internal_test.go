@@ -174,6 +174,10 @@ func (w *workSessionServiceForSessionUnitTest) SaveCustomScheduleAsTemplate(cont
 	return nil
 }
 
+func (w *workSessionServiceForSessionUnitTest) UpdateSchedule(context.Context, *userModels.Staff, ScheduleUpdateInput) error {
+	return nil
+}
+
 func newSessionSQLMockDB(t *testing.T) (*bun.DB, sqlmock.Sqlmock) {
 	t.Helper()
 	sqlDB, mock, err := sqlmock.New()

@@ -172,7 +172,7 @@ func (rs *Resource) splitTemplate(w http.ResponseWriter, r *http.Request) {
 		renderTemplatePeriodLookupError(w, r, err)
 		return
 	}
-	if err := rs.validateTemplateEducationGroup(r.Context(), req.EducationGroupID); err != nil {
+	if err := rs.TimetableData.ValidateTemplateEducationGroup(r.Context(), req.EducationGroupID); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}

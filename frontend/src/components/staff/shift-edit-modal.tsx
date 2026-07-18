@@ -21,6 +21,10 @@ import { parseISODate, toISODate } from "~/lib/date-helpers";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { createLogger } from "~/lib/logger";
 import {
+  copyStableObjectKey,
+  getStableObjectKey,
+} from "~/lib/stable-object-key";
+import {
   ShiftApiError,
   staffShiftService,
   staffShiftSeriesService,
@@ -339,7 +343,7 @@ export function ShiftEditModal({
             next.breakMinutes = maxBreak;
           }
         }
-        return next;
+        return copyStableObjectKey(row, next);
       }),
     );
   };
@@ -799,7 +803,7 @@ export function ShiftEditModal({
                     </p>
                     {replacements.map((row, index) => (
                       <div
-                        key={index}
+                        key={getStableObjectKey(row, "replacement")}
                         className="space-y-2 rounded-md border border-gray-100 bg-gray-50/60 p-2.5"
                       >
                         <div className="flex items-center justify-between gap-2">
@@ -1188,6 +1192,7 @@ function formatShortDate(isoDate: string): string {
   const [y, m, d] = isoDate.split("-").map(Number);
   const date = new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1);
   return date.toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -1198,6 +1203,7 @@ function formatLongDate(isoDate: string): string {
   const [y, m, d] = isoDate.split("-").map(Number);
   const date = new Date(y ?? 1970, (m ?? 1) - 1, d ?? 1);
   return date.toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
     weekday: "long",
     day: "2-digit",
     month: "long",

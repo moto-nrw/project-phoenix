@@ -99,22 +99,29 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
         onChange={(e) => search.onChange(e.target.value)}
       />
       <button
+        type="button"
         data-testid="filter-building"
         onClick={() => filters?.[0]?.onChange("Main")}
       >
         Building
       </button>
       <button
+        type="button"
         data-testid="filter-occupied"
         onClick={() => filters?.[1]?.onChange("occupied")}
       >
         Occupied
       </button>
-      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+      <button
+        type="button"
+        data-testid="clear-filters"
+        onClick={onClearAllFilters}
+      >
         Clear
       </button>
       {activeFilters?.map((filter) => (
         <button
+          type="button"
           key={filter.id}
           data-testid={`remove-filter-${filter.id}`}
           onClick={filter.onRemove}
@@ -124,6 +131,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
       ))}
       {overflowMenu?.map((item) => (
         <button
+          type="button"
           key={item.label}
           data-testid={`overflow-${item.label}`}
           onClick={item.onClick}

@@ -569,8 +569,8 @@ export function InstanceDetailSlideOver({
                   {instance.conflictWarnings.length} Konflikt(e)
                 </div>
                 <ul className="mt-1 space-y-0.5 text-xs text-[#CC2626]">
-                  {instance.conflictWarnings.map((w, i) => (
-                    <li key={i}>• {w.message}</li>
+                  {instance.conflictWarnings.map((warning) => (
+                    <li key={warning.message}>• {warning.message}</li>
                   ))}
                 </ul>
               </div>

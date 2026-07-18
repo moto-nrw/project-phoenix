@@ -34,7 +34,27 @@ var (
 	// ErrGuardianDeletePreviewChanged indicates the affected guardian links no
 	// longer match the set the admin confirmed.
 	ErrGuardianDeletePreviewChanged = errors.New("Die Verknüpfungen haben sich seit der Vorschau geändert. Bitte erneut prüfen.") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrGuardianForceDeleteRequiresAdmin indicates a full delete of a guardian
+	// still linked to students was requested by a non-admin. The full delete
+	// reaches across siblings the caller may not supervise, so it is restricted
+	// to admins.
+	ErrGuardianForceDeleteRequiresAdmin = errors.New("only administrators can fully delete a guardian linked to students")
 )
+
+// GuardianStillLinkedError signals that a guardian delete was refused because the
+// guardian is still linked to one or more students and no force delete was
+// requested. StudentNames carries the affected children for the caller to render
+// (only admins may see them).
+type GuardianStillLinkedError struct {
+	StudentNames []string
+}
+
+// Error returns a stable, non-user-facing marker; the HTTP layer builds the
+// audience-specific German message from StudentNames.
+func (e *GuardianStillLinkedError) Error() string {
+	return "guardian is still linked to students"
+}
 
 // UsersError represents an error in the users service
 type UsersError struct {

@@ -1215,3 +1215,53 @@ func TestToggleStudentAttendance_CheckOut_EndsOpenVisit(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, endedVisit.ExitTime, "toggle checkout must end the open visit")
 }
+
+// TestConfirmDailyCheckout_NoAttendanceRecord verifies that confirming a daily
+// checkout for a student without today's attendance record returns the
+// wire-contract sentinel error.
+func TestConfirmDailyCheckout_NoAttendanceRecord(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "DailyCheckout", "NoRecord", "7a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	result, err := service.ConfirmDailyCheckout(ctx, student.ID, 0, "zuhause")
+
+	require.Error(t, err)
+	require.ErrorIs(t, err, activeService.ErrNoAttendanceRecordForCheckout)
+	assert.Nil(t, result)
+}
+
+// TestConfirmDailyCheckout_Unterwegs verifies that an "unterwegs" confirmation
+// for a checked-in student leaves attendance untouched and reports the
+// "checked_out" transit action.
+func TestConfirmDailyCheckout_Unterwegs(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	service := setupActiveService(t, db)
+	ctx := testpkg.TenantContext(1)
+
+	student := testpkg.CreateTestStudent(t, db, "DailyCheckout", "Unterwegs", "7b")
+	staff := testpkg.CreateTestStaff(t, db, "DailyCheckout", "Supervisor")
+	device := testpkg.CreateTestDevice(t, db, "daily-checkout-device-001")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID, staff.ID, device.ID)
+
+	checkInTime := time.Now().Add(-1 * time.Hour)
+	testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, device.ID, checkInTime, nil)
+
+	result, err := service.ConfirmDailyCheckout(ctx, student.ID, device.ID, "unterwegs")
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Equal(t, "checked_out", result.Action)
+
+	// Attendance must remain checked in — "unterwegs" performs no write.
+	status, err := service.GetStudentAttendanceStatus(ctx, student.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "checked_in", status.Status)
+}

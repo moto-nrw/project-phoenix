@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import useSWR, { unstable_serialize, useSWRConfig } from "swr";
@@ -154,8 +154,9 @@ function MessageThreadContent() {
   // refetchOnFocus: this view's only refresh path is SSE (revalidateOnFocus is off
   // above), so if the connection dropped while the tab slept a message could have
   // been missed entirely — refetch on return to heal in lockstep with the badge.
+  const refreshThread = useCallback(() => void mutate(), [mutate]);
   useMessagesActivity({
-    onMatch: () => void mutate(),
+    onMatch: refreshThread,
     threadId,
     debounceMs: 500,
     refetchOnFocus: true,

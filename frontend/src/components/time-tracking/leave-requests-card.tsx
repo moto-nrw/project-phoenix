@@ -11,6 +11,7 @@ import {
   type VacationQuotaSummary,
 } from "~/lib/time-tracking-api";
 import { VacationRequestModal } from "./vacation-request-modal";
+import { useCurrentTimestamp } from "~/lib/hooks/use-current-timestamp";
 
 const logger = createLogger({ component: "LeaveRequestsCard" });
 
@@ -102,6 +103,7 @@ function statusMeta(status: string): StatusMeta {
 }
 
 export function LeaveRequestsCard() {
+  const currentTimestamp = useCurrentTimestamp();
   const [modalOpen, setModalOpen] = useState(false);
   const [quota, setQuota] = useState<VacationQuotaSummary | null>(null);
   const [vacations, setVacations] = useState<StaffAbsence[]>([]);
@@ -247,7 +249,7 @@ export function LeaveRequestsCard() {
                   const cancelable =
                     v.status === "requested" ||
                     (v.status === "approved" &&
-                      new Date(v.dateStart) > new Date());
+                      new Date(v.dateStart).getTime() > currentTimestamp);
                   return (
                     <li
                       key={v.id}

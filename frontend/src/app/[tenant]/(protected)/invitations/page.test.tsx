@@ -1,22 +1,20 @@
 import { describe, it, expect, vi } from "vitest";
 import { render } from "@testing-library/react";
 
-const { mockReplace } = vi.hoisted(() => ({
-  mockReplace: vi.fn(),
+const { mockRedirect } = vi.hoisted(() => ({
+  mockRedirect: vi.fn(),
 }));
 
-// useTenantRouter prefixes the tenant slug in path-based routing mode, so the
-// redirect must go through it instead of a bare next/navigation redirect.
-vi.mock("~/lib/tenant-router", () => ({
-  useTenantRouter: () => ({ replace: mockReplace }),
+vi.mock("next/navigation", () => ({
+  redirect: mockRedirect,
 }));
 
 import InvitationsRedirectPage from "./page";
 
 describe("InvitationsRedirectPage", () => {
-  it("redirects to the personal database page via the tenant router", () => {
+  it("redirects to the tenant-aware personal database page", () => {
     render(<InvitationsRedirectPage />);
 
-    expect(mockReplace).toHaveBeenCalledWith("/database/personal");
+    expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/database/personal");
   });
 });

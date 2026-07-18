@@ -475,6 +475,7 @@ export function CaregiverBlockerResolutionModal({
                     </div>
                     <div className="flex items-center gap-2">
                       <select
+                        aria-label={`Ersatz für ${item.activityName}`}
                         value={activityReplacements[item.id] ?? ""}
                         onChange={(e) =>
                           setActivityReplacements((prev) => ({
@@ -532,6 +533,7 @@ export function CaregiverBlockerResolutionModal({
                     </span>
                     <div className="flex items-center gap-2">
                       <select
+                        aria-label={`Ersatz für ${item.groupName}`}
                         value={groupReplacements[item.id] ?? ""}
                         onChange={(e) =>
                           setGroupReplacements((prev) => ({

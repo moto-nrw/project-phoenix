@@ -23,6 +23,7 @@ export function ActiveFilterChips({
             {filter.label}
             <button
               type="button"
+              aria-label={`Filter ${filter.label} entfernen`}
               onClick={filter.onRemove}
               className="transition-colors hover:text-blue-900"
             >

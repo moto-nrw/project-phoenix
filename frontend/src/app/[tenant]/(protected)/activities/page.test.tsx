@@ -8,9 +8,14 @@ import {
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import ActivitiesPage from "./page";
 
-const { mockToastSuccess, mockPush } = vi.hoisted(() => ({
+const { mockToastSuccess, mockPush, mockRedirect } = vi.hoisted(() => ({
   mockToastSuccess: vi.fn(),
   mockPush: vi.fn(),
+  mockRedirect: vi.fn(),
+}));
+
+vi.mock("next/navigation", () => ({
+  redirect: mockRedirect,
 }));
 
 vi.mock("~/lib/swr", () => ({
@@ -74,18 +79,24 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
           onChange={(e) => search.onChange(e.target.value)}
         />
         <button
+          type="button"
           data-testid="filter-category"
           onClick={() => categoryFilter?.onChange("2")}
         >
           Category
         </button>
         <button
+          type="button"
           data-testid="filter-my"
           onClick={() => myActivitiesFilter?.onChange("my")}
         >
           My Activities
         </button>
-        <button data-testid="clear-filters" onClick={onClearAllFilters}>
+        <button
+          type="button"
+          data-testid="clear-filters"
+          onClick={onClearAllFilters}
+        >
           Clear
         </button>
         {actionButton}
@@ -108,6 +119,7 @@ vi.mock("~/components/activities/activity-management-modal", () => ({
       <div data-testid="activity-management-modal">
         <span>{activity?.name}</span>
         <button
+          type="button"
           data-testid="management-success"
           onClick={() => onSuccess("Gespeichert")}
         >
@@ -129,10 +141,18 @@ vi.mock("~/components/activities/quick-create-modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="quick-create-modal">
-        <button data-testid="quick-create-success" onClick={onSuccess}>
+        <button
+          type="button"
+          data-testid="quick-create-success"
+          onClick={onSuccess}
+        >
           Success
         </button>
-        <button data-testid="quick-create-close" onClick={onClose}>
+        <button
+          type="button"
+          data-testid="quick-create-close"
+          onClick={onClose}
+        >
           Close
         </button>
       </div>
@@ -408,7 +428,7 @@ describe("ActivitiesPage", () => {
     render(<ActivitiesPage />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/");
+      expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/");
     });
   });
 
@@ -428,7 +448,7 @@ describe("ActivitiesPage", () => {
     render(<ActivitiesPage />);
 
     await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("/");
+      expect(mockRedirect).toHaveBeenCalledWith("/test-tenant/");
     });
   });
 });

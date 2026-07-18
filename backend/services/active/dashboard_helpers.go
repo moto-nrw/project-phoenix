@@ -430,6 +430,7 @@ func buildCurrentActivities(allActivityGroups []*activitiesModels.Group, activeG
 		status := determineActivityStatus(participantCount, actGroup.MaxParticipants)
 
 		activity := CurrentActivity{
+			ID:           actGroup.ID,
 			Name:         actGroup.Name,
 			Category:     categoryName,
 			Participants: participantCount,
