@@ -505,18 +505,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		facilitiesLogger,
 	)
 
-	// Initialize RFID check-in service (issue #575 B8). Orchestrates the
-	// active/users/facilities/activities services for the /api/iot check-in
-	// workflow. Lives in the services/iot/checkin sub-package to avoid the
-	// services/iot ↔ services/active ↔ auth/device import cycle.
-	checkinService := iotcheckin.NewCheckinService(iotcheckin.CheckinServiceDeps{
-		Active:     activeService,
-		Users:      usersService,
-		Facilities: facilitiesService,
-		Activities: activitiesService,
-		Logger:     logger.With("service", "checkin"),
-	})
-
 	// Initialize schedule service
 	scheduleService := schedule.NewServiceWithConfig(schedule.ServiceConfig{
 		DateframeRepo:      repos.Dateframe,
@@ -581,6 +569,22 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentPickupException,
 		repos.StudentPickupNote,
 	)
+
+	// Initialize RFID check-in service (issue #575 B8). Orchestrates the
+	// active/users/facilities/activities services plus the daily-checkout gate
+	// policy (settings + pickup schedule + education group) for the /api/iot
+	// check-in workflow. Lives in the services/iot/checkin sub-package to avoid
+	// the services/iot ↔ services/active ↔ auth/device import cycle.
+	checkinService := iotcheckin.NewCheckinService(iotcheckin.CheckinServiceDeps{
+		Active:     activeService,
+		Users:      usersService,
+		Facilities: facilitiesService,
+		Activities: activitiesService,
+		Settings:   settingsService,
+		Pickup:     pickupScheduleService,
+		Education:  educationService,
+		Logger:     logger.With("service", "checkin"),
+	})
 
 	// Initialize display service (info-point dashboards, issue #1325).
 	// Aggregates existing data sources; owns no queries beyond its own repo.

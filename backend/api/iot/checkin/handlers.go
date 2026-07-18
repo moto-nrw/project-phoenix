@@ -1,6 +1,7 @@
 package checkin
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -12,6 +13,7 @@ import (
 	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/models/active"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -120,57 +122,13 @@ func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	person, err := rs.Checkin.ResolvePersonByRFID(ctx, req.StudentRFID)
-	if err != nil {
-		if errors.Is(err, usersSvc.ErrPersonNotFound) {
-			shared.RecordUnregisteredTagScan(ctx, rs.UnregisteredTagScans, rs.getLogger(), req.StudentRFID)
-			rs.getLogger().WarnContext(ctx, "RFID tag not found during pickup query",
-				slog.String("rfid", req.StudentRFID),
-			)
-			common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgRFIDTagNotFound)))
-			return
-		}
-		rs.getLogger().ErrorContext(ctx, "failed to lookup RFID tag during pickup query",
-			slog.String("rfid", req.StudentRFID),
-			slog.String("error", err.Error()),
-		)
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+	person := rs.resolvePickupQueryPerson(ctx, w, r, req.StudentRFID)
+	if person == nil {
 		return
 	}
 
-	if person == nil || person.TagID == nil {
-		rs.getLogger().WarnContext(ctx, "RFID tag not assigned to any person during pickup query",
-			slog.String("rfid", req.StudentRFID),
-		)
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("RFID tag not assigned to any person")))
-		return
-	}
-
-	student, err := rs.Checkin.ResolveStudentFromPerson(ctx, person.ID)
-	if err != nil {
-		rs.getLogger().ErrorContext(ctx, "failed to lookup student during pickup query",
-			slog.Int64("person_id", person.ID),
-			slog.String("error", err.Error()),
-		)
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-
+	student := rs.resolvePickupQueryStudent(ctx, w, r, person)
 	if student == nil {
-		staff, err := rs.Checkin.ResolveStaffFromPerson(ctx, person.ID)
-		if err != nil {
-			rs.getLogger().ErrorContext(ctx, "failed to lookup staff during pickup query",
-				slog.Int64("person_id", person.ID),
-				slog.String("error", err.Error()),
-			)
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-			return
-		}
-		if staff != nil {
-			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errStudentRFIDRequiredForPickupQuery)))
-			return
-		}
-		common.RenderError(w, r, common.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
 		return
 	}
 
@@ -182,30 +140,117 @@ func (rs *Resource) devicePickupQuery(w http.ResponseWriter, r *http.Request) {
 		"status":       "success",
 	}
 
-	if rs.PickupScheduleService != nil {
-		effectivePickup, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, timezone.DateFromTime(now))
-		if err != nil {
-			rs.getLogger().ErrorContext(ctx, "failed to get pickup info during pickup query",
-				slog.Int64("student_id", student.ID),
-				slog.String("error", err.Error()),
-			)
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-			return
-		} else {
-			attachPickupInfoToResponse(response, effectivePickup)
-		}
+	if !rs.attachPickupQuerySchedule(ctx, w, r, response, student.ID, now) {
+		return
 	}
 
-	if session, err := rs.ActiveService.GetDeviceCurrentSession(ctx, deviceCtx.ID); err == nil && session != nil {
-		if err := rs.ActiveService.UpdateSessionActivity(ctx, session.ID); err != nil {
-			rs.getLogger().WarnContext(ctx, "failed to update session activity during pickup query",
-				slog.Int64("session_id", session.ID),
-				slog.String("error", err.Error()),
-			)
-		}
-	}
+	rs.updatePickupQuerySessionActivity(ctx, deviceCtx.ID)
 
 	common.Respond(w, r, http.StatusOK, response, "Pickup information retrieved successfully")
+}
+
+// resolvePickupQueryPerson looks up the person for a pickup query, preserving
+// the pickup-query error contract: an unknown tag returns 404 and records an
+// unregistered-scan audit; a lookup failure returns 500; an unassigned tag
+// returns 404. Returns nil (after writing the response) when unresolved.
+func (rs *Resource) resolvePickupQueryPerson(ctx context.Context, w http.ResponseWriter, r *http.Request, rfid string) *users.Person {
+	person, err := rs.Checkin.ResolvePersonByRFID(ctx, rfid)
+	if err != nil {
+		if errors.Is(err, usersSvc.ErrPersonNotFound) {
+			shared.RecordUnregisteredTagScan(ctx, rs.UnregisteredTagScans, rs.getLogger(), rfid)
+			rs.getLogger().WarnContext(ctx, "RFID tag not found during pickup query",
+				slog.String("rfid", rfid),
+			)
+			common.RenderError(w, r, common.ErrorNotFound(errors.New(shared.ErrMsgRFIDTagNotFound)))
+			return nil
+		}
+		rs.getLogger().ErrorContext(ctx, "failed to lookup RFID tag during pickup query",
+			slog.String("rfid", rfid),
+			slog.String("error", err.Error()),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return nil
+	}
+
+	if person == nil || person.TagID == nil {
+		rs.getLogger().WarnContext(ctx, "RFID tag not assigned to any person during pickup query",
+			slog.String("rfid", rfid),
+		)
+		common.RenderError(w, r, common.ErrorNotFound(errors.New("RFID tag not assigned to any person")))
+		return nil
+	}
+
+	return person
+}
+
+// resolvePickupQueryStudent resolves the student for a pickup query. A staff tag
+// yields a 400 ("student RFID tag required for pickup query"); a tag mapped to
+// neither yields 404; a lookup failure yields 500. Returns nil (after writing
+// the response) when the tag does not resolve to a student.
+func (rs *Resource) resolvePickupQueryStudent(ctx context.Context, w http.ResponseWriter, r *http.Request, person *users.Person) *users.Student {
+	student, err := rs.Checkin.ResolveStudentFromPerson(ctx, person.ID)
+	if err != nil {
+		rs.getLogger().ErrorContext(ctx, "failed to lookup student during pickup query",
+			slog.Int64("person_id", person.ID),
+			slog.String("error", err.Error()),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return nil
+	}
+	if student != nil {
+		return student
+	}
+
+	staff, err := rs.Checkin.ResolveStaffFromPerson(ctx, person.ID)
+	if err != nil {
+		rs.getLogger().ErrorContext(ctx, "failed to lookup staff during pickup query",
+			slog.Int64("person_id", person.ID),
+			slog.String("error", err.Error()),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return nil
+	}
+	if staff != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New(errStudentRFIDRequiredForPickupQuery)))
+		return nil
+	}
+	common.RenderError(w, r, common.ErrorNotFound(errors.New("RFID tag not assigned to student or staff")))
+	return nil
+}
+
+// attachPickupQuerySchedule attaches the effective pickup time/notes to the
+// response. Returns false (after writing a 500) when the lookup fails; a nil
+// schedule service is a no-op that succeeds.
+func (rs *Resource) attachPickupQuerySchedule(ctx context.Context, w http.ResponseWriter, r *http.Request, response map[string]interface{}, studentID int64, now time.Time) bool {
+	if rs.PickupScheduleService == nil {
+		return true
+	}
+	effectivePickup, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, studentID, timezone.DateFromTime(now))
+	if err != nil {
+		rs.getLogger().ErrorContext(ctx, "failed to get pickup info during pickup query",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return false
+	}
+	attachPickupInfoToResponse(response, effectivePickup)
+	return true
+}
+
+// updatePickupQuerySessionActivity refreshes the heartbeat for the device's
+// current session, if any. Best-effort: failures are logged and swallowed.
+func (rs *Resource) updatePickupQuerySessionActivity(ctx context.Context, deviceDBID int64) {
+	session, err := rs.ActiveService.GetDeviceCurrentSession(ctx, deviceDBID)
+	if err != nil || session == nil {
+		return
+	}
+	if err := rs.ActiveService.UpdateSessionActivity(ctx, session.ID); err != nil {
+		rs.getLogger().WarnContext(ctx, "failed to update session activity during pickup query",
+			slog.Int64("session_id", session.ID),
+			slog.String("error", err.Error()),
+		)
+	}
 }
 
 // deviceCheckin handles student check-in/check-out requests from RFID devices
@@ -329,57 +374,19 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 10: Check daily checkout with education group
-	if rs.shouldUpgradeToDailyCheckout(ctx, result.Action, student, currentVisit) {
+	if rs.Checkin.ShouldUpgradeToDailyCheckout(ctx, result.Action, student, currentVisit) {
 		result.Action = "checked_out_daily"
 	}
 
-	// Compute daily_checkout_available flag for frontend "nach Hause" button
-	// and feedback_enabled setting — only relevant for checkout actions
-	if currentVisit != nil && (result.Action == "checked_out" || result.Action == "checked_out_daily") {
-		result.DailyCheckoutAvailable = rs.shouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
-
-		// Resolve feedback_enabled so PyrePortal knows whether to show the feedback modal
-		result.FeedbackEnabled = false // default: opt-in (GDPR)
-		if rs.SettingsService != nil {
-			if val, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyFeedbackEnabled); err == nil {
-				result.FeedbackEnabled = val
-			}
-		}
-	}
-
-	// Step 11: Keep heartbeat and active_students scoped to the scanning device session.
+	// Step 11: Set the checkout response flags (daily-checkout availability +
+	// feedback) and scope the active_students count to the scanning device.
+	rs.applyCheckoutFlags(ctx, result, student, currentVisit)
 	if req.RoomID != nil {
-		switch {
-		case checkinResult.ActiveGroupID != nil && checkinResult.DeviceScopedRoom:
-			rs.Checkin.UpdateSessionActivity(ctx, *checkinResult.ActiveGroupID)
-			result.ActiveStudents = rs.Checkin.GetActiveStudentCountForGroup(ctx, *checkinResult.ActiveGroupID)
-		default:
-			deviceGroup := rs.Checkin.GetDeviceActiveGroupInRoom(ctx, *req.RoomID, deviceCtx.ID)
-			if deviceGroup != nil {
-				rs.Checkin.UpdateSessionActivity(ctx, deviceGroup.ID)
-				result.ActiveStudents = rs.Checkin.GetActiveStudentCountForGroup(ctx, deviceGroup.ID)
-			} else {
-				// Preserve the legacy fallback for rooms without a device-linked active group.
-				result.ActiveStudents = rs.Checkin.GetActiveStudentCountForRoom(ctx, *req.RoomID)
-			}
-		}
+		result.ActiveStudents = rs.Checkin.ResolveActiveStudentCount(ctx, checkinResult, *req.RoomID, deviceCtx.ID)
 	}
 
-	// Step 12: Lookup today's pickup time for the student (non-blocking: log and skip on error).
-	// Runs inside the existing tenant tx for RLS visibility. A read-only SELECT on the
-	// schedule tables won't abort the tx unless the DB itself is down.
-	if rs.PickupScheduleService != nil {
-		pickupTime, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, student.ID, timezone.DateFromTime(now))
-		if err != nil {
-			rs.getLogger().WarnContext(ctx, "failed to get pickup time",
-				slog.Int64("student_id", student.ID),
-				slog.String("error", err.Error()),
-			)
-		} else if pickupTime != nil && pickupTime.PickupTime != nil {
-			formatted := pickupTime.PickupTime.Format("15:04")
-			result.PickupTime = &formatted
-		}
-	}
+	// Step 12: Lookup today's pickup time for the student (non-blocking).
+	rs.applyPickupTime(ctx, result, student.ID, now)
 
 	// Step 13: Build and send response
 	response := buildCheckinResponse(student, result, now)
@@ -392,6 +399,49 @@ func (rs *Resource) deviceCheckin(w http.ResponseWriter, r *http.Request) {
 	)
 
 	sendCheckinResponse(w, r, response, result.Action)
+}
+
+// applyCheckoutFlags sets the daily-checkout-available and feedback-enabled
+// response flags. Both are only meaningful when the student just left a room via
+// checkout, so the flags stay at their defaults otherwise. feedback_enabled
+// defaults to false (opt-in, GDPR).
+func (rs *Resource) applyCheckoutFlags(ctx context.Context, result *checkinSvc.CheckinResult, student *users.Student, currentVisit *active.Visit) {
+	if currentVisit == nil || (result.Action != "checked_out" && result.Action != "checked_out_daily") {
+		return
+	}
+
+	result.DailyCheckoutAvailable = rs.Checkin.ShouldShowDailyCheckoutWithGroup(ctx, student, currentVisit)
+
+	result.FeedbackEnabled = false
+	if rs.SettingsService != nil {
+		if val, err := rs.SettingsService.ResolveBool(ctx, configModel.KeyFeedbackEnabled); err == nil {
+			result.FeedbackEnabled = val
+		}
+	}
+}
+
+// applyPickupTime looks up today's pickup time and sets it on the result.
+// Non-blocking: a nil schedule service or a lookup error is logged and skipped.
+// Runs inside the existing tenant tx for RLS visibility; a read-only SELECT on
+// the schedule tables won't abort the tx unless the DB itself is down.
+func (rs *Resource) applyPickupTime(ctx context.Context, result *checkinSvc.CheckinResult, studentID int64, now time.Time) {
+	if rs.PickupScheduleService == nil {
+		return
+	}
+
+	pickupTime, err := rs.PickupScheduleService.GetEffectivePickupTimeForDate(ctx, studentID, timezone.DateFromTime(now))
+	if err != nil {
+		rs.getLogger().WarnContext(ctx, "failed to get pickup time",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		return
+	}
+
+	if pickupTime != nil && pickupTime.PickupTime != nil {
+		formatted := pickupTime.PickupTime.Format("15:04")
+		result.PickupTime = &formatted
+	}
 }
 
 // processBinaryModeCheckin toggles active.attendance for the student and sends
