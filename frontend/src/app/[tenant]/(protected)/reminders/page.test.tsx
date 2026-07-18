@@ -47,6 +47,7 @@ describe("RemindersPage", () => {
       reminders: [
         {
           type: "pickup_overdue",
+          student_id: "42",
           title: "Hannah Klein",
           subtitle: "Klasse 1b",
           due_time: "10:44",
@@ -54,6 +55,7 @@ describe("RemindersPage", () => {
         },
         {
           type: "activity_start",
+          activity_instance_id: "81",
           title: "Schach",
           due_time: "11:10",
           minutes_away: 10,

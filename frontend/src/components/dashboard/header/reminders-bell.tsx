@@ -13,6 +13,7 @@ import { Bell } from "lucide-react";
 import { useReminders } from "~/lib/hooks/use-reminders";
 import type { Reminder } from "~/lib/reminders-api";
 import {
+  reminderKey,
   reminderRelativeLabel,
   reminderToneClass,
 } from "~/lib/reminders-display";
@@ -121,10 +122,7 @@ export function RemindersBell() {
           <>
             <ul className="divide-y divide-gray-100">
               {preview.map((reminder) => (
-                <BellRow
-                  key={`${reminder.type}-${reminder.student_id ?? reminder.title}-${reminder.due_time}`}
-                  reminder={reminder}
-                />
+                <BellRow key={reminderKey(reminder)} reminder={reminder} />
               ))}
             </ul>
             {overflow > 0 && (

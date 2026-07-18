@@ -174,7 +174,7 @@ export function Modal({
         />
         {/* Dialog container */}
         <div
-          className={`relative ${widthClass} transform overflow-hidden rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
+          className={`relative ${widthClass} flex max-h-[calc(100dvh-2rem)] transform flex-col overflow-hidden overscroll-contain rounded-2xl border border-gray-200/50 shadow-2xl ${getModalAnimationClass(isAnimating, isExiting)}`}
           {...dialogAriaProps}
           aria-labelledby={title ? titleId : undefined}
           style={{
@@ -188,7 +188,7 @@ export function Modal({
         >
           {/* Header with close button - only show border if title exists */}
           {title ? (
-            <div className="flex items-center justify-between border-b border-gray-100 p-4 sm:p-6">
+            <div className="flex shrink-0 items-center justify-between border-b border-gray-100 p-4 sm:p-6">
               <h3
                 id={titleId}
                 className="pr-4 text-lg font-semibold text-gray-900 sm:text-xl"
@@ -262,7 +262,7 @@ export function Modal({
 
           {/* Content area with hidden scrollbar and reveal animation */}
           <div
-            className="scrollbar-hidden max-h-[calc(100vh-8rem)] overflow-y-auto md:max-h-[70vh]"
+            className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain"
             data-modal-content="true"
           >
             <div
@@ -278,7 +278,7 @@ export function Modal({
 
           {/* Footer if provided */}
           {footer && (
-            <div className="flex justify-end gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-6">
+            <div className="flex shrink-0 justify-end gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-6">
               {footer}
             </div>
           )}

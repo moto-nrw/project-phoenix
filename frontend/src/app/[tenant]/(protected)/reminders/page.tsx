@@ -8,6 +8,7 @@ import { useReminders } from "~/lib/hooks/use-reminders";
 import type { Reminder } from "~/lib/reminders-api";
 import {
   REMINDER_SECTIONS,
+  reminderKey,
   reminderRelativeLabel,
   reminderToneClass,
 } from "~/lib/reminders-display";
@@ -100,7 +101,7 @@ export default function RemindersPage() {
                 <ul className="divide-y divide-gray-100">
                   {items.map((reminder) => (
                     <ReminderRow
-                      key={`${reminder.type}-${reminder.student_id ?? reminder.title}-${reminder.due_time}`}
+                      key={reminderKey(reminder)}
                       reminder={reminder}
                     />
                   ))}

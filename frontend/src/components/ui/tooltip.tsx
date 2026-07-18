@@ -1,5 +1,7 @@
 "use client";
 
+/* oxlint-disable jsx-a11y/no-noninteractive-tabindex, jsx-a11y/no-static-element-interactions -- the ARIA tooltip pattern requires a focusable trigger even on non-interactive text; the only handler is Escape-to-dismiss */
+
 import { useId } from "react";
 
 import { cn } from "~/lib/utils";
@@ -37,16 +39,16 @@ export function Tooltip({
   const id = useId();
   return (
     <span className={cn("group relative inline-block", className)}>
-      <button
-        type="button"
+      <span
+        tabIndex={0}
         aria-describedby={id}
-        className="rounded-sm bg-transparent p-0 text-inherit outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+        className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
         onKeyDown={(event) => {
           if (event.key === "Escape") event.currentTarget.blur();
         }}
       >
         {children}
-      </button>
+      </span>
       <span
         role="tooltip"
         id={id}
