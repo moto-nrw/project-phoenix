@@ -1,5 +1,5 @@
 import { trackEvent } from "~/lib/analytics";
-import { berlinTodayISO } from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 
 export type StudentExportFormat = "pdf" | "docx" | "xlsx";
 
@@ -316,6 +316,56 @@ export const STUDENT_EXPORT_PRESETS: Array<{
     columns: ["name", "school_class", "group", "birthday", "age"],
   },
 ];
+
+// The day-scoped columns and presets describe a single evaluated day. That day
+// is "today" for a live export and a chosen calendar day for a planning-date
+// export (#1939). The base constants above carry the "heute" wording used by
+// the always-today central export; the builders below re-word only the
+// day-scoped descriptions so a planning-date dialog names the selected day
+// instead of misleadingly claiming "heute". Column ids, order, and preset
+// column sets are untouched — only the human-facing copy changes.
+
+/**
+ * Student export columns worded for the given planning day. Pass the selected
+ * date (YYYY-MM-DD); omit it for the today wording (identical to
+ * {@link STUDENT_EXPORT_COLUMNS}).
+ */
+export function buildStudentExportColumns(
+  planningDate?: string,
+): StudentExportColumnOption[] {
+  if (!planningDate) return STUDENT_EXPORT_COLUMNS;
+  const day = formatDate(planningDate);
+  const overrides: Partial<Record<StudentExportColumn, string>> = {
+    planned_arrival: `Geplante Ankunft für den ${day}, inklusive Tagesausnahmen.`,
+    planned_pickup: `Geplante Abholung für den ${day}, inklusive Tagesausnahmen.`,
+    daily_status: `Ob das Kind am ${day} erwartet wird oder als Krank, Entschuldigt bzw. Klassenfahrt markiert ist.`,
+    daily_notes: `Hinweise zur Ankunft oder Abholung am ${day}, zum Beispiel Ausnahme-Notizen.`,
+  };
+  return STUDENT_EXPORT_COLUMNS.map((column) => {
+    const description = overrides[column.id];
+    return description ? { ...column, description } : column;
+  });
+}
+
+/**
+ * Student export presets worded for the given planning day. Pass the selected
+ * date (YYYY-MM-DD); omit it for the today wording (identical to
+ * {@link STUDENT_EXPORT_PRESETS}).
+ */
+export function buildStudentExportPresets(
+  planningDate?: string,
+): typeof STUDENT_EXPORT_PRESETS {
+  if (!planningDate) return STUDENT_EXPORT_PRESETS;
+  const day = formatDate(planningDate);
+  const overrides: Partial<Record<StudentExportPreset, string>> = {
+    ogs_compact: `Kompakte Übersicht der Betreuungstage und der Abholung am ${day}.`,
+    daily_planning: `Planungsdaten für den ${day} mit Hinweisen.`,
+  };
+  return STUDENT_EXPORT_PRESETS.map((preset) => {
+    const description = overrides[preset.id];
+    return description ? { ...preset, description } : preset;
+  });
+}
 
 export async function exportStudents(
   request: StudentExportRequest,

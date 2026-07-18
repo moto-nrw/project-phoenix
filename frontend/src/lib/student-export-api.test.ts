@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   STUDENT_EXPORT_COLUMNS,
   STUDENT_EXPORT_PRESETS,
+  buildStudentExportColumns,
+  buildStudentExportPresets,
   exportStudents,
   type StudentExportRequest,
 } from "./student-export-api";
@@ -99,6 +101,51 @@ describe("student export metadata", () => {
       "weekly_friday",
       "departure",
     ]);
+  });
+});
+
+describe("planning-date export copy (#1939)", () => {
+  it("returns the today constants verbatim when no date is given", () => {
+    expect(buildStudentExportColumns()).toBe(STUDENT_EXPORT_COLUMNS);
+    expect(buildStudentExportPresets()).toBe(STUDENT_EXPORT_PRESETS);
+  });
+
+  it("names the selected day instead of 'heute' in day-scoped columns", () => {
+    const columns = buildStudentExportColumns("2026-07-20");
+    const dayScoped = new Set([
+      "planned_arrival",
+      "planned_pickup",
+      "daily_status",
+      "daily_notes",
+    ]);
+    for (const column of columns) {
+      if (dayScoped.has(column.id)) {
+        expect(column.description).toContain("20.07.2026");
+        expect(column.description.toLowerCase()).not.toContain("heut");
+      }
+    }
+    // Column ids and order are preserved — only the copy changes.
+    expect(columns.map((column) => column.id)).toEqual(
+      STUDENT_EXPORT_COLUMNS.map((column) => column.id),
+    );
+  });
+
+  it("names the selected day in the day-scoped presets", () => {
+    const presets = buildStudentExportPresets("2026-07-20");
+    const daily = presets.find((preset) => preset.id === "daily_planning");
+    const compact = presets.find((preset) => preset.id === "ogs_compact");
+
+    expect(daily?.description).toContain("20.07.2026");
+    expect(daily?.description.toLowerCase()).not.toContain("heut");
+    expect(compact?.description).toContain("20.07.2026");
+    expect(compact?.description.toLowerCase()).not.toContain("heut");
+
+    // The date-neutral presets keep their base description.
+    const weekly = presets.find((preset) => preset.id === "ogs_weekly");
+    expect(weekly?.description).toBe(
+      STUDENT_EXPORT_PRESETS.find((preset) => preset.id === "ogs_weekly")
+        ?.description,
+    );
   });
 });
 
