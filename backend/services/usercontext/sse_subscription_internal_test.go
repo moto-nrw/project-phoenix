@@ -1,9 +1,11 @@
-package sse
+package usercontext
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
 	"testing"
 	"time"
 
@@ -57,6 +59,10 @@ func (m *mockActiveSvcForSSE) GetActiveGroupVisitsWithDisplay(_ context.Context,
 
 func (m *mockActiveSvcForSSE) HasOpenAttendanceOn(_ context.Context, _ timezone.Date) (bool, error) {
 	return false, nil
+}
+
+func (m *mockActiveSvcForSSE) ConfirmDailyCheckout(_ context.Context, _, _ int64, _ string) (*activeSvc.DailyCheckoutResult, error) {
+	return nil, nil
 }
 
 func (m *mockActiveSvcForSSE) GetStaffActiveSupervisions(ctx context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
@@ -311,11 +317,11 @@ func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
 		{Model: base.Model{ID: 11}, StartTime: now.Add(-time.Hour)},
 	}
 
-	rs := &Resource{
-		settingsSvc: mockSettingsSvc(map[string]bool{
+	rs := &userContextService{
+		sseSettings: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
 		}),
-		activeSvc: &mockActiveSvcForSSE{
+		sseActiveSvc: &mockActiveSvcForSSE{
 			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 				return activeGroups, nil
 			},
@@ -324,7 +330,7 @@ func TestResolveSupervisions_AdminWithSettingEnabled(t *testing.T) {
 	}
 
 	ctx := ctxWithClaims(true)
-	result, err := rs.resolveSupervisions(ctx, 42)
+	result, err := rs.resolveSSESupervisions(ctx, 42)
 
 	require.NoError(t, err)
 	assert.Len(t, result, 2)
@@ -337,11 +343,11 @@ func TestResolveSupervisions_AdminWithSettingDisabled(t *testing.T) {
 		{Model: base.Model{ID: 200}, GroupID: 20, StaffID: 42},
 	}
 
-	rs := &Resource{
-		settingsSvc: mockSettingsSvc(map[string]bool{
+	rs := &userContextService{
+		sseSettings: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: false,
 		}),
-		activeSvc: &mockActiveSvcForSSE{
+		sseActiveSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, staffID int64) ([]*activeModel.GroupSupervisor, error) {
 				assert.Equal(t, int64(42), staffID)
 				return staffSupervisions, nil
@@ -351,7 +357,7 @@ func TestResolveSupervisions_AdminWithSettingDisabled(t *testing.T) {
 	}
 
 	ctx := ctxWithClaims(true)
-	result, err := rs.resolveSupervisions(ctx, 42)
+	result, err := rs.resolveSSESupervisions(ctx, 42)
 
 	require.NoError(t, err)
 	assert.Len(t, result, 1)
@@ -363,11 +369,11 @@ func TestResolveSupervisions_NonAdmin(t *testing.T) {
 		{Model: base.Model{ID: 300}, GroupID: 30, StaffID: 42},
 	}
 
-	rs := &Resource{
-		settingsSvc: mockSettingsSvc(map[string]bool{
+	rs := &userContextService{
+		sseSettings: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true, // enabled but user is not admin
 		}),
-		activeSvc: &mockActiveSvcForSSE{
+		sseActiveSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
 				return staffSupervisions, nil
 			},
@@ -376,7 +382,7 @@ func TestResolveSupervisions_NonAdmin(t *testing.T) {
 	}
 
 	ctx := ctxWithClaims(false)
-	result, err := rs.resolveSupervisions(ctx, 42)
+	result, err := rs.resolveSSESupervisions(ctx, 42)
 
 	require.NoError(t, err)
 	assert.Len(t, result, 1)
@@ -387,9 +393,9 @@ func TestResolveSupervisions_NilSettingsService(t *testing.T) {
 		{Model: base.Model{ID: 400}, GroupID: 40, StaffID: 42},
 	}
 
-	rs := &Resource{
-		settingsSvc: nil,
-		activeSvc: &mockActiveSvcForSSE{
+	rs := &userContextService{
+		sseSettings: nil,
+		sseActiveSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
 				return staffSupervisions, nil
 			},
@@ -398,7 +404,7 @@ func TestResolveSupervisions_NilSettingsService(t *testing.T) {
 	}
 
 	ctx := ctxWithClaims(true) // admin but no settings service
-	result, err := rs.resolveSupervisions(ctx, 42)
+	result, err := rs.resolveSSESupervisions(ctx, 42)
 
 	require.NoError(t, err)
 	assert.Len(t, result, 1)
@@ -409,9 +415,9 @@ func TestResolveSupervisions_SettingErrorFallsBack(t *testing.T) {
 		{Model: base.Model{ID: 500}, GroupID: 50, StaffID: 42},
 	}
 
-	rs := &Resource{
-		settingsSvc: mockSettingsSvc(map[string]bool{}), // key missing → error
-		activeSvc: &mockActiveSvcForSSE{
+	rs := &userContextService{
+		sseSettings: mockSettingsSvc(map[string]bool{}), // key missing → error
+		sseActiveSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
 				return staffSupervisions, nil
 			},
@@ -420,18 +426,68 @@ func TestResolveSupervisions_SettingErrorFallsBack(t *testing.T) {
 	}
 
 	ctx := ctxWithClaims(true)
-	result, err := rs.resolveSupervisions(ctx, 42)
+	result, err := rs.resolveSSESupervisions(ctx, 42)
 
 	require.NoError(t, err)
 	assert.Len(t, result, 1)
 }
 
+func TestResolveSupervisions_NilActiveServiceReturnsError(t *testing.T) {
+	tests := []struct {
+		name     string
+		isAdmin  bool
+		settings SSESettingsResolver
+	}{
+		{
+			name:    "non-admin",
+			isAdmin: false,
+		},
+		{
+			name:    "admin without settings service",
+			isAdmin: true,
+		},
+		{
+			name:    "admin with overview disabled",
+			isAdmin: true,
+			settings: mockSettingsSvc(map[string]bool{
+				configModel.KeyAdminSupervisionOverview: false,
+			}),
+		},
+		{
+			name:     "admin with setting error",
+			isAdmin:  true,
+			settings: mockSettingsSvc(map[string]bool{}),
+		},
+		{
+			name:    "admin with overview enabled",
+			isAdmin: true,
+			settings: mockSettingsSvc(map[string]bool{
+				configModel.KeyAdminSupervisionOverview: true,
+			}),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rs := &userContextService{
+				sseSettings: tt.settings,
+				logger:      slog.Default(),
+			}
+
+			result, err := rs.resolveSSESupervisions(ctxWithClaims(tt.isAdmin), 42)
+
+			require.ErrorContains(t, err, "SSE active service is not configured")
+			assert.Nil(t, result)
+		})
+	}
+}
+
 func TestResolveSupervisions_StaffSupervisionsError(t *testing.T) {
-	rs := &Resource{
-		settingsSvc: mockSettingsSvc(map[string]bool{
+	rs := &userContextService{
+		sseSettings: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: false,
 		}),
-		activeSvc: &mockActiveSvcForSSE{
+		sseActiveSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
 				return nil, fmt.Errorf("database connection lost")
 			},
@@ -440,16 +496,16 @@ func TestResolveSupervisions_StaffSupervisionsError(t *testing.T) {
 	}
 
 	ctx := ctxWithClaims(true) // admin but setting disabled → falls back to staff
-	result, err := rs.resolveSupervisions(ctx, 42)
+	result, err := rs.resolveSSESupervisions(ctx, 42)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
 }
 
 func TestResolveSupervisions_NonAdminStaffError(t *testing.T) {
-	rs := &Resource{
-		settingsSvc: mockSettingsSvc(map[string]bool{}),
-		activeSvc: &mockActiveSvcForSSE{
+	rs := &userContextService{
+		sseSettings: mockSettingsSvc(map[string]bool{}),
+		sseActiveSvc: &mockActiveSvcForSSE{
 			getStaffFunc: func(_ context.Context, _ int64) ([]*activeModel.GroupSupervisor, error) {
 				return nil, fmt.Errorf("timeout")
 			},
@@ -458,18 +514,18 @@ func TestResolveSupervisions_NonAdminStaffError(t *testing.T) {
 	}
 
 	ctx := ctxWithClaims(false) // non-admin
-	result, err := rs.resolveSupervisions(ctx, 42)
+	result, err := rs.resolveSSESupervisions(ctx, 42)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
 }
 
 func TestResolveSupervisions_GetAllError(t *testing.T) {
-	rs := &Resource{
-		settingsSvc: mockSettingsSvc(map[string]bool{
+	rs := &userContextService{
+		sseSettings: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
 		}),
-		activeSvc: &mockActiveSvcForSSE{
+		sseActiveSvc: &mockActiveSvcForSSE{
 			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 				return nil, fmt.Errorf("database error")
 			},
@@ -478,7 +534,7 @@ func TestResolveSupervisions_GetAllError(t *testing.T) {
 	}
 
 	ctx := ctxWithClaims(true)
-	result, err := rs.resolveSupervisions(ctx, 42)
+	result, err := rs.resolveSSESupervisions(ctx, 42)
 
 	assert.Error(t, err)
 	assert.Nil(t, result)
@@ -497,11 +553,11 @@ func TestResolveSupervisions_AdminIncludesUnclaimedGroups(t *testing.T) {
 		{Model: base.Model{ID: 51}, StartTime: now.Add(-time.Minute)},
 	}
 
-	rs := &Resource{
-		settingsSvc: mockSettingsSvc(map[string]bool{
+	rs := &userContextService{
+		sseSettings: mockSettingsSvc(map[string]bool{
 			configModel.KeyAdminSupervisionOverview: true,
 		}),
-		activeSvc: &mockActiveSvcForSSE{
+		sseActiveSvc: &mockActiveSvcForSSE{
 			listFunc: func(_ context.Context, _ *base.QueryOptions) ([]*activeModel.Group, error) {
 				return activeGroups, nil
 			},
@@ -510,9 +566,35 @@ func TestResolveSupervisions_AdminIncludesUnclaimedGroups(t *testing.T) {
 	}
 
 	ctx := ctxWithClaims(true)
-	result, err := rs.resolveSupervisions(ctx, 42)
+	result, err := rs.resolveSSESupervisions(ctx, 42)
 	require.NoError(t, err)
 	require.Len(t, result, 2)
 	assert.Equal(t, int64(50), result[0].GroupID)
 	assert.Equal(t, int64(51), result[1].GroupID)
+}
+
+// =============================================================================
+// TESTS: SSESetupError
+// =============================================================================
+
+func TestSSESetupError_ErrorMessage(t *testing.T) {
+	err := &SSESetupError{Message: "Account not found", Status: http.StatusUnauthorized}
+
+	assert.Equal(t, "SSE setup: Account not found", err.Error())
+	assert.Equal(t, http.StatusUnauthorized, err.Status)
+}
+
+func TestSSESetupError_AsMatchesTypedError(t *testing.T) {
+	var err error = &SSESetupError{Message: "forbidden", Status: http.StatusForbidden}
+
+	var setupErr *SSESetupError
+	require.True(t, errors.As(err, &setupErr), "Should match *SSESetupError via errors.As")
+	assert.Equal(t, "forbidden", setupErr.Message)
+	assert.Equal(t, http.StatusForbidden, setupErr.Status)
+}
+
+func TestSSESetupError_AsDistinguishesErrors(t *testing.T) {
+	var setupErr *SSESetupError
+	assert.False(t, errors.As(assert.AnError, &setupErr),
+		"Regular error should not match *SSESetupError")
 }

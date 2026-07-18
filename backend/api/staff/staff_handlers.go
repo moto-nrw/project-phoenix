@@ -120,65 +120,72 @@ func (rs *Resource) getStaff(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// If person data was not loaded by FindWithPerson, try to fetch it separately
-	if staff.Person == nil && staff.PersonID > 0 {
-		person, err := rs.PersonService.Get(r.Context(), staff.PersonID)
-		if err != nil {
-			rs.getLogger().Warn("failed to get person data for staff member",
-				slog.Int64("staff_id", id),
-				slog.String("error", err.Error()))
-			// Don't fail the request, just log the warning
-		} else {
-			staff.Person = person
-		}
-	}
-
-	// Load account role, email, and avatar with tenant scoping (non-critical)
-	var accountRole string
-	var accountEmail string
-	var accountAvatar string
-	if staff.Person != nil && staff.Person.AccountID != nil && rs.AuthService != nil {
-		accountID := *staff.Person.AccountID
-		roleMap, roleErr := rs.AuthService.GetAccountRoleNames(r.Context(), []int64{accountID})
-		if roleErr == nil {
-			accountRole = roleMap[accountID]
-		}
-		emailMap, emailErr := rs.AuthService.GetAccountEmailsByIDs(r.Context(), []int64{accountID})
-		if emailErr == nil {
-			accountEmail = emailMap[accountID]
-		}
-		avatarMap, avatarErr := rs.AuthService.GetAccountAvatarsByIDs(r.Context(), []int64{accountID})
-		if avatarErr == nil {
-			accountAvatar = avatarMap[accountID]
-		}
-	}
-
-	// Resolve presence/work-status/absence to keep detail consistent with the list view.
-	// These maps cover all staff today; we just look up our single ID.
-	wasPresentToday := false
-	if presentIDs, presentErr := rs.WorkSessionService.GetStaffIDsWithSupervisionToday(r.Context()); presentErr == nil {
-		wasPresentToday = slices.Contains(presentIDs, staff.ID)
-	} else {
-		rs.getLogger().Warn("failed to fetch present staff IDs",
-			slog.Int64("staff_id", staff.ID),
-			slog.String("error", presentErr.Error()))
-	}
-	workStatus := rs.loadWorkStatusMap(r.Context())[staff.ID]
-	absenceType := rs.loadAbsenceMap(r.Context())[staff.ID]
+	rs.ensureStaffPerson(r.Context(), staff)
+	accountRole, accountEmail, accountAvatar := rs.loadStaffAccountInfo(r.Context(), staff)
+	wasPresentToday, workStatus, absenceType := rs.resolveStaffPresence(r.Context(), staff)
 
 	// Check if this staff member is also a teacher
-	isTeacher := false
-	var teacher *users.Teacher
-
-	teacher, err = rs.PersonService.GetTeacherByStaffID(r.Context(), staff.ID)
+	teacher, err := rs.PersonService.GetTeacherByStaffID(r.Context(), staff.ID)
 	if err == nil && teacher != nil {
 		response := newTeacherResponse(staff, teacher, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
 		common.Respond(w, r, http.StatusOK, response, "Teacher retrieved successfully")
 		return
 	}
 
-	response := newStaffResponse(staff, isTeacher, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
+	response := newStaffResponse(staff, false, wasPresentToday, workStatus, absenceType, accountRole, accountEmail, accountAvatar)
 	common.Respond(w, r, http.StatusOK, response, "Staff member retrieved successfully")
+}
+
+// ensureStaffPerson lazily loads the linked person when GetStaffWithPerson did
+// not populate it. Best-effort: a failure is logged, not fatal.
+func (rs *Resource) ensureStaffPerson(ctx context.Context, staff *users.Staff) {
+	if staff.Person != nil || staff.PersonID <= 0 {
+		return
+	}
+	person, err := rs.PersonService.Get(ctx, staff.PersonID)
+	if err != nil {
+		rs.getLogger().Warn("failed to get person data for staff member",
+			slog.Int64("staff_id", staff.ID),
+			slog.String("error", err.Error()))
+		return
+	}
+	staff.Person = person
+}
+
+// loadStaffAccountInfo resolves the tenant-scoped account role, email, and
+// avatar for a staff member. All three are non-critical: a lookup failure
+// yields an empty string rather than an error.
+func (rs *Resource) loadStaffAccountInfo(ctx context.Context, staff *users.Staff) (role, email, avatar string) {
+	if staff.Person == nil || staff.Person.AccountID == nil || rs.AuthService == nil {
+		return "", "", ""
+	}
+	accountID := *staff.Person.AccountID
+	if roleMap, err := rs.AuthService.GetAccountRoleNames(ctx, []int64{accountID}); err == nil {
+		role = roleMap[accountID]
+	}
+	if emailMap, err := rs.AuthService.GetAccountEmailsByIDs(ctx, []int64{accountID}); err == nil {
+		email = emailMap[accountID]
+	}
+	if avatarMap, err := rs.AuthService.GetAccountAvatarsByIDs(ctx, []int64{accountID}); err == nil {
+		avatar = avatarMap[accountID]
+	}
+	return role, email, avatar
+}
+
+// resolveStaffPresence resolves the presence/work-status/absence for a single
+// staff member, keeping the detail view consistent with the list view. The
+// maps cover all staff today; we look up our single ID.
+func (rs *Resource) resolveStaffPresence(ctx context.Context, staff *users.Staff) (present bool, workStatus, absence string) {
+	if presentIDs, err := rs.WorkSessionService.GetStaffIDsWithSupervisionToday(ctx); err == nil {
+		present = slices.Contains(presentIDs, staff.ID)
+	} else {
+		rs.getLogger().Warn("failed to fetch present staff IDs",
+			slog.Int64("staff_id", staff.ID),
+			slog.String("error", err.Error()))
+	}
+	workStatus = rs.loadWorkStatusMap(ctx)[staff.ID]
+	absence = rs.loadAbsenceMap(ctx)[staff.ID]
+	return present, workStatus, absence
 }
 
 // grantDefaultPermissions grants default permissions to a newly created account

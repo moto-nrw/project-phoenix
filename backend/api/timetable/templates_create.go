@@ -27,7 +27,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -132,6 +131,42 @@ type createTemplateResponse struct {
 	MaterializedTo   string  `json:"materialized_to,omitempty"`
 }
 
+// parsedCreateTemplate holds the request plus the values derived from cheap
+// format validation (clock window, defaulted week pattern and cap).
+type parsedCreateTemplate struct {
+	req             *createTemplateRequest
+	startTime       time.Time
+	endTime         time.Time
+	weekPattern     int
+	maxParticipants int
+}
+
+// parseCreateTemplateRequest binds and format-validates the request. Format
+// errors render precise 400 messages here rather than from the service.
+func parseCreateTemplateRequest(w http.ResponseWriter, r *http.Request) (*parsedCreateTemplate, bool) {
+	req := &createTemplateRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return nil, false
+	}
+	if !isValidActivityType(req.Type) {
+		common.RenderError(w, r, common.ErrorInvalidRequest(
+			fmt.Errorf("invalid type %q (must be care, activity, or external)", req.Type)))
+		return nil, false
+	}
+	timing, ok := parseTemplateTiming(w, r, req.StartTime, req.EndTime, req.WeekPattern, req.MaxParticipants)
+	if !ok {
+		return nil, false
+	}
+	return &parsedCreateTemplate{
+		req:             req,
+		startTime:       timing.startTime,
+		endTime:         timing.endTime,
+		weekPattern:     timing.weekPattern,
+		maxParticipants: timing.maxParticipants,
+	}, true
+}
+
 // createTemplate handles POST /api/timetable/templates.
 func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 	if rs.TimetableData == nil {
@@ -140,49 +175,9 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req := &createTemplateRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	parsed, ok := parseCreateTemplateRequest(w, r)
+	if !ok {
 		return
-	}
-
-	if !isValidActivityType(req.Type) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(
-			fmt.Errorf("invalid type %q (must be care, activity, or external)", req.Type)))
-		return
-	}
-
-	startTime, err := parseClockTime(req.StartTime)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(
-			errors.New("invalid start_time format, expected HH:MM")))
-		return
-	}
-	endTime, err := parseClockTime(req.EndTime)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(
-			errors.New("invalid end_time format, expected HH:MM")))
-		return
-	}
-	if !endTime.After(startTime) {
-		common.RenderError(w, r, common.ErrorInvalidRequest(
-			errors.New("end_time must be after start_time")))
-		return
-	}
-
-	weekPattern := 0
-	if req.WeekPattern != nil {
-		weekPattern = *req.WeekPattern
-	}
-	if weekPattern < 0 || weekPattern > 2 {
-		common.RenderError(w, r, common.ErrorInvalidRequest(
-			errors.New("week_pattern must be 0 (every), 1 (A), or 2 (B)")))
-		return
-	}
-
-	maxParticipants := 999
-	if req.MaxParticipants != nil && *req.MaxParticipants > 0 {
-		maxParticipants = *req.MaxParticipants
 	}
 
 	ctx := r.Context()
@@ -192,180 +187,124 @@ func (rs *Resource) createTemplate(w http.ResponseWriter, r *http.Request) {
 			errors.New("no tenant in context")))
 		return
 	}
-	gradeLevelMax, err := rs.resolveTemplateGradeLevelMax(ctx)
+
+	gradeLevelMax, rosterValidFrom, ok := rs.templateWritePreflight(w, r, parsed.req.CalendarPeriodID)
+	if !ok {
+		return
+	}
+
+	result, err := rs.TimetableData.CreateTemplate(ctx, buildCreateTemplateInput(
+		parsed, tenantID, gradeLevelMax, rosterValidFrom, rs.resolveStartedByStaffID(ctx),
+	))
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap(
-			"resolve template grade level limit failed", err))
-		return
-	}
-	if err := scheduleSvc.ValidateTemplateTargetGradeLimit(
-		gradeLevelMax,
-		nil,
-		req.TargetGroupType,
-		req.TargetGradeLevel,
-	); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-	rosterValidFrom, err := rs.templateRosterValidFrom(ctx, req.CalendarPeriodID)
-	if err != nil {
-		renderTemplatePeriodLookupError(w, r, err)
-		return
-	}
-	if err := rs.validateTemplateEducationGroup(ctx, req.EducationGroupID); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-
-	// 1. Find or create timeframe matching the requested clock window.
-	//    The find-or-create rule lives in the schedule service (shared with
-	//    the WP-B3 template split) so it exists in exactly one place.
-	timeframeID, err := rs.findOrCreateTimeframe(ctx, startTime, endTime, req.Name)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap(
-			"resolve timeframe failed", err))
-		return
-	}
-
-	// 2. Create the template (activities.groups with is_template=true).
-	createdBy := rs.resolveStartedByStaffID(ctx)
-	var createdByPtr *int64
-	if createdBy > 0 {
-		c := createdBy
-		createdByPtr = &c
-	}
-
-	roomIDCopy := req.RoomID
-	group := &activitiesModel.Group{
-		Name:              req.Name,
-		MaxParticipants:   maxParticipants,
-		RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
-		IsOpen:            true,
-		CategoryID:        req.CategoryID,
-		PlannedRoomID:     &roomIDCopy,
-		Type:              req.Type,
-		EducationGroupID:  req.EducationGroupID,
-		IsTemplate:        true,
-		CreatedBy:         createdByPtr,
-		CalendarPeriodID:  req.CalendarPeriodID,
-		TargetGroupType:   req.TargetGroupType,
-		TargetGradeLevel:  req.TargetGradeLevel,
-		TargetSchoolClass: req.TargetSchoolClass,
-		Notes:             normalizeNotes(req.Notes),
-	}
-	group.SetTenantID(tenantID)
-	if err := rs.TimetableData.CreateActivityGroup(ctx, group); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap(
-			"create template failed", err))
-		return
-	}
-
-	// 3. One schedule row per requested weekday, all linked to the same
-	//    timeframe + week_pattern. Each row drives its own materialization
-	//    candidate.
-	scheduleIDs := make([]int64, 0, len(req.Weekdays))
-	for _, weekday := range req.Weekdays {
-		tfID := timeframeID
-		sched := &activitiesModel.Schedule{
-			Weekday:          weekday,
-			TimeframeID:      &tfID,
-			ActivityGroupID:  group.ID,
-			WeekPattern:      weekPattern,
-			CalendarPeriodID: req.CalendarPeriodID,
-		}
-		sched.SetTenantID(tenantID)
-		if err := rs.TimetableData.CreateActivitySchedule(ctx, sched); err != nil {
-			common.RenderError(w, r, common.ErrorInternalServerWrap(
-				"create schedule failed", err))
-			return
-		}
-		scheduleIDs = append(scheduleIDs, sched.ID)
-	}
-
-	if err := rs.replaceTemplateStudents(ctx, group.ID, req.StudentIDs, req.CalendarPeriodID, rosterValidFrom); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap(
-			"assign template students failed", err))
-		return
-	}
-	if err := rs.replaceTemplateStaff(ctx, group.ID, req.StaffIDs, req.PrimaryStaffID, req.CalendarPeriodID, rosterValidFrom); err != nil {
-		common.RenderError(w, r, common.ErrorInternalServerWrap(
-			"assign template staff failed", err))
+		renderCreateTemplateError(w, r, err)
 		return
 	}
 
 	resp := createTemplateResponse{
-		TemplateID:  group.ID,
-		TimeframeID: timeframeID,
-		ScheduleIDs: scheduleIDs,
+		TemplateID:  result.TemplateID,
+		TimeframeID: result.TimeframeID,
+		ScheduleIDs: result.ScheduleIDs,
 	}
-
-	// 4. Optionally materialize the visible window so the new template
-	//    yields instances that show up on the grid immediately.
-	if req.MaterializeFrom != nil && req.MaterializeTo != nil &&
-		rs.MaterializationService != nil {
-		from, ferr := berlinDate(*req.MaterializeFrom)
-		to, terr := berlinDate(*req.MaterializeTo)
-		if ferr == nil && terr == nil && !to.Before(from) {
-			mat, mErr := rs.MaterializationService.MaterializeForTenant(
-				ctx, from, to, scheduleSvc.MaterializationSourceManual,
-			)
-			if mErr != nil {
-				rs.getLogger().Warn("template create: materialize failed (template still saved)",
-					slog.Int64("template_id", group.ID),
-					slog.String("error", mErr.Error()),
-				)
-			} else if mat != nil {
-				resp.InstancesCreated = mat.InstancesCreated
-				resp.MaterializedFrom = from.Format(dateLayout)
-				resp.MaterializedTo = to.Format(dateLayout)
-			}
-		}
-	}
+	rs.materializeTemplateWindow(ctx, parsed.req, result.TemplateID, &resp)
 
 	rs.getLogger().Info("template created",
 		slog.Int64("tenant_id", tenantID),
-		slog.Int64("template_id", group.ID),
-		slog.String("type", req.Type),
-		slog.Int("weekday_count", len(req.Weekdays)),
+		slog.Int64("template_id", result.TemplateID),
+		slog.String("type", parsed.req.Type),
+		slog.Int("weekday_count", len(parsed.req.Weekdays)),
 		slog.Int("instances_created", resp.InstancesCreated),
 	)
 	common.Respond(w, r, http.StatusCreated, resp, "Template created")
 }
 
-// findOrCreateTimeframe returns the id of an existing schedule.timeframes
-// row matching [start, end] or inserts a fresh one. Description is set to
-// the template name on first creation as a debug hint, but is informational
-// only — lookups go by time window.
-func (rs *Resource) findOrCreateTimeframe(ctx context.Context, start, end time.Time, descHint string) (int64, error) {
-	existing, err := rs.TimetableData.GetTimeframesByTimeRange(ctx, start, end)
-	if err == nil {
-		for _, tf := range existing {
-			if tf == nil {
-				continue
-			}
-			// Match exact clock times; FindByTimeRange may return overlapping
-			// windows depending on impl, so be precise. Do not use
-			// time.Time.Equal here: schedule.timeframes stores SQL TIME, and
-			// drivers may decode TIME with a different date anchor than the
-			// handler's parseClockTime uses.
-			if timezone.SameClockTime(tf.StartTime, start) && tf.EndTime != nil && timezone.SameClockTime(*tf.EndTime, end) {
-				return tf.ID, nil
-			}
-		}
+// buildCreateTemplateInput maps the parsed request and resolved preconditions
+// into the service input, normalizing the optional Personalbedarf override and
+// series note.
+func buildCreateTemplateInput(
+	parsed *parsedCreateTemplate,
+	tenantID int64,
+	gradeLevelMax int,
+	rosterValidFrom timezone.Date,
+	createdBy int64,
+) scheduleSvc.CreateTemplateInput {
+	req := parsed.req
+	var createdByPtr *int64
+	if createdBy > 0 {
+		c := createdBy
+		createdByPtr = &c
 	}
+	return scheduleSvc.CreateTemplateInput{
+		Name:              req.Name,
+		Type:              req.Type,
+		Weekdays:          req.Weekdays,
+		StartTime:         parsed.startTime,
+		EndTime:           parsed.endTime,
+		RoomID:            req.RoomID,
+		CategoryID:        req.CategoryID,
+		MaxParticipants:   parsed.maxParticipants,
+		RequiredStaff:     normalizeRequiredStaff(req.RequiredStaff),
+		WeekPattern:       parsed.weekPattern,
+		CalendarPeriodID:  req.CalendarPeriodID,
+		EducationGroupID:  req.EducationGroupID,
+		TargetGroupType:   req.TargetGroupType,
+		TargetGradeLevel:  req.TargetGradeLevel,
+		TargetSchoolClass: req.TargetSchoolClass,
+		Notes:             normalizeNotes(req.Notes),
+		StudentIDs:        req.StudentIDs,
+		StaffIDs:          req.StaffIDs,
+		PrimaryStaffID:    req.PrimaryStaffID,
+		CreatedBy:         createdByPtr,
+		RosterValidFrom:   rosterValidFrom,
+		GradeLevelMax:     gradeLevelMax,
+	}
+}
 
-	endCopy := end
-	tf := &scheduleModel.Timeframe{
-		StartTime:   start,
-		EndTime:     &endCopy,
-		IsActive:    true,
-		Description: fmt.Sprintf("auto: %s", descHint),
+// renderCreateTemplateError maps a CreateTemplate failure to its HTTP response:
+// the client-correctable grade-cap and education-group precheck failures become
+// 400, everything else a 500.
+func renderCreateTemplateError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case renderTemplateEducationGroupError(w, r, err):
+	case renderTemplateTargetGradeLimit(w, r, err):
+	default:
+		common.RenderError(w, r, common.ErrorInternalServerWrap("create template failed", err))
 	}
-	tf.SetTenantID(tenant.FromContext(ctx))
-	if err := rs.TimetableData.CreateTimeframe(ctx, tf); err != nil {
-		return 0, fmt.Errorf("create timeframe: %w", err)
+}
+
+// materializeTemplateWindow best-effort materializes the requested visible
+// window so the new template yields instances immediately. A materialization
+// failure is logged and never fails the create — the template is already saved.
+func (rs *Resource) materializeTemplateWindow(
+	ctx context.Context,
+	req *createTemplateRequest,
+	templateID int64,
+	resp *createTemplateResponse,
+) {
+	if req.MaterializeFrom == nil || req.MaterializeTo == nil || rs.MaterializationService == nil {
+		return
 	}
-	return tf.ID, nil
+	from, ferr := berlinDate(*req.MaterializeFrom)
+	to, terr := berlinDate(*req.MaterializeTo)
+	if ferr != nil || terr != nil || to.Before(from) {
+		return
+	}
+	mat, mErr := rs.MaterializationService.MaterializeForTenant(
+		ctx, from, to, scheduleSvc.MaterializationSourceManual,
+	)
+	if mErr != nil {
+		rs.getLogger().Warn("template create: materialize failed (template still saved)",
+			slog.Int64("template_id", templateID),
+			slog.String("error", mErr.Error()),
+		)
+		return
+	}
+	if mat == nil {
+		return
+	}
+	resp.InstancesCreated = mat.InstancesCreated
+	resp.MaterializedFrom = from.Format(dateLayout)
+	resp.MaterializedTo = to.Format(dateLayout)
 }
 
 // isValidActivityType matches the constants in models/activities/group.go.

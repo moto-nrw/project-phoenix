@@ -505,18 +505,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		facilitiesLogger,
 	)
 
-	// Initialize RFID check-in service (issue #575 B8). Orchestrates the
-	// active/users/facilities/activities services for the /api/iot check-in
-	// workflow. Lives in the services/iot/checkin sub-package to avoid the
-	// services/iot ↔ services/active ↔ auth/device import cycle.
-	checkinService := iotcheckin.NewCheckinService(iotcheckin.CheckinServiceDeps{
-		Active:     activeService,
-		Users:      usersService,
-		Facilities: facilitiesService,
-		Activities: activitiesService,
-		Logger:     logger.With("service", "checkin"),
-	})
-
 	// Initialize schedule service
 	scheduleService := schedule.NewServiceWithConfig(schedule.ServiceConfig{
 		DateframeRepo:      repos.Dateframe,
@@ -580,7 +568,24 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		repos.StudentPickupSchedule,
 		repos.StudentPickupException,
 		repos.StudentPickupNote,
+		db,
 	)
+
+	// Initialize RFID check-in service (issue #575 B8). Orchestrates the
+	// active/users/facilities/activities services plus the daily-checkout gate
+	// policy (settings + pickup schedule + education group) for the /api/iot
+	// check-in workflow. Lives in the services/iot/checkin sub-package to avoid
+	// the services/iot ↔ services/active ↔ auth/device import cycle.
+	checkinService := iotcheckin.NewCheckinService(iotcheckin.CheckinServiceDeps{
+		Active:     activeService,
+		Users:      usersService,
+		Facilities: facilitiesService,
+		Activities: activitiesService,
+		Settings:   settingsService,
+		Pickup:     pickupScheduleService,
+		Education:  educationService,
+		Logger:     logger.With("service", "checkin"),
+	})
 
 	// Initialize display service (info-point dashboards, issue #1325).
 	// Aggregates existing data sources; owns no queries beyond its own repo.
@@ -944,6 +949,8 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		SupervisorRepo:     repos.GroupSupervisor,
 		ProfileRepo:        repos.Profile,
 		SubstitutionRepo:   repos.GroupSubstitution,
+		ActiveService:      activeService,
+		SSESettings:        settingsService,
 	}, usercontextLogger)
 
 	// Initialize database stats service
@@ -1118,24 +1125,6 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:   logger.With("service", "enrollment-captcha"),
 	})
 
-	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
-		RequestRepo:              repos.Request,
-		RequestChildRepo:         repos.RequestChild,
-		RequestGuardianRepo:      repos.RequestGuardian,
-		LateInviteRepo:           repos.LateInvite,
-		RequestChildOfferingRepo: repos.RequestChildOffering,
-		CareOfferingRepo:         repos.CareOffering,
-		FormSchemaRepo:           repos.FormSchema,
-		PhaseRepo:                repos.Phase,
-		SchoolRepo:               repos.School,
-		RateLimitRepo:            repos.SubmissionRateLimit,
-		OutboxEnqueuer:           emailOutboxService,
-		Settings:                 settingsService,
-		FrontendURL:              frontendURL, // admin notification email
-		ParentsURL:               parentsURL,  // parent confirmation/status emails
-		DB:                       db,
-		Logger:                   logger.With("service", "enrollment-request"),
-	})
 	enrollmentDeletionService := enrollment.NewEnrollmentDeletionService(
 		repos.Request,
 		repos.RequestChild,
@@ -1210,6 +1199,26 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 			return schedule.LockTenantRecurrenceWrites(ctx, db)
 		},
 		Logger: logger.With("service", "enrollment-decision"),
+	})
+
+	enrollmentRequestService := enrollment.NewRequestService(enrollment.RequestServiceConfig{
+		RequestRepo:              repos.Request,
+		RequestChildRepo:         repos.RequestChild,
+		RequestGuardianRepo:      repos.RequestGuardian,
+		LateInviteRepo:           repos.LateInvite,
+		RequestChildOfferingRepo: repos.RequestChildOffering,
+		CareOfferingRepo:         repos.CareOffering,
+		FormSchemaRepo:           repos.FormSchema,
+		PhaseRepo:                repos.Phase,
+		SchoolRepo:               repos.School,
+		RateLimitRepo:            repos.SubmissionRateLimit,
+		OutboxEnqueuer:           emailOutboxService,
+		Settings:                 settingsService,
+		ManualDecider:            enrollmentDecisionService,
+		FrontendURL:              frontendURL, // admin notification email
+		ParentsURL:               parentsURL,  // parent confirmation/status emails
+		DB:                       db,
+		Logger:                   logger.With("service", "enrollment-request"),
 	})
 
 	enrollmentReportService := enrollment.NewReportService(enrollment.ReportServiceConfig{

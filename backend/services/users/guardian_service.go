@@ -292,6 +292,38 @@ func (s *GuardianService) GetGuardianDeleteImpact(ctx context.Context, guardianP
 	return s.getGuardianDeleteImpact(ctx, guardianProfileID)
 }
 
+// EvaluateGuardianDelete decides whether a guardian may be deleted and reports
+// whether the guardian still has student links, so the caller can pick the
+// correct delete path. It reads the current blast radius and applies the two
+// business rules a full delete is gated on:
+//
+//   - a guardian still linked to students may not be deleted without an explicit
+//     force request (returns *GuardianStillLinkedError, carrying the affected
+//     children for the admin warning); and
+//   - a forced full delete reaches across siblings the caller may not supervise,
+//     so it is restricted to admins (returns ErrGuardianForceDeleteRequiresAdmin).
+//
+// hasLinks is only meaningful when err is nil. A read failure is returned as-is.
+func (s *GuardianService) EvaluateGuardianDelete(ctx context.Context, guardianProfileID int64, force, isAdmin bool) (hasLinks bool, err error) {
+	impact, err := s.getGuardianDeleteImpact(ctx, guardianProfileID)
+	if err != nil {
+		return false, err
+	}
+
+	if len(impact.StudentNames) == 0 {
+		return false, nil
+	}
+
+	if !force {
+		return true, &GuardianStillLinkedError{StudentNames: impact.StudentNames}
+	}
+	if !isAdmin {
+		return true, ErrGuardianForceDeleteRequiresAdmin
+	}
+
+	return true, nil
+}
+
 func sameInt64Set(a, b []int64) bool {
 	if len(a) != len(b) {
 		return false

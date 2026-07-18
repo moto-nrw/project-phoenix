@@ -63,6 +63,9 @@ type OperationArrivalService interface {
 type TimetableOperationsService interface {
 	PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date timezone.Date, now time.Time, opts PlannedNowOptions) ([]OperationPlannedInstance, error)
 	Start(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*StartInstanceResult, error)
+	// CreateAndStartSpontaneous creates a spontaneous instance and starts it as
+	// one atomic composition in the caller's request transaction.
+	CreateAndStartSpontaneous(ctx context.Context, accountID int64, isAdmin bool, in CreateInstanceInput) (*StartInstanceResult, error)
 	Complete(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*scheduleModel.ActivityInstance, error)
 	Roster(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*OperationRoster, error)
 	RosterByActiveGroup(ctx context.Context, accountID int64, isAdmin bool, activeGroupID int64) (*OperationRoster, error)
@@ -228,6 +231,36 @@ func (s *timetableOperationsService) PlannedNow(ctx context.Context, accountID i
 		}
 	}
 	return out, nil
+}
+
+// SpontaneousCreateError wraps a CreateAndStartSpontaneous failure that
+// occurred during the Create phase (vs. the Start phase). The handler branches
+// on it to pick the create-specific error renderer while the Start phase keeps
+// the operations renderer. Unwrap exposes the underlying sentinel for errors.Is.
+type SpontaneousCreateError struct{ Err error }
+
+func (e *SpontaneousCreateError) Error() string { return e.Err.Error() }
+func (e *SpontaneousCreateError) Unwrap() error { return e.Err }
+
+// CreateAndStartSpontaneous atomically creates a spontaneous instance and
+// starts it within the caller's request transaction. Create and Start share
+// that transaction, so either half failing with a non-5xx error must roll back
+// the rows the other half (and the preceding activity/category resolution)
+// already wrote — the middleware only auto-rolls-back on 5xx, so both phases
+// mark rollback explicitly. A Create-phase failure is wrapped in
+// SpontaneousCreateError so the handler renders it as a create error.
+func (s *timetableOperationsService) CreateAndStartSpontaneous(ctx context.Context, accountID int64, isAdmin bool, in CreateInstanceInput) (*StartInstanceResult, error) {
+	inst, err := s.deps.InstanceService.Create(ctx, in)
+	if err != nil {
+		tenant.MarkRollback(ctx)
+		return nil, &SpontaneousCreateError{Err: err}
+	}
+	result, err := s.Start(ctx, accountID, isAdmin, inst.ID)
+	if err != nil {
+		tenant.MarkRollback(ctx)
+		return nil, err
+	}
+	return result, nil
 }
 
 func (s *timetableOperationsService) Start(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*StartInstanceResult, error) {

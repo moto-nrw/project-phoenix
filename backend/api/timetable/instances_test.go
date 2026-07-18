@@ -53,7 +53,6 @@ type mockInstanceService struct {
 	lastAckID        int64
 	lastAckValue     bool
 	lastAckNote      *string
-	lastClearAckID   int64
 	lastStartID      int64
 	lastStartedBy    int64
 	lastFrom         timezone.Date
@@ -108,8 +107,7 @@ func (m *mockInstanceService) SetUnderstaffedAck(_ context.Context, instanceID i
 	return m.ackRes, nil
 }
 
-func (m *mockInstanceService) ClearUnderstaffedAckIfStaffed(_ context.Context, instanceID int64, _ *int64) error {
-	m.lastClearAckID = instanceID
+func (m *mockInstanceService) ClearUnderstaffedAckIfStaffed(_ context.Context, _ int64, _ *int64) error {
 	return m.clearAckErr
 }
 
@@ -1033,4 +1031,28 @@ func (m *mockInstanceService) ApplySubstitute(ctx context.Context, op scheduleSv
 		return m.real.ApplySubstitute(ctx, op, subID, reason, now, actor, touched)
 	}
 	return nil
+}
+
+// ApplyDeviations delegates the atomic save to a real InstanceService when
+// wired (buildDevSetup, DB-backed); the pure mock path is unused today.
+func (m *mockInstanceService) ApplyDeviations(ctx context.Context, id int64, in scheduleSvc.ApplyDeviationsInput) (*scheduleSvc.ApplyDeviationsResult, error) {
+	if m.real != nil {
+		return m.real.ApplyDeviations(ctx, id, in)
+	}
+	return &scheduleSvc.ApplyDeviationsResult{}, nil
+}
+
+// AcknowledgeUnderstaffed records the forwarded args for the mock-only handler
+// tests, or delegates to a real service (the DB-backed past-block guard test).
+func (m *mockInstanceService) AcknowledgeUnderstaffed(ctx context.Context, id int64, ack bool, note *string, actor *int64) (*scheduleModel.ActivityInstance, error) {
+	if m.real != nil {
+		return m.real.AcknowledgeUnderstaffed(ctx, id, ack, note, actor)
+	}
+	m.lastAckID = id
+	m.lastAckValue = ack
+	m.lastAckNote = note
+	if m.ackErr != nil {
+		return nil, m.ackErr
+	}
+	return m.ackRes, nil
 }

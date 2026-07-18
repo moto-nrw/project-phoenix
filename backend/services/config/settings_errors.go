@@ -10,6 +10,9 @@ var (
 	ErrDefinitionNotFound = errors.New("setting definition not found in registry")
 	ErrInvalidValue       = errors.New("value does not pass validation")
 	ErrPermissionDenied   = errors.New("insufficient permissions for this setting")
+	// ErrOperatorAdminOnly is returned by CheckOperatorWritable when an
+	// operator attempts to write or reveal an AccessAdminOnly setting.
+	ErrOperatorAdminOnly = errors.New("setting is admin-only and cannot be modified by operators")
 )
 
 // SettingsError wraps settings service errors with operation context.

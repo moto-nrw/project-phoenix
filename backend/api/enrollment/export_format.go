@@ -355,41 +355,47 @@ func formatContactList(raw any) string {
 	}
 	parts := make([]string, 0, len(contacts))
 	for _, c := range contacts {
-		name := strings.TrimSpace(c.FirstName + " " + c.LastName)
-		if name == "" {
-			name = "Kontakt"
-		}
-		extras := make([]string, 0, 4)
-		if rel := strings.TrimSpace(c.RelationshipType); rel != "" {
-			extras = append(extras, rel)
-		}
-		if phones := formatPhoneEntries(c.PhoneNumbers); phones != "" {
-			extras = append(extras, "Tel: "+phones)
-		}
-		// ContactEntry.Validate accepts email OR phone, so an authorised
-		// pickup/emergency contact may carry only an email address. Phone is
-		// the priority channel in an outage, so email follows it — but it must
-		// never be dropped: for an email-only contact it is the sole way to
-		// reach them.
-		if email := strings.TrimSpace(c.Email); email != "" {
-			extras = append(extras, "E-Mail: "+email)
-		}
-		flags := make([]string, 0, 2)
-		if c.CanPickup {
-			flags = append(flags, "abholberechtigt")
-		}
-		if c.IsEmergencyContact {
-			flags = append(flags, "Notfallkontakt")
-		}
-		if len(flags) > 0 {
-			extras = append(extras, strings.Join(flags, ", "))
-		}
-		if len(extras) > 0 {
-			name += " (" + strings.Join(extras, "; ") + ")"
-		}
-		parts = append(parts, name)
+		parts = append(parts, formatContactEntry(c))
 	}
 	return strings.Join(parts, " | ")
+}
+
+// formatContactEntry renders one contact as "Vorname Nachname (Beziehung;
+// Tel: …; E-Mail: …; abholberechtigt, Notfallkontakt)".
+func formatContactEntry(c enrollmentModels.ContactEntry) string {
+	name := strings.TrimSpace(c.FirstName + " " + c.LastName)
+	if name == "" {
+		name = "Kontakt"
+	}
+	extras := make([]string, 0, 4)
+	if rel := strings.TrimSpace(c.RelationshipType); rel != "" {
+		extras = append(extras, rel)
+	}
+	if phones := formatPhoneEntries(c.PhoneNumbers); phones != "" {
+		extras = append(extras, "Tel: "+phones)
+	}
+	// ContactEntry.Validate accepts email OR phone, so an authorised
+	// pickup/emergency contact may carry only an email address. Phone is
+	// the priority channel in an outage, so email follows it — but it must
+	// never be dropped: for an email-only contact it is the sole way to
+	// reach them.
+	if email := strings.TrimSpace(c.Email); email != "" {
+		extras = append(extras, "E-Mail: "+email)
+	}
+	flags := make([]string, 0, 2)
+	if c.CanPickup {
+		flags = append(flags, "abholberechtigt")
+	}
+	if c.IsEmergencyContact {
+		flags = append(flags, "Notfallkontakt")
+	}
+	if len(flags) > 0 {
+		extras = append(extras, strings.Join(flags, ", "))
+	}
+	if len(extras) > 0 {
+		name += " (" + strings.Join(extras, "; ") + ")"
+	}
+	return name
 }
 
 // stringifyValue renders an arbitrary JSON value (from a jsonb column)

@@ -142,7 +142,6 @@ func (rs *Resource) Router() chi.Router {
 			rs.UsersService,
 			rs.ActiveService,
 			rs.CheckinService,
-			rs.EducationService,
 			rs.PickupScheduleService,
 			rs.SettingsService,
 			rs.getLogger().With(slog.String("sub", "checkin")),

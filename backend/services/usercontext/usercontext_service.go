@@ -45,6 +45,12 @@ type UserContextRepositories struct {
 	SupervisorRepo     active.GroupSupervisorRepository
 	ProfileRepo        users.ProfileRepository
 	SubstitutionRepo   education.GroupSubstitutionRepository
+
+	// SSE subscription dependencies (optional — nil-safe). Injected so the
+	// SSE handler can delegate staff-resolution + topic-building to this
+	// service instead of orchestrating it in the api layer.
+	ActiveService activeService.Service
+	SSESettings   SSESettingsResolver
 }
 
 // userContextService implements the UserContextService interface
@@ -61,6 +67,8 @@ type userContextService struct {
 	supervisorRepo     active.GroupSupervisorRepository
 	profileRepo        users.ProfileRepository
 	substitutionRepo   education.GroupSubstitutionRepository
+	sseActiveSvc       activeService.Service
+	sseSettings        SSESettingsResolver
 	logger             *slog.Logger
 }
 
@@ -84,6 +92,8 @@ func NewUserContextServiceWithRepos(repos UserContextRepositories, logger *slog.
 		supervisorRepo:     repos.SupervisorRepo,
 		profileRepo:        repos.ProfileRepo,
 		substitutionRepo:   repos.SubstitutionRepo,
+		sseActiveSvc:       repos.ActiveService,
+		sseSettings:        repos.SSESettings,
 		logger:             logger,
 	}
 }
