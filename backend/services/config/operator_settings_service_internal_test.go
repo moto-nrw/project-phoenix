@@ -57,6 +57,16 @@ func TestCheckPresenceModeSwitch_NonPresenceForceIsNoop(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestCheckPresenceModeSwitch_NilCheckerIsNoop(t *testing.T) {
+	err := CheckPresenceModeSwitch(
+		context.Background(),
+		nil,
+		configModel.KeyPresenceMode,
+		false,
+	)
+	assert.NoError(t, err)
+}
+
 func TestCheckPresenceModeSwitch_BlocksWithOpenAttendance(t *testing.T) {
 	checker := &stubAttendanceChecker{exists: true}
 	err := CheckPresenceModeSwitch(

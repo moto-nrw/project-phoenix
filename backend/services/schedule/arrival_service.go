@@ -419,9 +419,16 @@ func (s *arrivalScheduleService) UpdateException(ctx context.Context, exceptionI
 			createdByGuardian = nil
 		}
 
+		expectedArrival := freshException.ExpectedArrival
+		if expectedArrival != nil {
+			normalized := timezone.WallClock(*expectedArrival)
+			expectedArrival = &normalized
+		}
+
 		updated := &schedule.StudentArrivalException{
 			StudentID:         studentID,
 			ExceptionDate:     date,
+			ExpectedArrival:   expectedArrival,
 			Reason:            freshException.Reason,
 			Source:            source,
 			CreatedBy:         createdBy,

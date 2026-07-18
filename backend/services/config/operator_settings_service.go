@@ -176,6 +176,9 @@ func CheckPresenceModeSwitch(ctx context.Context, checker OpenAttendanceChecker,
 	if force {
 		return nil
 	}
+	if checker == nil {
+		return nil
+	}
 	// Bind the Berlin calendar date as a DATE literal (matches how
 	// performCheckIn writes active.attendance.date). Using CURRENT_DATE on the
 	// postgres side would be wrong: the PG session is UTC, so between

@@ -379,9 +379,16 @@ func (s *pickupScheduleService) UpdateException(ctx context.Context, exceptionID
 			createdByGuardian = nil
 		}
 
+		pickupTimeValue := freshException.PickupTime
+		if pickupTimeValue != nil {
+			normalized := timezone.WallClock(*pickupTimeValue)
+			pickupTimeValue = &normalized
+		}
+
 		updated := &schedule.StudentPickupException{
 			StudentID:         studentID,
 			ExceptionDate:     date,
+			PickupTime:        pickupTimeValue,
 			Reason:            freshException.Reason,
 			Source:            source,
 			CreatedBy:         createdBy,
