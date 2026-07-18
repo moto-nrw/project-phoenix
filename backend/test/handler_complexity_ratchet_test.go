@@ -35,11 +35,7 @@ const handlerComplexityThreshold = 15
 
 // Seeded 2026-07-12 from `gocognit -over 15 api/` (non-test files only), the
 // issue #575 B0 baseline. 75 functions.
-var handlerComplexityAllowlist = map[string]int{
-	"api/base.go:(*API).registerRoutesWithRateLimiting": 20,
-	"api/base.go:setupCORS":                             18,
-	"api/server.go:NewServer":                           35,
-}
+var handlerComplexityAllowlist = map[string]int{}
 
 func TestHandlerComplexityRatchet(t *testing.T) {
 	backendRoot, err := findBackendRoot()
