@@ -344,8 +344,8 @@ func TestApplyDeviations_ClearsStaleAckWhenCovered(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
-	assert.Equal(t, inst.ID, s.mock.lastAckID, "ack clear targeted this instance")
-	assert.False(t, s.mock.lastAckValue, "acknowledgement cleared")
+	assert.False(t, readInstance(t, s.db, s.ctx, inst.ID).UnderstaffedAck,
+		"adding coverage must clear the stale acknowledgement on this instance")
 
 	// Clean up the new substitute row.
 	var newSubIDs []int64
@@ -372,7 +372,8 @@ func TestApplyDeviations_AckWhileStaffed_Rejected(t *testing.T) {
 	w := doDev(t, router, inst.ID, map[string]any{"understaffed_ack": true})
 	require.Equal(t, http.StatusConflict, w.Code, "body=%s", w.Body.String())
 	assert.Contains(t, w.Body.String(), "understaffed_still_staffed")
-	assert.Zero(t, s.mock.lastAckID, "no ack write when rejected")
+	assert.False(t, readInstance(t, s.db, s.ctx, inst.ID).UnderstaffedAck,
+		"a rejected acknowledgement must not be written")
 }
 
 // Cancel is exclusive and delegates to the shared Cancel service.
@@ -384,16 +385,18 @@ func TestApplyDeviations_Cancel(t *testing.T) {
 	inst := testpkg.CreateTestActivityInstance(t, s.db, date, s.roomID, testpkg.ActivityInstanceOpts{Title: "Cancelme"})
 	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
 
-	cancelled := &scheduleModel.ActivityInstance{Status: scheduleModel.InstanceStatusCancelled}
-	cancelled.ID = inst.ID
-	s.mock.cancelRes = cancelled
-
+	// Cancel now runs through the real InstanceService inside ApplyDeviations
+	// (no mock seam), so the assertions read the persisted cancellation instead
+	// of the old mock recorder.
 	reason := "Ausflug"
 	w := doDev(t, router, inst.ID, map[string]any{"cancel": true, "cancel_reason": reason})
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
-	require.NotNil(t, s.mock.lastCancelReason)
-	assert.Equal(t, reason, *s.mock.lastCancelReason)
 	assert.Contains(t, w.Body.String(), `"cancelled":true`)
+
+	after := readInstance(t, s.db, s.ctx, inst.ID)
+	assert.Equal(t, scheduleModel.InstanceStatusCancelled, after.Status, "block cancelled in the DB")
+	require.NotNil(t, after.CancelReason, "cancel reason persisted")
+	assert.Equal(t, reason, *after.CancelReason)
 }
 
 // Past blocks are historical record; the endpoint refuses to edit them. Uses the
@@ -440,8 +443,12 @@ func TestApplyDeviations_ClearsStaleAckOnOtherBlocks(t *testing.T) {
 	})
 	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
 
-	assert.Equal(t, other.ID, s.mock.lastClearAckID, "stale ack on the OTHER covered block must be reconciled")
-	assert.Zero(t, s.mock.lastAckID, "the selected block was never acked, so no explicit ack write")
+	// The OTHER block's fixture ack was TRUE; covering it day-wide must clear that
+	// stale acknowledgement. The selected block was never acked and stays clear.
+	assert.False(t, readInstance(t, s.db, s.ctx, other.ID).UnderstaffedAck,
+		"stale ack on the OTHER covered block must be reconciled")
+	assert.False(t, readInstance(t, s.db, s.ctx, selected.ID).UnderstaffedAck,
+		"the selected block was never acked")
 
 	var newSubIDs []int64
 	for _, instID := range []int64{selected.ID, other.ID} {
@@ -665,7 +672,8 @@ func TestAcknowledgeUnderstaffed_PastBlock_Rejected(t *testing.T) {
 	w := doAck(t, router, inst.ID, map[string]any{"ack": true})
 	require.Equal(t, http.StatusBadRequest, w.Code, "body=%s", w.Body.String())
 	assert.Contains(t, w.Body.String(), "past")
-	assert.Zero(t, s.mock.lastAckID, "service must not be reached for a past block")
+	assert.False(t, readInstance(t, s.db, s.ctx, inst.ID).UnderstaffedAck,
+		"a past block's acknowledgement must not be written")
 }
 
 // futureSubDate returns a YYYY-MM-DD in the future plus the matching
@@ -684,4 +692,16 @@ func readInstanceStaff(t *testing.T, db *bun.DB, ctx context.Context, id int64) 
 	row, err := repo.FindByID(ctx, id)
 	require.NoError(t, err)
 	return row
+}
+
+// readInstance pulls the instance directly from the DB. Since ApplyDeviations
+// now owns the ack/cancel writes internally (they no longer route through the
+// mock InstanceService seam), the acknowledgement/cancellation assertions read
+// the persisted row instead of the old mock recorders.
+func readInstance(t *testing.T, db *bun.DB, ctx context.Context, id int64) *scheduleModel.ActivityInstance {
+	t.Helper()
+	repo := scheduleRepo.NewActivityInstanceRepository(db)
+	inst, err := repo.FindByID(ctx, id)
+	require.NoError(t, err)
+	return inst
 }
