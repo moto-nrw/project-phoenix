@@ -6,10 +6,10 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 )
 
 // deviceConfigCheckout holds checkout button visibility settings.
@@ -72,7 +72,7 @@ func (rs *Resource) getDeviceConfig(w http.ResponseWriter, r *http.Request) {
 	// Resolve daily checkout time via the shared helper so the fallback chain
 	// (tenant DB override → env var → nil) lives in a single place.
 	var dailyCheckoutTime *string
-	if rawTime := checkinAPI.ResolveRawDailyCheckoutTime(r.Context(), rs.SettingsService); rawTime != "" {
+	if rawTime := checkinSvc.ResolveRawDailyCheckoutTime(r.Context(), rs.SettingsService); rawTime != "" {
 		dailyCheckoutTime = &rawTime
 	}
 

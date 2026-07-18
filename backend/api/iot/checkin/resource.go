@@ -9,7 +9,6 @@ import (
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
-	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	iotSvc "github.com/moto-nrw/project-phoenix/services/iot"
 	checkinSvc "github.com/moto-nrw/project-phoenix/services/iot/checkin"
 	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
@@ -21,7 +20,6 @@ type Resource struct {
 	IoTService            iotSvc.Service
 	UsersService          usersSvc.PersonService
 	ActiveService         activeSvc.Service
-	EducationService      educationSvc.Service
 	PickupScheduleService scheduleSvc.PickupScheduleService
 	SettingsService       configSvc.SettingsService
 	UnregisteredTagScans  auditSvc.UnregisteredTagScanService
@@ -41,7 +39,6 @@ func NewResource(
 	usersService usersSvc.PersonService,
 	activeService activeSvc.Service,
 	checkinService *checkinSvc.CheckinService,
-	educationService educationSvc.Service,
 	pickupScheduleService scheduleSvc.PickupScheduleService,
 	settingsService configSvc.SettingsService,
 	logger *slog.Logger,
@@ -56,7 +53,6 @@ func NewResource(
 		UsersService:          usersService,
 		ActiveService:         activeService,
 		Checkin:               checkinService,
-		EducationService:      educationService,
 		PickupScheduleService: pickupScheduleService,
 		SettingsService:       settingsService,
 		UnregisteredTagScans:  scanService,

@@ -123,7 +123,6 @@ func setupTestContext(t *testing.T) *testContext {
 		svc.Users,
 		svc.Active,
 		svc.Checkin,
-		svc.Education,
 		svc.PickupSchedule,
 		nil, // settings service (nil = env var fallback)
 		slog.Default(),
@@ -3366,7 +3365,6 @@ func TestDeviceCheckin_DuplicateActiveVisit_AppLevelPath_Returns409WithRoomDetai
 		ctx.services.Users,
 		wrappedActive,
 		wrappedCheckin,
-		ctx.services.Education,
 		ctx.services.PickupSchedule,
 		nil,
 		slog.Default(),

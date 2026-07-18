@@ -17,7 +17,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	activeSvc "github.com/moto-nrw/project-phoenix/services/active"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	educationSvc "github.com/moto-nrw/project-phoenix/services/education"
 	facilitiesSvc "github.com/moto-nrw/project-phoenix/services/facilities"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	usersSvc "github.com/moto-nrw/project-phoenix/services/users"
 )
 
@@ -31,6 +34,9 @@ type CheckinService struct {
 	users      usersSvc.PersonService
 	facilities facilitiesSvc.Service
 	activities activitiesSvc.ActivityService
+	settings   configSvc.SettingsService
+	pickup     scheduleSvc.PickupScheduleService
+	education  educationSvc.Service
 	logger     *slog.Logger
 }
 
@@ -40,6 +46,9 @@ type CheckinServiceDeps struct {
 	Users      usersSvc.PersonService
 	Facilities facilitiesSvc.Service
 	Activities activitiesSvc.ActivityService
+	Settings   configSvc.SettingsService
+	Pickup     scheduleSvc.PickupScheduleService
+	Education  educationSvc.Service
 	Logger     *slog.Logger
 }
 
@@ -50,6 +59,9 @@ func NewCheckinService(deps CheckinServiceDeps) *CheckinService {
 		users:      deps.Users,
 		facilities: deps.Facilities,
 		activities: deps.Activities,
+		settings:   deps.Settings,
+		pickup:     deps.Pickup,
+		education:  deps.Education,
 		logger:     deps.Logger,
 	}
 }
@@ -687,6 +699,25 @@ func (s *CheckinService) GetActiveStudentCountForGroup(ctx context.Context, acti
 		return nil
 	}
 	return &count
+}
+
+// ResolveActiveStudentCount refreshes the session heartbeat for the group tied
+// to the scan and returns the active-student count to surface to the kiosk. It
+// scopes the heartbeat and count to the scanning device's session where
+// possible, falling back to a room-wide count for rooms without a device-linked
+// active group.
+func (s *CheckinService) ResolveActiveStudentCount(ctx context.Context, result *CheckinProcessingResult, roomID int64, deviceID int64) *int {
+	if result.ActiveGroupID != nil && result.DeviceScopedRoom {
+		s.UpdateSessionActivity(ctx, *result.ActiveGroupID)
+		return s.GetActiveStudentCountForGroup(ctx, *result.ActiveGroupID)
+	}
+
+	if deviceGroup := s.GetDeviceActiveGroupInRoom(ctx, roomID, deviceID); deviceGroup != nil {
+		s.UpdateSessionActivity(ctx, deviceGroup.ID)
+		return s.GetActiveStudentCountForGroup(ctx, deviceGroup.ID)
+	}
+
+	return s.GetActiveStudentCountForRoom(ctx, roomID)
 }
 
 // UpdateSessionActivity refreshes the session heartbeat for the given active
