@@ -210,7 +210,7 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
         run: |
-          npx -y react-doctor@0.8.1 . --yes \
+          npx --ignore-scripts -y react-doctor@0.8.1 . --yes \
             --scope changed \
             --base "origin/$BASE_REF" \
             --no-telemetry \
