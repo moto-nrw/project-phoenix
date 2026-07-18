@@ -147,6 +147,18 @@ type InstanceService interface {
 	// QueueActivityUpdates emits one activity_update per touched active group
 	// after the surrounding tenant transaction commits. Rollbacks emit nothing.
 	QueueActivityUpdates(ctx context.Context, touched map[int64]*scheduleModel.ActivityInstance)
+
+	// ApplyDeviations applies a whole Vertretungsplan slide-over save atomically
+	// (#1840/#1886): day-lock, validate + classify (Phase A), then the absence /
+	// presence / substitution writes plus acknowledgement reconciliation
+	// (Phase B). See deviation_apply.go. Returns a DeviationError carrying the
+	// exact HTTP mapping on a validation/conflict failure.
+	ApplyDeviations(ctx context.Context, instanceID int64, in ApplyDeviationsInput) (*ApplyDeviationsResult, error)
+	// AcknowledgeUnderstaffed applies the standalone "deliberately unstaffed"
+	// acknowledgement: it gates past blocks, serializes against same-day staffing
+	// saves, then delegates to SetUnderstaffedAck. The note must arrive already
+	// trimmed/validated.
+	AcknowledgeUnderstaffed(ctx context.Context, instanceID int64, ack bool, note *string, actorAccountID *int64) (*scheduleModel.ActivityInstance, error)
 }
 
 // CreateInstanceInput bundles the fields needed to insert a fresh instance

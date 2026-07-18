@@ -1,14 +1,11 @@
-// Package timetable — shared substitute/deviation response helpers.
+// Package timetable — shared substitute/deviation response + broadcast helpers.
 //
 // The former POST /api/timetable/substitute endpoint was consolidated into
-// POST /instances/{id}/deviations (#1886): its only frontend caller (the
-// Betreuungsplan gap-fill quick action) now sends the same day-wide
-// substitution through the atomic deviations save. The classification and
-// planning logic moved into services/schedule (TimetableDataService.PlanDeviations,
-// #1886); what remains here is the shared response row (AffectedInstance), the
-// reason normalizer, the plannable-status predicate, and the SSE broadcast
-// helpers — all consumed by the /deviations and /acknowledge-understaffed
-// handlers.
+// POST /instances/{id}/deviations (#1886), and the plan/classify/write logic
+// moved into services/schedule (InstanceService.ApplyDeviations, #1840). What
+// remains here is the wire response row (AffectedInstance), the shared reason
+// normalizer, the plannable-status predicate (both still unit-tested here), and
+// the post-save SSE broadcast helpers the handlers drive.
 package timetable
 
 import (
@@ -19,21 +16,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
-)
-
-// substituteActionType is the stable per-instance action string used when
-// building the affected_instances response rows. The action vocabulary lives
-// in services/schedule (single source, #1886); these aliases keep the handler
-// code and wire format unchanged.
-const (
-	// Absent-only mode (#1840): substitute_staff_id omitted. The absent staff
-	// is marked absent and the position is left open.
-	substituteActionMarkedAbsent  = scheduleSvc.SubstituteActionMarkedAbsent
-	substituteActionAlreadyAbsent = scheduleSvc.SubstituteActionAlreadyAbsent
-	// Present mode (#1840): a persisted day-wide absence was cleared.
-	substituteActionMarkedPresent = scheduleSvc.SubstituteActionMarkedPresent
 )
 
 // AffectedInstance is one row in the affected_instances list of the response.
@@ -66,8 +49,8 @@ func trimReason(reason *string) *string {
 
 // isPlannableInstance reports whether a substitute/absence write may touch this
 // instance. Only planned and active blocks are editable: completed and
-// cancelled ones are historical record. Mirrors the /gaps candidate filter and
-// DeleteUpcomingByStaffID's "keep same-day history" rule.
+// cancelled ones are historical record. Mirrors the service-side predicate used
+// by ApplyDeviations.
 func isPlannableInstance(instance *scheduleModel.ActivityInstance) bool {
 	return instance.Status == scheduleModel.InstanceStatusPlanned ||
 		instance.Status == scheduleModel.InstanceStatusActive
@@ -77,8 +60,7 @@ func isPlannableInstance(instance *scheduleModel.ActivityInstance) bool {
 // the group-scoped activity_update per touched active group, plus — when the
 // save actually changed staffing state (any applied write, an acknowledgement
 // change, or a cleared stale ack) — the tenant-wide staffing_deviation_changed
-// invalidation (#1844). Kept out of applyDeviations so the handler's gocognit
-// score stays within its ratchet allowance.
+// invalidation (#1844).
 func (rs *Resource) broadcastDeviationSaveEvents(
 	ctx context.Context,
 	touched map[int64]*scheduleModel.ActivityInstance,
@@ -95,10 +77,10 @@ func (rs *Resource) broadcastDeviationSaveEvents(
 // broadcastStaffingDeviationChanged queues one tenant-wide
 // staffing_deviation_changed event after the surrounding tenant transaction
 // commits. Deviation writes on still-planned blocks emit no instance_*
-// lifecycle event, and the group-scoped activity_update below only reaches
-// clients subscribed to the active group — so without this signal an open
-// staff page (Betreuungsplan card, planner) stays stale until reload (#1844).
-// source names the emitting flow for log review.
+// lifecycle event, and the group-scoped activity_update only reaches clients
+// subscribed to the active group — so without this signal an open staff page
+// (Betreuungsplan card, planner) stays stale until reload (#1844). source names
+// the emitting flow for log review.
 func (rs *Resource) broadcastStaffingDeviationChanged(ctx context.Context, source string) {
 	if rs.Broadcaster == nil {
 		return

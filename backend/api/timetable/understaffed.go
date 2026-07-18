@@ -7,6 +7,10 @@
 // shortfall instead of an open gap. Clearing (ack=false) also clears the note.
 // Permission: SchedulesManage — same as the lifecycle mutations. Runs in the
 // shared tenant tx.
+//
+// The past-block guard, day-lock, and concurrent-move detection live in
+// InstanceService.AcknowledgeUnderstaffed; the handler only validates the note
+// shape and shapes the response.
 package timetable
 
 import (
@@ -84,25 +88,9 @@ func (rs *Resource) acknowledgeUnderstaffed(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	// Past blocks are historical record and read-only, exactly as on the
-	// /deviations flow. Status alone is insufficient: a materialized past
-	// occurrence can still be "planned"/"active", so the service's status-only
-	// check would otherwise let a historical staffing record be rewritten (set
-	// OR cleared) through this public endpoint. GuardDeviationDate gates on the
-	// Berlin calendar date and takes the shared (tenant, date) day lock, reading
-	// under it to detect a concurrent move (#1840). The nil check only keeps the
-	// mock-based handler unit tests (which inject no data service) working —
-	// TimetableData is always wired in production.
-	if rs.TimetableData != nil {
-		if err := rs.TimetableData.GuardDeviationDate(r.Context(), id); err != nil {
-			renderDeviationPlanError(w, r, err)
-			return
-		}
-	}
-
-	instance, err := rs.InstanceService.SetUnderstaffedAck(r.Context(), id, *req.Ack, req.Note, resolveActorAccountID(r.Context()))
+	instance, err := rs.InstanceService.AcknowledgeUnderstaffed(r.Context(), id, *req.Ack, req.Note, resolveActorAccountID(r.Context()))
 	if err != nil {
-		renderInstanceLifecycleError(w, r, err)
+		renderDeviationError(w, r, err)
 		return
 	}
 
