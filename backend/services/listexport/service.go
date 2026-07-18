@@ -21,7 +21,7 @@ func (s *RendererService) Render(doc Document, format Format, filenameBase strin
 	}
 	switch format {
 	case FormatPDF:
-		data, err := renderPDF(doc)
+		data, err := renderPDFDesigned(doc)
 		if err != nil {
 			return File{}, err
 		}
