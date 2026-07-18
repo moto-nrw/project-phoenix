@@ -78,7 +78,7 @@ func (s *service) notifyGuardians(ctx context.Context, appointment *calModels.Ap
 		return err
 	}
 	if recurrence != nil {
-		if first := firstRecurrenceOccurrence(appointment, recurrence); first != appointment.StartDate {
+		if first, ok := firstRecurrenceOccurrence(appointment, recurrence); ok && first != appointment.StartDate {
 			adjusted := *appointment
 			adjusted.EndDate = first.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate))
 			adjusted.StartDate = first

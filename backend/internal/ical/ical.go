@@ -48,7 +48,10 @@ type Event struct {
 	Cancelled   bool
 	Sequence    int
 	Stamp       time.Time // DTSTAMP — pass a fixed value so output is stable
-	Recurrence  *Recurrence
+	// LastModified drives LAST-MODIFIED; together with Sequence it tells clients
+	// this VEVENT is a newer revision so edits/cancellations are not ignored.
+	LastModified time.Time
+	Recurrence   *Recurrence
 	// ExDates are recurrence exceptions (single occurrences cancelled via an
 	// occurrence override). Emitted as EXDATE lines so subscribed calendars drop
 	// those dates from the RRULE expansion. Only meaningful when Recurrence is set.
@@ -91,6 +94,9 @@ func writeEvent(b *strings.Builder, event Event) {
 	if event.Sequence > 0 {
 		writeLine(b, fmt.Sprintf("SEQUENCE:%d", event.Sequence))
 	}
+	if !event.LastModified.IsZero() {
+		writeLine(b, "LAST-MODIFIED:"+formatUTC(event.LastModified))
+	}
 
 	if event.AllDay {
 		writeLine(b, "DTSTART;VALUE=DATE:"+formatDate(event.StartDate))
@@ -101,7 +107,7 @@ func writeEvent(b *strings.Builder, event Event) {
 		writeLine(b, "DTEND;TZID="+berlinTZID+":"+formatLocal(event.EndDate, event.EndClock))
 	}
 
-	if rrule := formatRRULE(event.Recurrence); rrule != "" {
+	if rrule := formatRRULE(event.Recurrence, event.AllDay); rrule != "" {
 		writeLine(b, "RRULE:"+rrule)
 		// EXDATEs only make sense alongside an RRULE; emit one line per excluded
 		// occurrence so clients that don't merge comma-lists still drop each date.
@@ -129,7 +135,7 @@ func writeEvent(b *strings.Builder, event Event) {
 	writeLine(b, "END:VEVENT")
 }
 
-func formatRRULE(r *Recurrence) string {
+func formatRRULE(r *Recurrence, allDay bool) string {
 	if r == nil {
 		return ""
 	}
@@ -141,7 +147,11 @@ func formatRRULE(r *Recurrence) string {
 	if r.Interval > 1 {
 		parts = append(parts, fmt.Sprintf("INTERVAL=%d", r.Interval))
 	}
-	if len(r.Weekdays) > 0 {
+	// Only emit the BY* filters the application actually evaluates for this
+	// frequency: weekly reads BYDAY, monthly reads BYMONTHDAY, daily/yearly read
+	// neither. Emitting BYDAY on a DAILY rule (which the app ignores) would make
+	// the exported series diverge from the in-app expansion.
+	if freq == "WEEKLY" && len(r.Weekdays) > 0 {
 		days := make([]string, 0, len(r.Weekdays))
 		for _, wd := range r.Weekdays {
 			if ics, ok := weekdayToICS[strings.ToLower(strings.TrimSpace(wd))]; ok {
@@ -152,7 +162,7 @@ func formatRRULE(r *Recurrence) string {
 			parts = append(parts, "BYDAY="+strings.Join(days, ","))
 		}
 	}
-	if len(r.MonthDays) > 0 {
+	if freq == "MONTHLY" && len(r.MonthDays) > 0 {
 		days := make([]string, 0, len(r.MonthDays))
 		for _, d := range r.MonthDays {
 			days = append(days, fmt.Sprintf("%d", d))
@@ -160,8 +170,13 @@ func formatRRULE(r *Recurrence) string {
 		parts = append(parts, "BYMONTHDAY="+strings.Join(days, ","))
 	}
 	if r.Until != nil {
-		// UNTIL is inclusive; use end-of-day in UTC so the last occurrence counts.
-		parts = append(parts, "UNTIL="+formatUTC(r.Until.EndOfDay().UTC()))
+		// UNTIL's value type must match DTSTART: a date for all-day events, a UTC
+		// date-time otherwise. It is inclusive either way.
+		if allDay {
+			parts = append(parts, "UNTIL="+formatDate(*r.Until))
+		} else {
+			parts = append(parts, "UNTIL="+formatUTC(r.Until.EndOfDay().UTC()))
+		}
 	} else if r.Count != nil && *r.Count > 0 {
 		parts = append(parts, fmt.Sprintf("COUNT=%d", *r.Count))
 	}

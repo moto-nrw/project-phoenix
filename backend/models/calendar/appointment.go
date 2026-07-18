@@ -73,6 +73,10 @@ type Appointment struct {
 	DeliveryMode       string        `bun:"delivery_mode,notnull" json:"delivery_mode"`
 	OverviewVisibility string        `bun:"overview_visibility,notnull,default:'organizer'" json:"overview_visibility"`
 	CancelledAt        *time.Time    `bun:"cancelled_at" json:"cancelled_at,omitempty"`
+	// Revision is a monotonically increasing change counter used as the
+	// iCalendar SEQUENCE, so subscribed clients recognise edits/cancellations as
+	// newer revisions instead of retaining stale events.
+	Revision int `bun:"revision,notnull,default:0" json:"revision"`
 }
 
 func (a *Appointment) Validate() error {

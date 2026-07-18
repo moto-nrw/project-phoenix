@@ -351,6 +351,9 @@ func (s *service) CreateStaffAppointment(ctx context.Context, req CreateAppointm
 		if recurrence.EndsOn != nil && recurrence.EndsOn.Before(appointment.StartDate) {
 			return nil, fmt.Errorf("%w: recurrence end must be on or after start date", ErrInvalidRequest)
 		}
+		if _, ok := firstRecurrenceOccurrence(appointment, recurrence); !ok {
+			return nil, fmt.Errorf("%w: recurrence produces no occurrences", ErrInvalidRequest)
+		}
 		recurrence.AppointmentID = 0
 	}
 
@@ -473,6 +476,12 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 	if err != nil {
 		return nil, err
 	}
+	// A cancelled appointment is terminal: there is no reactivation flow, so
+	// editing it (which would also fire a "Termin geändert" notice while the
+	// appointment stays cancelled) is rejected outright.
+	if appointment.CancelledAt != nil {
+		return nil, fmt.Errorf("%w: appointment is cancelled", ErrInvalidRequest)
+	}
 	if req.OverviewVisibility == "" {
 		req.OverviewVisibility = appointment.OverviewVisibility
 	}
@@ -501,6 +510,9 @@ func (s *service) UpdateStaffAppointment(ctx context.Context, appointmentID int6
 		}
 		if recurrence.EndsOn != nil && recurrence.EndsOn.Before(appointment.StartDate) {
 			return nil, fmt.Errorf("%w: recurrence end must be on or after start date", ErrInvalidRequest)
+		}
+		if _, ok := firstRecurrenceOccurrence(appointment, recurrence); !ok {
+			return nil, fmt.Errorf("%w: recurrence produces no occurrences", ErrInvalidRequest)
 		}
 	}
 
@@ -586,6 +598,20 @@ func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointm
 	if occurrenceDate.IsZero() {
 		return fmt.Errorf("%w: occurrence date is required", ErrInvalidRequest)
 	}
+	// A single-occurrence cancellation only makes sense for a date the series
+	// actually generates. Without this guard, cancelling a non-recurring
+	// appointment (or a date not in the series) would persist a useless override
+	// while the appointment stayed fully visible.
+	recurrence, err := s.cfg.RecurrenceRepo.FindByAppointmentID(ctx, appointment.ID)
+	if err != nil {
+		return err
+	}
+	if recurrence == nil {
+		return fmt.Errorf("%w: appointment is not recurring", ErrInvalidRequest)
+	}
+	if !occurrenceExists(appointment, recurrence, occurrenceDate) {
+		return fmt.Errorf("%w: occurrence date is not part of the series", ErrInvalidRequest)
+	}
 	// Reuse an existing override for this date (e.g. from a prior single-occurrence
 	// edit) so cancelling stays idempotent and respects the (appointment, date)
 	// uniqueness constraint.
@@ -599,13 +625,33 @@ func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointm
 			return nil
 		}
 		override.Cancelled = true
-		return s.cfg.OverrideRepo.Update(ctx, override)
+		if err := s.cfg.OverrideRepo.Update(ctx, override); err != nil {
+			return err
+		}
+		// Bump the parent revision so the feed re-exports with a higher SEQUENCE
+		// and subscribers honour the new EXDATE.
+		return s.cfg.AppointmentRepo.BumpRevision(ctx, appointment.ID)
 	}
-	return s.cfg.OverrideRepo.Create(ctx, &calModels.AppointmentOccurrenceOverride{
+	if err := s.cfg.OverrideRepo.Create(ctx, &calModels.AppointmentOccurrenceOverride{
 		AppointmentID:  appointment.ID,
 		OccurrenceDate: occurrenceDate,
 		Cancelled:      true,
-	})
+	}); err != nil {
+		return err
+	}
+	return s.cfg.AppointmentRepo.BumpRevision(ctx, appointment.ID)
+}
+
+// occurrenceExists reports whether occurrenceDate is one of the dates the
+// recurrence generates, reusing the same expansion the in-app calendar uses so
+// the two never disagree.
+func occurrenceExists(appointment *calModels.Appointment, rule *calModels.RecurrenceRule, occurrenceDate timezone.Date) bool {
+	for _, occ := range expandOccurrences(appointment, rule, appointment.StartDate, occurrenceDate) {
+		if occ == occurrenceDate {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID int64) (*AppointmentOverview, error) {
@@ -1193,6 +1239,60 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 		}
 		return added, nil
 	}
+	// addStudentsGuardians is the bulk equivalent for multi-student targets
+	// (whole-school / group / class). It resolves every student's guardian links
+	// AND their active-portal status in two queries total, seeding
+	// activeGuardianCache so the per-guardian add below never re-queries — a
+	// school-wide appointment would otherwise fan out into thousands of queries.
+	addStudentsGuardians := func(studentIDs []int64) (int, error) {
+		if len(studentIDs) == 0 {
+			return 0, nil
+		}
+		links, err := s.cfg.StudentGuardianRepo.FindByStudentIDs(ctx, studentIDs)
+		if err != nil {
+			return 0, err
+		}
+		pending := make([]int64, 0, len(links))
+		seenPending := map[int64]struct{}{}
+		for _, link := range links {
+			if !authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
+				continue
+			}
+			if _, cached := activeGuardianCache[link.GuardianProfileID]; cached {
+				continue
+			}
+			if _, dup := seenPending[link.GuardianProfileID]; dup {
+				continue
+			}
+			seenPending[link.GuardianProfileID] = struct{}{}
+			pending = append(pending, link.GuardianProfileID)
+		}
+		if len(pending) > 0 {
+			active, err := s.cfg.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, pending)
+			if err != nil {
+				return 0, err
+			}
+			for _, id := range pending {
+				_, ok := active[id]
+				activeGuardianCache[id] = ok
+			}
+		}
+		added := 0
+		for _, link := range links {
+			if !authorize.StudentGuardianHasPermission(link, authorize.GuardianPermissionPortalAccess) {
+				continue
+			}
+			studentID := link.StudentID
+			ok, err := addGuardian(link.GuardianProfileID, &studentID)
+			if err != nil {
+				return 0, err
+			}
+			if ok {
+				added++
+			}
+		}
+		return added, nil
+	}
 
 	for _, target := range targets {
 		targetRows = append(targetRows, &calModels.AppointmentTarget{
@@ -1253,20 +1353,19 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 				return nil, nil, nil, fmt.Errorf("%w: guardian target is not portal-visible", ErrInvalidRequest)
 			}
 		case calModels.TargetTypeAllSchoolParents:
-			// Every portal-active guardian of the school. Reuse addStudentGuardians
-			// per student so the same portal-access + active-account filtering as
-			// the narrower parent targets applies.
+			// Every portal-active guardian of the school. Resolve in bulk so a
+			// school-wide appointment stays a couple of queries, not one per student.
 			students, err := s.cfg.StudentRepo.List(ctx, nil)
 			if err != nil {
 				return nil, nil, nil, err
 			}
-			added := 0
+			studentIDs := make([]int64, 0, len(students))
 			for _, student := range students {
-				count, err := addStudentGuardians(student.ID)
-				if err != nil {
-					return nil, nil, nil, err
-				}
-				added += count
+				studentIDs = append(studentIDs, student.ID)
+			}
+			added, err := addStudentsGuardians(studentIDs)
+			if err != nil {
+				return nil, nil, nil, err
 			}
 			if added == 0 {
 				return nil, nil, nil, fmt.Errorf("%w: no reachable guardians at this school", ErrInvalidRequest)
@@ -1290,13 +1389,13 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			if err != nil {
 				return nil, nil, nil, err
 			}
-			added := 0
+			studentIDs := make([]int64, 0, len(students))
 			for _, student := range students {
-				count, err := addStudentGuardians(student.ID)
-				if err != nil {
-					return nil, nil, nil, err
-				}
-				added += count
+				studentIDs = append(studentIDs, student.ID)
+			}
+			added, err := addStudentsGuardians(studentIDs)
+			if err != nil {
+				return nil, nil, nil, err
 			}
 			if added == 0 {
 				return nil, nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
@@ -1309,13 +1408,13 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 			if err != nil {
 				return nil, nil, nil, err
 			}
-			added := 0
+			studentIDs := make([]int64, 0, len(students))
 			for _, student := range students {
-				count, err := addStudentGuardians(student.ID)
-				if err != nil {
-					return nil, nil, nil, err
-				}
-				added += count
+				studentIDs = append(studentIDs, student.ID)
+			}
+			added, err := addStudentsGuardians(studentIDs)
+			if err != nil {
+				return nil, nil, nil, err
 			}
 			if added == 0 {
 				return nil, nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
@@ -1675,14 +1774,16 @@ func expandOccurrences(appointment *calModels.Appointment, rule *calModels.Recur
 }
 
 // firstRecurrenceOccurrence returns the first calendar date on or after the
-// appointment's StartDate that satisfies the recurrence rule. For a weekly rule
-// whose selected weekdays exclude StartDate's own weekday, this is later than
+// appointment's StartDate that satisfies the recurrence rule, and ok=false when
+// the rule generates no occurrence at all (e.g. a weekly rule whose weekdays
+// never fall within its EndsOn window). For a weekly rule whose selected
+// weekdays exclude StartDate's own weekday the first occurrence is later than
 // StartDate: the in-app expansion (expandOccurrences) starts there, so ICS
-// DTSTART must too — otherwise clients render a phantom occurrence on the
-// non-matching StartDate and diverge from the app. Falls back to StartDate.
-func firstRecurrenceOccurrence(appointment *calModels.Appointment, rule *calModels.RecurrenceRule) timezone.Date {
+// DTSTART must too. When ok=false callers must NOT fall back to StartDate — that
+// would export/email a phantom appointment on a date the series never produces.
+func firstRecurrenceOccurrence(appointment *calModels.Appointment, rule *calModels.RecurrenceRule) (timezone.Date, bool) {
 	if rule == nil {
-		return appointment.StartDate
+		return appointment.StartDate, false
 	}
 	if rule.IntervalCount <= 0 {
 		rule.IntervalCount = 1
@@ -1696,10 +1797,10 @@ func firstRecurrenceOccurrence(appointment *calModels.Appointment, rule *calMode
 			break
 		}
 		if matchesRule(appointment.StartDate, d, rule) {
-			return d
+			return d, true
 		}
 	}
-	return appointment.StartDate
+	return appointment.StartDate, false
 }
 
 func occurrenceDatesForAppointments(appointments []*calModels.Appointment, recurrenceByAppointment map[int64]*calModels.RecurrenceRule, from, to timezone.Date) []timezone.Date {

@@ -260,7 +260,9 @@ export interface CalendarAppointmentDetail {
     readonly frequency: "daily" | "weekly" | "monthly" | "yearly";
     readonly interval_count: number;
     readonly weekdays?: string[];
+    readonly month_days?: number[];
     readonly ends_on?: string;
+    readonly occurrence_count?: number;
   } | null;
 }
 

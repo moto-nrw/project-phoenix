@@ -128,14 +128,22 @@ func appointmentICSEvent(appointment *calModels.Appointment, recurrence *calMode
 		EndClock:    appointment.EndTime,
 		AllDay:      appointment.AllDay,
 		Cancelled:   appointment.CancelledAt != nil,
+		Sequence:    appointment.Revision,
 		Stamp:       appointment.UpdatedAt,
+		// LAST-MODIFIED + SEQUENCE together tell subscribers this VEVENT is a newer
+		// revision, so edits and cancellations are honoured rather than ignored.
+		LastModified: appointment.UpdatedAt,
 	}
-	if recurrence != nil {
+	// Only emit an RRULE when the rule actually produces an occurrence. A rule
+	// that generates none (e.g. weekly weekdays outside its EndsOn window) is
+	// rejected at create/update, so this guard is defensive: it prevents a
+	// phantom recurring series from ever being exported.
+	if first, ok := firstRecurrenceOccurrence(appointment, recurrence); ok {
 		// DTSTART must be the first real occurrence, not the raw StartDate: for a
 		// weekly rule whose weekdays exclude StartDate's weekday the app starts on
 		// the first matching weekday, so anchor the exported series there too (and
 		// shift EndDate by the same span to preserve each occurrence's duration).
-		if first := firstRecurrenceOccurrence(appointment, recurrence); first != appointment.StartDate {
+		if first != appointment.StartDate {
 			event.StartDate = first
 			event.EndDate = first.AddDays(appointment.StartDate.DaysUntil(appointment.EndDate))
 		}

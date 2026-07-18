@@ -147,6 +147,9 @@ func (r *AppointmentRepository) Update(ctx context.Context, appointment *calMode
 		Set(`overview_visibility = ?`, appointment.OverviewVisibility).
 		Set(`cancelled_at = ?`, appointment.CancelledAt).
 		Set(`updated_at = ?`, appointment.UpdatedAt).
+		// Every persisted edit bumps the revision so the iCalendar SEQUENCE
+		// advances and subscribers treat the event as a newer version.
+		Set(`revision = revision + 1`).
 		Where(`"appointment".id = ?`, appointment.ID)
 
 	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
@@ -158,6 +161,25 @@ func (r *AppointmentRepository) Update(ctx context.Context, appointment *calMode
 		return fmt.Errorf("update appointment: %w", err)
 	}
 	return base.AssertRowsAffected(result, 1, "update Appointment")
+}
+
+// BumpRevision advances the appointment's revision (and updated_at) without
+// touching any other field. Used when a change that alters the exported
+// calendar lives in a child table (a single-occurrence cancellation override),
+// so subscribers still see a newer SEQUENCE and honour the new EXDATE.
+func (r *AppointmentRepository) BumpRevision(ctx context.Context, appointmentID int64) error {
+	q := base.GetDB(ctx, r.DB).NewUpdate().
+		TableExpr(tableExprAppointmentsAsAppointment).
+		Set(`revision = revision + 1`).
+		Set(`updated_at = ?`, time.Now()).
+		Where(`"appointment".id = ?`, appointmentID)
+	if where, val, ok := base.TenantWhere(ctx, "appointment"); ok {
+		q = q.Where(where, val)
+	}
+	if _, err := q.Exec(ctx); err != nil {
+		return fmt.Errorf("bump appointment revision: %w", err)
+	}
+	return nil
 }
 
 func applyAppointmentWindow(query *bun.SelectQuery, from, to timezone.Date) *bun.SelectQuery {

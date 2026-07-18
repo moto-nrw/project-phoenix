@@ -1671,3 +1671,212 @@ func TestCalendarServiceIntegration_CancelledAppointmentNotRespondable(t *testin
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
 }
+
+// A cancelled appointment is terminal: editing it (which would re-notify while
+// it stays cancelled) must be rejected.
+func TestCalendarServiceIntegration_EditCancelledAppointmentRejected(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "EditCancel", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "EditCancel", "Invitee")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Termin",
+		StartDate:    timezone.NewDate(2026, 8, 3),
+		EndDate:      timezone.NewDate(2026, 8, 3),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	_, err = service.CancelStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+
+	_, err = service.UpdateStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
+		Title:     "Termin (editiert)",
+		StartDate: timezone.NewDate(2026, 8, 4),
+		EndDate:   timezone.NewDate(2026, 8, 4),
+		StartTime: wallClock(9, 0),
+		EndTime:   wallClock(10, 0),
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
+}
+
+// Single-occurrence cancellation must reject non-recurring appointments and
+// dates the series never generates.
+func TestCalendarServiceIntegration_CancelOccurrenceValidation(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "OccValid", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "OccValid", "Invitee")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	// Non-recurring appointment: cancelling an occurrence is rejected.
+	single, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Einmalig",
+		StartDate:    timezone.NewDate(2026, 9, 1),
+		EndDate:      timezone.NewDate(2026, 9, 1),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, single.Appointment.ID) })
+
+	err = service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), single.Appointment.ID, timezone.NewDate(2026, 9, 1))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
+
+	// Recurring appointment: a date the series does not generate is rejected, a
+	// generated date succeeds.
+	endsOn := timezone.NewDate(2026, 9, 28)
+	recurring, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Montags",
+		StartDate:    timezone.NewDate(2026, 9, 7), // Monday
+		EndDate:      timezone.NewDate(2026, 9, 7),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{"monday"},
+			EndsOn:        &endsOn,
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, recurring.Appointment.ID) })
+
+	// 2026-09-08 is a Tuesday — not part of the Monday series.
+	err = service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), recurring.Appointment.ID, timezone.NewDate(2026, 9, 8))
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
+
+	// 2026-09-14 is a generated Monday — accepted.
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), recurring.Appointment.ID, timezone.NewDate(2026, 9, 14)))
+}
+
+// A recurrence that generates no occurrence (weekly weekday outside its EndsOn
+// window) must be rejected at create time rather than persisting a phantom.
+func TestCalendarServiceIntegration_EmptyRecurrenceRejected(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "EmptyRec", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "EmptyRec", "Invitee")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	endsOn := timezone.NewDate(2026, 5, 5) // Tuesday — no Wednesday in [Mon, Tue]
+	_, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Nie",
+		StartDate:    timezone.NewDate(2026, 5, 4), // Monday
+		EndDate:      timezone.NewDate(2026, 5, 4),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{"wednesday"},
+			EndsOn:        &endsOn,
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+		},
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, calendarSvc.ErrInvalidRequest))
+}
+
+// The exported ICS SEQUENCE advances on every change (edit and single-occurrence
+// cancellation) so subscribers treat the event as a newer revision.
+func TestCalendarServiceIntegration_ICSRevisionSequence(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Revision", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Revision", "Invitee")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	endsOn := timezone.NewDate(2026, 10, 26)
+	weekly := func() *calendarSvc.RecurrenceRequest {
+		return &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{"monday"},
+			EndsOn:        &endsOn,
+		}
+	}
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Reihe",
+		StartDate:    timezone.NewDate(2026, 10, 5), // Monday
+		EndDate:      timezone.NewDate(2026, 10, 5),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(10, 0),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence:   weekly(),
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	// Freshly created: revision 0, so no SEQUENCE line.
+	_, content, err := service.StaffAppointmentICS(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+	assert.NotContains(t, content, "SEQUENCE:")
+
+	// Editing bumps the revision → SEQUENCE:1.
+	_, err = service.UpdateStaffAppointment(calendarContext(organizerAccount.ID), detail.Appointment.ID, calendarSvc.UpdateAppointmentRequest{
+		Title:      "Reihe (v2)",
+		StartDate:  timezone.NewDate(2026, 10, 5),
+		EndDate:    timezone.NewDate(2026, 10, 5),
+		StartTime:  wallClock(9, 0),
+		EndTime:    wallClock(10, 0),
+		Recurrence: weekly(),
+	})
+	require.NoError(t, err)
+	_, content, err = service.StaffAppointmentICS(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+	assert.Contains(t, content, "SEQUENCE:1")
+	assert.Contains(t, content, "LAST-MODIFIED:")
+
+	// Cancelling a single occurrence bumps it again → SEQUENCE:2 (and an EXDATE).
+	require.NoError(t, service.CancelStaffAppointmentOccurrence(calendarContext(organizerAccount.ID), detail.Appointment.ID, timezone.NewDate(2026, 10, 12)))
+	_, content, err = service.StaffAppointmentICS(calendarContext(organizerAccount.ID), detail.Appointment.ID)
+	require.NoError(t, err)
+	assert.Contains(t, content, "SEQUENCE:2")
+	assert.Contains(t, content, "EXDATE;TZID=Europe/Berlin:20261012T090000")
+}

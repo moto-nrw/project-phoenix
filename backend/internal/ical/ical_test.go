@@ -166,3 +166,79 @@ func TestRenderCancelledAndEscaping(t *testing.T) {
 		t.Errorf("newline not escaped\n%s", out)
 	}
 }
+
+func TestRenderAllDayRecurrenceUntilIsDate(t *testing.T) {
+	until := timezone.NewDate(2026, 6, 30)
+	out := Render("", []Event{{
+		UID:        "appt-allday-rrule@moto",
+		Summary:    "Ganztägige Reihe",
+		StartDate:  timezone.NewDate(2026, 4, 6),
+		EndDate:    timezone.NewDate(2026, 4, 6),
+		AllDay:     true,
+		Stamp:      stamp(),
+		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}, Until: &until},
+	}})
+	// An all-day (VALUE=DATE) DTSTART requires a date-valued UNTIL, not a
+	// date-time; a date-time UNTIL here is invalid iCalendar.
+	if !strings.Contains(out, "UNTIL=20260630") {
+		t.Errorf("all-day recurrence must include UNTIL=20260630\n%s", out)
+	}
+	if strings.Contains(out, "UNTIL=20260630T") {
+		t.Errorf("all-day recurrence must not emit a date-time UNTIL\n%s", out)
+	}
+}
+
+func TestRenderRRULEFiltersMatchFrequency(t *testing.T) {
+	// A daily rule that happens to carry weekdays must NOT export BYDAY — the app
+	// ignores weekdays for daily rules, so exporting BYDAY would diverge.
+	daily := Render("", []Event{{
+		UID:        "appt-daily@moto",
+		Summary:    "Täglich",
+		StartDate:  timezone.NewDate(2026, 4, 6),
+		EndDate:    timezone.NewDate(2026, 4, 6),
+		StartClock: timezone.WallClock(time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC)),
+		EndClock:   timezone.WallClock(time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC)),
+		Stamp:      stamp(),
+		Recurrence: &Recurrence{Freq: "daily", Interval: 1, Weekdays: []string{"monday"}},
+	}})
+	if strings.Contains(daily, "BYDAY") {
+		t.Errorf("daily rule must not export BYDAY\n%s", daily)
+	}
+
+	// A weekly rule carrying month_days must export BYDAY but NOT BYMONTHDAY.
+	weekly := Render("", []Event{{
+		UID:        "appt-weekly@moto",
+		Summary:    "Wöchentlich",
+		StartDate:  timezone.NewDate(2026, 4, 6),
+		EndDate:    timezone.NewDate(2026, 4, 6),
+		StartClock: timezone.WallClock(time.Date(1, 1, 1, 9, 0, 0, 0, time.UTC)),
+		EndClock:   timezone.WallClock(time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC)),
+		Stamp:      stamp(),
+		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}, MonthDays: []int{15}},
+	}})
+	if !strings.Contains(weekly, "BYDAY=MO") {
+		t.Errorf("weekly rule must export BYDAY\n%s", weekly)
+	}
+	if strings.Contains(weekly, "BYMONTHDAY") {
+		t.Errorf("weekly rule must not export BYMONTHDAY\n%s", weekly)
+	}
+}
+
+func TestRenderSequenceAndLastModified(t *testing.T) {
+	out := Render("", []Event{{
+		UID:          "appt-rev@moto",
+		Summary:      "Geändert",
+		StartDate:    timezone.NewDate(2026, 4, 2),
+		EndDate:      timezone.NewDate(2026, 4, 2),
+		AllDay:       true,
+		Sequence:     3,
+		Stamp:        stamp(),
+		LastModified: time.Date(2026, 2, 1, 8, 30, 0, 0, time.UTC),
+	}})
+	if !strings.Contains(out, "SEQUENCE:3") {
+		t.Errorf("missing SEQUENCE\n%s", out)
+	}
+	if !strings.Contains(out, "LAST-MODIFIED:20260201T083000Z") {
+		t.Errorf("missing LAST-MODIFIED\n%s", out)
+	}
+}

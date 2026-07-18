@@ -10,6 +10,9 @@ type AppointmentRepository interface {
 	Create(ctx context.Context, appointment *Appointment) error
 	FindByID(ctx context.Context, id int64) (*Appointment, error)
 	Update(ctx context.Context, appointment *Appointment) error
+	// BumpRevision advances the revision counter without touching other fields,
+	// used when a change affecting the exported calendar lives in a child table.
+	BumpRevision(ctx context.Context, appointmentID int64) error
 	Delete(ctx context.Context, id any) error
 	ListVisibleForStaff(ctx context.Context, staffID int64, from, to timezone.Date) ([]*Appointment, error)
 	ListVisibleForGuardianProfiles(ctx context.Context, guardianProfileIDs []int64, studentIDs []int64, from, to timezone.Date) ([]*Appointment, error)

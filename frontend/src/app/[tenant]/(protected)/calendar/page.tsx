@@ -303,6 +303,12 @@ export default function StaffCalendarPage() {
   const [intervalCount, setIntervalCount] = useState(1);
   const [weeklyDays, setWeeklyDays] = useState<string[]>([]);
   const [endsOn, setEndsOn] = useState("");
+  // Recurrence fields the form has no dedicated control for yet (monthly
+  // by-day-of-month, count-based end). They are preserved verbatim across an
+  // edit so re-saving a series never silently drops them (which would change
+  // the schedule or make a bounded series unbounded).
+  const [monthDays, setMonthDays] = useState<number[]>([]);
+  const [occurrenceCount, setOccurrenceCount] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [respondingRecipientId, setRespondingRecipientId] = useState<
     string | null
@@ -373,6 +379,8 @@ export default function StaffCalendarPage() {
     setEndsOn("");
     setWeeklyDays([]);
     setIntervalCount(1);
+    setMonthDays([]);
+    setOccurrenceCount(null);
     setOverviewVisibility("organizer");
     setDeliveryMode("rsvp_required");
     setSendEmail(false);
@@ -418,11 +426,16 @@ export default function StaffCalendarPage() {
         setIntervalCount(detail.recurrence.interval_count);
         setWeeklyDays(detail.recurrence.weekdays ?? []);
         setEndsOn(detail.recurrence.ends_on ?? "");
+        // Preserve fields the form can't yet edit so re-saving doesn't drop them.
+        setMonthDays(detail.recurrence.month_days ?? []);
+        setOccurrenceCount(detail.recurrence.occurrence_count ?? null);
       } else {
         setFrequency("none");
         setIntervalCount(1);
         setWeeklyDays([]);
         setEndsOn("");
+        setMonthDays([]);
+        setOccurrenceCount(null);
       }
       setEditingId(event.appointment_id);
       setFormOpen(true);
@@ -529,7 +542,17 @@ export default function StaffCalendarPage() {
                   ? weeklyDays
                   : [weekdayName(startDate)]
                 : undefined,
+            // Preserve monthly day-of-month selection through an edit.
+            month_days:
+              frequency === "monthly" && monthDays.length > 0
+                ? monthDays
+                : undefined,
             ends_on: endsOn || undefined,
+            // ends_on and occurrence_count are mutually exclusive end modes
+            // (the backend rejects both), so only send the count when no
+            // end date is set — this keeps a count-bounded series bounded.
+            occurrence_count:
+              !endsOn && occurrenceCount ? occurrenceCount : undefined,
           };
 
     setSubmitting(true);
