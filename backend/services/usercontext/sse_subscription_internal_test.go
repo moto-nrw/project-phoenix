@@ -432,6 +432,56 @@ func TestResolveSupervisions_SettingErrorFallsBack(t *testing.T) {
 	assert.Len(t, result, 1)
 }
 
+func TestResolveSupervisions_NilActiveServiceReturnsError(t *testing.T) {
+	tests := []struct {
+		name     string
+		isAdmin  bool
+		settings SSESettingsResolver
+	}{
+		{
+			name:    "non-admin",
+			isAdmin: false,
+		},
+		{
+			name:    "admin without settings service",
+			isAdmin: true,
+		},
+		{
+			name:    "admin with overview disabled",
+			isAdmin: true,
+			settings: mockSettingsSvc(map[string]bool{
+				configModel.KeyAdminSupervisionOverview: false,
+			}),
+		},
+		{
+			name:     "admin with setting error",
+			isAdmin:  true,
+			settings: mockSettingsSvc(map[string]bool{}),
+		},
+		{
+			name:    "admin with overview enabled",
+			isAdmin: true,
+			settings: mockSettingsSvc(map[string]bool{
+				configModel.KeyAdminSupervisionOverview: true,
+			}),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rs := &userContextService{
+				sseSettings: tt.settings,
+				logger:      slog.Default(),
+			}
+
+			result, err := rs.resolveSSESupervisions(ctxWithClaims(tt.isAdmin), 42)
+
+			require.ErrorContains(t, err, "SSE active service is not configured")
+			assert.Nil(t, result)
+		})
+	}
+}
+
 func TestResolveSupervisions_StaffSupervisionsError(t *testing.T) {
 	rs := &userContextService{
 		sseSettings: mockSettingsSvc(map[string]bool{

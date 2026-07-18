@@ -2,6 +2,7 @@ package usercontext
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -142,6 +143,10 @@ func (s *userContextService) buildSSESubscription(ctx context.Context, staffID i
 // active groups (e.g. Schulhof without a current supervisor) still receive
 // live events. For regular staff, returns only their own supervised groups.
 func (s *userContextService) resolveSSESupervisions(ctx context.Context, staffID int64) ([]*active.GroupSupervisor, error) {
+	if s.sseActiveSvc == nil {
+		return nil, errors.New("SSE active service is not configured")
+	}
+
 	claims := jwt.ClaimsFromCtx(ctx)
 
 	if claims.IsAdmin && s.sseSettings != nil {
