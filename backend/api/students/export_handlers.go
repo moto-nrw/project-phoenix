@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
@@ -334,30 +335,38 @@ func applyExportFilters(students []StudentResponse, filters studentExportFilters
 	byBirthday := preset == listexport.PresetBirthdayList || len(months) > 0
 	filtered := make([]StudentResponse, 0, len(students))
 	for _, student := range students {
-		if byBirthday && !birthdayExportMatch(student, months) {
-			continue
+		if exportStudentMatchesFilters(student, filters, byBirthday, months) {
+			filtered = append(filtered, student)
 		}
-		if filters.Year != "" && filters.Year != "all" && schoolYear(student.SchoolClass) != filters.Year {
-			continue
-		}
-		if filters.Status != "" && filters.Status != "all" && exportStatus(student) != filters.Status {
-			continue
-		}
-		if !matchesAdministrativeFilters(student, filters.Bus, filters.PhotoConsent, filters.PickupStatus) {
-			continue
-		}
-		if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll && student.DayPlanningStatus != filters.DayStatus {
-			continue
-		}
-		if !matchesTimeFilter(student.PickupTime, student.PickupIsException, filters.PickupTime) {
-			continue
-		}
-		if !matchesTimeFilter(student.ArrivalTime, student.ArrivalIsException, filters.ArrivalTime) {
-			continue
-		}
-		filtered = append(filtered, student)
 	}
 	return filtered
+}
+
+// exportStudentMatchesFilters reports whether one child survives every requested
+// export filter. byBirthday and months are precomputed by applyExportFilters.
+func exportStudentMatchesFilters(student StudentResponse, filters studentExportFilters, byBirthday bool, months map[time.Month]bool) bool {
+	if byBirthday && !birthdayExportMatch(student, months) {
+		return false
+	}
+	if filters.Year != "" && filters.Year != "all" && schoolYear(student.SchoolClass) != filters.Year {
+		return false
+	}
+	if filters.Status != "" && filters.Status != "all" && exportStatus(student) != filters.Status {
+		return false
+	}
+	if !matchesAdministrativeFilters(student, filters.Bus, filters.PhotoConsent, filters.PickupStatus) {
+		return false
+	}
+	if filters.DayStatus != "" && filters.DayStatus != DayPlanningStatusAll && student.DayPlanningStatus != filters.DayStatus {
+		return false
+	}
+	if !matchesTimeFilter(student.PickupTime, student.PickupIsException, filters.PickupTime) {
+		return false
+	}
+	if !matchesTimeFilter(student.ArrivalTime, student.ArrivalIsException, filters.ArrivalTime) {
+		return false
+	}
+	return true
 }
 
 // exportSortMode resolves the ordering a request asks for. Calendar order is
@@ -452,35 +461,39 @@ func (rs *Resource) loadActiveEnrollmentSummaries(r *http.Request, studentIDs []
 	}
 	summaries := make(map[int64]string, len(studentIDs))
 	for _, studentID := range studentIDs {
-		groups := groupsByStudent[studentID]
-		if len(groups) == 0 {
-			summaries[studentID] = "Keine Anmeldung"
-			continue
-		}
-		names := make([]string, 0, len(groups))
-		seen := make(map[string]bool, len(groups))
-		for _, group := range groups {
-			if group == nil {
-				continue
-			}
-			name := strings.TrimSpace(group.Name)
-			if name == "" {
-				name = "Gruppe #" + strconv.FormatInt(group.ID, 10)
-			}
-			if seen[name] {
-				continue
-			}
-			seen[name] = true
-			names = append(names, name)
-		}
-		sort.Strings(names)
-		if len(names) == 0 {
-			summaries[studentID] = "Keine Anmeldung"
-			continue
-		}
-		summaries[studentID] = "Angemeldet: " + strings.Join(names, ", ")
+		summaries[studentID] = enrollmentSummaryLabel(groupsByStudent[studentID])
 	}
 	return summaries, nil
+}
+
+// enrollmentSummaryLabel renders the export's "angemeldet" cell for one child:
+// the deduplicated, alphabetically sorted list of active activity-group names,
+// or "Keine Anmeldung" when the child has no active enrollment.
+func enrollmentSummaryLabel(groups []*activitiesModels.Group) string {
+	if len(groups) == 0 {
+		return "Keine Anmeldung"
+	}
+	names := make([]string, 0, len(groups))
+	seen := make(map[string]bool, len(groups))
+	for _, group := range groups {
+		if group == nil {
+			continue
+		}
+		name := strings.TrimSpace(group.Name)
+		if name == "" {
+			name = "Gruppe #" + strconv.FormatInt(group.ID, 10)
+		}
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if len(names) == 0 {
+		return "Keine Anmeldung"
+	}
+	return "Angemeldet: " + strings.Join(names, ", ")
 }
 
 func columnsContain(columns []listexport.Column, id listexport.ColumnID) bool {
