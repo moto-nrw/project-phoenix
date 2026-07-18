@@ -97,7 +97,11 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		// must start clean and only carry the requested date's status days.
 		resetScheduledStatusFlags(responses)
 	}
-	rs.applyStatusDaysForDate(r.Context(), responses, planningDate.BerlinMidnight())
+	if err := rs.applyStatusDaysForDate(r.Context(), responses, planningDate.BerlinMidnight()); err != nil {
+		slog.Default().Error("failed to apply student status days", slog.String("error", err.Error()))
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	if err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
 		slog.Default().Error("failed to enrich student day planning", slog.String("error", err.Error()))
 		renderError(w, r, common.ErrorInternalServer(err))

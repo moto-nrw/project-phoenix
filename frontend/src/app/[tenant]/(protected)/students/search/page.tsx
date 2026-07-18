@@ -772,11 +772,13 @@ function SearchPageContent() {
   // Planning date (#1939). Always read from the real URL, never from the
   // stored-filter fallback. null = "follow the school-local today": the
   // default view tracks the Berlin day as it advances past midnight, while an
-  // explicitly chosen date stays fixed. A URL date naming today collapses to
-  // the implicit default — that is also what updateSelectedDate writes.
+  // explicitly chosen date stays fixed. Only a strictly-future URL date is kept
+  // explicit: a date naming today collapses to the implicit default, and a past
+  // date (bookmarked or hand-edited URL) is rejected too — planning is
+  // future-only, so there is nothing to plan for a day that has passed.
   const [explicitDate, setExplicitDate] = useState<string | null>(() => {
     const fromUrl = normalizeDateParam(searchParams.get(DATE_QUERY_PARAM));
-    return fromUrl && fromUrl !== berlinTodayISO() ? fromUrl : null;
+    return fromUrl && fromUrl > berlinTodayISO() ? fromUrl : null;
   });
 
   const updateUrlParams = useCallback(
@@ -929,13 +931,17 @@ function SearchPageContent() {
 
   const updateSelectedDate = useCallback(
     (value: string) => {
+      // Planning is future-only: never store a past day. The picker already
+      // disables past dates, so this only guards a stray caller — clamp anything
+      // before today up to today.
+      const clamped = value < todayIso ? todayIso : value;
       // Picking the current Berlin day means "follow today", not a fixed date.
       // Compare against the same clock-derived todayIso the buttons pass, NOT a
       // fresh berlinTodayISO(): near Berlin midnight the minute clock can still
       // read yesterday for up to 60s, and mixing the two days would store
       // yesterday as an explicit date and pin the page there when the user taps
       // "Heute" (#1939).
-      const explicit = value === todayIso ? null : value;
+      const explicit = clamped === todayIso ? null : clamped;
       setExplicitDate(explicit);
       updateUrlParams({ date: explicit ?? "" });
     },
@@ -1073,7 +1079,11 @@ function SearchPageContent() {
     data: studentsData,
     isLoading: isSearching,
     error: studentsError,
-  } = useSWRAuth<{ students: Student[]; requestDate: string }>(
+  } = useSWRAuth<{
+    students: Student[];
+    requestDate: string;
+    requestIsToday: boolean;
+  }>(
     studentsCacheKey,
     async () => {
       const filters = {
@@ -1108,10 +1118,18 @@ function SearchPageContent() {
       };
 
       const result = await studentService.getStudents(filters);
-      // Tag the response with the date it was fetched for so date-sensitive
-      // rendering can tell a fresh result apart from keepPreviousData holding
-      // the previous day's rows during a date switch (#1939).
-      return { students: result.students, requestDate: selectedDate };
+      // Tag the response with the date AND today/planning mode it was fetched
+      // for so date-sensitive rendering can tell a fresh result apart from
+      // keepPreviousData holding the previous request's rows. The mode matters
+      // on top of the date: when a selected future date rolls over to today at
+      // midnight, selectedDate is unchanged but the semantics flip from planning
+      // to live — the stale planning rows must not be shown under live presence
+      // badges and check-in controls (#1939).
+      return {
+        students: result.students,
+        requestDate: selectedDate,
+        requestIsToday: isToday,
+      };
     },
     {
       // Keep previous data while fetching (prevents loading flash)
@@ -1270,16 +1288,20 @@ function SearchPageContent() {
     removeStoredFilters(storageKey);
   }, [storageKey, updateUrlParams]);
 
-  // keepPreviousData holds the previous day's rows until the new request
+  // keepPreviousData holds the previous request's rows until the new request
   // resolves. Gate every date-sensitive derivation on the response's own
-  // requestDate so prior-day statuses, counts, and filter options are never
-  // presented under the newly selected date (#1939). Non-date filter changes
-  // keep requestDate === selectedDate, so only date switches gate. An untagged
-  // response (requestDate absent, e.g. under test mocks) is treated as current,
-  // so this never gates a real fetch — only an in-flight date transition.
+  // requestDate AND today/planning mode so prior statuses, counts, and filter
+  // options are never presented under the newly selected date/mode (#1939).
+  // Non-date filter changes keep both tags equal, so only date OR mode switches
+  // gate. The mode tag is what catches the midnight rollover: selectedDate is
+  // unchanged when a future date becomes today, but requestIsToday flips, so a
+  // held planning response is still recognized as stale. An untagged response
+  // (requestDate absent, e.g. under test mocks) is treated as current, so this
+  // never gates a real fetch — only an in-flight date/mode transition.
   const isDateTransition =
     studentsData?.requestDate !== undefined &&
-    studentsData.requestDate !== selectedDate;
+    (studentsData.requestDate !== selectedDate ||
+      studentsData.requestIsToday !== isToday);
   const students = useMemo(
     () =>
       studentsData === undefined || isDateTransition
@@ -2140,6 +2162,7 @@ function SearchPageContent() {
         <div className="w-44">
           <DatePicker
             value={parseISODate(selectedDate)}
+            minDate={parseISODate(todayIso)}
             onChange={(date) =>
               updateSelectedDate(date ? toISODate(date) : todayIso)
             }
@@ -2182,8 +2205,15 @@ function SearchPageContent() {
           // Fix P2: Show loading while first fetch is in progress (not yet hasFetchedOnce)
           // or while a date switch is in flight — keepPreviousData still holds
           // the previous day's rows, so show the skeleton instead of presenting
-          // them under the newly selected date (#1939).
-          if ((isSearching && !hasFetchedOnce) || isDateTransition) {
+          // them under the newly selected date (#1939). Handle a fetch error
+          // FIRST, though: when the new date's request fails, keepPreviousData
+          // keeps the stale response so isDateTransition stays true — without
+          // this guard the page would show the skeleton indefinitely instead of
+          // the error and its recovery guidance (#1939).
+          if (
+            !errorMessage &&
+            ((isSearching && !hasFetchedOnce) || isDateTransition)
+          ) {
             return <StudentCardGridSkeleton />;
           }
           if (errorMessage) {

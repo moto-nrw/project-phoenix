@@ -15,6 +15,9 @@ type DatePickerProps =
       readonly className?: string;
       readonly dropdownPlacement?: "up" | "down";
       readonly calendarLayout?: "overlay" | "inline";
+      // Earliest selectable day (inclusive). Days before it are disabled — used
+      // to forbid past-date selection while keeping today choosable.
+      readonly minDate?: Date;
     }
   | {
       readonly mode: "multiple";
@@ -156,6 +159,7 @@ export function DatePicker({
           ) : (
             <DatePickerCalendar
               value={props.value}
+              minDate={props.minDate}
               dropdownPlacement={dropdownPlacement}
               calendarLayout={calendarLayout}
               onChange={(date) => {
@@ -182,11 +186,13 @@ function formatMultipleDateLabel(values: Date[]): string | null {
 
 function DatePickerCalendar({
   value,
+  minDate,
   dropdownPlacement,
   calendarLayout,
   onChange,
 }: {
   readonly value?: Date | null;
+  readonly minDate?: Date;
   readonly dropdownPlacement: "up" | "down";
   readonly calendarLayout: "overlay" | "inline";
   readonly onChange: (date: Date | null) => void;
@@ -244,6 +250,7 @@ function DatePickerCalendar({
       <DayPicker
         mode="single"
         selected={value ?? undefined}
+        disabled={minDate ? { before: minDate } : undefined}
         month={month}
         onMonthChange={setMonth}
         onSelect={(date) => onChange(date ?? null)}

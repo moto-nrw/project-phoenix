@@ -116,7 +116,10 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fullAccessIDs := collectFullAccessStudentIDs(responses)
-	rs.applyStatusDaysForDate(r.Context(), responses, planningDate.BerlinMidnight())
+	if err := rs.applyStatusDaysForDate(r.Context(), responses, planningDate.BerlinMidnight()); err != nil {
+		renderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
 	if err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
 		renderError(w, r, common.ErrorInternalServer(err))
 		return
