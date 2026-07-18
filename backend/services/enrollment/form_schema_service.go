@@ -81,7 +81,59 @@ type FormSchemaService interface {
 	// by id. It refuses deletion when any version is used by a phase or
 	// historical request.
 	DeleteSchema(ctx context.Context, id int64) error
+
+	// PublishForm creates or updates a form schema (POST /schema). A
+	// non-empty Name creates a new named schema (version 1). An empty
+	// Name targets the tenant's active schema (legacy single-schema
+	// flow): it updates the active schema when one exists, reuses an
+	// existing "Standardformular" lineage, or creates the default
+	// "Standardformular" schema.
+	PublishForm(ctx context.Context, in PublishFormInput) (*enrollmentModels.FormSchema, error)
+
+	// PublishFormVersion publishes a new version of an existing schema
+	// (PUT /schema/{id}). When Name is set and non-blank it renames the
+	// whole lineage first, in the SAME transaction as the publish, so a
+	// failed publish rolls the rename back. A rename failure beyond the
+	// name-exists / not-found sentinels is wrapped in RenameStepError so
+	// the caller can distinguish rename infrastructure faults from
+	// publish validation errors.
+	PublishFormVersion(ctx context.Context, in PublishFormVersionInput) (*enrollmentModels.FormSchema, error)
 }
+
+// PublishFormInput carries the fields for the create-or-update publish
+// flow that POST /schema drives.
+type PublishFormInput struct {
+	Name             string
+	Fields           []enrollmentModels.FormField
+	CoreRequirements *enrollmentModels.CoreRequirements
+	LegalBlocks      *[]enrollmentModels.FormLegalBlock
+	ActorID          int64
+}
+
+// PublishFormVersionInput carries the fields for the combined
+// rename+publish flow that PUT /schema/{id} drives. Name is optional:
+// nil or blank skips the rename step.
+type PublishFormVersionInput struct {
+	ID               int64
+	Name             *string
+	Fields           []enrollmentModels.FormField
+	CoreRequirements *enrollmentModels.CoreRequirements
+	LegalBlocks      *[]enrollmentModels.FormLegalBlock
+	ActorID          int64
+}
+
+// RenameStepError tags a failure originating from the rename step of a
+// combined rename+publish (PublishFormVersion). It unwraps so errors.Is
+// still matches the rename sentinels (name-exists, not-found); a caller
+// maps a bare rename infrastructure fault (lock/read/exec) to a 5xx while
+// publish/validation failures keep their 400 contract.
+type RenameStepError struct{ err error }
+
+// NewRenameStepError wraps err as a rename-step failure.
+func NewRenameStepError(err error) RenameStepError { return RenameStepError{err: err} }
+
+func (e RenameStepError) Error() string { return e.err.Error() }
+func (e RenameStepError) Unwrap() error { return e.err }
 
 // FormSchemaServiceConfig is the dependency-injection bundle.
 type FormSchemaServiceConfig struct {
@@ -347,6 +399,79 @@ func (s *formSchemaService) DeleteSchema(ctx context.Context, id int64) error {
 		slog.String("name", source.Name),
 		slog.Int64("schema_id", id))
 	return nil
+}
+
+func (s *formSchemaService) PublishForm(ctx context.Context, in PublishFormInput) (*enrollmentModels.FormSchema, error) {
+	if in.Name != "" {
+		return s.createNamedSchema(ctx, in.Name, in)
+	}
+
+	active, err := s.GetActive(ctx)
+	if err == nil {
+		return s.updateSchemaFromInput(ctx, active.ID, in)
+	}
+	if !errors.Is(err, ErrNoActiveSchema) {
+		return nil, err
+	}
+
+	// No active schema: reuse an existing default lineage if one is around,
+	// otherwise create the default "Standardformular" schema.
+	versions, listErr := s.ListVersions(ctx)
+	if listErr != nil {
+		return nil, listErr
+	}
+	for _, version := range versions {
+		if version.Name == defaultSchemaName {
+			return s.updateSchemaFromInput(ctx, version.ID, in)
+		}
+	}
+	return s.createNamedSchema(ctx, defaultSchemaName, in)
+}
+
+func (s *formSchemaService) createNamedSchema(ctx context.Context, name string, in PublishFormInput) (*enrollmentModels.FormSchema, error) {
+	if in.LegalBlocks != nil {
+		return s.CreateSchemaWithLegal(ctx, name, in.Fields, in.ActorID, pointerCoreRequirements(in.CoreRequirements), *in.LegalBlocks)
+	}
+	return s.CreateSchema(ctx, name, in.Fields, in.ActorID, pointerCoreRequirements(in.CoreRequirements))
+}
+
+func (s *formSchemaService) updateSchemaFromInput(ctx context.Context, id int64, in PublishFormInput) (*enrollmentModels.FormSchema, error) {
+	if in.LegalBlocks != nil {
+		return s.UpdateSchemaWithLegal(ctx, id, in.Fields, in.ActorID, in.CoreRequirements, in.LegalBlocks)
+	}
+	if in.CoreRequirements == nil {
+		return s.UpdateSchema(ctx, id, in.Fields, in.ActorID)
+	}
+	return s.UpdateSchema(ctx, id, in.Fields, in.ActorID, *in.CoreRequirements)
+}
+
+func (s *formSchemaService) PublishFormVersion(ctx context.Context, in PublishFormVersionInput) (*enrollmentModels.FormSchema, error) {
+	// Combined "rename + edit" save: rename the lineage first, in the same
+	// transaction as the publish below, so a failed publish rolls the rename
+	// back — no partial "renamed but content unchanged" state. RenameSchema
+	// is a no-op when the name is unchanged; a blank name is ignored (the
+	// dedicated PATCH route owns blank-name rejection).
+	if in.Name != nil && strings.TrimSpace(*in.Name) != "" {
+		if _, renameErr := s.RenameSchema(ctx, in.ID, *in.Name); renameErr != nil {
+			return nil, RenameStepError{err: renameErr}
+		}
+	}
+	if in.LegalBlocks != nil {
+		return s.UpdateSchemaWithLegal(ctx, in.ID, in.Fields, in.ActorID, in.CoreRequirements, in.LegalBlocks)
+	}
+	if in.CoreRequirements == nil {
+		return s.UpdateSchema(ctx, in.ID, in.Fields, in.ActorID)
+	}
+	return s.UpdateSchema(ctx, in.ID, in.Fields, in.ActorID, *in.CoreRequirements)
+}
+
+// pointerCoreRequirements dereferences an optional CoreRequirements,
+// returning an empty (non-nil) matrix when the pointer is nil.
+func pointerCoreRequirements(value *enrollmentModels.CoreRequirements) enrollmentModels.CoreRequirements {
+	if value == nil {
+		return enrollmentModels.CoreRequirements{}
+	}
+	return *value
 }
 
 // createOrVersion is the shared internal: pick max(version)+1 for the
