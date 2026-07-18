@@ -31,10 +31,10 @@ func TestResolvePlanningDate(t *testing.T) {
 		assert.True(t, isToday)
 		assert.Equal(t, timezone.NewDate(2026, time.June, 2), date)
 
-		// The UTC date is yesterday from the school's perspective.
-		_, isToday, err = resolvePlanningDate("2026-06-01", lateNow)
-		require.NoError(t, err)
-		assert.False(t, isToday)
+		// The UTC date is yesterday from the school's perspective, so it is
+		// rejected as a past date rather than treated as another planning day.
+		_, _, err = resolvePlanningDate("2026-06-01", lateNow)
+		require.Error(t, err)
 	})
 
 	t.Run("explicit_today_is_today", func(t *testing.T) {
@@ -57,6 +57,30 @@ func TestResolvePlanningDate(t *testing.T) {
 		_, _, err = resolvePlanningDate("junk", now)
 		require.Error(t, err)
 	})
+
+	t.Run("past_date_is_rejected", func(t *testing.T) {
+		// Planning is future-only (#1939): a syntactically valid past date must
+		// not slip past the boundary and yield a misleading historical plan.
+		_, _, err := resolvePlanningDate("2026-05-31", now)
+		require.Error(t, err)
+	})
+}
+
+func TestResetLiveLocationFields(t *testing.T) {
+	since := time.Date(2026, time.June, 1, 8, 0, 0, 0, time.UTC)
+	color := "#83CD2D"
+	responses := []StudentResponse{
+		{ID: 90, Location: "Gruppenraum", LocationSince: &since, RoomColor: &color},
+		{ID: 91},
+	}
+
+	resetLiveLocationFields(responses)
+
+	for _, response := range responses {
+		assert.Empty(t, response.Location)
+		assert.Nil(t, response.LocationSince)
+		assert.Nil(t, response.RoomColor)
+	}
 }
 
 func TestResolveDayPlanningForDateNonToday(t *testing.T) {

@@ -178,6 +178,10 @@ func (rs *Resource) prepareDatedExportResponses(r *http.Request, responses []Stu
 		applyFullAccessActualTimes(responses, dataSnapshot)
 	} else {
 		resetScheduledStatusFlags(responses)
+		// The live-location snapshot describes today; strip it so a document
+		// labelled for another day cannot leak the child's current whereabouts
+		// through the current-location column or the momentary-status filter (#1939).
+		resetLiveLocationFields(responses)
 	}
 	if err := rs.applyStatusDaysForDate(r.Context(), responses, planningDate.BerlinMidnight()); err != nil {
 		return timezone.Date{}, false, common.ErrorInternalServer(err)

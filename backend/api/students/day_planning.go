@@ -46,6 +46,15 @@ func resolvePlanningDate(raw string, now time.Time) (timezone.Date, bool, error)
 	if err != nil {
 		return timezone.Date{}, false, fmt.Errorf("invalid date %q, expected YYYY-MM-DD", raw)
 	}
+	// Planning is future-only. The pipeline projects the current recurring
+	// schedule definitions onto the requested day; for a past day that is a
+	// misleading historical reconstruction (the definitions describe the plan
+	// going forward, not what was actually planned back then), which is why the
+	// page treats past dates as unsupported. Reject them at the boundary so a
+	// direct or stale client cannot bypass the UI and obtain such a plan (#1939).
+	if date.Before(today) {
+		return timezone.Date{}, false, fmt.Errorf("date %q is in the past, planning is only available for today and future dates", raw)
+	}
 	return date, date == today, nil
 }
 
@@ -245,6 +254,21 @@ func resetScheduledStatusFlags(responses []StudentResponse) {
 		responses[i].ClassTripSince = nil
 		responses[i].Excused = false
 		responses[i].ExcusedSince = nil
+	}
+}
+
+// resetLiveLocationFields clears the live-location snapshot (current location,
+// the since-timestamp, and the room colour) that buildStudentResponses seeds
+// from today's active.visits/attendance state. Those fields describe where the
+// child is RIGHT NOW; a dated (non-today) export must not carry them, or a
+// document labelled for another day would leak today's whereabouts. This also
+// keeps exportStatus (which derives its snapshot bucket from Location) from
+// classifying a future day by the current location (#1939).
+func resetLiveLocationFields(responses []StudentResponse) {
+	for i := range responses {
+		responses[i].Location = ""
+		responses[i].LocationSince = nil
+		responses[i].RoomColor = nil
 	}
 }
 
