@@ -11,6 +11,7 @@
     "check:fresh": "rm -f *.tsbuildinfo && node scripts/verify-locales.mjs && oxlint . && tsc --noEmit",
     "depcruise": "dependency-cruise --config .dependency-cruiser.cjs src",
     "dev": "next dev",
+    "export:reach-pitch": "node scripts/export-reach-pitch.mjs",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "format:write": "prettier --write \"**/*.{ts,tsx,js,jsx,mdx}\" --cache",
     "generate:guides": "playwright test -c playwright.guides.config.ts",

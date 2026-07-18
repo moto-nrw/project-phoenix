@@ -3,49 +3,148 @@ import { PDFDocument } from "pdf-lib";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const root = process.cwd();
-const outDir = path.join(root, "../outputs/reach-pitch-web");
-const qaDir = path.join(outDir, "qa");
-const url = "http://localhost:3001/reach-pitch";
-const scale = Number.parseInt(process.env.PITCH_EXPORT_SCALE ?? "2", 10);
-const safeScale = Number.isFinite(scale) && scale > 0 ? scale : 2;
+const defaults = {
+  from: 1,
+  outDir: path.resolve(process.cwd(), "../outputs/reach-pitch-web"),
+  scale: 4,
+  url: "http://localhost:3001/reach-pitch",
+  viewportHeight: 1080,
+  viewportWidth: 1920,
+};
+
+function readOption(name) {
+  const index = process.argv.indexOf(`--${name}`);
+  if (index === -1) return undefined;
+  return process.argv[index + 1];
+}
+
+function readNumberOption(name, defaultValue) {
+  const rawValue = readOption(name);
+  if (rawValue === undefined) return defaultValue;
+
+  const value = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(value) || value < 1) {
+    throw new Error(`--${name} must be a positive integer`);
+  }
+
+  return value;
+}
+
+function readStringOption(name, defaultValue) {
+  const value = readOption(name);
+  if (value === undefined) return defaultValue;
+  if (value.trim().length === 0) {
+    throw new Error(`--${name} must not be empty`);
+  }
+  return value;
+}
+
+const config = {
+  from: readNumberOption("from", defaults.from),
+  outDir: path.resolve(readStringOption("out-dir", defaults.outDir)),
+  scale: readNumberOption("scale", defaults.scale),
+  to: readNumberOption("to", Number.MAX_SAFE_INTEGER),
+  url: readStringOption("url", defaults.url),
+  viewportHeight: readNumberOption("viewport-height", defaults.viewportHeight),
+  viewportWidth: readNumberOption("viewport-width", defaults.viewportWidth),
+};
+
+if (config.to < config.from) {
+  throw new Error("--to must be greater than or equal to --from");
+}
+
+const qaDir = path.join(config.outDir, "qa");
+const firstSlideIndex = config.from - 1;
+const pdfPageWidth = 16 * 72;
+const pdfPageHeight = 9 * 72;
 
 await fs.mkdir(qaDir, { recursive: true });
 
 const browser = await chromium.launch();
 const page = await browser.newPage({
-  deviceScaleFactor: safeScale,
-  viewport: { width: 1600, height: 900 },
+  deviceScaleFactor: config.scale,
+  viewport: {
+    height: config.viewportHeight,
+    width: config.viewportWidth,
+  },
 });
-await page.goto(url, { waitUntil: "networkidle" });
 
-const slides = await page.locator(".pitch-slide").count();
-const pdf = await PDFDocument.create();
+await page.goto(config.url, { waitUntil: "networkidle" });
+await page.evaluate(async () => {
+  await document.fonts.ready;
+});
 
-for (let index = 0; index < slides; index += 1) {
-  const slide = page.locator(".pitch-slide").nth(index);
-  const screenshot = await slide.screenshot({
-    path: path.join(
-      qaDir,
-      `slide-${String(index + 1).padStart(2, "0")}@${safeScale}x.png`,
-    ),
-  });
-  const image = await pdf.embedPng(screenshot);
-  const pdfPage = pdf.addPage([1600, 900]);
-  pdfPage.drawImage(image, { x: 0, y: 0, width: 1600, height: 900 });
+await page.addStyleTag({
+  content: `
+    nextjs-portal {
+      display: none !important;
+    }
+
+    .pitch-slide {
+      border: 0 !important;
+      border-radius: 0 !important;
+      box-shadow: none !important;
+    }
+  `,
+});
+
+const slideCount = await page.locator(".pitch-slide").count();
+const lastSlideNumber = Math.min(config.to, slideCount);
+
+if (firstSlideIndex >= slideCount) {
+  throw new Error(`Deck only has ${slideCount} slides`);
 }
 
-await page.pdf({
-  path: path.join(outDir, "moto-reach-pitch-web-16x9.pdf"),
-  width: "16in",
-  height: "9in",
-  printBackground: true,
-  preferCSSPageSize: true,
-});
+const pdf = await PDFDocument.create();
 
-await fs.writeFile(
-  path.join(outDir, `moto-reach-pitch-web-slides-${safeScale}x.pdf`),
-  await pdf.save(),
-);
+for (let index = firstSlideIndex; index < lastSlideNumber; index += 1) {
+  const slideNumber = index + 1;
+  const slide = page.locator(".pitch-slide").nth(index);
+  await slide.scrollIntoViewIfNeeded();
+  await page.evaluate(async (slideIndex) => {
+    const currentSlide = document.querySelectorAll(".pitch-slide")[slideIndex];
+    if (!currentSlide) throw new Error(`Slide ${slideIndex + 1} not found`);
 
+    const images = Array.from(currentSlide.querySelectorAll("img"));
+    await Promise.all(
+      images.map((image) => {
+        if (image.complete) return Promise.resolve();
+        return new Promise((resolve) => {
+          image.addEventListener("load", resolve, { once: true });
+          image.addEventListener("error", resolve, { once: true });
+        });
+      }),
+    );
+  }, index);
+
+  const screenshot = await slide.screenshot({
+    animations: "disabled",
+    path: path.join(
+      qaDir,
+      `slide-${String(slideNumber).padStart(2, "0")}@${config.scale}x.png`,
+    ),
+    type: "png",
+  });
+  const image = await pdf.embedPng(screenshot);
+  const pdfPage = pdf.addPage([pdfPageWidth, pdfPageHeight]);
+  pdfPage.drawImage(image, {
+    height: pdfPageHeight,
+    width: pdfPageWidth,
+    x: 0,
+    y: 0,
+  });
+}
+
+const range =
+  config.from === 1 && lastSlideNumber === slideCount
+    ? "all"
+    : `${config.from}-${lastSlideNumber}`;
+const fileBaseName = `moto-reach-pitch-slides-${range}-${config.scale}x`;
+const pdfPath = path.join(config.outDir, `${fileBaseName}.pdf`);
+
+await fs.writeFile(pdfPath, await pdf.save());
 await browser.close();
+
+console.info(
+  `Exported ${lastSlideNumber - config.from + 1} slides to ${pdfPath}`,
+);

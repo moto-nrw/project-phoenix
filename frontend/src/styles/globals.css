@@ -347,7 +347,18 @@
     margin: 0;
   }
 
+  @page reach-pitch {
+    size: 16in 9in;
+    margin: 0;
+  }
+
+  @page nfc-info-sheet {
+    size: A4;
+    margin: 0;
+  }
+
   .pitch-slide {
+    page: reach-pitch;
     width: 16in;
     height: 9in;
     max-width: none;
@@ -355,7 +366,17 @@
     page-break-after: always;
   }
 
-  .pitch-slide:last-child {
+  .info-sheet-page {
+    page: nfc-info-sheet;
+    width: 210mm;
+    height: 297mm;
+    max-width: none;
+    break-after: page;
+    page-break-after: always;
+  }
+
+  .pitch-slide:last-child,
+  .info-sheet-page:last-child {
     break-after: auto;
     page-break-after: auto;
   }

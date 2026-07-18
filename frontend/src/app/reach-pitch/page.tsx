@@ -404,124 +404,209 @@ function MarketLine() {
 }
 
 function SoftwareGapChart() {
-  const kitaPath = "M 6 76 C 22 72, 34 62, 46 52 S 70 25, 94 9";
-  const ogsPath = "M 6 70 C 24 70, 42 69, 60 70 S 78 69, 94 68";
+  const kitaPath = "M 12 62 C 27 58, 36 43, 48 31 S 70 12, 90 8";
+  const ogsPath = "M 12 60 C 29 59, 46 58, 62 58 S 78 57, 90 56";
   return (
-    <div className="relative h-full min-h-[25rem] rounded-3xl border border-gray-200 bg-white p-7 shadow-sm">
-      <div className="absolute top-7 right-7 z-10 flex flex-col gap-2">
-        <div className="flex items-center gap-2 rounded-full bg-[#5080D8]/10 px-3 py-1.5 text-sm font-semibold text-[#315C9B]">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#5080D8]" />
-          Kita-Software
+    <div className="relative flex h-full min-h-[28rem] flex-col overflow-hidden rounded-[2rem] border border-gray-200 bg-white shadow-sm">
+      <div className="absolute inset-x-8 top-8 h-24 rounded-full bg-[#5080D8]/8 blur-3xl" />
+      <div className="relative flex items-start justify-between gap-6 border-b border-gray-100 px-7 pt-6 pb-4">
+        <div>
+          <p className="text-[clamp(0.68rem,0.86vw,0.82rem)] font-bold tracking-[0.08em] text-gray-400 uppercase">
+            Entwicklung Kinderbetreuungssoftware
+          </p>
+          <p className="mt-1 max-w-[24rem] text-[clamp(0.84rem,1vw,0.96rem)] leading-snug font-semibold text-gray-500">
+            Anbieter, Budgets und digitale Gewohnheit
+          </p>
         </div>
-        <div className="flex items-center gap-2 rounded-full bg-[#F78C10]/10 px-3 py-1.5 text-sm font-semibold text-[#9B5609]">
-          <span className="h-2.5 w-2.5 rounded-full bg-[#F78C10]" />
-          OGS-Software
+        <div className="grid gap-2">
+          {[
+            { label: "Kita-Software", color: "#5080D8", text: "#315C9B" },
+            { label: "OGS-Software", color: "#F78C10", text: "#9B5609" },
+          ].map((item) => (
+            <div
+              key={item.label}
+              className="flex items-center gap-2 rounded-full border border-gray-100 bg-gray-50/80 px-3 py-1.5 text-[clamp(0.72rem,0.9vw,0.86rem)] font-semibold"
+              style={{ color: item.text }}
+            >
+              <span
+                className="h-2.5 w-2.5 rounded-full"
+                style={{ backgroundColor: item.color }}
+              />
+              {item.label}
+            </div>
+          ))}
         </div>
       </div>
-      <svg
-        viewBox="0 0 100 86"
-        className="h-full w-full overflow-visible"
+      <div
+        className="relative min-h-0 flex-1 px-7 pt-4 pb-6"
         role="img"
         aria-label="Schematische Entwicklung von Kita-Software und OGS-Software"
       >
-        {[18, 34, 50, 66].map((y) => (
+        <svg
+          viewBox="0 0 100 72"
+          className="h-full w-full overflow-visible"
+          aria-hidden="true"
+        >
+          <text
+            x="5.2"
+            y="35"
+            textAnchor="middle"
+            transform="rotate(-90 5.2 35)"
+            className="fill-gray-400 text-[2.25px] font-bold"
+          >
+            Software-Reife
+          </text>
+          {[14, 26, 38, 50, 62].map((y) => (
+            <path
+              key={y}
+              d={`M12 ${y} H92`}
+              stroke="#E5E7EB"
+              strokeWidth="0.45"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
           <path
-            key={y}
-            d={`M6 ${y} H94`}
-            stroke="#E5E7EB"
+            d="M12 62 H92"
+            stroke="#D1D5DB"
             strokeWidth="0.8"
             vectorEffect="non-scaling-stroke"
           />
-        ))}
-        <path
-          d="M6 78 H94"
-          stroke="#D1D5DB"
-          strokeWidth="1.2"
-          vectorEffect="non-scaling-stroke"
-        />
-        <path
-          d="M6 8 V78"
-          stroke="#D1D5DB"
-          strokeWidth="1.2"
-          vectorEffect="non-scaling-stroke"
-        />
-        <path
-          d="M70 8 V78"
-          stroke="#83CD2D"
-          strokeDasharray="3 3"
-          strokeWidth="1.4"
-          vectorEffect="non-scaling-stroke"
-        />
-        <rect
-          x="60"
-          y="11"
-          width="20"
-          height="9"
-          rx="4.5"
-          fill="#83CD2D"
-          opacity="0.16"
-        />
-        <text
-          x="70"
-          y="17"
-          textAnchor="middle"
-          className="fill-[#3F6F12] text-[3px] font-bold"
-        >
-          Rechtsanspruch 2026
-        </text>
-        <path
-          d={kitaPath}
-          fill="none"
-          stroke="#5080D8"
-          strokeLinecap="round"
-          strokeWidth="4"
-          vectorEffect="non-scaling-stroke"
-        />
-        <path
-          d={ogsPath}
-          fill="none"
-          stroke="#F78C10"
-          strokeLinecap="round"
-          strokeWidth="4"
-          vectorEffect="non-scaling-stroke"
-        />
-        {[
-          { x: 6, y: 76, color: "#5080D8" },
-          { x: 46, y: 52, color: "#5080D8" },
-          { x: 94, y: 9, color: "#5080D8" },
-          { x: 6, y: 70, color: "#F78C10" },
-          { x: 94, y: 68, color: "#F78C10" },
-        ].map((point) => (
-          <circle
-            key={`${point.x}-${point.y}-${point.color}`}
-            cx={point.x}
-            cy={point.y}
-            r="2.6"
-            fill={point.color}
+          <path
+            d="M12 8 V62"
+            stroke="#D1D5DB"
+            strokeWidth="0.8"
+            vectorEffect="non-scaling-stroke"
           />
-        ))}
-        <text x="6" y="84" className="fill-gray-400 text-[3px] font-semibold">
-          2016
-        </text>
-        <text
-          x="70"
-          y="84"
-          textAnchor="middle"
-          className="fill-gray-400 text-[3px] font-semibold"
-        >
-          2026
-        </text>
-        <text
-          x="94"
-          y="84"
-          textAnchor="end"
-          className="fill-gray-400 text-[3px] font-semibold"
-        >
-          heute
-        </text>
-      </svg>
-      <div className="absolute bottom-7 left-7 rounded-full bg-gray-50 px-4 py-2 text-xs font-semibold text-gray-500">
-        Schematisch: Kategorie-Reife und OGS-Fokus
+          <path
+            d="M74 6.8 V62"
+            stroke="#83CD2D"
+            strokeDasharray="2 2"
+            strokeWidth="0.9"
+            vectorEffect="non-scaling-stroke"
+          />
+          <path
+            d={kitaPath}
+            fill="none"
+            stroke="#5080D8"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="3.4"
+            vectorEffect="non-scaling-stroke"
+          />
+          <path
+            d={ogsPath}
+            fill="none"
+            stroke="#F78C10"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="3.4"
+            vectorEffect="non-scaling-stroke"
+          />
+          {[
+            { cx: 12, cy: 62, color: "#5080D8" },
+            { cx: 48, cy: 31, color: "#5080D8" },
+            { cx: 90, cy: 8, color: "#5080D8" },
+            { cx: 12, cy: 60, color: "#F78C10" },
+            { cx: 90, cy: 56, color: "#F78C10" },
+          ].map((point) => (
+            <circle
+              key={`${point.cx}-${point.cy}-${point.color}`}
+              cx={point.cx}
+              cy={point.cy}
+              r="1.45"
+              fill={point.color}
+              stroke="#FFFFFF"
+              strokeWidth="1.1"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+          <g>
+            <rect
+              x="58.5"
+              y="0.3"
+              width="31"
+              height="5.4"
+              rx="2.7"
+              fill="#FFFFFF"
+              stroke="#83CD2D"
+              strokeOpacity="0.32"
+              vectorEffect="non-scaling-stroke"
+            />
+            <text
+              x="74"
+              y="3"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="fill-[#3F6F12] text-[1.85px] font-bold"
+            >
+              Ab 2026: Rechtsanspruch
+            </text>
+          </g>
+          <g>
+            <rect
+              x="77"
+              y="14.4"
+              width="14"
+              height="4.2"
+              rx="2.1"
+              fill="#5080D8"
+              opacity="0.1"
+            />
+            <text
+              x="84"
+              y="16.5"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="fill-[#315C9B] text-[1.85px] font-bold"
+            >
+              reifer Markt
+            </text>
+          </g>
+          <g>
+            <rect
+              x="70"
+              y="50"
+              width="17"
+              height="4.2"
+              rx="2.1"
+              fill="#F78C10"
+              opacity="0.12"
+            />
+            <text
+              x="78.5"
+              y="52.1"
+              textAnchor="middle"
+              dominantBaseline="middle"
+              className="fill-[#9B5609] text-[1.85px] font-bold"
+            >
+              operative Lücke
+            </text>
+          </g>
+          <text
+            x="12"
+            y="68.5"
+            textAnchor="middle"
+            className="fill-gray-400 text-[2.6px] font-bold"
+          >
+            2010
+          </text>
+          <text
+            x="74"
+            y="68.5"
+            textAnchor="middle"
+            className="fill-gray-400 text-[2.6px] font-bold"
+          >
+            2026
+          </text>
+          <text
+            x="92"
+            y="68.5"
+            textAnchor="middle"
+            className="fill-gray-400 text-[2.6px] font-bold"
+          >
+            heute
+          </text>
+        </svg>
       </div>
     </div>
   );
@@ -530,7 +615,7 @@ function SoftwareGapChart() {
 function GroupLandingMockup() {
   return (
     <div className="relative h-[clamp(28rem,44vw,40rem)] w-full">
-      <div className="absolute inset-x-[4%] bottom-[4%] h-[28%] rounded-full bg-[#83CD2D]/16 blur-2xl" />
+      <div className="absolute inset-x-[8%] bottom-[10%] h-[24%] rounded-full bg-[#83CD2D]/13 blur-3xl" />
       <div className="absolute inset-y-[-6%] right-[-6%] left-[-8%] flex items-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -631,24 +716,28 @@ export default function ReachPitchPage() {
           </div>
         </Slide>
 
-        <Slide index={4} eyebrow="Marktlücke">
-          <div className="grid min-h-0 flex-1 grid-cols-[0.82fr_1.18fr] items-center gap-[5%]">
+        <Slide index={4} eyebrow="Problem">
+          <div className="grid min-h-0 flex-1 grid-cols-[0.72fr_1.28fr] items-center gap-[5%]">
             <div>
-              <Label tone="orange">Kategorie-Lücke</Label>
-              <Headline className="mt-5 max-w-[12ch]">
-                Kita wurde digital. OGS wartet noch.
+              <Headline className="mt-5 max-w-[12ch] text-[clamp(2rem,4.8vw,4.75rem)]">
+                Kita hat Software. OGS hat Druck.
               </Headline>
-              <Lead>
-                In der Kita ist Software längst eine eigene Kategorie. Der
-                offene Ganztag wächst in denselben Druck hinein, aber mit
-                anderen Abläufen: Räume, Abholung, Angebote und laufende
-                Betreuung.
+              <Lead className="max-w-[35rem]">
+                Kita-Software ist etabliert. Der offene Ganztag wächst jetzt in
+                denselben Bedarf hinein, aber mit eigenen Abläufen und deutlich
+                mehr Druck.
               </Lead>
-              <div className="mt-8 flex flex-wrap gap-2">
-                <Label tone="blue">Kita-Apps wachsen</Label>
-                <Label tone="orange">OGS bleibt Lücke</Label>
-                <Label>Rechtsanspruch ab 2026</Label>
-              </div>
+              <Surface className="mt-7 max-w-[29rem] p-4">
+                <p className="text-[clamp(0.9rem,1.18vw,1.1rem)] leading-snug font-semibold text-gray-800">
+                  Nachfrage steigt. Die passende Software-Kategorie entsteht
+                  erst jetzt.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Label tone="blue">Kita wächst</Label>
+                  <Label tone="orange">OGS bleibt flach</Label>
+                  <Label>ab 2026</Label>
+                </div>
+              </Surface>
             </div>
             <SoftwareGapChart />
           </div>
