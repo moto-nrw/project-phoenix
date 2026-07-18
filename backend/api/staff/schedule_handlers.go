@@ -109,55 +109,56 @@ func (rs *Resource) updateSchedule(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) buildScheduleResponse(ctx context.Context, staff *users.Staff) (*ScheduleResponse, error) {
 	if staff.WorkTimeModelID != nil && *staff.WorkTimeModelID > 0 {
-		model, err := rs.WorkSessionService.GetWorkTimeModelByID(ctx, *staff.WorkTimeModelID)
-		if err != nil {
-			return nil, fmt.Errorf("load assigned model: %w", err)
-		}
-		anchor := model.RotationAnchorDate
-		if staff.RotationAnchorDate != nil {
-			anchor = *staff.RotationAnchorDate
-		}
+		return rs.buildTemplateScheduleResponse(ctx, staff)
+	}
+	return rs.buildCustomScheduleResponse(ctx, staff)
+}
 
-		rows, err := rs.WorkSessionService.GetCurrentScheduleRows(ctx, staff.ID)
-		if err != nil {
-			return nil, fmt.Errorf("load assigned schedule snapshot: %w", err)
-		}
-		rotation := model.RotationLength
-		var entries []ScheduleEntryResponse
-		var totals []int
-		if len(rows) > 0 {
-			entries, totals, rotation = scheduleRowsToResponseParts(rows)
-		} else {
-			entries, totals = modelEntriesToResponseParts(model.Entries, rotation)
-		}
-		return &ScheduleResponse{
-			Mode: "template",
-			Model: &ScheduleModelInfo{
-				ID:                 model.ID,
-				Name:               model.Name,
-				RotationLength:     model.RotationLength,
-				RotationAnchorDate: model.RotationAnchorDate.String(),
-			},
-			RotationLength:     rotation,
-			RotationAnchorDate: anchor.String(),
-			Entries:            entries,
-			WeeklyTotals:       totals,
-		}, nil
+func (rs *Resource) buildTemplateScheduleResponse(ctx context.Context, staff *users.Staff) (*ScheduleResponse, error) {
+	model, err := rs.WorkSessionService.GetWorkTimeModelByID(ctx, *staff.WorkTimeModelID)
+	if err != nil {
+		return nil, fmt.Errorf("load assigned model: %w", err)
+	}
+	anchor := model.RotationAnchorDate
+	if staff.RotationAnchorDate != nil {
+		anchor = *staff.RotationAnchorDate
 	}
 
+	rows, err := rs.WorkSessionService.GetCurrentScheduleRows(ctx, staff.ID)
+	if err != nil {
+		return nil, fmt.Errorf("load assigned schedule snapshot: %w", err)
+	}
+	rotation := model.RotationLength
+	var entries []ScheduleEntryResponse
+	var totals []int
+	if len(rows) > 0 {
+		entries, totals, rotation = scheduleRowsToResponseParts(rows)
+	} else {
+		entries, totals = modelEntriesToResponseParts(model.Entries, rotation)
+	}
+	return &ScheduleResponse{
+		Mode: "template",
+		Model: &ScheduleModelInfo{
+			ID:                 model.ID,
+			Name:               model.Name,
+			RotationLength:     model.RotationLength,
+			RotationAnchorDate: model.RotationAnchorDate.String(),
+		},
+		RotationLength:     rotation,
+		RotationAnchorDate: anchor.String(),
+		Entries:            entries,
+		WeeklyTotals:       totals,
+	}, nil
+}
+
+func (rs *Resource) buildCustomScheduleResponse(ctx context.Context, staff *users.Staff) (*ScheduleResponse, error) {
 	rows, err := rs.WorkSessionService.GetCurrentScheduleRows(ctx, staff.ID)
 	if err != nil {
 		return nil, fmt.Errorf("load custom schedule: %w", err)
 	}
 
 	entries, totals, rotation := scheduleRowsToResponseParts(rows)
-	var earliest *timezone.Date
-	for _, row := range rows {
-		if earliest == nil || row.ValidFrom.Before(*earliest) {
-			vf := row.ValidFrom
-			earliest = &vf
-		}
-	}
+	earliest := earliestValidFrom(rows)
 	anchor := timezone.Date{}
 	if staff.RotationAnchorDate != nil {
 		anchor = *staff.RotationAnchorDate
@@ -175,6 +176,19 @@ func (rs *Resource) buildScheduleResponse(ctx context.Context, staff *users.Staf
 		resp.ValidFrom = earliest.String()
 	}
 	return resp, nil
+}
+
+// earliestValidFrom returns the earliest valid_from across schedule rows, or
+// nil when there are none.
+func earliestValidFrom(rows []*config.StaffWorkSchedule) *timezone.Date {
+	var earliest *timezone.Date
+	for _, row := range rows {
+		if earliest == nil || row.ValidFrom.Before(*earliest) {
+			vf := row.ValidFrom
+			earliest = &vf
+		}
+	}
+	return earliest
 }
 
 // anchorString renders a rotation anchor; the zero Date (no anchor and no

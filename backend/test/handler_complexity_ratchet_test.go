@@ -36,15 +36,9 @@ const handlerComplexityThreshold = 15
 // Seeded 2026-07-12 from `gocognit -over 15 api/` (non-test files only), the
 // issue #575 B0 baseline. 75 functions.
 var handlerComplexityAllowlist = map[string]int{
-	"api/auth/invitation_handlers.go:(*Resource).createInvitation":         20,
-	"api/base.go:(*API).registerRoutesWithRateLimiting":                    20,
-	"api/base.go:setupCORS":                                                18,
-	"api/parent/enrollment_handlers.go:(*Resource).submitParentEnrollment": 20,
-	"api/server.go:NewServer":                                              35,
-	"api/staff/schedule_handlers.go:(*Resource).buildScheduleResponse":     19,
-	"api/staff/staff_handlers.go:(*Resource).getStaff":                     19,
-	"api/staff/substitution_handlers.go:(*Resource).getStaffByRole":        17,
-	"api/work-time-models/api.go:buildModelAndEntries":                     16,
+	"api/base.go:(*API).registerRoutesWithRateLimiting": 20,
+	"api/base.go:setupCORS":                             18,
+	"api/server.go:NewServer":                           35,
 }
 
 func TestHandlerComplexityRatchet(t *testing.T) {

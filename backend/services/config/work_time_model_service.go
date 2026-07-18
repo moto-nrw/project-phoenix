@@ -8,6 +8,16 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
 
+// WorkTimeModelValidationError marks a caller-input validation failure so the
+// api layer can map it to 400 (invalid request) while other errors map to 500.
+type WorkTimeModelValidationError struct {
+	Err error
+}
+
+func (e *WorkTimeModelValidationError) Error() string { return e.Err.Error() }
+
+func (e *WorkTimeModelValidationError) Unwrap() error { return e.Err }
+
 // WorkTimeModelService exposes work-time-model CRUD to the api layer (issue
 // #584: handlers must not hold repositories). Lookup results and errors are
 // returned verbatim; the handlers keep their existing error-to-status
@@ -32,26 +42,12 @@ func (s *WorkTimeModelService) GetModel(ctx context.Context, id int64) (*configM
 	return s.repo.FindByID(ctx, id)
 }
 
-// CreateModel persists a new model with its entries and returns the
-// freshly reloaded row.
-func (s *WorkTimeModelService) CreateModel(ctx context.Context, model *configModels.WorkTimeModel, entries []*configModels.WorkTimeModelEntry) (*configModels.WorkTimeModel, error) {
-	if err := validateModelWithEntries(model, entries); err != nil {
-		return nil, err
-	}
-	if err := s.repo.Create(ctx, model, entries); err != nil {
-		return nil, err
-	}
-	return s.repo.FindByID(ctx, model.ID)
-}
-
-// validateModelWithEntries enforces the work-time-model invariants for any
-// caller (HTTP handlers, CLI, migrations). Entries must pass their own field
-// validation, stay within the model's declared rotation length, and never
-// double-book a (week_index, day_of_week) slot.
-func validateModelWithEntries(model *configModels.WorkTimeModel, entries []*configModels.WorkTimeModelEntry) error {
-	if model == nil {
-		return errors.New("model is required")
-	}
+// ValidateModelWithEntries checks a model and its entries against the business
+// rules (name/rotation/anchor required, per-entry bounds, week_index within the
+// rotation, no duplicate (week_index, day_of_week) slot). The error message is
+// the caller-facing 400 reason; wrap it in WorkTimeModelValidationError at the
+// persistence boundary so the api layer can distinguish it from internal errors.
+func (s *WorkTimeModelService) ValidateModelWithEntries(model *configModels.WorkTimeModel, entries []*configModels.WorkTimeModelEntry) error {
 	if err := model.Validate(); err != nil {
 		return err
 	}
@@ -72,12 +68,24 @@ func validateModelWithEntries(model *configModels.WorkTimeModel, entries []*conf
 	return nil
 }
 
+// CreateModel persists a new model with its entries and returns the
+// freshly reloaded row.
+func (s *WorkTimeModelService) CreateModel(ctx context.Context, model *configModels.WorkTimeModel, entries []*configModels.WorkTimeModelEntry) (*configModels.WorkTimeModel, error) {
+	if err := s.ValidateModelWithEntries(model, entries); err != nil {
+		return nil, &WorkTimeModelValidationError{Err: err}
+	}
+	if err := s.repo.Create(ctx, model, entries); err != nil {
+		return nil, err
+	}
+	return s.repo.FindByID(ctx, model.ID)
+}
+
 // UpdateModel replaces the model and its entries, refreshes the schedule
 // snapshots of all staff bound to the template, and returns the reloaded
 // row.
 func (s *WorkTimeModelService) UpdateModel(ctx context.Context, model *configModels.WorkTimeModel, entries []*configModels.WorkTimeModelEntry) (*configModels.WorkTimeModel, error) {
-	if err := validateModelWithEntries(model, entries); err != nil {
-		return nil, err
+	if err := s.ValidateModelWithEntries(model, entries); err != nil {
+		return nil, &WorkTimeModelValidationError{Err: err}
 	}
 	if err := s.repo.Update(ctx, model, entries); err != nil {
 		return nil, err
