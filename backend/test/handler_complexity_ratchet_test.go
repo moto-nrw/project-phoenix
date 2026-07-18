@@ -62,12 +62,6 @@ var handlerComplexityAllowlist = map[string]int{
 	"api/staff/schedule_handlers.go:(*Resource).buildScheduleResponse":                  19,
 	"api/staff/staff_handlers.go:(*Resource).getStaff":                                  19,
 	"api/staff/substitution_handlers.go:(*Resource).getStaffByRole":                     17,
-	"api/timetable/exception_conflicts.go:(*Resource).getExceptionConflicts":            27,
-	"api/timetable/exception_conflicts.go:(*Resource).loadArrivalPreload":               27,
-	"api/timetable/gaps.go:(*Resource).getGaps":                                         31,
-	"api/timetable/operations.go:(*Resource).operationsCreateAndStartSpontaneous":       17,
-	"api/timetable/student_day.go:(*Resource).preloadWeek":                              28,
-	"api/timetable/student_day.go:buildStudentDayFromPreload":                           19,
 	"api/work-time-models/api.go:buildModelAndEntries":                                  16,
 }
 
