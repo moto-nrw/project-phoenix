@@ -303,7 +303,10 @@ export default function CompanionSection({
                   </Button>
                 )}
               </div>
-              <div className="grid grid-cols-5 gap-1">
+              {/* Capped: on the wide detail-page card five chips would
+                  otherwise stretch across the full width and read as buttons
+                  rather than a compact weekday picker. */}
+              <div className="grid max-w-sm grid-cols-5 gap-1">
                 {COMPANION_WEEKDAYS.map((day) => {
                   const active = companion.weekdays.includes(day.value);
                   return (
