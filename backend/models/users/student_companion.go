@@ -15,6 +15,13 @@ var (
 
 	// ErrCompanionInvalidWeekday is returned for a weekday outside Mon..Fri.
 	ErrCompanionInvalidWeekday = errors.New("companion weekday must be one of mon/tue/wed/thu/fri")
+
+	// ErrCompanionStudentIDRequired is returned when an edge is built without a
+	// usable child id on one end — which is what a missing or non-positive
+	// companion_student_id in the request body decodes to. A sentinel, not a
+	// fresh error: the handler's error table maps it to a 400, whereas an
+	// untyped error would leak malformed client input as a 500.
+	ErrCompanionStudentIDRequired = errors.New("Bitte ein Kind für die Laufgemeinschaft auswählen.") //nolint:staticcheck // ST1005: user-facing German message
 )
 
 // CompanionWeekdayNumbers maps the weekday keys used across the departure model
@@ -70,7 +77,7 @@ type StudentCompanion struct {
 // into the stored low/high order.
 func NewStudentCompanion(studentID, companionID int64, weekday int) (*StudentCompanion, error) {
 	if studentID <= 0 || companionID <= 0 {
-		return nil, errors.New("both student IDs are required for a companion link")
+		return nil, ErrCompanionStudentIDRequired
 	}
 	if studentID == companionID {
 		return nil, ErrCompanionSelfLink

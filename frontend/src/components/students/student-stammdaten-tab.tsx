@@ -27,6 +27,7 @@ import {
   uploadStudentPhoto,
 } from "~/lib/student-api";
 import {
+  ALL_COMPANION_WEEKDAYS,
   fetchStudentCompanions,
   type StudentCompanion,
 } from "~/lib/student-companion-api";
@@ -121,6 +122,21 @@ function allowedDepartureModesEqual(
   });
 }
 
+// Order-independent fingerprint of a companion list, so reordering (or a
+// re-fetch handing the same links back in another order) is not mistaken for an
+// edit. Used both for the dirty check and to keep the two in sync.
+function companionsFingerprint(companions: StudentCompanion[]): string {
+  return companions
+    .map((companion) => {
+      const days = ALL_COMPANION_WEEKDAYS.filter((day) =>
+        companion.weekdays.includes(day),
+      );
+      return `${companion.companion_student_id}:${days.join(",")}`;
+    })
+    .sort()
+    .join("|");
+}
+
 function buildDraft(
   student: Student,
   photosEnabled: boolean,
@@ -196,20 +212,41 @@ export function StudentStammdatenTab({
   // Laufgemeinschaft: fetched separately (own table) and submitted together
   // with the departure plan, because a link is only legal on a day that plan
   // allows "Anderes Kind".
+  //
+  // The submitted list REPLACES the stored one, so it may only travel once it
+  // IS the stored one: an empty list from a pending or failed load would delete
+  // the child's Laufgemeinschaft on any unrelated save, and this component is
+  // reused across children, so a load that fails after switching would submit
+  // the PREVIOUS child's links. Hence the explicit status, reset on every id
+  // change, plus the untouched-since-load snapshot the dirty check compares
+  // against.
   const [companions, setCompanions] = useState<StudentCompanion[]>([]);
+  const [loadedCompanions, setLoadedCompanions] = useState<StudentCompanion[]>(
+    [],
+  );
+  const [companionsStatus, setCompanionsStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
+  const [reloadCompanions, setReloadCompanions] = useState(0);
   const [extendCompanionPlans, setExtendCompanionPlans] = useState(false);
 
   useEffect(() => {
     if (!student.id) return;
     let cancelled = false;
+    setCompanionsStatus("loading");
+    setCompanions([]);
+    setLoadedCompanions([]);
+    setExtendCompanionPlans(false);
     fetchStudentCompanions(String(student.id))
       .then((loaded) => {
         if (cancelled) return;
         setCompanions(loaded);
-        setExtendCompanionPlans(false);
+        setLoadedCompanions(loaded);
+        setCompanionsStatus("ready");
       })
       .catch((err: unknown) => {
         if (cancelled) return;
+        setCompanionsStatus("error");
         logger.error("failed to load companions", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -217,7 +254,7 @@ export function StudentStammdatenTab({
     return () => {
       cancelled = true;
     };
-  }, [student.id]);
+  }, [student.id, reloadCompanions]);
   const {
     groups: enrollmentExtraGroups,
     loading: enrollmentExtraLoading,
@@ -361,9 +398,19 @@ export function StudentStammdatenTab({
     () => buildDraft(student, photosEnabled, serverConsent),
     [student, photosEnabled, serverConsent],
   );
+  const companionsDirty = useMemo(
+    () =>
+      companionsStatus === "ready" &&
+      companionsFingerprint(loadedCompanions) !==
+        companionsFingerprint(companions),
+    [companions, companionsStatus, loadedCompanions],
+  );
   const isDirty = useMemo(() => {
     if (pendingPhotoBlob !== null) return true;
     if (pendingPhotoRemoved) return true;
+    // The picker writes to its own state, not into formData — without this the
+    // Save button stays disabled for a companion-only edit.
+    if (companionsDirty) return true;
     const keys = Object.keys(originalDraft) as Array<keyof Student>;
     return keys.some((key) => {
       if (key === "bus_days") {
@@ -389,7 +436,13 @@ export function StudentStammdatenTab({
       }
       return originalDraft[key] !== formData[key];
     });
-  }, [originalDraft, formData, pendingPhotoBlob, pendingPhotoRemoved]);
+  }, [
+    companionsDirty,
+    originalDraft,
+    formData,
+    pendingPhotoBlob,
+    pendingPhotoRemoved,
+  ]);
 
   const handleChange = useCallback(
     (
@@ -409,14 +462,25 @@ export function StudentStammdatenTab({
   );
 
   const validateForm = useCallback(() => {
-    const next = validateStudentForm(formData, {
-      firstName: true,
-      lastName: true,
-      schoolClass: false,
-    });
+    const next = validateStudentForm(
+      formData,
+      {
+        firstName: true,
+        lastName: true,
+        schoolClass: false,
+      },
+      {
+        // A link answers "mit wem" too — without this, an accompanied plan
+        // backed only by a Laufgemeinschaft could never be saved from this tab.
+        // While the stored links are unknown, claiming "none" would block an
+        // unrelated edit for the wrong reason; the backend re-checks the rule
+        // against the stored links either way.
+        hasCompanionLink: companionsStatus !== "ready" || companions.length > 0,
+      },
+    );
     setErrors(next);
     return Object.keys(next).length === 0;
-  }, [formData]);
+  }, [companions, companionsStatus, formData]);
 
   // Consent toggle. Picking + then withdrawing consent in the same session
   // is contradictory (you can't upload a photo without consent), so we
@@ -490,11 +554,16 @@ export function StudentStammdatenTab({
       ) {
         delete submitData.photo_consent_given;
       }
-      submitData.companions = companions.map((companion) => ({
-        companion_student_id: companion.companion_student_id,
-        weekdays: companion.weekdays,
-      }));
-      submitData.extend_companion_plans = extendCompanionPlans;
+      // Only when the stored list is known. A pending or failed load leaves the
+      // key off entirely, which the backend reads as "don't touch the links"
+      // instead of "delete them all".
+      if (companionsStatus === "ready") {
+        submitData.companions = companions.map((companion) => ({
+          companion_student_id: companion.companion_student_id,
+          weekdays: companion.weekdays,
+        }));
+        submitData.extend_companion_plans = extendCompanionPlans;
+      }
       try {
         await onSave(submitData);
       } catch (err) {
@@ -505,6 +574,12 @@ export function StudentStammdatenTab({
         });
         setSaving(false);
         return;
+      }
+      // The links are now the stored ones. student.id doesn't change on a
+      // refetch, so the load effect won't re-run — move the snapshot forward
+      // here or the form stays permanently dirty after a companion edit.
+      if (companionsStatus === "ready") {
+        setLoadedCompanions(companions);
       }
 
       const consentNowOn = Boolean(formData.photo_consent_given);
@@ -553,6 +628,7 @@ export function StudentStammdatenTab({
     },
     [
       companions,
+      companionsStatus,
       extendCompanionPlans,
       formData,
       onSave,
@@ -576,6 +652,25 @@ export function StudentStammdatenTab({
       {privacyConsentLoadError ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3">
           <p className="text-sm text-red-800">{privacyConsentLoadError}</p>
+        </div>
+      ) : null}
+      {companionsStatus === "error" ? (
+        <div className="rounded-lg border border-[#FF3130] bg-[#FF3130]/5 p-3">
+          <p className="text-sm text-gray-900">
+            Die Laufgemeinschaft konnte nicht geladen werden und wird unten
+            nicht angezeigt. Andere Angaben lassen sich speichern, die
+            bestehenden Verknüpfungen bleiben dabei unverändert.
+          </p>
+          <div className="mt-2 flex justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              onClick={() => setReloadCompanions((count) => count + 1)}
+            >
+              Erneut laden
+            </Button>
+          </div>
         </div>
       ) : null}
 
@@ -651,7 +746,13 @@ export function StudentStammdatenTab({
         }
         companionNoteError={errors.departure_companion_note}
         companions={companions}
-        onCompanionsChange={setCompanions}
+        // Hidden until the stored links are known (the section drops the picker
+        // without a change handler): an edit made against a pending or failed
+        // load would be silently discarded on save, since the list only travels
+        // when it is the stored one.
+        onCompanionsChange={
+          companionsStatus === "ready" ? setCompanions : undefined
+        }
         companionStudentId={String(student.id)}
         onExtendCompanionPlansChange={setExtendCompanionPlans}
       />

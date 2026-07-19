@@ -109,6 +109,64 @@ func (r *StudentCompanionRepository) ListLinksForStudent(ctx context.Context, st
 	return links, nil
 }
 
+// CompanionCountsExcluding returns, per requested student, how many DISTINCT
+// other children they are linked to across all weekdays, ignoring links to
+// excludeID.
+//
+// Two callers need exactly this number and both are about the FAR end of an
+// edge, which the per-child list endpoints never look at: the cap has to hold
+// for the companion too (an edge adds one to both degrees), and a removal may
+// only orphan a companion that has no other link left.
+func (r *StudentCompanionRepository) CompanionCountsExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]int, error) {
+	counts := make(map[int64]int, len(studentIDs))
+	if len(studentIDs) == 0 {
+		return counts, nil
+	}
+
+	var edges []*users.StudentCompanion
+	query := base.GetDB(ctx, r.db).NewSelect().
+		Model(&edges).
+		ModelTableExpr(`users.student_companions AS "student_companion"`).
+		Where(`("student_companion".student_low_id IN (?) OR "student_companion".student_high_id IN (?))`,
+			bun.List(studentIDs), bun.List(studentIDs))
+
+	query = base.WithTenantFilter(ctx, query, "student_companion")
+
+	if err := query.Scan(ctx); err != nil {
+		return nil, &modelBase.DatabaseError{Op: "count student companions", Err: err}
+	}
+
+	requested := make(map[int64]bool, len(studentIDs))
+	for _, id := range studentIDs {
+		requested[id] = true
+	}
+
+	// Fold to DISTINCT far ends first: one pair linked on five weekdays is five
+	// rows but one companion, and counting rows would reject a perfectly legal
+	// list.
+	distinct := make(map[int64]map[int64]bool, len(studentIDs))
+	for _, edge := range edges {
+		for _, pair := range [2][2]int64{
+			{edge.StudentLowID, edge.StudentHighID},
+			{edge.StudentHighID, edge.StudentLowID},
+		} {
+			near, far := pair[0], pair[1]
+			if !requested[near] || far == excludeID {
+				continue
+			}
+			if distinct[near] == nil {
+				distinct[near] = make(map[int64]bool)
+			}
+			distinct[near][far] = true
+		}
+	}
+
+	for _, id := range studentIDs {
+		counts[id] = len(distinct[id])
+	}
+	return counts, nil
+}
+
 // ReplaceForStudent makes the given edges the child's complete companion set:
 // every existing edge touching the student is removed first, then the new set is
 // inserted.
@@ -117,6 +175,12 @@ func (r *StudentCompanionRepository) ListLinksForStudent(ctx context.Context, st
 // "läuft mit" list, and a delete+insert of at most a handful of rows keeps the
 // symmetry invariant trivially correct (removing Tom from Lina's card must
 // remove Lina from Tom's card, which is the same row).
+//
+// The same symmetry means a delete here reaches into ANOTHER child's record: an
+// edge that was the far child's only "mit wem" detail leaves them with an
+// accompanied departure plan and nothing to back it up. Reconciling that is the
+// caller's job (services/users checkCompanionRemovals) — this method writes what
+// it is told.
 //
 // Callers run inside the request's tenant transaction (withTx), so the delete
 // and the insert commit or roll back together.

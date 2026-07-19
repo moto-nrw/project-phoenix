@@ -52,6 +52,28 @@ var (
 	// ErrTooManyCompanions indicates more companions than MaxStudentCompanions
 	ErrTooManyCompanions = errors.New("Es können höchstens 10 Kinder verknüpft werden.") //nolint:staticcheck // ST1005: user-facing German message
 
+	// ErrCompanionAtLimit indicates the cap is already reached at the FAR end of
+	// a submitted link: an edge counts for both children, so a list that is
+	// short enough for the child being edited can still overflow a companion who
+	// is already linked to MaxStudentCompanions others.
+	ErrCompanionAtLimit = errors.New("Ein ausgewähltes Kind ist bereits mit 10 Kindern verknüpft.") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrCompanionWouldLoseDeparture indicates that removing a link would leave
+	// the OTHER child with an accompanied ("Anderes Kind") departure plan and no
+	// remaining detail — neither another link nor a free-text note. Refused
+	// rather than silently narrowing that child's plan: one child's edit must
+	// never change another child's departure permissions, and leaving the
+	// contradiction in place would block every later edit of that child.
+	ErrCompanionWouldLoseDeparture = errors.New("Ein verknüpftes Kind hätte danach keine Angabe mehr dazu, mit wem es nach Hause geht. Bitte zuerst den Heimweg dieses Kindes anpassen.") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrCompanionExtensionNotAuthorized indicates the write path was asked to
+	// widen a companion's departure plan that the caller was never authorized
+	// for. Not user-facing: it can only fire if the authorization pass and the
+	// write pass disagree, which the shared row locks are supposed to prevent —
+	// so it must surface as a 500 (rolling the transaction back), never as a
+	// 4xx the middleware would commit.
+	ErrCompanionExtensionNotAuthorized = errors.New("companion departure-plan extension was not authorized")
+
 	// ErrStaffInUse indicates staff has attendance records or active supervisions
 	ErrStaffInUse = errors.New("Personal kann nicht gelöscht werden: Mitarbeiter/in hat aktive Aufsichten oder Anwesenheitseinträge") //nolint:staticcheck // ST1005: user-facing German message
 

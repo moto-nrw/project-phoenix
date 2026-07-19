@@ -67,6 +67,24 @@ func (rs *Resource) getStudentCompanions(w http.ResponseWriter, r *http.Request)
 	common.Respond(w, r, http.StatusOK, toCompanionResponses(links), "Departure companions retrieved")
 }
 
+// lockCompanionRows takes the student row locks this request may need — the
+// child being edited plus every submitted companion — in one ascending-id pass.
+//
+// It has to run before the subject's own lock: an update that confirms an
+// extension writes the companion row too, and locking the subject first would
+// leave two requests editing children A and B, each linking the other, free to
+// acquire A→B and B→A. PostgreSQL resolves that by aborting one with a deadlock
+// error, which surfaces as a 500 on a perfectly legitimate edit.
+func (rs *Resource) lockCompanionRows(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest) error {
+	ids := []int64{student.ID}
+	if req.hasCompanionUpdate() {
+		for _, entry := range *req.Companions {
+			ids = append(ids, entry.CompanionStudentID)
+		}
+	}
+	return rs.StudentService.LockStudentsForUpdate(ctx, ids)
+}
+
 // companionConflictError carries the conflicting companions out of the update
 // transaction so the closure can abort (rolling back every write) while the
 // handler still renders the 409 the client needs to ask its question.
@@ -92,15 +110,24 @@ var errCompanionExtendForbidden = errors.New("Für ein verknüpftes Kind fehlt d
 // inside the middleware's tenant transaction, which commits on every non-5xx
 // response, so a 4xx raised after the first write would keep that write.
 //
+// It returns the companion ids whose departure plan the caller is allowed to
+// widen; applyCompanionUpdate hands that set to the write path so a companion
+// that never passed this check cannot be widened.
+//
 // `student` must already carry the plan resolved from this request.
-func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest, userPermissions []string) error {
-	if !req.hasCompanionUpdate() {
-		return nil
-	}
+func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest, userPermissions []string) (map[int64]bool, error) {
 	accompaniedDays := userModels.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)
+
+	// Removal-only paths. Both drop links without a submitted list to validate —
+	// the trim keeps what the new plan still allows, an emptied plan drops
+	// everything — and both can strand the child at the far end of a dropped
+	// link. applyCompanionUpdate performs them AFTER the first writes of this
+	// transaction, so the refusal has to be raised here.
+	if !req.hasCompanionUpdate() {
+		return nil, rs.StudentService.CheckCompanionTrim(ctx, student.ID, accompaniedDays)
+	}
 	if len(accompaniedDays) == 0 {
-		// No accompanied day left: the links are cleared rather than checked.
-		return nil
+		return nil, rs.StudentService.CheckCompanionTrim(ctx, student.ID, nil)
 	}
 
 	conflicts, err := rs.StudentService.CheckCompanionConflicts(ctx, student.ID, usersService.CompanionUpdate{
@@ -109,13 +136,13 @@ func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userMo
 		ExtendCompanionPlans: req.ExtendCompanionPlans,
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if len(conflicts) == 0 {
-		return nil
+		return map[int64]bool{}, nil
 	}
 	if !req.ExtendCompanionPlans {
-		return &companionConflictError{Conflicts: conflicts}
+		return nil, &companionConflictError{Conflicts: conflicts}
 	}
 	return rs.authorizeCompanionExtension(ctx, conflicts, userPermissions)
 }
@@ -129,7 +156,15 @@ func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userMo
 // same authorization that a direct update of that child would, or a group
 // supervisor could edit the Heimweg of any child in the school by way of a
 // crafted extend_companion_plans request.
-func (rs *Resource) authorizeCompanionExtension(ctx context.Context, conflicts []usersService.CompanionConflict, userPermissions []string) error {
+//
+// The rows it judges are the rows that get written: lockCompanionRows took a
+// FOR UPDATE lock on every submitted companion before this validation ran, so
+// no concurrent request can reassign a companion out of the caller's groups or
+// narrow its plan between this pass and the write pass — the second validation
+// inside ReplaceCompanions sees byte-identical rows and therefore the identical
+// conflict set. The returned set is passed on as CompanionUpdate.
+// AuthorizedExtensions so that assumption is enforced rather than trusted.
+func (rs *Resource) authorizeCompanionExtension(ctx context.Context, conflicts []usersService.CompanionConflict, userPermissions []string) (map[int64]bool, error) {
 	ids := make([]int64, 0, len(conflicts))
 	for _, conflict := range conflicts {
 		ids = append(ids, conflict.StudentID)
@@ -137,18 +172,20 @@ func (rs *Resource) authorizeCompanionExtension(ctx context.Context, conflicts [
 
 	companions, err := rs.StudentService.GetByIDs(ctx, ids)
 	if err != nil {
-		return err
+		return nil, err
 	}
+	authorized := make(map[int64]bool, len(ids))
 	for _, id := range ids {
 		companion := companions[id]
 		if companion == nil {
-			return usersService.ErrCompanionNotFound
+			return nil, usersService.ErrCompanionNotFound
 		}
 		if ok, _ := canUpdateStudent(ctx, userPermissions, companion, rs.UserContextService); !ok {
-			return errCompanionExtendForbidden
+			return nil, errCompanionExtendForbidden
 		}
+		authorized[id] = true
 	}
-	return nil
+	return authorized, nil
 }
 
 // applyCompanionUpdate reconciles the child's "läuft mit" links with the
@@ -158,8 +195,9 @@ func (rs *Resource) authorizeCompanionExtension(ctx context.Context, conflicts [
 // accompanied-requires-a-note invariant that the model checks on write, and a
 // conflict has to abort the transaction before anything lands.
 //
-// `student` must already carry the plan resolved from this request.
-func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest) error {
+// `student` must already carry the plan resolved from this request;
+// `authorizedExtensions` is what checkCompanionConflicts returned.
+func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest, authorizedExtensions map[int64]bool) error {
 	accompaniedDays := userModels.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)
 
 	// The plan no longer allows leaving with another child anywhere: the links
@@ -195,6 +233,7 @@ func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModel
 		Links:                links,
 		AccompaniedDays:      accompaniedDays,
 		ExtendCompanionPlans: req.ExtendCompanionPlans,
+		AuthorizedExtensions: authorizedExtensions,
 	})
 	if err != nil {
 		return err

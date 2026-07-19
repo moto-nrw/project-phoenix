@@ -72,6 +72,16 @@ export function validateStudentForm(
     lastName?: boolean;
     schoolClass?: boolean;
   } = {},
+  options: {
+    /**
+     * True when the child already has (or is about to get) a Laufgemeinschaft
+     * link. A link answers "mit wem" better than the free-text note and
+     * satisfies the same rule — the backend accepts either — so a form that
+     * offers the companion picker must pass this, or a companion-only
+     * accompanied plan can never be saved.
+     */
+    hasCompanionLink?: boolean;
+  } = {},
 ): Record<string, string> {
   const errors: Record<string, string> = {};
 
@@ -92,13 +102,15 @@ export function validateStudentForm(
     errors.data_retention_days = retentionError;
   }
 
-  // When a child may leave "Mit anderem Kind", the free-text note must say with
-  // whom — an accompanied plan with an empty note defeats the point (#1694).
+  // When a child may leave "Mit anderem Kind", something must say with whom —
+  // an accompanied plan with no detail at all defeats the point (#1694). Either
+  // a linked child or the free-text note satisfies it.
   if (
     allowedModesIncludeAccompanied(
       formData.allowed_departure_modes,
       formData.departure_days,
     ) &&
+    !options.hasCompanionLink &&
     !formData.departure_companion_note?.trim()
   ) {
     errors.departure_companion_note =

@@ -1062,6 +1062,16 @@ func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *users.Stu
 // snapshot write. It returns one of the package sentinel errors for the racy
 // paths the outer switch maps to specific status codes.
 func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, student *users.Student, person *users.Person, req *UpdateStudentRequest, userPermissions []string, personUpdated bool, statusHistoryNow time.Time) error {
+	// Before ANY row lock of this request: a companion update writes the linked
+	// child too (a confirmed extension widens their departure plan), so subject
+	// and companions have to be locked in one deterministic order or two
+	// requests linking the same pair deadlock each other. Locking them here also
+	// freezes the rows the companion authorization below judges, so the check
+	// pass and the write pass cannot disagree.
+	if err := rs.lockCompanionRows(ctx, student, req); err != nil {
+		return err
+	}
+
 	fresh, err := rs.lockStudentForUpdate(ctx, student, req, userPermissions)
 	if err != nil {
 		return err
@@ -1079,7 +1089,8 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// transaction, and that commits on every non-5xx response — a 409 raised
 	// after a write would keep that write.
 	applyStudentFieldUpdates(req, fresh)
-	if err := rs.checkCompanionConflicts(ctx, fresh, req, userPermissions); err != nil {
+	authorizedExtensions, err := rs.checkCompanionConflicts(ctx, fresh, req, userPermissions)
+	if err != nil {
 		return err
 	}
 
@@ -1099,7 +1110,7 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// Companions BEFORE the student write: the link satisfies the
 	// accompanied-requires-a-note invariant that Update validates, and a
 	// conflict must abort the whole transaction before anything is persisted.
-	if err := rs.applyCompanionUpdate(ctx, fresh, req); err != nil {
+	if err := rs.applyCompanionUpdate(ctx, fresh, req, authorizedExtensions); err != nil {
 		return err
 	}
 	if err := rs.StudentService.Update(ctx, fresh); err != nil {
@@ -1165,8 +1176,15 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 		errors.Is(err, userService.ErrDuplicateCompanion),
 		errors.Is(err, userService.ErrCompanionWeekdayRequired),
 		errors.Is(err, userService.ErrTooManyCompanions),
+		errors.Is(err, userService.ErrCompanionAtLimit),
 		errors.Is(err, users.ErrCompanionSelfLink),
+		errors.Is(err, users.ErrCompanionStudentIDRequired),
 		errors.Is(err, users.ErrCompanionInvalidWeekday):
+		return common.ErrorInvalidRequest(err)
+	// Removing a link would leave the OTHER child with an accompanied departure
+	// plan and no "mit wem" detail at all. Nothing was written; the user has to
+	// give that child a note (or another link) first.
+	case errors.Is(err, userService.ErrCompanionWouldLoseDeparture):
 		return common.ErrorInvalidRequest(err)
 	default:
 		return common.ErrorInternalServer(err)

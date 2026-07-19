@@ -256,3 +256,134 @@ func TestStudentUpdate_CompanionLinkSatisfiesNoteRequirement(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "2c", stored.SchoolClass)
 }
+
+// TestStudentService_ReplaceCompanions_RefusesOrphaningCompanion pins that
+// removing a link may not strand the child at the far end of it. The edge is
+// stored once and read from both cards, so dropping it edits the OTHER child's
+// record: if that link was their only "mit wem" detail, they are left with an
+// accompanied plan, no note and no link — Stammdaten that contradict themselves
+// and block every later unrelated edit of that child.
+func TestStudentService_ReplaceCompanions_RefusesOrphaningCompanion(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := newCompanionTestService(db)
+
+	subject := testpkg.CreateTestStudent(t, db, "OrphanSubject", "Companion", "1a")
+	companion := testpkg.CreateTestStudent(t, db, "OrphanCompanion", "Companion", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
+	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
+
+	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
+	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
+
+	conflicts, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
+	})
+	require.NoError(t, err)
+	require.Empty(t, conflicts)
+
+	// The link is now the companion's only "mit wem" detail.
+	clearCompanionNote(t, db, companion.ID)
+
+	// ACT — the subject drops the companion from their list.
+	_, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{})
+	assert.ErrorIs(t, err, usersService.ErrCompanionWouldLoseDeparture)
+
+	// The refusal happens before any write: the link is still there.
+	links, err := service.ListCompanions(ctx, companion.ID)
+	require.NoError(t, err)
+	assert.Len(t, links, 1, "nothing may have been deleted")
+
+	// The same removal is fine once the companion carries their own note.
+	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
+	_, err = service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{})
+	require.NoError(t, err)
+}
+
+// TestStudentService_CheckCompanionTrim_RefusesOrphaningCompanion pins the same
+// rule for the path where the client narrows its own departure plan WITHOUT
+// submitting a list. The trim drops whole links too, and it runs after the
+// update's first writes — so the refusal has to be available before them.
+func TestStudentService_CheckCompanionTrim_RefusesOrphaningCompanion(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := newCompanionTestService(db)
+
+	subject := testpkg.CreateTestStudent(t, db, "TrimOrphanSubject", "Companion", "1a")
+	companion := testpkg.CreateTestStudent(t, db, "TrimOrphanCompanion", "Companion", "1a")
+	defer testpkg.CleanupActivityFixtures(t, db, subject.ID, companion.ID)
+	defer cleanupCompanionEdges(t, db, subject.ID, companion.ID)
+
+	setAccompaniedDays(t, db, ctx, subject.ID, "mon")
+	setAccompaniedDays(t, db, ctx, companion.ID, "mon")
+
+	_, err := service.ReplaceCompanions(ctx, subject.ID, usersService.CompanionUpdate{
+		Links: []userModels.CompanionLink{{CompanionStudentID: companion.ID, Weekdays: []string{"mon"}}},
+	})
+	require.NoError(t, err)
+	clearCompanionNote(t, db, companion.ID)
+
+	// Dropping "Anderes Kind" from Monday would drop the only edge.
+	assert.ErrorIs(t,
+		service.CheckCompanionTrim(ctx, subject.ID, map[string]bool{}),
+		usersService.ErrCompanionWouldLoseDeparture,
+	)
+	// Keeping Monday changes nothing, so there is nothing to refuse.
+	require.NoError(t, service.CheckCompanionTrim(ctx, subject.ID, map[string]bool{"mon": true}))
+}
+
+// TestStudentService_ReplaceCompanions_EnforcesLimitOnBothEnds pins that
+// MaxStudentCompanions caps EVERY child's list, not just the submitted one. An
+// edge counts on both cards, so checking only the subject would let eleven
+// children each name the same child as their single companion and leave that
+// child over the cap — and unable to edit their own list afterwards, because
+// the full list is then rejected.
+func TestStudentService_ReplaceCompanions_EnforcesLimitOnBothEnds(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	service := newCompanionTestService(db)
+
+	// One popular child, MaxStudentCompanions children already linked to them,
+	// and one more trying to join.
+	popular := testpkg.CreateTestStudent(t, db, "PopularChild", "Companion", "1a")
+	ids := []int64{popular.ID}
+	peers := make([]int64, 0, usersService.MaxStudentCompanions+1)
+	for i := 0; i <= usersService.MaxStudentCompanions; i++ {
+		peer := testpkg.CreateTestStudent(t, db, "LimitPeer", "Companion", "1a")
+		peers = append(peers, peer.ID)
+		ids = append(ids, peer.ID)
+	}
+	defer testpkg.CleanupActivityFixtures(t, db, ids...)
+	defer cleanupCompanionEdges(t, db, ids...)
+
+	for _, id := range ids {
+		setAccompaniedDays(t, db, ctx, id, "mon")
+	}
+
+	for _, peer := range peers[:usersService.MaxStudentCompanions] {
+		_, err := service.ReplaceCompanions(ctx, peer, usersService.CompanionUpdate{
+			Links: []userModels.CompanionLink{{CompanionStudentID: popular.ID, Weekdays: []string{"mon"}}},
+		})
+		require.NoError(t, err)
+	}
+
+	// ACT — one more child submits a single-entry list, which is well under the
+	// cap for them but pushes the popular child over it.
+	_, err := service.ReplaceCompanions(ctx, peers[usersService.MaxStudentCompanions], usersService.CompanionUpdate{
+		Links: []userModels.CompanionLink{{CompanionStudentID: popular.ID, Weekdays: []string{"mon"}}},
+	})
+	assert.ErrorIs(t, err, usersService.ErrCompanionAtLimit)
+
+	// Re-submitting an unchanged list is NOT rejected: the subject's own edges
+	// are excluded from the companion's degree.
+	_, err = service.ReplaceCompanions(ctx, peers[0], usersService.CompanionUpdate{
+		Links: []userModels.CompanionLink{{CompanionStudentID: popular.ID, Weekdays: []string{"mon"}}},
+	})
+	require.NoError(t, err)
+}

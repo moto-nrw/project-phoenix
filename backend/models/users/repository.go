@@ -346,6 +346,10 @@ type StudentCompanionRepository interface {
 
 	// CompanionIDsForWeekday bulk-resolves companions for one weekday.
 	CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error)
+
+	// CompanionCountsExcluding returns, per student, the number of DISTINCT
+	// other children they are linked to, ignoring links to excludeID.
+	CompanionCountsExcluding(ctx context.Context, studentIDs []int64, excludeID int64) (map[int64]int, error)
 }
 
 // StudentRetentionSetting is the projection used by the GDPR visit-cleanup
