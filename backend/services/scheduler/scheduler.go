@@ -758,8 +758,10 @@ func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Conte
 	return int(rows), nil
 }
 
-// notScheduledForEndedSessions collects the (instance, student) pairs whose
-// care plan does not place the child at that instance's date (#1747). The
+// notScheduledForEndedSessions collects the (instance, student) pairs where the
+// child is not booked into care at all on that instance's date (#1747). An
+// explicitly cancelled day is deliberately not in here — it is a reported
+// absence and must still be written (CareDayStatus.ExemptFromAbsence). The
 // exclusions are per-instance on purpose: one cleanup run can close instances
 // from several dates, and a child not booked on one date may be genuinely
 // expected on another — a global per-student list would spare both rows.
@@ -836,7 +838,7 @@ func (s *Scheduler) notScheduledForEndedSessions(ctx context.Context, activeGrou
 		if !ok {
 			continue
 		}
-		if careDays[row.StudentID][date] == scheduleSvc.CareDayNotScheduled {
+		if careDays[row.StudentID][date].ExemptFromAbsence() {
 			exclusions = append(exclusions, scheduleModel.StudentInstanceRef{
 				StudentID:  row.StudentID,
 				InstanceID: row.InstanceID,

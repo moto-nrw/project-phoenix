@@ -1314,6 +1314,47 @@ func TestInstance_Complete_SkipsChildrenNotInCareThatDay(t *testing.T) {
 		"a child not booked for care on this weekday must not be recorded absent")
 }
 
+// The mirror image of the test above: a child who IS booked today and whose day
+// somebody cancelled ("Kommt heute nicht") must still be stamped absent (#1747
+// review). The care plan booked the day, so the absence is real — and a
+// surviving 'expected' row on a completed instance is filtered out of the
+// attendance history and the exports, so skipping the stamp would erase the
+// absence instead of recording it.
+func TestInstance_Complete_RecordsAbsenceForCancelledDay(t *testing.T) {
+	s := buildLifecycle(t)
+
+	ai := seedInstance(t, s, true, true) // both students expected
+
+	instanceWeekday := int(ai.Date.Weekday())
+	if instanceWeekday == 0 {
+		instanceWeekday = 7 // ISO: the schedule tables key Sunday as 7
+	}
+
+	// student2 is booked for care on the instance's weekday …
+	arrival := testpkg.CreateTestArrivalSchedule(t, s.db, s.student2, instanceWeekday, s.staffID, "08:00")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.student_arrival_schedules", arrival.ID)
+	})
+	// … and the day was cancelled: an arrival exception with no time.
+	exception := testpkg.CreateTestArrivalException(t, s.db, s.student2, ai.Date, s.staffID, "", "krank gemeldet")
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.student_arrival_exceptions", exception.ID)
+	})
+
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
+	})
+
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	got := fetchAttendance(t, s, ai.ID, s.student2)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status,
+		"a cancelled care day is an absence and must be recorded as one")
+}
+
 // Cancel must NOT flip expected → absent. A cancelled instance never ran,
 // so "absent" would falsely imply the student failed to show up to an event
 // that happened. The cancelled status on the instance itself is the signal.

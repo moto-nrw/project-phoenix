@@ -269,9 +269,13 @@ func (s *instanceService) getLogger() *slog.Logger {
 	return cmp.Or(s.deps.Logger, slog.Default())
 }
 
-// notScheduledStudentIDs returns the instance's assigned children whose care
-// plan does not place them at the OGS on the instance's date (#1747). Used to
-// spare them the expected → absent stamp when an instance ends.
+// notScheduledStudentIDs returns the instance's assigned children who are not
+// booked into care at all on the instance's date (#1747). Used to spare them
+// the expected → absent stamp when an instance ends.
+//
+// A child whose day was explicitly cancelled is NOT in this list: that is a
+// reported absence and has to be written, or it vanishes from the attendance
+// history and the exports (see CareDayStatus.ExemptFromAbsence).
 func (s *instanceService) notScheduledStudentIDs(
 	ctx context.Context, instance *scheduleModel.ActivityInstance,
 ) ([]int64, error) {
@@ -295,7 +299,7 @@ func (s *instanceService) notScheduledStudentIDs(
 
 	notScheduled := make([]int64, 0)
 	for _, studentID := range studentIDs {
-		if careDay[studentID] == CareDayNotScheduled {
+		if careDay[studentID].ExemptFromAbsence() {
 			notScheduled = append(notScheduled, studentID)
 		}
 	}
@@ -515,9 +519,9 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 	// updateLifecycleColumns fail below, the bulk update rolls back too, so
 	// the instance never leaves the tx in a half-finished state.
 	//
-	// Children whose care plan does not place them here today are left alone
-	// (#1747): they were never expected, so "absent" would claim they failed
-	// to show up to care they were not booked for.
+	// Children who are not booked into care today are left alone (#1747): they
+	// were never expected, so "absent" would claim they failed to show up to
+	// care they were not booked for. A cancelled day still gets its absence.
 	notScheduled, err := s.notScheduledStudentIDs(ctx, instance)
 	if err != nil {
 		return nil, err

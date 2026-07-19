@@ -419,6 +419,7 @@ export function mapInstance(raw: BackendEnrichedInstance): EnrichedInstance {
     substatus: s.substatus,
     note: s.note,
     checkedInAt: s.checked_in_at,
+    careDayStatus: s.care_day_status ?? "unknown",
   }));
   const studentIds =
     students.length > 0

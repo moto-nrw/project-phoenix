@@ -115,10 +115,11 @@ type OperationPlannedInstance struct {
 	MinutesUntilStart     int     `json:"minutes_until_start"`
 	ExpectedStudentsCount int     `json:"expected_students_count"`
 	PresentStudentsCount  int     `json:"present_students_count"`
-	// NotScheduledCount is how many assigned children the care plan does not
-	// place here today (#1747). They are excluded from ExpectedStudentsCount;
-	// this field keeps the reduction visible instead of silently shrinking the
-	// number the supervisor knows.
+	// NotScheduledCount is how many assigned children are not in care here
+	// today (#1747) — not booked on this weekday, or the day was cancelled.
+	// They are excluded from ExpectedStudentsCount; this field keeps the
+	// reduction visible instead of silently shrinking the number the
+	// supervisor knows.
 	NotScheduledCount int                       `json:"not_scheduled_students_count"`
 	AssignedStaffIDs  []int64                   `json:"assigned_staff_ids"`
 	IsAssigned        bool                      `json:"is_assigned"`
@@ -160,10 +161,12 @@ type OperationRosterRow struct {
 	VisitEntryTime   *string                  `json:"visit_entry_time,omitempty"`
 	Warnings         []OperationRosterWarning `json:"warnings,omitempty"`
 	// CareDayStatus is the care-plan verdict for this child on the instance's
-	// date (#1747): "scheduled" | "not_scheduled" | "unknown". Only
-	// "not_scheduled" is actionable — the frontend sets those rows apart and
-	// leaves them out of the expected count. The rows stay in the payload so a
-	// child who turns up anyway can still be checked in with one tap.
+	// date (#1747): "scheduled" | "not_scheduled" | "cancelled" | "unknown".
+	// "not_scheduled" (not booked that weekday) and "cancelled" (someone said
+	// "kommt heute nicht") both mean the child is not expected — the frontend
+	// sets those rows apart and leaves them out of the expected count. The rows
+	// stay in the payload so a child who turns up anyway can still be checked
+	// in with one tap.
 	CareDayStatus CareDayStatus `json:"care_day_status"`
 }
 
@@ -962,8 +965,10 @@ func mapPlannedInstance(inst *scheduleModel.ActivityInstance, staffRows []*sched
 		switch row.Status {
 		case scheduleModel.AttendanceStatusExpected:
 			// An assignment alone does not make a child expected today: the
-			// care plan has to place them here on this weekday (#1747).
-			if careDay[row.StudentID] == CareDayNotScheduled {
+			// care plan has to place them here on this weekday, and nobody may
+			// have cancelled the day (#1747). A missing entry reads as unknown
+			// and keeps the child expected.
+			if !careDay[row.StudentID].Expected() {
 				notScheduled++
 				continue
 			}

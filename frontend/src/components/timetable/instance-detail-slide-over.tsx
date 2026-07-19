@@ -73,6 +73,7 @@ import type {
   InstanceStudentSummary,
   InstanceStatus,
 } from "~/lib/timetable-types";
+import { isCareDayExpected } from "~/lib/timetable-types";
 
 export type LifecycleAction = "start" | "complete" | "cancel";
 
@@ -216,6 +217,15 @@ function attendanceSubstatusLabel(
   }
 }
 
+/**
+ * Row label for a child the care plan does not place here today (#1747). The
+ * assignment row still says "expected", so labelling it "Erwartet" would
+ * contradict the header count, which leaves the child out.
+ */
+function careDayLabel(status: InstanceStudentSummary["careDayStatus"]): string {
+  return status === "cancelled" ? "Heute abgemeldet" : "Heute nicht eingeplant";
+}
+
 function attendanceTone(status: InstanceStudentSummary["status"]): string {
   switch (status) {
     case "present":
@@ -231,6 +241,7 @@ function fallbackStudentRows(studentIds: string[]): InstanceStudentSummary[] {
   return studentIds.map((studentId) => ({
     studentId,
     status: "expected",
+    careDayStatus: "unknown",
   }));
 }
 
@@ -324,7 +335,7 @@ function InstanceStudentsSection({
   students,
 }: Readonly<{
   groupedStudents: Record<
-    InstanceStudentSummary["status"],
+    InstanceStudentSummary["status"] | "notScheduled",
     InstanceStudentSummary[]
   >;
   handleAttendancePatch: (
@@ -345,20 +356,31 @@ function InstanceStudentsSection({
     );
   }
 
+  // The care-day group carries no attendance actions: "abmelden" or "anwesend"
+  // would write attendance for a child the counts already treat as not in care
+  // today. A child who turns up anyway is checked in from the roster, the same
+  // place the active-supervision view sends staff (#1747).
   const groups = [
-    ["expected", groupedStudents.expected],
-    ["present", groupedStudents.present],
-    ["absent", groupedStudents.absent],
+    { key: "expected", status: "expected", rows: groupedStudents.expected },
+    {
+      key: "not-scheduled",
+      status: "expected",
+      rows: groupedStudents.notScheduled,
+      careDayGroup: true,
+    },
+    { key: "present", status: "present", rows: groupedStudents.present },
+    { key: "absent", status: "absent", rows: groupedStudents.absent },
   ] as const;
 
   return (
     <Section title="Kinder">
       <div className="space-y-3">
-        {groups.map(([status, rows]) => (
+        {groups.map((group) => (
           <StudentGroup
-            key={status}
-            status={status}
-            students={rows}
+            key={group.key}
+            status={group.status}
+            careDayGroup={"careDayGroup" in group}
+            students={group.rows}
             studentNames={studentNames}
             pendingStudentId={pendingStudentId}
             onAttendancePatch={onAttendancePatch}
@@ -402,9 +424,22 @@ export function InstanceDetailSlideOver({
   );
   const [pendingStudentId, setPendingStudentId] = useState<string | null>(null);
   const students = useMemo(() => studentsForInstance(instance), [instance]);
+  // Same split the header counts use (#1747): an assignment row still reads
+  // "expected" when the care plan does not place the child here today, so it
+  // gets its own group instead of padding "Erwartet" with children the
+  // expected count — and the staffing maths — deliberately leave out.
   const groupedStudents = useMemo(
     () => ({
-      expected: students.filter((student) => student.status === "expected"),
+      expected: students.filter(
+        (student) =>
+          student.status === "expected" &&
+          isCareDayExpected(student.careDayStatus),
+      ),
+      notScheduled: students.filter(
+        (student) =>
+          student.status === "expected" &&
+          !isCareDayExpected(student.careDayStatus),
+      ),
       present: students.filter((student) => student.status === "present"),
       absent: students.filter((student) => student.status === "absent"),
     }),
@@ -839,6 +874,7 @@ export function InstanceDetailSlideOver({
 
 function StudentGroup({
   status,
+  careDayGroup = false,
   students,
   studentNames,
   pendingStudentId,
@@ -847,6 +883,12 @@ function StudentGroup({
   handleAttendancePatch,
 }: {
   status: InstanceStudentSummary["status"];
+  /**
+   * True for the "not in care today" group: it is labelled by the care-day
+   * verdict rather than the attendance status, and carries no attendance
+   * actions (#1747).
+   */
+  careDayGroup?: boolean;
   students: InstanceStudentSummary[];
   studentNames: Map<string, string>;
   pendingStudentId: string | null;
@@ -863,7 +905,11 @@ function StudentGroup({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-[11px] font-bold tracking-wide text-gray-400 uppercase">
-        <span>{attendanceLabel(status, isPlanned)}</span>
+        <span>
+          {careDayGroup
+            ? "Heute nicht eingeplant"
+            : attendanceLabel(status, isPlanned)}
+        </span>
         {showTimetableCounts ? <span>{students.length}</span> : null}
       </div>
       {students.map((student) => {
@@ -882,14 +928,16 @@ function StudentGroup({
                 {studentName}
               </div>
               <div className="text-[11px] text-gray-500">
-                {attendanceLabel(student.status, isPlanned)}
+                {careDayGroup
+                  ? careDayLabel(student.careDayStatus)
+                  : attendanceLabel(student.status, isPlanned)}
                 {student.substatus
                   ? ` • ${attendanceSubstatusLabel(student.substatus)}`
                   : ""}
                 {student.note ? ` • ${student.note}` : ""}
               </div>
             </div>
-            {onAttendancePatch && (
+            {onAttendancePatch && !careDayGroup && (
               <div className="flex shrink-0 items-center gap-1">
                 {!isPlanned && student.status !== "present" && (
                   <IconActionButton

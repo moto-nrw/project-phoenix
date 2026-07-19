@@ -168,6 +168,55 @@ describe("InstanceDetailSlideOver", () => {
     );
   });
 
+  // The header count already leaves these children out (#1747). Listing them
+  // under "Erwartet" with an "abmelden" action would contradict that count and
+  // write attendance for a day the child is not in care at all.
+  it("groups children who are not in care today and drops their actions", () => {
+    render(
+      <InstanceDetailSlideOver
+        instance={instance({
+          students: [
+            { studentId: "21", status: "expected", careDayStatus: "scheduled" },
+            {
+              studentId: "24",
+              status: "expected",
+              careDayStatus: "not_scheduled",
+            },
+            { studentId: "25", status: "expected", careDayStatus: "cancelled" },
+          ],
+          studentIds: ["21", "24", "25"],
+          expectedStudentsCount: 1,
+          notScheduledStudentsCount: 2,
+          presentStudentsCount: 0,
+        })}
+        onClose={vi.fn()}
+        onLifecycleAction={vi.fn()}
+        onAttendancePatch={vi.fn()}
+        studentNames={
+          new Map([
+            ["21", "Max Erwartet"],
+            ["24", "Nina Ohne Betreuung"],
+            ["25", "Ole Abgemeldet"],
+          ])
+        }
+        editDeferred={false}
+      />,
+    );
+
+    // Group header plus the row label of the not-booked child.
+    expect(screen.getAllByText("Heute nicht eingeplant")).toHaveLength(2);
+    expect(screen.getByText("Heute abgemeldet")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Max Erwartet abmelden" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Nina Ohne Betreuung/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Ole Abgemeldet/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("marks spontaneous instances in the detail header", () => {
     render(
       <InstanceDetailSlideOver

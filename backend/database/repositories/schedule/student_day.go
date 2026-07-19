@@ -103,8 +103,10 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		Where(`"activity_instance".date >= ?`, from).
 		Where(`"activity_instance".date <= ?`, to).
 		// Completion flips every genuinely expected row to 'absent' (Complete /
-		// the nightly bridge); a row still 'expected' on a completed instance
-		// is the frozen "war an dem Tag nicht eingeplant" marker (#1747) and
+		// the nightly bridge) — including the days somebody cancelled, which
+		// stay in the history as absences; a row still 'expected' on a
+		// completed instance means the child was not booked into care at all
+		// that day. That frozen "war an dem Tag nicht eingeplant" marker (#1747)
 		// must not resurface as expected attendance in the history, the export,
 		// or the week view. Cancelled instances keep their 'expected' rows
 		// visible — the instance status itself carries that story.

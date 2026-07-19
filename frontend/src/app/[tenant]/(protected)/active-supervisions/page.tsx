@@ -56,6 +56,7 @@ import type {
   TimetableRoster,
   TimetableRosterRow,
 } from "~/lib/timetable-operations-types";
+import { isCareDayExpected } from "~/lib/timetable-types";
 import { isAdmin, isCaregiver } from "~/lib/auth-utils";
 import type { TrackingIndicatorsResponse } from "~/lib/active-helpers";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
@@ -296,7 +297,7 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
       ) : null}
       {row.planned &&
       row.status === "expected" &&
-      row.careDayStatus !== "not_scheduled" ? (
+      isCareDayExpected(row.careDayStatus) ? (
         <>
           <button
             type="button"
@@ -628,23 +629,23 @@ function TimetableRosterContent({
   const present = roster.rows.filter(
     (row) => row.currentlyPresent && row.planned,
   );
-  // The care plan decides who counts as expected (#1747): rows whose plan
-  // does not place the child here today go into their own section below —
-  // never into "Erwartet" and never into the bulk confirm, which would
-  // persist attendance for a child who is not booked today.
+  // The care plan decides who counts as expected (#1747): rows the plan does
+  // not place here today — not booked, or the day was cancelled — go into
+  // their own section below, never into "Erwartet" and never into the bulk
+  // confirm, which would persist attendance for a child who is not coming.
   const expected = roster.rows.filter(
     (row) =>
       row.planned &&
       !row.currentlyPresent &&
       row.status === "expected" &&
-      row.careDayStatus !== "not_scheduled",
+      isCareDayExpected(row.careDayStatus),
   );
   const notScheduled = roster.rows.filter(
     (row) =>
       row.planned &&
       !row.currentlyPresent &&
       row.status === "expected" &&
-      row.careDayStatus === "not_scheduled",
+      !isCareDayExpected(row.careDayStatus),
   );
   const absent = roster.rows.filter(
     (row) => row.planned && !row.currentlyPresent && row.status === "absent",

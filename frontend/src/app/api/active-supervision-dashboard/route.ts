@@ -4,6 +4,7 @@
 import type { NextRequest } from "next/server";
 import { apiGet } from "~/lib/api-helpers.server";
 import { createGetHandler } from "~/lib/route-wrapper.server";
+import type { CareDayStatus } from "~/lib/timetable-types";
 
 // Backend response types for supervised/active groups
 interface BackendActiveGroup {
@@ -140,7 +141,7 @@ interface BackendTimetableRosterRow {
   checked_in_at?: string | null;
   visit_entry_time?: string | null;
   warnings?: BackendTimetableRosterWarning[];
-  care_day_status?: "scheduled" | "not_scheduled" | "unknown";
+  care_day_status?: CareDayStatus;
 }
 
 interface BackendTimetableRosterWarning {

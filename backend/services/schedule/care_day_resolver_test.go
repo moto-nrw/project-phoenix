@@ -85,13 +85,19 @@ func TestCareDayStatusFor_NoPlanVersusNotBookedToday(t *testing.T) {
 func TestCareDayStatusFor_Exceptions(t *testing.T) {
 	const studentID int64 = 43
 
+	// A cancellation is NOT a non-booking: the child is not expected, but the
+	// day was booked and has to end as a recorded absence (#1747 review).
 	t.Run("exception without a time cancels an otherwise booked day", func(t *testing.T) {
 		plans := plansForStudent(studentID, schedule.WeekdayMonday)
 		plans.arrivalExceptions[studentID] = map[timezone.Date]*schedule.StudentArrivalException{
 			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday},
 		}
 
-		assert.Equal(t, CareDayNotScheduled, plans.statusFor(studentID, careDayMonday))
+		status := plans.statusFor(studentID, careDayMonday)
+		assert.Equal(t, CareDayCancelled, status)
+		assert.False(t, status.Expected())
+		assert.False(t, status.ExemptFromAbsence(),
+			"a cancelled day must still be stamped absent, or it vanishes from the history")
 	})
 
 	t.Run("exception with a time books a day the weekly plan skips", func(t *testing.T) {
@@ -116,7 +122,7 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday},
 		}
 
-		assert.Equal(t, CareDayNotScheduled, plans.statusFor(studentID, careDayMonday))
+		assert.Equal(t, CareDayCancelled, plans.statusFor(studentID, careDayMonday))
 	})
 
 	t.Run("timeless pickup exception cancels the day despite an arrival schedule", func(t *testing.T) {
@@ -125,10 +131,14 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday},
 		}
 
-		assert.Equal(t, CareDayNotScheduled, plans.statusFor(studentID, careDayMonday))
+		assert.Equal(t, CareDayCancelled, plans.statusFor(studentID, careDayMonday))
 	})
 
-	t.Run("a timed exception on the other leg keeps the day booked", func(t *testing.T) {
+	// The parent portal resolves arrival_absent || pickup_absent to an absence
+	// before it looks at any time, so a timed exception on the other leg must
+	// not book the day here either — the guardian tile and the staff-side
+	// counts would disagree about the same child (#1747 review).
+	t.Run("a timed exception on the other leg does not beat the cancellation", func(t *testing.T) {
 		pickup := careDayClock("15:00")
 		plans := plansForStudent(studentID, schedule.WeekdayMonday)
 		plans.arrivalExceptions[studentID] = map[timezone.Date]*schedule.StudentArrivalException{
@@ -138,8 +148,8 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday, PickupTime: &pickup},
 		}
 
-		assert.Equal(t, CareDayScheduled, plans.statusFor(studentID, careDayMonday),
-			"an explicit same-day positive override outranks the timeless leg")
+		assert.Equal(t, CareDayCancelled, plans.statusFor(studentID, careDayMonday),
+			"the timeless leg is the 'kommt heute nicht' marker and wins")
 	})
 
 	t.Run("exception outranks the weekly plan on a weekend", func(t *testing.T) {
@@ -178,4 +188,16 @@ func TestCareDayStatusExpected_DefaultsToVisible(t *testing.T) {
 	assert.True(t, CareDayScheduled.Expected())
 	assert.True(t, CareDayStatus("").Expected())
 	assert.False(t, CareDayNotScheduled.Expected())
+	assert.False(t, CareDayCancelled.Expected())
+}
+
+// Only a genuine non-booking may skip the expected → absent stamp. Exempting a
+// cancellation would drop the row from the attendance history and the exports,
+// because the completed-instance filter hides surviving 'expected' rows.
+func TestCareDayStatusExemptFromAbsence_OnlyNonBookings(t *testing.T) {
+	assert.True(t, CareDayNotScheduled.ExemptFromAbsence())
+	assert.False(t, CareDayCancelled.ExemptFromAbsence())
+	assert.False(t, CareDayScheduled.ExemptFromAbsence())
+	assert.False(t, CareDayUnknown.ExemptFromAbsence())
+	assert.False(t, CareDayStatus("").ExemptFromAbsence())
 }

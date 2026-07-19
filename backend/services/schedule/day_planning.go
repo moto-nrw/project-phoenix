@@ -49,11 +49,14 @@ type DayPlanningDecision struct {
 // cancels the whole care day — it must not fall through to the other leg's
 // regular schedule time or a timetable booking (the contract
 // mergeCareExceptions documents for the parent portal, #1725). Staff often
-// cancel only the leg they are looking at; the child is still not coming.
-// Only a same-day exception WITH a time on the other leg — an explicit
-// positive override — keeps the day booked. This rule is shared by the
-// student search and the timetable's care-day derivation (#1747); both paths
-// must keep resolving through this function so they never disagree.
+// cancel only the leg they are looking at; the child is still not coming. A
+// timed exception on the OTHER leg does not overrule the cancellation either:
+// the parent portal resolves `pickup_absent || arrival_absent` to an absence
+// before it looks at any time (frontend/src/components/parent/child-care.tsx),
+// so letting a time win here would make the guardian tile and the staff-side
+// counts disagree about the same child on the same day. This rule is shared by
+// the student search and the timetable's care-day derivation (#1747); both
+// paths must keep resolving through this function so they never disagree.
 func ResolveDayPlanning(in DayPlanningInputs) DayPlanningDecision {
 	switch {
 	case in.HasActualAttendance:
@@ -68,9 +71,7 @@ func ResolveDayPlanning(in DayPlanningInputs) DayPlanningDecision {
 
 	arrivalCancelled := in.Arrival != nil && in.Arrival.IsException && in.Arrival.ArrivalTime == nil
 	pickupCancelled := in.Pickup != nil && in.Pickup.IsException && in.Pickup.PickupTime == nil
-	arrivalOverride := in.Arrival != nil && in.Arrival.IsException && in.Arrival.ArrivalTime != nil
-	pickupOverride := in.Pickup != nil && in.Pickup.IsException && in.Pickup.PickupTime != nil
-	if (arrivalCancelled || pickupCancelled) && !arrivalOverride && !pickupOverride {
+	if arrivalCancelled || pickupCancelled {
 		if arrivalCancelled {
 			return DayPlanningDecision{Reason: DayPlanningReasonArrivalException, ExceptionNotes: in.Arrival.Notes}
 		}

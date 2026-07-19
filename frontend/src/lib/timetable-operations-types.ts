@@ -1,3 +1,5 @@
+import type { CareDayStatus } from "./timetable-types";
+
 export interface PlannedTimetableInstance {
   id: string;
   title: string;
@@ -52,13 +54,14 @@ export interface TimetableRosterRow {
   visitEntryTime: string | null;
   warnings: TimetableRosterWarning[];
   /**
-   * Care-plan verdict for this child on the instance's date (#1747). Only
-   * "not_scheduled" is actionable: the row is set apart and left out of the
-   * expected count, but stays in the list so a child who turns up anyway can
-   * still be checked in with one tap. Older backends omit the field, which
-   * reads as "unknown" and changes nothing.
+   * Care-plan verdict for this child on the instance's date (#1747).
+   * "not_scheduled" and "cancelled" are the actionable ones: the row is set
+   * apart and left out of the expected count, but stays in the list so a child
+   * who turns up anyway can still be checked in with one tap. Older backends
+   * omit the field, which reads as "unknown" and changes nothing. Test with
+   * isCareDayExpected, never against a single value.
    */
-  careDayStatus: "scheduled" | "not_scheduled" | "unknown";
+  careDayStatus: CareDayStatus;
 }
 
 interface TimetableRosterWarning {

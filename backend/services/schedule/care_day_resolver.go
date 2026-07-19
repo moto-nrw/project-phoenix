@@ -35,9 +35,17 @@ const (
 	// CareDayScheduled — the care plan puts the child in the OGS that day.
 	CareDayScheduled CareDayStatus = "scheduled"
 
-	// CareDayNotScheduled — the child has a care plan, and it does not cover
-	// that day (or a same-day exception cancels it). Not expected.
+	// CareDayNotScheduled — the child is not booked into care that day: no
+	// arrival and no pickup plans the weekday, and nobody said otherwise. Not
+	// expected, and never an absence — there was no care to miss.
 	CareDayNotScheduled CareDayStatus = "not_scheduled"
+
+	// CareDayCancelled — somebody explicitly cancelled the day for this child
+	// ("Kommt heute nicht": a same-day arrival or pickup exception without a
+	// time). Not expected either, but this is a REPORTED ABSENCE, not a
+	// non-booking: it must still be stamped absent when the block ends so the
+	// attendance history and the exports keep showing it (#1747 review).
+	CareDayCancelled CareDayStatus = "cancelled"
 
 	// CareDayUnknown — no care plan on file at all, so the plan cannot say
 	// anything about that day. Treated as expected: schools that do not
@@ -47,8 +55,20 @@ const (
 )
 
 // Expected reports whether a child with this status belongs in the expected
-// count. Only an explicit "has a plan, plan says no" excludes them.
-func (s CareDayStatus) Expected() bool { return s != CareDayNotScheduled }
+// count. Both "not booked" and "cancelled" say the child is not coming; only a
+// missing or affirmative plan keeps them in.
+func (s CareDayStatus) Expected() bool {
+	return s != CareDayNotScheduled && s != CareDayCancelled
+}
+
+// ExemptFromAbsence reports whether ending a block may skip the
+// expected → absent stamp for this child.
+//
+// ONLY a non-booking qualifies. A cancellation looks the same on the planner
+// (not expected), but writing no row would erase the absence from the
+// attendance history and the exports — the day WAS booked and the child did
+// not come, which is exactly what an absence records.
+func (s CareDayStatus) ExemptFromAbsence() bool { return s == CareDayNotScheduled }
 
 // CareDayService derives care-day status for many children at once.
 type CareDayService interface {
@@ -222,9 +242,9 @@ func (s *careDayService) loadCarePlans(
 // which is the very question this derivation exists to answer.
 func (p *carePlans) statusFor(studentID int64, date timezone.Date) CareDayStatus {
 	// The whole-day cancellation rule (a timeless "Kommt heute nicht"
-	// exception on either leg cancels the day unless the other leg carries an
-	// explicit timed override) lives INSIDE ResolveDayPlanning, so the student
-	// search and this derivation can never disagree on the same child and
+	// exception on either leg cancels the day, whatever the other leg says)
+	// lives INSIDE ResolveDayPlanning, so the student search, the parent
+	// portal, and this derivation can never disagree on the same child and
 	// date. Do not re-implement any precedence here.
 	decision := ResolveDayPlanning(DayPlanningInputs{
 		Arrival: p.effectiveArrival(studentID, date),
@@ -234,11 +254,16 @@ func (p *carePlans) statusFor(studentID int64, date timezone.Date) CareDayStatus
 	switch {
 	case decision.ComesToday:
 		return CareDayScheduled
+	case decision.Reason == DayPlanningReasonArrivalException ||
+		decision.Reason == DayPlanningReasonPickupException:
+		// Not coming AND an exception reason: the only path to that pair is the
+		// cancellation branch of ResolveDayPlanning. Somebody stated the child
+		// is out today, which is an absence to record, not a missing booking.
+		return CareDayCancelled
 	case decision.Reason == DayPlanningReasonNoPlan && !p.hasPlan[studentID]:
 		return CareDayUnknown
 	default:
-		// Either the plan covers other weekdays but not this one, or a
-		// same-day exception cancels the day outright.
+		// The plan covers other weekdays, just not this one.
 		return CareDayNotScheduled
 	}
 }

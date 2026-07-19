@@ -18,6 +18,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/services/config/configtest"
+	scheduleSvc "github.com/moto-nrw/project-phoenix/services/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -288,6 +289,17 @@ func TestListInstances_CompletedExpectedRowStaysNotScheduled(t *testing.T) {
 	assert.Equal(t, 1, item.NotScheduledCount,
 		"the frozen marker is reported as not scheduled")
 	assert.Equal(t, 1, item.PresentStudentsCount)
+
+	// The per-child rows must carry the same verdict the counts used, or the
+	// planner lists a child under "Erwartet" that its own header count leaves
+	// out — and offers "abmelden" for a day that was never care (#1747 review).
+	careDayByStudent := map[int64]scheduleSvc.CareDayStatus{}
+	for _, row := range item.Students {
+		careDayByStudent[row.StudentID] = row.CareDayStatus
+	}
+	assert.Equal(t, scheduleSvc.CareDayNotScheduled, careDayByStudent[student1.ID])
+	assert.Equal(t, scheduleSvc.CareDayUnknown, careDayByStudent[student2.ID],
+		"a row with a real attendance status tells its own story")
 }
 
 func TestListInstances_IncludesPlannedConflictWarnings(t *testing.T) {

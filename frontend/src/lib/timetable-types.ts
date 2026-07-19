@@ -41,12 +41,40 @@ type InstanceAttendanceStatus = "expected" | "present" | "absent";
 type InstanceAttendanceSubstatus =
   "late" | "excused" | "sick" | "field_trip" | "other";
 
+/**
+ * Care-plan verdict for one child on one day (#1747). "not_scheduled" (not
+ * booked that weekday) and "cancelled" ("kommt heute nicht") both mean the
+ * child is not expected; "unknown" means the plan cannot say, which keeps the
+ * child expected. Shared wire contract with the active-supervision roster.
+ */
+export type CareDayStatus =
+  "scheduled" | "not_scheduled" | "cancelled" | "unknown";
+
+/**
+ * True when a care-day verdict still counts the child as expected. A missing
+ * verdict (older payload, hand-built row) reads as "unknown" and never hides a
+ * child.
+ */
+export function isCareDayExpected(
+  status: CareDayStatus | null | undefined,
+): boolean {
+  return status !== "not_scheduled" && status !== "cancelled";
+}
+
 export interface InstanceStudentSummary {
   studentId: string;
   status: InstanceAttendanceStatus;
   substatus?: InstanceAttendanceSubstatus | null;
   note?: string | null;
   checkedInAt?: string | null;
+  /**
+   * Care-plan verdict for this child on the instance's date. The header counts
+   * exclude the non-expected ones, so the row has to be grouped by the same
+   * verdict — otherwise a child sits under "Erwartet" that the count omits.
+   * Older backends omit the field, which reads as "unknown" and changes
+   * nothing.
+   */
+  careDayStatus?: CareDayStatus;
 }
 
 /**
@@ -141,6 +169,7 @@ interface BackendInstanceStudentSummary {
   substatus?: InstanceAttendanceSubstatus | null;
   note?: string | null;
   checked_in_at?: string | null;
+  care_day_status?: CareDayStatus;
 }
 
 export interface BackendEnrichedInstance {

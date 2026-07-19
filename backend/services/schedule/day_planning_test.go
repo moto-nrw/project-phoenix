@@ -101,10 +101,11 @@ func TestResolveDayPlanning_Precedence(t *testing.T) {
 
 // The whole-day cancellation (#1725/#1747): a timeless "Kommt heute nicht"
 // exception on either leg cancels the day, and neither the other leg's regular
-// schedule time nor a timetable booking may resurrect it. Only an explicit
-// timed same-day override on the other leg keeps the day booked. This is the
-// precedence the care-day derivation relies on; weakening it makes the student
-// search and the timetable disagree on the same child and date.
+// schedule time, nor a timed exception on the other leg, nor a timetable
+// booking may resurrect it — the parent portal resolves the same inputs to an
+// absence. This is the precedence the care-day derivation relies on; weakening
+// it makes the student search, the timetable, and the guardian tile disagree on
+// the same child and date.
 func TestResolveDayPlanning_TimelessExceptionCancelsDay(t *testing.T) {
 	at := time.Date(2026, 5, 25, 8, 0, 0, 0, time.UTC)
 
@@ -142,13 +143,16 @@ func TestResolveDayPlanning_TimelessExceptionCancelsDay(t *testing.T) {
 			wantReason: DayPlanningReasonArrivalException,
 		},
 		{
-			name: "timed override on the other leg keeps the day booked",
+			// The parent portal resolves pickup_absent || arrival_absent to an
+			// absence before it looks at any time, so a timed exception on the
+			// other leg must NOT resurrect the day here either.
+			name: "timed exception on the other leg does not beat the cancellation",
 			in: DayPlanningInputs{
 				Arrival: &EffectiveArrivalTime{IsException: true},
 				Pickup:  &EffectivePickupTime{PickupTime: &at, IsException: true},
 			},
-			wantComes:  true,
-			wantReason: DayPlanningReasonPickupException,
+			wantComes:  false,
+			wantReason: DayPlanningReasonArrivalException,
 		},
 		{
 			name: "actual attendance still beats the cancellation",

@@ -54,6 +54,12 @@ type instanceStudentSummary struct {
 	Substatus   *string `json:"substatus,omitempty"`
 	Note        *string `json:"note,omitempty"`
 	CheckedInAt *string `json:"checked_in_at,omitempty"`
+	// CareDayStatus is the same per-child care-day verdict the active-
+	// supervision roster carries: "scheduled" | "not_scheduled" | "cancelled"
+	// | "unknown" (#1747). The counts below exclude the non-expected ones, so
+	// the row has to say so too — otherwise the planner lists a child under
+	// "Erwartet" that its own header count leaves out.
+	CareDayStatus scheduleSvc.CareDayStatus `json:"care_day_status"`
 }
 
 // enrichedInstance is the per-instance payload returned in the list response.
@@ -90,10 +96,12 @@ type enrichedInstance struct {
 	CancelReason          *string                  `json:"cancel_reason,omitempty"`
 	ExpectedStudentsCount int                      `json:"expected_students_count"`
 	PresentStudentsCount  int                      `json:"present_students_count"`
-	// NotScheduledCount is how many assigned children the care plan does not
-	// place here on this day (#1747). Excluded from ExpectedStudentsCount and
-	// from the staffing maths; surfaced so the planner can show why the
-	// expected number is lower than the assignment list.
+	// NotScheduledCount is how many assigned children are not in care here on
+	// this day (#1747) — not booked on this weekday, or the day was cancelled.
+	// Excluded from ExpectedStudentsCount and from the staffing maths;
+	// surfaced so the planner can show why the expected number is lower than
+	// the assignment list. Which children those are is on the per-row
+	// care_day_status.
 	NotScheduledCount int `json:"not_scheduled_students_count"`
 	// RequiredStaffCount and AssignedStaffCount drive the Betreuungsplan
 	// capacity indicator (issue #1838): required is
@@ -285,6 +293,35 @@ func (rs *Resource) careDaysForInstance(
 	return careDays
 }
 
+// instanceStudentCareDay picks the care-day verdict reported for one
+// assignment row — the single source both the per-child payload and the
+// counts read, so a child can never be listed as "Erwartet" while the header
+// count leaves them out (#1747 review).
+//
+// On a completed instance the verdict is frozen: Complete flips every
+// genuinely expected row to 'absent', so a surviving 'expected' row IS the
+// "war an dem Tag nicht eingeplant" marker. Read it from that fact, never from
+// the current care plan — a later plan or exception edit must not retroactively
+// change a completed instance's expected count or required staffing. Rows that
+// already carry a real attendance status tell their own story; they report
+// "unknown" rather than a re-derived plan verdict.
+func instanceStudentCareDay(
+	inst *scheduleModel.ActivityInstance,
+	row *scheduleModel.InstanceStudent,
+	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
+) scheduleSvc.CareDayStatus {
+	if inst.Status == scheduleModel.InstanceStatusCompleted {
+		if row.Status == scheduleModel.AttendanceStatusExpected {
+			return scheduleSvc.CareDayNotScheduled
+		}
+		return scheduleSvc.CareDayUnknown
+	}
+	if status, ok := careDays[row.StudentID][inst.Date]; ok && status != "" {
+		return status
+	}
+	return scheduleSvc.CareDayUnknown
+}
+
 func (rs *Resource) enrichInstance(
 	ctx context.Context,
 	inst *scheduleModel.ActivityInstance,
@@ -335,27 +372,23 @@ func (rs *Resource) enrichInstance(
 			formatted := row.CheckedInAt.UTC().Format("2006-01-02T15:04:05Z07:00")
 			checkedInAt = &formatted
 		}
+		careDayStatus := instanceStudentCareDay(inst, row, careDays)
 		students = append(students, instanceStudentSummary{
-			StudentID:   row.StudentID,
-			Status:      row.Status,
-			Substatus:   row.Substatus,
-			Note:        row.Note,
-			CheckedInAt: checkedInAt,
+			StudentID:     row.StudentID,
+			Status:        row.Status,
+			Substatus:     row.Substatus,
+			Note:          row.Note,
+			CheckedInAt:   checkedInAt,
+			CareDayStatus: careDayStatus,
 		})
 		switch row.Status {
 		case scheduleModel.AttendanceStatusExpected:
-			// Assigned but not in care that weekday: counted separately, and
-			// left out of the staffing maths below — planning for children who
-			// are not booked that day inflates the Betreuungsschlüssel (#1747).
-			//
-			// On a completed instance the verdict is frozen: Complete flips
-			// every genuinely expected row to 'absent', so a surviving
-			// 'expected' row IS the "war an dem Tag nicht eingeplant" marker.
-			// Classify it from that fact, never from the current care plan —
-			// a later plan or exception edit must not retroactively change a
-			// completed instance's expected count or required staffing.
-			if inst.Status == scheduleModel.InstanceStatusCompleted ||
-				careDays[row.StudentID][inst.Date] == scheduleSvc.CareDayNotScheduled {
+			// Assigned but not in care today: counted separately, and left out
+			// of the staffing maths below — planning for children who are not
+			// there that day inflates the Betreuungsschlüssel (#1747). The row
+			// carries the same verdict, so the slide-over can group it exactly
+			// the way this count does.
+			if !careDayStatus.Expected() {
 				notScheduled++
 				continue
 			}
