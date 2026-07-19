@@ -18,6 +18,9 @@ type DatePickerProps =
       // Earliest selectable day (inclusive). Days before it are disabled — used
       // to forbid past-date selection while keeping today choosable.
       readonly minDate?: Date;
+      // Latest selectable day (inclusive). Days after it are disabled — used to
+      // cap selection at a planning horizon while keeping that day choosable.
+      readonly maxDate?: Date;
     }
   | {
       readonly mode: "multiple";
@@ -160,6 +163,7 @@ export function DatePicker({
             <DatePickerCalendar
               value={props.value}
               minDate={props.minDate}
+              maxDate={props.maxDate}
               dropdownPlacement={dropdownPlacement}
               calendarLayout={calendarLayout}
               onChange={(date) => {
@@ -187,12 +191,14 @@ function formatMultipleDateLabel(values: Date[]): string | null {
 function DatePickerCalendar({
   value,
   minDate,
+  maxDate,
   dropdownPlacement,
   calendarLayout,
   onChange,
 }: {
   readonly value?: Date | null;
   readonly minDate?: Date;
+  readonly maxDate?: Date;
   readonly dropdownPlacement: "up" | "down";
   readonly calendarLayout: "overlay" | "inline";
   readonly onChange: (date: Date | null) => void;
@@ -250,7 +256,7 @@ function DatePickerCalendar({
       <DayPicker
         mode="single"
         selected={value ?? undefined}
-        disabled={minDate ? { before: minDate } : undefined}
+        disabled={buildSingleDisabledMatchers(minDate, maxDate)}
         month={month}
         onMonthChange={setMonth}
         onSelect={(date) => onChange(date ?? null)}
@@ -367,6 +373,19 @@ function MultipleDatePickerCalendar({
       />
     </div>
   );
+}
+
+// Combines the optional lower/upper bounds into react-day-picker matchers.
+// An empty matcher list disables nothing, so an unbounded picker keeps every
+// day selectable.
+function buildSingleDisabledMatchers(
+  minDate?: Date,
+  maxDate?: Date,
+): ({ before: Date } | { after: Date })[] {
+  const matchers: ({ before: Date } | { after: Date })[] = [];
+  if (minDate) matchers.push({ before: minDate });
+  if (maxDate) matchers.push({ after: maxDate });
+  return matchers;
 }
 
 function getCalendarContainerClass(

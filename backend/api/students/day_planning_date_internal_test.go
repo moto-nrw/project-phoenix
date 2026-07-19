@@ -64,6 +64,27 @@ func TestResolvePlanningDate(t *testing.T) {
 		_, _, err := resolvePlanningDate("2026-05-31", now)
 		require.Error(t, err)
 	})
+
+	t.Run("horizon_ends_with_next_calendar_week", func(t *testing.T) {
+		// 2026-06-01 is a Monday, so the supported horizon runs through the
+		// Sunday closing the NEXT week: 2026-06-14 (see maxPlanningDate).
+		date, isToday, err := resolvePlanningDate("2026-06-14", now)
+		require.NoError(t, err)
+		assert.False(t, isToday)
+		assert.Equal(t, timezone.NewDate(2026, time.June, 14), date)
+
+		_, _, err = resolvePlanningDate("2026-06-15", now)
+		require.Error(t, err)
+	})
+}
+
+func TestMaxPlanningDate(t *testing.T) {
+	// Monday: this week's Sunday is 6 days out, plus the full next week.
+	assert.Equal(t, timezone.NewDate(2026, time.June, 14), maxPlanningDate(timezone.NewDate(2026, time.June, 1)))
+	// Sunday: the current week ends today, so the horizon is exactly one week.
+	assert.Equal(t, timezone.NewDate(2026, time.June, 14), maxPlanningDate(timezone.NewDate(2026, time.June, 7)))
+	// Saturday: one day to Sunday, then the full next week.
+	assert.Equal(t, timezone.NewDate(2026, time.June, 14), maxPlanningDate(timezone.NewDate(2026, time.June, 6)))
 }
 
 func TestResetLiveLocationFields(t *testing.T) {

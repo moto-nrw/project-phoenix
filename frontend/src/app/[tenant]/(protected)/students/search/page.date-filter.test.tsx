@@ -313,6 +313,57 @@ describe("StudentSearchPage — planning date (#1939)", () => {
     expect(calls.every((c) => c.date === undefined)).toBe(true);
   });
 
+  it("rejects a date beyond the planning horizon and strips it from the URL", async () => {
+    // The backend answers dates past the Sunday closing the next calendar
+    // week with 400 (materialized timetable horizon, #1939). The initializer
+    // must collapse such a URL date to today instead of firing a request the
+    // backend rejects. +15 days is always past the horizon (max is +13, when
+    // today is a Monday).
+    const beyondHorizon = isoDaysFromToday(15);
+    window.history.replaceState(
+      {},
+      "",
+      `/students/search?date=${beyondHorizon}`,
+    );
+    currentSearch = new URLSearchParams({ date: beyondHorizon });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(mockGetStudents).toHaveBeenCalled();
+    });
+
+    const calls = mockGetStudents.mock.calls.map(
+      (c) => c[0] as Record<string, unknown>,
+    );
+    expect(calls.every((c) => c.date === undefined)).toBe(true);
+    await waitFor(() => {
+      expect(new URLSearchParams(window.location.search).has("date")).toBe(
+        false,
+      );
+    });
+
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("accepts a date at the end of the planning horizon", async () => {
+    // +7 days is always within the horizon (min is +7, when today is a
+    // Sunday) — the far edge of the always-valid range must stay selectable.
+    const withinHorizon = isoDaysFromToday(7);
+    currentSearch = new URLSearchParams({ date: withinHorizon });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(mockGetStudents).toHaveBeenCalled();
+    });
+
+    const calls = mockGetStudents.mock.calls.map(
+      (c) => c[0] as Record<string, unknown>,
+    );
+    expect(calls.some((c) => c.date === withinHorizon)).toBe(true);
+  });
+
   it("strips a rejected past/aged date from the address bar on mount", async () => {
     // A bookmark or hand-edited URL carrying a past date. The initializer
     // rejects it (planning is future-only) and the page uses today; the mount

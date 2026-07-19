@@ -32,6 +32,21 @@ const (
 	dayPlanningReasonNoPlan           = "no_plan"
 )
 
+// maxPlanningDate returns the last supported planning day: the Sunday closing
+// the NEXT calendar week. The timetable signal (GetPlannedStudentIDsByDate)
+// reads only concrete, pre-materialized schedule.instance_students rows, and
+// the scheduler materializes at least one full Monday–Sunday week ahead
+// (timetable.materialization_weeks_ahead, default 1, clamped to >= 1). Past
+// that guaranteed window a timetable-only child would silently classify as
+// "Kommt nicht" even though the recurring template says otherwise. Capping the
+// selectable range keeps day planning on the same materialized source of truth
+// as every other timetable view instead of tracking materialization state or
+// projecting recurrence a second time (#1939).
+func maxPlanningDate(today timezone.Date) timezone.Date {
+	daysUntilSunday := (7 - int(today.Weekday())) % 7
+	return today.AddDays(daysUntilSunday + 7)
+}
+
 // resolvePlanningDate turns the optional `date` query/filter value into the
 // calendar day the day-planning pipeline is evaluated for. Empty means the
 // school-local today (derived from now, i.e. Berlin wall clock, so the day
@@ -54,6 +69,12 @@ func resolvePlanningDate(raw string, now time.Time) (timezone.Date, bool, error)
 	// direct or stale client cannot bypass the UI and obtain such a plan (#1939).
 	if date.Before(today) {
 		return timezone.Date{}, false, fmt.Errorf("date %q is in the past, planning is only available for today and future dates", raw)
+	}
+	// Mirror of the past guard at the far end: reject days beyond the
+	// materialization-backed horizon so a direct or stale client cannot obtain
+	// a plan the timetable signal cannot answer for (see maxPlanningDate).
+	if maxDate := maxPlanningDate(today); date.After(maxDate) {
+		return timezone.Date{}, false, fmt.Errorf("date %q is beyond the supported planning horizon, planning is available through %s", raw, maxDate.String())
 	}
 	return date, date == today, nil
 }

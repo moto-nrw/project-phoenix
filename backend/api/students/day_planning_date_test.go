@@ -140,4 +140,16 @@ func TestListStudents_DayPlanningForDate(t *testing.T) {
 		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 		require.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
 	})
+
+	t.Run("date_beyond_planning_horizon_is_rejected", func(t *testing.T) {
+		// Fixed now is Monday 2026-06-01, so the horizon ends with the Sunday
+		// closing the next calendar week (2026-06-14); the Monday after is out.
+		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&date=2026-06-15", schoolClass), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		require.Equal(t, http.StatusBadRequest, rr.Code, "body: %s", rr.Body.String())
+
+		req = testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&date=2026-06-14&page_size=50", schoolClass), nil)
+		rr = authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+	})
 }

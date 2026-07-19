@@ -153,6 +153,16 @@ function normalizeDateParam(value: string | null): string | null {
   return value && isValidISODate(value) ? value : null;
 }
 
+// Last selectable planning day: the Sunday closing the NEXT calendar week.
+// Mirrors the backend's maxPlanningDate (#1939) — the window the scheduler
+// guarantees materialized timetable data for; the backend rejects later dates
+// with 400, so the picker never offers them.
+function maxPlanningIso(todayIso: string): string {
+  const day = parseISODate(todayIso);
+  day.setDate(day.getDate() + ((7 - day.getDay()) % 7) + 7);
+  return toISODate(day);
+}
+
 const SORT_OPTIONS: Array<{ value: SortMode; label: string }> = [
   { value: "name", label: "Name A-Z" },
   { value: "arrival", label: "Nächste Ankunft" },
@@ -773,13 +783,17 @@ function SearchPageContent() {
   // Planning date (#1939). Always read from the real URL, never from the
   // stored-filter fallback. null = "follow the school-local today": the
   // default view tracks the Berlin day as it advances past midnight, while an
-  // explicitly chosen date stays fixed. Only a strictly-future URL date is kept
-  // explicit: a date naming today collapses to the implicit default, and a past
-  // date (bookmarked or hand-edited URL) is rejected too — planning is
-  // future-only, so there is nothing to plan for a day that has passed.
+  // explicitly chosen date stays fixed. Only a strictly-future URL date within
+  // the planning horizon is kept explicit: a date naming today collapses to the
+  // implicit default, a past date (bookmarked or hand-edited URL) is rejected
+  // because planning is future-only, and a date beyond the horizon is rejected
+  // because the backend would answer it with 400 (see maxPlanningIso).
   const [explicitDate, setExplicitDate] = useState<string | null>(() => {
     const fromUrl = normalizeDateParam(searchParams.get(DATE_QUERY_PARAM));
-    return fromUrl && fromUrl > berlinTodayISO() ? fromUrl : null;
+    const today = berlinTodayISO();
+    return fromUrl && fromUrl > today && fromUrl <= maxPlanningIso(today)
+      ? fromUrl
+      : null;
   });
 
   const updateUrlParams = useCallback(
@@ -930,6 +944,10 @@ function SearchPageContent() {
     tomorrow.setDate(tomorrow.getDate() + 1);
     return toISODate(tomorrow);
   }, [todayIso]);
+  // The horizon end only ever moves forward as todayIso advances, so an
+  // explicit date that was valid once can never age out at the far end — no
+  // reconciliation effect needed beyond the past-date one below.
+  const maxDateIso = useMemo(() => maxPlanningIso(todayIso), [todayIso]);
   // Urgency coloring and time-status sorting compare against "now". For a
   // non-today date every planned time is neutral, so compare against that
   // day's local midnight instead of the current clock.
@@ -940,10 +958,11 @@ function SearchPageContent() {
 
   const updateSelectedDate = useCallback(
     (value: string) => {
-      // Planning is future-only: never store a past day. The picker already
-      // disables past dates, so this only guards a stray caller — clamp anything
-      // before today up to today.
-      const clamped = value < todayIso ? todayIso : value;
+      // Planning is future-only and horizon-bounded: never store a day the
+      // backend rejects. The picker already disables out-of-range dates, so
+      // this only guards a stray caller — clamp into [today, maxDateIso].
+      const bounded = value > maxDateIso ? maxDateIso : value;
+      const clamped = bounded < todayIso ? todayIso : bounded;
       // Picking the current Berlin day means "follow today", not a fixed date.
       // Compare against the same clock-derived todayIso the buttons pass, NOT a
       // fresh berlinTodayISO(): near Berlin midnight the minute clock can still
@@ -954,7 +973,7 @@ function SearchPageContent() {
       setExplicitDate(explicit);
       updateUrlParams({ date: explicit ?? "" });
     },
-    [todayIso, updateUrlParams],
+    [todayIso, maxDateIso, updateUrlParams],
   );
 
   // The explicitDate initializer rejects a URL `date` that is malformed, past,
@@ -1632,6 +1651,7 @@ function SearchPageContent() {
             <DatePicker
               value={parseISODate(selectedDate)}
               minDate={parseISODate(todayIso)}
+              maxDate={parseISODate(maxDateIso)}
               calendarLayout="inline"
               onChange={(date) =>
                 updateSelectedDate(date ? toISODate(date) : todayIso)
@@ -1639,8 +1659,10 @@ function SearchPageContent() {
             />
             {!isToday && (
               <p className="text-xs text-gray-500">
-                Geplante Anwesenheit für {formatDate(selectedDate, true)}.
-                Aktuelle Aufenthaltsorte und Live-Filter bleiben ausgeblendet.
+                Geplante Anwesenheit für {formatDate(selectedDate, true)},
+                basierend auf Anwesenheits- und Betreuungsplänen sowie
+                gemeldeten Abwesenheiten. Aktuelle Aufenthaltsorte und
+                Live-Filter bleiben ausgeblendet.
               </p>
             )}
           </div>
@@ -1792,6 +1814,7 @@ function SearchPageContent() {
       selectedDate,
       todayIso,
       tomorrowIso,
+      maxDateIso,
       updateSelectedDate,
     ],
   );
