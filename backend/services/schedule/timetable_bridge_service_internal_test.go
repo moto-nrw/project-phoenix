@@ -1,0 +1,172 @@
+package schedule
+
+import (
+	"context"
+	"errors"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+)
+
+// Fakes embed the repository interfaces so only the handful of methods the
+// bridge calls need bodies; anything else would panic loudly rather than
+// silently returning a zero value.
+
+type bridgeInstanceRepoStub struct {
+	scheduleModel.ActivityInstanceRepository
+
+	byActiveGroup map[int64]*scheduleModel.ActivityInstance
+	completed     int64
+	calls         *[]string
+}
+
+func (f *bridgeInstanceRepoStub) FindByActiveGroupID(_ context.Context, activeGroupID int64) (*scheduleModel.ActivityInstance, error) {
+	return f.byActiveGroup[activeGroupID], nil
+}
+
+func (f *bridgeInstanceRepoStub) CompleteActiveByActiveGroupIDs(_ context.Context, _ []int64, _ time.Time) (int64, error) {
+	*f.calls = append(*f.calls, "complete")
+	return f.completed, nil
+}
+
+type bridgeStudentRepoStub struct {
+	scheduleModel.InstanceStudentRepository
+
+	expected      []*scheduleModel.InstanceStudent
+	markErr       error
+	gotExclusions []scheduleModel.StudentInstanceRef
+	calls         *[]string
+}
+
+func (f *bridgeStudentRepoStub) FindExpectedByInstanceIDs(context.Context, []int64) ([]*scheduleModel.InstanceStudent, error) {
+	return f.expected, nil
+}
+
+func (f *bridgeStudentRepoStub) MarkExpectedAbsentByActiveGroupIDs(
+	_ context.Context, _ []int64, _ time.Time, exclusions []scheduleModel.StudentInstanceRef,
+) error {
+	*f.calls = append(*f.calls, "mark_absent")
+	f.gotExclusions = exclusions
+	return f.markErr
+}
+
+type bridgeCareDayStub struct {
+	byStudent map[int64]CareDayStatus
+}
+
+func (f *bridgeCareDayStub) ResolveForDate(_ context.Context, _ []int64, _ timezone.Date) (map[int64]CareDayStatus, error) {
+	return f.byStudent, nil
+}
+
+func (f *bridgeCareDayStub) ResolveForRange(
+	_ context.Context, studentIDs []int64, from, to timezone.Date,
+) (map[int64]map[timezone.Date]CareDayStatus, error) {
+	out := map[int64]map[timezone.Date]CareDayStatus{}
+	for _, studentID := range studentIDs {
+		byDate := map[timezone.Date]CareDayStatus{}
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			byDate[date] = f.byStudent[studentID]
+		}
+		out[studentID] = byDate
+	}
+	return out, nil
+}
+
+// The whole point of routing every completion path through the bridge: a
+// completed instance must never keep a genuinely expected row, because readers
+// take "completed + expected" as the frozen "war an dem Tag nicht eingeplant"
+// marker (#1747). Force-start used to stamp the instance completed without
+// finalizing attendance, which relabelled real children as never booked and
+// dropped them out of the attendance history.
+func TestTimetableBridgeCompletesOnlyAfterFinalizingAttendance(t *testing.T) {
+	const (
+		activeGroupID   int64 = 8801
+		instanceID      int64 = 7701
+		bookedStudent   int64 = 5501
+		notBookedChild  int64 = 5502
+		cancelledChild  int64 = 5503
+		completedResult int64 = 1
+	)
+	date := timezone.NewDate(2026, 4, 20)
+	calls := make([]string, 0, 2)
+
+	instances := &bridgeInstanceRepoStub{
+		byActiveGroup: map[int64]*scheduleModel.ActivityInstance{
+			activeGroupID: {Date: date, Title: "Hausaufgaben"},
+		},
+		completed: completedResult,
+		calls:     &calls,
+	}
+	instances.byActiveGroup[activeGroupID].ID = instanceID
+
+	students := &bridgeStudentRepoStub{
+		expected: []*scheduleModel.InstanceStudent{
+			{InstanceID: instanceID, StudentID: bookedStudent},
+			{InstanceID: instanceID, StudentID: notBookedChild},
+			{InstanceID: instanceID, StudentID: cancelledChild},
+		},
+		calls: &calls,
+	}
+
+	svc := NewTimetableBridgeService(TimetableBridgeDependencies{
+		Instances:        instances,
+		InstanceStudents: students,
+		CareDays: &bridgeCareDayStub{byStudent: map[int64]CareDayStatus{
+			bookedStudent:  CareDayScheduled,
+			notBookedChild: CareDayNotScheduled,
+			cancelledChild: CareDayCancelled,
+		}},
+	})
+
+	completed, err := svc.CompleteActiveByActiveGroupIDs(
+		context.Background(), []int64{activeGroupID}, time.Now(),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, completedResult, completed)
+
+	// Attendance is final BEFORE the status flips — the bulk absent update only
+	// matches instances that are still active.
+	assert.Equal(t, []string{"mark_absent", "complete"}, calls)
+
+	// Only the non-booking is spared. A cancelled day is a reported absence and
+	// must still be written, or it vanishes from history and exports.
+	assert.Equal(t, []scheduleModel.StudentInstanceRef{
+		{StudentID: notBookedChild, InstanceID: instanceID},
+	}, students.gotExclusions)
+}
+
+func TestTimetableBridgeDoesNotCompleteWhenAttendanceFinalizationFails(t *testing.T) {
+	const (
+		activeGroupID int64 = 8802
+		instanceID    int64 = 7702
+	)
+	calls := make([]string, 0, 1)
+
+	instances := &bridgeInstanceRepoStub{
+		byActiveGroup: map[int64]*scheduleModel.ActivityInstance{
+			activeGroupID: {Date: timezone.NewDate(2026, 4, 20)},
+		},
+		calls: &calls,
+	}
+	instances.byActiveGroup[activeGroupID].ID = instanceID
+
+	svc := NewTimetableBridgeService(TimetableBridgeDependencies{
+		Instances: instances,
+		InstanceStudents: &bridgeStudentRepoStub{
+			markErr: errors.New("update failed"),
+			calls:   &calls,
+		},
+	})
+
+	_, err := svc.CompleteActiveByActiveGroupIDs(
+		context.Background(), []int64{activeGroupID}, time.Now(),
+	)
+	require.Error(t, err)
+	assert.NotContains(t, calls, "complete",
+		"an instance must not reach 'completed' with unfinalized attendance rows")
+}

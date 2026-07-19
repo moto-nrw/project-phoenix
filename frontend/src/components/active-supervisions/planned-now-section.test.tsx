@@ -274,6 +274,40 @@ describe("PlannedNowSection", () => {
     ).toBeInTheDocument();
   });
 
+  it("counts an abgemeldetes Kind as not expected, like the backend does", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            expectedStudentsCount: 7,
+            notScheduledStudentsCount: 1,
+            rosterPreview: [
+              plannedInstance.rosterPreview[0]!,
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                studentId: "student-2",
+                studentName: "Jonas Weber",
+                careDayStatus: "cancelled",
+              },
+            ],
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    // "cancelled" is left out of expected_students_count too — showing the
+    // child as "Erwartet" here would contradict the header count and the full
+    // roster, which groups both verdicts together (#1747).
+    expect(screen.getByText("Jonas Weber")).toBeInTheDocument();
+    expect(screen.getByText("Abgemeldet")).toBeInTheDocument();
+    expect(
+      screen.getByText("1 erwartet · 1 heute nicht eingeplant"),
+    ).toBeInTheDocument();
+  });
+
   it("keeps a present child expected even when the care plan says otherwise", () => {
     render(
       <PlannedNowSection

@@ -14,6 +14,7 @@ import {
   Users,
 } from "lucide-react";
 import { LOCATION_COLORS } from "~/lib/location-helper";
+import { isCareDayExpected } from "~/lib/timetable-types";
 import { useShowTimetableCounts } from "~/lib/tenant-context";
 import type {
   PlannedTimetableInstance,
@@ -44,9 +45,13 @@ function rosterPreviewLabel(
   return `${count} erwartet`;
 }
 
+// Both non-expected verdicts count here — "not_scheduled" (never booked that
+// weekday) and "cancelled" ("kommt heute nicht"). The backend leaves both out
+// of expected_students_count, so testing one value would show a child as
+// "Erwartet" that the header count does not include (#1747).
 function isNotScheduled(row: TimetableRosterRow): boolean {
   return (
-    row.careDayStatus === "not_scheduled" &&
+    !isCareDayExpected(row.careDayStatus) &&
     !row.currentlyPresent &&
     row.status !== "present"
   );
@@ -488,6 +493,10 @@ function rosterDotColor(row: TimetableRosterRow) {
 function rosterStatusLabel(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") return "Anwesend";
   if (row.status === "absent") return "Abwesend";
-  if (isNotScheduled(row)) return "Nicht eingeplant";
+  if (isNotScheduled(row)) {
+    return row.careDayStatus === "cancelled"
+      ? "Abgemeldet"
+      : "Nicht eingeplant";
+  }
   return "Erwartet";
 }

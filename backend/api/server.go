@@ -148,7 +148,7 @@ func configureSchedulerRepos(sched *scheduler.Scheduler, api *API) {
 	}
 	// Daily session-end bridge: closes schedule-side rows for ended
 	// active.groups via repositories (issue #585 layering).
-	sched.SetTimetableBridgeRepos(repos.InstanceStudent, repos.ActivityInstance, api.Services.CareDay)
+	sched.SetTimetableBridgeRepos(repos.InstanceStudent, repos.ActivityInstance, api.Services.TimetableBridge)
 	sched.SetStudentStatusDayRepo(repos.StudentStatusDay)
 	// Parent-enrollment PR 2: activate-students tick.
 	if repos.Student != nil {

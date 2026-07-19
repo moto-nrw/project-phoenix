@@ -138,7 +138,7 @@ type Scheduler struct {
 	instanceRepo         scheduleModel.ActivityInstanceRepository
 	instanceRoomRepo     facilitiesModel.RoomRepository
 	instanceStudentRepo  scheduleModel.InstanceStudentRepository
-	careDayService       scheduleSvc.CareDayService
+	timetableBridge      timetableBridgeCompleter
 	studentStatusDayRepo activeModel.StudentStatusDayRepository
 	overdueBroadcaster   realtime.Broadcaster
 	overdueEmitted       sync.Map // overdueKey{tenantID, instanceID} → time.Time
@@ -294,7 +294,15 @@ func (s *Scheduler) SetInstanceOverdueDeps(repo scheduleModel.ActivityInstanceRe
 	s.overdueBroadcaster = broadcaster
 }
 
-// SetTimetableBridgeRepos wires the schedule-side repositories used by the
+// timetableBridgeCompleter finalizes attendance and completes the schedule-side
+// instances of ended active.groups in one step. Implemented by
+// schedule.TimetableBridgeService — the same implementation the force-start
+// path uses, so both paths leave identical rows behind (#1747).
+type timetableBridgeCompleter interface {
+	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
+}
+
+// SetTimetableBridgeRepos wires the schedule-side dependencies used by the
 // daily session-end bridge (completeTimetableInstancesForEndedSessions).
 // Independent of the overdue-tick wiring: it also sets instanceRepo so the
 // bridge works even when SetInstanceOverdueDeps was never called. Without
@@ -302,11 +310,11 @@ func (s *Scheduler) SetInstanceOverdueDeps(repo scheduleModel.ActivityInstanceRe
 func (s *Scheduler) SetTimetableBridgeRepos(
 	instanceStudents scheduleModel.InstanceStudentRepository,
 	instances scheduleModel.ActivityInstanceRepository,
-	careDay scheduleSvc.CareDayService,
+	bridge timetableBridgeCompleter,
 ) {
 	s.instanceStudentRepo = instanceStudents
 	s.instanceRepo = instances
-	s.careDayService = careDay
+	s.timetableBridge = bridge
 }
 
 // SetStudentStatusDayRepo wires the repository used by the nightly
@@ -726,7 +734,7 @@ func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Conte
 	if result == nil || len(result.EndedActiveGroupIDs) == 0 {
 		return 0, nil
 	}
-	if s.instanceStudentRepo == nil || s.instanceRepo == nil {
+	if s.instanceStudentRepo == nil || s.timetableBridge == nil {
 		return 0, nil
 	}
 
@@ -739,113 +747,16 @@ func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Conte
 		return 0, fmt.Errorf("close open timetable checkouts: %w", err)
 	}
 
-	// Children the care plan does not place in the OGS on the instance's day
-	// are spared the absent stamp (#1747) — same rule Complete() applies when
-	// a supervisor ends a block by hand. Without it the nightly bridge would
-	// keep writing absences for care that was never booked.
-	notScheduled, err := s.notScheduledForEndedSessions(ctx, result.EndedActiveGroupIDs)
-	if err != nil {
-		return 0, err
-	}
-	if err := s.instanceStudentRepo.MarkExpectedAbsentByActiveGroupIDs(ctx, result.EndedActiveGroupIDs, now, notScheduled); err != nil {
-		return 0, fmt.Errorf("mark expected timetable students absent: %w", err)
-	}
-
-	rows, err := s.instanceRepo.CompleteActiveByActiveGroupIDs(ctx, result.EndedActiveGroupIDs, now)
+	// The bridge finalizes attendance before it stamps the instances completed:
+	// children the care plan does not place in the OGS that day are spared the
+	// absent stamp (#1747), everybody else flips expected → absent. Shared with
+	// the force-start path so no caller can complete an instance that still
+	// carries expected rows.
+	rows, err := s.timetableBridge.CompleteActiveByActiveGroupIDs(ctx, result.EndedActiveGroupIDs, now)
 	if err != nil {
 		return 0, fmt.Errorf("complete active timetable instances: %w", err)
 	}
 	return int(rows), nil
-}
-
-// notScheduledForEndedSessions collects the (instance, student) pairs where the
-// child is not booked into care at all on that instance's date (#1747). An
-// explicitly cancelled day is deliberately not in here — it is a reported
-// absence and must still be written (CareDayStatus.ExemptFromAbsence). The
-// exclusions are per-instance on purpose: one cleanup run can close instances
-// from several dates, and a child not booked on one date may be genuinely
-// expected on another — a global per-student list would spare both rows.
-// Returns nil when the care-day service is not wired, which keeps the previous
-// blanket behaviour rather than silently skipping absences.
-func (s *Scheduler) notScheduledForEndedSessions(ctx context.Context, activeGroupIDs []int64) ([]scheduleModel.StudentInstanceRef, error) {
-	if s.careDayService == nil || len(activeGroupIDs) == 0 {
-		return nil, nil
-	}
-
-	// One lookup per ended session — bounded by the sessions a single tenant
-	// closes in a day, and the instance rows are already hot from the bridge.
-	instanceIDs := make([]int64, 0, len(activeGroupIDs))
-	datesByInstance := make(map[int64]timezone.Date, len(activeGroupIDs))
-	for _, activeGroupID := range activeGroupIDs {
-		instance, err := s.instanceRepo.FindByActiveGroupID(ctx, activeGroupID)
-		if err != nil {
-			return nil, fmt.Errorf("load timetable instance for active group %d: %w", activeGroupID, err)
-		}
-		if instance == nil {
-			continue
-		}
-		instanceIDs = append(instanceIDs, instance.ID)
-		datesByInstance[instance.ID] = instance.Date
-	}
-	if len(instanceIDs) == 0 {
-		return nil, nil
-	}
-
-	rows, err := s.instanceStudentRepo.FindExpectedByInstanceIDs(ctx, instanceIDs)
-	if err != nil {
-		return nil, fmt.Errorf("load expected timetable students: %w", err)
-	}
-	if len(rows) == 0 {
-		return nil, nil
-	}
-
-	// Sessions can straddle midnight, so instances may span two dates. One
-	// ResolveForRange over the covering window resolves every (student, date)
-	// combination in the same four queries a single date would cost.
-	seenStudent := make(map[int64]bool)
-	studentIDs := make([]int64, 0, len(rows))
-	var from, to timezone.Date
-	first := true
-	for _, row := range rows {
-		date, ok := datesByInstance[row.InstanceID]
-		if !ok {
-			continue
-		}
-		if first || date.Before(from) {
-			from = date
-		}
-		if first || date.After(to) {
-			to = date
-		}
-		first = false
-		if !seenStudent[row.StudentID] {
-			seenStudent[row.StudentID] = true
-			studentIDs = append(studentIDs, row.StudentID)
-		}
-	}
-	if len(studentIDs) == 0 {
-		return nil, nil
-	}
-
-	careDays, err := s.careDayService.ResolveForRange(ctx, studentIDs, from, to)
-	if err != nil {
-		return nil, fmt.Errorf("resolve care days for %s..%s: %w", from, to, err)
-	}
-
-	exclusions := make([]scheduleModel.StudentInstanceRef, 0)
-	for _, row := range rows {
-		date, ok := datesByInstance[row.InstanceID]
-		if !ok {
-			continue
-		}
-		if careDays[row.StudentID][date].ExemptFromAbsence() {
-			exclusions = append(exclusions, scheduleModel.StudentInstanceRef{
-				StudentID:  row.StudentID,
-				InstanceID: row.InstanceID,
-			})
-		}
-	}
-	return exclusions, nil
 }
 
 // scheduleTokenCleanupTask schedules hourly token cleanup
