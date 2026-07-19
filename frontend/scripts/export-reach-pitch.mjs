@@ -4,10 +4,14 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const defaults = {
+  fileBaseName: "moto-reach-pitch-slides",
   from: 1,
   framePadding: 48,
   outDir: path.resolve(process.cwd(), "../outputs/reach-pitch-web"),
+  pageHeightIn: 9,
+  pageWidthIn: 16,
   scale: 4,
+  selector: ".pitch-slide",
   url: "http://localhost:3001/reach-pitch",
   viewportHeight: 1080,
   viewportWidth: 1920,
@@ -35,6 +39,30 @@ function readNumberOption(name, defaultValue) {
   return value;
 }
 
+function readNonNegativeNumberOption(name, defaultValue) {
+  const rawValue = readOption(name);
+  if (rawValue === undefined) return defaultValue;
+
+  const value = Number.parseInt(rawValue, 10);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`--${name} must be a non-negative integer`);
+  }
+
+  return value;
+}
+
+function readFloatOption(name, defaultValue) {
+  const rawValue = readOption(name);
+  if (rawValue === undefined) return defaultValue;
+
+  const value = Number.parseFloat(rawValue);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`--${name} must be a positive number`);
+  }
+
+  return value;
+}
+
 function readStringOption(name, defaultValue) {
   const value = readOption(name);
   if (value === undefined) return defaultValue;
@@ -45,11 +73,18 @@ function readStringOption(name, defaultValue) {
 }
 
 const config = {
+  fileBaseName: readStringOption("file-base-name", defaults.fileBaseName),
   flat: readFlag("flat"),
-  framePadding: readNumberOption("frame-padding", defaults.framePadding),
+  framePadding: readNonNegativeNumberOption(
+    "frame-padding",
+    defaults.framePadding,
+  ),
   from: readNumberOption("from", defaults.from),
   outDir: path.resolve(readStringOption("out-dir", defaults.outDir)),
+  pageHeightIn: readFloatOption("page-height-in", defaults.pageHeightIn),
+  pageWidthIn: readFloatOption("page-width-in", defaults.pageWidthIn),
   scale: readNumberOption("scale", defaults.scale),
+  selector: readStringOption("selector", defaults.selector),
   to: readNumberOption("to", Number.MAX_SAFE_INTEGER),
   url: readStringOption("url", defaults.url),
   viewportHeight: readNumberOption("viewport-height", defaults.viewportHeight),
@@ -62,8 +97,8 @@ if (config.to < config.from) {
 
 const qaDir = path.join(config.outDir, "qa");
 const firstSlideIndex = config.from - 1;
-const pdfPageWidth = 16 * 72;
-const pdfPageHeight = 9 * 72;
+const pdfPageWidth = config.pageWidthIn * 72;
+const pdfPageHeight = config.pageHeightIn * 72;
 
 await fs.mkdir(qaDir, { recursive: true });
 
@@ -90,7 +125,7 @@ await page.addStyleTag({
     ${
       config.flat
         ? `
-          .pitch-slide {
+          ${config.selector} {
             border: 0 !important;
             border-radius: 0 !important;
             box-shadow: none !important;
@@ -101,7 +136,7 @@ await page.addStyleTag({
   `,
 });
 
-const slideCount = await page.locator(".pitch-slide").count();
+const slideCount = await page.locator(config.selector).count();
 const lastSlideNumber = Math.min(config.to, slideCount);
 
 if (firstSlideIndex >= slideCount) {
@@ -112,17 +147,16 @@ const pdf = await PDFDocument.create();
 
 for (let index = firstSlideIndex; index < lastSlideNumber; index += 1) {
   const slideNumber = index + 1;
-  const slide = page.locator(".pitch-slide").nth(index);
+  const slide = page.locator(config.selector).nth(index);
   if (!config.flat) {
-    await page.evaluate((slideIndex) => {
-      const currentSlide =
-        document.querySelectorAll(".pitch-slide")[slideIndex];
+    await page.evaluate(({ selector, slideIndex }) => {
+      const currentSlide = document.querySelectorAll(selector)[slideIndex];
       currentSlide?.scrollIntoView({ block: "center", inline: "center" });
-    }, index);
+    }, { selector: config.selector, slideIndex: index });
   }
   await slide.scrollIntoViewIfNeeded();
-  await page.evaluate(async (slideIndex) => {
-    const currentSlide = document.querySelectorAll(".pitch-slide")[slideIndex];
+  await page.evaluate(async ({ selector, slideIndex }) => {
+    const currentSlide = document.querySelectorAll(selector)[slideIndex];
     if (!currentSlide) throw new Error(`Slide ${slideIndex + 1} not found`);
 
     const images = Array.from(currentSlide.querySelectorAll("img"));
@@ -135,7 +169,7 @@ for (let index = firstSlideIndex; index < lastSlideNumber; index += 1) {
         });
       }),
     );
-  }, index);
+  }, { selector: config.selector, slideIndex: index });
 
   const screenshotPath = path.join(
     qaDir,
@@ -152,15 +186,23 @@ for (let index = firstSlideIndex; index < lastSlideNumber; index += 1) {
     : await page.screenshot({
         animations: "disabled",
         clip: await page.evaluate(
-          ({ framePadding, slideIndex }) => {
-            const currentSlide =
-              document.querySelectorAll(".pitch-slide")[slideIndex];
+          ({
+            framePadding,
+            pdfPageHeight,
+            pdfPageWidth,
+            selector,
+            slideIndex,
+          }) => {
+            const currentSlide = document.querySelectorAll(selector)[
+              slideIndex
+            ];
             if (!currentSlide)
               throw new Error(`Slide ${slideIndex + 1} not found`);
 
             const rect = currentSlide.getBoundingClientRect();
             const desiredWidth = rect.width + framePadding * 2;
-            const desiredHeight = desiredWidth * (9 / 16);
+            const desiredHeight =
+              desiredWidth * (pdfPageHeight / pdfPageWidth);
             const width = Math.min(window.innerWidth, desiredWidth);
             const height = Math.min(window.innerHeight, desiredHeight);
             const slideCenterX = rect.left + rect.width / 2;
@@ -176,7 +218,13 @@ for (let index = firstSlideIndex; index < lastSlideNumber; index += 1) {
 
             return { height, width, x, y };
           },
-          { framePadding: config.framePadding, slideIndex: index },
+          {
+            framePadding: config.framePadding,
+            pdfPageHeight,
+            pdfPageWidth,
+            selector: config.selector,
+            slideIndex: index,
+          },
         ),
         fullPage: false,
         path: screenshotPath,
@@ -196,7 +244,7 @@ const range =
   config.from === 1 && lastSlideNumber === slideCount
     ? "all"
     : `${config.from}-${lastSlideNumber}`;
-const fileBaseName = `moto-reach-pitch-slides-${range}-${config.scale}x${
+const fileBaseName = `${config.fileBaseName}-${range}-${config.scale}x${
   config.flat ? "-flat" : "-framed"
 }`;
 const pdfPath = path.join(config.outDir, `${fileBaseName}.pdf`);

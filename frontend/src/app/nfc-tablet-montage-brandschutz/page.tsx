@@ -1,5 +1,6 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
+import { Info } from "lucide-react";
 
 export const metadata = {
   title: "moto Tablet-Montage und Brandschutz",
@@ -10,7 +11,7 @@ export const metadata = {
 const principles = [
   {
     title: "Rettungswege frei halten",
-    body: "Tablet, Halterung, Standfuß und Kabel dürfen Flure, Türen und Durchgänge nicht verengen. Auch Sicherheitseinrichtungen müssen sichtbar und erreichbar bleiben.",
+    body: "Tablet, Halterung, Standfuß und Kabel dürfen Flure, Türen und Durchgänge nicht verengen. Die NRW-Schulbaurichtlinie nennt für notwendige Flure mindestens 1,50 m nutzbare Breite. Auch Feuerlöscher, Melder, Fluchtwegschilder, Notausgänge und Brandschutzpläne müssen sichtbar und erreichbar bleiben.",
   },
   {
     title: "Türen nicht verändern",
@@ -18,7 +19,7 @@ const principles = [
   },
   {
     title: "Strom sicher führen",
-    body: "Kabel dürfen nicht lose im Laufweg liegen. Sie sollten gegen Zug, Quetschung, scharfe Kanten und mechanische Belastung geschützt werden.",
+    body: "Kabel dürfen nicht lose im Laufweg liegen. Sinnvoll sind feste Kabelwege, zum Beispiel ein Kabelkanal an der Wand oder eine Kabelbrücke für bewegliche Leitungen. In Fluren und Rettungswegen sollte die Kabelführung mit der zuständigen Stelle abgestimmt werden, weil dort auch Anforderungen an Leitungsanlagen relevant sein können.",
   },
   {
     title: "Standort freigeben lassen",
@@ -27,30 +28,36 @@ const principles = [
 ];
 
 const checklistItems = [
-  "Der Standort liegt nicht auf Türblatt, Zarge oder Brandschutzelement, außer es gibt eine ausdrückliche Freigabe.",
+  "Der Standort liegt nicht auf einer Brand- oder Rauchschutztür, am Türrahmen oder an Teilen der Türanlage, außer es gibt eine ausdrückliche Freigabe.",
   "Die Tür öffnet und schließt vollständig.",
   "Türdrücker, Panikbeschlag, Türschließer, Türantrieb und Bewegungsfläche bleiben frei.",
   "Flure, Türen und Durchgänge bleiben frei nutzbar.",
-  "Standfuß oder Tischgerät stehen nicht im Verkehrsweg.",
+  "Standfuß oder Tischgerät stehen nur nach Absprache im Flur und blockieren keinen Laufweg.",
   "Feuerlöscher, Wandhydranten, Melder, Brandschutzpläne und Fluchtwegschilder bleiben sichtbar und erreichbar.",
-  "Kabel liegen nicht lose im Laufweg und sind gegen Zug, Quetschung und mechanische Belastung geschützt.",
-  "Die Befestigung passt zum Untergrund und wurde mit der zuständigen Stelle abgestimmt.",
-  "Gerät, Netzteil, Kabel und Halterung werden im Betrieb regelmäßig sichtgeprüft.",
+  "Kabel liegen nicht lose im Laufweg. Kabelkanal, Kabelbrücke oder feste Leitungsführung sind mit der zuständigen Stelle abgestimmt.",
+  "Wand, Schrauben, Dübel und Halterung passen zusammen. Bohrungen sind mit der zuständigen Stelle abgestimmt.",
+  "Gerät, Netzteil, Kabel und Halterung werden regelmäßig auf sichtbare Schäden geprüft.",
 ];
 
 const mountingTypes = [
   {
     title: "Wandmontage",
-    body: "Geeignet, wenn neben dem Raumzugang eine freie Wandfläche vorhanden ist und der Kabelweg sicher geführt werden kann. Nicht auf Türblatt, Zarge oder Brandschutzelementen montieren, außer nach ausdrücklicher Freigabe.",
+    body: "Geeignet, wenn neben dem Raumzugang eine freie Wandfläche vorhanden ist und der Kabelweg sicher geführt werden kann. Nicht auf Brand- oder Rauchschutztüren, Türrahmen oder Teilen der Türanlage montieren, außer nach ausdrücklicher Freigabe.",
   },
   {
     title: "Standfuß",
-    body: "Sinnvoll, wenn keine Wandmontage möglich oder gewünscht ist. Der Standfuß muss kippsicher stehen und darf nicht im Flur, Türbereich oder in Bewegungsflächen platziert werden.",
+    body: "Sinnvoll, wenn keine Wandmontage möglich oder gewünscht ist. Der Standfuß muss kippsicher stehen. Eine dauerhafte Aufstellung im Flur, Türbereich oder Laufweg sollte vorher abgestimmt werden.",
   },
   {
     title: "Tischaufsteller",
-    body: "Geeignet für Empfang, Sekretariat oder feste Übergabepunkte. Das Kabel muss geschützt geführt werden und darf keine Stolperstelle bilden.",
+    body: "Geeignet für Gruppenraum, Sekretariat oder feste Übergabepunkte. Das Kabel muss geschützt geführt werden und darf keine Stolperstelle bilden.",
   },
+];
+
+const sourceItems = [
+  "NRW-Schulbaurichtlinie, Nr. 3.1, 3.4 und 11",
+  "Sichere Schule, Flure: Flucht- und Rettungswege, Einrichtungen, Brandschutz",
+  "VV TB NRW / Leitungsanlagenrichtlinie, A 2.2.1.8 und MLAR Abschnitt 3",
 ];
 
 function DocumentPage({
@@ -167,6 +174,37 @@ function TextList({
   );
 }
 
+function InfoBox({ children }: { readonly children: ReactNode }) {
+  return (
+    <aside className="mt-auto flex gap-3 rounded-2xl border border-[#83CD2D]/20 bg-[#83CD2D]/8 p-4 text-[clamp(0.7rem,0.9vw,0.82rem)] leading-relaxed text-gray-700">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-white text-[#3F6F12] shadow-sm">
+        <Info className="h-4 w-4" aria-hidden="true" />
+      </span>
+      <div>
+        <h2 className="text-[clamp(0.8rem,1vw,0.92rem)] font-semibold text-gray-950">
+          Wichtige Einordnung
+        </h2>
+        <p className="mt-1">{children}</p>
+      </div>
+    </aside>
+  );
+}
+
+function SourcesBox() {
+  return (
+    <aside className="mt-auto rounded-2xl border border-gray-200 bg-gray-50/80 p-4 text-[clamp(0.64rem,0.82vw,0.76rem)] leading-relaxed text-gray-600">
+      <h2 className="text-[clamp(0.76rem,0.94vw,0.86rem)] font-semibold text-gray-950">
+        Quellen zur Orientierung
+      </h2>
+      <ul className="mt-1.5 grid gap-0.5">
+        {sourceItems.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+    </aside>
+  );
+}
+
 function PageOne() {
   return (
     <DocumentPage label="NFC Tablet Montage">
@@ -202,13 +240,11 @@ function PageOne() {
             </ol>
           </Section>
 
-          <Section title="Wichtige Einordnung">
-            <p>
-              Dieses Infoblatt ersetzt keine brandschutzrechtliche Bewertung des
-              konkreten Gebäudes. Maßgeblich bleiben Betreiberpflichten, lokales
-              Brandschutzkonzept, Landesrecht und Vorgaben des Schulträgers.
-            </p>
-          </Section>
+          <InfoBox>
+            Dieses Infoblatt ersetzt keine brandschutzrechtliche Bewertung des
+            konkreten Gebäudes. Maßgeblich bleiben Betreiberpflichten, lokales
+            Brandschutzkonzept, Landesrecht und Vorgaben des Schulträgers.
+          </InfoBox>
         </div>
       </ContentArea>
     </DocumentPage>
@@ -239,17 +275,12 @@ function PageTwo() {
           <Section title="Wer sollte beteiligt werden?">
             <p>
               Je nach Gebäude können Schulträger, Gebäudemanagement,
-              Hausmeisterei, Brandschutzbeauftragte, Fachplanung oder
+              Hausmeister, Brandschutzbeauftragte, Fachplanung oder
               Brandschutzdienststelle sinnvoll sein.
             </p>
           </Section>
 
-          <Section title="Bei Unsicherheit">
-            <p className="font-semibold text-gray-800">
-              Keine Montage auf Türen, Zargen oder Brandschutzelementen ohne
-              ausdrückliche Freigabe.
-            </p>
-          </Section>
+          <SourcesBox />
         </div>
       </ContentArea>
     </DocumentPage>

@@ -3,11 +3,8 @@ import type { ReactNode } from "react";
 import {
   Building2,
   ClipboardList,
-  DoorOpen,
-  HeartHandshake,
+  MapPinHouse,
   MessageCircle,
-  Radar,
-  ScanLine,
   ShieldCheck,
   Users,
 } from "lucide-react";
@@ -18,15 +15,6 @@ export const metadata = {
   description:
     "Pitch-Präsentation für die REACH Pitch Night 2026 im moto Design.",
 };
-
-const colors = {
-  green: "#83CD2D",
-  greenText: "#3F6F12",
-  blue: "#5080D8",
-  orange: "#F78C10",
-  red: "#FF3130",
-  purple: "#7C3AED",
-} as const;
 
 type Tone = "green" | "blue" | "orange" | "red" | "purple" | "gray";
 
@@ -77,41 +65,47 @@ const toneClass: Record<
   },
 };
 
-const marketStats = [
+const marketModelCards = [
   {
-    value: "$643M",
-    label: "Child-Care-Software-Markt 2026",
+    segment: "TAM",
+    value: "1,2 Mrd. Euro",
+    title: "Child-Care-Software global",
+    body: "Wachsende Softwarekategorie für Betreuung, Verwaltung und Elternkommunikation.",
     tone: "blue" as Tone,
   },
   {
-    value: "$1.38B",
-    label: "Prognose bis 2035",
+    segment: "SAM",
+    value: "103 Mio. Euro",
+    title: "Deutschland",
+    body: "Adressierbarer Betreuungssoftware-Markt aus Kita und Ganztag.",
     tone: "green" as Tone,
   },
   {
-    value: "264k",
-    label: "zusätzliche Ganztagsplätze bis 2029/30",
+    segment: "SOM",
+    value: "13,9 Mio. Euro",
+    title: "1.000 Standorte",
+    body: "Erreichbarer Einstieg über größere OGS-Standorte und Träger.",
     tone: "orange" as Tone,
   },
 ];
 
-const productCards = [
+const nfcInfoCards = [
   {
-    title: "NFC-Tablet",
-    body: "Kinder melden sich selbstständig an und sehen, was heute relevant ist.",
-    image: "/help/screens/nfc-hauptbildschirm.webp",
+    kicker: "01",
+    title: "Freie Bewegung",
+    body: "Kinder wechseln selbstbestimmt zwischen Schulhof, Mensa, AGs und Räumen.",
     tone: "green" as Tone,
   },
   {
-    title: "Betreuer-App",
-    body: "Das Team sieht Kinder, Räume, Hinweise und Abholung im laufenden Tag.",
-    image: "/help/screens/meine-gruppen.webp",
+    kicker: "02",
+    title: "Einfacher Check-in",
+    body: "NFC macht diese Entscheidungen sichtbar, ohne den Nachmittag zu unterbrechen.",
     tone: "blue" as Tone,
   },
   {
-    title: "OGS-Büro",
-    body: "Leitung und Verwaltung pflegen Stammdaten, Gruppen, Angebote und Planung.",
-    image: "/help/screens/datenverwaltung.webp",
+    kicker: "03",
+    title: "Mehr Zeit im Team",
+    body: "Betreuer müssen weniger suchen und nachtragen, und können mehr begleiten.",
     tone: "orange" as Tone,
   },
 ];
@@ -121,7 +115,7 @@ const modules = [
     title: "OGS",
     price: "0,99 Euro",
     unit: "pro Kind und Monat",
-    body: "Anwesenheit, Räume, Kinderprofile",
+    body: "Anwesenheit, Angebote, Kinderprofile",
     tone: "green" as Tone,
   },
   {
@@ -135,55 +129,55 @@ const modules = [
     title: "Personal",
     price: "199 Euro",
     unit: "pro Standort und Monat",
-    body: "Dienstplan, Zeiterfassung, Vertretung",
+    body: "Personalverwaltung, Dienstplan, Zeiterfassung",
     tone: "blue" as Tone,
   },
 ];
 
 const progressItems = [
   {
-    title: "NFC schneller einführbar",
-    body: "Quickstart, Onepager und Hilfesuche wurden ausgebaut.",
-    icon: ScanLine,
+    value: "8",
+    title: "Live-Standorte",
+    body: "moto wird täglich im OGS-Betrieb genutzt.",
     tone: "green" as Tone,
   },
   {
-    title: "Planung wird belastbarer",
-    body: "Schichtarten, Vertretungen, Plan/Ist und Änderungsprotokoll sind weiter gereift.",
-    icon: ClipboardList,
+    value: "2.000+",
+    title: "Kinder und Betreuer",
+    body: "arbeiten jeden Tag im Alltag mit moto.",
     tone: "blue" as Tone,
   },
   {
-    title: "Eltern- und Anmeldeflüsse wachsen",
-    body: "Abholung, Abwesenheit und Betreuungsangebote wurden im Alltag robuster.",
-    icon: MessageCircle,
+    value: "4",
+    title: "Apps",
+    body: "moto verbindet Eltern, Betreuer, Leitung und Träger.",
     tone: "orange" as Tone,
   },
   {
-    title: "Echte Zahlen ergänzen",
-    body: "Pilotstandorte, Interviews, Umsatz und Testimonials gehören hier als nächste Schärfung rein.",
-    icon: Radar,
+    value: "täglich",
+    title: "Zeit zurück",
+    body: "weniger Suchen, Nachfragen und Nachtragen im laufenden Betrieb.",
     tone: "red" as Tone,
   },
 ];
 
 const askItems = [
   {
-    title: "Pilotkontakte",
-    body: "Träger, OGS-Leitungen und Kommunen",
-    icon: DoorOpen,
+    marker: "Zugang",
+    title: "Trägerzugang",
+    body: "Kontakte zu OGS-Trägern und Kommunen",
     tone: "green" as Tone,
   },
   {
-    title: "Beta-Feedback",
-    body: "Teams, die echte Nachmittage testen",
-    icon: Users,
+    marker: "Standorte",
+    title: "OGS-Standorte",
+    body: "Einrichtungen, die offene Ganztagsbetreuung digital betreiben wollen",
     tone: "blue" as Tone,
   },
   {
-    title: "Netzwerk",
-    body: "Vergabe, Datenschutz und Bildungsträger",
-    icon: HeartHandshake,
+    marker: "Partner",
+    title: "Partner",
+    body: "Menschen mit Ideen, Kontakten oder Ressourcen, die moto unterstützen wollen",
     tone: "orange" as Tone,
   },
 ];
@@ -320,46 +314,61 @@ function Label({
   );
 }
 
+function TextMarker({
+  children,
+  tone = "green",
+}: {
+  readonly children: ReactNode;
+  readonly tone?: Tone;
+}) {
+  return (
+    <p
+      className={`text-[clamp(0.72rem,0.94vw,0.86rem)] font-bold tracking-[0.12em] uppercase ${toneClass[tone].text}`}
+    >
+      {children}
+    </p>
+  );
+}
+
 function MarketLine() {
   const points = [
-    { x: 0, y: 76 },
-    { x: 25, y: 64 },
-    { x: 50, y: 48 },
-    { x: 75, y: 32 },
-    { x: 100, y: 5 },
+    { x: 42, y: 70 },
+    { x: 104, y: 62 },
+    { x: 166, y: 51 },
+    { x: 226, y: 35 },
+    { x: 286, y: 14 },
   ];
   const path = points
     .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
     .join(" ");
+
   return (
     <svg
-      viewBox="0 0 100 86"
+      viewBox="0 0 300 86"
       className="h-full w-full overflow-visible"
       role="img"
-      aria-label="Wachsender Markt von 2026 bis 2035"
+      aria-label="Globaler Child-Care-Software-Markt von 2026 bis 2035"
     >
+      {[14, 32, 50, 68].map((y) => (
+        <path
+          key={y}
+          d={`M28 ${y} H290`}
+          stroke="#E5E7EB"
+          strokeWidth="1"
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
       <path
-        d="M0 80 H100"
-        stroke="#E5E7EB"
-        strokeWidth="1"
-        vectorEffect="non-scaling-stroke"
-      />
-      <path
-        d="M0 56 H100"
-        stroke="#E5E7EB"
-        strokeWidth="1"
-        vectorEffect="non-scaling-stroke"
-      />
-      <path
-        d="M0 32 H100"
-        stroke="#E5E7EB"
-        strokeWidth="1"
+        d="M28 10 V72 H290"
+        fill="none"
+        stroke="#CBD5E1"
+        strokeWidth="1.2"
         vectorEffect="non-scaling-stroke"
       />
       <path
         d={path}
         fill="none"
-        stroke={colors.green}
+        stroke="#83CD2D"
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="4"
@@ -371,9 +380,23 @@ function MarketLine() {
           cx={point.x}
           cy={point.y}
           r="3.2"
-          fill={colors.green}
+          fill="#83CD2D"
         />
       ))}
+      <g className="fill-gray-400 text-[4.7px] font-semibold">
+        <text x="2" y="16">
+          1,2 Mrd. Euro
+        </text>
+        <text x="2" y="70">
+          0,5 Mrd. Euro
+        </text>
+        <text x="42" y="83">
+          2026
+        </text>
+        <text x="268" y="83">
+          2035
+        </text>
+      </g>
     </svg>
   );
 }
@@ -644,7 +667,7 @@ export default function ReachPitchPage() {
               />
             </div>
             <Surface className="p-8">
-              <Label tone="red">Chaos</Label>
+              <TextMarker tone="red">Chaos</TextMarker>
               <h1 className="mt-5 text-[clamp(2rem,4.2vw,4.3rem)] leading-[1.02] font-semibold tracking-normal text-gray-950">
                 Der Nachmittag startet mit Papier.
               </h1>
@@ -664,7 +687,7 @@ export default function ReachPitchPage() {
         <Slide index={3} eyebrow="Problem">
           <div className="grid min-h-0 flex-1 grid-cols-[0.95fr_1fr] items-center gap-[5%]">
             <Surface className="p-8">
-              <Label tone="orange">Massiver Zeitverlust</Label>
+              <TextMarker tone="orange">Massiver Zeitverlust</TextMarker>
               <h1 className="mt-5 text-[clamp(2rem,4.2vw,4.3rem)] leading-[1.02] font-semibold tracking-normal text-gray-950">
                 Wenn ein Kind gesucht wird, steht der Betrieb.
               </h1>
@@ -703,14 +726,35 @@ export default function ReachPitchPage() {
                 mehr Druck.
               </Lead>
               <Surface className="mt-7 max-w-[29rem] p-4">
-                <p className="text-[clamp(0.9rem,1.18vw,1.1rem)] leading-snug font-semibold text-gray-800">
-                  Ab 2026 wächst nicht nur die Zahl der Plätze. Es wächst auch
-                  der Anspruch an Planung, Nachweis und Verlässlichkeit.
-                </p>
-                <div className="mt-4 flex flex-wrap gap-1.5 [&>span]:px-2.5 [&>span]:text-[clamp(0.62rem,0.82vw,0.76rem)]">
-                  <Label tone="blue">Mehr Plätze</Label>
-                  <Label tone="orange">Mehr Dokumentation</Label>
-                  <Label>Mehr Koordination</Label>
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    {
+                      title: "Mehr Kinder",
+                      body: "Mehr Anmeldungen ab 2026",
+                      tone: "blue" as Tone,
+                    },
+                    {
+                      title: "Mehr Nachweis",
+                      body: "mehr Dokumentation und Verlässlichkeit",
+                      tone: "orange" as Tone,
+                    },
+                    {
+                      title: "Mehr Koordination",
+                      body: "mehr Abstimmung im laufenden Betrieb",
+                      tone: "green" as Tone,
+                    },
+                  ].map((item) => (
+                    <div key={item.title}>
+                      <p
+                        className={`text-[clamp(0.72rem,0.9vw,0.82rem)] leading-tight font-bold ${toneClass[item.tone].text}`}
+                      >
+                        {item.title}
+                      </p>
+                      <p className="mt-1.5 text-[clamp(0.62rem,0.78vw,0.72rem)] leading-snug text-gray-500">
+                        {item.body}
+                      </p>
+                    </div>
+                  ))}
                 </div>
               </Surface>
             </div>
@@ -720,7 +764,7 @@ export default function ReachPitchPage() {
 
         <Slide index={5} eyebrow="Lösung">
           <div className="relative flex min-h-0 flex-1 flex-col justify-center">
-            <div className="pointer-events-none absolute top-[4%] right-[3%] w-[clamp(15rem,22vw,20rem)] opacity-80">
+            <div className="pointer-events-none absolute top-[4%] right-[2.5%] w-[clamp(18rem,27vw,24rem)] opacity-80">
               <Image
                 src="/pitch/reach/app-device-mockups.svg"
                 alt=""
@@ -791,39 +835,71 @@ export default function ReachPitchPage() {
           </div>
         </Slide>
 
-        <Slide index={6} eyebrow="Produkt">
+        <Slide index={6} eyebrow="Lösung">
           <div className="flex min-h-0 flex-1 flex-col justify-center">
             <Headline className="max-w-[18ch]">
-              Die App bildet Bewegung ab, nicht nur Stammdaten.
+              Das O in OGS steht für offen.
             </Headline>
-            <div className="mt-9 grid grid-cols-3 gap-5">
-              {productCards.map((card) => {
-                const tone = toneClass[card.tone];
-                return (
-                  <Surface key={card.title} className={`p-4 ${tone.border}`}>
-                    <div className="relative aspect-[16/10] overflow-hidden rounded-xl border border-gray-200 bg-white">
-                      <Image
-                        src={card.image}
-                        alt={card.title}
-                        fill
-                        sizes="30vw"
-                        className="object-contain p-3"
-                      />
-                    </div>
-                    <h2 className="mt-4 text-[clamp(1.1rem,1.55vw,1.45rem)] font-semibold text-gray-950">
-                      {card.title}
-                    </h2>
-                    <p className="mt-2 text-[clamp(0.78rem,1.02vw,0.98rem)] leading-relaxed text-gray-600">
-                      {card.body}
-                    </p>
-                  </Surface>
-                );
-              })}
+            <div className="mt-9 grid grid-cols-[0.78fr_1.22fr] gap-7">
+              <Surface className={`p-4 ${toneClass.green.border}`}>
+                <div className="relative aspect-[16/8.6] overflow-hidden rounded-xl border border-gray-200 bg-white">
+                  <div className="absolute top-4 right-4 z-10 rounded-full border border-[#83CD2D]/25 bg-[#83CD2D]/12 px-3 py-1 text-xs font-bold text-[#3F6F12] uppercase shadow-sm">
+                    NFC
+                  </div>
+                  <Image
+                    src="/help/screens/nfc-tablet-willkommen.webp"
+                    alt="NFC-Tablet mit moto Anmeldebildschirm"
+                    width={1024}
+                    height={1024}
+                    sizes="28vw"
+                    className="absolute top-[8%] left-[5%] w-[58%] object-contain"
+                  />
+                  <Image
+                    src="/pitch/reach/nfc-wristband.svg"
+                    alt="NFC-Armband für den Check-in"
+                    width={636}
+                    height={474}
+                    sizes="16vw"
+                    className="absolute right-[7%] bottom-[22%] w-[26%] object-contain drop-shadow-[0_12px_20px_rgba(15,23,42,0.16)]"
+                  />
+                </div>
+                <h2 className="mt-3 text-[clamp(1rem,1.38vw,1.28rem)] font-semibold text-gray-950">
+                  Check-in Terminal
+                </h2>
+                <p className="mt-1.5 text-[clamp(0.72rem,0.94vw,0.88rem)] leading-relaxed text-gray-600">
+                  Ein kurzer Scan ersetzt Nachfragen, Abhaken und spätere
+                  Korrekturen.
+                </p>
+              </Surface>
+              <div className="flex flex-col justify-center">
+                <p className="max-w-[43rem] text-[clamp(1rem,1.36vw,1.28rem)] leading-relaxed font-semibold text-gray-700">
+                  Wenn 400 Kinder frei zwischen Schulhof, Mensa, AGs und Räumen
+                  wechseln, reichen Listen nicht mehr aus. Mit NFC macht moto
+                  offene Konzepte auch bei steigenden Kinderzahlen steuerbar.
+                </p>
+                <div className="mt-6 grid grid-cols-3 gap-4">
+                  {nfcInfoCards.map((card) => {
+                    const tone = toneClass[card.tone];
+                    return (
+                      <Surface
+                        key={card.title}
+                        className={`p-4 ${tone.border}`}
+                      >
+                        <p className={`text-sm font-bold ${tone.text}`}>
+                          {card.kicker}
+                        </p>
+                        <h2 className="mt-5 text-[clamp(0.96rem,1.22vw,1.12rem)] leading-tight font-semibold text-gray-950">
+                          {card.title}
+                        </h2>
+                        <p className="mt-2 text-[clamp(0.72rem,0.94vw,0.88rem)] leading-relaxed text-gray-600">
+                          {card.body}
+                        </p>
+                      </Surface>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
-            <p className="mx-auto mt-8 max-w-[58rem] text-center text-[clamp(1rem,1.35vw,1.25rem)] leading-relaxed font-semibold text-gray-800">
-              Ein Scan oder eine Änderung aktualisiert den gemeinsamen
-              Tageszustand. Das Team sieht sofort, was relevant ist.
-            </p>
           </div>
         </Slide>
 
@@ -856,7 +932,7 @@ export default function ReachPitchPage() {
               })}
             </div>
             <div className="mx-auto mt-9 rounded-full bg-gray-950 px-8 py-4 text-center text-[clamp(0.95rem,1.2vw,1.15rem)] font-semibold text-white">
-              Beispiel: 120 Kinder plus Personalmodul, rund 377 Euro
+              Beispiel: 150 Kinder plus Personalmodul, rund 421 Euro
               Monatsumsatz pro Standort
             </div>
           </div>
@@ -865,38 +941,42 @@ export default function ReachPitchPage() {
         <Slide index={8} eyebrow="Markt">
           <div className="grid min-h-0 flex-1 grid-cols-[1.05fr_0.95fr] items-end gap-[6%]">
             <div className="pb-[2%]">
-              <Headline>Betreuung wird Infrastruktur.</Headline>
+              <Headline>Markt</Headline>
               <Lead>
-                Der Markt digitalisiert sich. Gleichzeitig entsteht mit dem
-                Rechtsanspruch auf Ganztag ab 2026 ein operativer Druck, den
-                klassische Kita- oder Schulsoftware nur teilweise abbildet.
+                Im Ganztag entsteht ein neuer Softwaremarkt. Global wächst die
+                Child-Care-Software-Kategorie, in Deutschland schafft der
+                Rechtsanspruch einen konkreten operativen Bedarf.
               </Lead>
-              <Surface className="mt-10 h-[24vh] min-h-[170px] p-6">
+              <Surface className="mt-10 h-[24vh] min-h-[170px] p-5">
                 <MarketLine />
               </Surface>
-              <div className="mt-3 flex justify-between px-3 text-xs font-medium text-gray-400">
-                <span>2026</span>
-                <span>2028</span>
-                <span>2030</span>
-                <span>2032</span>
-                <span>2035</span>
-              </div>
+              <p className="mt-3 px-3 text-[clamp(0.68rem,0.86vw,0.8rem)] font-semibold text-gray-400">
+                Globaler Child-Care-Software-Markt, Prognose bis 2035.
+              </p>
             </div>
-            <Surface className="grid gap-4 p-6">
-              {marketStats.map((stat) => {
-                const tone = toneClass[stat.tone];
+            <Surface className="grid gap-2 p-5">
+              {marketModelCards.map((card) => {
+                const tone = toneClass[card.tone];
                 return (
                   <div
-                    key={stat.value}
-                    className="border-b border-gray-100 pb-4 last:border-b-0 last:pb-0"
+                    key={card.segment}
+                    className="border-b border-gray-100 py-2.5 first:pt-0 last:border-b-0 last:pb-0"
                   >
                     <p
-                      className={`text-[clamp(2rem,4vw,4.25rem)] leading-none font-semibold ${tone.text}`}
+                      className={`text-[clamp(0.72rem,0.9vw,0.84rem)] font-bold tracking-[0.08em] uppercase ${tone.text}`}
                     >
-                      {stat.value}
+                      {card.segment}
                     </p>
-                    <p className="mt-2 max-w-[17rem] text-[clamp(0.86rem,1.18vw,1.1rem)] leading-snug text-gray-600">
-                      {stat.label}
+                    <p
+                      className={`mt-2 text-[clamp(1.45rem,2.7vw,2.85rem)] leading-none font-semibold ${tone.text}`}
+                    >
+                      {card.value}
+                    </p>
+                    <h2 className="mt-1.5 text-[clamp(0.88rem,1.08vw,1rem)] leading-tight font-semibold text-gray-950">
+                      {card.title}
+                    </h2>
+                    <p className="mt-1.5 text-[clamp(0.7rem,0.86vw,0.82rem)] leading-snug text-gray-600">
+                      {card.body}
                     </p>
                   </div>
                 );
@@ -905,77 +985,74 @@ export default function ReachPitchPage() {
           </div>
         </Slide>
 
-        <Slide index={9} eyebrow="Team">
+        <Slide index={9} eyebrow="Meilensteine">
           <div className="flex min-h-0 flex-1 flex-col justify-center">
-            <Headline className="max-w-[18ch]">
-              Team-Slide folgt als nächster Baustein.
+            <Headline className="max-w-[16ch]">
+              moto läuft bereits im OGS-Alltag.
             </Headline>
-            <Lead className="max-w-[52rem]">
-              Platzhalter für Gründerteam, Rollen, Umsetzungskraft und die
-              wichtigsten offenen Belege.
+            <Lead className="max-w-[56rem]">
+              Acht Standorte nutzen moto heute im Betrieb, mit Kindern, Teams
+              und echten Nachmittagen.
             </Lead>
-          </div>
-        </Slide>
-
-        <Slide index={10} eyebrow="Fortschritt">
-          <div className="flex min-h-0 flex-1 flex-col justify-center">
-            <Headline className="max-w-[20ch]">
-              In den letzten drei Monaten wurde aus Demo immer mehr Betrieb.
-            </Headline>
             <div className="mt-9 grid grid-cols-2 gap-4">
               {progressItems.map((item) => (
-                <Surface key={item.title} className="flex gap-4 p-5">
-                  <ToneIcon icon={item.icon} tone={item.tone} />
-                  <div>
-                    <h2 className="text-[clamp(1rem,1.35vw,1.25rem)] font-semibold text-gray-950">
-                      {item.title}
-                    </h2>
-                    <p className="mt-2 text-[clamp(0.78rem,1.02vw,0.98rem)] leading-relaxed text-gray-600">
-                      {item.body}
-                    </p>
-                  </div>
+                <Surface key={item.title} className="p-5">
+                  <p
+                    className={`text-[clamp(2rem,3.45vw,3.55rem)] leading-none font-semibold ${toneClass[item.tone].text}`}
+                  >
+                    {item.value}
+                  </p>
+                  <h2 className="mt-3 text-[clamp(1rem,1.35vw,1.25rem)] font-semibold text-gray-950">
+                    {item.title}
+                  </h2>
+                  <p className="mt-2 text-[clamp(0.76rem,0.98vw,0.92rem)] leading-relaxed text-gray-600">
+                    {item.body}
+                  </p>
                 </Surface>
               ))}
             </div>
           </div>
         </Slide>
 
-        <Slide index={11} eyebrow="Ask">
+        <Slide index={10} eyebrow="Next">
           <div className="grid min-h-0 flex-1 grid-cols-[1fr_0.35fr] items-center gap-[5%]">
             <div>
               <Headline className="max-w-[17ch]">
-                Wir suchen die nächsten OGS-Realitäten.
+                Der Anfang ist gemacht. Jetzt denken wir größer.
               </Headline>
               <Lead className="max-w-[50rem]">
-                Nicht perfekte Testumgebungen. Echte Nachmittage mit Kindern,
-                Räumen, Abholung, Elternkommunikation und Leitung unter
-                Zeitdruck.
+                moto läuft bereits im OGS-Alltag. Jetzt suchen wir Menschen, die
+                uns helfen, aus acht Standorten den nächsten Rollout zu machen.
               </Lead>
               <div className="mt-9 grid grid-cols-3 gap-4">
-                {askItems.map((item) => (
-                  <Surface key={item.title} className="p-5">
-                    <ToneIcon icon={item.icon} tone={item.tone} />
-                    <h2 className="mt-4 text-[clamp(1rem,1.35vw,1.25rem)] font-semibold text-gray-950">
-                      {item.title}
-                    </h2>
-                    <p className="mt-2 text-[clamp(0.76rem,1vw,0.95rem)] leading-relaxed text-gray-600">
-                      {item.body}
-                    </p>
-                  </Surface>
-                ))}
+                {askItems.map((item) => {
+                  const tone = toneClass[item.tone];
+                  return (
+                    <Surface key={item.title} className="p-5">
+                      <p
+                        className={`text-[clamp(0.7rem,0.9vw,0.82rem)] font-bold tracking-[0.08em] uppercase ${tone.text}`}
+                      >
+                        {item.marker}
+                      </p>
+                      <h2 className="mt-4 text-[clamp(1rem,1.35vw,1.25rem)] font-semibold text-gray-950">
+                        {item.title}
+                      </h2>
+                      <p className="mt-2 text-[clamp(0.76rem,1vw,0.95rem)] leading-relaxed text-gray-600">
+                        {item.body}
+                      </p>
+                    </Surface>
+                  );
+                })}
               </div>
               <p className="mt-9 text-[clamp(1rem,1.35vw,1.25rem)] font-semibold text-gray-950">
-                moto.nrw
+                moto-ogs.de
               </p>
             </div>
-            <div className="flex justify-center">
-              <div className="relative aspect-square w-full max-w-[230px] rounded-full bg-[#83CD2D]/16 p-8">
-                <Image
-                  src="/pitch/reach/moto-pin.png"
-                  alt="moto Bildmarke"
-                  width={300}
-                  height={300}
-                  className="h-full w-full object-contain"
+            <div className="flex -translate-x-8 -translate-y-10 justify-center">
+              <div className="flex aspect-square w-full max-w-[270px] items-center justify-center rounded-[42%] bg-[#83CD2D]/10 text-[#83CD2D] shadow-[inset_0_0_0_1px_rgba(131,205,45,0.12)]">
+                <MapPinHouse
+                  className="h-[12.5rem] w-[12.5rem] drop-shadow-[0_18px_24px_rgba(63,111,18,0.16)]"
+                  strokeWidth={1.25}
                 />
               </div>
             </div>
