@@ -991,8 +991,8 @@ export default function ReachPitchPage() {
               moto läuft bereits im OGS-Alltag.
             </Headline>
             <Lead className="max-w-[56rem]">
-              Acht Standorte nutzen moto heute im Betrieb, mit Kindern, Teams
-              und echten Nachmittagen.
+              moto läuft an acht Standorten und gibt Teams jeden Tag wertvolle
+              Zeit zurück.
             </Lead>
             <div className="mt-9 grid grid-cols-2 gap-4">
               {progressItems.map((item) => (
