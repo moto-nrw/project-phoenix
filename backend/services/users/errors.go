@@ -45,6 +45,10 @@ var (
 	// any weekday — a link that applies on no day is not a link
 	ErrCompanionWeekdayRequired = errors.New("Bitte mindestens einen Wochentag auswählen.") //nolint:staticcheck // ST1005: user-facing German message
 
+	// ErrCompanionDayNotAllowed indicates a link on a weekday the child's own
+	// departure plan does not permit leaving with another child
+	ErrCompanionDayNotAllowed = errors.New("An diesem Tag ist \"Anderes Kind\" als Heimweg nicht erlaubt.") //nolint:staticcheck // ST1005: user-facing German message
+
 	// ErrTooManyCompanions indicates more companions than MaxStudentCompanions
 	ErrTooManyCompanions = errors.New("Es können höchstens 10 Kinder verknüpft werden.") //nolint:staticcheck // ST1005: user-facing German message
 

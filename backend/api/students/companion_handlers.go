@@ -22,25 +22,25 @@ type CompanionResponse struct {
 	Weekdays           []string `json:"weekdays"`
 }
 
-// UpdateCompanionsRequest replaces the child's complete "läuft mit" list. An
-// empty list clears every link — that is how a Laufgemeinschaft is dissolved
-// from this child's side.
-type UpdateCompanionsRequest struct {
-	Companions []CompanionEntry `json:"companions"`
+// CompanionConflictResponse is the 409 body: the companions whose own departure
+// plan does not permit the requested days. The client turns it into the
+// "Tom darf donnerstags noch nicht mit anderen Kindern gehen. Ergänzen?"
+// confirmation and resends with extend_companion_plans.
+type CompanionConflictResponse struct {
+	Conflicts []usersService.CompanionConflict `json:"conflicts"`
+	Message   string                           `json:"message"`
+}
+
+// Render satisfies render.Renderer.
+func (resp *CompanionConflictResponse) Render(_ http.ResponseWriter, r *http.Request) error {
+	render.Status(r, http.StatusConflict)
+	return nil
 }
 
 // CompanionEntry is one submitted link.
 type CompanionEntry struct {
 	CompanionStudentID int64    `json:"companion_student_id"`
 	Weekdays           []string `json:"weekdays"`
-}
-
-// Bind satisfies render.Binder.
-func (req *UpdateCompanionsRequest) Bind(_ *http.Request) error {
-	if req.Companions == nil {
-		req.Companions = []CompanionEntry{}
-	}
-	return nil
 }
 
 // getStudentCompanions returns the children this child walks home with.
@@ -67,39 +67,96 @@ func (rs *Resource) getStudentCompanions(w http.ResponseWriter, r *http.Request)
 	common.Respond(w, r, http.StatusOK, toCompanionResponses(links), "Departure companions retrieved")
 }
 
-// updateStudentCompanions replaces the child's complete companion list.
+// companionConflictError carries the conflicting companions out of the update
+// transaction so the closure can abort (rolling back every write) while the
+// handler still renders the 409 the client needs to ask its question.
+type companionConflictError struct {
+	Conflicts []usersService.CompanionConflict
+}
+
+func (e *companionConflictError) Error() string {
+	return "companion departure plans do not allow the requested days"
+}
+
+// checkCompanionConflicts refuses the update, before any write, when a linked
+// child's own departure plan does not allow the requested days.
 //
-// Write access is the strict check (admin or the child's group supervisor):
-// the write also changes what shows up on the OTHER child's card, so a
-// read-scope-widened staff member must not be able to trigger it.
-func (rs *Resource) updateStudentCompanions(w http.ResponseWriter, r *http.Request) {
-	student, ok := rs.parseAndGetStudent(w, r)
-	if !ok {
-		return
+// `student` must already carry the plan resolved from this request.
+func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest) error {
+	if !req.hasCompanionUpdate() {
+		return nil
 	}
-	if !rs.checkStudentFullAccess(r, student) {
-		renderError(w, r, common.ErrorForbidden(errors.New("full access required to edit departure companions")))
-		return
+	accompaniedDays := userModels.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)
+	if len(accompaniedDays) == 0 {
+		// No accompanied day left: the links are cleared rather than checked.
+		return nil
 	}
 
-	req := &UpdateCompanionsRequest{}
-	if err := render.Bind(r, req); err != nil {
-		renderError(w, r, common.ErrorInvalidRequest(err))
-		return
-	}
-
-	if err := rs.StudentService.ReplaceCompanions(r.Context(), student.ID, toCompanionLinks(req.Companions)); err != nil {
-		renderError(w, r, companionErrorResponse(err))
-		return
-	}
-
-	updated, err := rs.StudentService.ListCompanions(r.Context(), student.ID)
+	conflicts, err := rs.StudentService.CheckCompanionConflicts(ctx, student.ID, usersService.CompanionUpdate{
+		Links:                toCompanionLinks(*req.Companions),
+		AccompaniedDays:      accompaniedDays,
+		ExtendCompanionPlans: req.ExtendCompanionPlans,
+	})
 	if err != nil {
-		renderError(w, r, common.ErrorInternalServerWrap("failed to reload departure companions", err))
-		return
+		return err
+	}
+	if len(conflicts) > 0 {
+		return &companionConflictError{Conflicts: conflicts}
+	}
+	return nil
+}
+
+// applyCompanionUpdate reconciles the child's "läuft mit" links with the
+// departure plan that is about to be written.
+//
+// It runs BEFORE the student write for two reasons: a link satisfies the
+// accompanied-requires-a-note invariant that the model checks on write, and a
+// conflict has to abort the transaction before anything lands.
+//
+// `student` must already carry the plan resolved from this request.
+func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest) error {
+	accompaniedDays := userModels.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)
+
+	// The plan no longer allows leaving with another child anywhere: the links
+	// lose their basis and go with it, exactly like the free-text note does.
+	// Otherwise the Kindersuche would keep grouping a child whose Stammdaten say
+	// "fährt Bus".
+	if len(accompaniedDays) == 0 {
+		if _, err := rs.StudentService.ReplaceCompanions(ctx, student.ID, usersService.CompanionUpdate{
+			AccompaniedDays: accompaniedDays,
+		}); err != nil {
+			return err
+		}
+		student.DepartureCompanionLinked = false
+		return nil
 	}
 
-	common.Respond(w, r, http.StatusOK, toCompanionResponses(updated), "Departure companions updated")
+	if !req.hasCompanionUpdate() {
+		// Untouched links still answer "mit wem", so the note stays optional for
+		// a child that already has a Laufgemeinschaft.
+		links, err := rs.StudentService.ListCompanions(ctx, student.ID)
+		if err != nil {
+			return err
+		}
+		student.DepartureCompanionLinked = len(links) > 0
+		return nil
+	}
+
+	links := toCompanionLinks(*req.Companions)
+	conflicts, err := rs.StudentService.ReplaceCompanions(ctx, student.ID, usersService.CompanionUpdate{
+		Links:                links,
+		AccompaniedDays:      accompaniedDays,
+		ExtendCompanionPlans: req.ExtendCompanionPlans,
+	})
+	if err != nil {
+		return err
+	}
+	if len(conflicts) > 0 {
+		return &companionConflictError{Conflicts: conflicts}
+	}
+
+	student.DepartureCompanionLinked = len(links) > 0
+	return nil
 }
 
 // enrichWithCompanions fills CompanionStudentIDs for the given day.
@@ -187,23 +244,4 @@ func toCompanionResponses(links []userModels.CompanionLink) []CompanionResponse 
 		})
 	}
 	return out
-}
-
-// companionErrorResponse maps the validation sentinels to 400/404 and anything
-// else to 500. The German sentinel texts reach the UI verbatim.
-func companionErrorResponse(err error) render.Renderer {
-	switch {
-	case errors.Is(err, usersService.ErrCompanionNotFound):
-		return common.ErrorNotFound(err)
-	case errors.Is(err, usersService.ErrStudentNotFound):
-		return common.ErrorNotFound(err)
-	case errors.Is(err, usersService.ErrDuplicateCompanion),
-		errors.Is(err, usersService.ErrCompanionWeekdayRequired),
-		errors.Is(err, usersService.ErrTooManyCompanions),
-		errors.Is(err, userModels.ErrCompanionSelfLink),
-		errors.Is(err, userModels.ErrCompanionInvalidWeekday):
-		return common.ErrorInvalidRequest(err)
-	default:
-		return common.ErrorInternalServerWrap("failed to update departure companions", err)
-	}
 }

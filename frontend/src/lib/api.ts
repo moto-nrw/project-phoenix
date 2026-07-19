@@ -512,6 +512,32 @@ export interface Room {
 }
 
 // API services
+/**
+ * Raised when a student update was refused because a linked child's own
+ * departure plan does not yet allow leaving with another child on the
+ * requested days. Nothing was written; re-send with extend_companion_plans
+ * after the user confirms.
+ */
+export class CompanionPlanConflictError extends Error {
+  constructor(body: string) {
+    super(parseConflictMessage(body));
+    this.name = "CompanionPlanConflictError";
+  }
+}
+
+function parseConflictMessage(body: string): string {
+  try {
+    const parsed = JSON.parse(body) as { message?: string; error?: string };
+    return (
+      parsed.message ??
+      parsed.error ??
+      "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht."
+    );
+  } catch {
+    return "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.";
+  }
+}
+
 export const studentService = {
   // Get all students
   // Pass token to skip redundant getSession() call (saves ~600ms per request)
@@ -700,7 +726,11 @@ export const studentService = {
   // Update a student
   updateStudent: async (
     id: string,
-    student: Partial<Student>,
+    student: Partial<Student> & {
+      // Laufgemeinschaft rides along with the departure plan it belongs to.
+      companions?: { companion_student_id: number; weekdays: string[] }[];
+      extend_companion_plans?: boolean;
+    },
   ): Promise<Student> => {
     const useProxyApi = globalThis.window !== undefined;
     const url = useProxyApi
@@ -730,6 +760,16 @@ export const studentService = {
             status: response.status,
             error_text: errorText.substring(0, 200), // Truncate long errors
           });
+
+          // A 409 on the student PUT means a linked child's own departure plan
+          // does not allow the requested "läuft mit" days. It is a question,
+          // not a failure: the caller re-sends with extend_companion_plans
+          // after the user confirms. Typed so the modal can tell it apart from
+          // a real error. Nothing was written — the handler checks before its
+          // first write.
+          if (response.status === 409) {
+            throw new CompanionPlanConflictError(errorText);
+          }
 
           // Try to parse error text as JSON for more detailed error
           try {
@@ -770,6 +810,10 @@ export const studentService = {
         return mappedResponse;
       }
     } catch (error) {
+      // The companion conflict is a question for the user, not an API failure —
+      // keep its type so the caller can offer the confirmation instead of a
+      // generic error toast.
+      if (error instanceof CompanionPlanConflictError) throw error;
       throw handleApiError(error, `Error updating student ${id}`);
     }
   },

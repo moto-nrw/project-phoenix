@@ -25,6 +25,11 @@ import {
   formatAllowedDepartureDays,
   normalizeAllowedDepartureModes,
 } from "~/lib/student-helpers";
+import { CompanionPicker } from "./companion-picker";
+import type {
+  CompanionWeekday,
+  StudentCompanion,
+} from "~/lib/student-companion-api";
 
 interface SelectOption {
   value: string;
@@ -727,12 +732,29 @@ const DEPARTURE_OPTIONS: ReadonlyArray<{
   { value: "accompanied", short: "Anderes Kind" },
 ];
 
+// Stable empty default so the prop keeps referential equality across renders.
+const EMPTY_COMPANIONS: StudentCompanion[] = [];
+
+/** Weekdays whose allowed modes include "Anderes Kind" — the only days a
+ *  Laufgemeinschaft may be recorded for. */
+function accompaniedWeekdays(
+  allowed: AllowedDepartureModes,
+): CompanionWeekday[] {
+  return DEPARTURE_WEEKDAYS.filter((day) =>
+    allowed[day.key]?.includes("accompanied"),
+  ).map((day) => day.key as CompanionWeekday);
+}
+
 export function DepartureSection({
   days,
   onChange,
   companionNote,
   onCompanionNoteChange,
   companionNoteError,
+  companions,
+  onCompanionsChange,
+  companionStudentId,
+  onExtendCompanionPlansChange,
 }: Readonly<{
   days?: AllowedDepartureModes | null;
   onChange: (value: AllowedDepartureModes) => void;
@@ -743,6 +765,15 @@ export function DepartureSection({
   /** Validation message shown under the companion note (required when an
    *  accompanied day is selected). */
   companionNoteError?: string;
+  /** Linked children (Laufgemeinschaft). Rendered only when the handler is
+   *  supplied AND a day allows the accompanied mode — the link exists only as
+   *  the detail of that mode. */
+  companions?: StudentCompanion[];
+  onCompanionsChange?: (next: StudentCompanion[]) => void;
+  /** The child being edited, filtered out of the companion search. */
+  companionStudentId?: string;
+  /** Confirmation to widen a linked child's own departure plan. */
+  onExtendCompanionPlansChange?: (extend: boolean) => void;
 }>) {
   const normalized = normalizeAllowedDepartureModes(days);
   const anySelected = DEPARTURE_WEEKDAYS.some(
@@ -829,13 +860,26 @@ export function DepartureSection({
           );
         })}
       </div>
+      {onCompanionsChange && accompaniedSelected && (
+        <div className="mt-3">
+          <CompanionPicker
+            value={companions ?? EMPTY_COMPANIONS}
+            onChange={onCompanionsChange}
+            allowedDays={accompaniedWeekdays(normalized)}
+            excludeStudentId={companionStudentId}
+            onExtendPlansChange={onExtendCompanionPlansChange}
+          />
+        </div>
+      )}
       {onCompanionNoteChange && accompaniedSelected && (
         <div className="mt-3">
           <label
             htmlFor={companionNoteId}
             className="mb-1 block text-xs font-medium text-gray-700"
           >
-            Mit welchem Kind?
+            {onCompanionsChange
+              ? "Oder mit welcher Person?"
+              : "Mit welchem Kind?"}
           </label>
           <input
             id={companionNoteId}
@@ -855,8 +899,9 @@ export function DepartureSection({
             <p className="mt-1 text-xs text-[#FF3130]">{companionNoteError}</p>
           ) : (
             <p className="mt-1 text-xs text-gray-500">
-              Mit welchem Kind das Kind an den Tagen „Mit anderem Kind“ nach
-              Hause geht.
+              {onCompanionsChange
+                ? "Nur nötig, wenn das Kind mit einer Person geht, die kein Kind der Schule ist (z. B. Nachbarin)."
+                : "Mit welchem Kind das Kind an den Tagen „Mit anderem Kind“ nach Hause geht."}
             </p>
           )}
         </div>

@@ -41,7 +41,6 @@ import {
   PersonalInfoReadOnly,
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
-import CompanionSection from "~/components/students/companion-section";
 import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
 import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
@@ -595,6 +594,14 @@ function StudentDetailPageContent() {
       allowed_departure_modes: allowedDepartureModes,
       departure_days: allowedDepartureToDepartureDays(allowedDepartureModes),
       departure_companion_note: editedStudent.departure_companion_note,
+      // Laufgemeinschaft travels with the plan it belongs to: a link is only
+      // legal on a day that allows "Anderes Kind", so the backend validates
+      // both in one request instead of racing two.
+      companions: (editedStudent.companions ?? []).map((companion) => ({
+        companion_student_id: companion.companion_student_id,
+        weekdays: companion.weekdays,
+      })),
+      extend_companion_plans: editedStudent.extend_companion_plans ?? false,
       health_info: editedStudent.health_info,
       supervisor_notes: editedStudent.supervisor_notes,
       extra_info: editedStudent.extra_info,
@@ -1388,19 +1395,6 @@ function FullAccessView({
             showEditButton={hasWriteAccess}
             onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
           />
-          {/* Laufgemeinschaft: lives on the child, edits and saves in place.
-              Deliberately NOT in the personal-info modal — the link is stored
-              on its own table and also changes the other child's card, so it
-              must not ride along with an unrelated Stammdaten save. Shown only
-              in the full-access branch: a companion's name is another child's
-              data. */}
-          {studentId ? (
-            <CompanionSection
-              studentId={studentId}
-              canEdit={hasWriteAccess}
-              variant="card"
-            />
-          ) : null}
         </TabsContent>
 
         <TabsContent

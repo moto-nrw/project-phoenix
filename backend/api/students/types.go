@@ -241,12 +241,6 @@ type StudentRequest struct {
 	Bus                    *bool             `json:"bus,omitempty"`           // Administrative permission flag (Buskind, legacy)
 	BusDays                *users.BusDays    `json:"bus_days,omitempty"`      // Weekdays on which the child is a Buskind (legacy)
 
-	// Companions ("läuft mit") persisted together with the student. Supplying
-	// them here satisfies the accompanied-mode "mit wem" requirement without a
-	// free-text note — a named child is strictly better information than a
-	// typed name.
-	Companions []CompanionEntry `json:"companions,omitempty"`
-
 	// Guardians created together with the student in one atomic transaction
 	// (guardian_profiles system). Optional and independent of the legacy
 	// scalar guardian_* fields above.
@@ -303,6 +297,14 @@ type UpdateStudentRequest struct {
 	// same tenant transaction so consent withdrawal can never leave a stored
 	// image behind.
 	PhotoConsentGiven *bool `json:"photo_consent_given,omitempty"`
+	// Companions ("läuft mit") replaces the child's complete Laufgemeinschaft.
+	// It travels with the departure plan on purpose: the link is only legal on a
+	// day the plan allows "Anderes Kind", so both have to be validated against
+	// each other in ONE request instead of racing as two.
+	// nil = leave the links untouched; [] = clear them.
+	Companions *[]CompanionEntry `json:"companions,omitempty"`
+	// ExtendCompanionPlans confirms widening a companion's own departure plan.
+	ExtendCompanionPlans bool `json:"extend_companion_plans,omitempty"`
 }
 
 // RFIDAssignmentRequest is the RFID tag assignment payload, shared with
@@ -503,6 +505,12 @@ func (req *UpdateStudentRequest) Bind(_ *http.Request) error {
 	// Guardian fields are deprecated - allow empty strings for clearing
 	// Empty strings will be converted to nil in the update handler
 	return nil
+}
+
+// hasCompanionUpdate reports whether the request carries a "läuft mit" list.
+// A nil pointer means "leave the links alone"; an empty slice clears them.
+func (req *UpdateStudentRequest) hasCompanionUpdate() bool {
+	return req.Companions != nil
 }
 
 func (req *CreateStudentStatusDaysRequest) Bind(_ *http.Request) error {

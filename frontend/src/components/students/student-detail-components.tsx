@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, Check, Clock } from "lucide-react";
 import { LocationBadge } from "@/components/ui/location-badge";
 import type { ExtendedStudent } from "~/lib/hooks/use-student-data";
@@ -22,6 +23,12 @@ import {
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { AllowedDepartureModesDisplay } from "~/components/students/allowed-departure-modes-display";
 import { InfoCard, InfoItem } from "~/components/ui/info-card";
+import {
+  companionDisplayName,
+  fetchStudentCompanions,
+  formatCompanionWeekdays,
+  type StudentCompanion,
+} from "~/lib/student-companion-api";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 
@@ -665,6 +672,25 @@ export function PersonalInfoReadOnly({
   showEditButton = false,
   onEditClick,
 }: Readonly<PersonalInfoReadOnlyProps>) {
+  // The Laufgemeinschaft lives in its own table, so it is fetched here rather
+  // than riding along on the student payload. Failure is silent: a missing
+  // "Läuft mit" row must not break the whole Stammdaten card.
+  const [companions, setCompanions] = useState<StudentCompanion[]>([]);
+  useEffect(() => {
+    if (!student.id) return;
+    let cancelled = false;
+    fetchStudentCompanions(student.id)
+      .then((loaded) => {
+        if (!cancelled) setCompanions(loaded);
+      })
+      .catch(() => {
+        if (!cancelled) setCompanions([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [student.id]);
+
   const birthdayDisplay = student.birthday
     ? new Date(student.birthday).toLocaleDateString("de-DE", {
         timeZone: "Europe/Berlin",
@@ -726,9 +752,30 @@ export function PersonalInfoReadOnly({
             />
           }
         />
+        {companions.length > 0 && (
+          <InfoItem
+            label="Läuft mit"
+            value={
+              <span className="space-y-0.5">
+                {companions.map((companion) => (
+                  <span
+                    key={companion.companion_student_id}
+                    className="block text-sm"
+                  >
+                    {companionDisplayName(companion)}
+                    <span className="text-gray-500">
+                      {" "}
+                      ({formatCompanionWeekdays(companion.weekdays)})
+                    </span>
+                  </span>
+                ))}
+              </span>
+            }
+          />
+        )}
         {student.departure_companion_note && (
           <InfoItem
-            label="Mit welchem Kind?"
+            label="Geht außerdem mit"
             value={student.departure_companion_note}
           />
         )}

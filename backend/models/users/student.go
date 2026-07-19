@@ -78,6 +78,13 @@ type Student struct {
 	// column) that the migration tests exercise. It may later be formalized into
 	// a departure group (#1694).
 	DepartureCompanionNote *string `bun:"departure_companion_note,scanonly" json:"departure_companion_note,omitempty"`
+	// DepartureCompanionLinked is NOT persisted. It is set by callers that know
+	// the child has (or is about to have) a companion link in
+	// users.student_companions, which answers the "mit wem" question better than
+	// the free-text note and therefore satisfies the same Validate requirement.
+	// Kept off the table on purpose: the links are the source of truth, and a
+	// denormalized copy would drift the moment one is removed.
+	DepartureCompanionLinked bool `bun:"-" json:"-"`
 	// PickupDays / BusDays are derived views of DepartureDays kept for consumers
 	// (and API response fields) that have not yet migrated to departure_days.
 	PickupDays    PickupDays     `bun:"pickup_days,type:jsonb,scanonly" json:"pickup_days,omitempty"` // Weekdays on which the child is picked up ("wird abgeholt")
@@ -186,7 +193,14 @@ func (s *Student) Validate() error {
 	// covers every path that introduces it; the reverse coupling (a note with no
 	// accompanied day) is handled by note-clearing in the repository, which is the
 	// only layer that sees the resolved plan for partial/legacy updates.
-	if s.DepartureCompanionNote == nil &&
+	//
+	// A structured companion link (users.student_companions) satisfies the same
+	// requirement and is strictly better information than typed text, so a
+	// caller that has one sets DepartureCompanionLinked. The flag defaults to
+	// false, which keeps every path that knows nothing about links (imports,
+	// enrollment payloads, direct API writes) on the original note requirement —
+	// this fails closed, never open.
+	if s.DepartureCompanionNote == nil && !s.DepartureCompanionLinked &&
 		(s.AllowedDepartureModes.HasMode(DepartureAccompanied) ||
 			s.DepartureDays.HasMode(DepartureAccompanied)) {
 		return ErrDepartureCompanionNoteRequired

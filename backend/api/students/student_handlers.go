@@ -610,10 +610,14 @@ func (rs *Resource) persistNewStudent(ctx context.Context, person *users.Person,
 }
 
 // persistNewStudentAttachments writes the optional records that hang off a
-// freshly created student: the weekly arrival/pickup schedules and the
-// companion links. All of them FK to the student, so they run in the same
-// transaction as the create (mirrors the guardian handling above) — a
-// half-created care plan or Laufgemeinschaft is worse than none.
+// freshly created student: the weekly arrival/pickup schedules. They FK to the
+// student, so they run in the same transaction as the create (mirrors the
+// guardian handling above).
+//
+// Companion links ("läuft mit") are deliberately NOT accepted here: a link is
+// only legal on a day BOTH children's departure plans allow it, and resolving
+// that against a child that does not exist yet buys nothing. Linking is a
+// follow-up action on the child's card.
 func (rs *Resource) persistNewStudentAttachments(ctx context.Context, studentID int64, req *StudentRequest, staffID int64) error {
 	if len(req.ArrivalSchedules) > 0 {
 		arrivals := toArrivalScheduleModels(req.ArrivalSchedules, studentID, staffID)
@@ -624,11 +628,6 @@ func (rs *Resource) persistNewStudentAttachments(ctx context.Context, studentID 
 	if len(req.PickupSchedules) > 0 {
 		pickups := toPickupScheduleModels(req.PickupSchedules, studentID, staffID)
 		if err := rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(ctx, studentID, pickups); err != nil {
-			return err
-		}
-	}
-	if len(req.Companions) > 0 {
-		if err := rs.StudentService.ReplaceCompanions(ctx, studentID, toCompanionLinks(req.Companions)); err != nil {
 			return err
 		}
 	}
@@ -1017,12 +1016,10 @@ var errStudentNotFoundUnderLock = errors.New("student deleted between snapshot a
 // response status matches what the pre-tx gate would emit.
 var errStudentReassigned = errors.New("student reassigned out of caller's scope mid-update")
 
-// applyStudentUpdate performs the locked-row student patch inside the caller's
-// tenant transaction. Patch is applied to a freshly FOR-UPDATE-locked row so a
-// concurrent photo upload can't have its photo_path clobbered by a stale
-// snapshot write. It returns one of the package sentinel errors for the racy
-// paths the outer switch maps to specific status codes.
-func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, student *users.Student, person *users.Person, req *UpdateStudentRequest, userPermissions []string, personUpdated bool, statusHistoryNow time.Time) error {
+// lockStudentForUpdate takes the row lock and re-validates every precondition
+// against the LOCKED row rather than the pre-transaction snapshot, so a
+// concurrent edit cannot slip a stale decision past. It writes nothing.
+func (rs *Resource) lockStudentForUpdate(ctx context.Context, student *users.Student, req *UpdateStudentRequest, userPermissions []string) (*users.Student, error) {
 	// Acquire the photo-feature advisory lock only when consent is
 	// actually toggling. Name/notes edits must not queue behind
 	// feature disable/purge.
@@ -1030,22 +1027,22 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 		(*req.PhotoConsentGiven) != (student.PhotoConsentGivenAt != nil)
 	if consentChanging {
 		if err := rs.StudentService.LockPhotoFeature(ctx); err != nil {
-			return err
+			return nil, err
 		}
 	}
 
 	fresh, err := rs.StudentService.GetByIDForUpdate(ctx, student.ID)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return errStudentNotFoundUnderLock
+			return nil, errStudentNotFoundUnderLock
 		}
-		return err
+		return nil, err
 	}
 
 	// Re-check authorisation against the LOCKED row. A concurrent admin
 	// reassignment could otherwise let a non-supervisor mutate the row.
 	if ok, _ := canUpdateStudent(ctx, userPermissions, fresh, rs.UserContextService); !ok {
-		return errStudentReassigned
+		return nil, errStudentReassigned
 	}
 
 	// Re-validate sick/excused on fresh: two concurrent partial updates
@@ -1053,7 +1050,37 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// sick && excused state. TenantTxMiddleware only rolls back on 5xx,
 	// so this 409-mapped sentinel must fire before any write below.
 	if err := checkSickExcusedConflict(req, fresh); err != nil {
-		return errSickExcusedConflict
+		return nil, errSickExcusedConflict
+	}
+
+	return fresh, nil
+}
+
+// applyStudentUpdate performs the locked-row student patch inside the caller's
+// tenant transaction. Patch is applied to a freshly FOR-UPDATE-locked row so a
+// concurrent photo upload can't have its photo_path clobbered by a stale
+// snapshot write. It returns one of the package sentinel errors for the racy
+// paths the outer switch maps to specific status codes.
+func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, student *users.Student, person *users.Person, req *UpdateStudentRequest, userPermissions []string, personUpdated bool, statusHistoryNow time.Time) error {
+	fresh, err := rs.lockStudentForUpdate(ctx, student, req, userPermissions)
+	if err != nil {
+		return err
+	}
+
+	// Read pre-update flags off fresh, not the snapshot, so status
+	// history reflects the actual transition the commit will perform.
+	// MUST happen before applyStudentFieldUpdates overwrites them.
+	wasSick := boolPtrValue(fresh.Sick)
+	wasExcused := boolPtrValue(fresh.Excused)
+
+	// Apply the request to the locked row in memory FIRST. Nothing is written
+	// yet, which is what lets the companion check below refuse the whole update
+	// before any of it lands: this runs inside the middleware's tenant
+	// transaction, and that commits on every non-5xx response — a 409 raised
+	// after a write would keep that write.
+	applyStudentFieldUpdates(req, fresh)
+	if err := rs.checkCompanionConflicts(ctx, fresh, req); err != nil {
+		return err
 	}
 
 	if personUpdated {
@@ -1062,17 +1089,17 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 		}
 	}
 
-	// Read pre-update flags off fresh, not the snapshot, so status
-	// history reflects the actual transition the commit will perform.
-	wasSick := boolPtrValue(fresh.Sick)
-	wasExcused := boolPtrValue(fresh.Excused)
-
-	applyStudentFieldUpdates(req, fresh)
 	effectiveConsent := reconcilePhotoConsentRequest(req.PhotoConsentGiven, student, fresh)
 	rs.StudentPhotos.ApplyConsentTransition(ctx, effectiveConsent, fresh)
 
 	if err := rs.persistStudentStatusHistory(ctx, fresh, wasSick, wasExcused, statusHistoryNow, strutil.TrimPtrToNil(req.SickReason)); err != nil {
 		rs.logStatusHistoryError(student.ID, err)
+		return err
+	}
+	// Companions BEFORE the student write: the link satisfies the
+	// accompanied-requires-a-note invariant that Update validates, and a
+	// conflict must abort the whole transaction before anything is persisted.
+	if err := rs.applyCompanionUpdate(ctx, fresh, req); err != nil {
 		return err
 	}
 	if err := rs.StudentService.Update(ctx, fresh); err != nil {
@@ -1083,6 +1110,19 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// subscribers into refetching the still-pre-commit row.
 	rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req)
 	return nil
+}
+
+// companionConflictRenderer returns the 409 payload when the transaction failed
+// on a companion departure-plan mismatch, and nil otherwise.
+func companionConflictRenderer(err error) render.Renderer {
+	var conflictErr *companionConflictError
+	if !errors.As(err, &conflictErr) {
+		return nil
+	}
+	return &CompanionConflictResponse{
+		Conflicts: conflictErr.Conflicts,
+		Message:   "Der Heimweg des verknüpften Kindes erlaubt diese Tage noch nicht.",
+	}
 }
 
 // updateStudentTxErrorRenderer maps the applyStudentUpdate transaction error to
@@ -1106,6 +1146,23 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 	// (#1694). The binder cannot catch this on update: only here is the
 	// stored note visible to fall back on.
 	case errors.Is(err, users.ErrDepartureCompanionNoteRequired):
+		return common.ErrorInvalidRequest(err)
+	// A companion whose own departure plan does not allow the requested days.
+	// Nothing was written (the transaction rolled back); the client asks the
+	// user and may resend with extend_companion_plans.
+	case companionConflictRenderer(err) != nil:
+		return companionConflictRenderer(err)
+	// Companion input the client should not have sent: a day the child's own
+	// plan does not allow, a duplicate, a self-link, an unknown child. All 4xx,
+	// with the German sentinel text going straight to the UI.
+	case errors.Is(err, userService.ErrCompanionNotFound):
+		return common.ErrorNotFound(err)
+	case errors.Is(err, userService.ErrCompanionDayNotAllowed),
+		errors.Is(err, userService.ErrDuplicateCompanion),
+		errors.Is(err, userService.ErrCompanionWeekdayRequired),
+		errors.Is(err, userService.ErrTooManyCompanions),
+		errors.Is(err, users.ErrCompanionSelfLink),
+		errors.Is(err, users.ErrCompanionInvalidWeekday):
 		return common.ErrorInvalidRequest(err)
 	default:
 		return common.ErrorInternalServer(err)

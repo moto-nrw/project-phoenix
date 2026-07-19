@@ -103,6 +103,59 @@ func (c *StudentCompanion) Other(studentID int64) (int64, bool) {
 	}
 }
 
+// AccompaniedWeekdays returns the weekday keys on which a child may leave with
+// another child, reading the unified allowed-modes map first and falling back to
+// the exclusive departure_days for records that predate it.
+//
+// This is what couples a Laufgemeinschaft to the departure plan: a link may only
+// exist on a day the plan actually allows. Without that, a child's Stammdaten
+// could read "geht immer alleine" and "läuft mit Sophie" at the same time.
+func AccompaniedWeekdays(allowed AllowedDepartureModes, days DepartureDays) map[string]bool {
+	out := make(map[string]bool, len(PickupDayOrder))
+	for _, day := range PickupDayOrder {
+		if modes, ok := allowed[day]; ok {
+			for _, mode := range modes {
+				if mode == DepartureAccompanied {
+					out[day] = true
+				}
+			}
+		}
+		if days[day] == DepartureAccompanied {
+			out[day] = true
+		}
+	}
+	return out
+}
+
+// WithAccompaniedDays returns a copy of the allowed-modes map that additionally
+// permits the accompanied mode on the given weekdays.
+//
+// Widening only: the existing modes of every day are kept, so permitting "läuft
+// mit" never takes away the bus or a pickup. Removing a mode is not this
+// function's job and must not become it — that would let one child's edit
+// silently narrow another child's departure permissions.
+func WithAccompaniedDays(allowed AllowedDepartureModes, days []string) AllowedDepartureModes {
+	out := make(AllowedDepartureModes, len(allowed)+len(days))
+	for day, modes := range allowed {
+		out[day] = append([]DepartureMode(nil), modes...)
+	}
+	for _, day := range days {
+		if _, ok := CompanionWeekdayNumbers[day]; !ok {
+			continue
+		}
+		already := false
+		for _, mode := range out[day] {
+			if mode == DepartureAccompanied {
+				already = true
+			}
+		}
+		if !already {
+			out[day] = append(out[day], DepartureAccompanied)
+		}
+	}
+	return out.Normalize()
+}
+
 // CompanionLink is the per-child view of the edges: one companion plus every
 // weekday they walk together. This is the shape the child detail view edits and
 // the API speaks; it is not persisted.

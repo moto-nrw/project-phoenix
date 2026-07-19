@@ -1,6 +1,7 @@
 // lib/student-helpers.ts
 // Type definitions and helper functions for students
 
+import type { StudentCompanion } from "./student-companion-api";
 import {
   LOCATION_STATUSES,
   parseLocation,
@@ -428,6 +429,10 @@ export interface BackendStudent {
   extra_info?: string;
   departure_companion_note?: string;
   companion_student_ids?: number[];
+  /** Write-only: the complete "läuft mit" list submitted with the plan. */
+  companions?: { companion_student_id: number; weekdays: string[] }[];
+  /** Write-only: confirms widening a linked child's own departure plan. */
+  extend_companion_plans?: boolean;
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -579,6 +584,12 @@ export interface Student {
   /** Children this child walks home with on the shown day (Laufgemeinschaft).
    *  Only present when the list was fetched with include_companions. */
   companion_student_ids?: number[];
+  /** The child's Laufgemeinschaft. Loaded from the companions endpoint and
+   *  submitted back with the departure plan it belongs to; omitting it leaves
+   *  the stored links untouched. */
+  companions?: StudentCompanion[];
+  /** Write-only: confirms widening a linked child's own departure plan. */
+  extend_companion_plans?: boolean;
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -754,6 +765,8 @@ export function prepareStudentForBackend(
     health_info?: string;
     supervisor_notes?: string;
     pickup_status?: string;
+    companions?: { companion_student_id: number; weekdays: string[] }[];
+    extend_companion_plans?: boolean;
   },
 ): Partial<BackendStudent> {
   return {
@@ -799,6 +812,11 @@ export function prepareStudentForBackend(
     address_postal_code: student.address_postal_code,
     extra_info: student.extra_info,
     departure_companion_note: student.departure_companion_note,
+    // Laufgemeinschaft ("läuft mit"). Only sent when the caller actually
+    // edited it — an omitted key leaves the stored links untouched, while []
+    // clears them.
+    companions: student.companions,
+    extend_companion_plans: student.extend_companion_plans,
     // Convert empty string to undefined for date fields (Go backend expects null or valid date)
     birthday:
       student.birthday && student.birthday.trim() !== ""
@@ -883,6 +901,12 @@ export interface BackendUpdateRequest {
   sick_reason?: string;
   excused?: boolean;
   photo_consent_given?: boolean;
+  /** Laufgemeinschaft: the child's complete "läuft mit" list. Omit to leave
+   *  the links untouched; [] clears them. */
+  companions?: { companion_student_id: number; weekdays: string[] }[];
+  /** Confirms widening a linked child's own departure plan (answer to the 409
+   *  conflict). */
+  extend_companion_plans?: boolean;
 }
 
 // Map privacy consent from backend to frontend

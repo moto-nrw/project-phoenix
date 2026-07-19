@@ -35,12 +35,6 @@ export interface StudentCompanion {
   weekdays: CompanionWeekday[];
 }
 
-/** One companion as submitted. */
-export interface StudentCompanionInput {
-  companion_student_id: number;
-  weekdays: CompanionWeekday[];
-}
-
 interface ApiWrapper<T> {
   data: T;
 }
@@ -112,23 +106,6 @@ export async function fetchStudentCompanions(
     method: "GET",
     headers: await authHeaders(),
     credentials: "include",
-  });
-  return (await parseResponse<StudentCompanion[] | null>(response)) ?? [];
-}
-
-/**
- * Replaces the child's complete companion list. An empty array clears every
- * link from this child's side.
- */
-export async function updateStudentCompanions(
-  studentId: string,
-  companions: StudentCompanionInput[],
-): Promise<StudentCompanion[]> {
-  const response = await fetch(`/api/students/${studentId}/companions`, {
-    method: "PUT",
-    headers: await authHeaders(),
-    credentials: "include",
-    body: JSON.stringify({ companions }),
   });
   return (await parseResponse<StudentCompanion[] | null>(response)) ?? [];
 }

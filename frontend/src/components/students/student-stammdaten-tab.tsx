@@ -16,7 +16,6 @@ import {
   PersonalInfoSection,
 } from "./student-form-fields";
 import { StudentCommonFormSections } from "./student-common-form-sections";
-import CompanionSection from "./companion-section";
 import { StudentPhotoSection } from "./student-photo-section";
 import { validateStudentForm } from "~/lib/student-form-validation";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
@@ -27,6 +26,10 @@ import {
   type StudentEnrollmentExtraFieldGroup,
   uploadStudentPhoto,
 } from "~/lib/student-api";
+import {
+  fetchStudentCompanions,
+  type StudentCompanion,
+} from "~/lib/student-companion-api";
 import { createLogger } from "~/lib/logger";
 import { formatCustomValue } from "~/lib/enrollment-custom-value-format";
 import { LOCATION_COLORS } from "~/lib/location-helper";
@@ -190,6 +193,31 @@ export function StudentStammdatenTab({
   );
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  // Laufgemeinschaft: fetched separately (own table) and submitted together
+  // with the departure plan, because a link is only legal on a day that plan
+  // allows "Anderes Kind".
+  const [companions, setCompanions] = useState<StudentCompanion[]>([]);
+  const [extendCompanionPlans, setExtendCompanionPlans] = useState(false);
+
+  useEffect(() => {
+    if (!student.id) return;
+    let cancelled = false;
+    fetchStudentCompanions(String(student.id))
+      .then((loaded) => {
+        if (cancelled) return;
+        setCompanions(loaded);
+        setExtendCompanionPlans(false);
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        logger.error("failed to load companions", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [student.id]);
   const {
     groups: enrollmentExtraGroups,
     loading: enrollmentExtraLoading,
@@ -462,6 +490,11 @@ export function StudentStammdatenTab({
       ) {
         delete submitData.photo_consent_given;
       }
+      submitData.companions = companions.map((companion) => ({
+        companion_student_id: companion.companion_student_id,
+        weekdays: companion.weekdays,
+      }));
+      submitData.extend_companion_plans = extendCompanionPlans;
       try {
         await onSave(submitData);
       } catch (err) {
@@ -519,6 +552,8 @@ export function StudentStammdatenTab({
       }
     },
     [
+      companions,
+      extendCompanionPlans,
       formData,
       onSave,
       onStudentRefresh,
@@ -615,11 +650,11 @@ export function StudentStammdatenTab({
           }))
         }
         companionNoteError={errors.departure_companion_note}
+        companions={companions}
+        onCompanionsChange={setCompanions}
+        companionStudentId={String(student.id)}
+        onExtendCompanionPlansChange={setExtendCompanionPlans}
       />
-
-      {/* Laufgemeinschaft. Saves through its own endpoint, so it sits outside
-          the form's dirty/submit cycle on purpose — see CompanionSection. */}
-      <CompanionSection studentId={String(student.id)} />
 
       <EnrollmentConsentsSection
         agbAcceptedAt={student.agb_accepted_at}

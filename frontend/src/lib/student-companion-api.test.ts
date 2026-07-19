@@ -5,9 +5,7 @@ import {
   companionDisplayName,
   fetchStudentCompanions,
   formatCompanionWeekdays,
-  updateStudentCompanions,
 } from "./student-companion-api";
-import type { StudentCompanionInput } from "./student-companion-api";
 
 const { mockGetSession } = vi.hoisted(() => ({
   mockGetSession: vi.fn(),
@@ -227,75 +225,6 @@ describe("student-companion-api", () => {
       await expect(fetchStudentCompanions("42")).rejects.toThrow(
         "Anfrage fehlgeschlagen (502)",
       );
-    });
-  });
-
-  describe("updateStudentCompanions", () => {
-    it("sends PUT with the companions body", async () => {
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({ data: [] }));
-
-      const companions: StudentCompanionInput[] = [
-        { companion_student_id: 7, weekdays: ["mon", "fri"] },
-      ];
-      await updateStudentCompanions("42", companions);
-
-      expect(fetchSpy).toHaveBeenCalledWith(
-        "/api/students/42/companions",
-        expect.objectContaining({
-          method: "PUT",
-          credentials: "include",
-          body: JSON.stringify({ companions }),
-        }),
-      );
-    });
-
-    it("sends an empty list to clear every link", async () => {
-      fetchSpy.mockResolvedValueOnce(mockFetchResponse({ data: [] }));
-
-      const result = await updateStudentCompanions("42", []);
-
-      const body = (fetchSpy.mock.calls[0]![1] as RequestInit).body as string;
-      expect(JSON.parse(body)).toEqual({ companions: [] });
-      expect(result).toEqual([]);
-    });
-
-    it("returns the saved list from the response", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse({
-          data: [
-            {
-              companion_student_id: 7,
-              first_name: "Lina",
-              last_name: "Klein",
-              weekdays: ["mon"],
-            },
-          ],
-        }),
-      );
-
-      const result = await updateStudentCompanions("42", [
-        { companion_student_id: 7, weekdays: ["mon"] },
-      ]);
-
-      expect(result[0]!.first_name).toBe("Lina");
-    });
-
-    it("throws the backend validation message", async () => {
-      fetchSpy.mockResolvedValueOnce(
-        mockFetchResponse(null, {
-          ok: false,
-          status: 400,
-          text: JSON.stringify({
-            error: "Bitte mindestens einen Wochentag auswählen.",
-          }),
-        }),
-      );
-
-      await expect(
-        updateStudentCompanions("42", [
-          { companion_student_id: 7, weekdays: [] },
-        ]),
-      ).rejects.toThrow("Bitte mindestens einen Wochentag auswählen.");
     });
   });
 

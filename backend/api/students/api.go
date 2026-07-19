@@ -143,12 +143,12 @@ func (rs *Resource) Router() chi.Router {
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/privacy-consent", rs.getStudentPrivacyConsent)
 		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/privacy-consent", rs.updateStudentPrivacyConsent)
 
-		// Departure companion routes ("läuft mit" / Laufgemeinschaft). Read is
-		// gated like any other child data; the write additionally requires
-		// full access inside the handler, because it also changes what the
-		// linked child's card shows.
+		// Departure companions ("läuft mit" / Laufgemeinschaft), read-only.
+		// There is deliberately no PUT here: a link is only legal on a weekday
+		// the child's departure plan allows "Anderes Kind", so writing it
+		// separately from that plan would allow the two to contradict each
+		// other. Companions are written through PUT /students/{id}.
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/companions", rs.getStudentCompanions)
-		r.With(authorize.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/companions", rs.updateStudentCompanions)
 
 		// Pickup schedule routes (full access required - checked in handlers)
 		r.With(authorize.RequiresPermission(permissions.UsersRead), withTx).Get("/{id}/pickup-schedules", rs.getStudentPickupSchedules)

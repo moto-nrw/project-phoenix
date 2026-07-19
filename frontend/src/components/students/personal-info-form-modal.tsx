@@ -16,6 +16,12 @@ import {
   normalizeAllowedDepartureModes,
   allowedModesIncludeAccompanied,
 } from "~/lib/student-helpers";
+import {
+  fetchStudentCompanions,
+  type StudentCompanion,
+} from "~/lib/student-companion-api";
+import { CompanionPlanConflictError } from "~/lib/api";
+import type { AllowedDepartureModes } from "~/lib/student-helpers";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "PersonalInfoFormModal" });
@@ -36,6 +42,10 @@ export function PersonalInfoFormModal({
   const toast = useToast();
   const [editedStudent, setEditedStudent] = useState<ExtendedStudent>(student);
   const [isSaving, setIsSaving] = useState(false);
+  // Set when the backend refused because a linked child's own departure plan
+  // does not allow the requested days. Answering yes re-sends the identical
+  // payload with the confirmation flag.
+  const [planConflict, setPlanConflict] = useState<string | null>(null);
 
   // Reset form when modal opens with new student data
   useEffect(() => {
@@ -43,6 +53,27 @@ export function PersonalInfoFormModal({
       setEditedStudent(student);
     }
   }, [isOpen, student]);
+
+  // The Laufgemeinschaft lives in its own table, so it is fetched when the
+  // modal opens and submitted together with the departure plan it belongs to.
+  useEffect(() => {
+    if (!isOpen || !student.id) return;
+    let cancelled = false;
+    fetchStudentCompanions(student.id)
+      .then((companions: StudentCompanion[]) => {
+        if (cancelled) return;
+        setEditedStudent((prev) => ({ ...prev, companions }));
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        logger.error("failed to load companions", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, student.id]);
 
   const updateField = <K extends keyof ExtendedStudent>(
     field: K,
@@ -62,20 +93,36 @@ export function PersonalInfoFormModal({
             ),
         ),
     );
-    // "Mit anderem Kind" needs a note saying with whom (#1694).
+    // "Mit anderem Kind" needs to say with whom (#1694) — either a linked
+    // child (better: structured, symmetric) or the free-text note for someone
+    // who is not a child of this school.
     if (
       allowedModesIncludeAccompanied(allowedDepartureModes) &&
+      (editedStudent.companions?.length ?? 0) === 0 &&
       !editedStudent.departure_companion_note?.trim()
     ) {
-      toast.error("Bitte angeben, mit welchem Kind das Kind nach Hause geht");
+      toast.error(
+        "Bitte ein Kind verknüpfen oder angeben, mit welcher Person das Kind nach Hause geht",
+      );
       return;
     }
+    await submit(
+      allowedDepartureModes,
+      editedStudent.extend_companion_plans ?? false,
+    );
+  };
+
+  const submit = async (
+    allowedDepartureModes: AllowedDepartureModes,
+    extendCompanionPlans: boolean,
+  ) => {
     setIsSaving(true);
     try {
       const busDays = allowedDepartureToBusDays(allowedDepartureModes);
       const pickupDays = allowedDepartureToPickupDays(allowedDepartureModes);
       await onSave({
         ...editedStudent,
+        extend_companion_plans: extendCompanionPlans,
         allowed_departure_modes: allowedDepartureModes,
         departure_days: allowedDepartureToDepartureDays(allowedDepartureModes),
         bus_days: busDays,
@@ -85,8 +132,14 @@ export function PersonalInfoFormModal({
           ? "Wird abgeholt"
           : "Geht alleine nach Hause",
       });
+      setPlanConflict(null);
       onClose();
     } catch (err) {
+      if (err instanceof CompanionPlanConflictError) {
+        // Not a failure: ask, then repeat the same save with the flag set.
+        setPlanConflict(err.message);
+        return;
+      }
       logger.error("failed to save personal information", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -130,6 +183,47 @@ export function PersonalInfoFormModal({
       }
     >
       <div className="space-y-4">
+        {planConflict ? (
+          <div className="rounded-lg border border-[#F78C10] bg-[#F78C10]/5 p-3">
+            <p className="text-sm text-gray-900">{planConflict}</p>
+            <p className="mt-1 text-xs text-gray-600">
+              Soll „Anderes Kind“ im Heimweg des verknüpften Kindes ergänzt
+              werden? Bestehende Heimwege bleiben erhalten.
+            </p>
+            <div className="mt-2 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPlanConflict(null)}
+                className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50"
+              >
+                Abbrechen
+              </button>
+              <button
+                type="button"
+                disabled={isSaving}
+                onClick={() => {
+                  updateField("extend_companion_plans", true);
+                  void submit(
+                    normalizeAllowedDepartureModes(
+                      editedStudent.allowed_departure_modes ??
+                        allowedDepartureModesFromDeparture(
+                          editedStudent.departure_days ??
+                            departureDaysFromLegacy(
+                              editedStudent.bus_days,
+                              editedStudent.pickup_days,
+                            ),
+                        ),
+                    ),
+                    true,
+                  );
+                }}
+                className="inline-flex items-center justify-center rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:bg-gray-700 disabled:opacity-50"
+              >
+                Ergänzen und speichern
+              </button>
+            </div>
+          </div>
+        ) : null}
         <TextInput
           id="modal-student-first-name"
           label="Vorname"
@@ -173,6 +267,14 @@ export function PersonalInfoFormModal({
           onChange={(value) => updateField("address_city", value)}
         />
         <DepartureSection
+          companions={editedStudent.companions}
+          onCompanionsChange={(companions) =>
+            updateField("companions", companions)
+          }
+          companionStudentId={student.id}
+          onExtendCompanionPlansChange={(extend) =>
+            updateField("extend_companion_plans", extend)
+          }
           days={
             editedStudent.allowed_departure_modes ??
             allowedDepartureModesFromDeparture(
