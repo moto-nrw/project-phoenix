@@ -594,8 +594,20 @@ func (r *InstanceStudentRepository) BulkUpdateStatus(
 //
 // One statement per pair rather than a composite IN: the list holds only the
 // children a single ended block spared, and bun's non-deprecated placeholder
-// helpers cannot render a tuple IN. The 'expected' guard keeps a manual
-// decision or an observed check-in from being relabelled as a non-booking.
+// helpers cannot render a tuple IN.
+//
+// Two row shapes are marked. A row still 'expected' is the ordinary case. A row
+// already flipped to 'absent' by a broad day status (sick / excused / class
+// trip) is the second: those statuses land on every expected row of the day —
+// reported before the block ended, or replayed onto freshly materialized rows —
+// and at that moment nothing knows yet that the child was not booked into care.
+// Only ending the block resolves that, so the absence is undone here, together
+// with the provenance that would otherwise let ReleaseStatusDay write it back.
+// A child owed no care that day cannot be absent from it, excused or not.
+//
+// Everything else is left alone: a manual PATCH decision (it clears
+// student_status_day_id, so it is not status-day-owned) and an observed
+// check-in must never be relabelled as a non-booking.
 func (r *InstanceStudentRepository) MarkNotScheduled(ctx context.Context, refs []schedule.StudentInstanceRef) error {
 	if len(refs) == 0 {
 		return nil
@@ -605,8 +617,16 @@ func (r *InstanceStudentRepository) MarkNotScheduled(ctx context.Context, refs [
 		Model((*schedule.InstanceStudent)(nil)).
 		ModelTableExpr(modelTblInstanceStudent).
 		Set(`not_scheduled = TRUE`).
+		Set(`status = ?`, schedule.AttendanceStatusExpected).
+		Set(`substatus = CASE WHEN "instance_student".student_status_day_id IS NOT NULL THEN NULL ELSE "instance_student".substatus END`).
+		Set(`student_status_day_id = NULL`).
 		Set(`updated_at = ?`, time.Now().UTC()).
-		Where(`"instance_student".status = ?`, schedule.AttendanceStatusExpected).
+		WhereGroup(" AND ", func(group *bun.UpdateQuery) *bun.UpdateQuery {
+			return group.
+				WhereOr(`"instance_student".status = ?`, schedule.AttendanceStatusExpected).
+				WhereOr(`("instance_student".status = ? AND "instance_student".student_status_day_id IS NOT NULL)`,
+					schedule.AttendanceStatusAbsent)
+		}).
 		WhereGroup(" AND ", func(group *bun.UpdateQuery) *bun.UpdateQuery {
 			for _, ref := range refs {
 				group = group.WhereOr(`("instance_student".instance_id = ? AND "instance_student".student_id = ?)`,

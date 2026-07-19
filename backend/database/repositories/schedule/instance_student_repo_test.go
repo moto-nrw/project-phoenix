@@ -744,6 +744,106 @@ func TestInstanceStudentRepository_ReleaseStatusDayReappliesLatestRemainingStatu
 	assert.Nil(t, got.StudentStatusDayID)
 }
 
+// A sick or excused report lands on every expected row of the day, long before
+// anything knows whether the child was even booked into care. Ending the block
+// is what resolves that — so marking the non-booking must also take back the
+// absence the day status wrote, or the child keeps a missed care day they were
+// never owed in their history and exports (#1747).
+func TestInstanceStudentRepository_MarkNotScheduled_TakesBackStatusDayAbsence(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	factory := repositories.NewFactory(db)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	date := timezone.NewDate(2026, 10, 14)
+	inst, cleanupInst := createInstanceFixture(t, db, "not-scheduled-sick", date)
+	defer cleanupInst()
+
+	student := testpkg.CreateTestStudent(t, db, "Unbooked", fmt.Sprintf("Sick-%d", time.Now().UnixNano()), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	attendance := &scheduleModels.InstanceStudent{
+		InstanceID: inst.ID,
+		StudentID:  student.ID,
+		Status:     scheduleModels.AttendanceStatusExpected,
+	}
+	attendance.SetTenantID(1)
+	require.NoError(t, factory.InstanceStudent.Create(ctx, attendance))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", attendance.ID)
+
+	sick := &activeModels.StudentStatusDay{
+		StudentID: student.ID, Date: date, Status: activeModels.StudentStatusDaySick,
+		ReportedAt: time.Date(2026, 10, 14, 7, 0, 0, 0, time.UTC), Source: activeModels.StudentStatusSourcePlanned,
+	}
+	require.NoError(t, factory.StudentStatusDay.UpsertReported(ctx, sick))
+
+	got, err := repo.FindByID(ctx, attendance.ID)
+	require.NoError(t, err)
+	require.Equal(t, scheduleModels.AttendanceStatusAbsent, got.Status, "precondition: the sick report writes the absence")
+	require.NotNil(t, got.StudentStatusDayID)
+
+	require.NoError(t, repo.MarkNotScheduled(ctx, []scheduleModels.StudentInstanceRef{
+		{StudentID: student.ID, InstanceID: inst.ID},
+	}))
+
+	got, err = repo.FindByID(ctx, attendance.ID)
+	require.NoError(t, err)
+	assert.True(t, got.NotScheduled, "the non-booking must be recorded")
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got.Status,
+		"a child owed no care that day cannot be absent from it")
+	assert.Nil(t, got.Substatus)
+	assert.Nil(t, got.StudentStatusDayID,
+		"the provenance must go too, or clearing the status day writes the absence back")
+}
+
+// The counterpart: outcomes that belong to a person or a device are never
+// relabelled as a non-booking, marker or not.
+func TestInstanceStudentRepository_MarkNotScheduled_KeepsDecidedOutcomes(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+
+	date := timezone.NewDate(2026, 10, 15)
+	inst, cleanupInst := createInstanceFixture(t, db, "not-scheduled-decided", date)
+	defer cleanupInst()
+
+	suffix := time.Now().UnixNano()
+	manual := testpkg.CreateTestStudent(t, db, "Manual", fmt.Sprintf("Absent-%d", suffix), "3a")
+	present := testpkg.CreateTestStudent(t, db, "Checked", fmt.Sprintf("In-%d", suffix), "3a")
+	defer testpkg.CleanupActivityFixtures(t, db, manual.ID, present.ID)
+
+	rows := map[int64]*scheduleModels.InstanceStudent{
+		manual.ID: {
+			InstanceID: inst.ID, StudentID: manual.ID,
+			Status: scheduleModels.AttendanceStatusAbsent, // PATCH-decided: no status-day provenance
+		},
+		present.ID: {
+			InstanceID: inst.ID, StudentID: present.ID,
+			Status: scheduleModels.AttendanceStatusPresent,
+		},
+	}
+	refs := make([]scheduleModels.StudentInstanceRef, 0, len(rows))
+	for studentID, row := range rows {
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		refs = append(refs, scheduleModels.StudentInstanceRef{StudentID: studentID, InstanceID: inst.ID})
+	}
+
+	require.NoError(t, repo.MarkNotScheduled(ctx, refs))
+
+	for studentID, row := range rows {
+		got, err := repo.FindByID(ctx, row.ID)
+		require.NoError(t, err)
+		assert.False(t, got.NotScheduled, "student %d must keep its own outcome", studentID)
+		assert.Equal(t, row.Status, got.Status)
+	}
+}
+
 func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

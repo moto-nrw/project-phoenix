@@ -224,9 +224,13 @@ type InstanceStudentRepository interface {
 	// MarkNotScheduled persists the #1747 non-booking marker on the given
 	// (instance, student) rows: the care plan did not place the child in the
 	// OGS on that instance's date, so ending the block wrote no absence for
-	// them. Only rows still 'expected' are stamped — a child who was checked
-	// in or decided by hand has an outcome of their own, and overwriting it
-	// would claim they were never booked.
+	// them. Rows still 'expected' are stamped as they are. A row a broad day
+	// status (sick / excused / class trip) already flipped to 'absent' is
+	// stamped too and reset to 'expected', dropping substatus and status-day
+	// provenance: those statuses are written before anything knows whether the
+	// child was booked, and a child owed no care that day cannot be absent from
+	// it. A child who was checked in or decided by hand keeps their outcome —
+	// overwriting it would claim they were never booked.
 	//
 	// Idempotent, tenant-scoped, and a no-op on an empty slice.
 	MarkNotScheduled(ctx context.Context, refs []StudentInstanceRef) error

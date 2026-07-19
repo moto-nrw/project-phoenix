@@ -43,11 +43,20 @@ func init() {
 // genuinely expected and did not come still sit there as 'expected' — an
 // absence nobody recorded, on a day that is long over.
 //
-// Every completed+expected row existing at migration time is by definition
-// legacy (the finalizing code ships with this deploy), so flipping all of them
-// to 'absent' restores what the normal completion path would have written.
-// They get no marker: 1.15.206 defaults not_scheduled to FALSE, which is
-// correct — nothing in the old data claimed these children were unbooked.
+// Flipping such a row to 'absent' restores what the normal completion path
+// would have written. They get no marker: 1.15.206 defaults not_scheduled to
+// FALSE, which is correct — nothing in the old data claimed these children
+// were unbooked.
+//
+// Not every completed+expected row is legacy, though. The attendance PATCH
+// endpoint has always been able to set a row back to 'expected' AFTER its
+// instance completed, and it carries no completed-instance guard — that reset
+// is a deliberate human decision, and this migration cannot be rolled back.
+// The two cases are told apart by time: a legacy row was last written before
+// its instance completed (the old path never touched it), a manual reset
+// after. So only rows untouched since completion are repaired; anything
+// written afterwards, and anything on an instance with no completion
+// timestamp to compare against, is left exactly as it is.
 func backfillCompletedExpectedAttendanceUp(ctx context.Context, db *bun.DB) error {
 	fmt.Println("Migration 1.15.205: Backfilling legacy 'expected' attendance on completed timetable instances (#1747)...")
 
@@ -63,7 +72,9 @@ func backfillCompletedExpectedAttendanceUp(ctx context.Context, db *bun.DB) erro
 		WHERE instance.id = student.instance_id
 			AND instance.tenant_id = student.tenant_id
 			AND instance.status = 'completed'
-			AND student.status = 'expected';
+			AND student.status = 'expected'
+			AND instance.completed_at IS NOT NULL
+			AND student.updated_at <= instance.completed_at;
 	`).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed backfilling expected attendance on completed instances: %w", err)
