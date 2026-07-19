@@ -619,26 +619,18 @@ func (s *service) CancelStaffAppointmentOccurrence(ctx context.Context, appointm
 	if err != nil {
 		return err
 	}
-	if len(existing) > 0 {
-		override := existing[0]
-		if override.Cancelled {
-			return nil
-		}
-		override.Cancelled = true
-		if err := s.cfg.OverrideRepo.Update(ctx, override); err != nil {
-			return err
-		}
-		// Bump the parent revision so the feed re-exports with a higher SEQUENCE
-		// and subscribers honour the new EXDATE.
-		return s.cfg.AppointmentRepo.BumpRevision(ctx, appointment.ID)
+	if len(existing) > 0 && existing[0].Cancelled {
+		// Already cancelled — idempotent no-op, no revision bump.
+		return nil
 	}
-	if err := s.cfg.OverrideRepo.Create(ctx, &calModels.AppointmentOccurrenceOverride{
-		AppointmentID:  appointment.ID,
-		OccurrenceDate: occurrenceDate,
-		Cancelled:      true,
-	}); err != nil {
+	// Conflict-safe upsert: a concurrent request cancelling the same occurrence
+	// converges on cancelled=true instead of one hitting the unique constraint
+	// and returning a 500.
+	if err := s.cfg.OverrideRepo.CancelOccurrence(ctx, appointment.ID, occurrenceDate); err != nil {
 		return err
 	}
+	// Bump the parent revision so the feed re-exports with a higher SEQUENCE and
+	// subscribers honour the new EXDATE.
 	return s.cfg.AppointmentRepo.BumpRevision(ctx, appointment.ID)
 }
 

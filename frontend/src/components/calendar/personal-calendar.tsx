@@ -591,7 +591,7 @@ function CalendarEventItem({
       ) : null}
       {canManage ? (
         <div className="mt-3 flex flex-wrap gap-1.5 border-t border-white/60 pt-2.5">
-          {onEdit ? (
+          {onEdit && !cancelled ? (
             <Button
               type="button"
               size="compact"

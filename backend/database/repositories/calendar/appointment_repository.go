@@ -497,6 +497,29 @@ func (r *AppointmentOccurrenceOverrideRepository) FindCancelledByAppointmentIDs(
 	return rows, nil
 }
 
+// CancelOccurrence marks the occurrence cancelled via an INSERT ... ON CONFLICT
+// DO UPDATE, so concurrent cancellations of the same occurrence converge on
+// cancelled=true instead of one violating the unique constraint and returning a
+// 500.
+func (r *AppointmentOccurrenceOverrideRepository) CancelOccurrence(ctx context.Context, appointmentID int64, occurrenceDate timezone.Date) error {
+	override := &calModels.AppointmentOccurrenceOverride{
+		AppointmentID:  appointmentID,
+		OccurrenceDate: occurrenceDate,
+		Cancelled:      true,
+	}
+	base.EnsureTenantID(ctx, override)
+	if _, err := base.GetDB(ctx, r.DB).NewInsert().
+		Model(override).
+		ModelTableExpr(`calendar.appointment_occurrence_overrides`).
+		On("CONFLICT (tenant_id, appointment_id, occurrence_date) DO UPDATE").
+		Set("cancelled = EXCLUDED.cancelled").
+		Set("updated_at = NOW()").
+		Exec(ctx); err != nil {
+		return fmt.Errorf("cancel calendar occurrence: %w", err)
+	}
+	return nil
+}
+
 func (r *AppointmentOccurrenceOverrideRepository) DeleteByAppointmentID(ctx context.Context, appointmentID int64) error {
 	query := base.GetDB(ctx, r.DB).NewDelete().
 		Model((*calModels.AppointmentOccurrenceOverride)(nil)).

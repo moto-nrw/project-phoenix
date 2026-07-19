@@ -162,6 +162,32 @@ describe("PersonalCalendar", () => {
     expect(onDelete).toHaveBeenCalledWith(editable);
   });
 
+  it("hides the edit action for cancelled appointments", () => {
+    const cancelled: CalendarEvent = {
+      ...appointment,
+      can_edit: true,
+      cancelled: true,
+    };
+    render(
+      <PersonalCalendar
+        title="Mein Kalender"
+        events={[cancelled]}
+        weekStart={new Date(2026, 0, 5)}
+        onWeekChange={vi.fn()}
+        onEdit={vi.fn()}
+        onCancel={vi.fn()}
+        onDelete={vi.fn()}
+      />,
+    );
+
+    // The backend rejects edits to cancelled appointments, so the button is gone;
+    // Löschen stays available.
+    expect(screen.queryByRole("button", { name: "Bearbeiten" })).toBeNull();
+    expect(
+      screen.getAllByRole("button", { name: "Löschen" }).length,
+    ).toBeGreaterThan(0);
+  });
+
   it("shows empty and error states", () => {
     render(
       <PersonalCalendar

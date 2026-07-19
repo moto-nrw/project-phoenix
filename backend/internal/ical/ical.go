@@ -23,6 +23,29 @@ const (
 	prodID     = "-//moto//Kalender//DE"
 )
 
+// berlinVTimezone is the RFC 5545 VTIMEZONE definition for Europe/Berlin
+// (CET/CEST with the EU last-Sunday DST rules). Any TZID a timed event
+// references MUST be defined by a matching VTIMEZONE, or strict clients reject
+// the calendar or resolve DST incorrectly. The RRULEs make it valid for every
+// year, so a single static block is emitted once per document.
+const berlinVTimezone = "BEGIN:VTIMEZONE\r\n" +
+	"TZID:Europe/Berlin\r\n" +
+	"BEGIN:DAYLIGHT\r\n" +
+	"TZOFFSETFROM:+0100\r\n" +
+	"TZOFFSETTO:+0200\r\n" +
+	"TZNAME:CEST\r\n" +
+	"DTSTART:19700329T020000\r\n" +
+	"RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU\r\n" +
+	"END:DAYLIGHT\r\n" +
+	"BEGIN:STANDARD\r\n" +
+	"TZOFFSETFROM:+0200\r\n" +
+	"TZOFFSETTO:+0100\r\n" +
+	"TZNAME:CET\r\n" +
+	"DTSTART:19701025T030000\r\n" +
+	"RRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\r\n" +
+	"END:STANDARD\r\n" +
+	"END:VTIMEZONE\r\n"
+
 // Recurrence mirrors the appointment recurrence rule in the terms an RRULE
 // needs. Freq is DAILY/WEEKLY/MONTHLY/YEARLY.
 type Recurrence struct {
@@ -80,11 +103,27 @@ func Render(calendarName string, events []Event) string {
 		writeLine(&b, "X-WR-CALNAME:"+escapeText(calendarName))
 		writeLine(&b, "X-WR-TIMEZONE:"+berlinTZID)
 	}
+	// Only timed events reference TZID=Europe/Berlin (all-day events use
+	// VALUE=DATE), so emit the VTIMEZONE definition just for those.
+	if hasTimedEvent(events) {
+		b.WriteString(berlinVTimezone)
+	}
 	for _, event := range events {
 		writeEvent(&b, event)
 	}
 	writeLine(&b, "END:VCALENDAR")
 	return b.String()
+}
+
+// hasTimedEvent reports whether any event carries a wall-clock time (and thus
+// references the Berlin TZID).
+func hasTimedEvent(events []Event) bool {
+	for _, event := range events {
+		if !event.AllDay {
+			return true
+		}
+	}
+	return false
 }
 
 func writeEvent(b *strings.Builder, event Event) {
@@ -209,29 +248,39 @@ func escapeText(s string) string {
 }
 
 // writeLine appends a content line, folding it at 75 octets with CRLF per RFC
-// 5545 (continuation lines start with a single space).
+// 5545. The single space that begins each continuation line counts toward the
+// 75-octet limit, so continuation lines carry at most 74 octets of content.
 func writeLine(b *strings.Builder, line string) {
 	const limit = 75
-	if len(line) <= limit {
-		b.WriteString(line)
-		b.WriteString("\r\n")
-		return
-	}
-	// Fold on byte boundaries that don't split a UTF-8 rune.
-	for len(line) > limit {
-		cut := limit
-		for cut > 0 && !utf8RuneStart(line[cut]) {
-			cut--
-		}
-		if cut == 0 {
-			cut = limit
-		}
+	// First physical line: up to 75 octets, no continuation prefix.
+	cut := runeSafeCut(line, limit)
+	b.WriteString(line[:cut])
+	b.WriteString("\r\n")
+	line = line[cut:]
+	// Continuation lines: the leading space consumes one of the 75 octets.
+	for len(line) > 0 {
+		cut = runeSafeCut(line, limit-1)
+		b.WriteString(" ")
 		b.WriteString(line[:cut])
-		b.WriteString("\r\n ")
+		b.WriteString("\r\n")
 		line = line[cut:]
 	}
-	b.WriteString(line)
-	b.WriteString("\r\n")
+}
+
+// runeSafeCut returns the largest length <= max that does not split a multi-byte
+// UTF-8 rune (falling back to max when no earlier boundary exists).
+func runeSafeCut(s string, max int) int {
+	if len(s) <= max {
+		return len(s)
+	}
+	cut := max
+	for cut > 0 && !utf8RuneStart(s[cut]) {
+		cut--
+	}
+	if cut == 0 {
+		cut = max
+	}
+	return cut
 }
 
 func utf8RuneStart(b byte) bool {

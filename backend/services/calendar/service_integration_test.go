@@ -1992,3 +1992,52 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 	assert.Contains(t, content, "SUMMARY:Aktueller Termin", "current appointment must be in the feed")
 	assert.NotContains(t, content, "SUMMARY:Abgelaufene Reihe", "expired count-bounded series must be excluded")
 }
+
+// Cancelling the same occurrence twice (as two concurrent requests would) must
+// converge via the conflict-safe upsert instead of the second insert hitting the
+// (tenant, appointment, date) unique constraint and returning a 500.
+func TestCalendarServiceIntegration_OccurrenceCancelIsConflictSafe(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	t.Cleanup(func() { _ = db.Close() })
+
+	service := setupCalendarService(t, db)
+	overrideRepo := repositories.NewFactory(db).CalendarOccurrenceOverride
+	organizer, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Conflict", "Organizer")
+	invitedStaff, invitedAccount := testpkg.CreateTestCalendarStaff(t, db, "Conflict", "Invitee")
+	t.Cleanup(func() {
+		testpkg.CleanupStaffFixtures(t, db, invitedStaff.ID, organizer.ID)
+		testpkg.CleanupAuthFixtures(t, db, invitedAccount.ID, organizerAccount.ID)
+	})
+
+	endsOn := timezone.NewDate(2026, 1, 26)
+	detail, err := service.CreateStaffAppointment(calendarContext(organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
+		Title:        "Montags",
+		StartDate:    timezone.NewDate(2026, 1, 5), // Monday
+		EndDate:      timezone.NewDate(2026, 1, 5),
+		StartTime:    wallClock(9, 0),
+		EndTime:      wallClock(9, 30),
+		DeliveryMode: calModels.DeliveryModeInformational,
+		Recurrence: &calendarSvc.RecurrenceRequest{
+			Frequency:     calModels.RecurrenceFrequencyWeekly,
+			IntervalCount: 1,
+			Weekdays:      []string{"monday"},
+			EndsOn:        &endsOn,
+		},
+		Targets: []calendarSvc.AppointmentTarget{
+			{Type: calModels.TargetTypeStaff, ID: &invitedStaff.ID},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { cleanupCalendarAppointment(t, db, detail.Appointment.ID) })
+
+	// The insert path is exercised twice for the same occurrence; the second call
+	// takes the ON CONFLICT DO UPDATE branch and must NOT error.
+	ctx := testpkg.TenantContext(1)
+	require.NoError(t, overrideRepo.CancelOccurrence(ctx, detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
+	require.NoError(t, overrideRepo.CancelOccurrence(ctx, detail.Appointment.ID, timezone.NewDate(2026, 1, 12)))
+
+	// The occurrence is excluded from the series exactly once.
+	events, err := service.ListMyStaffEvents(calendarContext(invitedAccount.ID), timezone.NewDate(2026, 1, 5), timezone.NewDate(2026, 1, 26))
+	require.NoError(t, err)
+	assert.Equal(t, []string{"2026-01-05", "2026-01-19", "2026-01-26"}, eventDates(events, calModels.EventSourceAppointment))
+}

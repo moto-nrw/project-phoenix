@@ -98,14 +98,52 @@ func TestRenderFoldsLongLines(t *testing.T) {
 		Stamp:     stamp(),
 	}})
 
-	// Folded continuation lines exist, and no output line exceeds ~75 octets.
+	// Folded continuation lines exist, and no content line exceeds RFC 5545's
+	// 75-octet limit — the leading continuation space counts toward that limit.
 	if !strings.Contains(out, "\r\n ") {
 		t.Errorf("expected folded continuation line\n%s", out)
 	}
 	for _, line := range strings.Split(out, "\r\n") {
-		if len(line) > 76 {
-			t.Errorf("line exceeds fold limit (%d): %q", len(line), line)
+		if len(line) > 75 {
+			t.Errorf("line exceeds 75-octet fold limit (%d): %q", len(line), line)
 		}
+	}
+}
+
+func TestRenderIncludesVTimezoneForTimedEvents(t *testing.T) {
+	timed := Render("", []Event{{
+		UID:        "appt-tz@moto",
+		Summary:    "Besprechung",
+		StartDate:  timezone.NewDate(2026, 5, 4),
+		EndDate:    timezone.NewDate(2026, 5, 4),
+		StartClock: timezone.WallClock(time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)),
+		EndClock:   timezone.WallClock(time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC)),
+		Stamp:      stamp(),
+	}})
+	// A timed event references TZID=Europe/Berlin, which must be backed by a
+	// matching VTIMEZONE with both DST arms.
+	if !strings.Contains(timed, "BEGIN:VTIMEZONE") || !strings.Contains(timed, "TZID:Europe/Berlin") {
+		t.Errorf("timed export must include a VTIMEZONE\n%s", timed)
+	}
+	if !strings.Contains(timed, "TZNAME:CEST") || !strings.Contains(timed, "TZNAME:CET") {
+		t.Errorf("VTIMEZONE must define both CET and CEST\n%s", timed)
+	}
+	// The VTIMEZONE must precede the VEVENT that references it.
+	if strings.Index(timed, "BEGIN:VTIMEZONE") > strings.Index(timed, "BEGIN:VEVENT") {
+		t.Errorf("VTIMEZONE must come before the VEVENT\n%s", timed)
+	}
+
+	// An all-day-only calendar references no TZID, so no VTIMEZONE is emitted.
+	allDay := Render("", []Event{{
+		UID:       "appt-allday-tz@moto",
+		Summary:   "Wandertag",
+		StartDate: timezone.NewDate(2026, 5, 4),
+		EndDate:   timezone.NewDate(2026, 5, 4),
+		AllDay:    true,
+		Stamp:     stamp(),
+	}})
+	if strings.Contains(allDay, "VTIMEZONE") {
+		t.Errorf("all-day-only export should not emit a VTIMEZONE\n%s", allDay)
 	}
 }
 
@@ -201,7 +239,9 @@ func TestRenderRRULEFiltersMatchFrequency(t *testing.T) {
 		Stamp:      stamp(),
 		Recurrence: &Recurrence{Freq: "daily", Interval: 1, Weekdays: []string{"monday"}},
 	}})
-	if strings.Contains(daily, "BYDAY") {
+	// Scope the check to the event's RRULE — the VTIMEZONE legitimately carries a
+	// BYDAY for its DST rule, which is unrelated.
+	if strings.Contains(eventRRULE(daily), "BYDAY") {
 		t.Errorf("daily rule must not export BYDAY\n%s", daily)
 	}
 
@@ -216,12 +256,28 @@ func TestRenderRRULEFiltersMatchFrequency(t *testing.T) {
 		Stamp:      stamp(),
 		Recurrence: &Recurrence{Freq: "weekly", Interval: 1, Weekdays: []string{"monday"}, MonthDays: []int{15}},
 	}})
-	if !strings.Contains(weekly, "BYDAY=MO") {
+	weeklyRRULE := eventRRULE(weekly)
+	if !strings.Contains(weeklyRRULE, "BYDAY=MO") {
 		t.Errorf("weekly rule must export BYDAY\n%s", weekly)
 	}
-	if strings.Contains(weekly, "BYMONTHDAY") {
+	if strings.Contains(weeklyRRULE, "BYMONTHDAY") {
 		t.Errorf("weekly rule must not export BYMONTHDAY\n%s", weekly)
 	}
+}
+
+// eventRRULE returns the RRULE line of the first VEVENT, skipping any VTIMEZONE
+// RRULEs that precede it.
+func eventRRULE(out string) string {
+	_, after, ok := strings.Cut(out, "BEGIN:VEVENT")
+	if !ok {
+		return ""
+	}
+	for _, line := range strings.Split(after, "\r\n") {
+		if strings.HasPrefix(line, "RRULE:") {
+			return line
+		}
+	}
+	return ""
 }
 
 func TestRenderSequenceAndLastModified(t *testing.T) {
