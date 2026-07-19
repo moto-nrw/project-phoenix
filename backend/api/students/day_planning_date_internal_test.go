@@ -65,15 +65,33 @@ func TestResolvePlanningDate(t *testing.T) {
 		require.Error(t, err)
 	})
 
-	t.Run("horizon_ends_with_next_calendar_week", func(t *testing.T) {
+	t.Run("horizon_ends_with_current_calendar_week", func(t *testing.T) {
 		// 2026-06-01 is a Monday, so the supported horizon runs through the
-		// Sunday closing the NEXT week: 2026-06-14 (see maxPlanningDate).
-		date, isToday, err := resolvePlanningDate("2026-06-14", now)
+		// Sunday closing the CURRENT week: 2026-06-07 (see maxPlanningDate).
+		// The next week is out: with the default Friday cadence it is only
+		// materialized by the run later this week, so a timetable-only child
+		// would answer "Kommt nicht" for it today.
+		date, isToday, err := resolvePlanningDate("2026-06-07", now)
 		require.NoError(t, err)
 		assert.False(t, isToday)
-		assert.Equal(t, timezone.NewDate(2026, time.June, 14), date)
+		assert.Equal(t, timezone.NewDate(2026, time.June, 7), date)
 
-		_, _, err = resolvePlanningDate("2026-06-15", now)
+		_, _, err = resolvePlanningDate("2026-06-08", now)
+		require.Error(t, err)
+	})
+
+	t.Run("horizon_collapses_to_today_on_a_sunday", func(t *testing.T) {
+		// A Sunday closes its own week, so today is the only supported day.
+		// Tomorrow belongs to the next week, which a tenant materializing on
+		// Mondays would not have created yet.
+		sunday := time.Date(2026, time.June, 7, 10, 0, 0, 0, time.UTC)
+
+		date, isToday, err := resolvePlanningDate("2026-06-07", sunday)
+		require.NoError(t, err)
+		assert.True(t, isToday)
+		assert.Equal(t, timezone.NewDate(2026, time.June, 7), date)
+
+		_, _, err = resolvePlanningDate("2026-06-08", sunday)
 		require.Error(t, err)
 	})
 }

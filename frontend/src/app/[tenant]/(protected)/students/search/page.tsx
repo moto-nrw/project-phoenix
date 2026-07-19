@@ -153,13 +153,15 @@ function normalizeDateParam(value: string | null): string | null {
   return value && isValidISODate(value) ? value : null;
 }
 
-// Last selectable planning day: the Sunday closing the NEXT calendar week.
-// Mirrors the backend's maxPlanningDate (#1939) — the window the scheduler
-// guarantees materialized timetable data for; the backend rejects later dates
-// with 400, so the picker never offers them.
+// Last selectable planning day: the Sunday closing the CURRENT calendar week.
+// Mirrors the backend's maxPlanningDate (#1939) — the only window the scheduler
+// guarantees materialized timetable data for regardless of a tenant's
+// materialization weekday / weeks-ahead settings (a run always materializes the
+// week AFTER the run day, never the current partial one). The backend rejects
+// later dates with 400, so the picker never offers them.
 function maxPlanningIso(todayIso: string): string {
   const day = parseISODate(todayIso);
-  day.setDate(day.getDate() + ((7 - day.getDay()) % 7) + 7);
+  day.setDate(day.getDate() + ((7 - day.getDay()) % 7));
   return toISODate(day);
 }
 
@@ -1639,14 +1641,19 @@ function SearchPageContent() {
               >
                 Heute
               </Button>
-              <Button
-                type="button"
-                size="compact"
-                variant={selectedDate === tomorrowIso ? "primary" : "outline"}
-                onClick={() => updateSelectedDate(tomorrowIso)}
-              >
-                Morgen
-              </Button>
+              {/* On a Sunday the horizon closes with today (see
+                  maxPlanningIso), so tomorrow is not selectable — hide the
+                  shortcut instead of offering one that clamps back to today. */}
+              {tomorrowIso <= maxDateIso && (
+                <Button
+                  type="button"
+                  size="compact"
+                  variant={selectedDate === tomorrowIso ? "primary" : "outline"}
+                  onClick={() => updateSelectedDate(tomorrowIso)}
+                >
+                  Morgen
+                </Button>
+              )}
             </div>
             <DatePicker
               value={parseISODate(selectedDate)}

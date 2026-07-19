@@ -33,18 +33,35 @@ const (
 )
 
 // maxPlanningDate returns the last supported planning day: the Sunday closing
-// the NEXT calendar week. The timetable signal (GetPlannedStudentIDsByDate)
-// reads only concrete, pre-materialized schedule.instance_students rows, and
-// the scheduler materializes at least one full Monday–Sunday week ahead
-// (timetable.materialization_weeks_ahead, default 1, clamped to >= 1). Past
-// that guaranteed window a timetable-only child would silently classify as
+// the CURRENT calendar week. The timetable signal (GetPlannedStudentIDsByDate)
+// reads only concrete, pre-materialized schedule.instance_students rows; past
+// the materialized window a timetable-only child would silently classify as
 // "Kommt nicht" even though the recurring template says otherwise. Capping the
 // selectable range keeps day planning on the same materialized source of truth
 // as every other timetable view instead of tracking materialization state or
 // projecting recurrence a second time (#1939).
+//
+// Why the CURRENT week and not the next one: the scheduler materializes one
+// Monday–Sunday block per run, and materializationService.ResolveWindow always
+// starts at the Monday STRICTLY AFTER the run day — the current partial week is
+// never (re-)materialized. So a run on weekday W of week N covers week N+1 only.
+// With the default cadence (timetable.materialization_weekday = 5 / Friday,
+// timetable.materialization_weeks_ahead = 1) the sole coverage guarantee that
+// holds at every moment is therefore the week containing today: on Monday
+// through Thursday the following week has not been materialized yet — Friday's
+// run creates it. Both settings are tenant-overridable (any weekday, weeks-ahead
+// clamped to >= 1), and the current week is the largest horizon that stays
+// correct for EVERY combination, which is what lets the frontend mirror this as
+// a pure function of today instead of querying materialization state.
+//
+// Consequence: on a Friday the picker stops at that Sunday even though the
+// day's run has usually already materialized the next week. Widening this needs
+// a real guarantee, not a wider constant — raise the weeks-ahead default to 2
+// AND derive the horizon from the resolved per-tenant settings (exposed to the
+// frontend), rather than assuming coverage the scheduler does not promise.
 func maxPlanningDate(today timezone.Date) timezone.Date {
 	daysUntilSunday := (7 - int(today.Weekday())) % 7
-	return today.AddDays(daysUntilSunday + 7)
+	return today.AddDays(daysUntilSunday)
 }
 
 // resolvePlanningDate turns the optional `date` query/filter value into the

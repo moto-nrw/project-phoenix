@@ -204,10 +204,20 @@ vi.mock("~/components/students/student-card", () => ({
 
 import StudentSearchPage from "./page";
 
+// The planning horizon ends with the Sunday closing the CURRENT week (#1939),
+// so the number of selectable future days depends on today's weekday: on a
+// Sunday not even tomorrow is selectable. Anchoring on the real date would
+// therefore flake this suite every Sunday, so it pins the clock to a fixed
+// Monday (2026-06-01, 10:00 Berlin). Both the system time and the mocked
+// useMinuteClock must be pinned: the page reads "today" from the clock for
+// rendering, but the explicit-date initializer calls berlinTodayISO() with no
+// argument, i.e. straight off the system clock.
+const FIXED_NOW = new Date("2026-06-01T08:00:00Z");
+
 // Anchored on the Berlin day — the page's "today" — so the tests stay stable
 // when the runner's timezone disagrees with Europe/Berlin around midnight.
 function isoDaysFromToday(days: number): string {
-  const date = parseISODate(berlinTodayISO());
+  const date = parseISODate(berlinTodayISO(FIXED_NOW));
   date.setDate(date.getDate() + days);
   return toISODate(date);
 }
@@ -236,7 +246,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   currentSearch = new URLSearchParams();
   localStorage.clear();
-  clockNow = new Date();
+  // shouldAdvanceTime keeps timers running so waitFor / SWR still settle.
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(FIXED_NOW);
+  clockNow = FIXED_NOW;
 
   mockUseImmutableSWR.mockReturnValue({
     data: [],
@@ -266,6 +279,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   localStorage.clear();
+  vi.useRealTimers();
 });
 
 describe("StudentSearchPage — planning date (#1939)", () => {
@@ -314,12 +328,12 @@ describe("StudentSearchPage — planning date (#1939)", () => {
   });
 
   it("rejects a date beyond the planning horizon and strips it from the URL", async () => {
-    // The backend answers dates past the Sunday closing the next calendar
+    // The backend answers dates past the Sunday closing the CURRENT calendar
     // week with 400 (materialized timetable horizon, #1939). The initializer
     // must collapse such a URL date to today instead of firing a request the
-    // backend rejects. +15 days is always past the horizon (max is +13, when
-    // today is a Monday).
-    const beyondHorizon = isoDaysFromToday(15);
+    // backend rejects. Today is pinned to a Monday, so the horizon ends at +6
+    // and +7 (the next Monday) is the first rejected day.
+    const beyondHorizon = isoDaysFromToday(7);
     window.history.replaceState(
       {},
       "",
@@ -347,9 +361,9 @@ describe("StudentSearchPage — planning date (#1939)", () => {
   });
 
   it("accepts a date at the end of the planning horizon", async () => {
-    // +7 days is always within the horizon (min is +7, when today is a
-    // Sunday) — the far edge of the always-valid range must stay selectable.
-    const withinHorizon = isoDaysFromToday(7);
+    // Today is pinned to a Monday, so +6 is the Sunday closing the current
+    // week — the far edge of the horizon must stay selectable.
+    const withinHorizon = isoDaysFromToday(6);
     currentSearch = new URLSearchParams({ date: withinHorizon });
 
     render(<StudentSearchPage />);
