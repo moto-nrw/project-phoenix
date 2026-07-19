@@ -604,7 +604,7 @@ func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, inst
 // Custom method (backend-conventions Rule 2): the subquery join on
 // activity_instances is not expressible through the generic filter shape.
 // Used by the scheduler's daily session-end bridge.
-func (r *InstanceStudentRepository) MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time, excludeStudentIDs []int64) error {
+func (r *InstanceStudentRepository) MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time, exclusions []schedule.StudentInstanceRef) error {
 	if len(activeGroupIDs) == 0 {
 		return nil
 	}
@@ -622,8 +622,14 @@ func (r *InstanceStudentRepository) MarkExpectedAbsentByActiveGroupIDs(ctx conte
 				AND "instance".active_group_id IN (?)
 		)`, schedule.InstanceStatusActive, bun.List(activeGroupIDs))
 
-	if len(excludeStudentIDs) > 0 {
-		q = q.Where(`"instance_student".student_id NOT IN (?)`, bun.List(excludeStudentIDs))
+	// Per-pair, not per-student: a child not booked on one closed instance's
+	// date may be genuinely expected on another instance the same run closes.
+	// One AND'ed NOT per pair — the list is small (children spared per nightly
+	// run), and bun's non-deprecated placeholder helpers cannot render a
+	// composite-tuple NOT IN.
+	for _, ex := range exclusions {
+		q = q.Where(`NOT ("instance_student".instance_id = ? AND "instance_student".student_id = ?)`,
+			ex.InstanceID, ex.StudentID)
 	}
 
 	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)

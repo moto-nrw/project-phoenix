@@ -758,11 +758,14 @@ func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Conte
 	return int(rows), nil
 }
 
-// notScheduledForEndedSessions collects the children whose care plan does not
-// place them at the instances bridged to the just-ended active groups (#1747).
+// notScheduledForEndedSessions collects the (instance, student) pairs whose
+// care plan does not place the child at that instance's date (#1747). The
+// exclusions are per-instance on purpose: one cleanup run can close instances
+// from several dates, and a child not booked on one date may be genuinely
+// expected on another — a global per-student list would spare both rows.
 // Returns nil when the care-day service is not wired, which keeps the previous
 // blanket behaviour rather than silently skipping absences.
-func (s *Scheduler) notScheduledForEndedSessions(ctx context.Context, activeGroupIDs []int64) ([]int64, error) {
+func (s *Scheduler) notScheduledForEndedSessions(ctx context.Context, activeGroupIDs []int64) ([]scheduleModel.StudentInstanceRef, error) {
 	if s.careDayService == nil || len(activeGroupIDs) == 0 {
 		return nil, nil
 	}
@@ -790,33 +793,57 @@ func (s *Scheduler) notScheduledForEndedSessions(ctx context.Context, activeGrou
 	if err != nil {
 		return nil, fmt.Errorf("load expected timetable students: %w", err)
 	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
 
-	// Sessions can straddle midnight, so group by the instance's own date
-	// rather than assuming a single day.
-	studentsByDate := make(map[timezone.Date][]int64)
+	// Sessions can straddle midnight, so instances may span two dates. One
+	// ResolveForRange over the covering window resolves every (student, date)
+	// combination in the same four queries a single date would cost.
+	seenStudent := make(map[int64]bool)
+	studentIDs := make([]int64, 0, len(rows))
+	var from, to timezone.Date
+	first := true
 	for _, row := range rows {
 		date, ok := datesByInstance[row.InstanceID]
 		if !ok {
 			continue
 		}
-		studentsByDate[date] = append(studentsByDate[date], row.StudentID)
+		if first || date.Before(from) {
+			from = date
+		}
+		if first || date.After(to) {
+			to = date
+		}
+		first = false
+		if !seenStudent[row.StudentID] {
+			seenStudent[row.StudentID] = true
+			studentIDs = append(studentIDs, row.StudentID)
+		}
+	}
+	if len(studentIDs) == 0 {
+		return nil, nil
 	}
 
-	seen := make(map[int64]bool)
-	notScheduled := make([]int64, 0)
-	for date, studentIDs := range studentsByDate {
-		careDay, err := s.careDayService.ResolveForDate(ctx, studentIDs, date)
-		if err != nil {
-			return nil, fmt.Errorf("resolve care day for %s: %w", date, err)
+	careDays, err := s.careDayService.ResolveForRange(ctx, studentIDs, from, to)
+	if err != nil {
+		return nil, fmt.Errorf("resolve care days for %s..%s: %w", from, to, err)
+	}
+
+	exclusions := make([]scheduleModel.StudentInstanceRef, 0)
+	for _, row := range rows {
+		date, ok := datesByInstance[row.InstanceID]
+		if !ok {
+			continue
 		}
-		for studentID, status := range careDay {
-			if status == scheduleSvc.CareDayNotScheduled && !seen[studentID] {
-				seen[studentID] = true
-				notScheduled = append(notScheduled, studentID)
-			}
+		if careDays[row.StudentID][date] == scheduleSvc.CareDayNotScheduled {
+			exclusions = append(exclusions, scheduleModel.StudentInstanceRef{
+				StudentID:  row.StudentID,
+				InstanceID: row.InstanceID,
+			})
 		}
 	}
-	return notScheduled, nil
+	return exclusions, nil
 }
 
 // scheduleTokenCleanupTask schedules hourly token cleanup

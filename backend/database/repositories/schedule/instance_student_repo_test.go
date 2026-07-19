@@ -821,6 +821,81 @@ func TestInstanceStudentRepository_UpdateAttendanceFields(t *testing.T) {
 	})
 }
 
+// The nightly bridge can close instances from more than one date in a single
+// run. Exclusions are (instance, student) pairs, not bare student IDs: the
+// same child may be not-scheduled on one instance's date but genuinely
+// expected on another's, and only the former row may be spared the absent
+// stamp (#1747).
+func TestInstanceStudentRepository_MarkExpectedAbsentByActiveGroupIDs_PairScopedExclusions(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	fx := newActivityInstanceFixtures(t, db, "mark-pairs")
+	defer fx.cleanup()
+
+	student := testpkg.CreateTestStudent(t, db, "Juna", fmt.Sprintf("MP-%d", time.Now().UnixNano()), "2c")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	mkActiveInstance := func(title string, date timezone.Date) *scheduleModels.ActivityInstance {
+		ag := testpkg.CreateTestActiveGroup(t, db, fx.activityID, fx.roomID)
+		inst := buildInstance(1, fx.roomID, &fx.activityID, date,
+			time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
+			time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
+			fmt.Sprintf("%s-%d", title, time.Now().UnixNano()),
+		)
+		inst.Status = scheduleModels.InstanceStatusActive
+		inst.ActiveGroupID = &ag.ID
+		require.NoError(t, instanceRepo.Create(ctx, inst))
+		t.Cleanup(func() {
+			testpkg.CleanupTableRecords(t, db, "schedule.activity_instances", inst.ID)
+			testpkg.CleanupTableRecords(t, db, "active.groups", ag.ID)
+		})
+		return inst
+	}
+
+	instSpared := mkActiveInstance("spared", timezone.NewDate(2035, 2, 5))
+	instStamped := mkActiveInstance("stamped", timezone.NewDate(2035, 2, 6))
+
+	mkRow := func(instID int64) *scheduleModels.InstanceStudent {
+		row := &scheduleModels.InstanceStudent{
+			InstanceID: instID,
+			StudentID:  student.ID,
+			Status:     scheduleModels.AttendanceStatusExpected,
+		}
+		row.SetTenantID(1)
+		require.NoError(t, repo.Create(ctx, row))
+		t.Cleanup(func() {
+			testpkg.CleanupTableRecords(t, db, "schedule.instance_students", row.ID)
+		})
+		return row
+	}
+	mkRow(instSpared.ID)
+	mkRow(instStamped.ID)
+
+	err := repo.MarkExpectedAbsentByActiveGroupIDs(ctx,
+		[]int64{*instSpared.ActiveGroupID, *instStamped.ActiveGroupID},
+		time.Now(),
+		[]scheduleModels.StudentInstanceRef{{StudentID: student.ID, InstanceID: instSpared.ID}},
+	)
+	require.NoError(t, err)
+
+	gotSpared, err := repo.FindByInstanceAndStudent(ctx, instSpared.ID, student.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotSpared)
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, gotSpared.Status,
+		"the excluded (instance, student) pair must be spared")
+
+	gotStamped, err := repo.FindByInstanceAndStudent(ctx, instStamped.ID, student.ID)
+	require.NoError(t, err)
+	require.NotNil(t, gotStamped)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, gotStamped.Status,
+		"the same student's row on the other instance must still be stamped absent")
+}
+
 func TestInstanceStudentRepository_BulkUpdateStatus(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	defer func() { _ = db.Close() }()

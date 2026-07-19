@@ -114,6 +114,70 @@ func TestInstanceStudentRepository_FindInstancesWithAttendanceByStudentAndDateRa
 	})
 }
 
+// A completed instance's surviving 'expected' row is the #1747 "war an dem
+// Tag nicht eingeplant" marker — Complete()/the nightly bridge flip every
+// genuinely expected row to 'absent', and the per-student read must not
+// resurface the spared rows as expected attendance. Rows with a real outcome
+// on completed instances and 'expected' rows on cancelled instances stay
+// visible.
+func TestInstanceStudentRepository_FindInstancesWithAttendance_HidesNotScheduledOnCompleted(t *testing.T) {
+	db := testpkg.SetupTestDB(t)
+	defer func() { _ = db.Close() }()
+
+	ctx := testpkg.TenantContext(1)
+	repo := scheduleRepo.NewInstanceStudentRepository(db)
+	instanceRepo := scheduleRepo.NewActivityInstanceRepository(db)
+
+	student := testpkg.CreateTestStudent(t, db, "Lina", fmt.Sprintf("NSC-%d", time.Now().UnixNano()), "1b")
+	defer testpkg.CleanupActivityFixtures(t, db, student.ID)
+
+	day := timezone.NewDate(2034, 6, 5)
+
+	completedInst, cleanCompleted := createInstanceFixture(t, db, "nsc-done", day)
+	defer cleanCompleted()
+	cancelledInst, cleanCancelled := createInstanceFixture(t, db, "nsc-cxl", day)
+	defer cleanCancelled()
+
+	completedInst.Status = scheduleModels.InstanceStatusCompleted
+	require.NoError(t, instanceRepo.Update(ctx, completedInst))
+	cancelledInst.Status = scheduleModels.InstanceStatusCancelled
+	require.NoError(t, instanceRepo.Update(ctx, cancelledInst))
+
+	mkRow := func(instID int64, status string) *scheduleModels.InstanceStudent {
+		row := &scheduleModels.InstanceStudent{
+			InstanceID: instID,
+			StudentID:  student.ID,
+			Status:     status,
+		}
+		row.SetTenantID(1)
+		return row
+	}
+
+	spared := mkRow(completedInst.ID, scheduleModels.AttendanceStatusExpected)
+	require.NoError(t, repo.Create(ctx, spared))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", spared.ID)
+	cancelledExpected := mkRow(cancelledInst.ID, scheduleModels.AttendanceStatusExpected)
+	require.NoError(t, repo.Create(ctx, cancelledExpected))
+	defer testpkg.CleanupTableRecords(t, db, "schedule.instance_students", cancelledExpected.ID)
+
+	t.Run("spared row on a completed instance is hidden", func(t *testing.T) {
+		rows, err := repo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, student.ID, day, day)
+		require.NoError(t, err)
+		require.Len(t, rows, 1)
+		assert.Equal(t, cancelledInst.ID, rows[0].Instance.ID,
+			"the cancelled instance's expected row stays visible; the completed one's must not")
+	})
+
+	t.Run("a real outcome on the completed instance stays visible", func(t *testing.T) {
+		spared.Status = scheduleModels.AttendanceStatusAbsent
+		require.NoError(t, repo.Update(ctx, spared))
+
+		rows, err := repo.FindInstancesWithAttendanceByStudentAndDateRange(ctx, student.ID, day, day)
+		require.NoError(t, err)
+		assert.Len(t, rows, 2)
+	})
+}
+
 // HasPlannedSlotsInRange is the tenant-wide care-plan signal: planned
 // assignment rows count, walk-in rows (is_unplanned) and rows outside the
 // range do not. The far-future window keeps concurrent fixtures from other

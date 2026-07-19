@@ -847,7 +847,7 @@ func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, timezone.Dat
 	return 0, nil
 }
 
-func (f *fakeInstanceStudentRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []int64) error {
+func (f *fakeInstanceStudentRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []scheduleModel.StudentInstanceRef) error {
 	return nil
 }
 

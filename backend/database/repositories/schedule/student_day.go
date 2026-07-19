@@ -102,6 +102,14 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		Where(`"instance_student".student_id = ?`, studentID).
 		Where(`"activity_instance".date >= ?`, from).
 		Where(`"activity_instance".date <= ?`, to).
+		// Completion flips every genuinely expected row to 'absent' (Complete /
+		// the nightly bridge); a row still 'expected' on a completed instance
+		// is the frozen "war an dem Tag nicht eingeplant" marker (#1747) and
+		// must not resurface as expected attendance in the history, the export,
+		// or the week view. Cancelled instances keep their 'expected' rows
+		// visible — the instance status itself carries that story.
+		Where(`NOT ("activity_instance".status = ? AND "instance_student".status = ?)`,
+			schedule.InstanceStatusCompleted, schedule.AttendanceStatusExpected).
 		OrderExpr(`"activity_instance".date ASC, "activity_instance".start_time ASC`)
 
 	query = base.WithTenantFilter(ctx, query, aliasInstanceStudent)

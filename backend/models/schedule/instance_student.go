@@ -214,6 +214,13 @@ type InstanceStudentRepository interface {
 	// Instances the student has no attendance row for (e.g. a spontaneous
 	// instance they dropped into without being enrolled) are NOT included;
 	// the handler layer enriches those via the visits-side lookup.
+	//
+	// Rows still 'expected' on a COMPLETED instance are excluded too: at
+	// completion every genuinely expected row is flipped to 'absent', so a
+	// surviving 'expected' row is the "war an dem Tag nicht eingeplant"
+	// marker (#1747) — reporting it as expected attendance would claim care
+	// that was never booked. 'Expected' rows on cancelled instances remain
+	// visible; the cancelled instance status carries that story.
 	FindInstancesWithAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, from, to timezone.Date) ([]*ScheduledInstanceRow, error)
 
 	// HasPlannedSlotsInRange reports whether the tenant has at least one
@@ -237,10 +244,13 @@ type InstanceStudentRepository interface {
 	// for students on still-active instances bridged to the given
 	// active.groups. Used by the scheduler's daily session-end bridge.
 	//
-	// excludeStudentIDs is skipped, carrying the same rule as
-	// BulkUpdateStatus: a child the care plan does not place there that day
-	// was never expected and must not be recorded absent (#1747).
-	MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time, excludeStudentIDs []int64) error
+	// exclusions are (instance, student) pairs skipped by the update,
+	// carrying the same rule as BulkUpdateStatus: a child the care plan does
+	// not place there THAT day was never expected and must not be recorded
+	// absent (#1747). The pairs are per-instance on purpose — one nightly run
+	// can close instances from several dates, and a child not booked on one
+	// date may well be booked on another.
+	MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time, exclusions []StudentInstanceRef) error
 
 	// CloseOpenCheckoutsByActiveGroupIDs stamps checked_out_at on open
 	// present rows whose instance is bridged to the given active.groups.

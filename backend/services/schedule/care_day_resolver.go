@@ -221,6 +221,24 @@ func (s *careDayService) loadCarePlans(
 // feeding HasTimetable would make every assigned child trivially "comes today",
 // which is the very question this derivation exists to answer.
 func (p *carePlans) statusFor(studentID int64, date timezone.Date) CareDayStatus {
+	// A timeless exception on either leg is the "Kommt heute nicht" marker
+	// and cancels the whole care day — it must not fall through to the other
+	// leg's regular schedule time (the contract mergeCareExceptions documents
+	// for the parent portal, #1725). Staff often cancel only the leg they are
+	// looking at; the child is still not coming. Only a same-day exception
+	// WITH a time on the other leg — an explicit positive override — keeps
+	// the day booked, matching ResolveDayPlanning's precedence of timed
+	// exceptions over timeless ones.
+	arrivalExc, hasArrivalExc := p.arrivalExceptions[studentID][date]
+	pickupExc, hasPickupExc := p.pickupExceptions[studentID][date]
+	arrivalCancelled := hasArrivalExc && arrivalExc.IsAbsent()
+	pickupCancelled := hasPickupExc && pickupExc.IsAbsent()
+	arrivalOverride := hasArrivalExc && !arrivalExc.IsAbsent()
+	pickupOverride := hasPickupExc && !pickupExc.IsAbsent()
+	if (arrivalCancelled || pickupCancelled) && !arrivalOverride && !pickupOverride {
+		return CareDayNotScheduled
+	}
+
 	decision := ResolveDayPlanning(DayPlanningInputs{
 		Arrival: p.effectiveArrival(studentID, date),
 		Pickup:  p.effectivePickup(studentID, date),

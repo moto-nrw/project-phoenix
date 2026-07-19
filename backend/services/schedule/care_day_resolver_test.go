@@ -104,6 +104,44 @@ func TestCareDayStatusFor_Exceptions(t *testing.T) {
 		assert.Equal(t, CareDayScheduled, plans.statusFor(studentID, careDayThursday))
 	})
 
+	// One-leg cancellations: staff often mark only the leg they are looking
+	// at as "Kommt heute nicht". The other leg's regular schedule time must
+	// not resurrect the day (#1725 contract in mergeCareExceptions).
+	t.Run("timeless arrival exception cancels the day despite a pickup schedule", func(t *testing.T) {
+		plans := plansForStudent(studentID, schedule.WeekdayMonday)
+		plans.pickupByStudentWeekday[studentID] = map[int]*schedule.StudentPickupSchedule{
+			schedule.WeekdayMonday: {StudentID: studentID, Weekday: schedule.WeekdayMonday, PickupTime: careDayClock("16:00")},
+		}
+		plans.arrivalExceptions[studentID] = map[timezone.Date]*schedule.StudentArrivalException{
+			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday},
+		}
+
+		assert.Equal(t, CareDayNotScheduled, plans.statusFor(studentID, careDayMonday))
+	})
+
+	t.Run("timeless pickup exception cancels the day despite an arrival schedule", func(t *testing.T) {
+		plans := plansForStudent(studentID, schedule.WeekdayMonday)
+		plans.pickupExceptions[studentID] = map[timezone.Date]*schedule.StudentPickupException{
+			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday},
+		}
+
+		assert.Equal(t, CareDayNotScheduled, plans.statusFor(studentID, careDayMonday))
+	})
+
+	t.Run("a timed exception on the other leg keeps the day booked", func(t *testing.T) {
+		pickup := careDayClock("15:00")
+		plans := plansForStudent(studentID, schedule.WeekdayMonday)
+		plans.arrivalExceptions[studentID] = map[timezone.Date]*schedule.StudentArrivalException{
+			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday},
+		}
+		plans.pickupExceptions[studentID] = map[timezone.Date]*schedule.StudentPickupException{
+			careDayMonday: {StudentID: studentID, ExceptionDate: careDayMonday, PickupTime: &pickup},
+		}
+
+		assert.Equal(t, CareDayScheduled, plans.statusFor(studentID, careDayMonday),
+			"an explicit same-day positive override outranks the timeless leg")
+	})
+
 	t.Run("exception outranks the weekly plan on a weekend", func(t *testing.T) {
 		arrival := careDayClock("09:30")
 		plans := plansForStudent(studentID, schedule.WeekdayMonday)

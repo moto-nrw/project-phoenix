@@ -598,7 +598,7 @@ func TestDecodePatchBody_Direct(t *testing.T) {
 
 // Stubs for the issue #585 cleanup refactor interface additions — unused by
 // these tests.
-func (f *fakeRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []int64) error {
+func (f *fakeRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []schedule.StudentInstanceRef) error {
 	panic("unused")
 }
 
