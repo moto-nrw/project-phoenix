@@ -245,6 +245,51 @@ func TestListInstances_StaffAndStudentCounts(t *testing.T) {
 	assert.Equal(t, schedule.AttendanceStatusPresent, studentByID[student2.ID].Status)
 }
 
+// Completion flips every genuinely expected row to 'absent'; a row still
+// 'expected' on a completed instance is the frozen "war an dem Tag nicht
+// eingeplant" marker (#1747). The list endpoint must classify it from that
+// fact alone — here the care-day lookup reads "unknown" (nil service), which
+// on a planned instance would count as expected. If the current care plan
+// leaked into the classification, a later plan edit could retroactively
+// change a completed instance's expected count and required staffing.
+func TestListInstances_CompletedExpectedRowStaysNotScheduled(t *testing.T) {
+	s := buildListSetup(t)
+	defer s.cleanupFn()
+
+	from, fromDate := listFutureDate(1)
+	to, _ := listFutureDate(7)
+
+	inst := testpkg.CreateTestActivityInstance(t, s.db, fromDate, s.roomID, testpkg.ActivityInstanceOpts{
+		Status:    schedule.InstanceStatusCompleted,
+		StartHHMM: "12:00", EndHHMM: "13:00", Title: "Completed-Freeze-Test",
+	})
+	t.Cleanup(func() { testpkg.CleanupTableRecords(t, s.db, "schedule.activity_instances", inst.ID) })
+
+	suffix := time.Now().UnixNano()
+	student1 := testpkg.CreateTestStudent(t, s.db, "Frozen", fmt.Sprintf("Marker-%d-A", suffix), "2b")
+	student2 := testpkg.CreateTestStudent(t, s.db, "Was", fmt.Sprintf("There-%d-B", suffix), "2b")
+	is1 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student1.ID, schedule.AttendanceStatusExpected)
+	is2 := testpkg.CreateTestInstanceStudent(t, s.db, inst.ID, student2.ID, schedule.AttendanceStatusPresent)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "schedule.instance_students", is1.ID, is2.ID)
+		testpkg.CleanupActivityFixtures(t, s.db, student1.ID, 0, 0, 0, 0)
+		testpkg.CleanupActivityFixtures(t, s.db, student2.ID, 0, 0, 0, 0)
+	})
+
+	router := listRouter(s.ctx, s.res)
+	w := doList(t, router, fmt.Sprintf("/instances?from=%s&to=%s", from, to))
+	require.Equal(t, http.StatusOK, w.Code, "body=%s", w.Body.String())
+
+	got := decodeList(t, w)
+	require.Len(t, got.Instances, 1)
+	item := got.Instances[0]
+	assert.Equal(t, 0, item.ExpectedStudentsCount,
+		"a surviving 'expected' row on a completed instance is never expected again")
+	assert.Equal(t, 1, item.NotScheduledCount,
+		"the frozen marker is reported as not scheduled")
+	assert.Equal(t, 1, item.PresentStudentsCount)
+}
+
 func TestListInstances_IncludesPlannedConflictWarnings(t *testing.T) {
 	s := buildListSetup(t)
 	defer s.cleanupFn()

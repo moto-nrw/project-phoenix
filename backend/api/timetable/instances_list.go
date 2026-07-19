@@ -347,7 +347,15 @@ func (rs *Resource) enrichInstance(
 			// Assigned but not in care that weekday: counted separately, and
 			// left out of the staffing maths below — planning for children who
 			// are not booked that day inflates the Betreuungsschlüssel (#1747).
-			if careDays[row.StudentID][inst.Date] == scheduleSvc.CareDayNotScheduled {
+			//
+			// On a completed instance the verdict is frozen: Complete flips
+			// every genuinely expected row to 'absent', so a surviving
+			// 'expected' row IS the "war an dem Tag nicht eingeplant" marker.
+			// Classify it from that fact, never from the current care plan —
+			// a later plan or exception edit must not retroactively change a
+			// completed instance's expected count or required staffing.
+			if inst.Status == scheduleModel.InstanceStatusCompleted ||
+				careDays[row.StudentID][inst.Date] == scheduleSvc.CareDayNotScheduled {
 				notScheduled++
 				continue
 			}

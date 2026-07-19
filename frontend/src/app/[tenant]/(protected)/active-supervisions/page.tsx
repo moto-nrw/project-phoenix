@@ -294,7 +294,9 @@ function RosterRowActions({ row, onAction }: RosterRowActionsProps) {
           Raum verlassen
         </button>
       ) : null}
-      {row.planned && row.status === "expected" ? (
+      {row.planned &&
+      row.status === "expected" &&
+      row.careDayStatus !== "not_scheduled" ? (
         <>
           <button
             type="button"
@@ -626,8 +628,23 @@ function TimetableRosterContent({
   const present = roster.rows.filter(
     (row) => row.currentlyPresent && row.planned,
   );
+  // The care plan decides who counts as expected (#1747): rows whose plan
+  // does not place the child here today go into their own section below —
+  // never into "Erwartet" and never into the bulk confirm, which would
+  // persist attendance for a child who is not booked today.
   const expected = roster.rows.filter(
-    (row) => row.planned && !row.currentlyPresent && row.status === "expected",
+    (row) =>
+      row.planned &&
+      !row.currentlyPresent &&
+      row.status === "expected" &&
+      row.careDayStatus !== "not_scheduled",
+  );
+  const notScheduled = roster.rows.filter(
+    (row) =>
+      row.planned &&
+      !row.currentlyPresent &&
+      row.status === "expected" &&
+      row.careDayStatus === "not_scheduled",
   );
   const absent = roster.rows.filter(
     (row) => row.planned && !row.currentlyPresent && row.status === "absent",
@@ -688,6 +705,11 @@ function TimetableRosterContent({
       <TimetableRosterSection
         title="Erwartet"
         rows={expected}
+        {...sectionProps}
+      />
+      <TimetableRosterSection
+        title="Heute nicht eingeplant"
+        rows={notScheduled}
         {...sectionProps}
       />
       <TimetableRosterSection
