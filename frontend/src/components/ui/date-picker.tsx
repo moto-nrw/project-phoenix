@@ -163,6 +163,28 @@ export function DatePicker({
     };
   }, []);
 
+  const calendar = isMultiple ? (
+    <MultipleDatePickerCalendar
+      values={props.values}
+      onChangeDates={props.onChangeDates}
+      disabledDates={props.disabledDates}
+      dropdownPlacement={dropdownPlacement}
+      calendarLayout={calendarLayout}
+    />
+  ) : (
+    <DatePickerCalendar
+      value={props.value}
+      minDate={props.minDate}
+      maxDate={props.maxDate}
+      dropdownPlacement={dropdownPlacement}
+      calendarLayout={calendarLayout}
+      onChange={(date) => {
+        props.onChange(date);
+        setIsOpen(false);
+      }}
+    />
+  );
+
   return (
     <div className={`relative ${className}`} ref={containerRef}>
       <button
@@ -232,71 +254,23 @@ export function DatePicker({
         </div>
       </button>
 
-      {isOpen && (
-        <PopoverLayer
-          enabled={isPopover}
-          mounted={mounted}
-          position={popoverPosition}
-          layerRef={popoverRef}
-        >
-          {isMultiple ? (
-            <MultipleDatePickerCalendar
-              values={props.values}
-              onChangeDates={props.onChangeDates}
-              disabledDates={props.disabledDates}
-              dropdownPlacement={dropdownPlacement}
-              calendarLayout={calendarLayout}
-            />
-          ) : (
-            <DatePickerCalendar
-              value={props.value}
-              minDate={props.minDate}
-              maxDate={props.maxDate}
-              dropdownPlacement={dropdownPlacement}
-              calendarLayout={calendarLayout}
-              onChange={(date) => {
-                props.onChange(date);
-                setIsOpen(false);
-              }}
-            />
-          )}
-        </PopoverLayer>
-      )}
+      {/* The overlay/inline layouts render in place; the popover layout renders
+          the calendar into document.body at a viewport-fixed position. Portals
+          only exist client-side, hence the `mounted` guard on that branch. */}
+      {isOpen && !isPopover && calendar}
+      {isOpen && isPopover && mounted
+        ? createPortal(
+            <div
+              ref={popoverRef}
+              className="fixed z-[10001]"
+              style={{ top: popoverPosition.top, left: popoverPosition.left }}
+            >
+              {calendar}
+            </div>,
+            document.body,
+          )
+        : null}
     </div>
-  );
-}
-
-// Renders the calendar into document.body at a viewport-fixed position when the
-// popover layout is active, and passes it straight through otherwise, so the
-// overlay/inline layouts keep behaving exactly as before.
-function PopoverLayer({
-  enabled,
-  mounted,
-  position,
-  layerRef,
-  children,
-}: {
-  readonly enabled: boolean;
-  readonly mounted: boolean;
-  readonly position: PopoverPosition;
-  readonly layerRef: React.RefObject<HTMLDivElement | null>;
-  readonly children: React.ReactNode;
-}) {
-  if (!enabled) {
-    return <>{children}</>;
-  }
-  if (!mounted) {
-    return null;
-  }
-  return createPortal(
-    <div
-      ref={layerRef}
-      className="fixed z-[10001]"
-      style={{ top: position.top, left: position.left }}
-    >
-      {children}
-    </div>,
-    document.body,
   );
 }
 
