@@ -193,6 +193,7 @@ function buildStudentQueryParams(filters?: {
   pageSize?: number;
   includePickupTimes?: boolean;
   includeArrivalTimes?: boolean;
+  includeCompanions?: boolean;
 }): URLSearchParams {
   const params = new URLSearchParams();
   if (filters?.search) params.append("search", filters.search);
@@ -221,6 +222,9 @@ function buildStudentQueryParams(filters?: {
     params.append("include_pickup_times", "true");
   if (filters?.includeArrivalTimes)
     params.append("include_arrival_times", "true");
+  // Companion links ("läuft mit") for the shown day, so the Kindersuche can
+  // group by Laufgemeinschaft. Opt-in: it costs an extra query per page.
+  if (filters?.includeCompanions) params.append("include_companions", "true");
   return params;
 }
 
@@ -526,6 +530,7 @@ export const studentService = {
     pageSize?: number;
     includePickupTimes?: boolean;
     includeArrivalTimes?: boolean;
+    includeCompanions?: boolean;
     token?: string; // Optional: pass token to skip getSession()
   }): Promise<StudentsResult> => {
     const params = buildStudentQueryParams(filters);

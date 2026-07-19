@@ -41,6 +41,7 @@ import {
   PersonalInfoReadOnly,
   StudentHistorySection,
 } from "~/components/students/student-detail-components";
+import CompanionSection from "~/components/students/companion-section";
 import { PersonalInfoFormModal } from "~/components/students/personal-info-form-modal";
 import { ParentMessagesCard } from "~/components/students/parent-messages-card";
 import { StudentEnrollmentsTab } from "~/components/students/student-enrollments-tab";
@@ -1387,6 +1388,19 @@ function FullAccessView({
             showEditButton={hasWriteAccess}
             onEditClick={hasWriteAccess ? onOpenPersonalInfoModal : undefined}
           />
+          {/* Laufgemeinschaft: lives on the child, edits and saves in place.
+              Deliberately NOT in the personal-info modal — the link is stored
+              on its own table and also changes the other child's card, so it
+              must not ride along with an unrelated Stammdaten save. Shown only
+              in the full-access branch: a companion's name is another child's
+              data. */}
+          {studentId ? (
+            <CompanionSection
+              studentId={studentId}
+              canEdit={hasWriteAccess}
+              variant="card"
+            />
+          ) : null}
         </TabsContent>
 
         <TabsContent

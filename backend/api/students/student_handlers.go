@@ -112,6 +112,11 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 		applyActualTimesFromSnapshot(&responses[i], dataSnapshot)
 	}
 
+	// Companion links ("läuft mit") for the day being shown, so the Kindersuche
+	// can group by Laufgemeinschaft. Restricted to full-access students: a
+	// companion id points at ANOTHER child's record.
+	rs.enrichWithCompanions(r.Context(), responses, params, now)
+
 	// Optionally enrich the paginated slice with today's effective pickup times (single bulk query).
 	// Only query for students the caller has full access to. GDPR: skip redacted students.
 	if params.includePickupTimes || params.includeArrivalTimes {
@@ -601,19 +606,29 @@ func (rs *Resource) persistNewStudent(ctx context.Context, person *users.Person,
 		}
 	}
 
-	// Persist weekly arrival/pickup schedules in the same transaction so the
-	// student and its recurring care times are created atomically (mirrors
-	// the guardian handling above). The schedule tables FK to the student,
-	// which now exists within this transaction.
+	return rs.persistNewStudentAttachments(ctx, student.ID, req, staffID)
+}
+
+// persistNewStudentAttachments writes the optional records that hang off a
+// freshly created student: the weekly arrival/pickup schedules and the
+// companion links. All of them FK to the student, so they run in the same
+// transaction as the create (mirrors the guardian handling above) — a
+// half-created care plan or Laufgemeinschaft is worse than none.
+func (rs *Resource) persistNewStudentAttachments(ctx context.Context, studentID int64, req *StudentRequest, staffID int64) error {
 	if len(req.ArrivalSchedules) > 0 {
-		arrivals := toArrivalScheduleModels(req.ArrivalSchedules, student.ID, staffID)
-		if err := rs.ArrivalScheduleService.UpsertBulkStudentArrivalSchedules(ctx, student.ID, arrivals); err != nil {
+		arrivals := toArrivalScheduleModels(req.ArrivalSchedules, studentID, staffID)
+		if err := rs.ArrivalScheduleService.UpsertBulkStudentArrivalSchedules(ctx, studentID, arrivals); err != nil {
 			return err
 		}
 	}
 	if len(req.PickupSchedules) > 0 {
-		pickups := toPickupScheduleModels(req.PickupSchedules, student.ID, staffID)
-		if err := rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(ctx, student.ID, pickups); err != nil {
+		pickups := toPickupScheduleModels(req.PickupSchedules, studentID, staffID)
+		if err := rs.PickupScheduleService.UpsertBulkStudentPickupSchedules(ctx, studentID, pickups); err != nil {
+			return err
+		}
+	}
+	if len(req.Companions) > 0 {
+		if err := rs.StudentService.ReplaceCompanions(ctx, studentID, toCompanionLinks(req.Companions)); err != nil {
 			return err
 		}
 	}

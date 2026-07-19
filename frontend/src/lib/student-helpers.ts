@@ -427,6 +427,7 @@ export interface BackendStudent {
   scheduled_checkout?: ScheduledCheckoutInfo;
   extra_info?: string;
   departure_companion_note?: string;
+  companion_student_ids?: number[];
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -575,6 +576,9 @@ export interface Student {
   extra_info?: string;
   // Free-text "mit wem" for the accompanied departure mode (#1694)
   departure_companion_note?: string;
+  /** Children this child walks home with on the shown day (Laufgemeinschaft).
+   *  Only present when the list was fetched with include_companions. */
+  companion_student_ids?: number[];
   birthday?: string;
   health_info?: string;
   supervisor_notes?: string;
@@ -671,6 +675,7 @@ export function mapStudentResponse(
     custom_users_id: undefined, // Not provided by backend
     extra_info: backendStudent.extra_info,
     departure_companion_note: backendStudent.departure_companion_note,
+    companion_student_ids: backendStudent.companion_student_ids,
     birthday: backendStudent.birthday,
     health_info: backendStudent.health_info,
     supervisor_notes: backendStudent.supervisor_notes,

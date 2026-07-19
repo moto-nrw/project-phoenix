@@ -98,18 +98,23 @@ type StudentResponse struct {
 	AllowedDepartureModes users.AllowedDepartureModes `json:"allowed_departure_modes,omitempty"`
 	// DepartureCompanionNote is the free-text "mit wem" for the accompanied
 	// departure mode (#1694).
-	DepartureCompanionNote string        `json:"departure_companion_note,omitempty"`
-	Bus                    bool          `json:"bus"`
-	BusDays                users.BusDays `json:"bus_days,omitempty"`
-	Sick                   bool          `json:"sick"`
-	SickSince              *time.Time    `json:"sick_since,omitempty"`
-	Excused                bool          `json:"excused"`
-	ExcusedSince           *time.Time    `json:"excused_since,omitempty"`
-	ClassTrip              bool          `json:"class_trip"`
-	ClassTripSince         *time.Time    `json:"class_trip_since,omitempty"`
-	DayPlanningStatus      string        `json:"day_planning_status,omitempty"`
-	DayPlanningReason      string        `json:"day_planning_reason,omitempty"`
-	DayPlanningLabel       string        `json:"day_planning_label,omitempty"`
+	DepartureCompanionNote string `json:"departure_companion_note,omitempty"`
+	// CompanionStudentIDs lists the children this child walks home with on the
+	// requested day (users.student_companions). Only populated when the caller
+	// passes include_companions=true and has full access to the child. The
+	// Kindersuche resolves these ids into Laufgemeinschaft groups client-side.
+	CompanionStudentIDs []int64       `json:"companion_student_ids,omitempty"`
+	Bus                 bool          `json:"bus"`
+	BusDays             users.BusDays `json:"bus_days,omitempty"`
+	Sick                bool          `json:"sick"`
+	SickSince           *time.Time    `json:"sick_since,omitempty"`
+	Excused             bool          `json:"excused"`
+	ExcusedSince        *time.Time    `json:"excused_since,omitempty"`
+	ClassTrip           bool          `json:"class_trip"`
+	ClassTripSince      *time.Time    `json:"class_trip_since,omitempty"`
+	DayPlanningStatus   string        `json:"day_planning_status,omitempty"`
+	DayPlanningReason   string        `json:"day_planning_reason,omitempty"`
+	DayPlanningLabel    string        `json:"day_planning_label,omitempty"`
 	// PendingExcusedNote is set (#1845) when the child has a parent excused-absence
 	// request awaiting office approval that covers the planning day. The child
 	// stays "expected" (this does NOT change DayPlanningStatus); the planning
@@ -235,6 +240,12 @@ type StudentRequest struct {
 	PickupDays             *users.PickupDays `json:"pickup_days,omitempty"`   // Weekdays on which the child is picked up (legacy)
 	Bus                    *bool             `json:"bus,omitempty"`           // Administrative permission flag (Buskind, legacy)
 	BusDays                *users.BusDays    `json:"bus_days,omitempty"`      // Weekdays on which the child is a Buskind (legacy)
+
+	// Companions ("läuft mit") persisted together with the student. Supplying
+	// them here satisfies the accompanied-mode "mit wem" requirement without a
+	// free-text note — a named child is strictly better information than a
+	// typed name.
+	Companions []CompanionEntry `json:"companions,omitempty"`
 
 	// Guardians created together with the student in one atomic transaction
 	// (guardian_profiles system). Optional and independent of the legacy
@@ -457,6 +468,12 @@ func (req *StudentRequest) Bind(_ *http.Request) error {
 	// boundary so a stale or direct API caller gets a 400 rather than the model's
 	// later invariant surfacing as a 500 on persist. On create there is no stored
 	// note to fall back on, so the request itself must carry it (#1694).
+	//
+	// NOTE: linked companions do NOT satisfy this requirement. The same rule is
+	// enforced one layer down as a model invariant (users.Student.Validate), so
+	// relaxing it here alone would just move the 400 later. Whether a "läuft
+	// mit" link should replace the free-text note is a business decision that
+	// belongs with the rule's owner, not a side effect of this feature.
 	if departureModesAllowAccompanied(req.AllowedDepartureModes, req.DepartureDays) &&
 		isBlankCompanionNote(req.DepartureCompanionNote) {
 		return users.ErrDepartureCompanionNoteRequired

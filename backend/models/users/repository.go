@@ -326,6 +326,28 @@ type StudentGuardianRepository interface {
 	SetPrimary(ctx context.Context, id int64, isPrimary bool) error
 }
 
+// StudentCompanionRepository defines operations for the child-to-child
+// departure links ("läuft mit" / Laufgemeinschaft, users.student_companions).
+//
+// An edge is stored once in normalized low/high order, so every read has to
+// consider both endpoint columns — that is why there is no generic
+// List(filters) usage here: a filter map cannot express the OR.
+type StudentCompanionRepository interface {
+	base.CRUDRepository[*StudentCompanion]
+
+	// ListForStudent returns every edge touching the student, all weekdays.
+	ListForStudent(ctx context.Context, studentID int64) ([]*StudentCompanion, error)
+
+	// ListLinksForStudent returns the edges folded per companion, with names.
+	ListLinksForStudent(ctx context.Context, studentID int64) ([]CompanionLink, error)
+
+	// ReplaceForStudent makes the given edges the student's complete set.
+	ReplaceForStudent(ctx context.Context, studentID int64, edges []*StudentCompanion) error
+
+	// CompanionIDsForWeekday bulk-resolves companions for one weekday.
+	CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error)
+}
+
 // StudentRetentionSetting is the projection used by the GDPR visit-cleanup
 // worklist: one row per distinct (student, retention-days) pair with an
 // accepted privacy consent.

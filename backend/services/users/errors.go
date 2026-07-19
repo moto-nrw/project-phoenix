@@ -28,6 +28,26 @@ var (
 	// ErrTeacherNotFound indicates a teacher could not be found
 	ErrTeacherNotFound = errors.New("teacher not found")
 
+	// ErrStudentNotFound indicates a student could not be found in this tenant
+	ErrStudentNotFound = errors.New("student not found")
+
+	// Companion ("läuft mit" / Laufgemeinschaft) validation errors. The messages
+	// are German because the child detail view surfaces them verbatim.
+
+	// ErrCompanionNotFound indicates a submitted companion is not a child of
+	// this school
+	ErrCompanionNotFound = errors.New("Ein ausgewähltes Kind wurde nicht gefunden.") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrDuplicateCompanion indicates the same child was submitted twice
+	ErrDuplicateCompanion = errors.New("Ein Kind kann nur einmal in der Laufgemeinschaft stehen.") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrCompanionWeekdayRequired indicates a companion was submitted without
+	// any weekday — a link that applies on no day is not a link
+	ErrCompanionWeekdayRequired = errors.New("Bitte mindestens einen Wochentag auswählen.") //nolint:staticcheck // ST1005: user-facing German message
+
+	// ErrTooManyCompanions indicates more companions than MaxStudentCompanions
+	ErrTooManyCompanions = errors.New("Es können höchstens 10 Kinder verknüpft werden.") //nolint:staticcheck // ST1005: user-facing German message
+
 	// ErrStaffInUse indicates staff has attendance records or active supervisions
 	ErrStaffInUse = errors.New("Personal kann nicht gelöscht werden: Mitarbeiter/in hat aktive Aufsichten oder Anwesenheitseinträge") //nolint:staticcheck // ST1005: user-facing German message
 

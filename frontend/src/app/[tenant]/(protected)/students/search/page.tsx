@@ -99,7 +99,13 @@ type PickupStatusFilter = "all" | "self" | "pickedUp" | "none";
 type DayStatusFilter = "all" | "comes_today" | "not_coming_today";
 type SortMode = "name" | "arrival" | "pickup";
 type GroupMode =
-  "none" | "status" | "room" | "arrival" | "pickup" | "pickup-status";
+  | "none"
+  | "status"
+  | "room"
+  | "arrival"
+  | "pickup"
+  | "pickup-status"
+  | "companions";
 
 const STATUS_FILTER_OPTIONS: Array<{ value: StatusFilter; label: string }> = [
   { value: "all", label: "Alle" },
@@ -134,6 +140,7 @@ const GROUP_OPTIONS: Array<{ value: GroupMode; label: string }> = [
   { value: "arrival", label: "Nach Ankunftszeit" },
   { value: "pickup", label: "Nach Gehzeit" },
   { value: "pickup-status", label: "Nach Abholregelung" },
+  { value: "companions", label: "Nach Laufgemeinschaft" },
 ];
 
 const FILTER_QUERY_PARAMS = [
@@ -504,13 +511,80 @@ function arrivalLabelForStudent(student: Student): string {
     : "Keine Ankunftszeit";
 }
 
+const NO_COMPANION_GROUP_LABEL = "Ohne Laufgemeinschaft";
+
+/**
+ * Resolves the Laufgemeinschaft of every student on the page.
+ *
+ * The backend stores links as pairs, not groups: a Laufgemeinschaft is the set
+ * of children reachable through those links on the shown day. So this walks the
+ * links (union-find) and labels each resulting set with its members' names —
+ * there is no group name to display, by design.
+ *
+ * Only children present in `students` count. A companion filtered off the page
+ * cannot be named here (the list never received them), so a partly filtered
+ * list shows partly filled groups rather than inventing members.
+ */
+function companionGroupLabels(students: Student[]): Map<string, string> {
+  const parent = new Map<string, string>();
+  const find = (id: string): string => {
+    let root = id;
+    while (parent.get(root) !== root) root = parent.get(root) ?? root;
+    return root;
+  };
+  const union = (a: string, b: string) => {
+    const rootA = find(a);
+    const rootB = find(b);
+    if (rootA !== rootB) parent.set(rootA, rootB);
+  };
+
+  const onPage = new Set(students.map((student) => String(student.id)));
+  for (const student of students)
+    parent.set(String(student.id), String(student.id));
+
+  for (const student of students) {
+    for (const companionId of student.companion_student_ids ?? []) {
+      const companion = String(companionId);
+      if (onPage.has(companion)) union(String(student.id), companion);
+    }
+  }
+
+  const members = new Map<string, Student[]>();
+  for (const student of students) {
+    const root = find(String(student.id));
+    const bucket = members.get(root);
+    if (bucket) bucket.push(student);
+    else members.set(root, [student]);
+  }
+
+  const labels = new Map<string, string>();
+  for (const [, group] of members) {
+    // A set of one is a child that walks with nobody on this day.
+    const label =
+      group.length < 2
+        ? NO_COMPANION_GROUP_LABEL
+        : group
+            .map((student) => student.name)
+            .sort((a, b) => a.localeCompare(b, "de"))
+            .join(", ");
+    for (const student of group) labels.set(String(student.id), label);
+  }
+  return labels;
+}
+
 function groupStudents(students: Student[], groupMode: GroupMode) {
   if (groupMode === "none") return [];
 
+  // Companion grouping is the one mode whose label depends on the OTHER
+  // students on the page, so it is resolved once up front instead of per row.
+  const companionLabels =
+    groupMode === "companions" ? companionGroupLabels(students) : null;
+
   const groups = new Map<string, Student[]>();
   for (const student of students) {
-    const key =
-      groupMode === "status"
+    const key = companionLabels
+      ? (companionLabels.get(String(student.id)) ?? NO_COMPANION_GROUP_LABEL)
+      : groupMode === "status"
         ? statusLabelForStudent(student)
         : groupMode === "room"
           ? roomLabelForStudent(student)
@@ -547,6 +621,13 @@ function groupStudents(students: Student[], groupMode: GroupMode) {
               ? "zz"
               : label;
         return rank(a.label).localeCompare(rank(b.label), "de");
+      }
+      if (groupMode === "companions") {
+        // Real Laufgemeinschaften first, the "walks with nobody" rest last.
+        const rank = (label: string) =>
+          label === NO_COMPANION_GROUP_LABEL ? 1 : 0;
+        const rankCmp = rank(a.label) - rank(b.label);
+        if (rankCmp !== 0) return rankCmp;
       }
       if (groupMode === "pickup-status") {
         const rank = (label: string) =>
@@ -959,7 +1040,13 @@ function SearchPageContent() {
   // applied server-side in the same in-memory pass as day_status, so the
   // backend returns correctly-filtered and correctly-counted pages. The cache
   // key just has to vary with every filter value so SWR refetches on change.
-  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedSchoolClass}-${selectedRoomId}-${dayStatusFilter}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${pickupStatusFilter}`;
+  // Companion links are fetched only for the Laufgemeinschaft grouping — they
+  // cost an extra backend query, and no other view reads them. Part of the
+  // cache key so switching into that grouping triggers exactly one refetch.
+  // Sits BEFORE pickup_status on purpose: that filter must stay the key's last
+  // segment (asserted by the #1492 cache-key test).
+  const wantsCompanions = groupMode === "companions";
+  const studentsCacheKey = `search-students-${debouncedSearchTerm}-${selectedGroup}-${selectedSchoolClass}-${selectedRoomId}-${dayStatusFilter}-${photoConsentFeatureState}-${busFilter}-${requestedPhotoConsentFilter}-${wantsCompanions}-${pickupStatusFilter}`;
 
   // Fetch students with SWR (automatic deduplication, cancellation, and revalidation)
   const {
@@ -995,6 +1082,7 @@ function SearchPageContent() {
         pageSize: selectedRoomId ? FULL_STUDENT_SEARCH_PAGE_SIZE : undefined,
         includePickupTimes: true,
         includeArrivalTimes: true,
+        includeCompanions: wantsCompanions,
       };
 
       return await studentService.getStudents(filters);

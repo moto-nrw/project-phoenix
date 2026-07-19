@@ -45,19 +45,37 @@ type StudentService interface {
 
 	// UpdatePrivacyConsent persists changes to a privacy consent.
 	UpdatePrivacyConsent(ctx context.Context, consent *userModels.PrivacyConsent) error
+
+	// ListCompanions returns the children this child walks home with
+	// ("läuft mit"), folded per companion with their weekdays and names.
+	ListCompanions(ctx context.Context, studentID int64) ([]userModels.CompanionLink, error)
+
+	// ReplaceCompanions makes the given links the child's complete companion
+	// set, validating each companion before writing.
+	ReplaceCompanions(ctx context.Context, studentID int64, links []userModels.CompanionLink) error
+
+	// CompanionIDsForWeekday bulk-resolves, per student, who they walk home
+	// with on the given weekday (1..5). Drives the Kindersuche grouping.
+	CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error)
 }
 
 type studentService struct {
 	studentRepo        userModels.StudentRepository
 	privacyConsentRepo userModels.PrivacyConsentRepository
+	companionRepo      userModels.StudentCompanionRepository
 }
 
 // NewStudentService creates a StudentService backed by the student-domain
 // repositories.
-func NewStudentService(studentRepo userModels.StudentRepository, privacyConsentRepo userModels.PrivacyConsentRepository) StudentService {
+func NewStudentService(
+	studentRepo userModels.StudentRepository,
+	privacyConsentRepo userModels.PrivacyConsentRepository,
+	companionRepo userModels.StudentCompanionRepository,
+) StudentService {
 	return &studentService{
 		studentRepo:        studentRepo,
 		privacyConsentRepo: privacyConsentRepo,
+		companionRepo:      companionRepo,
 	}
 }
 
@@ -103,4 +121,99 @@ func (s *studentService) CreatePrivacyConsent(ctx context.Context, consent *user
 
 func (s *studentService) UpdatePrivacyConsent(ctx context.Context, consent *userModels.PrivacyConsent) error {
 	return s.privacyConsentRepo.Update(ctx, consent)
+}
+
+// MaxStudentCompanions caps how many children one child may be linked to. A
+// Laufgemeinschaft is a handful of neighbours walking home together; a request
+// with more than this is a client bug or an attempt to use the field as a group
+// list, and both should fail loudly rather than produce an unreadable grouping.
+const MaxStudentCompanions = 10
+
+func (s *studentService) ListCompanions(ctx context.Context, studentID int64) ([]userModels.CompanionLink, error) {
+	if studentID <= 0 {
+		return nil, ErrStudentNotFound
+	}
+	return s.companionRepo.ListLinksForStudent(ctx, studentID)
+}
+
+// ReplaceCompanions validates the submitted "läuft mit" list and writes it as
+// the child's complete companion set.
+//
+// The write is symmetric by construction: each link becomes one undirected edge,
+// so adding Tom to Lina's card is the same row that shows Lina on Tom's card.
+// The flip side is that replacing Lina's list only touches edges that TOUCH
+// Lina — a link between Tom and Mia is left alone.
+func (s *studentService) ReplaceCompanions(ctx context.Context, studentID int64, links []userModels.CompanionLink) error {
+	if studentID <= 0 {
+		return ErrStudentNotFound
+	}
+	if len(links) > MaxStudentCompanions {
+		return ErrTooManyCompanions
+	}
+
+	// The child itself must exist in this tenant before we hang links off it.
+	subject, err := s.studentRepo.FindByID(ctx, studentID)
+	if err != nil {
+		return err
+	}
+	if subject == nil {
+		return ErrStudentNotFound
+	}
+
+	edges := make([]*userModels.StudentCompanion, 0, len(links)*len(userModels.PickupDayOrder))
+	companionIDs := make([]int64, 0, len(links))
+	seen := make(map[int64]bool, len(links))
+
+	for _, link := range links {
+		if link.CompanionStudentID == studentID {
+			return userModels.ErrCompanionSelfLink
+		}
+		if seen[link.CompanionStudentID] {
+			return ErrDuplicateCompanion
+		}
+		seen[link.CompanionStudentID] = true
+		companionIDs = append(companionIDs, link.CompanionStudentID)
+
+		if len(link.Weekdays) == 0 {
+			return ErrCompanionWeekdayRequired
+		}
+		seenDays := make(map[int]bool, len(link.Weekdays))
+		for _, day := range link.Weekdays {
+			weekday, err := userModels.CompanionWeekdayNumber(day)
+			if err != nil {
+				return err
+			}
+			if seenDays[weekday] {
+				continue
+			}
+			seenDays[weekday] = true
+
+			edge, err := userModels.NewStudentCompanion(studentID, link.CompanionStudentID, weekday)
+			if err != nil {
+				return err
+			}
+			edges = append(edges, edge)
+		}
+	}
+
+	// Every companion has to be a real child of this tenant. FindByID/FindByIDs
+	// are tenant-filtered, so an id from another school simply does not come
+	// back — which is exactly the check we want before persisting a link.
+	if len(companionIDs) > 0 {
+		found, err := s.studentRepo.FindByIDs(ctx, companionIDs)
+		if err != nil {
+			return err
+		}
+		for _, id := range companionIDs {
+			if found[id] == nil {
+				return ErrCompanionNotFound
+			}
+		}
+	}
+
+	return s.companionRepo.ReplaceForStudent(ctx, studentID, edges)
+}
+
+func (s *studentService) CompanionIDsForWeekday(ctx context.Context, studentIDs []int64, weekday int) (map[int64][]int64, error) {
+	return s.companionRepo.CompanionIDsForWeekday(ctx, studentIDs, weekday)
 }

@@ -1275,7 +1275,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		Logger:                   logger.With("service", "enrollment-rollover"),
 	})
 
-	studentService := users.NewStudentService(repos.Student, repos.PrivacyConsent)
+	studentService := users.NewStudentService(repos.Student, repos.PrivacyConsent, repos.StudentCompanion)
 
 	// Chat-pill emitter (#1803): posts non-interactive notification events
 	// into parent-OGS threads on behalf of the request/self-service flows.

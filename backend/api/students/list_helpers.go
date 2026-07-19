@@ -28,6 +28,7 @@ type studentListParams struct {
 	page                int
 	pageSize            int
 	includePickupTimes  bool
+	includeCompanions   bool
 	includeArrivalTimes bool
 	dayStatus           string
 	// gradeLevel filters by the first numeric run in school_class (issue #1838,
@@ -96,6 +97,7 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 
 	// Parse optional includes
 	params.includePickupTimes = r.URL.Query().Get("include_pickup_times") == "true"
+	params.includeCompanions = r.URL.Query().Get("include_companions") == "true"
 	params.includeArrivalTimes = r.URL.Query().Get("include_arrival_times") == "true"
 	params.dayStatus = parseDayStatusParam(r.URL.Query().Get("day_status"))
 

@@ -16,6 +16,7 @@ import {
   PersonalInfoSection,
 } from "./student-form-fields";
 import { StudentCommonFormSections } from "./student-common-form-sections";
+import CompanionSection from "./companion-section";
 import { StudentPhotoSection } from "./student-photo-section";
 import { validateStudentForm } from "~/lib/student-form-validation";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
@@ -615,6 +616,10 @@ export function StudentStammdatenTab({
         }
         companionNoteError={errors.departure_companion_note}
       />
+
+      {/* Laufgemeinschaft. Saves through its own endpoint, so it sits outside
+          the form's dirty/submit cycle on purpose — see CompanionSection. */}
+      <CompanionSection studentId={String(student.id)} />
 
       <EnrollmentConsentsSection
         agbAcceptedAt={student.agb_accepted_at}

@@ -43,7 +43,7 @@ func newStaffNotesResource(db *bun.DB) *Resource {
 	rf := repositories.NewFactory(db)
 	return NewResource(ResourceConfig{
 		PersonService:           usersSvc.NewPersonService(usersSvc.PersonServiceDependencies{StudentRepo: rf.Student}),
-		StudentService:          usersSvc.NewStudentService(rf.Student, rf.PrivacyConsent),
+		StudentService:          usersSvc.NewStudentService(rf.Student, rf.PrivacyConsent, rf.StudentCompanion),
 		StudentStatusDayService: activeSvc.NewStudentStatusDayService(rf.StudentStatusDay),
 		Logger:                  slog.Default(),
 		DB:                      db,
