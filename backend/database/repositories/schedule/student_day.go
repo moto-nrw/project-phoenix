@@ -110,6 +110,12 @@ func (r *InstanceStudentRepository) FindInstancesWithAttendanceByStudentAndDateR
 		// must not resurface as expected attendance in the history, the export,
 		// or the week view. Cancelled instances keep their 'expected' rows
 		// visible — the instance status itself carries that story.
+		//
+		// Legacy rows do not carry that meaning: before #1747 the force-start
+		// path completed instances without finalizing attendance, leaving
+		// genuinely expected children — real absences — in exactly this shape.
+		// Migration 1.15.205 flips those to 'absent' at deploy time, so from
+		// here on the predicate below only ever hides non-bookings.
 		Where(`NOT ("activity_instance".status = ? AND "instance_student".status = ?)`,
 			schedule.InstanceStatusCompleted, schedule.AttendanceStatusExpected).
 		OrderExpr(`"activity_instance".date ASC, "activity_instance".start_time ASC`)

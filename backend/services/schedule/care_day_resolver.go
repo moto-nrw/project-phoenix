@@ -240,6 +240,12 @@ func (s *careDayService) loadCarePlans(
 // absences are owned by the roster (visits and active.student_status_days), and
 // feeding HasTimetable would make every assigned child trivially "comes today",
 // which is the very question this derivation exists to answer.
+//
+// Consumers that DO resolve a timetable signal must gate it on this verdict
+// instead of passing the raw assignment: api/students/day_planning.go drops a
+// child's HasTimetable on a not_scheduled day for exactly that reason. Skipping
+// it makes the student search report "kommt heute" for a child the timetable
+// roster and the expected counts leave out.
 func (p *carePlans) statusFor(studentID int64, date timezone.Date) CareDayStatus {
 	// The whole-day cancellation rule (a timeless "Kommt heute nicht"
 	// exception on either leg cancels the day, whatever the other leg says)

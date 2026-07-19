@@ -88,6 +88,46 @@ func (rs *Resource) loadDayPlanningTimetableIDs(ctx context.Context, studentIDs 
 	for _, id := range plannedIDs {
 		timetableIDs[id] = struct{}{}
 	}
+	return rs.filterTimetableIDsByCareDay(ctx, timetableIDs, date)
+}
+
+// filterTimetableIDsByCareDay drops the children a timetable block lists but
+// the care plan does not place in the OGS that weekday (#1747).
+//
+// Assigning a whole group or year to an activity (#1838) puts every member on
+// every occurrence, so the raw assignment alone would report a child as
+// "kommt heute — Betreuungsplan" on days they are not booked for. The timetable
+// roster and the expected counts already resolve this through CareDayService;
+// filtering the same signal here is what keeps the student search from
+// contradicting them about the same child on the same day.
+//
+// Only an explicit not_scheduled verdict removes the signal. A child with no
+// plan on file at all resolves to unknown and keeps it — schools that do not
+// maintain arrival/pickup plans must keep seeing their full roster. Cancelled
+// days never reach this input anyway: ResolveDayPlanning answers on the
+// exception long before it looks at HasTimetable.
+func (rs *Resource) filterTimetableIDsByCareDay(
+	ctx context.Context, timetableIDs map[int64]struct{}, date timezone.Date,
+) (map[int64]struct{}, error) {
+	if rs.CareDayService == nil || len(timetableIDs) == 0 {
+		return timetableIDs, nil
+	}
+
+	studentIDs := make([]int64, 0, len(timetableIDs))
+	for id := range timetableIDs {
+		studentIDs = append(studentIDs, id)
+	}
+
+	careDays, err := rs.CareDayService.ResolveForDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, err
+	}
+
+	for id := range timetableIDs {
+		if careDays[id] == scheduleService.CareDayNotScheduled {
+			delete(timetableIDs, id)
+		}
+	}
 	return timetableIDs, nil
 }
 
