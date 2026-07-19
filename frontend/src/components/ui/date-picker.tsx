@@ -97,10 +97,11 @@ export function DatePicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const [mounted, setMounted] = useState(false);
-  const [popoverPosition, setPopoverPosition] = useState<PopoverPosition>({
-    top: 0,
-    left: 0,
-  });
+  // null until the trigger rect has been measured. The portal renders only once
+  // a position exists, so the calendar never paints at the top-left corner
+  // before an effect moves it into place.
+  const [popoverPosition, setPopoverPosition] =
+    useState<PopoverPosition | null>(null);
   const isPopover = calendarLayout === "popover";
   const isMultiple = props.mode === "multiple";
   const displayValue = isMultiple
@@ -121,13 +122,27 @@ export function DatePicker({
     );
   }, []);
 
-  // Position on open and keep it correct while the viewport changes. Any scroll
-  // (including inside a filter panel or modal) closes the calendar: the trigger
-  // would otherwise slide away from a portal that lives outside that scroll
-  // container — the same trade-off the operator status dropdown makes.
+  // Opening measures the trigger and shows the calendar in the SAME event, so
+  // React commits both together and the portal's first paint is already in
+  // place. Positioning from an effect instead would paint one frame at the
+  // viewport origin first, which reads as the calendar flashing top-left.
+  const toggleOpen = () => {
+    if (isOpen) {
+      setIsOpen(false);
+      return;
+    }
+    if (isPopover) {
+      syncPopoverPosition();
+    }
+    setIsOpen(true);
+  };
+
+  // Keep the position correct while the viewport changes. Any scroll (including
+  // inside a filter panel or modal) closes the calendar: the trigger would
+  // otherwise slide away from a portal that lives outside that scroll container
+  // — the same trade-off the operator status dropdown makes.
   useEffect(() => {
     if (!isPopover || !isOpen) return;
-    syncPopoverPosition();
     const close = () => setIsOpen(false);
     window.addEventListener("resize", syncPopoverPosition);
     window.addEventListener("scroll", close, true);
@@ -189,7 +204,7 @@ export function DatePicker({
     <div className={`relative ${className}`} ref={containerRef}>
       <button
         type="button"
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={toggleOpen}
         className={`flex w-full items-center justify-between rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm transition-all ${
           isOpen ? "border-gray-300 bg-gray-50" : "hover:bg-gray-50"
         }`}
@@ -256,9 +271,10 @@ export function DatePicker({
 
       {/* The overlay/inline layouts render in place; the popover layout renders
           the calendar into document.body at a viewport-fixed position. Portals
-          only exist client-side, hence the `mounted` guard on that branch. */}
+          only exist client-side, hence the `mounted` guard on that branch, and
+          the position guard keeps the first paint from landing at the origin. */}
       {isOpen && !isPopover && calendar}
-      {isOpen && isPopover && mounted
+      {isOpen && isPopover && mounted && popoverPosition
         ? createPortal(
             <div
               ref={popoverRef}

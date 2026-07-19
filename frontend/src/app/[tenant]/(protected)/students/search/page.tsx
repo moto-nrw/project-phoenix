@@ -254,6 +254,28 @@ const PICKUP_STATUS_FILTER_OPTIONS: Array<{
   { value: "none", label: "Keine Abholregelung" },
 ];
 
+// Status options split by what they read: the location-derived buckets only
+// answer for today, the absence buckets come from the status days of whichever
+// date is selected (#1939).
+const LIVE_STATUS_FILTER_OPTIONS = [
+  { value: "anwesend", label: "Anwesend" },
+  { value: "abwesend", label: "Abwesend" },
+  { value: "unterwegs", label: "Unterwegs" },
+  { value: "schulhof", label: "Schulhof" },
+] as const;
+
+const PLANNED_ABSENCE_STATUS_FILTER_OPTIONS = [
+  { value: "krank", label: "Krank" },
+  { value: "klassenfahrt", label: "Klassenfahrt" },
+  { value: "entschuldigt", label: "Entschuldigt" },
+] as const;
+
+function isPlannedAbsenceStatusFilter(filter: StatusFilter): boolean {
+  return PLANNED_ABSENCE_STATUS_FILTER_OPTIONS.some(
+    (option) => option.value === filter,
+  );
+}
+
 const STATUS_FILTER_LABELS: Record<
   Exclude<StatusFilter, "all" | "anwesend">,
   string
@@ -1010,10 +1032,14 @@ function SearchPageContent() {
 
   // Live presence data describes today. For any other planning date the
   // realtime filters are neutralized and hidden so current whereabouts are
-  // never read as (or filtered like) a plan for that day.
-  const effectiveAttendanceFilter: StatusFilter = isToday
-    ? attendanceFilter
-    : "all";
+  // never read as (or filtered like) a plan for that day. The absence statuses
+  // are the exception: they come from the status days recorded for the selected
+  // date, not from the live location, so planning by them is the whole point
+  // ("wer ist am Freitag krank gemeldet") and they stay selectable (#1939).
+  const effectiveAttendanceFilter: StatusFilter =
+    isToday || isPlannedAbsenceStatusFilter(attendanceFilter)
+      ? attendanceFilter
+      : "all";
   const effectiveTrackingFilter: TrackingFilter = isToday
     ? trackingFilter
     : "all";
@@ -1688,29 +1714,21 @@ function SearchPageContent() {
         onChange: (value) => updateDayStatusFilter(value as DayStatusFilter),
         options: dayStatusFilterOptions,
       },
-      // The live status filter reads current whereabouts — today-only (#1939).
-      ...(isToday
-        ? [
-            {
-              id: "attendance",
-              label: "Status",
-              type: "dropdown" as const,
-              value: attendanceFilter,
-              onChange: (value: string | string[]) =>
-                updateAttendanceFilter(value as StatusFilter),
-              options: [
-                { value: "all", label: "Alle Status" },
-                { value: "anwesend", label: "Anwesend" },
-                { value: "abwesend", label: "Abwesend" },
-                { value: "krank", label: "Krank" },
-                { value: "klassenfahrt", label: "Klassenfahrt" },
-                { value: "entschuldigt", label: "Entschuldigt" },
-                { value: "unterwegs", label: "Unterwegs" },
-                { value: "schulhof", label: "Schulhof" },
-              ],
-            },
-          ]
-        : []),
+      // The location-derived buckets read current whereabouts and drop out for
+      // another day; the absence buckets follow the selected date (#1939).
+      {
+        id: "attendance",
+        label: "Status",
+        type: "dropdown" as const,
+        value: effectiveAttendanceFilter,
+        onChange: (value: string | string[]) =>
+          updateAttendanceFilter(value as StatusFilter),
+        options: [
+          { value: "all", label: "Alle Status" },
+          ...(isToday ? LIVE_STATUS_FILTER_OPTIONS : []),
+          ...PLANNED_ABSENCE_STATUS_FILTER_OPTIONS,
+        ],
+      },
       {
         id: "bus",
         label: "Buskind",
@@ -1789,7 +1807,6 @@ function SearchPageContent() {
       selectedGroup,
       pickupTimeFilter,
       arrivalTimeFilter,
-      attendanceFilter,
       busFilter,
       photoConsentFilter,
       pickupStatusFilter,
@@ -1822,6 +1839,7 @@ function SearchPageContent() {
       updateGroupMode,
       isToday,
       dayStatusFilterOptions,
+      effectiveAttendanceFilter,
       effectiveGroupMode,
       selectedDate,
       todayIso,

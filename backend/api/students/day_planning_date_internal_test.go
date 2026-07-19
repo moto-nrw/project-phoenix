@@ -214,6 +214,16 @@ func TestExportFilterLabelsForDateAddsDateAndNeutralWording(t *testing.T) {
 	}
 }
 
+func TestExportFilterLabelsForDateWordsAbsenceStatusAsPlanned(t *testing.T) {
+	planningDate := timezone.NewDate(2026, time.June, 2)
+
+	labels := exportFilterLabelsForDate(studentExportFilters{Status: "krank"}, planningDate, false)
+	assert.Contains(t, labels, "Geplanter Status: Krank")
+
+	todayLabels := exportFilterLabelsForDate(studentExportFilters{Status: "krank"}, planningDate, true)
+	assert.Contains(t, todayLabels, "Momentaufnahme: Krank")
+}
+
 func TestActiveLiveListFilters(t *testing.T) {
 	t.Run("none_when_no_live_filter_is_set", func(t *testing.T) {
 		assert.Empty(t, activeLiveListFilters(&studentListParams{}))
@@ -236,6 +246,21 @@ func TestActiveLiveExportFilters(t *testing.T) {
 	t.Run("names_every_live_filter_in_use", func(t *testing.T) {
 		filters := studentExportFilters{RoomID: "7", Status: "anwesend"}
 		assert.Equal(t, []string{"room_id", "status"}, activeLiveExportFilters(filters))
+	})
+
+	t.Run("names_every_location_derived_status", func(t *testing.T) {
+		for _, status := range []string{"abwesend", "unterwegs", "schulhof", "anwesend"} {
+			assert.Equal(t, []string{"status"}, activeLiveExportFilters(studentExportFilters{Status: status}),
+				"%s is read off the live location snapshot", status)
+		}
+	})
+
+	t.Run("absence_statuses_are_not_live", func(t *testing.T) {
+		// These come from the status days of the requested date, not from the
+		// location snapshot — planning them for another day is the point (#1939).
+		for _, status := range []string{"krank", "klassenfahrt", "entschuldigt"} {
+			assert.Empty(t, activeLiveExportFilters(studentExportFilters{Status: status}), status)
+		}
 	})
 }
 
@@ -282,6 +307,15 @@ func TestResolveExportPlanningDate(t *testing.T) {
 
 		_, _, errResp = resolveExportPlanningDate(studentExportFilters{Date: "2026-06-02", RoomID: "7"}, now)
 		assert.NotNil(t, errResp, "a room filter reads today's active visits")
+	})
+
+	t.Run("planning_date_keeps_absence_statuses", func(t *testing.T) {
+		for _, status := range []string{"krank", "klassenfahrt", "entschuldigt"} {
+			date, isToday, errResp := resolveExportPlanningDate(studentExportFilters{Date: "2026-06-02", Status: status}, now)
+			require.Nil(t, errResp, "%s is planned per date, not a live snapshot", status)
+			assert.False(t, isToday)
+			assert.Equal(t, timezone.NewDate(2026, time.June, 2), date)
+		}
 	})
 
 	t.Run("malformed_date_is_rejected", func(t *testing.T) {

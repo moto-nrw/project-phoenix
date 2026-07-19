@@ -118,15 +118,30 @@ func activeLiveListFilters(params *studentListParams) []string {
 	return active
 }
 
+// locationDerivedExportStatuses are the export status buckets exportStatus
+// reads off the live location snapshot. A dated export strips that snapshot, so
+// filtering on one of them would classify every row "abwesend" — they are
+// answerable for today only.
+//
+// The remaining buckets (krank, klassenfahrt, entschuldigt) are NOT live: they
+// come from the Sick/ClassTrip/Excused flags, which applyStatusDaysForDate
+// overlays from the status days recorded for the requested date. Planning an
+// absence for a future day is exactly what those filters are for, so a dated
+// export must keep accepting them (#1939).
+var locationDerivedExportStatuses = map[string]struct{}{
+	"abwesend":  {},
+	"unterwegs": {},
+	"schulhof":  {},
+	"anwesend":  {},
+}
+
 // activeLiveExportFilters is the export counterpart of activeLiveListFilters.
-// status buckets a child by its current location (see exportStatus), which a
-// dated export strips — leaving every row classified "abwesend".
 func activeLiveExportFilters(filters studentExportFilters) []string {
 	var active []string
 	if strings.TrimSpace(filters.RoomID) != "" {
 		active = append(active, "room_id")
 	}
-	if filters.Status != "" && filters.Status != "all" {
+	if _, isLive := locationDerivedExportStatuses[filters.Status]; isLive {
 		active = append(active, "status")
 	}
 	return active

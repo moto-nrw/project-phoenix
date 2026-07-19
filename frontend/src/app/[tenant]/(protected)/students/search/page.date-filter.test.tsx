@@ -59,8 +59,30 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   useBreadcrumb: () => ({ breadcrumb: {}, setBreadcrumb: vi.fn() }),
 }));
 
+// The header is stubbed, but the filter configs it receives are the page's
+// contract for which filters exist on the selected day — exposed as data so a
+// test can read them without rendering the real panel.
 vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
-  PageHeaderWithSearch: () => <div data-testid="header" />,
+  PageHeaderWithSearch: ({
+    filters,
+  }: {
+    filters?: {
+      id: string;
+      value?: unknown;
+      options?: { value: string }[];
+    }[];
+  }) => (
+    <div
+      data-testid="header"
+      data-filters={JSON.stringify(
+        (filters ?? []).map((filter) => ({
+          id: filter.id,
+          value: filter.value,
+          options: filter.options?.map((option) => option.value),
+        })),
+      )}
+    />
+  ),
 }));
 
 vi.mock("~/components/ui/date-picker", () => ({
@@ -558,5 +580,53 @@ describe("StudentSearchPage — planning date (#1939)", () => {
     // Tracking indicators describe today's activity participation and are not
     // rendered on a planning date, so the request must not be made at all.
     expect(trackingKeys()).toEqual([]);
+  });
+
+  function statusFilterOptions(): string[] {
+    const raw =
+      screen.getByTestId("header").getAttribute("data-filters") ?? "[]";
+    const filters = JSON.parse(raw) as {
+      id: string;
+      options?: string[];
+    }[];
+    return filters.find((filter) => filter.id === "attendance")?.options ?? [];
+  }
+
+  it("offers every status for today", async () => {
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+    });
+
+    expect(statusFilterOptions()).toEqual([
+      "all",
+      "anwesend",
+      "abwesend",
+      "unterwegs",
+      "schulhof",
+      "krank",
+      "klassenfahrt",
+      "entschuldigt",
+    ]);
+  });
+
+  it("keeps only the planned absence statuses on a planning date", async () => {
+    currentSearch = new URLSearchParams({ date: isoDaysFromToday(1) });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+    });
+
+    // krank/klassenfahrt/entschuldigt come from the status days of the selected
+    // date; the location-derived buckets would answer for today only (#1939).
+    expect(statusFilterOptions()).toEqual([
+      "all",
+      "krank",
+      "klassenfahrt",
+      "entschuldigt",
+    ]);
   });
 });

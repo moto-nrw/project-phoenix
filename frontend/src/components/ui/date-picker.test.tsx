@@ -361,6 +361,40 @@ describe("DatePicker", () => {
     expect(svg).toHaveClass("h-4", "w-4");
   });
 
+  it("renders the popover calendar already positioned on its first paint", () => {
+    render(
+      <DatePicker
+        value={null}
+        onChange={mockOnChange}
+        calendarLayout="popover"
+      />,
+    );
+
+    const trigger = screen.getByRole("button", { name: /datum auswählen/i });
+    // jsdom reports an all-zero rect by default, which would make a top-left
+    // render indistinguishable from a correctly positioned one.
+    vi.spyOn(trigger.parentElement!, "getBoundingClientRect").mockReturnValue({
+      top: 200,
+      bottom: 240,
+      left: 120,
+      right: 320,
+      width: 200,
+      height: 40,
+      x: 120,
+      y: 200,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.click(trigger);
+
+    // The position is measured in the click handler and the portal is gated on
+    // it, so opening commits the calendar already in place instead of painting
+    // it at the viewport origin first. jsdom cannot observe the intermediate
+    // frame; this pins the resulting placement.
+    const portal = screen.getByTestId("day-picker").closest(".fixed");
+    expect(portal).toHaveStyle({ top: "244px", left: "120px" });
+  });
+
   it("does not close calendar when clicking inside the calendar container", async () => {
     render(<DatePicker value={null} onChange={mockOnChange} />);
 

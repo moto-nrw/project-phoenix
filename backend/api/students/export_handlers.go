@@ -863,7 +863,11 @@ func exportIdentityFilterLabels(filters studentExportFilters, planningDate timez
 		labels = append(labels, "Klasse: "+strings.TrimSpace(filters.SchoolClass))
 	}
 	if filters.Status != "" && filters.Status != "all" {
-		labels = append(labels, "Momentaufnahme: "+exportStatusLabel(filters.Status))
+		// Only the location-derived buckets are a snapshot of right now; on a
+		// dated export the remaining ones (krank/klassenfahrt/entschuldigt) come
+		// from that day's status days, so calling them a Momentaufnahme would
+		// mislabel a plan (#1939).
+		labels = append(labels, dayLabel("Momentaufnahme: ", "Geplanter Status: ", isToday)+exportStatusLabel(filters.Status))
 	}
 	return labels
 }
