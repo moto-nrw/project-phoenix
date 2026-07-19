@@ -775,6 +775,7 @@ function CustomEditor({
                 {dayLabels[d]}
               </span>
               <input
+                aria-label={`Arbeitsstunden ${dayLabels[d]}`}
                 type="number"
                 min={0}
                 max={12}
@@ -807,6 +808,7 @@ function CustomEditor({
               <span className="text-xs text-gray-400">h</span>
               <div className="relative">
                 <select
+                  aria-label={`Arbeitsminuten ${dayLabels[d]}`}
                   value={mins}
                   onChange={(e) => {
                     const m = Number.parseInt(e.target.value, 10) || 0;

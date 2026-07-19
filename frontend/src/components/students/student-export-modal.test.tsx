@@ -71,14 +71,17 @@ describe("StudentExportModal", () => {
     ).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Export schließen" }));
-    expect(onClose).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
 
-    const dialog = await screen.findByRole("dialog");
-    fireEvent.mouseDown(dialog);
-    expect(onClose).toHaveBeenCalledTimes(2);
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Hintergrund - Klicken zum Schließen",
+      }),
+    );
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(2));
 
     fireEvent.keyDown(document, { key: "Escape" });
-    expect(onClose).toHaveBeenCalledTimes(3);
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(3));
   });
 
   it("updates title and active columns when a preset is selected", async () => {

@@ -37,7 +37,7 @@ vi.mock("~/lib/breadcrumb-context", () => ({
 
 vi.mock("~/components/ui/back-button", () => ({
   BackButton: ({ referrer }: { referrer: string }) => (
-    <button data-testid="back-button" data-referrer={referrer}>
+    <button type="button" data-testid="back-button" data-referrer={referrer}>
       Zurück
     </button>
   ),

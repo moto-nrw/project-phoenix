@@ -1,5 +1,6 @@
 import { type NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { createLogger } from "~/lib/logger";
 import { proxySSEStream } from "~/lib/sse-proxy.server";
 
@@ -16,7 +17,7 @@ export const runtime = "nodejs";
  * The streaming/abort/cleanup plumbing is shared with the parent portal via
  * proxySSEStream; only auth, the upstream path, and the logger differ here.
  */
-export async function GET(request: NextRequest) {
+async function GETHandler(request: NextRequest) {
   const session = await auth();
 
   if (!session?.user?.token) {
@@ -29,3 +30,5 @@ export async function GET(request: NextRequest) {
     logger,
   });
 }
+
+export const GET = withTenantAuth(GETHandler);

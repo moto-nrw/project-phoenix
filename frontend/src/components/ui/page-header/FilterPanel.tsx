@@ -399,11 +399,9 @@ export function FilterPanel({
           area (MOBILE_BOTTOM_NAV_CLEARANCE), so the panel never reaches it
           geometrically — z-index only resolves the FAB overlap. */}
       <div
-        role="dialog"
-        // No aria-modal in either placement: the backdrop is transparent and
-        // the page stays interactive (no dark scrim), so this is a non-modal
-        // dialog. Claiming aria-modal would wrongly tell screen readers the
-        // rest of the page is inert.
+        role="region"
+        // This is a dismissible filter region, not a modal: page content stays
+        // interactive and is not announced as inert to assistive technology.
         aria-label="Filter"
         data-testid={testId}
         style={panelStyle}

@@ -97,6 +97,7 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
         <div data-testid="tabs">
           {tabs.items.map((tab: any) => (
             <button
+              type="button"
               key={tab.id}
               data-testid={`tab-${tab.id}`}
               className={tabs.activeTab === tab.id ? "active" : ""}
@@ -126,7 +127,7 @@ vi.mock("~/components/ui/modal", () => ({
       <div data-testid="confirmation-modal">
         <h2>{title}</h2>
         {children}
-        <button data-testid="confirm-btn" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-btn" onClick={onConfirm}>
           Bestätigen
         </button>
       </div>

@@ -109,25 +109,31 @@ func (rs *Resource) studentEnrollmentExtraFieldsForChild(r *http.Request, schema
 	}
 	schema, err := rs.EnrollmentFormSchema.GetByID(r.Context(), schemaID)
 	if err != nil {
-		if rs.Logger != nil {
-			rs.Logger.Warn("failed to load enrollment schema for student extra fields",
-				"schema_id", schemaID,
-				"error", err.Error(),
-			)
-		}
+		rs.logEnrollmentSchemaLoadFailure(schemaID, err)
 		return nil, fmt.Errorf("load enrollment schema %d for student extra fields: %w", schemaID, err)
 	}
 	if schema == nil {
 		err := fmt.Errorf("enrollment schema %d not found", schemaID)
-		if rs.Logger != nil {
-			rs.Logger.Warn("failed to load enrollment schema for student extra fields",
-				"schema_id", schemaID,
-				"error", err.Error(),
-			)
-		}
+		rs.logEnrollmentSchemaLoadFailure(schemaID, err)
 		return nil, err
 	}
+	return enrollmentExtraFieldsFromSchema(schema, customData), nil
+}
 
+func (rs *Resource) logEnrollmentSchemaLoadFailure(schemaID int64, err error) {
+	if rs.Logger == nil {
+		return
+	}
+	rs.Logger.Warn("failed to load enrollment schema for student extra fields",
+		"schema_id", schemaID,
+		"error", err.Error(),
+	)
+}
+
+// enrollmentExtraFieldsFromSchema maps the child-applicable, populated fields of
+// a form schema to their response shape. Info blocks and fields not applicable
+// to children are skipped, as are keys absent from (or nil in) customData.
+func enrollmentExtraFieldsFromSchema(schema *enrollmentModels.FormSchema, customData map[string]any) []StudentEnrollmentExtraField {
 	out := make([]StudentEnrollmentExtraField, 0, len(schema.Fields))
 	for _, field := range schema.Fields {
 		if !field.AppliesToCh || field.Type == enrollmentModels.FormFieldInfo {
@@ -137,21 +143,25 @@ func (rs *Resource) studentEnrollmentExtraFieldsForChild(r *http.Request, schema
 		if !ok || value == nil {
 			continue
 		}
-		options := make([]StudentEnrollmentExtraFieldOption, 0, len(field.Options))
-		for _, option := range field.Options {
-			options = append(options, StudentEnrollmentExtraFieldOption{
-				Label: option.Label,
-				Value: option.Value,
-			})
-		}
 		out = append(out, StudentEnrollmentExtraField{
 			Key:     field.Key,
 			Label:   field.Label,
 			Type:    string(field.Type),
 			Target:  field.Target,
-			Options: options,
+			Options: enrollmentExtraFieldOptions(field.Options),
 			Value:   value,
 		})
 	}
-	return out, nil
+	return out
+}
+
+func enrollmentExtraFieldOptions(fieldOptions []enrollmentModels.FormFieldOption) []StudentEnrollmentExtraFieldOption {
+	options := make([]StudentEnrollmentExtraFieldOption, 0, len(fieldOptions))
+	for _, option := range fieldOptions {
+		options = append(options, StudentEnrollmentExtraFieldOption{
+			Label: option.Label,
+			Value: option.Value,
+		})
+	}
+	return options
 }

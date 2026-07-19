@@ -23,6 +23,7 @@ import {
 } from "~/lib/parent-api";
 import { parentThreadPreviewI18nDescriptor } from "~/lib/messaging-status";
 import { createLogger } from "~/lib/logger";
+import { formatLocalizedDate } from "~/lib/localized-date-format";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import {
   type ChildCare,
@@ -99,15 +100,7 @@ function formatDate(
   t: ChildDetailTranslator,
 ): string {
   if (!iso) return t("open");
-  try {
-    return new Intl.DateTimeFormat(locale, {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    }).format(new Date(iso));
-  } catch {
-    return iso;
-  }
+  return formatLocalizedDate(iso, locale);
 }
 
 function getServiceRange(

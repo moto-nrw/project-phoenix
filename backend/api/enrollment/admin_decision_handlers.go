@@ -321,19 +321,27 @@ func (rs *Resource) toAdminRequestDetailSummary(ctx context.Context, summary *en
 
 	if rs.DecisionService != nil {
 		if childOfferings, err := rs.DecisionService.ListChildOfferings(ctx, summary.Request.ID); err == nil {
-			for i := range detail.Children {
-				if i >= len(summary.Children) {
-					continue
-				}
-				rows := childOfferings[summary.Children[i].ID]
-				if len(rows) == 0 {
-					continue
-				}
-				detail.Children[i].Offerings = toAdminChildOfferings(rows)
-			}
+			attachChildOfferings(detail.Children, summary.Children, childOfferings)
 		}
 	}
 	return detail
+}
+
+// attachChildOfferings fills the per-child Offerings slices in place from
+// the request's care-offering rows, matching admin children to summary
+// children positionally. Children beyond the summary or without rows are
+// left untouched.
+func attachChildOfferings(children []AdminRequestChild, summaryChildren []*enrollmentModels.RequestChild, childOfferings map[int64][]enrollmentService.ChildOfferingRow) {
+	for i := range children {
+		if i >= len(summaryChildren) {
+			continue
+		}
+		rows := childOfferings[summaryChildren[i].ID]
+		if len(rows) == 0 {
+			continue
+		}
+		children[i].Offerings = toAdminChildOfferings(rows)
+	}
 }
 
 func toAdminSchemaMetadata(fs *enrollmentModels.FormSchema) ([]AdminRequestSchemaField, []AdminRequestSchemaLegalBlock) {
@@ -393,64 +401,15 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 	}
 
 	claims := jwt.ClaimsFromCtx(r.Context())
-	reviewedBy := int64(claims.ID)
-
-	var err error
-	var outcome *enrollmentService.DecideOutcome
-	for attempt := 0; attempt < 2; attempt++ {
-		outcome = nil
-		decisionBodySucceeded := false
-		err = rs.runInTenantTx(r, func(ctx context.Context) error {
-			out, e := rs.DecisionService.Decide(ctx, enrollmentService.DecideInput{
-				RequestID:  requestID,
-				ChildID:    childID,
-				Status:     enrollmentService.DecisionStatus(body.Status),
-				Reason:     body.Reason,
-				ReviewedBy: reviewedBy,
-			})
-			if e != nil {
-				return e
-			}
-			outcome = out
-			decisionBodySucceeded = true
-			return nil
-		})
-		if err == nil {
-			break
-		}
-		if reqErr := r.Context().Err(); reqErr != nil {
-			err = reqErr
-			break
-		}
-		if decisionBodySucceeded || !common.IsTransientDatabaseError(err) || attempt == 1 {
-			break
-		}
-		slog.WarnContext(r.Context(), "transient enrollment decision failure, retrying",
-			slog.Int64("request_id", requestID),
-			slog.Int64("child_id", childID),
-			slog.String("error", err.Error()),
-		)
-	}
+	outcome, err := rs.decideChildWithRetry(r, enrollmentService.DecideInput{
+		RequestID:  requestID,
+		ChildID:    childID,
+		Status:     enrollmentService.DecisionStatus(body.Status),
+		Reason:     body.Reason,
+		ReviewedBy: int64(claims.ID),
+	})
 	if err != nil {
-		switch {
-		case errors.Is(err, context.Canceled):
-			common.RenderError(w, r, common.ErrorClientClosed(err))
-		case errors.Is(err, context.DeadlineExceeded):
-			common.RenderError(w, r, common.ErrorRequestTimeout(err))
-		case errors.Is(err, enrollmentService.ErrDecisionChildNotFound),
-			errors.Is(err, enrollmentService.ErrDecisionRequestNotFound):
-			common.RenderError(w, r, common.ErrorNotFound(err))
-		case errors.Is(err, enrollmentService.ErrDecisionInvalidStatus),
-			errors.Is(err, enrollmentService.ErrDecisionAlreadyTerminal),
-			errors.Is(err, enrollmentService.ErrDecisionInvalidData):
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-		case errors.Is(err, enrollmentService.ErrWaitlistDisabled):
-			common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.waitlist_disabled"))
-		case common.IsTransientDatabaseError(err):
-			common.RenderError(w, r, common.ErrorServiceUnavailable(err))
-		default:
-			common.RenderError(w, r, common.ErrorInternalServer(err))
-		}
+		renderDecideError(w, r, err)
 		return
 	}
 
@@ -462,21 +421,89 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		go rs.dispatchPostDecisionInvite(r.Context(), outcome.PendingInvite)
 	}
 
-	updated := outcome.Child
-	common.Respond(w, r, http.StatusOK, AdminRequestChild{
-		ID:                strconv.FormatInt(updated.ID, 10),
-		FirstName:         updated.FirstName,
-		LastName:          updated.LastName,
-		DateOfBirth:       updated.DateOfBirth.String(),
-		TargetGradeLevel:  updated.TargetGradeLevel,
-		TargetSchoolClass: updated.TargetSchoolClass,
-		Status:            updated.Status,
-		StatusReason:      updated.StatusReason,
-		ReviewedAt:        updated.ReviewedAt,
-		ReviewedBy:        updated.ReviewedBy,
-		ActivationMode:    updated.ActivationMode,
-		CreatedStudentID:  optionalInt64String(updated.CreatedStudentID),
-	}, "Decision applied")
+	common.Respond(w, r, http.StatusOK, newAdminRequestChild(outcome.Child), "Decision applied")
+}
+
+// decideChildWithRetry runs the decision inside a tenant transaction,
+// retrying once on a transient database error when the decision body has
+// not yet committed. A cancelled/expired request context stops the retry
+// loop and surfaces the context error.
+func (rs *Resource) decideChildWithRetry(r *http.Request, input enrollmentService.DecideInput) (*enrollmentService.DecideOutcome, error) {
+	var err error
+	var outcome *enrollmentService.DecideOutcome
+	for attempt := 0; attempt < 2; attempt++ {
+		outcome = nil
+		decisionBodySucceeded := false
+		err = rs.runInTenantTx(r, func(ctx context.Context) error {
+			out, e := rs.DecisionService.Decide(ctx, input)
+			if e != nil {
+				return e
+			}
+			outcome = out
+			decisionBodySucceeded = true
+			return nil
+		})
+		if err == nil {
+			break
+		}
+		if reqErr := r.Context().Err(); reqErr != nil {
+			return outcome, reqErr
+		}
+		if decisionBodySucceeded || !common.IsTransientDatabaseError(err) || attempt == 1 {
+			break
+		}
+		slog.WarnContext(r.Context(), "transient enrollment decision failure, retrying",
+			slog.Int64("request_id", input.RequestID),
+			slog.Int64("child_id", input.ChildID),
+			slog.String("error", err.Error()),
+		)
+	}
+	return outcome, err
+}
+
+// renderDecideError maps a decision failure to its HTTP status. Context
+// cancellation/timeout and transient DB errors get their own codes so the
+// frontend can distinguish a retryable failure from a terminal one.
+func renderDecideError(w http.ResponseWriter, r *http.Request, err error) {
+	switch {
+	case errors.Is(err, context.Canceled):
+		common.RenderError(w, r, common.ErrorClientClosed(err))
+	case errors.Is(err, context.DeadlineExceeded):
+		common.RenderError(w, r, common.ErrorRequestTimeout(err))
+	case errors.Is(err, enrollmentService.ErrDecisionChildNotFound),
+		errors.Is(err, enrollmentService.ErrDecisionRequestNotFound):
+		common.RenderError(w, r, common.ErrorNotFound(err))
+	case errors.Is(err, enrollmentService.ErrDecisionInvalidStatus),
+		errors.Is(err, enrollmentService.ErrDecisionAlreadyTerminal),
+		errors.Is(err, enrollmentService.ErrDecisionInvalidData):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+	case errors.Is(err, enrollmentService.ErrWaitlistDisabled):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, "enrollment.waitlist_disabled"))
+	case common.IsTransientDatabaseError(err):
+		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
+	default:
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+	}
+}
+
+// newAdminRequestChild maps a decided child model onto the wire shape
+// returned by the decide endpoint (no CustomData / Offerings — those are
+// detail-endpoint concerns).
+func newAdminRequestChild(child *enrollmentModels.RequestChild) AdminRequestChild {
+	return AdminRequestChild{
+		ID:                strconv.FormatInt(child.ID, 10),
+		FirstName:         child.FirstName,
+		LastName:          child.LastName,
+		DateOfBirth:       child.DateOfBirth.String(),
+		TargetGradeLevel:  child.TargetGradeLevel,
+		TargetSchoolClass: child.TargetSchoolClass,
+		Status:            child.Status,
+		StatusReason:      child.StatusReason,
+		ReviewedAt:        child.ReviewedAt,
+		ReviewedBy:        child.ReviewedBy,
+		ActivationMode:    child.ActivationMode,
+		CreatedStudentID:  optionalInt64String(child.CreatedStudentID),
+	}
 }
 
 type AdminUpdateOfferingsRequest struct {

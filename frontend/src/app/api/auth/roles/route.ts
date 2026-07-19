@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -44,7 +45,7 @@ interface CreateRoleRequest {
   permissions?: number[]; // Permission IDs to associate with the role
 }
 
-export async function GET(request: NextRequest) {
+async function GETHandler(request: NextRequest) {
   try {
     const session = await auth();
 
@@ -88,7 +89,9 @@ export async function GET(request: NextRequest) {
   }
 }
 
-export async function POST(request: NextRequest) {
+export const GET = withTenantAuth(GETHandler);
+
+async function POSTHandler(request: NextRequest) {
   try {
     const session = await auth();
 
@@ -128,3 +131,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withTenantAuth(POSTHandler);

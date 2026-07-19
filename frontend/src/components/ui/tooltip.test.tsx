@@ -20,11 +20,13 @@ describe("Tooltip", () => {
     const trigger = screen
       .getByText("Inhalt")
       .closest<HTMLElement>("[tabindex]");
-    expect(trigger).toHaveAttribute("tabindex", "0");
 
-    trigger?.focus();
+    if (!trigger) throw new Error("Tooltip trigger was not rendered");
+    expect(trigger).toHaveAttribute("tabindex", "0");
+    expect(trigger?.tagName).toBe("SPAN");
+    trigger.focus();
     expect(trigger).toHaveFocus();
-    fireEvent.keyDown(trigger!, { key: "Escape" });
+    fireEvent.keyDown(trigger, { key: "Escape" });
     expect(trigger).not.toHaveFocus();
   });
 });

@@ -38,17 +38,30 @@ const PAST_BOUNDARY_REFETCH_MS = 500;
 // the wrong instant. Intl resolves the offset — including DST — for us.
 const BERLIN_TIME_ZONE = "Europe/Berlin";
 
+const BERLIN_TIME_PARTS_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  timeZone: BERLIN_TIME_ZONE,
+  hour12: false,
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
+const BERLIN_DATE_TIME_PARTS_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  timeZone: BERLIN_TIME_ZONE,
+  hour12: false,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
 // berlinSecondsOfDay returns the current wall-clock time in Europe/Berlin as
 // seconds since local midnight (0..86399), independent of the browser's own
 // timezone.
 function berlinSecondsOfDay(now: Date): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: BERLIN_TIME_ZONE,
-    hour12: false,
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(now);
+  const parts = BERLIN_TIME_PARTS_FORMATTER.formatToParts(now);
   const value = (type: string) =>
     Number(parts.find((p) => p.type === type)?.value ?? "0");
   // Some engines render midnight as "24" under hour12:false; normalize to 0.
@@ -67,16 +80,7 @@ function berlinSecondsOfDay(now: Date): number {
 // silently falling back to no DST correction (which would fire the refetch ~1h
 // off on the two transition nights per year).
 function berlinUtcOffsetSeconds(at: Date): number {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: BERLIN_TIME_ZONE,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(at);
+  const parts = BERLIN_DATE_TIME_PARTS_FORMATTER.formatToParts(at);
   const value = (type: string) =>
     Number(parts.find((p) => p.type === type)?.value ?? "0");
   // Some engines render midnight as "24" under hour12:false; normalize to 0.
@@ -146,6 +150,34 @@ function nextChangeDelay(hhmm: string): NextChangeDelay | null {
   return {
     delayMs: realDeltaSec * 1000 + NEXT_CHANGE_BUFFER_MS,
     inFuture: true,
+  };
+}
+
+function scheduleNextChangeRefresh(
+  nextChangeAt: string,
+  refresh: () => unknown,
+): () => void {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const arm = (isReArm: boolean) => {
+    const next = nextChangeDelay(nextChangeAt);
+    if (next === null) return;
+    if (!next.inFuture) {
+      if (!isReArm) {
+        timer = setTimeout(() => {
+          void refresh();
+        }, next.delayMs);
+      }
+      return;
+    }
+    timer = setTimeout(() => {
+      void refresh();
+      arm(true);
+    }, next.delayMs);
+  };
+
+  arm(false);
+  return () => {
+    if (timer) clearTimeout(timer);
   };
 }
 
@@ -219,32 +251,7 @@ export function useReminders() {
   // 60s poll once the tab is visible again.
   useEffect(() => {
     if (!enabled || !nextChangeAt) return;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const arm = (isReArm: boolean) => {
-      const next = nextChangeDelay(nextChangeAt);
-      if (next === null) return;
-      if (!next.inFuture) {
-        // The boundary is already in the past. On the initial arm (clock skew,
-        // or mounting at the exact minute) refetch once soon. When reached via a
-        // re-arm after a fire, the just-fired mutate already covered this
-        // occurrence — scheduling another would busy-refetch a perpetually-past
-        // value, so stop and let the refreshed response re-arm via the effect.
-        if (!isReArm) {
-          timer = setTimeout(() => {
-            void mutate();
-          }, next.delayMs);
-        }
-        return;
-      }
-      timer = setTimeout(() => {
-        void mutate();
-        arm(true);
-      }, next.delayMs);
-    };
-    arm(false);
-    return () => {
-      if (timer) clearTimeout(timer);
-    };
+    return scheduleNextChangeRefresh(nextChangeAt, mutate);
   }, [enabled, nextChangeAt, mutate]);
 
   return {

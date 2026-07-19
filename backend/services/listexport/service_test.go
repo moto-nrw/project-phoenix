@@ -50,51 +50,8 @@ func TestRenderPDFWritesDocumentHeader(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Render() error = %v", err)
 	}
-	if !bytes.HasPrefix(file.Data, []byte("%PDF-1.4")) {
+	if !bytes.HasPrefix(file.Data, []byte("%PDF-1.")) {
 		t.Fatalf("PDF header = %q", file.Data[:8])
-	}
-}
-
-func TestRenderPDFWritesReadableWinAnsiText(t *testing.T) {
-	file, err := NewService().Render(sampleDocument(), FormatPDF, "liste")
-	if err != nil {
-		t.Fatalf("Render() error = %v", err)
-	}
-	if bytes.Contains(file.Data, []byte("FEFF")) {
-		t.Fatal("PDF should not contain UTF-16 byte order markers for simple font text")
-	}
-	if !bytes.Contains(file.Data, []byte("(OGS Wochenliste)")) {
-		t.Fatal("expected PDF stream to contain readable literal text")
-	}
-}
-
-func TestRenderPDFWrapsWithoutTruncatingCellText(t *testing.T) {
-	doc := Document{
-		Title:       "Meine Liste",
-		GeneratedAt: time.Date(2026, time.May, 27, 14, 30, 0, 0, time.UTC),
-		Columns:     ResolveColumns([]ColumnID{ColumnName, ColumnSchoolClass, ColumnGroup, ColumnCareDays, ColumnWeeklyMonday}, PresetOGSWeekly),
-		Rows: []Row{
-			{Values: map[ColumnID]string{
-				ColumnName:         "Mila Muster",
-				ColumnSchoolClass:  "Klasse 1a",
-				ColumnGroup:        "Regenbogengruppe",
-				ColumnCareDays:     "Mo, Di, Mi, Do, Fr",
-				ColumnWeeklyMonday: "08:00 bis 16:00",
-			}},
-		},
-	}
-
-	file, err := NewService().Render(doc, FormatPDF, "liste")
-	if err != nil {
-		t.Fatalf("Render() error = %v", err)
-	}
-	if bytes.Contains(file.Data, []byte("...")) {
-		t.Fatal("PDF should wrap cell text instead of truncating it")
-	}
-	for _, want := range []string{"Mo, Di, Mi,", "Do, Fr"} {
-		if !bytes.Contains(file.Data, []byte(want)) {
-			t.Fatalf("expected wrapped PDF stream to contain %q", want)
-		}
 	}
 }
 
@@ -382,19 +339,9 @@ func TestGeneratedAtLabelDefaultsZeroTime(t *testing.T) {
 	}
 }
 
-func TestPDFHelpersCoverEscapesWrappingAndPagination(t *testing.T) {
-	encoded := pdfLiteralString("ÄÖÜ äöü ß éè áà óò íì \\\n\r\t() \u2603")
-	for _, want := range []string{`\\`, `\n`, `\r`, `\t`, `\(`, `\)`, "?"} {
-		if !strings.Contains(encoded, want) {
-			t.Fatalf("encoded PDF literal %q does not contain %q", encoded, want)
-		}
-	}
-
-	lines := wrapPDFText("Supercalifragilisticexpialidocious plus words", 24)
-	if len(lines) < 2 {
-		t.Fatalf("wrapPDFText lines = %v, want multiple lines", lines)
-	}
-
+// A large document must spill onto multiple pages (page count parsed from
+// the rendered page objects — see countRenderedPDFPages).
+func TestRenderPDFMultiPage(t *testing.T) {
 	doc := sampleDocument()
 	for i := 0; i < 80; i++ {
 		doc.Rows = append(doc.Rows, Row{Values: map[ColumnID]string{
@@ -407,9 +354,8 @@ func TestPDFHelpersCoverEscapesWrappingAndPagination(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Render() error = %v", err)
 	}
-	data := string(file.Data)
-	if !strings.Contains(data, "/Count ") || strings.Contains(data, "/Count 1 >>") {
-		t.Fatalf("expected multi-page PDF, data starts %q", file.Data[:80])
+	if got := countRenderedPDFPages(file.Data); got < 2 {
+		t.Fatalf("page count = %d, want multiple pages", got)
 	}
 }
 

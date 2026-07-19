@@ -272,6 +272,7 @@ function OperatorSettingsContent() {
             {isEditing ? (
               <>
                 <button
+                  type="button"
                   onClick={() => {
                     setIsEditing(false);
                     if (profileData) {
@@ -291,6 +292,7 @@ function OperatorSettingsContent() {
                   Abbrechen
                 </button>
                 <button
+                  type="button"
                   onClick={() => void handleSaveProfile()}
                   disabled={isSaving}
                   className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100 disabled:opacity-50 disabled:hover:scale-100"
@@ -300,6 +302,7 @@ function OperatorSettingsContent() {
               </>
             ) : (
               <button
+                type="button"
                 onClick={() => setIsEditing(true)}
                 className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100"
               >
@@ -319,6 +322,7 @@ function OperatorSettingsContent() {
             Sicherheit.
           </p>
           <button
+            type="button"
             onClick={() => setShowPasswordModal(true)}
             className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-all duration-200 hover:scale-105 hover:bg-gray-700 hover:shadow-lg active:scale-100"
           >
@@ -347,10 +351,6 @@ function OperatorSettingsContent() {
         ref={emailDialogRef}
         aria-labelledby="email-change-title"
         onClose={handleCloseEmailDialog}
-        onClick={(e) => {
-          if (e.target === e.currentTarget) handleCloseEmailDialog();
-        }}
-        onKeyDown={() => {}}
         className="m-auto w-full max-w-md rounded-2xl bg-white p-6 shadow-xl backdrop:bg-black/50"
       >
         {showEmailChangeDialog && (

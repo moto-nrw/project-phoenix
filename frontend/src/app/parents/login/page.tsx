@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- parent routes are not tenant-scoped
-import { useRouter } from "next/navigation";
+import { redirect, useRouter } from "next/navigation";
 import { signIn, signOut, useSession } from "next-auth/react";
 import { useTranslations } from "next-intl";
 import { Alert } from "~/components/ui/alert";
@@ -42,9 +42,13 @@ export default function ParentLoginPage() {
   const isRedirectingToParent =
     status === "authenticated" &&
     session?.user?.scope === "parent" &&
-    Boolean(session.user.token);
+    Boolean(session.user.token) &&
+    session.error === undefined;
   const isSessionSettling =
-    status === "loading" || isCleaningUp || isRedirectingToParent;
+    status === "loading" ||
+    isCleaningUp ||
+    isRedirectingToParent ||
+    (status === "authenticated" && session?.error !== undefined);
 
   // Redirect if already authenticated as parent, or clear stale sessions.
   useEffect(() => {
@@ -64,17 +68,13 @@ export default function ParentLoginPage() {
         setIsCleaningUp(false);
         return;
       }
-
-      if (
-        status === "authenticated" &&
-        session?.user?.scope === "parent" &&
-        session?.user?.token
-      ) {
-        router.push(parentPath("/parents"));
-      }
     };
     void check();
-  }, [status, session, router]);
+  }, [status, session]);
+
+  if (isRedirectingToParent) {
+    redirect(parentPath("/parents"));
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

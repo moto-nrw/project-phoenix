@@ -10,6 +10,7 @@ import (
 // AccountRepository defines operations for managing accounts
 type AccountRepository interface {
 	base.CRUDRepository[*Account]
+	FindByIDForUpdate(ctx context.Context, id int64) (*Account, error)
 	FindByEmail(ctx context.Context, email string) (*Account, error)
 	FindByUsername(ctx context.Context, username string) (*Account, error)
 	UpdateLastLogin(ctx context.Context, id int64) error
@@ -134,6 +135,8 @@ type TokenRepository interface {
 	base.CRUDRepository[*Token]
 	FindByToken(ctx context.Context, token string) (*Token, error)
 	FindByTokenForUpdate(ctx context.Context, token string) (*Token, error)
+	MarkRotated(ctx context.Context, id int64, replacementToken string, recoveryProofHash []byte, rotatedAt time.Time) error
+	DeleteExpiredRotatedForAccount(ctx context.Context, accountID int64, now time.Time) error
 	FindByAccountID(ctx context.Context, accountID int64) ([]*Token, error)
 	DeleteExpiredTokens(ctx context.Context) (int, error)
 	DeleteByAccountID(ctx context.Context, accountID int64) error

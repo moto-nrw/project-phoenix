@@ -125,7 +125,11 @@ vi.mock("~/components/ui/page-header/PageHeaderWithSearch", () => ({
           )) ?? <option value="all">All</option>}
         </select>
       ))}
-      <button data-testid="clear-filters" onClick={onClearAllFilters}>
+      <button
+        type="button"
+        data-testid="clear-filters"
+        onClick={onClearAllFilters}
+      >
         Clear
       </button>
       {actionButton}
@@ -171,6 +175,7 @@ vi.mock("@/components/students/students-master-detail", () => ({
       {students.map((s) => (
         <div key={s.id} data-testid={`student-entry-${s.id}`}>
           <button
+            type="button"
             data-testid={`student-row-${s.id}`}
             onClick={() => onSelect(String(s.id))}
           >
@@ -188,6 +193,7 @@ vi.mock("@/components/students/students-master-detail", () => ({
         <div data-testid="student-detail-panel">
           <span data-testid="detail-selected-id">{selectedId}</span>
           <button
+            type="button"
             data-testid="trigger-update"
             onClick={() =>
               void onUpdateStudent(selectedId, {
@@ -198,7 +204,11 @@ vi.mock("@/components/students/students-master-detail", () => ({
           >
             Save
           </button>
-          <button data-testid="trigger-deselect" onClick={() => onSelect(null)}>
+          <button
+            type="button"
+            data-testid="trigger-deselect"
+            onClick={() => onSelect(null)}
+          >
             Close
           </button>
           <div data-testid="detail-actions">{detailActions}</div>
@@ -229,6 +239,7 @@ vi.mock("@/components/students/student-create-modal", () => ({
     isOpen ? (
       <div data-testid="student-create-modal">
         <button
+          type="button"
           data-testid="submit-create"
           onClick={() =>
             void onCreate({ first_name: "New", second_name: "Student" })
@@ -237,6 +248,7 @@ vi.mock("@/components/students/student-create-modal", () => ({
           Submit
         </button>
         <button
+          type="button"
           data-testid="submit-create-with-guardians"
           onClick={() =>
             void onCreate({
@@ -248,7 +260,11 @@ vi.mock("@/components/students/student-create-modal", () => ({
         >
           Submit with guardians
         </button>
-        <button data-testid="close-create-modal" onClick={onClose}>
+        <button
+          type="button"
+          data-testid="close-create-modal"
+          onClick={onClose}
+        >
           Close
         </button>
       </div>
@@ -267,10 +283,10 @@ vi.mock("~/components/ui/modal", () => ({
   }) =>
     isOpen ? (
       <div data-testid="confirmation-modal">
-        <button data-testid="confirm-delete" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-delete" onClick={onConfirm}>
           Confirm
         </button>
-        <button data-testid="cancel-delete" onClick={onClose}>
+        <button type="button" data-testid="cancel-delete" onClick={onClose}>
           Cancel
         </button>
       </div>

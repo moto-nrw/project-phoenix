@@ -79,6 +79,10 @@ func (m *trackingMockActiveService) HasOpenAttendanceOn(_ context.Context, _ tim
 	return false, nil
 }
 
+func (m *trackingMockActiveService) ConfirmDailyCheckout(_ context.Context, _, _ int64, _ string) (*activeSvc.DailyCheckoutResult, error) {
+	return nil, nil
+}
+
 func (m *trackingMockActiveService) GetTrackingIndicators(ctx context.Context, studentIDs []int64, labels []string) (map[int64][]bool, error) {
 	if m.getTrackingIndicatorsFunc != nil {
 		return m.getTrackingIndicatorsFunc(ctx, studentIDs, labels)

@@ -1,14 +1,9 @@
 "use client";
 
-import { useEffect } from "react";
-import { useTenantRouter } from "~/lib/tenant-router";
+import { redirect } from "next/navigation";
+import { useTenantAwarePath } from "~/lib/tenant-path";
 
 export default function InvitationsRedirectPage() {
-  const router = useTenantRouter();
-
-  useEffect(() => {
-    router.replace("/database/personal");
-  }, [router]);
-
-  return null;
+  const tenantPath = useTenantAwarePath();
+  return redirect(tenantPath("/database/personal"));
 }

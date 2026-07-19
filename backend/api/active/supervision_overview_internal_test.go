@@ -60,6 +60,10 @@ func (s *stubActiveService) HasOpenAttendanceOn(_ context.Context, _ timezone.Da
 	return false, nil
 }
 
+func (s *stubActiveService) ConfirmDailyCheckout(_ context.Context, _, _ int64, _ string) (*activeSvc.DailyCheckoutResult, error) {
+	return nil, nil
+}
+
 func (s *stubActiveService) ListActiveGroups(ctx context.Context, options *base.QueryOptions) ([]*activeModel.Group, error) {
 	if s.listActiveGroupsFunc != nil {
 		return s.listActiveGroupsFunc(ctx, options)

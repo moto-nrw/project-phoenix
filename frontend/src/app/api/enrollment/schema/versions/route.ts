@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -13,7 +14,7 @@ async function bearerHeader() {
   return `Bearer ${token}`;
 }
 
-export async function GET(_request: NextRequest) {
+async function GETHandler(_request: NextRequest) {
   const authHeader = await bearerHeader();
   if (!authHeader) {
     return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
@@ -35,3 +36,5 @@ export async function GET(_request: NextRequest) {
     );
   }
 }
+
+export const GET = withTenantAuth(GETHandler);

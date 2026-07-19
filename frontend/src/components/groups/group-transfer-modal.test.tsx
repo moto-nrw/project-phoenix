@@ -22,7 +22,7 @@ vi.mock("~/components/ui/modal", () => ({
     isOpen ? (
       <div data-testid="modal">
         <h2>{title}</h2>
-        <button onClick={onClose} data-testid="modal-close">
+        <button type="button" onClick={onClose} data-testid="modal-close">
           Close
         </button>
         {children}
@@ -170,10 +170,8 @@ describe("GroupTransferModal", () => {
       />,
     );
 
-    await waitFor(() => {
-      const select = screen.getByRole("combobox");
-      fireEvent.change(select, { target: { value: "p1" } });
-    });
+    const select = await screen.findByRole("combobox");
+    fireEvent.change(select, { target: { value: "p1" } });
 
     const transferButton = screen.getByText("Übergeben");
     fireEvent.click(transferButton);
@@ -213,10 +211,8 @@ describe("GroupTransferModal", () => {
       />,
     );
 
-    await waitFor(() => {
-      const select = screen.getByRole("combobox");
-      fireEvent.change(select, { target: { value: "p1" } });
-    });
+    const select = await screen.findByRole("combobox");
+    fireEvent.change(select, { target: { value: "p1" } });
 
     const transferButton = screen.getByText("Übergeben");
     fireEvent.click(transferButton);
@@ -239,10 +235,8 @@ describe("GroupTransferModal", () => {
       />,
     );
 
-    await waitFor(() => {
-      const removeButton = screen.getByText("Entfernen");
-      fireEvent.click(removeButton);
-    });
+    const removeButton = await screen.findByText("Entfernen");
+    fireEvent.click(removeButton);
 
     await waitFor(() => {
       expect(mockOnCancelTransfer).toHaveBeenCalledWith("s1");
@@ -299,10 +293,8 @@ describe("GroupTransferModal", () => {
       );
 
       // Select a user
-      await waitFor(() => {
-        const select = screen.getByRole("combobox");
-        fireEvent.change(select, { target: { value: "p1" } });
-      });
+      const select = await screen.findByRole("combobox");
+      fireEvent.change(select, { target: { value: "p1" } });
 
       const transferButton = screen.getByText("Übergeben");
       fireEvent.click(transferButton);

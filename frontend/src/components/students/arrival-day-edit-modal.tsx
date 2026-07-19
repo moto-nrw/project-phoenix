@@ -258,6 +258,7 @@ export function ArrivalDayEditModal({
               </label>
               {!markAbsent ? (
                 <input
+                  aria-label="Abweichende Ankunftszeit"
                   type="time"
                   value={arrivalTime}
                   onChange={(e) => setArrivalTime(e.target.value)}
@@ -366,6 +367,7 @@ export function ArrivalDayEditModal({
                   {editingNoteId === note.id ? (
                     <div className="flex-1 space-y-2">
                       <textarea
+                        aria-label="Ankunftsnotiz bearbeiten"
                         value={editingNoteContent}
                         onChange={(e) => setEditingNoteContent(e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-[#83CD2D] focus:ring-1 focus:ring-[#83CD2D] focus:outline-none"

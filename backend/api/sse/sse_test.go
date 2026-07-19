@@ -39,10 +39,7 @@ func setupTestContext(t *testing.T) *testContext {
 	// Create SSE resource with all dependencies
 	resource := sseAPI.NewResource(
 		hub,
-		svc.Active,
-		svc.Users,
 		svc.UserContext,
-		svc.Settings,
 		db,
 		slog.Default(),
 	)

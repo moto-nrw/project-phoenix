@@ -227,6 +227,7 @@ function ApiKeySection({ apiKey }: { apiKey: string }) {
       <div className="space-y-2">
         <div className="flex items-center gap-2">
           <input
+            aria-label="API-Schlüssel"
             type={revealed ? "text" : "password"}
             value={apiKey}
             readOnly

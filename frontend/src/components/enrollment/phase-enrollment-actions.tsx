@@ -111,6 +111,7 @@ export function LateInviteModal({
             </p>
             <div className="mt-3 flex items-center gap-2">
               <input
+                aria-label="Erstellter Nachzügler-Link"
                 readOnly
                 value={generatedUrl}
                 className="min-w-0 flex-1 rounded-lg border-0 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm ring-1 ring-[#83CD2D]/30 ring-inset"
@@ -245,6 +246,7 @@ export function ManualApprovedEnrollmentModal({
             </p>
             <div className="mt-3 flex items-center gap-2">
               <input
+                aria-label="Statuslink der manuellen Anmeldung"
                 readOnly
                 value={statusUrl}
                 className="min-w-0 flex-1 rounded-lg border-0 bg-white px-3 py-2 text-xs text-gray-700 shadow-sm ring-1 ring-[#83CD2D]/30 ring-inset"

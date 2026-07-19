@@ -226,7 +226,9 @@ function UnregisteredTagsTable({
                 </td>
                 <td className="px-4 py-3 text-gray-600">
                   <span
-                    title={new Date(scan.scannedAt).toLocaleString("de-DE")}
+                    title={new Date(scan.scannedAt).toLocaleString("de-DE", {
+                      timeZone: "Europe/Berlin",
+                    })}
                   >
                     {getRelativeTime(scan.scannedAt)}
                   </span>

@@ -184,7 +184,9 @@ func ParseStructToMap(c any) (map[string]any, error) {
 // CreateRefreshJWT returns a refresh token for provided token Claims.
 func (a *TokenAuth) CreateRefreshJWT(c RefreshClaims) (string, error) {
 	c.IssuedAt = time.Now().Unix()
-	c.ExpiresAt = time.Now().Add(a.JwtRefreshExpiry).Unix()
+	if c.ExpiresAt <= 0 {
+		c.ExpiresAt = time.Now().Add(a.JwtRefreshExpiry).Unix()
+	}
 
 	claims, err := ParseStructToMap(c)
 	if err != nil {

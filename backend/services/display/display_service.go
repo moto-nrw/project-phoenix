@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -427,6 +428,7 @@ func buildRunningActivities(
 		}
 
 		running = append(running, RunningActivity{
+			ID:           strconv.FormatInt(g.ID, 10),
 			Name:         name,
 			Category:     category,
 			RoomName:     roomNames[g.RoomID],
@@ -469,6 +471,7 @@ func buildUpcomingActivities(
 		}
 
 		upcoming = append(upcoming, UpcomingActivity{
+			ID:        strconv.FormatInt(inst.ID, 10),
 			Name:      inst.Title,
 			Category:  category,
 			StartTime: inst.StartTime.Format("15:04"),

@@ -135,7 +135,7 @@ vi.mock("~/components/ui/modal", () => ({
       <div data-testid="confirmation-modal">
         <h2>{title}</h2>
         {children}
-        <button data-testid="confirm-btn" onClick={onConfirm}>
+        <button type="button" data-testid="confirm-btn" onClick={onConfirm}>
           Bestätigen
         </button>
       </div>

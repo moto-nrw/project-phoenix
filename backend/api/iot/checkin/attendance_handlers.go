@@ -187,74 +187,23 @@ func (rs *AttendanceResource) handleDailyCheckout(w http.ResponseWriter, r *http
 		return
 	}
 
-	slog.Default().InfoContext(r.Context(), "confirming daily checkout",
-		slog.Int64("student_id", student.ID),
-		slog.String("destination", *req.Destination),
-	)
-
-	// Verify the student has an attendance record for today.
-	// Without one, daily checkout makes no sense — the student was never checked in.
-	currentStatus, err := rs.ActiveService.GetStudentAttendanceStatus(r.Context(), student.ID)
+	// Process the daily-checkout state machine in the active service.
+	result, err := rs.ActiveService.ConfirmDailyCheckout(r.Context(), student.ID, deviceID, *req.Destination)
 	if err != nil {
-		slog.Default().ErrorContext(r.Context(), "failed to get attendance status",
-			slog.Int64("student_id", student.ID),
-			slog.String("error", err.Error()),
-		)
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
-	}
-	if currentStatus.Status != "checked_in" && currentStatus.Status != "checked_out" {
-		slog.Default().ErrorContext(r.Context(), "student has no attendance record for today",
-			slog.Int64("student_id", student.ID),
-			slog.String("status", currentStatus.Status),
-		)
-		common.RenderError(w, r, common.ErrorNotFound(
-			errors.New("student has no attendance record for today")))
-		return
-	}
-
-	// Only update attendance when student is going home ("zuhause").
-	// "unterwegs" means they stay in transit — no attendance change needed.
-	if *req.Destination == "zuhause" {
-		// Guard against a race where attendance was already changed
-		// (e.g., teacher manually checked out) between scan and "nach Hause" click.
-		switch currentStatus.Status {
-		case "checked_out":
-			slog.Default().DebugContext(r.Context(), "student already checked out, skipping attendance toggle",
-				slog.Int64("student_id", student.ID),
-			)
-		case "checked_in":
-			// Set attendance to "checked_out" — sets check_out_time on today's record.
-			// The active service resolves the device's active supervisor as the
-			// auditable checked_out_by principal before writing attendance.
-			_, err := rs.ActiveService.CheckOutStudentFromDevice(r.Context(), student.ID, deviceID)
-			if err != nil {
-				slog.Default().ErrorContext(r.Context(), "failed to update attendance for daily checkout",
-					slog.Int64("student_id", student.ID),
-					slog.String("error", err.Error()),
-				)
-				common.RenderError(w, r, shared.ErrorRenderer(err))
-				return
-			}
-
-			// Broadcast SSE event so the OGS Groups page updates in real time
-			rs.ActiveService.BroadcastDailyCheckout(r.Context(), student.ID)
+		if errors.Is(err, activeSvc.ErrNoAttendanceRecordForCheckout) {
+			common.RenderError(w, r, common.ErrorNotFound(err))
+			return
 		}
+		common.RenderError(w, r, shared.ErrorRenderer(err))
+		return
 	}
 
-	// Determine action and message based on destination
-	action := "checked_out_daily"
+	// Determine message based on destination
+	action := result.Action
 	message := "Tschüss " + person.FirstName + "!"
 	if req.Destination != nil && *req.Destination == "unterwegs" {
-		action = "checked_out"
 		message = "Viel Spaß!"
 	}
-
-	slog.Default().InfoContext(r.Context(), "daily checkout confirmed",
-		slog.Int64("student_id", student.ID),
-		slog.String("action", action),
-		slog.String("destination", *req.Destination),
-	)
 
 	// Resolve feedback_enabled setting so PyrePortal knows whether to show the feedback modal
 	var feedbackEnabled *bool

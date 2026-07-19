@@ -240,6 +240,7 @@ export function PickupDayEditModal({
           {hasTimeOverride ? (
             <div className="flex items-center gap-2">
               <input
+                aria-label="Abweichende Gehzeit"
                 type="time"
                 value={pickupTime}
                 onChange={(e) => setPickupTime(e.target.value)}
@@ -335,6 +336,7 @@ export function PickupDayEditModal({
                     /* Edit inline */
                     <div className="flex-1 space-y-2">
                       <textarea
+                        aria-label="Abholnotiz bearbeiten"
                         value={editingNoteContent}
                         onChange={(e) => setEditingNoteContent(e.target.value)}
                         className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 focus:outline-none"

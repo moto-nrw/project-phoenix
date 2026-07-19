@@ -6,6 +6,7 @@ interface SelectOption {
 }
 
 interface SelectFieldProps {
+  readonly ariaLabel?: string;
   readonly value: unknown;
   readonly onChange: (value: unknown) => void;
   readonly options: SelectOption[];
@@ -20,6 +21,7 @@ function toStr(v: unknown): string {
 }
 
 export function SelectField({
+  ariaLabel = "Einstellung",
   value,
   onChange,
   options,
@@ -28,6 +30,7 @@ export function SelectField({
   return (
     <div className="relative">
       <select
+        aria-label={ariaLabel}
         value={toStr(value)}
         onChange={(e) => {
           const selected = options.find(

@@ -17,7 +17,7 @@
  * 3. A "Neuen Zeitraum anlegen" footer.
  */
 
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { Check, ChevronDown, Plus, SlidersHorizontal } from "lucide-react";
 
@@ -127,7 +127,8 @@ export function PeriodSwitcherDropdown({
   }, [periods]);
 
   // Click-outside / Escape to close.
-  useClickOutside(containerRef, () => setOpen(false), open);
+  const closeMenu = useCallback(() => setOpen(false), []);
+  useClickOutside(containerRef, closeMenu, open);
 
   // While loading, render a skeleton sized like the trigger pill so the
   // header keeps its place instead of popping in when periods resolve.

@@ -255,6 +255,41 @@ describe("SettingsField", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  it("saves a dirty field with its own validation context when the setting changes", async () => {
+    const onSave = vi.fn().mockResolvedValue(null);
+    const onReset = vi.fn().mockResolvedValue(null);
+    const { container, rerender } = renderWithProviders(
+      <SettingsField
+        setting={makeSetting({ key: "text.setting", value: "old" })}
+        onSave={onSave}
+        onReset={onReset}
+      />,
+    );
+
+    const input = container.querySelector(
+      "input[type='text']",
+    ) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "unsaved text" } });
+
+    rerender(
+      <ToastProvider>
+        <SettingsField
+          setting={makeSetting({
+            key: "number.setting",
+            type: "number",
+            value: 10,
+          })}
+          onSave={onSave}
+          onReset={onReset}
+        />
+      </ToastProvider>,
+    );
+
+    await waitFor(() => {
+      expect(onSave).toHaveBeenCalledWith("text.setting", "unsaved text");
+    });
+  });
+
   it("calls onReset when reset button clicked", async () => {
     const onReset = vi.fn().mockResolvedValue(null);
     const { container } = renderWithProviders(

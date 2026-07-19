@@ -207,12 +207,14 @@ export function CareScheduleManager({
     [weekDays],
   );
 
-  useEffect(() => {
-    const firstDay = weekDays[0];
-    const lastDay = weekDays[weekDays.length - 1];
+  function showWeek(offset: number): void {
+    setWeekOffset(offset);
+    const visibleDays = getWeekDays(offset);
+    const firstDay = visibleDays[0];
+    const lastDay = visibleDays[visibleDays.length - 1];
     if (!firstDay || !lastDay) return;
     onVisibleDateRangeChange?.(formatDateISO(firstDay), formatDateISO(lastDay));
-  }, [onVisibleDateRangeChange, weekDays]);
+  }
 
   const statusDayByDate = useMemo(() => {
     const entries = new Map<string, StudentStatusDay>();
@@ -567,7 +569,7 @@ export function CareScheduleManager({
           <div className="flex shrink-0 items-center gap-2">
             <button
               type="button"
-              onClick={() => setWeekOffset(0)}
+              onClick={() => showWeek(0)}
               disabled={weekOffset === 0}
               className="inline-flex h-9 items-center justify-center rounded-lg bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:hidden"
             >
@@ -590,7 +592,7 @@ export function CareScheduleManager({
           <div>
             <WeekNavButton
               ariaLabel="Vorherige Woche"
-              onClick={() => setWeekOffset((value) => value - 1)}
+              onClick={() => showWeek(weekOffset - 1)}
             >
               <ChevronLeft className="h-4 w-4" aria-hidden="true" />
               <span className="hidden sm:inline">Vorherige Woche</span>
@@ -603,7 +605,7 @@ export function CareScheduleManager({
           ) : (
             <button
               type="button"
-              onClick={() => setWeekOffset(0)}
+              onClick={() => showWeek(0)}
               className="absolute left-1/2 hidden h-9 -translate-x-1/2 items-center justify-center rounded-full bg-gray-100 px-3 text-sm font-semibold text-gray-600 transition-colors hover:bg-gray-200 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none sm:inline-flex"
             >
               Zurück zur aktuellen Woche
@@ -612,7 +614,7 @@ export function CareScheduleManager({
           <div>
             <WeekNavButton
               ariaLabel="Nächste Woche"
-              onClick={() => setWeekOffset((value) => value + 1)}
+              onClick={() => showWeek(weekOffset + 1)}
             >
               <span className="hidden sm:inline">Nächste Woche</span>
               <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -629,8 +631,8 @@ export function CareScheduleManager({
             selectedDay={selectedMobileDay}
             readOnly={readOnly}
             deletingStatusDayId={deletingStatusDayId}
-            onPreviousWeek={() => setWeekOffset((value) => value - 1)}
-            onNextWeek={() => setWeekOffset((value) => value + 1)}
+            onPreviousWeek={() => showWeek(weekOffset - 1)}
+            onNextWeek={() => showWeek(weekOffset + 1)}
             onSelectDay={(day) => setSelectedDateKey(formatDateISO(day.date))}
             onEditDay={setEditingDayDate}
             onRequestDeleteStatusDay={setStatusDayToDelete}

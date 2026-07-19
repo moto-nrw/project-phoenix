@@ -3,6 +3,7 @@ import type { Reminder, ReminderType } from "~/lib/reminders-api";
 import {
   REMINDER_SECTIONS,
   isReminderOverdue,
+  reminderKey,
   reminderRelativeLabel,
   reminderToneClass,
 } from "~/lib/reminders-display";
@@ -44,6 +45,42 @@ describe("reminders-display", () => {
       expect(reminderToneClass(makeReminder(-5))).toBe("text-[#FF3130]");
       expect(reminderToneClass(makeReminder(5))).toBe("text-gray-500");
       expect(reminderToneClass(makeReminder(0))).toBe("text-gray-500");
+    });
+  });
+
+  describe("reminderKey", () => {
+    it("uses the student ID for pickup reminders", () => {
+      expect(
+        reminderKey({
+          ...makeReminder(5),
+          student_id: "42",
+        }),
+      ).toBe("pickup_upcoming-student-42");
+    });
+
+    it("disambiguates concurrent activities by instance ID", () => {
+      const shared = {
+        type: "activity_start" as const,
+        title: "Schach",
+        due_time: "10:00",
+        minutes_away: 5,
+      };
+
+      expect(
+        [
+          { ...shared, activity_instance_id: "101" },
+          { ...shared, activity_instance_id: "102" },
+        ].map(reminderKey),
+      ).toEqual(["activity_start-activity-101", "activity_start-activity-102"]);
+    });
+
+    it("rejects reminders without their required entity ID", () => {
+      expect(() => reminderKey(makeReminder(5))).toThrow(
+        "pickup_upcoming reminder is missing student_id",
+      );
+      expect(() => reminderKey(makeReminder(5, "activity_start"))).toThrow(
+        "activity_start reminder is missing activity_instance_id",
+      );
     });
   });
 

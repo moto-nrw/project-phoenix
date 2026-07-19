@@ -252,6 +252,7 @@ function SettingsContent({ tabKey, highlightKey }: SettingsContentProps) {
         <div className="relative mb-4">
           <Alert type="error" message={saveError} />
           <button
+            type="button"
             onClick={() => setSaveError(null)}
             className="absolute top-1/2 right-4 -translate-y-1/2 text-red-600 hover:text-red-800"
             aria-label="Fehler schließen"

@@ -190,36 +190,55 @@ func (req *PhaseRequest) toModel(existingID int64) (*enrollmentModels.Phase, err
 	if req.RequireSchoolClass != nil {
 		p.RequireSchoolClass = *req.RequireSchoolClass
 	}
-	if req.EnrollmentOpenAt != nil && *req.EnrollmentOpenAt != "" {
-		t, parseErr := time.Parse(time.RFC3339, *req.EnrollmentOpenAt)
-		if parseErr != nil {
-			return nil, errors.New("enrollment_open_at must be RFC3339")
-		}
-		p.EnrollmentOpenAt = &t
+	openAt, err := parseOptionalRFC3339(req.EnrollmentOpenAt, "enrollment_open_at must be RFC3339")
+	if err != nil {
+		return nil, err
 	}
-	if req.EnrollmentCloseAt != nil && *req.EnrollmentCloseAt != "" {
-		t, parseErr := time.Parse(time.RFC3339, *req.EnrollmentCloseAt)
-		if parseErr != nil {
-			return nil, errors.New("enrollment_close_at must be RFC3339")
-		}
-		p.EnrollmentCloseAt = &t
+	p.EnrollmentOpenAt = openAt
+	closeAt, err := parseOptionalRFC3339(req.EnrollmentCloseAt, "enrollment_close_at must be RFC3339")
+	if err != nil {
+		return nil, err
 	}
-	if req.FormSchemaID != nil && *req.FormSchemaID != "" {
-		id, parseErr := strconv.ParseInt(*req.FormSchemaID, 10, 64)
-		if parseErr != nil || id <= 0 {
-			return nil, errors.New("form_schema_id must be a positive integer string")
-		}
-		p.FormSchemaID = &id
+	p.EnrollmentCloseAt = closeAt
+	schemaID, err := parseOptionalPositiveID(req.FormSchemaID, "form_schema_id must be a positive integer string")
+	if err != nil {
+		return nil, err
 	}
-	if req.CalendarPeriodID != nil && *req.CalendarPeriodID != "" {
-		id, parseErr := strconv.ParseInt(*req.CalendarPeriodID, 10, 64)
-		if parseErr != nil || id <= 0 {
-			return nil, errors.New("calendar_period_id must be a positive integer string")
-		}
-		p.CalendarPeriodID = &id
+	p.FormSchemaID = schemaID
+	periodID, err := parseOptionalPositiveID(req.CalendarPeriodID, "calendar_period_id must be a positive integer string")
+	if err != nil {
+		return nil, err
 	}
+	p.CalendarPeriodID = periodID
 	p.ID = existingID
 	return p, nil
+}
+
+// parseOptionalRFC3339 parses an optional RFC3339 timestamp. A nil or empty
+// value yields (nil, nil); a malformed value yields errMsg.
+func parseOptionalRFC3339(value *string, errMsg string) (*time.Time, error) {
+	if value == nil || *value == "" {
+		return nil, nil
+	}
+	t, err := time.Parse(time.RFC3339, *value)
+	if err != nil {
+		return nil, errors.New(errMsg)
+	}
+	return &t, nil
+}
+
+// parseOptionalPositiveID parses an optional positive int64 ID string. A nil
+// or empty value yields (nil, nil); a non-positive or malformed value yields
+// errMsg.
+func parseOptionalPositiveID(value *string, errMsg string) (*int64, error) {
+	if value == nil || *value == "" {
+		return nil, nil
+	}
+	id, err := strconv.ParseInt(*value, 10, 64)
+	if err != nil || id <= 0 {
+		return nil, errors.New(errMsg)
+	}
+	return &id, nil
 }
 
 // normalizeSchoolClasses trims each entry, drops empties, and dedups

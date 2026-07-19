@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
@@ -534,6 +535,74 @@ func (s *service) BroadcastDailyCheckout(ctx context.Context, studentID int64) {
 	// the educational group broadcast only reaches staff in that group,
 	// but the search page is used by all staff.
 	_ = s.Broadcaster.BroadcastToAll(realtime.NewEvent(realtime.EventDashboardCountsChanged, "", realtime.EventData{}))
+}
+
+// ConfirmDailyCheckout processes the deferred daily-checkout confirmation for an
+// IoT device. Normally the student's visit was already ended by the checkin
+// handler (student is "unterwegs") and this only updates the attendance record
+// when the student confirms "nach Hause". If a visit is still open,
+// CheckOutStudentFromDevice ends it in the same request transaction (issue #895).
+//
+// The student must already have an attendance record for today (status
+// "checked_in" or "checked_out"); otherwise ErrNoAttendanceRecordForCheckout is
+// returned. Attendance is only mutated when destination is "zuhause" and the
+// student is still "checked_in"; a concurrent checkout is treated as an
+// idempotent no-op.
+func (s *service) ConfirmDailyCheckout(ctx context.Context, studentID, deviceID int64, destination string) (*DailyCheckoutResult, error) {
+	s.getLogger().InfoContext(ctx, "confirming daily checkout",
+		slog.Int64("student_id", studentID),
+		slog.String("destination", destination),
+	)
+
+	currentStatus, err := s.GetStudentAttendanceStatus(ctx, studentID)
+	if err != nil {
+		s.getLogger().ErrorContext(ctx, "failed to get attendance status",
+			slog.Int64("student_id", studentID),
+			slog.String("error", err.Error()),
+		)
+		return nil, err
+	}
+
+	if currentStatus.Status != "checked_in" && currentStatus.Status != "checked_out" {
+		s.getLogger().ErrorContext(ctx, "student has no attendance record for today",
+			slog.Int64("student_id", studentID),
+			slog.String("status", currentStatus.Status),
+		)
+		return nil, ErrNoAttendanceRecordForCheckout
+	}
+
+	if destination == "zuhause" {
+		switch currentStatus.Status {
+		case "checked_out":
+			s.getLogger().DebugContext(ctx, "student already checked out, skipping attendance toggle",
+				slog.Int64("student_id", studentID),
+			)
+		case "checked_in":
+			if _, err := s.CheckOutStudentFromDevice(ctx, studentID, deviceID); err != nil {
+				s.getLogger().ErrorContext(ctx, "failed to update attendance for daily checkout",
+					slog.Int64("student_id", studentID),
+					slog.String("error", err.Error()),
+				)
+				return nil, err
+			}
+
+			// Broadcast SSE event so the OGS Groups page updates in real time
+			s.BroadcastDailyCheckout(ctx, studentID)
+		}
+	}
+
+	action := "checked_out_daily"
+	if destination == "unterwegs" {
+		action = "checked_out"
+	}
+
+	s.getLogger().InfoContext(ctx, "daily checkout confirmed",
+		slog.Int64("student_id", studentID),
+		slog.String("action", action),
+		slog.String("destination", destination),
+	)
+
+	return &DailyCheckoutResult{Action: action}, nil
 }
 
 // ======== Unclaimed Groups Management (Deviceless Claiming) ========

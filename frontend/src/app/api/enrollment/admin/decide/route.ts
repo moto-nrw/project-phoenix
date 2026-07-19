@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { auth } from "~/server/auth";
+import { withTenantAuth } from "~/server/auth/tenant-route";
 import { getServerApiUrl } from "~/lib/server-api-url";
 import { createLogger } from "~/lib/logger";
 
@@ -26,7 +27,7 @@ interface DecideBody {
   reason?: string;
 }
 
-export async function POST(request: NextRequest) {
+async function POSTHandler(request: NextRequest) {
   const authHeader = await bearerHeader();
   if (!authHeader) {
     return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
@@ -77,3 +78,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+export const POST = withTenantAuth(POSTHandler);

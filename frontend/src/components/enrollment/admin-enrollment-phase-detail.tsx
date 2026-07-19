@@ -1033,7 +1033,8 @@ function ReportExportCard({
 }>) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  useClickOutside(containerRef, () => setOpen(false), open);
+  const closeMenu = useCallback(() => setOpen(false), []);
+  useClickOutside(containerRef, closeMenu, open);
   const disabled = exportingFormat !== null;
   const formats: readonly EnrollmentReportFormat[] = ["xlsx", "pdf", "docx"];
 
@@ -1194,7 +1195,8 @@ function ExportMenuButton({
 }) {
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  useClickOutside(containerRef, () => setOpen(false), open);
+  const closeMenu = useCallback(() => setOpen(false), []);
+  useClickOutside(containerRef, closeMenu, open);
 
   return (
     <div className="relative" ref={containerRef}>

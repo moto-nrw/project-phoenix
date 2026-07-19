@@ -86,6 +86,7 @@ export function KpiCards({
   // card silently shifts meaning as schedules get updated, which is exactly
   // the source-of-truth problem we want to surface.
   const accountStartLabel = metrics.accountStart.toLocaleDateString("de-DE", {
+    timeZone: "Europe/Berlin",
     day: "numeric",
     month: "long",
     year: "numeric",

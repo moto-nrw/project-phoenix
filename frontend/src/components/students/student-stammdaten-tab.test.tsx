@@ -167,7 +167,11 @@ vi.mock("~/components/ui/button", () => ({
     ...props
   }: React.ButtonHTMLAttributes<HTMLButtonElement> & {
     variant?: string;
-  }) => <button {...props}>{children}</button>,
+  }) => (
+    <button type="button" {...props}>
+      {children}
+    </button>
+  ),
 }));
 
 import { StudentStammdatenTab } from "./student-stammdaten-tab";

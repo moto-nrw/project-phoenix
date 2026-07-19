@@ -218,6 +218,20 @@ func checkWritePermission(def *config.Definition, userPermissions []string) erro
 }
 
 // SetValue sets a tenant override for a setting.
+// CheckOperatorWritable enforces the operator write/reveal access policy: an
+// unknown key yields *DefinitionNotFoundError, an AccessAdminOnly key yields
+// ErrOperatorAdminOnly, everything else is writable.
+func (s *settingsService) CheckOperatorWritable(key string) error {
+	def := config.GetDefinition(key)
+	if def == nil {
+		return &DefinitionNotFoundError{Key: key}
+	}
+	if def.AccessPolicy == config.AccessAdminOnly {
+		return ErrOperatorAdminOnly
+	}
+	return nil
+}
+
 func (s *settingsService) SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error {
 	def := config.GetDefinition(key)
 	if def == nil {

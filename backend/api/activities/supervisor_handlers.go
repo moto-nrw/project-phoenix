@@ -12,7 +12,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -173,69 +172,6 @@ func parseSupervisorReplacement(r *http.Request) (*activitySupervisorReplacement
 	return &activitySupervisorReplacement{ReplacementStaffID: &replacementStaffID}, nil
 }
 
-func buildReplacementSupervisorIDs(
-	supervisors []*activities.SupervisorPlanned,
-	supervisorID int64,
-	replacementStaffID *int64,
-) ([]int64, error) {
-	if len(supervisors) == 0 {
-		return nil, activitiesSvc.ErrSupervisorNotFound
-	}
-
-	var (
-		targetSupervisor  *activities.SupervisorPlanned
-		nextSupervisorIDs []int64
-	)
-	replacementAlreadyAssigned := false
-
-	for _, supervisor := range supervisors {
-		if supervisor == nil {
-			continue
-		}
-
-		if supervisor.ID == supervisorID {
-			targetSupervisor = supervisor
-			continue
-		}
-
-		if replacementStaffID != nil && supervisor.StaffID == *replacementStaffID {
-			replacementAlreadyAssigned = true
-		}
-
-		nextSupervisorIDs = append(nextSupervisorIDs, supervisor.StaffID)
-	}
-
-	if targetSupervisor == nil {
-		return nil, activitiesSvc.ErrSupervisorNotFound
-	}
-
-	if replacementStaffID == nil {
-		return nextSupervisorIDs, nil
-	}
-
-	if targetSupervisor.IsPrimary {
-		if replacementAlreadyAssigned {
-			reordered := make([]int64, 0, len(nextSupervisorIDs))
-			reordered = append(reordered, *replacementStaffID)
-			for _, staffID := range nextSupervisorIDs {
-				if staffID == *replacementStaffID {
-					continue
-				}
-				reordered = append(reordered, staffID)
-			}
-			return reordered, nil
-		}
-
-		return append([]int64{*replacementStaffID}, nextSupervisorIDs...), nil
-	}
-
-	if replacementAlreadyAssigned {
-		return nextSupervisorIDs, nil
-	}
-
-	return append(nextSupervisorIDs, *replacementStaffID), nil
-}
-
 // assignSupervisor assigns a supervisor to an activity
 func (rs *Resource) assignSupervisor(w http.ResponseWriter, r *http.Request) {
 	activity, ok := rs.parseAndGetActivity(w, r)
@@ -363,25 +299,7 @@ func (rs *Resource) removeSupervisor(w http.ResponseWriter, r *http.Request) {
 	// Delete supervisor
 	tenantID := tenant.FromContext(r.Context())
 	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
-		if replacement.ReplacementStaffID == nil {
-			return rs.ActivityService.DeleteSupervisor(ctx, supervisorID)
-		}
-
-		supervisors, txErr := rs.ActivityService.GetGroupSupervisors(ctx, activity.ID)
-		if txErr != nil {
-			return txErr
-		}
-
-		nextSupervisorIDs, txErr := buildReplacementSupervisorIDs(
-			supervisors,
-			supervisorID,
-			replacement.ReplacementStaffID,
-		)
-		if txErr != nil {
-			return txErr
-		}
-
-		return rs.ActivityService.UpdateGroupSupervisors(ctx, activity.ID, nextSupervisorIDs)
+		return rs.ActivityService.ReplaceSupervisor(ctx, activity.ID, supervisorID, replacement.ReplacementStaffID)
 	}); err != nil {
 		common.RenderError(w, r, ErrorRenderer(err))
 		return

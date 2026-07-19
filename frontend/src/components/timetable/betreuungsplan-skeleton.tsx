@@ -112,9 +112,9 @@ export function TimetableContentSkeleton({ view }: { view: TimetableView }) {
                   style={{ top: `${(line + 1) * 70}px` }}
                 />
               ))}
-              {(weekSkeletonEvents[day] ?? []).map((event, index) => (
+              {(weekSkeletonEvents[day] ?? []).map((event) => (
                 <div
-                  key={`${day}-${index}`}
+                  key={`${day}-${event.top}-${event.height}-${event.width}`}
                   className="absolute left-2 rounded-xl border border-gray-200 bg-white p-2 shadow-sm sm:left-2.5"
                   style={{
                     top: `${event.top}px`,

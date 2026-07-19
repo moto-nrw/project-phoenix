@@ -416,11 +416,12 @@ describe("getStartDateForTimeRange", () => {
 
 describe("formatChatTime", () => {
   it("returns 'dd.MM., HH:mm' format for a valid ISO timestamp", () => {
-    // Use a fixed ISO string and check the shape: "15.01., 14:30"
     const result = formatChatTime("2024-01-15T13:30:00Z");
-    // day.month format + ", " + HH:MM — the exact time depends on local TZ,
-    // so assert the structural shape rather than an exact string.
-    expect(result).toMatch(/^\d{2}\.\d{2}\., \d{2}:\d{2}$/);
+    expect(result).toBe("15.01., 14:30");
+  });
+
+  it("formats the date and clock in Berlin across midnight", () => {
+    expect(formatChatTime("2026-01-01T23:30:00Z")).toBe("02.01., 00:30");
   });
 
   it("returns the raw input string for an invalid ISO (never throws)", () => {
@@ -456,16 +457,17 @@ describe("formatChatDateTime", () => {
     expect(formatChatDateTime("garbage")).toBe("garbage");
   });
 
-  it("returns 'dd.mm.yyyy, HH:mm' structural shape for a valid ISO timestamp", () => {
-    const result = formatChatDateTime("2024-01-15T13:30:00Z");
-    // e.g. "15.01.2024, 14:30" — exact time depends on TZ, check shape.
-    expect(result).toMatch(/^\d{2}\.\d{2}\.\d{4}, \d{2}:\d{2}$/);
-  });
-
-  it("composes formatDate + formatTime (same as separate calls)", () => {
-    const iso = "2026-03-20T10:15:00Z";
-    const combined = formatChatDateTime(iso);
-    expect(combined).toBe(`${formatDate(iso)}, ${formatTime(iso)}`);
+  it("formats the date and clock in Berlin for a viewer in another timezone", () => {
+    const previousTZ = process.env.TZ;
+    process.env.TZ = "America/Los_Angeles";
+    try {
+      expect(formatChatDateTime("2026-01-01T23:30:00Z")).toBe(
+        "02.01.2026, 00:30",
+      );
+    } finally {
+      if (previousTZ === undefined) delete process.env.TZ;
+      else process.env.TZ = previousTZ;
+    }
   });
 
   it("handles a date-only string ('YYYY-MM-DD') without throwing", () => {
