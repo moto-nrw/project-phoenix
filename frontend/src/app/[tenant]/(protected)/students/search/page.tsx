@@ -1659,7 +1659,7 @@ function SearchPageContent() {
               value={parseISODate(selectedDate)}
               minDate={parseISODate(todayIso)}
               maxDate={parseISODate(maxDateIso)}
-              calendarLayout="inline"
+              calendarLayout="popover"
               onChange={(date) =>
                 updateSelectedDate(date ? toISODate(date) : todayIso)
               }
