@@ -7,6 +7,8 @@ import {
   BIRTHDAY_MONTH_OPTIONS,
   STUDENT_EXPORT_COLUMNS,
   STUDENT_EXPORT_PRESETS,
+  buildStudentExportColumns,
+  buildStudentExportPresets,
   currentBirthdayMonth,
   exportStudents,
   type StudentExportColumn,
@@ -105,18 +107,32 @@ export function StudentExportModal({
     setColumns(presetConfig.columns);
   }, [isOpen, preset]);
 
+  // Day-scoped copy (preset + column descriptions) names the selected planning
+  // day rather than "heute" when a non-today date is exported (#1939). The
+  // column ids and preset column sets are identical to the base constants, so
+  // all selection logic below is unaffected — only the displayed wording
+  // changes. filters.date is set only for a non-today export.
+  const presets = useMemo(
+    () => buildStudentExportPresets(filters.date),
+    [filters.date],
+  );
+  const columnCatalog = useMemo(
+    () => buildStudentExportColumns(filters.date),
+    [filters.date],
+  );
+
   const activePreset = useMemo(
-    () => STUDENT_EXPORT_PRESETS.find((item) => item.id === preset),
-    [preset],
+    () => presets.find((item) => item.id === preset),
+    [presets, preset],
   );
 
   // A locked dialog offers only the columns its list is made of; the full
   // catalog would put a weekly matrix on a birthday list.
   const availableColumns = useMemo(() => {
-    if (!lockedPreset) return STUDENT_EXPORT_COLUMNS;
+    if (!lockedPreset) return columnCatalog;
     const allowed = new Set<StudentExportColumn>(activePreset?.columns ?? []);
-    return STUDENT_EXPORT_COLUMNS.filter((column) => allowed.has(column.id));
-  }, [activePreset, lockedPreset]);
+    return columnCatalog.filter((column) => allowed.has(column.id));
+  }, [activePreset, columnCatalog, lockedPreset]);
 
   if (!isOpen) return null;
 
@@ -227,7 +243,7 @@ export function StudentExportModal({
           <section>
             <p className="text-sm font-medium text-gray-900">Vorlage</p>
             <div className="mt-2 grid gap-2 sm:grid-cols-2">
-              {STUDENT_EXPORT_PRESETS.map((item) => (
+              {presets.map((item) => (
                 <button
                   key={item.id}
                   type="button"

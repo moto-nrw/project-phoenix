@@ -82,8 +82,8 @@ export function todayISO(): string {
  * out of range. Built from Intl parts (not toISOString) so the date-safety
  * lint stays satisfied.
  */
-export function berlinTodayISO(): string {
-  const parts = BERLIN_DATE_PARTS_FORMATTER.formatToParts(new Date());
+export function berlinTodayISO(at: Date = new Date()): string {
+  const parts = BERLIN_DATE_PARTS_FORMATTER.formatToParts(at);
   const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
   return `${get("year")}-${get("month")}-${get("day")}`;
 }

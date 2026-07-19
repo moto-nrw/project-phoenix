@@ -40,10 +40,10 @@ type DayPlanningDecision struct {
 }
 
 // ResolveDayPlanning applies the day-planning precedence: actual attendance
-// beats a reported absence (sick, class trip, excused), which beats a planned
-// arrival, which beats a planned pickup, which beats a timetable booking. A
-// no-time arrival/pickup exception marks the child as absent, and everything
-// else falls through to "no plan".
+// beats a reported absence (sick, class trip, excused), which beats a no-time
+// arrival/pickup exception (the child is marked absent for the day), which
+// beats a planned arrival, which beats a planned pickup, which beats a
+// timetable booking. Everything else falls through to "no plan".
 func ResolveDayPlanning(in DayPlanningInputs) DayPlanningDecision {
 	switch {
 	case in.HasActualAttendance:
@@ -54,6 +54,17 @@ func ResolveDayPlanning(in DayPlanningInputs) DayPlanningDecision {
 		return DayPlanningDecision{Reason: DayPlanningReasonClassTrip}
 	case in.Excused:
 		return DayPlanningDecision{Reason: DayPlanningReasonExcused}
+	}
+
+	// A day-specific exception that clears the arrival or pickup ("heute nicht
+	// da") is an absence signal and has to win even when the child also carries
+	// an unrelated presence signal — a regular pickup time, a timetable
+	// placement — for the same day (#1939).
+	if in.Arrival != nil && in.Arrival.IsException && in.Arrival.ArrivalTime == nil {
+		return DayPlanningDecision{Reason: DayPlanningReasonArrivalException, ExceptionNotes: in.Arrival.Notes}
+	}
+	if in.Pickup != nil && in.Pickup.IsException && in.Pickup.PickupTime == nil {
+		return DayPlanningDecision{Reason: DayPlanningReasonPickupException, ExceptionNotes: in.Pickup.Notes}
 	}
 
 	if in.Arrival != nil && in.Arrival.ArrivalTime != nil {
@@ -70,12 +81,6 @@ func ResolveDayPlanning(in DayPlanningInputs) DayPlanningDecision {
 	}
 	if in.HasTimetable {
 		return DayPlanningDecision{ComesToday: true, Reason: DayPlanningReasonTimetable}
-	}
-	if in.Arrival != nil && in.Arrival.IsException && in.Arrival.ArrivalTime == nil {
-		return DayPlanningDecision{Reason: DayPlanningReasonArrivalException, ExceptionNotes: in.Arrival.Notes}
-	}
-	if in.Pickup != nil && in.Pickup.IsException && in.Pickup.PickupTime == nil {
-		return DayPlanningDecision{Reason: DayPlanningReasonPickupException, ExceptionNotes: in.Pickup.Notes}
 	}
 	return DayPlanningDecision{Reason: DayPlanningReasonNoPlan}
 }

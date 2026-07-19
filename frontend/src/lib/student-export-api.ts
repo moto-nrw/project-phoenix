@@ -1,5 +1,5 @@
 import { trackEvent } from "~/lib/analytics";
-import { berlinTodayISO } from "~/lib/date-helpers";
+import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 
 export type StudentExportFormat = "pdf" | "docx" | "xlsx";
 
@@ -44,6 +44,11 @@ export interface StudentExportFilters {
   photo_consent?: string;
   pickup_status?: string;
   day_status?: string;
+  /**
+   * Planning day (YYYY-MM-DD) the day-planning status and planned times are
+   * evaluated for (#1939). Omit for today.
+   */
+  date?: string;
   pickup_time?: string;
   arrival_time?: string;
   sort?: string;
@@ -311,6 +316,78 @@ export const STUDENT_EXPORT_PRESETS: Array<{
     columns: ["name", "school_class", "group", "birthday", "age"],
   },
 ];
+
+// The day-scoped columns and presets describe a single evaluated day. That day
+// is "today" for a live export and a chosen calendar day for a planning-date
+// export (#1939). The base constants above carry the "heute" wording used by
+// the always-today central export; the builders below re-word only the
+// day-scoped descriptions so a planning-date dialog names the selected day
+// instead of misleadingly claiming "heute". Column order is preserved and only
+// the copy changes — the one exception is the live-location snapshot
+// column/preset, which cannot describe a future day and is dropped entirely
+// from a dated export (see SNAPSHOT_COLUMNS below).
+
+/**
+ * Live-presence snapshot columns (current whereabouts). They describe "right
+ * now", so the backend populates them from today's live location snapshot even
+ * for a dated request — meaningless and misleading on a future planning day.
+ * A dated export drops them entirely (#1939).
+ */
+const SNAPSHOT_COLUMNS: ReadonlySet<StudentExportColumn> = new Set(
+  STUDENT_EXPORT_COLUMNS.filter((column) => column.group === "snapshot").map(
+    (column) => column.id,
+  ),
+);
+
+/**
+ * Student export columns worded for the given planning day. Pass the selected
+ * date (YYYY-MM-DD); omit it for the today wording (identical to
+ * {@link STUDENT_EXPORT_COLUMNS}). A dated export also drops the live-location
+ * snapshot columns, which can only ever describe the current moment (#1939).
+ */
+export function buildStudentExportColumns(
+  planningDate?: string,
+): StudentExportColumnOption[] {
+  if (!planningDate) return STUDENT_EXPORT_COLUMNS;
+  const day = formatDate(planningDate);
+  const overrides: Partial<Record<StudentExportColumn, string>> = {
+    planned_arrival: `Geplante Ankunft für den ${day}, inklusive Tagesausnahmen.`,
+    planned_pickup: `Geplante Abholung für den ${day}, inklusive Tagesausnahmen.`,
+    daily_status: `Ob das Kind am ${day} erwartet wird oder als Krank, Entschuldigt bzw. Klassenfahrt markiert ist.`,
+    daily_notes: `Hinweise zur Ankunft oder Abholung am ${day}, zum Beispiel Ausnahme-Notizen.`,
+    age: `Alter in Jahren am ${day}, berechnet aus dem Geburtsdatum.`,
+  };
+  return STUDENT_EXPORT_COLUMNS.filter(
+    (column) => !SNAPSHOT_COLUMNS.has(column.id),
+  ).map((column) => {
+    const description = overrides[column.id];
+    return description ? { ...column, description } : column;
+  });
+}
+
+/**
+ * Student export presets worded for the given planning day. Pass the selected
+ * date (YYYY-MM-DD); omit it for the today wording (identical to
+ * {@link STUDENT_EXPORT_PRESETS}). A dated export drops any preset built on the
+ * live-location snapshot columns — those describe the current moment, not the
+ * planned day (#1939).
+ */
+export function buildStudentExportPresets(
+  planningDate?: string,
+): typeof STUDENT_EXPORT_PRESETS {
+  if (!planningDate) return STUDENT_EXPORT_PRESETS;
+  const day = formatDate(planningDate);
+  const overrides: Partial<Record<StudentExportPreset, string>> = {
+    ogs_compact: `Kompakte Übersicht der Betreuungstage und der Abholung am ${day}.`,
+    daily_planning: `Planungsdaten für den ${day} mit Hinweisen.`,
+  };
+  return STUDENT_EXPORT_PRESETS.filter(
+    (preset) => !preset.columns.some((column) => SNAPSHOT_COLUMNS.has(column)),
+  ).map((preset) => {
+    const description = overrides[preset.id];
+    return description ? { ...preset, description } : preset;
+  });
+}
 
 export async function exportStudents(
   request: StudentExportRequest,

@@ -522,10 +522,21 @@ export function PickupTimeRow({
  * the reason on two rows would be noise. Mirrors the existing schedule-based
  * "Kommt heute nicht (…)" wording so every absence reads identically.
  */
-export function StudentAbsenceRow({ label }: Readonly<{ label: string }>) {
+export function StudentAbsenceRow({
+  label,
+  wording = "Kommt heute nicht",
+}: Readonly<{
+  label: string;
+  /**
+   * Leading phrase before the reason. The default fits the today view; a
+   * non-today planning date (#1939) passes "Kommt nicht" so the card never
+   * says "heute" about another day.
+   */
+  wording?: string;
+}>) {
   return (
     <StudentInfoRow icon={<AbsenceIcon />}>
-      {`Kommt heute nicht (${label})`}
+      {`${wording} (${label})`}
     </StudentInfoRow>
   );
 }
@@ -573,6 +584,7 @@ export function ArrivalTimeRow({
   isAbsent,
   notes,
   now,
+  absentWording = "Kommt heute nicht",
 }: Readonly<{
   arrivalTime?: string;
   actualTime?: string;
@@ -580,11 +592,13 @@ export function ArrivalTimeRow({
   isAbsent: boolean;
   notes?: string;
   now: Date;
+  /** See StudentAbsenceRow — date-neutral phrase for non-today views (#1939). */
+  absentWording?: string;
 }>) {
   if (isAbsent) {
     return (
       <StudentInfoRow icon={<AbsenceIcon />}>
-        {notes ? `Kommt heute nicht (${notes})` : "Kommt heute nicht"}
+        {notes ? `${absentWording} (${notes})` : absentWording}
       </StudentInfoRow>
     );
   }
@@ -592,7 +606,7 @@ export function ArrivalTimeRow({
   if (isException && !arrivalTime && !actualTime) {
     return (
       <StudentInfoRow icon={<AbsenceIcon />}>
-        {notes ? `Kommt heute nicht (${notes})` : "Kommt heute nicht"}
+        {notes ? `${absentWording} (${notes})` : absentWording}
       </StudentInfoRow>
     );
   }

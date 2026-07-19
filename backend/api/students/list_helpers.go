@@ -30,6 +30,11 @@ type studentListParams struct {
 	includePickupTimes  bool
 	includeArrivalTimes bool
 	dayStatus           string
+	// date is the optional planning day (YYYY-MM-DD) the day-planning fields,
+	// status days, and planned arrival/pickup times are evaluated for (#1939).
+	// Empty means the school-local today. Parsed and validated in the handler
+	// via resolvePlanningDate so an invalid value is a 400, not a silent today.
+	date string
 	// gradeLevel filters by the first numeric run in school_class (issue #1838,
 	// Zielgruppe "Jahrgang"). Resolved in-memory via schoolclass.GradePrefix —
 	// a SQL LIKE 'N%' would incorrectly match e.g. grade 1 against "13a".
@@ -98,6 +103,7 @@ func parseStudentListParams(r *http.Request) *studentListParams {
 	params.includePickupTimes = r.URL.Query().Get("include_pickup_times") == "true"
 	params.includeArrivalTimes = r.URL.Query().Get("include_arrival_times") == "true"
 	params.dayStatus = parseDayStatusParam(r.URL.Query().Get("day_status"))
+	params.date = r.URL.Query().Get("date")
 
 	// Administrative filters (#1492). Applied in-memory against the enriched
 	// responses, mirroring the student list export filter semantics.
