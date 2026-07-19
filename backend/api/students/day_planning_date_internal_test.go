@@ -97,12 +97,14 @@ func TestResolvePlanningDate(t *testing.T) {
 }
 
 func TestMaxPlanningDate(t *testing.T) {
-	// Monday: this week's Sunday is 6 days out, plus the full next week.
-	assert.Equal(t, timezone.NewDate(2026, time.June, 14), maxPlanningDate(timezone.NewDate(2026, time.June, 1)))
-	// Sunday: the current week ends today, so the horizon is exactly one week.
-	assert.Equal(t, timezone.NewDate(2026, time.June, 14), maxPlanningDate(timezone.NewDate(2026, time.June, 7)))
-	// Saturday: one day to Sunday, then the full next week.
-	assert.Equal(t, timezone.NewDate(2026, time.June, 14), maxPlanningDate(timezone.NewDate(2026, time.June, 6)))
+	// The horizon always closes with the Sunday of the CURRENT week — the only
+	// week the scheduler guarantees is materialized at every moment.
+	// Monday: this week's Sunday is 6 days out.
+	assert.Equal(t, timezone.NewDate(2026, time.June, 7), maxPlanningDate(timezone.NewDate(2026, time.June, 1)))
+	// Sunday: the current week ends today, so the horizon collapses to today.
+	assert.Equal(t, timezone.NewDate(2026, time.June, 7), maxPlanningDate(timezone.NewDate(2026, time.June, 7)))
+	// Saturday: one day left in the current week.
+	assert.Equal(t, timezone.NewDate(2026, time.June, 7), maxPlanningDate(timezone.NewDate(2026, time.June, 6)))
 }
 
 func TestResetLiveLocationFields(t *testing.T) {

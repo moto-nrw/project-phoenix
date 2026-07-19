@@ -149,9 +149,12 @@ export interface FilterConfig {
    * control (e.g. the Kindersuche planning-date chooser) into the filter set
    * so it lives *with* the other filters — in the quiet panel and grouped by
    * {@link FilterSection} — instead of as a stray row. `value`/`onChange`/
-   * `options` are unused for custom filters; pass empty stubs. Only the quiet
-   * `FilterPanel` renders custom filters; the inline `DesktopFilters` skips
-   * them (no inline-variant consumer needs one today).
+   * `options` are unused for custom filters; pass empty stubs. Because those
+   * stubs carry no default, custom filters are excluded from the header's
+   * default-state detection — report a non-default custom control through
+   * `activeFilters` instead. Only the quiet `FilterPanel` renders custom
+   * filters; the inline `DesktopFilters` skips them (no inline-variant
+   * consumer needs one today).
    */
   readonly render?: React.ReactNode;
 }
