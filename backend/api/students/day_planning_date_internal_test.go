@@ -213,3 +213,79 @@ func TestExportFilterLabelsForDateAddsDateAndNeutralWording(t *testing.T) {
 		assert.NotContains(t, label, "heute")
 	}
 }
+
+func TestActiveLiveListFilters(t *testing.T) {
+	t.Run("none_when_no_live_filter_is_set", func(t *testing.T) {
+		assert.Empty(t, activeLiveListFilters(&studentListParams{}))
+		// "Unknown" is the location filter's all-values sentinel.
+		assert.Empty(t, activeLiveListFilters(&studentListParams{location: "Unknown"}))
+	})
+
+	t.Run("names_every_live_filter_in_use", func(t *testing.T) {
+		params := &studentListParams{roomID: 7, locationState: "present", location: "Schulhof"}
+		assert.Equal(t, []string{"room_id", "location_state", "location"}, activeLiveListFilters(params))
+	})
+}
+
+func TestActiveLiveExportFilters(t *testing.T) {
+	t.Run("none_when_no_live_filter_is_set", func(t *testing.T) {
+		assert.Empty(t, activeLiveExportFilters(studentExportFilters{}))
+		assert.Empty(t, activeLiveExportFilters(studentExportFilters{Status: "all"}))
+	})
+
+	t.Run("names_every_live_filter_in_use", func(t *testing.T) {
+		filters := studentExportFilters{RoomID: "7", Status: "anwesend"}
+		assert.Equal(t, []string{"room_id", "status"}, activeLiveExportFilters(filters))
+	})
+}
+
+func TestLiveFilterError(t *testing.T) {
+	tomorrow := timezone.NewDate(2026, time.June, 2)
+
+	t.Run("today_accepts_live_filters", func(t *testing.T) {
+		require.NoError(t, liveFilterError([]string{"room_id"}, timezone.NewDate(2026, time.June, 1), true))
+	})
+
+	t.Run("other_day_without_live_filters_is_fine", func(t *testing.T) {
+		require.NoError(t, liveFilterError(nil, tomorrow, false))
+	})
+
+	t.Run("other_day_rejects_live_filters_naming_them", func(t *testing.T) {
+		err := liveFilterError([]string{"room_id", "status"}, tomorrow, false)
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "room_id, status")
+		assert.Contains(t, err.Error(), "2026-06-02")
+	})
+}
+
+func TestResolveExportPlanningDate(t *testing.T) {
+	// Monday 2026-06-01.
+	now := time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
+
+	t.Run("today_keeps_live_filters", func(t *testing.T) {
+		date, isToday, errResp := resolveExportPlanningDate(studentExportFilters{Status: "anwesend", RoomID: "7"}, now)
+		require.Nil(t, errResp)
+		assert.True(t, isToday)
+		assert.Equal(t, timezone.NewDate(2026, time.June, 1), date)
+	})
+
+	t.Run("planning_date_without_live_filters_resolves", func(t *testing.T) {
+		date, isToday, errResp := resolveExportPlanningDate(studentExportFilters{Date: "2026-06-02", Status: "all"}, now)
+		require.Nil(t, errResp)
+		assert.False(t, isToday)
+		assert.Equal(t, timezone.NewDate(2026, time.June, 2), date)
+	})
+
+	t.Run("planning_date_rejects_live_filters", func(t *testing.T) {
+		_, _, errResp := resolveExportPlanningDate(studentExportFilters{Date: "2026-06-02", Status: "anwesend"}, now)
+		assert.NotNil(t, errResp, "a live status filter cannot be answered for another day")
+
+		_, _, errResp = resolveExportPlanningDate(studentExportFilters{Date: "2026-06-02", RoomID: "7"}, now)
+		assert.NotNil(t, errResp, "a room filter reads today's active visits")
+	})
+
+	t.Run("malformed_date_is_rejected", func(t *testing.T) {
+		_, _, errResp := resolveExportPlanningDate(studentExportFilters{Date: "02.06.2026"}, now)
+		assert.NotNil(t, errResp)
+	})
+}

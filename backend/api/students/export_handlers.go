@@ -81,6 +81,14 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Resolved before the fetch for the same reason as in listStudents: the
+	// room pre-filter reads today's live active.visits state (#1939).
+	planningDate, isToday, errResp := resolveExportPlanningDate(req.Filters, rs.Now())
+	if errResp != nil {
+		renderError(w, r, errResp)
+		return
+	}
+
 	params := exportRequestToListParams(req)
 	students, errResp := rs.fetchStudentsForExport(r, params)
 	if errResp != nil {
@@ -101,8 +109,7 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 		populateExportPhotoConsentFilterData(responses, students)
 	}
 
-	planningDate, isToday, errResp := rs.prepareDatedExportResponses(r, responses, dataSnapshot, req.Filters.Date)
-	if errResp != nil {
+	if errResp := rs.prepareDatedExportResponses(r, responses, dataSnapshot, planningDate, isToday); errResp != nil {
 		renderError(w, r, errResp)
 		return
 	}
@@ -160,18 +167,26 @@ func (rs *Resource) exportStudents(w http.ResponseWriter, r *http.Request) {
 	_, _ = w.Write(file.Data)
 }
 
-// prepareDatedExportResponses resolves the export's planning date and layers the
-// date-scoped view onto the already-built responses: today keeps live
-// check-in/out times, any other day starts from the row's clean state and
-// carries only that day's status days, plans, and effective arrival/pickup
-// times. It returns the resolved date so the row and header builders stay
-// date-aware, or a renderer when the requested date is malformed or a lookup
-// fails.
-func (rs *Resource) prepareDatedExportResponses(r *http.Request, responses []StudentResponse, dataSnapshot *common.StudentDataSnapshot, rawDate string) (timezone.Date, bool, render.Renderer) {
-	planningDate, isToday, dateErr := resolvePlanningDate(rawDate, rs.Now())
+// resolveExportPlanningDate resolves the export's planning day and rejects the
+// live presence filters that cannot be answered for any day but today. Both
+// checks run before the fetch so a dated export never reaches the live-state
+// query path (#1939).
+func resolveExportPlanningDate(filters studentExportFilters, now time.Time) (timezone.Date, bool, render.Renderer) {
+	planningDate, isToday, dateErr := resolvePlanningDate(filters.Date, now)
 	if dateErr != nil {
 		return timezone.Date{}, false, common.ErrorInvalidRequest(dateErr)
 	}
+	if err := liveFilterError(activeLiveExportFilters(filters), planningDate, isToday); err != nil {
+		return timezone.Date{}, false, common.ErrorInvalidRequest(err)
+	}
+	return planningDate, isToday, nil
+}
+
+// prepareDatedExportResponses layers the date-scoped view onto the already-built
+// responses: today keeps live check-in/out times, any other day starts from the
+// row's clean state and carries only that day's status days, plans, and
+// effective arrival/pickup times. It returns a renderer when a lookup fails.
+func (rs *Resource) prepareDatedExportResponses(r *http.Request, responses []StudentResponse, dataSnapshot *common.StudentDataSnapshot, planningDate timezone.Date, isToday bool) render.Renderer {
 	// Actual check-in/out times and the row-seeded Sick/Excused flags describe
 	// today; a non-today planning export starts clean and only carries the
 	// requested date's status days and plans.
@@ -185,15 +200,15 @@ func (rs *Resource) prepareDatedExportResponses(r *http.Request, responses []Stu
 		resetLiveLocationFields(responses)
 	}
 	if err := rs.applyStatusDaysForDate(r.Context(), responses, planningDate.BerlinMidnight()); err != nil {
-		return timezone.Date{}, false, common.ErrorInternalServer(err)
+		return common.ErrorInternalServer(err)
 	}
 	if err := rs.enrichWithDayPlanning(r.Context(), responses, planningDate, isToday, attendanceMapFromSnapshot(dataSnapshot)); err != nil {
-		return timezone.Date{}, false, common.ErrorInternalServer(err)
+		return common.ErrorInternalServer(err)
 	}
 	fullAccessIDs := collectFullAccessStudentIDs(responses)
 	rs.enrichWithPickupTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
 	rs.enrichWithArrivalTimes(r.Context(), responses, fullAccessIDs, planningDate.BerlinMidnight())
-	return planningDate, isToday, nil
+	return nil
 }
 
 func decodeStudentExportRequest(r *http.Request) (studentExportRequest, error) {

@@ -297,4 +297,41 @@ describe("DesktopFilters", () => {
       expect(container.firstChild).toHaveClass("custom-class");
     });
   });
+
+  describe("Custom type filters", () => {
+    it("renders the supplied control", () => {
+      const customFilters: FilterConfig[] = [
+        {
+          id: "date",
+          label: "Datum",
+          type: "custom",
+          value: "",
+          onChange: vi.fn(),
+          options: [],
+          render: <button type="button">Morgen</button>,
+        },
+      ];
+
+      render(<DesktopFilters filters={customFilters} />);
+
+      expect(screen.getByText("Morgen")).toBeInTheDocument();
+    });
+
+    it("renders nothing when no control was supplied", () => {
+      const customFilters: FilterConfig[] = [
+        {
+          id: "date",
+          label: "Datum",
+          type: "custom",
+          value: "",
+          onChange: vi.fn(),
+          options: [],
+        },
+      ];
+
+      const { container } = render(<DesktopFilters filters={customFilters} />);
+
+      expect(container.firstChild).toBeEmptyDOMElement();
+    });
+  });
 });

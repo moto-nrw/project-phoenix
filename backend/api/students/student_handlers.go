@@ -50,6 +50,18 @@ func (rs *Resource) parseAndGetStudent(w http.ResponseWriter, r *http.Request) (
 func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters and determine access
 	params := parseStudentListParams(r)
+	// Resolved BEFORE the fetch: the room/location pre-filters below query
+	// today's live active.visits state, so a non-today planning request has to
+	// be rejected before that query runs, not after it (#1939).
+	planningDate, isToday, dateErr := resolvePlanningDate(params.date, rs.Now())
+	if dateErr != nil {
+		renderError(w, r, common.ErrorInvalidRequest(dateErr))
+		return
+	}
+	if err := liveFilterError(activeLiveListFilters(params), planningDate, isToday); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 	accessCtx := rs.determineStudentAccess(r)
 
 	// Fetch students based on parameters
@@ -86,16 +98,16 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 	// Build and filter responses
 	responses := rs.buildStudentResponses(r.Context(), students, params, accessCtx, dataSnapshot, photosEnabled)
 
-	now := rs.Now()
-	planningDate, isToday, dateErr := resolvePlanningDate(params.date, now)
-	if dateErr != nil {
-		renderError(w, r, common.ErrorInvalidRequest(dateErr))
-		return
-	}
 	if !isToday {
 		// The row-seeded Sick/Excused flags describe today; a non-today view
 		// must start clean and only carry the requested date's status days.
 		resetScheduledStatusFlags(responses)
+		// Same for the live-location snapshot: a list labelled for another day
+		// must not ship today's whereabouts. The page already renders the
+		// planned expectation instead of the location badge for a non-today
+		// date; stripping the fields keeps a direct API consumer from reading
+		// them as the plan (#1939).
+		resetLiveLocationFields(responses)
 	}
 	if err := rs.applyStatusDaysForDate(r.Context(), responses, planningDate.BerlinMidnight()); err != nil {
 		slog.Default().Error("failed to apply student status days", slog.String("error", err.Error()))

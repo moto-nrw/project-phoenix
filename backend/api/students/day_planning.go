@@ -100,6 +100,54 @@ func resolvePlanningDate(raw string, now time.Time) (timezone.Date, bool, error)
 	return date, date == today, nil
 }
 
+// activeLiveListFilters names the list filters that can only be answered from
+// TODAY's live presence state: room_id and location_state resolve through
+// active.visits, and location matches the current-location snapshot. "" (and
+// "Unknown" for location, its all-values sentinel) mean the filter is off.
+func activeLiveListFilters(params *studentListParams) []string {
+	var active []string
+	if params.roomID > 0 {
+		active = append(active, "room_id")
+	}
+	if params.locationState != "" {
+		active = append(active, "location_state")
+	}
+	if params.location != "" && params.location != "Unknown" {
+		active = append(active, "location")
+	}
+	return active
+}
+
+// activeLiveExportFilters is the export counterpart of activeLiveListFilters.
+// status buckets a child by its current location (see exportStatus), which a
+// dated export strips — leaving every row classified "abwesend".
+func activeLiveExportFilters(filters studentExportFilters) []string {
+	var active []string
+	if strings.TrimSpace(filters.RoomID) != "" {
+		active = append(active, "room_id")
+	}
+	if filters.Status != "" && filters.Status != "all" {
+		active = append(active, "status")
+	}
+	return active
+}
+
+// liveFilterError rejects a non-today planning request that carries a live
+// presence filter. Silently ignoring one would be worse than a 400: the caller
+// would receive a plausible-looking list that answers a different question than
+// the one asked. The page already neutralizes these filters for a non-today
+// date, so this only ever fires for a direct or stale client — the same
+// boundary reasoning as the past-date and horizon guards above (#1939).
+func liveFilterError(active []string, date timezone.Date, isToday bool) error {
+	if isToday || len(active) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"filter %s reflects the current presence state and is only available for today, not for the planning date %s",
+		strings.Join(active, ", "), date.String(),
+	)
+}
+
 func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []StudentResponse, planningDate timezone.Date, isToday bool, attendances map[int64]*activeService.AttendanceStatus) error {
 	fullAccessIDs := collectFullAccessStudentIDs(responses)
 	if len(fullAccessIDs) == 0 {

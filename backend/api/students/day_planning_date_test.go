@@ -2,6 +2,7 @@ package students_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"testing"
@@ -151,6 +152,88 @@ func TestListStudents_DayPlanningForDate(t *testing.T) {
 
 		req = testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&date=2026-06-07&page_size=50", schoolClass), nil)
 		rr = authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+	})
+}
+
+// studentLiveLocationTestResponse decodes just the live-location snapshot the
+// list ships, so the assertions below read the exact fields #1939 strips for a
+// non-today planning date.
+type studentLiveLocationTestResponse struct {
+	ID            int64      `json:"id"`
+	Location      string     `json:"current_location"`
+	LocationSince *time.Time `json:"location_since"`
+	RoomColor     *string    `json:"current_room_color"`
+}
+
+func decodeStudentLocationsByID(t *testing.T, body []byte) map[int64]studentLiveLocationTestResponse {
+	t.Helper()
+	var resp struct {
+		Data []studentLiveLocationTestResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(body, &resp))
+	byID := make(map[int64]studentLiveLocationTestResponse, len(resp.Data))
+	for _, student := range resp.Data {
+		byID[student.ID] = student
+	}
+	return byID
+}
+
+// TestListStudents_LiveStateForPlanningDate covers the two ways today's live
+// presence state could still reach a non-today planning list: through the
+// live-only filters (room_id / location_state / location), which resolve via
+// active.visits, and through the current-location snapshot on the response.
+// Fixed now is Monday 2026-06-01; the planning day is Tuesday 2026-06-02.
+func TestListStudents_LiveStateForPlanningDate(t *testing.T) {
+	tc := setupTestContext(t)
+	fixedNow := time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC)
+	tc.resource.Now = func() time.Time { return fixedNow }
+
+	schoolClass := fmt.Sprintf("LS-%d", time.Now().UnixNano())
+	checkedIn := testpkg.CreateTestStudent(t, tc.db, "LiveState", "CheckedIn", schoolClass)
+	staff := testpkg.CreateTestStaff(t, tc.db, "LiveState", "Creator")
+	device := testpkg.CreateTestDevice(t, tc.db, "live-state-device")
+	defer testpkg.CleanupActivityFixtures(t, tc.db, checkedIn.ID, staff.ID, device.ID)
+
+	testpkg.CreateTestAttendance(t, tc.db, checkedIn.ID, staff.ID, device.ID, time.Now().Add(-30*time.Minute), nil)
+
+	t.Run("today_still_reports_the_live_location", func(t *testing.T) {
+		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&page_size=50", schoolClass), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+		byID := decodeStudentLocationsByID(t, rr.Body.Bytes())
+		require.Contains(t, byID, checkedIn.ID)
+		assert.NotEmpty(t, byID[checkedIn.ID].Location, "today must keep the live location")
+	})
+
+	t.Run("planning_date_strips_the_live_location", func(t *testing.T) {
+		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&date=2026-06-02&page_size=50", schoolClass), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
+
+		byID := decodeStudentLocationsByID(t, rr.Body.Bytes())
+		require.Contains(t, byID, checkedIn.ID)
+		assert.Empty(t, byID[checkedIn.ID].Location, "a planning date must not ship today's whereabouts")
+		assert.Nil(t, byID[checkedIn.ID].LocationSince)
+		assert.Nil(t, byID[checkedIn.ID].RoomColor)
+	})
+
+	t.Run("planning_date_rejects_live_only_filters", func(t *testing.T) {
+		for _, query := range []string{
+			"room_id=1",
+			"location_state=present",
+			"location=Anwesend",
+		} {
+			req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&date=2026-06-02&%s", schoolClass, query), nil)
+			rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+			assert.Equal(t, http.StatusBadRequest, rr.Code, "query %q, body: %s", query, rr.Body.String())
+		}
+	})
+
+	t.Run("today_accepts_live_only_filters", func(t *testing.T) {
+		req := testutil.NewRequest("GET", fmt.Sprintf("/?school_class=%s&date=2026-06-01&location_state=present&page_size=50", schoolClass), nil)
+		rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 		require.Equal(t, http.StatusOK, rr.Code, "body: %s", rr.Body.String())
 	})
 }

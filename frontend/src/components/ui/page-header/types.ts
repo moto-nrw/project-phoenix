@@ -152,9 +152,9 @@ export interface FilterConfig {
    * `options` are unused for custom filters; pass empty stubs. Because those
    * stubs carry no default, custom filters are excluded from the header's
    * default-state detection — report a non-default custom control through
-   * `activeFilters` instead. Only the quiet `FilterPanel` renders custom
-   * filters; the inline `DesktopFilters` skips them (no inline-variant
-   * consumer needs one today).
+   * `activeFilters` instead. Rendered by both the quiet `FilterPanel` and the
+   * inline `DesktopFilters` row, so a custom control never silently disappears
+   * on a consumer that uses the inline variant.
    */
   readonly render?: React.ReactNode;
 }

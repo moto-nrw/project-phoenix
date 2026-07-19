@@ -1394,8 +1394,13 @@ function SearchPageContent() {
     () => trackingStudentIds.join(","),
     [trackingStudentIds],
   );
+  // Tracking indicators (Mensa/HA) describe TODAY's activity participation.
+  // Every consumer below is already gated on isToday — the filter is
+  // neutralized (effectiveTrackingFilter), its option is dropped from the
+  // filter set, and the card badges are not rendered — so on a planning date
+  // the request is pure waste. Skip it entirely (#1939).
   const { data: trackingData } = useSWRAuth<TrackingIndicatorsResponse>(
-    trackingStudentIds.length > 0
+    isToday && trackingStudentIds.length > 0
       ? `tracking-indicators-${trackingStudentIdsKey}`
       : null,
     async () => activeService.getTrackingIndicators(trackingStudentIds),

@@ -22,6 +22,14 @@ export function DesktopFilters({
 }
 
 function FilterControl({ filter }: Readonly<{ filter: FilterConfig }>) {
+  if (filter.type === "custom") {
+    // A custom filter carries its own control; value/options are unused stubs.
+    // Rendering it here (rather than skipping it) keeps a filter set from
+    // silently losing a control when a consumer uses the inline desktop row
+    // instead of the quiet popover panel.
+    return filter.render ?? null;
+  }
+
   if (filter.type === "buttons") {
     const isMulti = !!filter.multiSelect;
     const selectedValues = normalizeFilterValues(filter.value);

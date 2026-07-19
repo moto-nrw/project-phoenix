@@ -524,4 +524,39 @@ describe("StudentSearchPage — planning date (#1939)", () => {
     );
     expect(dates.at(-1)).toBeUndefined();
   });
+
+  // The mocked useSWRAuth runs every fetcher regardless of the key, so the
+  // assertion is on the SWR key itself — a null key is what disables the
+  // request in production (#1939).
+  const trackingKeys = () =>
+    mockUseSWRAuth.mock.calls
+      .map((c) => c[0] as string | null)
+      .filter(
+        (key) =>
+          typeof key === "string" && key.startsWith("tracking-indicators-"),
+      );
+
+  it("requests tracking indicators for today", async () => {
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+    });
+
+    expect(trackingKeys().length).toBeGreaterThan(0);
+  });
+
+  it("skips the tracking-indicator request on a planning date", async () => {
+    currentSearch = new URLSearchParams({ date: isoDaysFromToday(1) });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("student-card-7")).toBeInTheDocument();
+    });
+
+    // Tracking indicators describe today's activity participation and are not
+    // rendered on a planning date, so the request must not be made at all.
+    expect(trackingKeys()).toEqual([]);
+  });
 });
