@@ -299,6 +299,16 @@ func (r *StudentRepository) Update(ctx context.Context, student *users.Student) 
 	// rejected against the stale accompanied mode it never sent (#1694).
 	r.alignDeparturePlanForValidation(student, currentDeparture)
 
+	// A structured "läuft mit" link satisfies the accompanied-requires-a-note
+	// invariant just like the free-text note does, but it lives in another table
+	// and is not part of the model. Derive it HERE, the one layer every update
+	// passes through, so a caller that knows nothing about companions (status
+	// days, sick/excused auto-clear, care-request approval, imports) can still
+	// save a child whose "mit wem" is answered by a link (#1694).
+	if err := r.applyCompanionLinkFlag(ctx, student); err != nil {
+		return err
+	}
+
 	// Validate student
 	if err := student.Validate(); err != nil {
 		return err
@@ -1100,6 +1110,55 @@ func (r *StudentRepository) hasStudentColumns(ctx context.Context, columns ...st
 		present[col] = true
 	}
 	return present, nil
+}
+
+// applyCompanionLinkFlag sets the non-persisted Student.DepartureCompanionLinked
+// from users.student_companions, so Student.Validate() accepts an accompanied
+// plan whose "mit wem" is answered by a link instead of the free-text note.
+//
+// Only queried when the answer can change the outcome: an update that already
+// carries a note, already has the flag set, or has no accompanied day left is
+// untouched, so the common path pays nothing.
+func (r *StudentRepository) applyCompanionLinkFlag(ctx context.Context, student *users.Student) error {
+	if student.ID <= 0 || student.DepartureCompanionLinked || student.DepartureCompanionNote != nil {
+		return nil
+	}
+	if !student.AllowedDepartureModes.HasMode(users.DepartureAccompanied) &&
+		!student.DepartureDays.HasMode(users.DepartureAccompanied) {
+		return nil
+	}
+
+	// The table landed in 1.15.208 and the migration tests exercise historical
+	// schemas with the current model, so probe it like the optional departure
+	// columns are probed. Absent table means no links, which keeps the note
+	// requirement in force — failing closed.
+	var exists bool
+	if err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM information_schema.tables
+			WHERE table_schema = 'users' AND table_name = 'student_companions'
+		)
+	`).Scan(ctx, &exists); err != nil {
+		return &modelBase.DatabaseError{Op: "check student companions table", Err: err}
+	}
+	if !exists {
+		return nil
+	}
+
+	var linked bool
+	if err := base.GetDB(ctx, r.db).NewRaw(`
+		SELECT EXISTS (
+			SELECT 1
+			FROM users.student_companions
+			WHERE student_low_id = ? OR student_high_id = ?
+		)
+	`, student.ID, student.ID).Scan(ctx, &linked); err != nil {
+		return &modelBase.DatabaseError{Op: "check student companion links", Err: err}
+	}
+
+	student.DepartureCompanionLinked = linked
+	return nil
 }
 
 func (r *StudentRepository) hasStudentColumn(ctx context.Context, column string) (bool, error) {

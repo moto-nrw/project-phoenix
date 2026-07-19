@@ -597,10 +597,18 @@ function StudentDetailPageContent() {
       // Laufgemeinschaft travels with the plan it belongs to: a link is only
       // legal on a day that allows "Anderes Kind", so the backend validates
       // both in one request instead of racing two.
-      companions: (editedStudent.companions ?? []).map((companion) => ({
-        companion_student_id: companion.companion_student_id,
-        weekdays: companion.weekdays,
-      })),
+      //
+      // Omitted when the modal has no loaded list: the field REPLACES the
+      // stored links, so sending [] for "not loaded" would delete them. The
+      // backend leaves the links alone when the key is absent.
+      ...(editedStudent.companions
+        ? {
+            companions: editedStudent.companions.map((companion) => ({
+              companion_student_id: companion.companion_student_id,
+              weekdays: companion.weekdays,
+            })),
+          }
+        : {}),
       extend_companion_plans: editedStudent.extend_companion_plans ?? false,
       health_info: editedStudent.health_info,
       supervisor_notes: editedStudent.supervisor_notes,

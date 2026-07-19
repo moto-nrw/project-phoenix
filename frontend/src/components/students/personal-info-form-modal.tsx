@@ -46,6 +46,13 @@ export function PersonalInfoFormModal({
   // does not allow the requested days. Answering yes re-sends the identical
   // payload with the confirmation flag.
   const [planConflict, setPlanConflict] = useState<string | null>(null);
+  // The submitted list REPLACES the stored one, so saving is blocked until the
+  // stored links are known: an empty list from a pending or failed load would
+  // silently delete the child's Laufgemeinschaft.
+  const [companionsStatus, setCompanionsStatus] = useState<
+    "loading" | "ready" | "error"
+  >("loading");
+  const [reloadCompanions, setReloadCompanions] = useState(0);
 
   // Reset form when modal opens with new student data
   useEffect(() => {
@@ -59,13 +66,16 @@ export function PersonalInfoFormModal({
   useEffect(() => {
     if (!isOpen || !student.id) return;
     let cancelled = false;
+    setCompanionsStatus("loading");
     fetchStudentCompanions(student.id)
       .then((companions: StudentCompanion[]) => {
         if (cancelled) return;
         setEditedStudent((prev) => ({ ...prev, companions }));
+        setCompanionsStatus("ready");
       })
       .catch((err: unknown) => {
         if (cancelled) return;
+        setCompanionsStatus("error");
         logger.error("failed to load companions", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -73,7 +83,7 @@ export function PersonalInfoFormModal({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, student.id]);
+  }, [isOpen, student.id, reloadCompanions]);
 
   const updateField = <K extends keyof ExtendedStudent>(
     field: K,
@@ -96,7 +106,12 @@ export function PersonalInfoFormModal({
     // "Mit anderem Kind" needs to say with whom (#1694) — either a linked
     // child (better: structured, symmetric) or the free-text note for someone
     // who is not a child of this school.
+    //
+    // Skipped while the stored links are unknown: claiming "nobody is linked"
+    // from a pending or failed load would block an unrelated edit with a wrong
+    // reason. The backend re-checks the same rule against the stored links.
     if (
+      companionsStatus === "ready" &&
       allowedModesIncludeAccompanied(allowedDepartureModes) &&
       (editedStudent.companions?.length ?? 0) === 0 &&
       !editedStudent.departure_companion_note?.trim()
@@ -122,6 +137,12 @@ export function PersonalInfoFormModal({
       const pickupDays = allowedDepartureToPickupDays(allowedDepartureModes);
       await onSave({
         ...editedStudent,
+        // The submitted list REPLACES the stored one, so it must only travel
+        // when it IS the stored one. A pending or failed load stays undefined,
+        // which the page turns into "no companions key" — the backend then
+        // leaves the child's Laufgemeinschaft untouched instead of clearing it.
+        companions:
+          companionsStatus === "ready" ? editedStudent.companions : undefined,
         extend_companion_plans: extendCompanionPlans,
         allowed_departure_modes: allowedDepartureModes,
         departure_days: allowedDepartureToDepartureDays(allowedDepartureModes),
@@ -183,6 +204,24 @@ export function PersonalInfoFormModal({
       }
     >
       <div className="space-y-4">
+        {companionsStatus === "error" ? (
+          <div className="rounded-lg border border-[#FF3130] bg-[#FF3130]/5 p-3">
+            <p className="text-sm text-gray-900">
+              Die Laufgemeinschaft konnte nicht geladen werden und wird unten
+              nicht angezeigt. Andere Angaben lassen sich speichern, die
+              bestehenden Verknüpfungen bleiben dabei unverändert.
+            </p>
+            <div className="mt-2 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setReloadCompanions((count) => count + 1)}
+                className="inline-flex items-center justify-center rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 transition-all duration-200 hover:bg-gray-50"
+              >
+                Erneut laden
+              </button>
+            </div>
+          </div>
+        ) : null}
         {planConflict ? (
           <div className="rounded-lg border border-[#F78C10] bg-[#F78C10]/5 p-3">
             <p className="text-sm text-gray-900">{planConflict}</p>

@@ -1079,7 +1079,7 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// transaction, and that commits on every non-5xx response — a 409 raised
 	// after a write would keep that write.
 	applyStudentFieldUpdates(req, fresh)
-	if err := rs.checkCompanionConflicts(ctx, fresh, req); err != nil {
+	if err := rs.checkCompanionConflicts(ctx, fresh, req, userPermissions); err != nil {
 		return err
 	}
 
@@ -1152,6 +1152,10 @@ func updateStudentTxErrorRenderer(err error) render.Renderer {
 	// user and may resend with extend_companion_plans.
 	case companionConflictRenderer(err) != nil:
 		return companionConflictRenderer(err)
+	// The confirmation would widen a companion's own departure plan, which the
+	// caller is not allowed to change. Refused before any write.
+	case errors.Is(err, errCompanionExtendForbidden):
+		return common.ErrorForbidden(err)
 	// Companion input the client should not have sent: a day the child's own
 	// plan does not allow, a duplicate, a self-link, an unknown child. All 4xx,
 	// with the German sentinel text going straight to the UI.

@@ -78,11 +78,22 @@ func (e *companionConflictError) Error() string {
 	return "companion departure plans do not allow the requested days"
 }
 
-// checkCompanionConflicts refuses the update, before any write, when a linked
-// child's own departure plan does not allow the requested days.
+// errCompanionExtendForbidden is returned when the caller may edit the child in
+// front of them but not the companion whose departure plan the confirmation
+// would widen.
+var errCompanionExtendForbidden = errors.New("Für ein verknüpftes Kind fehlt die Berechtigung, den Heimweg zu ändern.") //nolint:staticcheck // ST1005: user-facing German message
+
+// checkCompanionConflicts runs the COMPLETE companion validation before the
+// update writes anything: link shape, count, the subject's own weekdays,
+// companion existence, and the companions whose plan does not allow the
+// requested days.
+//
+// Everything has to happen here, not in applyCompanionUpdate: this request runs
+// inside the middleware's tenant transaction, which commits on every non-5xx
+// response, so a 4xx raised after the first write would keep that write.
 //
 // `student` must already carry the plan resolved from this request.
-func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest) error {
+func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userModels.Student, req *UpdateStudentRequest, userPermissions []string) error {
 	if !req.hasCompanionUpdate() {
 		return nil
 	}
@@ -100,8 +111,42 @@ func (rs *Resource) checkCompanionConflicts(ctx context.Context, student *userMo
 	if err != nil {
 		return err
 	}
-	if len(conflicts) > 0 {
+	if len(conflicts) == 0 {
+		return nil
+	}
+	if !req.ExtendCompanionPlans {
 		return &companionConflictError{Conflicts: conflicts}
+	}
+	return rs.authorizeCompanionExtension(ctx, conflicts, userPermissions)
+}
+
+// authorizeCompanionExtension gates the ONE companion write this endpoint can
+// perform: widening a linked child's own allowed departure modes.
+//
+// Linking to a child in another group is the point of a Laufgemeinschaft, so
+// creating the edge stays open to anyone who may edit the subject. Changing
+// the OTHER child's departure permission is a different act — it must pass the
+// same authorization that a direct update of that child would, or a group
+// supervisor could edit the Heimweg of any child in the school by way of a
+// crafted extend_companion_plans request.
+func (rs *Resource) authorizeCompanionExtension(ctx context.Context, conflicts []usersService.CompanionConflict, userPermissions []string) error {
+	ids := make([]int64, 0, len(conflicts))
+	for _, conflict := range conflicts {
+		ids = append(ids, conflict.StudentID)
+	}
+
+	companions, err := rs.StudentService.GetByIDs(ctx, ids)
+	if err != nil {
+		return err
+	}
+	for _, id := range ids {
+		companion := companions[id]
+		if companion == nil {
+			return usersService.ErrCompanionNotFound
+		}
+		if ok, _ := canUpdateStudent(ctx, userPermissions, companion, rs.UserContextService); !ok {
+			return errCompanionExtendForbidden
+		}
 	}
 	return nil
 }
@@ -132,9 +177,12 @@ func (rs *Resource) applyCompanionUpdate(ctx context.Context, student *userModel
 	}
 
 	if !req.hasCompanionUpdate() {
-		// Untouched links still answer "mit wem", so the note stays optional for
-		// a child that already has a Laufgemeinschaft.
-		links, err := rs.StudentService.ListCompanions(ctx, student.ID)
+		// The client changed the plan but not the list. Links on a weekday the
+		// new plan no longer allows lose their basis and are dropped — keeping
+		// them would let the Kindersuche group the children on a day the
+		// Stammdaten forbid. What survives still answers "mit wem", so the note
+		// stays optional for a child that has a Laufgemeinschaft left.
+		links, err := rs.StudentService.TrimCompanionsToDays(ctx, student.ID, accompaniedDays)
 		if err != nil {
 			return err
 		}

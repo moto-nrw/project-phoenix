@@ -2,6 +2,8 @@ package users
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/models/base"
@@ -47,9 +49,16 @@ type StudentService interface {
 	// UpdatePrivacyConsent persists changes to a privacy consent.
 	UpdatePrivacyConsent(ctx context.Context, consent *userModels.PrivacyConsent) error
 
+	// GetByIDs retrieves several students in one query, keyed by id.
+	GetByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error)
+
 	// ListCompanions returns the children this child walks home with
 	// ("läuft mit"), folded per companion with their weekdays and names.
 	ListCompanions(ctx context.Context, studentID int64) ([]userModels.CompanionLink, error)
+
+	// TrimCompanionsToDays drops every companion link on a weekday the child's
+	// departure plan no longer allows, and reports the links that remain.
+	TrimCompanionsToDays(ctx context.Context, studentID int64, allowedDays map[string]bool) ([]userModels.CompanionLink, error)
 
 	// CheckCompanionConflicts reports the same conflicts as ReplaceCompanions
 	// without writing anything, so a caller can refuse before its first write.
@@ -136,11 +145,68 @@ func (s *studentService) UpdatePrivacyConsent(ctx context.Context, consent *user
 // list, and both should fail loudly rather than produce an unreadable grouping.
 const MaxStudentCompanions = 10
 
+func (s *studentService) GetByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Student, error) {
+	if len(ids) == 0 {
+		return map[int64]*userModels.Student{}, nil
+	}
+	return s.studentRepo.FindByIDs(ctx, ids)
+}
+
 func (s *studentService) ListCompanions(ctx context.Context, studentID int64) ([]userModels.CompanionLink, error) {
 	if studentID <= 0 {
 		return nil, ErrStudentNotFound
 	}
 	return s.companionRepo.ListLinksForStudent(ctx, studentID)
+}
+
+// TrimCompanionsToDays removes the links that the child's departure plan no
+// longer covers.
+//
+// It exists for the update that narrows the plan without touching the link
+// list: dropping "Anderes Kind" from Tuesday has to drop the Tuesday edges too,
+// or the Kindersuche keeps grouping the children on a day the Stammdaten
+// forbid. Only ever removes, so no companion's plan is consulted — a day that
+// was legal before cannot become illegal by disappearing.
+func (s *studentService) TrimCompanionsToDays(ctx context.Context, studentID int64, allowedDays map[string]bool) ([]userModels.CompanionLink, error) {
+	if studentID <= 0 {
+		return nil, ErrStudentNotFound
+	}
+
+	links, err := s.companionRepo.ListLinksForStudent(ctx, studentID)
+	if err != nil {
+		return nil, err
+	}
+
+	trimmed := make([]userModels.CompanionLink, 0, len(links))
+	changed := false
+	for _, link := range links {
+		kept := make([]string, 0, len(link.Weekdays))
+		for _, day := range link.Weekdays {
+			if allowedDays[day] {
+				kept = append(kept, day)
+			}
+		}
+		if len(kept) != len(link.Weekdays) {
+			changed = true
+		}
+		if len(kept) == 0 {
+			continue
+		}
+		link.Weekdays = kept
+		trimmed = append(trimmed, link)
+	}
+	if !changed {
+		return links, nil
+	}
+
+	edges, _, err := buildCompanionEdges(studentID, trimmed)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.companionRepo.ReplaceForStudent(ctx, studentID, edges); err != nil {
+		return nil, err
+	}
+	return trimmed, nil
 }
 
 // CompanionUpdate is the input for ReplaceCompanions.
@@ -180,24 +246,66 @@ type CompanionConflict struct {
 // The flip side is that replacing Lina's list only touches edges that TOUCH
 // Lina — a link between Tom and Mia is left alone.
 func (s *studentService) ReplaceCompanions(ctx context.Context, studentID int64, update CompanionUpdate) ([]CompanionConflict, error) {
+	edges, conflicts, err := s.validateCompanionUpdate(ctx, studentID, update)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(conflicts) > 0 {
+		if !update.ExtendCompanionPlans {
+			return conflicts, nil
+		}
+		// Ascending id order (validateCompanionUpdate sorts), so two requests
+		// widening overlapping companions take the row locks in the same order.
+		for _, conflict := range conflicts {
+			if err := s.extendAccompaniedDays(ctx, conflict.StudentID, conflict.Weekdays); err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	return nil, s.companionRepo.ReplaceForStudent(ctx, studentID, edges)
+}
+
+// CheckCompanionConflicts answers the same question as ReplaceCompanions
+// WITHOUT writing anything.
+//
+// It exists because the caller has to know EVERY possible rejection before it
+// starts writing: the request runs inside the middleware's tenant transaction,
+// which commits on any non-5xx response, so a 4xx raised halfway through would
+// leave the earlier writes of that request committed. It therefore runs the
+// full validation — shape, count, subject weekdays, companion existence — and
+// not just the confirmable conflicts, and it does so regardless of
+// ExtendCompanionPlans: a confirmed retry can still be rejected for one of the
+// other reasons.
+func (s *studentService) CheckCompanionConflicts(ctx context.Context, studentID int64, update CompanionUpdate) ([]CompanionConflict, error) {
+	_, conflicts, err := s.validateCompanionUpdate(ctx, studentID, update)
+	return conflicts, err
+}
+
+// validateCompanionUpdate runs every check ReplaceCompanions performs and
+// returns the edges to write plus the companions whose own departure plan does
+// not allow the requested days. It writes nothing, so the read-only
+// CheckCompanionConflicts and the writing ReplaceCompanions cannot drift apart.
+func (s *studentService) validateCompanionUpdate(ctx context.Context, studentID int64, update CompanionUpdate) ([]*userModels.StudentCompanion, []CompanionConflict, error) {
 	if studentID <= 0 {
-		return nil, ErrStudentNotFound
+		return nil, nil, ErrStudentNotFound
 	}
 	if len(update.Links) > MaxStudentCompanions {
-		return nil, ErrTooManyCompanions
+		return nil, nil, ErrTooManyCompanions
 	}
 
 	subject, err := s.studentRepo.FindByID(ctx, studentID)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if subject == nil {
-		return nil, ErrStudentNotFound
+		return nil, nil, ErrStudentNotFound
 	}
 
 	edges, companionDays, err := buildCompanionEdges(studentID, update.Links)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	// The subject's own plan gates which days may carry a link at all. A day the
@@ -210,59 +318,25 @@ func (s *studentService) ReplaceCompanions(ctx context.Context, studentID int64,
 	for _, edge := range edges {
 		day := userModels.CompanionWeekdayKeys[edge.Weekday]
 		if !allowedDays[day] {
-			return nil, ErrCompanionDayNotAllowed
+			return nil, nil, ErrCompanionDayNotAllowed
 		}
 	}
 
 	if len(companionDays) == 0 {
-		return nil, s.companionRepo.ReplaceForStudent(ctx, studentID, edges)
+		return edges, nil, nil
 	}
 
-	found, conflicts, err := s.resolveCompanions(ctx, companionDays)
+	conflicts, err := s.resolveCompanions(ctx, companionDays)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-
-	if len(conflicts) > 0 {
-		if !update.ExtendCompanionPlans {
-			return conflicts, nil
-		}
-		for _, conflict := range conflicts {
-			if err := s.extendAccompaniedDays(ctx, found[conflict.StudentID], conflict.Weekdays); err != nil {
-				return nil, err
-			}
-		}
-	}
-
-	return nil, s.companionRepo.ReplaceForStudent(ctx, studentID, edges)
-}
-
-// CheckCompanionConflicts answers the same question as ReplaceCompanions
-// WITHOUT writing anything.
-//
-// It exists because the caller has to know about a conflict before it starts
-// writing: the request runs inside the middleware's tenant transaction, which
-// commits on any non-5xx response, so a 409 raised halfway through would leave
-// the earlier writes of that request committed.
-func (s *studentService) CheckCompanionConflicts(ctx context.Context, studentID int64, update CompanionUpdate) ([]CompanionConflict, error) {
-	if update.ExtendCompanionPlans {
-		// The caller already confirmed; there is nothing left to ask about.
-		return nil, nil
-	}
-	_, companionDays, err := buildCompanionEdges(studentID, update.Links)
-	if err != nil {
-		return nil, err
-	}
-	if len(companionDays) == 0 {
-		return nil, nil
-	}
-	_, conflicts, err := s.resolveCompanions(ctx, companionDays)
-	return conflicts, err
+	return edges, conflicts, nil
 }
 
 // resolveCompanions loads the requested companions and reports which of them
-// may not leave with another child on the requested days.
-func (s *studentService) resolveCompanions(ctx context.Context, companionDays map[int64][]string) (map[int64]*userModels.Student, []CompanionConflict, error) {
+// may not leave with another child on the requested days, in ascending id
+// order.
+func (s *studentService) resolveCompanions(ctx context.Context, companionDays map[int64][]string) ([]CompanionConflict, error) {
 	companionIDs := make([]int64, 0, len(companionDays))
 	for id := range companionDays {
 		companionIDs = append(companionIDs, id)
@@ -271,22 +345,26 @@ func (s *studentService) resolveCompanions(ctx context.Context, companionDays ma
 
 	// Tenant-filtered, so an id from another school simply does not come back —
 	// which is exactly the existence check we need before persisting a link.
+	// Read without a lock on purpose: this also runs on the read-only check
+	// path. Every WRITE against a companion re-reads it under its row lock (see
+	// extendAccompaniedDays), so a stale row here can only cost a redundant
+	// confirmation, never a lost update.
 	found, err := s.studentRepo.FindByIDs(ctx, companionIDs)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	var conflicts []CompanionConflict
 	for _, id := range companionIDs {
 		companion := found[id]
 		if companion == nil {
-			return nil, nil, ErrCompanionNotFound
+			return nil, ErrCompanionNotFound
 		}
 		if missing := missingAccompaniedDays(companion, companionDays[id]); len(missing) > 0 {
 			conflicts = append(conflicts, CompanionConflict{StudentID: id, Weekdays: missing})
 		}
 	}
-	return found, conflicts, nil
+	return conflicts, nil
 }
 
 // buildCompanionEdges validates the submitted list and turns it into edges,
@@ -351,13 +429,34 @@ func missingAccompaniedDays(companion *userModels.Student, requested []string) [
 // extendAccompaniedDays widens one companion's allowed departure modes so the
 // requested days permit leaving with another child. Purely additive — the bus
 // and pickup permissions of those days stay untouched.
-func (s *studentService) extendAccompaniedDays(ctx context.Context, companion *userModels.Student, days []string) error {
+//
+// The row is re-read under SELECT … FOR UPDATE rather than reused from the
+// unlocked snapshot resolveCompanions took: widening writes the WHOLE student
+// row, so a sick/group/consent/photo change that another request committed in
+// between would be silently rolled back by a stale snapshot write.
+func (s *studentService) extendAccompaniedDays(ctx context.Context, companionID int64, days []string) error {
+	companion, err := s.studentRepo.FindByIDForUpdate(ctx, companionID)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// Deleted between the check and the lock.
+			return ErrCompanionNotFound
+		}
+		return err
+	}
 	if companion == nil {
 		return ErrCompanionNotFound
 	}
 
+	// Re-derive against the locked row: a concurrent edit may already have
+	// widened some (or all) of these days, and re-adding what is there would
+	// only widen the write for no reason.
+	missing := missingAccompaniedDays(companion, days)
+	if len(missing) == 0 {
+		return nil
+	}
+
 	companion.AllowedDepartureModes = userModels.WithAccompaniedDays(
-		companion.AllowedDepartureModes, days,
+		companion.AllowedDepartureModes, missing,
 	)
 	// The link we are about to write IS the "mit wem" detail, so the
 	// accompanied-needs-a-note invariant is satisfied without inventing text.
