@@ -553,7 +553,7 @@ func (r *InstanceStudentRepository) UpdateAttendanceFields(
 // rows already moved past 'expected' (present via checkin, absent via PATCH)
 // stay put.
 func (r *InstanceStudentRepository) BulkUpdateStatus(
-	ctx context.Context, instanceID int64, fromStatus, toStatus string,
+	ctx context.Context, instanceID int64, fromStatus, toStatus string, excludeStudentIDs []int64,
 ) (int, error) {
 	q := base.GetDB(ctx, r.db).NewUpdate().
 		Model((*schedule.InstanceStudent)(nil)).
@@ -562,6 +562,10 @@ func (r *InstanceStudentRepository) BulkUpdateStatus(
 		Set(`updated_at = ?`, time.Now().UTC()).
 		Where(`"instance_student".instance_id = ?`, instanceID).
 		Where(`"instance_student".status = ?`, fromStatus)
+
+	if len(excludeStudentIDs) > 0 {
+		q = q.Where(`"instance_student".student_id NOT IN (?)`, bun.List(excludeStudentIDs))
+	}
 
 	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 
@@ -600,7 +604,7 @@ func (r *InstanceStudentRepository) DeleteByInstanceID(ctx context.Context, inst
 // Custom method (backend-conventions Rule 2): the subquery join on
 // activity_instances is not expressible through the generic filter shape.
 // Used by the scheduler's daily session-end bridge.
-func (r *InstanceStudentRepository) MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time) error {
+func (r *InstanceStudentRepository) MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time, excludeStudentIDs []int64) error {
 	if len(activeGroupIDs) == 0 {
 		return nil
 	}
@@ -617,6 +621,10 @@ func (r *InstanceStudentRepository) MarkExpectedAbsentByActiveGroupIDs(ctx conte
 			WHERE "instance".status = ?
 				AND "instance".active_group_id IN (?)
 		)`, schedule.InstanceStatusActive, bun.List(activeGroupIDs))
+
+	if len(excludeStudentIDs) > 0 {
+		q = q.Where(`"instance_student".student_id NOT IN (?)`, bun.List(excludeStudentIDs))
+	}
 
 	q = base.WithTenantFilter(ctx, q, aliasInstanceStudent)
 

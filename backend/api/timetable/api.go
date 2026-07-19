@@ -101,6 +101,7 @@ type Dependencies struct {
 	TemplateSplitService   *scheduleSvc.TemplateSplitService
 	PersonService          userSvc.PersonService
 	TimetableData          *scheduleSvc.TimetableDataService
+	CareDayService         scheduleSvc.CareDayService
 	UserContextService     usercontextSvc.UserContextService
 	SettingsService        configSvc.SettingsService
 	Broadcaster            realtime.Broadcaster

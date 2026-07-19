@@ -116,6 +116,7 @@ interface BackendPlannedTimetableInstance {
   minutes_until_start: number;
   expected_students_count: number;
   present_students_count: number;
+  not_scheduled_students_count?: number;
   assigned_staff_ids: number[];
   is_assigned?: boolean;
   is_primary?: boolean;
@@ -139,6 +140,7 @@ interface BackendTimetableRosterRow {
   checked_in_at?: string | null;
   visit_entry_time?: string | null;
   warnings?: BackendTimetableRosterWarning[];
+  care_day_status?: "scheduled" | "not_scheduled" | "unknown";
 }
 
 interface BackendTimetableRosterWarning {
@@ -239,6 +241,7 @@ interface ActiveSupervisionDashboardResponse {
     minutesUntilStart: number;
     expectedStudentsCount: number;
     presentStudentsCount: number;
+    notScheduledStudentsCount: number;
     assignedStaffIds: string[];
     isAssigned: boolean;
     isPrimary: boolean;
@@ -361,6 +364,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
       minutesUntilStart: i.minutes_until_start,
       expectedStudentsCount: i.expected_students_count,
       presentStudentsCount: i.present_students_count,
+      notScheduledStudentsCount: i.not_scheduled_students_count ?? 0,
       assignedStaffIds: i.assigned_staff_ids.map(String),
       isAssigned: i.is_assigned ?? false,
       isPrimary: i.is_primary ?? false,
@@ -380,6 +384,7 @@ export const GET = createGetHandler<ActiveSupervisionDashboardResponse>(
         note: row.note ?? null,
         checkedInAt: row.checked_in_at ?? null,
         visitEntryTime: row.visit_entry_time ?? null,
+        careDayStatus: row.care_day_status ?? "unknown",
         warnings: (row.warnings ?? []).map((warning) => ({
           kind: warning.kind,
           message: warning.message,

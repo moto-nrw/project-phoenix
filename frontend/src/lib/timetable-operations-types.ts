@@ -11,6 +11,12 @@ export interface PlannedTimetableInstance {
   minutesUntilStart: number;
   expectedStudentsCount: number;
   presentStudentsCount: number;
+  /**
+   * Assigned children whose care plan does not place them here today (#1747).
+   * Excluded from expectedStudentsCount; shown next to it so a lower expected
+   * number is explained rather than silently smaller.
+   */
+  notScheduledStudentsCount: number;
   assignedStaffIds: string[];
   isAssigned: boolean;
   isPrimary: boolean;
@@ -45,6 +51,14 @@ export interface TimetableRosterRow {
   checkedOutAt?: string | null;
   visitEntryTime: string | null;
   warnings: TimetableRosterWarning[];
+  /**
+   * Care-plan verdict for this child on the instance's date (#1747). Only
+   * "not_scheduled" is actionable: the row is set apart and left out of the
+   * expected count, but stays in the list so a child who turns up anyway can
+   * still be checked in with one tap. Older backends omit the field, which
+   * reads as "unknown" and changes nothing.
+   */
+  careDayStatus: "scheduled" | "not_scheduled" | "unknown";
 }
 
 interface TimetableRosterWarning {
@@ -91,6 +105,7 @@ interface BackendPlannedTimetableInstance {
   is_overdue: boolean;
   minutes_until_start: number;
   expected_students_count: number;
+  not_scheduled_students_count?: number;
   present_students_count: number;
   assigned_staff_ids: number[];
   is_assigned?: boolean;
@@ -126,6 +141,7 @@ interface BackendRosterRow {
   checked_out_at?: string | null;
   visit_entry_time?: string | null;
   warnings?: BackendRosterWarning[];
+  care_day_status?: TimetableRosterRow["careDayStatus"];
 }
 
 interface BackendRosterWarning {
@@ -165,6 +181,7 @@ export function mapPlannedInstance(
     minutesUntilStart: raw.minutes_until_start,
     expectedStudentsCount: raw.expected_students_count,
     presentStudentsCount: raw.present_students_count,
+    notScheduledStudentsCount: raw.not_scheduled_students_count ?? 0,
     assignedStaffIds: raw.assigned_staff_ids.map(String),
     isAssigned: raw.is_assigned ?? false,
     isPrimary: raw.is_primary ?? false,
@@ -190,6 +207,7 @@ function mapRosterRow(row: BackendRosterRow): TimetableRosterRow {
     checkedInAt: row.checked_in_at ?? null,
     checkedOutAt: row.checked_out_at ?? null,
     visitEntryTime: row.visit_entry_time ?? null,
+    careDayStatus: row.care_day_status ?? "unknown",
     warnings: (row.warnings ?? []).map((warning) => ({
       kind: warning.kind,
       message: warning.message,

@@ -862,6 +862,7 @@ func TestInstanceStudentRepository_BulkUpdateStatus(t *testing.T) {
 		n, err := repo.BulkUpdateStatus(ctx, inst.ID,
 			scheduleModels.AttendanceStatusExpected,
 			scheduleModels.AttendanceStatusAbsent,
+			nil,
 		)
 		require.NoError(t, err)
 		assert.Equal(t, 2, n)
@@ -887,6 +888,7 @@ func TestInstanceStudentRepository_BulkUpdateStatus(t *testing.T) {
 		n, err := repo.BulkUpdateStatus(ctx, inst.ID,
 			scheduleModels.AttendanceStatusExpected,
 			scheduleModels.AttendanceStatusAbsent,
+			nil,
 		)
 		require.NoError(t, err)
 		assert.Equal(t, 0, n)
@@ -905,6 +907,7 @@ func TestInstanceStudentRepository_BulkUpdateStatus(t *testing.T) {
 		n, err := repo.BulkUpdateStatus(ctxT2, inst.ID,
 			scheduleModels.AttendanceStatusExpected,
 			scheduleModels.AttendanceStatusAbsent,
+			nil,
 		)
 		require.NoError(t, err)
 		assert.Equal(t, 0, n)

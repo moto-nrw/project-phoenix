@@ -90,6 +90,11 @@ type enrichedInstance struct {
 	CancelReason          *string                  `json:"cancel_reason,omitempty"`
 	ExpectedStudentsCount int                      `json:"expected_students_count"`
 	PresentStudentsCount  int                      `json:"present_students_count"`
+	// NotScheduledCount is how many assigned children the care plan does not
+	// place here on this day (#1747). Excluded from ExpectedStudentsCount and
+	// from the staffing maths; surfaced so the planner can show why the
+	// expected number is lower than the assignment list.
+	NotScheduledCount int `json:"not_scheduled_students_count"`
 	// RequiredStaffCount and AssignedStaffCount drive the Betreuungsplan
 	// capacity indicator (issue #1838): required is
 	// ceil(children/Betreuungsschlüssel), assigned is the non-absent staff
@@ -175,9 +180,16 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 	// setting is tenant-wide, not per-block.
 	ratio := rs.childrenPerStaffRatio(ctx)
 
+	careDays, err := rs.resolveCareDays(ctx, instances, from, to)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap(
+			"resolve care days failed", err))
+		return
+	}
+
 	enriched := make([]enrichedInstance, 0, len(instances))
 	for _, inst := range instances {
-		item, err := rs.enrichInstance(ctx, inst, roomCache, typeCache, ratio)
+		item, err := rs.enrichInstance(ctx, inst, roomCache, typeCache, ratio, careDays)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServerWrap(
 				"enrich instance failed", err))
@@ -204,12 +216,82 @@ func (rs *Resource) listInstances(w http.ResponseWriter, r *http.Request) {
 // student counts for a single instance. Room and type lookups consult the
 // per-request caches to avoid duplicate queries when many instances share a
 // template (e.g. the daily Mensa).
+// resolveCareDays derives, for the whole window at once, which assigned
+// children the care plan actually places in the OGS on which day (#1747).
+//
+// Only children who are still 'expected' can change a count, so the pre-pass
+// asks for exactly those. The window is capped at 56 days, but the cost does
+// not scale with it: weekly care plans are recurring, so the derivation loads
+// them once and combines them with the window's exceptions in memory.
+//
+// An unwired service yields an empty map, which reads as "unknown" everywhere
+// and leaves every count exactly as it was before this feature.
+func (rs *Resource) resolveCareDays(
+	ctx context.Context,
+	instances []*scheduleModel.ActivityInstance,
+	from, to timezone.Date,
+) (map[int64]map[timezone.Date]scheduleSvc.CareDayStatus, error) {
+	empty := map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}
+	if rs.CareDayService == nil || rs.TimetableData == nil || len(instances) == 0 {
+		return empty, nil
+	}
+
+	instanceIDs := make([]int64, 0, len(instances))
+	for _, inst := range instances {
+		if inst != nil {
+			instanceIDs = append(instanceIDs, inst.ID)
+		}
+	}
+
+	rows, err := rs.TimetableData.GetExpectedInstanceStudentsByInstanceIDs(ctx, instanceIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load expected students: %w", err)
+	}
+
+	seen := make(map[int64]bool, len(rows))
+	studentIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		if !seen[row.StudentID] {
+			seen[row.StudentID] = true
+			studentIDs = append(studentIDs, row.StudentID)
+		}
+	}
+	if len(studentIDs) == 0 {
+		return empty, nil
+	}
+
+	return rs.CareDayService.ResolveForRange(ctx, studentIDs, from, to)
+}
+
+// careDaysForInstance resolves the care-day map for a single instance, used by
+// the create/update paths that re-enrich one row. A failure degrades to an
+// empty map — the counts then read exactly as they did before this feature
+// rather than failing a write that already committed.
+func (rs *Resource) careDaysForInstance(
+	ctx context.Context, inst *scheduleModel.ActivityInstance,
+) map[int64]map[timezone.Date]scheduleSvc.CareDayStatus {
+	empty := map[int64]map[timezone.Date]scheduleSvc.CareDayStatus{}
+	if inst == nil {
+		return empty
+	}
+	careDays, err := rs.resolveCareDays(ctx, []*scheduleModel.ActivityInstance{inst}, inst.Date, inst.Date)
+	if err != nil {
+		rs.getLogger().WarnContext(ctx, "resolve care days for instance failed",
+			slog.Int64("instance_id", inst.ID),
+			slog.String("error", err.Error()),
+		)
+		return empty
+	}
+	return careDays
+}
+
 func (rs *Resource) enrichInstance(
 	ctx context.Context,
 	inst *scheduleModel.ActivityInstance,
 	roomCache map[int64]string,
 	metaCache map[int64]templateMeta,
 	childrenPerStaffRatio int,
+	careDays map[int64]map[timezone.Date]scheduleSvc.CareDayStatus,
 ) (enrichedInstance, error) {
 	if inst == nil {
 		return enrichedInstance{}, errors.New("nil instance")
@@ -243,6 +325,7 @@ func (rs *Resource) enrichInstance(
 	}
 	expected := 0
 	present := 0
+	notScheduled := 0
 	studentIDs := make([]int64, 0, len(studentRows))
 	students := make([]instanceStudentSummary, 0, len(studentRows))
 	for _, row := range studentRows {
@@ -261,6 +344,13 @@ func (rs *Resource) enrichInstance(
 		})
 		switch row.Status {
 		case scheduleModel.AttendanceStatusExpected:
+			// Assigned but not in care that weekday: counted separately, and
+			// left out of the staffing maths below — planning for children who
+			// are not booked that day inflates the Betreuungsschlüssel (#1747).
+			if careDays[row.StudentID][inst.Date] == scheduleSvc.CareDayNotScheduled {
+				notScheduled++
+				continue
+			}
 			expected++
 		case scheduleModel.AttendanceStatusPresent:
 			present++
@@ -296,6 +386,7 @@ func (rs *Resource) enrichInstance(
 		CancelReason:          inst.CancelReason,
 		ExpectedStudentsCount: expected,
 		PresentStudentsCount:  present,
+		NotScheduledCount:     notScheduled,
 		RequiredStaffCount:    scheduleSvc.EffectiveRequiredStaff(instanceRequiredStaffOverride(inst.RequiredStaff, meta.requiredStaff), childrenCount, childrenPerStaffRatio),
 		AssignedStaffCount:    assignedStaff,
 		RequiredStaffOverride: inst.RequiredStaff,

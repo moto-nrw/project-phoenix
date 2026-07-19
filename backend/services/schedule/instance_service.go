@@ -236,6 +236,9 @@ type InstanceServiceDependencies struct {
 	StudentRepo       usersModel.StudentRepository
 	ActiveService     ActiveSessionEnder
 	Materialization   MaterializationService
+	// CareDayService decides which still-expected children may be stamped
+	// absent when an instance ends (#1747) — required.
+	CareDayService CareDayService
 	// DeviationEventRepo appends the Änderungsprotokoll (#1886) — required.
 	DeviationEventRepo auditModel.DeviationEventRepository
 	Broadcaster        realtime.Broadcaster
@@ -256,7 +259,7 @@ func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 		deps.ActiveGroupRepo == nil || deps.SupervisorRepo == nil || deps.VisitRepo == nil ||
 		deps.RoomRepo == nil || deps.ActivityGroupRepo == nil || deps.StaffRepo == nil ||
 		deps.StudentRepo == nil || deps.ActiveService == nil || deps.Materialization == nil ||
-		deps.DeviationEventRepo == nil || deps.DB == nil {
+		deps.CareDayService == nil || deps.DeviationEventRepo == nil || deps.DB == nil {
 		panic("schedule.NewInstanceService: required dependency is nil")
 	}
 	return &instanceService{deps: deps}
@@ -264,6 +267,39 @@ func NewInstanceService(deps InstanceServiceDependencies) InstanceService {
 
 func (s *instanceService) getLogger() *slog.Logger {
 	return cmp.Or(s.deps.Logger, slog.Default())
+}
+
+// notScheduledStudentIDs returns the instance's assigned children whose care
+// plan does not place them at the OGS on the instance's date (#1747). Used to
+// spare them the expected → absent stamp when an instance ends.
+func (s *instanceService) notScheduledStudentIDs(
+	ctx context.Context, instance *scheduleModel.ActivityInstance,
+) ([]int64, error) {
+	rows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
+	if err != nil {
+		return nil, &ScheduleError{Op: "complete instance: load attendance rows", Err: err}
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+
+	studentIDs := make([]int64, 0, len(rows))
+	for _, row := range rows {
+		studentIDs = append(studentIDs, row.StudentID)
+	}
+
+	careDay, err := s.deps.CareDayService.ResolveForDate(ctx, studentIDs, instance.Date)
+	if err != nil {
+		return nil, &ScheduleError{Op: "complete instance: resolve care day", Err: err}
+	}
+
+	notScheduled := make([]int64, 0)
+	for _, studentID := range studentIDs {
+		if careDay[studentID] == CareDayNotScheduled {
+			notScheduled = append(notScheduled, studentID)
+		}
+	}
+	return notScheduled, nil
 }
 
 // rejectSchulhofRoom returns ErrSchulhofSupervisionRequired when the given room
@@ -478,8 +514,16 @@ func (s *instanceService) Complete(ctx context.Context, instanceID int64) (*sche
 	// group. Runs inside the caller's tenant tx — if EndActivitySession or
 	// updateLifecycleColumns fail below, the bulk update rolls back too, so
 	// the instance never leaves the tx in a half-finished state.
+	//
+	// Children whose care plan does not place them here today are left alone
+	// (#1747): they were never expected, so "absent" would claim they failed
+	// to show up to care they were not booked for.
+	notScheduled, err := s.notScheduledStudentIDs(ctx, instance)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := s.deps.InstanceStudents.BulkUpdateStatus(
-		ctx, instance.ID, scheduleModel.AttendanceStatusExpected, scheduleModel.AttendanceStatusAbsent,
+		ctx, instance.ID, scheduleModel.AttendanceStatusExpected, scheduleModel.AttendanceStatusAbsent, notScheduled,
 	); err != nil {
 		return nil, &ScheduleError{Op: "complete instance: mark absent", Err: err}
 	}

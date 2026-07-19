@@ -89,7 +89,7 @@ func (f *fakeRepo) FindPlannedStudentIDsByDate(context.Context, []int64, timezon
 	panic("unused")
 }
 func (f *fakeRepo) DeleteByInstanceID(context.Context, int64) error { panic("unused") }
-func (f *fakeRepo) BulkUpdateStatus(context.Context, int64, string, string) (int, error) {
+func (f *fakeRepo) BulkUpdateStatus(context.Context, int64, string, string, []int64) (int, error) {
 	panic("unused")
 }
 
@@ -598,7 +598,7 @@ func TestDecodePatchBody_Direct(t *testing.T) {
 
 // Stubs for the issue #585 cleanup refactor interface additions — unused by
 // these tests.
-func (f *fakeRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time) error {
+func (f *fakeRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []int64) error {
 	panic("unused")
 }
 

@@ -494,6 +494,7 @@ func initializeAPIResources(api *API, repoFactory *repositories.Factory, db *bun
 		TemplateSplitService:   api.Services.TemplateSplit,
 		PersonService:          api.Services.Users,
 		TimetableData:          api.Services.TimetableData,
+		CareDayService:         api.Services.CareDay,
 		UserContextService:     api.Services.UserContext,
 		SettingsService:        api.Services.Settings,
 		Broadcaster:            api.Services.RealtimeHub,

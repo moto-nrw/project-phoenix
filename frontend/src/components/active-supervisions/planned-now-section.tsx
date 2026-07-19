@@ -31,11 +31,25 @@ const SOON_THRESHOLD_MINUTES = 15;
 
 function rosterPreviewLabel(
   count: number,
+  notScheduledCount: number,
   showTimetableCounts: boolean,
 ): string {
   if (count === 0) return "keine Liste";
   if (!showTimetableCounts) return "Liste verfügbar";
+  // Name the children the care plan leaves out (#1747) instead of quietly
+  // showing a smaller number than the assignment list.
+  if (notScheduledCount > 0) {
+    return `${count - notScheduledCount} erwartet · ${notScheduledCount} heute nicht eingeplant`;
+  }
   return `${count} erwartet`;
+}
+
+function isNotScheduled(row: TimetableRosterRow): boolean {
+  return (
+    row.careDayStatus === "not_scheduled" &&
+    !row.currentlyPresent &&
+    row.status !== "present"
+  );
 }
 
 export function PlannedNowSection({
@@ -261,6 +275,8 @@ export function PlannedNowSection({
                         <span className="text-xs font-normal text-gray-500">
                           {rosterPreviewLabel(
                             instance.rosterPreview.length,
+                            instance.rosterPreview.filter(isNotScheduled)
+                              .length,
                             showTimetableCounts,
                           )}
                         </span>
@@ -406,11 +422,22 @@ function RosterPreviewRow({ row }: Readonly<{ row: TimetableRosterRow }>) {
     warnings.length > 0
       ? warnings.map((warning) => warning.message).join("\n")
       : null;
+  // Set apart, never hidden: a child who turns up anyway must still be one tap
+  // away from a check-in (#1747).
+  const notScheduled = isNotScheduled(row);
   return (
-    <div className="rounded-lg bg-white px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)]">
+    <div
+      className={`rounded-lg px-3 py-2 text-sm shadow-[0_1px_0_rgba(17,24,39,0.04)] ${
+        notScheduled ? "bg-gray-50" : "bg-white"
+      }`}
+    >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate font-medium text-gray-900">
+          <p
+            className={`truncate font-medium ${
+              notScheduled ? "text-gray-500" : "text-gray-900"
+            }`}
+          >
             {row.studentName || `Kind ${row.studentId}`}
           </p>
           <p className="mt-0.5 truncate text-xs text-gray-500">
@@ -452,11 +479,15 @@ function rosterDotColor(row: TimetableRosterRow) {
   if (row.status === "absent") {
     return LOCATION_COLORS.HOME;
   }
+  if (isNotScheduled(row)) {
+    return LOCATION_COLORS.UNKNOWN;
+  }
   return "#D1D5DB";
 }
 
 function rosterStatusLabel(row: TimetableRosterRow) {
   if (row.currentlyPresent || row.status === "present") return "Anwesend";
   if (row.status === "absent") return "Abwesend";
+  if (isNotScheduled(row)) return "Nicht eingeplant";
   return "Erwartet";
 }

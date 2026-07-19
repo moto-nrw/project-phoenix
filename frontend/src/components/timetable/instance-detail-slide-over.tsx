@@ -605,6 +605,12 @@ export function InstanceDetailSlideOver({
                   {instance.presentStudentsCount > 0
                     ? ` • ${instance.presentStudentsCount} anwesend`
                     : ""}
+                  {/* Names the gap between the assignment list and the care
+                      plan (#1747) instead of leaving a smaller number
+                      unexplained. */}
+                  {instance.notScheduledStudentsCount > 0
+                    ? ` • ${instance.notScheduledStudentsCount} heute nicht eingeplant`
+                    : ""}
                 </Row>
               ) : null}
               {instance.seriesNotes && (

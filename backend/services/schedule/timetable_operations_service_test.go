@@ -129,7 +129,7 @@ func TestTimetableOperationsPlannedNowUsesInstanceDate(t *testing.T) {
 		tomorrowStart := time.Date(2026, time.May, 11, 0, 5, 0, 0, time.UTC)
 		inst := instanceWithTimes(335, scheduleModel.InstanceStatusPlanned, tomorrowStart, tomorrowStart.Add(time.Hour))
 
-		result := mapPlannedInstance(inst, []*scheduleModel.InstanceStaff{{StaffID: 225}}, nil, now, 225, nil)
+		result := mapPlannedInstance(inst, []*scheduleModel.InstanceStaff{{StaffID: 225}}, nil, now, 225, nil, nil)
 
 		assert.False(t, result.IsOverdue)
 		assert.Equal(t, 10, result.MinutesUntilStart)
@@ -1094,6 +1094,38 @@ type timetableOpsTestDeps struct {
 	personService   *fakeOpsPersonService
 	settings        *fakeOpsSettings
 	broadcaster     *testpkg.RecordingBroadcaster
+	careDayService  *fakeOpsCareDayService
+}
+
+// fakeOpsCareDayService reports the care-plan verdict per student. Empty by
+// default, which reads as "unknown" everywhere — the pre-#1747 behaviour.
+type fakeOpsCareDayService struct {
+	byStudent map[int64]CareDayStatus
+}
+
+func (f *fakeOpsCareDayService) ResolveForDate(_ context.Context, studentIDs []int64, _ timezone.Date) (map[int64]CareDayStatus, error) {
+	out := make(map[int64]CareDayStatus, len(studentIDs))
+	for _, id := range studentIDs {
+		if status, ok := f.byStudent[id]; ok {
+			out[id] = status
+		}
+	}
+	return out, nil
+}
+
+func (f *fakeOpsCareDayService) ResolveForRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]CareDayStatus, error) {
+	byDate, err := f.ResolveForDate(ctx, studentIDs, from)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]map[timezone.Date]CareDayStatus, len(byDate))
+	for studentID, status := range byDate {
+		out[studentID] = map[timezone.Date]CareDayStatus{}
+		for date := from; !date.After(to); date = date.AddDays(1) {
+			out[studentID][date] = status
+		}
+	}
+	return out, nil
 }
 
 func newTimetableOpsDeps() *timetableOpsTestDeps {
@@ -1106,6 +1138,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		activityGroups:  &fakeOpsActivityGroupRepo{byID: map[int64]*activitiesModel.Group{}},
 		activeService:   &fakeOpsActiveService{},
 		arrivalService:  &fakeOpsArrivalService{byStudent: map[int64]*EffectiveArrivalTime{}},
+		careDayService:  &fakeOpsCareDayService{byStudent: map[int64]CareDayStatus{}},
 		supervisors:     &fakeOpsSupervisorRepo{byActiveGroup: map[int64][]*activeModel.GroupSupervisor{}},
 		visitRepo:       &fakeOpsVisitRepo{byActiveGroup: map[int64][]*activeModel.Visit{}, currentByStudent: map[int64]*activeModel.Visit{}},
 		students:        &fakeOpsStudentRepo{byID: map[int64]*usersModel.Student{}},
@@ -1123,6 +1156,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		ActiveGroupRepo:    deps.activeGroups,
 		ActivityGroupRepo:  deps.activityGroups,
 		ActiveService:      deps.activeService,
+		CareDayService:     deps.careDayService,
 		ArrivalService:     deps.arrivalService,
 		SupervisorRepo:     deps.supervisors,
 		VisitRepo:          deps.visitRepo,

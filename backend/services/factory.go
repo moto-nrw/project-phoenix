@@ -86,6 +86,7 @@ type Factory struct {
 	PickupSchedule           schedule.PickupScheduleService
 	ArrivalSchedule          schedule.ArrivalScheduleService
 	CalendarPeriod           schedule.CalendarPeriodService
+	CareDay                  schedule.CareDayService
 	Materialization          schedule.MaterializationService
 	TemplateSplit            *schedule.TemplateSplitService
 	TimetableCleanup         schedule.TimetableCleanupService
@@ -636,9 +637,20 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		logger.With("service", "materialization"),
 	)
 
+	// Care-day derivation (#1747): intersects timetable assignments with the
+	// children's care plans. Read-only, so it can be shared by every consumer
+	// (instance lifecycle, operations roster, weekly planner, scheduler).
+	careDayService := schedule.NewCareDayService(schedule.CareDayDependencies{
+		ArrivalSchedules:  repos.StudentArrivalSchedule,
+		ArrivalExceptions: repos.StudentArrivalException,
+		PickupSchedules:   repos.StudentPickupSchedule,
+		PickupExceptions:  repos.StudentPickupException,
+	})
+
 	// Initialize instance lifecycle before template split: the split reuses its
 	// deviation snapshot/reapply machinery when replacing future occurrences.
 	instanceService := schedule.NewInstanceService(schedule.InstanceServiceDependencies{
+		CareDayService:     careDayService,
 		InstanceRepo:       repos.ActivityInstance,
 		InstanceStaffRepo:  repos.InstanceStaff,
 		InstanceStudents:   repos.InstanceStudent,
@@ -736,6 +748,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		ActivityGroupRepo:  repos.ActivityGroup,
 		ActiveService:      activeService,
 		ArrivalService:     arrivalScheduleService,
+		CareDayService:     careDayService,
 		SupervisorRepo:     repos.GroupSupervisor,
 		VisitRepo:          repos.ActiveVisit,
 		StudentRepo:        repos.Student,
@@ -1465,6 +1478,7 @@ func NewFactory(repos *repositories.Factory, db *bun.DB, logger *slog.Logger) (*
 		PickupSchedule:           pickupScheduleService,
 		Display:                  displayService,
 		ArrivalSchedule:          arrivalScheduleService,
+		CareDay:                  careDayService,
 		CalendarPeriod:           calendarPeriodService,
 		Materialization:          materializationService,
 		TemplateSplit:            templateSplitService,

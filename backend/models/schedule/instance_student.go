@@ -199,7 +199,12 @@ type InstanceStudentRepository interface {
 	// when an instance ends (WP-B10 plan §6.2). Intentionally NOT used by
 	// Cancel(): a cancelled instance never ran, so "absent" would be a
 	// semantic misclaim.
-	BulkUpdateStatus(ctx context.Context, instanceID int64, fromStatus, toStatus string) (int, error)
+	//
+	// excludeStudentIDs is skipped by the update. Complete() passes the
+	// children the care plan does not place here today (#1747): they were
+	// never expected, so recording them absent would be the same kind of
+	// misclaim — and it would leak into attendance statistics and exports.
+	BulkUpdateStatus(ctx context.Context, instanceID int64, fromStatus, toStatus string, excludeStudentIDs []int64) (int, error)
 
 	// FindInstancesWithAttendanceByStudentAndDateRange returns one row per
 	// (instance_students, activity_instance) pair for the student across the
@@ -231,7 +236,11 @@ type InstanceStudentRepository interface {
 	// MarkExpectedAbsentByActiveGroupIDs flips status 'expected' → 'absent'
 	// for students on still-active instances bridged to the given
 	// active.groups. Used by the scheduler's daily session-end bridge.
-	MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time) error
+	//
+	// excludeStudentIDs is skipped, carrying the same rule as
+	// BulkUpdateStatus: a child the care plan does not place there that day
+	// was never expected and must not be recorded absent (#1747).
+	MarkExpectedAbsentByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, updatedAt time.Time, excludeStudentIDs []int64) error
 
 	// CloseOpenCheckoutsByActiveGroupIDs stamps checked_out_at on open
 	// present rows whose instance is bridged to the given active.groups.

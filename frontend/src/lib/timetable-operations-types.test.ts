@@ -53,6 +53,7 @@ describe("timetable operation mappers", () => {
       isOverdue: true,
       minutesUntilStart: -5,
       expectedStudentsCount: 18,
+      notScheduledStudentsCount: 0,
       presentStudentsCount: 3,
       assignedStaffIds: ["320", "321"],
       isAssigned: true,
@@ -76,6 +77,7 @@ describe("timetable operation mappers", () => {
           checkedOutAt: null,
           visitEntryTime: null,
           warnings: [],
+          careDayStatus: "unknown",
         },
       ],
     });
@@ -148,6 +150,7 @@ describe("timetable operation mappers", () => {
           checkedOutAt: "2026-05-10T13:00:00Z",
           visitEntryTime: "2026-05-10T12:01:00Z",
           warnings: [],
+          careDayStatus: "unknown",
         },
         {
           studentId: "421",
@@ -165,6 +168,7 @@ describe("timetable operation mappers", () => {
           checkedOutAt: null,
           visitEntryTime: null,
           warnings: [],
+          careDayStatus: "unknown",
         },
       ],
     });
@@ -198,6 +202,7 @@ describe("timetable operation mappers", () => {
       isOverdue: false,
       minutesUntilStart: 30,
       expectedStudentsCount: 0,
+      notScheduledStudentsCount: 0,
       presentStudentsCount: 0,
       assignedStaffIds: [],
       isAssigned: false,
@@ -330,6 +335,7 @@ describe("timetable operation mappers", () => {
           checkedOutAt: null,
           visitEntryTime: null,
           warnings: [],
+          careDayStatus: "unknown",
         },
       ],
     });

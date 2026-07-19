@@ -114,6 +114,7 @@ func instanceServiceWithBroadcaster(s *lifecycleSetup, broadcaster realtime.Broa
 		StudentRepo:        s.repos.Student,
 		ActiveService:      s.factory.Active,
 		Materialization:    s.factory.Materialization,
+		CareDayService:     s.factory.CareDay,
 		DeviationEventRepo: s.repos.DeviationEvent,
 		Broadcaster:        broadcaster,
 		DB:                 s.db,
@@ -1267,6 +1268,50 @@ func TestInstance_Complete_MarksRemainingExpectedAsAbsent(t *testing.T) {
 	got2 := fetchAttendance(t, s, ai.ID, s.student2)
 	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got2.Status,
 		"expected student must be flipped to absent at Complete")
+}
+
+// Complete must leave children the care plan does not place here today alone
+// (#1747). Assigning a whole group or year to an activity puts every member on
+// every occurrence; stamping the ones who are not booked that weekday "absent"
+// claims they failed to show up to care they never had, and that claim then
+// travels into attendance statistics and exports.
+func TestInstance_Complete_SkipsChildrenNotInCareThatDay(t *testing.T) {
+	s := buildLifecycle(t)
+
+	ai := seedInstance(t, s, true, true) // both students expected
+
+	// student2 has a care plan, but only for weekdays other than the
+	// instance's. student1 keeps no plan at all and must stay unaffected.
+	instanceWeekday := int(ai.Date.Weekday())
+	if instanceWeekday == 0 {
+		instanceWeekday = 7 // ISO: the schedule tables key Sunday as 7
+	}
+	for weekday := scheduleModels.WeekdayMonday; weekday <= scheduleModels.WeekdayFriday; weekday++ {
+		if weekday == instanceWeekday {
+			continue
+		}
+		row := testpkg.CreateTestArrivalSchedule(t, s.db, s.student2, weekday, s.staffID, "08:00")
+		t.Cleanup(func() {
+			testpkg.CleanupTableRecords(t, s.db, "schedule.student_arrival_schedules", row.ID)
+		})
+	}
+
+	started, err := s.svc.Start(s.ctx, ai.ID, 0)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		testpkg.CleanupTableRecords(t, s.db, "active.groups", started.ActiveGroupID)
+	})
+
+	_, err = s.svc.Complete(s.ctx, ai.ID)
+	require.NoError(t, err)
+
+	got1 := fetchAttendance(t, s, ai.ID, s.student1)
+	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, got1.Status,
+		"a child without any care plan is still expected, so Complete marks them absent")
+
+	got2 := fetchAttendance(t, s, ai.ID, s.student2)
+	assert.Equal(t, scheduleModels.AttendanceStatusExpected, got2.Status,
+		"a child not booked for care on this weekday must not be recorded absent")
 }
 
 // Cancel must NOT flip expected → absent. A cancelled instance never ran,

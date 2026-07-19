@@ -138,6 +138,7 @@ type Scheduler struct {
 	instanceRepo         scheduleModel.ActivityInstanceRepository
 	instanceRoomRepo     facilitiesModel.RoomRepository
 	instanceStudentRepo  scheduleModel.InstanceStudentRepository
+	careDayService       scheduleSvc.CareDayService
 	studentStatusDayRepo activeModel.StudentStatusDayRepository
 	overdueBroadcaster   realtime.Broadcaster
 	overdueEmitted       sync.Map // overdueKey{tenantID, instanceID} → time.Time
@@ -298,9 +299,14 @@ func (s *Scheduler) SetInstanceOverdueDeps(repo scheduleModel.ActivityInstanceRe
 // Independent of the overdue-tick wiring: it also sets instanceRepo so the
 // bridge works even when SetInstanceOverdueDeps was never called. Without
 // this wiring the bridge is a no-op.
-func (s *Scheduler) SetTimetableBridgeRepos(instanceStudents scheduleModel.InstanceStudentRepository, instances scheduleModel.ActivityInstanceRepository) {
+func (s *Scheduler) SetTimetableBridgeRepos(
+	instanceStudents scheduleModel.InstanceStudentRepository,
+	instances scheduleModel.ActivityInstanceRepository,
+	careDay scheduleSvc.CareDayService,
+) {
 	s.instanceStudentRepo = instanceStudents
 	s.instanceRepo = instances
+	s.careDayService = careDay
 }
 
 // SetStudentStatusDayRepo wires the repository used by the nightly
@@ -733,7 +739,15 @@ func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Conte
 		return 0, fmt.Errorf("close open timetable checkouts: %w", err)
 	}
 
-	if err := s.instanceStudentRepo.MarkExpectedAbsentByActiveGroupIDs(ctx, result.EndedActiveGroupIDs, now); err != nil {
+	// Children the care plan does not place in the OGS on the instance's day
+	// are spared the absent stamp (#1747) — same rule Complete() applies when
+	// a supervisor ends a block by hand. Without it the nightly bridge would
+	// keep writing absences for care that was never booked.
+	notScheduled, err := s.notScheduledForEndedSessions(ctx, result.EndedActiveGroupIDs)
+	if err != nil {
+		return 0, err
+	}
+	if err := s.instanceStudentRepo.MarkExpectedAbsentByActiveGroupIDs(ctx, result.EndedActiveGroupIDs, now, notScheduled); err != nil {
 		return 0, fmt.Errorf("mark expected timetable students absent: %w", err)
 	}
 
@@ -742,6 +756,67 @@ func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Conte
 		return 0, fmt.Errorf("complete active timetable instances: %w", err)
 	}
 	return int(rows), nil
+}
+
+// notScheduledForEndedSessions collects the children whose care plan does not
+// place them at the instances bridged to the just-ended active groups (#1747).
+// Returns nil when the care-day service is not wired, which keeps the previous
+// blanket behaviour rather than silently skipping absences.
+func (s *Scheduler) notScheduledForEndedSessions(ctx context.Context, activeGroupIDs []int64) ([]int64, error) {
+	if s.careDayService == nil || len(activeGroupIDs) == 0 {
+		return nil, nil
+	}
+
+	// One lookup per ended session — bounded by the sessions a single tenant
+	// closes in a day, and the instance rows are already hot from the bridge.
+	instanceIDs := make([]int64, 0, len(activeGroupIDs))
+	datesByInstance := make(map[int64]timezone.Date, len(activeGroupIDs))
+	for _, activeGroupID := range activeGroupIDs {
+		instance, err := s.instanceRepo.FindByActiveGroupID(ctx, activeGroupID)
+		if err != nil {
+			return nil, fmt.Errorf("load timetable instance for active group %d: %w", activeGroupID, err)
+		}
+		if instance == nil {
+			continue
+		}
+		instanceIDs = append(instanceIDs, instance.ID)
+		datesByInstance[instance.ID] = instance.Date
+	}
+	if len(instanceIDs) == 0 {
+		return nil, nil
+	}
+
+	rows, err := s.instanceStudentRepo.FindExpectedByInstanceIDs(ctx, instanceIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load expected timetable students: %w", err)
+	}
+
+	// Sessions can straddle midnight, so group by the instance's own date
+	// rather than assuming a single day.
+	studentsByDate := make(map[timezone.Date][]int64)
+	for _, row := range rows {
+		date, ok := datesByInstance[row.InstanceID]
+		if !ok {
+			continue
+		}
+		studentsByDate[date] = append(studentsByDate[date], row.StudentID)
+	}
+
+	seen := make(map[int64]bool)
+	notScheduled := make([]int64, 0)
+	for date, studentIDs := range studentsByDate {
+		careDay, err := s.careDayService.ResolveForDate(ctx, studentIDs, date)
+		if err != nil {
+			return nil, fmt.Errorf("resolve care day for %s: %w", date, err)
+		}
+		for studentID, status := range careDay {
+			if status == scheduleSvc.CareDayNotScheduled && !seen[studentID] {
+				seen[studentID] = true
+				notScheduled = append(notScheduled, studentID)
+			}
+		}
+	}
+	return notScheduled, nil
 }
 
 // scheduleTokenCleanupTask schedules hourly token cleanup

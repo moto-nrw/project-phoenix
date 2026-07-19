@@ -14,6 +14,7 @@ const plannedInstance: PlannedTimetableInstance = {
   endTime: "15:00",
   status: "planned",
   expectedStudentsCount: 8,
+  notScheduledStudentsCount: 0,
   presentStudentsCount: 0,
   minutesUntilStart: -5,
   assignedStaffIds: ["staff-1"],
@@ -37,6 +38,7 @@ const plannedInstance: PlannedTimetableInstance = {
       checkedInAt: null,
       visitEntryTime: null,
       warnings: [],
+      careDayStatus: "unknown",
     },
   ],
   isOverdue: true,
@@ -237,5 +239,63 @@ describe("PlannedNowSection", () => {
     expect(screen.getAllByText("AG Sport").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Startet gleich")).toHaveLength(1);
     expect(screen.getByText("Vertretung")).toBeInTheDocument();
+  });
+
+  it("sets children apart who are not in care today without hiding them", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            expectedStudentsCount: 7,
+            notScheduledStudentsCount: 1,
+            rosterPreview: [
+              plannedInstance.rosterPreview[0]!,
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                studentId: "student-2",
+                studentName: "Jonas Weber",
+                careDayStatus: "not_scheduled",
+              },
+            ],
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    // Still listed, so a child who turns up anyway stays one tap from a
+    // check-in — only the status label sets them apart.
+    expect(screen.getByText("Jonas Weber")).toBeInTheDocument();
+    expect(screen.getByText("Nicht eingeplant")).toBeInTheDocument();
+    expect(
+      screen.getByText("1 erwartet · 1 heute nicht eingeplant"),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps a present child expected even when the care plan says otherwise", () => {
+    render(
+      <PlannedNowSection
+        plannedNow={[
+          {
+            ...plannedInstance,
+            rosterPreview: [
+              {
+                ...plannedInstance.rosterPreview[0]!,
+                careDayStatus: "not_scheduled",
+                currentlyPresent: true,
+                status: "present",
+              },
+            ],
+          },
+        ]}
+        isStartingInstance={null}
+        onStart={vi.fn()}
+      />,
+    );
+
+    expect(screen.getAllByText("Anwesend").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Nicht eingeplant")).toBeNull();
   });
 });

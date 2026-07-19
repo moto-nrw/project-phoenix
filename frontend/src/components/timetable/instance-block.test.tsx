@@ -35,6 +35,7 @@ function makeInstance(
     staffCount: 1,
     absentStaffCount: 0,
     expectedStudentsCount: 0,
+    notScheduledStudentsCount: 0,
     presentStudentsCount: 0,
     requiredStaffCount: 3,
     assignedStaffCount: 2,

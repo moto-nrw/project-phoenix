@@ -93,6 +93,12 @@ export interface EnrichedInstance {
   expectedStudentsCount: number;
   presentStudentsCount: number;
   /**
+   * Assigned children the care plan does not place in this block on this day
+   * (#1747). Excluded from expectedStudentsCount and from the staffing maths,
+   * so the planner can explain a lower expected number.
+   */
+  notScheduledStudentsCount: number;
+  /**
    * Betreuungsplan capacity indicator (issue #1838): requiredStaffCount is
    * ceil(children / Betreuungsschlüssel); assignedStaffCount is the
    * non-absent staff count (staffCount - absentStaffCount, computed
@@ -163,6 +169,7 @@ export interface BackendEnrichedInstance {
   cancel_reason?: string | null;
   expected_students_count: number;
   present_students_count: number;
+  not_scheduled_students_count?: number;
   required_staff_count: number;
   assigned_staff_count: number;
   required_staff_override?: number | null;

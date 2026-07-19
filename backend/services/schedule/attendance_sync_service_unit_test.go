@@ -231,7 +231,7 @@ func (f *fakeInstanceStudentRepo) UpdateAttendanceFields(context.Context, int64,
 	panic("unused")
 }
 
-func (f *fakeInstanceStudentRepo) BulkUpdateStatus(context.Context, int64, string, string) (int, error) {
+func (f *fakeInstanceStudentRepo) BulkUpdateStatus(context.Context, int64, string, string, []int64) (int, error) {
 	panic("unused")
 }
 
@@ -847,7 +847,7 @@ func (f *fakeInstanceRepo) DeleteOlderThan(context.Context, string, timezone.Dat
 	return 0, nil
 }
 
-func (f *fakeInstanceStudentRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time) error {
+func (f *fakeInstanceStudentRepo) MarkExpectedAbsentByActiveGroupIDs(context.Context, []int64, time.Time, []int64) error {
 	return nil
 }
 

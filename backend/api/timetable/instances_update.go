@@ -99,7 +99,7 @@ func (rs *Resource) updateInstance(w http.ResponseWriter, r *http.Request) {
 	}
 	roomCache := make(map[int64]string)
 	typeCache := make(map[int64]templateMeta)
-	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()))
+	enriched, err := rs.enrichInstance(r.Context(), inst, roomCache, typeCache, rs.childrenPerStaffRatio(r.Context()), rs.careDaysForInstance(r.Context(), inst))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("enrich instance failed", err))
 		return
